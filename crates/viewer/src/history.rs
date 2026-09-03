@@ -19,9 +19,20 @@
 //! NEW work rather than to the branch the edit walked away from. Both
 //! branches remain.
 //!
+//! # An entry is ONE USER ACTION, which may be several edits
+//!
+//! [`Entry`] holds the edits its action performed, in the order they
+//! were applied, and undo steps over the whole group. A cascading
+//! delete is one action and one undo; a slider drag is one action and
+//! one undo; nothing here privileges the count. The saved log is the
+//! path's edits FLATTENED ([`History::path_edits`]), because the file
+//! format records edits and not actions — a reopened document
+//! therefore undoes a cascade one edit at a time, which is the price
+//! of grouping being viewer-local state rather than schema.
+//!
 //! # Documents are values, so the tree is free
 //!
-//! Each entry retains the `Doc` the edit produced and the `DocEdit`
+//! Each entry retains the `Doc` its action produced and the `DocEdit`s
 //! that produced it. `apply` is pure and never mutates its input, so
 //! keeping the old value costs a clone of a document, not a
 //! reconstruction — which is why the tree is parent pointers over
@@ -49,7 +60,7 @@ impl HistoryId {
 pub struct Entry {
     doc: Doc<ProfileProgram>,
     parent: Option<HistoryId>,
-    edit: Option<DocEdit<ProfileProgram>>,
+    edits: Vec<DocEdit<ProfileProgram>>,
     children: Vec<HistoryId>,
     active_child: Option<HistoryId>,
 }
@@ -65,10 +76,11 @@ impl Entry {
         self.parent
     }
 
-    /// The edit that produced this state from its parent; `None` for
-    /// the root.
-    pub fn edit(&self) -> Option<&DocEdit<ProfileProgram>> {
-        self.edit.as_ref()
+    /// The edits that produced this state from its parent, in applied
+    /// order — one for most actions, several for a cascade. EMPTY for
+    /// the root, which is the one state no action reached.
+    pub fn edits(&self) -> &[DocEdit<ProfileProgram>] {
+        &self.edits
     }
 
     /// Every state edited from this one, in minting order.
@@ -122,7 +134,7 @@ impl History {
             entries: vec![Entry {
                 doc,
                 parent: None,
-                edit: None,
+                edits: Vec::new(),
                 children: Vec::new(),
                 active_child: None,
             }],
@@ -207,12 +219,34 @@ impl History {
     /// active child moves. The caller supplies the document `apply`
     /// produced, so this function never re-runs an edit.
     pub fn commit(&mut self, edit: DocEdit<ProfileProgram>, doc: Doc<ProfileProgram>) -> HistoryId {
+        self.commit_group(vec![edit], doc)
+    }
+
+    /// Record a whole ACTION — the edits it applied, in order, and the
+    /// document the last of them produced — as ONE state, and move the
+    /// cursor onto it.
+    ///
+    /// [`History::commit`] is this with a group of one; the branching
+    /// rule and the caller's obligation (the document is `apply`'s
+    /// output, never re-derived here) are identical for both.
+    ///
+    /// # Panics
+    ///
+    /// On an empty group. The root is the one state no edit reached,
+    /// and a second such state would give undo a step that changes
+    /// nothing.
+    pub fn commit_group(
+        &mut self,
+        edits: Vec<DocEdit<ProfileProgram>>,
+        doc: Doc<ProfileProgram>,
+    ) -> HistoryId {
+        assert!(!edits.is_empty(), "a committed action performs an edit");
         let id = HistoryId(self.entries.len());
         let parent = self.current;
         self.entries.push(Entry {
             doc,
             parent: Some(parent),
-            edit: Some(edit),
+            edits,
             children: Vec::new(),
             active_child: None,
         });
@@ -264,10 +298,13 @@ impl History {
 
     /// The edits along the current path, root first — the linear log a
     /// save writes beside the root snapshot.
+    ///
+    /// FLAT: a grouped action contributes its edits individually, in
+    /// applied order, because the file records edits and not actions.
     pub fn path_edits(&self) -> Vec<DocEdit<ProfileProgram>> {
         self.path()
             .into_iter()
-            .filter_map(|id| self.entry(id).edit.clone())
+            .flat_map(|id| self.entry(id).edits.iter().cloned())
             .collect()
     }
 }

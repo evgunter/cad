@@ -12,7 +12,7 @@ use geom::Surface;
 use geom_brep::{CertCheck, CertifyError, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
 use geom_core::{Point3, Vec3};
 use topo::{
-    Body, EulerOpError, FaceSurface, MefSite, MevSite, validate, validate_closed,
+    Body, ContactRecords, EulerOpError, FaceSurface, MefSite, MevSite, validate, validate_closed,
     validate_geometric,
 };
 
@@ -248,12 +248,26 @@ fn dual_lane_decisions_match_f64_bit_for_bit() {
     // upgrade first (M2 PR 4 fix pass: the transverse cube chords must
     // carry Intersection at rest), so the compared certificates are the
     // upgraded Intersection re-certifications.
+    //
+    // The dual goes through the STRUCTURAL half, which is where every
+    // certificate compared below is produced — checks 1-6, 8 and 9 all
+    // run, and the one check that does not is the +V volume invariant,
+    // which reads an enclosure a dual may not certify and reads no
+    // certificate this row compares. The f64 lane's own composed-door
+    // rows are elsewhere in this file.
     use geom_core::{Dual, Dual64};
     let mut f = geometric_cube::<f64>();
     let mut d = geometric_cube::<Dual64>();
     describe_as_intersections(&mut f.body);
     describe_as_intersections(&mut d.body);
-    assert_eq!(validate_geometric(&d.body, Tol::witness()), Ok(()));
+    assert_eq!(
+        topo::validate_geometric_structural(&d.body, Tol::witness()),
+        Ok(())
+    );
+    // And the same body at f64 passes the COMPOSED door, so the
+    // structural pass above is not a weaker subject standing in for one
+    // that would have failed.
+    assert_eq!(validate_geometric(&f.body, Tol::witness()), Ok(()));
     let f_certs: Vec<f64> = f
         .body
         .curves()
@@ -374,4 +388,70 @@ fn totality_no_panics_on_poison_inputs() {
         })
     ));
     assert_eq!(validate(&body), Ok(()));
+}
+
+/// **The structural half never judges orientation, at ANY scalar — and
+/// on a closed-form body that is a verdict a dual used to get here.**
+///
+/// Check 7 has two derivations: the certified quadrature, which no dual
+/// can reach, and the CLOSED FORM, which computes at every scalar with
+/// `pad = 0`. On a planar body the closed form answers, so the pre-split
+/// `validate_geometric` handed a `Dual64` caller a genuine `+V` SIGN —
+/// not a refusal. The split moves the whole check, both derivations, to
+/// the certified half, so the structural door is silent about
+/// orientation everywhere rather than only where certification was
+/// unavailable. **An inverted body passes it BY DESIGN.**
+///
+/// The recourse is named at the doors and pinned here: the mixed passes
+/// keep their lanes, so a dual caller that wants the sign asks
+/// `validate_pseudomanifold`, `contact_marks` or `mass_properties`,
+/// which still run check 7 through the scalar's own lane. This row is
+/// the three verdicts side by side, so the disagreement between the
+/// at-rest doors at a dual is a tested fact rather than a surprise.
+#[test]
+fn the_structural_half_does_not_judge_orientation_at_any_scalar() {
+    use geom_core::Dual64;
+    let tol = Tol::witness();
+
+    // f64, the composed door: the sign is decided and the body refused.
+    let mut f = geometric_cube::<f64>();
+    describe_as_intersections(&mut f.body);
+    let f_inverted = f.body.revert().expect("the cube reverts");
+    assert_eq!(
+        validate_geometric(&f_inverted, tol),
+        Err(vec![topo::ValidationError::NegativeVolume]),
+        "the composed door judges orientation at a certifying scalar"
+    );
+
+    // Dual64, the structural half: SILENT about orientation, and the
+    // same body is otherwise sound, so `Ok` here is the whole finding
+    // rather than a refusal arriving from somewhere else.
+    let mut d = geometric_cube::<Dual64>();
+    describe_as_intersections(&mut d.body);
+    let d_inverted = d.body.revert().expect("the cube reverts at a dual");
+    assert_eq!(
+        topo::validate_geometric_structural(&d_inverted, tol),
+        Ok(()),
+        "the structural half runs no +V check, so an inverted body passes it"
+    );
+
+    // Dual64, the mixed passes H-R3 keeps: the sign is still available,
+    // through the closed form, at the scalar the composed door excludes.
+    assert_eq!(
+        topo::validate_pseudomanifold(&d_inverted, &ContactRecords::default(), tol),
+        Err(vec![topo::ValidationError::NegativeVolume]),
+        "the census pass still judges orientation at a dual"
+    );
+    assert!(
+        topo::contact_marks(&d_inverted, tol).is_err(),
+        "the marks pass refuses the same body for the same reason"
+    );
+    assert!(
+        topo::mass_properties(&d_inverted, tol)
+            .expect("the closed form computes a volume at a dual")
+            .volume
+            .value
+            < 0.0,
+        "and the closed-form volume a dual CAN compute is the negative one"
+    );
 }

@@ -115,60 +115,14 @@ fn opening_a_file_that_is_not_a_document_refuses_at_the_persistence_door() {
 /// **A real gallery document, opened through the typed door.**
 ///
 /// The file is the tour's `gallery` mode output for the ring scene,
-/// committed verbatim — so this row is the acceptance walk (open a
-/// gallery `.pncad`, see its feature tree with live statuses, save it
-/// back) with the dialog and the window taken out.
-///
-/// It is version-stamped in its name, as `pncad`'s own fixture is: a
-/// schema break makes this file unreadable, and the fix is to
-/// regenerate it from `demo-tour gallery` and rename, never to teach
-/// the loader about an old shape.
-const GALLERY_RING: &str = include_str!("gallery_ring.v17.pncad");
-
-/// **ε is a run parameter, and a saved document records the one it was
-/// decided at** — "one process, one ε", which `load` enforces by
-/// refusing a file whose recorded ε is not the process's
-/// (`PersistError::ToleranceConflict`). The CI matrix sweeps ε, so a
-/// committed document fixture is loadable at exactly one of its
-/// points and refuses at the others; this row went red at 1e-12 for
-/// precisely that reason.
-///
-/// So the fixture is re-stamped with THIS run's ε before it is opened.
-/// The new ε line comes from `save` itself, via a throwaway document at
-/// the process tolerance: spelling a float the way the serializer
-/// spells it is the serializer's job, not this file's.
-///
-/// **What this function does NOT do is check its own work.** An earlier
-/// version asserted that the re-stamp changed only the ε line by
-/// comparing its own output's non-ε lines against its own input's — an
-/// assertion true by construction of the `map` that built them, which
-/// is to say no assertion at all. The real claim (a re-stamped fixture
-/// is byte-for-byte what the exporter writes at this ε) is measured by
-/// [`the_restamped_fixture_is_what_the_serializer_writes_at_this_eps`],
-/// which puts the bytes back through `save` rather than through this
-/// function's own arithmetic.
-fn gallery_ring_at(tol: Tol) -> String {
-    let probe: pncad::document::Doc<pncad::document::ProfileProgram> =
-        pncad::document::Doc::empty_derived("gui3-epsilon-probe", tol);
-    let probe_text = pncad::document::save(&probe, &[], tol).expect("an empty document saves");
-    let is_epsilon = |line: &str| line.trim_start().starts_with("\"epsilon\":");
-    let wanted = probe_text
-        .lines()
-        .find(|line| is_epsilon(line))
-        .expect("a saved document records its ε");
-    assert_eq!(
-        GALLERY_RING.lines().filter(|l| is_epsilon(l)).count(),
-        1,
-        "the fixture must carry exactly one ε line"
-    );
-    let mut text: String = GALLERY_RING
-        .lines()
-        .map(|line| if is_epsilon(line) { wanted } else { line })
-        .collect::<Vec<&str>>()
-        .join("\n");
-    text.push('\n');
-    text
-}
+/// committed verbatim — so this suite's rows over it are the
+/// acceptance walk (open a gallery `.pncad`, see its feature tree
+/// with live statuses, save it back) with the dialog and the window
+/// taken out. The fixture and its ε re-stamp live in `common`
+/// (`common::GALLERY_RING` / `common::gallery_ring_at`) now that a
+/// second suite (`creation_ops`) compares against the same file; the
+/// serializer-fidelity claim below still gates the re-stamp.
+use common::gallery_ring_at;
 
 /// **The ε claim, measured through the serializer rather than through
 /// the re-stamp's own arithmetic.**

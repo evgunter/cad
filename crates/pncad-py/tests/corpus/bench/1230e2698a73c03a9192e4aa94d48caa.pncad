@@ -1,4 +1,3 @@
-schema: 17
 id: 1230e2698a73c03a9192e4aa94d48caa
 {
   "snapshot": {
@@ -140,19 +139,22 @@ id: 1230e2698a73c03a9192e4aa94d48caa
       "depth": {
         "Continuous": {
           "dim": "Length",
-          "value": 0.3
+          "value": 0.3,
+          "display_unit": "m"
         }
       },
       "length": {
         "Continuous": {
           "dim": "Length",
-          "value": 0.9
+          "value": 0.9,
+          "display_unit": "m"
         }
       },
       "thickness": {
         "Continuous": {
           "dim": "Length",
-          "value": 0.04
+          "value": 0.04,
+          "display_unit": "m"
         }
       }
     },

@@ -46,6 +46,12 @@ mod arc_eval_anchor;
 mod cert1_r1_probes;
 #[path = "cert1_sphere_polar.rs"]
 mod cert1_sphere_polar;
+#[path = "cert3r1_e2e.rs"]
+mod cert3r1_e2e;
+#[path = "cert5_arm_and_cells.rs"]
+mod cert5_arm_and_cells;
+#[path = "cert5_r1_patch_probes.rs"]
+mod cert5_r1_patch_probes;
 
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
@@ -77,9 +83,26 @@ mod r2_probe_sphere_polar;
 #[path = "offb_r2_probes.rs"]
 mod offb_r2_probes;
 
+#[path = "cert7_r1_probes.rs"]
+mod cert7_r1_probes;
+
+#[path = "cert7_r2_probes.rs"]
+mod cert7_r2_probes;
+
+#[path = "cert10_r1_probes.rs"]
+mod cert10_r1_probes;
+
+#[path = "cert10r2_probes.rs"]
+mod cert10r2_probes;
+
+#[path = "r2_quad_digit_probe.rs"]
+mod r2_quad_digit_probe;
+
 #[path = "offset_fit.rs"]
 mod offset_fit;
 
+#[path = "cert5_r2_probes.rs"]
+mod cert5_r2_probes;
 #[path = "offset_mint.rs"]
 mod offset_mint;
 #[path = "pcurve_conic.rs"]
@@ -94,6 +117,8 @@ mod pcurve_p1b_r2_probes;
 mod pcurve_parameter_finding;
 #[path = "r1_pxn_probes.rs"]
 mod r1_pxn_probes;
+#[path = "r2_cert3_e2e.rs"]
+mod r2_cert3_e2e;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
 #[path = "review_flux_probes_r1.rs"]
@@ -120,6 +145,8 @@ mod review_m6_surgery_rider;
 mod review_pr12_meridian_probe;
 #[path = "review_r1_rational_probes.rs"]
 mod review_r1_rational_probes;
+#[path = "revolved_point_anchor.rs"]
+mod revolved_point_anchor;
 #[path = "rim_dim_review_probes.rs"]
 mod rim_dim_review_probes;
 #[path = "rim_dim_scale_twins.rs"]
@@ -175,3 +202,38 @@ fn every_suite_file_is_aggregated() {
 mod r2_probes;
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
+
+#[path = "r1_perimeter_probes.rs"]
+mod r1_perimeter_probes;
+
+#[path = "r2_cert6_probes.rs"]
+mod r2_cert6_probes;
+
+#[path = "cert6_gauge_rows.rs"]
+mod cert6_gauge_rows;
+
+#[path = "n2r1_probes.rs"]
+mod n2r1_probes;
+
+#[path = "cert_n2r2_class3_probes.rs"]
+mod cert_n2r2_class3_probes;
+
+#[path = "cert_n2r2_class56_probes.rs"]
+mod cert_n2r2_class56_probes;
+
+#[path = "iso_rectangle_door.rs"]
+mod iso_rectangle_door;
+#[path = "mesh10r1_probes.rs"]
+mod mesh10r1_probes;
+#[path = "mesh10r2_probes.rs"]
+mod mesh10r2_probes;
+#[path = "mesh11_arc_branch.rs"]
+mod mesh11_arc_branch;
+#[path = "mesh11r1_probes.rs"]
+mod mesh11r1_probes;
+#[path = "mesh11r2_base_probes.rs"]
+mod mesh11r2_base_probes;
+#[path = "mesh11r2_probes.rs"]
+mod mesh11r2_probes;
+#[path = "r2_mesh7_door_probes.rs"]
+mod r2_mesh7_door_probes;

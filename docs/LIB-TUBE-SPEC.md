@@ -1,7 +1,7 @@
 # LIB-TUBE — Node::Tube + Node::HollowTube (recipe doors for the tube pair; G2's tube half)
 
 **Status: spec under ratified `docs/RECIPE-DOORS-DESIGN.md` D1 + D4
-AS REVISED by the #1205 ruling (Evan, issue comment + in-chat
+AS REVISED by the #1205 ruling (Ev, issue comment + in-chat
 sign-off, 2026-08-29). Binding at dispatch. Full model-A/B protocol
 unit — a schema break is not mechanical. RECIPE-DOORS unit 2 of 3.**
 
@@ -30,15 +30,23 @@ unit — a schema break is not mechanical. RECIPE-DOORS unit 2 of 3.**
    REPORT the answer rather than forcing either; if translation is
    needed, no new `RoleSeg` variants without a spec-deviation
    disclosure and an argument.
-3. **Schema bump per the dispatch-time-seam discipline**: read
-   main's `SCHEMA_VERSION` by eye at branch time (v16 at spec) and
-   at EVERY re-merge; claim the next free number; ONE bump covers
-   both node kinds (D4); one ledger prose entry, one meaning;
-   old-file refusal typed with the standing regenerate recourse;
-   regenerate invalidated fixture families by their own documented
-   recipes (header-line-only diffs, verified); a red-capable
-   vN→vN+1 demonstration row is REQUIRED in this unit (the class R1
-   found missing at G16 — don't make a reviewer write it again).
+3. **Persistence per the post-BOOL-13 contract** (AMENDED 2026-09-03,
+   see the Amendment section): there is NO schema version to bump —
+   #1553 demolished the version machinery after this unit dispatched
+   (ratified at #1540; `persist/mod.rs`'s "No schema version, on
+   purpose" header is the contract). Two new node kinds are ADDITIVE
+   growth: an older file never names them and loads; a newer file
+   naming them refuses typed (`deny_unknown_fields` →
+   `PersistError::Unreadable` with the regenerate recourse) on a
+   stale build — both directions come from the one door and need no
+   ledger entry, no version constant, no vN→vN+1 demonstration row.
+   What this unit still owes: regenerate whatever committed
+   fixtures/corpora its serialization actually touches by their own
+   documented recipes (diffs verified minimal), and a row proving
+   the two node kinds ROUND-TRIP through save/load/replay
+   bit-identically (the save/load/replay-identity row's own shape,
+   extended to the new kinds). Any v17 bump machinery built before
+   the amendment is REMOVED at re-merge, not carried.
 4. **`Node.tube` and `Node.hollow_tube` in pncad-py** — no optional
    wall on `tube`; window crossing per the Revolve angle-binding
    precedent; stubs, ty fixtures, tags; the two kinds' refusal
@@ -83,6 +91,28 @@ new `RoleSeg` variants without disclosure (deliverable 2). No #917
 motion. No tour-scene re-authoring beyond what the audit rows'
 honesty demands (die_tool-style re-authoring checks are separate
 mechanical units).
+
+## Amendment (2026-09-03, orchestrator — environment-forced, pre-review)
+
+Recorded before any review dispatched, applying identically to
+whatever both reviewers later see; the implementer lane was mid-unit
+(complete locally, unpushed) when main moved under it:
+
+- **Deliverable 3 rewritten** (above): BOOL-13 (#1553, ratified
+  #1540) demolished the schema-version machinery after this unit's
+  dispatch. The bump/ledger/demonstration-row demands are void; the
+  round-trip row and recipe-regeneration demands replace them. The
+  header's "a schema break is not mechanical" justification for the
+  full A/B protocol still stands on the unit's real weight: two new
+  vocabulary kinds across every enumerated site, emitters, bindings,
+  corpus and audit — STRUCTURAL either way.
+- **Record surfaces moved by the work/ tracker migration**: the
+  unit's log row goes to `work/lib/log.md` (docs/LIB-LOG.md is now a
+  lint error); the item file `work/lib/LIB-TUBE.md` carries status
+  transitions (`dispatched` at PR-open with `pr:`/`branch:`; per the
+  tracker contract this spec file is DELETED at merge and the item
+  file is the surviving record). MODEL-AB-LOG stays in `docs/` (the
+  named exemption).
 
 ## Protocol
 

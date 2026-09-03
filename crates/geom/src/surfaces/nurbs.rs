@@ -1,17 +1,24 @@
 //! The tensor-product NURBS surface — the [`crate::surfaces::Surface::Nurbs`]
 //! payload (M5 PR 3).
 //!
-//! Data model, evaluation contract, and fixed-association rules are
-//! the curve module's, lifted to the tensor product (see
-//! [`crate::curves::nurbs`]; the conventions are
-//! stated once there and once here — clamped-v1 per direction, f64
-//! structure, positive weights, span contract with documented
-//! polynomial-extension garbage-out). A [`SurfaceWindow`] pairs two
-//! validated spans with the layout that flattens them, but it carries
-//! no borrow of the surface it was minted from, so each `*_in_span`
-//! core asks [`NurbsSurface::admits`] and answers a window this
-//! surface does not admit with all-poison rather than an
-//! out-of-bounds index.
+//! Data model, evaluation contract and fixed-association rules are
+//! stated once, in [`crate::curves::nurbs`], and hold here **per
+//! direction** — that lifting is the whole of what this module
+//! inherits, and re-spelling any of it here is the second copy the
+//! two halves' merge existed to remove. What follows is the surface's
+//! own: the grid layout, the direction-mapped knot algebra, and the
+//! window. A [`SurfaceWindow`] pairs two validated spans with the
+//! layout that flattens them, but it carries no borrow of the surface
+//! it was minted from, so each `*_in_span` core asks
+//! [`NurbsSurface::admits`] and answers a window this surface does not
+//! admit with all-poison rather than an out-of-bounds index.
+//!
+//! # The one door that does not belong here
+//!
+//! Iso-curve extraction — turning a row of this control net into a
+//! curve for an **edge** to carry — is the EdgeDescription layer's,
+//! under a placement rule stated and argued in `geom-brep`'s
+//! `nurbs_iso` module docs. Read it before adding such a door here.
 //!
 //! # Grid layout (binding)
 //!
@@ -319,6 +326,59 @@ impl<T: Real> NurbsSurface<T> {
     /// `(nu, nv)` — control counts per direction.
     pub fn control_counts(&self) -> (usize, usize) {
         (self.knots_u.control_count(), self.knots_v.control_count())
+    }
+
+    /// Construction from parts whose invariants are ALREADY
+    /// established — the door a structural map takes instead of
+    /// [`Self::new`], and the one place that says why `new`'s check is
+    /// redundant for it: both knot vectors and the weights are a
+    /// validated surface's own, carried verbatim, and `control` is that
+    /// surface's net mapped POINTWISE, which cannot change its length —
+    /// so `control.len()` still equals `nu · nv`, `weights.len()` still
+    /// equals `control.len()`, and every weight is still the positive
+    /// finite value `new` admitted. The `debug_assert` re-derives the
+    /// count agreement (D2 addendum row 5).
+    fn from_validated_parts(
+        knots_u: KnotVector,
+        knots_v: KnotVector,
+        control: Vec<Point3<T>>,
+        weights: Vec<f64>,
+    ) -> Self {
+        debug_assert!(
+            control.len() == knots_u.control_count() * knots_v.control_count()
+                && weights.len() == control.len(),
+            "from_validated_parts: a pointwise map changed a count \
+             (control {}, knots want {}, weights {})",
+            control.len(),
+            knots_u.control_count() * knots_v.control_count(),
+            weights.len()
+        );
+        Self {
+            knots_u,
+            knots_v,
+            control,
+            weights,
+        }
+    }
+
+    /// The same surface read at another scalar: `f` applied to every
+    /// control coordinate, both knot vectors and the weights carried
+    /// over verbatim — `f64` structure at every scalar. Construction
+    /// goes through [`Self::from_validated_parts`], which states why no
+    /// re-validation is run. The contract is
+    /// [`NurbsCurve3::map_scalar`]'s one dimension up: exact whenever
+    /// `f` is; what the placeholder and a poisoned net lift to is
+    /// argued once, in `crate::scalar_lift`'s module docs.
+    ///
+    /// [`NurbsCurve3::map_scalar`]: crate::curves::NurbsCurve3::map_scalar
+    #[must_use]
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> NurbsSurface<U> {
+        NurbsSurface::from_validated_parts(
+            self.knots_u.clone(),
+            self.knots_v.clone(),
+            self.control.iter().map(|p| p.map(&f)).collect(),
+            self.weights.clone(),
+        )
     }
 
     /// The [`SurfaceWindow`] for a span pair already validated against

@@ -25,8 +25,14 @@
 # and a pre-push check any time. Keep the two IN SYNC: a job added to
 # ci.yml gets a row here, same commands, same env. Rows run sequentially
 # (they share one target/ dir — cargo can't safely share it concurrently);
-# all rows run even after a failure (ci.yml's fail-fast: false), summary
-# at the end, nonzero exit if any row failed.
+# all rows run even after a failure, summary at the end, nonzero exit if any
+# row failed. TWO DIFFERENT FAIL-FAST SETTINGS LIVE HERE and conflating them
+# is what #1128 was: the sentence above is about ROWS, and its hosted twin is
+# ci.yml's matrix-level `fail-fast: false`, which stops one shard's failure
+# cancelling the other. Neither touches what happens to the TESTS INSIDE a
+# row after the first one fails — that is nextest's own default, which is
+# fail-fast, and every nextest row in this file now passes `--no-fail-fast`
+# (see the note at the test rows).
 #
 # Prereqs beyond the Rust toolchain: admesh (watertight row; apt or built
 # from source — 0.98.4+) and cargo-nextest (test rows; pinned 0.9.140 to
@@ -34,6 +40,27 @@
 # or the prebuilt from https://get.nexte.st/0.9.140/linux). Nothing here
 # needs a C toolchain: the `interval` feature's backend is the in-repo,
 # pure-Rust `interval-transcendentals`.
+#
+# THE HOSTED FIGURES QUOTED THROUGHOUT THIS FILE ARE UNGUARDED READINGS —
+# billed minutes, job durations, merge frequencies, cache sizes. They are
+# quoted to explain why a row is sited or filtered the way it is, and this
+# script computes with NONE of them: what it runs is derived from ci.yml's
+# job set and from scripts/ci-filter.py's tier, both of which are read at
+# run time. A drifted figure therefore cannot desynchronize the mirror,
+# which is the only property this file is required to keep. The mirror
+# itself IS guarded — scripts/check-ci-mirror-parity.py — and that guard
+# reads the row set, never a duration.
+#
+# WHICH OF THEM A REGISTER RE-TAKES, since the answer is not uniform and
+# "unguardable" is the wrong word for several: the rows below that name
+# docs/perf-data/rebuild-latency/, docs/tess-budget-data/ and
+# docs/K-REPORT.md are pointing at documents a SCHEDULED job refreshes
+# (nightly.yml and ci.yml between them also keep docs/perf-data/criterion/
+# and docs/perf-data/opt-level/ current) — read the register, not the
+# sentence quoting it. What has no register anywhere is the billing and
+# queue arithmetic: billed minutes, a job's wall duration, how often a
+# lane fires across recent merges. Nothing in this repo re-takes those,
+# and nothing here computes with them.
 #
 # BUILD ONCE PER COMPILE MODE (2026-08-03): hosted CI now compiles the
 # test binaries once per feature graph (`build` / `build-interval`, via
@@ -132,7 +159,7 @@ BASE=""
 # THE NIGHTLY (DEMOTED) ROW IS OPT-IN, and that is the one place this script
 # is NOT a superset of a hosted run. The superset claim it makes elsewhere is
 # about the sampled MATRIX — both lanes, all three eps, all five k-lint
-# unifications — and a demoted test is not a matrix point: it is a test Evan
+# unifications — and a demoted test is not a matrix point: it is a test Ev
 # ruled need not run per-PR at all, and this script is the per-PR gate of
 # record when hosted Actions is unavailable. Running it by default would put
 # back, in the half a developer waits on, exactly the cost the demotion
@@ -190,7 +217,7 @@ fi
 echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
 
 # --- tier-blind rows: A CHECK MUST BE SITED WHERE IT CAN FIRE ON ITS OWN
-# INPUTS (Evan, 2026-08-20, on S61). These read prose, documentation and this
+# INPUTS (Ev, 2026-08-20, on S61). These read prose, documentation and this
 # file — inputs whose change sets classify TIER=docs, which is exactly what the
 # early exit below returns on. Placed ABOVE it, because a check the tier
 # selection can skip is not a check, and because siting them below would
@@ -215,7 +242,13 @@ echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
 # HOSTED MIRROR: mirror / probe type-check loop citations
 # HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
+# HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
 # HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
+# The work tracker's lint (work/README.md) reads work/ and docs/ — markdown,
+# the docs tier — so it sits here too. The territory row is advisory on both
+# halves: it prints paths another program owns and never fails.
+# HOSTED MIRROR: mirror / work tracker lint (work/ items resolve and docs/ holds no plan or log)
+# HOSTED MIRROR: mirror / work tracker territory (advisory)
 tier_blind_rows() {
   local rc=0
   scripts/gates/gate-roster.sh --selftest || rc=1
@@ -224,8 +257,12 @@ tier_blind_rows() {
   python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
   python3 scripts/check-ci-mirror-parity.py || rc=1
   python3 scripts/ci-filter.py --selftest || rc=1
+  scripts/tess_budget_cut.sh --selftest || rc=1
   python3 scripts/check-python-lint.py --selftest || rc=1
   python3 scripts/check-python-lint.py || rc=1
+  python3 scripts/work.py --selftest || rc=1
+  python3 scripts/work.py lint || rc=1
+  python3 scripts/work.py territory --base "$BASE" || rc=1
   return $rc
 }
 echo
@@ -326,6 +363,22 @@ discipline() {
   # HOSTED MIRROR: discipline / interval-feature additivity (gates the interval run legs)
   if ! (python3 scripts/check-interval-cfg-additive.py --selftest \
         && python3 scripts/check-interval-cfg-additive.py); then
+    rc=1
+  fi
+  # The parsers behind the hosted test-cost REPORTS, against fixtures captured
+  # from real runs. The reports themselves have no local half and are not
+  # supposed to: their subject is what a hosted run cost and what a PULL
+  # REQUEST added to it — a `$GITHUB_STEP_SUMMARY` and a base tree, neither of
+  # which exists on this box. What DOES belong in both halves is the check that
+  # the parsers still read nextest's output, because a report that gates
+  # nothing has no red run to announce a parser that stopped matching.
+  # The same argument covers `base-test-listing.sh`, whose subject is even more
+  # hosted-only — an artifacts-API lookup — and whose selftest is therefore
+  # written against stub `cargo`, `gh` and `curl` and runs anywhere.
+  # HOSTED MIRROR: discipline / test cost report parsers (selftest)
+  if ! (python3 scripts/slowest-tests.py --selftest \
+        && python3 scripts/pr-added-tests.py --selftest \
+        && scripts/base-test-listing.sh --selftest); then
     rc=1
   fi
   return $rc
@@ -488,11 +541,24 @@ nextest_check() {
   echo "  cargo install cargo-nextest --locked --version 0.9.140"
   return 1
 }
+# `--no-fail-fast` ON EVERY NEXTEST ROW IN THIS FILE, and the reason is
+# sharper here than it is hosted. nextest's default is fail-fast (measured
+# against the pinned 0.9.140 — the argument is at ci.yml's sharded run steps),
+# so without the flag each row below reported its FIRST failure and stopped.
+# This script is the half that runs EVERY point of the matrix on one tree,
+# reached for before a merge that would be expensive to get wrong: a row that
+# answers "how broken is this tree" with one name is answering a question
+# nobody asked.
+#
+# It also keeps the two halves saying the same thing about a red run. The
+# parity checker compares which CHECKS each half names, never the flags on the
+# commands, so hosted and local can drift on reporting semantics with nothing
+# noticing — filed as its own issue rather than left as a note here.
 # shellcheck disable=SC2086
 # HOSTED MIRROR: test / run archived tests
-test_default() { nextest_check && cargo nextest run $SCOPE; }
+test_default() { nextest_check && cargo nextest run $SCOPE --no-fail-fast; }
 # shellcheck disable=SC2086
-test_eps() { nextest_check && CAD_TOLERANCE_EPS="$1" cargo nextest run $SCOPE; }
+test_eps() { nextest_check && CAD_TOLERANCE_EPS="$1" cargo nextest run $SCOPE --no-fail-fast; }
 # shellcheck disable=SC2086
 # HOSTED MIRROR: build / doc-tests
 doc_tests() { cargo test --doc $SCOPE; }
@@ -546,7 +612,7 @@ interval_tests() {
   local sel extra=""
   sel=$(cat "$INTERVAL_SEL")
   [ "$sel" = "none()" ] && extra="--no-tests=pass"
-  cargo nextest run $SCOPE --features interval -E "$sel" $extra
+  cargo nextest run $SCOPE --features interval -E "$sel" $extra --no-fail-fast
 }
 # THE DEMOTED (NIGHTLY-ONLY) TESTS. A test carrying
 #
@@ -598,7 +664,7 @@ nightly_selection() {
 #
 # NO `--run-ignored`, IN ANY SPELLING. Under the cfg these are ordinary tests
 # and a plain filtered run executes them; the flag would sweep in the whole
-# pre-existing `#[ignore]`d population, which is what Evan ruled out.
+# pre-existing `#[ignore]`d population, which is what Ev ruled out.
 # HOSTED MIRROR: demoted / run the demoted tests (and nothing else)
 # shellcheck disable=SC2086
 nightly_demoted() {
@@ -607,7 +673,7 @@ nightly_demoted() {
   sel=$(cat "$NIGHTLY_SEL")
   [ "$sel" = "none()" ] && extra="--no-tests=pass"
   CARGO_TARGET_DIR="$NIGHTLY_TARGET" RUSTFLAGS="--cfg nightly_suite" \
-    cargo nextest run --workspace -E "$sel" $extra
+    cargo nextest run --workspace -E "$sel" $extra --no-fail-fast
 }
 
 # shellcheck disable=SC2086
@@ -617,7 +683,7 @@ interval_eps() {
   sel=$(cat "$INTERVAL_SEL")
   [ "$sel" = "none()" ] && extra="--no-tests=pass"
   CAD_TOLERANCE_EPS=1e-6 cargo nextest run $SCOPE --features interval \
-    -E "$sel" $extra
+    -E "$sel" $extra --no-fail-fast
 }
 # shellcheck disable=SC2086
 # HOSTED MIRROR: lint-interval / doc-tests (interval)
@@ -636,9 +702,9 @@ interval_doc_tests() { cargo test --doc $SCOPE --features interval; }
 # mirror named steps of the hosted `test-interval` job, which the
 # interval rows above do not cover — `interval_tests` runs the
 # interval-only selection, and these two are in its subtracted half.
-persist_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)'; }
+persist_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)' --no-fail-fast; }
 
-corpus_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)'; }
+corpus_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)' --no-fail-fast; }
 
 # M4 PR 8a spec D2 (F8): rebuild-latency REPORTING — prints the
 # per-document table and diffs the newest entry in the timing history,
@@ -684,7 +750,15 @@ interval_backend() {
     && cargo fmt --check \
     && cargo clippy --all-targets -- -D warnings \
     && cargo test) || return 1
-  if (cd interval-transcendentals && cargo tree | grep -iE 'inari|gmp-mpfr-sys|rug'); then
+  # The producer is tested before its output is — the argument is at the hosted
+  # copy of this row. `cargo tree | grep` takes grep's verdict, and grep with no
+  # input finds no match, so a failed `cargo tree` reads as a clean graph.
+  local tree
+  if ! tree=$(cd interval-transcendentals && cargo tree); then
+    echo "ERROR: \`cargo tree\` failed in interval-transcendentals — an unread graph is not a clean one"
+    return 1
+  fi
+  if printf '%s\n' "$tree" | grep -iE 'inari|gmp-mpfr-sys|rug'; then
     echo "ERROR: the interval backend's default feature set reaches the gmp stack"
     return 1
   fi
@@ -801,11 +875,15 @@ klint_gate() {
 # hygiene + tests, then the fresh per-face sweep + the GATE.
 #
 # The gate compares against docs/tess-budget-data/, and it compares
-# DIFFERENCES, not absolute slack — a scene whose mesh grew, a face
-# whose sizing got wastefuller, or a scene that dropped out of the
-# sweep. On a failure read the tool's message: coarsening a demo's
-# delta to get the number down is the one forbidden move. What the
-# absolute factors currently are, and why: docs/TESS-BUDGET.md.
+# DIFFERENCES, not absolute slack. WHAT THE RULES ARE is rostered in
+# `tools/tess-lint`'s module docs and nowhere else, this file included:
+# the enumeration that used to stand here read THREE for as long as
+# rule 4 had existed, and the correction to four was stale within a day
+# when the uncovered-scene rule landed as rule 5. A pointer cannot go
+# stale; a roster kept beside the thing it describes drifts at that
+# thing's rate. On a failure read the tool's message: coarsening a
+# demo's delta to get the number down is the one forbidden move. What
+# the absolute factors currently are, and why: docs/TESS-BUDGET.md.
 tesslint_tool() {
   # No `cargo doc` here: it used to carry a copy of one, because
   # doc-gate.sh was `cargo doc --workspace` and could not see a
@@ -843,10 +921,14 @@ budget_meter() {
 }
 # HOSTED MIRROR: k-lint / tessellation-budget sweep (every tour scene, per face)
 # HOSTED MIRROR: k-lint / tessellation-budget lint (gate — a grown budget fails this row)
-# `--sizing-only` mirrors ci.yml: the gate reads triangle counts and
-# the sizing columns, never `worst_dev`, so the default sweep's
-# per-triangle resampling (tens of millions of surface evaluations)
-# would be paid for nothing. Re-cutting the baseline drops the flag.
+# `--sizing-only` mirrors ci.yml: the gate never reads `worst_dev`, so
+# the default sweep's per-triangle resampling (tens of millions of
+# surface evaluations) would be paid for nothing. What it does read is
+# narrower than "the sizing columns" — `triangles` per scene and
+# `grid_cells / span_opt_cells` per face are what it COMPARES, and
+# `chart`, whether the row carries the sizing block at all, and
+# `u0`-`v1` / `nu` / `nv` are what it JOINS on. Re-cutting the baseline
+# drops the flag.
 tesslint_gate() {
   scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv --sizing-only || return 1
   (cd tools/tess-lint && cargo run -- \
@@ -855,7 +937,7 @@ tesslint_gate() {
 }
 
 # The wasm32 guard (#807).
-# ONE LEG, the interval one, on Evan's ruling of 2026-08-21 that the
+# ONE LEG, the interval one, on Ev's ruling of 2026-08-21 that the
 # purely-additive lint suffices for the default build. Read that step's
 # comment for the subsumption argument, for the lint residual this guard
 # now inherits, and for the dated third-party graph measurement the
@@ -897,7 +979,7 @@ run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D w
 # UNCONDITIONAL HERE, GATED HOSTED, and that asymmetry is the same one
 # the sampled matrix already has: the hosted gate skips the eframe/wgpu
 # graph unless the change filter's SEEDS intersect {viewer, pncad, bvh}
-# (Evan's viewer-CI-posture ruling, docs/GUI-LOG.md 2026-08-27), because
+# (Ev's viewer-CI-posture ruling, docs/GUI-LOG.md 2026-08-27), because
 # it is billed by the minute on every PR. This half is not billed by the
 # minute — it is billed in one developer's wall clock, on a run they
 # chose to make — and it is already the lane that runs every point of a
@@ -928,7 +1010,7 @@ rustdoc_gate() {
 run_row "rustdoc (gate)"               rustdoc_gate
 # HOSTED MIRROR: fmt / wasm32 check (kernel + editor-core, --features interval)
 run_row "wasm32 check (#807)"          wasm_check
-# ε battery {default, 1e-6, 1e-12} (Evan's ruling, 2026-07-30): the two
+# ε battery {default, 1e-6, 1e-12} (Ev's ruling, 2026-07-30): the two
 # env rows straddle the compiled default — DEFAULT_EPS = 1e-9, geom-core/
 # src/tolerance.rs — three orders either side. Over the default archive;
 # the first row compiles, the eps rows

@@ -20,6 +20,7 @@
 // why: root Cargo.toml, the `unreachable_pub` stanza
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
+#![allow(clippy::panic)]
 
 /// The GUI-4 assembly fixture (a gallery-shaped workspace on disk).
 pub mod asm;
@@ -81,6 +82,7 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::profile::SketchPlane;
+use viewer::sketch::{Notation, ProfileShape};
 
 /// Apply one edit, answering the new document and any minted id.
 pub fn edited(
@@ -121,6 +123,32 @@ pub fn len(metres: f64) -> Expr {
 /// A dimensionless literal.
 pub fn scl(value: f64) -> Expr {
     Expr::literal(value, Dimension::Scalar).expect("a finite scalar")
+}
+
+/// An angle literal.
+pub fn ang(radians: f64) -> Expr {
+    Expr::literal(radians, Dimension::Angle).expect("a finite angle")
+}
+
+/// Three length literals — a datum origin, a translation.
+pub fn len3(v: [f64; 3]) -> [Expr; 3] {
+    [len(v[0]), len(v[1]), len(v[2])]
+}
+
+/// Three dimensionless literals — a normal, a direction, an axis.
+pub fn scl3(v: [f64; 3]) -> [Expr; 3] {
+    [scl(v[0]), scl(v[1]), scl(v[2])]
+}
+
+/// One form template lowered CANONICALLY — what a suite means when it
+/// authors a shape without a word about notation.
+///
+/// The suites that DO care which unit a literal remembers say so by
+/// naming the notation (`sketch::loop_program` with one of its own),
+/// which is the point of the units riding the lowering rather than
+/// the op.
+pub fn shape(template: &ProfileShape) -> LoopProgram {
+    viewer::sketch::loop_program(template, Notation::CANONICAL).expect("a finite template")
 }
 
 /// The name of the parametric fixture's driving parameter.
@@ -187,6 +215,132 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
         tol,
     );
     (doc, extrude, moved)
+}
+
+/// The gallery ring document as `demo-tour gallery` saved it (the
+/// exporter round trip with the dialog and the window taken out).
+///
+/// It is version-stamped in its name, as `pncad`'s own fixture is: a
+/// schema break makes this file unreadable, and the fix is to
+/// regenerate it from `demo-tour gallery` and rename, never to teach
+/// the loader about an old shape.
+pub const GALLERY_RING: &str = include_str!("../gallery_ring.pncad");
+
+/// **ε is a run parameter, and a saved document records the one it was
+/// decided at** — "one process, one ε", which `load` enforces by
+/// refusing a file whose recorded ε is not the process's
+/// (`PersistError::ToleranceConflict`). The CI matrix sweeps ε, so a
+/// committed document fixture is loadable at exactly one of its
+/// points and refuses at the others.
+///
+/// So the fixture is re-stamped with THIS run's ε before it is opened.
+/// The new ε line comes from `save` itself, via a throwaway document
+/// at the process tolerance: spelling a float the way the serializer
+/// spells it is the serializer's job, not this file's.
+///
+/// **What this function does NOT do is check its own work.** The real
+/// claim (a re-stamped fixture is byte-for-byte what the exporter
+/// writes at this ε) is measured by `doc_io`'s
+/// `the_restamped_fixture_is_what_the_serializer_writes_at_this_eps`,
+/// which puts the bytes back through `save` rather than through this
+/// function's own arithmetic.
+pub fn gallery_ring_at(tol: Tol) -> String {
+    let probe: Doc<ProfileProgram> = Doc::empty_derived("gui3-epsilon-probe", tol);
+    let probe_text = pncad::document::save(&probe, &[], tol).expect("an empty document saves");
+    let is_epsilon = |line: &str| line.trim_start().starts_with("\"epsilon\":");
+    let wanted = probe_text
+        .lines()
+        .find(|line| is_epsilon(line))
+        .expect("a saved document records its ε");
+    assert_eq!(
+        GALLERY_RING.lines().filter(|l| is_epsilon(l)).count(),
+        1,
+        "the fixture must carry exactly one ε line"
+    );
+    let mut text: String = GALLERY_RING
+        .lines()
+        .map(|line| if is_epsilon(line) { wanted } else { line })
+        .collect::<Vec<&str>>()
+        .join("\n");
+    text.push('\n');
+    text
+}
+
+// --- session helpers for the op-vocabulary suites -------------------
+//
+// One home for the helpers every `DocSession`-driving suite wants:
+// each is a statement about the session contract (one op, one
+// committed insert; a node's value is one body), not about any one
+// suite's geometry, so a per-suite copy could only drift.
+
+use pncad::document::{BooleanValue, NodeResult};
+use pncad::prelude::ValuePayload;
+use viewer::session::{DocSession, SessionOp};
+
+/// Perform one op that must commit exactly one insert, answering the
+/// id of the node it minted.
+pub fn insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
+    assert!(matches!(
+        outcome.committed.first(),
+        Some(DocEdit::InsertNode { .. })
+    ));
+    *session
+        .committed_doc()
+        .order()
+        .last()
+        .expect("the insert landed")
+}
+
+/// `got` and `want` agree to one part in 10⁹, relatively.
+///
+/// The 1e-9 is a chosen bound, not a derived one: the closed-form
+/// volume rows in the suites that share this helper hold it with
+/// margin, and it is kept tight so real drift cannot hide inside it.
+pub fn near(got: f64, want: f64) -> bool {
+    ((got - want) / want).abs() < 1e-9
+}
+
+/// The evaluated volume of `node`'s single body — an extrude's, a
+/// blend's, or a boolean's — with the seam pumped.
+///
+/// The evaluation read is the SHOWN document's, so mid-gesture this
+/// measures the scratch preview exactly as the viewport does. A node
+/// that failed to evaluate panics with the node's own recorded error,
+/// not just the absence of a value.
+pub fn body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> f64 {
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
+    let value = eval.value(node).unwrap_or_else(|| {
+        panic!(
+            "the node evaluated: {:?}",
+            eval.result(node).and_then(NodeResult::error)
+        )
+    });
+    let body = match &value.payload {
+        ValuePayload::Body(body) => body.clone(),
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body.clone(),
+        other => panic!("expected a body, got {other:?}"),
+    };
+    pncad::topo::mass_properties(&body, tol)
+        .expect("mass properties")
+        .volume
+}
+
+/// The story-gallery door: the directory named by
+/// `PNCAD_STORY_GALLERY`, when the invoker of the test run set one.
+///
+/// The contract: when the variable is set, each story suite saves its
+/// finished document(s) into the named directory through the session's
+/// own save door, so the screenshot recipe in
+/// `docs/gui-shots/2026-09-01/README.md` can open them in the live app
+/// — `PNCAD_STORY_GALLERY=<dir> cargo test -p viewer --test all
+/// story_` is that README's production command. When unset, the suites
+/// skip the save; no assertion depends on the variable either way.
+pub fn story_gallery_dir() -> Option<std::path::PathBuf> {
+    std::env::var_os("PNCAD_STORY_GALLERY").map(std::path::PathBuf::from)
 }
 
 /// A fresh directory under the OS temp root, named for the caller.

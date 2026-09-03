@@ -34,9 +34,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, ContentBits, Datum, DocEdit, EvalOptions, Evaluation,
-    Node, NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow,
-    ValuePayload, apply, evaluate,
+    BooleanOp, BooleanValue, CancelToken, Datum, DocEdit, EvalOptions, Evaluation, Node,
+    NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow, ValuePayload,
+    apply, evaluate,
 };
 use geom_core::Decide;
 use geom_core::Tol;
@@ -47,6 +47,7 @@ pub mod cut_cylinder;
 pub mod die;
 pub mod die_chamfer;
 pub mod die_composed;
+pub mod die_composed_tour;
 pub mod die_fillet;
 pub mod die_pips;
 pub mod die_tool;
@@ -54,7 +55,9 @@ pub mod heatsink;
 pub mod heatsink_union;
 pub mod hollow_tube_elbow;
 pub mod islands;
+pub mod kiss_carry;
 pub mod loft_prism;
+pub mod measured_web;
 pub mod plate_param;
 pub mod sink;
 pub mod slots;
@@ -136,6 +139,10 @@ pub fn documents() -> Vec<CorpusDoc> {
         tangency::document(),
         sink::document(),
         cut_cylinder::document(),
+        // M10-2: the measurement vocabulary, so the Dual/Interval
+        // digests' Measure and Assertion arms are REACHED rather than
+        // merely present.
+        measured_web::document(),
         boss::document(),
         // `die_fillet` IS registered, as of the PR 12 gate fix
         // `5c8540f`. It was held out while the fillet battery's
@@ -178,7 +185,26 @@ pub fn documents() -> Vec<CorpusDoc> {
         // the two that do not can be left out. The flipped pin and the
         // selection's provenance live in `m6_composed_node.rs`.
         die_composed::document(),
+        // `die_composed_tour` (LIB-CORPUS-DIE): the same surgery at the
+        // size the demo tour renders it — 21 pips in one grouped tool,
+        // 12 box edges and 42 rim arcs behind names twenty unions
+        // deep. It is the ONE document here the registry does not
+        // author: the demo tour is its single authoring site and the
+        // document crosses as committed bytes, because `demos/tour` is
+        // a detached workspace this crate must not depend on. The
+        // module docs carry the regeneration line, why the file's model
+        // rides its EDIT LOG rather than its snapshot, and which of the
+        // tour's three fillets the document leaves out.
+        die_composed_tour::document(),
         plate_param::document(),
+        // `kiss_carry` (SEAT-5): the one corpus boolean whose result
+        // carries NON-EMPTY surviving contacts — the discovered
+        // corner kiss, then the same record re-entered by name through
+        // a Declare (the carried v-v arm of `resolve_declarations`,
+        // reached nowhere else in the corpus). Registered so a pin can
+        // tell a lowering that carries the tier-3′ records from one
+        // that drops them.
+        kiss_carry::document(),
         // LIB-TUBE's two: the solid ring torus and the hollow elbow.
         // Small on purpose — `die_chamfer`-sized recipes, two and two
         // nodes, not transcriptions of the tour's tube stops — and
@@ -209,9 +235,7 @@ pub fn cone(doc: &ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
 }
 
 /// Evaluates a document at scalar `T` with default options.
-pub fn eval<T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy>(
-    doc: &ProfileDoc,
-) -> Evaluation<T> {
+pub fn eval<T: editor_core::EvalScalar>(doc: &ProfileDoc) -> Evaluation<T> {
     evaluate::<T>(
         doc,
         None,
@@ -246,7 +270,7 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
 }
 
 /// The node kinds a document exercises (the coverage tally's domain).
-pub const NODE_KINDS: [&str; 16] = [
+pub const NODE_KINDS: [&str; 18] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -281,6 +305,13 @@ pub const NODE_KINDS: [&str; 16] = [
     "Tube",
     "HollowTube",
     "Declare",
+    // M10-2's measurement sinks. Listed because `measured_web` now
+    // registers them: the hold-out that kept them off this roster was
+    // correct only while no corpus document carried one, and a
+    // listed-but-uncovered kind fails the tally in the other
+    // direction.
+    "Measure",
+    "Assertion",
 ];
 
 /// The edit kinds a document exercises (the coverage tally's domain).
@@ -340,6 +371,12 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         Node::Datum(Datum::Plane { .. }) => vec!["Datum::Plane"],
         Node::Datum(Datum::Axis { .. }) => vec!["Datum::Axis"],
         Node::Datum(Datum::Point { .. }) => vec!["Datum::Point"],
+        // NOT a listed sub-kind, for `PlacedUnion::Circular`'s reason
+        // above: no corpus document authors a frame yet — nothing
+        // consumes one — and a listed-but-uncovered sub-kind fails the
+        // tally. It is exercised directly in `m4_pr2_frame.rs`, and it
+        // joins this list when a profile takes a frame as its plane.
+        Node::Datum(Datum::Frame { .. }) => Vec::new(),
         Node::Boolean { op, declare, .. } => {
             let mut v = vec![match op {
                 BooleanOp::Union => "Boolean::Union",
@@ -393,6 +430,8 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         | Node::Sweep { .. }
         | Node::Declare { .. }
         | Node::Mate { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. }
         | Node::InstantiatePart { .. } => Vec::new(),
     }
 }
@@ -417,6 +456,8 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Sweep { .. } => "Sweep",
         Node::Declare { .. } => "Declare",
         Node::Mate { .. } => "Mate",
+        Node::Measure { .. } => "Measure",
+        Node::Assertion { .. } => "Assertion",
         Node::InstantiatePart { .. } => "InstantiatePart",
     }
 }

@@ -53,21 +53,17 @@
 use core::f64::consts::SQRT_2;
 
 use geom::Surface;
-use geom_core::{Band, Point2, Point3, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::FilletError;
-use sweep::fillet::blend::{Meridian, SupportTrace, sheet_center};
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::BlendError;
+use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::{revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, FaceKey, SurfaceKey, VertexKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
@@ -99,21 +95,7 @@ const BORE: f64 = 0.1;
 /// radial again, the top DISK. Both ends touch the axis, which is what
 /// makes every wall a pair of half-bands and every rim a pair of arcs.
 fn lantern() -> Body<f64> {
-    // A profile arc's bulge is the tangent of a QUARTER of its sweep,
-    // and this arc's sweep is the angle between two exact unit vectors,
-    // `(1, 0)` and `(0.8, 0.6)`.
-    let bulge = (0.6f64.asin() / 4.0).tan();
-    revolved_about_y(
-        vec![
-            v(0.0, 0.0, 0.0),
-            v(1.0, 0.0, bulge),
-            v(SHOULDER.0, SHOULDER.1, 0.0),
-            v(LIP_R, TOP, 0.0),
-            v(0.0, TOP, 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    )
+    sweep::test_support::lantern(tol())
 }
 
 /// The same solid bored on-axis at [`BORE`], so the profile is ANNULAR
@@ -272,7 +254,7 @@ fn every_lantern_rim_carves_whole_to_its_closed_form() {
     for (name, rim_r, rim_y, center) in rims() {
         let arcs = rim_arcs_at(&source, rim_r, rim_y);
         assert_eq!(arcs.len(), 2, "{name} arrives as two arcs");
-        let out = fillet_edges(&source, &arcs, r, band(), tol())
+        let out = fillet_edges(&source, &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} fillets whole, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name} must carve tier-3 valid, got {e:?}"));
@@ -310,7 +292,7 @@ fn every_lantern_rim_carves_whole_to_its_closed_form() {
 fn the_band_over_two_arcs_is_one_annulus_wall() {
     let source = lantern();
     let arcs = rim_arcs_at(&source, SHOULDER.0, SHOULDER.1);
-    let out = fillet_edges(&source, &arcs, 0.05, band(), tol())
+    let out = fillet_edges(&source, &arcs, 0.05, tol())
         .unwrap_or_else(|e| panic!("the shoulder fillets, got {e:?}"));
     let face = out.band_faces[0];
     let fd = out.body.get_face(face).unwrap();
@@ -384,13 +366,13 @@ fn a_seam_split_rim_removes_what_its_one_edge_twin_removes() {
 
         let cut_split = v_lantern
             - volume(
-                &fillet_edges(&lantern, &split, r, band(), tol())
+                &fillet_edges(&lantern, &split, r, tol())
                     .unwrap_or_else(|e| panic!("{name} fillets on the lantern, got {e:?}"))
                     .body,
             );
         let cut_whole = v_bored
             - volume(
-                &fillet_edges(&bored, &whole, r, band(), tol())
+                &fillet_edges(&bored, &whole, r, tol())
                     .unwrap_or_else(|e| panic!("{name} fillets on the twin, got {e:?}"))
                     .body,
             );
@@ -418,7 +400,7 @@ fn the_three_rims_fillet_in_sequence_to_one_valid_solid() {
     for (name, rim_r, rim_y, _) in rims() {
         let arcs = rim_arcs_at(&body, rim_r, rim_y);
         assert_eq!(arcs.len(), 2, "{name} is still two arcs before its carve");
-        let out = fillet_edges(&body, &arcs, r, band(), tol())
+        let out = fillet_edges(&body, &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} fillets on the running result, got {e:?}"));
         bands += out.band_faces.len();
         body = out.body;
@@ -570,8 +552,8 @@ fn a_concave_seam_split_rim_still_refuses() {
     );
     let arcs = rim_arcs_at(&body, 0.5, 0.5);
     assert_eq!(arcs.len(), 2, "the waist rim is seam-split too");
-    match fillet_edges(&body, &arcs, 0.05, band(), tol()) {
-        Err(FilletError::UnsupportedChain { detail, .. }) => assert!(
+    match fillet_edges(&body, &arcs, 0.05, tol()).map_err(|r| r.error) {
+        Err(BlendError::UnsupportedChain { detail, .. }) => assert!(
             detail.contains("concave"),
             "a concave seam-split rim refuses as concave, got {detail}"
         ),
@@ -587,7 +569,7 @@ fn a_concave_seam_split_rim_still_refuses() {
 fn a_seam_split_band_records_every_birth_and_every_death() {
     let source = lantern();
     let arcs = rim_arcs_at(&source, SHOULDER.0, SHOULDER.1);
-    let out = fillet_edges(&source, &arcs, 0.05, band(), tol())
+    let out = fillet_edges(&source, &arcs, 0.05, tol())
         .unwrap_or_else(|e| panic!("the shoulder fillets, got {e:?}"));
     let rec = out
         .naming

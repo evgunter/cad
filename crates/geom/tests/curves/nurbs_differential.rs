@@ -259,9 +259,13 @@ fn curve3_nurbs_arm_evaluates_the_payload() {
         );
     }
     let ph: Curve3<f64> = Curve3::nurbs_placeholder();
-    assert!(ph.eval(0.5).x.is_nan());
-    assert!(ph.deriv(0.5).x.is_nan());
-    assert!(ph.deriv2(0.5).x.is_nan());
+    // ALL-poison, which is the placeholder's own promise: a
+    // first-channel read passes on a net poisoned only in x.
+    let pp = ph.eval(0.5);
+    assert!(pp.x.is_nan() && pp.y.is_nan() && pp.z.is_nan());
+    for v in [ph.deriv(0.5), ph.deriv2(0.5)] {
+        assert!(v.x.is_nan() && v.y.is_nan() && v.z.is_nan());
+    }
 }
 
 /// Spec row 2: determinism — bit-identical outputs across repeated

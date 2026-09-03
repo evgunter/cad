@@ -1,5 +1,5 @@
 //! **The control-net bracket seam follows the certified door** — the
-//! surface half of the curve suite of the same name.
+//! surface half of `tests/curves/decoration_ring_coords.rs`.
 //!
 //! `NurbsSurface::ring_coords` lifts the control net into the C9 ring,
 //! one `RingInterval` per coefficient, by reading each coefficient's

@@ -1,73 +1,75 @@
-//! Persistence: the ratified text format of M4 PR 6, at the schema
-//! version [`SCHEMA_VERSION`] names. Every bump since v1 is a ratified
-//! CLEAN BREAK — an older file refuses typed, naming
-//! [`REGENERATE_RECOURSE`], and the migration table stays empty
-//! because LQ7a rules it so ([`migration_step`]), not because no one
-//! has filled it in yet.
+//! Persistence: the ratified text format of M4 PR 6.
 //!
-//! Every version from v2 on carries an entry on [`SCHEMA_VERSION`],
-//! enforced by `tests/schema_ledger.rs` rather than left to
-//! discipline: the version is ONE LINE, so two units
-//! claiming the same number merge CLEANLY, and those entries are where
-//! their reasoning can be compared — and equally where one of them can
-//! be dropped to resolve a conflict.
+//! # No schema version, on purpose
 //!
-//! # Schema history
+//! This format carries NO hand-maintained schema version, no migration
+//! chain and no bump-coordination convention. Schema breaks are not at
+//! all a problem, because this is not released yet: no document exists
+//! outside this repository, and every checked-in document is a
+//! regenerable artifact (the tour writes the corpus; the fixtures
+//! re-bless from their authoring functions). A format change therefore
+//! needs no version, no migration and no coordination — regenerate the
+//! corpus and move on. Versioning returns as Band-4 work the day a
+//! document ships to someone (`docs/DESIGN.md`, the Band 4 roadmap
+//! line).
 //!
-//! v1 and v2 only, because the format TEXT below is theirs; every
-//! version's own entry is on [`SCHEMA_VERSION`].
+//! What stays is ONE door: a file this build cannot read refuses TYPED
+//! ([`PersistError::Unreadable`]) with [`REGENERATE_RECOURSE`], carried
+//! by the deserializer's own rejection of unknown or missing
+//! vocabulary — serde_json names the variant or field it could not
+//! place, and the refusal forwards that name. Both directions of
+//! growth follow from that one door. An OLDER document lacking
+//! vocabulary this build has since grown (a new node arm, a new
+//! optional field) never names it, so it loads — additive growth
+//! invalidates nothing. A NEWER document carrying a field this build
+//! lacks refuses (every wire type is `deny_unknown_fields`): a stale
+//! reader must not silently drop data. A BREAKING change — a field
+//! made required, a spelling retired — refuses naming the field. The
+//! recourse is the one sentence it always was, and it is also on
+//! [`PersistError::HeaderId`], because a document from before the
+//! `id:` line is a file this build cannot read too.
 //!
-//! - **v1** (M4 PR 6) — the ratified text format below.
-//! - **v2** (M5 PR 10) — the same text format carrying the grown node
-//!   vocabulary (`Loft`, `Sweep`). Ratified as a **clean break**: no
-//!   `migrate` step is written, v1 refuses typed
-//!   ([`PersistError::SchemaTooOld`], naming [`REGENERATE_RECOURSE`]),
-//!   and the repo's own v1 goldens were regenerated once, in that PR.
-//!   The kernel is unreleased; the only v1 files that ever existed are
-//!   the repo's, and every one of them replays from source.
-//!
-//!   **What the break does NOT do** (M5 PR 10 review NOTE): v2 changed
-//!   the recipe VOCABULARY, not the wire format, so a v1 body is still
-//!   valid v2 JSON — hand-edit a v1 file's header to `schema: 2` and
-//!   it loads. That is inherent to a version break with no format
-//!   change and no door can close it: the header is the only place the
-//!   version is recorded, so an edited header IS a v2 file by
-//!   definition. It costs nothing (a v1 body carries no construct v2
-//!   rejects) and it is not a gap in the version door, which refuses
-//!   every file that still SAYS v1. Pinned, executed, in
-//!   `tests/review_m5_pr10_schema.rs`.
+//! Which arm a refusal lands on is decided by serde_json's own
+//! classification of its failure and by nothing else — the one
+//! statement of that seam, with its executed edges, is on
+//! [`parse_err`].
 //!
 //! # Format (spec D1)
 //!
-//! A save is TEXT: a `schema: <integer>` header line, an
-//! `id: <32 lowercase hex>` line naming the document's identity (v5,
-//! ASM-1 D-6 — the workspace scan reads it without parsing the
-//! body), then a JSON body
+//! A save is TEXT: an `id: <32 lowercase hex>` header line naming the
+//! document's identity (ASM-1 D-6 — the workspace scan reads it
+//! without parsing the body), then a JSON body
 //! `{ "snapshot": <Doc>, "edits": [<DocEdit>…] }` — the full document
-//! snapshot plus the edit log since that snapshot. JSON via
+//! snapshot plus the edit log since that snapshot. (One known hatch,
+//! pinned rather than closed: serde's derived struct visitor also
+//! accepts the two fields POSITIONALLY, so a body spelled
+//! `[<snapshot>, <edits>]` loads. No writer produces it, the loaded
+//! document still walks every validator, and closing it would mean a
+//! hand-written visitor for a struct that exists only to be derived —
+//! `tests/bool13_r1_probes.rs::a_positional_array_body_loads` is the
+//! pin.) JSON via
 //! `serde_json` is the ratified shape's PR-spec aesthetic choice
 //! (REPORTED): floats serialize through ryu (shortest round-trip —
-//! exactly D2's contract), parse errors carry line/column (D6.3's
-//! typed position info), map keys with integer newtypes work natively,
-//! and the format is universally diffable/greppable. Structural map
-//! keys (the appearance store's [`crate::StableName`]s) serialize as pair
+//! exactly D2's contract), parse errors carry line/column (typed
+//! position info), map keys with integer newtypes work natively, and
+//! the format is universally diffable/greppable. Structural map keys
+//! (the appearance store's [`crate::StableName`]s) serialize as pair
 //! LISTS ([`pairs`]) — structural, not stringified.
 //!
 //! # What persists (spec D3)
 //!
 //! The recipe IS the save: the document id, nodes, parameters,
 //! expressions, witness bytes (hex, bit-exact), the appearance store
-//! (records incl. D7 metadata), recorded ε, the schema version, and
-//! the edit log.
+//! (records incl. D7 metadata), recorded ε, and the edit log.
 //! Deliberately NOT persisted: evaluations, name tables,
-//! memo/content/naming keys, arena anything — and, since v4, the
-//! profile programs' REPLAYED SEGMENTS (vertices/bulges/joints are
-//! replay products of the stored programs; V3: caches live in the
-//! evaluation memo, never on disk) — all of it re-derives on replay,
-//! and the save/load/replay-identity CI row pins that the
-//! re-derivation is bit-identical.
+//! memo/content/naming keys, arena anything — and the profile
+//! programs' REPLAYED SEGMENTS (vertices/bulges/joints are replay
+//! products of the stored programs; V3: caches live in the evaluation
+//! memo, never on disk) — all of it re-derives on replay, and the
+//! save/load/replay-identity CI row pins that the re-derivation is
+//! bit-identical.
 //!
-//! # Doors (fail loud, D2/D6.3; DESIGN engineering convention 2)
+//! # Doors (fail loud, D2; DESIGN engineering convention 2)
 //!
 //! Every direction-independent document check lives in ONE shared
 //! validator ([`check`]'s `validate_document`: non-finite floats
@@ -81,11 +83,11 @@
 //!   verifies the log replays — everything the LOAD side would
 //!   refuse, refused before a byte is written (never an unloadable
 //!   file); `-0.0` is data and round-trips.
-//! - Load walks the header → migration chain → typed deserialize
-//!   (expression REBUILD through the dimension-checking constructors
-//!   and the wire-only canonical-set rule, [`wire`]) → the shared
-//!   validator → edit replay through [`crate::edit::apply`]'s doors →
-//!   ε reconciliation (D4). No silent best-effort loads, ever.
+//! - Load walks the header → typed deserialize (expression REBUILD
+//!   through the dimension-checking constructors and the wire-only
+//!   canonical-set rule, [`wire`]) → the shared validator → edit
+//!   replay through [`crate::edit::apply`]'s doors → ε reconciliation
+//!   (D4). No silent best-effort loads, ever.
 //!
 //! # ε wiring (spec D4)
 //!
@@ -119,371 +121,6 @@ use geom_core::Tol;
 pub use canon::{canonical_bytes, content_pin};
 pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 
-/// The current schema version.
-///
-/// Version 1 froze at M4 PR 6 (F8: the persisted file IS in M4).
-/// Version 2 is M5 PR 10's **clean break** (spec §4, ratified by Evan
-/// on #148): the recipe vocabulary grew [`crate::node::Node::Loft`]
-/// and [`crate::node::Node::Sweep`], and rather than carry live
-/// compatibility code for a format nobody outside this repo has ever
-/// written, v1 refuses TYPED ([`PersistError::SchemaTooOld`]) with the
-/// regenerate recourse. No `migrate` step exists for 1 → 2, on
-/// purpose; the chain machinery ([`migration_step`]) stays, carrying
-/// no steps.
-///
-/// Version 3 is M6-5's **clean break** on the same terms (ruled by
-/// Evan on #217): [`crate::node::Node::Fillet`] grew a required
-/// `selection` field. A v2 fillet meant "every edge", which the new
-/// vocabulary cannot express as data — the equivalent selection
-/// depends on an evaluation the file does not carry — so there is no
-/// honest default to migrate to and none is invented. A v2 file
-/// refuses TYPED with the regenerate recourse, exactly as v1 does.
-///
-/// Version 4 is the **profiles-as-programs clean break** (LIB-SWITCH
-/// §4h; PROFILES-V2 ratified #242, LQ7a): `Node::Profile`'s payload
-/// switched from the opaque vertex/bulge description to the
-/// [`crate::ProfileProgram`] (Expr-bearing step lists; the program IS
-/// the definition, derived segments are unpersisted replay products),
-/// and expression literals gained the optional display-unit field
-/// (U8b, §4g). No v3 form survives verbatim — the in-repo corpora
-/// re-authored program-form — so v3 refuses TYPED with the regenerate
-/// recourse, exactly as v1/v2 do; the migration table stays empty.
-///
-/// Version 5 is the **document-identity clean break** (ASM-1 spec
-/// D-6, same ratified terms): [`crate::Doc`] gained the required
-/// [`DocumentId`] field (ASSEMBLY-DESIGN A4 — identity ≠ pin), and
-/// the text format gained the `id:` header line so a workspace scan
-/// reads identity without parsing the body. Identity is AUTHORED data
-/// with no honest default a migration could invent, so v4 refuses
-/// TYPED with the regenerate recourse, exactly as v1–v3 do; the
-/// migration table stays empty. (A future ASM-ROOTS root list takes
-/// its own bump when it lands — noted, not decided here.)
-///
-/// Version 6 is that bump: the **product-roots clean break**
-/// (ASM-ROOTS spec D-1, ASSEMBLY-DESIGN A10). [`crate::Doc`] gained
-/// the ordered `roots` list, and a v5 file carries none. A migration
-/// COULD compute today's sink set — but not its ORDER, which is
-/// product-solid order and therefore semantic (it moves the content
-/// pin), so the migrated document's product would be an invented
-/// answer to a question the file never recorded. There is no honest
-/// default; v5 refuses TYPED with the regenerate recourse, exactly as
-/// v1–v4 do, and the migration table stays empty.
-///
-/// Version 7 is the **instantiate-part clean break** (ASM-2A spec
-/// D-6, ASSEMBLY-DESIGN A2/A3/A11): [`crate::Node`] gained the
-/// `InstantiatePart` variant and [`crate::Doc`] the A11 `placements`
-/// registry. A v6 file carries neither, and neither has an honest
-/// invented default — an absent registry is exactly the all-identity
-/// state a v6 document already means, but the NODE variant is the
-/// break: a v6 reader and a v7 reader disagree about what a document
-/// can contain at all. v6 refuses TYPED with the regenerate recourse,
-/// exactly as v1–v5 do, and the migration table stays empty.
-///
-/// Version 8 is **vocabulary growth** on the standing terms (LIB-LBRET;
-/// PATHS-DESIGN §2b's LB10 route 3, ratified on #386): the chain step
-/// vocabulary gained `ProgramStep::AtToward` (since retired by v9), the straight
-/// fillet arrival off an arc-carrier departure. The addition is
-/// forward-additive — a v7 file contains no `AtToward` and would load
-/// — but the reverse is what the version gate is FOR: a v8 file handed
-/// to a v7 reader must refuse at the gate, typed, instead of reaching
-/// serde and dying on an unknown variant. That is the same call v2 and
-/// v3 made for exactly this shape (new node vocabulary, new required
-/// field), so a v7 file refuses TYPED with the regenerate recourse and
-/// the migration table stays empty.
-///
-/// **7 and 8 were claimed twice, and this is the resolution.** ASM-2A
-/// (#414) and LIB-LBRET (#413) each concluded 7 was theirs, because
-/// each re-merged main before the other's bump landed. ASM-2A merged
-/// first, so v7 is InstantiatePart and LBRET takes the later number —
-/// two vocabulary changes never share one version, which is the whole
-/// point of the gate. The reason it needed a human eye: the constant
-/// is ONE LINE, so the second merge resolves it CLEANLY to the same
-/// text while the two meanings silently collapse.
-///
-/// Version 9 is the **§2c fillet-family re-spell** (PATHS-DESIGN §2c,
-/// ratified on #419; LIB-RESPELL PR-1): the chain step vocabulary
-/// RE-SPELLED — `AtOn`/`AtToward`/`CloseToOn`/`ArcVia`/`ArcCenter`
-/// retired, `ArcTo` re-shaped onto the one unified arc-spec record,
-/// and the fused verbs (`FilletArc`/`ArcFillet`/`ArcFilletArc`)
-/// added. A pre-release clean break, both directions: a v8 file's
-/// retired variants would die in serde under today's types, and a v9
-/// file's fused variants are unknown to a v8 reader — so v8 refuses
-/// TYPED at the gate with the regenerate recourse (the v3 precedent),
-/// and the migration table stays empty.
-///
-/// Version 10 is **edit vocabulary growth** (ASSEMBLY-DESIGN A13,
-/// ratified #544; ASM-UPD D-1): [`crate::DocEdit`] gained the
-/// `UpdateReference` arm, the recorded per-reference pin move. The
-/// edit log is FILE data — a saved document carries its unreplayed
-/// edits — so a new arm is a new wire shape, exactly the case v8
-/// bumped for one level over in the vocabulary. Forward-additive
-/// again (a v9 file contains no `UpdateReference`), and again the
-/// gate buys the other direction: a v10 file handed to a v9 reader
-/// must refuse at the version door rather than reach serde and die on
-/// an unknown variant. A v9 file refuses TYPED with the regenerate
-/// recourse and the migration table stays empty.
-///
-/// **9 was claimed twice, and this is the resolution** — the v7/v8
-/// collision again, and caught the same way. LIB-RESPELL (#531) and
-/// ASM-UPD (#549) each concluded 9 was theirs, each having re-merged
-/// main before the other's bump landed. RESPELL merged first, so v9
-/// is the re-spell and the `UpdateReference` arm takes 10. What made
-/// it visible this time rather than silent: the pattern is now in
-/// this ledger, so ASM-UPD flagged the hazard in its own PR body
-/// BEFORE the collision fired and re-checked the constant by eye at
-/// the merge — which is the discipline the v7/v8 entry asks for.
-///
-///
-/// **The persistence boundary for contact data, stated once** (C4,
-/// D9; the seam ASM-R2-SPEC-DRAFT:41-58 negotiates). DECLARATIONS
-/// persist — they are recipe data on the consuming node, exactly like
-/// any other authored payload, and that is what this version's break
-/// is about. RECORDS never persist: a body's verified contact records
-/// are re-derived by replay (D9), so nothing here writes a
-/// `ContactRecords`. ASM-4's interface record stores DECLARATIONS for
-/// the same reason — crossing declarations ARE the seam, so the split
-/// populates them and the re-verification gate re-checks them against
-/// solved geometry; it does not store the records that gate produces.
-///
-/// Version 11 is the **declaration-class clean break** (M9-1 spec
-/// PR-2; CONTACT-DESIGN C4, ratified #178): [`crate::Node::Declare`]'s
-/// pairs each gained the [`topo::ContactClass`] they assert, so a
-/// declaration now says WHAT kind of contact it claims instead of
-/// leaving the consuming boolean to assume the conformal one. With
-/// `deny_unknown_fields` and a changed tuple arity, a v10 pair is not
-/// a v11 pair at the wire, either direction.
-///
-/// A migration COULD write `rest` into every v10 pair — that is what
-/// they meant — but it would be inventing the one datum the break
-/// exists to stop being assumed, and it would do so silently on files
-/// whose author never made the choice. C4's invariant is that no path
-/// exists from "the numbers look equal" to a glued contact without a
-/// structural or declared rung; a migration that authors the rung on
-/// the user's behalf is that path with extra steps. So v10 and below
-/// refuse TYPED with the regenerate recourse, exactly as v1–v9 do, and
-/// the migration table stays empty. v10 is the version a real document
-/// in this lineage can now carry, so it is the fixture the refusal
-/// suite pins.
-///
-/// **Why 11: the race, run twice, resolved consciously both times.**
-/// This unit claimed 10 at dispatch because LIB-RESPELL (#531) was
-/// OPEN holding 9 — claim PAST the open holders rather than race them,
-/// the standing resolution of the 7/8 double-claim above. Then #531
-/// merged with 9, and ASM-UPD (#549) merged with 10 while this branch
-/// was still open, so the claim moved again, to 11.
-///
-/// Both shifts cost one conscious resolve each and nothing else, which
-/// is the whole argument for the discipline. Note what the SECOND
-/// re-merge did on its own: the constant is one line and both sides
-/// had already written `10`, so git merged it CLEANLY — the paragraph
-/// conflict above is the only thing that stopped two breaks sharing a
-/// version in silence. That is the 7/8 failure mode reproduced
-/// exactly, and caught only because the ledger prose is long enough to
-/// collide. All three meanings survive here: 9 the fillet-family
-/// re-spell, 10 the `UpdateReference` arm, 11 the declaration class.
-///
-/// Version 12 is the **group boolean's vocabulary** (GROUP-BOOLEAN-
-/// DESIGN, ratified A′; LIB-PLACEDUNION): the node vocabulary gained
-/// `Node::PlacedUnion` — one prototype, a placement rule, ONE fused
-/// body out — and the rule vocabulary gained `PatternKind::Explicit`,
-/// a listed set of absolute frames. ONE vocabulary change, one version
-/// (the one-meaning-per-version rule): the node kind and the rule kind
-/// ship together because neither is expressible without the other at
-/// the die tour's twenty-one-pip site that motivated both.
-///
-/// A pre-release clean break, both directions, on the v3/v9 precedent:
-/// a v12 file's new variants are unknown to a v11 reader, and this
-/// reader has no v11-shaped meaning to migrate from, so v11 and below
-/// refuse TYPED with the regenerate recourse and the migration table
-/// stays empty.
-///
-/// Version 13 is **node vocabulary growth** (ASSEMBLY-DESIGN
-/// A3/A12, ratified #522; ASM-R2a D-1): [`crate::Node`] gained the
-/// `Mate` variant — the mate's two instance-qualified references, its
-/// declared [`topo::ContactClass`], and its alignment datum, all file
-/// data. A new node arm is the case v7 bumped for, and v2/v3/v8 before
-/// it: forward-additive (a v12 file contains no `Mate`), while the
-/// gate buys the direction that fails badly — a v13 file handed to a
-/// v12 reader must refuse at the version door rather than reach serde
-/// and die on an unknown variant. A v12 file refuses TYPED with the
-/// regenerate recourse and the migration table stays empty.
-///
-/// The mate's class rides the SAME stable spellings v11 gave
-/// `Declare`'s pairs (`declare_pairs_wire`'s table, reused rather
-/// than re-spelled): one contact vocabulary, one wire spelling of it.
-/// A spelling this build has no name for refuses at that door, in both
-/// directions. That is a WIRE refusal about a tag, not the v1 class
-/// policy — how far an admitted class then gets is
-/// [`crate::mate::class_admission`].
-///
-/// The A11 placement registry did NOT force this bump, and that is
-/// worth stating: its keys generalized from per-instance to
-/// per-cluster-REPRESENTATIVE, a change of MEANING with no change of
-/// shape — a mate-less document's registry is the same map with the
-/// same keys, because every singleton cluster's gauge is its own
-/// instance. The bump is the node arm's alone.
-///
-/// **Why 13: the same-number race, run TWICE on one branch, and what
-/// it costs.** This unit claimed 11 at its own bump, moved to 12 when
-/// M9-1 PR-2 merged with 11, and moved to 13 when LIB-PLACEDUNION
-/// merged with 12. BOTH shifts were caught the same way and only that
-/// way: an explicit read of main's constant at the re-merge
-/// (`git show origin/main:crates/editor-core/src/persist/mod.rs |
-/// grep SCHEMA_VERSION`). Neither produced a merge conflict on the
-/// constant — both sides had written the identical line, so git
-/// merged it silently, exactly as the v11 and v12 entries above
-/// predicted. Three consecutive units have now reproduced that
-/// failure mode. The claim lives as prose in `docs/MODEL-AB-LOG.md`,
-/// where it collides, and the number was re-read by eye at the
-/// re-merge.
-/// A gap in the sequence would cost nothing; a collision costs a
-/// human eye.
-///
-/// Version 14 is the **interface record inhabited** (ASM-R2b D-4,
-/// discharging the obligation ASM-4 wrote down at
-/// [`crate::InterfaceCrossing`]): the enum that was UNINHABITED — so
-/// that every [`crate::InterfaceRecord`] was provably empty, absent
-/// from the wire, and fed no content key — gained its
-/// `Mate { mate, class, outer, inner }` variant. A split that a mate
-/// crosses now writes a non-empty record onto the remainder's
-/// instantiate node, and that record is file data.
-///
-/// The claim reasoning, stated because a schema number is the one
-/// thing in this repo that two units can silently agree on: this is a
-/// FORMAT change, not merely a new value of an existing field. Before
-/// v14 the instantiate node's `interface` key could not appear on the
-/// wire at all (no `InterfaceCrossing` value exists to put in it), so
-/// a v13 reader handed a v14 file with a populated record reaches
-/// serde and dies on an unknown shape — exactly the direction the
-/// version gate exists to fail cleanly. Forward-additive as ever (a
-/// v13 file has no crossings), and the migration table stays empty:
-/// a v13 file refuses TYPED with the regenerate recourse.
-///
-/// The record's `class` rides the SAME `kernel_wire` spelling v11 gave
-/// `Declare`'s pairs and v13 gave `Node::Mate` — one contact
-/// vocabulary, one wire spelling of it, third consumer, still not
-/// re-spelled.
-///
-/// This number was taken by an explicit by-eye read of main's
-/// constant at the final re-merge, and the claim also lives as prose
-/// in `docs/MODEL-AB-LOG.md`, where a second claimant collides
-/// instead of merging clean.
-///
-/// Version 15 is **distributions in the document** (ERROR-DESIGN
-/// E1/E2, ratified; M10-1): [`crate::DocParam::Continuous`] gained an
-/// optional [`crate::Distribution`] — the parameter's uncertainty as
-/// offsets from its own nominal, in its own dimension. Document
-/// metadata read only by [`crate::analysis`]; it enters no evaluation
-/// and no content key.
-///
-/// The claim reasoning, stated because a schema number is the one
-/// thing in this repo that two units can silently agree on: the field
-/// is `skip_serializing_if = "Option::is_none"`, so a document that
-/// declares no distribution writes the v14 bytes exactly — that is the
-/// DEGENERATE CARRY, not the format claim. The format claim is the
-/// populated key: a v14 reader handed a param carrying
-/// `"distribution"` meets a field its `deny_unknown_fields` document
-/// types have no name for and dies inside serde rather than at the
-/// version door, which is exactly the direction the gate exists to
-/// fail cleanly. Forward-additive as ever (a v14 file declares no
-/// distributions), and the migration table stays empty: a v14 file
-/// refuses TYPED with the regenerate recourse.
-///
-/// [`crate::DocParam::Count`] parameters gained nothing, deliberately:
-/// structural parameters are fixed under any error analysis, which
-/// comes out unrepresentable rather than as a refusal.
-///
-/// **The same break also carries a new edit arm**, and it rides here
-/// rather than taking a number of its own because it is part of the
-/// same change: an optional annotation is worth nothing if the
-/// ordinary way to move a parameter's value deletes it.
-/// [`crate::DocEdit::SetDocParamValue`] writes a new value into an
-/// already-declared parameter and carries the declaration — dimension
-/// AND distribution — forward, where [`crate::DocEdit::SetDocParam`]
-/// is create-or-replace and a caller who rebuilt a `DocParam` from
-/// `(dim, value)` silently dropped the annotation. The edit log is
-/// file data, so a v14 reader handed a log containing the new arm
-/// meets a variant its `deny_unknown_fields` edit type has no name for
-/// and dies inside serde — the same direction, failed the same way, by
-/// the same gate. A v15 file whose log contains no value edits is the
-/// degenerate carry, exactly as an all-`None` distribution is.
-///
-/// Version 16 is **the chamfer recipe node** (RECIPE-DOORS D2,
-/// issue #918).
-///
-/// The fifteenth break, and the node vocabulary's own kind of break:
-/// [`crate::Node`] gains a `Chamfer` variant (RECIPE-DOORS D2, issue
-/// #918) carrying `{ target, distance, selection }`, and [`crate::SlotId`]
-/// gains `ChamferDistance` for its size. Both types are
-/// `deny_unknown_fields`, so the direction that fails is the usual
-/// one: a v15 reader handed a file containing a chamfer node — or a
-/// slot binding naming its distance — meets a variant it has no name
-/// for and dies inside serde. A v16 file with no chamfer in it is the
-/// degenerate carry.
-///
-/// The recourse is the standing one for a vocabulary break with no
-/// migration machinery (LQ7a): regenerate the file from its own
-/// recipe. Nothing in the wire shape of any existing node moved, so a
-/// file that never mentions a chamfer differs from its v15 self only
-/// in the header number.
-///
-/// This number was taken by an explicit by-eye read of main's constant
-/// at the final re-merge (`git show
-/// origin/main:crates/editor-core/src/persist/mod.rs | grep
-/// SCHEMA_VERSION`), the only thing that has ever caught the
-/// same-number race, and the claim also lives as prose in
-/// `docs/MODEL-AB-LOG.md`, where a second claimant collides instead of
-/// merging clean.
-///
-/// Version 17 is **the tube recipe nodes** (RECIPE-DOORS D4 as
-/// revised by the #1205 ruling).
-///
-/// The sixteenth break, and the node vocabulary's kind of break
-/// again — but a bump covering TWO new variants, which is the part
-/// worth stating. [`crate::Node`] gains `Tube` and `HollowTube`,
-/// carrying `{ spine, u_ref, major_radius, window, minor_radius }`
-/// and that plus `wall`; [`crate::SlotId`] gains `TubeMajorRadius`,
-/// `TubeMinorRadius`, `TubeWindowStart`, `TubeWindowEnd` and
-/// `TubeWall`; and [`crate::node::TubeWindow`] joins the wire as the
-/// window's own two-variant spelling.
-///
-/// **Why ONE number for two kinds.** The split is one vocabulary
-/// decision, ratified as one: a solid tube and a hollow tube are the
-/// two artifacts the kernel's two public doors already denote, and
-/// they are added in the same breath by the same ruling. Two numbers
-/// would claim the second kind is a change a reader could meet
-/// without the first — which is false, since no build ever shipped
-/// one without the other. The v12 precedent (one bump, one
-/// vocabulary change) is the shape; the v7/v8 double-claim is what
-/// two numbers for one change costs.
-///
-/// The direction that fails is the usual one. Every type here is
-/// `deny_unknown_fields`, so a v16 reader handed a file containing a
-/// tube node — or a slot binding naming a tube radius, window angle
-/// or wall — meets a variant it has no name for and dies inside
-/// serde rather than at the version door, which is exactly what the
-/// gate exists to prevent. Forward-additive as ever: a v17 file with
-/// no tube in it is the degenerate carry, differing from its v16
-/// self only in the header number.
-///
-/// The recourse is the standing one for a vocabulary break with no
-/// migration machinery (LQ7a): regenerate the file from its own
-/// recipe. The migration table stays empty.
-///
-/// This number was taken by an explicit by-eye read of main's
-/// constant at the branch point and at every re-merge (`git show
-/// origin/main:crates/editor-core/src/persist/mod.rs | grep
-/// SCHEMA_VERSION`), the only thing that has ever caught the
-/// same-number race — three consecutive units reproduced it, and
-/// neither collision produced a merge conflict, because both sides
-/// write the identical line. The claim also lives as prose in
-/// `docs/MODEL-AB-LOG.md`, where a second claimant collides instead
-/// of merging clean.
-///
-/// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these sixteen.
-pub const SCHEMA_VERSION: u32 = 17;
-
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -509,8 +146,8 @@ pub struct Loaded {
     pub records: Vec<EditRecord>,
 }
 
-/// Typed persistence refusal (spec D2/D6.3 — never a silent
-/// best-effort load, never a stringly error at the API).
+/// Typed persistence refusal (spec D2 — never a silent best-effort
+/// load, never a stringly error at the API).
 #[derive(Debug, Clone, PartialEq)]
 pub enum PersistError {
     /// A non-finite float in the document or edit log, naming the
@@ -547,21 +184,43 @@ pub enum PersistError {
         /// The invariant that failed.
         fault: crate::distribution::DistributionFault,
     },
+    /// A document parameter's authored display unit does not MEASURE
+    /// the dimension it was declared with — `mm` on an `Angle`
+    /// parameter (LIB-SWITCH §4g's `DisplayUnitMismatch`, at the
+    /// document-parameter carrier rather than at a literal).
+    ///
+    /// Reachable two ways, which is why it is a validator walk and not
+    /// a door check: the `DocParam` payload is `pub`, and a file can
+    /// pair any dimension with any table symbol. The AUTHORING doors
+    /// ([`crate::DocParam::written_length`] /
+    /// [`crate::DocParam::written_angle`]) cannot produce one — they
+    /// take a typed carrier whose unit already agrees. Shared-validator
+    /// check, so save refuses before a byte is written and load refuses
+    /// with the same diagnostics.
+    ///
+    /// An OFF-TABLE symbol is a different fault and refuses earlier, at
+    /// the token, in `UnitSym`'s `Deserialize` — this walk sees only
+    /// units that are rows of the table.
+    DisplayUnit {
+        /// The parameter carrying the fault.
+        name: crate::doc::ParamName,
+        /// The dimension the unit measures.
+        unit: crate::expr::Dimension,
+        /// The dimension the parameter was declared with.
+        declared: crate::expr::Dimension,
+    },
     /// The serializer itself failed (I/O-free here, so effectively
     /// unreachable; surfaced rather than swallowed).
     Serialize {
         /// The serializer's message.
         message: String,
     },
-    /// The file has no parseable `schema: <integer>` header line.
-    Header {
-        /// What the first line looked like (truncated).
-        found: String,
-    },
     /// The file has no parseable `id: <32 lowercase hex>` header line
-    /// (required since v5 — the workspace scan reads identity from the
-    /// header without parsing the body; canonical spelling only, like
-    /// the schema line).
+    /// (the workspace scan reads identity from the header without
+    /// parsing the body; canonical spelling only). Carries
+    /// [`REGENERATE_RECOURSE`]: a document written before the `id:`
+    /// line existed lands here, and it is a file this build cannot
+    /// read exactly as an [`Self::Unreadable`] body is.
     HeaderId {
         /// What the id line looked like (truncated).
         found: String,
@@ -575,38 +234,14 @@ pub enum PersistError {
         /// The id the snapshot carries.
         snapshot: DocumentId,
     },
-    /// The header names a schema this build does not know (D6.3:
-    /// refuse typed; migrations only run FORWARD from older versions).
-    UnknownSchema {
-        /// The version in the file.
-        found: u64,
-        /// The newest version this build reads.
-        newest: u32,
-    },
-    /// The header names an OLDER schema this build cannot reach: the
-    /// migration chain has no step for `missing` (M5 PR 10 §4 — the
-    /// 1 → 2 clean break deliberately writes none). Typed refusal, not
-    /// a best-effort load; the recourse is to REGENERATE the file from
-    /// its source recipe with a current build (every file this kernel
-    /// has ever written replays from source).
-    ///
-    /// Version comparison is exact integer arithmetic, so this arm has
-    /// no in-band twin — the two-tolerance discipline does not apply
-    /// (spec §4, stated so the omission reads as a decision).
-    SchemaTooOld {
-        /// The version in the file.
-        found: u32,
-        /// The version this build reads and writes.
-        supported: u32,
-        /// The version whose forward migration step is missing
-        /// (`found` for a single-step gap).
-        missing: u32,
-    },
-    /// A migration step failed or is missing.
-    Migration(MigrationError),
-    /// The body is not valid JSON, or not the typed shape — with the
-    /// serde_json position (1-based line/column into the BODY, i.e.
-    /// after the header line).
+    /// The body was rejected by the JSON reader BEFORE this build's
+    /// types were consulted — serde_json's `Syntax`/`Eof` classes: a
+    /// syntax error, a truncated file, a non-finite token, a numeric
+    /// literal outside `f64` (see [`parse_err`] for the executed edges).
+    /// Position only, no recourse: these bytes are not a stale
+    /// document, and "regenerate" is not the diagnosis. Position is
+    /// serde_json's (1-based line/column into the BODY, i.e. after the
+    /// header line).
     Parse {
         /// Line within the body.
         line: usize,
@@ -614,6 +249,27 @@ pub enum PersistError {
         column: usize,
         /// The parser's message.
         message: String,
+    },
+    /// The body passed the JSON reader and this build's TYPES rejected
+    /// it — serde_json's `Data` class (the seam is stated once, on
+    /// [`parse_err`]): a variant or field this build has no name for,
+    /// a required field it lacks, a wrong type, a rebuild refusal.
+    /// `detail` is the deserializer's own words and the offending name
+    /// is in there. Both directions of growth meet this arm or none
+    /// (module docs): an OLDER document that merely lacks vocabulary
+    /// grown since does NOT land here — it loads; an OLDER document
+    /// missing a field since made required lands here naming it; a
+    /// NEWER document carrying a field this build lacks lands here
+    /// naming it (`deny_unknown_fields` — a stale reader must not
+    /// silently drop data). The recourse is [`REGENERATE_RECOURSE`].
+    Unreadable {
+        /// Line within the body (serde_json's 1-based position).
+        line: usize,
+        /// Column within the line.
+        column: usize,
+        /// The deserializer's message, naming the vocabulary it could
+        /// not place.
+        detail: String,
     },
     /// The snapshot violates a document invariant — a parsed one on
     /// load, or an in-memory one at save (which would have written an
@@ -644,10 +300,10 @@ pub enum PersistError {
     },
 }
 
-/// The one recourse sentence a [`PersistError::SchemaTooOld`] ends on
-/// — composed EXACTLY once per message (the shared-recourse-carrier
-/// discipline, D4 ¶1 addendum). Public so callers can assert on it
-/// without restating prose.
+/// The one recourse sentence a [`PersistError::Unreadable`] and a
+/// [`PersistError::HeaderId`] end on — composed EXACTLY once per
+/// message (the shared-recourse-carrier discipline, D4 ¶1 addendum).
+/// Public so callers can assert on it without restating prose.
 pub const REGENERATE_RECOURSE: &str = "regenerate the file from its source recipe with a current build \
      (every saved document replays from source; this kernel is \
      unreleased and writes no old-format files)";
@@ -664,17 +320,22 @@ impl core::fmt::Display for PersistError {
             Self::Distribution { name, fault } => {
                 write!(f, "persist: document parameter {:?}: {fault}", name.0)
             }
+            Self::DisplayUnit {
+                name,
+                unit,
+                declared,
+            } => write!(
+                f,
+                "persist: document parameter {:?} is declared {declared:?} but its display \
+                 unit measures {unit:?}",
+                name.0
+            ),
             Self::Serialize { message } => write!(f, "persist: serializer failed: {message}"),
-            Self::Header { found } => {
-                write!(
-                    f,
-                    "persist: no `schema: <integer>` header (first line: {found:?})"
-                )
-            }
             Self::HeaderId { found } => {
                 write!(
                     f,
-                    "persist: no `id: <32 lowercase hex>` header line (found: {found:?})"
+                    "persist: no `id: <32 lowercase hex>` header line (found: {found:?}) — \
+                     {REGENERATE_RECOURSE}"
                 )
             }
             Self::IdMismatch { header, snapshot } => write!(
@@ -682,30 +343,20 @@ impl core::fmt::Display for PersistError {
                 "persist: header id {header} disagrees with the snapshot's id {snapshot} — \
                  tampered or hand-assembled file"
             ),
-            Self::UnknownSchema { found, newest } => write!(
-                f,
-                "persist: schema v{found} is newer than this build reads (newest v{newest}) — \
-                 migrations only run forward; use a newer build"
-            ),
-            Self::SchemaTooOld {
-                found,
-                supported,
-                missing,
-            } => write!(
-                f,
-                "persist: schema v{found} is older than this build reads (supported v{supported}) \
-                 and no migration step exists from v{missing} — {REGENERATE_RECOURSE}"
-            ),
-            Self::Migration(e) => write!(
-                f,
-                "persist: migration from schema v{} failed: {}",
-                e.from, e.reason
-            ),
             Self::Parse {
                 line,
                 column,
                 message,
             } => write!(f, "persist: body line {line} column {column}: {message}"),
+            Self::Unreadable {
+                line,
+                column,
+                detail,
+            } => write!(
+                f,
+                "persist: this build cannot read the document (body line {line} column \
+                 {column}: {detail}) — {REGENERATE_RECOURSE}"
+            ),
             Self::Snapshot(e) => write!(f, "persist: invalid snapshot: {e}"),
             Self::EditReplay { index, error } => {
                 write!(f, "persist: edit {index} refused on replay: {error}")
@@ -723,74 +374,6 @@ impl core::fmt::Display for PersistError {
 }
 
 impl core::error::Error for PersistError {}
-
-/// A failed or unavailable migration step (spec D1: migrations are
-/// explicit version-to-version functions from v1 onward).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MigrationError {
-    /// The version the failing step was migrating FROM.
-    pub from: u32,
-    /// Why.
-    pub reason: String,
-}
-
-// The human-readable rendering (LIB-DOORS F6 shape): the step names
-// the version it was migrating FROM and forwards the step's own
-// reason. The chain runs forward only and a step is written for one
-// version pair, so which pair failed is the fact a reader needs; the
-// reason is the step's words and is not re-stated here.
-impl core::fmt::Display for MigrationError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let Self { from, reason } = self;
-        write!(
-            f,
-            "persist: the migration step from schema version {from} to {} failed: {reason}",
-            from + 1
-        )
-    }
-}
-
-impl core::error::Error for MigrationError {}
-
-/// A migration step: `from_version` → `from_version + 1`, on the raw
-/// JSON body (spec D1's ratified mechanism).
-pub type MigrationStep = fn(serde_json::Value) -> Result<serde_json::Value, MigrationError>;
-
-/// The forward migration chain's step table (spec D1: migrations are
-/// explicit version-to-version functions, and they only run FORWARD —
-/// D6.3). The loader walks this from the file's version up to
-/// [`SCHEMA_VERSION`], then deserializes typed.
-///
-/// `None` means NO step exists for that version — the loader turns
-/// that into [`PersistError::SchemaTooOld`] BEFORE it touches the
-/// body, so a too-old file's diagnostics name the version problem
-/// rather than whatever the stale body happens to parse as.
-///
-/// **The table is empty by RULING, not by omission.** LQ7a
-/// (`docs/LIBRARY-DESIGN.md`) bans backwards-compatibility machinery
-/// of any kind before release — no migration chains, no deprecation
-/// shims — so every bump is a clean break and none of them writes a
-/// step: 1 → 2, 2 → 3 (ruled #217), 3 → 4 (profiles as programs),
-/// 4 → 5 (document identity), 5 → 6 (product roots), 6 → 7 (the
-/// instantiate node + the placements registry), 7 → 8 (the `AtToward`
-/// chain step), 8 → 9 (the fillet-family re-spell), 9 → 10 (the
-/// `UpdateReference` edit arm), 10 → 11 (the declaration class),
-/// 11 → 12 (the group boolean's vocabulary), 12 → 13 (`Node::Mate`)
-/// and 13 → 14 (the inhabited interface record).
-///
-/// The MECHANISM stays by the same ruling's other half: D6.3's
-/// forward-only rule is unchanged, and the first post-release format
-/// change that is not a break adds its `n => Some(step_n)` arm here.
-/// An empty table is the ratified state of this door, not scaffolding
-/// waiting to be finished.
-fn migration_step(from_version: u32) -> Option<MigrationStep> {
-    /// `(from_version, step)` pairs — the whole chain, one line each.
-    const TABLE: &[(u32, MigrationStep)] = &[];
-    TABLE
-        .iter()
-        .find(|(from, _)| *from == from_version)
-        .map(|(_, step)| *step)
-}
 
 /// Serializes `snapshot` + `edits` into the current text format.
 ///
@@ -828,10 +411,7 @@ pub fn save(
     // The `id:` header line duplicates the snapshot's id (ASM-1 D-6)
     // so a workspace scan reads identity without parsing the body;
     // load verifies the two agree.
-    Ok(format!(
-        "schema: {SCHEMA_VERSION}\nid: {}\n{json}\n",
-        snapshot.id()
-    ))
+    Ok(format!("id: {}\n{json}\n", snapshot.id()))
 }
 
 /// The borrowing twin of [`FileBody`] (save side).
@@ -841,9 +421,9 @@ struct SerBody<'a> {
     edits: &'a [DocEdit<ProfileProgram>],
 }
 
-/// Parses, migrates, validates, replays, and ε-reconciles a saved
-/// document. See the module docs for the door sequence; every failure
-/// is a typed [`PersistError`].
+/// Parses, validates, replays, and ε-reconciles a saved document. See
+/// the module docs for the door sequence; every failure is a typed
+/// [`PersistError`].
 ///
 /// # Errors
 ///
@@ -851,43 +431,16 @@ struct SerBody<'a> {
 /// guarded by the shared validator but unreachable post-parse — JSON
 /// carries no non-finite tokens, so those bytes refuse as `Parse`).
 pub fn load(text: &str, tol: Tol) -> Result<Loaded, PersistError> {
-    let (version, rest) = parse_header(text)?;
-    // Migration chain (D1): walk explicit steps up to the current
-    // version, then deserialize typed.
-    let (header_id, body): (Option<DocumentId>, FileBody) = if version == SCHEMA_VERSION {
-        // The v5 header carries the document's id (ASM-1 D-6); parse
-        // it before the body so a malformed header refuses in header
-        // terms, then verify it against the snapshot below.
-        let (id, body_text) = parse_id_line(rest)?;
-        (Some(id), parse_body(body_text)?)
-    } else {
-        let body_text = rest;
-        // Walk the chain for AVAILABILITY first, before a byte of the
-        // body is parsed: a file this build cannot reach must say so
-        // in version terms (§4's clean break), not report whatever the
-        // old body's JSON looks like under today's types.
-        let steps: Vec<MigrationStep> = (version..SCHEMA_VERSION)
-            .map(|at| {
-                migration_step(at).ok_or(PersistError::SchemaTooOld {
-                    found: version,
-                    supported: SCHEMA_VERSION,
-                    missing: at,
-                })
-            })
-            .collect::<Result<_, _>>()?;
-        let mut value: serde_json::Value = serde_json::from_str(body_text).map_err(parse_err)?;
-        for step in steps {
-            value = step(value).map_err(PersistError::Migration)?;
-        }
-        (None, serde_json::from_value(value).map_err(parse_err)?)
-    };
+    // The header carries the document's id (ASM-1 D-6); it is parsed
+    // before the body so a malformed header refuses in header terms,
+    // then verified against the snapshot below.
+    let (header_id, body_text) = parse_id_line(text)?;
+    let body = parse_body(body_text)?;
     // Header/snapshot id agreement (ASM-1 D-6): the save door writes
     // the snapshot's own id, so disagreement is tampering, refused.
-    if let Some(header) = header_id
-        && header != body.snapshot.id()
-    {
+    if header_id != body.snapshot.id() {
         return Err(PersistError::IdMismatch {
-            header,
+            header: header_id,
             snapshot: body.snapshot.id(),
         });
     }
@@ -934,41 +487,11 @@ fn reconcile_epsilon(eps: f64) -> Result<(), PersistError> {
     }
 }
 
-/// Splits the `schema: <integer>` header from the body and validates
-/// the version window.
-fn parse_header(text: &str) -> Result<(u32, &str), PersistError> {
-    let (first, rest) = text.split_once('\n').unwrap_or((text, ""));
-    let found = || first.chars().take(80).collect::<String>();
-    // Canonical spelling ONLY (review NOTE-5): exactly "schema: "
-    // then plain decimal digits — no signs, no extra whitespace, no
-    // leading zeros. The write side emits exactly this; any other
-    // spelling is a tampered or foreign file and refuses typed.
-    let Some(version_text) = first.strip_prefix("schema: ") else {
-        return Err(PersistError::Header { found: found() });
-    };
-    let canonical_digits = !version_text.is_empty()
-        && version_text.bytes().all(|b| b.is_ascii_digit())
-        && (version_text == "0" || !version_text.starts_with('0'));
-    if !canonical_digits {
-        return Err(PersistError::Header { found: found() });
-    }
-    let Ok(version) = version_text.parse::<u64>() else {
-        // Only reachable on > u64::MAX digit strings.
-        return Err(PersistError::Header { found: found() });
-    };
-    if version == 0 || version > u64::from(SCHEMA_VERSION) {
-        return Err(PersistError::UnknownSchema {
-            found: version,
-            newest: SCHEMA_VERSION,
-        });
-    }
-    // The window check above keeps this cast exact.
-    Ok((version as u32, rest))
-}
-
-/// Splits the `id: <32 lowercase hex>` line (v5's second header line)
-/// from the body. Canonical spelling ONLY, same discipline as the
-/// schema line: exactly `id: ` then exactly 32 lowercase hex digits.
+/// Splits the `id: <32 lowercase hex>` header line from the body.
+/// Canonical spelling ONLY: exactly `id: ` then exactly 32 lowercase
+/// hex digits — no other whitespace, case or width. The write side
+/// emits exactly this; any other spelling is a tampered or foreign
+/// file and refuses typed.
 fn parse_id_line(text: &str) -> Result<(DocumentId, &str), PersistError> {
     let (first, rest) = text.split_once('\n').unwrap_or((text, ""));
     let found = || first.chars().take(80).collect::<String>();
@@ -981,28 +504,15 @@ fn parse_id_line(text: &str) -> Result<(DocumentId, &str), PersistError> {
     Ok((id, rest))
 }
 
-/// The document id named by a save's header lines, WITHOUT parsing
-/// the body — the workspace scan's cheap read (ASM-1 D-5/D-6). Walks
-/// the same doors as [`load`]'s header phase: version window, then
-/// the v5 `id:` line; an older schema refuses [`PersistError::SchemaTooOld`]
-/// exactly as a full load would (the migration table is empty).
+/// The document id named by a save's header line, WITHOUT parsing the
+/// body — the workspace scan's cheap read (ASM-1 D-5/D-6). The same
+/// door as [`load`]'s header phase.
 ///
 /// # Errors
 ///
-/// [`PersistError::Header`], [`PersistError::UnknownSchema`],
-/// [`PersistError::SchemaTooOld`], [`PersistError::HeaderId`].
+/// [`PersistError::HeaderId`].
 pub fn header_document_id(text: &str) -> Result<DocumentId, PersistError> {
-    let (version, rest) = parse_header(text)?;
-    if version != SCHEMA_VERSION {
-        // Pre-v5 headers carry no id line; the file would refuse at
-        // load for the same reason (empty migration table).
-        return Err(PersistError::SchemaTooOld {
-            found: version,
-            supported: SCHEMA_VERSION,
-            missing: version,
-        });
-    }
-    let (id, _body) = parse_id_line(rest)?;
+    let (id, _body) = parse_id_line(text)?;
     Ok(id)
 }
 
@@ -1010,10 +520,46 @@ fn parse_body(body_text: &str) -> Result<FileBody, PersistError> {
     serde_json::from_str(body_text).map_err(parse_err)
 }
 
+/// THE seam, stated once (the variant docs and the module header point
+/// here): which arm a body refusal lands on is serde_json's own
+/// classification of its failure — [`serde_json::error::Category`] —
+/// and nothing else. No message is inspected.
+///
+/// `Data` → [`PersistError::Unreadable`] with the recourse: the JSON
+/// reader accepted the bytes and this build's TYPES rejected them.
+/// `Syntax` / `Eof` → [`PersistError::Parse`] without it: the reader
+/// rejected the bytes before any type was consulted. `Io` cannot arise
+/// from a `&str` source and is grouped with the reader's classes
+/// rather than left to a wildcard.
+///
+/// The executed edges, so nobody has to guess where the line falls
+/// (`tests/bool13_r1_probes.rs`, `tests/bool13r2_probes.rs`):
+/// unknown variant, unknown field, missing field, duplicate field, a
+/// wrong type at any depth, a body that is `null` / `5` / `[]` / a
+/// string, a nesting bomb (the typed visitor fails at depth three
+/// before the reader's recursion limit), and the crate's own rebuild
+/// refusals (duplicate strict-map key, ill-dimensioned expression,
+/// unknown display unit) are all `Data` → `Unreadable`. A syntax error,
+/// truncation, an empty body, trailing bytes after the value, a `NaN`
+/// or `Infinity` token, and a decimal literal outside `f64` (`1e999`,
+/// "number out of range" — serde_json rejects it at the TOKEN, so it is
+/// `Syntax` although the bytes are grammatical JSON) are all
+/// → `Parse`. That last edge is the one place the two descriptions
+/// "not JSON" and "reader-rejected" part company, and the reader's
+/// class is the one this door follows.
 fn parse_err(e: serde_json::Error) -> PersistError {
-    PersistError::Parse {
-        line: e.line(),
-        column: e.column(),
-        message: e.to_string(),
+    use serde_json::error::Category;
+    let (line, column, message) = (e.line(), e.column(), e.to_string());
+    match e.classify() {
+        Category::Data => PersistError::Unreadable {
+            line,
+            column,
+            detail: message,
+        },
+        Category::Syntax | Category::Eof | Category::Io => PersistError::Parse {
+            line,
+            column,
+            message,
+        },
     }
 }

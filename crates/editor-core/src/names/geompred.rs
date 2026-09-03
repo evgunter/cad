@@ -2,6 +2,20 @@
 //! §1, ratified #286) — the vocabulary [`select_where`](super::select_where) filters a
 //! structural selection with.
 //!
+//! # One implementation, two doors
+//!
+//! The geometric tests themselves are the KERNEL's ([`topo::query`],
+//! the kernel query seat): kind mirrors, kind-set comparands, the
+//! per-key predicates and the decided distance funnel are defined
+//! there, beside `Body`, and re-exported here — the `ContactClass`
+//! layering shape (defined lowest, re-exported upward), so the
+//! document door and a kernel-direct caller run the same one
+//! implementation. What this module OWNS is everything name-flavored:
+//! the [`GeomPred`] atom vocabulary (whose datum is a recipe
+//! reference), its resolution against an evaluation ([`prepare`]),
+//! and the [`SelectRefusal`]s that name the candidate a refusal is
+//! about.
+//!
 //! # The load-bearing split: EXACT vs DECIDED
 //!
 //! The design's central observation is that the predicate alphabet
@@ -49,10 +63,8 @@
 //! and deliberately NOT built: a wrong margin design shipped into a
 //! public API is far more expensive than a follow-up unit.
 
-use geom_brep::SurfaceKind;
-use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Margin, Point3, Sign};
-use topo::{Body, Curve3, CurveGeom, EdgeKey, HalfEdgeKey, Surface};
+use geom_core::{Band, Decide, Sign};
+use topo::{Body, query};
 
 use crate::eval::{DatumValue, Evaluation, NodeResult, ValuePayload};
 use crate::expr::{Dimension, Expr, ParamEnv};
@@ -61,187 +73,12 @@ use crate::names::role::StableName;
 use crate::names::table::EntityKey;
 use crate::node::RecipeNodeId;
 
-/// Which [`Curve3`] variant a carrier is: the fieldless mirror of the
-/// curve enum, and the edge-side twin of [`SurfaceKind`].
-///
-/// The mirror is hand-written and [`CurveKind::of`]'s match is
-/// EXHAUSTIVE with no wildcard arm, so adding a `Curve3` variant fails
-/// to compile here rather than silently classifying as something else
-/// — the same fail-loud tripwire `SegTag::of` uses for role segments.
-///
-/// (Placement: `SurfaceKind` lives in `geom-brep` rather than beside
-/// `Surface` in `geom`, so "the mirror lives where it is
-/// used" is the shipped precedent; this one lives in the crate that
-/// selects with it. Moving it down beside `Curve3` later is additive.)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum CurveKind {
-    /// [`Curve3::Line`].
-    Line,
-    /// [`Curve3::Circle`].
-    Circle,
-    /// [`Curve3::Ellipse`].
-    Ellipse,
-    /// [`Curve3::Nurbs`].
-    Nurbs,
-}
-
-impl CurveKind {
-    /// Every kind, in declaration order.
-    pub const ALL: [Self; 4] = [Self::Line, Self::Circle, Self::Ellipse, Self::Nurbs];
-
-    /// The kind of a carrier (exhaustive by construction — type docs).
-    #[must_use]
-    pub fn of<T: geom_core::Real>(c: &Curve3<T>) -> Self {
-        match c {
-            Curve3::Line { .. } => Self::Line,
-            Curve3::Circle { .. } => Self::Circle,
-            Curve3::Ellipse { .. } => Self::Ellipse,
-            Curve3::Nurbs(_) => Self::Nurbs,
-        }
-    }
-
-    /// This kind's bit position in a [`CurveKindSet`].
-    const fn bit(self) -> u8 {
-        match self {
-            Self::Line => 0,
-            Self::Circle => 1,
-            Self::Ellipse => 2,
-            Self::Nurbs => 3,
-        }
-    }
-
-    /// The lowercase name, for refusal rendering.
-    #[must_use]
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Line => "line",
-            Self::Circle => "circle",
-            Self::Ellipse => "ellipse",
-            Self::Nurbs => "nurbs",
-        }
-    }
-}
-
-/// A SET of [`CurveKind`]s — the atom's comparand, so "a line or an
-/// arc" is one predicate rather than a union of two selections.
-///
-/// A bitset, not a `Vec`: the mirror is closed and tiny, so the value
-/// is `Copy`, `Ord` and canonical (no ordering or duplicate freedom to
-/// disagree about between two equal sets).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
-pub struct CurveKindSet(u8);
-
-impl CurveKindSet {
-    /// The set of exactly these kinds. An EMPTY set matches nothing
-    /// (the same posture as an empty [`Selector`](super::Selector)).
-    #[must_use]
-    pub fn of(kinds: impl IntoIterator<Item = CurveKind>) -> Self {
-        Self(kinds.into_iter().fold(0, |acc, k| acc | (1 << k.bit())))
-    }
-
-    /// The singleton set — the common case.
-    #[must_use]
-    pub fn just(kind: CurveKind) -> Self {
-        Self::of([kind])
-    }
-
-    /// Whether `kind` is a member.
-    #[must_use]
-    pub fn contains(self, kind: CurveKind) -> bool {
-        self.0 & (1 << kind.bit()) != 0
-    }
-
-    /// Whether the set is empty (matches nothing).
-    #[must_use]
-    pub fn is_empty(self) -> bool {
-        self.0 == 0
-    }
-
-    /// The members, in [`CurveKind::ALL`] order.
-    pub fn iter(self) -> impl Iterator<Item = CurveKind> {
-        CurveKind::ALL
-            .into_iter()
-            .filter(move |k| self.contains(*k))
-    }
-}
-
-/// The [`SurfaceKind`] bit position in a [`SurfaceKindSet`].
-///
-/// EXHAUSTIVE with no wildcard arm: a new `SurfaceKind` variant fails
-/// to compile here (and `ALL_SURFACE_KINDS` below is pinned against
-/// this function by a unit test, so the pair cannot drift apart).
-const fn surface_bit(kind: SurfaceKind) -> u8 {
-    match kind {
-        SurfaceKind::Plane => 0,
-        SurfaceKind::Cylinder => 1,
-        SurfaceKind::Cone => 2,
-        SurfaceKind::Sphere => 3,
-        SurfaceKind::Torus => 4,
-        SurfaceKind::Nurbs => 5,
-        SurfaceKind::Approx => 6,
-    }
-}
-
-/// Every [`SurfaceKind`], in declaration order — the iteration order of
-/// a [`SurfaceKindSet`].
-pub const ALL_SURFACE_KINDS: [SurfaceKind; 7] = [
-    SurfaceKind::Plane,
-    SurfaceKind::Cylinder,
-    SurfaceKind::Cone,
-    SurfaceKind::Sphere,
-    SurfaceKind::Torus,
-    SurfaceKind::Nurbs,
-    SurfaceKind::Approx,
-];
-
-/// A SET of [`SurfaceKind`]s — [`CurveKindSet`]'s face-side twin, and
-/// the comparand of both [`GeomPred::SurfaceKind`] and each side of
-/// [`GeomPred::AdjacentKinds`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
-pub struct SurfaceKindSet(u8);
-
-impl SurfaceKindSet {
-    /// The set of exactly these kinds. An EMPTY set matches nothing.
-    #[must_use]
-    pub fn of(kinds: impl IntoIterator<Item = SurfaceKind>) -> Self {
-        Self(
-            kinds
-                .into_iter()
-                .fold(0, |acc, k| acc | (1 << surface_bit(k))),
-        )
-    }
-
-    /// The singleton set — the common case.
-    #[must_use]
-    pub fn just(kind: SurfaceKind) -> Self {
-        Self::of([kind])
-    }
-
-    /// Whether `kind` is a member.
-    #[must_use]
-    pub fn contains(self, kind: SurfaceKind) -> bool {
-        self.0 & (1 << surface_bit(kind)) != 0
-    }
-
-    /// Whether the set is empty (matches nothing).
-    #[must_use]
-    pub fn is_empty(self) -> bool {
-        self.0 == 0
-    }
-
-    /// The members, in [`ALL_SURFACE_KINDS`] order.
-    pub fn iter(self) -> impl Iterator<Item = SurfaceKind> {
-        ALL_SURFACE_KINDS
-            .into_iter()
-            .filter(move |k| self.contains(*k))
-    }
-
-    /// The kind of a carrier — the tag read the EXACT atoms are.
-    #[must_use]
-    pub fn kind_of<T: geom_core::Real>(s: &Surface<T>) -> SurfaceKind {
-        SurfaceKind::of(s)
-    }
-}
+// The kernel query seat's vocabulary, re-exported at its historical
+// home so this crate's public surface is unchanged (see the module
+// docs' layering note).
+pub use topo::query::{
+    ALL_SURFACE_KINDS, CurveKind, CurveKindSet, SEL_DATUM_DISTANCE, SurfaceKindSet,
+};
 
 /// The comparison a [`GeomPred::DatumDistance`] makes against its
 /// stated value: the SIGN trilean, never a bare float equality.
@@ -272,20 +109,6 @@ impl Cmp {
         }
     }
 }
-
-/// **The funnel site name** of the decided position predicate — the
-/// `sel_*` prefix SELECT-DESIGN §1 proposes, so any K-census consumer
-/// can tell selector margins from kernel ones by name alone (GS-Q1's
-/// separation mechanism). Its comparand is a genuine length (the
-/// signed/unsigned distance minus the stated value), so it goes
-/// through the plain [`Margin::of`](geom_core::Margin::of) door and
-/// owes NO `docs/predicate-dimension-audit.md` row — the flagged lane
-/// is for comparands that cannot honestly be lengths.
-///
-/// A K row name reaching the funnel through a const, not a literal at
-/// the decide site, so it is a roster carrier (`docs/K-REPORT.md`,
-/// "The inventory method, restated").
-pub const SEL_DATUM_DISTANCE: &str = "sel_datum_distance";
 
 /// One geometric atom. A `&[GeomPred]` is their CONJUNCTION — the
 /// algebra stays union-of-conjunctions end to end (run
@@ -499,7 +322,7 @@ impl core::fmt::Display for SelectRefusal {
             Self::NotALength { dim } => write!(
                 f,
                 "select: the comparand of a distance is a distance, and this expression has \
-                 dimension {dim:?}"
+                 dimension {dim}"
             ),
             Self::PairInBand {
                 pair,
@@ -607,24 +430,6 @@ pub(crate) fn prepare<'a, T: Decide>(
         .collect()
 }
 
-/// The surface kind on one side of an edge, or `None` where the
-/// adjacency or its geometry is not there to read.
-fn face_kind_across<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<SurfaceKind> {
-    let h = body.get_half_edge(he)?;
-    let f = body.get_loop(h.parent_loop)?.face;
-    body.get_surface(body.get_face(f)?.surface)
-        .map(SurfaceKind::of)
-}
-
-/// The certified carrier kind of an edge, or `None` for an
-/// uncertified (null-scaffold) one.
-fn carrier_kind<T: Decide>(body: &Body<T>, e: EdgeKey) -> Option<CurveKind> {
-    let curve = body.get_edge(e)?.curve;
-    body.get_curve_geom(curve)
-        .and_then(CurveGeom::certified)
-        .map(|c| CurveKind::of(c.carrier()))
-}
-
 /// Whether ONE resolved candidate satisfies the whole conjunction.
 ///
 /// `name` rides along only so a refusal can name the candidate it is
@@ -646,32 +451,21 @@ pub(crate) fn candidate_matches<T: Decide>(
 ) -> Result<bool, SelectRefusal> {
     for atom in atoms {
         let ok = match atom {
+            // The kinds an atom does not apply to answer an honest NO,
+            // and they are LISTED rather than swept up: an entity kind
+            // added to the model is a decision about which atoms can
+            // read it, and it is owed here rather than defaulted to no.
             Prepared::Curve(set) => match key {
-                EntityKey::Edge(e) => carrier_kind(body, e).is_some_and(|k| set.contains(k)),
-                _ => false,
+                EntityKey::Edge(e) => query::edge_carrier_matches(body, e, *set),
+                EntityKey::Body | EntityKey::Face(_) | EntityKey::Vertex(_) => false,
             },
             Prepared::Surface(set) => match key {
-                EntityKey::Face(f) => body
-                    .get_face(f)
-                    .and_then(|face| body.get_surface(face.surface))
-                    .is_some_and(|s| set.contains(SurfaceKind::of(s))),
-                _ => false,
+                EntityKey::Face(f) => query::face_surface_matches(body, f, *set),
+                EntityKey::Body | EntityKey::Edge(_) | EntityKey::Vertex(_) => false,
             },
             Prepared::Adjacent(a, b) => match key {
-                EntityKey::Edge(e) => body.get_edge(e).is_some_and(|edge| {
-                    match (
-                        face_kind_across(body, edge.he_plus),
-                        face_kind_across(body, edge.he_minus),
-                    ) {
-                        // UNORDERED (the atom's equivariance): the
-                        // pair matches whichever side carries which.
-                        (Some(p), Some(m)) => {
-                            (a.contains(p) && b.contains(m)) || (a.contains(m) && b.contains(p))
-                        }
-                        _ => false,
-                    }
-                }),
-                _ => false,
+                EntityKey::Edge(e) => query::edge_adjacent_matches(body, e, *a, *b),
+                EntityKey::Body | EntityKey::Face(_) | EntityKey::Vertex(_) => false,
             },
             Prepared::Distance { datum, cmp, value } => {
                 let point = super::interrogate::entity_point(body, key).map_err(|error| {
@@ -680,8 +474,7 @@ pub(crate) fn candidate_matches<T: Decide>(
                         error,
                     }
                 })?;
-                let margin = datum_margin(datum, point) - *value;
-                match decide(SEL_DATUM_DISTANCE, Margin::of(margin), band) {
+                match query::datum_distance_sign(datum, point, *value, band) {
                     Ok(sign) => match cmp {
                         Cmp::Approx => sign == Sign::Zero,
                         Cmp::Greater => sign == Sign::Positive,
@@ -702,22 +495,4 @@ pub(crate) fn candidate_matches<T: Decide>(
         }
     }
     Ok(true)
-}
-
-/// The distance of `p` from a datum: SIGNED along a plane's normal
-/// (which is stored unit, so the dot product is already a length),
-/// UNSIGNED to an axis or a point.
-///
-/// The comparand handed to the funnel is this MINUS the stated value —
-/// a length minus a length, so [`Margin::of`] is the honest door and
-/// the site owes no dimension-audit row.
-fn datum_margin<T: Decide>(datum: &DatumValue<T>, p: Point3<T>) -> T {
-    match datum {
-        DatumValue::Plane { origin, normal } => (p - *origin).dot(*normal),
-        DatumValue::Axis { origin, dir } => {
-            let v = p - *origin;
-            (v - *dir * v.dot(*dir)).norm()
-        }
-        DatumValue::Point { position } => (p - *position).norm(),
-    }
 }

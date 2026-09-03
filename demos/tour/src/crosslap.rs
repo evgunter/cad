@@ -1,4 +1,4 @@
-//! The cross-lap joint (#91 C1, Evan's pick): two beams, each notched
+//! The cross-lap joint (#91 C1, Ev's pick): two beams, each notched
 //! half-depth by a subtract — each notched beam is itself a boolean
 //! result, so the joint is #90's boolean-of-boolean payload made
 //! visible. Geometry is the `issue86_double_subtract` crossing-slots
@@ -128,15 +128,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Stop {
             name: "crosslap",
             caption: "cross-lap (glued)".to_string(),
-            // Montage cell RETIRED by the M9-5 consolidation, which is
-            // the one demos/README.md's "considered and NOT built"
-            // note said to wait for: `twopeg` shows this cell's whole
-            // claim — a glued union across a declared coincident
-            // PLANAR contact — and adds the two CYLINDRICAL contacts
-            // that did not exist when that note was written, on a
-            // shape that is more part-like than either. The cross-lap
-            // keeps its standalone render, its narration, and every
-            // non-sheet role (corpus, latency, exports).
+            // Off the sheet: `twopeg` shows this cell's whole claim —
+            // a glued union across a declared coincident PLANAR
+            // contact — and adds two CYLINDRICAL contacts on a shape
+            // that is more part-like. The cross-lap keeps its
+            // standalone render, its narration, and every non-sheet
+            // role (corpus, latency, exports).
             montage: false,
             story: "cross-lap joint, glued: two half-depth-notched beams interlocked and \
                     UNIONED into one body through the declared-REST zip (M5 S1) — the \
@@ -160,7 +157,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             name: "crosslap_exploded",
             caption: "cross-lap (exploded)".to_string(),
             // Off the sheet with its own glued cell (see above);
-            // `twopeg_apart` is the apart framing the sheet now
+            // `twopeg`'s apart framing is what the sheet now
             // carries.
             montage: false,
             story: "the same joint exploded: beam B lifted by a rigid transform \

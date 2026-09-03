@@ -1,6 +1,6 @@
 # Persistent naming & selection stability (pre-M4 design doc)
 
-Status: **RATIFIED** (Evan, PR #74, 2026-07-23 — N1–N7 as proposed,
+Status: **RATIFIED** (Ev, PR #74, 2026-07-23 — N1–N7 as proposed,
 including keeping F7 per the N3 analysis; the elaboration rounds on
 merge policy and N2 alternatives are in the PR conversation).
 Grounding:
@@ -330,7 +330,7 @@ contract).
   the menu starts empty by decision.
 
 ## The split-naming walls (2026-08-15 survey; the G14 disposition
-## — RATIFIED: Evan 👍 on #512, A2 + the B1 alignment)
+## — RATIFIED: Ev 👍 on #512, A2 + the B1 alignment)
 
 **EXECUTED (LIB-G14).** Both walls are down as ratified; the tenses
 below are the survey's and describe the state before the fix. One
@@ -365,7 +365,7 @@ refusal narrows to entities whose OWN name genuinely needs a
 unique upstream. This is alignment with ratified text plus
 precedent, not new design.
 
-**Wall A — chord multiplicity: THE FORK (Evan's call).**
+**Wall A — chord multiplicity: THE FORK (Ev's call).**
 RoleSeg::SectionEdge{side, face} names a section chord only by
 the operand face it crosses, so a face crossed twice would mint
 one name twice — refused today ("multiple section chords across

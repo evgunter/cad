@@ -56,6 +56,7 @@
 //! | cylinder | the line `ρ = r` |
 //! | cone | the generator line through `(0, h_apex)` |
 //! | sphere centred on `a` | the circle `ρ² + (h − h_c)² = R²` |
+//! | torus coaxial with `a` | the meridian circle `(ρ − R)² + (h − h_c)² = r²` |
 //! | plane containing `a` | not a profile constraint at all — it fixes the AZIMUTH |
 //!
 //! A corner is therefore solved in two independent steps, both closed
@@ -91,24 +92,32 @@
 //! Several `what:` strings here are unreachable through `shell` because
 //! an operand door refuses first, and that is said rather than left for
 //! a reader to test for. Reached by a shipped row: the tangency arm of
-//! [`ReplaceFaceError::TogetherAxialCorner`] (the bullet), the torus
-//! kind gate (the belly vase), `TogetherNotAxial`'s
-//! oblique-plane arm and `TogetherEdgeDisagreement` (`sf2b_r1_probes`,
-//! `sf2b_r2_probes`). **Direct-door only**, i.e. pinned by calling
+//! [`ReplaceFaceError::TogetherAxialCorner`] (the bullet), its
+//! one-profile-constraint arm (the klein elbow's rim, `torax_axial`),
+//! `TogetherNotAxial`'s oblique-plane arm and `TogetherEdgeDisagreement`
+//! (`sf2b_r1_probes`, `sf2b_r2_probes`, and the sphere lune's rim in
+//! `torax_axial`). **Direct-door only**, i.e. pinned by calling
 //! `offset_charts_together` rather than `shell`: the partial-set and
 //! chart-mixed gates. **Unreached by any fixture**, and written for
-//! correctness: the axis-pole station arm, the two seam arms' refusing
-//! sides, and the over-determined-azimuth arm — no constructible body
-//! in this workspace has more than one plane through the axis at a
-//! corner that is not also all-planar.
+//! correctness: the axis-pole station arm, its off-axis-circle arm, the
+//! three seam arms' refusing sides, and the over-determined-azimuth arm
+//! — no constructible body in this workspace has more than one plane
+//! through the axis at a corner that is not also all-planar, and a
+//! profile circle centred off the axis (a torus meridian, `ρ_c = R`)
+//! cannot contain an axis pole at all, since `R > r > 0` holds it
+//! `R − r` clear of it.
 //!
 //! # What this door does not do
 //!
 //! - **No marching, no SSI, no crossing-pipeline entry.** Every solve
 //!   above is a quadratic at worst.
-//! - **It does not widen the C5 table** and does not call it. A torus
-//!   is outside the axis gate's kinds, so the bodies whose pairs the
-//!   table declines never reach here and keep the refusal they had.
+//! - **It does not widen the C5 table** and does not call it. A body
+//!   whose surfaces are not all coaxial about one axis — or whose kind
+//!   the gate does not know — never reaches here and keeps the refusal
+//!   it had. That includes a `plane × torus` rim on a PARTIAL revolve,
+//!   whose moved cap has stopped containing the axis and whose section
+//!   is a quartic; a FULL revolve's torus rim is a latitude circle and
+//!   is this door's, without the table being asked.
 //! - **It does not touch global clearance.** `shell`'s wall-clearance
 //!   gate is the operand's and is unchanged; this door decides corners.
 //!   A sliver WEDGE whose two moved meridian planes cross outside the
@@ -207,15 +216,29 @@ enum Constraint<T: Real> {
     Generator { h_apex: T, sin_a: T, cos_a: T },
     /// A sphere centred on the axis at station `h_c`.
     Ball { h_c: T, r: T },
+    /// A torus coaxial with the body: its meridian is the circle of
+    /// radius `minor` centred `(major, h_c)` in the `(ρ, h)`
+    /// half-plane. `major` is the only profile centre here that is not
+    /// on the axis, and `major > minor > 0` is the standing
+    /// construction invariant, netted upstream — no arm here re-decides
+    /// it.
+    Torus { major: T, h_c: T, minor: T },
     /// A plane CONTAINING the axis: `m̂·x = c`.
     Meridian { m: Vec3<T>, c: T },
 }
 
-/// A profile constraint as a line `n̂·(ρ, h) = c`, or a circle.
+/// A profile constraint as a line `n̂·(ρ, h) = c`, or a circle centred
+/// `(ρ_c, h_c)` of radius `r`.
+///
+/// **The circle's centre carries a ρ, and every arithmetic site here
+/// reads it.** A sphere's meridian is centred ON the axis and a torus's
+/// is not — that one number is the whole difference between the two
+/// kinds in this half-plane, so it lives in the datum rather than in a
+/// fork per kind.
 #[derive(Clone, Copy)]
 enum Profile<T: Real> {
     Line { n: (T, T), c: T },
-    Circle { h_c: T, r: T },
+    Circle { rho_c: T, h_c: T, r: T },
 }
 
 impl<T: Real> Profile<T> {
@@ -225,7 +248,7 @@ impl<T: Real> Profile<T> {
     fn residual(&self, rho: T, h: T) -> T {
         match *self {
             Self::Line { n, c } => n.0 * rho + n.1 * h - c,
-            Self::Circle { h_c, r } => Vec3::new(rho, h - h_c, T::zero()).norm() - r,
+            Self::Circle { rho_c, h_c, r } => Vec3::new(rho - rho_c, h - h_c, T::zero()).norm() - r,
         }
     }
 }
@@ -503,8 +526,8 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
 // ---------------------------------------------------------------------
 
 /// **Is this a body this door can take?** Structural and cheap: every
-/// surface is a plane, cylinder, cone or sphere, the curved ones share
-/// one axis LINE, and every plane is normal to it or contains it.
+/// surface is a plane, cylinder, cone, sphere or TORUS, the curved ones
+/// share one axis LINE, and every plane is normal to it or contains it.
 ///
 /// `shell` reads this to pick its branch, so a body outside it keeps
 /// exactly the posture it had.
@@ -520,8 +543,11 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
 /// per-chart door — whose refusal would then name a carrier rather than
 /// the undecided geometry that actually stopped it. So the escalation
 /// is returned typed and the caller refuses with it. Every other
-/// verdict — a torus, a skew cylinder, an all-planar body with no axis
-/// at all — is a definite `false` and stays one.
+/// verdict — a NURBS or fitted wall, a skew cylinder, a torus whose own
+/// axis is NOT the body's, an all-planar body with no axis at all — is
+/// a definite `false` and stays one. A COAXIAL torus is no longer one
+/// of them: it is inside the roster this door takes, and the table at
+/// the top of this module carries its meridian circle.
 ///
 /// **The band is not reachable from any operand this workspace's sweeps
 /// build, and that is measured rather than assumed.** Every margin this
@@ -572,6 +598,10 @@ fn axial_frame<T: Real>(body: &Body<T>) -> Result<Frame<T>, ReplaceFaceError<T>>
             Surface::Cylinder { origin, axis, .. } => Some((*origin, axis.normalize())),
             Surface::Cone { apex, axis, .. } => Some((*apex, axis.normalize())),
             Surface::Sphere { center, axis, .. } => Some((*center, axis.normalize())),
+            // A torus carries `center` + `axis` exactly as a sphere
+            // does: the centre is the tube midplane's own point on the
+            // axis, and the axis is the revolution axis itself.
+            Surface::Torus { center, axis, .. } => Some((*center, axis.normalize())),
             Surface::Plane { .. } => None,
             other => {
                 return Err(ReplaceFaceError::TogetherAxialUnsupported {
@@ -734,6 +764,24 @@ fn classify<T: Decide>(
             Constraint::Ball {
                 h_c: frame.station(*m_center),
                 r: *m_radius,
+            }
+        }
+        (
+            Surface::Torus { center, axis, .. },
+            Surface::Torus {
+                center: m_center,
+                major_radius: m_major,
+                minor_radius: m_minor,
+                ..
+            },
+        ) => {
+            if !sine(parallel(*axis), "offset_axial_alignment")? || !on_axis(*center)? {
+                return Err(not_axial("a torus whose centre is off the body's axis"));
+            }
+            Constraint::Torus {
+                major: *m_major,
+                h_c: frame.station(*m_center),
+                minor: *m_minor,
             }
         }
         (other, _) => {
@@ -919,7 +967,16 @@ fn solve_corner<T: Decide>(
                 n: (T::one(), T::zero()),
                 c: r,
             }),
-            Constraint::Ball { h_c, r } => profiles.push(Profile::Circle { h_c, r }),
+            Constraint::Ball { h_c, r } => profiles.push(Profile::Circle {
+                rho_c: T::zero(),
+                h_c,
+                r,
+            }),
+            Constraint::Torus { major, h_c, minor } => profiles.push(Profile::Circle {
+                rho_c: major,
+                h_c,
+                r: minor,
+            }),
             Constraint::Generator {
                 h_apex,
                 sin_a,
@@ -979,7 +1036,26 @@ fn solve_corner<T: Decide>(
                 }
                 c / n.1
             }
-            Profile::Circle { h_c, r } => {
+            Profile::Circle { rho_c, h_c, r } => {
+                // **A profile circle centred OFF the axis contains no
+                // point of the axis.** Its nearest approach is
+                // `ρ_c − r`, which the torus's standing construction
+                // invariant `R > r > 0` keeps strictly positive — so a
+                // vertex read as a pole against one is a contradiction,
+                // not a station, and `h_c ± r` would answer it with a
+                // number that is on no surface here. The arm decides
+                // the centre rather than the kind: it is the circle's
+                // own geometry that makes the step below valid.
+                match decide("offset_axial_pole_centre", Margin::of(rho_c), band) {
+                    Ok(Sign::Zero) => {}
+                    Ok(_) => {
+                        return Err(refuse(
+                            "an axis pole whose one surface is a profile circle centred off the \
+                             axis, which no point of the axis lies on",
+                        ));
+                    }
+                    Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+                }
                 h_c + side_of(
                     h_old - h_c,
                     vertex,
@@ -1162,13 +1238,18 @@ fn transversality<T: Real>(a: &Profile<T>, b: &Profile<T>) -> Option<T> {
             // angle.
             Some(na.0 * nb.1 - na.1 * nb.0)
         }
-        (Profile::Line { n, c }, Profile::Circle { h_c, r })
-        | (Profile::Circle { h_c, r }, Profile::Line { n, c }) => {
+        (Profile::Line { n, c }, Profile::Circle { rho_c, h_c, r })
+        | (Profile::Circle { rho_c, h_c, r }, Profile::Line { n, c }) => {
             // The half-chord over the radius is the sine of the angle
             // at which the line crosses the circle, and it dies exactly
             // at tangency. Clamped at zero because a line that MISSES
             // has no crossing at all, which is the same verdict.
-            let d = n.1 * *h_c - *c;
+            //
+            // `d` is the SIGNED distance from the circle's centre to
+            // the line, `n̂·(ρ_c, h_c) − c`: the centre's own ρ is part
+            // of that projection, and a centre on the axis is the
+            // `ρ_c = 0` case of it, not a different formula.
+            let d = n.0 * *rho_c + n.1 * *h_c - *c;
             Some((r.powi(2) - d.powi(2)).max(T::zero()).sqrt() / *r)
         }
         (Profile::Circle { .. }, Profile::Circle { .. }) => None,
@@ -1183,11 +1264,14 @@ fn roots<T: Real>(a: &Profile<T>, b: &Profile<T>, det: T) -> Vec<(T, T)> {
             (*ca * nb.1 - na.1 * *cb) / det,
             (na.0 * *cb - *ca * nb.0) / det,
         )],
-        (Profile::Line { n, c }, Profile::Circle { h_c, r })
-        | (Profile::Circle { h_c, r }, Profile::Line { n, c }) => {
-            let d = n.1 * *h_c - *c;
+        (Profile::Line { n, c }, Profile::Circle { rho_c, h_c, r })
+        | (Profile::Circle { rho_c, h_c, r }, Profile::Line { n, c }) => {
+            // The foot is the circle's centre stepped back along the
+            // line's unit normal by that same signed distance, so the
+            // centre's own ρ appears in both coordinates.
+            let d = n.0 * *rho_c + n.1 * *h_c - *c;
             let half = det * *r;
-            let foot = (-n.0 * d, *h_c - n.1 * d);
+            let foot = (*rho_c - n.0 * d, *h_c - n.1 * d);
             let dir = (-n.1, n.0);
             vec![
                 (foot.0 + dir.0 * half, foot.1 + dir.1 * half),
@@ -1305,6 +1389,47 @@ fn mint_carrier<T: Decide>(
                     }),
                     Ok(_) => Err(refuse(
                         "a sphere seam that is not a great circle about the sphere's own centre",
+                    )),
+                    Err(source) => Err(ReplaceFaceError::Escalated { source }),
+                }
+            }
+            // A torus's seam is a MERIDIAN circle about the TUBE's own
+            // centre, and the offset is concentric about it for the
+            // same reason a sphere's is about the sphere's: the mint
+            // keeps `center`, `axis`, `major_radius` and `u_ref` and
+            // moves only the minor radius, so the tube centre is the
+            // datum that does not move. The certificate is that this
+            // carrier really is that circle — its centre stands on the
+            // tube-centre circle `(ρ, h) = (R, h_c)`, which is one
+            // length in the meridian half-plane.
+            (
+                Surface::Torus {
+                    center,
+                    major_radius,
+                    ..
+                },
+                Curve3::Circle {
+                    center: cc,
+                    axis,
+                    radius,
+                    u_ref,
+                },
+            ) => {
+                let off = Vec3::new(
+                    frame.radial(*cc).norm() - *major_radius,
+                    frame.station(*cc) - frame.station(*center),
+                    T::zero(),
+                )
+                .norm();
+                match decide("offset_axial_seam_meridian", Margin::of(off), band) {
+                    Ok(Sign::Zero) => Ok(Curve3::Circle {
+                        center: *cc,
+                        axis: *axis,
+                        radius: *radius + ca.distance,
+                        u_ref: *u_ref,
+                    }),
+                    Ok(_) => Err(refuse(
+                        "a torus seam that is not a meridian circle about the tube's own centre",
                     )),
                     Err(source) => Err(ReplaceFaceError::Escalated { source }),
                 }
@@ -1471,6 +1596,20 @@ fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T
             let v = p - *apex;
             let hh = v.dot(frame.dir);
             (v - frame.dir * hh).norm() * cos_a - hh.abs() * sin_a
+        }
+        // The torus's own meridian distance, in the same `(ρ, h)`
+        // half-plane the corner solve works in. Without it the
+        // edge-on-surface meter would read `zero` on every torus chart
+        // and certify an edge it never measured.
+        Surface::Torus {
+            center,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let rho = frame.radial(p).norm();
+            let h = frame.station(p) - frame.station(*center);
+            Vec3::new(rho - *major_radius, h, T::zero()).norm() - *minor_radius
         }
         _ => T::zero(),
     }

@@ -21,6 +21,16 @@
 # debug-assertions (demos/tour/Cargo.toml), so this is not a lane with
 # the postconditions compiled out.
 #
+# THAT RATIO IS THIS FILE'S, AND IT IS UNGUARDED ON PURPOSE. It is an
+# undated reading on a developer box; nothing re-takes it, and nothing
+# could usefully — the hosted lane only ever runs the release arm, so
+# there is no debug number in any register to compare against, and a
+# threshold on a build-profile choice would be a timing assertion in a
+# gate's input. What the decision rests on is the SIGN and the decade,
+# not the endpoints. It is stated here rather than at the caller because
+# `.github/workflows/ci.yml`'s tess-budget step used to restate it and
+# the two copies were free to drift; that step now points here.
+#
 # By default the sweep also resamples |S - Pi| on every emitted
 # triangle, which is what fills `worst_dev` and so the report's `total`
 # column; `--sizing-only` skips it. The certified cell-count columns —
@@ -30,6 +40,11 @@
 # exactly this script, WITHOUT `--sizing-only` — its `worst_dev` and
 # `dev_samples` columns are the writeup's total-slack figures, and
 # re-cutting it means running the script the same way.
+#
+# Every sweep this script writes carries a `# tess-budget-cut:` line
+# above the CSV header naming the tree it came from
+# (scripts/tess_budget_cut.sh). tools/tess-lint reads it; a sweep
+# without one still lints, and says it cannot date the baseline.
 #
 # The CI `k-lint` job runs it into target/ WITH `--sizing-only` and
 # lints the fresh rows against that baseline with tools/tess-lint: the
@@ -56,4 +71,11 @@ fi
 echo "=== tessellation-budget sweep (every tour scene, per face) ==="
 (cd "$root/demos/tour" && cargo run --release --features budget -- \
   tess-budget "$out" $dev)
+# The sweep's provenance, stamped HERE rather than by the tour: the
+# commit is a property of the checkout the sweep ran in, which the
+# tour has no business reading. tools/tess-lint prints it beside every
+# verdict, and rule 5 — a scene the baseline has no rows for — needs
+# it to say whether the scene arrived after the cut or was already
+# outside the gate when the cut was taken.
+(cd "$root" && scripts/tess_budget_cut.sh "$out")
 echo "wrote $out"

@@ -42,12 +42,26 @@
 mod assembly_display;
 #[path = "assembly_walk.rs"]
 mod assembly_walk;
+#[path = "blend_authoring.rs"]
+mod blend_authoring;
 #[path = "camera_ops.rs"]
 mod camera_ops;
+#[path = "cascade_delete.rs"]
+mod cascade_delete;
+#[path = "chrome_labels.rs"]
+mod chrome_labels;
+#[path = "combine_ops.rs"]
+mod combine_ops;
+#[path = "creation_ops.rs"]
+mod creation_ops;
+#[path = "datum_draw.rs"]
+mod datum_draw;
 #[path = "display_budget.rs"]
 mod display_budget;
 #[path = "doc_io.rs"]
 mod doc_io;
+#[path = "edge_pick.rs"]
+mod edge_pick;
 #[path = "error_display.rs"]
 mod error_display;
 #[path = "eval_seam.rs"]
@@ -58,12 +72,18 @@ mod focus_highlight;
 mod frame_policy;
 #[path = "input_mapping.rs"]
 mod input_mapping;
+#[path = "instance_authoring.rs"]
+mod instance_authoring;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
 #[path = "panel_display.rs"]
 mod panel_display;
 #[path = "panel_edits.rs"]
 mod panel_edits;
+#[path = "path_authoring.rs"]
+mod path_authoring;
+#[path = "prefs.rs"]
+mod prefs;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
 #[path = "review_gui0_r2.rs"]
@@ -86,8 +106,18 @@ mod review_m10_1_r1;
 mod scene_build;
 #[path = "select_pick.rs"]
 mod select_pick;
+#[path = "story_assembly.rs"]
+mod story_assembly;
+#[path = "story_authoring.rs"]
+mod story_authoring;
+#[path = "story_parametric.rs"]
+mod story_parametric;
+#[path = "theme.rs"]
+mod theme;
 #[path = "tree_badges.rs"]
 mod tree_badges;
+#[path = "tree_shape.rs"]
+mod tree_shape;
 #[path = "undo_tree.rs"]
 mod undo_tree;
 #[path = "valid_range.rs"]

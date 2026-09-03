@@ -14,7 +14,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
-  # RUNNING THE GATE AT A CONFIGURATION YOU CHOOSE (2026-08-28, Evan's ask).
+  # RUNNING THE GATE AT A CONFIGURATION YOU CHOOSE (2026-08-28, Ev's ask).
   #
   # The `filter` job draws ONE point of {lane} x {eps} x {k-lint row} per run
   # and lets repetition cover the rest — scripts/ci-filter.py's CONFIGURATION
@@ -85,8 +85,16 @@ on:
       # the oracle tier runs, and `lane: sample` reads as `interval` because
       # nothing can prove the interval sources held still. Name a lane if you
       # want the other one.
+      #
+      # SPELLED OUT BECAUSE IT SURPRISES PEOPLE: `scope: all` with `lane:
+      # sample` does NOT draw a lane. It takes no diff, so `_forces_interval`
+      # hits its fail-closed empty-file-list arm and PINS `LANE=interval`
+      # ahead of the seed — the run reports `lane:pinned` and says so, but a
+      # dispatch aimed at "run everything" and left on `sample` gates the
+      # interval lane every time, not one drawn point. Name `lane: default`
+      # if that is what you wanted.
       scope:
-        description: "Classify the change set against the default branch, or run everything unscoped"
+        description: "Classify the change set against the default branch, or run everything unscoped (with lane: sample this pins the interval lane — see the note in the file)"
         required: false
         type: choice
         default: changed
@@ -96,7 +104,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# THE PUSH RUN CARRIES ONLY WHAT IS UNIQUE TO IT (2026-08-20, Evan's
+# THE PUSH RUN CARRIES ONLY WHAT IS UNIQUE TO IT (2026-08-20, Ev's
 # authorisation; measured in docs/CI-MINUTES-2026-08.md, finding F3).
 #
 # A merge ran the whole gate a SECOND time: ~87 billed minutes on the
@@ -141,7 +149,7 @@ concurrency:
 # independently-green PRs surfaces at the NEXT PR's merge-ref rather
 # than at the merge that caused it.
 #
-# A scheduled full run on main was the obvious pairing and Evan DECLINED
+# A scheduled full run on main was the obvious pairing and Ev DECLINED
 # it (2026-08-22): the next PR's merge-ref is main plus that branch, so
 # it tests the landed tree anyway — a scheduled run buys a second
 # discovery of the same fact, at the price of a full gate per period
@@ -155,7 +163,7 @@ concurrency:
 # fail-fast on the landed tree belongs on the PR side of this line, not
 # restored to the push side.
 
-# BUILD ONCE PER COMPILE MODE (2026-08-03, Evan's ask: "compile the code
+# BUILD ONCE PER COMPILE MODE (2026-08-03, Ev's ask: "compile the code
 # for each mode, then shard the tests"). The eps test rows run
 # BIT-IDENTICAL binaries — CAD_TOLERANCE_EPS is read at RUNTIME
 # (geom-core/src/tolerance.rs), never at compile time — so compiling the
@@ -184,7 +192,7 @@ concurrency:
 #     exercises), so each build job keeps a `cargo test --doc` step.
 #
 # LINK/DEBUGINFO KNOBS ON THE TWO BUILD JOBS (2026-08-04, from the
-# Bazel-verdict measurement; Evan approved items 2/3/4 of its ranked
+# Bazel-verdict measurement; Ev approved items 2/3/4 of its ranked
 # alternatives). The verdict was NO to Bazel, on this evidence from run
 # 30884593286: the `rebuild latency` job compiles all 10 workspace libs
 # from scratch plus ONE test binary in 20.16 s, while `build + archive`
@@ -310,7 +318,7 @@ env:
 # the dependent closure have a single implementation and cannot drift.
 
 jobs:
-  # Change filter (added 2026-07-29, Evan's ask after the Actions-budget
+  # Change filter (added 2026-07-29, Ev's ask after the Actions-budget
   # exhaustion; made dependency-aware 2026-07-28). THREE tiers, and all of
   # the logic lives in scripts/ci-filter.py — this job is a thin wrapper
   # that wires that script's KEY=value output onto the `if:` conditions and
@@ -369,17 +377,27 @@ jobs:
       # output, without re-deriving it.
       seeds: ${{ steps.classify.outputs.SEEDS }}
       # Whether this run compiles the GUI toolkit graph (eframe + wgpu +
-      # naga + winit). SEED-keyed per Evan's viewer-CI-posture ruling
+      # naga + winit). SEED-keyed per Ev's viewer-CI-posture ruling
       # (docs/GUI-LOG.md, 2026-08-27) — the argument is at
       # `RUN_VIEWER_TOOLKIT` in scripts/ci-filter.py.
       run_viewer_toolkit: ${{ steps.classify.outputs.RUN_VIEWER_TOOLKIT }}
       # WHERE THE THREE SAMPLED VALUES ABOVE CAME FROM — `sampled` for each
-      # dimension the SHA drew, `requested` for one a dispatch input named,
-      # `commit-trailer` for one the head commit's `CI-Config:` line named. No
-      # job reads it; it is published so that "which configuration gated this
-      # run, and did anyone choose it" is answerable from the run's outputs
-      # rather than from a log line, and it is printed in a step of its own.
+      # dimension the SHA drew, `pinned` for a lane `_forces_interval`
+      # substituted ahead of the draw, `requested` for one a dispatch input
+      # named, `commit-trailer` for one the head commit's `CI-Config:` line
+      # named. No job reads it; it is published so that "which configuration
+      # gated this run, and did anyone choose it" is answerable from the run's
+      # outputs rather than from a log line, and it is printed in a step of its
+      # own.
       config_source: ${{ steps.classify.outputs.CONFIG_SOURCE }}
+      # WHETHER THIS RUN'S DIFF TOUCHES INTERVAL-NAMED FILES WHILE GATING THE
+      # DEFAULT LANE (#1122's advisory, which replaced the basename pin). No
+      # job reads it either, and it is published for the identical reason
+      # `config_source` above is: the question it answers — "was this change
+      # possibly about the axis this run did not gate?" — has to be answerable
+      # from the run's OUTPUTS, not from a line in one job's log that a reader
+      # has to know to go looking for.
+      lane_advisory: ${{ steps.classify.outputs.LANE_ADVISORY }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -473,8 +491,9 @@ jobs:
           # the draw is seeded rather than random. `github.sha` is the
           # fallback for the push trigger, which runs no sampled job today.
           scripts/ci-filter.py "${FILTER[@]}" --seed "$SEED" \
-            --config-from-message commit-message.txt "${CONFIG[@]}" > filter.out
-          # DRAFT PRs SKIP THE GATE (2026-08-22, Evan's ask; F5 of the
+            --config-from-message commit-message.txt "${CONFIG[@]}" \
+            --notices filter-notices.txt > filter.out
+          # DRAFT PRs SKIP THE GATE (2026-08-22, Ev's ask; F5 of the
           # minutes audit, which called it "the largest single lever
           # available" and left it as a policy decision).
           #
@@ -488,12 +507,42 @@ jobs:
           #
           # TIER and CARGO_SCOPE are deliberately NOT zeroed: they are
           # descriptive, they are printed below, and no job acts on them
-          # without also gating on a RUN_* flag.
+          # without also gating on a RUN_* flag. THAT COMBINATION IS THE TRAP
+          # (#1204): a draft run ends green with `TIER=closure`,
+          # `CARGO_SCOPE=-p geom-core …` and `LANE=interval` all truthful and
+          # every RUN_* flag false, so it is indistinguishable at a glance from
+          # a run that gated the closure — three consecutive greens on a
+          # 19-kernel-file branch gated nothing, and two experienced readers
+          # misread the same run in opposite directions. Zeroing stays (drafts
+          # SHOULD be cheap); the silence does not, which is what the
+          # `is this run gating anything?` step below exists for.
+          #
+          # THE ESCAPE IS `ready_for_review`, and it is a listed trigger on this
+          # workflow for exactly this reason: marking a draft ready pushes no
+          # commit, so without that type the skipped run would stand as the
+          # branch's only run and every gate would report green having executed
+          # nothing. Undrafting therefore re-runs the full gate on the SAME
+          # head — nothing has to be re-pushed to get a real verdict.
           if [ "$DRAFT" = "true" ]; then
             echo "draft PR: zeroing every RUN_* flag (the gate runs on ready-for-review)"
             sed -i 's/^\(RUN_[A-Z_]*\)=true$/\1=false/' filter.out
           fi
+          # THE PIPELINE'S VERDICT IS TEE'S, AND THAT IS THE #1204 CLASS FORTY
+          # LINES ABOVE ITS OWN WARNING. `cat filter.out | tee -a
+          # "$GITHUB_OUTPUT"` reports tee's status: a filter.out that is missing
+          # or unreadable publishes an EMPTY output set, and every RUN_* flag
+          # then reads as false — a green run with every gated job skipped,
+          # which is exactly the state the comment above says two experienced
+          # readers misread in opposite directions. These steps run under
+          # `bash -e {0}` without `pipefail`, so nothing else here would catch
+          # it. `PIPESTATUS[0]` is `cat`'s own status and no shell option can
+          # change it; it is read on the line after the pipeline, before
+          # anything can overwrite it.
           cat filter.out | tee -a "$GITHUB_OUTPUT"
+          if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+            echo "ERROR: filter.out could not be read — the classification was NOT published, so every RUN_* flag would be empty and every gated job would skip. This run gates nothing; failing loudly rather than reporting green."
+            exit 1
+          fi
 
       # RECORDED, NEVER SILENT — the same rule RUN_VIEWER_TOOLKIT is held to,
       # and it bites harder here. A skipped row at least leaves a skipped job
@@ -520,6 +569,107 @@ jobs:
                    "of the same commit without the request will pick that one instead."
               ;;
           esac
+          # THE FILTER'S OWN NOTICES, WHERE A READER OF THE RUN IS ALREADY
+          # LOOKING — either pin's reason (the interval lane's, or the k-lint
+          # row's `tools/` pin), or the interval advisory that replaced the
+          # basename pin (#1122). ci-filter.py prints them on
+          # stderr inside `classify the change set`, which lands under the
+          # changed-file list and is not where anyone asking "what gated this?"
+          # looks; `--notices` is the same text in a file, RELAYED VERBATIM
+          # here rather than restated.
+          #
+          # RELAYED, NOT RESTATED, because the restatement is what went wrong.
+          # This step used to carry its own prose for both notices, and both
+          # copies drifted from the script's: one asserted that a pin's reason
+          # names a file, which the fail-closed arm cannot, and the other said
+          # "DEFAULT LANE DRAWN" over a lane that a CI-Config trailer had
+          # REQUESTED. The script can see those values and this step cannot, so
+          # the wording belongs there and only there.
+          if [ -s filter-notices.txt ]; then
+            cat filter-notices.txt
+          fi
+
+      # DOES THIS RUN GATE ANYTHING AT ALL (#1204). A draft run zeroes every
+      # RUN_* flag above and still ends GREEN, with TIER, CARGO_SCOPE and LANE
+      # left truthful — a green that means "nothing ran" wearing the clothes of
+      # a green that means "the closure passed". A reviewer approving
+      # "conditional on green" against such a run is approving against nothing.
+      #
+      # SAME SHAPE AS THE STEP ABOVE and for the same reason: no `if:`, so the
+      # line is in every run's log whichever way it went, and the reader never
+      # has to know the question was worth asking.
+      #
+      # ONE CAUSE, DERIVED FROM THE ACTUAL PRODUCER. `RUN_BUILD=false` has
+      # exactly three possible producers and they compose, so the first shape
+      # of this step got them wrong in both directions: a draft PR whose head
+      # carried a `CI-Config:` trailer was told its TIER classified the change
+      # as non-triggering (the DRAFT zeroing had done it, and `DRAFT` sat in
+      # this step's env unread), and a docs-tier run with a request printed
+      # "GATE SKIPPED" and "gate active" in the same breath. So the branches
+      # below are ordered the way the producers are APPLIED — draft zeroing,
+      # then the tier, then the combination the filter cannot emit — and each
+      # one is entered only after the ones before it are excluded. A request
+      # is never a cause; it is appended as a CONSEQUENCE, below whichever
+      # cause fired, because a request chooses WHICH point runs and never
+      # WHETHER anything runs (#1051's second note: a dispatch naming
+      # `lane: interval eps: 1e-12` at a docs-only diff hands back a green run
+      # that ran no test, and `scope: all` is the input that answers it).
+      - name: is this run gating anything?
+        env:
+          DRAFT: ${{ github.event.pull_request.draft }}
+          TIER: ${{ steps.classify.outputs.TIER }}
+          RUN_BUILD: ${{ steps.classify.outputs.RUN_BUILD }}
+          CONFIG_SOURCE: ${{ steps.classify.outputs.CONFIG_SOURCE }}
+        run: |
+          requested=no
+          case "$CONFIG_SOURCE" in *requested*|*commit-trailer*) requested=yes ;; esac
+
+          if [ "$RUN_BUILD" = "true" ]; then
+            echo "gate active: tier=$TIER run_build=true."
+            exit 0
+          fi
+
+          # RUN_BUILD=false: nothing below this job compiles, tests or lints.
+          # Name the producer, and only the producer.
+          rc=0
+          if [ "$DRAFT" = "true" ]; then
+            echo "GATE SKIPPED: draft PR — no RUN_* flags set."
+            echo "This run will report SUCCESS, and that success is about nothing: tier=$TIER" \
+                 "and the lane/eps/klint above are the classification this change WOULD have" \
+                 "had. The draft zeroing is what emptied the flags, not the tier."
+            echo "To gate it, mark the PR ready for review — 'ready_for_review' is a listed" \
+                 "trigger on this workflow, so undrafting re-runs the full gate on this same" \
+                 "head with no push."
+          elif [ "$TIER" = "docs" ]; then
+            echo "GATE SKIPPED: tier=docs — every changed path is non-triggering (prose," \
+                 "memories/, local-scripts/, .claude/), so no build, test or lint row runs."
+            echo "That is the intended state for a documentation change, and the 'docs-only" \
+                 "ok' marker job is this run's whole gate."
+          else
+            # THE TRIPWIRE, and what it is honestly worth. It is UNREACHABLE on
+            # today's ci-filter.py and has never fired: `RUN_BUILD` is assigned
+            # in exactly one place — `res["RUN_BUILD"] = "false" if tier ==
+            # "docs" else "true"` — so `false` at a non-docs tier requires that
+            # line to change, and the draft rewrite (the only other writer of
+            # these flags) is excluded by the branch above. It is here for a
+            # FUTURE regression in that assignment, which is the failure whose
+            # symptom is an unexplained green, and it reds rather than warns
+            # because a green nobody can account for is worse than a red.
+            echo "GATE SKIPPED: RUN_BUILD=false on tier=$TIER, which the change filter" \
+                 "cannot produce — only TIER=docs zeroes it. Treat this run's green as" \
+                 "unexplained and say so before merging on it."
+            rc=1
+          fi
+
+          # THE CONSEQUENCE, under whichever cause fired above.
+          if [ "$requested" = yes ]; then
+            echo "AND A CONFIGURATION WAS ASKED FOR (see the source line above), so the point" \
+                 "someone named was NOT gated: a request chooses which point runs, never" \
+                 "whether anything runs."
+            echo "If you meant to gate the whole tree at that point, dispatch it again with" \
+                 "scope: all, which takes no diff and runs everything unscoped."
+          fi
+          exit $rc
 
   # NO LOCAL MIRROR: a marker job with no check in it — it echoes the tier so
   # a docs-only PR has a green required status. ci-local.sh prints the same two
@@ -532,7 +682,7 @@ jobs:
     steps:
       - run: echo "tier=${{ needs.filter.outputs.tier }} pkgs=${{ needs.filter.outputs.pkgs }}"
 
-  # A GATE MUST BE SITED WHERE IT CAN FIRE ON ITS OWN INPUTS (Evan,
+  # A GATE MUST BE SITED WHERE IT CAN FIRE ON ITS OWN INPUTS (Ev,
   # 2026-08-20). `discipline` below is `if: run_build == 'true'`, and a
   # change set of only .md / memories/ / local-scripts/ / .claude/ is
   # TIER=docs, so it does not run. That posture is deliberate and cheap
@@ -550,6 +700,17 @@ jobs:
   # Measured on three docs-tier runs: 8, 9 and 12 s wall clock, finishing
   # before `filter`, so the added critical-path latency on a docs PR is
   # zero and the cost is one extra billed job-minute.
+  #
+  # THIS JOB'S WALL CLOCK IS RE-TAKEN BY NOTHING, and this is the one
+  # place it is written down — the `python-lint` step below sends its
+  # billing argument here rather than restating the range. It is left
+  # unguarded on the same reasoning docs/CI-MINUTES-2026-08.md gives for
+  # its own figures: seconds on a hosted runner are a property of a box
+  # on a day, so a pin would red on noise and a bound would pass through
+  # the drift it exists to catch. What the two arguments that read this
+  # figure actually need is only that the job stays FAR under a minute,
+  # and the BILLED minute — the number that would change a decision — is
+  # what that register tracks for the whole workflow.
   #
   # THIS IS THE ONE JOB THAT DOES NOT PRUNE local-only tooling, and the
   # exception is the reason it exists: its subject IS the agreement
@@ -611,9 +772,42 @@ jobs:
       # as docs and skips the job that would have caught it. Sited here, in
       # the job that carries no `if:`, the self-test runs on that PR anyway.
       # No toolchain: the fixture ships a stub `cargo`, so this row is
-      # stdlib python and git — measured 2.9 s locally.
+      # stdlib python and git — measured 2.9 s locally. UNDATED, ON A
+      # DEVELOPER BOX, RE-TAKEN BY NOTHING: no register carries a gate
+      # step's wall clock, and this figure exists only to say the row is
+      # free enough to sit in a job with no toolchain. The siting argument
+      # above turns on WHERE the check runs, not on what it costs.
       - name: change filter selftest (the docs tier fails open)
         run: python3 scripts/ci-filter.py --selftest
+      # THE WORK TRACKER'S LINT (work/README.md is the contract). Its inputs
+      # are `work/` and `docs/` — markdown, TIER=docs — so it is sited here for
+      # the same reason as every row above. Stdlib python and git; the
+      # selftest builds a scratch repo.
+      - name: work tracker lint (work/ items resolve and docs/ holds no plan or log)
+        run: |
+          python3 scripts/work.py --selftest
+          python3 scripts/work.py lint
+      # TERRITORY IS ADVISORY. Every path in this PR's diff that another
+      # program's globs own is printed as a warning annotation; nothing reds.
+      # The diff is base-sha..HEAD on the merge ref, which is the PR's own
+      # change set and needs no history — one extra depth-1 fetch.
+      - name: work tracker territory (advisory)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          git fetch --depth=1 origin "$BASE_SHA"
+          git diff --name-only "$BASE_SHA" HEAD \
+            | python3 scripts/work.py territory --files - --branch "$HEAD_REF"
+      # The script that writes the tessellation-budget baseline's own
+      # provenance line, and refuses to walk it forward past the rows it
+      # describes. Sited HERE, in the tier-blind job, because it is git
+      # and stdlib only (a scratch repo, ~1 s) and because the row that
+      # exercises it for real — the budget sweep — is one of five
+      # SAMPLED k-lint unifications, so a bug in it would sit undrawn.
+      - name: tess-budget cut-stamp selftest (the baseline's provenance)
+        run: scripts/tess_budget_cut.sh --selftest
       # The claims in the tree about what CI does to probe-gated suites.
       # Prose is this guard's input, so this is where it can fire.
       - name: probe type-check loop citations
@@ -639,8 +833,10 @@ jobs:
       #      S61's defect. `check-ci-mirror-parity.py`'s TIER_BLIND list
       #      names this invocation, so claim 7 now enforces the siting.
       #
-      # BILLING: this job measures 8-12 s wall and already bills a whole
+      # BILLING: this job runs in seconds and already bills a whole
       # minute (docs/CI-MINUTES-2026-08.md: per job, rounded UP). The
+      # reading itself, and why nothing re-takes it, are at this job's
+      # own header — one home, so the two cannot drift apart. The
       # install is a ~10 MB prebuilt and ruff over the tree is
       # milliseconds, so the row lands inside the minute this job already
       # costs. A standalone `python-lint` job would bill a second whole
@@ -743,7 +939,15 @@ jobs:
           scripts/gates/no-extra-real-bounds.sh
       # Test-aggregation discipline: one [[test]] target per crate. Each
       # extra one is a full codegen+link of the ~40-rlib graph — 96% of
-      # this workflow's build job, measured (bazel-verdict report). #179
+      # this workflow's build job, measured (bazel-verdict report).
+      # THAT 96% IS THE 2026-08 BAZEL-VERDICT READING AT 261 TEST
+      # BINARIES AND NOTHING RE-TAKES IT; it is the record of the event
+      # that produced this gate, not a claim about today's build job,
+      # which has one target per crate precisely because of it.
+      # `scripts/gates/test-aggregation.sh` says the same thing at its
+      # own header and is the home of the argument: what the gate
+      # asserts is the INVARIANT, and it prints the current target total
+      # rather than pinning a number. #179
       # collapsed 249 targets to 12 on that evidence and MISSED
       # step-import, which silently kept 26 (two thirds of every remaining
       # test target in the workspace) until the 2026-08-10 build-contention
@@ -780,6 +984,30 @@ jobs:
       # testing a fossil.
       - name: k-probe sweep guard selftest (run_dump)
         run: scripts/rundump-guard-selftest.sh
+      # The two test-cost REPORTS (issue 469) are wired into the sharded test
+      # jobs, where they cannot fail anything — which is also why their parsers
+      # are gated HERE. A report that gates nothing has no failing run to
+      # announce a broken parser, so without this row a regex that stopped
+      # matching would show up as an empty table nobody reads. The fixtures are
+      # captured output from real runs (green, red including the failure recap
+      # nextest prints after its `Summary` line, and a retried test), so this
+      # row costs milliseconds and cannot end up testing a fossil.
+      #
+      # SCOPED TO WHAT THIS JOB IS, because "no failing run to announce it"
+      # reads as unconditional and is not: `discipline` runs on non-push events
+      # with `run_build=true`, so what this row covers is exactly the change
+      # sets the test jobs themselves run on. A push, or a docs-tier change,
+      # runs neither the reports nor this — which is the right pairing, and it
+      # is a pairing rather than total coverage.
+      #
+      # THE LOOKUP'S SELFTEST RIDES THE SAME ROW. `base-test-listing.sh` is the
+      # shell the two test jobs share; its guards are the ones that fired on a
+      # real hosted 403, and inline in a `run:` block nothing could red them.
+      - name: test cost report parsers (selftest)
+        run: |
+          python3 scripts/slowest-tests.py --selftest
+          python3 scripts/pr-added-tests.py --selftest
+          scripts/base-test-listing.sh --selftest
       # The `interval` feature must stay PURELY ADDITIVE. This is not a
       # style rule: on an interval draw the default lane does not run at
       # all, so this lane stands in for it (see `test-interval`'s header),
@@ -1028,7 +1256,7 @@ jobs:
       # two findings into one. `!cancelled()` rather than `always()` so
       # a cancelled run still stops here.
       # `--skip-viewer-toolkit` when the change filter's seeds do not buy
-      # the GUI toolkit rows (Evan's viewer-CI-posture ruling,
+      # the GUI toolkit rows (Ev's viewer-CI-posture ruling,
       # docs/GUI-LOG.md 2026-08-27). It takes `viewer` out of the
       # --all-features pass and puts it back at DEFAULT features, so its
       # renderer-free modules are gated on every run and only the
@@ -1088,7 +1316,7 @@ jobs:
       # or `mmap` path is enough, and the documents would still read as
       # checked fact.
       #
-      # ONE LEG, and it is the interval one. Evan's ruling, 2026-08-21:
+      # ONE LEG, and it is the interval one. Ev's ruling, 2026-08-21:
       # *"do add wasm cross compiling for the interval build only. the
       # lint for having interval be purely additive suffices."* The
       # default-features leg and a whole-workspace `wasm_js` leg were both
@@ -1156,7 +1384,7 @@ jobs:
       # row and its "verified fix" paragraph are a one-time reading again,
       # and §4 now says so at the row. Same ruling, same reason.
       #
-      # SITED IN THIS JOB, not in one of its own (Evan's earlier
+      # SITED IN THIS JOB, not in one of its own (Ev's earlier
       # constraint: the guard must not add runner time). Actions bills PER
       # JOB, ROUNDED UP TO THE MINUTE — docs/CI-MINUTES-2026-08.md — so
       # billed minutes are the currency, not seconds.
@@ -1274,7 +1502,7 @@ jobs:
       #
       # `viewer`'s `app` feature (eframe + wgpu + naga + winit) is ~140
       # crates that no other row in this workflow needs. It is not a
-      # default feature, and per Evan's viewer-CI-posture ruling
+      # default feature, and per Ev's viewer-CI-posture ruling
       # (docs/GUI-LOG.md, 2026-08-27) the rows that compile it run only
       # when the change filter's SEEDS intersect {viewer, pncad, bvh} —
       # seed-keyed, NOT closure-keyed, because `pncad` re-exports the
@@ -1293,7 +1521,7 @@ jobs:
       # row in nightly.yml, ungated, once a day.
       #
       # THE VIEWER TOOLKIT ROWS ARE NOT HERE. They used to be, and that
-      # was a hole in Evan's viewer-CI ruling rather than a hole in this
+      # was a hole in Ev's viewer-CI ruling rather than a hole in this
       # job: THIS JOB CARRIES `lane != 'interval'`, and LANE is a 50/50
       # sample, so on an interval draw the whole job — the seed-keyed
       # verdict step included — never ran, and the ruling's "never a
@@ -1391,7 +1619,7 @@ jobs:
     #
     # RE-ASKED UNDER CONFIGURATION SAMPLING (2026-08-22), because the
     # verdict above rests on amortising ONE compile over TEN run legs and a
-    # sampled run has one. Evan's question was the right one — "if we run at
+    # sampled run has one. Ev's question was the right one — "if we run at
     # one eps instead of 3 that's plausibly enough to shift the balance". It
     # shifts it and does not cross it, in either lane, and the margin is
     # wide enough that no new measurement was taken to say so.
@@ -1425,7 +1653,7 @@ jobs:
     # settle it (the same trap this note's own header warns about).
     #
     # ============================================================
-    # NOW opt-level 1, NOT 2 (Evan, 2026-08-25). EVERYTHING ABOVE THIS LINE
+    # NOW opt-level 1, NOT 2 (Ev, 2026-08-25). EVERYTHING ABOVE THIS LINE
     # IS THE HISTORY OF A TWO-POINT COMPARISON, and the two points were the
     # wrong ones.
     #
@@ -1582,11 +1810,32 @@ jobs:
     needs: [filter, build]
     if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
       && needs.filter.outputs.lane != 'interval'
+    # THE MINIMAL GRANT THIS JOB CAN DO ITS WORK WITH — and it WIDENS one
+    # scope, which is the point of it. A `permissions:` block replaces the
+    # workflow's default token scopes outright, so the delta runs both ways:
+    # `actions` goes from NONE to `read`, and every other scope the default
+    # carried is pinned off. Nothing in this job writes anything.
+    #
+    # MEASURED, NOT ASSUMED, and the measurement is what the widening rests on:
+    # without `actions: read` the cost report's base-listing lookup got
+    # `Resource not accessible by integration (HTTP 403)` from the artifacts
+    # API on run 33343519165. The default token could read the repository and
+    # not the Actions API.
+    #
+    # IT IS NOT WHAT `download-artifact` NEEDS. A v4 download of an artifact
+    # from the SAME run goes through the runner's own runtime token and no REST
+    # call, which is why every download step in this workflow has always worked
+    # without it. What needs the scope is the CROSS-RUN artifacts-API lookup in
+    # `scripts/base-test-listing.sh` — so the grant is on the two test jobs
+    # that run it, and on nothing else in this file.
+    permissions:
+      contents: read
+      actions: read
     strategy:
       fail-fast: false
       # ONE ε ROW PER RUN, SAMPLED (2026-08-22 — scripts/ci-filter.py's
       # CONFIGURATION SAMPLING note is the argument; this is the wiring).
-      # The battery is still {default, 1e-6, 1e-12} (Evan's ruling,
+      # The battery is still {default, 1e-6, 1e-12} (Ev's ruling,
       # 2026-07-30): the two env rows straddle the compiled default
       # (DEFAULT_EPS = 1e-9) three orders either side, and the `default`
       # row runs with the variable genuinely UNSET (an empty
@@ -1662,8 +1911,177 @@ jobs:
           name: nextest-default
       # The eps assignment is an inline shell prefix (empty for the
       # `default` leg — see the matrix comment on why not `env:`).
+      #
+      # `--no-fail-fast`, AND THE RUN SAYS SO (#1128). nextest's default is
+      # fail-fast — measured against the pinned 0.9.140, not inferred. The
+      # measurement, reproducible as written: a six-test crate with two
+      # planted failures, run `--test-threads 1`, reports
+      # `Cancelling due to test failure`, `1/6 tests run: 0 passed, 1 failed`
+      # and `warning: 5/6 tests were not run due to test failure` with no flag
+      # and with `--fail-fast` alike, against `6 tests run: 4 passed, 2 failed`
+      # and no cancellation line with this one.
+      #
+      # `--test-threads 1` IS PART OF THE MEASUREMENT, not decoration. At
+      # default parallelism the same no-flag run prints `6 tests run: 4
+      # passed, 2 failed` — a summary identical to the flagged one — because
+      # both failures were already in flight when the first one landed; only
+      # `Cancelling due to test failure: 1 test still running` distinguishes
+      # it, and how many rows survive is a race. That is a second reason for
+      # the flag rather than an argument against it: without it, how much of a
+      # red shard you get to see depends on scheduling.
+      #
+      # So without it a red shard reports its first failure and whatever else
+      # happened to be running, not its failures, and with `--partition
+      # count:N/2` a red run's whole visible surface is a couple of rows out
+      # of thousands. That is not a smaller number for the same problem;
+      # it is a number that cannot distinguish one stale assertion from a
+      # systematic family, and nothing in the output said it was truncated.
+      #
+      # WHAT IT COSTS: nothing on a green run, which is the common case — the
+      # flag only changes what happens AFTER a failure, and a run with no
+      # failures never reaches that. A fully red run does more work; a red run
+      # is one nobody is merging on, and paying a shard's remaining minutes to
+      # learn the size of the breakage is the trade this gate wants.
+      #
+      # THE ECHO IS NOT REDUNDANT with the flag being in the command. nextest
+      # names the mode only when it TRUNCATES ("5/6 tests were not run due to
+      # test failure"); a run that did not truncate says nothing, so silence
+      # currently means either "no failures" or "failures, first one only" and
+      # a reader cannot tell which. The Actions `Run …` group carries the
+      # command but is collapsed and, on the eps legs, is a `${{ }}` expansion
+      # the reader has to evaluate.
+      #
+      # SAID TWICE, AND THE SECOND ONE IS THE LOAD-BEARING ONE. The reader this
+      # is for is looking at a RED run, and where they land is the bottom of
+      # this step, immediately under nextest's failure summary — which is where
+      # "is that all of them?" gets asked and where nextest's own truncation
+      # warning prints, for the same reason. A line at the top of a
+      # two-thousand-line step is not where that question is.
+      #
+      # THE OUTPUT IS TEE'd, AND THE VERDICT IS TAKEN FROM `PIPESTATUS`, NOT
+      # FROM THE PIPELINE. The cost report below reads what this step printed;
+      # capturing it must not be able to change what this step DECIDED. A
+      # pipeline's status is its LAST command's, so `cargo … | tee` reports
+      # tee's success and turns a red shard green — and this workflow's steps
+      # run under `bash -e {0}`, which does NOT set `pipefail` (visible in any
+      # run's `shell:` line), so nothing here would have caught that. Reading
+      # `PIPESTATUS[0]` takes nextest's own status regardless of shell options,
+      # and `set +e` guarantees no intervening command can abort the step
+      # before that status is read and re-exited.
       - name: run archived tests
-        run: ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2
+        run: |
+          set +e
+          echo "fail-fast mode: --no-fail-fast — every test in this shard runs to completion."
+          mkdir -p "$RUNNER_TEMP/test-cost"
+          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
+          status=${PIPESTATUS[0]}
+          echo "fail-fast mode was --no-fail-fast: the summary above is this shard's whole failure SURFACE, not its first failure. (This shard is half the suite; the other shard is a job of its own.)"
+          exit $status
+      # WHAT THIS RUN COST, AND WHAT THIS PR ADDED TO IT (issue 469). Two
+      # summaries, both REPORTS and neither a gate — the issue's own ruling,
+      # restated at the bottom of each block so a future "add teeth" is a
+      # decision rather than drift: a budget needs a baseline and the baseline
+      # is moving. The reading that says so — the 2026-08-13 audit's, and how
+      # far the suite moved in a day — is stated once, in
+      # `scripts/slowest-tests.py`'s header, and not restated here: it is an
+      # undated one-shot that nothing re-takes, so a second copy of it would be
+      # a second thing to keep true. What this note needs from it is that the
+      # baseline MOVES, which is a claim about the suite's traffic and not
+      # about either endpoint.
+      #
+      # A REPORT MUST NOT BE ABLE TO MASK OR ALTER A TEST VERDICT, and three
+      # things enforce that rather than one. The step is separate from the run
+      # step (which has already exited with nextest's status by the time this
+      # starts); it ends in `exit 0` under `set +e`, so no command inside it can
+      # fail the step; and it carries `continue-on-error: true` for the failure
+      # modes a script cannot catch (a shell parse error, an OOM kill). A
+      # generation failure therefore presents as this step going yellow with a
+      # missing or partial block in the summary, and the job's red/green is
+      # exactly what the test step said.
+      #
+      # `success() || failure()` AND NOT `always()`, which differ on exactly one
+      # job state: CANCELLED. The three sentences above are about a RED run and
+      # still hold — `failure()` is what keeps this reporting on one — but a
+      # cancelled job is a runner being torn down, and starting a `cargo nextest
+      # list` on it buys a report nobody asked for out of a job someone stopped.
+      #
+      # ~0 BILLED MINUTES, which is the whole reason it is shaped this way: no
+      # new job (the billing model rounds per JOB — docs/CI-MINUTES-2026-08.md),
+      # no extra runner. The slowest-N half parses output this job already
+      # produced. The listing half costs one archive extraction (~0.5 s,
+      # measured in the `Extracted 37 files … in 0.50s` line every run prints)
+      # plus a listing pass — seconds inside a job that already runs for
+      # minutes.
+      #
+      # WHY THAT FIGURE HAS NO REGISTER AND NO GUARD, since this repo's
+      # convention is that a measured claim gets one: it is a ONE-SHOT BOUND,
+      # not a tracked quantity. What it asserts is that these seconds cannot
+      # reach the granularity the billing model charges in — a whole job-minute
+      # — and the honest caveat is stated rather than watched: seconds added to
+      # a job already sitting within seconds of a minute boundary can round up
+      # once. Nothing in it varies with the suite, so there is no series to
+      # register and no threshold a guard could hold; the number that WOULD
+      # need one is a per-job minute count, which docs/CI-MINUTES-2026-08.md
+      # already tracks for the whole workflow.
+      #
+      # WHERE A BASE LISTING COMES FROM. There is no cheap way to LIST the base
+      # tree — it would mean building it — so each run publishes its own
+      # listing as an artifact named for the git TREE it was built from, and a
+      # later run looks up the tree its base commit points at. Under this
+      # repo's merge-only rule a PR run's merge-ref tree becomes main's tree at
+      # the merge, so the next PR's base tree is one a previous run already
+      # listed and the lookup hits. When it does not — the first runs after this
+      # lands, a base tree nobody listed, an expired artifact, a token without
+      # `actions: read` — the report prints a STATED SKIP naming which of those
+      # it was. It never prints a number it could not derive, and never a red.
+      #
+      # THE LOOKUP ITSELF IS `scripts/base-test-listing.sh`, ONE COPY FOR BOTH
+      # LANES, and its header carries the argument: a sampled run executes one
+      # lane, so a second copy of this shell would be untested by construction,
+      # and the guards that refuse `gh`'s error text as a tree SHA or a URL
+      # would be exactly the code no test can red. In the script they have a
+      # `--selftest` that drives them against stub `cargo`, `gh` and `curl`,
+      # gated in `discipline` beside the two parsers.
+      - name: test cost report (slowest tests + what this PR adds)
+        if: success() || failure()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          JOB: test (eps = ${{ needs.filter.outputs.eps }}, ${{ matrix.shard }}/2)
+        run: |
+          set +e
+          # BOTH DESTINATIONS, and the log is the load-bearing one. The step
+          # summary is a page a reader has to go and look at; the step LOG is
+          # where someone reading a job already is, and where a red run puts
+          # them. `tee -a` costs nothing and makes the report visible to
+          # whoever is actually looking at this job.
+          COST="$RUNNER_TEMP/test-cost"
+          mkdir -p "$COST"
+          python3 scripts/slowest-tests.py --top 20 --job "$JOB" \
+            --leg "run archived tests=$COST/archived-tests.log" | tee -a "$GITHUB_STEP_SUMMARY"
+          scripts/base-test-listing.sh --archive nextest-default.tar.zst --lane default \
+            --job "$JOB" --cost-dir "$COST" \
+            --leg "run archived tests=$COST/archived-tests.log" | tee -a "$GITHUB_STEP_SUMMARY"
+          exit 0
+      # Shard 1 only: both shards download the same archive and would publish
+      # the same listing under the same name, and a duplicate artifact name is
+      # an error. 7 days because this is a convenience for the NEXT pull
+      # request's report and this repo's artifact quota is small (500 MB); a
+      # base tree older than a week is one nothing is being opened against.
+      #
+      # `TEST_LIST_TREE` IS THE GATE, and the helper sets it only for a listing
+      # that parsed — see its header on why a squatted name is worse than no
+      # name at all.
+      - name: publish this tree's test listing (the next PR's base)
+        if: (success() || failure()) && matrix.shard == 1 && env.TEST_LIST_TREE != ''
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-list-default-${{ env.TEST_LIST_TREE }}
+          path: ${{ runner.temp }}/test-cost/test-list.json
+          retention-days: 7
+          if-no-files-found: ignore
 
   # THE RELEASE-PROFILE ROW. Three adversarial suites in `crates/topo` feed
   # tier-1-INVALID bodies to the Euler operators and are written about
@@ -1736,7 +2154,12 @@ jobs:
   # build of the workspace: `-p topo --lib` compiles topo's closure plus
   # its dev-dependencies and links one binary. The rows execute in
   # milliseconds — the compile IS the cost of this job (93 s hosted on a
-  # cold cache, measured on this job's first run).
+  # cold cache, measured on this job's first run, and never since: it is a
+  # one-shot reading with no register and no guard, kept because the SHAPE
+  # it supports — that scoping to one crate's lib is what keeps this job
+  # cheap — is what the next reader needs, and that shape does not turn on
+  # the second. This job's billed minutes, which is the figure a cost
+  # decision would actually read, are docs/CI-MINUTES-2026-08.md's).
   release-corruption:
     name: corrupt input (release profile)
     runs-on: ubuntu-latest
@@ -2007,6 +2430,13 @@ jobs:
     needs: [filter, build-interval]
     if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
       && needs.filter.outputs.lane != 'default'
+    # `actions: read` for the cost report's cross-run base-listing lookup, and
+    # everything else pinned off. The argument — what this block widens, what
+    # it narrows, and why `download-artifact` is not the reason — is at the
+    # default lane's copy, where the 403 was measured.
+    permissions:
+      contents: read
+      actions: read
     # ONE ε ROW, SAMPLED, AND SHARDED AGAIN. Both halves of that reverse
     # the 2026-08-20 audit's collapse of this job, and both follow from the
     # suite this lane now runs.
@@ -2057,22 +2487,114 @@ jobs:
       # CAD_TOLERANCE_EPS is a parse error by design — the tolerance.rs
       # multi-ε contract), so that row is run with `env -u` rather than by
       # assigning an empty string.
+      #
+      # `--no-fail-fast` and its echo, for the reasons spelled out at the
+      # default lane's copy of this step (#1128). This lane is where the effect
+      # was measured: 22 failures locally against 1-2 here, same tree.
+      # That pair is one undated observation of one red tree; nothing
+      # re-takes it and nothing could — how many failures a broken tree
+      # shows is a property of the breakage, not of this lane. It is here
+      # as the reason the flag was reached for on THIS job first, and the
+      # flag's own justification, at the default lane's copy of this step,
+      # rests on nextest's documented fail-fast default rather than on it.
+      #
+      # TEE'd, WITH THE VERDICT TAKEN FROM `PIPESTATUS` — the full argument is
+      # at the default lane's copy of this step. In one line: a pipeline's
+      # status is tee's, these steps run under `bash -e {0}` without
+      # `pipefail`, and a capture that could turn a red shard green would be a
+      # report breaking the thing it reports on.
       - name: run archived tests
-        run: ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || 'env -u CAD_TOLERANCE_EPS' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2
+        run: |
+          set +e
+          echo "fail-fast mode: --no-fail-fast — every test in this shard runs to completion."
+          mkdir -p "$RUNNER_TEMP/test-cost"
+          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || 'env -u CAD_TOLERANCE_EPS' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
+          status=${PIPESTATUS[0]}
+          echo "fail-fast mode was --no-fail-fast: the summary above is this shard's whole failure SURFACE, not its first failure. (This shard is half the suite; the other shard is a job of its own.)"
+          exit $status
       # M4 PR 6 D6.1, Interval member: the save/load/replay-identity row
       # at the certified interval scalar (already inside the full archive
       # run above; named here so the obligation is visible). One leg only
       # (default eps, shard 1), mirroring the pre-archive job, which ran
       # it once with no eps env.
+      #
+      # `--no-fail-fast` HERE AND ON THE ROW BELOW, unconditionally, and the
+      # reason is that the alternative needs an invariant nothing enforces.
+      # Each row selects one test MODULE by filterset. Today each module holds
+      # exactly one `#[test]`, which makes the flag behaviourally identical to
+      # its absence — so exempting these rows was defensible and was written
+      # down. It was also rot: a second test added to either module silently
+      # falsifies the exemption's premise, and no gate reads it. The flag is
+      # free on a one-test selection and correct on a two-test one, so it goes
+      # on and the premise stops mattering.
       - name: persistence save/load/replay-identity (interval)
         if: matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
-        run: "cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)'"
+        run: |
+          set +e
+          mkdir -p "$RUNNER_TEMP/test-cost"
+          cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)' --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/persistence.log"
+          exit ${PIPESTATUS[0]}
       # M4 PR 8a D1, Interval member: the Band 4 corpus evaluates green
       # at the certified interval scalar (also inside the archive run
       # above; named here so the obligation is visible).
       - name: band 4 corpus (interval)
         if: matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
-        run: "cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)'"
+        run: |
+          set +e
+          mkdir -p "$RUNNER_TEMP/test-cost"
+          cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)' --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/band4-corpus.log"
+          exit ${PIPESTATUS[0]}
+      # THREE LEGS HERE, NOT ONE, and which of them ran is what the report's
+      # header says: shard 1 of this lane runs the archive plus the two named
+      # editor-core rows, shard 2 runs the archive alone, and a test that
+      # appears in more than one leg costs this job the SUM. That is the whole
+      # of the first measurement trap (issue 469): per-leg times are not
+      # comparable, so they are summed within a job and never compared across
+      # jobs. The `--leg` list below is deliberately unconditional — a leg the
+      # `if:` above skipped has no log file, and the report NAMES it as absent
+      # rather than quietly reporting a two-leg job as a three-leg one.
+      #
+      # Everything else about this step — why it cannot alter the test verdict,
+      # why it is not `always()`, what it costs, where a base listing comes
+      # from — is at the default lane's copy. What used to be a verbatim copy
+      # of ~60 lines of lookup shell is now one call to the script both lanes
+      # share, so the two differ only in the archive, the lane name and the leg
+      # list, and there is no second copy for a sampled run to leave untested.
+      - name: test cost report (slowest tests + what this PR adds)
+        if: success() || failure()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          JOB: test (interval, eps = ${{ needs.filter.outputs.eps }}, ${{ matrix.shard }}/2)
+        run: |
+          set +e
+          # BOTH DESTINATIONS, and the log is the load-bearing one. The step
+          # summary is a page a reader has to go and look at; the step LOG is
+          # where someone reading a job already is, and where a red run puts
+          # them. `tee -a` costs nothing and makes the report visible to
+          # whoever is actually looking at this job.
+          COST="$RUNNER_TEMP/test-cost"
+          mkdir -p "$COST"
+          python3 scripts/slowest-tests.py --top 20 --job "$JOB" \
+            --leg "run archived tests=$COST/archived-tests.log" \
+            --leg "persistence save/load/replay-identity (interval)=$COST/persistence.log" \
+            --leg "band 4 corpus (interval)=$COST/band4-corpus.log" | tee -a "$GITHUB_STEP_SUMMARY"
+          scripts/base-test-listing.sh --archive nextest-interval.tar.zst --lane interval \
+            --job "$JOB" --cost-dir "$COST" \
+            --leg "run archived tests=$COST/archived-tests.log" \
+            --leg "persistence save/load/replay-identity (interval)=$COST/persistence.log" \
+            --leg "band 4 corpus (interval)=$COST/band4-corpus.log" | tee -a "$GITHUB_STEP_SUMMARY"
+          exit 0
+      - name: publish this tree's test listing (the next PR's base)
+        if: (success() || failure()) && matrix.shard == 1 && env.TEST_LIST_TREE != ''
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-list-interval-${{ env.TEST_LIST_TREE }}
+          path: ${{ runner.temp }}/test-cost/test-list.json
+          retention-days: 7
+          if-no-files-found: ignore
 
   # The archives exist only to ferry binaries from the build jobs to the
   # run legs; on a fully green run they have no further use, and this
@@ -2185,7 +2707,17 @@ jobs:
       - name: assert the oracle stack stays out of the default graph
         working-directory: interval-transcendentals
         run: |
-          if cargo tree | grep -iE 'inari|gmp-mpfr-sys|rug'; then
+          # THE PRODUCER IS TESTED BEFORE ITS OUTPUT IS. `cargo tree | grep`
+          # takes grep's verdict, and grep handed no input finds no match — so
+          # a resolver failure, an unbuildable manifest or a missing subcommand
+          # all read as "the oracle stack is out", which is this tripwire
+          # announcing a pass it never checked. Captured first, so a dead
+          # producer is loud and only a real listing is searched.
+          if ! TREE=$(cargo tree); then
+            echo "ERROR: \`cargo tree\` failed — this tripwire has nothing to search, and an unread graph is not a clean one"
+            exit 1
+          fi
+          if printf '%s\n' "$TREE" | grep -iE 'inari|gmp-mpfr-sys|rug'; then
             echo "ERROR: the default feature set reaches the gmp stack"
             exit 1
           fi
@@ -2258,7 +2790,7 @@ jobs:
           echo "CASES_SECONDS=$((SECONDS - t0))"
 
   # THE `watertight (admesh)` JOB STOOD HERE, AND HAS MOVED TO
-  # .github/workflows/nightly.yml (Evan, 2026-08-22). Its evidence is its own
+  # .github/workflows/nightly.yml (Ev, 2026-08-22). Its evidence is its own
   # history: one solo red in 37 days of gate runs, and that one was a rustup
   # outage rather than a mesh. It is a PERSISTENCE-detector — a non-manifold
   # body stays non-manifold — so a nightly finds what this row would have
@@ -2417,7 +2949,7 @@ jobs:
   # unchanged — same three eps bands, same scoped test set.)
 
   # THE `persistence` AND `band 4 corpus` JOBS STOOD HERE, AND ARE
-  # DELETED (2026-08-22, Evan: "no need to make any special attempt to
+  # DELETED (2026-08-22, Ev: "no need to make any special attempt to
   # keep m4_pr8_corpus visible. just make it a normal test").
   #
   # WHAT THEY WERE. Two jobs that re-ran `m4_pr6_roundtrip::`,
@@ -2500,9 +3032,34 @@ jobs:
     # ONE OF FIVE FEATURE UNIFICATIONS PER RUN (2026-08-22, the same
     # configuration-sampling ruling that draws the lane and the ε; the roster
     # and the soundness argument are at `KLINT_ROWS` in scripts/ci-filter.py).
+    # DRAWN, EXCEPT WHERE IT IS PINNED: a change under `tools/` substitutes the
+    # row that RUNS THAT CRATE'S OWN SUITE rather than sampling one (four of
+    # these five rows COMPILE tools/tess-meter, through demos/tour's plain
+    # dependency on it; only `dev-default` runs its tests — Ev's ruling,
+    # 2026-08-29; the mapping and its derivation are at `KLINT_PATH_ROWS`, and
+    # the run says `klint:pinned` in the step above). `demos/` is deliberately
+    # left to the draw, argued at the same site.
     #
-    # WHY THIS JOB AND NOT A CACHE FIX. It bills 8-10 minutes — the third
-    # largest line item in the gate — and the cost is not one slow check: the
+    # WHY THIS JOB AND NOT A CACHE FIX. This note used to open "it bills
+    # 8-10 minutes — the third largest line item in the gate", and THAT
+    # FIGURE IS STALE, in the exact way this repository keeps finding.
+    # docs/CI-MINUTES-2026-08.md's per-job table does carry a `k-lint (gate)`
+    # row at 9.78 wall / 10 billed — but that column is a ONE-SHOT reading of
+    # reference run 32425890937, taken BEFORE the unification sampling this
+    # very note goes on to describe. The same document's 2026-08-22 section
+    # then derives that sampling at −7 to −8 billed minutes for this job, and
+    # its 2026-08-31 addendum states the rule that settles it: a billed-minute
+    # figure there is maintained BY HAND and is only true as of the
+    # measurement it carries the run id for. So the pre-sampling row and the
+    # post-sampling derivation are both the register's, they disagree by
+    # design, and the sentence that quoted the first as current was wrong. A
+    # reader wanting today's cost reads this job's own duration on any recent
+    # run; a reader wanting the trend reads that document's later columns, not
+    # its reference table.
+    #
+    # WHAT SURVIVES, and it is the only thing this argument needed: running
+    # FEWER UNIFICATIONS is the lever, because the cost is
+    # not one slow check: the
     # steps below compile demos/tour and the kernel crates FIVE TIMES, once
     # per unification, and the five share almost nothing. `--release` and dev
     # are different profiles; `budget` and `probe` are opt-in features gated
@@ -2593,7 +3150,17 @@ jobs:
       # ~7 s (measured on the lane's own box, warm cargo registry); the
       # build in front of them took 1m06 there from a cold target and
       # the sweep's own comment below prices such a build at "tens of
-      # seconds" on a runner with this job's cache warm. Folding the
+      # seconds" on a runner with this job's cache warm.
+      #
+      # THOSE TWO SECONDS FIGURES ARE A DEVELOPER BOX'S, UNDATED, AND
+      # RE-TAKEN BY NOTHING — no register carries a demo-tour run time,
+      # and this job's own duration is the only current reading of the
+      # pair, printed on every run that draws this row. They are kept
+      # because the SHAPE is what the siting argument uses: the runs are
+      # cheap and the release build in front of them is not, so the
+      # question is which build this row shares, not how many seconds it
+      # spends. Neither number would change that answer if it moved by a
+      # factor of two, and no threshold anywhere reads either. Folding the
       # pin into `--features budget` would share that build, and is
       # rejected: it would arm the per-face meter inside the run this
       # pin is about, so the tour under test would not be the tour that
@@ -2631,6 +3198,30 @@ jobs:
       - name: demos tour suite (the #99 ε pin + the tour's own probes)
         if: contains(fromJSON('["release-default", "all"]'), needs.filter.outputs.klint_row)
         run: cd demos/tour && cargo test --release
+      # THE COMMITTED DIE CORPUS IS STILL THE SCENE THAT AUTHORED IT.
+      # `crates/editor-core/tests/corpus/die_composed_tour.rs` registers
+      # the tour's composed die by replaying committed BYTES, because
+      # `demos/tour` is a detached workspace the kernel must not depend
+      # on. Bytes go stale silently; this step is why these ones cannot.
+      # It regenerates through the tour's own door and diffs — the same
+      # closure `crates/pncad-py/tests/corpus/bench/` still lacks
+      # (issue #1186), available here only because this job already
+      # builds `demo-tour` in release and the diff costs one sub-second
+      # run of it.
+      #
+      # It rides this job's sampled row, so it is not a per-run gate: a
+      # PR that changes the die scene and draws another row lands with
+      # the corpus unchecked, and the next sampled run is where it goes
+      # red. Stated rather than papered over — the alternative is a
+      # sixth kernel build in the code tier for a file that moves rarely.
+      #
+      # The committed bytes record the ε they were written at, so this
+      # runs at the ambient default like the row above it.
+      - name: the tour die corpus is regenerable byte-for-byte
+        if: contains(fromJSON('["release-default", "all"]'), needs.filter.outputs.klint_row)
+        run: |
+          cd demos/tour && cargo run --release -- die-corpus /tmp/die_composed_tour.pncad
+          diff -u ../../crates/editor-core/tests/corpus/tour/die_composed_tour.pncad /tmp/die_composed_tour.pncad
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
         if: contains(fromJSON('["dev-default", "all"]'), needs.filter.outputs.klint_row)
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
@@ -2656,7 +3247,7 @@ jobs:
       # against the certificate it claims to satisfy, and the row
       # shapes' agreement about their width.
       # No `cargo doc` step here either, for the reason given at the
-      # tess-lint row above. This crate's ~1,050 lines of prose — the
+      # tess-lint row above. This crate's prose — the
       # slack factors, the anisotropy caveat, the boundary rule — moved
       # out of `crates/mesh/src/budget.rs` in #709 and went from covered
       # to uncovered BY MOVING; the rustdoc gate reads them now because
@@ -2684,12 +3275,17 @@ jobs:
       # hosted gate runs it unconditionally". The falsification is now
       # the meter's deviation pass reduced to one ratio per face and
       # asserted in the suite, so it rides the `budget` build rather
-      # than a feature of its own. THE INTENT SURVIVES ONLY WHILE THIS
-      # ROW STAYS UNCONDITIONAL: k-lint runs "whenever anything builds
-      # at all" (job header above), so the falsifier still runs on
-      # every build-triggering change. Making this row conditional, or
-      # dropping it, stops the falsifier running — that reopens a
-      # ratified review outcome and must be said out loud.
+      # than a feature of its own. THIS ROW IS NO LONGER UNCONDITIONAL,
+      # and MIN-1's intent is met in a weaker form than it was written
+      # in: the `if:` below draws it 1 run in 5, so the falsifier runs
+      # on an expected fifth of build-triggering changes rather than on
+      # all of them. The job header carries the argument for why that is
+      # admissible and is not restated here — a failed falsification
+      # PERSISTS in the tree, so a later draw finds it, and frequency is
+      # the only thing given up. What the `tools/` path pin does NOT do
+      # is restore it: this row's subject is `crates/mesh`, which no
+      # pin reaches. Dropping the row, or narrowing it past the draw,
+      # goes beyond what that argument covers and must be said out loud.
       - name: mesh budget meter + certificate falsifier (feature = budget)
         if: contains(fromJSON('["dev-budget", "all"]'), needs.filter.outputs.klint_row)
         run: |
@@ -2718,7 +3314,11 @@ jobs:
 
       # The tessellation-budget gate (issue #320). It rides THIS job
       # because this job is the one that builds demos/tour, and the
-      # sweep IS the tour walking its own scenes (~4 s in release).
+      # sweep IS the tour walking its own scenes (~4 s in release — an
+      # undated reading on this job's own runner, re-taken by nothing but
+      # visible in this step's duration on every run that draws the row;
+      # no threshold reads it and the siting argument needs only that the
+      # sweep is cheap against the build in front of it).
       #
       # COST, stated: this step now ALWAYS pays the tour's release
       # build — the uv-drift step that used to pay it on a cache miss
@@ -2726,19 +3326,31 @@ jobs:
       # someone else has already built it. That is the tour binary, not
       # its dependencies: tens of seconds against this job's own
       # critical path, not the workflow's. It is
-      # deliberately not a debug run (the k-probe sweep's profile):
-      # debug tessellates the same scenes 5-10x slower, which spends
-      # more wall clock than the build it would avoid. The `--features
-      # budget` that arms the meter at all lives in the sweep script,
-      # once, beside the k-probe sweep's `--features probe`.
+      # deliberately not a debug run (the k-probe sweep's profile), and
+      # the release/debug cost ratio that decides that is stated ONCE, in
+      # `scripts/tess_budget_sweep.sh`'s RELEASE paragraph, which is also
+      # where the `--features budget` flag lives. Not restated here: this
+      # file used to carry its own copy of that ratio, and two copies of
+      # an unguarded measurement are two things to keep in step. The
+      # `--features budget` that arms the meter at all lives in the sweep
+      # script, once, beside the k-probe sweep's `--features probe`.
       #
       # It gates REGRESSION,
       # not absolute slack: the head's factors are large and known
       # (docs/TESS-BUDGET.md), so an absolute threshold could only be
       # set above them, and the one thing that must never happen is
       # someone coarsening a demo's delta to get a number down. What
-      # this catches is a scene's mesh growing, a face's sizing getting
-      # wastefuller, or a scene silently dropping out of the sweep.
+      # this catches is ROSTERED IN `tools/tess-lint`'S MODULE DOCS AND
+      # NOWHERE ELSE, this file included — no count here, and no list.
+      #
+      # The enumeration this replaces is why. It read THREE for as long
+      # as rule 4 had existed; corrected to four, it was stale again
+      # within a day, because the uncovered-scene rule landed as rule 5
+      # while the correction was in flight. A roster kept beside the
+      # thing it describes drifts at the rate that thing changes, and
+      # this one is three copies deep (`docs/TESS-BUDGET.md` and
+      # `local-scripts/ci-local.sh` say it the same way now). A pointer
+      # cannot go stale.
       #
       # Baseline + how to re-cut it: docs/tess-budget-data/ and the
       # tool's own failure message, which prints the recourse.
@@ -2746,10 +3358,14 @@ jobs:
       # `--sizing-only`, deliberately: the default sweep also resamples
       # |S - Pi| on every emitted triangle to fill `worst_dev`, which is
       # ~1.15M triangles x 28 barycentric samples — tens of millions of
-      # surface evaluations — and the gate reads NONE of it. What
-      # `compare` looks at is triangle counts and `grid_cells /
-      # span_opt_cells`, all of them sizing columns the lane produces
-      # for free. The deviation pass is what the WRITEUP needed
+      # surface evaluations — and the gate reads NONE of it. That is
+      # still the claim this flag rests on, and it is narrower than
+      # "the gate reads the sizing columns": what `compare` COMPARES is
+      # triangle counts per scene and `grid_cells / span_opt_cells` per
+      # face, and what it JOINS on is `chart`, whether the row carries
+      # the sizing block at all, and `u0`-`v1` / `nu` / `nv`. Every one
+      # of those the lane produces for free; not one is a deviation
+      # column. The deviation pass is what the WRITEUP needed
       # (docs/TESS-BUDGET.md's total-slack column, and the committed
       # baseline still carries it); re-cutting the baseline runs the
       # script without this flag.
@@ -2832,8 +3448,24 @@ jobs:
           test -n "$crates"
           echo "probe-gated crates: $(echo "$crates" | tr '\n' ' ')"
           for c in $crates; do
-            cargo test -p "$c" --features probe --all-targets --no-run
-            cargo test -p "$c" --features probe --test all -- --list \
+            # A censused gate may CONJOIN `probe` with another opt-in
+            # feature (`all(feature = "probe", feature = "interval")` —
+            # the E6 driver suite; `k_probe_sweep.sh`'s `feats_for` is
+            # the same fact one step later). Derive those features from
+            # the gate LINES themselves — the census's own predicate
+            # shape — so the compile here builds every counted suite
+            # and `--check-listing` judges a real listing. Additive
+            # only: extra features can never hide a probe-gated suite
+            # (the census's stated blind spot, `not(feature = …)`,
+            # excepted — no such gate exists and the census documents
+            # it).
+            extra=$(grep -hE '^#!\[cfg\(.*feature = "probe"' "crates/$c"/tests/*.rs 2>/dev/null \
+              | grep -oE 'feature = "[a-z0-9_-]+"' | grep -v '"probe"' \
+              | sed 's/feature = //; s/"//g' | sort -u | paste -sd, -) || true
+            feats="probe${extra:+,$extra}"
+            echo "building $c with --features $feats"
+            cargo test -p "$c" --features "$feats" --all-targets --no-run
+            cargo test -p "$c" --features "$feats" --test all -- --list \
               | scripts/gates/probe-suite-census.sh --check-listing "$c"
           done
       # Runs the M2-era harness (crates/sweep) beside the M4/M5/M7 one
@@ -2883,7 +3515,32 @@ jobs:
   # re-baselining itself; see the note where it stood.)
   #
   # It is free in wall clock. The lanes finish in ~150 s against this
-  # workflow's ~460 s critical path (the test shards) — and since the
+  # workflow's ~460 s critical path (the test shards) — and THIS FILE
+  # DOES NOT AGREE WITH ITSELF ABOUT THAT SECOND FIGURE. Three other
+  # places state the same quantity, in different words and at different
+  # magnitudes: the `fmt` job's header, the wasm32 step, and the OPT
+  # LEVEL note on the default build job. They were taken at different
+  # times under different sampling and opt-level rulings and they do not
+  # reconcile. THE FIGURES ARE NOT RESTATED HERE — read them where they
+  # stand, because a fifth copy is the defect, not the fix.
+  #
+  # BUT "NOTHING RE-TAKES IT" WOULD BE FALSE, and this is the part worth
+  # getting right. The critical path is one job's archive step plus one
+  # test shard, and nightly.yml's `opt-level calibration` lane COMMITS A
+  # DATED SAMPLE OF BOTH on every firing: it reads `build test binaries +
+  # archive` and `run archived tests` off real gate runs through the jobs
+  # API and appends them to docs/perf-data/opt-level/, each carrying its
+  # `run_id`, `head_sha` and `created_at`. So the two TERMS have a live
+  # scheduled register at the runner's own box class. What that register
+  # does NOT carry is their SUM, this job's own ~150 s, or the ratio
+  # between them, and the OPT LEVEL note's own pair is dated to a named
+  # run rather than undated. So the honest statement is: the components
+  # are registered, the composition is not, and the four spellings differ
+  # because each is a composition taken on a different day.
+  #
+  # The claim THIS note makes survives all four, because it is an
+  # inequality with a factor of three in hand at the tightest of them
+  # (~150 against ~460) and more against the others — and since the
   # 2026-08-22 lane merges they do it in two jobs rather than five, so they
   # cost fewer runner minutes and nothing else, and only on the same condition
   # `k-lint` uses — a render depends on the whole kernel, so "whenever

@@ -4,7 +4,7 @@
 2026-07-21 after the adversarial review byte-reproduced the CSVs at all
 three ε rows and independently re-derived every reported number. The
 outcome is ratified into DESIGN.md's Q1 residue by the M2-exit sweep.
-Per Evan on #41, the value needed no separate sign-off. That
+Per Ev on #41, the value needed no separate sign-off. That
 byte-reproduction was a check against the tree of that day and is not
 a standing property of the committed CSVs — see "Provenance of the M2
 CSVs" under Methodology.)
@@ -148,8 +148,15 @@ gathered across M2's full pipeline.
 
   **This break never touched the gate, and the gate reads no committed
   CSV at all.** `ci.yml`'s *K-telemetry probe sweep* runs
-  `scripts/k_probe_sweep.sh` into `target/k-fresh` on every building
-  merge, and `tools/k-lint` lints **that fresh sweep** against constants
+  `scripts/k_probe_sweep.sh` into `target/k-fresh` on every run that
+  gates the `dev-probe` unification — drawn 1 in 5 since the
+  configuration sampling (`KLINT_ROWS`, `scripts/ci-filter.py`), and
+  askable by name with a `CI-Config: klint=dev-probe` trailer. **Not
+  1 in 5 on every merge**: a change under `tools/` PINS `dev-default`
+  (`KLINT_PATH_ROWS`), so such a merge does not gate this row at all —
+  and that includes a change to `tools/k-lint` itself, whose binary
+  this step runs. Ask for the row by name when that is what moved. And
+  `tools/k-lint` lints **that fresh sweep** against constants
   pinned in `tools/k-lint/src/lib.rs` (`BASELINE_FLOOR_MARGIN = 4.0e-5`
   and the rule set). Nothing under `docs/k-report-data/` is opened at
   gate time — the committed CSVs, M2's included, are a **record**, not
@@ -158,13 +165,22 @@ gathered across M2's full pipeline.
   committed CSV can weaken the gate, and `k_report.rs` is the M2-era
   instrument only.
 
-  **What CI now covers, stated precisely** (D17, closed 2026-08-20).
-  `k_report.rs` is both **type-checked and run** on every building
-  merge. The `k-lint` job's *"compile and list every probe-gated test target"*
+  **What CI now covers, stated precisely** (D17, closed 2026-08-20;
+  **the schedule restated 2026-08-30**, when the sampling made the
+  original wording false). `k_report.rs` is both **type-checked and
+  run** on every run that gates the `dev-probe` unification — **1 in
+  5**, not on every building merge, which is what this sentence said
+  until the correction, and **none at all on a merge that touches
+  `tools/`**, where the path pin substitutes `dev-default`. The row is a persistence-detector: a harness
+  that stops compiling or starts panicking stays broken until a later
+  draw finds it, so what the sampling gave up here is latency, not
+  coverage. The `k-lint` job's *"compile and list every probe-gated test target"*
   step covers the whole workspace — `scripts/gates/probe-suite-census.sh`
   derives the owning crates from the tree and the step `cargo check`s
   each `--features probe --all-targets`; the gate greps for that step
-  name, so this paragraph cannot go quietly false — and
+  name, **which is why this paragraph could go quietly false about how
+  often it runs and not about whether it exists** — a name-grep sees a
+  renamed step, never a resampled one — and
   `scripts/k_probe_sweep.sh` then *executes* this
   harness at all three ε beside the Band 4 corpus and the tour scenes.
   The two are not interchangeable: a type-check cannot see a panic, and
@@ -216,14 +232,24 @@ gathered across M2's full pipeline.
   *greenness* at `Probe`; neither compares a `Probe` result against an
   f64 one, and greenness is tolerance-dependent. `m4_pr8_k_probe`'s
   `run_doc` asserts the same predicate over every corpus document at all
-  three ε on every merge, so the ε sweep of that property is already
-  paid. What running the default selection adds is that these bodies
+  three ε **in the same sweep invocation** — both halves are
+  `k_probe_sweep.sh`, so both ride the `dev-probe` unification and run
+  on the 1 run in 5 that gates it (none, on a merge the `tools/` path
+  pin sends to `dev-default`), never on every merge — so the ε
+  sweep of that property is already paid on exactly the runs this one
+  is. What running the default selection adds is that these bodies
   execute at all, and the `#[ignore]`d complement the floor reconciles.
   It runs at a stated ε (1e-9) rather than at whatever the ambient
   default happens to be.
 
   The total is deliberately not written here: it is that gate's derived
-  tally, recomputed on every merge.
+  tally, recomputed on every building merge — and **that one really is
+  every merge**, which is why it is worth saying which half is meant.
+  `probe-suite-census.sh`'s default mode (the per-crate tally and its
+  `CENSUS_FLOOR`) is sited in `discipline`, a job the configuration
+  sampling does not touch. The `--check-executed` reconciliation
+  described just above is the other half, and it rides `dev-probe` with
+  the sweep that feeds it: 1 run in 5.
 
   **The M2 dump rides beside the gate, not inside it.** The sweep writes
   it to `<outdir>/m2/<prefix><ε>.csv`; `tools/k-lint` is handed the
@@ -285,7 +311,7 @@ CSVs in `docs/k-report-data/eps-{1e-6,1e-9,1e-12}.csv`
 (columns: shape, predicate, margin, band_zero, band_escalate,
 outcome).
 
-### Counterfactual K (Evan-requested, #41)
+### Counterfactual K (Ev-requested, #41)
 
 Every `MarginSample` records the margin and `band_zero`, so outcome
 counts for ANY candidate K are derivable post hoc from the normalized
@@ -321,7 +347,7 @@ completely flat across the candidate range on this corpus.
    `(τ − θ)·r` on near-full partial revolves — a margin the USER
    controls (their θ), not evaluation noise. Even θ = τ − 0.01 clears
    Kε by 3 decades at ε = 1e-6.
-4. **What this corpus cannot show** (scoping, per Evan): M2's native
+4. **What this corpus cannot show** (scoping, per Ev): M2's native
    constructions are a **well-conditioned corpus** — profile-validated
    inputs, sweep-generated geometry, margins the modeler controls.
    The expectation is that the strongest K evidence arrives at **D7
@@ -338,7 +364,7 @@ pressure to move it in either direction: the band converted zero
 decisions at any tested ε — and the counterfactual table shows every
 candidate in {3, 10, 30, 100} behaves identically on this corpus — so
 the value is currently free, and a free parameter should keep its
-ratified, documented default rather than churn. (Per Evan's #41
+ratified, documented default rather than churn. (Per Ev's #41
 direction, K is now ε-style per-run configuration —
 `Tol::k`, env `CAD_AMBIGUITY_K`, default 10 — so future
 corpora can probe alternatives without code changes.)
@@ -482,23 +508,39 @@ Five ways a name escapes the old pattern, all live today:
    least `check_residual`, `classify`, `require_zero`, `coincident`,
    `zero`, `gap_is_zero` and `signed_is_zero`. The old method named the
    last two.
-3. **A module-private `const &str`.** Five, not the three previously
-   recorded: `sector_shape.rs`'s `SECTOR_{ARM,REFLEX,STRAIGHT}`, plus
-   `editor-core/src/names/geompred.rs`'s `SEL_DATUM_DISTANCE`
-   (`sel_datum_distance`) and `sweep/src/fillet/surgery.rs`'s
-   `RING_CLEARANCE` (`fillet3_ring_clearance`).
+3. **A named `const &str` rather than a literal at the site.** Six,
+   not the three previously recorded: `sector_shape.rs`'s
+   module-private `SECTOR_{ARM,REFLEX,STRAIGHT}`, plus
+   `SEL_DATUM_DISTANCE` (`sel_datum_distance` — since SEAT-2 a `pub`
+   const in `topo/src/query.rs`, re-exported by `editor-core`),
+   `DATUM_UNIT_NORM` (`datum_unit_norm` — since SEAT-DV a `pub` const
+   beside it, the length decision inside `UnitVec3::new`; the datum
+   arms of `editor-core`'s evaluation reach the funnel through that
+   constructor rather than through their own `eval_direction_norm`
+   site, which stays for the directions the evaluation layer owns —
+   note that `mate/solve.rs` re-derives a circular pattern's DATUM axis
+   from the recipe and decides it under `eval_direction_norm`, so one
+   datum direction carries two names by road, issue 1570) and
+   `sweep/src/fillet/surgery.rs`'s module-private `RING_CLEARANCE`
+   (`fillet3_ring_clearance`).
 4. **A struct field or a local table.** `ray_parity::ParityRows` (the
    one carrier this document already listed), `swept.rs`'s
    `CosurfaceNames`, and `transform.rs:129`'s seven-element
    `[(&'static str, T); 7]` array consumed by a loop variable.
 5. **The scan root — a scope error in the method, not a missed site.**
    The pattern greps `crates/*/src`, while the corpus the gate is fed
-   from is not confined to it: `demos/tour/src/booleans.rs` decides
+   from is not confined to it: `demos/tour/src/booleans.rs` decided
    `demo_flush_{offset,orient,parallel}` through the same funnel, and
-   `k_probe_sweep.sh` records them into the very CSV `k-lint` reads. A
+   `k_probe_sweep.sh` recorded them into the very CSV `k-lint` reads. A
    roster method that sweeps one tree and calls itself complete, while
    the gated corpus is fed from two, is wrong by construction — no
    amount of care at the sites it does scan would have found these.
+   Those three sites left the tree at SEAT-3, when the demo's hand
+   declarer was replaced by the library flush detector, and the demo
+   tree today decides nothing at all: the method's scope error is
+   unchanged, and it currently has no live instance. That is a fact
+   about this tree, not a repair — the next demo-side `decide` is
+   invisible to the pattern exactly as these were.
 
 **Both halves have a blind spot, and the union is the roster.** The
 code scan misses names not written as a literal at a funnel site (the
@@ -539,13 +581,30 @@ against `docs/predicate-dimension-audit.md`, which carries
 | `contact_at_shared_vertex` | `profile` | wrapper |
 | `side_planes_cosurface` | `sweep/src/swept.rs` | `CosurfaceNames` field |
 | `side_cylinders_cosurface` | `sweep/src/swept.rs` | `CosurfaceNames` field |
-| `demo_flush_offset` | `demos/tour/src/booleans.rs` | outside the scan root |
-| `demo_flush_orient` | `demos/tour/src/booleans.rs` | outside the scan root |
-| `demo_flush_parallel` | `demos/tour/src/booleans.rs` | outside the scan root |
+| `demo_flush_offset` | `demos/tour/src/booleans.rs` | outside the scan root — GONE at SEAT-3 |
+| `demo_flush_orient` | `demos/tour/src/booleans.rs` | outside the scan root — GONE at SEAT-3 |
+| `demo_flush_parallel` | `demos/tour/src/booleans.rs` | outside the scan root — GONE at SEAT-3 |
 
 They are recorded here rather than folded into the M3 crop above: that
 crop is a dated era snapshot of what M3 added, and back-filling it
-would make it describe something it never described.
+would make it describe something it never described. The three
+`demo_flush_*` rows are annotated rather than deleted for the same
+reason: the measurement above was taken at `ff5ad78e` and a row struck
+out of it would make the count of seven unreadable. They no longer
+name a live site — the demo's hand declarer became a call to the
+library flush detector, which decides at the verifier's own
+`bool_plane_*` sites — and the K sweep's CSV has carried no
+`demo_flush_*` row since.
+
+**That retirement moved a population, not just a name.** Every margin
+the tour's flush contacts used to contribute under `demo_flush_*` now
+enters the K stream under `bool_plane_parallel` /
+`bool_plane_orient` / `bool_plane_offset`, alongside the boolean's
+own. Those three rows therefore carry more samples than before, drawn
+from the same geometry through a different door — a distribution
+change to READ rather than a threshold to restore, and the first
+`k-lint` sweep after the merge is what reads it (SEAT-3 asked for one
+with a `klint=dev-probe` head trailer).
 
 **Maintenance: this roster is a RECORD, and stays hand-maintained.**
 The decision is on what the roster is *for*, and the evidence is that
@@ -691,7 +750,7 @@ a real 1.7 mm feature gap). The gap between the clusters spans ~12
 decades and is EMPTY: 0 indeterminate, 0 invalid, nothing within a
 decade of any band edge at any ε row.
 
-### The large-K lint (Evan's ask, ruled 2026-07-25; spec D3)
+### The large-K lint (Ev's ask, ruled 2026-07-25; spec D3)
 
 *Historical, left as written. The thresholds and rule set below are the
 M4 originals; both were revised on 2026-08-07 — see "M7 addendum: the
@@ -751,7 +810,7 @@ demo scenes as they stand at main's tip (post-#166). This is the
 #89 revisit that M2's Finding 4 named — and the FIRST snapshot in
 which the counterfactual-K decision surface is not completely flat.
 Its outcome: **#89 is CLOSED and K = 10 is the permanent ratified
-default** (Evan, PR #169 comment 5171303851, 2026-08-03), with a
+default** (Ev, PR #169 comment 5171303851, 2026-08-03), with a
 testable re-open trigger. See "Decision" below.**
 
 - **Harnesses**: unchanged — `scripts/k_probe_sweep.sh`
@@ -965,7 +1024,7 @@ K = 30 has 5.5×; K = 10 retains better than a decade.
 
 ### Decision: #89 CLOSED — K = 10 is the permanent ratified default
 
-**Ruled by Evan on PR #169 (comment 5171303851, 2026-08-03):
+**Ruled by Ev on PR #169 (comment 5171303851, 2026-08-03):
 "closing 89 makes sense."** This supersedes the continuation this
 addendum originally recommended; the grounds below are the ones the
 recommendation was built on and they support the close directly.
@@ -1041,10 +1100,10 @@ happened; the section above is left as written.
 landing: ε = 1e-7, fixture `cone_trunc`, predicate
 `props_rim_level_group`, margin 5.590169943747308e-7 = √5/4 × 1e-6
 — in Band{1e-7, 1e-6}. Verified bit-exact at review (the A3
-attack), reported to Evan on the designated #89 thread with nothing
+attack), reported to Ev on the designated #89 thread with nothing
 retuned.
 
-**The diagnosis.** Evan's probe of the margin's DIMENSION broke the
+**The diagnosis.** Ev's probe of the margin's DIMENSION broke the
 case: the margin was an AREA (m², a two-length product, quadratic
 in model scale) where a rim-level comparand should be a LENGTH.
 Root cause in `geom-brep/src/props/curved.rs::du_of_rims`: every
@@ -1078,7 +1137,7 @@ is `docs/predicate-dimension-audit.md` (~120 rows, F-findings).
    required exactly the re-reading the sentence hoped to avoid.
 3. The two "M6 pickup" follow-ups above are hereby re-tagged
    **UNOWNED pickups** — M6's executed units (1–4) all merged with
-   neither follow-up done, and M6 remains open awaiting Evan's exit
+   neither follow-up done, and M6 remains open awaiting Ev's exit
    walk (the k-lint baseline floor is still the stale M4-era 1.5e-3
    with ~102 advisory flags/run; the SSI Probe lane still has no
    owner). The k-lint floor refresh holds a promoted lull-queue
@@ -1357,7 +1416,7 @@ lane) and `split_sector_{arm,reflex,straight}` (splitting lane) are, since
 #647, literally one implementation of one quantity —
 `crates/topo/src/sector_shape.rs`, called from both lanes, with the name
 set handed in as a parameter precisely so this decision could be taken
-separately. It is taken: **pool them** (Evan, 2026-08-19, issue #652).
+separately. It is taken: **pool them** (Ev, 2026-08-19, issue #652).
 They now emit `sector_arm`, `sector_reflex`, `sector_straight`.
 
 **Why, in one line that is not tidiness.** Coverage. Recomputed from
@@ -1381,6 +1440,23 @@ carries **231**. No other predicate's name, margin, band or outcome
 changes. The M7 addendum's own "233" is left as written — it describes
 the committed snapshot, which still says 233 because it still contains
 the six old names.
+
+**And SEAT-DV adds one: 232 at a sweep cut after it.**
+`datum_unit_norm` is the length decision inside `topo::query`'s
+`UnitVec3::new`, which is where a datum's normal or axis direction is
+now normalized. It does not REPLACE `eval_direction_norm`, which keeps
+the directions the evaluation layer owns (a transform's rotation axis,
+a linear pattern's direction) — so this is one name in, none out. The
+population it takes is small and it moves rather than grows: the datum
+arms of `editor-core`'s `wire_datum` used to emit `eval_direction_norm`
+and now emit `datum_unit_norm`. **One triple is emitted under BOTH
+names depending on the road**: `mate/solve.rs`'s derived-offset
+derivation re-reads a circular pattern's datum-axis node from the
+recipe and normalizes that same direction through `eval_direction_norm`
+(same arithmetic, same refusal shape, different name in this census).
+That is a family question, not a defect of either site, and it is homed
+at issue **1570** — this paragraph is the census-side record of it, and
+neither road was migrated.
 
 **Effect on the emitted stream.** Margins, order, bands and outcomes are
 bit-identical; only the `predicate` column changes, and only for these

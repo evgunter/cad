@@ -159,6 +159,29 @@
 //! check list, gate, and the honest not-yet-checked list live on
 //! [`validate_geometric`].
 //!
+//! **The tier is two functions.** Eight of its nine checks are answerable
+//! by any deciding scalar; the ninth — the +V global orientation
+//! invariant — reads a volume enclosure, and deciding its sign is an act
+//! of certification rather than a measurement. So
+//! [`validate_geometric_structural`] runs the eight and
+//! [`validate_geometric`] is that call followed by the certified one,
+//! carrying the union of their bounds — a scalar without certification
+//! rights takes the structural door, and cannot write the composed call
+//! at all.
+//!
+//! **The structural half never judges orientation, at ANY scalar.** That
+//! is the consequence to carry away, and it is stronger than "a dual
+//! cannot certify": check 7's closed form computes a signed volume at
+//! every scalar with a zero pad, so the pre-split door handed a dual a
+//! real `+V` verdict on any planar body. The split moves the whole
+//! check — both derivations — behind the certified bound, because the
+//! sign is decided in exactly one place or the half that is supposed to
+//! carry no certification arm grows one back. **An inverted body
+//! therefore passes the structural half by design**, and a caller that
+//! wants the sign at a non-certifying scalar goes to the mixed passes
+//! that keep their lanes: [`validate_pseudomanifold`],
+//! [`contact_marks`], [`crate::mass_properties`].
+//!
 //! # All failures, not the first
 //!
 //! [`validate`] collects **every** failure before returning: a validator
@@ -239,7 +262,10 @@
 use core::fmt;
 
 use geom::Surface;
-use geom_brep::{CertifyError, DihedralClass, classify_dihedral};
+use geom_brep::{
+    CertifyError, DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral,
+    classify_material_pairing,
+};
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
 use slotmap::{Key, SecondaryMap};
 
@@ -290,6 +316,16 @@ pub enum ContactMark {
     /// the must-carry by this very verdict.
     SmoothUnderdetermined,
     /// A `Seam`-described edge — exempt by kind, as always.
+    ///
+    /// **Not [`geom_brep::MaterialWedge::Seam`]**, which sits four
+    /// lines away in the same check and means something else entirely:
+    /// that one is the material VERDICT wedge π (the two faces
+    /// continue one another), while this one is a statement about the
+    /// edge's DESCRIPTION (a chart seam), and an exemption rather than
+    /// a verdict. Both names are load-bearing in their own
+    /// vocabularies — the ruling calls wedge π the seam, and chart
+    /// seams have been `Seam` since M2 — so neither is renamed; the
+    /// hazard is called out instead, here and there.
     Seam,
     /// No definite whole-edge verdict: mixed samples, or an
     /// escalation already reported as its own error.
@@ -384,12 +420,27 @@ pub enum ValidationError {
     /// carries a singular point the chart machinery has no
     /// representation for (`geom::Surface::Torus`'s own contract: the
     /// chart normal derivation assumes `R + r·cos v > 0`, and
-    /// `mesh::walk::Chart::poles` is empty for a torus because a ring
+    /// `crate::chart::Chart::poles` is empty for a torus because a ring
     /// torus has none).
     ///
-    /// This is the net BOTH doors that can mint a torus pass through:
-    /// `sweep::revolve` refuses the configuration at construction, and
-    /// `step-import` reads `TOROIDAL_SURFACE`'s two radii verbatim.
+    /// This is the net every door that can mint a torus passes through,
+    /// and there are THREE of them rather than the two this comment used
+    /// to name:
+    ///
+    /// * `sweep::revolve` refuses the configuration at construction;
+    /// * `step-import` reads `TOROIDAL_SURFACE`'s two radii verbatim,
+    ///   so it can carry one in;
+    /// * the BLEND lane (`sweep::blend`, reachable through the public
+    ///   `fillet_edges`) mints `Surface::Torus` from a spine radius `s`
+    ///   and the blend radius `r`. Its own arms document predicate 3
+    ///   (`SpineIrregular`) as the refusal for `0 < s ≤ r` — the spindle
+    ///   and horn configurations — but that is the blend lane's claim
+    ///   about itself, not something measured here, and the surgery
+    ///   arms mint tori too.
+    ///
+    /// Which is why this check is at REST and not at any one mint: it is
+    /// the net under all three, whatever each of them believes about
+    /// itself.
     DegenerateTorus {
         /// The face whose torus is a horn or spindle.
         face: FaceKey,
@@ -492,7 +543,7 @@ pub enum ValidationError {
     },
     /// Tier 3: a **definitely-transverse** edge carries a conventional
     /// (`MappedCurve`) description at rest — the prefer-intrinsic rule
-    /// with teeth (D2; ratified with Evan 2026-07-19, M2 PR 4 fix
+    /// with teeth (D2; ratified with Ev 2026-07-19, M2 PR 4 fix
     /// pass). Enforced only when the dihedral pass classified **every**
     /// interior sample definitely Transverse: definitely-smooth edges
     /// keep their conventional descriptions (the D2 conventional
@@ -509,7 +560,7 @@ pub enum ValidationError {
         /// declared.
         edge: EdgeKey,
     },
-    /// Tier 3, **the transience fence** (U2's Q2 as corrected by Evan
+    /// Tier 3, **the transience fence** (U2's Q2 as corrected by Ev
     /// 2026-08-27): a body at rest carries an edge still described by
     /// the SCAFFOLDING door — a sketch pushforward standing in for a
     /// description while the edge's surfaces do not exist yet.
@@ -557,6 +608,76 @@ pub enum ValidationError {
     TangentNotIntrinsic {
         /// The jet-determinate tangent edge whose description is
         /// conventional.
+        edge: EdgeKey,
+    },
+    /// Tier 3 (check 4, material arm): the edge's two faces subtend a
+    /// material wedge of **0** (a cusp) or **2π** (a knife slit) and
+    /// nothing DECLARED the tangency.
+    ///
+    /// D1's ratified second-order arm (the #131 ruling): the two ends
+    /// of the wedge range are legal only where the C7 `Tangent`
+    /// contact vocabulary asserts the contact — **never** inferred
+    /// from the values, per the coincidence ladder. Discovery is not
+    /// declaration, so an undeclared cusp refuses at every ε: the
+    /// verdict does not consult the second-order margin at all, which
+    /// is also why no ε-tightening can turn this refusal into a
+    /// different one.
+    ///
+    /// The recourse is [`crate::contact::CONTACT_RECOURSE`]'s two
+    /// arms — declare the contact, or move the geometry — and never
+    /// the tolerance lever: a missing intent is not a decidability
+    /// question.
+    UndeclaredCusp {
+        /// The edge whose material wedge is 0 or 2π.
+        edge: EdgeKey,
+        /// Which end — [`MaterialWedge::Cusp`] or
+        /// [`MaterialWedge::Slit`]. The two are one another's `revert`
+        /// images and are legal together or not at all, so they refuse
+        /// through one variant carrying which it saw.
+        wedge: MaterialWedge,
+    },
+    /// Tier 3 (check 4, material arm): the edge's two faces have
+    /// opposed material sides along a shared tangent plane — the
+    /// wedge-0/2π configuration — and their second-order jets
+    /// **osculate**: κ_rel definitely collapsed.
+    ///
+    /// This is conformal contact along the locus, which fails the
+    /// declared arm's curve-locus condition: the surfaces do not
+    /// determine which end of the wedge range this is — there is no
+    /// crescent, only a zero-thickness sheet — and **no declaration
+    /// cures it**, because there is no certifiable curve-locus
+    /// tangency to declare.
+    ///
+    /// **Two different defects wear this local signature**, and the
+    /// message says so rather than picking one:
+    ///
+    /// - a genuine **lamina** — a zero-volume sheet (the flipped
+    ///   rimless ball measures exactly 0.0). Recourse: move the
+    ///   geometry.
+    /// - an **orientation defect** in a body of real volume: two
+    ///   faces lying on ONE surface with one face's `sense` inverted
+    ///   read as opposed material sides with osculating jets, because
+    ///   osculation is what two faces of the same surface DO. The
+    ///   flipped conic-trim `cut_cylinder` is this shape, and it
+    ///   measures 3.9269908167918763, not zero. Recourse: fix the
+    ///   sense.
+    ///
+    /// The check is edge-LOCAL, so it cannot tell the two apart — both
+    /// are genuinely refused, and the diagnosis belongs to whoever
+    /// reads the faces. Claiming "zero-volume" of both would be a
+    /// false diagnosis attached to a true catch.
+    ///
+    /// It shares no edge with [`Self::UndeclaredCusp`]: a collapsed
+    /// κ_rel yields no wedge end, so the two refusals are mutually
+    /// exclusive by construction (`MaterialArmOutcome`), not by a
+    /// precedence between them.
+    ///
+    /// In-band κ_rel is NOT this: an osculation the run cannot decide
+    /// escalates as [`Self::SliverDihedral`] with the
+    /// `tangent_second_order` cause, so the three outcomes of the
+    /// second-order band are three different answers.
+    LaminaWedge {
+        /// The edge whose opposed faces osculate.
         edge: EdgeKey,
     },
     /// Tier 3 (check 6): a planar face's loop ROLES disagree with its
@@ -682,13 +803,18 @@ pub enum ValidationError {
     ///   every-variant fixture builds the variant with.
     ///
     /// What keeps the row-1 arms **near**-unreachable here is not a
-    /// property of this site but the `if errors.is_empty()` gate on
-    /// check 7's `mass_properties_with` call: it runs only after every
-    /// structural check has passed, so a corrupt body has normally
-    /// already been refused by the check that names its corruption.
-    /// "Normally" is the honest word — that gate is a sequencing fact
-    /// elsewhere in this file, not an invariant this variant enforces,
-    /// and `mass_properties` called directly has no such guard.
+    /// property of this site but the gate in front of check 7, and that
+    /// gate now has two spellings. At [`validate_geometric`] it is the
+    /// `?` between the pass's two halves, so the volume is read only
+    /// after the WHOLE structural battery came back clean — checks 8
+    /// and 9 included, which the older spelling did not cover. In
+    /// [`validate_pseudomanifold`] and [`contact_marks`], which run the
+    /// battery in one call, it is still the `if errors.is_empty()`
+    /// standing between checks 6 and 7. Neither is an invariant this
+    /// variant enforces: a corrupt body has normally already been
+    /// refused by the check that names its corruption, "normally" is
+    /// the honest word, and [`crate::mass_properties`] called directly
+    /// has no guard at all.
     VolumeUncomputable {
         /// The mass-properties failure.
         source: crate::props::MassPropsError,
@@ -1156,8 +1282,10 @@ pub enum CensusContact {
         edge: EdgeKey,
     },
     /// An edge piercing a face transversally at both interiors — a
-    /// proper crossing, categorically undeclarable (3′ allows touching,
-    /// never crossing).
+    /// transverse dive, interpenetration at rest: categorically
+    /// undeclarable until the C6 interference-fit era's recorded
+    /// gate-skips exist (the MATE-4b staging defers this class to
+    /// that era by name).
     EdgeFacePierce {
         /// The piercing edge.
         edge: EdgeKey,
@@ -1165,7 +1293,12 @@ pub enum CensusContact {
         face: FaceKey,
     },
     /// Two edges crossing at both interiors (coplanar or skew-with-
-    /// contact) — a proper crossing, categorically undeclarable.
+    /// contact). Backable at the census's unified strength when the
+    /// crossing lies in a declared pair's verified overlap region
+    /// with material on opposite sides of the shared carrier (an
+    /// overhanging seat — `census.rs`'s crossing rung); otherwise a
+    /// hard finding, the refusal naming the side verdict where a
+    /// region-holding pair answered one.
     EdgeEdgeCross {
         /// The lower-arena-order edge.
         a: EdgeKey,
@@ -1352,6 +1485,28 @@ impl fmt::Display for ValidationError {
                  as the TangentIntersection of their faces' surfaces (prefer-intrinsic \
                  one order up; a G2 join is exempt by its zero-side \
                  second-order margin, never by a list)"
+            ),
+            Self::UndeclaredCusp { edge, wedge } => write!(
+                f,
+                "edge {edge:?}: its two faces subtend a material wedge of {} — the two ends \
+                 of the wedge range, legal only where the tangency is DECLARED (a Tangent \
+                 contact on the face pair) and jet-determinate. Nothing declares it, and \
+                 discovery is never declaration: {}",
+                wedge.name(),
+                crate::contact::CONTACT_RECOURSE
+            ),
+            Self::LaminaWedge { edge } => write!(
+                f,
+                "edge {edge:?}: its two faces have opposed material sides and OSCULATING \
+                 jets (κ_rel definitely collapsed) — conformal contact along the locus, \
+                 not the curve-locus tangency the declared wedge-0/2π arm admits, and no \
+                 contact declaration cures it (there is no certifiable tangency to \
+                 declare). Two defects wear this signature and this edge-local reading \
+                 cannot separate them: a genuine zero-thickness LAMINA (move the \
+                 geometry), or a body of real volume whose two faces share ONE surface \
+                 with one face's SENSE inverted — osculation is what two faces of the \
+                 same surface do (fix the sense). Read the two faces' surfaces and senses \
+                 before moving anything"
             ),
             Self::LoopRoleInverted { face, r#loop } => write!(
                 f,
@@ -1916,6 +2071,19 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///    ([`ValidationError::TransverseNotIntrinsic`]); definitely-smooth
 ///    edges keep conventional descriptions, `Seam` edges are exempt by
 ///    kind, and escalated edges report only their `SliverDihedral`.
+///    **The material arm** (D1's ratified wedge table, the #131
+///    second-order ruling) signs that classification with the faces'
+///    material sides on the same samples: outward normals aligned is
+///    the legal π seam; opposed is the wedge-0/2π pair, legal iff a
+///    `Tangent` contact on the face pair DECLARES the tangency
+///    ([`ValidationError::UndeclaredCusp`]) and the jet is determinate
+///    — a collapsed κ_rel there is conformal contact along the locus,
+///    which the arm does not admit under any declaration
+///    ([`ValidationError::LaminaWedge`]: a true lamina, or an
+///    inverted face sense on a shared surface — that error's own doc
+///    separates them), and an in-band κ_rel is the ordinary
+///    `SliverDihedral` escalation. Samples that DISAGREE along one
+///    edge escalate too, rather than falling silent.
 /// 5. **Planar-boundary containment** (same edge sweep, same samples;
 ///    M2 PR 3 fix pass): each interior carrier sample is checked
 ///    against each **adjacent planar** face's plane — the
@@ -1944,19 +2112,21 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   box"*. Quoted rather than dated on purpose: a milestone copied
 ///   into this list is the rot the list keeps producing, and a quote
 ///   is what survives the milestone being renumbered.
-/// - **The material wedge side** (lamina/zero-volume detection, wedge
-///   0 vs 2π vs the legal π): distinguishing them needs the faces'
-///   material sense **at the edge** — which side of each surface the
-///   solid occupies *there*. Since M5 S10 the per-face half of that is
-///   no longer missing: [`crate::Face::sense`] states it globally per
-///   face (outward normal = `sense_sign · chart normal`), and check 6
-///   below certifies the statement against the loop windings on planar
-///   faces. What is still absent is the *edge-local* pairing —
-///   orienting each face's tangent plane at a sample of the shared
-///   carrier and measuring the wedge the two material sides subtend,
-///   which wants the curved-face pcurve machinery. At present the
-///   dihedral pass (check 4) classifies the *tangent-plane* wedge
-///   only: unsigned, so it sees a sliver but not a lamina.
+/// - **The wedge on a NURBS- or `Approx`-adjacent edge**: check 4 and
+///   its material arm are both exempt by kind there (implicit-form
+///   gradients are poison on a spline chart), so such an edge carries
+///   no wedge verdict at all — `Unmarked`, the escalation posture,
+///   never a blessing.
+/// - **The doubled cusp** (two material wedges on one tangent line —
+///   the kissing union, a slit interior to material) is not one
+///   4-face edge but F2's coincident-distinct-edges class: each edge
+///   classifies separately under check 4's material arm, and pairing
+///   the two is the coincidence census's business, not this pass's.
+/// - **The wedge-conditioned CONSUMERS** (fillet/chamfer, offset and
+///   shell, mesh sizing, boolean sector classification, export) each
+///   owe their own typed refusal for a wedge-0/2π edge: this pass
+///   decides legality at rest and says nothing about what an operation
+///   may then do with a legal cusp.
 /// - **Face-boundary containment on curved surfaces** (a face's loops
 ///   actually bounding a region of its surface) — tracked at #638.
 ///   The **planar** case is now covered between vertices by check 5
@@ -1982,8 +2152,130 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///
 /// A non-empty vector of every failure found: tiers 1–2 verbatim if
 /// any, else the tier-3 failures in the documented order.
-pub fn validate_geometric<T: crate::props::PropsQuadLane>(
+/// # The two halves, and why the entry carries both bounds
+///
+/// Tier 3 is a battery of nine checks, eight of which any deciding
+/// scalar can answer and one of which — check 7, the +V invariant — is
+/// an act of CERTIFICATION: it reads a certified volume enclosure. So
+/// the battery is written as two functions and this one is their
+/// composition:
+///
+/// - [`validate_geometric_structural`] runs checks 1–6, 8 and 9 at
+///   `T: PropsQuadLane`. It is a meaningful validator on its own and it
+///   is the door a scalar without certification rights uses.
+/// - `validate_geometric_certified` runs check 7, bounded on the
+///   quantity it actually needs.
+///
+/// This entry is `structural(…)?` then certified, so its bound is the
+/// UNION and the `?` is the sequencing fact: check 7 used to run behind
+/// an `if errors.is_empty()` in the middle of the battery, a rule the
+/// file stated about itself rather than enforced. The composition
+/// enforces it, and widens it in the same direction — a body that fails
+/// any structural check never reaches the volume claim, where before
+/// only checks 1–6 gated it.
+///
+/// **A scalar that may not certify cannot write this call**, which is
+/// the point rather than a side effect: it is not refused here, there
+/// is no arm and no diagnostic. **What such a scalar loses at THIS door
+/// is the +V verdict itself, not merely a refusal it used to receive**:
+/// check 7's closed-form derivation computes at any scalar, so before
+/// the split a dual asking this door about a planar body got a real
+/// orientation sign. It gets neither now, because the sign is decided in
+/// one place and that place is the certified half. A dual body still
+/// validates — through [`validate_geometric_structural`], which is where
+/// every certificate a dual build compares bitwise against its `f64`
+/// twin is produced — and the orientation verdict is still available to
+/// it through [`validate_pseudomanifold`], [`contact_marks`] and
+/// [`crate::mass_properties`], the mixed passes that keep their lanes.
+/// The structural half is open to it:
+///
+/// ```
+/// use geom_core::{Dual64, Tol};
+/// use topo::{Body, validate_geometric_structural};
+/// fn structural(b: &Body<Dual64>, tol: Tol) {
+///     let _ = validate_geometric_structural(b, tol);
+/// }
+/// ```
+///
+/// — and this entry is not, because the certified half's bound is on
+/// it. The call cannot be FORMED; nothing runs and nothing refuses:
+///
+/// ```compile_fail,E0277
+/// use geom_core::{Dual64, Tol};
+/// use topo::{Body, validate_geometric};
+/// fn composed(b: &Body<Dual64>, tol: Tol) {
+///     let _ = validate_geometric(b, tol);
+/// }
+/// ```
+///
+/// The failing row is the guarantee and not a typo, and the row above
+/// it is what says so: the two differ in exactly one identifier, and
+/// every path either names resolves. So the only thing the second can
+/// be failing on is the bound — `E0277`, *required by a bound in
+/// `validate_geometric`*, `CertifiedEnclosure` not implemented for
+/// `Dual<f64>`.
+pub fn validate_geometric<T: crate::props::PropsQuadLane + geom_core::CertifiedBounds>(
     body: &Body<T>,
+    tol: Tol,
+) -> Result<(), Vec<ValidationError>> {
+    validate_geometric_declared(body, &[], tol)
+}
+
+/// **Tier 3 without its one certifying check** — checks 1–6, 8 and 9,
+/// at every [`crate::PropsQuadLane`] scalar ([`validate_geometric`]'s
+/// two halves; the bound is the lane trait rather than bare `Decide`
+/// because check 1 and check 2 still dispatch through it).
+///
+/// What a caller gives up by taking this door instead of the composed
+/// one is named, not implied: the **+V global orientation invariant**
+/// (check 7) does not run, so **this pass says nothing about whether the
+/// body's volume is positive, and an inverted body passes it — by
+/// design, at every scalar.** It is LESS INFORMATION about a body, not a
+/// weaker body: every check it does run is the same check, in the same
+/// order, reporting the same errors.
+///
+/// **Read that as a statement about the DOOR, not about certification
+/// rights.** Check 7 has two derivations — the certified quadrature, and
+/// a closed form that computes at any scalar with a zero pad — and the
+/// split moves the whole check, both derivations, into the certified
+/// half. So this door is silent about orientation on a planar body at
+/// `f64` exactly as it is at a dual. The alternative, a `Decide`-only
+/// closed-form arm living here, is refused deliberately: it would put a
+/// certification arm back inside the half whose whole property is having
+/// none, which is the mixed-pass shape this split exists to leave
+/// behind.
+///
+/// **Where the sign still lives**, so nothing is lost by accident: the
+/// mixed passes keep their lanes and keep check 7 through the scalar's
+/// own quadrature lane. A caller that wants the orientation verdict at a
+/// scalar this door's composed sibling excludes asks
+/// [`validate_pseudomanifold`], [`contact_marks`] or
+/// [`crate::mass_properties`] — all three answer at a dual, and on a
+/// closed-form body all three still say `NegativeVolume`.
+/// `topo/tests/geometric_cube.rs`'s
+/// `the_structural_half_does_not_judge_orientation_at_any_scalar` is the
+/// three verdicts side by side.
+///
+/// # Errors
+///
+/// As [`validate_geometric`], less [`ValidationError::NegativeVolume`]
+/// and [`ValidationError::VolumeUncomputable`].
+pub fn validate_geometric_structural<T: crate::props::PropsQuadLane>(
+    body: &Body<T>,
+    tol: Tol,
+) -> Result<(), Vec<ValidationError>> {
+    validate_geometric_structural_declared(body, &[], tol)
+}
+
+/// [`validate_geometric_structural`] with the body's declared contacts
+/// in hand — [`validate_geometric_declared`]'s structural half.
+///
+/// # Errors
+///
+/// As [`validate_geometric_structural`].
+pub fn validate_geometric_structural_declared<T: crate::props::PropsQuadLane>(
+    body: &Body<T>,
+    declarations: &[DeclaredContact],
     tol: Tol,
 ) -> Result<(), Vec<ValidationError>> {
     // Coarse gate: structural tiers first, verbatim.
@@ -1993,7 +2285,11 @@ pub fn validate_geometric<T: crate::props::PropsQuadLane>(
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
-    let errors = tier3_local_checks(body, band, tol);
+    let mut marks = slotmap::SecondaryMap::new();
+    let errors =
+        tier3_local_checks_marked(body, declarations, band, &mut marks, tol, &|_, _, _| {
+            Vec::new()
+        });
     if errors.is_empty() {
         Ok(())
     } else {
@@ -2001,32 +2297,319 @@ pub fn validate_geometric<T: crate::props::PropsQuadLane>(
     }
 }
 
-/// Tier 3's local check battery (checks 1–6 + the +V invariant, check
-/// 7), shared verbatim between [`validate_geometric`] and
-/// [`validate_pseudomanifold`] (M3 PR 6a: the tier-3′ validator runs
-/// the SAME local passes — extraction, not copy-paste; behavior under
-/// `validate_geometric` is identical to the pre-extraction code).
-/// Assumes the tier-1/2 coarse gate already passed.
-pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane>(
+/// **Tier 3's check 7 alone** — the +V global orientation invariant,
+/// at a scalar with certification rights.
+///
+/// Private, and that is the guarantee: no caller can take the
+/// certified half without the structural one, so no body is ever
+/// blessed by a volume claim while its geometry went unchecked. The
+/// composed entry is the only way in, and its `?` is what puts the two
+/// in the right order.
+fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBounds>(
     body: &Body<T>,
-    band: Band,
     tol: Tol,
-) -> Vec<ValidationError> {
-    let mut marks = slotmap::SecondaryMap::new();
-    tier3_local_checks_marked(body, band, &mut marks, tol)
+) -> Result<(), Vec<ValidationError>> {
+    let band = match Band::linear(tol) {
+        Ok(band) => band,
+        Err(error) => return Err(vec![ValidationError::Band { error }]),
+    };
+    let errors = plus_v_invariant(
+        crate::props::mass_properties_certified(body, band, tol),
+        band,
+    );
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
-/// The per-edge tier-3 contact MARKS at rest (OQ7 level (i), M5 PR 9):
-/// runs the structural coarse gate, then the tier-3 battery, and
-/// returns the recorded per-edge [`ContactMark`]s. `Err` carries every
-/// validation failure exactly as [`validate_geometric`] would (marks
-/// are only meaningful on a valid body).
+/// [`validate_geometric`] with the body's **declared contacts** in
+/// hand — the door a body carrying a declared cusp or slit validates
+/// through.
+///
+/// Everything about tier 3 is unchanged except the one arm that must
+/// read a declaration: check 4's material arm, where a wedge of 0 or
+/// 2π is legal iff the C7 `Tangent` vocabulary asserts the contact on
+/// that face pair (D1's ratified second-order arm). Declarations are
+/// an INPUT here rather than body state because that is what they are
+/// — a claim a modeler makes about geometry, carried by the recipe
+/// layer and never inferred from values — and it is why
+/// [`validate_geometric`] passing an empty slice is not a shortcut:
+/// a body nobody declared anything about genuinely has an undeclared
+/// cusp if it has a cusp at all.
+///
+/// A declaration this pass does not consult costs nothing and asserts
+/// nothing: no arm reads `Rest`, and a declaration with no matching
+/// geometry is the census's business (`StaleContactDeclaration`), not
+/// this pass's.
 ///
 /// # Errors
 ///
 /// As [`validate_geometric`].
+pub fn validate_geometric_declared<T: crate::props::PropsQuadLane + geom_core::CertifiedBounds>(
+    body: &Body<T>,
+    declarations: &[DeclaredContact],
+    tol: Tol,
+) -> Result<(), Vec<ValidationError>> {
+    validate_geometric_structural_declared(body, declarations, tol)?;
+    validate_geometric_certified(body, tol)
+}
+
+/// Tier 3's local check battery (checks 1–6 + the +V invariant, check
+/// 7), shared verbatim between [`validate_pseudomanifold`] and
+/// [`contact_marks`] (M3 PR 6a: the tier-3′ validator runs the SAME
+/// local passes — extraction, not copy-paste). Assumes the tier-1/2
+/// coarse gate already passed.
+///
+/// Check 7 arrives as the hook `tier3_local_checks_marked` takes, wired
+/// here to the scalar's own quadrature lane — which is what keeps these
+/// two passes callable at every `PropsQuadLane` scalar, a dual
+/// included. [`validate_geometric`] wires the same hook to the
+/// certified quadrature instead, which is why its bound is tighter and
+/// why its check 7 is a claim rather than a lane query.
+pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane>(
+    body: &Body<T>,
+    declarations: &[DeclaredContact],
+    band: Band,
+    tol: Tol,
+) -> Vec<ValidationError> {
+    let mut marks = slotmap::SecondaryMap::new();
+    tier3_local_checks_marked(
+        body,
+        declarations,
+        band,
+        &mut marks,
+        tol,
+        &|body, band, tol| {
+            plus_v_invariant(crate::props::mass_properties_with(body, band, tol), band)
+        },
+    )
+}
+
+/// **Check 7's verdict**, given the mass properties however they were
+/// derived — the +V global orientation invariant's whole decision, in
+/// one place, so the lane-dispatched and the certified derivations are
+/// two ways of getting the argument and not two copies of the check.
+///
+/// The margin consumes the CERTIFIED bound (M5 PR 11): for quadrature
+/// faces `volume` is an enclosure midpoint with half-width
+/// `volume_pad`, so the honest "definitely negative" statement is about
+/// the UPPER end `volume + pad` — a thin positive volume inside a wide
+/// bracket must never refuse. Closed-form bodies have `pad = 0.0` and
+/// the margin is bit-identical to the pre-PR-11 one.
+fn plus_v_invariant<T: geom_core::Decide>(
+    props: Result<crate::props::MassProperties<T>, crate::props::MassPropsError>,
+    band: Band,
+) -> Vec<ValidationError> {
+    match props {
+        Ok(props) => {
+            let v_hi = props.volume + T::from_f64(props.volume_pad);
+            if let Ok(Sign::Negative) = decide(
+                "positive_volume",
+                Margin::over_lever(v_hi, props.surface_area),
+                band,
+            ) {
+                vec![ValidationError::NegativeVolume]
+            } else {
+                Vec::new()
+            }
+        }
+        Err(source) => vec![ValidationError::VolumeUncomputable { source }],
+    }
+}
+
+/// Whether the declarations assert a **`Tangent`** contact on this
+/// (unordered) face pair — the one read the material-wedge arm makes.
+///
+/// `Rest` never answers yes, and that is D1's "the arm admits no
+/// laminae" written as code: a conformal declaration over a patch
+/// asserts the wrong class for a curve locus, so it cannot legalize a
+/// wedge end. Nor does absence ever certify anything: an empty
+/// declaration list refuses every cusp, which is what makes
+/// [`validate_geometric`]'s signature honest.
+fn declares_tangent_contact(declarations: &[DeclaredContact], a: FaceKey, b: FaceKey) -> bool {
+    declarations.iter().any(|d| {
+        d.class == crate::contact::ContactClass::Tangent
+            && ((d.a == a && d.b == b) || (d.a == b && d.b == a))
+    })
+}
+
+/// What check 4's **material arm** concluded about one edge.
+///
+/// One value rather than a pair of flags, because the outcomes are
+/// mutually exclusive BY CONSTRUCTION and this type is where that is
+/// enforced: a collapsed κ_rel yields no end, so an edge can never
+/// earn both the lamina refusal and the undeclared-wedge refusal.
+/// (The earlier shape carried `lamina: bool` beside
+/// `material: Option<MaterialWedge>` and documented a PRECEDENCE
+/// between them — a ranking that could never fire, and a reader
+/// cannot tell a dead branch from a live one. The exclusivity is
+/// structural now, so there is no ranking left to state.)
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MaterialArmOutcome {
+    /// One material wedge for the whole edge (every sample agreed).
+    Wedge(MaterialWedge),
+    /// Opposed material sides whose jets **osculate** — conformal
+    /// contact along the locus, refused as [`ValidationError::LaminaWedge`].
+    Lamina,
+    /// The samples did not deliver ONE verdict: the named predicate
+    /// classified differently at different samples along the edge (or,
+    /// unreachably, at none of them). Escalated, never silent — see
+    /// [`material_arm_outcome`].
+    Split {
+        /// The predicate whose per-sample verdicts disagreed.
+        predicate: &'static str,
+    },
+}
+
+/// The material arm's fold: the flags one edge's sample loop
+/// accumulates, resolved into the ONE outcome that edge earns.
+///
+/// **Two callers accumulate those flags on two different sample
+/// schedules, deliberately.** This pass walks an EDGE — an open arc
+/// whose endpoints are vertices other rules already classify — so it
+/// samples the interior, `1..CERT_SAMPLES-1`. `boolean::rim_wedge`
+/// walks a cross-operand RIM, a closed circle with no endpoint to
+/// exclude, so every station is interior to it and it takes all
+/// `CERT_SAMPLES` at uniform phase. The fold itself is schedule-blind —
+/// it reads flags, not samples — which is what lets one function serve
+/// both; the divergence is in what "interior" means for an arc versus a
+/// circle, and it is named at both ends so neither can drift into
+/// looking like the other's bug.
+///
+/// Total and pure, which is the point. Two of its input states —
+/// a pairing that split (`aligned == opposed`) and a wedge end that
+/// split (`side_mixed`) — are not known to be reachable through
+/// certified geometry, and an unreachable state's handling can only be
+/// pinned by CALLING the fold with it; `material_arm_split_states_escalate`
+/// does exactly that.
+///
+/// Both split states **escalate** rather than fall silent. Silence
+/// there would validate an undeclared cusp clean on an edge whose own
+/// samples disagreed about which material configuration it is — the
+/// opposite of the refusal the arm exists for. This is the same
+/// posture the sibling decisions already take one order up
+/// (`material_wedge_side`'s unreachable `Zero` is announced as
+/// `Invalid` rather than guessed), and it is NOT the first-order
+/// pass's mixed transverse/smooth exemption: that one exempts an edge
+/// from a DEMAND (carry an intrinsic description), while this one
+/// would exempt it from a REFUSAL.
+pub(crate) fn material_arm_outcome(
+    aligned: bool,
+    opposed: bool,
+    jet_determinate: bool,
+    side: Option<MaterialWedge>,
+    side_mixed: bool,
+) -> MaterialArmOutcome {
+    match (aligned, opposed) {
+        // Every sample: one material side. The two faces continue one
+        // another and the wedge is the legal π seam — a verdict the
+        // second-order margin has no say in.
+        (true, false) => MaterialArmOutcome::Wedge(MaterialWedge::Seam),
+        // Every sample: opposed material sides. The wedge is one of
+        // the two ends, and which one is the second-order question.
+        (false, true) => {
+            if !jet_determinate {
+                MaterialArmOutcome::Lamina
+            } else {
+                match side {
+                    Some(wedge) if !side_mixed => MaterialArmOutcome::Wedge(wedge),
+                    // Split, or (unreachably, with CERT_SAMPLES = 9)
+                    // no sample at all: both are "the end did not
+                    // resolve", and neither may pass as legal.
+                    _ => MaterialArmOutcome::Split {
+                        predicate: "material_cusp_side",
+                    },
+                }
+            }
+        }
+        // The pairing itself split across samples, or classified at no
+        // sample: no material configuration is established for this
+        // edge at all.
+        _ => MaterialArmOutcome::Split {
+            predicate: "material_wedge_side",
+        },
+    }
+}
+
+/// The material arm's REFUSAL, read off its outcome: the second half
+/// of check 4's material decision, and pure for the same reason the
+/// fold is — the states that matter most here are the ones no fixture
+/// can force, so the only way to pin what each one emits is to call
+/// this with it (`material_arm_error_table`).
+///
+/// `declared` is whether the edge's face pair carries a `Tangent`
+/// contact declaration ([`declares_tangent_contact`]) — the ONE thing
+/// the wedge ends consult, and the reason `None` here is a legality
+/// verdict rather than an absence.
+pub(crate) fn material_arm_error(
+    outcome: Option<MaterialArmOutcome>,
+    edge: EdgeKey,
+    declared: bool,
+    band: Band,
+) -> Option<ValidationError> {
+    match outcome? {
+        // Conformal contact: refused, and no declaration is consulted
+        // because none would cure it.
+        MaterialArmOutcome::Lamina => Some(ValidationError::LaminaWedge { edge }),
+        // The samples disagreed: escalate, naming the predicate that
+        // split. Never silence — see `material_arm_outcome`.
+        MaterialArmOutcome::Split { predicate } => Some(ValidationError::SliverDihedral {
+            edge,
+            cause: Indeterminate {
+                margin: geom_core::MarginDiag::Invalid,
+                band,
+                predicate: Some(predicate),
+            },
+        }),
+        // The two ends of the wedge range are legal exactly where
+        // declared; the seam and a transverse wedge need nothing.
+        MaterialArmOutcome::Wedge(wedge) if wedge.is_declared_arm() && !declared => {
+            Some(ValidationError::UndeclaredCusp { edge, wedge })
+        }
+        MaterialArmOutcome::Wedge(_) => None,
+    }
+}
+
+/// The per-edge tier-3 contact MARKS at rest (OQ7 level (i), M5 PR 9):
+/// runs the structural coarse gate, then the tier-3 battery, and
+/// returns the recorded per-edge [`ContactMark`]s (marks are only
+/// meaningful on a valid body).
+///
+/// **This pass keeps its lane**, which is why it is not
+/// [`validate_geometric`] with a second return value: it runs the whole
+/// nine-check battery in ONE call at every [`crate::PropsQuadLane`]
+/// scalar, check 7 included, through that scalar's own quadrature lane.
+/// So its `Err` is the battery's vector and differs from the composed
+/// door's in two stated ways — it can be produced at a scalar the
+/// composed door excludes, and its check 7 is gated on checks 1-6 only,
+/// where the composed door gates on the whole structural half.
+///
+/// # Errors
+///
+/// The tier-1/2 report, else the tier-3 battery's vector — the same
+/// [`ValidationError`]s in the same documented order.
 pub fn contact_marks<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
+    tol: Tol,
+) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
+    contact_marks_declared(body, &[], tol)
+}
+
+/// [`contact_marks`] with the body's declared contacts in hand — the
+/// door a body carrying a declared cusp or slit derives its marks
+/// through, for the same reason [`validate_geometric_declared`]
+/// exists: marks are only meaningful on a valid body, and a legal
+/// declared cusp is valid only where its declaration is read.
+///
+/// # Errors
+///
+/// As [`contact_marks`], with check 4's material arm reading the
+/// declarations.
+pub fn contact_marks_declared<T: crate::props::PropsQuadLane>(
+    body: &Body<T>,
+    declarations: &[DeclaredContact],
     tol: Tol,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
     validate_closed(body)?;
@@ -2035,7 +2618,16 @@ pub fn contact_marks<T: crate::props::PropsQuadLane>(
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
     let mut marks = slotmap::SecondaryMap::new();
-    let errors = tier3_local_checks_marked(body, band, &mut marks, tol);
+    let errors = tier3_local_checks_marked(
+        body,
+        declarations,
+        band,
+        &mut marks,
+        tol,
+        &|body, band, tol| {
+            plus_v_invariant(crate::props::mass_properties_with(body, band, tol), band)
+        },
+    );
     if errors.is_empty() {
         Ok(marks)
     } else {
@@ -2043,14 +2635,32 @@ pub fn contact_marks<T: crate::props::PropsQuadLane>(
     }
 }
 
+/// **Check 7, as the battery takes it**: the +V invariant's whole
+/// contribution, derived however the caller can derive it, so the one
+/// check of the battery that CERTIFIES is a parameter rather than a
+/// dispatch. An empty answer is the check not being made, never a
+/// refusal — the refusal, where there is one, is a
+/// [`ValidationError`] in the vector.
+type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, Band, Tol) -> Vec<ValidationError>;
+
 /// [`tier3_local_checks`] with the check-4 contact marks KEPT (the
 /// same pass — never classifying twice; the mark is the verdict the
 /// dihedral/jet loop derives anyway).
+///
+/// `plus_v` is check 7, handed in rather than dispatched, for the same
+/// reason `mass_properties_impl` takes its quadrature as an argument:
+/// the one check of this battery that CERTIFIES is the one whose
+/// availability differs by scalar, and a caller that names it directly
+/// says which of the two it meant. The empty closure is
+/// [`validate_geometric_structural`]'s answer and is not a refusal —
+/// it is the battery run without a check that caller does not make.
 pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
+    declarations: &[DeclaredContact],
     band: Band,
     marks: &mut slotmap::SecondaryMap<EdgeKey, ContactMark>,
     tol: Tol,
+    plus_v: PlusVCheck<'_, T>,
 ) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
@@ -2297,14 +2907,28 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     //    per edge-face pair). Curved-face containment is NOT checked
     //    (`validate_geometric`'s not-yet-checked list; #638).
     //
-    // S10 CATEGORY C, both: neither reads a face orientation at all.
-    // Check 4 takes the two SURFACES (never the faces) and classifies
-    // the UNSIGNED tangent-plane wedge from implicit-form gradients —
-    // it distinguishes transverse from smooth, never which side the
-    // material is on (that is the deferred material-wedge check, named
-    // in the header). Check 5 tests `(p − origin)·n` against `Zero`,
-    // sign-invariant for the same reason as check 3. `sense_sign` is
-    // deliberately absent from both.
+    // S10, one category per ARM — not one per check, because check 4
+    // has two arms and they differ:
+    //
+    // - **Check 4, first-order pass: CATEGORY C.** It takes the two
+    //   SURFACES (never the faces) and classifies the UNSIGNED
+    //   tangent-plane wedge from implicit-form gradients: transverse
+    //   or smooth, never which side the material is on. No
+    //   `sense_sign`, and its verdict is invariant under `revert`.
+    // - **Check 4, MATERIAL arm: CATEGORY A.** It reads both faces'
+    //   `Face::sense_sign`, and must — the material side IS the face
+    //   orientation, and the whole content of "unsigned" above is that
+    //   the first-order pass cannot see it (D1's ratified wedge table,
+    //   the #131 second-order ruling; the arm's own note sits at its
+    //   code below). Its verdict is NOT revert-invariant: reverting a
+    //   body maps `Cusp` ↔ `Slit`, which is the ruling's own symmetry.
+    // - **Check 5: CATEGORY C.** It tests `(p − origin)·n` against
+    //   `Zero`, sign-invariant for the same reason as check 3.
+    //
+    // (This header said CATEGORY C of both checks, on the strength of
+    // a deferral the material arm retired. Two contradictory category
+    // claims about one function is exactly what the D6 hand-multiply
+    // discipline reads this header to prevent.)
     // ------------------------------------------------------------------
     for (edge_key, edge) in body.edges.iter() {
         // Null scaffolding cannot reach the tier-3 passes: the coarse
@@ -2405,6 +3029,47 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         // (not `nurbs_adjacent || escalated`): one is an exemption BY
         // KIND, the other an escalation already reported — same mark,
         // different reasons, and the reader should see both.
+        //
+        // **Check 4's MATERIAL arm** (D1's ratified verdict table, the
+        // #131 second-order ruling) rides the same schedule, because
+        // it is the same classification with the faces' material sides
+        // put back. The first-order pass compares tangent PLANES and
+        // is therefore unsigned — wedge 0, π and 2π all read Smooth —
+        // so a definitely-smooth edge asks two more questions:
+        //
+        // - **which arm**: the two faces' outward normals
+        //   (`sense_sign · ∇F`) aligned ⇒ one material side ⇒ the
+        //   legal π seam; opposed ⇒ the wedge is 0 or 2π
+        //   (`material_wedge_side`);
+        // - **which end**, on the opposed arm: the jet's κ_rel signed
+        //   into the plus face's outward frame — positive is the cusp
+        //   (material is the vanishing crescent), negative the knife
+        //   slit (`material_cusp_side`). `revert` negates every
+        //   outward normal at once, so it maps one end to the other
+        //   and the pair is legal together or not at all.
+        //
+        // The ends are legal iff the tangency is DECLARED in the C7
+        // vocabulary and jet-determinate. The second-order band has
+        // three outcomes and they are three different answers:
+        // definite κ_rel is the determinate contact the arm admits;
+        // a definitely-collapsed κ_rel is conformal contact along the
+        // locus — a lamina, refused as `LaminaWedge` and not curable
+        // by any declaration; in-band is `SliverDihedral`, the honest
+        // escalation. A whole-edge verdict needs every sample to
+        // agree, and an edge whose samples DISAGREE — about the
+        // pairing, or about which end — escalates
+        // (`MaterialArmOutcome::Split`) rather than falling silent:
+        // silence there would validate an undeclared cusp clean on the
+        // strength of its own samples contradicting one another. That
+        // is the opposite of the first-order pass's mixed
+        // transverse/smooth exemption, which exempts an edge from a
+        // DEMAND rather than from a REFUSAL.
+        //
+        // S10 CATEGORY A: this arm reads `Face::sense`, and must —
+        // the material side IS the face orientation, and the deferral
+        // this closes was precisely that the first-order pass cannot
+        // see it.
+        let mut arm: Option<MaterialArmOutcome> = None;
         #[allow(clippy::if_same_then_else)]
         let mark = if nurbs_adjacent {
             ContactMark::Unmarked
@@ -2416,20 +3081,63 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         ) {
             ContactMark::Seam
         } else if all_transverse {
+            arm = Some(MaterialArmOutcome::Wedge(MaterialWedge::Transverse));
             ContactMark::Transverse
         } else if all_smooth {
+            let sense_plus = match body.get_face(f_plus) {
+                Some(face) => face.sense_sign::<T>(),
+                None => continue, // unreachable on tier-1 input
+            };
+            let sense_minus = match body.get_face(f_minus) {
+                Some(face) => face.sense_sign::<T>(),
+                None => continue, // unreachable on tier-1 input
+            };
             let mut jet_determinate = true;
             let mut jet_escalated = false;
+            let mut opposed = true;
+            let mut aligned = true;
+            let mut side: Option<MaterialWedge> = None;
+            let mut side_mixed = false;
             for i in 1..(geom_brep::CERT_SAMPLES - 1) {
                 let t = curve.sample_param(i);
                 let p = curve.carrier().eval(t);
                 let jet = geom_brep::tangent_jet(s_plus, s_minus, p, curve.carrier().deriv(t));
-                let arm = geom_brep::curvature_lever_arm(s_plus, p)
-                    .min(geom_brep::curvature_lever_arm(s_minus, p))
-                    .min(extent);
+                let arm = geom_brep::folded_lever_arm(s_plus, s_minus, p, extent);
+                match classify_material_pairing(
+                    s_plus,
+                    sense_plus,
+                    s_minus,
+                    sense_minus,
+                    p,
+                    arm,
+                    band,
+                ) {
+                    Ok(MaterialPairing::Aligned) => opposed = false,
+                    Ok(MaterialPairing::Opposed) => aligned = false,
+                    Err(cause) => {
+                        errors.push(ValidationError::SliverDihedral {
+                            edge: edge_key,
+                            cause,
+                        });
+                        jet_escalated = true;
+                        break;
+                    }
+                }
                 let margin = Margin::sagitta(jet.kappa_rel.abs(), arm);
                 match decide("tangent_second_order", margin, band) {
                     Ok(Sign::Positive) => {}
+                    // ONE zero-side sample ends the edge's determinacy
+                    // — and on the opposed arm that is the lamina
+                    // refusal for the WHOLE edge, on the strength of a
+                    // single sample. Deliberate, and conservative in
+                    // the direction the ε rule cares about: the
+                    // declared arm's condition is that the surfaces
+                    // determine the locus ALONG the edge, so one place
+                    // they do not is enough to deny it (the same rule
+                    // the mark already follows — any zero-side sample
+                    // marks `SmoothUnderdetermined`). ε-tightening
+                    // makes zero-side verdicts RARER, so it can only
+                    // remove this refusal, never introduce one.
                     Ok(Sign::Zero | Sign::Negative) => {
                         jet_determinate = false;
                         break;
@@ -2443,6 +3151,56 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                         break;
                     }
                 }
+                // Which end, decided only where it is asked: the
+                // magnitude just classified definitely positive, so
+                // this reads the SIGN of the same quantity in the
+                // material frame and cannot honestly land on Zero.
+                let signed = geom_brep::material_kappa_rel(jet.kappa_rel, sense_plus);
+                let this = match decide("material_cusp_side", Margin::sagitta(signed, arm), band) {
+                    Ok(Sign::Positive) => MaterialWedge::Cusp,
+                    Ok(Sign::Negative) => MaterialWedge::Slit,
+                    // Neither outcome is reachable through a margin
+                    // the run can read: this is the SAME quantity
+                    // whose magnitude classified definitely positive
+                    // one decision above. Announced anyway — a state
+                    // that cannot occur is reported, never swallowed —
+                    // and as an escalation rather than a panic,
+                    // because a validator's answer to "I cannot say"
+                    // is an error in its vector.
+                    Ok(Sign::Zero) => {
+                        errors.push(ValidationError::SliverDihedral {
+                            edge: edge_key,
+                            cause: Indeterminate {
+                                margin: geom_core::MarginDiag::Invalid,
+                                band,
+                                predicate: Some("material_cusp_side"),
+                            },
+                        });
+                        jet_escalated = true;
+                        break;
+                    }
+                    Err(cause) => {
+                        errors.push(ValidationError::SliverDihedral {
+                            edge: edge_key,
+                            cause,
+                        });
+                        jet_escalated = true;
+                        break;
+                    }
+                };
+                match side {
+                    Some(seen) if seen != this => side_mixed = true,
+                    _ => side = Some(this),
+                }
+            }
+            if !jet_escalated {
+                arm = Some(material_arm_outcome(
+                    aligned,
+                    opposed,
+                    jet_determinate,
+                    side,
+                    side_mixed,
+                ));
             }
             if jet_escalated {
                 ContactMark::Unmarked
@@ -2454,6 +3212,19 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         } else {
             ContactMark::Unmarked
         };
+        // The verdict table's refusing rows, read off the ONE outcome
+        // the arm produced (`MaterialArmOutcome` — the states are
+        // exclusive by construction, so nothing here ranks anything).
+        // `None` is an edge the arm never judged: exempt by kind, or
+        // already escalated with its own error.
+        if let Some(error) = material_arm_error(
+            arm,
+            edge_key,
+            declares_tangent_contact(declarations, f_plus, f_minus),
+            band,
+        ) {
+            errors.push(error);
+        }
         if mark == ContactMark::Tangent
             && curve.authority().is_declared()
             && geom_brep::tangent_certificate_lane(curve.carrier(), s_plus, s_minus)
@@ -2713,7 +3484,10 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // positive volume never classifies `Negative` under a tighter ε).
     // Gated on a clean report: on a geometrically corrupt body the
     // volume is meaningless cascade noise (same discipline as the
-    // tier-2 gate above).
+    // tier-2 gate above). `validate_geometric` states that gate as its
+    // own composition instead — the `?` between its two halves — and
+    // therefore gates on checks 8 and 9 too; here the gate is still the
+    // `if`, because these callers run the whole battery in one pass.
     //
     // S10: the sense handling is INHERITED, not repeated here.
     // `crate::props` owns it and applies `Face::sense_sign` at exactly
@@ -2730,27 +3504,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // the face the check-6 curved arm must exempt as Unencoded.
     // ------------------------------------------------------------------
     if errors.is_empty() {
-        match crate::props::mass_properties_with(body, band, tol) {
-            Ok(props) => {
-                // The margin consumes the CERTIFIED bound (M5 PR 11):
-                // for quadrature faces `volume` is an enclosure
-                // midpoint with half-width `volume_pad`, so the honest
-                // "definitely negative" statement is about the UPPER
-                // end `volume + pad` — a thin positive volume inside a
-                // wide bracket must never refuse. Closed-form bodies
-                // have pad = 0.0 and the margin is bit-identical to
-                // the pre-PR-11 one.
-                let v_hi = props.volume + T::from_f64(props.volume_pad);
-                if let Ok(Sign::Negative) = decide(
-                    "positive_volume",
-                    Margin::over_lever(v_hi, props.surface_area),
-                    band,
-                ) {
-                    errors.push(ValidationError::NegativeVolume);
-                }
-            }
-            Err(source) => errors.push(ValidationError::VolumeUncomputable { source }),
-        }
+        errors.extend(plus_v(body, band, tol));
     }
 
     // ------------------------------------------------------------------
@@ -2760,8 +3514,18 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // never trusted), and domain validity (trim containment + the
     // loop's one-branch continuity) must hold. Bodies carrying no
     // stored pcurves — every all-planar body — contribute nothing.
-    // Ungated on the volume check: a pcurve defect is local evidence
-    // about a specific half-edge, not cascade noise.
+    // The gating runs ONE way, and both directions are worth saying.
+    // This check is not gated on the volume one: a pcurve defect is
+    // local evidence about a specific half-edge, not cascade noise, so
+    // it is reported whatever check 7 concluded. The volume check IS
+    // gated on this one at `validate_geometric`, whose composition
+    // reaches check 7 only when the whole structural battery came back
+    // clean — the reason being check 7's own: a volume read off a body
+    // whose stored pcurves do not re-certify is a number derived from
+    // geometry the pass has just refused to vouch for. In the two
+    // passes that run the battery in one call the older, narrower gate
+    // stands (checks 1-6 only), because they answer with one vector
+    // rather than a composition.
     // ------------------------------------------------------------------
     for finding in crate::pcurves::validate_pcurves(body, band) {
         errors.push(ValidationError::Pcurve { finding });
@@ -2782,8 +3546,10 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // Compared by POSITION, not by key: the shape this exists to catch
     // is minted by a surgery that copies a boundary and re-labels the
     // copy as a ring, so the copy carries fresh vertex and edge keys
-    // standing on the original's geometry. Ungated on the volume
-    // check — a loop contact is local evidence about one face.
+    // standing on the original's geometry. Not gated on the volume
+    // check — a loop contact is local evidence about one face — while
+    // the volume check IS gated on this one at `validate_geometric`,
+    // for the reason check 8 above states in full.
     //
     // **What the three arms match, and WHAT THEY DO NOT** (D4 honesty
     // — an unstated blind spot is an unverified claim). Matched:
@@ -3112,7 +3878,12 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// Structure (D1):
 /// 1. Coarse-gate on tiers 1–2 (as [`validate_geometric`]).
 /// 2. All of tier 3's local checks, shared verbatim
-///    ([`tier3_local_checks`]).
+///    ([`tier3_local_checks`]) — **this pass keeps its lane**: the whole
+///    nine-check battery runs in one call at every
+///    [`crate::PropsQuadLane`] scalar, check 7 included, through that
+///    scalar's own quadrature lane, and its check-7 gate is the
+///    battery-internal one (checks 1-6) rather than
+///    [`validate_geometric`]'s composition.
 /// 3. The **global coincidence census** (only when the local checks are
 ///    clean — census geometry on a locally corrupt body is cascade
 ///    noise, the check-7 discipline): every cross-entity position
@@ -3157,7 +3928,24 @@ pub fn validate_pseudomanifold<T: crate::props::PropsQuadLane>(
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
-    let mut errors = tier3_local_checks(body, band, tol);
+    // The tier-3 local battery, verbatim, with this body's C3
+    // curve-granularity records read as what they are: `Tangent`
+    // declarations on their face pairs (the class `CurveContact`
+    // certifies through the jet schedule). Patch records are NOT
+    // passed — a conformal declaration over a region asserts the
+    // wrong class for a curve locus, which is D1's "the arm admits no
+    // laminae" at the plumbing level. With empty records the slice is
+    // empty and 3′ is tier 3 exactly.
+    let declarations: Vec<DeclaredContact> = contacts
+        .curves
+        .iter()
+        .map(|c| DeclaredContact {
+            a: c.face_a,
+            b: c.face_b,
+            class: crate::contact::ContactClass::Tangent,
+        })
+        .collect();
+    let mut errors = tier3_local_checks(body, &declarations, band, tol);
     if errors.is_empty() {
         errors.extend(crate::census::census_and_certify(body, contacts, band));
     }
@@ -4819,7 +5607,7 @@ mod tests {
         // `EnumCount` derive or the workspace's first proc-macro crate —
         // and neither is bought here. When you add an arm, its index is
         // the new `VARIANTS - 1`.
-        const VARIANTS: usize = 67;
+        const VARIANTS: usize = 69;
         fn variant_index(e: &ValidationError) -> usize {
             match e {
                 ValidationError::Band { .. } => 0,
@@ -4834,6 +5622,8 @@ mod tests {
                 ValidationError::SliverDihedral { .. } => 9,
                 ValidationError::TransverseNotIntrinsic { .. } => 10,
                 ValidationError::TangentNotIntrinsic { .. } => 11,
+                ValidationError::UndeclaredCusp { .. } => 67,
+                ValidationError::LaminaWedge { .. } => 68,
                 ValidationError::LoopRoleInverted { .. } => 12,
                 ValidationError::CurvedSenseInverted { .. } => 13,
                 ValidationError::NegativeVolume => 14,
@@ -5056,6 +5846,11 @@ mod tests {
             ValidationError::TransverseNotIntrinsic { edge: e },
             ValidationError::ScaffoldAtRest { edge: e },
             ValidationError::TangentNotIntrinsic { edge: e },
+            ValidationError::UndeclaredCusp {
+                edge: e,
+                wedge: MaterialWedge::Cusp,
+            },
+            ValidationError::LaminaWedge { edge: e },
             ValidationError::LoopRoleInverted {
                 face: t.face_a,
                 r#loop: t.loop_a,

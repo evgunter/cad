@@ -21,22 +21,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Band, Point2, Point3, Tol};
+use geom_core::{Point2, Point3, Tol};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::blend::BlendError;
 use sweep::chamfer::chamfer_edges;
-use sweep::fillet::FilletError;
 use sweep::{Extrusion, extrude};
 use test_utils::fuzz;
+use topo::query;
 use topo::{Body, EdgeKey};
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
-
-fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges().map(|(k, _)| k).collect()
-}
 
 /// Extrude a convex polygon (counterclockwise vertices) by `h`.
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
@@ -134,7 +126,7 @@ fn a_general_box_matches_an_independent_closed_form() {
         );
         let d = rng.range(0.02, 0.2) * a.min(b).min(c);
         let pad = prism(&[(0.0, 0.0), (a, 0.0), (a, b), (0.0, b)], c);
-        let out = chamfer_edges(&pad, &all_edges(&pad), d, band(), Tol::witness())
+        let out = chamfer_edges(&pad, &query::all_edges(&pad), d, Tol::witness())
             .unwrap_or_else(|e| panic!("a {a}×{b}×{c} box chamfers at {d}: {e}"));
         assert_chamfer_shape(&out.body, (24, 48, 26));
         assert_every_face_outward(&out.body);
@@ -174,7 +166,7 @@ fn a_skewed_wedge_chamfers_with_every_face_outward() {
         // Setback small against every feature so the request is
         // honestly grantable.
         let d = 0.02 * base.min(h).min(t);
-        let out = chamfer_edges(&body, &all_edges(&body), d, band(), Tol::witness())
+        let out = chamfer_edges(&body, &query::all_edges(&body), d, Tol::witness())
             .unwrap_or_else(|e| panic!("the wedge chamfers at {d}: {e}"));
         assert_chamfer_shape(&out.body, (18, 36, 20));
         assert_every_face_outward(&out.body);
@@ -223,7 +215,7 @@ fn the_chamfers_probe_rows_are_exactly_its_own_questions() {
         .body;
     let edges: Vec<EdgeKey> = pad.edges().map(|(k, _)| k).collect();
     k_stats::start_recording();
-    chamfer_edges(&pad, &edges, Probe(0.1), band(), Tol::witness()).expect("the pad chamfers");
+    chamfer_edges(&pad, &edges, Probe(0.1), Tol::witness()).expect("the pad chamfers");
     let samples = k_stats::take_samples();
     // The construction also meters the certification predicates
     // (carrier_*, witness_*, dihedral_*) — real questions of the
@@ -326,7 +318,7 @@ fn a_dimpled_spacer_carries_its_ring_through_the_chamfer() {
         .filter(|k| dimpled.get_edge(*k).is_some())
         .collect();
     assert_eq!(surviving.len(), 12, "every box edge survives the dimple");
-    let out = chamfer_edges(&dimpled, &surviving, d, band(), Tol::witness())
+    let out = chamfer_edges(&dimpled, &surviving, d, Tol::witness())
         .expect("the dimpled spacer's twelve edges chamfer around its ring");
     assert_eq!(topo::validate(&out.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&out.body), Ok(()), "tier 2");
@@ -375,7 +367,7 @@ fn an_overrunning_sliver_corner_refuses_or_stays_valid() {
     // pairs are all adjacent and skipped. The row asserts the
     // contract, not the arm, so a future widening that grants this
     // request stays green only by staying valid.
-    match chamfer_edges(&body, &all_edges(&body), d, band(), Tol::witness()) {
+    match chamfer_edges(&body, &query::all_edges(&body), d, Tol::witness()) {
         Err(e) => {
             // Typed refusal is an honest answer; assert it is one of
             // the verb's own documented arms, not a panic elsewhere.
@@ -413,7 +405,7 @@ fn an_overrunning_sliver_corner_refuses_or_stays_valid() {
 /// asserted a false fact about the BODY.
 ///
 /// **This row's expectation was amended when the finding was adopted**
-/// (review r1, MINOR-1): the door now refuses `FilletError::
+/// (review r1, MINOR-1): the door now refuses `BlendError::
 /// NonpositiveSize` before anything resolves. What the row pins is
 /// unchanged in substance — a nonpositive setback must refuse, and
 /// must refuse by naming the request rather than the geometry — so the
@@ -424,12 +416,12 @@ fn an_overrunning_sliver_corner_refuses_or_stays_valid() {
 #[test]
 fn a_nonpositive_setback_refuses_as_invalid_input() {
     let pad = prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
-    let edges = all_edges(&pad);
+    let edges = query::all_edges(&pad);
     for d in [0.0, -0.1] {
-        let err = chamfer_edges(&pad, &edges, d, band(), Tol::witness())
+        let err = chamfer_edges(&pad, &edges, d, Tol::witness())
             .expect_err("a nonpositive setback must not mint a body");
         assert!(
-            matches!(err, FilletError::NonpositiveSize { .. }),
+            matches!(err.error, BlendError::NonpositiveSize { .. }),
             "a nonpositive setback names the request, not the corner, at d = {d}: {err:?}"
         );
         let text = format!("{err}");
@@ -483,11 +475,15 @@ fn the_brackets_best_convex_request_still_refuses_typed() {
         .map(|(k, _)| k)
         .filter(|k| !concave(*k))
         .collect();
-    assert_eq!(edges.len(), all_edges(&bracket).len() - 1, "one edge out");
-    let err = chamfer_edges(&bracket, &edges, 0.05, band(), Tol::witness())
+    assert_eq!(
+        edges.len(),
+        query::all_edges(&bracket).len() - 1,
+        "one edge out"
+    );
+    let err = chamfer_edges(&bracket, &edges, 0.05, Tol::witness())
         .expect_err("a corner with an unrequested edge cannot be patched");
     assert!(
-        matches!(err, FilletError::ChainNotG1 { .. }),
+        matches!(err.error, BlendError::ChainNotG1 { .. }),
         "today's decided answer is the chain-G1 kink at the omitted edge's ends \
          (see the row doc for why that framing is itself a finding): {err:?}"
     );

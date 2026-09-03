@@ -4,12 +4,11 @@
 //!
 //! What these rows push on, beyond the shipped suite:
 //!
-//! - **`certify_offset` on a RATIONAL fit**: the composite's fitted
-//!   net is read unweighted (`channel(fit, c, false)`), so a fit with
-//!   non-unit weights is polynomialized as the WRONG surface. The row
-//!   asserts the sound direction (a returned certificate's `hull_sup`
-//!   contains a dense sample's max, or the door refuses) — it goes
-//!   red if the hull limb under-reports on an accepted input.
+//! - **`certify_offset` on a RATIONAL fit**: the composite reads the
+//!   fitted net homogeneously, so a fit with non-unit weights is
+//!   bounded as the surface it is. The row asserts the sound
+//!   direction — a returned certificate's `hull_sup` contains a dense
+//!   sample's max — and goes red if the hull limb under-reports.
 //! - **The sign witness**: a fit built for `−d` certified against
 //!   `+d` must refuse, never report a finite wrong bound.
 //! - **A tangentially slid fit**: pushes the `τ` limb of the
@@ -25,7 +24,7 @@
 use core::f64::consts::FRAC_PI_2;
 
 use geom::NurbsSurface;
-use geom_brep::offset_fit::{OffsetFitError, certify_offset, fit_offset, offset_point};
+use geom_brep::offset_fit::{OffsetFitError, OffsetLimb, certify_offset, fit_offset, offset_point};
 use geom_brep::offset_meters::{OFFSET_METER_LADDER, patch_collapse};
 use geom_brep::patch_bound::patch_cells_refined;
 use geom_core::spline::KnotVector;
@@ -108,18 +107,20 @@ fn sampled_residual(base: &NurbsSurface<f64>, candidate: &NurbsSurface<f64>, d: 
 }
 
 /// `certify_offset` accepts an externally supplied fit with ANY
-/// weights, but the hull limb reads the fitted net unweighted. The
-/// sound behaviours are: refuse, or return a certificate whose
-/// `hull_sup` contains a dense sample's max. Anything else is a
-/// finite wrong bound — the one failure the module promises never to
-/// produce.
+/// weights, and the hull limb reads the fitted net HOMOGENEOUSLY —
+/// the composite is homogeneous in `w̃ = w_base·w_fit`, so the surface
+/// it bounds is the one that was handed in. The row asserts
+/// containment: the certificate's `hull_sup` is at or above a dense
+/// sample's max on the supplied surface. A finite bound below it is
+/// the one failure the module promises never to produce.
 #[test]
 fn r1_certify_offset_on_a_rational_fit_never_under_reports() {
     let base = quarter_cylinder(1.0, 1.0);
     let d = 0.3;
     let (fit, _) = fit_offset(&base, d, 1e-4, band()).unwrap();
-    // Perturb one interior weight: the surface moves, the unweighted
-    // control net — the only thing the hull limb reads — does not.
+    // Perturb one interior weight: the surface moves, and so does the
+    // homogeneous net the hull limb reads, which is what makes the
+    // certificate below a claim about the surface actually supplied.
     let (cu, cv) = fit.control_counts();
     let mut weights = fit.weights().to_vec();
     weights[(cu / 2) * cv + cv / 2] = 2.0;
@@ -132,23 +133,42 @@ fn r1_certify_offset_on_a_rational_fit_never_under_reports() {
     .unwrap();
     let true_residual = sampled_residual(&base, &warped, d);
     // A tolerance the warped surface's on-locus samples clear, so the
-    // hull limb is the deciding one.
-    let tol = true_residual * 2.0;
-    // AMENDED at adoption: written to accept a refusal OR a
-    // containing certificate, this row went red — the accepted
-    // certificate's hull limb under-reported by ~230x. The fix makes
-    // the typed refusal the only answer, so the row pins it by name.
-    match certify_offset(&base, &warped, d, tol, band()) {
-        Err(OffsetFitError::RationalFitUnsupported { non_unit_weights }) => {
-            assert_eq!(non_unit_weights, 1, "one weight was perturbed");
-            eprintln!("rational fit refused typed (true residual {true_residual:.3e})");
-        }
-        other => panic!(
-            "certify_offset did not refuse a rational fit: the hull limb reads the \
-             fitted net unweighted, so any certificate here describes a different \
-             surface than the one supplied (true residual {true_residual}): {other:?}"
-        ),
-    }
+    // hull limb is the deciding one — and far enough above the bound
+    // that limb reaches that the door's own `≤ tolerance` test is not
+    // what caps the ratio below. The CEILING is this row's, asserted,
+    // and re-taken on every run.
+    let tol = true_residual * 8.0;
+    let cert = certify_offset(&base, &warped, d, tol, band()).unwrap_or_else(|e| {
+        panic!(
+            "certify_offset refused a rational fit it can now bound \
+             (true residual {true_residual}): {e}"
+        )
+    });
+    // Containment is the sound direction, and it is the direction that
+    // a hull limb reading the fit's net flat would break.
+    assert!(
+        cert.hull_sup >= true_residual,
+        "the hull limb UNDER-reports the supplied surface's residual: \
+         hull_sup {} < sampled {true_residual}",
+        cert.hull_sup
+    );
+    // **And the ceiling.** `hull_sup ≥ sampled` gets EASIER as the
+    // enclosure degrades, so containment alone cannot tell a tight
+    // certificate from a useless one. The slack measured on this
+    // fixture is 2.49x; the ceiling sits at 5x, i.e. ~2x headroom, so
+    // it reds on a real loss of tightness and not on ring noise.
+    assert!(
+        cert.hull_sup <= true_residual * 5.0,
+        "the hull limb's enclosure has degraded: hull_sup {} is more than 5x \
+         the sampled residual {true_residual} (measured 2.49x when written)",
+        cert.hull_sup
+    );
+    eprintln!(
+        "R1: rational fit certified, hull_sup={:.3e} sampled={true_residual:.3e} \
+         (ratio {:.1}x)",
+        cert.hull_sup,
+        cert.hull_sup / true_residual
+    );
 }
 
 /// A fit built for `−d`, certified against `+d`: `E·n` carries the
@@ -164,8 +184,23 @@ fn r1_a_fit_for_the_wrong_sign_refuses() {
             "a fit of the OPPOSITE offset certified against +d with hull_sup {}",
             cert.hull_sup
         ),
-        Err(OffsetFitError::Limb { .. } | OffsetFitError::Meter(_)) => {}
-        Err(e) => panic!("refused, but not at a limb or meter: {e}"),
+        // The limb and the bound's SHAPE are pinned, not merely the
+        // fact of a refusal (issue 1322): a regression that changed
+        // which limb spoke, or that refused with a nonsense finite
+        // bound attached, is the failure this row exists to catch.
+        // `tol = 10.0` is far above the true residual, so limb 1
+        // cannot be what speaks — the sign witness fails, the cell
+        // answers `+inf`, and limb 2 refuses naming `HullSup`. Same
+        // spelling as the sibling row at `offset_fit.rs`'s
+        // `a_fit_for_the_wrong_distance_is_refused_by_the_certifying_limb`.
+        Err(OffsetFitError::Limb { limb, bound, .. }) => {
+            assert_eq!(limb, OffsetLimb::HullSup);
+            assert!(
+                bound.is_infinite(),
+                "the unproved sign witness must answer +inf, not {bound}"
+            );
+        }
+        Err(e) => panic!("refused, but not at the certifying limb: {e}"),
     }
 }
 

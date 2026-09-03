@@ -54,17 +54,16 @@ accounted for in exactly one of three ways:
 
 1. `pncad.pyi` declares a top-level name spelled identically —
    `Doc`, `Node`, `Selector`, `SegTag`, `circle`, `Pose`. This is
-   where MOST curated names land, and no count is written down: the
+   where MOST curated names land, and NO COUNT IS WRITTEN DOWN: the
    number moves whenever either side grows, and one written here
-   would be a stale claim rather than a checked one (the guard's own
-   floors, in `the_scanners_read_something`, are what stop a scanner
-   from passing vacuously).
-1. `pncad.pyi` declares a top-level name spelled identically. A
-   hundred and twenty-four names land here — `Doc`, `Node`,
-   `Selector`, `SegTag`, `circle`. (A SNAPSHOT, like every count in
-   this file: measured at LIB-B-CHECKS' merge, where it had stood at
-   111 and read "sixty-two" — nothing checks a prose count, so it
-   decays silently between the units that re-measure it.)
+   would be a stale claim rather than a checked one. The count this
+   bullet used to carry had been caught stale once and corrected once
+   (it read "sixty-two" while standing at 111, and was rewritten to "a
+   hundred and twenty-four"), which is the argument: a prose count is
+   checked only when someone happens to look. What stops a scanner
+   passing vacuously is the FLOORS
+   asserted in `test_the_census_is_not_vacuous`, and those are
+   assertions rather than prose.
 2. `BOUND_AS` maps it to the Python spelling that answers the same
    question, and THAT SPELLING IS VERIFIED to exist in the stub — a
    mapping naming a spelling the stub does not declare fails. Without
@@ -190,8 +189,8 @@ def pub_use_names(src):
     while this one asks "what can a consumer of these three modules
     name", and the answer includes the geometry crates the prelude
     lifts. The leaf of each path item is the name it introduces
-    (`editor_core::persist::MigrationError` introduces
-    `MigrationError`); a braced group introduces each of its items.
+    (`editor_core::ident::DocumentId` introduces `DocumentId`); a
+    braced group introduces each of its items.
     """
     code = code_without_comments(src)
     names = set()
@@ -362,19 +361,36 @@ def audit_gap_ids():
 #:   taking a `BooleanOp` — the arm split moved from the verb to an
 #:   argument.
 #: - **A type became the door that reads it.** `DatumValue` is what
-#:   `Value.datum` answers; `NodeValue` IS `Value` and
+#:   `Value.datum` answers, and `UnitVec3` — the type that makes a
+#:   datum's normal unit, so that an unnormalized one has no spelling
+#:   in Rust either — is what `Datum.direction` answers, as the plain
+#:   triple it always was; its constructor's refusals cross the way
+#:   every other typed refusal does, as tags on `EvaluationError.kind`
+#:   (Python builds datums through
+#:   `Node.datum_plane`/`Node.datum_axis`, never by naming the type).
+#:   Three tags carry them, and all three are Python-visible:
+#:   `degenerate_direction` for a zero-length direction,
+#:   `non_finite_direction` for one whose length overflows the norm or
+#:   is not a number, and `escalated` — whose `predicate` payload reads
+#:   `datum_unit_norm` for a datum, the kernel constructor's funnel
+#:   name, where the same field reads `eval_direction_norm` for the
+#:   directions the evaluation layer owns.
+#:   `NodeValue` IS `Value` and
 #:   `ValuePayload`'s discriminant is `Value.kind`; `NodeErrorKind`'s
 #:   tag is `EvaluationError.kind`;
 #:   `DocumentId` is the 32 hex digits `Doc.id` answers.
 #: - **A rename.** `RecipeNodeId` is `NodeId` (the stub says what it is
-#:   NOT: an arena key). The unit constants are lower-cased — `IN` is
-#:   `inch` because `in` is a Python keyword, a shift the stub comments
-#:   on at the declaration. (Not counted here: the table grows a row
-#:   whenever `quantity` does, and a number written beside it would
-#:   date at the next one.)
+#:   NOT: an arena key). The unit constants are lower-cased, and two
+#:   whose symbols are not Python identifiers shift further: `IN` is
+#:   `inch` because `in` is a keyword, and `PI` is `pi_rad` because its
+#:   symbol `pi rad` is two words. The stub comments on both at the
+#:   declaration. (Not counted here: the table grows a row whenever
+#:   `quantity` does, and a number written beside it would date at the
+#:   next one.)
 BOUND_AS = {
     "CM": "cm",
     "DEG": "deg",
+    "AssertionVerdict": "Verdict",
     "DatumValue": "Value.datum",
     "DocumentId": "Doc.id",
     "IN": "inch",
@@ -382,7 +398,17 @@ BOUND_AS = {
     "MM": "mm",
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",
-    "PI": "pi",
+    # `VerbKind`/`Arity` are `NodeErrorKind::VerbArity`'s payload — an
+    # internal wiring-bug refusal — and cross exactly as their carrier
+    # does: flattened to the `verb_arity` tag `EvaluationError.kind`
+    # answers (the `UnitVec3Error` row's precedent; the typed payload
+    # stays a Rust-side diagnosis surface).
+    "Arity": "EvaluationError.kind",
+    "VerbKind": "EvaluationError.kind",
+    "UnevaluatedReason": "Verdict.reason",
+    "UnitVec3": "Datum.direction",
+    "UnitVec3Error": "EvaluationError.kind",
+    "PI": "pi_rad",
     # The document seam, and the two enums that say why it did not
     # open. `Workspace` IS a `PartResolver` (the document layer's own
     # impl) and is passed as itself to `evaluate(doc, resolver=...)`;
@@ -560,6 +586,15 @@ FAMILIES = {
         "the `evaluate(doc)` door, which today takes none — so a Python "
         "caller cannot stop a long evaluation at all"
     ),
+    "B-NOTATION": (
+        "authored notation, the D6 boundary's other half; closing it "
+        "binds `WrittenLength` / `WrittenAngle` onto the `DocParam` and "
+        "expression constructors, so a Python caller who writes "
+        "`25 * mm` gets a parameter that REMEMBERS the millimetres — "
+        "today the unit erases at the `Length` door and the document "
+        "records the canonical row, which is what Rust authoring "
+        "stopped doing at schema v20"
+    ),
     "B-FORMAT": (
         "the D6 display formatter; closing it binds `fmt_length` / "
         "`fmt_angle` and their refusal, so choosing digits and a symbol "
@@ -582,6 +617,24 @@ FAMILIES = {
         "`set_doc_param_value` is the value-only door that carries the "
         "declaration forward and is what a Python caller moving a "
         "number must use until this family closes"
+    ),
+    "B-MEASURES": (
+        "AUTHORING a measurement (ERROR-DESIGN E3/E10); closing it "
+        "binds `MeasureExpr`'s constructors, `MeasurePrimitive`'s "
+        "three verbs and `AssertionDir` onto `Node.measure` / "
+        "`Node.assertion` constructors, with `MeasureNodeFault` as the "
+        "refusal a caller dispatches on. The READ half already ships "
+        "and is deliberately not in this gap: `Value.measure` answers "
+        "with a `Measurement` (value plus the F1 dimension it rides) "
+        "and `Value.assertion` with a `Verdict` (three states kept "
+        "three, both numbers on a decided one). That split is the "
+        "unit's own disposition: the friction the R-series reviews "
+        "keep finding is unreadable RESULTS, and a Python caller can "
+        "now read a web and its verdict off any evaluation, including "
+        "one loaded from a file authored elsewhere. What a Python "
+        "caller cannot yet do is WRITE one — the same asymmetry "
+        "B-DISTRIBUTIONS records, and without B-DISTRIBUTIONS's sharp "
+        "edge, because no existing write door silently drops a measure"
     ),
     "B-VALIDATE4": (
         "the fourth validator rung; closing it binds "
@@ -625,8 +678,8 @@ FAMILIES = {
 #:   their refusal as ATTRIBUTES, but the arm is a `variant`/`kind`
 #:   string rather than a bound payload class, so the Rust arm types
 #:   have no Python name: `PersistError.variant` stands for
-#:   `SnapshotError`, `NonFiniteSite`, `ProgramFault` and
-#:   `MigrationError`; `EvaluationError` for `NodeError`,
+#:   `SnapshotError`, `NonFiniteSite` and `ProgramFault`;
+#:   `EvaluationError` for `NodeError`,
 #:   `BooleanError`, `TransformError` and the sweep/loft/fillet/
 #:   revolve refusals; `PathError` for `ProfileError` and
 #:   `RecordedProgramError`; `ValidationError.door` for
@@ -648,7 +701,10 @@ FAMILIES = {
 #:   which refuse the same CALL the writers do because the options
 #:   they validate are that call's keyword arguments.
 #: - *An option struct that became keyword arguments.* `StepOptions` is
-#:   `Evaluation.step_string`'s `product_name=`; `AsciiOptions` and
+#:   `Evaluation.step_string`'s six keywords, one per field and each
+#:   defaulting to the Rust default — a correspondence the crate's own
+#:   `surface_census` holds to the struct, so this entry cannot go
+#:   back to naming a subset while the record grows; `AsciiOptions` and
 #:   `BinaryOptions` are `Mesh.to_stl_ascii`'s `solid_name=` and
 #:   `Mesh.to_stl_binary`'s `header=`, and their two VALIDATED
 #:   newtypes cross as the `str` those arguments take — `SolidName`
@@ -685,9 +741,7 @@ FAMILIES = {
 #: - *Recourse and deferral sentences.* `CONTACT_RECOURSE`,
 #:   `FIT_DEFERRAL`, `SEL_DATUM_DISTANCE` and `REGENERATE_RECOURSE`
 #:   are the prose a Rust refusal cites; Python's refusals carry theirs
-#:   in the exception's message. `SCHEMA_VERSION` is the same shape of
-#:   constant on the persistence door, which Python reaches only
-#:   through `load`.
+#:   in the exception's message.
 #:
 #:   `UNDER_RECOURSE` and `CLASS_DEFERRAL` left this bullet at
 #:   LIB-G18b and are bound top-level, on `PIN_MISMATCH_RECOURSE`'s
@@ -704,8 +758,9 @@ FAMILIES = {
 #:   pair to name. `PartialPath` is the Rust lattice's one type where
 #:   Python has one CLASS PER STATE (`PathOpen`, `PathPoint`,
 #:   `PathDirectedPoint`, …), which is §L4's typestate translation.
-#:   `LineTarget` and `TangentArcTarget` are absorbed into the verbs
-#:   that take them, and `bulge_from_center`/`bulge_from_via` into the
+#:   `LineTarget`, `ContinueTarget` and `TangentArcTarget` are absorbed
+#:   into the verbs that take them, and
+#:   `bulge_from_center`/`bulge_from_via` into the
 #:   `Center`/`Via` spec modes that are bound. `Dimension` is what
 #:   `DocParam.length`/`angle`/`count`/`scalar` choose between;
 #:   `SlotId` is what `DocEdit.bind_count_param` names implicitly;
@@ -758,9 +813,11 @@ FAMILIES = {
 #: **G2's TUBE half is CLOSED** (LIB-TUBE). It held
 #: `tube_along_arc`, `tube_along_arc_hollow`, `TubeError` and
 #: `TubeWindow`, and its own row said what would close it: a
-#: `Node::Tube` that does not exist, behind a schema break. Both node
-#: kinds landed at schema v17 — `Node::Tube` and `Node::HollowTube`
-#: per the #1205 split ruling — and the four names moved to the
+#: `Node::Tube` that does not exist, behind a schema break. That
+#: break is not a thing any more (#1553 demolished the version
+#: machinery); both node kinds landed as additive vocabulary —
+#: `Node::Tube` and `Node::HollowTube` per the #1205 split ruling —
+#: and the four names moved to the
 #: dispositions their revolve twins already carry: the two kernel
 #: doors to `BOUND_AS` (`Node.tube` and `Node.hollow_tube` are the
 #: Python spellings of the questions they answer, one door each),
@@ -877,6 +934,8 @@ NOT_BOUND = {
     "BinaryHeader": SHAPE,
     "BinaryHeaderError": SHAPE,
     "BinaryOptions": SHAPE,
+    "BlendError": SHAPE,
+    "BlendRefusal": SHAPE,
     "BooleanError": SHAPE,
     "CONTACT_RECOURSE": SHAPE,
     "CurveKindSet": SHAPE,
@@ -889,17 +948,29 @@ NOT_BOUND = {
     "FIT_DEFERRAL": SHAPE,
     "FaceKey": SHAPE,
     "ExtrudeError": SHAPE,
-    "FilletError": SHAPE,
     "ImportOptions": SHAPE,
     "InterrogateError": SHAPE,
     "LineTarget": SHAPE,
+    # `continue_to`'s target trait, absorbed into the verb exactly as
+    # `LineTarget` and `TangentArcTarget` are — and the verb itself is
+    # not bound in Python yet either (the Rust-side roster records
+    # that, `surface_census.rs`).
+    "ContinueTarget": SHAPE,
     "LoftError": SHAPE,
     "Mat3": SHAPE,
     "MassPropsError": SHAPE,
-    "MigrationError": SHAPE,
+    # The attribution walk's verdict, and the door that answers it.
+    # Same family as `RolePath`/`RoleSeg` and for their reason: it
+    # reads the INSIDE of a name, which nothing user-side may read.
+    "NameOrigin": SHAPE,
     "NodeError": SHAPE,
     "NodeResult": SHAPE,
     "NonFiniteSite": SHAPE,
+    # The display-unit CODE a `DocParam` carries. A one-byte index into
+    # the unit table has no Python spelling and should not get one: a
+    # notation reaches Python as its SYMBOL, which is what
+    # `DocParam.__repr__` prints.
+    "UnitSym": SHAPE,
     "PartialPath": SHAPE,
     "PathNoCornerReason": SHAPE,
     "Point2": SHAPE,
@@ -916,7 +987,7 @@ NOT_BOUND = {
     "RevolveError": SHAPE,
     "RolePath": SHAPE,
     "RoleSeg": SHAPE,
-    "SCHEMA_VERSION": SHAPE,
+    "ASSERT_BOUND": SHAPE,
     "SEL_DATUM_DISTANCE": SHAPE,
     "Side": SHAPE,
     "SlotId": SHAPE,
@@ -941,10 +1012,30 @@ NOT_BOUND = {
     # not a name a Python caller needs.
     "VectorSlot": SHAPE,
     "VertexKey": SHAPE,
+    "attribute": SHAPE,
     "bulge_from_center": SHAPE,
     "bulge_from_via": SHAPE,
+    # A cone-delete is composed caller-side in Python: the bound door
+    # is `Doc.apply` over one `DocEdit.delete_node` at a time, and the
+    # order this answers is what a chrome needs to state a cost before
+    # the click.
+    "cascade_delete_order": SHAPE,
     "p2": SHAPE,
     "p3": SHAPE,
+    # The kernel query seat (`topo::query`): its doors answer over a
+    # `Body` and arena keys — the vocabulary the curation keeps
+    # unnameable in Python (see `EdgeKey`/`FaceKey` above). The Python
+    # spelling of the same questions is the document door:
+    # `Evaluation.select_where` with `GeomPred.curve_kind` /
+    # `GeomPred.surface_kind` / `GeomPred.adjacent_kinds`, and the
+    # `Evaluation.all_edges`/`all_faces` materializers.
+    "query": SHAPE,
+    # The kernel flush seat (`topo::flush`): the detect/declare
+    # protocol over two `Body`s and their arena keys — the same
+    # vocabulary Python is deliberately kept from naming. The Python
+    # spelling of these questions is the document door, already bound:
+    # `Evaluation.find_flush_candidates` and `Doc.declare`.
+    "flush": SHAPE,
     "real": SHAPE,
     "v2": SHAPE,
     "v3": SHAPE,
@@ -1005,7 +1096,17 @@ NOT_BOUND = {
     # moving anything a caller can do.
     "sweep_body": f"{GAP}: G2 sweep (wire_sweep banked on U4/LQ3)",
     # --- gap: parameter distributions and the analysis lane -------
+    # --- gap: authoring a measurement (census-owned) --------------
+    # The READING half ships (`Value.measure`, `Value.assertion`); what
+    # is listed here is the authoring vocabulary alone.
+    "AssertionDir": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasureExpr": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasureRef": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasureNodeFault": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasurePrimitive": f"{GAP}: B-MEASURES measurement authoring",
     "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
+    "WrittenAngle": f"{GAP}: B-NOTATION authored notation",
+    "WrittenLength": f"{GAP}: B-NOTATION authored notation",
     "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     "DistributionField": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     # G18 IS GONE FROM THIS ROSTER, closed at LIB-G18b. Its six
@@ -1044,6 +1145,7 @@ NOT_BOUND = {
     "eval": f"{GAP}: B-EXPR-READ an expression's value",
     "eval_count": f"{GAP}: B-EXPR-READ an expression's value",
     "parse_expr": f"{GAP}: G1 Expr-bearing authoring steps",
+    "unparse": f"{GAP}: G1 Expr-bearing authoring steps",
     # --- gap: geometry read-back doors (census-owned) -------------
     # --- gap: assorted single doors -------------------------------
     "CancelToken": f"{GAP}: B-CANCEL cooperative cancellation",

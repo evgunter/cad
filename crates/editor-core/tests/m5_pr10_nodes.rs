@@ -152,17 +152,13 @@ fn a_length_expression_in_the_v_degree_slot_refuses() {
 }
 
 // ---------------------------------------------------------------------
-// §4: the round trip, at schema v2
+// §4: the round trip
 // ---------------------------------------------------------------------
 
 #[test]
-fn a_loft_document_round_trips_bit_identically_at_schema_v2() {
+fn a_loft_document_round_trips_bit_identically() {
     let (doc, ..) = loft_doc();
     let text = save(&doc, &[], Tol::witness()).expect("saves");
-    assert_eq!(
-        text.lines().next().map(str::to_owned),
-        Some(format!("schema: {}", editor_core::SCHEMA_VERSION))
-    );
     match load(&text, Tol::witness()) {
         Ok(loaded) => {
             assert!(loaded.snapshot.bit_eq(&doc), "loft snapshot drifted");
@@ -182,7 +178,7 @@ fn a_loft_document_round_trips_bit_identically_at_schema_v2() {
 }
 
 #[test]
-fn a_sweep_document_round_trips_bit_identically_at_schema_v2() {
+fn a_sweep_document_round_trips_bit_identically() {
     let mut doc = ProfileDoc::empty_derived("m5_pr10_nodes", Tol::witness());
     let (d, profile) = insert(doc, Node::Profile(section(0.0, 1.0)));
     doc = d;
@@ -198,10 +194,6 @@ fn a_sweep_document_round_trips_bit_identically_at_schema_v2() {
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
-    assert_eq!(
-        text.lines().next().map(str::to_owned),
-        Some(format!("schema: {}", editor_core::SCHEMA_VERSION))
-    );
     match load(&text, Tol::witness()) {
         Ok(loaded) => {
             assert!(loaded.snapshot.bit_eq(&doc), "sweep snapshot drifted");

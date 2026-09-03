@@ -86,9 +86,11 @@
 //! **Every blade section here is straight lines, and that is
 //! OUTSTANDING WORK rather than a constraint.** Giving the blades
 //! their lanceolate arcs back is a real follow-up, not a settled
-//! choice — and it wants checking against the QUADRATURE half of the
-//! rational bank, which is not retired (`QuadratureUnsupported` keeps
-//! its own pins, and this stop prints an exact volume for every body).
+//! choice, and nothing in the kernel stands in its way any more: the
+//! rational wall an arc-margined blade skins converges through the
+//! interior knots its swept spine puts there, and a blade of this
+//! stop's proportions prints an exact volume like every other body
+//! here.
 //!
 //! Proportions are chosen, not measured: a stylized lily that the
 //! kernel can state exactly beats a literal one it must approximate.
@@ -126,7 +128,7 @@ use pncad::profile::{ArcSweep, Center, ProfileLoop, ProfileVertex, SketchPlane, 
 // The named gap below (`section_loops`): the raw loop door is kernel
 // vocabulary, off the façade, so the one scene that needs it names the
 // kernel crate directly.
-use pncad::sweep::fillet::FilletError;
+use pncad::sweep::blend::BlendError;
 use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
     revolve, revolved_caps, sweep_body, tube_along_arc,
@@ -752,11 +754,13 @@ const SEPAL_STATIONS: usize = 13;
 ///
 /// **Restoring the lanceolate arcs is outstanding work on this
 /// stop** — the kite is what the blade was given, not a limit of the
-/// vocabulary — with one thing to check first: the span meter's half
-/// of the rational bank is retired and the QUADRATURE half is not,
-/// and every body in this stop prints an exact volume, so an
-/// arc-walled blade may meet `QuadratureUnsupported` where the kite
-/// does not.
+/// vocabulary — and the quadrature that used to stand in its way no
+/// longer does. The blade this stop would draw has been built and
+/// measured: a crescent section on this spine, at [`LEAF_STATIONS`]
+/// stations and [`LEAF_V_DEGREE`], certifies an exact volume like
+/// every other body here. That measurement is a standing row, not a
+/// claim — `sweep`'s `cert5_offgrid_knot_rational::the_lily_crescent_
+/// blade_certifies` rebuilds exactly this geometry and re-takes it.
 ///
 /// Nothing here approximates a curve with a chord, meanwhile: a kite
 /// is exactly a kite.
@@ -867,29 +871,56 @@ impl Section {
         let ridge = (0.0, self.ridge);
         let left = (-0.5 * self.width, 0.0);
         let keel = (0.0, -self.keel);
-        // NAMED GAP (LIB-RETTAIL, 2026-08-12) — the one place in the tour
-        // the presented surface cannot say what the demo means, recorded
-        // rather than worked around (main.rs's purpose block).
+        // NAMED GAP — the one place in the tour the presented surface
+        // cannot say what the demo means, recorded rather than worked
+        // around (main.rs's purpose block). Both halves the ruling
+        // named are closed; what is left is a third thing, and it is
+        // about THIS SECTION FAMILY rather than about the lattice.
         //
-        // At `shoulder = 0` the shoulder IS the midpoint of two tips, so
-        // three consecutive vertices are EXACTLY collinear — deliberately,
-        // because a loft matches segment j to segment j and the 4-tip and
-        // 8-corner sections must be spelled on one vertex budget. The PATHS
-        // lattice refuses that junction at authoring
-        // (`JunctionTangent { margin: 0.0 }`), while `Profile::validate`
-        // ACCEPTS it: collinear line/line is carrier IDENTITY, legal
-        // undeclared (`ProfileLoop::tangent_joints`' normative semantics).
-        // So the two junction rules disagree on same-carrier continuation,
-        // and the lattice is the stricter one — a library finding, not a
-        // demo defect. Until the lattice gains a same-carrier continuation
-        // verb (vocabulary, out of this unit's fence), the PRESENTED
-        // surface has no spelling for this loop at all: `ProfileLoop`'s
-        // fields are sealed, so the only route left is the kernel's raw
-        // door, `profile::RawLoop`, which `pncad::profile` deliberately
+        // This outline is FOUR corners said on EIGHT vertices, because a
+        // loft matches segment j to segment j and the tip and attachment
+        // sections must be spelled on one vertex budget. So one junction
+        // per side is a straight run subdivided, at both ends of the
+        // shoulder parameter: at `shoulder = 0` each shoulder is the
+        // midpoint of two tips (the kite), and at `shoulder = 1` each tip
+        // lies ON the rectangle edge its two neighbouring corners span —
+        // collinear with them, though only the ridge and keel tips are
+        // that edge's midpoint (the margins sit at y = 0 on an edge
+        // spanning [-keel, ridge], and no section here has keel = ridge).
+        // Only the eased sections in between turn at every vertex.
+        //
+        // CLOSED: those junctions are carrier IDENTITY, legal
+        // undeclared, and the lattice spells them — `line(len)` off a
+        // directed point for an interior subdivision, `continue_to(p)`
+        // where the subdivision lands on a named point, and
+        // `continue_to(Start)` for a run that crosses the seam. A
+        // single section of this family authors end to end today.
+        //
+        // OPEN, and measured (`bool8_r1_probes`): the closer needs the
+        // seam cut at a CORNER, and this family's corners MOVE. In the
+        // kite the corners are the tips, so the sections whose seam is
+        // a tip author — starts 0, 2, 4, 6 of the ring below. In the
+        // rectangle the corners are the shoulders, so those sections
+        // want starts 1, 3, 5, 7. The two sets are disjoint, and not by
+        // accident: the kite's corner set IS its tips and the
+        // rectangle's IS its shoulders, which are disjoint points of
+        // the outline whatever budget is spent on it. A loft matches
+        // segment j of every section to segment j of every other, so
+        // every section here must be authored at ONE rotation — and
+        // `leaf_a_plan` carries a `shoulder = 1` base AND a
+        // `shoulder = 0` belly, so no rotation gives all of them a
+        // corner at the seam. The section that misses out closes on a
+        // subdivision vertex, which is a mid-carrier seam: PATHS §6
+        // PQ4, deliberately left standing by the ruling.
+        //
+        // So this loop is still raw-authored: `ProfileLoop`'s fields
+        // are sealed, and the only route left is the kernel's raw door,
+        // `profile::RawLoop`, which `pncad::profile` deliberately
         // omits. That is why this crate carries a second kernel
-        // dependency — the tour reaches around its own façade here, and
-        // the gap is loud in the dependency graph instead of hidden in a
-        // struct literal.
+        // dependency — the gap stays loud in the dependency graph
+        // instead of hidden in a struct literal. What would close it is
+        // a ruling on whether a DECLARED subdivision vertex is an
+        // admissible seam; the question is put in PATHS §4.
         let v = |(x, y): (f64, f64)| ProfileVertex::new(Point2::new(x, y), 0.0);
         vec![RawLoop::new(vec![
             v(right),
@@ -2143,16 +2174,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     wall(
         6,
         "roll a ball along the lantern's mouth rim (fillet a curved body)",
-        pncad::sweep::fillet::fillet_edges(
-            lant,
-            &rim,
-            S::from_f64(0.02),
-            pncad::geom_core::Band::linear(tol).expect("band"),
-            tol,
-        ),
+        pncad::sweep::blend::fillet_edges(lant, &rim, S::from_f64(0.02), tol),
         // margin EXACTLY zero is the finding: a co-surface seam
         // meridian, not a near-tangency that a tolerance could split.
-        |e| matches!(e, FilletError::TangentialEdge { margin, .. } if *margin == 0.0),
+        |e| matches!(&e.error, BlendError::TangentialEdge { margin, .. } if *margin == 0.0),
         "soften the tepal-tip rim",
     );
 
@@ -2285,11 +2310,39 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //     here, face pair by face pair, because the author knows which
     //     wall meets which.
     //
+    //     Face pair by face pair is what the SCOPE of the flush
+    //     detector leaves: `topo::flush::find_flush_candidates` (which
+    //     `crate::booleans::flush_declarations` now runs for every
+    //     planar mate in this file) enumerates over the planar door,
+    //     and this mate has no planar contact anywhere on it. That is
+    //     a limit of the detector, not of the verification the
+    //     declarations below get — `twopeg::seat3_measurements`
+    //     measures the carrier ladder verifying a cylindrical
+    //     cosurface pair, and reporting one as would-verify in its
+    //     detector posture.
+    //
     //     It refuses one door short of the zip, and the door is the
     //     reduction's curved-face arm rather than the declaration
-    //     gate: the corm's own annulus rim circle lies ON the shared
-    //     carrier, decides zero clearance, and takes
-    //     `CurvedPierceUnsupported` before any patch is discovered.
+    //     gate: an edge lying ON the shared carrier decides zero
+    //     clearance and takes `CurvedPierceUnsupported` before any
+    //     patch is discovered.
+    //
+    //     **Which edge is not the claim, and it has moved once.** The
+    //     first measurement here was the corm's own annulus rim
+    //     CIRCLE, on operand A. Since the curved pierce RING lane
+    //     landed, the A-side pairs that used to raise first are
+    //     resolved, and the sweep gets one pair further before the same
+    //     wall stops it: the refusal is now operand B's seam RULING —
+    //     `EdgeKey(4v1)`, a straight chart curve at azimuth 0 on the
+    //     foot's own bore wall — against the corm's bore face
+    //     `FaceKey(3v1)` (`r = 0.06`), both of its endpoints exactly on
+    //     the shared carrier. It reaches the declared-cover rung's
+    //     on-carrier `(Zero, Zero)` arm and refuses there because the
+    //     curved containment door does not place both endpoints. So the
+    //     operand below records which SIDE the sweep reaches first, not
+    //     what the wall is about; a later crossing lane may move it
+    //     again, and that is a measurement to re-take rather than a
+    //     regression. What has not moved is the wall itself.
     //     M9-3 PR-A's rung teaches that arm to consult declarations —
     //     but the two-peg path it was measured on carries a PLANAR
     //     `Rest` at the rim plane as well, and the plant has none to
@@ -2320,14 +2373,16 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "thread the corm onto the stem's foot at their shared cylinder wall \
          (declared cylindrical Rest, no planar contact anywhere on the mate)",
         pncad::topo::union_with(corm_body, foot_body, &bore_decls, tol),
-        // The KIND is the claim: the reduction's curved-face arm, on
-        // operand A, at an edge — NOT the declaration gate, which
-        // admitted the pair, and not a carrier refusal.
+        // The KIND is the claim: the reduction's curved-face arm, at
+        // an edge — NOT the declaration gate, which admitted the pair,
+        // and not a carrier refusal. The operand is pinned too, as the
+        // measurement of which side the sweep reaches first (see the
+        // note above: it moved from A to B when the ring lane landed).
         |e| {
             matches!(
                 e,
                 BooleanError::CurvedPierceUnsupported {
-                    operand: Operand::A,
+                    operand: Operand::B,
                     ..
                 }
             )
@@ -2990,8 +3045,21 @@ mod review_probes {
             ("lily_arch", 2e-3, 136_076),
             ("lily_lantern", 5e-3, 1_084),
             ("lily_lantern", 2e-3, 2_560),
-            ("lily_leaf_b", 2e-3, 468),
-            ("lily_leaf_c", 2e-3, 414),
+            // RE-DERIVED, not preserved (issue 1006's Q2 ruling): the
+            // patch-hull consolidation folded the whole-face bound
+            // over `patch_bound`'s cells, which tightens or holds, and
+            // these two leaves are where it bites hardest in the tour.
+            // Per face, merge base -> now: leaf_b `mvv` 0.548115 ->
+            // 0.518406 (0.9458x) and `mv1` 1.367961 -> 1.305420
+            // (0.9543x); leaf_c `mvv` 0.385360 -> 0.346893 (0.9002x)
+            // and `mv1` 1.099628 -> 1.001095 (0.9104x). A tighter
+            // Hessian buys a longer step, so the whole-patch chord
+            // schedule coarsens (leaf_b's `nv` 46 -> 45, leaf_c's 40 ->
+            // 37) and the counts fall with it: 468 -> 454, 414 -> 384.
+            // Nothing about the leaves moved — same charts, same trim
+            // boxes, same delta; the bound got honester.
+            ("lily_leaf_b", 2e-3, 454),
+            ("lily_leaf_c", 2e-3, 384),
         ];
         // Measured first, compared once: a row-at-a-time assert stops
         // at the first move and hides the rest, and this table is read
@@ -3820,7 +3888,48 @@ mod verbs_gate_r1_probes {
                     ..
                 }
             ),
-            "wall 1 must name the tangent tube walls against a planar disc: {glued:?}"
+            "wall 1 must name the stem's tube wall against a planar disc of the arch: \
+             {glued:?}"
+        );
+        // **What this pair actually is, measured.** The gate names the
+        // stem's tube wall against the arch's FAR cap — the disc at the
+        // top of the arch, metres from anything the stem occupies. The
+        // two exact loci never come near each other; what overlaps is
+        // the stem wall's BOX, which for a torus is the whole tube
+        // about the ring centre and reads nothing from the face's
+        // boundary, so a 22° arc of a 5 m ring is boxed as the entire
+        // 10 m ring.
+        //
+        // So wall 1 is not a germ-class wall and never was: no arm is
+        // missing for a pair that does not meet. It is the box
+        // artifact the cone arm already had fixed (its slab became the
+        // frustum its window cuts) and the torus arm has not.
+        //
+        // The weld's own contact — the stem's end disc against the
+        // arch's start disc — is plane×plane, declared and verified;
+        // the tube walls take no part in it, because the arch's tube
+        // is thinner than the stem's and the two walls share nothing
+        // but the plane they both end on.
+        let arch_far_cap = arch
+            .faces()
+            .filter_map(|(k, f)| match arch.get_surface(f.surface) {
+                Some(&Surface::Plane { origin, .. }) => Some((k, origin)),
+                _ => None,
+            })
+            .find(|&(_, o)| (o - pncad::geom_core::Point3::new(0.0, 0.0, 0.0)).norm() > 2.0)
+            .expect("the arch carries a cap plane clear of the weld");
+        // Unconditional on both halves. Under an `if let` this row
+        // SELF-DISABLES the moment the refusal's shape changes — which
+        // is exactly when the claim it makes needs re-reading, so the
+        // one arrangement that must not be used is the one that goes
+        // quiet then.
+        let BooleanError::CurvedPairUnsupported { other_face, .. } = &glued else {
+            panic!("wall 1's refusal is the operand gate's, or this reading is stale: {glued:?}");
+        };
+        assert_eq!(
+            *other_face, arch_far_cap.0,
+            "the pair the gate names is the stem's wall against the arch's FAR cap — \
+             a box overlap, not a contact"
         );
 
         let welded = pncad::topo::union(lant, arch, tol)

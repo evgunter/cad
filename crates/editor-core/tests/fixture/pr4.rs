@@ -7,19 +7,17 @@
 //! diagnosis is a function of both).
 #![allow(dead_code)] // shared across test binaries
 
-use editor_core::eval::ContentBits;
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node,
     ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate,
     resolve, resolve_with_prior,
 };
-use geom_core::Decide;
 
 use super::{ang, desc, insert, len, scl, step};
 use geom_core::Tol;
 
 /// The corpus's evaluator — the PRODUCTION path (realized BVH sweep),
-/// per Evan's 2026-07-29 ruling on the M5 PR 8 diagnosis question:
+/// per Ev's 2026-07-29 ruling on the M5 PR 8 diagnosis question:
 /// the diagnosis ACCEPTANCE artifacts (this corpus + the golden
 /// digest in `m4_pr4_ci`) pin what production users actually get.
 /// Scenario A's flip-vanish row therefore exercises the AMENDED N5
@@ -32,7 +30,7 @@ use geom_core::Tol;
 /// headers); `m4_pr4_banked` pins both strategies side by side.
 fn run<T>(doc: &ProfileDoc, prior: Option<&Evaluation<T>>) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: editor_core::EvalScalar,
 {
     evaluate::<T>(
         doc,
@@ -83,7 +81,7 @@ fn name1(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
 /// rows and scalars.
 pub fn diagnosis_corpus<T>() -> Vec<(&'static str, Resolution)>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: editor_core::EvalScalar,
 {
     let mut out = Vec::new();
 

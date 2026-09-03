@@ -42,9 +42,9 @@ mod fixture;
 use corpus::{documents, eval, failures};
 use editor_core::eval::KeyHasher;
 use editor_core::{
-    BooleanValue, CancelToken, ContentKey, Datum, DatumValue, EvalOptions, Evaluation, LoopProgram,
-    Node, NodeResult, ProductError, ProfileProgram, SplitSide, ValuePayload, assemble, evaluate,
-    product_recorded,
+    AssertionVerdict, BooleanValue, CancelToken, ContentKey, Datum, DatumValue, Dimension,
+    EvalOptions, Evaluation, LoopProgram, Node, NodeResult, ProductError, ProfileProgram,
+    SplitSide, ValuePayload, assemble, evaluate, product_recorded,
 };
 use geom::{Curve3, Surface};
 use geom_core::{Bounds, Decide, Dual64, Tol};
@@ -260,16 +260,22 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                     ValuePayload::Datum(DatumValue::Plane { origin, normal }) => {
                         d.u64(10);
                         d.p3(origin);
-                        d.v3(normal);
+                        d.v3(&normal.get());
                     }
                     ValuePayload::Datum(DatumValue::Axis { origin, dir }) => {
                         d.u64(11);
                         d.p3(origin);
-                        d.v3(dir);
+                        d.v3(&dir.get());
                     }
                     ValuePayload::Datum(DatumValue::Point { position }) => {
                         d.u64(12);
                         d.p3(position);
+                    }
+                    ValuePayload::Datum(DatumValue::Frame { origin, u, v }) => {
+                        d.u64(23);
+                        d.p3(origin);
+                        d.v3(&u.get());
+                        d.v3(&v.get());
                     }
                     ValuePayload::Profile(p) => {
                         d.u64(13);
@@ -315,6 +321,35 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                         d.u64(pairs.len() as u64);
                     }
                     ValuePayload::Mate(_) => d.u64(20),
+                    // The measured quantity IS a lane value, so it is
+                    // digested through the same value-channel bracket
+                    // every coordinate takes.
+                    ValuePayload::Measure { value, dim } => {
+                        d.u64(21);
+                        d.u64(match dim {
+                            Dimension::Length => 1,
+                            Dimension::Angle => 2,
+                            Dimension::Count => 3,
+                            Dimension::Scalar => 4,
+                        });
+                        d.s(*value);
+                    }
+                    ValuePayload::Assertion(verdict) => {
+                        d.u64(22);
+                        d.u64(match verdict.holds() {
+                            Some(true) => 1,
+                            Some(false) => 2,
+                            None => 3,
+                        });
+                        match verdict {
+                            AssertionVerdict::Holds { measured, bound }
+                            | AssertionVerdict::Violated { measured, bound } => {
+                                d.s(*measured);
+                                d.s(*bound);
+                            }
+                            AssertionVerdict::Unevaluated { .. } => {}
+                        }
+                    }
                 }
             }
         }
@@ -545,8 +580,11 @@ fn direct_validation_door_behavior_at_dual64() {
     let ev = eval::<Dual64>(&planar.doc);
     let body = corpus::body_of(&ev, planar.result.unwrap());
     // `die` carries filleted (cylindrical/spherical) faces — curved but
-    // closed-form; what matters here is the door RUNS and answers.
-    let direct = topo::validate_geometric(body, tol);
+    // closed-form; what matters here is that the door a dual CAN take
+    // runs and answers. That door is the structural half: the composed
+    // entry carries the +V invariant's certified bound and cannot be
+    // called at a dual at all.
+    let direct = topo::validate_geometric_structural(body, tol);
     let policy = <Dual64 as topo::AtRestPolicy>::gate_at_rest(body, tol);
     assert_eq!(
         policy,
@@ -558,14 +596,24 @@ fn direct_validation_door_behavior_at_dual64() {
     {
         let ev_n = eval::<Dual64>(&nurbs.doc);
         let body_n = corpus::body_of(&ev_n, result);
-        assert!(
-            topo::validate_geometric(body_n, tol).is_err(),
-            "a NURBS-walled body must refuse typed through the dual's quad lane"
+        // MEASURED, and the reverse of what this row asserted before the
+        // validator split: a NURBS-walled body PASSES the structural
+        // half at a dual. Its refusal was the +V invariant's
+        // `VolumeUncomputable`, raised by the dual's refusing quadrature
+        // arm, and the split moved that invariant WHOLE — closed form
+        // included — into the certified half, so the structural door
+        // reports no orientation verdict of any kind. Nothing else the
+        // structural checks consult refuses this body.
+        assert_eq!(
+            topo::validate_geometric_structural(body_n, tol),
+            Ok(()),
+            "a NURBS-walled body passes the door a dual can take; its refusal was \
+             the certified half's"
         );
     }
     // Record the die outcome either way — the row's value is the pair
     // of spellings being on the record, not a particular verdict.
-    eprintln!("direct validate_geometric::<Dual64>(die) = {direct:?}");
+    eprintln!("direct validate_geometric_structural::<Dual64>(die) = {direct:?}");
 }
 
 /// EVIDENCE-ONLY (review record; retire freely): `ContentBits::feed`

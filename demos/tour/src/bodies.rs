@@ -11,7 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::geom_core::Vec2;
-use pncad::prelude::{Open, Start, Via};
+use pncad::prelude::{Open, Start, Via, query};
 use pncad::profile::{ProfileLoop, SketchPlane};
 use pncad::sweep::chamfer::chamfer_edges;
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -340,19 +340,19 @@ fn stop(
 /// triangles, every face a plane — the exact analytic case, no fitted
 /// band anywhere on the part.
 ///
-/// **The friction this scene records** (demo-purpose rule): there is
-/// no whole-body edge selector on the PLAIN body API, so "break every
-/// edge" is spelled by enumerating the arena's own edge keys. The
-/// document layer has the door (`all_edges`, which `diefillet` uses);
-/// the kernel-level verb does not.
+/// **The friction this scene records** (demo-purpose rule): the
+/// kernel verb takes arena KEYS, so a document's own selection cannot
+/// be handed to it — `diechamfer` prices that one. "Every edge of it"
+/// is no longer a friction on either seat: `query::all_edges` says it
+/// at the body door (this scene), `all_edges` over an evaluation says
+/// it at the document door (`diefillet`).
 ///
-/// That friction is now the KERNEL-DIRECT one only. `Node::Chamfer`
-/// exists (LIB-G16), so a consumer wanting a chamfer in a recipe — with
-/// names, with a rebuild — has one, and says this part as
-/// `Node::chamfer` over `all_edges`. This scene deliberately stays on
-/// the plain-body API, because that is the seat it is evidence about:
-/// what it measures is what the kernel verb costs a caller who has a
-/// body and no document.
+/// `Node::Chamfer` exists (LIB-G16), so a consumer wanting a chamfer
+/// in a recipe — with names, with a rebuild — has one, and says this
+/// part as `Node::chamfer` over `all_edges`. This scene deliberately
+/// stays on the plain-body API, because that is the seat it is
+/// evidence about: what it measures is what the kernel verb costs a
+/// caller who has a body and no document.
 pub fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
     let (x, y, z) = (4.0, 2.4, 1.0);
     let setback = 0.15;
@@ -374,23 +374,15 @@ pub fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
     )
     .expect("extrude spacer")
     .body;
-    // "Every edge of it" — spelled the only way the plain-body door
-    // allows (see the note above).
-    let edges: Vec<pncad::topo::EdgeKey> = pad.edges().map(|(k, _)| k).collect();
-    let t = tol.get();
-    let band = pncad::geom_core::Band::new(t.eps, t.k * t.eps).expect("a band from the tolerance");
-    let broken = chamfer_edges(&pad, &edges, S::from_f64(setback), band, tol)
+    // "Every edge of it" — the kernel materializer.
+    let edges = query::all_edges(&pad);
+    let broken = chamfer_edges(&pad, &edges, S::from_f64(setback), tol)
         .expect("every edge of a rectangular pad breaks at 0.15");
     let note = format!(
         "chamfer_edges over the plain body API: {} strips + {} corner patches, every face a \
-         plane. Friction recorded: (1) the plain-body door has no whole-body edge selector, \
-         so `all twelve` is spelled by enumerating arena keys — the RECIPE path has one \
-         (`Node::chamfer` over `all_edges`, since LIB-G16); this seat does not; (2) the \
-         kernel verb takes arena KEYS, so a document's own selection cannot be handed to \
-         it — `diechamfer` prices that one; (3) the call wants BOTH \
-         a `Tol` and a `Band`, and the `Band` this scene passes is derived from that same \
-         `Tol` — every caller in the tour writes the same three-line derivation, so the \
-         second argument carries no information the first did not.",
+         plane. `all twelve` is one call on this seat too (`query::all_edges`). Friction \
+         recorded: the kernel verb takes arena KEYS, so a document's own selection cannot \
+         be handed to it — `diechamfer` prices that one.",
         broken.blend_faces.len(),
         broken.corner_faces.len()
     );
@@ -432,7 +424,15 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bracket(tol),
             None,
         )),
-        stop(
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
+        // 2026-08-30): `diechamfer` carries the chamfer verb on the
+        // sheet, on a better part and at the SAME setback as
+        // `diefillet`'s radius, so the two panels compare verbs. This
+        // scene's content is not its silhouette but the three
+        // FRICTIONS its note records about the plain-body seat, and a
+        // friction is narration. Standalone render, probe/corpus roles
+        // and the whole note are untouched.
+        off_sheet(stop(
             "spacer",
             "machined spacer with every edge broken (12 flat strips + 8 flat corner patches)",
             "extrude(Distance) -> chamfer_edges(all twelve edges, equal setback)",
@@ -445,8 +445,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             [0.62, 0.66, 0.72],
             spacer_body,
             Some(spacer_note),
-        ),
-        stop(
+        )),
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
+        // 2026-08-30): the genus-2 holed-profile EXTRUDE moves onto
+        // `twopeg`, whose plate Q is authored as one extrude of a
+        // profile with two circular inner loops (it was two boolean
+        // subtracts before this curation). The fact keeps a cell; it
+        // stops costing one of its own.
+        off_sheet(stop(
             "plate",
             "plate with two circular holes — genus 2 (each hole: 2 rings, wall band)",
             "polygon outer + two closed arc-carrier holes -> extrude(Distance)",
@@ -459,8 +465,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             [0.86, 0.51, 0.27],
             plate(tol),
             None,
-        ),
-        stop(
+        )),
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
+        // 2026-08-30): every surface this axis-touching full revolve
+        // shows is on the sheet elsewhere — the teapot's pot IS this
+        // meridian (foot cylinder, one sphere-zone arc, mouth) and the
+        // sheave carries plane + cylinder + cone + torus on one part.
+        off_sheet(stop(
             "vase",
             "solid vase — axis-touching profile, spherical belly zone + conical lip",
             "PATHS algebra (line_to/arc_to Via) -> revolve(axis y, Full); sphere/cone/plane faces",
@@ -473,7 +484,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             [0.42, 0.72, 0.50],
             vase(tol),
             None,
-        ),
+        )),
         stop(
             "sheave",
             "rope-groove sheave — hub, web, TAPERED rim shoulders, semicircular groove: \
@@ -489,7 +500,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             sheave_body,
             Some(sheave_note),
         ),
-        stop(
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
+        // 2026-08-30). `Revolution::Partial` stays legible on the
+        // sheet through klein's tubes and the lily's bud (three
+        // partial revolves of the lantern meridian), so what the cell
+        // uniquely showed was the wedge caps, not the verb. Note the
+        // teapot's handle does NOT cover this: that is
+        // `tube_along_arc`, the parameter door, not a profile revolve.
+        off_sheet(stop(
             "chute",
             "quarter-turn chute — C-channel profile swept 270 degrees; wedge caps, \
              curved trough",
@@ -503,11 +521,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             [0.44, 0.68, 0.78],
             chute_body,
             Some(chute_note),
-        ),
+        )),
     ]
 }
 
-// RE-HOMED (LIB-RETTAIL, Evan's ruling on #413): `finale_fail_loud` —
+// RE-HOMED (LIB-RETTAIL, Ev's ruling on #413): `finale_fail_loud` —
 // the bowtie coda — left the tour. A broken-on-purpose scene is not a
 // use case, and it was the last thing keeping a raw public authoring
 // tier alive. Its fail-loud contract did not evaporate: it is
@@ -590,13 +608,7 @@ pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(mouth.len(), 1, "the bud has one mouth rim of radius 0.8");
-    pncad::sweep::fillet::fillet_edges(
-        &body,
-        &mouth,
-        S::from_f64(0.05),
-        pncad::geom_core::Band::linear(tol).expect("the run's band"),
-        tol,
-    )
-    .expect("the sphere-cone mouth rim fillets")
-    .body
+    pncad::sweep::blend::fillet_edges(&body, &mouth, S::from_f64(0.05), tol)
+        .expect("the sphere-cone mouth rim fillets")
+        .body
 }

@@ -52,21 +52,6 @@ fn nurbs_circle() -> NurbsCurve3<f64> {
     NurbsCurve3::new(knots, control, weights).unwrap()
 }
 
-fn lift(c: &NurbsCurve3<f64>) -> NurbsCurve3<Interval> {
-    let ctrl = c
-        .control()
-        .iter()
-        .map(|p| {
-            Point3::new(
-                Interval::from_f64(p.x),
-                Interval::from_f64(p.y),
-                Interval::from_f64(p.z),
-            )
-        })
-        .collect();
-    NurbsCurve3::new(c.knots().clone(), ctrl, c.weights().to_vec()).unwrap()
-}
-
 fn contains(e: Interval, v: f64) -> bool {
     e.lo() <= v && v <= e.hi()
 }
@@ -76,7 +61,7 @@ fn contains(e: Interval, v: f64) -> bool {
 #[test]
 fn interval_eval_contains_f64_eval_single_span() {
     let n = nurbs_circle();
-    let ni = lift(&n);
+    let ni = n.map_scalar(Interval::from_f64);
     for (lo, hi) in [(0.02, 0.2), (0.26, 0.49), (0.51, 0.74), (0.9, 0.999)] {
         let t = Interval::from_bounds(lo, hi);
         let p = ni.eval(t);
@@ -106,7 +91,7 @@ fn interval_eval_contains_f64_eval_single_span() {
 #[test]
 fn interval_eval_contains_f64_across_knots() {
     let n = nurbs_circle();
-    let ni = lift(&n);
+    let ni = n.map_scalar(Interval::from_f64);
     for (lo, hi) in [(0.2, 0.3), (0.45, 0.8), (0.0, 1.0)] {
         let t = Interval::from_bounds(lo, hi);
         let p = ni.eval(t);
@@ -130,18 +115,24 @@ fn interval_eval_contains_f64_across_knots() {
 #[test]
 fn poison_propagates_through_values() {
     let n = nurbs_circle();
-    let ni = lift(&n);
+    let ni = n.map_scalar(Interval::from_f64);
     // Poisoned parameter (NaI).
     let p = ni.eval(Interval::from_f64(f64::NAN));
-    assert!(p.x.lo().is_nan() && p.x.hi().is_nan());
+    // Every channel, not the first: NaI in poisons the whole point.
+    assert!(p.x.is_poison() && p.y.is_poison() && p.z.is_poison());
     // Poisoned control point at f64.
     let mut ctrl = n.control().to_vec();
     ctrl[3] = Point3::new(f64::NAN, 0.0, 0.0);
     let np = NurbsCurve3::new(n.knots().clone(), ctrl, n.weights().to_vec()).unwrap();
-    // A parameter whose span touches control index 3 poisons x.
-    assert!(np.eval(0.3).x.is_nan());
-    // A far-away span does not (locality of the basis).
-    assert!(!np.eval(0.9).x.is_nan());
+    // A parameter whose span touches control index 3 poisons the
+    // poisoned CHANNEL and leaves the others finite — the partial
+    // answer, stated as what it is rather than checked on x alone.
+    let near = np.eval(0.3);
+    assert!(near.x.is_nan() && near.y.is_finite() && near.z.is_finite());
+    // A far-away span does not (locality of the basis) — on every
+    // channel, so the claim cannot be met by a net poisoned elsewhere.
+    let far = np.eval(0.9);
+    assert!(far.x.is_finite() && far.y.is_finite() && far.z.is_finite());
 }
 
 /// `Dual<Interval>` instantiates and both channels contain the
@@ -150,19 +141,7 @@ fn poison_propagates_through_values() {
 #[test]
 fn dual_interval_channels_contain_pointwise_duals() {
     let n = nurbs_circle();
-    let ctrl = n
-        .control()
-        .iter()
-        .map(|p| {
-            Point3::new(
-                Dual::constant(Interval::from_f64(p.x)),
-                Dual::constant(Interval::from_f64(p.y)),
-                Dual::constant(Interval::from_f64(p.z)),
-            )
-        })
-        .collect();
-    let ndi: NurbsCurve3<Dual<Interval>> =
-        NurbsCurve3::new(n.knots().clone(), ctrl, n.weights().to_vec()).unwrap();
+    let ndi: NurbsCurve3<Dual<Interval>> = n.map_scalar(|x| Dual::constant(Interval::from_f64(x)));
     for (lo, hi) in [(0.1, 0.2), (0.45, 0.55)] {
         let t = Dual::variable(Interval::from_bounds(lo, hi));
         let p = ndi.eval(t);
@@ -188,7 +167,7 @@ fn dual_interval_channels_contain_pointwise_duals() {
 #[test]
 fn knot_algebra_interval_contains_f64() {
     let n = nurbs_circle();
-    let ni = lift(&n);
+    let ni = n.map_scalar(Interval::from_f64);
     let cases_f64 = [
         n.insert_knot(0.6, 1).unwrap(),
         n.refine_knots(&[0.1, 0.9]).unwrap(),

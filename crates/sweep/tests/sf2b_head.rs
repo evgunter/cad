@@ -325,7 +325,7 @@ fn sf2b_bellied_pot_sealed_and_opened() {
     let tol = Tol::witness();
     let t = 1.0 / 128.0;
     let body = bellied_pot();
-    match topo::shell(&body, t, FIT_TOL, band(), tol) {
+    match topo::shell(&body, t, FIT_TOL, tol) {
         Ok(p) => println!(
             "[pot] SEALED hollows: {} shells, props {:?}",
             p.shells().count(),
@@ -342,7 +342,7 @@ fn sf2b_bellied_pot_sealed_and_opened() {
         .map(|(k, _)| k)
         .collect();
     println!("[pot] mouth chart: {} face(s)", mouth.len());
-    match topo::shell_open(&body, t, &mouth, FIT_TOL, band(), tol) {
+    match topo::shell_open(&body, t, &mouth, FIT_TOL, tol) {
         Ok(p) => println!(
             "[pot] OPENED: {} shells, props {:?}",
             p.shells().count(),
@@ -367,7 +367,7 @@ fn sf2b_head_measurement() {
         ("the drum", drum()),
     ] {
         println!("=== {what} ===");
-        match topo::shell(&body, t, FIT_TOL, band(), tol) {
+        match topo::shell(&body, t, FIT_TOL, tol) {
             Ok(_) => println!("  HOLLOWS"),
             Err(e) => {
                 println!("  Display: {e}");

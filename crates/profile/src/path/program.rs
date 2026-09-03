@@ -6,8 +6,9 @@
 //! 13–15).
 //!
 //! Four things carry the design; the rest of the module is their
-//! vocabulary ([`Target`], [`ArcData`], [`TipState`], [`ReplayError`],
-//! [`DynTip`]) and the mode dispatchers the arms call.
+//! vocabulary ([`Target`], [`ArcData`] with its [`ArcMode`] tag,
+//! [`TipState`], [`ReplayError`], [`DynTip`]) and the mode dispatchers
+//! the arms call.
 //!
 //! 1. `transition_table!` — the one declaration. One row per
 //!    (state, verb, kernel fn, next state), expanded into all four
@@ -118,69 +119,131 @@ pub enum Target<T: Real> {
     Start,
 }
 
-/// **The unified arc-spec record (§2c rounds 5–9)**: one enum, every
-/// authored mode, exactly as the surface's standalone spec types
-/// authored it (record-as-you-lower keeps the mode; the VQ contracts
-/// rely on that distinctness). The typed surface consumes the
-/// standalone types ([`Radius`](super::Radius), [`Bulge`], [`Via`],
-/// [`Center`], [`Sweep`](super::Sweep), [`ArcLen`](super::ArcLen))
-/// through the
-/// state-keyed trait matrix; the wire and the replay driver match THIS
-/// enum exhaustively, which is the round-9 forcing argument for the
-/// whole family shipping at once.
-#[derive(Clone, Copy, Debug)]
-pub enum ArcData<T: Real> {
+/// **The arc-mode vocabulary — ONE declaration, THREE projections.**
+///
+/// A mode is named exactly once here, and the macro expands the name
+/// into [`ArcData`]'s variant, the [`ArcMode`] tag, and that tag's
+/// membership in [`ArcMode::ALL`]. So the mode SET has one home, and
+/// the census anchored on `ALL` cannot fall behind a mode the
+/// vocabulary gains — the same construction, one level down, that
+/// `transition_table!` gives the verb vocabulary through
+/// [`Verb::ALL`].
+///
+/// What it does NOT unify is the mode's field LAYOUT: the typed
+/// surface's standalone spec types ([`Radius`](super::Radius),
+/// [`Bulge`], [`Via`], [`Center`], [`Sweep`](super::Sweep),
+/// [`ArcLen`](super::ArcLen)) spell their fields under their own
+/// generics, because the state-keyed trait matrix keys on them
+/// (`Center<T, Point2<T>>` and `Center<T, Start>` are different
+/// impls), and `editor-core` spells two more layouts for reasons G1
+/// layering makes structural. The vocabulary those layouts must
+/// carry is what lives here.
+macro_rules! arc_modes {
+    (
+        $(
+            $(#[doc = $doc:literal])*
+            mode $name:ident { $($(#[doc = $fdoc:literal])* $f:ident : $ft:ty),* $(,)? }
+        )*
+    ) => {
+        /// **The unified arc-spec record (§2c rounds 5–9)**: one enum,
+        /// every authored mode, exactly as the surface's standalone
+        /// spec types authored it (record-as-you-lower keeps the mode;
+        /// the VQ contracts rely on that distinctness). The typed
+        /// surface consumes the standalone types
+        /// ([`Radius`](super::Radius), [`Bulge`], [`Via`], [`Center`],
+        /// [`Sweep`](super::Sweep), [`ArcLen`](super::ArcLen)) through
+        /// the state-keyed trait matrix; the wire and the replay
+        /// driver match THIS enum exhaustively, which is the round-9
+        /// forcing argument for the whole family shipping at once.
+        #[derive(Clone, Copy, Debug)]
+        pub enum ArcData<T: Real> {
+            $( $(#[doc = $doc])* $name { $($(#[doc = $fdoc])* $f : $ft),* } ),*
+        }
+
+        /// Which mode an arc spec names — [`ArcData`]'s tag, one value
+        /// per variant, projected from the same declaration.
+        ///
+        /// It is what a census over the mode vocabulary is keyed on,
+        /// exactly as [`Verb`] is for the verb vocabulary: the mode
+        /// travels INSIDE a verb, so a mode that fails to reach a
+        /// downstream spelling is invisible to every verb-keyed check.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub enum ArcMode {
+            $( $(#[doc = $doc])* $name ),*
+        }
+
+        impl ArcMode {
+            /// Every arc mode the vocabulary declares, in declaration
+            /// order — enumerated from the same declaration as the
+            /// variants, so a census keyed on it grows with the
+            /// vocabulary rather than behind it.
+            #[doc(hidden)]
+            pub const ALL: &'static [ArcMode] = &[$( ArcMode::$name ),*];
+        }
+
+        impl<T: Real> ArcData<T> {
+            /// The mode this spec names.
+            pub fn mode(&self) -> ArcMode {
+                match self {
+                    $( ArcData::$name { .. } => ArcMode::$name ),*
+                }
+            }
+        }
+    };
+}
+
+arc_modes! {
     /// `Radius { r, side }` — arrival mode: centre derived from the
     /// arrival's directed anchor.
-    Radius {
+    mode Radius {
         /// The carrier radius.
         r: T,
         /// Which side of the tangent the centre sits on.
         side: super::ArcSide,
-    },
+    }
     /// `Bulge { p, b }` — chord-relative: leg targets and fused
     /// incoming specs.
-    Bulge {
+    mode Bulge {
         /// The authored endpoint.
         target: Target<T>,
         /// The authored bulge (M2 convention).
         b: T,
-    },
+    }
     /// `Via { q, p }` — the arc through an authored point.
-    Via {
+    mode Via {
         /// The through-point.
         q: Point2<T>,
         /// The authored endpoint.
         target: Target<T>,
-    },
+    }
     /// `Center { c, winding, p }` — the arc about an authored centre.
-    Center {
+    mode Center {
         /// The carrier centre.
         c: Point2<T>,
         /// Travel sense (structural).
         winding: ArcSweep,
         /// The authored anchor/endpoint (`Start` closes).
         target: Target<T>,
-    },
+    }
     /// `Sweep { r, side, angle }` — endpoint-free: tangent-departing,
     /// endpoint derived.
-    Sweep {
+    mode Sweep {
         /// The carrier radius.
         r: T,
         /// Which side of the departure tangent the centre sits on.
         side: super::ArcSide,
         /// The swept central angle, radians.
         angle: T,
-    },
+    }
     /// `ArcLen { r, side, len }` — endpoint-free, extent as arc length.
-    ArcLen {
+    mode ArcLen {
         /// The carrier radius.
         r: T,
         /// Which side of the departure tangent the centre sits on.
         side: super::ArcSide,
         /// The arc length, meters.
         len: T,
-    },
+    }
 }
 
 /// **The transition table — ONE declaration, FOUR projections**
@@ -197,15 +260,14 @@ pub enum ArcData<T: Real> {
 ///
 /// **The round-9 exhaustiveness pressure does NOT ride this table.**
 /// That pressure is over the ARC-MODE vocabulary — [`ArcData`] — and
-/// this table is over the VERB vocabulary. `ArcData` is written out
-/// above by hand and has no `ALL`; every site that must handle each of
-/// its modes is hand-written too, including `do_arc_to_point`,
-/// `do_arc_to_directed` and the fused dispatchers below this
-/// invocation, none of which the macro produces. The pressure is real
-/// — rustc enforces it at each of those matches — but it is bought by
-/// hand at every site, not projected from one declaration. That the
-/// two vocabularies are unified to different depths is smell-scan
-/// **S195**.
+/// this table is over the VERB vocabulary. The mode vocabulary has its
+/// own declaration (`arc_modes!` above) and its own census anchor
+/// ([`ArcMode::ALL`]), and the sites that must handle each mode —
+/// `do_arc_to_point`, `do_arc_to_directed` and the fused dispatchers
+/// below this invocation — are hand-written matches this macro does
+/// not produce. The pressure is real at each of them, and rustc is
+/// what enforces it; what the mode declaration adds is that a mode
+/// cannot go missing from a spelling this crate cannot see.
 ///
 /// # What the table does not reach
 ///
@@ -226,6 +288,12 @@ pub enum ArcData<T: Real> {
 /// `editor-core/tests/switch_program_vocabulary.rs`, anchored on
 /// [`Verb::ALL`] exactly as this crate's own replay-coverage census
 /// is.
+///
+/// The arc modes travel one level down, inside those same steps, and
+/// go the same way: the document form spells them again and the hop
+/// back CONSTRUCTS. The same suite carries their census, anchored on
+/// [`ArcMode::ALL`], and there the mode-keyed witness turns a mode
+/// missing from the document vocabulary into a compile error.
 ///
 /// # Row grammar
 ///
@@ -670,6 +738,35 @@ transition_table! {
         }
     }
 
+    #[doc = " `.cusp()` — reverse onto the incoming end tangent and DECLARE the joint."]
+    verb Cusp bind {} rows {
+        row {
+            /// Consumes a **directed point only**, exactly as
+            /// [`tangent`](Self::tangent) does, and departs along the
+            /// REVERSE of the incoming end tangent — the ray negated, so the
+            /// junction is exactly reverse-tangent by construction and
+            /// nothing is left for verification to contradict — emitting the
+            /// same DECLARED flag on lowering.
+            ///
+            /// This is the wedge-0/2π authoring door (D1's tier-3 ruling):
+            /// a solid swept from a loop with such a joint carries a cusp
+            /// edge, which is legal at rest exactly where the contact is
+            /// declared. A junction merely AUTHORED within ε_input of the
+            /// reverse is still [`PathError::JunctionCusp`] — the ladder
+            /// never infers a declaration from values, and this verb is what
+            /// that refusal now names.
+            on [T: Decide] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn cusp [(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng>] {
+                self.core.record(Step::Cusp);
+                self.cusp_kernel()
+            }
+            arms {
+                DynTip::DirectedPoint(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedIncoming(p0.cusp()))),
+            }
+        }
+    }
+
     #[doc = " `.turn(δ)` — depart at the incoming tangent rotated by δ."]
     verb Turn(T) bind (delta) rows {
         row {
@@ -704,7 +801,9 @@ transition_table! {
             /// A declared straight continuation of a straight leg
             /// (`.tangent().line(len)` after a line) IS the same carrier and
             /// refuses [`PathError::SameCarrierJunction`] — extend the
-            /// original leg instead.
+            /// original leg, or, where the extra vertex is the point, take the
+            /// straight-continuation row below: `line(len)` off the directed
+            /// point subdivides the carrier structurally and declares nothing.
             ///
             /// `len` must classify definitely positive
             /// ([`PathError::NonpositiveLeg`] otherwise): a negative length
@@ -723,6 +822,45 @@ transition_table! {
             arms {
                 DynTip::DirectedPlain(p0) => Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len, tol)?))),
                 DynTip::DirectedIncoming(p0) =>
+                    Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len, tol)?))),
+            }
+        }
+        row {
+            /// **The straight continuation** (`directed point → directed
+            /// point`): off a DIRECTED POINT — no director bound — the leg
+            /// departs along the point's own intrinsic tangent — the RAY
+            /// inherited bitwise, so consecutive legs run on ONE ray rather
+            /// than on two a round trip through the angle put a bit apart.
+            /// (The ray is what is exact; the vertices it lands are ordinary
+            /// sums and round like ordinary sums.) Binding bits
+            /// only: there is NO junction here (no authored direction exists to
+            /// classify, so nothing reaches the §4 item 1 check) and NOTHING is
+            /// declared. The minted vertex is a structural subdivision of the
+            /// carrier the binding bits already determine — a straight run said
+            /// on more vertices than it has corners, which is the loft
+            /// vertex-budget shape.
+            ///
+            /// The row is carrier-blind, as the §2c axiom requires: it reads
+            /// the tangent and nothing about the leg that produced it. Off an
+            /// ARC-carrier point the same spelling therefore authors a line
+            /// tangent to that arc and declares nothing, which is a tangency
+            /// between DISTINCT carriers — legal to write here, refused at the
+            /// data gate ([`crate::ProfileError::UndeclaredTangency`]); declare
+            /// it with `.tangent()` instead.
+            ///
+            /// `len` is gated definitely positive exactly as the directed row's
+            /// is ([`PathError::NonpositiveLeg`]).
+            on [T: Decide] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn line [(
+                mut self,
+                len: T,
+                tol: Tol,
+            ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>>] {
+                self.core.record(Step::Line(len));
+                self.straight_continuation_kernel(len, tol)
+            }
+            arms {
+                DynTip::DirectedPoint(p0) =>
                     Ok(Applied::Tip(DynTip::DirectedPoint(p0.line(len, tol)?))),
             }
         }
@@ -746,6 +884,72 @@ transition_table! {
             arms {
                 DynTip::PlainPoint(p0) => do_line_to(p0, target, tol),
                 DynTip::DirectedPoint(p0) => do_line_to(p0, target, tol),
+            }
+        }
+    }
+    #[doc = " `continue_to(target)` — the DECLARED straight continuation"]
+    #[doc = " landing on a named point; `Start` is the structural closer."]
+    verb ContinueTo(Target<T>) bind (target) rows {
+        row {
+            /// **The declared point-target continuation** (`directed point →
+            /// directed point`, and `→ closed loop` for [`Start`]): the same
+            /// leg the straight-continuation row emits, with its extent said
+            /// as an authored POINT instead of a length. The departure is the
+            /// directed point's own tangent — the RAY inherited bitwise, no
+            /// authored direction, no junction to classify — and the target
+            /// says where the leg stops.
+            ///
+            /// **The declaration is the verb.** `line_to(p)` computes a
+            /// direction toward `p` and classifies it, which is why a
+            /// collinear target refuses there: reading "this was meant to be
+            /// straight" off a direction that happened to land in band is the
+            /// value inference the ladder refuses. Here nothing is read off
+            /// the target's position: the leg is straight because the verb
+            /// says so, and the target is CHECKED against the ray it declared
+            /// — authored data verified against authored intent, the arc
+            /// verbs' consistency class. A target that misses refuses
+            /// [`PathError::ContinuationTargetOffRay`]; one behind the
+            /// departure is a non-positive leg, exactly as for `line(len)`.
+            ///
+            /// The check is BANDED, as every check here is (ruled 2026-09-01):
+            /// coincident with the ray below ε_precision, definitely off it
+            /// above ε_input, escalating in between. It is the declaration
+            /// that makes the band legal — with the intent authored there is
+            /// no coincidence to read intent from.
+            ///
+            /// The minted vertex is the AUTHORED TARGET, not its projection
+            /// onto the ray (§4 item 3: every authored point lies on the final
+            /// path). For [`Start`] that is what closing MEANS — the loop
+            /// reaches its entry vertex exactly — and it is why the closer can
+            /// end a run the tangent-arc close and the rotation cannot: those
+            /// two need a carrier to turn onto, and an all-sides-subdivided
+            /// outline has none.
+            ///
+            /// Closing runs the SEAM check unchanged: the junction between
+            /// this leg and the entry's own departure is the loop's, and PQ4
+            /// still wants a corner there
+            /// ([`PathError::SeamTangent`] when it is not one — a refusal
+            /// only a seam can produce). What the closer removes is the
+            /// DEPARTURE half of the old wall, which is the half a rotation
+            /// could never fix; that half is now an ordinary
+            /// [`PathError::JunctionTangent`], the same refusal any other
+            /// departure gets.
+            ///
+            /// Carrier-blind, as the §2c axiom requires — off an ARC-carrier
+            /// point this authors a line tangent to that arc and declares
+            /// nothing, legal to write and refused at the data gate
+            /// ([`crate::ProfileError::UndeclaredTangency`]), exactly as the
+            /// length form is.
+            on [T: Decide] PartialPath<T, HasPos<WithIncoming>, NoAng>;
+            fn continue_to [<Tgt: super::ContinueTarget<T>>(
+                self,
+                target: Tgt,
+                tol: Tol,
+            ) -> Tgt::Out] {
+                <Tgt as super::ContinueTarget<T>>::continue_from(self, target, tol)
+            }
+            arms {
+                DynTip::DirectedPoint(p0) => do_continue_to(p0, target, tol),
             }
         }
     }
@@ -1598,6 +1802,16 @@ impl<T: Real> ReplayError<T> {
     }
 }
 
+// The one home of the (state, verb) rendering rule, which
+// `editor-core`'s `ProgramFault::Lattice` repeats for the fault this
+// refusal raises there. The pair is a COORDINATE in the transition
+// table — the row a reader looks up next — so both halves render
+// through `Debug`: the variant spelling is the lookup key and a prose
+// paraphrase would not find it, which is the identifiers-as-location
+// case. Each is introduced by the noun it is ("verb", "tip") so the
+// identifier reads as a value in the sentence and not as a dump that
+// leaked into one. Scalars and typed payloads elsewhere in this
+// module render as words; these do not.
 impl<T: Real> core::fmt::Display for ReplayError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match &self.kind {
@@ -1606,14 +1820,15 @@ impl<T: Real> core::fmt::Display for ReplayError<T> {
                 verb: Some(verb),
             } => write!(
                 f,
-                "step {}: {verb:?} is not a legal continuation of a {state:?} tip \
-                 (lattice violation — no authoring surface can produce this program)",
+                "step {}: the {verb:?} verb is not a legal continuation of tip state \
+                 {state:?} (lattice violation — no authoring surface can produce this \
+                 program)",
                 self.step
             ),
             ReplayErrorKind::Transition { state, verb: None } => write!(
                 f,
-                "step {}: the program ends at a {state:?} tip without closing the loop \
-                 (lattice violation — a chain must end at Start)",
+                "step {}: the program ends at tip state {state:?} without closing the \
+                 loop (lattice violation — a chain must end at Start)",
                 self.step
             ),
             ReplayErrorKind::Path(source) => {
@@ -1702,6 +1917,17 @@ fn do_line_to<T: Decide, F: Flavor>(
     match t {
         Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.line_to(q, tol)?))),
         Target::Start => Ok(Applied::Closed(p.line_to(Start, tol)?)),
+    }
+}
+
+fn do_continue_to<T: Decide>(
+    p: PartialPath<T, HasPos<WithIncoming>, NoAng>,
+    t: Target<T>,
+    tol: Tol,
+) -> Applying<T> {
+    match t {
+        Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.continue_to(q, tol)?))),
+        Target::Start => Ok(Applied::Closed(p.continue_to(Start, tol)?)),
     }
 }
 

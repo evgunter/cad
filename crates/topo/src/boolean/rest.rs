@@ -500,15 +500,25 @@ type RestSurfaces = (SecondaryMap<SurfaceKey, ()>, SecondaryMap<SurfaceKey, ()>)
 /// only meters the angular sliver band (exact fixtures decide
 /// definitely either way).
 ///
-/// Both consumers go through this one function BY CONSTRUCTION: the
-/// verify-at-use site ([`verify_declared_pairs`], `declared: true`)
-/// and the LIB-SEL2 detector's candidate-generation mode
-/// (`declared: false`, then `true` for the orientation a declaration
-/// would later verify with). That construction is the anti-twin rule
-/// (SELECT-DESIGN §3b) applied to the last parameter standing: the
-/// #304 review's planted-drift probe showed a hand-mirrored arm
-/// passes every axis-aligned suite, so the arm is shared rather than
-/// mirrored.
+/// **Who calls this, exactly one caller, and where the shared arm
+/// really is.** This door has ONE consumer today: the flush
+/// detector's candidate-generation mode ([`crate::flush`],
+/// `declared: false`). Verify-at-use stopped calling it at M9-1, when
+/// [`verify_declared_pairs`] and the op's front door moved to the
+/// kind-generalized [`carrier_pair_relation`]. The anti-twin property
+/// (SELECT-DESIGN §3b) survives that move rather than resting on it,
+/// because the two doors CONVERGE one link down: `carrier_pair_relation`
+/// builds the same sense-folded plane description through
+/// [`face_carrier`]'s Plane arm and the same identity through
+/// [`face_plane_source`], and its `(Plane, Plane)` case delegates to
+/// [`oriented_plane_eq_verdict`](super::plane_eq::oriented_plane_eq_verdict)
+/// — the very function this door's [`super::oriented_plane_eq`] wraps.
+/// One verdict function, one set of `decide` sites, one verification
+/// arm, reached by two spellings of the same three inputs. The #304
+/// review's planted-drift probe showed a hand-mirrored arm passes
+/// every axis-aligned suite, which is why the arm is shared rather
+/// than mirrored — and why the chain above is stated rather than
+/// summarized as "the same door".
 ///
 /// `None`: not a planar pair — there is no description to compare
 /// (the detector's honest "not a v1 candidate"; the REST lane treats
@@ -536,9 +546,10 @@ pub fn flush_pair_relation<T: Decide>(
 /// the material side exactly as that door does (S10).
 ///
 /// `None` for a surface kind outside the `Rest` ladder's inventory
-/// (cone, torus, NURBS): the C4 table names plane, sphere and
-/// cylinder, and a kind it cannot compare refuses typed at the caller
-/// rather than being approximated by one it can.
+/// (cone, NURBS, `Approx`): the C4 table names the kinds
+/// [`mod@super::carrier_eq`] carries a rung for, and a kind it cannot
+/// compare refuses typed at the caller rather than being approximated
+/// by one it can.
 pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
     let f = body.get_face(face)?;
     let sign = f.sense_sign::<T>();
@@ -567,6 +578,19 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
             origin: *origin,
             axis: *axis,
             radius: *radius,
+            outward,
+        }),
+        Some(geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        }) => Some(CarrierDesc::Torus {
+            center: *center,
+            axis: *axis,
+            major_radius: *major_radius,
+            minor_radius: *minor_radius,
             outward,
         }),
         _ => None,

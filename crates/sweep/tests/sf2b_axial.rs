@@ -13,17 +13,13 @@
 
 use core::f64::consts::PI;
 
-use geom_core::{Band, Point2, Tol, Vec2};
+use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, ShellError};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 const FIT_TOL: f64 = 1e-6;
@@ -127,7 +123,7 @@ fn two_chord_area(r: f64, t: f64) -> f64 {
 /// a relative one flatters itself by eight orders of magnitude.
 fn wall(what: &str, body: &Body<f64>) -> f64 {
     let tol = Tol::witness();
-    let hollow = topo::shell(body, T, FIT_TOL, band(), tol)
+    let hollow = topo::shell(body, T, FIT_TOL, tol)
         .unwrap_or_else(|e| panic!("{what}: the axial door must hollow this, got {e}"));
     assert_eq!(
         topo::validate_geometric(&hollow, tol),
@@ -224,13 +220,18 @@ fn the_drum_still_hollows_on_the_new_branch() {
 
 /// **The door's own boundary, measured rather than presumed.**
 ///
-/// Both rows are refusals this unit keeps, and each names a different
-/// reason:
+/// One row is a refusal that stands; the other has been RETIRED, and
+/// the retirement is asserted here rather than deleted:
 ///
-/// - a **torus** wall is outside the axial kinds, so the body never
-///   reaches this door at all and keeps the C5 table's own refusal
-///   about the pair — the honest boundary, and the reason nothing here
-///   widens `intersect::route`;
+/// - a **torus** wall is INSIDE the axial kinds. It is a surface of
+///   revolution about the body's own axis and its meridian is a circle
+///   centred `(R, h_c)`, which the reduction reads exactly as it reads
+///   a sphere's circle centred `(0, h_c)`. What the C5 table says about
+///   `plane × torus` (it now routes the pair's exact-degenerate closed
+///   forms, since VERBS-C5ARMS) is beside the point at this door: it
+///   does not call the table, and a full revolve's rim is a LATITUDE
+///   circle whose position the corner solves give. `torax_axial`
+///   carries the closed forms;
 /// - a **tangent** junction has no transversal corner to solve, and the
 ///   conditioning meter says so in the geometry's own terms. This is
 ///   the tangent bullet's differential, and it now refuses at a door
@@ -253,18 +254,15 @@ fn the_axial_door_names_its_own_boundary() {
         ]),
         Revolution::Full,
     );
-    let e = topo::shell(&torus_vase, T, FIT_TOL, band(), tol)
-        .expect_err("a torus wall is outside the axial kinds");
-    let ShellError::Face { error, .. } = e else {
-        panic!("not the offset door's refusal: {e}");
-    };
-    let topo::ReplaceFaceError::NeighborPairUnroutable {
-        kind, other_kind, ..
-    } = *error
-    else {
-        panic!("a torus keeps the C5 table's refusal, naming the pair: {error}");
-    };
-    println!("[axial] the torus belly: {kind:?} x {other_kind:?} has no closed-form arm");
+    let hollow =
+        topo::shell(&torus_vase, T, FIT_TOL, tol).expect("a torus wall is inside the axial kinds");
+    assert_eq!(
+        topo::validate_geometric(&hollow, tol),
+        Ok(()),
+        "the torus vase's hollow: tier 3"
+    );
+    assert_eq!(hollow.shells().count(), 2, "outer + cavity");
+    println!("[axial] the torus belly hollows through the axial door");
 
     // A hemisphere TANGENT to its cylinder: same pair as the bellied
     // pot's foot junction, differing only in the angle between them.
@@ -278,7 +276,7 @@ fn the_axial_door_names_its_own_boundary() {
         .with_tangent_joints(vec![2]),
         Revolution::Full,
     );
-    let e = topo::shell(&dome, T, FIT_TOL, band(), tol)
+    let e = topo::shell(&dome, T, FIT_TOL, tol)
         .expect_err("a tangent junction has no transversal corner");
     let ShellError::Face { error, .. } = e else {
         panic!("not the offset door's refusal: {e}");

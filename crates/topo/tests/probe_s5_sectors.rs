@@ -1,11 +1,11 @@
-//! S5 sector-predicate probe: the FULL recorded margin stream of a
+//! Sector-predicate probe: the FULL recorded margin stream of a
 //! boolean run and a plane-split run at the recording scalar, printed
 //! in RECORDED ORDER, for merge-base-vs-tip byte-identity diffing.
 //!
 //! Why it exists: the vertex-neighborhood sector-shape rungs (metering
 //! arm, wideness, subdivision direction) used to be written twice, once
 //! per lane, and were merged into [`topo`]'s shared `sector_shape`
-//! module (smell scan S5). #647 merged the bodies with the K predicate
+//! module. #647 merged the bodies with the K predicate
 //! names still a per-lane parameter; **#652 then pooled the names**,
 //! six into three. Each of those steps has a load-bearing claim about
 //! this stream — "same names, same margins" for the first, "same

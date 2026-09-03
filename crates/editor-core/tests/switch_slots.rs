@@ -185,8 +185,9 @@ fn program_slots_refuse_wrong_dimensions() {
 }
 
 /// VQ9 direction one: an edit that breaks the program under the
-/// CURRENT env refuses typed AT THE DOOR (geometry class, rendered;
-/// the full typed error is evaluation's).
+/// CURRENT env refuses typed AT THE DOOR — and WHICH geometry refusal
+/// fired is read off the typed class, not the rendered sentence, so
+/// rewording a `Display` arm cannot move this assertion.
 #[test]
 fn program_breaking_slot_edit_refuses_at_the_door() {
     let doc = circle_doc(0.5);
@@ -204,11 +205,12 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
                 ProgramRefusal::Geometry {
                     loop_: 0,
                     step: 0,
-                    rendered,
+                    kind,
+                    ..
                 },
         }) => {
             assert_eq!(node, RecipeNodeId(0));
-            assert!(rendered.contains("radius"), "{rendered}");
+            assert_eq!(kind, profile::PathErrorKind::NonpositiveCircleRadius);
         }
         other => panic!("r = 0 must refuse at the edit door, got {other:?}"),
     }

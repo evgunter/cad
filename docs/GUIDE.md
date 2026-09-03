@@ -212,7 +212,7 @@ only number that differs.
 Profiles are closed loops on a sketch plane, and there is one way to
 say one: the PATHS algebra, where you walk the outline and the type
 system tracks what the tip has bound. (Raw `ProfileLoop` vertex tables
-are kernel vocabulary and not part of this surface — Evan's ruling on
+are kernel vocabulary and not part of this surface — Ev's ruling on
 #413. The lattice is not merely the nicer spelling; it is the one that
 classifies each junction as you author it, so a corner that is
 accidentally tangent or reversed refuses here rather than at
@@ -930,12 +930,23 @@ assert all(
     n == 1 and half_edges.get(e[::-1]) == 1 for e, n in half_edges.items()
 ), "watertight and consistently wound"
 
-#    Then volume, by the divergence theorem over the same triangles.
+#    Then volume, by the divergence theorem over the same triangles,
+#    with each tetrahedron measured from `o`, the positions' own
+#    bounding-box centre. For a closed mesh the anchor cancels out over
+#    the reals, so this is the same volume from any anchor; in floating
+#    point it is the choice that keeps the products at the body's own
+#    scale instead of at its distance from the world origin.
 #    The winding is OUTWARD, so this is positive for a closed body.
 points = [tuple(q.meters for q in p) for p in mesh.positions]
+lo = [min(q[d] for q in points) for d in range(3)]
+hi = [max(q[d] for q in points) for d in range(3)]
+o = [lo[d] + (hi[d] - lo[d]) * 0.5 for d in range(3)]
 measured = 0.0
 for i, j, k in mesh.triangles:
-    (ax, ay, az), (bx, by, bz), (cx, cy, cz) = points[i], points[j], points[k]
+    (ax, ay, az), (bx, by, bz), (cx, cy, cz) = (
+        tuple(q[d] - o[d] for d in range(3))
+        for q in (points[i], points[j], points[k])
+    )
     measured += (
         ax * (by * cz - bz * cy)
         - ay * (bx * cz - bz * cx)

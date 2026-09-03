@@ -415,11 +415,23 @@ pub fn boolean_op_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // decided by boxes (`reduce::first_unsupported_pair` — non-overlap
     // is a certificate, overlap is a may). Operands untouched, no
     // reduction work before it.
+    //
+    // **No covered-pair rung here, and the asymmetry is the point.**
+    // The operand gate admits a declared pair because a declaration
+    // supplies the VERDICT a germ arm would have supplied. This roster
+    // is not about verdicts: it names the kinds that have a seam lane
+    // to revert through, and no declaration can supply one. A declared
+    // torus pair under ∖ or ∩ is therefore exactly as refused as an
+    // undeclared one, and says so at the same site.
     if !matches!(op, BooleanOp::Union) {
         let band = Band::linear(tol)?;
-        if let Some(p) =
-            super::reduce::first_unsupported_pair(a, b, band, super::reduce::revert_arm_exists)?
-        {
+        if let Some(p) = super::reduce::first_unsupported_pair(
+            a,
+            b,
+            band,
+            super::reduce::revert_arm_exists,
+            |_, _, _| false,
+        )? {
             return Err(BooleanError::CurvedPairUnsupported {
                 op: Some(op),
                 operand: p.operand,
@@ -759,7 +771,7 @@ pub(super) fn volume_backstop<T: Decide>(
     // ordinary mm-scale operands in the band and switched their bound
     // checks off. The skip zone survives, now meaning sub-resolution
     // thickness — which is what it always claimed to mean.)
-    // The backstops live on the INVARIANT LANE (Evan's #213 layering
+    // The backstops live on the INVARIANT LANE (Ev's #213 layering
     // ruling): consistency inequalities between integral results are
     // outside the length seam by design — no door, bare T — and a
     // certified violation is a kernel invariant failure, not a
@@ -1483,18 +1495,20 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                 continue;
             }
             seen.push(fd.surface);
-            // The group-arm discipline (PR 9c): the extent `center ± r`
-            // is the whole group's, so it is only honest for a CLOSED
-            // group — a trimmed sphere face refuses typed.
-            let Some(representative) = closed_sphere_group(x, face) else {
-                return Err(BooleanError::FallbackExtentUnsupported {
-                    operand: x_is,
-                    face,
-                    what: "a trimmed sphere face group — the extent certificate needs the \
-                           closed-group discipline, and no per-face chart-trim extent \
-                           exists",
-                });
-            };
+            // **Closedness is asked where it is USED, not on arrival.**
+            // The certificate this scan spends is `center ± r`, and for
+            // a TRIMMED group that box over-claims — which is the sound
+            // direction for every SEPARATION test below, because a
+            // trimmed face is a subset of the sphere and a box that
+            // proves the whole sphere clear proves the subset clear.
+            // What genuinely needs the closed group is the plane arm's
+            // ESCAPE conclusion: it reasons about the whole section
+            // circle of the sphere CARRIER, and it hands the result to
+            // a re-chart that rotates the group about its own centre —
+            // neither statement survives trimming. So the refusal lives
+            // at that conclusion, and a trimmed group whose extent
+            // clears everything gets its answer like any other.
+            let group = closed_sphere_group(x, face);
             let ball_box = bvh::Aabb {
                 min_x: center.x.lo() - radius.hi(),
                 min_y: center.y.lo() - radius.hi(),
@@ -1618,6 +1632,25 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                     // elsewhere).
                                     FaceContainment::Out => {}
                                     FaceContainment::In => {
+                                        // The escape is the one
+                                        // conclusion the closed group
+                                        // is load-bearing for: the
+                                        // whole-circle membership just
+                                        // decided is the CARRIER's, and
+                                        // the re-chart it feeds rotates
+                                        // the group about its centre.
+                                        if group.is_none() {
+                                            return Err(BooleanError::FallbackExtentUnsupported {
+                                                operand: x_is,
+                                                face,
+                                                what: "a TRIMMED sphere face group escapes \
+                                                           through a plane face — the whole \
+                                                           section circle is the carrier's, not \
+                                                           the trimmed face's, and the re-chart \
+                                                           that would follow rotates a closed \
+                                                           group about its own centre",
+                                            });
+                                        }
                                         escape_normals.push(normal);
                                     }
                                     // Boxes cleared yet the witness is
@@ -1688,9 +1721,13 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                             face,
                                             what: "two sphere boundaries meet (neither \
                                                    separated nor strictly nested) — the \
-                                                   sphere×sphere germ arm (a closed-form \
-                                                   Circle) has no join lane in this \
-                                                   build",
+                                                   sphere×sphere section is the exact \
+                                                   closed-form Circle and the germ frame \
+                                                   names it, but the JOIN has no arm for a \
+                                                   curved×curved germ pair: its arc-side \
+                                                   rule needs a chart the pair does not \
+                                                   have, and a crossing found here would \
+                                                   pierce a curved face first",
                                         });
                                     }
                                 }
@@ -1740,7 +1777,11 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                     }
                 }
             }
-            if let Some((&align, rest)) = escape_normals.split_first() {
+            // An escape was recorded, so the group is closed (the arm
+            // above refuses otherwise) and has a representative.
+            if let (Some((&align, rest)), Some(representative)) =
+                (escape_normals.split_first(), group)
+            {
                 // ONE alignment per group (M5 S13 fix pass, review
                 // MAJOR): the re-chart makes every section polar only
                 // when ALL of this group's escape planes share a
@@ -1836,8 +1877,18 @@ fn sphere_extent_scan<T: Decide + Bounds>(
 /// - against a SPHERE face the scan's own sphere arm already refuses
 ///   on reach, and it says so in the sphere's words rather than the
 ///   cylinder's — this gate must not shadow it.
-/// - cone, torus and NURBS partners never reach here: the operand gate
-///   refuses the pair up front.
+/// - cone and NURBS partners never reach here: the operand gate refuses
+///   the pair up front, on the KIND, and nothing can cover them — the
+///   certified carrier inventory has no rung for either, so neither can
+///   survive into a declaration.
+/// - a TORUS partner CAN reach here, and only through a declaration
+///   that covers the pair. The kind roster still refuses it otherwise.
+///   This gate is a cylinder-wall gate and says nothing about a torus
+///   partner either way; what answers a covered torus pair is the
+///   crossing layer's own frontier, typed. The premise this bullet used
+///   to state — that the kind never arrives — stopped being true when
+///   the gate learned to read declarations, and a stale "never reaches
+///   here" is exactly the sentence a later reader would build on.
 ///
 /// **Reach first, kind second** (the scan's cone/torus arm's rule,
 /// kept): the gate costs nothing to a wall whose certified box cannot

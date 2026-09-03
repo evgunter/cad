@@ -16,6 +16,7 @@
 //! and slot it came from.
 
 mod anchor;
+pub mod measure;
 mod memo;
 pub(crate) mod parts;
 
@@ -24,6 +25,8 @@ mod schedule;
 mod slots;
 mod wire;
 
+pub(crate) use wire::{SteppedOperands, stepped_rule_map, unit as unit_direction};
+
 pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue, embed_profile};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 
@@ -31,7 +34,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
-use geom_core::{Decide, Indeterminate, Point3, Vec3};
+use geom_core::{Decide, Indeterminate};
 use profile::ProfileError;
 use sweep::{ExtrudeError, RevolveError, SkinError, TubeError};
 use topo::splitting::SplitError;
@@ -269,6 +272,22 @@ pub enum ValuePayload<T: Decide> {
     /// it exactly as it skips a `Declare` — which is what "an ordinary
     /// non-body root" means in code.
     Mate(crate::mate::MateRole),
+    /// A `Measure` node's typed F1 quantity (E3): the measured value
+    /// in kernel units with the dimension it was measured in. Not
+    /// body-denoting — the product gather skips it exactly as it skips
+    /// a declaration.
+    Measure {
+        /// The measured value, in canonical kernel units.
+        value: T,
+        /// Its F1 dimension, carried FROM the expression rather than
+        /// re-derived: the quantity kind rides the expression (E3), so
+        /// a reader never has to reconstruct it from the number.
+        dim: crate::expr::Dimension,
+    },
+    /// An `Assertion` node's verdict (E10). REPORT-ONLY: no op in the
+    /// vocabulary takes a verdict as an operand, so this payload is
+    /// consumed by reports and by nothing else.
+    Assertion(crate::measure::AssertionVerdict<T>),
 }
 
 impl<T: Decide> ValuePayload<T> {
@@ -283,6 +302,8 @@ impl<T: Decide> ValuePayload<T> {
             Self::Instances(_) => "instances",
             Self::Declarations(_) => "declarations",
             Self::Mate(_) => "mate",
+            Self::Measure { .. } => "measure",
+            Self::Assertion(_) => "assertion",
         }
     }
 }
@@ -314,31 +335,26 @@ pub enum SplitSide<T: Decide> {
     Body(Arc<Body<T>>),
 }
 
-/// An evaluated datum (spec D3): geometry VALUES, not kernel entities.
-/// Normals/directions are normalized at evaluation; a degenerate
-/// (decided-zero-length) vector is a typed refusal.
-#[derive(Debug, Clone)]
-pub enum DatumValue<T: Decide> {
-    /// A plane through `origin` with UNIT `normal`.
-    Plane {
-        /// A point on the plane.
-        origin: Point3<T>,
-        /// The unit normal.
-        normal: Vec3<T>,
-    },
-    /// An axis through `origin` along UNIT `dir`.
-    Axis {
-        /// A point on the axis.
-        origin: Point3<T>,
-        /// The unit direction.
-        dir: Vec3<T>,
-    },
-    /// A point.
-    Point {
-        /// Its position.
-        position: Point3<T>,
-    },
-}
+// An evaluated datum (spec D3): geometry VALUES, not kernel entities,
+// which is why the type itself lives at the kernel query seat
+// (`topo::query`) — it is the resolved comparand the decided distance
+// predicate takes, and this layer's evaluation is what mints one. Its
+// normals and axis directions are `UnitVec3`, whose constructor is
+// where a degenerate, decided-zero-length vector becomes a typed
+// refusal; this layer maps that refusal onto its own node error and
+// invents nothing. `DatumValue` is re-exported at its historical home,
+// so no consumer's path to it moved — but the surface GREW: the two
+// `UnitVec3` names are new here, and they are not optional decoration.
+// A consumer cannot build a datum, or read a normal back out of one,
+// without naming the type that carries the invariant.
+pub use topo::query::{DatumValue, UnitVec3, UnitVec3Error};
+
+// `NodeErrorKind::VerbArity` carries the kernel's verb name and
+// declared-arity types in a pub payload, so both cross with it — the
+// discriminant-crosses-with-the-refusal rule the pncad prelude writes
+// at its `BlendKind` row. Without these a consumer could match the
+// variant but never name what it caught.
+pub use verbs::{Arity, VerbKind};
 
 /// A node's typed failure: the wrapped cause plus the node it happened
 /// at (spec D2's context contract; slot context lives in
@@ -429,7 +445,7 @@ pub enum NodeErrorKind {
     /// numbered predicates, a corner or spine class the in-place
     /// surgery has not been built for, or an escalation. Which door
     /// refused, and what it refused about, is stated on
-    /// [`sweep::fillet::FilletError`]'s own variants and rendered by
+    /// [`sweep::blend::BlendError`]'s own variants and rendered by
     /// its `Display` — this doc names no predicate of its own, so it
     /// cannot drift from one.
     ///
@@ -441,9 +457,9 @@ pub enum NodeErrorKind {
     /// never passes its input body through.
     Blend {
         /// Which blend the refusing node is.
-        verb: sweep::fillet::BlendKind,
+        verb: sweep::blend::BlendKind,
         /// The kernel's own refusal.
-        error: sweep::fillet::FilletError,
+        error: sweep::blend::BlendError,
     },
     /// The boolean op refused.
     Boolean(BooleanError),
@@ -491,6 +507,16 @@ pub enum NodeErrorKind {
         /// The process's committed ε.
         process_eps: f64,
     },
+    /// The evaluation's parameter box could not bind an environment at
+    /// this scalar (E6's leaf-replay door): the box names a parameter
+    /// the document does not carry, or the scalar cannot represent a
+    /// widened axis. Refused on EVERY node, like the ε conflict above
+    /// and for the same reason — the alternative is answering a
+    /// different question in the same shape.
+    ParamBox {
+        /// The door's refusal, unaltered.
+        source: crate::analysis::ParamBoxError,
+    },
     /// An input's value family does not fit this operand (e.g. a
     /// boolean fed a split's two-part value — selecting a part needs
     /// PR 3's naming layer).
@@ -515,6 +541,15 @@ pub enum NodeErrorKind {
         /// Which vector, by role.
         role: &'static str,
     },
+    /// A direction-valued vector whose LENGTH is not a finite number:
+    /// components large enough to overflow the norm, or a poisoned
+    /// one. A separate fact from a zero length and a separate
+    /// recourse — the model is outside the range its own arithmetic
+    /// can measure, and the fix is scale, not direction.
+    NonFiniteDirection {
+        /// Which vector, by role.
+        role: &'static str,
+    },
     /// The ambient tolerance could not form a classification band.
     Band(geom_core::BandError),
     /// A slot the wiring expected was absent from the node — a wiring
@@ -523,6 +558,18 @@ pub enum NodeErrorKind {
     MissingSlot {
         /// The absent slot.
         slot: SlotId,
+    },
+    /// A verb run door was handed a different operand count than the
+    /// verb declares — [`NodeErrorKind::MissingSlot`]'s class: a
+    /// wiring bug surfaced typed (unreachable while the per-verb
+    /// correspondences and the run doors agree; no panic paths in this
+    /// crate).
+    VerbArity {
+        /// The verb whose door refused.
+        verb: verbs::VerbKind,
+        /// The operand count the door was handed; the declared count
+        /// is `verb.arity()`.
+        given: verbs::Arity,
     },
     /// A decided predicate escalated (in-band indeterminacy).
     Escalated {
@@ -638,7 +685,7 @@ pub enum NodeErrorKind {
     /// a chamfer's refusal says "chamfer".
     BlendSelectionResolve {
         /// Which blend the refusing node is.
-        verb: sweep::fillet::BlendKind,
+        verb: sweep::blend::BlendKind,
         /// The resolution failure (N5's closed trio).
         error: Box<crate::resolve::ResolveError>,
     },
@@ -648,7 +695,7 @@ pub enum NodeErrorKind {
     /// than reinterpreted.
     BlendSelectionKind {
         /// Which blend the refusing node is.
-        verb: sweep::fillet::BlendKind,
+        verb: sweep::blend::BlendKind,
         /// The offending name.
         name: Box<crate::names::StableName>,
         /// What it actually denotes.
@@ -660,7 +707,7 @@ pub enum NodeErrorKind {
     /// input).
     BlendSelectionEmpty {
         /// Which blend the refusing node is.
-        verb: sweep::fillet::BlendKind,
+        verb: sweep::blend::BlendKind,
     },
     /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
     /// M4 PR 4 pins the document semantics — a per-node failure
@@ -697,6 +744,87 @@ pub enum NodeErrorKind {
         mate: RecipeNodeId,
         /// The part-side reference that did not resolve.
         name: Box<crate::names::StableName>,
+    },
+    /// A `Node::Measure` reference failed to resolve against the value
+    /// of the node it is read AT (E3) — the same N5 typed trio as
+    /// [`NodeErrorKind::BlendSelectionResolve`], and for the same
+    /// reason: a measurement's references are a commitment, so a name
+    /// that stopped resolving refuses loudly rather than measuring
+    /// whatever is left.
+    MeasureRefResolve {
+        /// The resolution failure (N5's closed trio).
+        error: Box<crate::resolve::ResolveError>,
+    },
+    /// A `Node::Measure` reference resolved into a value that carries
+    /// no bodies, or into an output body its value does not have — the
+    /// naming emission and the value disagree, or the reference names
+    /// a datum. Carries the interrogation layer's own words.
+    MeasureRefUnreadable {
+        /// The reference.
+        name: Box<crate::names::StableName>,
+        /// Why it could not be read back.
+        error: crate::names::InterrogateError,
+    },
+    /// A measured expression evaluated to a NON-FINITE value — the
+    /// same ruled door `expr::eval` applies to a document expression,
+    /// applied to the measurement sublanguage's own arithmetic.
+    ///
+    /// It is its own arm rather than a reuse of
+    /// [`NodeErrorKind::Expr`] because there is no SLOT to name: a
+    /// measured expression has no slot vocabulary, and the honest
+    /// address is the node.
+    MeasureNonFinite {
+        /// The expression evaluator's refusal, unaltered.
+        source: EvalError,
+    },
+    /// A measured pair IS in the v1 table, but the arm needs its two
+    /// carriers PARALLEL and they are decidedly not. Distinct from
+    /// [`NodeErrorKind::MeasureUnsupported`] on purpose: telling an
+    /// author that two cylinder walls are an unsupported pair is
+    /// false, and sends them looking for a missing feature instead of
+    /// at their tilt.
+    MeasureNotParallel {
+        /// Which primitive was asked.
+        verb: &'static str,
+        /// The first operand's carrier class.
+        a: &'static str,
+        /// The second operand's carrier class.
+        b: &'static str,
+        /// The funnel predicate that decided them non-parallel.
+        predicate: &'static str,
+    },
+    /// The measured expression has no closed form for the carrier pair
+    /// it was asked about (E3's honest v1 scope).
+    MeasureUnsupported(measure::MeasureUnsupported),
+    /// A `Node::Measure` carries an expression whose primitive reads a
+    /// reference the node does not have. Refused at the construction
+    /// and load doors; this is the evaluation backstop, so a corrupt
+    /// node reaches a typed refusal rather than a panic.
+    MeasureMalformed(crate::node::MeasureNodeFault),
+    /// A node's PAYLOAD expression failed to evaluate — a measured
+    /// expression's value leaf, or an assertion's bound.
+    ///
+    /// The address is the expression's position in `payload_exprs`
+    /// order, because neither carrier has a slot vocabulary to name.
+    /// The rendering says WHICH kind it is: calling an assertion's
+    /// failed bound "value leaf 0 of the measured expression" named a
+    /// thing an assertion does not have.
+    PayloadExpr {
+        /// Which node kind's payload this is, for the message.
+        what: &'static str,
+        /// The expression's index in `payload_exprs` order.
+        index: usize,
+        /// The expression evaluator's refusal, unaltered.
+        source: EvalError,
+    },
+    /// An `Assertion`'s bound is dimensioned differently from the
+    /// measure it constrains — comparing metres with radians is a
+    /// document fault, refused rather than compared.
+    AssertionDimension {
+        /// The measure's dimension.
+        measured: crate::expr::Dimension,
+        /// The bound's.
+        bound: crate::expr::Dimension,
     },
 }
 
@@ -815,12 +943,13 @@ impl core::fmt::Display for NodeErrorKind {
                 name,
             } => write!(
                 f,
-                "instance {}'s seam declaration from mate {} names a {} of the part \
+                "instance {}'s seam declaration from mate {} names {} {} of the part \
                  (minted by its node {}), which the pinned part's product does not \
                  name — the crossing does not re-verify against this version of the \
                  part",
                 instance.0,
                 mate.0,
+                name.kind.article(),
                 name.kind.noun(),
                 name.node.0
             ),
@@ -854,13 +983,14 @@ impl core::fmt::Display for NodeErrorKind {
                 "document ε {document_eps:e} conflicts with the process ε {process_eps:e} \
                  (one process, one ε)"
             ),
+            Self::ParamBox { source } => write!(f, "parameter box: {source}"),
             Self::WrongOperand {
                 input,
                 expected,
                 found,
             } => write!(
                 f,
-                "input {} is a {found}; the operand needs a {expected}",
+                "input {} carries kind {found}; the operand needs kind {expected}",
                 input.0
             ),
             Self::EmptyOperand { input } => write!(
@@ -871,6 +1001,12 @@ impl core::fmt::Display for NodeErrorKind {
             Self::DegenerateDirection { role } => {
                 write!(f, "the {role} direction has zero length")
             }
+            Self::NonFiniteDirection { role } => write!(
+                f,
+                "the {role} direction has no finite length — its components \
+                 overflow the norm, or one of them is not a number; scale \
+                 the geometry into the session's range"
+            ),
             Self::Band(e) => write!(
                 f,
                 "the ambient tolerance could not form a classification band: {e}"
@@ -880,6 +1016,17 @@ impl core::fmt::Display for NodeErrorKind {
                     f,
                     "internal: the wiring expected slot {slot:?}, which is absent"
                 )
+            }
+            // The sentence is single-homed at the run doors' own
+            // refusal (`verbs::VerbError::Arity`); this arm re-wraps
+            // the same fields and forwards its Display, so the two
+            // layers cannot drift apart.
+            Self::VerbArity { verb, given } => {
+                let refusal = verbs::VerbError::Arity {
+                    verb: *verb,
+                    given: *given,
+                };
+                write!(f, "internal: {refusal}")
             }
             Self::Escalated { predicate, source } => write!(
                 f,
@@ -912,12 +1059,13 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "a declared name failed to resolve through the operands' tables: {error}"
             ),
+            // Forwards `StableName`'s `Display` rather than
+            // re-spelling the kind-plus-minting-node phrase; the pin
+            // builds its expectation from the impl.
             Self::DeclareBothOperands { name } => write!(
                 f,
-                "the declared {} name minted by node {} resolves in BOTH operands — the \
-                 declaration cannot pick a side",
-                name.kind.noun(),
-                name.node.0
+                "the declared {name} resolves in BOTH operands — the declaration cannot \
+                 pick a side"
             ),
             Self::DeclareUnsupportedPair { kinds, .. } => write!(
                 f,
@@ -939,13 +1087,50 @@ impl core::fmt::Display for NodeErrorKind {
             }
             Self::BlendSelectionKind { verb, name, found } => write!(
                 f,
-                "the {verb} selection name minted by node {} denotes a {}, not an edge",
+                "the {verb} selection name minted by node {} denotes {} {}, not an edge",
                 name.node.0,
+                found.article(),
                 found.noun()
             ),
             Self::BlendSelectionEmpty { verb } => write!(
                 f,
                 "the {verb} selection is empty — an unfinished recipe, not the identity"
+            ),
+            Self::MeasureRefResolve { error } => {
+                write!(f, "a measure reference failed to resolve: {error}")
+            }
+            Self::MeasureRefUnreadable { name, error } => write!(
+                f,
+                "the measure reference minted by node {} could not be read back: {error}",
+                name.node.0
+            ),
+            Self::MeasureUnsupported(refusal) => write!(f, "{refusal}"),
+            Self::MeasureNotParallel {
+                verb,
+                a,
+                b,
+                predicate,
+            } => write!(
+                f,
+                "`{verb}` of {a} against {b} needs them parallel, and {predicate} decided they \
+                 are not — this pair IS in the v1 table, so the tilt is what to fix"
+            ),
+            Self::MeasureNonFinite { source } => write!(
+                f,
+                "the measured expression did not evaluate to a finite value: {source}"
+            ),
+            Self::PayloadExpr {
+                what,
+                index,
+                source,
+            } => write!(f, "{what} {index} failed to evaluate: {source}"),
+            Self::MeasureMalformed(fault) => write!(f, "{fault}"),
+            Self::AssertionDimension { measured, bound } => write!(
+                f,
+                "the assertion's bound is {} {bound} and the measure it constrains is \
+                 {} {measured} — an assertion compares like with like or not at all",
+                bound.article(),
+                measured.article()
             ),
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
@@ -1015,12 +1200,24 @@ impl CancelToken {
 /// requirement rather than restate it, and the compound `Bounds` bound
 /// stays inside the seam the 2026-07-29 Bounds scope rule ratified.
 pub trait EvalScalar:
-    Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy
+    Decide
+    + ContentBits
+    + geom_core::Bounds
+    + Send
+    + Sync
+    + topo::AtRestPolicy
+    + crate::analysis::AxisScalar
 {
 }
 
 impl<T> EvalScalar for T where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy
+    T: Decide
+        + ContentBits
+        + geom_core::Bounds
+        + Send
+        + Sync
+        + topo::AtRestPolicy
+        + crate::analysis::AxisScalar
 {
 }
 
@@ -1056,6 +1253,17 @@ pub struct EvalOptions {
     /// this evaluation's scalar. Default [`ProfileLift::Pinned`] — the
     /// build path, unchanged.
     pub profile_lift: ProfileLift,
+    /// The PARAMETER BOX this evaluation runs over (E6's leaf replay):
+    /// each named axis binds `nominal + [lo, hi]` instead of the
+    /// nominal. `None` — the default — is the nominal build, and is
+    /// what every build-path evaluation passes.
+    ///
+    /// Scalar-free by construction: the box is offsets, and the
+    /// evaluation's own scalar decides whether it can carry them
+    /// ([`crate::analysis::AxisScalar`]). A scalar that cannot refuses
+    /// the whole evaluation, node by node, rather than quietly
+    /// evaluating at the nominals.
+    pub param_box: Option<Arc<crate::analysis::ParamBox>>,
 }
 
 /// Where profile geometry comes from at a non-`f64` scalar.
@@ -1096,6 +1304,7 @@ impl Default for EvalOptions {
             boolean_sweep: topo::SweepStrategy::Realized,
             resolver: None,
             profile_lift: ProfileLift::Pinned,
+            param_box: None,
         }
     }
 }
@@ -1120,7 +1329,7 @@ pub fn evaluate<T>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: EvalScalar,
 {
     evaluate_at_descent(doc, prior, cancel, opts, &[], tol)
 }
@@ -1139,7 +1348,7 @@ pub(crate) fn evaluate_nested<T>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: EvalScalar,
 {
     evaluate_at_descent(doc, None, cancel, opts, chain, tol)
 }
@@ -1153,7 +1362,7 @@ fn evaluate_at_descent<T>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: EvalScalar,
 {
     let sched = schedule::schedule(doc);
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
@@ -1163,7 +1372,18 @@ where
     if doc.epsilon().to_bits() != process_eps.to_bits() {
         return refuse_tolerance_conflict(doc, sched, opts, process_eps);
     }
-    let env = doc.param_env::<T>();
+    // The lane environment, built ONCE and shared by every reader
+    // below (slot evaluation, the lift's second pass, the two profile
+    // ladders): one environment per evaluation is what makes "this run
+    // evaluated over that box" a fact about the run rather than about
+    // each call site.
+    let env = match opts.param_box.as_deref() {
+        None => doc.param_env::<T>(),
+        Some(b) => match crate::analysis::param_env_over::<T, _>(doc, b) {
+            Ok(env) => env,
+            Err(source) => return refuse_param_box(doc, sched, opts, source),
+        },
+    };
     let parts = parts::PartCache::<T>::new(
         opts.resolver.as_ref(),
         chain,
@@ -1181,7 +1401,10 @@ where
         boolean_sweep: opts.boolean_sweep,
         parts: &parts,
         poses: &poses,
-        profile_lift: opts.profile_lift,
+        lane: wire::LaneEnv {
+            lift: opts.profile_lift,
+            params: &env,
+        },
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
     let mut recomputed = 0usize;
@@ -1269,15 +1492,50 @@ where
     }
 }
 
-/// The all-nodes ToleranceConflict refusal (spec D4 door): a TOTAL
-/// evaluation in which every live node fails typed and the appearance
-/// store resolves against all-failed states (typed losses, nothing
-/// silent).
+/// The all-nodes ToleranceConflict refusal (spec D4 door).
 fn refuse_tolerance_conflict<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
     process_eps: f64,
+) -> Evaluation<T>
+where
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+{
+    let document_eps = doc.epsilon();
+    refuse_every_node(doc, sched, opts, move || NodeErrorKind::ToleranceConflict {
+        document_eps,
+        process_eps,
+    })
+}
+
+/// The all-nodes parameter-box refusal: the box named a parameter the
+/// document does not have, or this evaluation's scalar cannot carry a
+/// widened axis. Loud on every node rather than narrowed to the
+/// nominals — an `f64` run that silently ignored its box would report
+/// the nominal build's answer for a question about a box.
+fn refuse_param_box<T>(
+    doc: &Doc<ProfileProgram>,
+    sched: schedule::Schedule,
+    opts: &EvalOptions,
+    source: crate::analysis::ParamBoxError,
+) -> Evaluation<T>
+where
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+{
+    refuse_every_node(doc, sched, opts, move || NodeErrorKind::ParamBox {
+        source: source.clone(),
+    })
+}
+
+/// A TOTAL evaluation in which every live node fails typed with the
+/// same document-level cause, and the appearance store resolves against
+/// all-failed states (typed losses, nothing silent).
+fn refuse_every_node<T>(
+    doc: &Doc<ProfileProgram>,
+    sched: schedule::Schedule,
+    opts: &EvalOptions,
+    kind: impl Fn() -> NodeErrorKind,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
@@ -1291,10 +1549,7 @@ where
                 id,
                 NodeResult::Failed(NodeError {
                     node: id,
-                    kind: NodeErrorKind::ToleranceConflict {
-                        document_eps: doc.epsilon(),
-                        process_eps,
-                    },
+                    kind: kind(),
                 }),
             )
         })
@@ -1351,7 +1606,7 @@ fn eval_node<T>(
     tol: Tol,
 ) -> NodeStep<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: EvalScalar,
 {
     let fail = |kind: NodeErrorKind| NodeStep {
         result: NodeResult::Failed(NodeError { node: id, kind }),
@@ -1431,6 +1686,37 @@ where
         _ => None,
     };
 
+    // PAYLOAD EXPRESSIONS (E3/E10): the measurement vocabulary carries
+    // `Expr`s that are not slots — a measured expression's value
+    // leaves, and an assertion's bound. They are still ordinary
+    // document expressions and are evaluated exactly once here, under
+    // the discipline `slots` states and for the same reason: these
+    // values feed BOTH the content key and the op, so a parameter edit
+    // under a bound moves the key rather than serving a stale memo.
+    let payload_values = match crate::node::payload_exprs(node) {
+        None => None,
+        Some(exprs) => {
+            let mut values = Vec::with_capacity(exprs.len());
+            for leaf in exprs {
+                match crate::expr::eval(leaf, env) {
+                    Ok(v) => values.push(v),
+                    Err(source) => {
+                        let what = match node {
+                            crate::node::Node::Assertion { .. } => "the assertion's bound,",
+                            _ => "value leaf of the measured expression,",
+                        };
+                        return fail(NodeErrorKind::PayloadExpr {
+                            what,
+                            index: values.len(),
+                            source,
+                        });
+                    }
+                }
+            }
+            Some(values)
+        }
+    };
+
     // The lift's second pass resolves the SAME program at the lane
     // scalar (M10-P PP5). It feeds the content key so a seeded or
     // widened profile parameter moves the key the way a magnitude slot
@@ -1450,9 +1736,9 @@ where
     // few dozen expression evaluations per profile node, in analysis
     // mode only. If that ever shows up in a profile, the fix is to pass
     // the value through — not to cache it somewhere both readers reach.
-    let lane_program = match (op_env.profile_lift, node, &resolved_program) {
+    let lane_program = match (op_env.lane.lift, node, &resolved_program) {
         (ProfileLift::Guided, crate::node::Node::Profile(program), Some(_)) => {
-            match program.resolve(&doc.param_env::<T>()) {
+            match program.resolve(env) {
                 Ok(r) => Some(r),
                 Err((slot, source)) => return fail(NodeErrorKind::Expr { slot, source }),
             }
@@ -1463,6 +1749,7 @@ where
     let content_key = content_key(
         node,
         &slot_values,
+        payload_values.as_deref(),
         resolved_program.as_deref(),
         lane_program.as_deref(),
         &upstream_keys,
@@ -1503,6 +1790,7 @@ where
         doc,
         results,
         &slot_values,
+        payload_values.as_deref(),
         profile_pre.as_ref(),
         op_env,
         tol,
@@ -1525,6 +1813,45 @@ where
     }
 }
 
+/// **The content-key tag of a MIGRATED verb** — the memoization
+/// commitment, held where memoization lives, matching on the kernel's
+/// own name for the verb.
+///
+/// The kernel says nothing about content keys; this crate says nothing
+/// about what a verb IS. What connects them is one exhaustive match
+/// over [`verbs::VerbKind`], so a variant added to the vocabulary
+/// breaks this file at compile rather than defaulting to a tag that
+/// already means something else.
+///
+/// **The numbers are the ones that were already here** and they do not
+/// move: they are the tags [`content_key`]'s match wrote inline before
+/// the vocabulary had a home, and `verb_content_tags_are_the_committed
+/// _numbers` pins each of them. Keys are process-internal and never
+/// persist, so a tag costs a memo invalidation and no schema — but an
+/// EXISTING tag must never be reused for a new meaning, which is the
+/// rule this whole tag space runs on.
+///
+/// It takes the payload-free [`verbs::VerbKind`] rather than a
+/// `&Verb<T>` because a content key is computed BEFORE the node's
+/// selection has resolved to arena keys or its slot to a scalar: at
+/// this point in evaluation there is no verb value to match on, only
+/// the verb's name — which is exactly what the tag is a function of.
+/// The boolean's NAME carries its op (`VerbKind::Boolean(op)`): union,
+/// intersect and subtract are three operations sharing one payload
+/// shape, and this tag space has kept them apart since v1, so the
+/// three rows below are three names — not payload leaking into the
+/// tag, and not a new structural word in the key (the op feeds nothing
+/// elsewhere, exactly as before).
+fn verb_content_tag(kind: verbs::VerbKind) -> u8 {
+    match kind {
+        verbs::VerbKind::Fillet => 17,
+        verbs::VerbKind::Chamfer => 24,
+        verbs::VerbKind::Boolean(topo::BooleanOp::Union) => 8,
+        verbs::VerbKind::Boolean(topo::BooleanOp::Intersect) => 9,
+        verbs::VerbKind::Boolean(topo::BooleanOp::Subtract) => 10,
+    }
+}
+
 /// The content key (spec D4): op kind, structural params, evaluated
 /// expression values AS BITS, upstream keys — plus the ambient
 /// tolerance (ε, k), which parameterizes every decision the kernel
@@ -1535,13 +1862,16 @@ where
 /// not read the witness, so the recompute reproduces identical
 /// results — W4's "semantically invisible", honestly re-derived
 /// rather than assumed).
-// The eighth argument is the lift's lane-resolved program: an
-// eighth INPUT to the key, which is the one thing a content key is
-// allowed to grow.
+// The two arguments past the seventh are both INPUTS to the key,
+// which is the one thing a content key is allowed to grow: the lift's
+// lane-resolved program, and the measurement vocabulary's
+// payload-expression values — the same input the slot values are,
+// arriving by a second route because a `MeasureExpr` is not a slot.
 #[allow(clippy::too_many_arguments)]
 fn content_key<T>(
     node: &crate::node::Node<ProfileProgram>,
     slot_values: &slots::SlotValues<T>,
+    payload_values: Option<&[T]>,
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     lane_program: Option<&[Vec<profile::Step<T>>]>,
     upstream_keys: &[ContentKey],
@@ -1577,10 +1907,35 @@ where
     // pre-bump process is reused by a post-bump one, anywhere, which is
     // exactly what a format version is for. Keys are process-internal
     // and never persisted (spec D3), so nothing on disk is affected.
+    // M10-2 GREW THE INPUT SET AGAIN AND DID NOT BUMP, which
+    // contradicts the rule stated above unless the exception is
+    // written down — so here it is.
+    //
+    // The measurement vocabulary added the payload-expression channel
+    // (a measured expression's value leaves, an assertion's bound).
+    // The channel writes NOTHING for a node that carries none:
+    // `node::payload_exprs` answers `None`, not an empty vector, and
+    // the `if let Some` below skips the length word entirely. So every
+    // key a document without measures can produce is byte-identical to
+    // the pre-M10-2 one.
+    //
+    // Bumping would have moved all of them — the radius paragraph
+    // above says every node — and broken the very claim the unit is
+    // measured against: a document that uses no measure is untouched.
+    // The rule the comment states is about input sets that could
+    // COLLIDE or DRIFT two different nodes onto one key; a channel no
+    // existing node reaches is strictly additive and is the case the
+    // rule does not cover. A future channel that any existing node
+    // writes into gets the bump.
     h.write_tag(3);
     let tol = tol.get();
     h.write_f64_bits(tol.eps);
     h.write_f64_bits(tol.k);
+    // NODE-TAG-SPACE BEGIN — the sentinel `node_tag_space_is_injective`
+    // reads. Every number between here and the END sentinel is a tag in
+    // ONE space, whether it is written inline or comes back from
+    // `verb_content_tag`; do not move a tag out of these lines without
+    // teaching that test where it went.
     let tag = match node {
         Node::Datum(Datum::Plane { .. }) => 1,
         Node::Datum(Datum::Axis { .. }) => 2,
@@ -1589,11 +1944,11 @@ where
         Node::Extrude { .. } => 5,
         Node::Revolve { .. } => 6,
         Node::Split { .. } => 7,
-        Node::Boolean { op, .. } => match op {
-            crate::node::BooleanOp::Union => 8,
-            crate::node::BooleanOp::Intersect => 9,
-            crate::node::BooleanOp::Subtract => 10,
-        },
+        // The numbers are not written here: a migrated verb's tag is a
+        // function of the KERNEL's name for it, and the boolean's name
+        // carries its op (`VerbKind::Boolean(op)` — the three
+        // regularized ops are three names in the vocabulary).
+        Node::Boolean { op, .. } => verb_content_tag(verbs::VerbKind::Boolean(*op)),
         Node::Transform { .. } => 11,
         Node::Pattern { kind, .. } => match kind {
             PatternKind::Linear { .. } => 12,
@@ -1608,8 +1963,10 @@ where
         // an EXISTING tag must never be reused for a new meaning.
         Node::Loft { .. } => 15,
         Node::Sweep { .. } => 16,
-        // M5 PR 12.
-        Node::Fillet { .. } => 17,
+        // M5 PR 12. The number is not written here: a migrated verb's
+        // tag is a function of the KERNEL's name for it, so it comes
+        // out of `verb_content_tag`.
+        Node::Fillet { .. } => verb_content_tag(verbs::VerbKind::Fillet),
         // ASM-2A.
         Node::InstantiatePart { .. } => 18,
         // LIB-PLACEDUNION (19 is `Pattern`'s explicit rule, above):
@@ -1626,16 +1983,34 @@ where
         Node::Mate { .. } => 23,
         // LIB-G16. Appended, never a reused tag: a chamfer and a
         // fillet of the same size on the same edges are different
-        // geometry, so they must not share a key.
-        Node::Chamfer { .. } => 24,
-        // LIB-TUBE. The roster was READ and appended to (24 was the
-        // last taken). Two tags, not one: a solid tube and a hollow
-        // tube of the same radii are different artifacts, and sharing
-        // a tag would let one's memo serve the other — the exact
-        // hazard the append rule exists for.
-        Node::Tube { .. } => 25,
-        Node::HollowTube { .. } => 26,
+        // geometry, so they must not share a key. Same home as the
+        // fillet's, for the same reason.
+        Node::Chamfer { .. } => verb_content_tag(verbs::VerbKind::Chamfer),
+        // M10-2. Tags APPEND — an existing one must never be reused
+        // for a new meaning. Both of these claimed 24 on their own
+        // branches; LIB-G16 merged first, so they take the next free
+        // numbers rather than the ones this unit first wrote. Keys are
+        // process-internal, so the renumber costs nothing on disk.
+        Node::Measure { .. } => 25,
+        Node::Assertion { .. } => 26,
+        // The sketch frame. Tags APPEND — the frame does NOT share the
+        // plane's tag 1 even though it is the same surface plus a
+        // spin: two data whose keys collide serve each other's
+        // geometry out of the memo, and a frame and a plane evaluate
+        // to different payloads.
+        Node::Datum(Datum::Frame { .. }) => 27,
+        // LIB-TUBE. The roster was READ and appended to at every
+        // re-merge, which is how these two arrived here as 28/29
+        // rather than the 25/26 this unit first wrote — M10-2 and the
+        // sketch frame landed first, and an already-published tag is
+        // never taken back. Two tags, not one: a solid tube and a
+        // hollow tube of the same radii are different artifacts, and
+        // sharing a tag would let one's memo serve the other — the
+        // exact hazard the append rule exists for.
+        Node::Tube { .. } => 28,
+        Node::HollowTube { .. } => 29,
     };
+    // NODE-TAG-SPACE END
     h.write_tag(tag);
     // Structural payloads beyond the tag — everything a node carries
     // that its SLOTS do not express, and that two nodes of one tag can
@@ -1804,6 +2179,40 @@ where
                 feed_stable_name(&mut h, n);
             }
         }
+        // A measure's REFERENCES and its measured EXPRESSION are both
+        // recipe payload rather than slots: two measures with the same
+        // tag differ in exactly those. The references feed in argument
+        // order (the order is meaning here, not a click sequence), and
+        // the expression feeds structurally — its shape, its primitive
+        // indices, and its value leaves' literal BITS, so a `-0.0`
+        // bound inside a measured expression is not the same node as a
+        // `0.0` one.
+        Node::Measure { expr, refs } => {
+            h.write_u64(refs.len() as u64);
+            for r in refs {
+                // BOTH halves: the name says which entity, the reading
+                // site says which value its carrier comes out of, and
+                // two measures differing only in the site are two
+                // different measurements (that is the whole point of
+                // the site — one reads placed geometry, the other
+                // authored). The site is a node ID, which content keys
+                // otherwise exclude (D8); it is fed here because it is
+                // RECIPE PAYLOAD selecting a reading, not a Merkle link
+                // to an input — the input's own key is fed separately
+                // through `upstream_keys`.
+                h.write_u64(r.at.0);
+                feed_stable_name(&mut h, &r.name);
+            }
+            feed_measure_expr(&mut h, expr);
+        }
+        // The DIRECTION is payload. The bound is NOT a slot — it is a
+        // payload expression, and its evaluated value is fed with the
+        // others below; the measure is an input edge, so its own key
+        // carries it.
+        Node::Assertion { dir, .. } => h.write_tag(match dir {
+            crate::measure::AssertionDir::AtLeast => 1,
+            crate::measure::AssertionDir::AtMost => 2,
+        }),
         // A tube's WINDOW VARIANT is recipe payload, not a slot: which
         // variant it is decides whether the node has window slots at
         // all, so re-authoring a full ring into an arc must move the
@@ -1834,6 +2243,18 @@ where
         match val {
             slots::SlotVal::Scalar(v) => v.feed(&mut h),
             slots::SlotVal::Count(n) => h.write_i64(*n),
+        }
+    }
+    // The node's evaluated PAYLOAD expressions, in `payload_exprs`
+    // order — the same resolved-value convention the slots above
+    // follow, so a parameter under a measured bound moves the key
+    // exactly as one under an extrude's distance does. Absent (not
+    // empty) for every node kind that carries none, so no existing
+    // document's key moves by a byte.
+    if let Some(values) = payload_values {
+        h.write_u64(values.len() as u64);
+        for v in values {
+            v.feed(&mut h);
         }
     }
     // Upstream identity, by CONTENT (never by id — ids are stable
@@ -1893,9 +2314,17 @@ fn verb_tag(verb: profile::Verb) -> u8 {
         V::Angle => 12,
         V::Toward => 13,
         V::Tangent => 14,
+        V::Cusp => 41,
         V::Turn => 15,
         V::Line => 16,
         V::LineTo => 17,
+        // 42 rather than 18: the low numbers were assigned in table
+        // order when this map was written, the space is APPEND-ONLY
+        // (retired numbers stay dead, above), and 41 — `Cusp`, the
+        // previous append — was the high-water mark. Renumbering to
+        // close the gap would re-key every program that uses the verbs
+        // in between, which is the one thing this map must never do.
+        V::ContinueTo => 42,
         V::ArcTo => 18,
         V::TangentArcTo => 21,
         V::Fillet => 22,
@@ -2018,10 +2447,10 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             f(h, *dx);
             f(h, *dy);
         }
-        Step::Tangent | Step::CloseTo => {}
+        Step::Tangent | Step::Cusp | Step::CloseTo => {}
         Step::Turn(delta) => f(h, *delta),
         Step::Line(len) => f(h, *len),
-        Step::LineTo(t) | Step::TangentArcTo(t) => target(h, t),
+        Step::LineTo(t) | Step::ContinueTo(t) | Step::TangentArcTo(t) => target(h, t),
         Step::ArcTo(data) => spec(h, data),
         Step::Fillet { radius } => f(h, *radius),
         Step::FilletArc { radius, spec: sp } => {
@@ -2130,8 +2559,8 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
             f(h, dx);
             f(h, dy);
         }
-        Step::Tangent | Step::CloseTo => {}
-        Step::LineTo(t) | Step::TangentArcTo(t) => target(h, t),
+        Step::Tangent | Step::Cusp | Step::CloseTo => {}
+        Step::LineTo(t) | Step::ContinueTo(t) | Step::TangentArcTo(t) => target(h, t),
         Step::ArcTo(s) => spec(h, s),
         Step::Fillet { radius } => f(h, radius),
         Step::FilletArc { radius, spec: s } => {
@@ -2241,8 +2670,77 @@ fn contact_class_tag(class: topo::ContactClass) -> u8 {
     }
 }
 
-/// Feeds a [`StableName`] structurally into the content key (names
-/// are float-free by construction — pure tags and integers).
+/// Feeds a measured expression: one tag per AST node, then each
+/// node's own payload. The tag space is closed and the match is
+/// EXHAUSTIVE, so a new arithmetic arm cannot default to hashing like
+/// an existing one — the S4 lesson (a step verb's key tag collided
+/// with another's and served the wrong geometry from the memo).
+fn feed_measure_expr(h: &mut KeyHasher, expr: &crate::measure::MeasureExpr) {
+    use crate::measure::{MeasureKind as K, MeasurePrimitive as P};
+    let binary = |h: &mut KeyHasher, tag, a: &crate::measure::MeasureExpr, b: &_| {
+        h.write_tag(tag);
+        feed_measure_expr(h, a);
+        feed_measure_expr(h, b);
+    };
+    match expr.kind() {
+        K::Primitive(p) => {
+            h.write_tag(1);
+            h.write_tag(match p {
+                P::Distance { .. } => 1,
+                P::Angle { .. } => 2,
+                P::Gap { .. } => 3,
+            });
+            for index in p.refs() {
+                h.write_u64(u64::from(index));
+            }
+        }
+        K::Value(e) => {
+            h.write_tag(2);
+            // The value leaf's literal BITS and parameter names — the
+            // same two facts `Expr::bit_eq` compares, so two leaves
+            // that are bit-equal hash equal and no others do.
+            let mut bits = Vec::new();
+            e.literal_bits(&mut bits);
+            h.write_u64(bits.len() as u64);
+            for b in bits {
+                h.write_u64(b);
+            }
+            let mut params = Vec::new();
+            e.param_refs(&mut params);
+            h.write_u64(params.len() as u64);
+            for (name, dim) in params {
+                h.write_str(&name.0);
+                h.write_tag(dimension_tag(dim));
+            }
+        }
+        K::Neg(a) => {
+            h.write_tag(3);
+            feed_measure_expr(h, a);
+        }
+        K::Add(a, b) => binary(h, 4, a, b),
+        K::Sub(a, b) => binary(h, 5, a, b),
+        K::Mul(a, b) => binary(h, 6, a, b),
+        K::Div(a, b) => binary(h, 7, a, b),
+        K::Min(a, b) => binary(h, 8, a, b),
+        K::Max(a, b) => binary(h, 9, a, b),
+    }
+}
+
+/// The closed dimension lattice as key tags.
+fn dimension_tag(dim: crate::expr::Dimension) -> u8 {
+    match dim {
+        crate::expr::Dimension::Length => 1,
+        crate::expr::Dimension::Angle => 2,
+        crate::expr::Dimension::Count => 3,
+        crate::expr::Dimension::Scalar => 4,
+    }
+}
+
+/// Feeds one stable name: its entity kind as a tag, its minting node,
+/// then its role path segment by segment. Every field participates —
+/// a name is an identity, and two names differing anywhere are two
+/// different recipe payloads. Names are float-free by construction
+/// (pure tags and integers), so nothing here is eps-dependent.
 fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
     use crate::names::EntityKind;
     h.write_tag(match name.kind {
@@ -2277,8 +2775,8 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         SplitHalf::Below => 2,
     };
     let rim = |s: crate::names::RimSupport| match s {
-        crate::names::RimSupport::Plane => 1u64,
-        crate::names::RimSupport::Curved => 2,
+        crate::names::RimSupport::Host => 1u64,
+        crate::names::RimSupport::Mate => 2,
     };
     let pe = |h: &mut KeyHasher, e: crate::names::ProfileEdgeRef| {
         h.write_u64(u64::from(e.loop_index));
@@ -2516,6 +3014,149 @@ mod verb_tag_tests {
             seen.push((*verb, tag));
         }
         assert_eq!(seen.len(), profile::Verb::ALL.len());
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod verb_content_tag_tests {
+    use super::verb_content_tag;
+
+    /// **The migrated verbs' content tags are the numbers the inline
+    /// match already wrote**, pinned digit by digit.
+    ///
+    /// This is the load-bearing row of moving the match: a memo key is
+    /// a function of the tag, so a tag that moved would silently
+    /// re-key every document carrying that node — every blend
+    /// document in the corpus recomputing where it used to hit, and,
+    /// worse, no red anywhere to say so. The numbers below are read
+    /// off the pre-change source, not off the function.
+    #[test]
+    fn verb_content_tags_are_the_committed_numbers() {
+        assert_eq!(verb_content_tag(verbs::VerbKind::Fillet), 17);
+        assert_eq!(verb_content_tag(verbs::VerbKind::Chamfer), 24);
+        assert_eq!(
+            verb_content_tag(verbs::VerbKind::Boolean(topo::BooleanOp::Union)),
+            8
+        );
+        assert_eq!(
+            verb_content_tag(verbs::VerbKind::Boolean(topo::BooleanOp::Intersect)),
+            9
+        );
+        assert_eq!(
+            verb_content_tag(verbs::VerbKind::Boolean(topo::BooleanOp::Subtract)),
+            10
+        );
+    }
+
+    /// No two verbs share a tag — the property `verb_tag`'s injectivity
+    /// row asserts for the profile vocabulary, here for the node one,
+    /// computed over `VerbKind::ALL` so a verb the vocabulary gains is
+    /// measured the moment it has an arm.
+    #[test]
+    fn verb_content_tags_are_injective() {
+        let mut seen: Vec<(verbs::VerbKind, u8)> = Vec::new();
+        for kind in verbs::VerbKind::ALL {
+            let tag = verb_content_tag(*kind);
+            assert!(
+                !seen.iter().any(|(_, t)| *t == tag),
+                "{kind:?} shares content tag {tag} with {:?}",
+                seen.iter().find(|(_, t)| *t == tag).map(|(k, _)| *k)
+            );
+            seen.push((*kind, tag));
+        }
+        assert_eq!(seen.len(), verbs::VerbKind::ALL.len());
+    }
+
+    /// **The COMBINED node-tag space is injective** — the migrated
+    /// verbs' tags and every tag still written inline, checked as the
+    /// one space they actually are.
+    ///
+    /// The row above is not this row. It says no two VERBS collide, and
+    /// it would stay green while a new inline node claimed 17 or 24 —
+    /// which is precisely the accident that moving two tags out of the
+    /// match created the room for, and precisely the accident the S4
+    /// lesson (`Step::AtToward` colliding with `ArcContinue`, caught by
+    /// a reviewer rather than a type) says costs a memo hit serving
+    /// another node's geometry.
+    ///
+    /// **It is a source census, and that is the honest shape here.** The
+    /// tags live in a match over `&Node`, so enumerating them by calling
+    /// `content_key` would mean constructing one of every node variant —
+    /// a fixture larger than the property, and one that would go stale
+    /// silently. Instead the sentinels bracketing that match delimit the
+    /// text, every `=> <number>` inside it is read as an inline tag, and
+    /// every `verb_content_tag(VerbKind::X)` is read as a migrated one
+    /// and resolved through the real function. Nothing is hand-listed,
+    /// so nothing drifts: a tag added inside the sentinels is measured
+    /// the moment it is typed.
+    ///
+    /// What it cannot see, stated: a tag written OUTSIDE the sentinels
+    /// (the sentinel comment says not to), and a tag whose arm computes
+    /// rather than names a number. Neither exists today.
+    #[test]
+    fn node_tag_space_is_injective() {
+        const SOURCE: &str = include_str!("mod.rs");
+        let region = SOURCE
+            .split_once("NODE-TAG-SPACE BEGIN")
+            .expect("the tag match carries its opening sentinel")
+            .1
+            .split_once("NODE-TAG-SPACE END")
+            .expect("the tag match carries its closing sentinel")
+            .0;
+        // Comments inside the region discuss tag numbers in prose ("the
+        // tag-29 lesson"), which are not arms — blanked through the
+        // SHARED Rust reader rather than a `split("//")` this test rolled
+        // itself, which would have mis-read a `//` inside a string.
+        let code_only = test_utils::source::code_and_literals(region);
+        let mut tags: Vec<(u8, String)> = Vec::new();
+        for (n, code) in code_only.lines().enumerate() {
+            if let Some(rest) = code.split_once("=> ") {
+                let token: String = rest.1.chars().take_while(char::is_ascii_digit).collect();
+                if let Ok(tag) = token.parse::<u8>() {
+                    tags.push((tag, format!("inline arm at region line {n}")));
+                    continue;
+                }
+            }
+            // A vocabulary row is matched by its VARIANT token (the
+            // name up to any payload parenthesis): the boolean's arm
+            // is written `VerbKind::Boolean(*op)` and covers all three
+            // op rows, so each of them is resolved through the real
+            // function for that one source line.
+            for kind in verbs::VerbKind::ALL {
+                let name = format!("{kind:?}");
+                let token = name.split('(').next().expect("split yields a first piece");
+                if code.contains(&format!("VerbKind::{token}")) {
+                    tags.push((verb_content_tag(*kind), name));
+                }
+            }
+        }
+        // A census that read nothing would pass vacuously.
+        assert!(
+            tags.len() >= 20,
+            "the tag census found only {} tags — the sentinels or the scan have drifted from the \
+             match they are supposed to read",
+            tags.len()
+        );
+        for kind in verbs::VerbKind::ALL {
+            assert!(
+                tags.iter().any(|(t, _)| *t == verb_content_tag(*kind)),
+                "{kind:?}'s migrated tag is not reachable from the node match — the census is \
+                 measuring the wrong region"
+            );
+        }
+        let mut seen: Vec<(u8, String)> = Vec::new();
+        for (tag, who) in tags {
+            assert!(
+                !seen.iter().any(|(t, _)| *t == tag),
+                "content tag {tag} is claimed twice: by {who} and by {}",
+                seen.iter()
+                    .find(|(t, _)| *t == tag)
+                    .map(|(_, w)| w.clone())
+                    .unwrap_or_default()
+            );
+            seen.push((tag, who));
+        }
     }
 }
 

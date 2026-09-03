@@ -1,6 +1,6 @@
 # PCURVE — exit walk
 
-STATUS: **RATIFIED — PCURVE CLOSED** (Evan, in-chat, 2026-08-29:
+STATUS: **RATIFIED — PCURVE CLOSED** (Ev, in-chat, 2026-08-29:
 "lgtm! you can merge the exit walk"). A program is closed when its exit
 walk is ratified; **this walk is PCURVE's done-state of record.**
 Nothing here is a claim about work not yet merged: P-1a (#1073), P-1b
@@ -39,7 +39,7 @@ prefer-intrinsic rules, retained as a description only for transient
 scaffolding"** — MET, with the fence criterion CORRECTED before
 implementation. U2 ratified "pre-body"; measurement showed
 `MappedCurve` reaches REST through `describe_minted_edges` and six
-fillet strut sites, so pre-body never fenced it. Evan ratified
+fillet strut sites, so pre-body never fenced it. Ev ratified
 **TRANSIENCE** as the criterion. `ValidationError::ScaffoldAtRest`
 enforces it, and `EdgeAuthority::{Derived, Declared}` is stored per
 edge and **metered** — `CertCheck::MappedSource` on the declared
@@ -125,7 +125,7 @@ S-QA as a live instance of their charter.
 block draw stood on main from P-1a's spec until its redaction
 (#1118/#1119), so each unit's implementer arm was derivable by
 arithmetic in that window; reviewers were not dispatched in it, but git
-history retains the text. Evan ruled the pairs COUNT. Block PCURVE-1 is
+history retains the text. Ev ruled the pairs COUNT. Block PCURVE-1 is
 CONSUMED (P-2 took slot 4), so its record may merge to main.
 
 **H6. What this program did NOT do.** It did not touch the diagonal

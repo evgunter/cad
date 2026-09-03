@@ -25,16 +25,18 @@
 //!
 //! * **An edit to a number never changes how the number is written.**
 //!   [`slot_edit`] takes the slot's STORED unit and re-attaches it, so
-//!   dragging a slider cannot silently canonicalize a literal, and a
-//!   literal that remembers nothing keeps remembering nothing.
+//!   dragging a slider cannot silently re-write a literal into another
+//!   unit.
 //! * **Changing how it is written is its own operation.** That is
 //!   `SessionOp::SetSlotUnit`, which rewrites the display unit and
 //!   leaves the canonical bits alone.
 //!
-//! Document parameters are the one asymmetry, and it is the storage's:
-//! `DocParam::Continuous` has no unit field, so a parameter has no
-//! authored unit to remember and its row shows the canonical one. The
-//! panel does not paper over that.
+//! Document parameters are the remaining asymmetry, and it is now the
+//! PANEL's rather than the storage's: `DocParam::Continuous` carries an
+//! authored unit, and nothing here reads it — a parameter
+//! row still shows the canonical unit, and the create-parameter
+//! affordance still authors one. Stated rather than papered over; the
+//! storage is ready for the row that renders it.
 //!
 //! # Structural is not continuous
 //!
@@ -51,29 +53,42 @@
 //! which it is, using only public expression API: a bare literal is a
 //! leaf with no parameter references, and anything else is driven.
 //!
-//! **What the affordance can and cannot offer, measured against this
-//! substrate.** The typed expression API has a text door INWARD —
-//! `parse_expr` — so the affordance offers a text field whose contents
-//! become a new expression through it, with no parser written here.
-//! It has no door OUTWARD: `Expr` exposes its dimension, its literal
-//! value, its children and its parameter references, but no operator
-//! identity, so neither this crate nor any other consumer can render
-//! an existing expression back to its source text. The field therefore
-//! cannot be pre-filled with what the slot says today. What the panel
-//! shows instead is what the substrate does expose and what a user
-//! actually needs in order to act: the slot's CURRENT VALUE under the
-//! document's parameters, and the names of the parameters driving it —
+//! **What the affordance offers, measured against this substrate.**
+//! The typed expression API has a text door in BOTH directions —
+//! `parse_expr` inward and `unparse` outward (issue #1103, closed) —
+//! so the panel neither parses nor renders expression text itself. It
+//! shows the slot's own source, and hands edited text straight back
+//! through the parser. Beside that it still shows what a user needs in
+//! order to act on a refusal: the slot's CURRENT VALUE under the
+//! document's parameters, and the names of the parameters driving it,
 //! each of which the panel can navigate to and edit as a document
-//! parameter. An unparser in `editor-core` would close the gap and is
-//! scheduled as issue #1103, which names this affordance as the
-//! consumer that wants it; it is not this unit's work.
+//! parameter.
+//!
+//! # One field for numbers and expressions
+//!
+//! A slot has ONE value field, and what a user types into it decides
+//! which door the edit takes ([`field_edit`]):
+//!
+//! * Bare digits mean exactly what they have always meant — a number
+//!   in the slot's WRITTEN unit, through [`from_written`] and
+//!   `SessionOp::SetSlot`, leaving the stored display unit alone.
+//! * **Anything else is expression source**, including a number with
+//!   a unit on it. That is the unit-authoring rule, and it is one
+//!   rule rather than two: `25 in` is the expression `25 in`, whose
+//!   literal REMEMBERS `in` because that is what the text door does
+//!   with a suffix — so the field and the unit picker agree
+//!   afterwards without either being told about the other.
+//!
+//! What the field SHOWS is [`field_text`]: a bare literal shows its
+//! number alone (the unit is the picker's to say, not the field's),
+//! and everything else shows its source.
 
 use pncad::document::{
     Dimension, Doc, DocEdit, DocParam, DocParamValue, EvalError, Expr, Node, ParamName,
-    ProfileProgram, RecipeNodeId, SlotId, VectorSlot, eval, eval_count,
+    ProfileProgram, RecipeNodeId, SlotId, VectorSlot, eval, eval_count, unparse,
 };
 use pncad::prelude::{M, RAD};
-use pncad::quantity::{UNITS, UnitDef, UnitQuantity};
+use pncad::quantity::{self, UNITS, UnitDef, UnitQuantity};
 
 /// What is in a slot right now.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -116,28 +131,6 @@ impl SlotValue {
     }
 }
 
-/// The unit a value of `dimension` is WRITTEN in, given the unit its
-/// literal remembers (`None` when it remembers none, and for every
-/// value that is not a stored literal).
-///
-/// The fallback is the CANONICAL row (`m`, `rad`), never "no unit":
-/// factor exactly 1.0, so showing a canonical value in it is the f64
-/// identity, and the reader gets a suffix saying which canonical unit
-/// they are looking at instead of a bare number they have to know is
-/// metres. `Scalar` and `Count` have no units at all — a direction
-/// component and an instance count are numbers, not quantities — and
-/// answer `None`.
-pub fn written_unit(dimension: Dimension, remembered: Option<UnitDef>) -> Option<UnitDef> {
-    if let Some(unit) = remembered {
-        return Some(unit);
-    }
-    match dimension {
-        Dimension::Length => Some(M.def()),
-        Dimension::Angle => Some(RAD.def()),
-        Dimension::Scalar | Dimension::Count => None,
-    }
-}
-
 /// Every unit a value of `dimension` may be written in — the picker's
 /// options, read off the closed table so a unit added to `quantity`
 /// appears here the day it lands.
@@ -153,18 +146,46 @@ pub fn unit_options(dimension: Dimension) -> Vec<UnitDef> {
         .collect()
 }
 
+/// **The unit a panel row is RENDERED in**: the notation the row's
+/// literal remembers, or — for a row driven by an expression — the
+/// canonical one.
+///
+/// The `None` case is not a literal's; a literal always names its unit
+/// (`Expr::display_unit` answers `None` only for the kinds that are not
+/// literals). It is a COMPUTED value's, and a computed value was never
+/// written by anyone, so a reader has to choose. Every reader in this
+/// crate chooses through here, which is the point of it being a
+/// function: the choice is CANONICAL, and `unparse` renders such a
+/// value the same way, so the panel and the text door agree by
+/// construction rather than by two files being edited together.
+///
+/// `Count` has no units at all — an instance count is a number, not a
+/// quantity — and answers `None`.
+pub fn rendering_unit(dimension: Dimension, remembered: Option<UnitDef>) -> Option<UnitDef> {
+    if let Some(unit) = remembered {
+        return Some(unit);
+    }
+    match dimension {
+        Dimension::Length => Some(M.def()),
+        Dimension::Angle => Some(RAD.def()),
+        Dimension::Scalar => Some(quantity::ONE.def()),
+        Dimension::Count => None,
+    }
+}
+
 /// A canonical value as it is WRITTEN in `unit` — one divide, the
 /// inverse of the text door's one multiply.
-pub fn in_written(canonical: f64, unit: Option<UnitDef>) -> f64 {
-    unit.map_or(canonical, |u| canonical / u.factor())
+///
+pub fn in_written(canonical: f64, unit: UnitDef) -> f64 {
+    canonical / unit.factor()
 }
 
 /// A written value back to canonical — `n * factor`, which is exactly
 /// the literal semantics `parse_expr` applies to `n <symbol>`, so a
 /// number typed into a panel field and the same number typed into the
 /// expression field land on the same bits.
-pub fn from_written(written: f64, unit: Option<UnitDef>) -> f64 {
-    unit.map_or(written, |u| written * u.factor())
+pub fn from_written(written: f64, unit: UnitDef) -> f64 {
+    written * unit.factor()
 }
 
 /// What decides a slot's value.
@@ -251,12 +272,21 @@ pub struct SlotRow {
     /// The value the slot has under the document's parameters, or the
     /// typed reason it has none.
     pub value: Result<SlotValue, SlotFault>,
-    /// The display unit the slot's expression REMEMBERS, `None` when it
-    /// remembers none. This is the STORED fact, not the shown one — put
-    /// it through [`written_unit`] for the unit to display in, and hand
-    /// it back to [`slot_edit`] unchanged so that editing the number
-    /// does not rewrite how the number is written.
+    /// The display unit the slot's expression REMEMBERS — `None` only
+    /// where there is no literal to remember one, i.e. a slot driven by
+    /// an expression. This is the STORED fact, not the shown one: put
+    /// it through [`rendering_unit`] for the unit to display in, and
+    /// hand it back to [`slot_edit`] unchanged so that editing the
+    /// number does not rewrite how the number is written.
     pub unit: Option<UnitDef>,
+    /// The slot expression's own SOURCE TEXT (`unparse`), `None` only
+    /// where the node lists a slot it carries no expression for.
+    ///
+    /// It is the text an edit to this slot revises, so it is carried
+    /// even for a slot whose value did not evaluate — a slot driven by
+    /// an unbound parameter is exactly the one a user has to be able
+    /// to retype.
+    pub source: Option<String>,
 }
 
 /// The rows for one node, in the node vocabulary's own slot order.
@@ -299,6 +329,7 @@ fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId
             driver: SlotDriver::Expression { params: Vec::new() },
             value: Err(SlotFault::NoExpression),
             unit: None,
+            source: None,
         };
     };
     let env = doc.param_env::<f64>();
@@ -318,6 +349,85 @@ fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId
         driver: SlotDriver::of(expr),
         value,
         unit: expr.display_unit(),
+        source: Some(unparse(expr)),
+    }
+}
+
+/// What the value field SHOWS for one row.
+///
+/// **The unit is the picker's to say, not the field's.** A bare
+/// literal therefore shows its number ALONE, in the unit the row is
+/// written in — the same number [`in_written`] gives and the combo box
+/// beside it names, said once instead of twice.
+///
+/// Everything else shows its SOURCE: a driven slot says what drives
+/// it, which is both the honest reading of a computed value and the
+/// text an edit to it revises. A slot whose value did not evaluate is
+/// the same case — the source is what there is to fix.
+pub fn field_text(row: &SlotRow) -> String {
+    match (&row.driver, &row.value) {
+        (SlotDriver::Literal, Ok(value)) => match row.unit {
+            Some(unit) => render_number(in_written(value.as_f64(), unit)),
+            // D2 addendum row 4: this arm IS the literal case, and
+            // every literal names the unit it was written in
+            // (`Expr::display_unit` answers `None` only for the kinds
+            // that are not literals). A fallback here would be a second
+            // authority on how a stored value reads — which is the hole
+            // the dimensionless row closed.
+            None => unreachable!(
+                "slot {:?} is driven by a literal, yet its expression remembers no unit",
+                row.slot
+            ),
+        },
+        _ => row.source.clone().unwrap_or_default(),
+    }
+}
+
+/// A number as the field writes it: `{:?}`'s shortest round-tripping
+/// digits, with a bare integral form (`8.0` → `8`) — a field showing
+/// `8` and a field showing `8.0` say the same thing, and the shorter
+/// one is what a user typed.
+fn render_number(value: f64) -> String {
+    let repr = format!("{value:?}");
+    match repr.strip_suffix(".0") {
+        Some(integral) => integral.to_string(),
+        None => repr,
+    }
+}
+
+/// What text typed into a value field MEANS.
+#[derive(Clone, Debug, PartialEq)]
+pub enum FieldEdit {
+    /// A bare number, in the unit the field is written in — the
+    /// numeric door (`SessionOp::SetSlot`), which re-attaches the
+    /// slot's stored display unit and so leaves the notation alone.
+    Number(f64),
+    /// Anything else: source for the expression door
+    /// (`SessionOp::SetSlotExpression`), which is also where a number
+    /// carrying a UNIT goes — see the module docs' authoring rule.
+    Expression(String),
+    /// Nothing was typed. Not an edit, and not a refusal either.
+    Empty,
+}
+
+/// Read a value field's text (module docs: one field, two doors).
+///
+/// The test for "a bare number" is `f64`'s own: what Rust reads as a
+/// float is a number and everything else is source. That draws the
+/// line exactly where the user sees it — `25` is a number, `25 in` is
+/// not, `w * 2` is not — and it inherits `1e-3` and `-4` for free.
+/// A non-finite spelling (`inf`, `NaN`) reads as a Number here on
+/// purpose: `Expr::literal`'s refusal names the problem ("a literal
+/// value must be finite"), where the parser would only say the word
+/// is not a parameter.
+pub fn field_edit(text: &str) -> FieldEdit {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return FieldEdit::Empty;
+    }
+    match trimmed.parse::<f64>() {
+        Ok(number) => FieldEdit::Number(number),
+        Err(_) => FieldEdit::Expression(trimmed.to_owned()),
     }
 }
 
@@ -600,7 +710,7 @@ pub fn slot_unit_edit(
     doc: &Doc<ProfileProgram>,
     node: RecipeNodeId,
     slot: SlotId,
-    unit: Option<UnitDef>,
+    unit: UnitDef,
 ) -> Result<DocEdit<ProfileProgram>, SlotUnitFault> {
     let expr = doc
         .node(node)
@@ -613,11 +723,8 @@ pub fn slot_unit_edit(
     let value = expr
         .literal_value()
         .ok_or(SlotUnitFault::NotALiteral { node, slot })?;
-    let expr = match unit {
-        None => Expr::literal(value, slot.dimension()),
-        Some(unit) => Expr::literal_with_unit(value, slot.dimension(), unit),
-    }
-    .map_err(|source| SlotUnitFault::Dimension { slot, source })?;
+    let expr = Expr::literal_with_unit(value, slot.dimension(), unit)
+        .map_err(|source| SlotUnitFault::Dimension { slot, source })?;
     Ok(DocEdit::SetParam { node, slot, expr })
 }
 

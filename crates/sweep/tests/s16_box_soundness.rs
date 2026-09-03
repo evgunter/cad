@@ -1,5 +1,5 @@
-//! **SMELL-SCAN §S16 — the box-soundness rows that need a real curved
-//! body**, so they live here rather than in `topo`'s own suite.
+//! **The box-soundness rows that need a real curved body**, so they
+//! live here rather than in `topo`'s own suite.
 //!
 //! # 1. The census's instance-containment arm
 //!

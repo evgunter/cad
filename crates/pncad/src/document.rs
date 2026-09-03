@@ -28,13 +28,31 @@
 // document plus its `EditRecord`) — re-exported so a caller can STORE
 // one in a typed field rather than only destructure it.
 pub use editor_core::{Applied, Doc, DocEdit, EditError, EditRecord, apply};
+// The delete door's companion query: which nodes a delete of one node
+// must take with it, in an order the door accepts. A GUI both states
+// the cost of the button and builds the sequence behind it from this.
+pub use editor_core::cascade_delete_order;
 
 // Node vocabulary. `BooleanOp` is the KERNEL's, which the recipe node
 // carries directly; it is re-exported here so document-layer code can
 // spell the whole node vocabulary through one module.
 pub use editor_core::{
-    Axis3, BooleanOp, Datum, Node, PatternKind, PlacementRuleFault, RecipeNodeId, SlotId,
-    TubeWindow, VectorSlot,
+    Axis3, BooleanOp, Datum, MeasureNodeFault, Node, PatternKind, PlacementRuleFault, RecipeNodeId,
+    SlotId, TubeWindow, VectorSlot,
+};
+
+// The measurement vocabulary (ERROR-DESIGN E3/E10, CONTACT-DESIGN C5).
+// `MeasureExpr` + `MeasurePrimitive` are what a `Node::Measure` is
+// built from, so a caller who cannot spell them cannot author one at
+// all; `AssertionDir` is a field of `Node::Assertion` for the same
+// reason. `AssertionVerdict` and `UnevaluatedReason` are the READING
+// half — the payload an evaluated assertion carries — and E10's whole
+// point is that a verdict is consumed by reports. `ASSERT_BOUND` is
+// the funnel site name, carried like `SEL_DATUM_DISTANCE` so a
+// K-census consumer can name the row rather than spell the string.
+pub use editor_core::{
+    ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive, MeasureRef,
+    UnevaluatedReason,
 };
 
 // Expressions and their text door.
@@ -43,7 +61,10 @@ pub use editor_core::{
 // `DimensionError` is the refusal `Expr`'s constructor doors return
 // (`literal`, the operator builders) — re-exported so a caller can
 // MATCH on it rather than pre-check the conditions it refuses.
-pub use editor_core::{Dimension, DimensionError, Expr, ParamEnv, ParseError, parse_expr};
+// `unparse` is `parse_expr`'s inverse, the text door OUTWARD: the
+// source text an expression reads back from, which is what a panel
+// showing a stored expression needs and cannot otherwise derive.
+pub use editor_core::{Dimension, DimensionError, Expr, ParamEnv, ParseError, parse_expr, unparse};
 
 // The expression READ side: an expression's current value under a
 // document's parameter environment (`Doc::param_env`). A panel that
@@ -77,7 +98,13 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // spelling and it silently DELETES an annotation, because
 // `SetDocParam` is create-or-replace; a façade that curated only the
 // deleting door would be handing every caller that trap.
-pub use editor_core::{DocParam, DocParamValue, ParamName};
+// `UnitSym` is the display-unit CODE a `DocParam::Continuous` carries
+// beside its dimension — the notation the parameter was authored in.
+// It rides here for `Distribution`'s reason: the field is `pub`, so a
+// façade that could not spell its TYPE could not build the struct at
+// all, and `UnitSym::canonical_for` is how a caller authoring in
+// metres says so.
+pub use editor_core::{DocParam, DocParamValue, ParamName, UnitSym};
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
 // typed refusals its invariants raise at the edit and persistence
@@ -99,26 +126,30 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // REFUSAL is the detect/declare protocol's trigger, and
 // `NodeError`/`NodeErrorKind` were unreachable without the result
 // enum that carries them.
+// `UnitVec3`/`UnitVec3Error` ride with `DatumValue` because they are
+// its field type: a consumer cannot read a datum's normal, or build a
+// datum at all, without naming the type that makes it unit — and the
+// constructor's refusal is the only way a datum direction is rejected.
+// `VerbKind`/`Arity` ride with `NodeErrorKind` for the same reason:
+// they are `VerbArity`'s payload, so a consumer can match the variant
+// but not name what it caught without them (the prelude's `BlendKind`
+// rule — the discriminant crosses with the refusal).
 pub use editor_core::{
-    BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation, NodeError,
-    NodeErrorKind, NodeResult, NodeValue, ProfileLift, SplitSide, ValuePayload, evaluate,
+    Arity, BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation, NodeError,
+    NodeErrorKind, NodeResult, NodeValue, ProfileLift, SplitSide, UnitVec3, UnitVec3Error,
+    ValuePayload, VerbKind, evaluate,
 };
 
-// Persistence: the schema-v4 doors, verbatim.
+// Persistence: the doors, verbatim.
 // `save`/`load` speak `ProfileDoc` + `DocEdit` — exactly this module's
 // vocabulary — and every refusal is a typed `PersistError`, whose
-// payload types ride along so each arm is matchable from here
-// (`MigrationError` lives one path deeper in `editor_core`; the others
-// are crate-root re-exports there).
-//
-// Deliberately ABSENT: `MigrationStep`, the migration-table entry
-// type. Its signature speaks `serde_json::Value`, which does not cross
-// the curated surface (the U9S backlog measurement); the migration
-// TABLE is persist's interior, and a consumer never installs a step.
-pub use editor_core::persist::MigrationError;
+// payload types ride along so each arm is matchable from here (all
+// crate-root re-exports in `editor_core`). The format carries no
+// schema version (the persist module docs say why), so there is no
+// version constant to carry either.
 pub use editor_core::{
-    Loaded, NonFiniteSite, PersistError, ProgramFault, REGENERATE_RECOURSE, SCHEMA_VERSION,
-    SnapshotError, load, save,
+    Loaded, NonFiniteSite, PersistError, ProgramFault, REGENERATE_RECOURSE, SnapshotError, load,
+    save,
 };
 
 // Document identity and content pins.

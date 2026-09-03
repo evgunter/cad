@@ -21,7 +21,8 @@ use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::doc::ParamName;
-use crate::expr::{Dimension, Expr, ExprKind};
+use crate::expr::{Dimension, DimensionError, Expr, ExprKind};
+use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
 use crate::program::{LoopProgram, ProfileProgram, ProgramStep, ProgramTarget};
 
 /// The persisted expression tree (spec D1: the recipe is the save; an
@@ -37,12 +38,12 @@ pub(crate) enum WireExpr {
         value: f64,
         /// The literal's dimension.
         dim: Dimension,
-        /// The display-unit symbol (quantity's closed table), absent
-        /// for canonically-authored literals. Optional ON THE WIRE
-        /// (`deny_unknown_fields` kept — absence is legal, an unknown
-        /// FIELD still refuses); an unknown SYMBOL refuses at rebuild.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        unit: Option<String>,
+        /// The display-unit symbol (quantity's closed table). Always
+        /// written, because every literal names the notation it was
+        /// authored in — the dimensionless row's symbol is the empty
+        /// string, which is what a `Scalar` literal carries. An unknown
+        /// symbol refuses typed at rebuild.
+        unit: String,
     },
     /// An exact integer Count literal.
     Count(i64),
@@ -86,7 +87,7 @@ impl From<&Expr> for WireExpr {
             ExprKind::Literal(lit) => WireExpr::Literal {
                 value: lit.value,
                 dim: e.dim(),
-                unit: lit.unit_def().map(|u| u.symbol().to_string()),
+                unit: lit.unit_def().symbol().to_string(),
             },
             ExprKind::CountLiteral(v) => WireExpr::Count(*v),
             ExprKind::Param(name) => WireExpr::Param {
@@ -115,18 +116,15 @@ impl WireExpr {
     pub(crate) fn rebuild(&self) -> Result<Expr, crate::expr::DimensionError> {
         let b = |x: &WireExpr| x.rebuild();
         match self {
-            WireExpr::Literal { value, dim, unit } => match unit {
-                None => Expr::literal(*value, *dim),
-                // Strict door: the symbol must be in quantity's closed
-                // table and its quantity must match the dimension —
-                // both re-checked by the same constructor authoring
-                // uses (never a field-by-field trust).
-                Some(symbol) => match quantity::unit_by_symbol(symbol) {
-                    None => Err(crate::expr::DimensionError::UnknownDisplayUnit {
-                        symbol: symbol.clone(),
-                    }),
-                    Some(u) => Expr::literal_with_unit(*value, *dim, u),
-                },
+            // Strict door: the symbol must be in quantity's closed
+            // table and its quantity must match the dimension — both
+            // re-checked by the same constructor authoring uses (never
+            // a field-by-field trust).
+            WireExpr::Literal { value, dim, unit } => match quantity::unit_by_symbol(unit) {
+                None => Err(crate::expr::DimensionError::UnknownDisplayUnit {
+                    symbol: unit.clone(),
+                }),
+                Some(u) => Expr::literal_with_unit(*value, *dim, u),
             },
             WireExpr::Count(v) => Ok(Expr::count(*v)),
             WireExpr::Param { name, dim } => Ok(Expr::param(name.clone(), *dim)),
@@ -250,11 +248,12 @@ impl WireTarget {
 }
 
 /// One chain step on the wire — `ProgramStep`'s structural mirror, and
-/// the vocabulary's last stop. A verb reaching here is a SCHEMA
-/// change, not a mapping: v8 and v9 are both bumps for exactly this
-/// enum's vocabulary (see [`crate::persist::SCHEMA_VERSION`]), so this
-/// enum going quietly short is worse than its being a third spelling
-/// — a spelling can be reconciled later, a shipped format cannot.
+/// the vocabulary's last stop. A verb reaching here is a FORMAT
+/// change, not a mapping (the checked-in corpus regenerates; see the
+/// persist module docs), so this enum going quietly short is worse
+/// than its being a third spelling — a spelling can be reconciled
+/// later; a format that has reached someone's disk (Band 4, once a
+/// document ships) cannot.
 ///
 /// It cannot go short of `ProgramStep`: [`WireStep::from_step`] and
 /// [`WireStep::into_step`] are exhaustive on `ProgramStep` and on
@@ -279,6 +278,8 @@ enum WireStep {
     },
     /// `.tangent()`.
     Tangent,
+    /// `.cusp()`.
+    Cusp,
     /// `.turn(δ)`.
     Turn(Expr),
     /// `line(len)`.
@@ -322,7 +323,16 @@ enum WireStep {
     CloseTo,
 }
 
-/// An arc spec on the wire (`ProgramArcData`'s structural mirror).
+/// An arc spec on the wire (`ProgramArcData`'s structural mirror), and
+/// the arc-mode vocabulary's last stop — a mode reaching here is a
+/// format change for the same reason a verb is.
+///
+/// It cannot go short of `ProgramArcData`: [`WireArcData::from_spec`]
+/// and [`WireArcData::into_spec`] are exhaustive on the document type
+/// and on this one. What those two cannot see is a mode `profile`'s
+/// vocabulary gained and `ProgramArcData` never learned, or an arm
+/// mapping one mode onto another's wire shape; both are checked by
+/// the mode census in `tests/switch_program_vocabulary.rs`.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 enum WireArcData {
@@ -455,6 +465,7 @@ impl WireStep {
                 dy: dy.clone(),
             },
             P::Tangent => WireStep::Tangent,
+            P::Cusp => WireStep::Cusp,
             P::Turn(e) => WireStep::Turn(e.clone()),
             P::Line(e) => WireStep::Line(e.clone()),
             P::LineTo(t) => WireStep::LineTo(WireTarget::from_target(t)),
@@ -491,6 +502,7 @@ impl WireStep {
             WireStep::Angle(e) => P::Angle(e),
             WireStep::Toward { dx, dy } => P::Toward { dx, dy },
             WireStep::Tangent => P::Tangent,
+            WireStep::Cusp => P::Cusp,
             WireStep::Turn(e) => P::Turn(e),
             WireStep::Line(e) => P::Line(e),
             WireStep::LineTo(t) => P::LineTo(t.into_target()),
@@ -635,6 +647,91 @@ impl<'de> Deserialize<'de> for ProfileProgram {
         Ok(ProfileProgram {
             plane: SketchPlane::new(placement),
             loops,
+        })
+    }
+}
+
+/// The persisted MEASUREMENT expression (ERROR-DESIGN E3): the same
+/// arithmetic the document expression has, over the two leaves this
+/// language adds.
+///
+/// A separate wire enum rather than a grown [`WireExpr`], for the same
+/// reason [`MeasureExpr`] is a separate type: a primitive leaf is
+/// meaningless in a slot expression, and a shared wire form would make
+/// one representable there — a file could then carry a `distance` leaf
+/// in an extrude's distance, and the refusal would have to be invented
+/// at every rebuild site instead of being unrepresentable.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) enum WireMeasureExpr {
+    /// A closed-form measurement leaf.
+    Primitive(MeasurePrimitive),
+    /// An ordinary document expression leaf.
+    Value(Box<WireExpr>),
+    /// Same-dimension addition.
+    Add(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    /// Same-dimension subtraction.
+    Sub(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    /// Negation.
+    Neg(Box<WireMeasureExpr>),
+    /// Product (at least one Scalar operand).
+    Mul(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    /// Quotient (Scalar divisor).
+    Div(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    /// Same-dimension minimum.
+    Min(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    /// Same-dimension maximum.
+    Max(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+}
+
+impl From<&MeasureExpr> for WireMeasureExpr {
+    fn from(e: &MeasureExpr) -> Self {
+        let b = |x: &MeasureExpr| Box::new(WireMeasureExpr::from(x));
+        match e.kind() {
+            MeasureKind::Primitive(p) => WireMeasureExpr::Primitive(*p),
+            MeasureKind::Value(v) => WireMeasureExpr::Value(Box::new(WireExpr::from(v))),
+            MeasureKind::Add(x, y) => WireMeasureExpr::Add(b(x), b(y)),
+            MeasureKind::Sub(x, y) => WireMeasureExpr::Sub(b(x), b(y)),
+            MeasureKind::Neg(x) => WireMeasureExpr::Neg(b(x)),
+            MeasureKind::Mul(x, y) => WireMeasureExpr::Mul(b(x), b(y)),
+            MeasureKind::Div(x, y) => WireMeasureExpr::Div(b(x), b(y)),
+            MeasureKind::Min(x, y) => WireMeasureExpr::Min(b(x), b(y)),
+            MeasureKind::Max(x, y) => WireMeasureExpr::Max(b(x), b(y)),
+        }
+    }
+}
+
+impl WireMeasureExpr {
+    /// Rebuilds through the DIMENSION-CHECKING constructors — the load
+    /// door is the construction door, so a file cannot carry a tree the
+    /// authoring API refuses.
+    fn rebuild(&self) -> Result<MeasureExpr, DimensionError> {
+        let b = |x: &WireMeasureExpr| x.rebuild();
+        match self {
+            WireMeasureExpr::Primitive(p) => Ok(MeasureExpr::primitive(*p)),
+            WireMeasureExpr::Value(v) => Ok(MeasureExpr::value(v.rebuild()?)),
+            WireMeasureExpr::Add(x, y) => MeasureExpr::add(b(x)?, b(y)?),
+            WireMeasureExpr::Sub(x, y) => MeasureExpr::sub(b(x)?, b(y)?),
+            WireMeasureExpr::Neg(x) => Ok(MeasureExpr::neg(b(x)?)),
+            WireMeasureExpr::Mul(x, y) => MeasureExpr::mul(b(x)?, b(y)?),
+            WireMeasureExpr::Div(x, y) => MeasureExpr::div(b(x)?, b(y)?),
+            WireMeasureExpr::Min(x, y) => MeasureExpr::min(b(x)?, b(y)?),
+            WireMeasureExpr::Max(x, y) => MeasureExpr::max(b(x)?, b(y)?),
+        }
+    }
+}
+
+impl Serialize for MeasureExpr {
+    fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
+        WireMeasureExpr::from(self).serialize(ser)
+    }
+}
+
+impl<'de> Deserialize<'de> for MeasureExpr {
+    fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        let wire = WireMeasureExpr::deserialize(de)?;
+        wire.rebuild().map_err(|e| {
+            D::Error::custom(format!("ill-dimensioned measure expression refused: {e}"))
         })
     }
 }

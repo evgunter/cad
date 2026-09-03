@@ -1,14 +1,14 @@
 # PROFILES-V2-DESIGN: profiles as programs — the representation switch
 
 Status: **RATIFIED** (design conversation PR #242, three rounds with
-Evan 2026-08-08: drift-proofing construction accepted round 1;
+Ev 2026-08-08: drift-proofing construction accepted round 1;
 round-2 probe retracted the bowtie claim; round 3 delegated VQ1 to
 orchestrator judgment — **RULED (b)-direct**, see §V7 VQ1 for the
 ruling and rationale). VQ2–VQ9 reviewed in detail and
-AGREED by Evan (PR #242 round 4, 2026-08-08) — full sign-off, not
+AGREED by Ev (PR #242 round 4, 2026-08-08) — full sign-off, not
 retroactive. Sequencing consequence: the
 vocabulary-growth units precede the switch; U9 queues behind it
-(Evan: no hurry). Drafted per LIBRARY-DESIGN §L8 ruling 3 on the
+(Ev: no hurry). Drafted per LIBRARY-DESIGN §L8 ruling 3 on the
 merged evidence of #233/#238. House register: proposals firm where
 the evidence decides them; the V4 option analysis is retained as
 the record of the central decision.
@@ -110,7 +110,7 @@ spec): the `profile` crate stays serde-free and editor-independent
   and the program (document authoring). One authoring surface, two
   consumers — no second spelling of any verb.
 
-**Drift-proofing the two surfaces (added for Evan's round-1
+**Drift-proofing the two surfaces (added for Ev's round-1
 question).** The typed surface and the replay driver can be defined
 so the dangerous drift direction is *unrepresentable*, not merely
 tested away. The driver holds the in-flight tip as an enum over the
@@ -239,7 +239,7 @@ and (ii) required by C6: program arguments feed structure decisions
 once, identically for every lane — per-lane replay at `T` could
 classify a trilean differently across lanes. The asymmetry (profile
 Exprs resolve at f64, magnitude Exprs stay lane-live) is therefore
-inherited, not invented — but it deserves Evan's explicit eyes,
+inherited, not invented — but it deserves Ev's explicit eyes,
 because under v2 the SAME document parameter can feed both kinds of
 slot.
 
@@ -297,7 +297,7 @@ persisted.**
   (lex-band crossings) is documented and the acceptance scene
   pins a stable case and a Vanished case. Canonicalization
   itself is out of the switch's fence.
-  **REVISED AGAIN (round 2, Evan's seamlessness question): the
+  **REVISED AGAIN (round 2, Ev's seamlessness question): the
   renumbering class can be ELIMINATED for program loops, by
   construction.** A chain program has an intrinsic start (the
   entry vertex) and an authored direction — so profile-entity
@@ -439,7 +439,7 @@ two. Sequencing consequence carried either way: U3 (SectionSegments
 retirement) targets the program form directly, per LQ2's "or the v2
 program form directly, given LQ4".
 
-**Round-1/2 sharpening — (b) vs (c), for Evan's lean-(b). REVISED:
+**Round-1/2 sharpening — (b) vs (c), for Ev's lean-(b). REVISED:
 round 2's probe landed** — the round-1 claim "the bowtie forces a
 raw seat in every option" was WRONG and is retracted. The bowtie's
 junctions are all locally sharp and legal, so the algebra authors it
@@ -534,7 +534,7 @@ owed to users as a promise; not run at load, ever (clean break).
   fail-loud demo surface; under V4(c) it additionally becomes the
   raw vocabulary's recording surface (same record-as-you-lower shape
   as V1's third bullet).
-  **AMENDMENT RATIFIED (2026-08-11, issue #377, Evan 👍 on #386;
+  **AMENDMENT RATIFIED (2026-08-11, issue #377, Ev 👍 on #386;
   driven by his in-chat ruling "LoopBuilder should go away";
   strengthened per his two follow-ups before sign-off):** this whole sentence ENDS
   at the migration unit. LoopBuilder leaves the `profile` crate's
@@ -559,7 +559,7 @@ owed to users as a promise; not run at load, ever (clean break).
   never was LoopBuilder. The handful of cross-crate TEST
   consumers (step-export fixtures, mesh, k-lint litmus) migrate
   to lattice or raw-data spellings at the unit.
-  **AMENDED (LIB-RETTAIL, Evan's ruling on #413, 2026-08-12 —
+  **AMENDED (LIB-RETTAIL, Ev's ruling on #413, 2026-08-12 —
   "yes we should demote ProfileLoop"; his framing: kernel
   vocabulary should be private, and the broken-on-purpose bowtie
   cannot justify a public authoring tier):** the clause "raw
@@ -604,10 +604,10 @@ owed to users as a promise; not run at load, ever (clean break).
 ## V7. Question ledger
 
 VQ1 was delegated to orchestrator judgment and ruled; VQ2–VQ9 were
-reviewed in detail and agreed by Evan (PR #242 round 4). Each entry
+reviewed in detail and agreed by Ev (PR #242 round 4). Each entry
 is the ruling plus the argument that decided it.
 
-- **VQ1 — raw loops' status: RULED — (b) DIRECT** (Evan delegated
+- **VQ1 — raw loops' status: RULED — (b) DIRECT** (Ev delegated
   the call, PR #242 round 3, 2026-08-08: "use your judgment …
   no particular hurry … seems like less work overall to just do
   (b)"; orchestrator ruling recorded here). The deciding argument,
@@ -617,7 +617,7 @@ is the ruling plus the argument that decided it.
   post-release; removing one (the (c)-then-review path) is
   SUBTRACTIVE and must happen pre-release or never. Chain-only
   forecloses nothing; two-vocabulary creates removal debt on a
-  deadline. With Evan's no-hurry weighting, (c)'s one remaining
+  deadline. With Ev's no-hurry weighting, (c)'s one remaining
   virtue (earlier parametric delivery) loses to less total work
   (one wire vocabulary, one Expr surface, one driver, one slot
   scheme) and the cleaner end state. Consequences: (1) the

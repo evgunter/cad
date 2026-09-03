@@ -45,9 +45,9 @@ use geom::Surface;
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::battery::{FilletRequest, run_battery};
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{BlendArm, CornerConfig, FilletError};
+use sweep::blend::battery::{BlendRequest, run_battery};
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendArm, BlendError, CornerConfig};
 use sweep::test_support::{revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, SurfaceKey, VertexKey, validate_geometric};
 
@@ -160,7 +160,7 @@ fn the_sphere_sphere_equator_fillets_to_its_closed_form() {
     let source = lentil();
     let arcs = rim_arcs_at(&source, RIM_R, 0.0);
     assert_eq!(arcs.len(), 1, "the equator is ONE closed rim edge");
-    let out = fillet_edges(&source, &arcs, r, band(), tol())
+    let out = fillet_edges(&source, &arcs, r, tol())
         .unwrap_or_else(|e| panic!("the sphere-sphere equator fillets, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one band face");
@@ -192,10 +192,10 @@ fn the_sphere_sphere_equator_fillets_to_its_closed_form() {
 fn the_equator_takes_the_sphere_sphere_arm_at_zero_departure() {
     let source = lentil();
     let arcs = rim_arcs_at(&source, RIM_R, 0.0);
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &source,
         edges: arcs.clone(),
-        radius: 0.05,
+        size: 0.05,
     };
     let verdict = run_battery(&req, band()).unwrap_or_else(|e| panic!("the battery passes: {e:?}"));
     let arms: Vec<BlendArm> = verdict
@@ -223,7 +223,7 @@ fn the_equator_takes_the_sphere_sphere_arm_at_zero_departure() {
 /// are written out here, independently of the arm.
 #[test]
 fn the_sphere_sphere_arm_folds_both_sense_bits() {
-    use sweep::fillet::blend::{Meridian, SupportTrace, sheet_center};
+    use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
     let r = 0.05;
     let sheet = Meridian {
         origin: Point3::new(0.0, 0.0, 0.0),
@@ -321,8 +321,8 @@ fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
     // The dihedral along a co-surface seam is zero, and the kernel says
     // so on its own metered predicate.
     for seam in seams {
-        match fillet_edges(&body, &[seam], 0.02, band(), tol()) {
-            Err(FilletError::TangentialEdge { margin, .. }) => assert!(
+        match fillet_edges(&body, &[seam], 0.02, tol()).map_err(|r| r.error) {
+            Err(BlendError::TangentialEdge { margin, .. }) => assert!(
                 margin == 0.0,
                 "a co-surface seam's dihedral is exactly zero, got {margin}"
             ),
@@ -339,9 +339,9 @@ fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
 fn a_chain_stopping_at_a_seam_vertex_refuses_seam_vertex() {
     let body = lantern();
     let (arcs, _) = mouth(&body);
-    match fillet_edges(&body, &arcs[..1], 0.02, band(), tol()) {
+    match fillet_edges(&body, &arcs[..1], 0.02, tol()).map_err(|r| r.error) {
         Err(
-            e @ FilletError::FilletCornerUnsupported {
+            e @ BlendError::UnsupportedCorner {
                 corner: CornerConfig::SeamVertex,
                 policy: None,
                 ..
@@ -349,11 +349,11 @@ fn a_chain_stopping_at_a_seam_vertex_refuses_seam_vertex() {
         ) => {
             let text = e.to_string();
             assert!(
-                text.contains(sweep::fillet::FILLET3_SEAM_VERTEX_RECOURSE),
+                text.contains(sweep::blend::FILLET3_SEAM_VERTEX_RECOURSE),
                 "the seam recourse is the one appended: {text}"
             );
             assert!(
-                !text.contains(sweep::fillet::FILLET3_CORNER_RECOURSE),
+                !text.contains(sweep::blend::FILLET3_CORNER_RECOURSE),
                 "the corner recourse names a door that would not help here: {text}"
             );
             assert!(
@@ -383,7 +383,7 @@ fn a_chain_stopping_at_a_seam_vertex_refuses_seam_vertex() {
 fn requesting_the_rim_whole_gets_past_the_seam() {
     let body = lantern();
     let (arcs, vertex) = mouth(&body);
-    let out = fillet_edges(&body, &arcs, 0.02, band(), tol())
+    let out = fillet_edges(&body, &arcs, 0.02, tol())
         .unwrap_or_else(|e| panic!("the whole rim carves, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
     assert_eq!(
@@ -420,7 +420,7 @@ fn a_one_edge_rim_never_reaches_the_seam_tag() {
     for (r, y) in [(RIM_R, 0.0), (0.6, 0.2), (0.6, -0.2)] {
         let arcs = rim_arcs_at(&source, r, y);
         assert_eq!(arcs.len(), 1, "an annular revolve's rim is ONE edge");
-        fillet_edges(&source, &arcs, 0.05, band(), tol())
+        fillet_edges(&source, &arcs, 0.05, tol())
             .unwrap_or_else(|e| panic!("the r={r} rim at y={y} fillets, got {e:?}"));
     }
 }

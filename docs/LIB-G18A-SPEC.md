@@ -1,6 +1,6 @@
 # LIB-G18a — the resolver and memo parameters of Python's `evaluate`
 
-**Status: RATIFIED (Evan, in-chat, 2026-08-29 — "that looks right").
+**Status: RATIFIED (Ev, in-chat, 2026-08-29 — "that looks right").
 Binding at dispatch. Full model-A/B protocol unit (NOT mechanical):
 the flagship signature changes, so this is the judgment-checked kind.**
 

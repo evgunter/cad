@@ -99,14 +99,18 @@
 //!   every key patched. **All three understate it.** A refusal raised
 //!   between the transplant's two passes leaves entities holding
 //!   source-internal keys, which in `dst` either dangle or resolve to
-//!   an unrelated live entity. Whoever takes S14 fixes one of three
-//!   copies of the same sentence. So a caller that
+//!   an unrelated live entity. The same sentence is written in three
+//!   places, so a correction has to reach all three. So a caller that
 //!   ignores a graft's `Err` and keeps using `dst` can hand the next
 //!   operator a tier-1-invalid body and fire its postcondition from
 //!   **API misuse rather than a kernel bug**. That is the state class
 //!   D9's footnote asserts cannot occur and the D2 addendum's five
-//!   classes do not cover; it is open as **S14** in
-//!   `docs/SMELL-SCAN-2026-08.md` and is not settled here.
+//!   classes do not cover. **It is an open question in front of Ev,
+//!   not a thing this module settles**: whether the graft can be
+//!   restructured so a partially-written destination is not
+//!   representable — staging into a fresh body and committing on
+//!   success, the shape [`Body::merge_coplanar_faces`] already uses —
+//!   or whether the class gets a name of its own.
 //!
 //!   The D9 taxonomy consequence therefore holds **for every door but
 //!   that one**: these debug panics are

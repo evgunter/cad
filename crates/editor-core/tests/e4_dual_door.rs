@@ -50,10 +50,9 @@
 //! `CertifiedEnclosure for Dual` impossible (DL1 — a dual never
 //! certifies).
 //!
-//! The scan record this suite's predecessor kept honest — S44's D1
-//! block in `docs/SMELL-SCAN-2026-08.md` — carries the dated LANDED
-//! note for the flip; a change to what this suite claims owes that
-//! record a matching note, as the flip itself did.
+//! **This suite is the record of which bounds a dual satisfies.** When
+//! that set changes, the change belongs in this header with its date,
+//! because nothing else in the tree states it.
 
 use geom_core::Dual64;
 use geom_core::predicate::Decide;
@@ -68,7 +67,8 @@ where
         + Send
         + Sync
         + topo::AtRestPolicy
-        + editor_core::eval::ContentBits,
+        + editor_core::eval::ContentBits
+        + editor_core::analysis::AxisScalar,
 {
 }
 
@@ -89,17 +89,17 @@ where
         + Send
         + Sync
         + topo::AtRestPolicy
-        + editor_core::eval::ContentBits,
+        + editor_core::eval::ContentBits
+        + editor_core::analysis::AxisScalar,
 {
     let _ = editor_core::eval::evaluate::<T>;
 }
 
 /// The same bridge against the NAMED set rather than against
-/// `evaluate`'s literal where-clause. `EvalScalar` and `evaluate`
-/// restate the same list ten lines apart in `eval/mod.rs` and can drift
-/// from each other, so both are pinned: this row proves
-/// `T: EvalScalar` from the restatement alone, so a term added to
-/// `EvalScalar` and not to the literal breaks it.
+/// `evaluate`'s where-clause. `evaluate` now names `EvalScalar` rather
+/// than restating its terms, so the restatement that can drift is the
+/// one in THIS file: this row proves `T: EvalScalar` from it, so a term
+/// added to `EvalScalar` and not to the list above breaks it.
 fn the_literal_is_the_whole_eval_scalar_set<T>()
 where
     T: Decide
@@ -107,7 +107,8 @@ where
         + Send
         + Sync
         + topo::AtRestPolicy
-        + editor_core::eval::ContentBits,
+        + editor_core::eval::ContentBits
+        + editor_core::analysis::AxisScalar,
 {
     requires_the_whole_eval_scalar_set::<T>();
 }

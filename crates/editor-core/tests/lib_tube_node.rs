@@ -745,33 +745,129 @@ fn both_kinds_mint_a_total_name_table_through_the_revolve_emitter() {
 // 5. Persistence and the edit door
 // ---------------------------------------------------------------
 
-/// **Both kinds round-trip through the v17 wire**, window variants and
-/// the wall included.
+/// **Both kinds round-trip through save/load/replay BIT-IDENTICALLY**
+/// — the D6.1 identity row's own shape, spelled here over the two new
+/// kinds (`m4_pr6_roundtrip.rs::save_load_replay_identity`).
+///
+/// The corpus registration means that row already walks these two
+/// documents; this one is written out anyway because the roster is
+/// what makes that true, and a roster is exactly the thing a later
+/// curation can quietly change. It carries the same four claims:
+/// the snapshot survives `bit_eq`, the edit log survives, the REPLAYED
+/// state matches snapshot + edits, and re-saving the loaded state
+/// reproduces the bytes exactly.
+///
+/// There is no version to assert. Two new node kinds are ADDITIVE
+/// growth under the post-BOOL-13 contract (`persist`'s "No schema
+/// version, on purpose"): the format carries no number, so what a
+/// round-trip row can claim is that the bytes are canonical and the
+/// state comes back identical — which is what it claims.
 #[test]
 fn both_kinds_round_trip_through_persistence() {
     for d in [tube_ring::document(), hollow_tube_elbow::document()] {
-        // The snapshot ALREADY holds the corpus edits, so the log
-        // saved beside it is empty: handing `d.edits` here would
-        // replay them onto the state they produced and double the
-        // recipe (measured: four nodes back from a two-node document).
-        let text = save(&d.doc, &[], Tol::witness()).expect("saves");
-        assert_eq!(text.lines().next(), Some("schema: 17"));
+        // Saved from EMPTY plus the corpus edit log, so the replay half
+        // has something to replay: handing `d.doc` and `d.edits`
+        // together would apply the edits onto the state they already
+        // produced and double the recipe (measured: four nodes back
+        // from a two-node document).
+        let empty = ProfileDoc::empty_derived("lib-tube-roundtrip", Tol::witness());
+        let mut expected = empty.clone();
+        for edit in &d.edits {
+            expected = apply(&expected, edit, Tol::witness())
+                .expect("a corpus edit applies")
+                .doc;
+        }
+        let text = save(&empty, &d.edits, Tol::witness()).expect("saves");
         let back = load(&text, Tol::witness()).expect("loads");
-        assert_eq!(
-            back.doc.order(),
-            d.doc.order(),
-            "{}: the recipe survives the wire",
+        assert!(
+            back.snapshot.bit_eq(&empty),
+            "{}: snapshot round-trip not bit-identical",
             d.name
         );
-        for &id in d.doc.order() {
-            assert_eq!(
+        assert_eq!(back.edits, d.edits, "{}: edit log round-trip", d.name);
+        assert!(
+            back.doc.bit_eq(&expected),
+            "{}: replayed document not bit-identical",
+            d.name
+        );
+        assert_eq!(
+            save(&back.snapshot, &back.edits, Tol::witness()).expect("re-saves"),
+            text,
+            "{}: save bytes not canonical",
+            d.name
+        );
+        // The recipe that came back really does carry the new kind —
+        // otherwise every assertion above would hold vacuously over a
+        // document this unit never touched.
+        assert!(
+            back.doc.order().iter().any(|&id| matches!(
                 back.doc.node(id),
-                d.doc.node(id),
-                "{}: node {id:?} survives the wire",
-                d.name
-            );
-        }
+                Some(Node::Tube { .. } | Node::HollowTube { .. })
+            )),
+            "{}: the round-tripped recipe names neither tube kind",
+            d.name
+        );
     }
+}
+
+/// **An older document never names the two kinds, and loads.** The
+/// additive-growth direction of the one door, on REAL older bytes:
+/// `corpus/tour/die_composed_tour.pncad` was written by a build with
+/// no tube vocabulary at all and is committed untouched by this unit.
+///
+/// ε is re-stamped to the process's before the load, because a saved
+/// document records the ε it was decided at and `load` refuses a
+/// mismatch (`ToleranceConflict`) — without the re-stamp this row
+/// would pass vacuously on every CI ε row but one, asserting the
+/// tolerance door rather than the vocabulary one.
+#[test]
+fn a_document_written_before_the_tube_vocabulary_still_loads() {
+    const OLDER: &str = include_str!("corpus/tour/die_composed_tour.pncad");
+    assert!(
+        !OLDER.contains("\"Tube\"") && !OLDER.contains("\"HollowTube\""),
+        "the fixture must predate the tube vocabulary to say anything here"
+    );
+    let probe = save(
+        &ProfileDoc::empty_derived("lib-tube-eps-probe", Tol::witness()),
+        &[],
+        Tol::witness(),
+    )
+    .expect("an empty document saves");
+    let wanted = probe
+        .lines()
+        .map(str::trim_start)
+        .find(|l| l.starts_with("\"epsilon\":"))
+        .expect("a saved document records its ε")
+        .trim_end_matches(',');
+    let text: String = OLDER
+        .lines()
+        .map(|l| {
+            if l.trim_start().starts_with("\"epsilon\":") {
+                let (indent, tail) = l.split_at(l.len() - l.trim_start().len());
+                let comma = if tail.trim_end().ends_with(',') { "," } else { "" };
+                format!("{indent}{wanted}{comma}")
+            } else {
+                l.to_owned()
+            }
+        })
+        .collect::<Vec<String>>()
+        .join("\n");
+    let loaded = load(&text, Tol::witness()).expect("an older document loads");
+    assert!(
+        !loaded.doc.order().is_empty() || !loaded.edits.is_empty(),
+        "a vacuous document would prove nothing about growth"
+    );
+    assert!(
+        loaded
+            .doc
+            .order()
+            .iter()
+            .all(|&id| !matches!(
+                loaded.doc.node(id),
+                Some(Node::Tube { .. } | Node::HollowTube { .. })
+            )),
+        "the older document names a kind it cannot have"
+    );
 }
 
 /// **The wall slot is editable, and the edit moves the stored INNER

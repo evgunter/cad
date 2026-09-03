@@ -5,10 +5,9 @@
 //! over the SHIPPED call sites only (crate `src/` trees — fixtures and
 //! demos carry prose reasons instead of rows and are not counted):
 //!
-//! 1. the number of sites matches the ledger's inventory — F2 ×4,
-//!    F10 ×1 (one loop over seven rigidity residuals), F13 ×1, F14 ×1,
-//!    F15 ×1, **8 sites**. This total is hand-synced; see
-//!    [`LEDGER_FLAGGED_SITES`].
+//! 1. the number of sites matches the ledger's inventory. That total is
+//!    hand-synced and spelled ONCE, at [`LEDGER_FLAGGED_SITES`]: a
+//!    second copy of it in this header is a count nothing checks.
 //! 2. every site's `ledger_row` argument names a row the ledger
 //!    actually has. This one is computed from the document.
 //!
@@ -31,7 +30,7 @@ use std::path::{Path, PathBuf};
 /// level by hand with the audit's own prose inventory; the sibling
 /// assertion, [`every_shipped_site_cites_a_ledger_row_that_exists`],
 /// reads its rows out of the audit and does compute.
-const LEDGER_FLAGGED_SITES: usize = 8;
+const LEDGER_FLAGGED_SITES: usize = 9;
 
 /// One shipped call site: where it is, and the row it cites.
 #[derive(Debug)]

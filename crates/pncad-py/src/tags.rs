@@ -6,9 +6,15 @@
 //! because prose is not a stable interface — and its human message is
 //! the kernel error's own `Display`, never a `Debug` dump.
 //!
-//! Neither [`EditError`] nor [`NodeErrorKind`] is re-exported with a
-//! field-level accessor set, so a tag plus the rendered message is the
-//! whole of what a scaffold can read today.
+//! A tag is not the whole payload, and the doors are split on that.
+//! Most project every arm's fields as attributes beside the tag —
+//! `py/readback.rs` and `py/refactor.rs` are the worked examples: one
+//! exhaustive `match`, no wildcard arm, every attribute present on
+//! every arm and `None` where the arm does not carry it, so `getattr`
+//! never raises and a caller never has to branch on `variant` first.
+//! The rest cross as tag plus message alone. **#1479 owns that split**
+//! — which doors are on which side, and what each unprojected one
+//! withholds; this header does not keep a second copy of that census.
 //!
 //! The matches below are EXHAUSTIVE on purpose. A new kernel variant
 //! breaks this build rather than silently arriving in Python as an
@@ -18,9 +24,6 @@
 //! which forces a wildcard arm and takes the compile-time alarm away
 //! with nothing that fires in its place — see that function for what
 //! the crossing does instead.
-//!
-//! Full per-variant field projection (node ids, slots, operand roles)
-//! is deferred to the unit that binds the complete surface.
 
 use pncad::document::{
     AssemblyError, CheckEvidence, ChecksError, DimensionError, EditError, InlineError, MateFault,
@@ -30,7 +33,7 @@ use pncad::document::{
 use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
 use pncad::prelude::BlendKind;
-use pncad::profile::PathError;
+use pncad::profile::{PathError, PathErrorKind};
 use pncad::select::{DanglingRef, InterrogateError, ReadbackError};
 use pncad::step_import::StepImportError;
 // All three STL refusals are prelude-curated; the module path is the
@@ -43,35 +46,45 @@ use pncad::workspace::WorkspaceError;
 /// `PathError` implements `Display`, so the human message is the
 /// kernel's own prose and the tag is the branchable discriminant —
 /// the [`persist_error_tag`] treatment, not the `Debug`-dump one.
+///
+/// The FFI spelling is this crate's to own; the DISCRIMINANT is not.
+/// It is `PathError::kind`, and this map keys off it — one stable
+/// string per kind, over `PathErrorKind`'s arms rather than `..`, so a
+/// new kernel refusal stops this build instead of acquiring a silent
+/// tag. A kind with no arm behind it is a phantom, and the fix is to
+/// delete it kernel-side; minting a tag for one would publish an FFI
+/// name no refusal can ever carry.
 pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
-    match err {
-        PathError::JunctionTangent { .. } => "junction_tangent",
-        PathError::JunctionCusp { .. } => "junction_cusp",
-        PathError::TangentLineClose { .. } => "tangent_line_close",
-        PathError::SameCarrierJunction { .. } => "same_carrier_junction",
-        PathError::NoCornerForFillet { .. } => "no_corner_for_fillet",
-        PathError::AnchorOutsideTrimmedExtent { .. } => "anchor_outside_trimmed_extent",
-        PathError::FilletOffsetLeverTooShort { .. } => "fillet_offset_lever_too_short",
-        PathError::ArcLegOnOpenFillet { .. } => "arc_leg_on_open_fillet",
-        PathError::SeamRetrimsArcFirstSide => "seam_retrims_arc_first_side",
-        PathError::Structure { .. } => "guided_structure",
-        PathError::DegenerateArcSpec { .. } => "degenerate_arc_spec",
-        PathError::NonpositiveLeg { .. } => "nonpositive_leg",
-        PathError::NonpositiveFilletRadius { .. } => "nonpositive_fillet_radius",
-        PathError::NonpositiveCircleRadius { .. } => "nonpositive_circle_radius",
-        PathError::CircleSplitCount { .. } => "circle_split_count",
-        PathError::ArcContinueNeedsArcCarrier => "arc_continue_needs_arc_carrier",
-        PathError::ArcContinueOffCarrier { .. } => "arc_continue_off_carrier",
-        PathError::ZeroDirection { .. } => "zero_direction",
-        PathError::ArcViaCollinear { .. } => "arc_via_collinear",
-        PathError::DegenerateArcChord { .. } => "degenerate_arc_chord",
-        PathError::ArcCenterNotEquidistant { .. } => "arc_center_not_equidistant",
-        PathError::DegenerateArcCenter { .. } => "degenerate_arc_center",
-        PathError::FarEndAnchorWithoutFillet => "far_end_anchor_without_fillet",
-        PathError::Escalated { .. } => "escalated",
-        PathError::Band(_) => "band",
-        PathError::UnderdeterminedLeg { .. } => "underdetermined_leg",
-        PathError::OverdeterminedJunction { .. } => "overdetermined_junction",
+    match err.kind() {
+        PathErrorKind::JunctionTangent => "junction_tangent",
+        PathErrorKind::JunctionCusp => "junction_cusp",
+        PathErrorKind::SeamTangent => "seam_tangent",
+        PathErrorKind::SameCarrierJunction => "same_carrier_junction",
+        PathErrorKind::ContinuationTargetOffRay => "continuation_target_off_ray",
+        PathErrorKind::NoCornerForFillet => "no_corner_for_fillet",
+        PathErrorKind::AnchorOutsideTrimmedExtent => "anchor_outside_trimmed_extent",
+        PathErrorKind::FilletOffsetLeverTooShort => "fillet_offset_lever_too_short",
+        PathErrorKind::FilletEnclosesLegCarrier => "fillet_encloses_leg_carrier",
+        PathErrorKind::ArcLegOnOpenFillet => "arc_leg_on_open_fillet",
+        PathErrorKind::SeamRetrimsArcFirstSide => "seam_retrims_arc_first_side",
+        PathErrorKind::Structure => "guided_structure",
+        PathErrorKind::DegenerateArcSpec => "degenerate_arc_spec",
+        PathErrorKind::NonpositiveLeg => "nonpositive_leg",
+        PathErrorKind::NonpositiveFilletRadius => "nonpositive_fillet_radius",
+        PathErrorKind::NonpositiveCircleRadius => "nonpositive_circle_radius",
+        PathErrorKind::CircleSplitCount => "circle_split_count",
+        PathErrorKind::ArcContinueNeedsArcCarrier => "arc_continue_needs_arc_carrier",
+        PathErrorKind::ArcContinueOffCarrier => "arc_continue_off_carrier",
+        PathErrorKind::ZeroDirection => "zero_direction",
+        PathErrorKind::ArcViaCollinear => "arc_via_collinear",
+        PathErrorKind::DegenerateArcChord => "degenerate_arc_chord",
+        PathErrorKind::ArcCenterNotEquidistant => "arc_center_not_equidistant",
+        PathErrorKind::DegenerateArcCenter => "degenerate_arc_center",
+        PathErrorKind::FarEndAnchorWithoutFillet => "far_end_anchor_without_fillet",
+        PathErrorKind::Escalated => "escalated",
+        PathErrorKind::Band => "band",
+        PathErrorKind::UnderdeterminedLeg => "underdetermined_leg",
+        PathErrorKind::OverdeterminedJunction => "overdetermined_junction",
     }
 }
 
@@ -83,6 +96,7 @@ pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
         RecordedProgramError::Literal(inner) => expr_dimension_error_tag(inner),
         RecordedProgramError::SubdivisionCount(_) => "subdivision_count",
         RecordedProgramError::CarrierInChain => "carrier_in_chain",
+        RecordedProgramError::VerbNotInDocumentVocabulary(_) => "verb_not_in_document_vocabulary",
     }
 }
 
@@ -131,6 +145,11 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         }
         EditError::NotStructuralSlot { .. } => "not_structural_slot",
         EditError::UnknownDocParam { .. } => "unknown_doc_param",
+        EditError::UnknownPayloadParam { .. } => "unknown_payload_param",
+        EditError::PayloadParamDimensionMismatch { .. } => "payload_param_dimension_mismatch",
+        EditError::MeasureMalformed { .. } => "measure_malformed",
+        EditError::AssertionTarget { .. } => "assertion_target",
+        EditError::AssertionDimension { .. } => "assertion_dimension",
         EditError::DocParamDimensionMismatch { .. } => "doc_param_dimension_mismatch",
         EditError::ContinuousParamCannotBeCount { .. } => "continuous_param_cannot_be_count",
         EditError::DocParamNotDeclared { .. } => "doc_param_not_declared",
@@ -256,12 +275,27 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::Loft { .. } => "loft",
         NodeErrorKind::CurvedSolidFrontier { .. } => "curved_solid_frontier",
         NodeErrorKind::MissingInput { .. } => "missing_input",
+        NodeErrorKind::MeasureRefResolve { .. } => "measure_ref_resolve",
+        NodeErrorKind::MeasureRefUnreadable { .. } => "measure_ref_unreadable",
+        NodeErrorKind::MeasureUnsupported(_) => "measure_unsupported",
+        NodeErrorKind::MeasureNotParallel { .. } => "measure_not_parallel",
+        NodeErrorKind::MeasureNonFinite { .. } => "measure_non_finite",
+        NodeErrorKind::MeasureMalformed(_) => "measure_malformed",
+        NodeErrorKind::PayloadExpr { .. } => "payload_expr",
+        NodeErrorKind::AssertionDimension { .. } => "assertion_dimension",
         NodeErrorKind::ToleranceConflict { .. } => "tolerance_conflict",
+        // Its own tag rather than the ε conflict's: both refuse every
+        // node for a whole-run reason, but the recourses are different
+        // — one is "replay in a process whose ε matches", the other is
+        // "ask for the box at a scalar that can carry it".
+        NodeErrorKind::ParamBox { .. } => "param_box",
         NodeErrorKind::WrongOperand { .. } => "wrong_operand",
         NodeErrorKind::EmptyOperand { .. } => "empty_operand",
         NodeErrorKind::DegenerateDirection { .. } => "degenerate_direction",
+        NodeErrorKind::NonFiniteDirection { .. } => "non_finite_direction",
         NodeErrorKind::Band { .. } => "band",
         NodeErrorKind::MissingSlot { .. } => "missing_slot",
+        NodeErrorKind::VerbArity { .. } => "verb_arity",
         NodeErrorKind::Escalated { .. } => "escalated",
         NodeErrorKind::AxisNotInSketchPlane { .. } => "axis_not_in_sketch_plane",
         NodeErrorKind::NonPositiveCount { .. } => "non_positive_count",
@@ -372,15 +406,13 @@ pub fn persist_error_tag(err: &PersistError) -> &'static str {
     match err {
         PersistError::NonFinite { .. } => "non_finite",
         PersistError::Distribution { .. } => "distribution",
+        PersistError::DisplayUnit { .. } => "display_unit",
         PersistError::ProfileProgram { .. } => "profile_program",
         PersistError::Serialize { .. } => "serialize",
-        PersistError::Header { .. } => "header",
         PersistError::HeaderId { .. } => "header_id",
         PersistError::IdMismatch { .. } => "id_mismatch",
-        PersistError::UnknownSchema { .. } => "unknown_schema",
-        PersistError::SchemaTooOld { .. } => "schema_too_old",
-        PersistError::Migration(_) => "migration",
         PersistError::Parse { .. } => "parse",
+        PersistError::Unreadable { .. } => "unreadable",
         PersistError::Snapshot(_) => "snapshot",
         PersistError::EditReplay { .. } => "edit_replay",
         PersistError::ToleranceConflict { .. } => "tolerance_conflict",
@@ -426,11 +458,15 @@ pub fn workspace_error_tag(err: &WorkspaceError) -> &'static str {
 ///
 /// `StepImportError` implements `Display`, so the human message is the
 /// importer's own prose naming the entity id and line; this is the
-/// branchable discriminant. Twenty-one arms, and unlike
-/// [`workspace_error_tag`]'s door **every one of them is reachable**
-/// through `import_step` — a caller distinguishing a malformed file
-/// from an unsupported entity from a tier refusal has no other way to
-/// do it, because the id and line live in prose.
+/// branchable discriminant. Twenty-two arms. Twenty-one are reachable
+/// through `import_step` on some input, unlike
+/// [`workspace_error_tag`]'s door — a caller distinguishing a
+/// malformed file from an unsupported entity from a tier refusal has
+/// no other way to do it, because the id and line live in prose. The
+/// twenty-second, `vertex_without_point`, announces a corrupt-body
+/// state whose reachability the declaration resolver cannot prove
+/// either way; it exists so that resolver refuses rather than
+/// miscounts.
 ///
 /// The nested arms keep their own tag rather than carrying the inner
 /// refusal's through: what the caller branches on is which STAGE of
@@ -448,6 +484,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::MissingUncertainty => "missing_uncertainty",
         StepImportError::InvalidEpsOverride { .. } => "invalid_eps_override",
         StepImportError::DeclarationUnresolved { .. } => "declaration_unresolved",
+        StepImportError::VertexWithoutPoint { .. } => "vertex_without_point",
         StepImportError::MalformedReal { .. } => "malformed_real",
         StepImportError::Topology { .. } => "topology",
         StepImportError::Assembly { .. } => "assembly",
@@ -535,6 +572,8 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::Triangulation { .. } => "triangulation",
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
         TessellateError::UnsupportedCurvedDomain { .. } => "unsupported_curved_domain",
+        TessellateError::UnsupportedCurvedShape { .. } => "unsupported_curved_shape",
+        TessellateError::Band { .. } => "tolerance_band_unformable",
     }
 }
 

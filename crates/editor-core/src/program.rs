@@ -86,6 +86,9 @@ pub enum ProgramStep {
     },
     /// `.tangent()` — structural, no arguments.
     Tangent,
+    /// `.cusp()` — structural, no arguments: the declared
+    /// reverse-tangent junction (D1's wedge-0/2π authoring door).
+    Cusp,
     /// `.turn(δ)`.
     Turn(Expr),
     /// `line(len)`.
@@ -135,6 +138,19 @@ pub enum ProgramStep {
 /// The document-layer mirror of [`profile::ArcData`] (§2c's unified
 /// arc-spec record): continuous fields [`Expr`], structural tags
 /// literal (`side`, `winding`, `Start`).
+///
+/// It is the arc-mode vocabulary's second spelling, and it has to be
+/// for the reason [`ProgramStep`] does. A mode the kernel vocabulary
+/// gains does break this crate at compile — `spec_lit` and the two
+/// content-key hashers are exhaustive on `profile::ArcData` — but
+/// each of those breaks can be discharged where it stands, with a
+/// refusal arm and a tag, while this enum, the wire and the
+/// expression-slot roles stay short: the hop that would need them,
+/// `res_spec`, matches THIS type and CONSTRUCTS the kernel one, so it
+/// keeps compiling. What forces arrival is the mode census in
+/// `tests/switch_program_vocabulary.rs`, keyed on
+/// [`profile::ArcMode::ALL`]: its witness is a match on the mode tag,
+/// so a mode with no document spelling is a compile error there.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramArcData {
     /// `Radius { r, side }` — arrival mode, centre derived.
@@ -276,10 +292,20 @@ pub trait ProfilePayload {
 ///
 /// The resolve and validate classes carry their causes UNALTERED
 /// (`EvalError`/`ProfileError` are `PartialEq`, as `EditError`
-/// requires). The geometry-replay class cannot: `profile::PathError`
-/// deliberately derives no equality, so [`ProgramRefusal::Geometry`]
-/// carries the driver's rendered refusal plus the typed coordinates —
-/// the full typed error remains the EVALUATION surface's contract
+/// requires). The geometry-replay class cannot carry its cause whole:
+/// `profile::PathError` is generic in the evaluation scalar and its
+/// arms carry scalar payloads, and `Real` omits comparison. A derived
+/// `PartialEq` would not be unavailable so much as useless — it would
+/// exist only where the scalar supplies equality on its own, which is
+/// `f64` and neither `Interval` nor `Dual`, and even at `f64` it is
+/// float `==`, non-reflexive at the poison value `Real`'s totality
+/// contract promises. [`ProgramRefusal::Geometry`] therefore
+/// carries the part that does compare — `profile::PathErrorKind`, the
+/// refusal's class — beside the driver's rendered sentence and the
+/// typed coordinates. **The class is the typed interface; the prose is
+/// for a reader.** A consumer asking WHICH geometry refusal fired
+/// matches that variant's `kind` and never the string.
+/// The full typed error remains the EVALUATION surface's contract
 /// (`NodeErrorKind` carries it unaltered); the edit door is the early
 /// ergonomic mirror. REPORTED shape, not silent (LIB-SWITCH §10).
 #[derive(Debug, Clone, PartialEq)]
@@ -313,8 +339,11 @@ pub enum ProgramRefusal {
         loop_: u32,
         /// The offending step index.
         step: u32,
-        /// The driver's rendered refusal (see enum docs for why this
-        /// class is rendered here and typed at evaluation).
+        /// Which geometry refusal fired — the typed half, and the one
+        /// a consumer branches on.
+        kind: profile::PathErrorKind,
+        /// The driver's rendered refusal, for a reader. Carries the
+        /// scalar payloads `kind` drops; never an interface.
         rendered: String,
     },
     /// The replayed loops refused profile validation under the current
@@ -342,6 +371,7 @@ impl core::fmt::Display for ProgramRefusal {
                 loop_,
                 step,
                 rendered,
+                ..
             } => write!(f, "loop {loop_} step {step}: {rendered}"),
             Self::Validate(e) => write!(f, "the replayed loops failed profile validation: {e}"),
         }
@@ -355,10 +385,15 @@ impl core::error::Error for ProgramRefusal {}
 // ------------------------------------------------------------------
 
 /// The argument roles a target contributes ([] for `Start`).
+///
+/// Exhaustive on the target vocabulary rather than a test for one
+/// form: a target form that carries expressions and enumerates no role
+/// is an expression no slot addresses, which the bijection census sees
+/// only where the corpus reaches it.
 fn target_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
-    if let ProgramTarget::Point(_) = t {
-        out.push(StepArg::TargetX);
-        out.push(StepArg::TargetY);
+    match t {
+        ProgramTarget::Point(_) => out.extend([StepArg::TargetX, StepArg::TargetY]),
+        ProgramTarget::Start => {}
     }
 }
 
@@ -411,11 +446,11 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
     }
 }
 
-/// The spec₂ twin of [`target_slots`].
+/// The spec₂ twin of [`target_slots`], exhaustive for the same reason.
 fn target2_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
-    if let ProgramTarget::Point(_) = t {
-        out.push(StepArg::Target2X);
-        out.push(StepArg::Target2Y);
+    match t {
+        ProgramTarget::Point(_) => out.extend([StepArg::Target2X, StepArg::Target2Y]),
+        ProgramTarget::Start => {}
     }
 }
 
@@ -428,7 +463,7 @@ fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
         P::At(_) | P::FarEndTo(_) => out.extend([A::PointX, A::PointY]),
         P::Angle(_) => out.push(A::AngleVal),
         P::Toward { .. } => out.extend([A::DirX, A::DirY]),
-        P::Tangent | P::CloseTo => {}
+        P::Tangent | P::Cusp | P::CloseTo => {}
         P::Turn(_) => out.push(A::TurnVal),
         P::Line(_) => out.push(A::Length),
         P::LineTo(t) | P::TangentArcTo(t) => target_slots(t, out),
@@ -713,6 +748,7 @@ fn res_step<T: Decide>(
             dy: res(dy, env, loop_, i, A::DirY)?,
         },
         ProgramStep::Tangent => Step::Tangent,
+        ProgramStep::Cusp => Step::Cusp,
         ProgramStep::Turn(e) => Step::Turn(res(e, env, loop_, i, A::TurnVal)?),
         ProgramStep::Line(e) => Step::Line(res(e, env, loop_, i, A::Length)?),
         ProgramStep::LineTo(t) => Step::LineTo(res_target(t, env, loop_, i)?),
@@ -746,6 +782,15 @@ fn res_step<T: Decide>(
 
 /// Resolves an arc spec to its scalar-valued mirror (`second` selects
 /// the spec₂ role twins, exactly as [`spec_slots`] enumerates them).
+///
+/// This is the hop the compiler cannot check in the direction that
+/// matters: it matches the document vocabulary and CONSTRUCTS the
+/// kernel one, so it stays well-typed while the kernel vocabulary
+/// grows past it. The mode census keyed on `profile::ArcMode::ALL`
+/// (`tests/switch_program_vocabulary.rs`) is what stands there, and it
+/// checks both directions of the same arm: that every kernel mode is
+/// reachable from a document spec, and that each one resolves to ITS
+/// OWN mode rather than being laundered into a neighbour's.
 fn res_spec<T: Decide>(
     spec: &ProgramArcData,
     env: &ParamEnv<T>,
@@ -896,6 +941,7 @@ impl ProfileProgram {
                 profile::ReplayErrorKind::Path(ref source) => ProgramRefusal::Geometry {
                     loop_: li as u32,
                     step: e.step as u32,
+                    kind: source.kind(),
                     rendered: source.to_string(),
                 },
             })?;
@@ -973,7 +1019,18 @@ fn loop_bit_eq(a: &LoopProgram, b: &LoopProgram) -> bool {
                 phase: pb,
             },
         ) => pair_bit_eq(ca, cb) && ra.bit_eq(rb) && na == nb && pa.bit_eq(pb),
-        _ => false,
+        // Different variants are unequal — spelled over the whole
+        // vocabulary by first element rather than swept up by a
+        // catch-all. That is what makes the answer for a variant added
+        // to `LoopProgram` a compile error here: under a catch-all it
+        // would compare unequal to ITSELF, and the D7 replay identity
+        // and the document diff both read this answer, so a program
+        // that never changed would report as changed. The same holds
+        // for the three functions below.
+        (
+            LoopProgram::Chain(_) | LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. },
+            _,
+        ) => false,
     }
 }
 
@@ -985,7 +1042,7 @@ fn target_bit_eq(a: &ProgramTarget, b: &ProgramTarget) -> bool {
     match (a, b) {
         (ProgramTarget::Start, ProgramTarget::Start) => true,
         (ProgramTarget::Point(x), ProgramTarget::Point(y)) => pair_bit_eq(x, y),
-        _ => false,
+        (ProgramTarget::Start | ProgramTarget::Point(_), _) => false,
     }
 }
 
@@ -1035,7 +1092,15 @@ fn spec_bit_eq(a: &ProgramArcData, b: &ProgramArcData) -> bool {
                 len: lb,
             },
         ) => ra.bit_eq(rb) && sa == sb && la.bit_eq(lb),
-        _ => false,
+        (
+            S::Radius { .. }
+            | S::Bulge { .. }
+            | S::Via { .. }
+            | S::Center { .. }
+            | S::Sweep { .. }
+            | S::ArcLen { .. },
+            _,
+        ) => false,
     }
 }
 
@@ -1050,7 +1115,7 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
         (P::Toward { dx: xa, dy: ya }, P::Toward { dx: xb, dy: yb }) => {
             xa.bit_eq(xb) && ya.bit_eq(yb)
         }
-        (P::Tangent, P::Tangent) | (P::CloseTo, P::CloseTo) => true,
+        (P::Tangent, P::Tangent) | (P::Cusp, P::Cusp) | (P::CloseTo, P::CloseTo) => true,
         (P::LineTo(x), P::LineTo(y)) | (P::TangentArcTo(x), P::TangentArcTo(y)) => {
             target_bit_eq(x, y)
         }
@@ -1088,7 +1153,26 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
                 spec2: s2b,
             },
         ) => spec_bit_eq(sa, sb) && ra.bit_eq(rb) && spec_bit_eq(s2a, s2b),
-        _ => false,
+        (
+            P::At(_)
+            | P::Angle(_)
+            | P::Toward { .. }
+            | P::Tangent
+            | P::Cusp
+            | P::Turn(_)
+            | P::Line(_)
+            | P::LineTo(_)
+            | P::ArcTo(_)
+            | P::TangentArcTo(_)
+            | P::ArcContinue(_)
+            | P::Fillet(_)
+            | P::FilletArc { .. }
+            | P::ArcFillet { .. }
+            | P::ArcFilletArc { .. }
+            | P::FarEndTo(_)
+            | P::CloseTo,
+            _,
+        ) => false,
     }
 }
 
@@ -1179,6 +1263,21 @@ pub enum RecordedProgramError {
     /// Unreachable from the algebra: `circle` and `circle_split` are
     /// one-step programs that bind nothing and continue into nothing.
     CarrierInChain,
+    /// **A verb the DOCUMENT vocabulary does not spell yet.** The
+    /// authoring algebra and this crate's document form are separate
+    /// vocabularies (G1 layering: `profile` has neither expressions nor
+    /// serde), and the hop back from a recorded program is where the
+    /// difference becomes visible. A verb the table gains reaches this
+    /// arm until the document form — and, with it, the persisted form —
+    /// grows to match.
+    ///
+    /// One verb sits here today: `continue_to`, the declared
+    /// point-target continuation. Spelling it in the document is a WIRE
+    /// change (the checked-in corpus regenerates; the format carries no
+    /// schema version), which is its own unit; the census in
+    /// `tests/switch_program_vocabulary.rs` carries the gap as a named
+    /// exception so it stays loud rather than quiet.
+    VerbNotInDocumentVocabulary(profile::Verb),
 }
 
 impl From<DimensionError> for RecordedProgramError {
@@ -1197,6 +1296,12 @@ impl core::fmt::Display for RecordedProgramError {
             Self::CarrierInChain => {
                 write!(f, "a complete-loop carrier step appears inside a chain")
             }
+            Self::VerbNotInDocumentVocabulary(verb) => write!(
+                f,
+                "the authoring verb {verb:?} has no document spelling: the document and \
+                 persisted vocabularies grow by a format change that regenerates the \
+                 corpus, and this one has not landed yet"
+            ),
         }
     }
 }
@@ -1320,9 +1425,15 @@ impl LoopProgram {
                     dy: scalar_lit(*dy)?,
                 },
                 Step::Tangent => ProgramStep::Tangent,
+                Step::Cusp => ProgramStep::Cusp,
                 Step::Turn(delta) => ProgramStep::Turn(ang_lit(*delta)?),
                 Step::Line(len) => ProgramStep::Line(len_lit(*len)?),
                 Step::LineTo(t) => ProgramStep::LineTo(target_lit(t)?),
+                Step::ContinueTo(_) => {
+                    return Err(RecordedProgramError::VerbNotInDocumentVocabulary(
+                        profile::Verb::ContinueTo,
+                    ));
+                }
                 Step::ArcTo(spec) => ProgramStep::ArcTo(spec_lit(spec)?),
                 Step::TangentArcTo(t) => ProgramStep::TangentArcTo(target_lit(t)?),
                 Step::ArcContinue(p) => ProgramStep::ArcContinue(pt_lit(p)?),

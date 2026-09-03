@@ -362,6 +362,11 @@ fn notched_block_end_to_end() {
     let (above, below) = (body_of(&result.above), body_of(&result.below));
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));
+    // Tier 3 on the verb's own products — the coplanar row's boundary
+    // edges sit between flush y = 1 planes, where a citation the split
+    // reassigned must have been restated, not kept (issue 1152).
+    assert_tier3_after_upgrade(above);
+    assert_tier3_after_upgrade(below);
 
     // Above: three disconnected prisms, one shell each, one solid.
     assert_eq!(above.shells().count(), 3);

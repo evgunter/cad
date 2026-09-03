@@ -53,27 +53,6 @@ fn nurbs_cylinder() -> NurbsSurface<f64> {
     NurbsSurface::new(knots_u, knots_v, control, weights).unwrap()
 }
 
-fn lift(s: &NurbsSurface<f64>) -> NurbsSurface<Interval> {
-    let ctrl = s
-        .control()
-        .iter()
-        .map(|p| {
-            Point3::new(
-                Interval::from_f64(p.x),
-                Interval::from_f64(p.y),
-                Interval::from_f64(p.z),
-            )
-        })
-        .collect();
-    NurbsSurface::new(
-        s.knots_u().clone(),
-        s.knots_v().clone(),
-        ctrl,
-        s.weights().to_vec(),
-    )
-    .unwrap()
-}
-
 fn contains(e: Interval, v: f64) -> bool {
     e.lo() <= v && v <= e.hi()
 }
@@ -83,7 +62,7 @@ fn contains(e: Interval, v: f64) -> bool {
 #[test]
 fn interval_surface_eval_contains_f64() {
     let n = nurbs_cylinder();
-    let ni = lift(&n);
+    let ni = n.map_scalar(Interval::from_f64);
     for (ulo, uhi) in [(0.05, 0.2), (0.2, 0.3), (0.45, 0.8)] {
         for (vlo, vhi) in [(0.25, 1.0), (1.5, 2.75)] {
             let ui = Interval::from_bounds(ulo, uhi);
@@ -114,9 +93,10 @@ fn interval_surface_eval_contains_f64() {
 #[test]
 fn surface_poison_propagates() {
     let n = nurbs_cylinder();
-    let ni = lift(&n);
+    let ni = n.map_scalar(Interval::from_f64);
     let p = ni.eval(Interval::from_f64(f64::NAN), Interval::from_f64(1.0));
-    assert!(p.x.lo().is_nan());
+    // Every channel: "poisoned values" is the claim above.
+    assert!(p.x.is_poison() && p.y.is_poison() && p.z.is_poison());
     let mut ctrl = n.control().to_vec();
     ctrl[6] = Point3::new(f64::NAN, ctrl[6].y, ctrl[6].z);
     let np = NurbsSurface::new(
@@ -127,7 +107,11 @@ fn surface_poison_propagates() {
     )
     .unwrap();
     // Index 6 is (iu = 3, iv = 0): active near u ∈ [0.25, 0.5], v low.
-    assert!(np.eval(0.3, 0.2).x.is_nan());
-    // Far cell unaffected (basis locality).
-    assert!(!np.eval(0.9, 2.9).x.is_nan());
+    // The poisoned CHANNEL poisons and the others stay finite — the
+    // partial answer named, not read on x alone.
+    let near = np.eval(0.3, 0.2);
+    assert!(near.x.is_nan() && near.y.is_finite() && near.z.is_finite());
+    // Far cell unaffected (basis locality), on every channel.
+    let far = np.eval(0.9, 2.9);
+    assert!(far.x.is_finite() && far.y.is_finite() && far.z.is_finite());
 }

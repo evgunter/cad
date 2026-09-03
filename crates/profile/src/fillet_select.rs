@@ -4,13 +4,15 @@
 //! # Why this is its own module
 //!
 //! Selection is the one step in the fillet story that reads a bracket
-//! (`Bounds`), and it is shared by two doors that otherwise have no
-//! business knowing about each other: the arc-carrier construction
-//! (candidates at an AUTHORED corner) and the PATHS lowering's
-//! arc-carrier resolution (candidates across DERIVED corners). Giving
-//! the rule one home means the ladder is stated once, and the CI
-//! discipline allowlist can carry one purpose-matched justification for
-//! it instead of the same paragraph twice.
+//! (`Bounds`), and this module is its one home. The tree has a single
+//! selection path: the PATHS lowering's arc-carrier resolution calls
+//! the lift ([`nearest_joint`]), which is in turn the rule's
+//! ([`nearest_candidate`]'s) only production caller. The ratified
+//! construction at an AUTHORED corner hands back every survivor rather
+//! than a winner, so the ranking happens here and nowhere else. One
+//! home means the ladder is stated once, and the CI discipline
+//! allowlist carries one purpose-matched justification for it rather
+//! than one per door.
 //!
 //! The justification, in one line: the S8 pick compares the f64
 //! **diagnostic channel** and is a plain deterministic selection rule,
@@ -47,7 +49,7 @@
 use crate::sugar::ArcFilletCandidate;
 use geom_core::Bounds;
 
-/// Nearest-the-authored-corner branch selection (M5 S8; Evan's ruling,
+/// Nearest-the-authored-corner branch selection (M5 S8; Ev's ruling,
 /// in-chat 2026-07-30): the index of the surviving candidate to build,
 /// given each survivor's `[incoming, outgoing]` tangent setbacks in
 /// meters (arc lengths `R·Δθ` on circular legs).
@@ -162,6 +164,14 @@ pub(crate) fn nearest_candidate(setbacks: &[[f64; 2]]) -> usize {
 /// corners it is not a dominance claim at all, because every gated
 /// survivor is already a valid fillet tangent to both authored
 /// carriers, so ranking them asserts nothing about geometric truth.
+///
+/// The bound is **sole** `T: Bounds` and stays sole at a dual scalar,
+/// which carries a bracket. One line reads both setback brackets of
+/// every candidate, and what they produce is an index: the quantity
+/// chosen is locally constant in the input, which is the condition
+/// `geom_core`'s `Bounds for Dual` impl puts on a frozen selection. At
+/// `Dual64` the ranked channel is the plain-`f64` run's bit for bit
+/// (D9), so the dual run picks the candidate the `f64` run picks.
 ///
 /// `joints` is never empty at the call site (the caller refuses
 /// `NoCornerForFillet` first); an empty slice returns 0, matching

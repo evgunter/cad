@@ -91,6 +91,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/editor-core/src/eval/mod.rs",
+        disposition: Shared, // node-tag-space census, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },
@@ -99,8 +103,8 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // public-surface scan, code view
     },
     Entry {
-        path: "crates/editor-core/tests/schema_ledger.rs",
-        disposition: Shared, // doc-comment ledger, prose view
+        path: "crates/editor-core/tests/m10_3_r2_probes_interval.rs",
+        disposition: Shared, // unreachable-variant scan, code view
     },
     Entry {
         path: "crates/geom-brep/tests/all.rs",
@@ -113,6 +117,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/geom-core/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/geom-core/tests/bounds_census.rs",
+        disposition: Shared, // sole-bracket-bound roster, code view
     },
     Entry {
         path: "crates/geom-core/tests/flagged_census.rs",
@@ -159,8 +167,8 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
-        path: "crates/sweep/src/fillet/admit.rs",
-        disposition: Unconverted("Track T — raw `include_str!`, no reader at all"),
+        path: "crates/sweep/src/blend/admit.rs",
+        disposition: Shared, // token construction sites, code view
     },
     Entry {
         path: "crates/sweep/tests/all.rs",
@@ -209,6 +217,14 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/topo/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/verbs/tests/all.rs",
+        disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/verbs/tests/layer_guard.rs",
+        disposition: Shared, // the crate's src/ directory walk, for the file-list pin
     },
     Entry {
         path: "crates/viewer/tests/all.rs",
@@ -300,10 +316,23 @@ fn sites_reading_rust_source(root: &Path) -> Vec<String> {
     rust_sources(root)
         .iter()
         .filter(|path| {
-            !path.components().any(|c| {
-                let c = c.as_os_str().to_string_lossy();
-                SKIPPED_DIRS.contains(&c.as_ref()) || c.starts_with('.')
-            }) && path.starts_with(root)
+            // Skip on the path RELATIVE TO ROOT, never on the absolute
+            // one. The components above the repository are not the
+            // repository's business, and one of them being hidden is
+            // not a fact about any file here: a checkout under a
+            // hidden directory — `~/.mngr/worktrees/<name>` is the
+            // one every agent lane in this project works in — matched
+            // `.mngr` on EVERY path and filtered the whole tree away.
+            // The row survived that as a red rather than a false
+            // green, which is the doc comment below working exactly
+            // as it claims; what it cost was the ability to run this
+            // test anywhere but CI.
+            path.strip_prefix(root).is_ok_and(|relative| {
+                !relative.components().any(|c| {
+                    let c = c.as_os_str().to_string_lossy();
+                    SKIPPED_DIRS.contains(&c.as_ref()) || c.starts_with('.')
+                })
+            })
         })
         .filter_map(|path| {
             let text = std::fs::read_to_string(path).expect("a readable source file");
@@ -320,9 +349,9 @@ fn sites_reading_rust_source(root: &Path) -> Vec<String> {
 /// **The ledger is the tree's set, not a subset of it.**
 ///
 /// A WALK THAT MATCHED NOTHING IS NOT A PASS, and the equality is what
-/// says so: an empty or broken traversal reports all 34 entries as
-/// stale and reds, so this row needs no separate count floor (an
-/// earlier one asserted `found.len() >= 20`, which set equality had
+/// says so: an empty or broken traversal reports every entry in the
+/// ledger as stale and reds, so this row needs no separate count floor
+/// (an earlier one asserted `found.len() >= 20`, which set equality had
 /// already subsumed and which could not fail for the reason it
 /// stated). [`test_utils::source::rust_sources`] panics on an empty
 /// directory underneath it as well.
@@ -417,7 +446,7 @@ fn the_unconverted_readers_are_the_ones_this_tree_still_owes() {
 /// The number of sites still reading Rust source through something
 /// other than [`test_utils::source`]. **Hand-synced with the ledger
 /// above, and it goes one way.**
-const UNCONVERTED_TODAY: usize = 11;
+const UNCONVERTED_TODAY: usize = 10;
 
 /// The languages other than Rust that a guard in this tree reads. **A
 /// `NotRust` line must name one of these**, because free text is what

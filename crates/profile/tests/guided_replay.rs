@@ -180,7 +180,10 @@ fn every_entry_verb_installs_the_guide() {
     use profile::{Step, Verb};
     use std::f64::consts::FRAC_PI_2;
 
-    let tail_from_directed = |chain: profile::PartialPath<f64, _, _>| {
+    // The angle slot is pinned so `line` resolves: the verb has a second
+    // row (the straight continuation, off a directed point with NO bound
+    // angle), and an unannotated tip leaves both rows applicable.
+    let tail_from_directed = |chain: profile::PartialPath<f64, _, profile::path::HasAng>| {
         chain
             .line(3.0, Tol::witness())
             .expect("line")
@@ -293,34 +296,33 @@ fn guided_replay_consumes_the_recorded_pick_rather_than_ranking() {
 // 3. No lane re-picks
 // ------------------------------------------------------------------
 
-/// **The planted probe.** The hairline lens at `Interval`, guided:
-/// verify-or-abort, never a pick of its own.
+/// **The planted probe.** The hairline lens at `Interval`, guided: the
+/// record's index is USED, not re-derived — the `f64` row above's claim,
+/// made on the enclosure lane where re-deriving would be the tempting
+/// thing to do.
 ///
 /// The ulp of asymmetry puts the two survivors' setback gap inside the
 /// interval channel's enclosure width — the configuration whose two
-/// lanes `fillet_select` says may legally disagree. Guided, the lane
-/// gets no chance to disagree: it re-runs the corner gates, cannot
-/// classify one of them, and refuses TYPED naming that gate. No index
-/// is chosen at `Interval` anywhere in this path.
+/// lanes `fillet_select` says may legally disagree, so the ladder here
+/// genuinely has no answer of its own to fall back on. Told the other
+/// index, the lane builds the other pocket; a pass that re-ran the
+/// ladder could not, since the ladder's answer does not depend on what
+/// it is told.
 ///
-/// WHAT THIS ROW DOES NOT DISCRIMINATE, said plainly because the fixture
-/// invites the opposite reading: the abort is NOT caused by the
-/// hairline asymmetry. A lens' two carriers cross at both tips, so the
-/// entry anchor is itself a derived corner and the advance gate's
-/// zero-swept-angle straddles the period fold (the class in
-/// `generic_replay.rs`) — the symmetric lens, `dx = 0`, aborts here for
-/// the same reason and at the same gate. So this row witnesses
-/// verify-or-abort on a configuration where re-deciding would be
-/// legal, which is the claim it is here to make; it does not witness
-/// the ladder being reached and declined. Nothing at `Interval`
-/// currently reaches a two-survivor ranking at all — the row that
-/// carries "the index is consumed, not re-derived" is
-/// `guided_replay_consumes_the_recorded_pick_rather_than_ranking`
-/// above, at `f64`, where the ladder IS reached.
+/// This is the row a two-survivor ranking at `Interval` was waiting on.
+/// It could not be written while the advance gate's zero swept angle
+/// straddled a composed period fold: a lens' two carriers cross at both
+/// tips, so the entry anchor is itself a derived corner, and the gate
+/// that had to classify it saw a whole-period enclosure and escalated —
+/// for the symmetric lens (`dx = 0`) as much as for this one, which is
+/// why the abort was never evidence about the asymmetry. With the
+/// signed sweep folding its raw difference once
+/// ([`geom_core::Real::reduce_periodic_centred`]) the gate classifies,
+/// the ladder is reached, and consumption is observable here.
 #[cfg(feature = "interval")]
 #[test]
-fn the_hairline_lens_aborts_typed_at_interval_instead_of_re_picking() {
-    use geom_core::{Interval, Real};
+fn the_hairline_lens_at_interval_consumes_the_recorded_pick() {
+    use geom_core::Interval;
     /// Lifts one `f64` step to another scalar (the suite-local embedding;
     /// `generic_replay.rs` carries the exhaustive one and the census
     /// argument for it).
@@ -354,33 +356,45 @@ fn the_hairline_lens_aborts_typed_at_interval_instead_of_re_picking() {
         }
     }
 
+    use geom_core::Bounds;
+
     let program = vesica_lens(f64::EPSILON);
     let (_, structure) = replay_recording(&program, tol()).expect("the lens replays at f64");
     let lifted: Vec<profile::Step<Interval>> = program
         .iter()
         .map(embed)
         .collect::<Vec<profile::Step<Interval>>>();
-    let err = replay_guided(&lifted, &structure, tol())
-        .expect_err("the interval lane cannot confirm this structure");
-    let ReplayErrorKind::Path(PathError::Structure(refusal)) = err.kind else {
-        panic!("expected a named structure refusal, got {:?}", err.kind);
-    };
-    assert!(
-        matches!(refusal.decision, Decision::CornerGate { .. }),
-        "the refusal must name the decision that went unconfirmed, got {:?}",
-        refusal.decision
+    let d = &structure.fillets[0];
+    assert_eq!(
+        d.survivors, 2,
+        "the lens is the two-survivor configuration this row is about"
     );
-    match refusal.kind {
-        StructureRefusalKind::Indeterminate(source) => assert_eq!(
-            source.predicate,
-            Some("path_corner_advance_arc"),
-            "and the predicate it could not classify"
-        ),
-        other => panic!("expected the indeterminate arm, got {other:?}"),
-    }
-    // Nothing was built: no pocket, no partial loop, no nominal
-    // structure quietly kept.
-    let _ = Interval::from_f64(0.0);
+    let nominal = replay_guided(&lifted, &structure, tol())
+        .expect("the interval lane confirms the recorded structure");
+    let other = ReplayStructure {
+        fillets: vec![profile::FilletDecision {
+            candidate: 1 - d.candidate,
+            ..d.clone()
+        }],
+    };
+    let flipped = replay_guided(&lifted, &other, tol())
+        .expect("the other pocket is a valid fillet of the same legs");
+    // Same arity, and the two pockets are SEPARATED — not merely
+    // different bits, which an enclosure lane cannot honestly claim:
+    // some vertex's y enclosures are disjoint, so no single geometry
+    // lies in both answers and the pick provably moved with the record.
+    assert_eq!(nominal.vertices().len(), flipped.vertices().len());
+    let moved = nominal
+        .vertices()
+        .iter()
+        .zip(flipped.vertices())
+        .any(|(a, b)| a.pos().y.hi() < b.pos().y.lo() || b.pos().y.hi() < a.pos().y.lo());
+    assert!(
+        moved,
+        "the guided pass produced an overlapping pocket after being told the other \
+         one — it is ranking rather than consuming, which is the whole hazard this \
+         machinery exists to foreclose"
+    );
 }
 
 /// A record whose fit sign disagrees with what this scalar classifies
@@ -514,4 +528,103 @@ fn guided_validation_at_interval_certifies_without_the_pinned_decides() {
     assert_eq!(vp.loops().len(), 2);
     assert_eq!(vp.loops()[0].role(), profile::LoopRole::Outer);
     assert_eq!(vp.loops()[1].role(), profile::LoopRole::Hole);
+}
+
+/// A structure refusal reports both sides of a disagreement in PROSE.
+///
+/// Every payload that has a vocabulary reaches the sentence through
+/// that vocabulary's `Display`; none reaches it through `Debug`. The
+/// assertions are on exact renderings, so reverting any arm to `{:?}`
+/// fails this test rather than passing unnoticed — a fieldless
+/// variant's `Debug` spelling is the type's identifier, and putting an
+/// identifier where a word belongs is the defect being guarded.
+#[test]
+fn structure_refusal_renders_its_payloads_as_words_not_debug() {
+    use profile::{CornerGate, LoopRole, SegmentShape, StructureRefusal};
+
+    // Each converted vocabulary, rendered on its own. The paired
+    // `Debug` spelling is asserted absent: it is what a reverted arm
+    // would emit, and it differs from the prose in case alone for
+    // `LoopRole`, which a substring check would miss.
+    let rows: [(String, &str, &str); 6] = [
+        (CornerGate::Admitted.to_string(), "admitted", "Admitted"),
+        (
+            CornerGate::RefusedAdvance.to_string(),
+            "refused (corner not ahead of the incoming anchor)",
+            "RefusedAdvance",
+        ),
+        (
+            CornerGate::RefusedReach.to_string(),
+            "refused (corner not behind the arrival anchor)",
+            "RefusedReach",
+        ),
+        (LoopRole::Outer.to_string(), "outer", "Outer"),
+        (LoopRole::Hole.to_string(), "hole", "Hole"),
+        (SegmentShape::Line.to_string(), "a line", "Line"),
+    ];
+    for (rendered, prose, debug_spelling) in rows {
+        assert_eq!(rendered, prose);
+        assert!(
+            !rendered.contains(debug_spelling),
+            "{rendered:?} carries the Debug spelling {debug_spelling:?}"
+        );
+    }
+
+    // The arc carries its turn through `Sign`'s own words.
+    assert_eq!(
+        SegmentShape::Arc {
+            turn: Sign::Positive
+        }
+        .to_string(),
+        "an arc turning positive"
+    );
+
+    // The composed sentence: a `Flipped` refusal names both sides, and
+    // each side is a `DecisionValue` arm rendering through the above.
+    let refusal = StructureRefusal {
+        decision: Decision::Role { loop_: 1 },
+        kind: StructureRefusalKind::Flipped {
+            recorded: DecisionValue::Role(LoopRole::Outer),
+            found: DecisionValue::Role(LoopRole::Hole),
+        },
+    };
+    let rendered = refusal.to_string();
+    assert!(
+        rendered.contains("selected outer, this binding gives hole"),
+        "the roles did not reach the sentence as words: {rendered}"
+    );
+
+    // The index-set arm keeps a `Debug` list — its members are
+    // identifiers-as-location — but a noun introduces it, so the list
+    // reads as a value rather than as a dump that leaked into prose.
+    let sets = StructureRefusal {
+        decision: Decision::TangentJoints { loop_: 0 },
+        kind: StructureRefusalKind::Flipped {
+            recorded: DecisionValue::Set(vec![1, 2]),
+            found: DecisionValue::Set(vec![1, 3]),
+        },
+    };
+    assert!(
+        sets.to_string()
+            .contains("selected indices [1, 2], this binding gives indices [1, 3]"),
+        "the index sets lost their noun: {sets}"
+    );
+
+    // The gate and shape arms, composed the same way.
+    let gate = StructureRefusal {
+        decision: Decision::CornerGate {
+            fillet: 0,
+            corner: 0,
+        },
+        kind: StructureRefusalKind::Flipped {
+            recorded: DecisionValue::Gate(CornerGate::Admitted),
+            found: DecisionValue::Gate(CornerGate::RefusedReach),
+        },
+    };
+    let g = gate.to_string();
+    assert!(
+        g.contains("selected admitted, this binding gives refused"),
+        "{g}"
+    );
+    assert!(!g.contains("Admitted"), "the gate reverted to Debug: {g}");
 }

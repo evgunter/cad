@@ -367,6 +367,15 @@ fn derive<T: Decide>(
 /// owns the bracket reads, exactly as `fillet_corner` does: the leg
 /// diagnostics are `f64` enclosure lower bounds, for messages and never
 /// for re-deciding.
+///
+/// Three reads on three lines, none of them a re-decision: `arm.lo()`
+/// is a value-channel BRANCH between two message sites, `r.lo()` is an
+/// `f64` payload field, and `(margin / r).lo()` brackets a quotient
+/// computed at `T` into a second one. Nothing read here re-enters the
+/// computation, so the sole `T: Bounds` is the whole obligation: this
+/// door decides nothing, which is why it does not carry the module's
+/// `Decide` half. At a dual scalar the three are the value channel's
+/// bit for bit (D9), and a degraded tangent cannot reach them.
 fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> PathError<T> {
     match refusal {
         ArcTrimRefusal::Band(source) => PathError::Band(source),
@@ -403,6 +412,30 @@ fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> PathError<T>
             offset_radius,
             least_lever,
             margin,
+        },
+        // The enclosing class, refused in its own words. Like the
+        // conditioning gate above it is deliberately NOT laundered into
+        // `NoCornerForFillet`: the corner exists and the author can see
+        // it — what does not exist, at this radius and permanently, is a
+        // fillet OF it (`docs/ENCLOSING-TANGENCY-DESIGN.md`). Unlike that
+        // gate this one does NOT abort the resolve: ρ's sign is a fact
+        // about THIS corner's turn side, and the pair's other crossing
+        // turns the other way, where the same radius is an ordinary
+        // tangency the author is entitled to. So it rides `build_refused`
+        // with the rest and surfaces exactly when no corner of the pair
+        // could be served.
+        ArcTrimRefusal::EnclosesLegCarrier {
+            leg,
+            carrier_radius,
+            offset_radius,
+            radius,
+            largest_tangent_radius,
+        } => PathError::FilletEnclosesLegCarrier {
+            side: leg,
+            carrier_radius,
+            offset_radius,
+            radius,
+            largest_tangent_radius,
         },
         // §3c: the anchor-fit refusal now carries the CARRIER KIND, so
         // an arc side gets its angular story (`FilletLegCarrier::Arc`'s

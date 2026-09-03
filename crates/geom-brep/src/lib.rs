@@ -81,7 +81,10 @@ pub use certify::{
 pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
-pub use dihedral::{DihedralClass, classify_dihedral};
+pub use dihedral::{
+    DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral, classify_material_pairing,
+    folded_lever_arm, material_kappa_rel,
+};
 pub use edge_nurbs::{EdgeNurbsLane, PlaneNurbsLimbs, PlaneNurbsRefusal};
 pub use enters::{
     EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
@@ -92,8 +95,9 @@ pub use implicit::{
 };
 pub use intersect::{
     EqualCylinderSection, PairRoute, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection,
-    RadiusEvidence, Rung, SectionError, SurfaceKind, cylinder_cylinder_section, plane_cone_section,
-    plane_cylinder_section, plane_sphere_section, route,
+    PlaneTorusSection, RadiusEvidence, Rung, SectionError, SphereSphereSection, SurfaceKind,
+    cylinder_cylinder_section, plane_cone_section, plane_cylinder_section, plane_sphere_section,
+    plane_torus_section, route, sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use mapped::{MappedCurve, SketchSegment};
@@ -108,10 +112,14 @@ pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
 pub use pcurve_cache::{
-    ChartWindow, EnvelopeStatement, Pcurve, PcurveCache, PcurveCertificate, PcurveCertifyError,
-    PcurveCheck, PcurveFittedLane, chart_pcurve,
+    ChartStretchInf, ChartWindow, EnvelopeStatement, Pcurve, PcurveCache, PcurveCertificate,
+    PcurveCertifyError, PcurveCheck, PcurveFittedLane, chart_pcurve, chart_stretch_inf,
+    chart_stretch_sup,
 };
-pub use props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
+pub use props::{
+    FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
+    require_one_chart_branch,
+};
 pub use ssi::{
     Exhaustiveness, SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, SsiBranch, SsiCertificate, SsiDomain,
     SsiError, SsiLimb, SsiOperand, SsiOutcome, StepperMode, certify_rung3, cylinder_sphere_ssi,

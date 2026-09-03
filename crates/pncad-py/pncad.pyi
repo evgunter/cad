@@ -192,7 +192,8 @@ class StepImportError(PncadError):
     `dangling_reference`, `wrong_entity_type`, `malformed_record`,
     `unsupported_entity`, `unsupported_unit`, `nothing_to_import`,
     `structure`, `missing_uncertainty`, `invalid_eps_override`,
-    `declaration_unresolved`, `malformed_real`, `topology`,
+    `declaration_unresolved`, `vertex_without_point`,
+    `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `recognition_ambiguous`, `pcurves`, `placement`, `instance` or
     `tier_invalid` — or `wireframe`, which is not a refusal at all:
@@ -514,7 +515,7 @@ m: Final[LengthUnit]
 inch: Final[LengthUnit]  # `in` is a Python keyword; `quantity` spells it IN
 deg: Final[AngleUnit]
 rad: Final[AngleUnit]
-pi: Final[AngleUnit]  # the half-turn: a NOTATION carried as a unit row
+pi_rad: Final[AngleUnit]  # the half-turn, symbol `pi rad`: a NOTATION carried as a unit row
 
 # --- profile authoring: the PATHS lattice ------------------------------
 # PATHS-DESIGN §2. The tip's state is exactly which of {position,
@@ -728,6 +729,7 @@ class PathDirectedPoint:
     def angle(self, theta: Angle) -> PathDirected: ...
     def toward(self, dx: float, dy: float) -> PathDirected: ...
     def tangent(self) -> PathDirected: ...
+    def cusp(self) -> PathDirected: ...
     def turn(self, delta: Angle) -> PathDirected: ...
     def arc_continue(self, target: tuple[Length, Length]) -> PathDirectedPoint: ...
     def fillet(self, radius: Length) -> PathOpen: ...
@@ -1365,7 +1367,13 @@ class Doc:
         """The cluster-record maintenance the LAST accepted edit
         performed. Empty after an edit that moved no mate graph, and
         on a document that has applied none; a REFUSED edit leaves it
-        untouched, as it leaves the document untouched."""
+        untouched, as it leaves the document untouched.
+
+        The reading begins at the load boundary: a Doc from
+        `Loaded.doc`, `Loaded.snapshot` or `Workspace.resolve` starts
+        empty even where the replayed history's last edit performed
+        maintenance, so "the last accepted edit" means the last one
+        accepted through this object."""
 
     @property
     def roots(self) -> list[NodeId]:
@@ -1677,10 +1685,12 @@ class SplitHalf:
     Below: Final[SplitHalf]
 
 class RimSupport:
-    """Which support of a rim blend (`SegPat.side`)."""
+    """Which support of a rim blend, by its ROLE in the carve
+    (`SegPat.side`): `Host` is the planar support wherever the rim has
+    one, `Mate` the other side."""
 
-    Plane: Final[RimSupport]
-    Curved: Final[RimSupport]
+    Host: Final[RimSupport]
+    Mate: Final[RimSupport]
 
 class CurveKind:
     """Which curve variant an edge's certified carrier is — the EXACT
@@ -1894,6 +1904,39 @@ class Datum:
     def origin(self) -> tuple[Length, Length, Length]: ...
     @property
     def direction(self) -> Optional[tuple[float, float, float]]: ...
+    @property
+    def axes(
+        self,
+    ) -> Optional[tuple[tuple[float, float, float], tuple[float, float, float]]]: ...
+
+class Measurement:
+    """A `Measure` node's evaluated quantity: the value with the F1
+    dimension it was measured in. Values are canonical kernel units
+    (metres, radians); `length` is the typed spelling for a Length."""
+
+    @property
+    def dimension(self) -> str: ...
+    @property
+    def value(self) -> float: ...
+    @property
+    def length(self) -> Optional[Length]: ...
+
+class Verdict:
+    """An `Assertion` node's verdict — REPORT ONLY: reading it changes
+    nothing about the document, and a violated assertion gates no
+    build. Three states, kept three: `holds` is None where the run's
+    tolerance could not separate the measurement from the bound."""
+
+    @property
+    def status(self) -> str: ...
+    @property
+    def holds(self) -> Optional[bool]: ...
+    @property
+    def measured(self) -> Optional[float]: ...
+    @property
+    def bound(self) -> Optional[float]: ...
+    @property
+    def reason(self) -> Optional[str]: ...
 
 # --- detect / declare -------------------------------------------------
 # The flush-contact protocol's value vocabulary. A finding is a
@@ -1963,6 +2006,8 @@ class Value:
     def bodies(self) -> list[Body]: ...
     def split(self) -> tuple[Optional[Body], Optional[Body]]: ...
     def datum(self) -> Datum: ...
+    def measure(self) -> Measurement: ...
+    def assertion(self) -> Verdict: ...
 
 class Pose:
     """A frame read off stored geometry: an origin plus the carrier's
@@ -2137,7 +2182,23 @@ class Evaluation:
         self,
         node: NodeId,
         product_name: Optional[str] = None,
-    ) -> str: ...
+        timestamp: Optional[str] = None,
+        author: Optional[str] = None,
+        organization: Optional[str] = None,
+        originating_system: Optional[str] = None,
+        uncertainty: Optional[Length] = None,
+    ) -> str:
+        """The single body `node` denotes as a STEP (AP214 Part 21)
+        exchange-file string.
+
+        One keyword per `StepOptions` field; each omitted keyword is
+        the Rust default, so the Python door carries the whole options
+        record and narrows nothing. `uncertainty` is the exported
+        `UNCERTAINTY_MEASURE_WITH_UNIT` length — omitted, the writer
+        reads the run's ambient tolerance, which is the ε the body was
+        built under. An explicit one that is not finite and strictly
+        positive is an `ExportError`; the rule is the writer's and is
+        quoted from it, not restated."""
 
 def evaluate(
     doc: Doc,

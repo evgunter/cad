@@ -49,15 +49,15 @@
 //!   already-committed value is the persistence layer's
 //!   `ToleranceConflict` refusal, which commits nothing.
 //!
-//! # ε provenance (S22, ruled 2026-08-19)
+//! # ε provenance (ruled 2026-08-19)
 //!
 //! ε is a **declared run parameter**, not an implementation detail: the
 //! model is a pure function of (parameter vector, ε). The `OnceLock` is
 //! what makes "one ε per process" structural rather than documentary,
-//! and it is kept for that reason — see `docs/SMELL-SCAN-2026-08.md`
-//! S22. (That ruling's other half, *"do not thread ε"*, was reversed on
-//! 2026-08-21 once the parameter could be a witness rather than a value;
-//! the lock it defended is untouched by that reversal.)
+//! and it is kept for that reason. (That ruling's other half, *"do not
+//! thread ε"*, was reversed on 2026-08-21 once the parameter could be a
+//! witness rather than a value; the lock it defended is untouched by
+//! that reversal.)
 //!
 //! What the lock lacked was a way to say *where the committed value
 //! came from*, which is why a stale `CAD_TOLERANCE_EPS` in a shell could
@@ -84,7 +84,7 @@ pub const ENV_EPS: &str = "CAD_TOLERANCE_EPS";
 pub const DEFAULT_EPS: f64 = 1e-9;
 
 /// Environment variable consulted for the ambiguity multiplier K on
-/// `get()` self-initialization (Evan-directed at M2 PR 7: K joins ε as
+/// `get()` self-initialization (Ev-directed at M2 PR 7: K joins ε as
 /// an ε-style once-per-run configured value; previously a hard const).
 pub const ENV_K: &str = "CAD_AMBIGUITY_K";
 
@@ -155,7 +155,7 @@ pub struct Tolerance {
     /// linear bands, K·(ε/r) for angular ones). One value per run,
     /// never changed after commitment — exactly ε's invariant (D4 ¶1).
     /// Configured like ε: [`Tolerance::init`] or the [`ENV_K`] env var
-    /// on first `get()`, defaulting to [`DEFAULT_K`] = 10 (Evan-directed
+    /// on first `get()`, defaulting to [`DEFAULT_K`] = 10 (Ev-directed
     /// at M2 PR 7; previously the hard `AMBIGUITY_K` const). Like ε, K
     /// is expected to become per-model persisted configuration with a
     /// recorded change operation in the document layer (the banked

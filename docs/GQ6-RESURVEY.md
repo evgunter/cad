@@ -6,13 +6,13 @@ instruction — *re-survey before committing*. This document is that
 re-survey, and it **supersedes the 2026-07 ecosystem snapshot** in
 GUI-DESIGN's GQ6 section as the current factual record.
 
-**Toolkit: RATIFIED 2026-08-16 (Evan) — egui, falling back to iced
-if egui does not work out.** Evan's ruling on this survey: "egui
+**Toolkit: RATIFIED 2026-08-16 (Ev) — egui, falling back to iced
+if egui does not work out.** Ev's ruling on this survey: "egui
 sounds enough better than iced that I'd switch the framing to
 'egui, unless that doesn't work, then try iced'." §1 is written in
 that frame. The remaining rows: viewport (§2) and picking (§3) are
 recommendations carrying no ratification, both taken by the v1 GUI;
-the wasm row (§4) is measurement, guarded in CI since Evan's
+the wasm row (§4) is measurement, guarded in CI since Ev's
 2026-08-21 ruling; and GQ7 is untouched.
 
 ## Method, and what is *not* evidence here
@@ -155,7 +155,7 @@ healthy and irrelevant: a DOM/web-tech component model in which a
 CAD viewport is a foreign object. `floem` 0.2.0 has not released
 since 2024-11. None of these changes the shape of the decision.
 
-**Ratified (Evan, 2026-08-16): egui — and if egui does not work
+**Ratified (Ev, 2026-08-16): egui — and if egui does not work
 out, iced.** Not a tie to be broken later by a bake-off: egui is the
 toolkit the GUI is built in, and iced is the named fallback if
 building in egui goes badly. The deciding factors are current-wgpu
@@ -287,7 +287,7 @@ source here compiles *only* when the feature is off. Under
 legitimate and in use; that does not reach this row, which builds no
 test targets. That lint runs in
 `discipline`, on the same runs — the premise is checked wherever it is
-relied on. **Evan's ruling, 2026-08-21:** *"do add wasm cross compiling
+relied on. **Ev's ruling, 2026-08-21:** *"do add wasm cross compiling
 for the interval build only. the lint for having interval be purely
 additive suffices."*
 
@@ -399,7 +399,7 @@ without re-ranking the toolkit).
 3. *Does the wasm result change sequencing — is "the kernel runs in a
    browser" something to protect with a CI target check now (cheap,
    and it would catch a regression the day it lands) rather than
-   rediscover at GUI time?* **Answered 2026-08-21 (Evan): yes, for
+   rediscover at GUI time?* **Answered 2026-08-21 (Ev): yes, for
    the interval build only** — the guard is one step on every
    code-tier PR run (§4). It was a question about a *property we
    have*, not a strategic bet: nothing in the toolkit ruling depends

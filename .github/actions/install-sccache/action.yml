@@ -27,11 +27,24 @@
 # dependency crates, so the 156 -> 96 s local figure does NOT predict
 # the win here and must not be quoted for it. rust-cache deliberately
 # does not cache WORKSPACE crates (ci.yml's note on the build job, and
-# render.yml's) — those are the ones this is aimed at, and at opt-2
-# they dominate the two 11-12 minute build jobs. The hypothesis is
+# render.yml's) — those are the ones this is aimed at, and they dominate
+# the two build jobs, which are the gate's largest billed line items
+# (docs/CI-MINUTES-2026-08.md's per-job table, which is the register for
+# that figure and is maintained by hand). The hypothesis is
 # narrow: sccache's contribution in CI is exactly the workspace crates
 # rust-cache evicts. `sccache --show-stats` after the build is what
 # settles it.
+#
+# THIS PARAGRAPH USED TO SAY "at opt-2" AND NAME AN 11-12 MINUTE JOB, and
+# both went stale the way an extracted premise does: the gate moved to
+# `opt-level = 1` on 2026-08-25 (ci.yml's OPT LEVEL note carries the
+# decision and what would reverse it), and the job's minutes are the
+# register's to state. Neither restatement was ever re-taken here, and
+# nothing would have gone red when the level moved — so this note now
+# names the level's OWNER rather than its value, and the minutes'
+# register rather than a range. What the hypothesis rests on is
+# unaffected by both: it is that rust-cache evicts workspace crates,
+# which is true at every opt level.
 #
 # LOCAL DISK CACHE, NOT THE GHA BACKEND, deliberately. sccache's native
 # GitHub-Actions backend needs ACTIONS_RESULTS_URL and

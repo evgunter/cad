@@ -54,6 +54,7 @@ use std::sync::Arc;
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, NewellError, newell_plane};
+use geom_core::spline::SplineError;
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
 };
@@ -133,7 +134,16 @@ pub enum LoftError {
     /// The wall-boundary carrier extraction failed to re-wrap — a
     /// structurally corrupt skinned surface (unreachable from
     /// [`loft_geometry`] output; surfaced rather than swallowed).
-    SeamStructure,
+    ///
+    /// The payload is `geom_brep::boundary_iso_u`'s own refusal, which
+    /// says WHICH structural invariant the extracted row broke; that
+    /// door's `# Errors` section promises it is surfaced, and a
+    /// discarded one would make a kernel-bug report say only that a
+    /// kernel bug happened.
+    SeamStructure {
+        /// The iso-extraction refusal, carried rather than discarded.
+        source: SplineError,
+    },
     /// The end sections' loop/segment structure disagrees with the
     /// skinned geometry's — unreachable when both come from the same
     /// inputs; surfaced rather than swallowed.
@@ -164,10 +174,10 @@ impl fmt::Display for LoftError {
             Self::Euler(e) => write!(f, "loft assembly: {e}"),
             Self::CapPlane(e) => write!(f, "loft cap plane: {e}"),
             Self::Pcurve(e) => write!(f, "loft pcurve mint: {e}"),
-            Self::SeamStructure => write!(
+            Self::SeamStructure { source } => write!(
                 f,
                 "loft seam: a wall's boundary iso-curve failed to re-wrap (corrupt \
-                 skinned surface — kernel bug, not an input fault)"
+                 skinned surface — kernel bug, not an input fault): {source}"
             ),
             Self::SectionStructure => write!(
                 f,
@@ -534,7 +544,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
         for j in 0..n {
             let wall_key = face_surface_key(&body, side_faces[li][j])?;
             let carrier = geom_brep::boundary_iso_u(walls_t[li][j].as_ref(), false)
-                .map_err(|_| LoftError::SeamStructure)?;
+                .map_err(|source| LoftError::SeamStructure { source })?;
             let spec = EdgeCurveSpec {
                 description: EdgeDescriptionSpec::iso(
                     wall_key,
@@ -583,6 +593,31 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
 /// skinning degree in the section direction. Structure is `f64`
 /// (C6); the produced body is at `T`, lifted exactly.
 ///
+/// # Correspondence — read this before authoring a rotated section
+///
+/// Sections are paired **by index over the CANONICAL loops**, not over
+/// the vertex order you wrote: [`Profile::validate`] rotates every loop
+/// to its lex-min vertex first, and it is those loops
+/// [`loft_geometry`] matches like to like. Both halves are deliberate
+/// and each is documented at its own door; the consequence of the pair
+/// is not obvious and is worth stating here, because it is silent —
+/// the body builds and certifies at every tier.
+///
+/// **A section rotated relative to its neighbour can therefore be
+/// re-anchored, and the roll of the built body is the angle between
+/// CANONICAL loops rather than the angle you authored.** Worked
+/// example, executed rather than reasoned: the turning-orientation
+/// suite's authored-roll row lofts a square onto the same square
+/// rotated by `theta` about its own centre, and for `theta` in
+/// `(0, pi/2)` the rotation moves which vertex is lex-min, so the body
+/// rolls by `theta - pi/2` — a quarter turn nobody wrote.
+///
+/// If the correspondence matters to you, author it: place the sections
+/// so their canonical starts agree, or choose the vertex order that
+/// survives canonicalization. There is no argument to this door that
+/// states a pairing, by design — *"no honest way to guess a
+/// correspondence that was not given"* ([`loft_geometry`]).
+///
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum.
@@ -599,6 +634,17 @@ pub fn loft_body<T: Decide + geom_brep::PcurveFittedLane>(
 /// **The path-swept body** (§10.4 as a solid): places rigid copies of
 /// `profile` along `path` ([`crate::sweep_geometry`]'s frame — same
 /// machinery, no fork) and assembles the loft of those sections.
+///
+/// # Correspondence
+///
+/// [`loft_body`]'s paragraph of that name applies, and lands softly
+/// here for a reason worth knowing: every section is the SAME profile,
+/// so canonicalization re-anchors all of them identically and the
+/// index pairing is the identity whatever the profile's vertex order
+/// was. What the canonical start still decides is which wall of the
+/// built body is which — the segment order the returned
+/// [`Lofted::side_faces`] is keyed in. The body's roll comes from the
+/// path frame ([`sweep_places`]), not from the sections.
 ///
 /// # Errors
 ///

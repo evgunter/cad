@@ -25,6 +25,9 @@
 //! symbols from quantity's closed [`quantity::UNITS`] table) is the
 //! decimal's correctly-rounded f64 times the unit factor — ONE f64
 //! multiply — landing in canonical kernel units (meters/radians).
+//! A UNIT is one or TWO identifier tokens, longest match against the
+//! closed table (`pi rad` is a two-word symbol), and nothing but a
+//! unit can follow a number here.
 //! A BARE INTEGER is a [`Dimension::Count`] literal (exact `i64`); a
 //! bare real (`2.0`, `1e3`) is `Scalar`. A unit suffix is the only
 //! way a literal acquires a continuous dimension. Count→Scalar
@@ -45,7 +48,7 @@
 
 use std::collections::BTreeMap;
 
-use quantity::{UnitQuantity, unit_by_symbol};
+use quantity::{UnitDef, UnitQuantity, unit_by_symbol};
 
 use crate::doc::ParamName;
 use crate::expr::{Dimension, DimensionError, Expr};
@@ -105,13 +108,14 @@ pub enum ParseError {
         /// Its text.
         text: String,
     },
-    /// An identifier directly after a number that is not a unit
-    /// symbol from the closed table (juxtaposition means nothing else
-    /// in this grammar).
+    /// An identifier directly after a number that begins no unit
+    /// symbol of the closed table, at either suffix length
+    /// (juxtaposition means nothing else in this grammar).
     UnknownUnit {
         /// Byte offset of the identifier.
         pos: usize,
-        /// The identifier.
+        /// The identifier — the first token of the refused suffix,
+        /// which is the one the reader has to change.
         symbol: String,
     },
     /// A call to a name outside the AST's function vocabulary.
@@ -488,20 +492,57 @@ impl Parser<'_> {
         }
     }
 
+    /// The identifier at the cursor, with its byte offset.
+    fn peeked_ident(&self) -> Option<(usize, String)> {
+        match self.peek() {
+            Some((pos, Tok::Ident(name))) => Some((*pos, name.clone())),
+            _ => None,
+        }
+    }
+
+    /// The unit suffix at the cursor: the table row it names and how
+    /// many tokens it spans.
+    ///
+    /// **LONGEST MATCH over consecutive identifier tokens** — two
+    /// tokens joined by one space first, then one. The table carries a
+    /// two-word symbol (`pi rad`), and a suffix is lexed as
+    /// identifiers, so a suffix is a PHRASE and the longest spelling
+    /// the closed table has wins.
+    ///
+    /// There is nothing to disambiguate: juxtaposition after a number
+    /// means a unit and nothing else in this grammar, so a second
+    /// identifier is never a param reference or a call that the long
+    /// match could steal. The fallback exists for the shape `1 rad x`,
+    /// where the two-word phrase is not a row and the one-word one is;
+    /// `x` then refuses as an unexpected token, which is what it is.
+    fn unit_suffix(&self) -> Option<(UnitDef, usize)> {
+        let (_, first) = self.peeked_ident()?;
+        if let Some((_, Tok::Ident(second))) = self.toks.get(self.i + 1)
+            && let Some(unit) = unit_by_symbol(&format!("{first} {second}"))
+        {
+            return Some((unit, 2));
+        }
+        unit_by_symbol(&first).map(|unit| (unit, 1))
+    }
+
     /// `NUMBER [UNIT]` (module docs' literal semantics): suffixed →
     /// continuous literal in canonical units (one f64 multiply); bare
     /// integral → exact Count; bare real → Scalar.
     fn literal(&mut self, pos: usize, text: &str, integral: bool) -> Result<Expr, ParseError> {
         // An identifier DIRECTLY after a number can only be a unit
         // suffix — juxtaposition means nothing else in this grammar.
-        if let Some(&(upos, Tok::Ident(ref symbol))) = self.peek() {
-            let Some(unit) = unit_by_symbol(symbol) else {
+        if let Some((upos, first)) = self.peeked_ident() {
+            let Some((unit, consumed)) = self.unit_suffix() else {
+                // Nothing matched at either length. The refusal names
+                // the FIRST identifier and its own byte offset — the
+                // token the reader has to change — rather than a
+                // two-word phrase the table was merely asked about.
                 return Err(ParseError::UnknownUnit {
                     pos: upos,
-                    symbol: symbol.clone(),
+                    symbol: first,
                 });
             };
-            self.i += 1;
+            self.i += consumed;
             let value: f64 = text.parse().map_err(|_| ParseError::MalformedNumber {
                 pos,
                 text: text.to_string(),
@@ -509,6 +550,13 @@ impl Parser<'_> {
             let dim = match unit.quantity() {
                 UnitQuantity::Length => Dimension::Length,
                 UnitQuantity::Angle => Dimension::Angle,
+                // Unreachable through this path: the dimensionless row's
+                // symbol is the EMPTY string, and a suffix here is a
+                // parsed IDENTIFIER, which is never empty. A bare number
+                // takes the no-suffix path below and is dimensionless
+                // there — which is the same answer, reached without a
+                // lookup.
+                UnitQuantity::Scalar => Dimension::Scalar,
             };
             // The literal REMEMBERS its authored unit (LIB-SWITCH §4g,
             // U8b): canonical value from the one multiply, display

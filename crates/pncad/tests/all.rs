@@ -157,10 +157,10 @@ fn fit_payload(e: &pncad::geom::FitError) {
 
 // editor_core::NodeErrorKind is the widest payload set in the tree:
 // the document layer's node errors wrap every kernel operation's
-// refusal, including the third buried type, sweep::fillet::FilletError.
+// refusal, including the third buried type, sweep::blend::BlendError.
 fn node_error_payload(e: &pncad::document::NodeErrorKind) {
     match e {
-        pncad::document::NodeErrorKind::Blend { error, .. } => named::<&FilletError>(error),
+        pncad::document::NodeErrorKind::Blend { error, .. } => named::<&BlendError>(error),
         pncad::document::NodeErrorKind::Boolean(inner) => named::<&BooleanError>(inner),
         pncad::document::NodeErrorKind::Transform(inner) => named::<&TransformError>(inner),
         _ => {}
@@ -637,7 +637,7 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
     );
 }
 
-/// **No raw loop-minting door is nameable through the façade** — Evan's
+/// **No raw loop-minting door is nameable through the façade** — Ev's
 /// ruling on #413 (LIB-RETTAIL), enforced rather than asserted in a
 /// report.
 ///
@@ -762,7 +762,6 @@ fn lib_doors_vocabulary_is_nameable() {
     named::<Option<pncad::document::EvalOutcome>>(None);
     named::<Option<pncad::document::Loaded>>(None);
     named::<Option<pncad::document::PersistError>>(None);
-    named::<Option<pncad::document::MigrationError>>(None);
     named::<Option<pncad::document::NonFiniteSite>>(None);
     named::<Option<pncad::document::ProgramFault>>(None);
     named::<Option<pncad::document::SnapshotError>>(None);
@@ -941,10 +940,9 @@ fn the_persist_doors_round_trip_through_the_facade() {
     assert_eq!(volume, 6.0);
 
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
-    let header = format!("schema: {}", pncad::document::SCHEMA_VERSION);
     assert!(
-        text.starts_with(&header),
-        "the file speaks the current schema"
+        text.starts_with(&format!("id: {}\n", doc.id())),
+        "the file's header names the document"
     );
 
     let loaded = pncad::document::load(&text, Tol::witness()).expect("the file loads");
@@ -1229,12 +1227,86 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             declare: None,
         },
     );
+    // A MEASURE and its ASSERTION (ERROR-DESIGN E3/E10), so the
+    // fixture the Python audit loads carries the two node kinds whose
+    // READING door Python ships (`Value.measure`, `Value.assertion`).
+    // Python cannot author one — that is B-MEASURES in the binding
+    // census — so, exactly as with this profile's circles, the
+    // document crosses through the persistence door and this pin keeps
+    // the crossing honest.
+    //
+    // The references are the plate's own cylindrical walls, selected
+    // through the public door rather than hand-written as role paths.
+    // Which two of the four the canonical order yields is not asserted
+    // here: the geometric oracles for the closed forms live in
+    // `editor-core`'s `m10_2_measure.rs`, and what this fixture owes
+    // is a document a Python caller can READ a measure and a verdict
+    // out of.
+    let walls = {
+        let ev = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        let mut found = pncad::select::select_where(
+            &ev,
+            plate,
+            &pncad::select::Selector::of(pncad::select::NamePat::of_kind(
+                pncad::select::EntityKind::Face,
+            )),
+            &[pncad::select::GeomPred::SurfaceKind(
+                pncad::select::SurfaceKindSet::just(pncad::geom_brep::SurfaceKind::Cylinder),
+            )],
+            &doc.param_env::<f64>(),
+            Tol::witness(),
+        )
+        .expect("the surface-kind atom is exact");
+        found.sort();
+        // Each hole's wall is TWO faces sharing one cylinder carrier, so
+        // the first two in canonical order are one hole's halves and
+        // measure zero apart. Take the first and the LAST, which are
+        // different holes, so the measure is the holes' axis separation
+        // and the Python row that reads it has a real number to pin.
+        assert_eq!(found.len(), 4, "two holes, two wall faces each");
+        let last = found.pop().expect("four walls");
+        let first = found.remove(0);
+        vec![first, last]
+    };
+    let (doc, measure) = doors_insert(
+        doc,
+        Node::measure(
+            pncad::document::MeasureExpr::primitive(pncad::document::MeasurePrimitive::Distance {
+                a: 0,
+                b: 1,
+            }),
+            // Read AT the plate extrude the walls were selected from —
+            // nothing places this geometry, so the reading site is that
+            // node, spelled explicitly rather than assumed.
+            walls
+                .into_iter()
+                .map(|name| pncad::document::MeasureRef::new(plate, name))
+                .collect(),
+        )
+        .expect("both indices address a reference"),
+    );
+    // A distance is a magnitude, so `>= 0` holds for any selection —
+    // the verdict is about the READ door, not about the geometry.
+    let (doc, _) = doors_insert(
+        doc,
+        Node::Assertion {
+            measure,
+            bound: lit(0.0),
+            dir: pncad::document::AssertionDir::AtLeast,
+        },
+    );
     (doc, solid)
 }
 
 /// R1-PARAMS: `plate_param` authors façade-only, evaluates to the
 /// corpus scene's analytic oracle, and its saved text is pinned as
-/// `tests/plate_param.v17.pncad` — the fixture the Python audit loads
+/// `tests/plate_param.pncad` — the fixture the Python audit loads
 /// (`crates/pncad-py/tests/test_north_star.py`) to author the
 /// `set_doc_param` edit from Python. Python cannot yet author this
 /// profile from scratch (audit gaps G1/G9: circles, multi-loop), so
@@ -1282,7 +1354,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
 
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
     if std::env::var_os("PNCAD_BLESS").is_some() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v17.pncad");
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.pncad");
         std::fs::write(path, &text).expect("the fixture writes");
         return; // freshly written; the next compile pins it
     }
@@ -1305,7 +1377,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
     };
     assert_eq!(
         sans_epsilon(&text),
-        sans_epsilon(include_str!("plate_param.v17.pncad")),
+        sans_epsilon(include_str!("plate_param.pncad")),
         "the saved plate_param text moved — regenerate the fixture with \
          `PNCAD_BLESS=1 cargo test -p pncad plate_param` (default env) and re-run"
     );
@@ -1922,7 +1994,7 @@ const ASM_R2B_PROBE_OUT: &str = "ASM_R2B_PROBE_OUT";
 /// rather than harvested from the split, and deliberately so: for a
 /// PROPER mate edge no accepted cut can produce a crossing (the
 /// whole-cluster precondition — see editor-core's `row5_a`), and the
-/// one shape that does mint one today has semantics pending Evan's
+/// one shape that does mint one today has semantics pending Ev's
 /// AQ8 ruling. Authoring the record keeps this row about D9 — the
 /// same bits from the same recipe — rather than about a semantics
 /// question that may move.
@@ -2682,6 +2754,14 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   now; `product_recorded` stays out because `product`/
 ///   `product_named` are the curated gather and `assemble` is what
 ///   needs the recorded one.
+///
+///   **`MintRefusal` is not part of that carry**, and the split is
+///   the point: it is the GATHER's row for a mate whose declaration
+///   could not be minted, reached through `Product`, which is itself
+///   interior. What a façade consumer asks is what the A5 gate
+///   ANSWERED, and they get that whole — `AssemblyError::Reference`
+///   and `AssemblyError::NoAtRestRecord` are exactly these two
+///   refusals, raised by the door that is carried.
 ///   **The hit-test service's NAMED half left this list at GUI-2**
 ///   (`NodePick`, `NodePickError`, `PickHit`, `PickTarget`,
 ///   `pick_face`, `HitTestError`, and `Ray` — a `bvh` re-export riding
@@ -2702,10 +2782,27 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   façade consumer can reach, and `NodePick` is not merely the
 ///   preferred door but the only one. `PickTarget` is carried because
 ///   `pick_face`'s signature names it, not because it can be built.
-/// - **`MigrationStep`**: the stated exception in the crate docs —
-///   its signature speaks `serde_json::Value`, which does not cross
-///   the curated surface.
-const NOT_CARRIED: [&str; 76] = [
+/// - **The E6 driver and its parameter box** (`drive`, `DriveConfig`,
+///   `DriveRefusal`, `ParamBoxVerdict`, `CertifiedLeaf`,
+///   `RefusedLeaf`, `RefusalReason`, `BudgetKind`, `FlipEvidence`, `StructureFlip`,
+///   `ReasonClass`, `Receipt`, `LeafResults`, `MeasureAccounting`,
+///   `ReplayOutcome`, `VerdictVector`, `VerdictRow`,
+///   `VerdictVectorKey`, `DEFAULT_MAX_DEPTH`, `DEFAULT_MAX_LEAVES`,
+///   `ParamBox`, `BoxAxis`, `ParamBoxError`, `AxisScalar`,
+///   `param_env_over`): the analysis lane's subdivision service and
+///   the box it drives over.
+///
+///   Interior because the curated face is a DIFFERENT shape and is
+///   not built yet: what a consumer asks the analysis lane is "does
+///   this measurement hold over its tolerances", and E5's answer to
+///   that is a typed per-measurement stackup report whose INPUT is a
+///   leaf set. Carrying the leaf vocabulary now would door the
+///   intermediate and then have to un-door it. `drive` is also gated
+///   on the `interval` feature — there is no leaf to certify without
+///   the certified scalar — so a façade row for it would be a
+///   conditional door, which this surface does not have and should
+///   not acquire for a type its consumer does not want yet.
+const NOT_CARRIED: [&str; 101] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -2714,40 +2811,59 @@ const NOT_CARRIED: [&str; 76] = [
     "Attr",
     "AttrKind",
     "AttrSet",
+    "AxisScalar",
     "BifurcationKind",
+    "BoxAxis",
     "BranchCertification",
     "BranchMarginEvidence",
+    "BudgetKind",
+    "CertifiedLeaf",
     "ContentKey",
     "Coset",
+    "DEFAULT_MAX_DEPTH",
+    "DEFAULT_MAX_LEAVES",
     "Diagnosis",
     "DocDiff",
+    "DriveConfig",
+    "DriveRefusal",
     "EntityKey",
     "EntityRef",
     "Entry",
     "Epoch",
     "EvalScalar",
     "ExprPath",
+    "FlipEvidence",
     "FlipSet",
     "Implicated",
+    "LeafResults",
+    "MeasureAccounting",
     "MeshPatchKey",
     "MeshPick",
     "MeshPickError",
     "MetaError",
     "MetaValue",
     "MetaVersionError",
-    "MigrationStep",
+    "MintRefusal",
     "NamingError",
     "NamingKey",
     "NodeChange",
     "NodeVerdictDelta",
     "NodeVerdicts",
+    "ParamBox",
+    "ParamBoxError",
+    "ParamBoxVerdict",
     "ParamValue",
     "PredicateDivergence",
     "Product",
     "ProfilePayload",
     "ProgramRefusal",
     "Qualifier",
+    "ReasonClass",
+    "Receipt",
     "RecipeEditRef",
+    "RefusalReason",
+    "RefusedLeaf",
+    "ReplayOutcome",
     "ResolutionFailure",
     "ResolveError",
     "ResolveIndeterminate",
@@ -2755,6 +2871,7 @@ const NOT_CARRIED: [&str; 76] = [
     "Rgba8",
     "RunStatus",
     "SideVerdict",
+    "StructureFlip",
     "SummaryDelta",
     "SummaryDivergence",
     "SummaryFlip",
@@ -2762,7 +2879,10 @@ const NOT_CARRIED: [&str; 76] = [
     "TieWitness",
     "Tombstone",
     "VerdictFlip",
+    "VerdictRow",
     "VerdictSummary",
+    "VerdictVector",
+    "VerdictVectorKey",
     "WitnessAge",
     "WitnessBifurcation",
     "WitnessDatum",
@@ -2772,10 +2892,12 @@ const NOT_CARRIED: [&str; 76] = [
     "derivation_nodes",
     "diff_summaries",
     "diff_verdicts",
+    "drive",
     "enrich_appearance_loss",
     "enrich_appearance_loss_with_prior",
     "entity_name",
     "from_value",
+    "param_env_over",
     "product_recorded",
     "rebind_suggestions",
     "resolve_with_prior",

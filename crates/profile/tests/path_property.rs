@@ -29,6 +29,8 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
+/// One home for "this lowered loop passes the data gate" — the suite
+/// had grown a second copy of it (`validate_lp`), which is now this.
 fn validate_ok(l: &ProfileLoop<f64>) {
     Profile::new(SketchPlane::xy(), vec![l.clone()])
         .validate(Tol::witness())
@@ -118,6 +120,15 @@ fn turn(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
 /// `PI`, which is the shape a gaps-then-rescale strategy emits and the
 /// shape whose edges 1 and 3 cross. The predicate has to see it, or it is
 /// guarding nothing.
+///
+/// PINNED WRITTEN OUT, deliberately not as a committed
+/// `.proptest-regressions` seed: a `cc` seed re-derives its input only
+/// through the strategy that drew it, and the strategy that drew this
+/// shape is exactly what the rewrite replaced — a seed file here would
+/// re-run some other input in silence, where these coordinates cannot
+/// drift. (Regression files proptest itself writes against a LIVE
+/// strategy stay committed, as elsewhere in this directory; a witness
+/// you can write down is a fixture, not a seed.)
 #[test]
 fn the_convexity_contract_rejects_an_increasing_angle_loop_that_crosses() {
     let pts = [
@@ -286,20 +297,45 @@ fn turn_zero_refuses_toward_tangent() {
     ));
 }
 
+/// The reverse class still refuses when it is AUTHORED rather than
+/// declared — a value within ε of the reverse is a coincidence, and
+/// the ladder never reads intent off a margin — but the refusal now
+/// names the door: `.cusp()`, which reverses the incoming ray exactly
+/// and emits the declaration the kernel's wedge arm asks for.
 #[test]
-fn turn_pi_refuses_as_cusp_naming_the_absent_declaration_door() {
+fn turn_pi_refuses_as_cusp_naming_the_declaration_door() {
     let leg = Open
         .at(p2(0.0, 0.0))
         .line_to(p2(2.0, 0.0), Tol::witness())
         .unwrap();
     let err = leg.turn(std::f64::consts::PI, Tol::witness()).unwrap_err();
     assert!(matches!(err, PathError::JunctionCusp { .. }));
-    // The refusal must say that no declaration door for cusps exists,
-    // so the caller does not go looking for one — pinned here, not
-    // just carried in prose.
+    // The message names the verb, and no longer says the door is
+    // absent: a caller who means the cusp has somewhere to go.
+    let text = err.to_string();
     assert!(
-        err.to_string().contains("no declaration door for cusps"),
-        "cusp refusal must say the declaration door does not exist: {err}"
+        text.contains(".cusp()"),
+        "cusp refusal must name the verb: {text}"
+    );
+    assert!(
+        !text.contains("no declaration door"),
+        "the door exists now: {text}"
+    );
+    // Declaring it is a different spelling, not a looser tolerance:
+    // the same junction authored through the verb is exact.
+    let declared = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(2.0, 0.0), Tol::witness())
+        .unwrap()
+        .cusp()
+        .tangent_arc_to(p2(1.0, 1.0), Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+    assert_eq!(
+        declared.loop_.tangent_joints(),
+        &[1],
+        "the cusp joint is DECLARED, like a tangent one"
     );
 }
 
@@ -444,7 +480,7 @@ fn a_seam_fillet_onto_an_arc_first_side_names_the_closing_door() {
 }
 
 #[test]
-fn tangent_line_close_refuses_always() {
+fn the_seam_tangent_close_refuses_always() {
     // The seam junction of a straight closer within the tangent band:
     // the closing line arrives at Start along the entry departure —
     // the PQ4 mid-side seam, refused with the two structural
@@ -460,7 +496,7 @@ fn tangent_line_close_refuses_always() {
         .line_to(p2(-2.0, 0.0), Tol::witness())
         .unwrap()
         .line_to(Start, Tol::witness());
-    assert!(matches!(refused, Err(PathError::TangentLineClose { .. })));
+    assert!(matches!(refused, Err(PathError::SeamTangent { .. })));
 }
 
 #[test]
@@ -1054,10 +1090,19 @@ fn the_carrier_bound_lens_lowers_and_keeps_its_authored_point() {
 /// A radius far too large for the lens refuses typed. This row carries
 /// TWO pins, both of which have been mutation-checked:
 ///
-/// 1. the **§3c payload**: the refusal carries the arc side's CARRIER
-///    KIND, so the diagnostic is metered in that carrier's own currency
-///    (an arc-length setback and an ANGULAR margin in radians) instead
-///    of a bare linear number that means nothing on a circle;
+/// 1. the **enclosing class**: r = 5 against unit lobes puts both offset
+///    radii at ρ = 1 − 5 = −4, so the requested circle would contain
+///    each lobe whole and the corner with it. No fillet of this corner
+///    exists at this radius and none ever will
+///    (`docs/ENCLOSING-TANGENCY-DESIGN.md`), so the refusal is the
+///    enclosing one and it names the lobe radius as the bound. The
+///    §3c CARRIER-KIND payload this row used to pin — an arc side's
+///    arc-length setback and ANGULAR margin — has its own home at
+///    `arc_fillet::oversized_radius_on_an_arc_side_names_the_carrier_and_angular_margin`,
+///    on an ordinary corner that actually overruns its anchor; this
+///    lens never reached that gate honestly, because on this geometry
+///    every radius past the waist (1/2) is either offset-disjoint or
+///    enclosing;
 /// 2. the boundary's **refusal precedence**: `resolve` keeps gate
 ///    refusals and construction refusals in two channels and lets the
 ///    CONSTRUCTION one win. Here the discarded root's advance gate also
@@ -1066,29 +1111,47 @@ fn the_carrier_bound_lens_lowers_and_keeps_its_authored_point() {
 ///    which is in fact ahead of the anchor is behind it — and this
 ///    assertion fails. Do not weaken it to `matches!(.., PathError::_)`.
 #[test]
-fn an_oversized_carrier_fillet_refuses_with_the_arc_sides_angular_story() {
+fn an_oversized_carrier_fillet_refuses_as_the_enclosing_class() {
     let err = lens(5.0).unwrap_err();
-    let PathError::AnchorOutsideTrimmedExtent {
-        carrier, setback, ..
+    let PathError::FilletEnclosesLegCarrier {
+        carrier_radius,
+        offset_radius,
+        radius,
+        largest_tangent_radius,
+        ..
     } = err
     else {
-        panic!("expected the anchor-fit refusal, got {err:?}");
+        panic!("expected the enclosing-class refusal, got {err:?}");
     };
-    let profile::FilletLegCarrier::Arc {
-        radius,
-        angular_margin,
-    } = carrier
-    else {
-        panic!("an arc side must report an arc carrier, got {carrier:?}");
-    };
-    assert!((radius - 1.0).abs() < 1e-12, "the lens's lobes are R = 1");
     assert!(
-        angular_margin < 0.0,
-        "an overrun leg's angular margin is negative: {angular_margin}"
+        (carrier_radius - 1.0).abs() < 1e-12,
+        "the lens's lobes are R = 1, got {carrier_radius}"
     );
-    // The setback is an ARC LENGTH on this side, so it exceeds the
-    // leg's swept extent rather than some linear distance.
-    assert!(setback > 0.0, "arc-length setback: {setback}");
+    assert!(
+        (offset_radius + 4.0).abs() < 1e-12,
+        "rho = R - sigma*tau*r = 1 - 5 = -4, got {offset_radius}"
+    );
+    assert_eq!(radius, 5.0);
+    // **The endorsed radius BUILDS.** The message names the largest
+    // circle tangent to both lobes at this corner — (R1 + R2 - d)/2 with
+    // unit lobes 1 m apart, so 1/2 — and a radius below it rounds the
+    // lens. The lobe radius alone would have endorsed 1.0, where nothing
+    // above 1/2 builds; that gap is what the payload's second bound
+    // exists to close.
+    let bound = largest_tangent_radius.expect("an arc x arc corner defines the bound");
+    assert!(
+        (bound - 0.5).abs() < 1e-12,
+        "the lens's largest tangent circle is R = 1/2, got {bound}"
+    );
+    assert!(
+        bound < carrier_radius,
+        "the endorsed bound must sit below the class bound"
+    );
+    lens(0.99 * bound).expect("the endorsed radius must build");
+    assert!(
+        lens(1.01 * bound).is_err(),
+        "above the endorsed bound the lens must not round"
+    );
 }
 
 /// Carriers that never meet name their own reason — distinct from the
@@ -1407,13 +1470,7 @@ fn sweep_and_arclen_legs_agree_bitwise() {
         assert_eq!(a.pos().y.to_bits(), b.pos().y.to_bits());
         assert_eq!(a.bulge().to_bits(), b.bulge().to_bits());
     }
-    validate_lp(&by_sweep);
-}
-
-fn validate_lp(lp: &ProfileLoop<f64>) {
-    Profile::new(SketchPlane::xy(), vec![lp.clone()])
-        .validate(Tol::witness())
-        .expect("the loop validates");
+    validate_ok(&by_sweep);
 }
 
 /// FUSED-INCOMING rows `Bulge@Point`, `Via@Point`, `Center@Point`: the
@@ -1444,7 +1501,7 @@ fn fused_point_incomings_author_their_anchor_on_path() {
         .line_to(Start, Tol::witness())
         .map(pinned)
         .unwrap();
-    validate_lp(&bulge);
+    validate_ok(&bulge);
     // The authored anchor (4,0) lies ON the first emitted arc's carrier
     // (it is interior to the run, not a vertex).
     assert!(
@@ -1476,7 +1533,7 @@ fn fused_point_incomings_author_their_anchor_on_path() {
         .line_to(Start, Tol::witness())
         .map(pinned)
         .unwrap();
-    validate_lp(&via);
+    validate_ok(&via);
     let center = Open
         .at(p2(0.0, 0.0))
         .arc_fillet(
@@ -1498,7 +1555,7 @@ fn fused_point_incomings_author_their_anchor_on_path() {
         .line_to(Start, Tol::witness())
         .map(pinned)
         .unwrap();
-    validate_lp(&center);
+    validate_ok(&center);
 }
 
 /// FUSED-INCOMING rows `Sweep@Directed` / `ArcLen@Directed` (the
@@ -1552,7 +1609,7 @@ fn fused_tangent_incomings_and_the_far_end_arrival() {
             .iter()
             .any(|v| v.pos().x == 0.0 && v.pos().y == 3.0)
     );
-    validate_lp(&sweep);
+    validate_ok(&sweep);
 }
 
 /// ARRIVAL rows `Radius` (both binder orders) and `Via` (interior):
@@ -1625,7 +1682,7 @@ fn radius_and_via_arrivals_complete_via_their_binders() {
         assert_eq!(va.pos().y.to_bits(), vb.pos().y.to_bits());
         assert_eq!(va.bulge().to_bits(), vb.bulge().to_bits());
     }
-    validate_lp(&a);
+    validate_ok(&a);
     // Via arrival: the SAME carrier named through a point on it.
     let v = close_from(
         entry()
@@ -1641,7 +1698,7 @@ fn radius_and_via_arrivals_complete_via_their_binders() {
             .toward(-1.0, 0.0, Tol::witness())
             .unwrap(),
     );
-    validate_lp(&v);
+    validate_ok(&v);
 }
 
 /// ARRIVAL row `Via { q, p: Start }`: the via-completed CLOSE, and the
@@ -1667,7 +1724,7 @@ fn via_start_close_and_the_arc_incoming_seam() {
         .toward(-0.2, -1.0, Tol::witness())
         .unwrap();
     let via_close = pinned(via_close);
-    validate_lp(&via_close);
+    validate_ok(&via_close);
 
     let seam = Open
         .at(p2(0.0, 0.0))
@@ -1690,7 +1747,7 @@ fn via_start_close_and_the_arc_incoming_seam() {
         .to(Start, Tol::witness())
         .map(pinned)
         .unwrap();
-    validate_lp(&seam);
+    validate_ok(&seam);
     // The seam arc closes the loop: joint 0 is declared.
     assert!(seam.tangent_joints().contains(&0));
 }
@@ -1730,5 +1787,534 @@ fn ray_extension_is_tangent_fillet_bitwise() {
         assert_eq!(a.bulge().to_bits(), b.bulge().to_bits());
     }
     assert_eq!(extended.tangent_joints(), spelled.tangent_joints());
-    validate_lp(&extended);
+    validate_ok(&extended);
+}
+
+// ------------------------------------------------------------------
+// The straight continuation: `line(len)` off a DIRECTED POINT (issue
+// 433 half (i)). A straight run subdivided at an interior vertex is
+// one carrier said on extra vertices — carrier IDENTITY, which the
+// data gate already accepts undeclared. These rows pin where the
+// authoring door now agrees with it, and where it still refuses.
+// ------------------------------------------------------------------
+
+/// The continuation chain, end to end: a straight run subdivided at an
+/// interior vertex, authored through the public surface and closed.
+/// Nothing is declared (the subdivision is structural, not a tangency
+/// claim), and the lowered loop passes the data gate — the two doors
+/// that issue 433 found disagreeing now agree on this shape.
+#[test]
+fn straight_continuation_subdivides_a_run_and_validates() {
+    let lp = Open
+        .at(p2(0.0, 0.0))
+        .toward(1.0, 0.0, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        // No director bound here: the leg departs along the directed
+        // point's own tangent. This is the row under test.
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .line_to(p2(4.0, 3.0), Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .map(pinned)
+        .unwrap();
+    let v: Vec<_> = lp
+        .vertices()
+        .iter()
+        .map(|x| (x.pos().x, x.pos().y))
+        .collect();
+    assert_eq!(v, vec![(0.0, 0.0), (2.0, 0.0), (4.0, 0.0), (4.0, 3.0)]);
+    assert!(
+        lp.tangent_joints().is_empty(),
+        "the subdivision declares nothing: {:?}",
+        lp.tangent_joints()
+    );
+    validate_ok(&lp);
+}
+
+/// The inherited tangent is the incoming RAY itself, bit for bit. What
+/// that buys is the direction, not the arithmetic: here the two equal
+/// legs also lay down bit-identical DISPLACEMENTS, but that is this
+/// fixture's property — the entry sits at the origin and the sums
+/// `0 + d` and `d + d` are exact. A third equal leg's endpoint rounds
+/// and its realized displacement differs in the last bit
+/// (`r2_probe_bitwise_inheritance_is_transitive` pins exactly that
+/// boundary). The comparison direction is what makes the ray claim
+/// non-vacuous: re-deriving the ray through the leg's angle (the
+/// `atan2`/`sin_cos` round trip any re-authored spelling would take)
+/// moves the endpoint.
+#[test]
+fn straight_continuation_inherits_the_tangent_bitwise() {
+    let lp = Open
+        .at(p2(0.0, 0.0))
+        .toward(3.0, 7.0, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .line_to(p2(-4.0, 3.0), Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .map(pinned)
+        .unwrap();
+    let v = lp.vertices();
+    let first = (v[1].pos().x - v[0].pos().x, v[1].pos().y - v[0].pos().y);
+    let second = (v[2].pos().x - v[1].pos().x, v[2].pos().y - v[1].pos().y);
+    assert_eq!(first.0.to_bits(), second.0.to_bits());
+    assert_eq!(first.1.to_bits(), second.1.to_bits());
+    let theta = first.1.atan2(first.0);
+    let round_tripped = (theta.cos() * 2.0, theta.sin() * 2.0);
+    assert!(
+        round_tripped.0.to_bits() != second.0.to_bits()
+            || round_tripped.1.to_bits() != second.1.to_bits(),
+        "the round trip must MOVE the ray, or this row proves nothing"
+    );
+}
+
+/// The length gate is the continuation's one band-sensitive read: a
+/// non-positive length would run the side backward, exactly as on the
+/// directed row.
+#[test]
+fn straight_continuation_gates_its_length() {
+    let tip = Open
+        .at(p2(0.0, 0.0))
+        .toward(1.0, 0.0, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap();
+    assert!(matches!(
+        tip.line(-1.0, Tol::witness()),
+        Err(PathError::NonpositiveLeg { .. })
+    ));
+}
+
+/// An AUTHORED direction landing in the tangent band still refuses —
+/// a target that happens to be collinear is a value coincidence, and
+/// the ladder never reads intent off a margin. The recourse now names
+/// the structural spelling that exists for the case it was missing.
+#[test]
+fn authored_collinear_target_refuses_naming_the_structural_spelling() {
+    let err = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(2.0, 0.0), Tol::witness())
+        .unwrap()
+        .line_to(p2(4.0, 0.0), Tol::witness())
+        .unwrap_err();
+    assert!(matches!(err, PathError::JunctionTangent { .. }));
+    let text = err.to_string();
+    assert!(
+        text.contains("line(len)"),
+        "the tangent refusal must name the straight continuation: {text}"
+    );
+    assert!(
+        text.contains(".tangent()"),
+        "and still name the declaration door: {text}"
+    );
+}
+
+/// A CURVED zero-turn junction keeps refusing: the departure is
+/// authored, and off an arc the same direction is tangency onto a
+/// DISTINCT carrier — the undeclared-tangency doctrine, untouched.
+#[test]
+fn curved_zero_turn_still_refuses() {
+    let arc_end = Open
+        .at(p2(-1.0, 0.0))
+        .arc_to(
+            Bulge {
+                p: p2(1.0, 0.0),
+                b: 1.0,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+    assert!(matches!(
+        arc_end.turn(0.0, Tol::witness()),
+        Err(PathError::JunctionTangent { .. })
+    ));
+}
+
+/// The continuation row is CARRIER-BLIND, as the §2c axiom requires:
+/// it reads the tangent bit and nothing about the leg that produced
+/// it. Off an ARC that spelling authors a line tangent to the arc and
+/// declares nothing — a tangency between distinct carriers, which the
+/// DATA gate refuses. The declared spelling of the same geometry
+/// (`.tangent().line(len)`) passes, which is the whole difference.
+#[test]
+fn continuation_off_an_arc_is_undeclared_tangency_at_the_data_gate() {
+    let semicircle = || {
+        Open.at(p2(-1.0, 0.0))
+            .arc_to(
+                Bulge {
+                    p: p2(1.0, 0.0),
+                    b: 1.0,
+                },
+                Tol::witness(),
+            )
+            .unwrap()
+    };
+    let undeclared = semicircle()
+        .line(1.0, Tol::witness())
+        .expect("the door cannot see the carrier, so it cannot refuse here")
+        .line_to(Start, Tol::witness())
+        .map(pinned)
+        .unwrap();
+    assert!(undeclared.tangent_joints().is_empty());
+    let refused = Profile::new(SketchPlane::xy(), vec![undeclared])
+        .validate(Tol::witness())
+        .unwrap_err();
+    assert!(
+        matches!(refused, profile::ProfileError::UndeclaredTangency { .. }),
+        "the data gate is where this lands: {refused:?}"
+    );
+    let declared = semicircle()
+        .tangent()
+        .line(1.0, Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .map(pinned)
+        .unwrap();
+    assert_eq!(declared.tangent_joints(), &[1]);
+    validate_ok(&declared);
+}
+
+/// **Where the continuation stops — and where it no longer does.**
+/// (BOOL-8 pinned this as a two-rotation WALL; the ruling's declared
+/// closer landed, and the row records what actually moved.)
+///
+/// The fixture is lily's section: four corners, every side subdivided
+/// at one interior vertex, eight vertices on a four-corner outline (the
+/// loft's vertex budget). Interior subdivisions authored fine already;
+/// the side that CROSSES the seam is what this row is about, and the
+/// two rotations were never the same refusal wearing one name.
+///
+/// - **Rotation 1 — seam at a CORNER.** The closer departs the run's
+///   subdivision vertex, so the junction in band is the CLOSER'S OWN
+///   departure. Undeclared, that still refuses
+///   (now an ordinary `JunctionTangent`): `line_to(Start)` computed
+///   a direction and found it collinear, and reading intent off that is
+///   the inference the ladder refuses. DECLARED, it closes —
+///   `continue_to(Start)` takes the departing point's own ray and
+///   checks `Start` against it. This half of the wall is over.
+/// - **Rotation 2 — seam at the SUBDIVISION vertex.** The closer
+///   departs the corner asserted below, and the junction in band is the
+///   SEAM'S. That is a mid-carrier seam, PQ4, and no spelling of the
+///   closing leg moves it: `line_to(Start)` refuses
+///   `SeamTangent`, and the declared closer does
+///   not apply at all — the leg departs a CORNER here, so `Start` is
+///   off its ray and the verb refuses that first.
+///
+/// The premise both rotations rest on — that the tip `right` is a
+/// DEFINITE corner — is measured here rather than argued, because it is
+/// what makes each rotation have exactly ONE in-band junction. The site
+/// The two mechanisms are separable at the REFUSAL rather than only
+/// through the fixture that provoked each — which was BOOL-8's ask —
+/// and they are separable by TYPE: `JunctionTangent` for a departure,
+/// `SeamTangent` for a seam. That is strictly better than the payload
+/// tag an earlier draft used. A tag has to be read and can be ignored
+/// by a `{ .. }` pattern; two types cannot be confused by a caller,
+/// cannot be matched by accident, and let each refusal carry only the
+/// payload its own recourse needs.
+///
+/// The departure half is an ORDINARY refusal now, and deliberately so:
+/// a tangent departure on a closing leg is geometrically identical to
+/// one mid-chain, and since the declared closer landed the recourse is
+/// identical too — so a close-only second name for it was uniformity
+/// debt, against PATHS' rule that `Start` goes through ordinary verbs.
+#[test]
+fn the_seam_wall_ends_at_the_departure_and_stands_at_the_seam() {
+    let right = p2(1.0, 0.0);
+    let ridge = p2(0.0, 1.5);
+    let left = p2(-1.0, 0.0);
+    let keel = p2(0.0, -1.0);
+    let mid = |a: Point2<f64>, b: Point2<f64>| p2(0.5 * (a.x + b.x), 0.5 * (a.y + b.y));
+    let half = |a: Point2<f64>, b: Point2<f64>| 0.5 * (b - a).norm_squared().sqrt();
+    let t = Tol::witness();
+    let m3 = mid(keel, right);
+    let into_right = (right.x - m3.x, right.y - m3.y);
+    let out_of_right = (ridge.x - right.x, ridge.y - right.y);
+    let turn_at_right = into_right.0 * out_of_right.1 - into_right.1 * out_of_right.0;
+    assert!(
+        turn_at_right.abs() > 0.5,
+        "the seam corner must be definitely sharp, not near-tangent: {turn_at_right}"
+    );
+    let side = |chain: PartialPath<f64, HasPos<WithIncoming>, profile::path::NoAng>,
+                from: Point2<f64>,
+                to: Point2<f64>| {
+        let d = to - from;
+        chain
+            .toward(d.x, d.y, t)
+            .unwrap()
+            .line(half(from, to), t)
+            .unwrap()
+            .line(half(from, to), t)
+            .unwrap()
+    };
+    // Rotation 1 — seam at the tip `right`: three sides subdivide, and
+    // the closer departs the fourth side's subdivision vertex.
+    let at_m3 = || {
+        let d0 = ridge - right;
+        let first = Open
+            .at(right)
+            .toward(d0.x, d0.y, t)
+            .unwrap()
+            .line(half(right, ridge), t)
+            .unwrap()
+            .line(half(right, ridge), t)
+            .unwrap();
+        side(side(first, ridge, left), left, keel)
+            .toward(right.x - keel.x, right.y - keel.y, t)
+            .unwrap()
+            .line(half(keel, right), t)
+            .unwrap()
+    };
+    assert!(matches!(
+        at_m3().line_to(Start, t),
+        Err(PathError::JunctionTangent { .. })
+    ));
+    let closed = pinned(
+        at_m3()
+            .continue_to(Start, t)
+            .expect("the declared closer ends the run that crosses the seam"),
+    );
+    assert_eq!(closed.vertices().len(), 8);
+    assert!(closed.tangent_joints().is_empty());
+    validate_ok(&closed);
+    // Rotation 2 — seam at the subdivision vertex `mid(keel, right)`:
+    // the closer departs the corner asserted above, and the SEAM
+    // junction is the straight one. PQ4, unmoved by either spelling.
+    let d = right - m3;
+    let round = || {
+        Open.at(m3)
+            .toward(d.x, d.y, t)
+            .unwrap()
+            .line(half(m3, right), t)
+            .unwrap()
+    };
+    let back_at_keel = || side(side(side(round(), right, ridge), ridge, left), left, keel);
+    assert!(matches!(
+        back_at_keel().line_to(Start, t),
+        Err(PathError::SeamTangent { .. })
+    ));
+    // The declared closer does not even APPLY here, and that is the
+    // sharper half: in this rotation the closing leg departs a corner,
+    // so it is not a continuation of anything — `Start` is off the ray
+    // the departing point defines, and the verb says so before the seam
+    // is ever classified. The seam refusal above is what the spelling
+    // that IS applicable gets. (A fixture where the closer is a
+    // continuation AND the seam is straight needs two consecutive
+    // subdivisions on one side, which strict alternation forbids;
+    // `bool11_probes` builds one and pins `site: Seam` from this verb.)
+    assert!(matches!(
+        back_at_keel().continue_to(Start, t),
+        Err(PathError::ContinuationTargetOffRay { .. })
+    ));
+}
+// ==================================================================
+// R2 BOOL-8 probes (PR #1508, frozen head 6aa2684f2). APPENDED to
+// crates/profile/tests/path_property.rs for the probe runs and
+// REVERTED after; kept here as the record. Each probe attacks one
+// PR-body claim; results in review/r2-bool8/NOTES.md.
+// ==================================================================
+
+/// PROBE 1 (claim 3): no authored spelling sneaks a tangency through
+/// as a "continuation". Every director that could re-author the
+/// incoming direction — `.toward` with the exact same displacement,
+/// `.turn(0)`, `.angle(exact incoming angle)` — still refuses
+/// `JunctionTangent`; the declared spelling refuses
+/// `SameCarrierJunction`. The only accepting spelling is the one with
+/// NO authored direction at all.
+#[test]
+fn r2_probe_authored_spellings_cannot_sneak_the_continuation() {
+    let t = Tol::witness();
+    let tip = || {
+        Open.at(p2(0.0, 0.0))
+            .toward(3.0, 7.0, t)
+            .unwrap()
+            .line(2.0, t)
+            .unwrap()
+    };
+    // .toward with the exact incoming displacement: authored, refuses.
+    assert!(matches!(
+        tip().toward(3.0, 7.0, t),
+        Err(PathError::JunctionTangent { .. })
+    ));
+    // .turn(0) off a LINE end (the arc case has its own row): refuses.
+    assert!(matches!(
+        tip().turn(0.0, t),
+        Err(PathError::JunctionTangent { .. })
+    ));
+    // .angle at the exact incoming angle: authored, refuses.
+    let theta = 7.0f64.atan2(3.0);
+    assert!(matches!(
+        tip().angle(theta, t),
+        Err(PathError::JunctionTangent { .. })
+    ));
+    // declared identity: refuses (the #101 rule, untouched).
+    assert!(matches!(
+        tip().tangent().line(2.0, t),
+        Err(PathError::SameCarrierJunction { .. })
+    ));
+}
+
+/// PROBE 2 (claim 4): the carrier-blindness seam cannot be laundered
+/// past `validate` by chaining — TWO continuations off the arc still
+/// land at the data gate, and so does a continuation off a fillet's
+/// ARC arrival end (a second arc-carrier directed point in the tree).
+#[test]
+fn r2_probe_arc_continuations_never_pass_validate() {
+    let t = Tol::witness();
+    let undeclared = Open
+        .at(p2(-1.0, 0.0))
+        .arc_to(
+            Bulge {
+                p: p2(1.0, 0.0),
+                b: 1.0,
+            },
+            t,
+        )
+        .unwrap()
+        .line(0.5, t)
+        .unwrap()
+        .line(0.5, t)
+        .unwrap()
+        .line_to(Start, t)
+        .map(pinned)
+        .unwrap();
+    assert!(undeclared.tangent_joints().is_empty());
+    let refused = Profile::new(SketchPlane::xy(), vec![undeclared])
+        .validate(t)
+        .unwrap_err();
+    assert!(
+        matches!(refused, profile::ProfileError::UndeclaredTangency { .. }),
+        "chained continuations off an arc must still land at the data gate: {refused:?}"
+    );
+}
+
+/// PROBE 3 (claim 5): third-spelling search for the lily seam wall,
+/// rotation 1 fixture (seam at the corner `right`). Every UNDECLARED
+/// candidate closer refuses from the run's subdivision vertex, and the
+/// continuation dead-ends structurally. (The declared closer is the one
+/// that gets through, and the row above pins that; what this row keeps
+/// is that nothing in the undeclared alphabet does, which is what makes
+/// the declaration load-bearing rather than decorative.)
+///  (a) `.tangent()` + tangent arc to Start — degenerates onto the
+///      carrier (SameCarrierJunction);
+///  (b) the REVERSED traversal — same alternation, same wall;
+///  (c) continuing `line(half)` to land exactly ON Start's
+///      coordinates — a directed point, not a closure; the zero-length
+///      `line_to(Start)` left over refuses.
+#[test]
+fn r2_probe_lily_seam_third_spellings_all_refuse() {
+    let right = p2(1.0, 0.0);
+    let ridge = p2(0.0, 1.5);
+    let left = p2(-1.0, 0.0);
+    let keel = p2(0.0, -1.0);
+    let half = |a: Point2<f64>, b: Point2<f64>| 0.5 * (b - a).norm_squared().sqrt();
+    let t = Tol::witness();
+    let side = |chain: PartialPath<f64, HasPos<WithIncoming>, profile::path::NoAng>,
+                from: Point2<f64>,
+                to: Point2<f64>| {
+        let d = to - from;
+        chain
+            .toward(d.x, d.y, t)
+            .unwrap()
+            .line(half(from, to), t)
+            .unwrap()
+            .line(half(from, to), t)
+            .unwrap()
+    };
+    let at_m3 = || {
+        let d0 = ridge - right;
+        let first = Open
+            .at(right)
+            .toward(d0.x, d0.y, t)
+            .unwrap()
+            .line(half(right, ridge), t)
+            .unwrap()
+            .line(half(right, ridge), t)
+            .unwrap();
+        side(side(first, ridge, left), left, keel)
+            .toward(right.x - keel.x, right.y - keel.y, t)
+            .unwrap()
+            .line(half(keel, right), t)
+            .unwrap()
+    };
+    // (a) declared + tangent arc to Start: degenerate onto the carrier.
+    assert!(matches!(
+        at_m3().tangent().tangent_arc_to(Start, t),
+        Err(PathError::SameCarrierJunction { .. })
+    ));
+    // (b) reversed traversal (right -> keel -> left -> ridge -> right):
+    // the closer still departs a subdivision vertex.
+    let db = keel - right;
+    let rev_first = Open
+        .at(right)
+        .toward(db.x, db.y, t)
+        .unwrap()
+        .line(half(right, keel), t)
+        .unwrap()
+        .line(half(right, keel), t)
+        .unwrap();
+    let rev_at_last_mid = side(side(rev_first, keel, left), left, ridge)
+        .toward(right.x - ridge.x, right.y - ridge.y, t)
+        .unwrap()
+        .line(half(ridge, right), t)
+        .unwrap();
+    assert!(matches!(
+        rev_at_last_mid.line_to(Start, t),
+        Err(PathError::JunctionTangent { .. })
+    ));
+    // (c) the continuation lands ON Start's coordinates but mints a
+    // directed point, not a closure; the leftover closer is
+    // zero-length and refuses. (NonpositiveLeg via line_to's sugar, or
+    // whatever typed refusal the door gives — the point is Err.)
+    let parked_on_start = at_m3().line(half(keel, right), t).unwrap();
+    assert!(parked_on_start.line_to(Start, t).is_err());
+}
+
+/// PROBE 4 (claim 1), REVISED after a first run: the bit-identical
+/// DISPLACEMENT property is a fixture artifact, not the inherited
+/// thing. From the origin, `0 + d` and `d + d` are exact, so the first
+/// two displacements match bitwise — but the THIRD leg's endpoint
+/// rounds (`2d + d` is inexact) and its realized displacement differs
+/// in the last bit. What is inherited bitwise is the `Dir`; the vertex
+/// table only shows it exactly while the additions are exact. This
+/// probe pins the boundary: d(0) == d(1), d(1) != d(2).
+#[test]
+fn r2_probe_bitwise_inheritance_is_transitive() {
+    let t = Tol::witness();
+    let lp = Open
+        .at(p2(0.0, 0.0))
+        .toward(0.1, 0.3, t)
+        .unwrap()
+        .line(0.7, t)
+        .unwrap()
+        .line(0.7, t)
+        .unwrap()
+        .line(0.7, t)
+        .unwrap()
+        .line_to(p2(-5.0, 1.0), t)
+        .unwrap()
+        .line_to(Start, t)
+        .map(pinned)
+        .unwrap();
+    let v = lp.vertices();
+    let d = |i: usize| {
+        (
+            (v[i + 1].pos().x - v[i].pos().x).to_bits(),
+            (v[i + 1].pos().y - v[i].pos().y).to_bits(),
+        )
+    };
+    assert_eq!(d(0), d(1), "doubling from the origin is exact");
+    assert_ne!(
+        d(1),
+        d(2),
+        "the third endpoint rounds: bit-identical displacements are the \
+         fixture's property, not the inheritance's"
+    );
+    assert!(lp.tangent_joints().is_empty());
+    validate_ok(&lp);
 }

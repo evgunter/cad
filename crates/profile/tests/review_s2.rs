@@ -8,7 +8,11 @@
 //! oracles are written from the geometry rather than from `sugar.rs`:
 //! the signed offset radius ρ = R − σ·τ·r is re-derived, the bulge is
 //! checked against an `atan2` sweep, and setback/extent is recomputed
-//! with `rem_euclid`.
+//! here. The FORWARD reductions below are `rem_euclid(TAU)` — the
+//! right window for an extent, a gap or an authored sweep. The one
+//! SIGNED reduction (`signed`) folds its raw difference once instead;
+//! it is deliberately not a `[0, τ)` reduction with a second fold on
+//! top, which is the spelling the production helper retired.
 //!
 //! Notes on adoption:
 //!
@@ -41,20 +45,33 @@
 //! `enclosing_cases` inverts the ρ algebra — ρ = R − σ·τ·r < 0 ⟺
 //! σ·τ = +1 and r > R — and every row DEMANDS the enclosing tangency.
 //! `the_lattice_door_never_emits_an_enclosing_tangency` pins what the
-//! shipped door answers on that table: it refuses, on every band. The
-//! general boundary is wider than the pin — the door may refuse OR
-//! round without swallowing — so the `Ok` arm checks the non-swallowing
-//! property first, and a moved pin names what got built before it
-//! fails.
+//! shipped door answers on that table: the typed refusal
+//! `PathError::FilletEnclosesLegCarrier`, on every band.
+//!
+//! **That boundary is permanent, not a finding.**
+//! `docs/ENCLOSING-TANGENCY-DESIGN.md` rules the class out for good — an
+//! arc whose circle contains both leg carriers contains the corner too,
+//! so it cannot touch the corner it would round, and a construction that
+//! cannot touch the corner is not a fillet OF it. No door emits the
+//! class, and a request whose radius demands it is answered by that
+//! refusal. So these pins do not describe what the ladder happens to
+//! rank today; they assert a ruling, and a build here is a violation of
+//! it rather than a boundary to re-pin.
 //!
 //! The sweep's `n_enclosing` line is therefore a coverage report, not a
 //! floor: through this door the count is 0 structurally. `assert_eq!`
-//! pins that 0 — monotone-safe where a `>= 1` floor was not, and red
-//! exactly when the boundary claim stops being true.
+//! pins that 0 — monotone-safe where a `>= 1` floor was not. What it
+//! guards is the NO-EMISSION half of the ruling (nothing the door builds
+//! demands the class), which is exactly what a count of accepted corners
+//! can see; that the demand REFUSES, and with which words, is the two
+//! pins' claim, not this one's.
 //!
-//! ρ < 0 on one leg forces ρ < 0 on the other, so a swallowed carrier
-//! never appears beside a line leg, an opposite-sense arc, or an arc
-//! bigger than the fillet — geometrically impossible, not merely rare.
+//! ρ < 0 on one leg forces ρ < 0 on the other, so a corner with one
+//! swallowed carrier and a line leg, an opposite-sense arc, or an arc
+//! bigger than the fillet does not EXIST — such a request can be
+//! authored (the anchors and radius are just numbers), and what it names
+//! is a pair of carriers whose tangency is degenerate, so no solution is
+//! there to find. Geometrically impossible, not merely rare.
 //! `an_enclosing_leg_forces_an_equally_enclosing_partner` pins each
 //! one's refusal with the inequality that rules it out.
 //!
@@ -70,7 +87,7 @@ use common::tol;
 use geom_core::Point2;
 use geom_core::Tol;
 use profile::path::PathNoCornerReason;
-use profile::{ArcSweep, Center, NoCornerReason, Open, PathError, ProfileLoop, Start};
+use profile::{ArcSweep, Center, Open, PathError, ProfileLoop, Start};
 use test_utils::fuzz;
 
 const TAU: f64 = core::f64::consts::TAU;
@@ -283,10 +300,15 @@ fn mirror_corner(
     }
 }
 
-/// Signed angular difference into [-π, π).
+/// Signed angular difference into [−π, π).
+///
+/// Spelled here rather than called from `sugar.rs` — see this file's
+/// header on oracle independence — but NOT as the composition the
+/// production helper retired: the raw difference is folded once, into
+/// the window centred on zero. Reducing into `[0, τ)` first would put a
+/// jump exactly at the coincidence this oracle's callers measure.
 fn signed(a: f64) -> f64 {
-    let s = a.rem_euclid(TAU);
-    s - TAU * (s / TAU + 0.5).floor()
+    a - TAU * (a / TAU + 0.5).floor()
 }
 
 /// The signed travel of `p` measured from `q` along an arc leg's
@@ -536,13 +558,13 @@ struct CornerCounts {
     major: u64,
 }
 
-/// **The boundary, asserted — the one home of that check.** For a corner
-/// whose geometry demands the enclosing (ρ < 0) tangency, the lattice
-/// door never emits one, so whatever it built must swallow NEITHER
-/// carrier: |P − O| + R stays above r. Called from `check_corner`'s
-/// enclosing arm and from `report_moved_refuse_pin`, which is what both
-/// enclosing pins call; the three copies of this arithmetic and this
-/// message that used to sit at those sites are gone.
+/// **The ruling, asserted — the one home of that check.** For a corner
+/// whose geometry demands the enclosing (ρ < 0) tangency, no door emits
+/// one (`docs/ENCLOSING-TANGENCY-DESIGN.md`), so whatever a door built
+/// must swallow NEITHER carrier: |P − O| + R stays above r. Called from
+/// `check_corner`'s enclosing arm and from `report_moved_refuse_pin`,
+/// which is what both enclosing pins call; the three copies of this
+/// arithmetic and this message that used to sit at those sites are gone.
 fn assert_swallows_nothing(
     pf: Point2<f64>,
     center: Point2<f64>,
@@ -553,27 +575,30 @@ fn assert_swallows_nothing(
     let d = (pf.x - center.x).hypot(pf.y - center.y);
     assert!(
         d + radius > r - 1e-9,
-        "the door emitted an ENCLOSING tangency (|P-O| + R = {} < r = {r}) — the \
-         boundary claim itself has moved — {}",
+        "the door emitted an ENCLOSING tangency (|P-O| + R = {} < r = {r}) — the class \
+         docs/ENCLOSING-TANGENCY-DESIGN.md rules permanently out — {}",
         d + radius,
         ctx()
     );
 }
 
-/// **What both enclosing pins do with an `Ok` — one function, because
-/// they were one function written twice.**
+/// **What both enclosing pins do with an `Ok` — which is now a report of
+/// a broken ruling, not of a moved boundary.** One function, because
+/// they were one function written twice.
 /// `the_lattice_door_never_emits_an_enclosing_tangency` (the six-row
 /// table) and `enclosing_fillet_swallows_both_leg_carriers` (the mined
 /// corner) pin the same refusal at the same door, and their `Ok` arms
 /// carried the same `fillet_segment` → `circle_from_bulge` → per-carrier
 /// boundary check → same panic, with neither site naming the other.
 /// Nothing in either declared the copy, which is why no marker
-/// vocabulary could have found it (smell-scan S133).
+/// vocabulary could have found it: a sweep for self-disclosed
+/// duplication only finds the copies that disclosed themselves.
 ///
-/// The boundary check runs BEFORE the panic on purpose: a pin that is
-/// being flipped deliberately should report what got built, and a build
-/// that swallows a carrier is a different and much larger failure than
-/// a build that merely moved the pin.
+/// The boundary check runs BEFORE the panic on purpose: a failure here
+/// should report what got built, and a build that swallows a carrier —
+/// the ruled-out class itself, emitted — is a different and much larger
+/// failure than a build that merely serves some other tangency where the
+/// ruling says the request must refuse.
 fn report_moved_refuse_pin(
     lp: &ProfileLoop<f64>,
     r: f64,
@@ -587,8 +612,10 @@ fn report_moved_refuse_pin(
         assert_swallows_nothing(pf, *center, *radius, r, ctx);
     }
     panic!(
-        "{}: the pinned REFUSE branch moved — {what} now BUILDS (a non-swallowing \
-         fillet, verified above); re-pin deliberately",
+        "{}: {what} now BUILDS (a non-swallowing fillet, verified above) where \
+         docs/ENCLOSING-TANGENCY-DESIGN.md rules that a radius demanding the enclosing \
+         class must refuse typed; this is a violation of that ruling, not a boundary to \
+         re-pin",
         ctx()
     );
 }
@@ -872,17 +899,18 @@ fn fuzz_offset_carrier_construction_tangency_and_bulge() {
     // whose sample count only ever ratchets upward. At the lattice door
     // the count is structurally 0, so the guard inverts: pinning 0 is
     // monotone in the safe direction (more draws can only find a
-    // violation, never lose one) and it goes red exactly when the
-    // boundary claim stops being true. A printed number nobody compares
-    // is not a guard — `cargo test` swallows the report line below
-    // without `--nocapture`.
+    // violation, never lose one). A printed number nobody compares is
+    // not a guard — `cargo test` swallows the report line below without
+    // `--nocapture`.
     //
-    // Note this pins slightly MORE than the boundary: not merely that
-    // the door emits no enclosing tangency (`check_corner`'s enclosing
-    // arm asserts that), but that it builds no corner DEMANDING one at
-    // all. A change that legitimately starts rounding such corners
-    // without swallowing flips this deliberately, as the two enclosing
-    // pins do.
+    // WHAT THIS GUARDS, precisely: the no-emission half of the ruling —
+    // no corner the door BUILDS demands the enclosing class, whether the
+    // demand is refused by the class gate or was never rankable in the
+    // first place. It is not sensitive to the gate itself (before the
+    // gate existed the count was 0 too, by the ladder's own ranking), and
+    // claiming otherwise would make a passing row look like evidence for
+    // a refusal it never examines. The refusal is the two enclosing
+    // pins', which assert the variant and its payload.
     assert_eq!(
         n_enclosing,
         0,
@@ -994,8 +1022,8 @@ fn enclosing_cases() -> Vec<EnclosingCase> {
     ]
 }
 
-/// **The enclosing (ρ < 0) class at the LATTICE DOOR — a structural
-/// boundary, pinned.** The raw builder reached the enclosing tangency
+/// **The enclosing (ρ < 0) class at the LATTICE DOOR — a permanent
+/// property, pinned.** The raw builder reached the enclosing tangency
 /// by AUTHORING the corner; the §2c lattice derives corners from the
 /// anchored carriers and ranks every gated survivor with the lifted S8
 /// ladder. For a corner whose geometry demands the enclosing tangency,
@@ -1004,24 +1032,30 @@ fn enclosing_cases() -> Vec<EnclosingCase> {
 /// crossing cannot be excluded by the signed gates: the enclosing
 /// setbacks wrap past the inter-crossing gap on both carriers, so any
 /// anchors far enough out to fit the enclosing trims also leave the
-/// other crossing inside its windows. The ladder therefore NEVER emits
-/// an enclosing tangency — the class is unreachable through the
-/// surviving door, and this test pins exactly that: every table corner
-/// still DEMANDS the class (σ, τ and both ρ signs re-derived from the
-/// drawn geometry), and **the door REFUSES every one of them**, on
-/// every shipped band. The wider boundary would also permit a build
-/// that swallows NEITHER carrier; on this table it does not happen, and
-/// the `Ok` arm asserts the non-swallowing property first (via
-/// `report_moved_refuse_pin`, the one home of that arm) so that a moved
-/// pin says what got built
-/// before it fails.
+/// other crossing inside its windows. So the ladder never had a reason
+/// to emit an enclosing tangency, and now it has no route to one either:
+/// the class is **ruled out permanently** by
+/// `docs/ENCLOSING-TANGENCY-DESIGN.md`. The blend circle contains both
+/// leg carriers, hence the corner, so the arc cannot touch the corner it
+/// would round — which makes it no fillet OF that corner at all — and a
+/// radius demanding it is answered by the typed
+/// `PathError::FilletEnclosesLegCarrier`, gated on the construction's own
+/// signed ρ before any candidate centre is computed.
+///
+/// This test pins exactly that: every table corner still DEMANDS the
+/// class (σ, τ and both ρ signs re-derived from the drawn geometry), and
+/// **the door refuses every one of them with that variant**, on every
+/// shipped band, naming the swallowed side's carrier radius as the bound
+/// and carrying the ρ this suite re-derives independently. The `Ok` arm
+/// is unreachable under the ruling; it asserts the non-swallowing
+/// property first (via `report_moved_refuse_pin`, the one home of that
+/// arm) so a violation says what got built before it fails.
 ///
 /// (The construction machinery underneath — signed offset radii, the
-/// antipodal tangent-point flip — is unchanged and still computes the
-/// enclosing candidates; they lose the ranking. Authoring the corner is
-/// the only way to emit them, and no shipped door authors corners.
-/// Whether one ever should is issue #827 — a capability decision, not a
-/// regression, and not this suite's to make.)
+/// antipodal tangent-point flip — is unchanged and still describes the
+/// enclosing candidates. It is the substrate this boundary is measured
+/// against, and its ρ is what the refusal classifies — `sugar`'s
+/// `offset_radius`, whose docs carry that purpose.)
 ///
 /// Its mined twin is `enclosing_fillet_swallows_both_leg_carriers`,
 /// which pins the same refusal at the same door on one corner nobody
@@ -1047,19 +1081,104 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
             );
         }
         match build_corner(case.corner, case.leg_in, case.leg_out, case.r) {
-            // The PINNED branch: under the bracketing harness every
-            // table row REFUSES, on every shipped band (measured at
-            // 1e-6 / 1e-9 / 1e-12) — the enclosing demand has no
-            // corner the gates and extents can both admit.
-            Err(_) => {}
+            // The RULED branch: every table row refuses with the
+            // enclosing-class variant, on every shipped band (measured
+            // at 1e-6 / 1e-9 / 1e-12), and the refusal names the side it
+            // would swallow — the payload's carrier radius is that
+            // side's R and its offset radius is the row's own negative
+            // ρ, re-derived here from the drawn geometry rather than
+            // read back from the construction.
+            Err(PathError::FilletEnclosesLegCarrier {
+                side,
+                carrier_radius,
+                offset_radius,
+                radius,
+                largest_tangent_radius,
+            }) => {
+                assert_eq!(radius, case.r, "{name}: the refusal renamed the radius");
+                // Every table row swallows BOTH carriers, so the refusal
+                // says so rather than picking a side.
+                assert_eq!(
+                    side, None,
+                    "{name}: both carriers are swallowed, so no single side is the story"
+                );
+                let radii = [case.leg_in, case.leg_out].map(|leg| {
+                    let OracleLeg::Arc {
+                        radius: big, tau, ..
+                    } = leg
+                    else {
+                        panic!("{name}: the table is arc x arc by construction");
+                    };
+                    (big, big - sigma * tau * case.r)
+                });
+                // The CLASS bound is the TIGHTEST one: naming the other
+                // carrier would endorse radii that re-refuse with this
+                // same variant, now naming the smaller side.
+                let tightest = radii[0].0.min(radii[1].0);
+                assert!(
+                    (carrier_radius - tightest).abs() < 1e-15,
+                    "{name}: the refusal names carrier radius {carrier_radius}, not the \
+                     tightest {tightest} — the bound it offers is the wrong number"
+                );
+                let rho = radii[0].1.min(radii[1].1);
+                assert!(
+                    offset_radius < 0.0 && (offset_radius - rho).abs() < 1e-15,
+                    "{name}: the refusal reports rho {offset_radius}, not the row's own \
+                     negative {rho}"
+                );
+                // **The endorsed radius must BUILD.** The existence
+                // bound is the largest circle tangent to both carriers
+                // at this corner, (R1 + R2 - d)/2, re-derived here from
+                // the drawn geometry; the message endorses radii below
+                // it, so this row rounds the corner at one and checks
+                // the arc that comes back. A bound that endorsed the
+                // class limit instead would send an author to radii
+                // that refuse again — the defect this payload exists to
+                // rule out.
+                let bound = largest_tangent_radius
+                    .unwrap_or_else(|| panic!("{name}: an arc x arc corner defines the bound"));
+                let (o1, o2) = match (case.leg_in, case.leg_out) {
+                    (OracleLeg::Arc { center: a, .. }, OracleLeg::Arc { center: b, .. }) => (a, b),
+                    _ => panic!("{name}: the table is arc x arc by construction"),
+                };
+                let d = (o2.x - o1.x).hypot(o2.y - o1.y);
+                let want = (radii[0].0 + radii[1].0 - d) / 2.0;
+                assert!(
+                    (bound - want).abs() < 1e-15,
+                    "{name}: the endorsed bound {bound} is not the corner's largest tangent \
+                     radius {want}"
+                );
+                assert!(
+                    bound <= tightest,
+                    "{name}: the endorsed bound {bound} is above the class bound {tightest}, \
+                     so it endorses the very class this refusal rules out"
+                );
+                let endorsed = 0.99 * bound;
+                let lp = build_corner(case.corner, case.leg_in, case.leg_out, endorsed)
+                    .unwrap_or_else(|e| {
+                        panic!(
+                            "{name}: the refusal endorses radii below {bound}, but {endorsed} \
+                             refuses with {e:?} — a dead recourse"
+                        )
+                    });
+                let ctx = || format!("{name} @ endorsed radius");
+                let (t1, t2, b) = fillet_segment(&lp, endorsed, &ctx);
+                let (pf, _) = circle_from_bulge(t1, t2, b);
+                for (center, big) in [(o1, radii[0].0), (o2, radii[1].0)] {
+                    assert_swallows_nothing(pf, center, big, endorsed, &ctx);
+                }
+            }
+            Err(other) => panic!(
+                "{name}: a radius demanding the enclosing class must refuse with \
+                 FilletEnclosesLegCarrier (docs/ENCLOSING-TANGENCY-DESIGN.md), not with \
+                 {other:?}"
+            ),
             Ok(lp) => {
-                // A door or harness change that starts building here
-                // must flip this pin deliberately.
-                // `report_moved_refuse_pin` checks the boundary BEFORE
-                // it reports the pin as moved, so the failure names
-                // what got built: whatever it is, it must not be the
-                // enclosing tangency (the emitted fillet swallows
-                // neither carrier).
+                // A build here breaks the ruling.
+                // `report_moved_refuse_pin` checks the class BEFORE it
+                // reports, so the failure names what got built: whatever
+                // it is, it must not be the enclosing tangency (the
+                // emitted fillet swallows neither carrier).
                 let carriers = [case.leg_in, case.leg_out].map(|leg| {
                     let OracleLeg::Arc { center, radius, .. } = leg else {
                         panic!("{name}: the table is arc x arc by construction");
@@ -1113,8 +1232,13 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
 ///
 /// So ρ < 0 on one leg means ρ < 0 on BOTH, which is the shape the table
 /// spans and the shape `enclosing_fillet_swallows_both_leg_carriers` was
-/// named for. The sugar refuses all three with `OffsetCarriersDisjoint`,
-/// which is the same inequality read from the offset side.
+/// named for. The sugar refuses all three as the enclosing class it is —
+/// the ρ < 0 leg is the one the refusal names, and the partner never has
+/// to be examined, because a swallowed carrier is already a corner no
+/// fillet of that radius can touch (`docs/ENCLOSING-TANGENCY-DESIGN.md`).
+/// Before that ruling these rows came back as `OffsetCarriersDisjoint`,
+/// the same inequality read from the offset side — true, and about the
+/// offset carriers rather than about the fillet the author asked for.
 #[test]
 fn an_enclosing_leg_forces_an_equally_enclosing_partner() {
     let c = p2(0.4, -0.2);
@@ -1151,14 +1275,33 @@ fn an_enclosing_leg_forces_an_equally_enclosing_partner() {
             "{name}: the row must contain a rho < 0 leg to be about the enclosing class"
         );
         match build_corner(c, leg_in, leg_out, r) {
-            Err(PathError::NoCornerForFillet {
-                reason: PathNoCornerReason::NoTangentCircle(NoCornerReason::OffsetCarriersDisjoint),
+            Err(PathError::FilletEnclosesLegCarrier {
+                side,
+                offset_radius,
+                carrier_radius,
+                largest_tangent_radius,
                 ..
-            }) => {}
+            }) => {
+                assert!(
+                    offset_radius < 0.0 && carrier_radius < r,
+                    "{name}: the refusal must name the swallowed carrier (rho \
+                     {offset_radius}, R {carrier_radius} against r {r})"
+                );
+                // These corners are the degenerate ones: exactly one leg
+                // is swallowed, so the refusal names that side and
+                // endorses NO radius — the existence bound is not
+                // defined here, and a class bound alone is necessary
+                // rather than sufficient.
+                assert!(side.is_some(), "{name}: one leg is swallowed, not both");
+                assert_eq!(
+                    largest_tangent_radius, None,
+                    "{name}: a degenerate partner defines no largest tangent circle"
+                );
+            }
             other => panic!(
                 "{name}: a swallowed carrier next to this partner is geometrically \
-                 impossible, so the sugar must refuse with OffsetCarriersDisjoint; got \
-                 {other:?}"
+                 impossible, and the swallowing itself is refused typed, so the sugar must \
+                 refuse with FilletEnclosesLegCarrier; got {other:?}"
             ),
         }
     }
@@ -1400,12 +1543,16 @@ fn an_uncertifiable_tangent_point_refuses_instead_of_being_returned() {
 }
 
 /// The mined enclosing corner (F1's deterministic pin, coordinates
-/// nobody would author), re-pointed at the lattice-door boundary the
-/// table test pins: the geometry still DEMANDS the enclosing tangency
-/// (both rho < 0, re-derived), and **the door refuses**, on every band.
-/// The wider boundary allows a non-swallowing build as well, so the
-/// `Ok` arm checks that property first — via `report_moved_refuse_pin`,
-/// the one home of that arm — and only then reports the pin as moved.
+/// nobody would author), at the permanent boundary the table test pins:
+/// the geometry still DEMANDS the enclosing tangency (both rho < 0,
+/// re-derived), and **the door refuses with
+/// `PathError::FilletEnclosesLegCarrier`**, on every band. That is the
+/// ruling of `docs/ENCLOSING-TANGENCY-DESIGN.md`, not a finding about
+/// today's ladder: a blend circle that swallows both leg carriers
+/// swallows the corner, so it can never touch the corner it would round.
+/// The `Ok` arm is unreachable under that ruling; it checks the
+/// non-swallowing property first — via `report_moved_refuse_pin`, the one
+/// home of that arm — and only then reports the violation.
 /// The table twin is `the_lattice_door_never_emits_an_enclosing_tangency`,
 /// which pins the same refusal over six authored rows.
 #[test]
@@ -1439,9 +1586,56 @@ fn enclosing_fillet_swallows_both_leg_carriers() {
         );
     }
     match build_corner(corner, leg_in, leg_out, r) {
-        // The PINNED branch: the mined geometry REFUSES on every
-        // shipped band (measured at 1e-6 / 1e-9 / 1e-12).
-        Err(_) => {}
+        // The RULED branch: the mined geometry refuses with the
+        // enclosing-class variant on every shipped band (measured at
+        // 1e-6 / 1e-9 / 1e-12), naming a swallowed side whose carrier
+        // radius bounds the fillet and whose rho is negative.
+        Err(PathError::FilletEnclosesLegCarrier {
+            side,
+            carrier_radius,
+            offset_radius,
+            radius,
+            largest_tangent_radius,
+        }) => {
+            assert_eq!(radius, r, "the refusal renamed the radius");
+            assert_eq!(side, None, "this corner swallows BOTH carriers");
+            assert!(
+                (carrier_radius - r1.min(r2)).abs() < 1e-15,
+                "the refusal names carrier radius {carrier_radius}, not the tightest {}",
+                r1.min(r2)
+            );
+            assert!(
+                offset_radius < 0.0 && carrier_radius < r,
+                "the refusal's bound must be the swallowed carrier: rho {offset_radius}, \
+                 R {carrier_radius} against r {r}"
+            );
+            assert!(
+                leg_in.is_enclosing(sigma, r) && leg_out.is_enclosing(sigma, r),
+                "both legs must still demand the class the refusal names"
+            );
+            // The endorsed radius BUILDS: the mined corner rounds at a
+            // radius below its largest tangent circle, and what comes
+            // back swallows neither carrier.
+            let d = (o2.x - o1.x).hypot(o2.y - o1.y);
+            let bound = largest_tangent_radius.expect("an arc x arc corner defines the bound");
+            assert!(
+                (bound - (r1 + r2 - d) / 2.0).abs() < 1e-15,
+                "the endorsed bound {bound} is not this corner's largest tangent radius"
+            );
+            let endorsed = 0.99 * bound;
+            let lp = build_corner(corner, leg_in, leg_out, endorsed).unwrap_or_else(|e| {
+                panic!("the endorsed radius {endorsed} refuses with {e:?} — a dead recourse")
+            });
+            let ctx = || "enclosing_fillet_swallows_both_leg_carriers @ endorsed".to_string();
+            let (t1, t2, b) = fillet_segment(&lp, endorsed, &ctx);
+            let (pf, _) = circle_from_bulge(t1, t2, b);
+            assert_swallows_nothing(pf, o1, r1, endorsed, &ctx);
+            assert_swallows_nothing(pf, o2, r2, endorsed, &ctx);
+        }
+        Err(other) => panic!(
+            "the mined enclosing corner must refuse with FilletEnclosesLegCarrier \
+             (docs/ENCLOSING-TANGENCY-DESIGN.md), not with {other:?}"
+        ),
         Ok(lp) => {
             let ctx = || "enclosing_fillet_swallows_both_leg_carriers".to_string();
             report_moved_refuse_pin(&lp, r, &[(o1, r1), (o2, r2)], "the mined corner", &ctx);

@@ -502,21 +502,11 @@ pub(super) fn point_on_arc<T: Decide>(
         Ok(Sign::Zero | Sign::Negative) => return Ok(None),
         Err(diag) => return Err(ContainError::Escalated(diag)),
     }
-    let w = q - center;
-    let height = w.dot(axis);
-    let radial = w - axis * height;
-    let r_norm = radial.norm();
-    // Distance from the point to the circle: the radial miss and the
-    // axial miss are orthogonal, so their hypotenuse is exact.
-    let d = ((r_norm - radius).powi(2) + height.powi(2)).sqrt();
-    match decide("bool_contact_arc", Margin::of(d), band) {
-        Ok(Sign::Zero) => {}
-        Ok(Sign::Positive) => return Ok(Some(false)),
-        Ok(Sign::Negative) => {
-            return Err(ContainError::Escalated(invalid(band, "bool_contact_arc")));
-        }
-        Err(diag) => return Err(ContainError::Escalated(diag)),
-    }
+    let Some((radial, r_norm)) =
+        point_on_circle(q, center, axis, radius, band).map_err(ContainError::Escalated)?
+    else {
+        return Ok(Some(false));
+    };
     // On the carrier: the angular window decides which arc of it.
     let mid = (t0 + t1) * half;
     let (s_m, c_m) = mid.sin_cos();
@@ -592,14 +582,20 @@ pub fn curved_face_containment<T: Decide>(
     if !face_data.rings.is_empty() {
         return Ok(None);
     }
-    let Some(&geom::Surface::Cylinder {
-        origin,
-        axis,
-        radius,
-        u_ref,
-    }) = body.get_surface(face_data.surface)
-    else {
-        return Ok(None);
+    let (origin, axis, radius, u_ref) = match body.get_surface(face_data.surface) {
+        Some(&geom::Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        }) => (origin, axis, radius, u_ref),
+        Some(&geom::Surface::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref,
+        }) => return sphere_face_containment(body, face, center, radius, axis, u_ref, q, band),
+        _ => return Ok(None),
     };
     // ON THE CHART FIRST. The trim below is parameter-domain work and
     // premises an on-wall point (`point_on_wall_in_face` says so in its
@@ -649,6 +645,72 @@ pub fn curved_face_containment<T: Decide>(
     }
     match super::solid_contain::point_on_wall_in_face(
         face, origin, axis, radius, u_ref, az, h, q, band,
+    ) {
+        Ok(Some(true)) => Ok(Some(FaceContainment::In)),
+        Ok(Some(false)) => Ok(Some(FaceContainment::Out)),
+        Ok(None) => Ok(None),
+        Err(e) => Err(solid_err(e)),
+    }
+}
+
+/// The SPHERE chart's arm of [`curved_face_containment`], reached after
+/// the shared boundary walk and the ring test.
+///
+/// Same three steps as the cylinder arm, in the same order and for the
+/// same reasons: the CARRIER first (a face is a subset of its surface,
+/// so a point definitely off the sphere is definitely outside the
+/// face — and the trim below is parameter-domain work that premises an
+/// on-chart point), then the chart rectangle, then membership in it.
+///
+/// The class test and the rectangle are one call
+/// ([`super::solid_contain::sphere_chart_trim`]) rather than the
+/// cylinder's two: on a sphere the two questions are the same question.
+/// Whether every boundary edge is a rim or a meridian is exactly
+/// whether the `[azimuth] × [latitude]` window describes the face, and
+/// the invariant that keeps it exact — no pole strictly inside a
+/// meridian edge, where latitude stops being monotone — is checked
+/// while those edges are being classified. `None` is the honest
+/// remainder throughout.
+///
+/// **The one place this door is stricter than the ray lane**: a
+/// FULL-PERIOD azimuth window answers `None` here. The ray lane serves
+/// it (every azimuth is in the face, so the window cannot exclude a
+/// point), but this door's contract is the remainder and its caller
+/// keeps a typed frontier there — the same posture the cylinder arm's
+/// period guard takes, kept rather than widened in passing.
+#[allow(clippy::too_many_arguments)] // one chart datum, each argument named
+fn sphere_face_containment<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    center: Point3<T>,
+    radius: T,
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+    q: Point3<T>,
+    band: Band,
+) -> Result<Option<FaceContainment>, ContainError> {
+    match decide(
+        "bool_curved_contain_carrier",
+        Margin::of((q - center).norm() - radius),
+        band,
+    ) {
+        Ok(Sign::Zero) => {}
+        Ok(Sign::Positive | Sign::Negative) => return Ok(Some(FaceContainment::Out)),
+        Err(diag) => return Err(ContainError::Escalated(diag)),
+    }
+    let trim = match super::solid_contain::sphere_chart_trim(body, face, center, radius, axis, band)
+    {
+        Ok(Some(t)) => t,
+        // A face the rectangle cannot express is the honest
+        // remainder, not corruption of the caller's query.
+        Ok(None) => return Ok(None),
+        Err(e) => return Err(solid_err(e)),
+    };
+    if trim.az.is_none() {
+        return Ok(None);
+    }
+    match super::solid_contain::point_on_sphere_in_face(
+        face, center, radius, axis, u_ref, &trim, q, band,
     ) {
         Ok(Some(true)) => Ok(Some(FaceContainment::In)),
         Ok(Some(false)) => Ok(Some(FaceContainment::Out)),
@@ -744,6 +806,46 @@ fn iso_bounded_wall<T: Decide>(
         }
     }
     Ok(true)
+}
+
+/// Is `q` ON the circle `(center, axis, radius)`? `Some((radial,
+/// |radial|))` on it — the radial offset from the axis, which the
+/// angular half of an arc question is measured from — and `None`
+/// definitely off it.
+///
+/// **`bool_contact_arc` has one body, and this is it.** The row's
+/// quantity is the exact distance from the point to the circle: the
+/// radial miss and the axial miss are orthogonal, so their hypotenuse
+/// is exact and one row covers both ways off the carrier. Its NEGATIVE
+/// arm is the reason the body is shared rather than transcribed — a
+/// negative distance is impossible, so that arm is not a verdict but a
+/// broken invariant, and a copy of the row that folded it in with the
+/// definite-positive one would silently answer "off the carrier" where
+/// this one escalates.
+///
+/// Two callers, two different verdicts from the same three arms:
+/// [`point_on_arc`] turns a definite miss into `Some(false)`, and the
+/// boolean reduction's point split turns it into a broken-invariant
+/// refusal, because a split point was placed on that carrier by an
+/// exact row upstream.
+pub(super) fn point_on_circle<T: Decide>(
+    q: Point3<T>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    band: Band,
+) -> Result<Option<(Vec3<T>, T)>, Indeterminate> {
+    let w = q - center;
+    let height = w.dot(axis);
+    let radial = w - axis * height;
+    let r_norm = radial.norm();
+    let d = ((r_norm - radius).powi(2) + height.powi(2)).sqrt();
+    match decide("bool_contact_arc", Margin::of(d), band) {
+        Ok(Sign::Zero) => Ok(Some((radial, r_norm))),
+        Ok(Sign::Positive) => Ok(None),
+        Ok(Sign::Negative) => Err(invalid(band, "bool_contact_arc")),
+        Err(diag) => Err(diag),
+    }
 }
 
 fn invalid(band: Band, predicate: &'static str) -> Indeterminate {

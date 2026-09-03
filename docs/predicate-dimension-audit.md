@@ -79,7 +79,7 @@ every call site in the workspace constructs its margin through a
 blessed door (`of` / `levered`+`sagitta`+`levered_inv` /
 `norm3`+`norm2` / `metered` / `over_lever`; an unused `rooted` door
 was dropped at the fix pass — dead surface, and `per_boundary` was
-RENAMED and re-scoped to `over_lever` when Evan's layering ruling moved
+RENAMED and re-scoped to `over_lever` when Ev's layering ruling moved
 the consistency backstops out of the seam, see below), and each row's
 "comparand" column is the door's justification (out-of-ledger crates —
 profile, sweep, editor-core's eval/naming, geom-curves — argue their
@@ -121,7 +121,7 @@ performs exactly the operation the bare site performed); the
 probe-census diff row is the executed proof. F12 stays OUTSIDE the
 seam by its unchanged disposition (below).
 
-**The invariant lane (Evan's #213 layering ruling).** The consistency
+**The invariant lane (Ev's #213 layering ruling).** The consistency
 backstops — `volume_backstop` / `volume_backstop_operand` /
 `volume_backstop_violation`, inequalities between integral RESULTS
 (wrong-component detectors, never accuracy gates) — are outside the
@@ -295,6 +295,7 @@ which is what actually moves the number.
 | intersect.rs:705 | ps_center_gap | r − center-plane distance | m | OK |
 | intersect.rs:834–882 | cc_* (radius eq, axes parallel, coaxial, gap, coplanar) | lengths / sin×extent / common-perpendicular | m | OK |
 | intersect.rs:1000/1006/1043 | pn_apex_*, pn_axis_normal | m·unit; trig diff×extent; sin×rim r | m | OK |
+| intersect.rs:1480/1484/1498/1504/1535/1544 | pt_tube_guard / ring_guard / axis_in_plane / axis_plane_gap / axis_normal / cap_gap | r; R−r; sin×extent; centre-plane gap; sin×R; r−station depth | m | OK — with the axis_in_plane lever CONDITION on record: just inside the Zero band the raw sine reaches ε/extent, so the minted meridian circles sit off their own PLANE by up to r·ε/extent (27ε measured at extent = 0.01; the torus residual stays machine-zero). Cannot bite with a real operand: extent ≥ R + r for any plane that reaches the torus, so the planarity error stays under ε |
 | pcurve_cache.rs:1225/1233 | pcurve_chart_azimuth_affine / winding | (rad coeff)×radius | m | OK |
 | pcurve_cache.rs:1268 | pcurve_map_residual | mapped point distance | m | OK |
 | pcurve_cache.rs:1964 | pcurve_interval_forward (harmonic) | span × param_rate | m | OK |
@@ -327,7 +328,8 @@ which is what actually moves the number.
 | props/curved.rs (`cone_boundary`'s line arm) | props_meridian_apex | apex-line distance | m | OK |
 | props/curved.rs (`cone`'s single-nappe check) | props_cone_nappe | slant levels (m) bare | m | OK |
 | props/curved.rs (`sphere_boundary`'s meridian arm, `torus_boundary`, `torus_meridian_orient`) | props_meridian_great / props_band_coplanar / props_meridian_orient | lengths / sin×R / cos×minor | m | OK |
-| props/curved.rs (`sphere_meridian_span_levels`) | props_meridian_pole | chord from the pole's span-relative direction to the nearer span endpoint, carrying the membership sign (`copysign` of a midpoint dot test) × R — the point deviation of moving the pole onto the span boundary | m | OK (added with the span-derived sphere extent, issue 723 / S-CERT: Negative = pole outside the span, nothing folds; **everything else folds the pole latitude — Positive, Zero, and the indeterminate band alike**. Near a span end the endpoint latitude is within band² of the pole's, so the fold choices agree far inside tolerance, the folded extent is continuous across the decision, and an in-band margin carries no information a refusal could report — refusing there flipped certify-exactly into an import escalation for a split vertex 1e-6 rad off the pole. The site still RECORDS through `decide` like any classify site; it just never escalates, so its in-band population is expected (issue 1251 schedules the K-baseline fold-in). Total over every positive span: ≥ 2π covers the whole circle, both poles fold. Direction arithmetic throughout — no `atan2`, no mod-2π `floor`: either is wide at its cut/step for an interval enclosure of an arc anchored at a pole, forcing an escalation the scalar lane does not have, live on the die-fillet corpus) |
+| props/curved.rs (`sphere_meridian_pole_margins`, decided by `sphere_meridian_span_levels` AND by `require_one_chart_branch`) | props_meridian_pole | chord from the pole's span-relative direction to the nearer span endpoint, carrying the membership sign (`copysign` of a midpoint dot test) × R — the point deviation of moving the pole onto the span boundary | m | OK (added with the span-derived sphere extent, issue 723 / S-CERT. ONE margin, TWO dispositions since issue 1571, which is why the arithmetic has its own home: the EXTENT FOLD takes everything but a definite Negative — **Positive, Zero and the indeterminate band alike fold the pole latitude** — while the BRANCH DOOR refuses only a definite Positive, so the gap between them is exactly the arc that ENDS at the pole, which both admit. Neither disposition escalates, so the note below holds for both. Near a span end the endpoint latitude is within band² of the pole's, so the fold choices agree far inside tolerance, the folded extent is continuous across the decision, and an in-band margin carries no information a refusal could report — refusing there flipped certify-exactly into an import escalation for a split vertex 1e-6 rad off the pole. The site still RECORDS through `decide` like any classify site; it just never escalates, so its in-band population is expected (issue 1251 schedules the K-baseline fold-in). **RETRACTED for saturated spans (issue 1601, pre-existing, flux-lane side, NOT fixed by MESH-11)**: "≥ 2π covers the whole circle, both poles fold" needed the clamped edge cosine to have an EMPTY zero set, and it does not — at `c_edge = −1` the test is `f = ⟨P, M⟩ + 1`, which vanishes at the one direction antipodal to the span midpoint, where `f` is a rounding residual whose sign `copysign` puts on the chord; a `2π + 2δ` span with its pole there folds short by `(1 − cos δ)/2` in the dot value. The BRANCH door is unaffected: it refuses only a definite Positive, so a residual Negative there admits. Direction arithmetic throughout — no `atan2`, no mod-2π `floor`: either is wide at its cut/step for an interval enclosure of an arc anchored at a pole, forcing an escalation the scalar lane does not have, live on the die-fillet corpus) |
+| props/curved.rs (`require_one_chart_branch`'s cone arm) | props_cone_apex | the apex's own line parameter against the nearer span end, bare (a line's `t` IS arc length on the unit `dir` the parse certifies — the same argument `props_meridian_apex` makes one row up) | m | OK (added with the arc-branch door, issue 1571. Positive = the apex strictly inside the generator's stored span, where the chart `u` jumps to the mirror nappe and a walk reading one `u` per edge cannot read the edge; Zero and the indeterminate band ADMIT, so a generator ENDING at the apex — every `revolve` cone cap — passes. Signed as `min(t_apex − t0, t1 − t_apex)`: positive exactly on interior membership, and its magnitude is the metres to the nearer end, i.e. the point deviation of moving the apex onto the span boundary) |
 | props/curved.rs (`require_rims_at_extremes`, through `level_coincides`) | props_rim_level | per-kind: bare level difference (cylinder/cone `Length`) / rooted (sin,cos) chord × `RimArms::level` (sphere ×R, torus ×minor) | m | **FIXED — N7 RETIRED** (N1 RETIRED earlier. Generalised from the torus-only site to all four kinds by S58/#649, and unified with its sibling `props_rim_level_group` by S81 — ONE rule (`level_coincides`), one metric (the chord), one arm (`RimArms::level`), one fail direction; the two names are the funnel's recording channels, not two rules, and the metering is still carried by [`RimLevel`]. N7's near-polar sphere understatement — an axial-only `(sin v, 0)` pair whose chord collapsed by `cos v̄`, merging distinct near-polar rims in the ACCEPTING direction on both names, this refusing one included — is retired by the full `(sin v, cos v)` pair (issue 893 / S-CERT; this verdict column previously said `OK` while N7's own prose recorded the collapse). Pinned as scale twins by `geom-brep/tests/rim_dim_scale_twins.rs` and, in suites CI runs, by `geom-brep/tests/s81_one_rim_level_rule.rs` and the near-polar rows of `geom-brep/tests/cert1_sphere_polar.rs`.) |
 | props/quad.rs:453 | props_quad_converged | ε·F − flux-width(m³)/(3·area(m²)) | m | OK |
 | props/quad.rs:461 | props_quad_face_extent | area/perimeter (mean width) | m | OK |
@@ -350,7 +352,7 @@ which is what actually moves the number.
 | boolean/join.rs:743/744 | bool_join_facing | unit germ dir · chord (cos × separation) | m | FIXED (was bare cosine, `/dist`) |
 | boolean/join.rs:750/751 | bool_join_arc_facing | axis·((p−c)×dir) — radius-metered sine | m | OK |
 | boolean/join.rs:1093 | bool_ring_run_winding | (n̂ · Newell sum) / run perimeter — 2A/P, the run's mean width | m | FIXED (F4; was a bare **m² AREA**) |
-| boolean/ops.rs (`bounded`) | volume_backstop_operand | V/A — the operand's mean thickness | m | FIXED (F3); on the INVARIANT LANE since Evan's #213 layering ruling — bare `T`, outside the length seam by design |
+| boolean/ops.rs (`bounded`) | volume_backstop_operand | V/A — the operand's mean thickness | m | FIXED (F3); on the INVARIANT LANE since Ev's #213 layering ruling — bare `T`, outside the length seam by design |
 | boolean/ops.rs (`check`, arm 2) | volume_backstop | ΔV/(A_got + A_bound) — mean boundary displacement | m | FIXED (F3); INVARIANT LANE (see above) |
 | boolean/ops.rs (`check`, arm 1) | volume_backstop_violation | the same length, against the EXACT bit-hairline band — a sign question, not a magnitude one | m (band-free) | OK by design (note N6's category; #200 review MAJ-1); INVARIANT LANE (see above) |
 | boolean/ops.rs:1194–1480 | bool_sphere_* | radius/gap differences; sin × radius | m | OK |
@@ -378,7 +380,7 @@ which is what actually moves the number.
 | census.rs:666 | pm_census_ee_parallel | sin(unit dirs) × min(edge lengths) | m | FIXED (was bare sine) |
 | census.rs:812/831 | pm_census_confirm_* | distances / residuals | m | OK |
 | merge_faces.rs:924 | bool_ring_run_winding | (n̂ · Newell sum) / loop perimeter | m | FIXED (F4) |
-| pcurves.rs:631–641 / :1027 / :1273 | pcurve_loop_continuity / closure(_height) | Δu(rad)×`azimuth_arm`; Δv×`v_meter` | m on every ANALYTIC chart, and on a PLANE chart (its u/v ARE metres, so the `_ => 1` arm is exactly right); the `v_meter` fallbacks are 1 only where no polar arm exists | m | OK, except the NURBS chart: `azimuth_arm`'s `_ => 1` and the `v_meter` `unwrap_or_else(T::one)` fallbacks under-state a NURBS chart's stretch. FLAGGED as a cross-crate residue (an honest arm needs geom-brep's `nurbs_stretch_bounds`), tracked by issue #501 — not a `decide_flagged` site |
+| pcurves.rs:976 (`azimuth_arm`) / :1086 (`v_meter`) | pcurve_loop_continuity / closure(_height) | Δu×`azimuth_arm`; Δv×`v_meter` | m on every chart kind. The AZIMUTH charts take their local lever (r, r·cos v, R+r·cos v, v·sin α) and the sphere/torus second channel its polar radius; a PLANE answers exactly 1 on both channels because its u/v ARE metres; a SPLINE chart (`Nurbs`/`Approx`, and the same for a placeholder's absent net) answers `geom_brep::chart_stretch_sup`'s `(sup \|S_u\|, sup \|S_v\|)` — the chart's own metre stretch | m | OK. Both channels of the spline arm are metred through the exported sup bound; sup is the conservative side at both callers, which make ESCAPE claims (`pcurve_loop_continuity` asks whether a joint gap keeps the loop closed, `pcurve_loop_pole_joint` whether a lever is collapsed), so an over-stated arm refuses and never certifies. Not a `decide_flagged` site |
 | pcurves.rs | pcurve_iso_side / pcurve_loop_pole_joint | chart-image point distance; local azimuth lever (m) | m | OK (added by the clause-(i) migration) |
 | split.rs:197 | split_edge_param_interior | param spans × per-kind rate (1 / radius / minor / speed bound) | m | OK |
 | transform.rs:139 | transform_rigid_* (7 residuals) | unit-column/orthogonality/det residuals, no arm | dimensionless | FLAG F10 |
@@ -419,12 +421,13 @@ which is what actually moves the number.
 > which is now the split sweep alone.
 
 | ray_parity.rs (via `chart_region.rs`'s `ROWS`) | chart_region_segment | a closed segment's own length — the degeneracy gate, through the `Margin::norm2` door | m | OK (split off `chart_region_boundary` by #712, with the door corrected from `Margin::of` in the same pass) |
-| ray_parity.rs (via `chart_region.rs`'s `ROWS`) | chart_region_boundary/side/advance | the point_in_loop rows on METRED chart coordinates (exact arms only: plane 1, cylinder r): distances; m²/m advance. Since #712 these decide in the SAME shared walk as the 3-D rows, under their own names. The 3-D `point_in_loop_arm` row is derived away — a fixed 2-D schedule member is in-plane by construction, so no projected-length predicate exists | m | OK (new in M9-2) |
+| ray_parity.rs (via `chart_region.rs`'s `ROWS`) | chart_region_boundary/side/advance | the point_in_loop rows on METRED chart coordinates (plane 1 and cylinder r exactly; every other kind's certified INF arm, `chart_region_arm_inf`): distances; m²/m advance. Since #712 these decide in the SAME shared walk as the 3-D rows, under their own names. The 3-D `point_in_loop_arm` row is derived away — a fixed 2-D schedule member is in-plane by construction, so no projected-length predicate exists | m | OK (new in M9-2) |
 | chart_region.rs (M9-2) | chart_region_parallel / collinear_offset | segment-pair 2×2 determinant / offset determinant over one segment's length — the perpendicular height across that segment's line | m | OK (new in M9-2) |
 | chart_region.rs (M9-2) | chart_region_cross_span | crossing fraction (dimensionless) × its own segment's length — the crossing point's clearance from a segment endpoint | m | OK (new in M9-2) |
 | chart_region.rs (M9-2) | chart_region_collinear_overlap | shared-span length of collinear segments (difference of metre projections) | m | OK (new in M9-2) |
 | chart_region.rs (M9-2) | chart_region_cross_order | same-edge crossing-pair advance-fraction difference (dimensionless) × the edge's own length — the crossing points' separation along the boundary (the clip walk's order certificate, union fix U2) | m | OK (new in M9-2 fix pass) |
 | chart_region.rs (M9-2) | chart_region_orientation / chart_region_area | signed loop shoelace 2A (m²) / perimeter — the loop's (resp. intersection region's) mean width, through the same `Margin::over_lever` door as `split_section_area` two dimensions up (separate accumulators — the reasons are at `chart_region.rs`'s area margin) | m | OK (new in M9-2) |
+| chart_region.rs | chart_region_arm_inf | a chart lever arm — metres per chart unit, gated as a length (the collapsed-arm idiom, `pcurve_interval_meter`'s shape) | m | OK. The arm is a certified LOWER stretch bound (`certified_arms`), which is the side a positive-extent claim needs: an over-stated arm would inflate the metred region and certify a sliver, so the sup bounds (`geom_brep::chart_stretch_sup`) are deliberately not reachable from this lane. Definite-positive walks on; a collapsed arm is `ArmUnbounded`; an in-band arm escalates |
 | chart_region.rs (M9-2) | chart_region_seam_span | azimuth-span excess over one period (rad) × the chart's azimuth arm r | m | OK (new in M9-2) |
 | boolean/rest.rs (M9-2 PR-2) | tangent_locus_axis_parallel | sin(axis, plane / axis, axis) × the 1 m verification arm (carrier_pair_relation's own) | m | OK (new in M9-2 PR-2) |
 | boolean/rest.rs (M9-2 PR-2) | tangent_locus_gap / tangent_locus_side | axis-to-plane (or axis-to-axis) distance minus radius sum/difference; signed height / radius difference — all metre data of the carriers | m | OK (new in M9-2 PR-2) |
@@ -593,7 +596,7 @@ Flagged, NOT fixed here (dispositions):
   In-band amplitudes take the meridian arm as a D9 tie-break, the
   discarded drift carried by check 4's envelope in metres.
 - **F6** pcurve chart arms — **RETIRED**. M6-3 closed most of it
-  (`chart_arms` answers (r, r) for spheres and (R+r, r) for tori, and
+  (`chart_stretch_sup` answers (r, r) for spheres and (R+r, r) for tori, and
   `pcurves.rs::azimuth_arm` is the LOCAL lever — r·cos v etc., zero at
   poles/apex, which the walk exploits). The residue closed with F7:
   `param_rate` answers a NURBS carrier's certified speed lower bound,
@@ -602,12 +605,14 @@ Flagged, NOT fixed here (dispositions):
   gated as a length (`pcurve_interval_meter`, the collapsed-arm
   idiom); and the fitted lane's azimuth headroom takes
   `chart_arms_at`'s lever, so the cone's arm is `v_sup·sin α` from the
-  check's own boxes rather than 1. What remains is NOT this family:
-  `pcurves.rs::azimuth_arm`'s non-plane `_ => 1` fallback (:644) and
-  the `v_meter` fallbacks (:1027, :1273) are cross-crate — an honest
-  arm needs geom-brep's `nurbs_stretch_bounds` from topo — and carry
-  issue #501. The Plane case there is OK, not flagged:
-  a plane chart's u/v ARE metres, so 1 is exactly right.
+  check's own boxes rather than 1. The last residue — the spline
+  charts' `1` at `pcurves.rs::azimuth_arm` and at the two `v_meter`
+  fallbacks — is closed too: `geom_brep::chart_stretch_sup` is the
+  exported sup-side bound, `topo` meters both channels through it,
+  and a spline chart's arms are now the net's own stretch rather
+  than a default. The Plane case there was never flagged and did not
+  move: a plane chart's u/v ARE metres, so 1 is exactly right, and
+  the exported bound answers exactly 1 for it.
 - **F7** `nurbs_span_meter` (certify.rs:1164) — **RETIRED**. The gate
   is a LENGTH: the net's knot-domain extent metered through the
   certified speed lower bound, a lower bound on its arc length. That
@@ -695,6 +700,27 @@ Flagged, NOT fixed here (dispositions):
   documented; the funnel routing (which would also push editor verdict
   rows into the N5 verdict-log channel) remains the editor-layer
   owner's scope call.
+
+- **F16** (added by M10-2, the measurement vocabulary)
+  `editor-core/src/measure.rs` `assert_bound`: an assertion's
+  comparison is `measured − bound` (negated for `AtMost`) in the
+  MEASURE's own dimension, classified against the linear band. For a
+  `Length` measure that comparand is honest metres and the site would
+  take `of`; for an `Angle` measure it is **radians** against a metre
+  band — the audit's class-(c) shape, and it is the same site, so the
+  site is flagged rather than split into an honest lane and a
+  dishonest one under one predicate name.
+  The obvious repair is foreclosed BY RATIFIED DESIGN, which is why
+  this row is a disposition rather than a to-do: ERROR-DESIGN E3
+  rejects lever-arm unification of angle with distance by name —
+  "it requires a chosen length scale — an ad-hoc constant, exactly the
+  class this project refuses". An angular assertion's honest arm is
+  therefore a design question (what extent is an angular tolerance
+  consumed over?) and not something one unit may invent. Two things
+  bound the exposure meanwhile: the comparison is REPORT-ONLY (E10 v1
+  — no gate, no geometry, no downstream outcome reads it), and its
+  band arm is `Unevaluated`, which reports the indeterminacy rather
+  than picking a side. Carried as `decide_flagged(.., "F16")`.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
