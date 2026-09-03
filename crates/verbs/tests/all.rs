@@ -21,14 +21,8 @@ mod param_flow;
 #[path = "run_door.rs"]
 mod run_door;
 
-/// Guards the `autotests = false` hazard and the ONE HOME rule in one
-/// call: every suite file under `tests/` is mounted above, every mount
-/// answers to a file, and no suite declares a module of its own.
-///
-/// The three checks, their messages and the walk that feeds them live
-/// in `test_utils::source::aggregation_violations` — once, for every
-/// crate that carries this row. Read it before adding a suite or a
-/// shared helper.
+/// The aggregation and ONE HOME checks, whose one home — the walk, the
+/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
 #[test]
 fn every_suite_file_is_aggregated() {
     let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");

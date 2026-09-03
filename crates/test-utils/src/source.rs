@@ -626,6 +626,27 @@ pub fn file_module_decls(text: &str) -> Vec<String> {
 /// **Panics** when the walk finds nothing or a walked suite cannot be
 /// read — a guard that cannot see the tree goes red rather than green
 /// over an empty set ([`rust_sources`]).
+///
+/// All three checks run before anything is reported, so a red names
+/// every violation found rather than the first. **The one exception is
+/// an unreadable suite file**: check 3 reads each walked file, so a
+/// file the walk saw and the reader cannot open panics HERE, with the
+/// `expect` below, rather than through check 1's sentence. Loud either
+/// way, and it is a broken checkout rather than a test outcome.
+///
+/// # What the call site still owes, and it is one character wide
+///
+/// `crates/test-utils/tests/reader_census.rs` detects a source reader
+/// by `named > mounted` — `.rs"` occurrences against `#[path = "` ones
+/// — and for an `all.rs` the ONLY thing carrying that margin is the
+/// `include_str!("all.rs")` this function is handed. **The margin is
+/// exactly one.** One extra `#[path = "` written inside a string
+/// literal in an `all.rs` closes it, the census stops seeing that file
+/// as a reader, and its `Shared` ledger line reds as `stale`. That is
+/// the loud direction and it is stated here because nothing else in
+/// the tree says it: before this function existed each `all.rs` also
+/// carried a `suite_files(` call, and the detector had two tells per
+/// file instead of one.
 #[must_use]
 pub fn aggregation_violations(tests_dir: &std::path::Path, all_rs: &str) -> Vec<String> {
     let src = code_and_literals(all_rs);
