@@ -985,7 +985,7 @@ pub fn std_deviation(param: &ParamName, dist: &Distribution) -> Result<f64, Meas
 /// The standard normal density `φ(x) = exp(−x²/2)/√(2π)` —
 /// [`std_deviation`]'s truncation arm is its only consumer.
 fn std_normal_pdf(x: f64) -> f64 {
-    libm::exp(-0.5 * x * x) / f64::sqrt(2.0 * core::f64::consts::PI)
+    libm::exp(-0.5 * x.powi(2)) / f64::sqrt(2.0 * core::f64::consts::PI)
 }
 
 /// The shared kernel of both mass doors: `P(offset ∈ [lo, hi])`.

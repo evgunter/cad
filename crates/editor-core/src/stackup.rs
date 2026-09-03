@@ -337,7 +337,13 @@ fn driver(
     // threaded from the handed prior so agreement is cheap (a full memo
     // walk, zero ops re-run) and staleness is loud (the edited cone
     // re-keys and the comparison names the first difference).
-    let anchor = evaluate::<f64>(doc, paired, &CancelToken::new(), &EvalOptions::default(), tol);
+    let anchor = evaluate::<f64>(
+        doc,
+        paired,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
     if let Some(handed) = paired {
         pair_record(handed, &anchor).map_err(SensitivityRefusal::Pairing)?;
     }
@@ -453,7 +459,10 @@ fn read_pass(
 /// them arm agreement is the whole check, which is honest: no
 /// sensitivity is read from a failed subgraph, and every `Ok` node's
 /// inputs are certified transitively by its own key.
-fn pair_record(handed: &Evaluation<f64>, rebuilt: &Evaluation<f64>) -> Result<(), PairingViolation> {
+fn pair_record(
+    handed: &Evaluation<f64>,
+    rebuilt: &Evaluation<f64>,
+) -> Result<(), PairingViolation> {
     if handed.outcome != EvalOutcome::Completed {
         return Err(PairingViolation::Incomplete);
     }
@@ -875,11 +884,11 @@ pub fn stackup(
         // unreachable past the ForeignBox check; folded into the band
         // arm so a broken pairing surfaces as a named blocker rather
         // than as an invented σ of 0.
-        let sigma = analyzed
-            .axis_std_deviation(&param)
-            .unwrap_or(Err(MeasureUnavailable::BandHasNoMeasure {
+        let sigma = analyzed.axis_std_deviation(&param).unwrap_or(Err(
+            MeasureUnavailable::BandHasNoMeasure {
                 param: param.clone(),
-            }));
+            },
+        ));
         let contribution = match (&entry.outcome, &forfeited) {
             (SensitivityOutcome::Derivative { value, .. }, None) => Ok(value.abs() * half_width),
             (_, Some(why)) => Err(why.clone()),
@@ -978,10 +987,13 @@ fn worst_case(
         );
         match ev.result(measure) {
             Some(NodeResult::Ok(v)) => match &v.payload {
-                ValuePayload::Measure { value, .. } => CertifiedEnclosure::certified_bracket(*value)
-                    .ok_or_else(|| StackupRefusal::WorstCaseUncertified {
-                        leaf: leaf.box_.clone(),
-                    }),
+                ValuePayload::Measure { value, .. } => {
+                    CertifiedEnclosure::certified_bracket(*value).ok_or_else(|| {
+                        StackupRefusal::WorstCaseUncertified {
+                            leaf: leaf.box_.clone(),
+                        }
+                    })
+                }
                 other => Err(StackupRefusal::LeafDiverged {
                     leaf: leaf.box_.clone(),
                     cause: format!("node evaluated to a {}, not a measure", other.kind_name()),
