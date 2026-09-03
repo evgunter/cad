@@ -239,59 +239,6 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             ),
         },
     );
-    // v17's own wire shape: BOTH tube kinds, and both window
-    // spellings between them. The bump exists for two variants, so a
-    // golden pinning one of them would leave the other's wire shape
-    // frozen by nothing — and the window variant is recipe payload
-    // that decides which slots the node has, so `Full` and `Arc` are
-    // two shapes, not one with different numbers.
-    //
-    // The solid kind takes the full ring and the hollow kind the arc,
-    // rather than the reverse, because that pairing puts the wall
-    // slot beside the two window-angle slots — the widest slot list
-    // either kind can carry — in the same node.
-    //
-    // Appended (nodes 7, 8, 9), so every existing id and every name
-    // the appearance rows address is untouched. R > r holds for both
-    // (the ring-torus convention), and the hollow one's wall clears
-    // its own bore.
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Node::Datum(editor_core::Datum::Axis {
-                origin: [len0(), len0(), len0()],
-                direction: [scl(0.0), scl(0.0), scl(1.0)],
-            }),
-        },
-    );
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Node::Tube {
-                spine: editor_core::RecipeNodeId(7),
-                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
-                major_radius: Expr::literal(2.0, Dimension::Length).expect("finite"),
-                window: editor_core::TubeWindow::Full,
-                minor_radius: Expr::literal(0.5, Dimension::Length).expect("finite"),
-            },
-        },
-    );
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Node::HollowTube {
-                spine: editor_core::RecipeNodeId(7),
-                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
-                major_radius: Expr::literal(2.0, Dimension::Length).expect("finite"),
-                window: editor_core::TubeWindow::Arc {
-                    t0: Expr::literal(0.0, Dimension::Angle).expect("finite"),
-                    t1: Expr::literal(1.5, Dimension::Angle).expect("finite"),
-                },
-                minor_radius: Expr::literal(0.5, Dimension::Length).expect("finite"),
-                wall: Expr::literal(0.125, Dimension::Length).expect("finite"),
-            },
-        },
-    );
     doc = push(
         &doc,
         &DocEdit::ReWitness {
@@ -376,6 +323,63 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 measure: editor_core::RecipeNodeId(7),
                 bound: Expr::literal(0.1, Dimension::Length).expect("finite"),
                 dir: editor_core::AssertionDir::AtLeast,
+            },
+        },
+    );
+    // BOTH tube kinds, and both window
+    // spellings between them. The bump exists for two variants, so a
+    // golden pinning one of them would leave the other's wire shape
+    // frozen by nothing — and the window variant is recipe payload
+    // that decides which slots the node has, so `Full` and `Arc` are
+    // two shapes, not one with different numbers.
+    //
+    // The solid kind takes the full ring and the hollow kind the arc,
+    // rather than the reverse, because that pairing puts the wall
+    // slot beside the two window-angle slots — the widest slot list
+    // either kind can carry — in the same node.
+    //
+    // Appended LAST — nodes 9, 10, 11, after the measurement pair —
+    // so every existing id and every name the appearance rows and the
+    // assertion address is untouched. Ids here are positional, and
+    // inserting earlier is exactly what the assertion's own
+    // `AssertionTarget` door refuses; this block was written when the
+    // document ended at node 6 and moved here when it did not. R > r
+    // holds for both (the ring-torus convention), and the hollow
+    // one's wall clears its own bore.
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Datum(editor_core::Datum::Axis {
+                origin: [len0(), len0(), len0()],
+                direction: [scl(0.0), scl(0.0), scl(1.0)],
+            }),
+        },
+    );
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Tube {
+                spine: editor_core::RecipeNodeId(9),
+                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+                major_radius: Expr::literal(2.0, Dimension::Length).expect("finite"),
+                window: editor_core::TubeWindow::Full,
+                minor_radius: Expr::literal(0.5, Dimension::Length).expect("finite"),
+            },
+        },
+    );
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::HollowTube {
+                spine: editor_core::RecipeNodeId(9),
+                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+                major_radius: Expr::literal(2.0, Dimension::Length).expect("finite"),
+                window: editor_core::TubeWindow::Arc {
+                    t0: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+                    t1: Expr::literal(1.5, Dimension::Angle).expect("finite"),
+                },
+                minor_radius: Expr::literal(0.5, Dimension::Length).expect("finite"),
+                wall: Expr::literal(0.125, Dimension::Length).expect("finite"),
             },
         },
     );
