@@ -4,7 +4,9 @@
   "lane": "default",
   "lane_source": "requested (CI-Config: lane=default)",
   "filter": "tier=all pkgs=bvh,editor-core,geom,geom-brep,geom-core,mesh,pncad,pncad-py,profile,quantity,step-export,step-import,stl,sweep,test-utils,topo,verbs,viewer",
-  "state": "cold — first run with RUSTC_WRAPPER set; rust-cache reported 'No cache found', sccache object cache restored nothing",
+  "state": "cold \u2014 first run with RUSTC_WRAPPER set; rust-cache reported 'No cache found', sccache object cache restored nothing",
+  "rust_cache_key": "v0-rust-build-Linux-x64-61bb9c0c-66da18f8",
+  "rust_cache_restore": "No cache found \u2014 the first build job on this branch, so nothing had ever been saved under this key (the key carries RUSTC_WRAPPER, which this branch moved)",
   "archive_step_s": 799,
   "compiling_lines": 192,
   "sccache": {

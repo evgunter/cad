@@ -1,9 +1,9 @@
-# Install the PINNED sccache prebuilt and restore its object cache.
+# OFF: installs the pinned sccache prebuilt and restores its object
+# cache, but only when the repo variable SCCACHE is "1", which nothing
+# sets. Nothing in the gate depends on it running.
 #
-# TRIED AND DECLINED. This action runs only when the repo variable
-# SCCACHE is "1", which nothing sets. The trial it was built for was
-# taken in 2026-09-03's window and came back negative for a structural
-# reason: sccache does not cache `--crate-type bin`, so every test
+# TRIED AND DECLINED. The trial this was built for was taken in
+# 2026-09-03's window and came back negative for a structural reason: sccache does not cache `--crate-type bin`, so every test
 # binary in the nextest archive is a refusal, and those are 82% of the
 # build job's compile time. docs/CI-MINUTES-2026-08.md finding F4 has
 # the runs and docs/perf-data/sccache-trial/ the raw stats.

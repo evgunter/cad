@@ -4,7 +4,9 @@
   "lane": "interval",
   "lane_source": "requested (CI-Config: lane=interval)",
   "filter": "tier=all pkgs=bvh,editor-core,geom,geom-brep,geom-core,mesh,pncad,pncad-py,profile,quantity,step-export,step-import,stl,sweep,test-utils,topo,verbs,viewer",
-  "state": "WARM — 'Cache restored from key: sccache-obj-interval-33738656130' (saved 17 minutes earlier) and rust-cache restored v0-rust-interval-build-interval-Linux-x64-61bb9c0c-66da18f8. The interval twin of run 33726782739.",
+  "state": "WARM \u2014 'Cache restored from key: sccache-obj-interval-33738656130' (saved 17 minutes earlier) and rust-cache restored v0-rust-interval-build-interval-Linux-x64-61bb9c0c-66da18f8. The interval twin of run 33726782739.",
+  "rust_cache_key": "v0-rust-interval-build-interval-Linux-x64-61bb9c0c-66da18f8",
+  "rust_cache_restore": "restored, from this branch's own save minutes earlier",
   "archive_step_s": 661,
   "compiling_lines": 19,
   "sccache": {
@@ -24,5 +26,5 @@
     "cache_size_written": "249 MiB",
     "average_compiler_s": 19.884
   },
-  "reading": "Same shape as the default lane's warm run — 18 cacheable units, all of them libs, and 47 crate-type refusals for the binaries — but only 5 of the 18 hit. A workspace rlib that is not bit-identical between runs changes the sccache key of every crate downstream of it, and the default lane's 18/18 shows the chain can hold; which lib broke it here was not chased, because the ceiling is the libs either way."
+  "reading": "Same shape as the default lane's warm run \u2014 18 cacheable units, all of them libs, and 47 crate-type refusals for the binaries \u2014 but only 5 of the 18 hit. A workspace rlib that is not bit-identical between runs changes the sccache key of every crate downstream of it, and the default lane's 18/18 shows the chain can hold; which lib broke it here was not chased, because the ceiling is the libs either way."
 }

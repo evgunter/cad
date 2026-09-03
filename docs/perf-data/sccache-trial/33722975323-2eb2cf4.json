@@ -4,7 +4,9 @@
   "lane": "interval",
   "lane_source": "requested (CI-Config: lane=interval)",
   "filter": "tier=all pkgs=bvh,editor-core,geom,geom-brep,geom-core,mesh,pncad,pncad-py,profile,quantity,step-export,step-import,stl,sweep,test-utils,topo,verbs,viewer",
-  "state": "cold — the interval lane's own first run with RUSTC_WRAPPER set; rust-cache reported 'No cache found' and the sccache object cache (keyed per lane) had nothing under sccache-obj-interval-",
+  "state": "cold \u2014 the interval lane's own first run with RUSTC_WRAPPER set; rust-cache reported 'No cache found' and the sccache object cache (keyed per lane) had nothing under sccache-obj-interval-",
+  "rust_cache_key": "v0-rust-interval-build-interval-Linux-x64-61bb9c0c-66da18f8",
+  "rust_cache_restore": "No cache found \u2014 the interval lane's first build job on this branch, so nothing had ever been saved under this key",
   "archive_step_s": 910,
   "compiling_lines": 192,
   "sccache": {

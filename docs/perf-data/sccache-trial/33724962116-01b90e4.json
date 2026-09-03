@@ -4,7 +4,9 @@
   "lane": "default",
   "lane_source": "requested (CI-Config: lane=default)",
   "filter": "tier=all pkgs=bvh,editor-core,geom,geom-brep,geom-core,mesh,pncad,pncad-py,profile,quantity,step-export,step-import,stl,sweep,test-utils,topo,verbs,viewer",
-  "state": "INTENDED WARM, MEASURED COLD — 'Cache not found for input keys: sccache-obj-default-33724962116, sccache-obj-default-', 38 minutes after run 33721067389 saved sccache-obj-default-33721067389 in this same PR's cache scope. Swatinem/rust-cache reported 'No cache found' on the same key it saved then. The 9 MB sccache-bin entry from that same run DID restore.",
+  "state": "INTENDED WARM, MEASURED COLD \u2014 'Cache not found for input keys: sccache-obj-default-33724962116, sccache-obj-default-', 38 minutes after run 33721067389 saved sccache-obj-default-33721067389 in this same PR's cache scope. Swatinem/rust-cache reported 'No cache found' on the same key it saved then. The 9 MB sccache-bin entry from that same run DID restore.",
+  "rust_cache_key": "v0-rust-build-Linux-x64-61bb9c0c-66da18f8",
+  "rust_cache_restore": "No cache found \u2014 this branch's own earlier save under the same key had gone; caches are scoped to this branch plus main, and main never runs this job (F3)",
   "archive_step_s": 787,
   "compiling_lines": 192,
   "sccache": {

@@ -181,10 +181,15 @@ rows are like-for-like in B1's sense):
 
 The control is a run of the same shape with the rig inert: run
 33719350040 (`smell/k-lint-readings`, head 70182ddf), default lane,
-`tier=all`, same package set — **769 s**, and its rust-cache also
-reported `No cache found`. B1's twelve `tier=all` interval samples
+`tier=all`, same package set — **769 s**. Its rust-cache reported `No
+cache found` on `v0-rust-build-Linux-x64-6f07d2f1-66da18f8` and its post
+step then saved 275 901 512 bytes under it; the trial branch's key
+differs from that one in exactly the env-hash component, which is what
+`RUSTC_WRAPPER` moves. B1's twelve `tier=all` interval samples
 (570–869 s, PR 1616) are the interval control population; the spread is
-±25 % and every number above sits inside it.
+±25 % and every number above sits inside it. Every row here, the control
+included, has its own file under `docs/perf-data/sccache-trial/`,
+carrying the rust-cache key it restored or missed.
 
 **WHAT THE WARM RUNS SAY.** The two runs where both caches restored are
 the whole trial. Each had exactly **18 cacheable units and 47
@@ -204,16 +209,28 @@ test binary is a bin. Verified directly on the pinned binary: a
 two-target crate gives one cacheable rlib and one `crate-type` refusal
 for the bin, and
 `cargo test --no-run` on it gives **three requests, three refusals, all
-`crate-type`**. That is what the cold runs' `crate-type 90` is too —
-62-odd dependency build scripts plus the workspace's test targets.
+`crate-type`**. The cold runs' `crate-type 90` is the same set plus the
+dependency graph's own binaries: 47 of the 90 are the workspace's, and
+the remaining 43 are dependency build scripts, which cargo compiles as
+bins and which a warm run never asks for at all.
 
-So the hypothesis this rig was built to test cannot be true.
-`~/tcost-work/build-profile/REPORT.md` §1 puts **82 % of the
-workspace's compile time in test targets** and 18 % in the libs; #853
-called the test binaries "the whole hypothesis". They are the exact set
-sccache will not touch, at any hit rate, warm or cold. Its ceiling here
-is the 18 % — and only the part of that 18 % a restored object cache
-covers.
+So the hypothesis this rig was built to test cannot be true. The split
+inside the workspace's compile time, from the build-side census taken
+2026-09-03 on a 4-core lane box under CI's own profile env
+(`OPT_LEVEL=1`, `DEBUG=line-tables-only`, `TEST_STRIP=debuginfo`,
+`CARGO_INCREMENTAL=0`), over 297 units and 1 178 unit-seconds:
+
+| workspace bucket | unit-seconds | share |
+|---|---|---|
+| test targets (`all` binaries 535 s, `--lib` test binaries 191 s) | **726.3** | **82 %** |
+| libs | **159.5** | **18 %** |
+
+(The same census puts 259.6 s in external dependency libs and 32.6 s in
+dependency build scripts, and a second contended run reproduces the
+82/18 split at 78/19.) #853 called the test binaries "the whole
+hypothesis". They are the exact set sccache will not touch, at any hit
+rate, warm or cold. Its ceiling here is the 18 % — and only the part of
+that 18 % a restored object cache covers.
 
 **AND THE OBJECT CACHE BARELY PERSISTS.** Five restore attempts:
 **hits at 9 and 17 minutes, misses at 38, 60 and 88** — the entry is
@@ -226,14 +243,19 @@ the gate is used.
 
 **A THIRD FINDING, LARGER THAN THE ONE WE WENT LOOKING FOR.** The same
 logs say `Swatinem/rust-cache` reported **`No cache found`** on five of
-seven build jobs here *and on the control run* — the build job compiles
-all ~300 units from scratch on most runs. The premise under F4 and #853
-("rust-cache already caches the ~225 dependency crates, so sccache's
-unique contribution is the workspace crates") is therefore false as
-stated for THIS job: nothing is served, most of the time. The cause is
-the same cache budget, and `push` runs to main do not run the build job
-(F3), so there is no base-branch entry for a PR's first run to restore
-either. **That is the lever worth pulling next**, and it is not sccache:
+these seven build jobs *and on the control run* — each time compiling
+all ~300 units. What that establishes, stated no wider than the
+evidence: **a branch's first build job restores nothing, and a later one
+restores only what that same branch saved, if the budget still holds
+it.** (Seven of the eight jobs are one PR branch, and the two restores
+were its own saves.) The cause is not in doubt: GitHub scopes a cache to
+its branch plus the default branch, `push` runs to main do not run this
+job (F3), so main holds no entry any PR could inherit — and the ~275 MB
+entries a run does save are subject to the same eviction as sccache's
+own. The premise under F4 and #853 ("rust-cache already caches the ~225
+dependency crates, so sccache's unique contribution is the workspace
+crates") does not hold for a first run on a branch, which is what most
+gate runs are. **That is the lever worth pulling next**, and it is not sccache:
 the 799 s → 534 s and 854 s → 661 s pairs in the table are what a warm
 run looks like, and at most 18 of a warm run's 68 units came from
 sccache.
