@@ -18,7 +18,7 @@
 //! ```
 //!
 //! This is the mechanism behind the Book's knot-removal bounds
-//! (Eq. 9.81, p. 427) that `docs/CURVED-DESIGN.md` C2.2 cites, and it
+//! (Eq. 9.81, p. 427) that `crates/geom-brep/README.md` C2.2 cites, and it
 //! is what turns a *sampled* max into a *certified* sup-norm: sampling
 //! governs the fit, the hull bound certifies it. The bound is not
 //! merely sound but **tight in the useful sense**: the enclosure is

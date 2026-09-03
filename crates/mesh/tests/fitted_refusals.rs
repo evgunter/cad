@@ -31,7 +31,7 @@ use test_utils::vacuity;
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, HalfEdgeKey};
 
-mod common;
+use crate::common;
 
 // ---- The certified fitted cache (topo/tests/fixture/mod.rs, f64 +
 // cache-only) --------------------------------------------------------

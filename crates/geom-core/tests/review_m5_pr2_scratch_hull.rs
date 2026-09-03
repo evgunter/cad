@@ -19,6 +19,11 @@
 //!    **width at ≤ 16 relative ulps**: a sound-but-slack derivative
 //!    bound would pass containment and fail here.
 
+test_utils::gated_to![
+    "crates/geom-core/src/spline/",
+    "crates/geom-core/src/ring_interval.rs",
+];
+
 use geom_core::spline::{KnotVector, basis, hull};
 use test_utils::fuzz;
 

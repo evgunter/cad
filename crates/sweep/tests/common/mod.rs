@@ -26,7 +26,10 @@
 //! (the 1/16-offset table relation) is LIB-U6's territory,
 //! deliberately not built here.
 
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)]
+// one instance per binary; no single consumer uses all of it
+// Why a helper tree allows these: `crates/editor-core/tests/fixture/mod.rs`.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 /// Orientation checking: the face-facing probe and the two level-set

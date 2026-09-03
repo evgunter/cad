@@ -126,10 +126,14 @@ concurrency:
 # of its own, and strands every green check on the parent commit.
 #
 # So every OTHER job is gated below, and a push to main now runs
-# `filter` + `rebuild-latency` + `renders`.
-# `cleanup-archives` is deliberately NOT gated: its `needs` (test,
-# test-interval) skip on a push, which skips it too — one mechanism
-# rather than two saying the same thing.
+# `filter` + `rebuild-latency` + `renders` — plus, since 2026-09-03,
+# `cache-prime` and `cache-prime-interval`, which are a THIRD write
+# side-effect and not a fourth gate. They assert nothing and block
+# nothing; their whole output is a rust-cache entry in the DEFAULT
+# BRANCH's scope, which is the only scope every branch can read and which
+# nothing else on this side writes. The CACHE PRIMING note above those
+# jobs carries the measurement, and says why F3's declined "scheduled
+# full run on main" is a different proposal rather than this one.
 #
 # THE CONDITION IS SPELLED `!= 'push'`, NOT `== 'pull_request'` (2026-08-28,
 # with the configuration dispatch at the top of this file). What this rule is
@@ -222,11 +226,13 @@ concurrency:
 #   is a second, unchecked copy of something the tooling already knows):
 #     default build compile step   514 s -> 389 s  (-24%)
 #     interval build compile step  618 s -> 495 s  (-20%)
-#   The runner is 2 vCPU / 7 GB (`nproc` from the provenance step below —
-#   standard GitHub-hosted for a private repo; the Bazel report's "4 vCPU"
-#   was wrong). That is why 261 independent link/codegen units are so
-#   expensive here, and why item 1 (collapsing 249 test crates into ~12)
-#   is still the big one.
+#   The runner is 4 vCPU / 16 GB (`nproc` from the provenance step below),
+#   the standard GitHub-hosted machine for a public repo. THE TIMINGS
+#   ABOVE PREDATE IT — they were taken at 2 vCPU / 7 GB — so read them as
+#   an ordering of the costs and not as a budget until something re-takes
+#   them. Item 1 (collapsing 249 test crates into ~12) is still the big
+#   one either way: 261 independent link/codegen units is a serialization
+#   that a core count moves but does not remove.
 #
 # LINKER — mold RETIRED 2026-08-12. #174 adopted it on a -24%/-20% result
 # measured across 261 static links; that is the whole basis for it, and
@@ -253,29 +259,17 @@ concurrency:
 # note that a single run cannot settle it, because any env change here
 # rotates the rust-cache key and buys one cold rebuild.
 #
-#   BUILD_RUNNER   repo variable, unset today ⇒ `ubuntu-latest`. Item 4
-#     of the ranked list (8-vCPU runner) is NOT LANDABLE on this repo:
-#     GitHub-hosted larger runners require an ORGANIZATION on Team or
-#     Enterprise Cloud, and evgunter/cad is a User-owned private repo
-#     (`gh api repos/evgunter/cad --jq .owner.type` ⇒ "User"). Hard-coding
-#     a larger-runner label would fail the build job with "no runner
-#     matching labels" and take the whole gate — and the two build jobs
-#     are the gate's critical path. The variable makes it a one-setting
-#     flip if the repo ever moves under an org. Note also that larger-
-#     runner minutes are billed SEPARATELY from the included-minutes
-#     allowance this repo's change filter exists to protect.
-#
 # NOT MIRRORED into local-scripts/ci-local.sh, deliberately: these are hosted-
 # runner performance knobs, not gate semantics. No job is added, removed
 # or re-scoped, the same targets are compiled and the same tests run, so
 # the local gate stays byte-for-byte equivalent in what it PROVES. The
 # mirror convention covers the matrix, not the runner's linker.
 env:
-  # sccache pin for the EXPERIMENT wired into the two build jobs below.
-  # LIVE — disable by setting the repo variable SCCACHE to "0". See
-  # .github/actions/install-sccache and docs/CI-MINUTES-2026-08.md F4.
+  # sccache pin for the rig wired into the two build jobs below, which
+  # is OFF: it runs only for the repo variable SCCACHE = "1". The
+  # measurement that turned it off is docs/CI-MINUTES-2026-08.md F4.
   # 0.16.0 is the version local-scripts/gate.sh already runs on the
-  # local gate box, so the trial and the local lane agree.
+  # local gate box, so the rig and the local lane agree.
   SCCACHE_VERSION: "0.16.0"
   NEXTEST_VERSION: "0.9.140"
   # maturin rides the same pattern as nextest: pinned here (single source
@@ -357,7 +351,36 @@ jobs:
       run_pncad_py: ${{ steps.classify.outputs.RUN_PNCAD_PY }}
       run_interval_backend: ${{ steps.classify.outputs.RUN_INTERVAL_BACKEND }}
       run_interval_oracle: ${{ steps.classify.outputs.RUN_INTERVAL_ORACLE }}
-      run_topo_release: ${{ steps.classify.outputs.RUN_TOPO_RELEASE }}
+      # NO `run_topo_release` OUTPUT. The filter still emits the key — the
+      # local half reads it (`local-scripts/ci-local.sh`'s
+      # `corrupt input (release profile)` row) — but the QUESTION that
+      # output answered has no hosted job left to ask it of: "does this
+      # run gate the release-profile row?" has one answer now, `no`, on
+      # every run, because that row moved to nightly.yml and runs ungated
+      # there. The tombstone below carries the argument.
+      #
+      # NOT "an output nothing reads is dead wiring" — this job publishes
+      # two of those on purpose, and they are eight lines down.
+      # `config_source` and `lane_advisory` are read by no job and exist
+      # so that a question ABOUT THIS RUN — which configuration gated it,
+      # was it possibly about the axis it did not gate — is answerable
+      # from the run's outputs. That test is what `run_topo_release`
+      # fails: it would not describe this run, it would describe a job
+      # that is not in this workflow, and its value would be the same
+      # function of the diff it always was with nothing here acting on it.
+      # An output is worth keeping when a reader needs it to interpret
+      # THIS run; it is not worth keeping to record that a job used to
+      # live here.
+      #
+      # AND NO VERDICT STEP, which is where this differs from the python
+      # suite's seed-keyed axis (that one prints RUN/SKIP with its seeds
+      # in a step of this job). A verdict is worth a step when the run
+      # MADE a decision a reader could otherwise only infer from a job's
+      # absence. This run makes none: the demotion is unconditional, so
+      # the step would print one identical constant on every run forever,
+      # and a constant restated in a workflow step is the second copy this
+      # file has twice watched drift away from its source. The tombstone
+      # is where a constant belongs.
       run_k_lint: ${{ steps.classify.outputs.RUN_K_LINT }}
       # The sampled matrix point (scripts/ci-filter.py, CONFIGURATION
       # SAMPLING) — or the REQUESTED one: a dispatch input or a `CI-Config:`
@@ -370,6 +393,16 @@ jobs:
       # The third sampled dimension (2026-08-22): which of `k-lint (gate)`'s
       # five feature unifications this run gates. Only that job reads it.
       klint_row: ${{ steps.classify.outputs.KLINT_ROW }}
+      # THE GATED SUITES THIS RUN DOES NOT EXECUTE, as one nextest `-E`
+      # expression that EXCLUDES them, or empty for the ordinary whole-suite
+      # run. A suite carrying a `test_utils::gated_to!` marker names the
+      # source paths it is specific to; the filter subtracts the ones none of
+      # whose paths — nor whose own file — is in the diff, and the nightly
+      # runs the whole gated set ungated on any day main moved. The argument,
+      # and every arm that empties this key, are at THE PER-FILE TEST GATE in
+      # scripts/ci-filter.py; the skips are named one per line in the notices
+      # the `the configuration this run gates` step relays.
+      test_filter: ${{ steps.classify.outputs.TEST_FILTER }}
       # The members whose OWN files changed, as opposed to `pkgs` (the
       # dependent closure they generate). Published because the viewer
       # toolkit axis below is keyed on it: a reader who sees that axis
@@ -587,6 +620,40 @@ jobs:
           # the wording belongs there and only there.
           if [ -s filter-notices.txt ]; then
             cat filter-notices.txt
+          fi
+
+      # THE PYTHON SUITE AXIS — ITS VERDICT, IN A SEAT THAT ALWAYS SPEAKS.
+      #
+      # `python suite (wheel + guide + north-star)` is SEED-keyed (see that
+      # job, and `RUN_PNCAD_PY` in scripts/ci-filter.py). The viewer axis
+      # prints its verdict inside `fmt`, beside the rows it gates; this one
+      # cannot borrow that arrangement, because when the axis is false the
+      # whole JOB is skipped and a skipped job runs no step at all. A
+      # green checks list with no python row in it, and nothing anywhere
+      # saying why, is exactly the "green job name over a silent skip" the
+      # ruling that created the viewer axis forbade.
+      #
+      # So it is sited here, in the job that computed it and that carries
+      # no `if:` — the same seat and the same reasoning as the two steps
+      # around it. The seeds are printed with the verdict, so a reader who
+      # sees SKIP can see the list it was decided from without re-deriving
+      # it.
+      - name: python suite - the filter's verdict
+        env:
+          TIER: ${{ steps.classify.outputs.TIER }}
+          SEEDS: ${{ steps.classify.outputs.SEEDS }}
+          RUN_PNCAD_PY: ${{ steps.classify.outputs.RUN_PNCAD_PY }}
+        run: |
+          printf 'seeds: %s\n' "$SEEDS"
+          printf 'tier: %s\n' "$TIER"
+          if [ "$RUN_PNCAD_PY" = true ]; then
+            echo 'RUN: the seeds intersect {pncad-py, pncad, editor-core} (or the tier is unscopable).'
+            echo 'RUN: the wheel is built and the unittest suite discovered over crates/pncad-py/tests.'
+          else
+            echo 'SKIP: no seed in {pncad-py, pncad, editor-core} — the wheel is NOT built on this run,'
+            echo 'and the `python suite (wheel + guide + north-star)` job below is skipped entirely.'
+            echo 'The nightly lane re-takes the whole suite ungated; a break in the re-exported Rust API'
+            echo 'still reds the offending crate ordinary closure rows in this same run.'
           fi
 
       # DOES THIS RUN GATE ANYTHING AT ALL (#1204). A draft run zeroes every
@@ -976,6 +1043,20 @@ jobs:
         run: |
           scripts/gates/probe-suite-census.sh --selftest
           scripts/gates/probe-suite-census.sh
+      # THE PER-FILE TEST GATE'S MARKERS (S-TCOST lever 3). A gated suite
+      # names the source paths it is specific to, and the change filter skips
+      # it on a pull request when none of them is in the diff. That filter
+      # FAILS OPEN — a marker it cannot resolve runs its suite — so a rename
+      # that moved a suite's subject out from under it leaves a gate that
+      # reads as narrow, is in fact "always runs", and shows up in no run's
+      # output. This is the row that makes it loud, and the row that keeps the
+      # nightly's ungated re-take (which REFUSES an unresolvable tree) from
+      # being where a rename is discovered hours later. Stdlib-only python3
+      # under lib.sh's contract, so it rides this cheap-tripwire job.
+      - name: gated-suite marker paths resolve
+        run: |
+          scripts/gates/gated-suite-paths.sh --selftest
+          scripts/gates/gated-suite-paths.sh
       # The run half's guards. `k_probe_sweep.sh`'s `run_dump` is the only
       # thing between "the harness ran" and "the sweep recorded nothing
       # and exited 0", and nothing else in the tree exercises it. No
@@ -1031,6 +1112,17 @@ jobs:
         run: |
           python3 scripts/check-interval-cfg-additive.py --selftest
           python3 scripts/check-interval-cfg-additive.py
+      # The build jobs restore a cache entry the `cache-prime*` jobs write on
+      # main, and the two sides agree only because their `env:` blocks are the
+      # same text and their `shared-key`s the same string. Drift either one and
+      # nothing goes red — the primer writes an entry nobody reads and every
+      # branch's first build job recompiles the dependency graph. Stdlib-only
+      # python3 over ci.yml itself, so it rides this cheap-tripwire job; the
+      # --selftest pass shows the guard actually fires.
+      - name: cache-prime key parity (the build jobs' warm start)
+        run: |
+          python3 scripts/check-cache-prime-parity.py --selftest
+          python3 scripts/check-cache-prime-parity.py
       - name: bit-identity consumer tripwire (retirement landed, M4 PR 5)
         run: |
           scripts/gates/bit-identity-consumer.sh --selftest
@@ -1134,13 +1226,20 @@ jobs:
   # Merging rotates Swatinem/rust-cache's key (it hashes the job), so
   # expect exactly one cold run after any change here and warm thereafter.
   #
-  # WHY THESE THREE AND NOT SOME OTHER SET. All three are UNSCOPED
-  # workspace-wide ratchets: `cargo fmt --all`, doc-gate's fixed crate
-  # list, and a `--workspace` cross-compile. They do not read
-  # `cargo_scope`, so they behave identically in tier `all` and tier
-  # `closure` — which is what makes them shareable in one job at all.
-  # `clippy` is the counter-example and stays out: it IS the filter's
-  # per-closure row.
+  # WHY THESE THREE AND NOT SOME OTHER SET. All three are workspace-wide
+  # ratchets that share one checkout and one toolchain: `cargo fmt --all`,
+  # the rustdoc gate over a derived root set, and a `--workspace`
+  # cross-compile. Two of them still read nothing from the filter and
+  # behave identically in tier `all` and tier `closure`.
+  #
+  # THE RUSTDOC ROW NO LONGER DOES, and that is a change to this
+  # paragraph's own premise rather than a footnote to it (S-TCOST C2): it
+  # reads `cargo_scope` and runs the workspace pass over the closure. The
+  # sharing still holds, because what makes these three shareable is one
+  # checkout, one toolchain and three verdicts that must not merge — not
+  # the scoping. `clippy` stays out for a different reason than "it is
+  # scoped": it is the job the filter's per-closure row is NAMED by, and a
+  # red there should say `clippy`.
   fmt:
     name: rustfmt + rustdoc (gate) + wasm32
     runs-on: ubuntu-latest
@@ -1160,16 +1259,26 @@ jobs:
       - name: prune local-only tooling (hosted CI may not depend on it)
         run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
-      # THE CACHE'S SCOPE IS THE RUSTDOC GATE'S OWN ROOT LIST (#921).
+      # THE CACHE'S SCOPE IS THE RUSTDOC GATE'S OWN ROOT LIST (#921) —
+      # AND SINCE S-TCOST C2, THE ROOT LIST OF THE MODE THIS JOB RUNS.
       #
       # `Swatinem/rust-cache` caches the target directories it is TOLD
       # about, and its default is one: `./target`. The rustdoc gate below
-      # documents SEVEN cargo roots — the workspace plus the six the
-      # workspace excludes — and each of those six builds into a target
-      # directory of its own, under its own directory. Every one of them
-      # therefore compiled from nothing on EVERY run of this job,
-      # `demos/tour` and `demos/wild` rebuilding the whole kernel each
-      # time, while the workspace pass ran against a warm graph.
+      # used to document SEVEN cargo roots here — the workspace plus the
+      # six the workspace excludes — and each of those six builds into a
+      # target directory of its own. Every one of them therefore compiled
+      # from nothing on EVERY run of this job, `demos/tour` and
+      # `demos/wild` rebuilding the whole kernel each time, while the
+      # workspace pass ran against a warm graph. F6 fixed that by telling
+      # the cache about all seven.
+      #
+      # THIS JOB NOW DOCUMENTS ONE, so `--print-roots` under `--pr` prints
+      # one and this input names one. The six excluded roots moved to the
+      # nightly with the pass that reads them; caching them here would
+      # restore and re-save target directories no step in this job writes.
+      # The derivation is unchanged and still comes from the gate, so the
+      # cache's scope cannot drift from the passes that run — which is the
+      # whole point of asking rather than listing.
       #
       # MEASURED, hosted, 2 vCPU, warm cache with one kernel doc comment
       # changed — the case a real PR is (run 32583370980, two jobs one
@@ -1208,7 +1317,7 @@ jobs:
         # diagnosis. The assignment fails under `bash -e` before
         # anything is appended.
         run: |
-          roots=$(scripts/doc-gate.sh --print-roots)
+          roots=$(scripts/doc-gate.sh --print-roots --pr)
           {
             echo 'roots<<DOC_GATE_ROOTS'
             printf '%s\n' "$roots"
@@ -1235,10 +1344,50 @@ jobs:
       # command and the flags live in scripts/doc-gate.sh — one
       # implementation, called from here and from
       # local-scripts/ci-local.sh, the ci-filter.py arrangement.
-      # NOT scoped by the filter, deliberately: it is a tree-wide
-      # ratchet over a derived root set, so scoping it to the change
-      # closure would trade the ratchet's meaning for no measurable
-      # time. It still respects the docs tier via this job's run_build.
+      # SCOPED, AND ONLY THE WORKSPACE PASS RUNS HERE (S-TCOST C2, Ev's
+      # approval in chat 2026-09-03). This step used to be the whole gate:
+      # the workspace pass, one `--no-deps` pass per cargo root the
+      # workspace excludes, and a `--no-default-features` re-read of every
+      # root carrying a `not(feature)` half. Passes 2 and 3 are now
+      # nightly.yml's `rustdoc (gate, every root)`, ungated, once a day,
+      # and this row runs `--pr`.
+      #
+      # WHY THAT IS SOUND, and it is the persistence case:
+      # docs/CI-MINUTES-2026-08.md §*What is NOT sampled, and the rule*
+      # licenses a cadence for a detector whose subject PERSISTS in the
+      # tree, and forbids one for a detector of ABSENCE. A broken
+      # intra-doc link, a doc comment that stopped rendering, a
+      # `not(feature)` half that no longer compiles: every one of them
+      # stays broken in the tree until someone fixes it, so tonight's run
+      # finds what this row would have found today. Nothing in passes 2
+      # and 3 detects an absence — the derivations that WOULD (the two
+      # readers, and the root list itself, which is exactly the "a root
+      # fell out of coverage and nothing said so" shape the gate's header
+      # argues about) moved WITH the passes and run in full every night,
+      # over the same tree. The residue is attribution: a break lands on
+      # the night's merges rather than on the PR that wrote it, and
+      # nightly.yml's `ref` dispatch input and the local gate — which
+      # still runs every pass over every root — are the handles for that.
+      #
+      # AND THE WORKSPACE PASS IS SCOPED to the change filter's closure
+      # when the tier is `closure`, the way `build` scopes, so a PR that
+      # touches one crate documents that crate and its dependents rather
+      # than the whole workspace. `cargo_scope` is `--workspace` on tier
+      # `all`, which is the fail-open direction every signal here takes.
+      #
+      # THAT SCOPING IS A SECOND DEMOTION AND IS ARGUED AS ONE, per row,
+      # rather than riding the argument above. What it gives up is a
+      # workspace MEMBER outside the closure: its prose is read on a PR
+      # run by nothing, and by the nightly alone. Two things bound it.
+      # A member whose OWN sources changed is a seed, so it is in its own
+      # closure by construction — what is skipped is a member nothing in
+      # the diff touches or depends on. And the break a doc link most
+      # often takes is a RENAMED or DELETED item, where the crate holding
+      # the link is by definition a dependent of the crate that renamed
+      # it, which is exactly what `cargo_scope` selects. What escapes is
+      # a link broken by an edit to prose in an unrelated member, and
+      # that is the ordinary persistence case: it stays broken until
+      # someone fixes it, and the nightly reads every member every night.
       #
       # THE `--selftest` LINE IS PART OF THE GATE, not a nicety: the
       # script's `-D warnings`, its `--document-private-items`, its
@@ -1267,10 +1416,13 @@ jobs:
         if: '!cancelled()'
         run: |
           scripts/doc-gate.sh --selftest
+          echo 'PR mode: the workspace pass only, over ${{ needs.filter.outputs.cargo_scope }}.'
+          echo 'The excluded roots and the --no-default-features pass are re-taken ungated by'
+          echo "nightly.yml's \`rustdoc (gate, every root)\` job — see this step's comment."
           if [ '${{ needs.filter.outputs.run_viewer_toolkit }}' = 'true' ]; then
-            scripts/doc-gate.sh
+            scripts/doc-gate.sh --pr --scope '${{ needs.filter.outputs.cargo_scope }}'
           else
-            scripts/doc-gate.sh --skip-viewer-toolkit
+            scripts/doc-gate.sh --pr --scope '${{ needs.filter.outputs.cargo_scope }}' --skip-viewer-toolkit
           fi
       # THE ONE VERDICT FOR BOTH TOOLKIT ROWS, IN AN EVERY-LANE SEAT.
       #
@@ -1306,7 +1458,7 @@ jobs:
 
       # WASM32 GUARD (#807), THE INTERVAL BUILD ONLY.
       #
-      # docs/GUI-DESIGN.md §GQ6 and docs/GQ6-RESURVEY.md §4 both state, as
+      # crates/viewer/README.md (toolkit and CI posture) states, as
       # a MEASURED fact that a ratified toolkit row rests on, that the
       # kernel plus `editor-core` compiles to wasm32-unknown-unknown,
       # `--features interval` included. Nothing re-took that reading:
@@ -1533,6 +1685,176 @@ jobs:
       # already hosted the identically-named verdict step for the
       # doc-gate half of the same ruling. See the header there.
 
+  # ============================================================
+  # CACHE PRIMING — the two jobs below are the ONLY compiling jobs on the
+  # push side of the PUSH RUN line above, and they gate nothing. Read that
+  # note first; this one is the exception it does not cover.
+  #
+  # THE MECHANISM, measured 2026-09-03 (docs/CI-MINUTES-2026-08.md, the
+  # entry of that date). A GitHub Actions cache entry is readable from the
+  # ref that WROTE it plus the default branch — never from a sibling
+  # branch. `build` and `build-interval` carry `github.event_name !=
+  # 'push'`, so before this job they never ran on main, so no entry under
+  # their key existed in main's scope, so every branch's FIRST build job
+  # restored nothing and compiled all ~300 units. 40 of 49 sampled build
+  # jobs reported `No cache found`; the two lanes' keys were byte-identical
+  # across every branch sampled, which is what says the miss is a SCOPE
+  # problem and not a key problem. Neither eps nor the tier enters the key
+  # (eps is read at runtime; the tier changes `cargo_scope`, not the env or
+  # the lockfiles), so there is exactly one key per lane to prime.
+  #
+  # WHAT THIS IS NOT. It is not "a scheduled full run on main", which Ev
+  # DECLINED (2026-08-22, quoted above) — that proposal was a second GATE
+  # over a tree the next PR's merge-ref tests anyway, and its cost was a
+  # full gate per period. This asserts nothing, runs no test, and blocks
+  # nothing; its whole output is a cache entry in main's scope. F3's
+  # argument is about redundant gating and is untouched.
+  #
+  # WHY IT IS CHEAP, which is the whole reason it can sit on the push side.
+  # The key rotates only when the rust environment or a lockfile moves — 5
+  # of the 2962 COMMITS main took in 14 days touched Cargo.lock, any
+  # crate's Cargo.toml, .cargo/config.toml or rust-toolchain.toml. What
+  # fires these jobs is PUSHES, of which main took 3.4 an hour: on all but
+  # a rotation `cache-hit` is `true`, the build step is skipped, and the
+  # job is a checkout plus a 14 s restore — one billed minute each, ~7 an
+  # hour for the pair, against the ~45 an hour the misses cost. On a
+  # rotation it pays a full dependency build and every branch after it
+  # restores; see the note below on why that is a floor.
+  #
+  # WHY THE GUARD IS `cache-hit` AND NOT A REBUILD EVERY PUSH. main moved
+  # 3.4 times an hour when this was measured; rebuilding on each push would
+  # cost more than the misses it removes. `cache-hit` is rust-cache's
+  # EXACT-match output, so a prefix (restore-key) match still rebuilds —
+  # which is right, because a prefix match means the lockfile hash moved
+  # and the entry is stale for the tree being primed.
+  #
+  # WHY `cache-on-failure` STAYS OFF HERE, deliberately. This workflow's
+  # concurrency cancels an in-progress run when main moves again, so a
+  # rotation's ~13-minute build can be cancelled part-way — at 3.4 pushes
+  # an hour, often. Saving that partial target directory would store a
+  # partial dependency set under the EXACT key, after which every later
+  # push would see `cache-hit` and skip the build that would repair it — a
+  # cache that never heals. Off, a cancelled prime writes nothing and the
+  # next push retries from scratch, so a rotation may take SEVERAL pushes
+  # to repair and every branch is cold until one completes. That is the
+  # accepted cost of the guard, not an oversight.
+  #
+  # THE COUPLING TO WATCH. The key is composed from the `env:` block and
+  # the toolchain, so THIS JOB'S `env:` AND `build`'S MUST STAY IDENTICAL,
+  # and so must the sccache step that sets RUSTC_WRAPPER. If they drift the
+  # keys silently stop matching and the repo is back to a miss on every
+  # branch, with nothing red. The check is one line: the `Cache Key:` in
+  # this job's log and in `build + archive (default)`'s must be the same
+  # string.
+  # ============================================================
+  #
+  # NO LOCAL MIRROR: its entire output is a GitHub Actions cache entry
+  # written under the default branch's scope so that OTHER hosted runs can
+  # restore it. A developer box keeps one target directory across builds
+  # and has no scoped cache to prime, so there is no local row this can
+  # answer to.
+  cache-prime:
+    name: prime the build cache (default)
+    # Same BUILD_RUNNER variable as the build job it primes: the cache key
+    # carries os + arch, so priming on another runner class would write an
+    # entry the build job cannot use.
+    runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
+    # `push` is what primes main's scope. `workflow_dispatch` is here so the
+    # entry can be repaired on demand after a key rotation without waiting
+    # for the next merge — and it is also how the key identity between this
+    # job and the job it primes was VERIFIED before this landed, since a
+    # dispatch is the only event that runs both in one run. A dispatch on a
+    # branch writes a branch-scoped entry, which is useless to anyone else
+    # and costs one billed minute once main's entry exists (exact hit, no
+    # build, no save).
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    # IDENTICAL to `build`'s env block, and that is load-bearing —
+    # Swatinem/rust-cache hashes CARGO_*/RUST* into the key. See the
+    # COUPLING TO WATCH paragraph above.
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "1"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+      RUSTC_WRAPPER: ${{ vars.SCCACHE == '1' && 'sccache' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        id: cache
+        with:
+          shared-key: build-default
+      - name: install sccache (off; enable with vars.SCCACHE = '1')
+        if: vars.SCCACHE == '1' && steps.cache.outputs.cache-hit != 'true'
+        uses: ./.github/actions/install-sccache
+        with:
+          version: ${{ env.SCCACHE_VERSION }}
+          lane: default
+      # `cargo test --no-run` is what `cargo nextest archive` compiles,
+      # minus the archive: the same targets, the same profiles, the same
+      # dependency graph. Unscoped on purpose — the tier scopes a gate run
+      # to a crate closure, and an entry primed at the full workspace is a
+      # superset of every scope a branch can ask for.
+      - name: build the dependency graph (only when the key stored nothing)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo test --no-run --workspace
+
+  # NO LOCAL MIRROR: the interval half of the same thing — it writes a
+  # GitHub Actions cache entry in the default branch's scope for other
+  # hosted runs to restore, which is not a state a developer box has. See
+  # the CACHE PRIMING note above `cache-prime`.
+  cache-prime-interval:
+    name: prime the build cache (interval)
+    runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
+    # `push` is what primes main's scope. `workflow_dispatch` is here so the
+    # entry can be repaired on demand after a key rotation without waiting
+    # for the next merge — and it is also how the key identity between this
+    # job and the job it primes was VERIFIED before this landed, since a
+    # dispatch is the only event that runs both in one run. A dispatch on a
+    # branch writes a branch-scoped entry, which is useless to anyone else
+    # and costs one billed minute once main's entry exists (exact hit, no
+    # build, no save).
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    # IDENTICAL to `build-interval`'s env block — see the COUPLING TO WATCH
+    # paragraph in the CACHE PRIMING note above.
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "1"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+      RUSTC_WRAPPER: ${{ vars.SCCACHE == '1' && 'sccache' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        id: cache
+        with:
+          shared-key: build-interval
+      - name: install sccache (off; enable with vars.SCCACHE = '1')
+        if: vars.SCCACHE == '1' && steps.cache.outputs.cache-hit != 'true'
+        uses: ./.github/actions/install-sccache
+        with:
+          version: ${{ env.SCCACHE_VERSION }}
+          lane: interval
+      # The two lanes compile the SAME 172 registry crates (measured
+      # 2026-09-03 on two `--workspace` cold runs: the sets are equal, and
+      # `interval-transcendentals` is in both because geom-core carries it
+      # as a dev-dependency). What differs is feature flags on WORKSPACE
+      # crates, which rust-cache strips before saving. So these two entries
+      # hold near-identical bytes and could in principle be one — they are
+      # kept apart because the CACHE SEPARATION note on `build-interval`
+      # argues the separation on the graphs rather than on this
+      # measurement, and one job-night is not worth re-opening it.
+      - name: build the dependency graph (only when the key stored nothing)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cargo test --no-run --workspace --features interval
+
   # BUILD job, default features (see the build-once header comment above
   # the `env:` block). Compiles the scoped test binaries exactly once and
   # publishes them as a nextest archive; the `test` matrix below only RUNS.
@@ -1544,8 +1866,9 @@ jobs:
   # inside each test row (`nextest_check`).
   build:
     name: build + archive (default)
-    # BUILD_RUNNER (repo variable) — see the LINK/DEBUGINFO note above.
-    # Unset today, so this is `ubuntu-latest` and nothing changes.
+    # BUILD_RUNNER: repo variable, unset today, so this is `ubuntu-latest`
+    # and nothing changes. It exists so that swapping the runner is one
+    # setting rather than an edit to this job and `build-interval` both.
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
     if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
@@ -1737,16 +2060,26 @@ jobs:
       CARGO_PROFILE_TEST_STRIP: debuginfo
       CARGO_PROFILE_DEV_OPT_LEVEL: "1"
       CARGO_PROFILE_TEST_OPT_LEVEL: "1"
-      # sccache EXPERIMENT, ON (2026-08-20). The kill switch is the
-      # repo variable SCCACHE set to "0"; unset means enabled, so the
-      # trial runs without a variable needing to exist.
-      # cargo treats an EMPTY RUSTC_WRAPPER as "no wrapper", so the
-      # unset case is a genuine no-op rather than a broken command.
-      # Note this var is RUST*-prefixed, so Swatinem/rust-cache hashes
-      # it: flipping SCCACHE rotates the cache key and buys exactly one
-      # cold rebuild. That run is not the verdict — same trap the OPT
-      # LEVEL note above warns about.
-      RUSTC_WRAPPER: ${{ vars.SCCACHE != '0' && 'sccache' || '' }}
+      # sccache: OFF, on a measurement. docs/CI-MINUTES-2026-08.md's
+      # finding F4 carries it, with the runs, and
+      # docs/perf-data/sccache-trial/ the raw readings.
+      #
+      # WHY IT IS OFF RATHER THAN GONE. sccache does not cache
+      # `--crate-type bin`, and every target in the nextest archive is
+      # one; test targets are 82% of this job's compile time. On the
+      # single run where its object cache restored, it took 18 units —
+      # the workspace libs — and refused 47. The two steps below cost
+      # ~0 s while skipped, so the rig stays as the thing that makes the
+      # negative re-checkable rather than re-run.
+      #
+      # `vars.SCCACHE == '1'` turns it on: OFF with no variable set, so
+      # the repo variable can be deleted. cargo treats an EMPTY
+      # RUSTC_WRAPPER as "no wrapper", so the off case is a genuine
+      # no-op rather than a broken command. The var is RUST*-prefixed,
+      # so Swatinem/rust-cache hashes it: flipping it rotates that cache
+      # key and buys one cold rebuild in the lane that flips — the same
+      # trap the OPT LEVEL note above warns about.
+      RUSTC_WRAPPER: ${{ vars.SCCACHE == '1' && 'sccache' || '' }}
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -1763,9 +2096,17 @@ jobs:
       # NO mold here — see the LINKER note at the top of this file. It was
       # right for 261 test binaries and is not right for 14.
       - uses: dtolnay/rust-toolchain@stable
+      # `shared-key`, NOT the job-id default — see the CACHE SEPARATION note
+      # on `build-interval` and the CACHE PRIMING note on `cache-prime`. The
+      # value has to be a NAME a job on main can also spell, because a GitHub
+      # cache entry is readable only from the ref that wrote it plus the
+      # default branch, and until `cache-prime` landed nothing on main wrote
+      # this job's entry at all.
       - uses: Swatinem/rust-cache@v2
-      - name: install sccache (experiment; disable with vars.SCCACHE = '0')
-        if: vars.SCCACHE != '0'
+        with:
+          shared-key: build-default
+      - name: install sccache (off; enable with vars.SCCACHE = '1')
+        if: vars.SCCACHE == '1'
         uses: ./.github/actions/install-sccache
         with:
           version: ${{ env.SCCACHE_VERSION }}
@@ -1781,13 +2122,12 @@ jobs:
       # the closure's test binaries, so the run rows need no re-scoping.
       - name: build test binaries + archive
         run: cargo nextest archive ${{ needs.filter.outputs.cargo_scope }} --archive-file nextest-default.tar.zst
-      # THE MEASUREMENT. Hit rate here is the whole question: the
-      # deps are already served by rust-cache, so a run that only
-      # hits on those has proved nothing. What would justify
-      # adopting this is hits on the WORKSPACE crates, on a warm
-      # run, against the archive step's own duration on main.
-      - name: sccache stats (experiment)
-        if: vars.SCCACHE != '0' && !cancelled()
+      # The reading, if anyone turns the rig back on. What it printed
+      # in the trial window is F4's table: hits only ever on the
+      # workspace LIBS, and `Non-cacheable reasons: crate-type` on
+      # every binary, which is what the archive is made of.
+      - name: sccache stats (only when the rig is on)
+        if: vars.SCCACHE == '1' && !cancelled()
         run: sccache --show-stats
       # Upload right after the archive (the run legs still wait on the
       # whole job via `needs`): if a later step fails, the archive is
@@ -1968,12 +2308,29 @@ jobs:
       # `PIPESTATUS[0]` takes nextest's own status regardless of shell options,
       # and `set +e` guarantees no intervening command can abort the step
       # before that status is read and re-exited.
+      #
+      # THE GATED-SUITE FILTER IS ECHOED BEFORE IT IS USED, and that is the
+      # same rule the fail-fast line above follows: what a shard did NOT run
+      # has to be legible from the shard's own log, not reconstructed from
+      # another job's outputs. Empty is the ordinary whole-suite run, which is
+      # byte for byte what ran before this key existed; non-empty is a `not
+      # (...)` expression naming exactly the suites whose marked paths this
+      # diff did not touch, and `filter`'s notices name them one per line.
       - name: run archived tests
+        env:
+          TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
         run: |
           set +e
           echo "fail-fast mode: --no-fail-fast — every test in this shard runs to completion."
+          if [ -n "$TEST_FILTER" ]; then
+            echo "gated-suite filter: -E '$TEST_FILTER' (the change filter's notices name each skipped suite)"
+            GATED=(-E "$TEST_FILTER")
+          else
+            echo "gated-suite filter: none — this shard runs its whole partition of the suite."
+            GATED=()
+          fi
           mkdir -p "$RUNNER_TEMP/test-cost"
-          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
+          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 ${GATED[@]+"${GATED[@]}"} --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
           status=${PIPESTATUS[0]}
           echo "fail-fast mode was --no-fail-fast: the summary above is this shard's whole failure SURFACE, not its first failure. (This shard is half the suite; the other shard is a job of its own.)"
           exit $status
@@ -2083,143 +2440,37 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  # THE RELEASE-PROFILE ROW. Three adversarial suites in `crates/topo` feed
-  # tier-1-INVALID bodies to the Euler operators and are written about
-  # RELEASE semantics; the archive matrix above is the dev profile at
-  # opt-1 with debug-assertions ON, so it cannot be what runs them. (The
-  # level moved from 2 on 2026-08-25; the point is unaffected, because what
-  # disqualifies the matrix is debug-assertions, which no opt level moves.)
-  # `review_m1_pr2::release_corruption` splits its expectations on
-  # `cfg(debug_assertions)` outright, so no single profile covers the
-  # file; `review_m1_pr4`'s section 9 ("Release-mode garbage-in") is not
-  # cfg-split but had never once run in the profile it is named for.
+  # THE `corrupt input (release profile)` JOB STOOD HERE, AND HAS MOVED TO
+  # .github/workflows/nightly.yml (Ev, 2026-09-03; S-TCOST unit C1). It is
+  # a PERSISTENCE-detector, and the demotion was argued against
+  # docs/CI-MINUTES-2026-08.md §*What is NOT sampled, and the rule* row by
+  # row rather than by inheriting another job's licence:
   #
-  # WHAT IT BUYS, stated against the ratified text rather than against
-  # the code's current behaviour, because those have diverged:
+  #   * The three profile-independent-but-release-named rows
+  #     (`garbage_in_garbage_out_release`,
+  #     `large_torn_body_terminates_quickly`,
+  #     `kill_ops_survive_torn_bodies_without_panicking`) assert on a body
+  #     the operators produce. A wrong body stays wrong until someone
+  #     changes the code, so a later run of the row still finds it.
+  #   * `review_d18`'s two `cfg(not(debug_assertions))` hammer rows run in
+  #     NO other lane, which is the case that looks like an absence
+  #     detector and is not one: what they detect is a row-4 `unreachable!`
+  #     becoming input-reachable, i.e. a property of the tree's code, which
+  #     persists exactly as the rows above do. The thing that WOULD be an
+  #     absence — those rows silently ceasing to be compiled or selected —
+  #     is caught by the count guard and the five name greps, which moved
+  #     with the job and still run every night.
+  #   * The two suite-header greps are absence detectors about the job's own
+  #     NAME, and they are unaffected by a cadence: they read source files,
+  #     not a test result, and a rename that falsified them stays false
+  #     until fixed.
   #
-  #   * BOUNDED TRAVERSAL. DESIGN.md's D9 footnote, as amended by the D2
-  #     addendum, keeps exactly one clause of the old corrupt-input
-  #     disposition: "The bounded-traversal half stands: never a hang;
-  #     every traversal is bounded." That is
-  #     `large_torn_body_terminates_quickly`, which attacks 3000 struts
-  #     here and 500 under debug-assertions (where the per-op
-  #     postcondition sweep makes the construction loop quadratic). The
-  #     case the gate sees is six times larger in this job, and the
-  #     clause it defends is not superseded by anything.
-  #   * THE ROW-4 ARMS ARE NOT INPUT-REACHABLE, which is the clause the
-  #     whole D2 addendum rests on and the only one with an executable
-  #     test. `review_d18`'s two hammer rows drive every operator that
-  #     reaches `link_half_edges` over randomly torn bodies and over a
-  #     genuinely spent graft destination, counting mutation-phase
-  #     completions. They are release-only BY CONSTRUCTION, not by
-  #     preference: in debug a torn body may legitimately panic at the
-  #     postcondition, so telling that apart from a row-4 arm needs a
-  #     process-global panic hook, which races the threaded matrix. With
-  #     the postcondition compiled out, any panic IS a row-4 arm. So this
-  #     job is the only lane in which those rows mean anything, and the
-  #     only lane that runs them at all.
-  #   * COMPILE ROT, which is a PROFILE-level hazard and independent of
-  #     what any row asserts: a `#[cfg(not(debug_assertions))]` item that
-  #     no CI job ever type-checks can rot into a build error with every
-  #     check green, because clippy and the matrix are both debug passes.
-  #     `foreign_parent_loop_garbage_in_garbage_out_release` and the
-  #     `use crate::validate;` it needs are exactly that shape.
-  #
-  # WHAT IT DOES NOT BUY: it does not certify silent discard, and that
-  # distinction is why it survived **W2c**. D9's ratified corrupt-input
-  # disposition allowed "documented garbage-out in release" until the
-  # **D2 addendum** (2026-08-19) superseded that half with "Silent
-  # discard is never an answer"; W2c executed the addendum across
-  # `euler{,_ring,_kill}.rs`, `link_half_edges` and its two unproven
-  # callers included, so no write there swallows a failed lookup any
-  # more. `foreign_parent_loop_garbage_in_garbage_out_release` passes
-  # unchanged across that conversion because the `parent_loop` it plants
-  # is LIVE BUT WRONG: no lookup fails, every write lands, and what the
-  # row observes is wrong DATA, never a swallowed failure. That is the
-  # residue the addendum deliberately leaves standing — corruption a
-  # plan phase cannot observe still yields `Ok` plus a body the
-  # validator refuses — and it is what the row records. The three greps
-  # below are unchanged for the same reason: the conversion renamed and
-  # retired nothing here.
-  #
-  # The other rows in the file are profile-independent — `pillow()` runs
-  # three SUCCESSFUL operators, so they do fire the debug postcondition
-  # during setup, but the operator each one asserts on fails a
-  # precondition and returns before its mutation phase, so no
-  # postcondition runs over the asserted call and the expectation is the
-  # same in both profiles. `debug_postcondition_fires_on_corrupt_input`
-  # is `#[cfg(debug_assertions)]` and belongs to the matrix above.
-  #
-  # SCOPED to one crate's lib unittests, deliberately, not a release
-  # build of the workspace: `-p topo --lib` compiles topo's closure plus
-  # its dev-dependencies and links one binary. The rows execute in
-  # milliseconds — the compile IS the cost of this job (93 s hosted on a
-  # cold cache, measured on this job's first run, and never since: it is a
-  # one-shot reading with no register and no guard, kept because the SHAPE
-  # it supports — that scoping to one crate's lib is what keeps this job
-  # cheap — is what the next reader needs, and that shape does not turn on
-  # the second. This job's billed minutes, which is the figure a cost
-  # decision would actually read, are docs/CI-MINUTES-2026-08.md's).
-  release-corruption:
-    name: corrupt input (release profile)
-    runs-on: ubuntu-latest
-    needs: filter
-    if: github.event_name != 'push' && needs.filter.outputs.run_topo_release == 'true'
-    steps:
-      - uses: actions/checkout@v4
-      # STRUCTURAL — see the full note on the `filter` job above.
-      - name: prune local-only tooling (hosted CI may not depend on it)
-        run: rm -rf local-scripts .claude
-      - uses: dtolnay/rust-toolchain@stable
-      # Its own cache key: release artifacts share no fingerprint with
-      # the dev-profile jobs, so one shared entry would only thrash.
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: topo-release
-      - name: corrupt-input suites, release profile
-        # DEBUG ASSERTIONS OFF, EXPLICITLY — this job's whole subject is
-        # the posture that SHIPS, and the shipping posture is
-        # debug-assertions off (`DESIGN.md`, "Before publishing"). The
-        # root `[profile.release]` turns them ON as a development
-        # measure, which would compile the three `cfg(not(debug_assertions))`
-        # rows below OUT of the only lane that runs them — silently
-        # deleting the coverage this job exists to provide. The count
-        # guard caught exactly that. Pinned here rather than inherited,
-        # so the job states which posture it tests instead of depending
-        # on a profile default that has now changed once.
-        env:
-          CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"
-        run: |
-          set -o pipefail
-          cargo test --release -p topo --lib -- \
-            review_m1_pr2::release_corruption \
-            review_m1_pr4::kill_ops_survive_torn_bodies_without_panicking \
-            review_d18 \
-            | tee release-corruption.log
-          # A name filter that matches NOTHING exits 0 — the exact
-          # silence this job exists to remove. So assert the selection is
-          # non-empty AND name the rows the job is justified by: delete
-          # or rename one and this reds, rather than quietly returning to
-          # zero coverage.
-          passed=$(sed -n 's/^test result: ok\. \([0-9]\{1,\}\) passed.*/\1/p' release-corruption.log)
-          echo "release-profile rows run: ${passed:-0}"
-          test "${passed:-0}" -gt 0
-          grep -q 'garbage_in_garbage_out_release \.\.\. ok' release-corruption.log
-          grep -q 'large_torn_body_terminates_quickly \.\.\. ok' release-corruption.log
-          grep -q 'kill_ops_survive_torn_bodies_without_panicking \.\.\. ok' release-corruption.log
-          # `review_d18`'s two hammer rows are `cfg(not(debug_assertions))`
-          # on purpose — in debug a torn body may legitimately panic at the
-          # postcondition, so classifying one needs a process-global hook
-          # that races the matrix; in release the postcondition is compiled
-          # out, so any panic IS a row-4 `unreachable!` and no hook is
-          # needed. This job is therefore the ONLY lane that runs them.
-          grep -q 'torn_bodies_never_reach_a_row_four_unreachable \.\.\. ok' release-corruption.log
-          grep -q 'a_spent_graft_destination_never_reaches_a_row_four_unreachable \.\.\. ok' release-corruption.log
-          # Both suite headers name this job as their mechanism. Nothing
-          # else greps for that name, so renaming the job would leave two
-          # doc comments quietly false; this is what makes it loud.
-          grep -q 'corrupt input (release profile)' crates/topo/src/review_m1_pr2/release_corruption.rs
-          grep -q 'corrupt input (release profile)' crates/topo/src/review_m1_pr4.rs
+  # −2 billed minutes per code-tier PR run whose closure holds `topo` (89 of
+  # the last 128 first-parent merges), against ~2 a night. `run_topo_release`
+  # still has a consumer — `local-scripts/ci-local.sh` runs the row on every
+  # local gate, where nothing is billed by the minute — so the filter's
+  # plumbing for it stays and the local half is now the only lane that runs
+  # these suites on a PR's tree.
 
   # BUILD job, interval features — the ONE genuinely different build
   # graph in the matrix. Owns the interval clippy pass and the interval
@@ -2256,16 +2507,26 @@ jobs:
       CARGO_PROFILE_TEST_STRIP: debuginfo
       CARGO_PROFILE_DEV_OPT_LEVEL: "1"
       CARGO_PROFILE_TEST_OPT_LEVEL: "1"
-      # sccache EXPERIMENT, ON (2026-08-20). The kill switch is the
-      # repo variable SCCACHE set to "0"; unset means enabled, so the
-      # trial runs without a variable needing to exist.
-      # cargo treats an EMPTY RUSTC_WRAPPER as "no wrapper", so the
-      # unset case is a genuine no-op rather than a broken command.
-      # Note this var is RUST*-prefixed, so Swatinem/rust-cache hashes
-      # it: flipping SCCACHE rotates the cache key and buys exactly one
-      # cold rebuild. That run is not the verdict — same trap the OPT
-      # LEVEL note above warns about.
-      RUSTC_WRAPPER: ${{ vars.SCCACHE != '0' && 'sccache' || '' }}
+      # sccache: OFF, on a measurement. docs/CI-MINUTES-2026-08.md's
+      # finding F4 carries it, with the runs, and
+      # docs/perf-data/sccache-trial/ the raw readings.
+      #
+      # WHY IT IS OFF RATHER THAN GONE. sccache does not cache
+      # `--crate-type bin`, and every target in the nextest archive is
+      # one; test targets are 82% of this job's compile time. On the
+      # single run where its object cache restored, it took 18 units —
+      # the workspace libs — and refused 47. The two steps below cost
+      # ~0 s while skipped, so the rig stays as the thing that makes the
+      # negative re-checkable rather than re-run.
+      #
+      # `vars.SCCACHE == '1'` turns it on: OFF with no variable set, so
+      # the repo variable can be deleted. cargo treats an EMPTY
+      # RUSTC_WRAPPER as "no wrapper", so the off case is a genuine
+      # no-op rather than a broken command. The var is RUST*-prefixed,
+      # so Swatinem/rust-cache hashes it: flipping it rotates that cache
+      # key and buys one cold rebuild in the lane that flips — the same
+      # trap the OPT LEVEL note above warns about.
+      RUSTC_WRAPPER: ${{ vars.SCCACHE == '1' && 'sccache' || '' }}
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -2288,21 +2549,38 @@ jobs:
       # 2026-07-30): this job builds a DIFFERENT feature set from the
       # default-feature jobs, so it must never share their cache entry —
       # a shared entry would have the two graphs evicting each other on
-      # every run. Two things guarantee the separation. (1) rust-cache@v2
-      # composes its key as prefix + (shared-key OR key + job id) + os +
-      # arch + env/lockfile hashes, and its `add-job-id-key` input
-      # defaults to "true" — so with no `shared-key` anywhere in this
-      # file, every JOB here already gets its own cache by construction
-      # (matrix legs of one job share a key, which is what we want: same
-      # feature set). (2) The explicit `key` below makes THIS job's
-      # separation intentional rather than incidental, and survives a
-      # rename. Do NOT add `shared-key` to any job here: it replaces the
-      # job component outright and is exactly the thrash this prevents.
+      # every run. rust-cache@v2 composes its key as prefix +
+      # (shared-key OR key + job id) + os + arch + env/lockfile hashes,
+      # and its `add-job-id-key` input defaults to "true" — so with no
+      # `shared-key` anywhere, every JOB gets its own cache by
+      # construction (matrix legs of one job share a key, which is what
+      # we want: same feature set).
+      #
+      # THIS JOB NOW NAMES ITS KEY WITH `shared-key`, and the earlier form
+      # of this note said not to. The reason it said so was that
+      # `shared-key` REPLACES the job component, so one shared-key across
+      # both lanes is exactly the thrash above. That hazard is about the
+      # VALUE, not the input: two DISTINCT shared keys — `build-default`
+      # here and on `build`, `build-interval` here — keep the two graphs
+      # as separate as the job-id default did, and the rule that survives
+      # is the one worth stating: NEVER GIVE TWO DIFFERENT FEATURE GRAPHS
+      # THE SAME `shared-key`.
+      #
+      # What the job-id default could NOT do is be spelled by a second
+      # job, and that is why it had to go. A GitHub cache entry is
+      # readable from the ref that wrote it plus the default branch;
+      # these jobs never run on a push to main (see the PUSH RUN note at
+      # the top of this file), so no entry under their key existed on main
+      # and every branch's first build job restored nothing —
+      # 40 of 49 sampled build jobs, measured 2026-09-03, in
+      # docs/CI-MINUTES-2026-08.md's entry of that date. `cache-prime-interval`
+      # writes this key on main; that job's env block and this one's must
+      # stay identical or the two keys silently stop matching.
       - uses: Swatinem/rust-cache@v2
         with:
-          key: interval
-      - name: install sccache (experiment; disable with vars.SCCACHE = '0')
-        if: vars.SCCACHE != '0'
+          shared-key: build-interval
+      - name: install sccache (off; enable with vars.SCCACHE = '1')
+        if: vars.SCCACHE == '1'
         uses: ./.github/actions/install-sccache
         with:
           version: ${{ env.SCCACHE_VERSION }}
@@ -2319,13 +2597,12 @@ jobs:
       # is the run's critical path (measured on #167): keep it lean.
       - name: build test binaries + archive (interval)
         run: cargo nextest archive ${{ needs.filter.outputs.cargo_scope }} --features interval --archive-file nextest-interval.tar.zst
-      # THE MEASUREMENT. Hit rate here is the whole question: the
-      # deps are already served by rust-cache, so a run that only
-      # hits on those has proved nothing. What would justify
-      # adopting this is hits on the WORKSPACE crates, on a warm
-      # run, against the archive step's own duration on main.
-      - name: sccache stats (experiment)
-        if: vars.SCCACHE != '0' && !cancelled()
+      # The reading, if anyone turns the rig back on. What it printed
+      # in the trial window is F4's table: hits only ever on the
+      # workspace LIBS, and `Non-cacheable reasons: crate-type` on
+      # every binary, which is what the archive is made of.
+      - name: sccache stats (only when the rig is on)
+        if: vars.SCCACHE == '1' && !cancelled()
         run: sccache --show-stats
       - uses: actions/upload-artifact@v4
         with:
@@ -2503,12 +2780,28 @@ jobs:
       # status is tee's, these steps run under `bash -e {0}` without
       # `pipefail`, and a capture that could turn a red shard green would be a
       # report breaking the thing it reports on.
+      #
+      # THE GATED-SUITE FILTER, echoed then applied, exactly as at the default
+      # lane's copy of this step and for the same reason. It is the SAME
+      # expression: the markers are a property of the tree, not of a compile
+      # mode, so a suite whose paths this diff did not touch is skipped on
+      # whichever lane the run drew — and the nightly's re-take runs the set
+      # once, ungated, rather than once per lane.
       - name: run archived tests
+        env:
+          TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
         run: |
           set +e
           echo "fail-fast mode: --no-fail-fast — every test in this shard runs to completion."
+          if [ -n "$TEST_FILTER" ]; then
+            echo "gated-suite filter: -E '$TEST_FILTER' (the change filter's notices name each skipped suite)"
+            GATED=(-E "$TEST_FILTER")
+          else
+            echo "gated-suite filter: none — this shard runs its whole partition of the suite."
+            GATED=()
+          fi
           mkdir -p "$RUNNER_TEMP/test-cost"
-          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || 'env -u CAD_TOLERANCE_EPS' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
+          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || 'env -u CAD_TOLERANCE_EPS' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 ${GATED[@]+"${GATED[@]}"} --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
           status=${PIPESTATUS[0]}
           echo "fail-fast mode was --no-fail-fast: the summary above is this shard's whole failure SURFACE, not its first failure. (This shard is half the suite; the other shard is a job of its own.)"
           exit $status
@@ -2517,6 +2810,17 @@ jobs:
       # run above; named here so the obligation is visible). One leg only
       # (default eps, shard 1), mirroring the pre-archive job, which ran
       # it once with no eps env.
+      #
+      # THESE TWO ROWS CARRY NO GATED-SUITE FILTER, AND MUST NEVER GAIN ONE AS
+      # A SECOND `-E`. nextest ORs its `-E` expressions, so appending
+      # `-E "$TEST_FILTER"` beside the `-E` below would not subtract the gated
+      # suites from this selection — it would ADD every test the filter
+      # excludes back into the row, which is the one way this mechanism can
+      # silently un-gate what it exists to gate. A row that needs both writes
+      # ONE expression, `(selection) & (filter)`, the way
+      # local-scripts/ci-local.sh's `gated_expr` builds it. Nothing is lost by
+      # their absence here: the archive run above already applies the filter,
+      # and these two select one module each from inside it.
       #
       # `--no-fail-fast` HERE AND ON THE ROW BELOW, unconditionally, and the
       # reason is that the alternative needs an invariant nothing enforces.
@@ -2595,48 +2899,6 @@ jobs:
           path: ${{ runner.temp }}/test-cost/test-list.json
           retention-days: 7
           if-no-files-found: ignore
-
-  # The archives exist only to ferry binaries from the build jobs to the
-  # run legs; on a fully green run they have no further use, and this
-  # private repo's artifact quota is small (500 MB, and the Actions
-  # budget has been exhausted before). retention-days: 1 already caps
-  # stragglers; this deletes the happy-path bulk immediately. On a FAILED
-  # run the artifacts are deliberately kept (retention window) so failed
-  # legs can be re-run without rebuilding.
-  # NO LOCAL MIRROR: it deletes the nextest archive artifacts this run
-  # uploaded, which exist only because the hosted halves of build and test are
-  # different jobs on different machines. A local run compiles and executes in
-  # one process and produces no artifact to clean up.
-  cleanup-archives:
-    name: delete nextest archives (green run)
-    runs-on: ubuntu-latest
-    # A SAMPLED RUN SKIPS ONE OF THESE TWO BY CONSTRUCTION, and a skipped
-    # `needs` skips the dependent job unless the condition says otherwise —
-    # which would have quietly stopped the cleanup and let a ~500 MB archive
-    # ride the retention window on every run. `always()` re-enables the job;
-    # the explicit result tests then restore what `success()` meant, keeping
-    # the archives on a FAILED run so failed legs can be re-run without
-    # rebuilding. `run_build` keeps the job off docs-tier runs, where there
-    # is nothing to delete and the round-up would still bill a minute.
-    needs: [filter, test, test-interval]
-    if: >-
-      always()
-      && needs.filter.outputs.run_build == 'true'
-      && needs.test.result != 'failure' && needs.test.result != 'cancelled'
-      && needs.test-interval.result != 'failure'
-      && needs.test-interval.result != 'cancelled'
-    permissions:
-      actions: write
-    steps:
-      - env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          for name in nextest-default nextest-interval; do
-            for id in $(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" \
-                          -q ".artifacts[] | select(.name==\"$name\") | .id"); do
-              gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$id"
-            done
-          done
 
   interval-backend:
     name: interval backend crate
@@ -2856,11 +3118,36 @@ jobs:
   # `python` feature, which only maturin turns on). Its failure still
   # reds the PR — that is the point.
   #
-  # Root package pncad-py (see JOB_ROOTS in scripts/ci-filter.py): the
-  # wheel compiles pncad-py's whole dependency graph — the entire façade
-  # stack — so `pncad-py in closure` is exactly the condition under
-  # which anything this job runs can have moved; the .py tests and .pyi
-  # stub live under the member directory and seed the same closure.
+  # SEED-KEYED, NOT CLOSURE-KEYED (Ev's approval in chat, 2026-09-03;
+  # S-TCOST unit C3), and the argument is at `RUN_PNCAD_PY` in
+  # scripts/ci-filter.py. This job used to be keyed on `pncad-py in the
+  # dependent CLOSURE` — the wheel compiles that crate's whole dependency
+  # graph, the entire façade stack, so the condition read as "something
+  # the wheel compiles moved". It is true of nearly every kernel change,
+  # because `pncad` re-exports the kernel and `pncad-py` sits under it, so
+  # it selected almost nothing while buying a SECOND compile of the kernel
+  # under the non-default `python` feature on almost every code-tier run.
+  #
+  # The condition is now the change filter's SEEDS — the members whose OWN
+  # files moved — intersecting {pncad-py, pncad, editor-core}: the binding
+  # layer, the façade every binding call goes through, and the document
+  # model the guide and north-star scripts drive. The .py tests and .pyi
+  # stub live under `crates/pncad-py/`, so they seed that member like any
+  # other source.
+  #
+  # WHAT THE SKIP GIVES UP is re-taken daily: nightly.yml's `python suite
+  # (ungated re-take)` runs this suite with no filter at all, so a kernel
+  # change that moves a NUMBER the .py assertions pin — reaching the
+  # bindings through `pncad`'s re-exports without seeding anything here —
+  # surfaces within a day rather than at whichever unlucky PR next touches
+  # the façade. A change that BREAKS the re-exported Rust API still reds
+  # that crate's ordinary closure rows on the offending PR, in the same
+  # run, because the façade's Rust side is compiled by the ordinary build.
+  #
+  # RECORDED, NEVER SILENT: the verdict is printed by an always-run step
+  # in the `filter` job, with the seeds it was decided from. That siting
+  # is not decoration — a SKIPPED job shows no steps at all, so unlike the
+  # viewer rows there is no seat inside this job from which it could speak.
   # Budget: one job, one Python version, no matrix, debug-profile build
   # (release is not required to prove the suite; the D9 bit-exactness
   # pins hold at any opt level — opt never moves rounding, and the
@@ -2933,12 +3220,40 @@ jobs:
       # Discovery from the repo checkout: guide tests read the docs/
       # Markdown relative to their own file, and the stub check is
       # layout-invariant (validated on the wheel-venv layout, #308).
+      # A ZERO-TEST RUN IS NOT A PASS. `unittest discover` over a
+      # directory whose modules do not match its pattern prints
+      # `Ran 0 tests ... OK` and exits 0 — the same silence ci.yml's
+      # release-profile row keeps a count guard for, one language over.
+      # A renamed tests/ directory, a `--start-directory` that stops
+      # resolving, a wheel that imports but exports nothing the suite
+      # names: each of those leaves a green row that executed nothing.
+      # So the count is read back and required to be non-zero, and it is
+      # ECHOED, so "the python suite ran N tests" comes off the run
+      # rather than being assumed.
+      #
+      # THREE COPIES OF THIS GUARD EXIST and that is stated rather than
+      # hidden: here, in nightly.yml's ungated re-take, and in
+      # crates/pncad-py/run-python-tests.sh. There is no one place all
+      # three call — the hosted jobs cannot call that script, which
+      # builds through `local-scripts/with-build-slot.sh`, a tree every
+      # hosted job deletes at checkout, and stages a cdylib rather than
+      # installing a wheel. The lift is filed at
+      # work/issues/python-suite-zero-test-guard-three-copies.md.
+      #
+      # `Ran N tests` goes to STDERR, so the redirect is load-bearing,
+      # and `pipefail` is what keeps python's own exit status from being
+      # swallowed by `tee`.
       - name: run the Python suite (unittest discover)
         run: |
+          set -o pipefail
+          log="$RUNNER_TEMP/python-suite.log"
           "$RUNNER_TEMP/py-ci-venv/bin/python" -m unittest discover \
             --start-directory crates/pncad-py/tests \
             --top-level-directory crates/pncad-py/tests \
-            --verbose
+            --verbose 2>&1 | tee "$log"
+          ran=$(sed -n 's/^Ran \([0-9]\{1,\}\) test.*/\1/p' "$log" | tail -1)
+          echo "python tests run: ${ran:-0}"
+          test "${ran:-0}" -gt 0
         env:
           PNCAD_TY: ${{ runner.temp }}/py-ci-venv/bin/ty
 
@@ -3388,9 +3703,9 @@ jobs:
       # the tally every merge and prints it per crate.
       #
       # WHY HERE AND NOT IN A JOB OF ITS OWN, which is the shape
-      # `release-corruption` above would suggest. That job is separate
-      # because release artifacts share no fingerprint with any
-      # dev-profile job, so it had to own a cache key. The opposite holds
+      # `release-corruption` — nightly.yml's since 2026-09-03 — would
+      # suggest. That job is separate because release artifacts share no
+      # fingerprint with any dev-profile job, so it had to own a cache key. The opposite holds
       # here: this is already the only job that passes `--features
       # probe`, so its cache is where the probe-instantiated graph lives,
       # and its gate (`run_k_lint`, "whenever anything builds") is

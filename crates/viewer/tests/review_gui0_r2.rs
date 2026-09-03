@@ -11,6 +11,8 @@
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
+test_utils::gated_to!["crates/viewer/src/", "crates/bvh/src/", "crates/pncad/src/"];
+
 use bvh::{Aabb, Axis};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use test_utils::fuzz;

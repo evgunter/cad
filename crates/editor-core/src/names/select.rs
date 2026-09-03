@@ -81,7 +81,7 @@ pub enum OpGroup {
     ///
     /// The group's NAME under-describes what it groups, and stays:
     /// fenced by the ratified verb-vocabulary decision
-    /// (`docs/BLEND-VOCAB-DESIGN.md`, settled ground).
+    /// (`crates/sweep/README.md`, settled ground).
     Fillet,
     /// Pattern.
     Pattern,

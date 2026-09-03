@@ -20,28 +20,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(clippy::print_stdout)]
 
+use crate::shared::point::{p3, v3};
+use crate::shared::tol::band;
+use crate::shared::topo::edge;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, PropsError, curved_face, require_iso_rectangle};
-use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
-
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-/// One traversed boundary edge `a → b`, as `topo`'s half-edge
-/// flattening stores it (certified forward interval + traversal bool).
-fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<f64> {
-    let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge::hand_built(carrier, t0, t1, forward, start, end)
-}
 
 /// **The Villarceau lens.** The torus `R = 1`, `r = 0.5` about `+Z`;
 /// its bitangent plane `z = y·tan α`, `sin α = r/R`, meets it in two

@@ -7,6 +7,7 @@ torus half (design-gated), not on TORAX. Original note kept below
 for the record.
 
 **HOLD (2026-09-01).** PR-1 is held behind **`docs/VERBS-TORAX-SPEC.md`**
+
 (the offset-axial torus arm). PR-1's own item-1 STOP fired at
 dispatch: with the flag scratch-flipped, ALL FOUR named consumers
 (klein elbow ×2, torus_barrel, teapot wall 1) stop at the

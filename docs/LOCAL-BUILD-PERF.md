@@ -140,6 +140,19 @@ one.
 lane creation, short-lived lanes that never reach a steady edit loop — it
 is the correct tool for exactly that. It is wrong as a default.
 
+**HOSTED CI IS A DIFFERENT QUESTION, AND IT WAS ANSWERED SEPARATELY.**
+Nothing above transfers to the runner, and the 156 → 96 s figure must
+not be quoted for it: the objection that decides it here (incremental
+compilation) does not exist there, because `Swatinem/rust-cache` sets
+`CARGO_INCREMENTAL=0` on every job it touches. Hosted CI ran its own
+trial — `docs/CI-MINUTES-2026-08.md` finding F4, measured 2026-09-03 —
+and came back negative for a reason that has nothing to do with the
+local trade: **sccache does not cache `--crate-type bin`**, so every
+test binary in the nextest archive is a miss by construction, and test
+targets are 82 % of that job's compile time. The local numbers above
+are about a lane's cold build of the LIBS, where sccache does work.
+Two verdicts, two questions; neither is evidence for the other.
+
 ## 3. What actually helped: fewer test binaries
 
 `crates/step-import` had no `autotests = false`, so its 26 `tests/*.rs`

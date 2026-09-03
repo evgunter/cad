@@ -17,8 +17,12 @@ pairs and alone on the fitted rung. As delivered on PR #1604:
 blocker measured, and an opening measurement showing the union still dies two
 layers above (`CurvedPierceUnsupported`, the extent scan). Spec
 `docs/VERBS-CYLSPH-SPEC.md` was ratified on `mngr/kernel-verbs` and is not on
-main. PR open and green on both lanes. Review ordinal 112 claimed at dispatch
-(v6 dual, parity byte 197 ⇒ R1 fable + R2 opus, frozen head `d49ddd894`,
-running as of 2026-09-03); the ledger row rides the PR at merge per the
-#1092/#1095 batching shape
-yet. The declared-coaxiality channel it waits on is SEAT-6's (#1372).
+main. PR open and green on both lanes. Review ordinal 112 ran as a v6 dual
+(parity byte 197 ⇒ R1 fable + R2 opus, frozen head `d49ddd894`); row CS-1
+landed as sample #116 (three-way #114 draw, merge order ruled). Dual review adjudicated and the fix
+pass executed on the same branch (§10 of the PR body): the join-dispatch
+sentence the first refusal-text sweep created was measured FALSE and
+rewritten with a pin, the spec-mandated factored station form got a
+near-tangent row that reds under the squared rewrite, and the opening
+row's sphere-face pin now reads the payload instead of static message
+literals. The declared-coaxiality channel it waits on is SEAT-6's (#1372).

@@ -21,6 +21,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 
+test_utils::gated_to![
+    "crates/geom/src/curves/",
+    "crates/geom/src/curves.rs",
+    "crates/geom-core/src/spline/",
+    "crates/geom-core/src/dual.rs",
+];
+
 use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
 // Promotion adaptation (mechanical): dropped an unused Real import.
 use geom::{Curve3, NurbsCurve3};

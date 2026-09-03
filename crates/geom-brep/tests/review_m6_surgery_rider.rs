@@ -11,6 +11,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+test_utils::gated_to![
+    "crates/geom-brep/src/implicit.rs",
+    "crates/geom-core/src/ring_interval.rs",
+    "crates/geom/src/surfaces/",
+    "crates/geom/src/surfaces.rs",
+];
+
 use geom::Surface;
 use geom_brep::{circle_residual_extremes, implicit_residual};
 use geom_core::{Point3, Vec3};

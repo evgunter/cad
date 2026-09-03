@@ -7,77 +7,29 @@
 //! the interval lane matters.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::Curve3;
+use crate::shared::surf;
+use crate::shared::tol::band;
+use crate::shared::topo;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, PropsError, curved_face};
-use geom_core::Tol;
-use geom_core::{Band, Point3, Real, Vec3};
+use geom_core::Real;
 
 const RS: f64 = 0.010;
 const PI: f64 = core::f64::consts::PI;
 
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
-    Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
-}
-fn p3<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
-    Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
-}
-fn edge<T: Real>(carrier: Curve3<T>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<T> {
-    let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge::hand_built(
-        carrier,
-        T::from_f64(t0),
-        T::from_f64(t1),
-        forward,
-        start,
-        end,
-    )
-}
-
 fn sphere<T: Real>() -> Surface<T> {
-    Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
-        radius: T::from_f64(RS),
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
-    }
+    surf::sphere(RS)
 }
 
 /// Rim at latitude `v`, azimuth `u0 → u1`.
 fn rim<T: Real>(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<T> {
-    edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, RS * v.sin()),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: T::from_f64(RS * v.cos()),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
-        u0,
-        u1,
-        a,
-        b,
-    )
+    topo::sphere_rim(RS, v, u0, u1, a, b)
 }
 
 /// Meridian great circle at azimuth `u`; parameter = latitude on the
 /// `u` side, `t = π/2` the north pole, `(π/2, 3π/2)` the far side.
 fn great<T: Real>(u: f64, t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<T> {
-    edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, 0.0),
-            axis: v3(u.sin(), -u.cos(), 0.0),
-            radius: T::from_f64(RS),
-            u_ref: v3(u.cos(), u.sin(), 0.0),
-        },
-        t0,
-        t1,
-        a,
-        b,
-    )
+    topo::sphere_great(RS, u, t0, t1, a, b)
 }
 
 fn assert_area(kind: &str, edges: &[LoopEdge<f64>], exact: f64) {

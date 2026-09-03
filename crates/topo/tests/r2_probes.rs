@@ -6,8 +6,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
-
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Band, Point3, Tol, Vec3};

@@ -183,11 +183,24 @@ SCOPE=--workspace
 RUN_EDITOR_CORE=true
 RUN_STL=true
 RUN_STEP_EXPORT=true
-RUN_PNCAD_PY=true
 RUN_INTERVAL_BACKEND=true
 RUN_INTERVAL_ORACLE=true
 RUN_K_LINT=true
 RUN_TOPO_RELEASE=true
+# THE GATED SUITES THIS RUN DOES NOT EXECUTE, as one nextest `-E` expression
+# excluding them — empty for the whole-suite run, which is what `--full`
+# always produces (tier `all` empties this key by construction). A suite
+# carrying a `test_utils::gated_to!` marker runs only when one of the source
+# paths it names, or its own file, is in the change set; the argument is at
+# THE PER-FILE TEST GATE in scripts/ci-filter.py, and the filter names each
+# skipped suite on stderr above.
+#
+# THIS HALF APPLIES IT FOR THE SAME REASON IT APPLIES THE TIER, and not
+# because minutes are billed here: a local gate that ran a strictly different
+# test SET from the hosted one would answer a different question than the run
+# it is standing in for. `--full` is the spelling for "run everything anyway",
+# and it already is.
+TEST_FILTER=
 if [ "$FULL" -eq 1 ]; then
   echo "=== change filter: --full, forcing tier 'all'"
 else
@@ -206,15 +219,20 @@ else
       RUN_EDITOR_CORE) RUN_EDITOR_CORE="$v" ;;
       RUN_STL) RUN_STL="$v" ;;
       RUN_STEP_EXPORT) RUN_STEP_EXPORT="$v" ;;
-      RUN_PNCAD_PY) RUN_PNCAD_PY="$v" ;;
       RUN_INTERVAL_BACKEND) RUN_INTERVAL_BACKEND="$v" ;;
       RUN_INTERVAL_ORACLE) RUN_INTERVAL_ORACLE="$v" ;;
       RUN_K_LINT) RUN_K_LINT="$v" ;;
       RUN_TOPO_RELEASE) RUN_TOPO_RELEASE="$v" ;;
+      TEST_FILTER) TEST_FILTER="$v" ;;
     esac
   done < <(scripts/ci-filter.py --base "$BASE")
 fi
 echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
+if [ -n "$TEST_FILTER" ]; then
+  echo "=== gated suites: -E '$TEST_FILTER' (the filter's notices above name each one)"
+else
+  echo "=== gated suites: none excluded — the test rows run the whole scope"
+fi
 
 # --- tier-blind rows: A CHECK MUST BE SITED WHERE IT CAN FIRE ON ITS OWN
 # INPUTS (Ev, 2026-08-20, on S61). These read prose, documentation and this
@@ -365,6 +383,15 @@ discipline() {
         && python3 scripts/check-interval-cfg-additive.py); then
     rc=1
   fi
+  # The hosted build jobs start warm only while their `env:` block and their
+  # `shared-key` still match the `cache-prime*` jobs that write the entry on
+  # main. Drift is silent up there and free to catch down here — the script
+  # reads .github/workflows/ only, so this box can run it.
+  # HOSTED MIRROR: discipline / cache-prime key parity (the build jobs' warm start)
+  if ! (python3 scripts/check-cache-prime-parity.py --selftest \
+        && python3 scripts/check-cache-prime-parity.py); then
+    rc=1
+  fi
   # The parsers behind the hosted test-cost REPORTS, against fixtures captured
   # from real runs. The reports themselves have no local half and are not
   # supposed to: their subject is what a hosted run cost and what a PULL
@@ -483,6 +510,14 @@ step_import() {
 # compile is the whole cost (93 s on a cold hosted cache). The guards
 # after the run are the point: a name filter that matches nothing exits
 # 0, so an empty selection must fail rather than pass quietly.
+# THE HOSTED HALF OF THIS ROW IS THE NIGHTLY, NOT THE GATE (2026-09-03).
+# `release-corruption` moved to .github/workflows/nightly.yml and runs there
+# ungated once a day; the per-row argument that it may sit on a cadence is at
+# the job. This row keeps its per-change gate (`RUN_TOPO_RELEASE`, which no
+# hosted job reads any more) because nothing bills a local gate by the minute
+# and scoping it costs nothing here. So on a local gate these suites still run
+# against the tree in front of you, which is the whole reason the demotion is
+# affordable.
 # HOSTED MIRROR: release-corruption / corrupt-input suites, release profile
 topo_release() {
   local log rc passed
@@ -521,7 +556,20 @@ topo_release() {
 # maturin). The script takes the build slot itself; nested under
 # ci-local's exclusive hold that acquisition is a no-op
 # (BUILD_SLOT_HELD).
+#
+# UNCONDITIONAL HERE, SEED-GATED HOSTED (2026-09-03), and it is the same
+# asymmetry the viewer toolkit rows below carry, for the same reason. The
+# hosted job runs only when the change filter's SEEDS intersect
+# {pncad-py, pncad, editor-core} — it is billed by the minute on every PR
+# and the wheel is a second compile of the kernel under the `python`
+# feature. This half is billed in one developer's wall clock, on a run
+# they chose to make, and it is already the lane that runs every point of
+# a matrix the hosted gate samples: skipping work here would buy nothing
+# and would leave the local gate proving strictly less than the hosted
+# one, which is the opposite of this file's contract. So `RUN_PNCAD_PY`
+# is deliberately not consulted, exactly as `RUN_VIEWER_TOOLKIT` is not.
 # HOSTED MIRROR: python-suite / run the Python suite (unittest discover)
+# HOSTED MIRROR: python-suite-nightly / run the Python suite (unittest discover)
 python_suite() {
   crates/pncad-py/run-python-tests.sh
 }
@@ -554,11 +602,39 @@ nextest_check() {
 # parity checker compares which CHECKS each half names, never the flags on the
 # commands, so hosted and local can drift on reporting semantics with nothing
 # noticing — filed as its own issue rather than left as a note here.
+#
+# `$TEST_FILTER` IS COMPOSED WITH `&`, NEVER PASSED AS A SECOND `-E`. nextest
+# ORs its `-E` expressions, so a row that already selects a set — the interval
+# rows below do — would get the gated suites ADDED BACK by a second flag
+# rather than subtracted, which is the one way this could silently un-gate
+# what it means to gate. One `-E` per row, built by `gated_expr`.
+#
+# The whole-suite rows have no selection of their own, so `gated_expr` returns
+# the filter alone, and nothing at all when it is empty.
+# shellcheck disable=SC2086
+gated_expr() {
+  local sel=${1:-}
+  if [ -z "$TEST_FILTER" ]; then
+    [ -n "$sel" ] && printf -- '-E\n%s\n' "$sel"
+    return 0
+  fi
+  if [ -n "$sel" ]; then
+    printf -- '-E\n(%s) & (%s)\n' "$sel" "$TEST_FILTER"
+  else
+    printf -- '-E\n%s\n' "$TEST_FILTER"
+  fi
+}
 # shellcheck disable=SC2086
 # HOSTED MIRROR: test / run archived tests
-test_default() { nextest_check && cargo nextest run $SCOPE --no-fail-fast; }
+test_default() {
+  local -a g; mapfile -t g < <(gated_expr)
+  nextest_check && cargo nextest run $SCOPE ${g[@]+"${g[@]}"} --no-fail-fast
+}
 # shellcheck disable=SC2086
-test_eps() { nextest_check && CAD_TOLERANCE_EPS="$1" cargo nextest run $SCOPE --no-fail-fast; }
+test_eps() {
+  local -a g; mapfile -t g < <(gated_expr)
+  nextest_check && CAD_TOLERANCE_EPS="$1" cargo nextest run $SCOPE ${g[@]+"${g[@]}"} --no-fail-fast
+}
 # shellcheck disable=SC2086
 # HOSTED MIRROR: build / doc-tests
 doc_tests() { cargo test --doc $SCOPE; }
@@ -610,9 +686,11 @@ interval_selection() {
 interval_tests() {
   nextest_check && interval_selection || return 1
   local sel extra=""
+  local -a g
   sel=$(cat "$INTERVAL_SEL")
   [ "$sel" = "none()" ] && extra="--no-tests=pass"
-  cargo nextest run $SCOPE --features interval -E "$sel" $extra --no-fail-fast
+  mapfile -t g < <(gated_expr "$sel")
+  cargo nextest run $SCOPE --features interval ${g[@]+"${g[@]}"} $extra --no-fail-fast
 }
 # THE DEMOTED (NIGHTLY-ONLY) TESTS. A test carrying
 #
@@ -680,10 +758,12 @@ nightly_demoted() {
 interval_eps() {
   nextest_check && interval_selection || return 1
   local sel extra=""
+  local -a g
   sel=$(cat "$INTERVAL_SEL")
   [ "$sel" = "none()" ] && extra="--no-tests=pass"
+  mapfile -t g < <(gated_expr "$sel")
   CAD_TOLERANCE_EPS=1e-6 cargo nextest run $SCOPE --features interval \
-    -E "$sel" $extra --no-fail-fast
+    ${g[@]+"${g[@]}"} $extra --no-fail-fast
 }
 # shellcheck disable=SC2086
 # HOSTED MIRROR: lint-interval / doc-tests (interval)
@@ -1004,6 +1084,18 @@ run_row "clippy (viewer app)"          cargo clippy -p viewer --features app --a
 # `--skip-viewer-toolkit` exists for the hosted half only (see the
 # clippy note above): this row documents viewer under --all-features
 # like everything else.
+#
+# NO `--pr`, AND NO `--scope`, FOR THE SAME REASON. Hosted, the `fmt`
+# job runs the WORKSPACE pass alone and scopes it to the change closure;
+# the six cargo roots the workspace excludes and the
+# --no-default-features re-read of every root with a not(feature) half
+# are nightly.yml's `rustdoc (gate, every root)`, ungated, once a day.
+# This half runs all three passes over every root on every invocation,
+# which is the same asymmetry the toolkit rows above have and the same
+# argument: hosted is billed by the minute per PR and this is billed in
+# one developer's wall clock on a run they chose to make, so the local
+# gate stays a strict superset of any hosted one.
+# HOSTED MIRROR: rustdoc-roots / rustdoc (gate, every root)
 rustdoc_gate() {
   scripts/doc-gate.sh --selftest && scripts/doc-gate.sh
 }
@@ -1080,9 +1172,10 @@ run_row_if "$RUN_STEP_EXPORT" "step import (freecad)" step_import
 # and it compiles `-p topo --lib`, so topo's own closure membership is
 # the condition. Fires on 89 of the last 128 first-parent merges.
 run_row_if "$RUN_TOPO_RELEASE" "corrupt input (release profile)" topo_release
-# Root package pncad-py: the wheel's build graph is the whole façade
-# stack, so this fires exactly when something the suite compiles moved.
-run_row_if "$RUN_PNCAD_PY" "python suite (staged cdylib)" python_suite
+# Unconditional: see the note at `python_suite` above. The hosted half is
+# seed-gated and the nightly re-takes it; this half runs it on every
+# code-tier local gate.
+run_row "python suite (staged cdylib)" python_suite
 
 echo
 echo "=== ci-local summary ==="

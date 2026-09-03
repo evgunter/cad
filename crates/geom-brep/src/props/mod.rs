@@ -412,10 +412,25 @@ pub enum PropsError {
     /// floor sits above the target" outcome. The recourse is the ε
     /// knob: the target scales with the run's ε.
     QuadratureBudget {
-        /// The achieved enclosure width, as a length (m).
+        /// The enclosure width the schedule reached, as a length (m):
+        /// the last round's own when the schedule ran out, or — when a
+        /// round proved that the last round could not certify either
+        /// and the loop refused without running it — the lower bound
+        /// every remaining round's width was proven to exceed, which
+        /// is the last round's width to within the midpoint sum's own
+        /// rounding width ([`quad`]'s `last_round_width_lo` says what
+        /// the bound omits and why it is a bound). Either way a width
+        /// that really missed: strictly above `target_len`.
         width_len: f64,
         /// The convergence target, as a length (m).
         target_len: f64,
+        /// The refinement rounds the loop ran before refusing: the
+        /// schedule's full count when it ran out; `1` when the
+        /// last-round bound refused the face after round 0; `0` on the
+        /// exact arm, which has no composite round. A receipt for what
+        /// the refusal cost, and the witness that the early exit fired
+        /// — a width alone cannot tell the two apart.
+        rounds: usize,
     },
     /// A quadrature input is outside the lane's certified inventory
     /// (M5 PR 11): a rational pcurve channel, a chart kind without a
@@ -459,13 +474,15 @@ impl core::fmt::Display for PropsError {
             Self::QuadratureBudget {
                 width_len,
                 target_len,
+                rounds,
             } => write!(
                 f,
-                "integral properties: the certified quadrature enclosure stalled at a mean \
-                 boundary displacement of {width_len:.3e} m against the {target_len:.3e} m \
-                 target (which scales with the run's tolerance) — certified bounds or typed \
-                 refusal, never a silently wide answer; loosen the tolerance or simplify \
-                 the trim"
+                "integral properties: the certified quadrature enclosure cannot reach the \
+                 {target_len:.3e} m target (which scales with the run's tolerance): its mean \
+                 boundary displacement is {width_len:.3e} m — the schedule's last round's, or \
+                 the bound every remaining round was proven to exceed — after {rounds} \
+                 refinement round(s); certified bounds or typed refusal, never a silently \
+                 wide answer; loosen the tolerance or simplify the trim"
             ),
             Self::QuadratureUnsupported { what } => write!(
                 f,

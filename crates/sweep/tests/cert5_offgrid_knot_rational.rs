@@ -118,6 +118,7 @@ fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) ->
                 PropsError::QuadratureBudget {
                     width_len,
                     target_len,
+                    ..
                 },
             ..
         }) => {
