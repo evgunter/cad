@@ -429,3 +429,12 @@ Slate state: the defect cluster MESH-6/7/8/10/11 is cleared. MESH-9
 stays parked on its trigger. What remains on S-MESH's slate is the
 MESH-R track lanes and the cross-program follow-ons (1587, 1588, 1597,
 1598, 1601, 1602) — the next unit is a slate decision, put to Evan.
+
+## Tracker migration (2026-09-03)
+
+The plan and this log moved from `docs/S-MESH-PLAN.md` / `docs/S-MESH-LOG.md`
+to `work/mesh/plan.md` / `work/mesh/log.md`. The slate now lives in this
+directory's item files and in `work/STATUS.md`; this log stays the
+narrative. Items created at migration: MESH-12 (dispatched, PR 1617; its
+spec landed at PR 1605), MESH-9 (parked on issue 950's trigger), MESH-R
+(open).

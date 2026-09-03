@@ -5,7 +5,7 @@
 power to detect defects", with the six levers in the charter below
 named as in scope, Opus subagents implementing, and the review split
 in §Review ruled in the same conversation. Live state is
-`docs/S-TCOST-LOG.md`'s tail, never this file.
+`work/tcost/log.md`'s tail, never this file.
 
 Branch prefix (the #396 convention): **`tcost/`** — unit branches
 `tcost/<unit>-<slug>`, orchestrator branch `tcost/orchestrator` (the
@@ -173,7 +173,7 @@ monitors, GitHub through MCP; lanes are worktrees under
 `~/tcost-work/`, each with its own `CARGO_TARGET_DIR` outside the
 worktree, at most one heavy cargo build at a time on this box
 (4 cores, 15 GB, ~29 GB free). Decisions taken unilaterally are
-logged in `docs/S-TCOST-LOG.md`.
+logged in `work/tcost/log.md`.
 
 ## Keep-outs
 

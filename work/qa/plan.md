@@ -12,7 +12,7 @@ Away-channel tag `(S-QA orchestrator)`. A/B ordinal band
 **S-QA = 800–899**, claimed in `docs/MODEL-AB-LOG.md`'s banding entry
 in this same commit, per that entry's rule; implementer blocks are
 named `QA-B1, QA-B2, …` (unit names occupy `QA-<n>`). Live state is
-`docs/S-QA-LOG.md`'s tail, never this file.
+`work/qa/log.md`'s tail, never this file.
 
 ## Charter (from the cut, verbatim in substance)
 

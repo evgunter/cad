@@ -15,7 +15,7 @@ not this program's; no legacy registry, per #396.) Away-channel tag
 `(S-MESH orchestrator)`. A/B ordinal band **S-MESH = 1200–1299**,
 claimed in `docs/MODEL-AB-LOG.md`'s banding entry in this same PR, per
 that entry's rule; implementer blocks are named `MESH-B1, MESH-B2, …`
-(unit names occupy `MESH-<n>`). Live state is `docs/S-MESH-LOG.md`'s
+(unit names occupy `MESH-<n>`). Live state is `work/mesh/log.md`'s
 tail, never this file.
 
 ## Charter (from the cut, verbatim in substance)

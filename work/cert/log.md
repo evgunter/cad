@@ -1066,3 +1066,11 @@ under rule 3; H2 and its five findings deleted, S116's (b) and (s)
 members deleted, Track N's table now S235, D31, D98, D244, C24. Slate: CERT-N3 (slot 3
 FABLE, `docs/CERT-N3-SPEC.md`) dispatches from this merge; CERT-M2's fix
 pass in flight; then the exit walk.
+## Tracker migration (2026-09-03)
+
+The plan and this log moved from `docs/S-CERT-PLAN.md` / `docs/S-CERT-LOG.md`
+to `work/cert/plan.md` / `work/cert/log.md`. The slate now lives in this
+directory's item files and in `work/STATUS.md`; this log stays the
+narrative. Items created at migration: CERT-M3 (dispatched), CERT-N3
+(dispatched). PR 883 (lane H-g) stays parked as lane H-f and is recorded in
+the program header's keep-outs, not as an item of this program.

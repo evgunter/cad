@@ -226,3 +226,12 @@ interruption (state preserved by an orchestrator WIP snapshot,
 resumed same-arm) and closed with a full per-conjunct mutation
 table. NEXT: the S-MATE exit walk (a design conversation — waits
 for Evan's ratification).
+
+## Tracker migration (2026-09-03)
+
+The plan and this log moved from `docs/S-MATE-PLAN.md` / `docs/S-MATE-LOG.md`
+to `work/mate/plan.md` / `work/mate/log.md`. The slate now lives in this
+directory's item files and in `work/STATUS.md`; this log stays the
+narrative. The unit slate is complete (nine merged); the one item created
+at migration is MATE-EXIT (ruling, open) — the exit walk's ratification,
+which closes the program when Ev signs it off.

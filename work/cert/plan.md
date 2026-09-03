@@ -15,7 +15,7 @@ Away-channel tag `(S-CERT orchestrator)`. A/B ordinal band
 **S-CERT = 700–799**, claimed in `docs/MODEL-AB-LOG.md`'s banding
 entry in this same PR, per that entry's rule; implementer blocks are
 named `CERT-B1, CERT-B2, …` (unit names occupy `CERT-<n>`). Live
-state is `docs/S-CERT-LOG.md`'s tail, never this file.
+state is `work/cert/log.md`'s tail, never this file.
 
 ## Charter (from the cut, verbatim in substance)
 

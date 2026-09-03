@@ -15,7 +15,7 @@ Away-channel tag `(S-BOOL orchestrator)` (one orchestrator, two tags —
 the tag names the program a comment speaks for). A/B ordinal band
 **S-BOOL = 1100–1199**, claimed in `docs/MODEL-AB-LOG.md`'s banding
 entry in this same PR; implementer blocks are named `BOOL-B1, …`
-(unit names occupy `BOOL-<n>`). Live state is `docs/S-BOOL-LOG.md`'s
+(unit names occupy `BOOL-<n>`). Live state is `work/bool/log.md`'s
 tail, never this file.
 
 ## Charter (from the cut, verbatim in substance)

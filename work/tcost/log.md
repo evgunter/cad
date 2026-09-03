@@ -32,3 +32,13 @@ Evan gave on the orchestrator's questions are in the plan.
   derived selection, fail open — argued from the same siting rule the
   nightly demotion marker and `scripts/nightly-only-selection.py` use
   (a central roster drifts; a marker at the test cannot).
+
+## Tracker migration (2026-09-03)
+
+The plan and this log moved from `docs/S-TCOST-PLAN.md` / `docs/S-TCOST-LOG.md`
+to `work/tcost/plan.md` / `work/tcost/log.md`. The slate now lives in this
+directory's item files and in `work/STATUS.md`; this log stays the
+narrative. Items created at migration from the open unit PRs (this log had
+only its opening entry): TCOST-1 (dispatched, PR 1612), TCOST-2
+(dispatched, PR 1609), TCOST-3 (dispatched, PR 1614), TCOST-4 (dispatched,
+PR 1608), TCOST-B1 (dispatched, PR 1616).

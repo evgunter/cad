@@ -425,3 +425,12 @@ closed. Standing residue lives where the walk names it: Track W
 carries the tests-leg sweep with issue 651 as class home, issue
 1317 registers the doc-gate's two remaining axes, #470 and #466
 stay parked with their reasons.
+
+## Tracker migration (2026-09-03)
+
+The plan and this log moved from `docs/S-QA-PLAN.md` / `docs/S-QA-LOG.md`
+to `work/qa/plan.md` / `work/qa/log.md`. The program is closed at its
+ratified exit walk, so no item files are created; `work/qa/program.md`
+carries `status: closed` and the residue pointers, and `work/STATUS.md`
+shows the program as closed. The parked issues 470 and 466 remain GitHub
+issues with their recorded reasons, not items of a closed program.

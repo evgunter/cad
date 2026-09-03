@@ -20,7 +20,7 @@ follow the prefix from the first unit). Away-channel tag
 tiebreak when S-MESH's 1200–1299 reached main first),
 claimed in `docs/MODEL-AB-LOG.md`'s banding entry in this same PR;
 implementer blocks are named `MATE-B1, …` (unit names occupy
-`MATE-<n>`). Live state is `docs/S-MATE-LOG.md`'s tail, never this
+`MATE-<n>`). Live state is `work/mate/log.md`'s tail, never this
 file.
 
 ## Charter (from the cut, verbatim in substance)

@@ -249,3 +249,12 @@ Slate next: BOOL-12 (the declared arrival at the seam) dispatches
 now on a main with no schema version — its `ContinueTo` wire spelling
 is an additive vocabulary change plus a corpus regeneration; BOOL-B3
 is the draw block. Then BOOL-9, BOOL-10.
+
+## Tracker migration (2026-09-03)
+
+The plan and this log moved from `docs/S-BOOL-PLAN.md` / `docs/S-BOOL-LOG.md`
+to `work/bool/plan.md` / `work/bool/log.md`. The slate now lives in this
+directory's item files and in `work/STATUS.md`; this log stays the
+narrative. Items created at migration: BOOL-12 (review, PR 1573 held for
+Ev's sign-off), BOOL-9 (spec), BOOL-10 (spec), BOOL-4 (open), BOOL-5 (open),
+BOOL-6 (open), BOOL-7 (open), BOOL-Q (open).
