@@ -3,7 +3,7 @@
 STATUS: BINDING (dispatched 2026-08-30; citations re-verified
 against merged M10-2/#1213 and M10-3/#1231). Unit branch
 `m10/m10-4-stackup`. Program plan
-`docs/M10-PLAN.md`; design record `docs/ERROR-DESIGN.md` E4/E5/E9
+`work/m10/plan.md`; design record `docs/ERROR-DESIGN.md` E4/E5/E9
 (read all three sections in full) and `docs/DUAL-DESIGN.md` DL1–DL6.
 
 ## Grounding (substrate facts; verify each at the site before coding)
@@ -105,7 +105,7 @@ against merged M10-2/#1213 and M10-3/#1231). Unit branch
   evaluation (edit the doc between builds) must get the typed error,
   never a sensitivity.
 - This discharges the M10-DI adjudication's named obligation; say so
-  in the PR body and cite the adjudication log line.
+  in the PR body and cite the adjudication log line in `work/m10/log.md`.
 
 ### 4. `Stackup` — E5 verbatim
 
