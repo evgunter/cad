@@ -468,3 +468,54 @@ into the corrected sweep receipt (the class's home remains #1191);
 the verdict-diff triple-spelling (vdiff / drive.rs / verdict_summary)
 gets a consolidation issue from the fix pass unless the MAJ fix
 itself unifies.
+
+## M10-4 dual review adjudication (2026-09-03)
+
+Both arms on frozen fc8de0ac: R1 REQUEST-CHANGES (1 MAJ, rubric
+4/3/4), R2 NOT-MERGEABLE (2 MAJ, rubric 4/3/3). The headline is
+bilateral and identically diagnosed with independent red probes:
+the chamber verdict is never bound to the build — `ForeignVerdict`
+compares axis NAMES, `ForeignBox` compares offsets, and nothing
+ties a `ParamBoxVerdict` to the document it was driven over, so an
+edited document (a value edit that keeps the verdict vector) or
+another document's verdict marks every sensitivity
+`ChamberCertified`. R1 named the fix's raw material (the drive
+already records per-leaf value-channel `node_keys`, and
+`worst_case`'s replay recomputes and discards them); R2 named the
+trap (a `VerdictVectorKey` compare would NOT close it — a pure value
+edit keeps the vector; it needs a content tie). R2's unilateral
+second MAJOR is the one the spec's grounding warned about: a LOFT
+section's dimension seeds to a silent finite ZERO (`section_of`
+emits the f64 elaboration's loops), the true derivative being 1 —
+"the profile gap TYPED, never silent zeros" — while the PR body says
+no typed valve was needed; the sweep seam has the same shape. R1
+had predicted the loft as the unexercised arm (T1) and flagged it
+unverified; R2 executed it. The remaining findings converge on
+honesty of the advisory columns (contribution extrapolates past the
+chamber it is marked with; `NothingCertified` throws away the
+sensitivities it computed and carries no accounting; the e2e's −2
+comes from the measure expression, not the lift — only the width
+slab and the reviewers' own arc-carrying rows pin the guided lift)
+and on disclosure (deviation 3 unscheduled and dropping a
+plan-named deliverable; deviation 2's rationale conflating keys
+with the value channel; stringified refusals against D2's letter;
+the RSS fixed-parameter door). Every claim the reviewers could
+execute against held otherwise: zero impact bit-identical over 22
+corpus documents at three scalars, seed hygiene under DL2 in six
+threading orders, σ derivations to 1e-9 against quadrature,
+`worst_case` tangent-free by type and right where the
+linearization is wrong.
+
+Fix pass IMPLEMENTER-INHERITED: the two MAJ (a content tie from
+the verdict to the anchor; a typed per-entry refusal for seeds that
+feed a C6/D9-pinned section, loft and sweep), the advisory-column
+honesty set, the disclosure set, both probe suites adopted (four
+red-by-design rows across the two go green with the MAJ fixes).
+
+Durable homes at adjudication: contribution bounds via
+`Dual<Interval>` enclosures (deviation 3) get a `work/m10` issue
+item from the fix pass — the plan named them as this unit's and
+M10-5's entry names only pruning; the subgradient-at-a-kink honesty
+gap (a one-sided derivative reported with a smooth one's confidence,
+conformant but unmarked — R1 T3, R2 note f) is stated in E4-facing
+docs by the fix pass and banked as an M10-6 report-shape question.
