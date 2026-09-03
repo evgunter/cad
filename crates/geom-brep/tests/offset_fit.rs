@@ -746,8 +746,18 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
         )
         .unwrap()
     };
-    for e in 0..=9 {
-        let shift = if e == 0 { 0.0 } else { 10f64.powi(e) };
+    // The stations, not every decade: `fit_offset` takes the SAME
+    // trajectory (308 cells over 4 rounds) at every shift from the
+    // origin through 1e7, and the same larger one (364 over 5) at 1e8
+    // and 1e9, so a decade that reproduces a neighbour's trajectory
+    // re-derives a bound already asserted. What is kept is one station
+    // per distinct behaviour: the origin's baseline, three in-band
+    // stations up to the band edge at 1e6, the first out-of-band
+    // station, the station where the trajectory changes, and the
+    // refusal below.
+    for e in [0usize, 3, 5, 6, 7, 8] {
+        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+        let shift = if e == 0 { 0.0 } else { 10f64.powi(e as i32) };
         let base = shifted(shift);
         let (fit, cert) = fit_offset(&base, d, 1e-2, band())
             .unwrap_or_else(|err| panic!("shift 1e{e}: a micron offset refused: {err}"));

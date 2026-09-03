@@ -1,16 +1,20 @@
-//! CERT-7 review lane R1 — adversarial probes (local, not for merge).
+//! Adversarial offset-certificate probes on rational bases the
+//! shipped suite uses nowhere: a quarter-ellipse wall and an
+//! ellipsoid band, both exact rationals whose weights no shipped
+//! fixture shares.
 //!
-//! Nothing here is a shipped row: these exist to attack PR 1319's
-//! claims by execution.
+//! Every row here holds the same contract from outside the kernel:
+//! a certificate that comes back must CONTAIN a densely sampled
+//! residual, and anything else must be a typed refusal. The
+//! independence of the bases is the point — a probe that reached for
+//! a shipped fixture would stop being evidence about the door.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::FRAC_PI_2;
 
 use geom::NurbsSurface;
-use geom_brep::offset_fit::{
-    OffsetFitError, approx_offset_surface, certify_offset, fit_offset, offset_point,
-};
+use geom_brep::offset_fit::{approx_offset_surface, certify_offset, fit_offset, offset_point};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tol};
 
@@ -267,190 +271,5 @@ fn a_hostile_weight_spread_never_yields_a_finite_wrong_bound() {
             }
             Err(e) => eprintln!("hostile [{name}]: refused typed: {e}"),
         }
-    }
-}
-
-/// **Recentring, farther than the shipped row goes.** Where does the
-/// invariance stop, and is the degradation honest (a refusal or a
-/// larger bound) rather than a silent under-report?
-#[test]
-fn recentring_probed_far_past_the_shipped_stations() {
-    let d = 1e-6;
-    let mut at_origin = f64::NAN;
-    for shift in [0.0_f64, 1e3, 1e5, 1e6, 1e7, 1e8, 1e10] {
-        let c = {
-            let s = (FRAC_PI_2 * 0.5).cos();
-            NurbsSurface::new(
-                kv2(),
-                kv1(),
-                vec![
-                    Point3::new(1.0, 0.0, 0.0),
-                    Point3::new(1.0, 0.0, 1.0),
-                    Point3::new(1.0, 1.0, 0.0),
-                    Point3::new(1.0, 1.0, 1.0),
-                    Point3::new(0.0, 1.0, 0.0),
-                    Point3::new(0.0, 1.0, 1.0),
-                ],
-                vec![1.0, 1.0, s, s, 1.0, 1.0],
-            )
-            .unwrap()
-        };
-        let control: Vec<Point3<f64>> = c
-            .control()
-            .iter()
-            .map(|p| Point3::new(p.x + shift, p.y + shift, p.z))
-            .collect();
-        let base = NurbsSurface::new(
-            c.knots_u().clone(),
-            c.knots_v().clone(),
-            control,
-            c.weights().to_vec(),
-        )
-        .unwrap();
-        match fit_offset(&base, d, 1e-2, band()) {
-            Ok((fit, cert)) => {
-                let worst = sampled(&base, &fit, d);
-                assert!(
-                    cert.hull_sup >= worst,
-                    "shift {shift:e}: UNDER-REPORT {} < {worst}",
-                    cert.hull_sup
-                );
-                if shift == 0.0 {
-                    at_origin = cert.hull_sup;
-                }
-                eprintln!(
-                    "far shift={shift:.0e}: cells={} hull_sup={:.4e} sampled={worst:.3e} \
-                     (x origin {:.3})",
-                    cert.cells,
-                    cert.hull_sup,
-                    cert.hull_sup / at_origin
-                );
-            }
-            Err(e) => eprintln!("far shift={shift:.0e}: REFUSED typed: {e}"),
-        }
-    }
-}
-
-/// **The stall hunt.** Deviation 7 says `RefinementStalled`'s
-/// integration path is unreached across the fixtures probed. This
-/// sweeps for a fixture that genuinely stalls, and reports which
-/// typed refusal each request produces.
-#[test]
-fn hunt_for_a_genuine_refinement_stall() {
-    let mut stalls = 0;
-    let cases: Vec<(&str, NurbsSurface<f64>, f64)> = vec![
-        ("elliptic wall 2:1", elliptic_wall(2.0, 1.0, 1.0), 0.1),
-        (
-            "elliptic wall 20:1 (extreme aspect)",
-            elliptic_wall(20.0, 1.0, 1.0),
-            0.05,
-        ),
-        ("elliptic wall 1:1 tall", elliptic_wall(1.0, 1.0, 50.0), 0.1),
-        (
-            "ellipsoid band q=0.5",
-            ellipsoid_band(2.0, 0.5, 0.25, 1.25),
-            0.15,
-        ),
-        (
-            "ellipsoid band q=0.1 (very flat)",
-            ellipsoid_band(2.0, 0.1, 0.3, 1.2),
-            0.02,
-        ),
-        ("thin wall", elliptic_wall(1.0, 1.0, 1e-4), 0.1),
-        ("elliptic wall tiny d", elliptic_wall(1.0, 1.0, 1.0), 1e-9),
-        (
-            "elliptic wall huge coords",
-            elliptic_wall(1e4, 1e4, 1e4),
-            10.0,
-        ),
-    ];
-    for (name, base, d) in cases {
-        for tol in [1e-6, 1e-9, 1e-11, 1e-13, 1e-15, 1e-17] {
-            match fit_offset(&base, d, tol, band()) {
-                Ok((_, c)) => eprintln!(
-                    "stall-hunt [{name}] tol={tol:.0e}: CERTIFIED cells={} rounds={} sup={:.3e}",
-                    c.cells, c.rounds, c.hull_sup
-                ),
-                Err(OffsetFitError::RefinementStalled {
-                    rounds,
-                    grid,
-                    achieved,
-                    ..
-                }) => {
-                    stalls += 1;
-                    eprintln!(
-                        "stall-hunt [{name}] tol={tol:.0e}: *** STALLED *** rounds={rounds} \
-                         grid={grid:?} achieved={achieved:.4e}"
-                    );
-                }
-                Err(OffsetFitError::BudgetExhausted { grid, achieved, .. }) => eprintln!(
-                    "stall-hunt [{name}] tol={tol:.0e}: budget grid={grid:?} achieved={achieved:.4e}"
-                ),
-                Err(e) => eprintln!("stall-hunt [{name}] tol={tol:.0e}: {e}"),
-            }
-        }
-    }
-    eprintln!("stall-hunt: {stalls} genuine stalls found");
-}
-
-/// **Issue 1321's measured instance**, checked against the tree: at
-/// `d = 1e-7` the loop is claimed to report `budget: 6` having run 5
-/// rounds and stopped on the per-direction sample cap.
-#[test]
-fn the_budget_refusal_conflates_the_cap_with_the_rounds() {
-    let s = (FRAC_PI_2 * 0.5).cos();
-    let base = NurbsSurface::new(
-        kv2(),
-        kv1(),
-        vec![
-            Point3::new(1.0, 0.0, 0.0),
-            Point3::new(1.0, 0.0, 1.0),
-            Point3::new(1.0, 1.0, 0.0),
-            Point3::new(1.0, 1.0, 1.0),
-            Point3::new(0.0, 1.0, 0.0),
-            Point3::new(0.0, 1.0, 1.0),
-        ],
-        vec![1.0, 1.0, s, s, 1.0, 1.0],
-    )
-    .unwrap();
-    for d in [1e-7_f64, 1e-6] {
-        match fit_offset(&base, d, 1e-12, band()) {
-            Ok((_, c)) => eprintln!(
-                "1321 d={d:e}: certified cells={} rounds={}",
-                c.cells, c.rounds
-            ),
-            Err(e) => eprintln!("1321 d={d:e}: {e}"),
-        }
-    }
-}
-
-/// Full-precision certificate digits, for the fast-path comparison.
-#[test]
-fn full_precision_hull_sups_for_the_fast_path_comparison() {
-    let s = (FRAC_PI_2 * 0.5).cos();
-    let cyl = NurbsSurface::new(
-        kv2(),
-        kv1(),
-        vec![
-            Point3::new(1.25, 0.0, 0.0),
-            Point3::new(1.25, 0.0, 0.75),
-            Point3::new(1.25, 1.25, 0.0),
-            Point3::new(1.25, 1.25, 0.75),
-            Point3::new(0.0, 1.25, 0.0),
-            Point3::new(0.0, 1.25, 0.75),
-        ],
-        vec![1.0, 1.0, s, s, 1.0, 1.0],
-    )
-    .unwrap();
-    for (name, base, d, tol) in [
-        ("cylinder d=0.3", cyl.clone(), 0.3, 3e-4),
-        ("cylinder d=-0.4", cyl.clone(), -0.4, 3e-4),
-        ("elliptic wall", elliptic_wall(2.0, 1.0, 1.0), 0.1, 1e-3),
-    ] {
-        let (_, c) = fit_offset(&base, d, tol, band()).unwrap();
-        eprintln!(
-            "FASTPATH {name}: hull_sup={:.17e} on_locus={:.17e} cells={}",
-            c.hull_sup, c.on_locus_max, c.cells
-        );
     }
 }

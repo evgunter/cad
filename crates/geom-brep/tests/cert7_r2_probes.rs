@@ -1,4 +1,5 @@
-//! CERT-7 review lane R2 probes (local only, never pushed).
+//! Offset-certificate probes on a rational base the shipped suite
+//! uses nowhere, driven through the public doors only.
 //!
 //! What these rows push on, beyond the shipped suite:
 //!
@@ -12,13 +13,6 @@
 //!   (a genuinely different surface). The only admissible outcomes:
 //!   a containing certificate or a refusal — never a finite
 //!   under-report.
-//! - **Recentring pushed farther**: shift 1e8, where the base's own
-//!   f64 control points carry ~1.5e-8 of representation granularity
-//!   against a micron offset.
-//! - **A stall hunt**: fixtures chosen to plateau the bound with
-//!   rounds in hand.
-//! - **Issue 1321's cap-stop digit**: `budget: 6` reported after the
-//!   cap stop.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -27,8 +21,7 @@ use std::sync::Arc;
 
 use geom::NurbsSurface;
 use geom_brep::offset_fit::{
-    OffsetFitError, approx_offset_surface, certify_offset, fit_offset, offset_point,
-    recertify_approx,
+    approx_offset_surface, certify_offset, fit_offset, offset_point, recertify_approx,
 };
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tol};
@@ -198,112 +191,5 @@ fn r2_hostile_alternating_weights_contain_or_refuse() {
             );
         }
         Err(e) => eprintln!("hostile 0.1/10: refused (honest, sampled {worst:.3e}): {e}"),
-    }
-}
-
-/// Recentring pushed to 1e8: containment must hold whatever happens
-/// to the bound's size; the degradation, if any, is reported.
-#[test]
-fn r2_recentring_at_shift_1e8() {
-    let d = 1e-6;
-    for shift in [0.0_f64, 1.0e3, 1.0e8] {
-        let c = quarter_cylinder(1.0, 1.0);
-        let control: Vec<Point3<f64>> = c
-            .control()
-            .iter()
-            .map(|p| Point3::new(p.x + shift, p.y + shift, p.z))
-            .collect();
-        let base = NurbsSurface::new(
-            c.knots_u().clone(),
-            c.knots_v().clone(),
-            control,
-            c.weights().to_vec(),
-        )
-        .unwrap();
-        match fit_offset(&base, d, 1e-2, band()) {
-            Ok((fit, cert)) => {
-                let worst = sampled_residual(&base, &fit, d);
-                assert!(
-                    worst <= cert.hull_sup,
-                    "shift {shift:e}: hull_sup {} UNDER-reports sampled {worst}",
-                    cert.hull_sup
-                );
-                eprintln!(
-                    "shift {shift:e}: cells={} hull_sup={:.4e} sampled={worst:.3e}",
-                    cert.cells, cert.hull_sup
-                );
-            }
-            Err(e) => eprintln!("shift {shift:e}: refused (honest?): {e}"),
-        }
-    }
-}
-
-/// The stall hunt: fixtures chosen to plateau the bound. A
-/// RefinementStalled here is a finding; a BudgetExhausted (or a
-/// certificate) corroborates deviation 7.
-#[test]
-fn r2_stall_hunt() {
-    let qc = quarter_cylinder(1.0, 1.0);
-    let wall = ellipse_wall(2.0, 1.0, 0.2, 1.2);
-    let cases: Vec<(&str, &NurbsSurface<f64>, f64, f64)> = vec![
-        ("qc d=1e-6 tol=1e-12", &qc, 1e-6, 1e-12),
-        ("qc d=1e-8 tol=1e-12", &qc, 1e-8, 1e-12),
-        ("wall d=1e-6 tol=1e-12", &wall, 1e-6, 1e-12),
-        ("wall d=0.3 tol=1e-14", &wall, 0.3, 1e-14),
-    ];
-    for (name, base, d, tol) in cases {
-        match fit_offset(base, d, tol, band()) {
-            Ok((_, cert)) => eprintln!("{name}: certified hull_sup={:.3e}", cert.hull_sup),
-            Err(OffsetFitError::RefinementStalled {
-                rounds,
-                grid,
-                achieved,
-                ..
-            }) => {
-                eprintln!(
-                    "{name}: STALLED after {rounds} rounds on {}x{} achieved={achieved:.3e}",
-                    grid.0, grid.1
-                );
-            }
-            Err(OffsetFitError::BudgetExhausted {
-                budget,
-                grid,
-                achieved,
-                ..
-            }) => {
-                eprintln!(
-                    "{name}: budget-exhausted (budget {budget}) on {}x{} achieved={achieved:.3e}",
-                    grid.0, grid.1
-                );
-            }
-            Err(e) => eprintln!("{name}: other refusal: {e}"),
-        }
-    }
-}
-
-/// Issue 1321's measured instance: at d = 1e-7 the loop stops on the
-/// sample cap and reports `budget: 6`.
-#[test]
-fn r2_issue_1321_cap_stop_reports_budget_six() {
-    let base = quarter_cylinder(1.0, 1.0);
-    match fit_offset(&base, 1e-7, 1e-9, band()) {
-        Err(OffsetFitError::BudgetExhausted { budget, grid, .. }) => {
-            eprintln!("d=1e-7 tol=1e-9: BudgetExhausted budget={budget} grid={grid:?}");
-        }
-        other => eprintln!("d=1e-7 tol=1e-9: {other:?}"),
-    }
-}
-
-/// The PR body cites "80 cells at tol 1e-4" for the cylinder oracle;
-/// the shipped row runs at 3e-4 (OFF-B's trim). Which tol gives 80?
-#[test]
-fn r2_cylinder_cells_at_both_tolerances() {
-    let base = quarter_cylinder(1.25, 0.75);
-    for tol in [1e-4, 3e-4] {
-        let (_, cert) = fit_offset(&base, 0.3, tol, band()).unwrap();
-        eprintln!(
-            "cylinder d=0.3 tol={tol:e}: cells={} rounds={}",
-            cert.cells, cert.rounds
-        );
     }
 }
