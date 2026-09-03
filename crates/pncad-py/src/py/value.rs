@@ -876,6 +876,40 @@ impl Evaluation {
             .map_err(|err| super::readback::readback_err(py, &err))
     }
 
+    /// **What is under this ray?** — the nearest face hit across
+    /// `targets`, resolved to a stable name, as of THIS evaluation.
+    ///
+    /// The fourth door onto a name, and it answers in the same opaque
+    /// alphabet the other three speak: `PickHit.name` is a text
+    /// `Node.fillet` takes unread, exactly as `select`'s answers are.
+    ///
+    /// `targets` are `NodePick`s — build them with `NodePick.build` or
+    /// `NodePick.build_all`. There is no other spelling of a pick
+    /// target here, and that is deliberate: a target whose
+    /// `(node, body)` is not the pair its mesh was tessellated from
+    /// answers a plausible, confidently WRONG name rather than an
+    /// error, and a `NodePick` cannot be built that way.
+    ///
+    /// **A miss is `None`, and it is typed.** The ray hitting no
+    /// offered triangle is not a failure, and a failure is never
+    /// flattened into it. Ties are broken totally and documented
+    /// kernel-side: the winner minimizes `(t, position in targets,
+    /// triangle position)`, so a ray down a shared edge answers the
+    /// same face every time.
+    ///
+    /// Raises `HitTestError`, typed: the standing ladder up front for
+    /// a target whose node this evaluation has no value for
+    /// (`node_not_evaluated`, `node_failed`, `node_poisoned`), and the
+    /// loud `unnamed` bug arm if the winning face inverts to no name.
+    fn pick_face(
+        &self,
+        py: Python<'_>,
+        targets: Vec<PyRef<'_, super::pick::NodePick>>,
+        ray: &super::pick::Ray,
+    ) -> PyResult<Option<super::pick::PickHit>> {
+        super::pick::pick_face(py, self, targets, ray)
+    }
+
     /// **The cross-body flush-plane candidates between `a`'s and
     /// `b`'s outputs, as of THIS evaluation** — the detect arm of the
     /// detect/declare protocol: the verifier run in

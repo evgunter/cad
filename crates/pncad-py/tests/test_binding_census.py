@@ -443,6 +443,28 @@ BOUND_AS = {
     "edge_frame": "Evaluation.edge_frame",
     "face_frame": "Evaluation.face_frame",
     "vertex_position": "Evaluation.vertex_position",
+    # PICKING, the fourth door onto a name. `pick_face` is a free
+    # function taking the evaluation, so it arrives as an `Evaluation`
+    # method beside the three read-back doors above — the same shift,
+    # for the same reason. `Ray`, `PickHit`, `NodePick`,
+    # `NodePickError` and `HitTestError` are spelled identically and
+    # are accounted by rule 1, not here. All seven left the `gap`
+    # roster at LIB-B-PICKING, which closed the family.
+    #
+    # `PickTarget` is the entry that carries the argument, and it is
+    # NOT a narrowing. Rust's `pick_face` takes a slice of them;
+    # Python's takes a list of `NodePick`s and makes each target
+    # itself — because CUR3 recorded `MeshPick` DECIDED absent from the
+    # façade and `PickTarget::pick` is a `&MeshPick`, so through
+    # `pncad` a raw target has no constructor in EITHER language. The
+    # value that plays the target's role is the `NodePick`, whose
+    # pairing cannot be mis-asserted. The carrier-projection rule reads
+    # out the same way it did for `DanglingRef` above: a payload's
+    # category follows what its CARRIER does at the crossing, the
+    # carrier here is the door's `targets` argument, and that argument
+    # crosses holding `NodePick`s.
+    "PickTarget": "NodePick",
+    "pick_face": "Evaluation.pick_face",
     # The four different-shape entries LIB-G18b left behind after
     # binding the rest of the assembly vocabulary name-for-name.
     #
@@ -563,12 +585,6 @@ GAP = "gap"
 #: LIB-B-READBACK, the first family to close, and the four verbs it
 #: chartered say so where they now sit in `BOUND_AS`.
 FAMILIES = {
-    "B-PICKING": (
-        "picking, the fourth door onto a name — ray in, `StableName` "
-        "out; closing it binds `pick_face` with its ray/target/hit "
-        "vocabulary, answering in the same opaque-text alphabet "
-        "`Evaluation.select` speaks"
-    ),
     "B-RESOLVE": (
         "name resolution across re-evaluation; closing it binds "
         "`resolve` and its `Resolution` verdict — the question every "
@@ -881,10 +897,31 @@ FAMILIES = {
 #: when it is closed, and this is what that gap looks like in
 #: practice: the id and the door list stayed right, the resident
 #: count did not.
-#: - **B-PICKING — picking.** `pick_face`, `PickTarget`, `PickHit`,
-#:   `NodePick`, `NodePickError`, `HitTestError`, `Ray`. The fourth
-#:   door onto a name — ray in, `StableName` out, the same alphabet
-#:   `Evaluation.select` speaks.
+#: **B-PICKING is CLOSED and no longer a `gap` id here**
+#: (LIB-B-PICKING). It held seven names — `pick_face`, `PickTarget`,
+#: `PickHit`, `NodePick`, `NodePickError`, `HitTestError` and `Ray` —
+#: and the fourth door onto a name now answers in Python in the same
+#: opaque-text alphabet `Evaluation.select` speaks: a `PickHit.name`
+#: goes to `Node.fillet` unread.
+#:
+#: The closing measured one thing worth recording, and it is a
+#: SECOND-ORDER effect of a curation decision rather than anything the
+#: charter foresaw. CUR3 kept `MeshPick` and `MeshPickError` interior,
+#: which makes a raw `PickTarget` unconstructible through the façade —
+#: the argument is in `crates/pncad/src/select.rs`, and it is about
+#: CONSTRUCTION. Two consequences fall out of it downstream. The first
+#: is good and was intended: with no raw target to assemble, the door
+#: that cannot be mis-paired is not merely preferred but the only one,
+#: so the Python signature takes `NodePick`s and the
+#: confidently-wrong-name lane (#1098) has no spelling here at all.
+#: The second was not foreseen: `NodePickError::Index` CARRIES a
+#: `MeshPickError`, so a refusal whose payload type is unnameable
+#: crosses as one tag plus prose, where every other arm of that enum
+#: is matchable. That is not a relitigation of CUR3 and this unit did
+#: not treat it as one — it is banked as
+#: `work/lib/mesh-pick-error-is-unmatchable-under-node-pick-error.md`,
+#: the `DanglingRef` shape one rung along: a payload whose carrier
+#: projects arms, that has no arms of its own to project.
 #: - **B-RESOLVE — name resolution across re-evaluation.** `resolve`,
 #:   `Resolution`, `RunCtx`. The question a consumer that STORES names
 #:   must ask on every run — and Python's whole selection story is
@@ -1167,14 +1204,14 @@ NOT_BOUND = {
     # the registry's shape crossed unchanged, including the two knob
     # TYPES whose difference is DS6's waiver rule. The positive form
     # is `tests/test_checks.py`.
-    # --- gap: picking (census-owned) ------------------------------
-    "HitTestError": f"{GAP}: B-PICKING ray onto a name",
-    "NodePick": f"{GAP}: B-PICKING ray onto a name",
-    "NodePickError": f"{GAP}: B-PICKING ray onto a name",
-    "PickHit": f"{GAP}: B-PICKING ray onto a name",
-    "PickTarget": f"{GAP}: B-PICKING ray onto a name",
-    "Ray": f"{GAP}: B-PICKING ray onto a name",
-    "pick_face": f"{GAP}: B-PICKING ray onto a name",
+    # B-PICKING IS GONE FROM THIS ROSTER, closed at LIB-B-PICKING, and
+    # the id is gone from `FAMILIES` with it. Five of its seven names
+    # are top-level in `pncad.pyi` name for name (`Ray`, `PickHit`,
+    # `NodePick`, `NodePickError`, `HitTestError`); two are in
+    # `BOUND_AS` — `pick_face` as `Evaluation.pick_face`, and
+    # `PickTarget` as `NodePick`, the value that plays its role in a
+    # language where a raw target has no constructor. The positive
+    # form is `tests/test_picking.py`.
     # --- gap: name resolution (census-owned) ----------------------
     "Resolution": f"{GAP}: B-RESOLVE names across runs",
     "RunCtx": f"{GAP}: B-RESOLVE names across runs",

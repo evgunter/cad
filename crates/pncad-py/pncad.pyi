@@ -357,6 +357,67 @@ class ReadbackError(PncadError):
     index: Optional[int]
     payload: Optional[str]
     carrier: Optional[str]
+
+class HitTestError(PncadError):
+    """A hit test could not answer.
+
+    A MISS is not this. The ray hitting no offered triangle is `None`,
+    typed, and an error is never flattened into it — so catching this
+    class never means "nothing was there".
+
+    Three arms are the standing ladder, spelled exactly as
+    `ReadbackError` spells it (`node_not_evaluated`, `node_failed`,
+    `node_poisoned`): a mesh displayed for a node this evaluation did
+    not produce cannot belong to it, so the pick refuses up front
+    rather than inverting against a table that is not there.
+
+    The fourth, `unnamed`, is a KERNEL BUG report — the node evaluated
+    and the entity has no name in its table — and it carries the
+    entity's `kind` and `body`, never its arena key. It is also the one
+    arm that appears as a VALUE rather than a raise:
+    `NodePick.patch_names` puts it in the slot of the patch it
+    concerns, because one naming-emission bug must not cost a consumer
+    the names of every other patch it is drawing.
+
+    Every field is present on every arm, `None` where that arm does not
+    carry it."""
+
+    variant: str
+    node: Optional[NodeId]
+    through: Optional[NodeId]
+    kind: Optional[EntityKind]
+    body: Optional[int]
+
+class NodePickError(PncadError):
+    """A pick index could not be built — `NodePick.build` and
+    `NodePick.build_all`.
+
+    `not_a_body` and `no_such_body` are different states and stay
+    apart: a datum, profile, declaration or mate NEVER draws, while a
+    node that draws nothing today (an annihilated boolean, an empty
+    split side) draws again after an edit. Only the second changes
+    under an edit, which is why the two are not one arm.
+
+    Two arms FORWARD rather than wrap. The standing ladder arrives
+    under `HitTestError`'s own tags, because it IS that refusal; a
+    tessellation refusal arrives under the tessellator's own tag and
+    prose. A forwarded arm does not bring the inner refusal's extra
+    ATTRIBUTES: a tessellation refusal's `value`, `bound`, `requested`
+    and `note` stay on `TessellateError`, where `Body.tessellate`
+    raises them. `mesh_index` is the arm with nothing to forward — its
+    payload type is deliberately absent from the façade, so it crosses
+    as one tag plus the kernel's own prose, which states the offending
+    patch, triangle and index.
+
+    Every field is present on every arm, `None` where that arm does not
+    carry it."""
+
+    variant: str
+    node: Optional[NodeId]
+    through: Optional[NodeId]
+    kind: Optional[EntityKind]
+    body: Optional[int]
+
 class ChecksError(PncadError):
     """The advisory-check registry could not RUN.
 
@@ -1879,10 +1940,15 @@ class Mesh:
     which is why a Python-side check of that contract compares
     indices and never coordinates.
 
-    The picking chain does not cross. A patch's face, a boundary's
-    edge and their vertex back-references are arena keys, so a patch
-    is addressed by INDEX here and the per-edge boundary polylines
-    are not bound at all."""
+    No arena key crosses. A patch's face, a boundary's edge and their
+    vertex back-references are keys, so a patch is addressed by INDEX
+    here and the per-edge boundary polylines are not bound at all.
+
+    What the index is FOR, beside drawing, is `NodePick.patch_names`:
+    it answers one stable name per patch, in patch order, so a viewer
+    goes from the patch it drew to the name it can select with without
+    the key ever leaving. `NodePick.boundary_names` is the edge
+    twin."""
 
     @property
     def positions(self) -> list[tuple[Length, Length, Length]]:
@@ -2084,6 +2150,152 @@ class Denotation:
     def candidates(self) -> int: ...
     def __eq__(self, other: object) -> bool: ...
 
+class Ray:
+    """A ray to pick along: an origin and a direction, over `t >= 0`.
+
+    `direction` need not be unit length, and no door here silently
+    normalizes it. The hit parameter `t` is therefore in units of
+    `|direction|`: every `t` from ONE ray is comparable with every
+    other, and rescaling the direction rescales them all by the same
+    factor.
+
+    A non-finite component is legal input and fail-safe: it can only
+    LOSE constraints in the kernel's conservative slab test, so a
+    poisoned ray prunes nothing and the pick answers the typed miss
+    rather than silently skipping geometry."""
+
+    def __init__(
+        self,
+        origin: tuple[Length, Length, Length],
+        direction: tuple[float, float, float],
+    ) -> None: ...
+    @property
+    def origin(self) -> tuple[Length, Length, Length]: ...
+    @property
+    def direction(self) -> tuple[float, float, float]: ...
+
+class PickHit:
+    """A successful face pick: the stable name, plus where and what was
+    hit — what `Evaluation.pick_face` answers with.
+
+    No arena key. The NAME is the reference a selection holds, and it
+    is the same opaque text `all_faces` and `select` answer with — hand
+    it to `Node.fillet` unread."""
+
+    @property
+    def name(self) -> str: ...
+    @property
+    def node(self) -> NodeId: ...
+    @property
+    def body(self) -> int: ...
+    @property
+    def t(self) -> float:
+        """The ray parameter of the hit, in units of the ray's own
+        `|direction|` — a bare float, not a distance, unless the ray
+        was given a unit direction. `point` is the dimensioned answer."""
+
+    @property
+    def point(self) -> tuple[Length, Length, Length]:
+        """The hit point, `origin + t * direction`."""
+
+class NodePick:
+    """A pick index whose `(node, body)` ↔ mesh pairing is TRUE BY
+    CONSTRUCTION — and, through this surface, the only pick target
+    there is.
+
+    `build` fetches the body from the evaluation's own payload, through
+    the same output-body indexing the name tables key by, then
+    tessellates and indexes it in one call. There is no other
+    constructor, so an index cannot assert a pairing it does not have —
+    which is what stops a pick answering a plausible, confidently WRONG
+    name for a face that is really a sibling node's.
+
+    The tessellation rides along (`mesh`) so a viewer displays exactly
+    what it picks against: one tessellation, one source of truth. Cache
+    one per displayed `(node, body)` and drop it when the evaluation
+    moves — a new `Evaluation` means new meshes, and an index built
+    against the old one is stale."""
+
+    @staticmethod
+    def build(
+        evaluation: Evaluation, node: NodeId, body: int, chordal: Length
+    ) -> NodePick:
+        """Tessellate and index output body `body` of `node` at the
+        chordal budget `chordal`, against `evaluation`'s own payload.
+
+        `chordal` is δ, a DISTANCE, and it is `Body.tessellate`'s
+        budget verbatim: it says how coarsely a VIEW of the model may
+        approximate it, never what the model IS. Picking against a
+        coarse index picks against the coarse triangles, which is
+        exactly right — they are the ones on screen.
+
+        Raises `NodePickError`, typed: `not_a_body` for a node whose
+        value never draws, `no_such_body` for an index this node's
+        value does not have, the standing ladder for a node this
+        evaluation has no value for, and the tessellator's own tags
+        where tessellation refused."""
+
+    @staticmethod
+    def build_all(
+        evaluation: Evaluation, node: NodeId, chordal: Length
+    ) -> list[NodePick]:
+        """Every output body of `node`, each tessellated and indexed —
+        `build`'s enumerating form, and the one to reach for when
+        offering a whole node to a pick.
+
+        A caller cannot ask a node how many bodies it has, and the
+        indices are not a dense range: a split with one empty half
+        occupies index 1 and not index 0. Probing `build` at 0, 1, 2, …
+        until it refuses is precisely the by-hand pairing this type
+        exists to remove, so the enumeration is taken kernel-side.
+
+        An EMPTY LIST is a legal answer, and it means something
+        narrower than it looks: the node's value IS body-denoting but
+        currently denotes none (an annihilated boolean, a split whose
+        sides are both empty). A node whose value never draws raises
+        `not_a_body` instead.
+
+        Raises `NodePickError` as `build` does; the first body that
+        refuses stops the whole enumeration, because a partial answer
+        would be a partial picture."""
+
+    @property
+    def node(self) -> NodeId: ...
+    @property
+    def body(self) -> int: ...
+    @property
+    def mesh(self) -> Mesh:
+        """The tessellation this index was built from — the mesh to
+        display, so that what is drawn is what is picked."""
+
+    def patch_names(self, evaluation: Evaluation) -> list[str | HitTestError]:
+        """The stable name of every face patch of `mesh`, in patch
+        order: entry `i` names the face `mesh.patch(i)` draws.
+
+        This is the inversion a DISPLAY consumer needs. A patch's
+        identity in the mesh is an arena key and the key does not
+        cross, so a viewer can address a patch by index and cannot
+        learn its name — until this door, where the index goes in and
+        the name comes out.
+
+        TOTAL, per patch, and each slot is `str` OR a `HitTestError`:
+        an evaluated-but-unnamed face is a naming-emission bug surfaced
+        in ITS OWN SLOT, because one such bug must not cost a consumer
+        the names of every other patch it is drawing. Branch with
+        `isinstance(entry, str)`; the exception in a slot is a value,
+        not something raised."""
+
+    def boundary_names(self, evaluation: Evaluation) -> list[str | HitTestError]:
+        """The stable name of every boundary polyline of `mesh`, in
+        polyline order — `patch_names`' edge twin, same contract and
+        same per-slot loud arm.
+
+        The polylines themselves are not bound (their content beside
+        indices is arena keys), so what this is FOR is a consumer that
+        hit-tests against drawn edges by POSITION — a display
+        coordinate valid for one tessellation — and reads the name out
+        of here."""
+
 class Evaluation:
     """The per-node result DAG."""
 
@@ -2169,6 +2381,34 @@ class Evaluation:
         frame doors refuse a tie rather than picking a candidate, and
         this says whether one is coming. Raises `ReadbackError` for
         `no_such_name` and the node ladder."""
+
+    def pick_face(
+        self, targets: list[NodePick], ray: Ray
+    ) -> Optional[PickHit]:
+        """What is under this ray — the nearest face hit across
+        `targets`, resolved to a stable name, as of THIS evaluation.
+
+        The fourth door onto a name, and it answers in the same opaque
+        alphabet the other three speak: `PickHit.name` is a text
+        `Node.fillet` takes unread, exactly as `select`'s answers are.
+
+        `targets` are `NodePick`s, built by `NodePick.build` or
+        `NodePick.build_all`. There is no other spelling of a pick
+        target here, and that is deliberate: a target whose
+        `(node, body)` is not the pair its mesh was tessellated from
+        answers a plausible, confidently WRONG name rather than an
+        error, and a `NodePick` cannot be built that way.
+
+        A MISS is `None`, and it is typed: the ray hitting no offered
+        triangle is not a failure, and a failure is never flattened
+        into it. Ties are broken totally — the winner minimizes
+        `(t, position in targets, triangle position)` — so a ray down a
+        shared edge answers the same face every time.
+
+        Raises `HitTestError`, typed: the standing ladder up front for
+        a target whose node this evaluation has no value for, and the
+        loud `unnamed` bug arm if the winning face inverts to no
+        name."""
 
     def find_flush_candidates(self, a: NodeId, b: NodeId) -> list[FlushFinding]:
         """The cross-body flush-plane candidates between `a`'s and

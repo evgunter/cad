@@ -34,7 +34,7 @@ use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
 use pncad::prelude::BlendKind;
 use pncad::profile::{PathError, PathErrorKind};
-use pncad::select::{DanglingRef, InterrogateError, ReadbackError};
+use pncad::select::{DanglingRef, HitTestError, InterrogateError, NodePickError, ReadbackError};
 use pncad::step_import::StepImportError;
 // All three STL refusals are prelude-curated; the module path is the
 // spelling this file uses throughout, not a reach past the façade.
@@ -744,6 +744,60 @@ pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
         InterrogateError::NoBodies { .. } => "no_bodies",
         InterrogateError::NoSuchBody { .. } => "no_such_body",
         InterrogateError::Readback(err) => readback_error_tag(err),
+    }
+}
+
+/// The stable tag for a hit-test refusal — the ray door's own.
+///
+/// The three standing arms are the SAME vocabulary
+/// [`interrogate_error_tag`] speaks for the read-back doors, spelled
+/// identically on purpose: "node 7 has no result in this evaluation"
+/// is one fact about the run, and a caller that already branches on
+/// `node_not_evaluated` from a frame read should not have to learn a
+/// second word for it at the pick.
+///
+/// `unnamed` is the BUG arm (spec D4): the node evaluated and the
+/// entity has no name in its table. Its payload is an `EntityRef`,
+/// which is an arena key plus a body index — the key does not cross
+/// (G1), so what the Python side projects beside this tag is the
+/// entity's KIND and its body index, which is the whole of the
+/// diagnostic a bug report can act on.
+pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
+    match err {
+        HitTestError::NodeNotEvaluated { .. } => "node_not_evaluated",
+        HitTestError::NodeFailed { .. } => "node_failed",
+        HitTestError::NodePoisoned { .. } => "node_poisoned",
+        HitTestError::Unnamed { .. } => "unnamed",
+    }
+}
+
+/// The stable tag for a pick-index build refusal.
+///
+/// Three arms FORWARD rather than wrap, the
+/// [`interrogate_error_tag`] / [`assembly_error_tag`] convention: the
+/// standing ladder arrives under [`hit_test_error_tag`]'s words (it is
+/// literally that type), and a tessellation refusal arrives under the
+/// tessellator's own tag, because "the chordal budget was not finite"
+/// is that fact whether it is reached through `Body.tessellate` or
+/// through a pick index.
+///
+/// The `Index` arm is the one that cannot forward. Its payload is
+/// `MeshPickError`, which CUR3 recorded DECIDED absent from the façade
+/// (`crates/pncad/tests/all.rs`'s `NOT_CARRIED`, argued in
+/// `crates/pncad/src/select.rs`): the type is not nameable here, so
+/// its arms cannot be matched and there is no per-arm tag to forward.
+/// The whole arm therefore crosses as ONE tag plus the kernel's own
+/// prose, which states the offending patch, triangle and index. That
+/// is a knowingly unprojected payload — `work/lib/mesh-pick-error-is-
+/// unmatchable-under-node-pick-error.md` records it — and not a lane
+/// this crate can close without a façade decision.
+pub fn node_pick_error_tag(err: &NodePickError) -> &'static str {
+    match err {
+        NodePickError::Standing(err) => hit_test_error_tag(err),
+        NodePickError::NotABody { .. } => "not_a_body",
+        NodePickError::NoSuchBody { .. } => "no_such_body",
+        NodePickError::Tessellate(err) => tessellate_error_tag(err),
+        NodePickError::Index(_) => "mesh_index",
     }
 }
 
