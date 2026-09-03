@@ -174,6 +174,23 @@ where
                         d.v3(u.get());
                         d.v3(v.get());
                     }
+                    // Tag 24, appended: both spellings of an in-plane
+                    // axis, so a drift in the numbers a revolve
+                    // actually consumes cannot hide behind the lift.
+                    ValuePayload::Datum(DatumValue::AxisInPlane {
+                        plane_origin,
+                        plane_dir,
+                        origin,
+                        dir,
+                    }) => {
+                        d.u64(24);
+                        d.sc(plane_origin.x);
+                        d.sc(plane_origin.y);
+                        d.sc(plane_dir.x);
+                        d.sc(plane_dir.y);
+                        d.p3(*origin);
+                        d.v3(dir.get());
+                    }
                     ValuePayload::Profile(p) => {
                         d.u64(13);
                         for lp in p.validated.loops() {

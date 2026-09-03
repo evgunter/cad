@@ -139,14 +139,17 @@ where
         + crate::analysis::AxisScalar,
 {
     match node {
-        Node::Datum(d) => Ok(OpOut::plain(wire_datum(d, vals, tol)?, names::empty())),
+        Node::Datum(d) => Ok(OpOut::plain(
+            wire_datum(d, results, vals, tol)?,
+            names::empty(),
+        )),
         Node::Profile(program) => Ok(OpOut::plain(
             wire_profile(program, results, profile_pre, env.lane, tol)?,
             names::empty(),
         )),
         Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals, tol),
         Node::Revolve { profile, axis, .. } => {
-            wire_revolve(id, *profile, *axis, results, vals, tol)
+            wire_revolve(id, *profile, *axis, doc, results, vals, tol)
         }
         Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, results, vals, env.lane, tol),
         Node::Sweep { profile, path, .. } => {
@@ -497,6 +500,21 @@ fn need_point3<T: Decide>(
     point3(vals, f).ok_or(NodeErrorKind::MissingSlot { slot: f(Axis3::X) })
 }
 
+fn need_vec2<T: Decide>(
+    vals: &SlotValues<T>,
+    f: fn(Axis3) -> SlotId,
+) -> Result<Vec2<T>, NodeErrorKind> {
+    slots::vec2(vals, f).ok_or(NodeErrorKind::MissingSlot { slot: f(Axis3::X) })
+}
+
+fn need_point2<T: Decide>(
+    vals: &SlotValues<T>,
+    f: fn(Axis3) -> SlotId,
+) -> Result<Point2<T>, NodeErrorKind> {
+    let v = need_vec2(vals, f)?;
+    Ok(Point2::new(v.x, v.y))
+}
+
 /// A slot's vector as a datum direction, through the kernel type's own
 /// constructor: the normalization and the two refusals live there, and
 /// this layer only names the ROLE the refusal is about.
@@ -645,7 +663,33 @@ pub(crate) fn frame_axes<T: Decide>(
     Ok((u, datum_unit(v_perp, "datum frame y axis", band)?))
 }
 
-fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>, tol: Tol) -> PayloadResult<T> {
+/// Reads the frame an in-plane axis lives in, as the orthonormal pair
+/// its coordinates are written against.
+///
+/// Same door as [`frame_plane_lane`]'s and same refusal: an axis whose
+/// `plane` does not name a frame is a kind mismatch at the input, not
+/// a geometry problem.
+fn axis_frame<T: Decide>(
+    results: &Results<T>,
+    plane: RecipeNodeId,
+) -> Result<(Point3<T>, UnitVec3<T>, UnitVec3<T>), NodeErrorKind> {
+    let v = value_of(results, plane)?;
+    let ValuePayload::Datum(DatumValue::Frame { origin, u, v: y }) = &v.payload else {
+        return Err(NodeErrorKind::WrongOperand {
+            input: plane,
+            expected: "datum frame",
+            found: v.payload.kind_name(),
+        });
+    };
+    Ok((*origin, *u, *y))
+}
+
+fn wire_datum<T: Decide>(
+    d: &Datum,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+    tol: Tol,
+) -> PayloadResult<T> {
     Ok(ValuePayload::Datum(match d {
         Datum::Plane { .. } => DatumValue::Plane {
             origin: need_point3(vals, SlotId::Origin)?,
@@ -688,6 +732,32 @@ fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>, tol: Tol) -> PayloadRe
                 origin: need_point3(vals, SlotId::Origin)?,
                 u,
                 v,
+            }
+        }
+        // **The one datum that reads another node.** Its four numbers
+        // are coordinates IN a frame, so the frame is what they mean,
+        // and the lift happens once here rather than at each reader.
+        //
+        // No in-plane check appears anywhere in this arm, and that is
+        // the point of the variant: a 2-D pair lifted through the
+        // frame's own axes lies in that frame by construction, so
+        // there is no residual to decide and no band to decide it
+        // against.
+        Datum::AxisInPlane { plane, .. } => {
+            let (frame_origin, u, v) = axis_frame(results, *plane)?;
+            let plane_origin = need_point2(vals, SlotId::Origin)?;
+            let plane_dir = need_vec2(vals, SlotId::Direction)?;
+            let lift = |d: Vec2<T>| u.get() * d.x + v.get() * d.y;
+            DatumValue::AxisInPlane {
+                plane_origin,
+                plane_dir,
+                origin: frame_origin + lift(Vec2::new(plane_origin.x, plane_origin.y)),
+                // The frame's axes are orthonormal, so this lift
+                // preserves length: it is decided-zero exactly when the
+                // authored pair is, which is why the sketch direction
+                // above can go to the kernel unnormalized and still get
+                // the same refusal a 3-D axis would.
+                dir: datum_unit(lift(plane_dir), "datum axis direction", band(tol)?)?,
             }
         }
     }))
@@ -884,10 +954,29 @@ fn wire_extrude<T: Decide>(
     ))
 }
 
+/// The frame a node is written against, read from the RECIPE.
+///
+/// A profile and an in-plane axis both name one; "the same plane"
+/// means the same node, and this is the only reading of it. It is
+/// deliberately not a value: two frames that evaluate to the same
+/// numbers are still two frames, and an evaluated comparison would
+/// make a revolve's legality depend on a float coincidence.
+fn written_against(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    id: RecipeNodeId,
+) -> Option<RecipeNodeId> {
+    match doc.node(id)? {
+        Node::Profile(p) => Some(p.plane),
+        Node::Datum(Datum::AxisInPlane { plane, .. }) => Some(*plane),
+        _ => None,
+    }
+}
+
 fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     axis: RecipeNodeId,
+    doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -901,59 +990,51 @@ fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
         });
     };
     let av = value_of(results, axis)?;
-    let ValuePayload::Datum(DatumValue::Axis { origin, dir }) = &av.payload else {
+    let ValuePayload::Datum(DatumValue::AxisInPlane {
+        plane_origin,
+        plane_dir,
+        ..
+    }) = &av.payload
+    else {
         return Err(NodeErrorKind::WrongOperand {
             input: axis,
-            expected: "datum axis",
+            // A 3-D `Datum::Axis` lands here, and the sentence has to
+            // say what to author instead: the seat is not "an axis",
+            // it is "an axis written in the sketch the profile is
+            // drawn on".
+            expected: "an axis in a sketch frame (Datum::AxisInPlane)",
             found: av.payload.kind_name(),
         });
     };
-    let dir = dir.get();
-    // The kernel's RevolveAxis lives in SKETCH-PLANE coordinates: the
-    // 3-D datum axis must lie in the profile's plane (decided; a
-    // definite out-of-plane component is a typed refusal, spec D3's
-    // "wire, don't invent" — projecting silently would be invention).
-    let place = vp.validated.plane().placement;
-    let (u, v_axis, n) = (place.linear.c0, place.linear.c1, place.linear.c2);
-    let plane_origin = Point3::new(
-        place.translation.x,
-        place.translation.y,
-        place.translation.z,
-    );
-    let rel = *origin - plane_origin;
-    let b = band(tol)?;
-    // The two in-plane checks share a verdict shape but NOT a
-    // dimension, so they take separate doors (review of the clause-(i)
-    // rollout, MAJ-1): the origin residual is a metre projection onto
-    // the unit normal (`of`); the direction residual `dir·n̂` is a
-    // unit·unit SINE — dimensionless against the metre band, the
-    // audit's class-(c) shape. Ledger row F15: the honest form is the
-    // sine levered at the profile's radial extent, which lives
-    // kernel-side — that fix is F15's own unit; flagged, not cast.
-    let in_plane = |name: &'static str,
-                    verdict: Result<Sign, geom_core::Indeterminate>|
-     -> Result<(), NodeErrorKind> {
-        match verdict {
-            Ok(Sign::Zero) => Ok(()),
-            Ok(_) => Err(NodeErrorKind::AxisNotInSketchPlane { axis }),
-            Err(source) => Err(NodeErrorKind::Escalated {
-                predicate: name,
-                source,
-            }),
-        }
-    };
-    in_plane(
-        "revolve_axis_origin_in_plane",
-        decide("revolve_axis_origin_in_plane", Margin::of(rel.dot(n)), b),
-    )?;
-    in_plane(
-        "revolve_axis_dir_in_plane",
-        geom_core::k_stats::decide_flagged("revolve_axis_dir_in_plane", dir.dot(n), b, "F15"),
-    )?;
+    // **The kernel's `RevolveAxis` lives in SKETCH-PLANE coordinates,
+    // and so does the axis now** — so the wiring is the identity, and
+    // the only question left is whether the two nodes are written
+    // against the SAME frame.
+    //
+    // That is an equality of node ids: no band, no residual, no scale.
+    // What stood here was two decided predicates projecting a 3-D axis
+    // onto the profile's normal, and the second of them was the
+    // dimension audit's F15 — a bare sine `dir·n̂` classified against
+    // the metre band, whose executed consequence (that row's pin, a
+    // review probe) is a tilt that reads in-plane at every model scale
+    // while the deviation it induces crosses the band between a
+    // millimetre profile and a ten-metre one. F15's own note proposed
+    // levering the sine at the profile's radial extent. This deletes
+    // the sine instead: an axis authored in the frame cannot leave it,
+    // so there is nothing to lever.
+    let (axis_plane, profile_plane) = (written_against(doc, axis), written_against(doc, profile));
+    if axis_plane != profile_plane {
+        return Err(NodeErrorKind::AxisInDifferentPlane {
+            axis,
+            axis_plane,
+            profile_plane,
+        });
+    }
     let axis2 = RevolveAxis {
-        origin: Point2::new(rel.dot(u), rel.dot(v_axis)),
-        dir: Vec2::new(dir.dot(u), dir.dot(v_axis)),
+        origin: *plane_origin,
+        dir: *plane_dir,
     };
+    let b = band(tol)?;
     // Full vs partial (kernel contract: exactly-full must SAY Full):
     // |θ| coincident with τ at tolerance classifies Full; anything
     // else wires Partial and the kernel's own angle classification

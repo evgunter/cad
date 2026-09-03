@@ -37,10 +37,10 @@ mod corpus;
 mod fixture;
 
 use editor_core::{
-    CancelToken, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
+    CancelToken, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
     ProfileDoc, ProfileVertexRef, RecipeNodeId, RimSupport, RoleSeg, StableName, evaluate,
 };
-use fixture::{ang, insert, len, on_frame, scl};
+use fixture::{ang, axis_in_plane, insert, len, on_frame_keeping};
 use geom::Surface;
 use geom_core::Tol;
 use topo::{Body, EdgeKey, SurfaceKey};
@@ -68,7 +68,7 @@ const MOUTH: u32 = 2;
 /// surface kind, so a kind cannot tell them apart at all.
 fn lantern() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("blend5_rim_support", Tol::witness());
-    let (doc, profile) = on_frame(
+    let (doc, plane, profile) = on_frame_keeping(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -83,10 +83,10 @@ fn lantern() -> (ProfileDoc, RecipeNodeId) {
     );
     let (doc, axis) = insert(
         doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
     );
     let (doc, revolve) = insert(
         doc,
@@ -348,7 +348,7 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     let doc = ProfileDoc::empty_derived("blend5_seam_split", Tol::witness());
     // Both ends on the axis, so every wall is a pair of half-bands and
     // every rim a pair of arcs (BLEND-1's lantern shape).
-    let (doc, profile) = on_frame(
+    let (doc, plane, profile) = on_frame_keeping(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -363,10 +363,10 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     );
     let (doc, axis) = insert(
         doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
     );
     let (doc, revolve) = insert(
         doc,

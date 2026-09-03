@@ -186,20 +186,16 @@ fn inversion_is_total_on_boolean_split_revolve_and_pattern() {
         },
     );
     // A partial revolve (bands, meridians, wedge caps).
-    let (doc, rp) = on_frame(
+    let (doc, plane, rp) = fixture::on_frame_keeping(
         doc,
         [0.0, 3.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     );
-    let (doc, axis) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Axis {
-            origin: [len(0.0), len(3.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-    );
+    // The world axis sat at the FRAME's origin pointing along its v, so
+    // in the frame's own coordinates it is +y through (0, 0).
+    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let (doc, _rev) = insert(
         doc,
         Node::Revolve {

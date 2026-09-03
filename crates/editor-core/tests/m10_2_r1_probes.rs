@@ -426,10 +426,10 @@ fn ball(doc: &ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId) {
     );
     let (doc, axis) = insert(
         &doc,
-        Node::Datum(editor_core::Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        fixture::axis_in_plane(xy, (0.0, 0.0), (0.0, 1.0)),
     );
     insert(
         &doc,

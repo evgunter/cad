@@ -11,7 +11,7 @@ use editor_core::{
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SplitHalf, StableName,
     evaluate,
 };
-use fixture::{ang, insert, len, on_frame};
+use fixture::{ang, axis_in_plane, insert, len, on_frame_keeping};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -54,7 +54,7 @@ fn pv(l: u32, v: u32) -> ProfileVertexRef {
 
 /// A unit-square profile + extrude prelude (xy plane).
 fn cube(doc: ProfileDoc, x0: f64, side: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = on_frame(
+    let (doc, _plane, p) = on_frame_keeping(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -147,13 +147,14 @@ fn extrude_names_every_boundary_entity_with_the_d2_roles() {
 /// Profile on the xy plane (the y datum axis lies in it).
 fn revolve_doc(pts: Vec<(f64, f64)>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
-    let (doc, p) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![pts]);
+    let (doc, plane, p) =
+        on_frame_keeping(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![pts]);
     let (doc, axis) = insert(
         doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [fixture::scl(0.0), fixture::scl(1.0), fixture::scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
     );
     insert(
         doc,
@@ -190,10 +191,10 @@ fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
     );
     let (doc, axis) = insert(
         doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [fixture::scl(0.0), fixture::scl(1.0), fixture::scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
     );
     insert(
         doc,
@@ -333,7 +334,7 @@ fn full_holed_revolve_names_the_cavity_loop() {
     // loop: bands, full rims, seam meridians, meridian vertices, all
     // under loop index 1.
     let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
-    let (doc, p) = on_frame(
+    let (doc, plane, p) = on_frame_keeping(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -345,10 +346,10 @@ fn full_holed_revolve_names_the_cavity_loop() {
     );
     let (doc, axis) = insert(
         doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [fixture::scl(0.0), fixture::scl(1.0), fixture::scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
     );
     let (doc, rev) = insert(
         doc,

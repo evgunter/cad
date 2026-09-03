@@ -13,7 +13,9 @@ use editor_core::{
     Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SlotId, ValuePayload, evaluate,
 };
 use editor_core::{CapEnd, RoleSeg};
-use fixture::{ang, die, insert, len, on_frame, scl, square, step};
+use fixture::{
+    ang, axis_in_plane, die, insert, len, on_frame, on_frame_keeping, scl, square, step,
+};
 use geom_core::Tol;
 use topo::{Body, mass_properties};
 
@@ -399,7 +401,7 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         },
     );
     // Revolve: half-turn of a square offset from the axis.
-    let (doc, rp) = on_frame(
+    let (doc, plane, rp) = on_frame_keeping(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -408,10 +410,10 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     );
     let (doc, rax) = insert(
         doc,
-        Node::Datum(editor_core::Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
     );
     let (doc, rev) = insert(
         doc,
@@ -557,7 +559,7 @@ fn four_way_schedule_memo_identity_on_rich_doc() {
 /// by `angle`.
 fn revolve_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
-    let (doc, rp) = on_frame(
+    let (doc, plane, rp) = on_frame_keeping(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -566,10 +568,10 @@ fn revolve_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
     );
     let (doc, rax) = insert(
         doc,
-        Node::Datum(editor_core::Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
     );
     let (doc, rev) = insert(
         doc,
@@ -781,9 +783,12 @@ fn wire_doors_refuse_typed() {
         },
         other => panic!("expected Failed, got {other:?}"),
     }
-    // Revolve about an out-of-plane axis: AxisNotInSketchPlane. The
-    // rich doc's `ax` is the z axis; its profile plane is xy — the
-    // DIRECTION is out of plane.
+    // Revolve about the rich doc's `ax` — a 3-D z-axis datum. This
+    // asserted `AxisNotInSketchPlane`, a decided projection finding the
+    // direction out of plane. A revolve seats an axis written IN a
+    // frame now, so a world-space axis never reaches that question: it
+    // is refused one door earlier, as the wrong KIND of node, with no
+    // band consulted.
     let (d, bad_rev) = insert(
         doc.clone(),
         Node::Revolve {
@@ -796,7 +801,7 @@ fn wire_doors_refuse_typed() {
     match ev.nodes.get(&bad_rev) {
         Some(NodeResult::Failed(e)) => {
             assert!(
-                matches!(e.kind, NodeErrorKind::AxisNotInSketchPlane { .. }),
+                matches!(e.kind, NodeErrorKind::WrongOperand { input, .. } if input == ax),
                 "got {:?}",
                 e.kind
             );

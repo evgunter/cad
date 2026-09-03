@@ -969,6 +969,40 @@ impl Node {
         })
     }
 
+    /// A datum axis written IN a sketch frame — what a revolve turns.
+    ///
+    /// `plane` is the `Datum.frame` node the axis lives in, and the
+    /// two pairs are that frame's own 2-D coordinates: the origin
+    /// dimensioned (`Length`), the direction dimensionless and
+    /// unnormalized, as `SlotId::Direction`'s `Scalar` says.
+    ///
+    /// A revolve takes one of these and NOT a `datum_axis`: a 3-D axis
+    /// would have to be checked into the profile's plane, and that
+    /// check was a tolerance verdict on a direction residual. Written
+    /// here, the axis cannot leave the frame — and whether it is the
+    /// frame the profile was drawn on is an equality of node ids.
+    #[staticmethod]
+    fn datum_axis_in_plane(
+        py: Python<'_>,
+        plane: NodeId,
+        origin: (super::quantity::Length, super::quantity::Length),
+        direction: (f64, f64),
+    ) -> PyResult<Self> {
+        Ok(Self {
+            inner: d::Node::Datum(d::Datum::AxisInPlane {
+                plane: plane.0,
+                origin: [
+                    literal(py, origin.0.0.meters(), d::Dimension::Length)?,
+                    literal(py, origin.1.0.meters(), d::Dimension::Length)?,
+                ],
+                direction: [
+                    literal(py, direction.0, d::Dimension::Scalar)?,
+                    literal(py, direction.1, d::Dimension::Scalar)?,
+                ],
+            }),
+        })
+    }
+
     /// A datum plane: a point and a normal.
     ///
     /// The origin is dimensioned (`Length`); the normal is a

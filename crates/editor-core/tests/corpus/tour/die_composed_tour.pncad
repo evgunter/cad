@@ -395,62 +395,6 @@ id: a8d79f40ddb79de569d778f1c0b832f9
       "InsertNode": {
         "node": {
           "Datum": {
-            "Axis": {
-              "origin": [
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Length",
-                    "unit": "mm"
-                  }
-                }
-              ],
-              "direction": [
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 0.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                },
-                {
-                  "Literal": {
-                    "value": 1.0,
-                    "dim": "Scalar",
-                    "unit": ""
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "InsertNode": {
-        "node": {
-          "Datum": {
             "Frame": {
               "origin": [
                 {
@@ -529,8 +473,51 @@ id: a8d79f40ddb79de569d778f1c0b832f9
     {
       "InsertNode": {
         "node": {
+          "Datum": {
+            "AxisInPlane": {
+              "plane": 4,
+              "origin": [
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Length",
+                    "unit": "mm"
+                  }
+                },
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Length",
+                    "unit": "mm"
+                  }
+                }
+              ],
+              "direction": [
+                {
+                  "Literal": {
+                    "value": 0.0,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                },
+                {
+                  "Literal": {
+                    "value": 1.0,
+                    "dim": "Scalar",
+                    "unit": ""
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "InsertNode": {
+        "node": {
           "Profile": {
-            "plane": 5,
+            "plane": 4,
             "loops": [
               {
                 "Chain": [
@@ -598,7 +585,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
         "node": {
           "Revolve": {
             "profile": 6,
-            "axis": 4,
+            "axis": 5,
             "angle": {
               "Literal": {
                 "value": 6.283185307179586,

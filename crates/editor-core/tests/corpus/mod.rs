@@ -349,6 +349,11 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         // corpus document authors at least one, which is the condition
         // this arm was written waiting for.
         Node::Datum(Datum::Frame { .. }) => vec!["Datum::Frame"],
+        // NOT a listed sub-kind, for `PlacedUnion::Circular`'s reason:
+        // the corpus's revolves are covered by `Datum::Axis`'s own
+        // documents today, and a listed-but-uncovered sub-kind fails
+        // the tally. It joins the list when a corpus document revolves.
+        Node::Datum(Datum::AxisInPlane { .. }) => Vec::new(),
         Node::Boolean { op, declare, .. } => {
             let mut v = vec![match op {
                 BooleanOp::Union => "Boolean::Union",

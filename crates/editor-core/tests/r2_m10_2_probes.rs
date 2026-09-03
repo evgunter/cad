@@ -17,12 +17,11 @@ mod fixture;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, AssertionVerdict, Axis3, BooleanOp, CancelToken, Datum, Dimension, DocEdit,
-    DocParam, DocParamValue, DocumentId, EntityKind, EvalOptions, Evaluation, Expr, GeomPred,
-    LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, NamePat, Node, NodeErrorKind,
-    NodeResult, ParamName, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, Selector, StableName, SurfaceKindSet, ValuePayload, apply, evaluate,
-    select_where,
+    AssertionDir, AssertionVerdict, Axis3, BooleanOp, CancelToken, Dimension, DocEdit, DocParam,
+    DocParamValue, DocumentId, EntityKind, EvalOptions, Evaluation, Expr, GeomPred, LoopProgram,
+    MeasureExpr, MeasurePrimitive, MeasureRef, NamePat, Node, NodeErrorKind, NodeResult, ParamName,
+    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
+    StableName, SurfaceKindSet, ValuePayload, apply, evaluate, select_where,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -195,16 +194,6 @@ fn boxed(
 /// A sphere of radius `r` centred at (0, 0, cz): a bulge-1 half-disc on
 /// the XZ frame, revolved a full turn about the world Z axis.
 fn sphere(doc: &ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, RecipeNodeId) {
-    let axis = RecipeNodeId(doc.len() as u64);
-    let doc = push(
-        doc,
-        &DocEdit::InsertNode {
-            node: Node::Datum(Datum::Axis {
-                origin: [len(0.0), len(0.0), len(0.0)],
-                direction: [scl(0.0), scl(0.0), scl(1.0)],
-            }),
-        },
-    );
     let half = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(-r)]),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
@@ -215,9 +204,19 @@ fn sphere(doc: &ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, RecipeNodeId) {
     ]);
     let plane = RecipeNodeId(doc.len() as u64);
     let doc = push(
-        &doc,
+        doc,
         &DocEdit::InsertNode {
             node: fixture::frame([0.0, 0.0, cz], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+        },
+    );
+    // The frame's v is world +Z and its origin sits ON the world Z
+    // axis, so the pole axis is this frame's own +y through (0, 0) —
+    // and it is minted AFTER the frame it names.
+    let axis = RecipeNodeId(doc.len() as u64);
+    let doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
         },
     );
     let p = RecipeNodeId(doc.len() as u64);

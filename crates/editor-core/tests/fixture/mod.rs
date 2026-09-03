@@ -17,7 +17,7 @@
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use editor_core::{
-    CapEnd, Dimension, DocEdit, DocParam, EntityKind, Expr, LoopProgram, Node, ParamName,
+    CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKind, Expr, LoopProgram, Node, ParamName,
     ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId, RoleSeg,
     StableName,
 };
@@ -110,6 +110,35 @@ pub fn on_frame(
     insert(doc, Node::Profile(desc(plane, loops)))
 }
 
+/// [`on_frame`], keeping the FRAME's id too — what a revolve needs,
+/// because its axis has to be written in the same frame the profile
+/// is drawn on and the axis's door names that frame.
+pub fn on_frame_keeping(
+    doc: ProfileDoc,
+    origin: [f64; 3],
+    u: [f64; 3],
+    v: [f64; 3],
+    loops: Vec<Vec<(f64, f64)>>,
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let (doc, plane) = insert(doc, frame(origin, u, v));
+    let (doc, profile) = insert(doc, Node::Profile(desc(plane, loops)));
+    (doc, plane, profile)
+}
+
+/// An axis written in `plane`'s own 2-D coordinates — a revolve's axis
+/// of revolution.
+pub fn axis_in_plane(
+    plane: RecipeNodeId,
+    origin: (f64, f64),
+    dir: (f64, f64),
+) -> Node<ProfileProgram> {
+    Node::Datum(Datum::AxisInPlane {
+        plane,
+        origin: [len(origin.0), len(origin.1)],
+        direction: [scl(dir.0), scl(dir.1)],
+    })
+}
+
 /// An axis-aligned square of half-width `h` centered at (cx, cy).
 pub fn square(cx: f64, cy: f64, h: f64) -> Vec<(f64, f64)> {
     vec![
@@ -174,8 +203,20 @@ impl Recorder {
         v: [f64; 3],
         loops: Vec<Vec<(f64, f64)>>,
     ) -> RecipeNodeId {
+        self.profile_keeping(origin, u, v, loops).1
+    }
+
+    /// [`Self::profile`], keeping the FRAME's id — what a revolve
+    /// needs, because its axis is written in that frame.
+    pub fn profile_keeping(
+        &mut self,
+        origin: [f64; 3],
+        u: [f64; 3],
+        v: [f64; 3],
+        loops: Vec<Vec<(f64, f64)>>,
+    ) -> (RecipeNodeId, RecipeNodeId) {
         let plane = self.insert(frame(origin, u, v));
-        self.insert(Node::Profile(desc(plane, loops)))
+        (plane, self.insert(Node::Profile(desc(plane, loops))))
     }
 }
 

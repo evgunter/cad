@@ -236,14 +236,6 @@ fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
 /// the second half of the shared source solid.
 fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> RecipeNodeId {
     // ---- the master ball, poled along +Z ----
-    let axis = insert(
-        doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-        tol,
-    );
     // u = +X, v = +Z: the sketch's revolve axis lands on the world +Z
     // axis, which is the pole `placements` rotates.
     let ball_plane = insert(
@@ -252,6 +244,18 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
             origin: [len(0.0), len(0.0), len(0.0)],
             u: [scl(1.0), scl(0.0), scl(0.0)],
             v: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
+        tol,
+    );
+    // The pole axis, written in the meridian frame: that frame's v IS
+    // world +Z, so the axis is its own +y through (0, 0). Minted after
+    // the frame, which it names.
+    let axis = insert(
+        doc,
+        Node::Datum(Datum::AxisInPlane {
+            plane: ball_plane,
+            origin: [len(0.0), len(0.0)],
+            direction: [scl(0.0), scl(1.0)],
         }),
         tol,
     );

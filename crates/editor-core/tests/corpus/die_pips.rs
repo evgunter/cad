@@ -75,11 +75,11 @@
 //! Interval, and through BOTH sweep strategies.
 
 use editor_core::{
-    Axis3, BooleanOp, Datum, DocEdit, LoopProgram, Node, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, SlotId,
+    Axis3, BooleanOp, DocEdit, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, SlotId,
 };
 
-use super::super::fixture::{ang, frame, len, scl, xy_frame};
+use super::super::fixture::{ang, axis_in_plane, frame, len, scl, xy_frame};
 use super::{CorpusDoc, Recorder};
 
 /// The die's side, meters.
@@ -116,10 +116,6 @@ pub fn document() -> CorpusDoc {
     // ---- the master ball, poled along the +Z face normal ----
     // The revolve axis IS that normal (deviation (a)), so the chart is
     // polar to the plane that cuts it, exactly.
-    let axis = r.insert(Node::Datum(Datum::Axis {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scl(0.0), scl(0.0), scl(1.0)],
-    }));
     // The sweep unit's own meridian: one exact half-circle from pole
     // to pole, closed by the on-axis chord. Both vertices are ON the
     // axis; the revolve names them from the sweep's pole export.
@@ -127,6 +123,10 @@ pub fn document() -> CorpusDoc {
     // u = +X, v = +Z: the sketch's revolve axis lands on the world
     // +Z axis, which is the face normal.
     let ball_plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
+    // The axis, written in the meridian frame it turns: that frame's
+    // v is world +Z, so the pole axis is its own +y through (0, 0).
+    // It is minted AFTER the frame because it names it.
+    let axis = r.insert(axis_in_plane(ball_plane, (0.0, 0.0), (0.0, 1.0)));
     let ball_p = r.insert(Node::Profile(ProfileProgram {
         plane: ball_plane,
         loops: vec![half_disc],

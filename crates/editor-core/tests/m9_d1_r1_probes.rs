@@ -9,9 +9,9 @@
 mod fixture;
 
 use editor_core::{
-    CancelToken, Datum, EntityKind, EvalOptions, Evaluation, LoopProgram, NameTable, Node,
-    ProfileDoc, ProfileProgram, ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, RoleSeg, StableName, evaluate,
+    CancelToken, EntityKind, EvalOptions, Evaluation, LoopProgram, NameTable, Node, ProfileDoc,
+    ProfileProgram, ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    RoleSeg, StableName, evaluate,
 };
 use fixture::{ang, insert, len, scl};
 use geom_core::Tol;
@@ -57,10 +57,10 @@ fn revolve_chain(steps: Vec<ProgramStep>, angle: f64) -> (ProfileDoc, RecipeNode
     );
     let (doc, axis) = insert(
         doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
     );
     insert(
         doc,

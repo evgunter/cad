@@ -539,6 +539,45 @@ pub enum Datum {
         /// component perpendicular to `u` is read.
         v: [Expr; 3],
     },
+    /// **An axis that lives IN a sketch frame**, authored in that
+    /// frame's own 2-D coordinates — a revolve's axis of revolution.
+    ///
+    /// [`Datum::Axis`] is a world-space line, and a revolve's axis has
+    /// to lie in the profile's plane. Spelling that axis in 3-D means
+    /// authoring six numbers whose legality is a *coincidence* the
+    /// evaluator then has to check, and checking it is a tolerance
+    /// decision on a direction residual — the audit's F15 row, whose
+    /// executed consequence is that a tilt classifies in-plane at
+    /// every model scale while the deviation it induces crosses the
+    /// band between a millimetre and a ten-metre profile.
+    ///
+    /// Four numbers in the frame's own coordinates cannot be out of
+    /// plane. So this variant does not make the check cheaper — it
+    /// makes the error **unrepresentable**, and the residual question
+    /// ("is this the SAME plane the profile is drawn on?") is answered
+    /// by comparing `plane` against the profile's, an identity of node
+    /// ids with no band and no scale.
+    ///
+    /// Nothing is lost by it: every 3-D axis a revolve could legally
+    /// have taken lay in the profile's plane by definition, so it was
+    /// always expressible here — and here it is expressible only in
+    /// the ways that are legal.
+    AxisInPlane {
+        /// The [`Datum::Frame`] node this axis lives in. A DAG input,
+        /// exactly as a profile's plane is: the frame is the meaning
+        /// of the two coordinate pairs below, so an axis without it is
+        /// four numbers about nothing.
+        plane: RecipeNodeId,
+        /// A point on the axis, in the frame's 2-D coordinates —
+        /// Length, [`SlotId::Origin`]`(X | Y)`. There is no `Z` slot:
+        /// the third coordinate of a point in a plane is not a number
+        /// somebody may type.
+        origin: [Expr; 2],
+        /// The axis direction in the frame's 2-D coordinates — Scalar,
+        /// [`SlotId::Direction`]`(X | Y)`. Normalized at evaluation,
+        /// where a degenerate pair refuses loudly.
+        direction: [Expr; 2],
+    },
 }
 
 /// One declaration crossing a split seam (ASM-4 D-2; ASSEMBLY-DESIGN
@@ -1309,6 +1348,17 @@ fn comp_mut(v: &mut [Expr; 3], axis: Axis3) -> &mut Expr {
     &mut v[axis.index()]
 }
 
+/// [`comp`] for a pair authored in a sketch frame's 2-D coordinates:
+/// `Z` names no component, because a point in a plane has two.
+fn comp2(v: &[Expr; 2], axis: Axis3) -> Option<&Expr> {
+    v.get(axis.index())
+}
+
+/// [`comp2`]'s mutable twin.
+fn comp2_mut(v: &mut [Expr; 2], axis: Axis3) -> Option<&mut Expr> {
+    v.get_mut(axis.index())
+}
+
 /// A placement-rule node's slot lookup, shared by [`Node::Pattern`] and
 /// [`Node::PlacedUnion`] — one rule vocabulary, one slot mapping, so
 /// the two nodes can never drift apart on what a slot means.
@@ -1358,6 +1408,12 @@ impl<P> Node<P> {
         P: crate::ProfilePayload,
     {
         match self {
+            // **The one datum that is not a leaf**: an in-plane axis's
+            // two coordinate pairs MEAN something only against the
+            // frame they are written in, so the frame is an input, not
+            // a note. Ahead of the leaf arm below, which is every
+            // OTHER datum.
+            Node::Datum(Datum::AxisInPlane { plane, .. }) => vec![*plane],
             // A leaf whose material crosses the document seam has no
             // DAG edge to offer (A3).
             Node::Datum(_)
@@ -1434,6 +1490,14 @@ impl<P> Node<P> {
                 s
             }
             Node::Datum(Datum::Point { .. }) => vec3(SlotId::Origin).to_vec(),
+            // X and Y only: the frame supplies the third coordinate,
+            // and a slot for it would be a number nobody may set.
+            Node::Datum(Datum::AxisInPlane { .. }) => vec![
+                SlotId::Origin(Axis3::X),
+                SlotId::Origin(Axis3::Y),
+                SlotId::Direction(Axis3::X),
+                SlotId::Direction(Axis3::Y),
+            ],
             Node::Datum(Datum::Frame { .. }) => {
                 let mut s = vec3(SlotId::Origin).to_vec();
                 s.extend(vec3(SlotId::U));
@@ -1509,6 +1573,13 @@ impl<P> Node<P> {
             }
             (Node::Datum(Datum::Frame { u, .. }), S::U(ax)) => Some(comp(u, ax)),
             (Node::Datum(Datum::Frame { v, .. }), S::V(ax)) => Some(comp(v, ax)),
+            // `comp2` answers None for `Z`, which is the honest
+            // "this node does not carry that slot" this match is open
+            // on — not a panic and not a silent zero.
+            (Node::Datum(Datum::AxisInPlane { origin, .. }), S::Origin(ax)) => comp2(origin, ax),
+            (Node::Datum(Datum::AxisInPlane { direction, .. }), S::Direction(ax)) => {
+                comp2(direction, ax)
+            }
             (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
             (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
             (Node::Chamfer { distance, .. }, S::ChamferDistance) => Some(distance),
@@ -1574,6 +1645,12 @@ impl<P> Node<P> {
             }
             (Node::Datum(Datum::Frame { u, .. }), S::U(ax)) => Some(comp_mut(u, ax)),
             (Node::Datum(Datum::Frame { v, .. }), S::V(ax)) => Some(comp_mut(v, ax)),
+            (Node::Datum(Datum::AxisInPlane { origin, .. }), S::Origin(ax)) => {
+                comp2_mut(origin, ax)
+            }
+            (Node::Datum(Datum::AxisInPlane { direction, .. }), S::Direction(ax)) => {
+                comp2_mut(direction, ax)
+            }
             (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
             (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
             (Node::Chamfer { distance, .. }, S::ChamferDistance) => Some(distance),

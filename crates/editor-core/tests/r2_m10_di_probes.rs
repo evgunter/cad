@@ -276,6 +276,23 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                         d.v3(&u.get());
                         d.v3(&v.get());
                     }
+                    // Tag 24, appended: both spellings of an in-plane
+                    // axis, so a drift in the numbers a revolve
+                    // actually consumes cannot hide behind the lift.
+                    ValuePayload::Datum(DatumValue::AxisInPlane {
+                        plane_origin,
+                        plane_dir,
+                        origin,
+                        dir,
+                    }) => {
+                        d.u64(24);
+                        d.s(plane_origin.x);
+                        d.s(plane_origin.y);
+                        d.s(plane_dir.x);
+                        d.s(plane_dir.y);
+                        d.p3(origin);
+                        d.v3(&dir.get());
+                    }
                     ValuePayload::Profile(p) => {
                         d.u64(13);
                         for lp in p.validated.loops() {

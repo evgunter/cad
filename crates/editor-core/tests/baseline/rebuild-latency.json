@@ -87,7 +87,7 @@
     },
     "kitchen_sink": {
       "about": "every v1 node kind and every DocEdit kind in one document",
-      "nodes": 18,
+      "nodes": 19,
       "cone": 2
     },
     "loft_prism": {

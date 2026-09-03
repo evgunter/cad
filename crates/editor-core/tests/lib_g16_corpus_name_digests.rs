@@ -107,7 +107,19 @@ const PINNED: &[(&str, u64)] = &[
     ("nested_islands_106_depth1", 0x1aa6_20bb_6917_8f6d),
     ("nested_islands_106_depth2", 0xcda5_e910_7e81_9968),
     ("declared_tangency", 0xb6e1_4ab8_871e_2a8b),
-    ("kitchen_sink", 0x5559_e45e_3bbd_2666),
+    // Moved by the in-plane revolve axis, and the ONLY row that did.
+    // `kitchen_sink` shared one `Datum::Axis` between a circular
+    // pattern and a revolve; those are two node kinds now — a pattern
+    // turns a body about a world line, a revolve turns a sketch about a
+    // line in its own plane — so the document authors both and every
+    // node after the new one is renumbered.
+    //
+    // The three die documents mint their axis in the same edit as
+    // before, one position later (after the frame it names), and a
+    // datum mints no names, so the swap moves no id that any name
+    // holds: their rows are byte-identical. That is what this
+    // per-document instrument is for.
+    ("kitchen_sink", 0x4c53_ed70_a7fc_43e8),
     ("cut_cylinder", 0xc700_93ca_419f_9d81),
     ("measured_web", 0x50b4_88ab_2fe5_8e7d),
     ("boss_union", 0x1d0f_6334_988b_11bd),

@@ -563,12 +563,30 @@ pub enum NodeErrorKind {
         /// The escalation, unaltered.
         source: Indeterminate,
     },
-    /// A revolve axis with a decided out-of-plane component (the
-    /// kernel's `RevolveAxis` is a sketch-plane datum; an axis not in
-    /// the profile's plane cannot be wired, only refused).
-    AxisNotInSketchPlane {
+    /// A revolve whose axis and profile are written against DIFFERENT
+    /// sketch frames.
+    ///
+    /// This replaced `AxisNotInSketchPlane`, which said that a 3-D
+    /// axis had a decided out-of-plane component. That refusal was a
+    /// tolerance verdict on a projection — and the direction half of
+    /// it was the dimension audit's F15, a bare sine judged against
+    /// the metre band. An axis authored IN a frame cannot leave it, so
+    /// the only question left is whether it is the frame the profile
+    /// was drawn on, and that is an equality of node ids: exact, and
+    /// the same answer at every model scale.
+    ///
+    /// Both frames are named because the fix depends on which one is
+    /// wrong, and a reader looking at two node numbers can tell. Each
+    /// is optional for one reason: a node that is neither a profile
+    /// nor an in-plane axis is written against no frame at all, and
+    /// `None` says that rather than inventing an id.
+    AxisInDifferentPlane {
         /// The axis datum node.
         axis: RecipeNodeId,
+        /// The frame the axis is written in.
+        axis_plane: Option<RecipeNodeId>,
+        /// The frame the profile is drawn on.
+        profile_plane: Option<RecipeNodeId>,
     },
     /// A pattern count that is not at least 1.
     NonPositiveCount {
@@ -1012,11 +1030,23 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "predicate {predicate} escalated (in-band indeterminacy): {source}"
             ),
-            Self::AxisNotInSketchPlane { axis } => write!(
-                f,
-                "revolve axis (node {}) does not lie in the profile's sketch plane",
-                axis.0
-            ),
+            Self::AxisInDifferentPlane {
+                axis,
+                axis_plane,
+                profile_plane,
+            } => {
+                let frame = |f: &Option<RecipeNodeId>| {
+                    f.map_or_else(|| "no frame".to_owned(), |n| format!("frame {}", n.0))
+                };
+                write!(
+                    f,
+                    "revolve axis (node {}) is written in {}, but the profile is drawn on {} \
+                     — an axis revolves the sketch it lives in",
+                    axis.0,
+                    frame(axis_plane),
+                    frame(profile_plane)
+                )
+            }
             Self::NonPositiveCount { count } => {
                 write!(f, "pattern count {count} is not at least 1")
             }
@@ -1986,6 +2016,12 @@ where
         // geometry out of the memo, and a frame and a plane evaluate
         // to different payloads.
         Node::Datum(Datum::Frame { .. }) => 27,
+        // The in-plane axis. Tags APPEND — it does NOT share the 3-D
+        // axis's tag 2: the two carry different numbers (four against
+        // six), mean them against different things (a frame against
+        // the world), and evaluate to different payloads, so a shared
+        // key would serve one's geometry for the other out of the memo.
+        Node::Datum(Datum::AxisInPlane { .. }) => 28,
     };
     // NODE-TAG-SPACE END
     h.write_tag(tag);

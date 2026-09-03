@@ -99,6 +99,24 @@
 //! The two claims stay separate because the fence's subject is that
 //! the lift changed nothing where nothing should change.
 //!
+//! RE-BLESSED AGAIN FOR THE IN-PLANE REVOLVE AXIS, and this time the
+//! finer instrument DID separate it. A revolve's axis is written in the
+//! profile's own frame now, so `kitchen_sink` — which shared one
+//! `Datum::Axis` between a circular pattern and a revolve — authors two
+//! axis nodes, and every node after the new one is renumbered. The
+//! three die documents mint their axis one edit later (after the frame
+//! it names) rather than one edit earlier, and a datum mints no names,
+//! so no id any NAME holds moved there.
+//!
+//! `lib_g16_corpus_name_digests` says exactly that: of its
+//! twenty-two rows, `kitchen_sink` moved and the other twenty-one are
+//! byte-identical. This scalar moves anyway, because it feeds `id.0`
+//! for every node in every document and two of the die documents'
+//! ids swapped. The geometric evidence below is unchanged and was
+//! re-checked: the exact mass pins, the realized-vs-idealized bit
+//! equality, the curved and cert corpora, and the persistence round
+//! trip all hold.
+//!
 //! RE-BLESSED ONCE FOR THE SKETCH FRAME, and this one could NOT be
 //! measured by the removal procedure below — which is why it is written
 //! out here rather than folded in with the roster moves.
@@ -488,7 +506,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0xa735_80f4_96bb_8582, 0xbadf_6ab5_6003_36e6),
+        (0x9bfd_b11d_abac_600c, 0xecc8_9467_9596_a7a0),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -539,7 +557,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0xa735_80f4_96bb_8582, 0xbadf_6ab5_6003_36e6),
+        (0x9bfd_b11d_abac_600c, 0xecc8_9467_9596_a7a0),
         "the corpus's Probe evaluation moved"
     );
 }

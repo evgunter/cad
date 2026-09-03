@@ -385,8 +385,17 @@ impl Standing {
 pub enum NodeKindWanted {
     /// A `Node::Profile`.
     Profile,
-    /// A `Node::Datum(Datum::Axis)`.
+    /// A `Node::Datum(Datum::Axis)` — a world-space line, which is
+    /// what a circular placement rule turns about.
     Axis,
+    /// A `Node::Datum(Datum::AxisInPlane)` — an axis written in a
+    /// sketch frame, which is what a revolve turns.
+    ///
+    /// Separate from [`Self::Axis`] because the two are separate node
+    /// kinds and the evaluator's operand door refuses across them. A
+    /// seat that admitted both would route a pick the door then
+    /// rejects, which is the drift this vocabulary exists to prevent.
+    SketchAxis,
     /// A `Node::Datum(Datum::Plane)`.
     Plane,
     /// A `Node::Datum(Datum::Frame)` — what a profile is drawn on.
@@ -412,6 +421,9 @@ pub fn admits(held: Option<&Node<ProfileProgram>>, wanted: NodeKindWanted) -> bo
     match wanted {
         NodeKindWanted::Profile => matches!(held, Some(Node::Profile(_))),
         NodeKindWanted::Axis => matches!(held, Some(Node::Datum(Datum::Axis { .. }))),
+        NodeKindWanted::SketchAxis => {
+            matches!(held, Some(Node::Datum(Datum::AxisInPlane { .. })))
+        }
         NodeKindWanted::Plane => matches!(held, Some(Node::Datum(Datum::Plane { .. }))),
         NodeKindWanted::Frame => matches!(held, Some(Node::Datum(Datum::Frame { .. }))),
         NodeKindWanted::Body => held.is_some_and(combine::denotes_body),
@@ -424,6 +436,7 @@ impl NodeKindWanted {
         match self {
             Self::Profile => "a profile",
             Self::Axis => "an axis datum",
+            Self::SketchAxis => "an axis datum in a sketch frame",
             Self::Plane => "a plane datum",
             Self::Frame => "a frame datum",
             Self::Body => "a body",
@@ -1240,7 +1253,8 @@ pub enum SessionOp {
     AddRevolve {
         /// The profile node revolved.
         profile: RecipeNodeId,
-        /// The `Datum::Axis` node revolved about.
+        /// The `Datum::AxisInPlane` node revolved about — an axis
+        /// written in the same sketch frame the profile is drawn on.
         axis: RecipeNodeId,
         /// The sweep angle (`Angle`); the chrome's default is a full
         /// turn.
@@ -2675,7 +2689,7 @@ impl DocSession {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
-        if let Err(refusal) = self.require_kind(axis, NodeKindWanted::Axis) {
+        if let Err(refusal) = self.require_kind(axis, NodeKindWanted::SketchAxis) {
             return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {

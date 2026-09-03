@@ -32,10 +32,10 @@ mod corpus;
 mod fixture;
 
 use editor_core::{
-    CancelToken, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
+    CancelToken, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
     ProfileDoc, ProfileVertexRef, RecipeNodeId, RimSupport, RoleSeg, StableName, evaluate,
 };
-use fixture::{ang, insert, len, on_frame, scl};
+use fixture::{ang, axis_in_plane, insert, len, on_frame_keeping};
 use geom_core::Tol;
 use topo::{Body, EdgeKey};
 
@@ -131,7 +131,7 @@ fn the_ladder_rim_phase_already_reached_the_emitter_from_the_corpus() {
 /// `mouth`) and the wall ABOVE it (`mouth` → `top`).
 fn lantern(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("blend5_r1_probe_lantern", Tol::witness());
-    let (doc, profile) = on_frame(
+    let (doc, plane, profile) = on_frame_keeping(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
@@ -148,10 +148,10 @@ fn lantern(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     );
     let (doc, axis) = insert(
         doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
     );
     let (doc, revolve) = insert(
         doc,
@@ -321,7 +321,7 @@ fn the_host_role_moves_when_a_parameter_edit_makes_a_support_planar() {
 #[test]
 fn the_top_cap_can_lie_below_the_bottom_cap() {
     let doc = ProfileDoc::empty_derived("blend5_r1_probe_caps", Tol::witness());
-    let (doc, profile) = on_frame(
+    let (doc, _plane, profile) = on_frame_keeping(
         doc,
         [0.0; 3],
         [1.0, 0.0, 0.0],
