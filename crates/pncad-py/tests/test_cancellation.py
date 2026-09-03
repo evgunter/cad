@@ -303,6 +303,57 @@ class TestCancelingARunUnderWay(unittest.TestCase):
             "for the kernel call, so `cancel=` cannot be set by anyone",
         )
 
+    def test_editing_the_document_mid_run_is_refused_not_raced(self):
+        """**What releasing the GIL does NOT open**, and the reason it
+        is safe to release at all.
+
+        `evaluate` borrows `doc` for the whole call. Another thread
+        that can now run is also a thread that could try to EDIT the
+        recipe being evaluated — so the borrow is what stands between
+        a cooperative stop and a data race, and pyo3 enforces it:
+        a mutating door needs `&mut`, the borrow flag is already
+        taken, and the call raises `RuntimeError("Already borrowed")`.
+
+        Loud, typed, and on the EDITING side — the evaluation is
+        untouched and still answers for every node. Measured here
+        rather than reasoned, because the reasoning is what named the
+        wrong door the first time this was written down.
+        """
+        doc, _ = stack(WIDE)
+        outcome = []
+
+        def edit():
+            time.sleep(0.02)
+            try:
+                doc.insert(
+                    Node.polygon(
+                        [(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m)],
+                        plane=doc.sketch_frame(elevation=0 * m),
+                    )
+                )
+                outcome.append(None)
+            except BaseException as refused:  # noqa: BLE001 — the point
+                outcome.append(refused)
+
+        helper = threading.Thread(target=edit, daemon=True)
+        helper.start()
+        run = evaluate(doc)
+        helper.join()
+
+        self.assertEqual(len(outcome), 1)
+        refused = outcome[0]
+        self.assertIsInstance(
+            refused,
+            RuntimeError,
+            "a mutation landed on a document under evaluation instead of "
+            "being refused — the borrow that makes the GIL release safe is gone",
+        )
+        self.assertIn("borrow", str(refused).lower())
+        # The run is unharmed: the refusal is the editor's, not its.
+        self.assertFalse(run.canceled)
+        for node in run.order():
+            self.assertTrue(run.succeeded(node))
+
     def test_a_thread_cancelling_mid_run_yields_a_legal_partial(self):
         """The invariants, whichever way the race falls.
 

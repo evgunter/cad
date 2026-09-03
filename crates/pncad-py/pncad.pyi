@@ -2805,9 +2805,10 @@ def evaluate(
     token reachable rather than decorative: the flag is set by another
     Python thread while this one is inside the evaluation, and a
     thread that cannot run cannot set it. `doc` is borrowed for the
-    whole call, so a concurrent `Doc.accept` on the SAME document
-    raises Python's own already-borrowed `RuntimeError` rather than
-    mutating a recipe under a running evaluation."""
+    whole call, so a concurrent MUTATION of the same document —
+    `Doc.insert`, `Doc.apply`, any door needing it mutably — raises
+    `RuntimeError("Already borrowed")` rather than editing a recipe
+    out from under a running evaluation."""
 
 # --- the assembly vocabulary ------------------------------------------
 # Two part documents in a store, instances of them in a third, mates

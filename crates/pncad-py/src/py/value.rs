@@ -1361,9 +1361,11 @@ impl CancelToken {
 /// the token reachable rather than decorative: the flag is set by
 /// ANOTHER Python thread while this one is inside the evaluation, and
 /// a thread that cannot run cannot set it. `doc` is borrowed for the
-/// whole call, so a concurrent `Doc.accept` on the SAME document
-/// raises Python's own already-borrowed `RuntimeError` instead of
-/// mutating the recipe under a running evaluation.
+/// whole call, so a concurrent MUTATION of the same document —
+/// `Doc.insert`, `Doc.apply`, any door needing `&mut` — raises
+/// pyo3's own `RuntimeError("Already borrowed")` instead of editing
+/// a recipe out from under a running evaluation. Measured, not
+/// reasoned: `tests/test_cancellation.py` executes it.
 #[pyfunction]
 #[pyo3(signature = (doc, *, resolver=None, prior=None, cancel=None))]
 pub(crate) fn evaluate(

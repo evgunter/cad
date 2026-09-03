@@ -2413,9 +2413,12 @@ document (31 nodes, ~300 ms debug): with the GIL released a helper
 thread cancelled it 20/20 at a 20 ms delay and 20/20 at no delay; the
 same code against a build differing only in the `detach` cancelled
 **0 of 20 at either delay**. Safe because `doc` stays borrowed for the
-call, so a concurrent `Doc.accept` on the same document raises
-Python's own already-borrowed `RuntimeError` rather than mutating a
-recipe mid-run.
+call, so a concurrent MUTATION of the same document raises pyo3's own
+`RuntimeError("Already borrowed")` rather than editing a recipe out
+from under a running run — measured, and pinned, rather than reasoned:
+the first draft of this sentence named `Doc.accept`, which is a Rust
+`&mut self` helper Python does not have. The doors that DO cross are
+`Doc.insert` and `Doc.apply`, and a test now executes one of them.
 
 **What is pinned and what is only measured.** Cancelling a run already
 under way is a race by construction — the kernel checks between nodes,
