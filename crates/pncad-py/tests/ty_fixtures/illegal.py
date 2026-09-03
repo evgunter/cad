@@ -336,3 +336,29 @@ evaluate(doc).pick_face([solid], Ray((0 * m, 0 * m, 1 * m), (0.0, 0.0, -1.0)))  
 # miss exists to make visible.
 maybe_hit = evaluate(doc).pick_face([], Ray((0 * m, 0 * m, 1 * m), (0.0, 0.0, -1.0)))
 hit_name: str = maybe_hit.name  # ty: error
+
+# `resolve` is EVALUATION-wide: it takes a name and nothing else. The
+# node-scoped door is `denotation`, and handing this one a node is the
+# confusion between the two the docstrings exist to prevent.
+evaluate(doc).resolve(solid, "a face")  # ty: error
+
+# A name crosses as opaque TEXT, never as the `NodeId` that minted it.
+evaluate(doc).resolve(solid)  # ty: error
+
+# The verdict is a value, and its location attributes are OPTIONAL
+# because two of the three states have no location. Binding one to a
+# bare `NodeId` claims a verdict always resolved, which is exactly the
+# assumption the three states exist to stop.
+where: NodeId = evaluate(doc).resolve("a face").node  # ty: error
+
+# ...and the same on the failure half: `detail` is prose that is
+# `None` on a resolved verdict, so it is not a `str`.
+reason: str = evaluate(doc).resolve("a face").detail  # ty: error
+
+# `offers` is a list of NAMES — opaque texts — not of parsed
+# structures, and it is `None` where suggestions do not apply.
+rebinds: list[str] = evaluate(doc).resolve("a face").offers  # ty: error
+
+# The status is a stable tag STRING, not the kind enum: "which of the
+# three states" and "what kind of entity" are different questions.
+tag: EntityKind = evaluate(doc).resolve("a face").status  # ty: error

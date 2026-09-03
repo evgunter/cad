@@ -465,6 +465,32 @@ BOUND_AS = {
     # crosses holding `NodePick`s.
     "PickTarget": "NodePick",
     "pick_face": "Evaluation.pick_face",
+    # NAME RESOLUTION across re-evaluation, the verdict a stored name
+    # gets on the next run. `Resolution` is spelled identically and is
+    # accounted by rule 1; these two are the family's shape entries,
+    # and both left the `gap` roster at LIB-B-RESOLVE, which closed it.
+    #
+    # `resolve` is a free function taking the run, so it arrives as an
+    # `Evaluation` method beside the read-back and picking doors above
+    # — the same shift, for the same reason.
+    #
+    # `RunCtx` is the entry that carries the argument. Rust's is a
+    # `(doc, eval)` PAIR because neither half answers alone: the
+    # evaluation holds the name tables, and the document decides
+    # whether a stored name's minting node is still in the recipe at
+    # all. Python's `Evaluation` IS that pair — it captures the
+    # document at `evaluate`, beside the `ParamEnv` it already captured
+    # for `select_where`, and for the identical reason stated there:
+    # the answer must be as of the document the evaluation is OF, and
+    # threading a doc back in per query would let the two drift (the
+    # sharper form of that hazard here, since Python's `Doc` is
+    # mutable and `accept` swaps it under the handle). The
+    # carrier-projection rule reads out as it did for `PickTarget`: a
+    # payload's category follows what its CARRIER does at the crossing,
+    # the carrier is the door's run argument, and that argument crosses
+    # as the `Evaluation`.
+    "RunCtx": "Evaluation",
+    "resolve": "Evaluation.resolve",
     # The four different-shape entries LIB-G18b left behind after
     # binding the rest of the assembly vocabulary name-for-name.
     #
@@ -585,12 +611,6 @@ GAP = "gap"
 #: LIB-B-READBACK, the first family to close, and the four verbs it
 #: chartered say so where they now sit in `BOUND_AS`.
 FAMILIES = {
-    "B-RESOLVE": (
-        "name resolution across re-evaluation; closing it binds "
-        "`resolve` and its `Resolution` verdict — the question every "
-        "consumer that STORES names must ask on the next run, which is "
-        "every consumer the stub tells to store one"
-    ),
     "B-EXPR-READ": (
         "the expression READ side; closing it binds `eval` / "
         "`eval_count` and their refusal, so a Python caller holding a "
@@ -922,11 +942,42 @@ FAMILIES = {
 #: `work/lib/mesh-pick-error-is-unmatchable-under-node-pick-error.md`,
 #: the `DanglingRef` shape one rung along: a payload whose carrier
 #: projects arms, that has no arms of its own to project.
-#: - **B-RESOLVE — name resolution across re-evaluation.** `resolve`,
-#:   `Resolution`, `RunCtx`. The question a consumer that STORES names
-#:   must ask on every run — and Python's whole selection story is
-#:   store-then-reuse (`Node.fillet` freezes a name set), so the
-#:   absence bites exactly the consumers the stub tells to store.
+#: **B-RESOLVE is CLOSED and no longer a `gap` id here**
+#: (LIB-B-RESOLVE). It held three names — `resolve`, `Resolution` and
+#: `RunCtx` — and the question a consumer that STORES names must ask
+#: on every run is now askable in the language whose whole selection
+#: story is store-then-reuse: `Evaluation.resolve(name)` answers a
+#: three-state verdict for any name `select`, `all_faces` or a
+#: `PickHit` handed back on an earlier run.
+#:
+#: What the closing measured is a LIMIT, and it is the family's own
+#: version of a shape this roster has now recorded three times. The
+#: verdict's three arms cross — they are matchable, because
+#: `Resolution` is itself curated — but their PAYLOAD types are not:
+#: `ResolveError`, `ResolutionFailure` and `ResolveIndeterminate` are
+#: decided absent from the façade (`crates/pncad/tests/all.rs`'s
+#: `NOT_CARRIED`, "Naming interior"), which states the disposition
+#: exactly — the verdict left that family and its ladder did not,
+#: because "`Resolution`'s arms answer it ... through pattern matching
+#: and `Display`, without naming a payload type". So a Python caller
+#: learns THAT a name failed and can read the kernel's prose about it,
+#: but gets no `vanished` / `ambiguous` / `node_gone` discriminant to
+#: branch on, where every arm of the carrier itself is a branch. This
+#: unit did not relitigate that; it is banked as
+#: `work/lib/resolution-failure-arms-are-unmatchable-under-resolution.md`,
+#: beside `DanglingRef`'s and `MeshPickError`'s — the third instance,
+#: and the first where the carrier is a VALUE rather than a refusal,
+#: which is what makes it worth recording separately.
+#:
+#: Two things the binding gained that the charter did not name.
+#: `RunCtx` is a PAIR in Rust and Python's `Evaluation` became that
+#: pair — it now captures the document at `evaluate` beside the
+#: `ParamEnv` it already captured, so a caller cannot ask an
+#: evaluation about a document it is not of. And the door is
+#: EVALUATION-WIDE where `denotation` is node-scoped: `resolve`
+#: answers which node carries a name, so it resolves names
+#: `denotation` refuses `no_such_name` for at the node a caller
+#: happened to ask.
 #: - **The expression surface, split at the half the audit reaches.**
 #:   `Expr`, `ParamEnv`, `parse_expr` and `ParseError` are **G1**: its
 #:   row records the residue by name ("a profile step whose argument
@@ -1212,10 +1263,12 @@ NOT_BOUND = {
     # `PickTarget` as `NodePick`, the value that plays its role in a
     # language where a raw target has no constructor. The positive
     # form is `tests/test_picking.py`.
-    # --- gap: name resolution (census-owned) ----------------------
-    "Resolution": f"{GAP}: B-RESOLVE names across runs",
-    "RunCtx": f"{GAP}: B-RESOLVE names across runs",
-    "resolve": f"{GAP}: B-RESOLVE names across runs",
+    # B-RESOLVE IS GONE FROM THIS ROSTER, closed at LIB-B-RESOLVE, and
+    # the id is gone from `FAMILIES` with it. One of its three names is
+    # top-level in `pncad.pyi` name for name (`Resolution`); two are in
+    # `BOUND_AS` — `resolve` as `Evaluation.resolve`, and `RunCtx` as
+    # `Evaluation`, which is the (document, evaluation) pair the Rust
+    # type is. The positive form is `tests/test_resolve.py`.
     # --- gap: the seam's declared arrival (audit G1) ---------------
     # The token that DECLARES the seam's tangent joint (PATHS-DESIGN §6;
     # ruled 2026-09-02 — every zero-turn joint is a declared tangent

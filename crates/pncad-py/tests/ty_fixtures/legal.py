@@ -54,6 +54,7 @@ from pncad import (
     NodePick,
     PickHit,
     Pose,
+    Resolution,
     PinMultiplicity,
     ParamName,
     PatternKind,
@@ -472,3 +473,16 @@ which_body: int = index.body
 # slot it concerns.
 per_patch: list[str | HitTestError] = index.patch_names(seamed)
 per_edge: list[str | HitTestError] = index.boundary_names(seamed)
+
+# Name resolution across re-evaluation. The verdict is a VALUE — a
+# name that no longer denotes is an answer, not a raise — so every
+# attribute is optional and the caller reads them after branching on
+# `status`, which is always a `str`.
+stored_name: str = seamed.all_faces(upright)[0]
+standing: Resolution = seamed.resolve(stored_name)
+state: str = standing.status
+carried_by: NodeId | None = standing.node
+in_body: int | None = standing.body
+denotes: EntityKind | None = standing.kind
+why: str | None = standing.detail
+suggested: list[str] | None = standing.offers
