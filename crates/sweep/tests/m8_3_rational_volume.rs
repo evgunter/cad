@@ -29,8 +29,8 @@
 //!
 //! The convergence target is `1024·ε` against a **fixed** schedule
 //! (D9), so a body that certifies at one ε honestly may not at a
-//! tighter one. These rows therefore pin all three honest outcomes
-//! and never widen a target: `Certified` (the enclosure must CONTAIN
+//! tighter one. The row below therefore pins all three honest
+//! outcomes and never widens a target: `Certified` (the enclosure must CONTAIN
 //! the oracle and respect its pad ceiling), `Budget` (a typed
 //! `QuadratureBudget` whose width really missed a target that really
 //! is `1024·ε`), `Escalated` (only `props_quad_converged` may
