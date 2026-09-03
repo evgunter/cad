@@ -240,6 +240,15 @@ logged pre-draw per the protocol.
   written; C3 + D30 and S26 on the S-CERT sequencing stated above.
   Rows land per §D's conventions (delete the row in the landing PR).
 
+- **Parked behind MESH-12 (filed at its dispatch, 2026-09-03):**
+  issue 1615 — a rim-only sphere cap through the Euler doors passes the
+  shape door and the branch door and `mesh::tessellate` panics at the
+  issue-897 census (pre-existing; admit-with-emission or refuse-typed is
+  the design question; fixture in MESH-12's topo rows); issue 1618 — the
+  torus single-edge meridian span and the rim Δu sum read raw past the
+  winding bound (hand-built reach only; two named decides, S; a MESH-R
+  track candidate). Neither is scheduled.
+
 Cross-program interfaces, named: S65 and D283-class questions are
 Evan's; `props/quad.rs`, `patch_bound.rs`, the area lanes and the
 tess-budget re-baseline are S-CERT's until its slate closes;
