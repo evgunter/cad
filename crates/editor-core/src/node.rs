@@ -1019,7 +1019,7 @@ pub enum Node<P> {
     /// is the datum's doing
     ///
     /// `spine` is a datum NODE, and a datum axis normalizes its own
-    /// direction when it evaluates ([`crate::eval`]'s `wire_datum`
+    /// direction when it evaluates ([`mod@crate::eval`]'s `wire_datum`
     /// builds a `UnitVec3`, which is what `Node::Revolve` gets too), so
     /// a spine authored `(0, 0, 2)` is silently the unit z axis and
     /// builds. Only a degenerate or non-finite direction refuses
