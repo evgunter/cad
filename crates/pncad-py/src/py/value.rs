@@ -35,7 +35,7 @@ use pyo3::types::PyString;
 
 use crate::errors::ErrorClass;
 use crate::py::quantity::Length;
-use crate::py::{doc::NodeId, typed_err};
+use crate::py::{doc::NodeId, typed_err, typed_err_kernel_authored};
 use crate::tags::{export_error_tag, node_error_tag, step_import_error_tag};
 use pncad::document as d;
 use pncad::tolerance::Tol;
@@ -184,10 +184,51 @@ impl MassProperties {
 ///
 /// Arena keys never cross; a body crosses as a handle whose
 /// interior is reachable only through curated doors.
+///
+/// # The declared contacts ride WITH the body
+///
+/// `contacts` is the tier-3′ second argument (M3 PR 6a): the
+/// declarations the op that produced this body minted for it. It is
+/// CAPTURED here rather than crossing as a value, which is the
+/// carrier-projection rule at a door whose Rust signature takes two
+/// things a Python caller can only hold one of. `ContactRecords` has
+/// no Python constructor and is curated `INTERIOR` — so a
+/// `validate_pseudomanifold(contacts)` door would be uncallable — and
+/// handing one body ANOTHER body's declarations is exactly the
+/// mis-pairing the F1 contract exists to refuse (the validator never
+/// blesses discovered contacts). The demo tour states the same rule
+/// from the other side: its `SceneBody` carries `contacts` beside the
+/// body and runs 3′ "with the op's OWN declared contacts".
+///
+/// Empty is the honest default, not a hole. With no declarations the
+/// kernel's own contract is that 3′ ≡ tier 3 plus the census actually
+/// run, which is the STRICTEST rung of the ladder — so a door that
+/// mints a body without records can only make this gate refuse
+/// (`UndeclaredContact`), never falsely pass.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Body {
     pub(crate) inner: Arc<topo::Body<f64>>,
+    contacts: Arc<topo::ContactRecords>,
+}
+
+impl Body {
+    /// A body with no declared contacts — every door but the two that
+    /// have records to carry (an evaluated value, and `assemble`).
+    pub(crate) fn plain(inner: Arc<topo::Body<f64>>) -> Self {
+        Self {
+            inner,
+            contacts: Arc::new(topo::ContactRecords::default()),
+        }
+    }
+
+    /// A body with the declarations its producer minted for it.
+    pub(crate) fn declared(
+        inner: Arc<topo::Body<f64>>,
+        contacts: Arc<topo::ContactRecords>,
+    ) -> Self {
+        Self { inner, contacts }
+    }
 }
 
 #[pymethods]
@@ -246,6 +287,34 @@ impl Body {
             topo::validate_geometric(&self.inner, tol),
         )
     }
+
+    /// **Tier 3′** — the ladder's fourth rung: tier 3's whole local
+    /// battery PLUS the global coincidence census tier 3 defers,
+    /// certified against THIS body's own declared contacts.
+    ///
+    /// The census is a diff in both directions. Every coincidence it
+    /// finds must be backed by a declaration (`UndeclaredContact`
+    /// otherwise — no scan-to-bless) and every declaration must be
+    /// geometrically confirmed (`StaleContactDeclaration` otherwise).
+    /// There is no contacts argument because a body already carries
+    /// its own; see the type's docs for why that is the only pairing
+    /// this door can honestly offer.
+    ///
+    /// So the verdict depends on which door minted the body, and that
+    /// is the point rather than a wrinkle: a boolean result and an
+    /// assembled product arrive with their declarations and pass over
+    /// their seams; the SAME solids gathered by `product`, which
+    /// declares nothing, arrive without and this gate reports the
+    /// seam it finds. Raises `ValidationError` listing the failures,
+    /// with `door` and `failure_count` as on the other three rungs.
+    fn validate_pseudomanifold(&self, py: Python<'_>) -> PyResult<()> {
+        let tol = Tol::witness();
+        self.run_validator(
+            py,
+            "validate_pseudomanifold",
+            topo::validate_pseudomanifold(&self.inner, &self.contacts, tol),
+        )
+    }
 }
 
 impl Body {
@@ -259,6 +328,13 @@ impl Body {
     /// because a `Vec` has no rendering of its own. Per-variant tags
     /// are the same mechanical work `crate::tags` does for edits,
     /// deferred with the rest of the read-back surface.
+    ///
+    /// It raises through [`typed_err_kernel_authored`] rather than
+    /// [`typed_err`]: three of the tier-3′ census arms are worded by
+    /// the KERNEL out of `Debug`, so the prose assertion — which is a
+    /// rule about text this crate composes — would panic on a
+    /// perfectly honest refusal. That function carries the argument
+    /// and names the filed kernel item; this is its only caller.
     fn run_validator(
         &self,
         py: Python<'_>,
@@ -269,7 +345,7 @@ impl Body {
             return Ok(());
         };
         let count = failures.len().into_pyobject(py)?.unbind().into_any();
-        Err(typed_err(
+        Err(typed_err_kernel_authored(
             py,
             ErrorClass::Validation,
             format!(
@@ -431,7 +507,36 @@ fn names(py: Python<'_>, found: Vec<pncad::prelude::StableName>) -> PyResult<Vec
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Value {
     payload: d::ValuePayload<f64>,
+    /// The value's OWN declared-contact channel (ASM-R2b D-1): what
+    /// `instantiate` carried in from a part. A boolean's records ride
+    /// its payload instead, and the two homes reconcile at
+    /// [`Value::declared_body`] — deliberately the same reconciliation
+    /// `editor_core::product::sources_of` makes, because a Python
+    /// caller reading a body off a value and the gather reading the
+    /// same body must not disagree about what was declared over it.
+    contacts: Arc<topo::ContactRecords>,
     node: NodeId,
+}
+
+impl Value {
+    /// One of this value's bodies with the declarations that body
+    /// carries — `sources_of`'s rule, restated at the boundary.
+    ///
+    /// Multi-output payloads carry no records (the `OpOut` invariant:
+    /// "output body 0" names nothing there), so `Instances` and
+    /// `Split` halves are plain — no home to read from, and none is
+    /// invented.
+    fn declared_body(&self, body: &Arc<topo::Body<f64>>) -> Body {
+        match &self.payload {
+            d::ValuePayload::Body(_) => {
+                Body::declared(Arc::clone(body), Arc::clone(&self.contacts))
+            }
+            d::ValuePayload::Boolean(d::BooleanValue::Body { contacts, .. }) => {
+                Body::declared(Arc::clone(body), Arc::clone(contacts))
+            }
+            _ => Body::plain(Arc::clone(body)),
+        }
+    }
 }
 
 #[pymethods]
@@ -450,12 +555,10 @@ impl Value {
     /// other kind, and for an empty Boolean.
     fn body(&self, py: Python<'_>) -> PyResult<Body> {
         match &self.payload {
-            d::ValuePayload::Body(body) => Ok(Body {
-                inner: Arc::clone(body),
-            }),
-            d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => Ok(Body {
-                inner: Arc::clone(body),
-            }),
+            d::ValuePayload::Body(body) => Ok(self.declared_body(body)),
+            d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => {
+                Ok(self.declared_body(body))
+            }
             d::ValuePayload::Boolean(d::BooleanValue::Empty) => Err(eval_err(
                 py,
                 "the Boolean produced an empty result",
@@ -474,9 +577,7 @@ impl Value {
     /// Every body this value denotes: one for `Body`/`Boolean`, the
     /// whole list for `Instances`, both sides for a `Split`.
     fn bodies(&self) -> Vec<Body> {
-        let wrap = |body: &Arc<topo::Body<f64>>| Body {
-            inner: Arc::clone(body),
-        };
+        let wrap = |body: &Arc<topo::Body<f64>>| self.declared_body(body);
         let side = |s: &d::SplitSide<f64>| match s {
             d::SplitSide::Body(body) => Some(wrap(body)),
             d::SplitSide::Empty => None,
@@ -495,9 +596,7 @@ impl Value {
     /// A split's two sides, `(above, below)`; `None` where empty.
     fn split(&self, py: Python<'_>) -> PyResult<(Option<Body>, Option<Body>)> {
         let side = |s: &d::SplitSide<f64>| match s {
-            d::SplitSide::Body(body) => Some(Body {
-                inner: Arc::clone(body),
-            }),
+            d::SplitSide::Body(body) => Some(Body::plain(Arc::clone(body))),
             d::SplitSide::Empty => None,
         };
         match &self.payload {
@@ -671,6 +770,7 @@ impl Evaluation {
         match self.inner.result(node.0) {
             Some(d::NodeResult::Ok(node_value)) => Ok(Value {
                 payload: node_value.payload.clone(),
+                contacts: Arc::clone(&node_value.contacts),
                 node: *node,
             }),
             Some(d::NodeResult::Failed(error)) => Err(node_failure(py, *node, error)),
@@ -1147,9 +1247,7 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
     let tol = Tol::witness();
     match pncad::step_import::import_step(text, &pncad::step_import::ImportOptions::default(), tol)
     {
-        Ok(pncad::step_import::StepImport::Solid { body, .. }) => Ok(Body {
-            inner: Arc::new(body),
-        }),
+        Ok(pncad::step_import::StepImport::Solid { body, .. }) => Ok(Body::plain(Arc::new(body))),
         // Not a refusal variant: the import SUCCEEDED and produced
         // the other arm of `StepImport`, which this door does not
         // adopt. Its tag is the arm's name and shares the namespace
