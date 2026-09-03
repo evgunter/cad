@@ -29,8 +29,6 @@
 mod corpus;
 mod fixture;
 
-use std::sync::Arc;
-
 use editor_core::UnitSym;
 use editor_core::{
     CancelToken, Dimension, DocEdit, DocParam, EvalOptions, Evaluation, Expr, LoopProgram,
@@ -445,6 +443,8 @@ fn a_profile_dimension_seed_propagates_through_the_guided_lift() {
 #[cfg(feature = "interval")]
 #[test]
 fn seed_and_box_compose_exactly_at_dual_interval() {
+    use std::sync::Arc;
+
     use editor_core::analysis::{BoxAxis, ParamBox};
     use geom_core::{Bounds, DualInterval, Interval};
     let doc = two_param_web();

@@ -50,7 +50,7 @@ pub mod refactor;
 pub mod resolve;
 pub mod roots;
 /// The E4 sensitivity driver and the E5 stackup — the analysis lane's
-/// derivative and report services over [`drive`]'s leaves. Gated on
+/// derivative and report services over [`mod@drive`]'s leaves. Gated on
 /// `interval` for the driver's own reason: every sensitivity carries a
 /// chamber mark whose certified variant IS an E6 leaf identity, and
 /// the gating `worst_case` is a certified interval enclosure; without

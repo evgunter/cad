@@ -8,7 +8,7 @@
 //!   evaluation per continuous document parameter with that parameter
 //!   seeded ([`crate::eval::EvalOptions::seed`]), ∂m/∂pᵢ read off the
 //!   measure payload's PUBLIC tangent field — never off `Bounds` (E9).
-//! - [`stackup`] — the E5 typed report over a driven box:
+//! - [`stackup()`] — the E5 typed report over a driven box:
 //!   `worst_case` gates, everything else is advisory and forfeits
 //!   loudly.
 //!
@@ -353,11 +353,7 @@ fn driver(
     let mark = chamber.map_or(Chamber::LocalOnly, nominal_chamber);
 
     // The names, in name order (deterministic in both schedules).
-    let names: Vec<ParamName> = doc
-        .params()
-        .iter()
-        .filter_map(|(name, p)| matches!(p, DocParam::Continuous { .. }).then(|| name.clone()))
-        .collect();
+    let names: Vec<ParamName> = continuous_params(doc).cloned().collect();
 
     // One UNSEEDED dual base, threaded into every pass as the memo
     // prior: a node outside a pass's seeded cone carries identical
@@ -555,12 +551,17 @@ fn arm<T: geom_core::Decide>(r: Option<&NodeResult<T>>) -> &'static str {
 /// continuous parameters — the check that keeps a foreign drive from
 /// marking this document's sensitivities.
 fn box_spans_doc_params(root: &ParamBox, doc: &Doc<ProfileProgram>) -> bool {
-    let doc_names: Vec<&ParamName> = doc
-        .params()
-        .iter()
-        .filter_map(|(n, p)| matches!(p, DocParam::Continuous { .. }).then_some(n))
-        .collect();
+    let doc_names: Vec<&ParamName> = continuous_params(doc).collect();
     root.axes().len() == doc_names.len() && doc_names.into_iter().all(|n| root.get(n).is_some())
+}
+
+/// The document's continuous parameters, in name order — the entry
+/// set of every driver call.
+fn continuous_params(doc: &Doc<ProfileProgram>) -> impl Iterator<Item = &ParamName> {
+    doc.params()
+        .iter()
+        .filter(|(_, p)| matches!(p, DocParam::Continuous { .. }))
+        .map(|(n, _)| n)
 }
 
 /// The certified leaf CONTAINING the nominal, as a [`Chamber`] mark.
