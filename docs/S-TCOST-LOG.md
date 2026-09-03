@@ -430,3 +430,14 @@ fuzz harness. The in-row stand-down uses `test_utils::vacuity::stood_down`
 is the whole-binary shape). Family −10 % hosted at the cheap ε row,
 −21 % locally at 1e-12; the four-quadrature import row measured
 irreducible from the test side. Interval asked on the final head.
+
+## Seam: the one-declaration pattern becomes an invariant (2026-09-03, Evan's ask)
+
+Evan (in-chat): can the existing aggregation guard enforce TCOST-B1's
+pattern? Yes — folded into B1's fix pass: each converted crate's
+`every_suite_file_is_aggregated` gains a second assertion over the
+same walk, **a suite file declares no modules** (every `mod` item in
+a suite's code view is a violation; helper trees are directories with
+a `mod.rs`, which the walk already excludes), so a shared helper has
+exactly one home in `tests/all.rs`. Per crate, so B1's six crates
+carry it now and TCOST-B2 carries it to the rest as it converts them.
