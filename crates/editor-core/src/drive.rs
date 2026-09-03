@@ -1474,3 +1474,49 @@ fn render_mass(m: &Result<f64, MeasureUnavailable>) -> String {
         }
     }
 }
+
+/// **The recorded requirement's verdict over one certified leaf** —
+/// the number E10 says a CI row gates on, through a door rather than
+/// through a hand-assembled evaluation.
+///
+/// A consumer with a `ParamBoxVerdict` in hand has the leaves; what it
+/// did not have until M10-6's review was any way to ask what the
+/// assertion says over one, short of rebuilding `EvalOptions`, picking
+/// the interval scalar and matching on `ValuePayload` — three steps in
+/// which the easy mistake is to skip the node entirely and compare
+/// `worst_case.lo` against the bound by hand. That comparison is an
+/// `f64` `<` over quantities that may differ by less than the run's own
+/// coincidence threshold, and it manufactures exactly the certainty the
+/// band exists to deny. The tour's tolerance cell made it; this door is
+/// what it should have called.
+///
+/// `None` when `assertion` is not an `Assertion` node, or the
+/// evaluation over `box_` did not produce a verdict for it.
+///
+/// The scalar is the interval one, not a choice: a verdict over a BOX
+/// is only meaningful from an enclosure, and the point scalars cannot
+/// produce one.
+#[cfg(feature = "interval")]
+pub fn assertion_at(
+    doc: &Doc<ProfileProgram>,
+    assertion: RecipeNodeId,
+    box_: &ParamBox,
+    tol: Tol,
+) -> Option<crate::measure::AssertionVerdict<geom_core::Interval>> {
+    if !matches!(doc.node(assertion), Some(Node::Assertion { .. })) {
+        return None;
+    }
+    let opts = EvalOptions {
+        param_box: Some(Arc::new(box_.clone())),
+        ..lane_opts()
+    };
+    let ev: Evaluation<geom_core::Interval> =
+        evaluate(doc, None, &CancelToken::new(), &opts, tol);
+    match ev.result(assertion) {
+        Some(crate::eval::NodeResult::Ok(v)) => match &v.payload {
+            crate::eval::ValuePayload::Assertion(a) => Some(a.clone()),
+            _ => None,
+        },
+        _ => None,
+    }
+}

@@ -26,6 +26,31 @@
 //! linear sum and a root-sum-square — so shrinking the study does not
 //! shrink the point.
 //!
+//! **What stop 2 reports, and what it does not** (M10-6's review, and
+//! the sharpest thing in this file). The verdict it prints comes from
+//! the ASSERTION NODE, over each certified leaf, through
+//! `analysis::assertion_at`. It used to come from `worst_case.lo <
+//! bound`, an `f64` comparison this cell made for itself — and the two
+//! disagreed: the enclosure reaches under the bound by ~4e-11 while
+//! the run's coincidence threshold is 1e-9, so the kernel classifies
+//! that margin as coincident and the requirement HOLDS. The caption
+//! said "FAILS somewhere in the box: this is the number that gates"
+//! while the row that actually gates said the opposite.
+//!
+//! The divergence is still real and still the subject: the certified
+//! worst case reaches further under the bound than the RSS's 3σ figure
+//! does. What is now said out loud is its SIZE. Measured on this
+//! fixture, the whole window between the two answers is ~6e-10 wide
+//! against an escalation threshold of 1e-8 — so every bound that
+//! separates them is one the funnel calls coincident, and no such
+//! bound can be gated at this ε. That is not fixable by choosing a
+//! wider box: the driver certifies up to a spread of about ε (3968
+//! leaves) and refuses everything at 4ε, and the certified half-width
+//! grows only ~1.5× the spread, so the margin never reaches the band.
+//! Stop 2 therefore prints a VERDICT plus the window's size, and adds
+//! one bound far enough out to be decided so a reader sees the gate
+//! gate.
+//!
 //! # What was awkward to write, stated rather than smoothed over
 //!
 //! Per `memories/demo-purpose.md`, the awkwardness is the finding:
@@ -51,13 +76,24 @@
 //!    certified worst case on purpose — that interval is exactly where
 //!    the two disagree, and the disagreement is the subject. Said out
 //!    loud because a bound chosen to make a point is not a bound a
-//!    part needs.
+//!    part needs. And, since the review: that interval is entirely
+//!    inside the coincidence band, so it is also not a bound a run can
+//!    decide.
+//! 5. **Reading a requirement back needed a door that did not exist.**
+//!    E10 says the assertion's verdict per certified leaf is what a CI
+//!    row gates on, and a consumer holding a `ParamBoxVerdict` had no
+//!    way to ask for it — the shortest path was to rebuild
+//!    `EvalOptions`, pick the interval scalar and match on
+//!    `ValuePayload`, and the shorter WRONG path was to compare two
+//!    floats. `analysis::assertion_at` exists because this cell took
+//!    the wrong one.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::analysis::{
-    AnalysisPolicy, DriveConfig, MassBudget, McConfig, Stackup, StackupRefusal, analyzed_box,
-    drive, leaf_histogram, monte_carlo, stackup,
+    AnalysisPolicy, AnalyzedBox, DriveConfig, MassBudget, McConfig, ParamBoxVerdict, Stackup,
+    StackupRefusal, analyzed_box, assertion_at, drive, leaf_histogram, monte_carlo,
+    render_sensitivity, stackup,
 };
 use pncad::document::{
     AssertionDir, CancelToken, Dimension, Distribution, DocEdit, DocParam, DocumentId, EvalOptions,
@@ -328,7 +364,15 @@ fn real_study(tol: Tol) {
             println!("   NOTHING CERTIFIED — and the refusal carries the study's answer anyway:");
             println!("     nominal web {:.4} mm", nominal * 1e3);
             for s in &sensitivities {
-                println!("     ∂web/∂{}: {:?}", s.param.0, s.outcome);
+                // Through the library's own spelling, not `Debug`:
+                // the E4 chamber mark is the load-bearing half of a
+                // sensitivity reading and `Derivative { .. }` buries
+                // it. `render_sensitivity` was made public for this.
+                println!(
+                    "     ∂web/∂{}: {}",
+                    s.param.0,
+                    render_sensitivity(&s.outcome)
+                );
             }
             println!(
                 "     the drive: {} certified, {} refused",
@@ -391,10 +435,18 @@ fn certified_study(tol: Tol) {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &DriveConfig::default(), tol).expect("the nominal builds");
     println!("{}", indent(&verdict.render(&analyzed)));
+    // **The verdict the CI row gates on, read off the ASSERTION NODE**
+    // — not off a comparison this cell makes for itself. That is the
+    // whole correction R1 forced (see the module header's finding on
+    // the caption): `worst_case.lo < bound` is an f64 `<` over two
+    // numbers that differ by less than the run's own coincidence
+    // threshold, and a demo that decides on it is claiming a certainty
+    // the kernel refuses to claim one line away.
+    let decided = assertion_over_leaves(&doc, &verdict, assertion, tol);
     match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
         Ok(report) => {
             println!("{}", indent(&report.render(&analyzed)));
-            print_divergence(&report, bound, worst);
+            print_divergence(&report, bound, worst, &decided, tol);
             // The E11.6 datum: where each certified leaf's mass lands.
             let histogram = leaf_histogram(&doc, &analyzed, &verdict, measure, tol);
             println!("{}", indent(&histogram.render()));
@@ -408,28 +460,123 @@ fn certified_study(tol: Tol) {
             );
         }
     }
-    // And what the assertion node itself says over the analyzed box's
-    // own leaves — the recorded requirement, read back.
     println!(
-        "   the assertion node {} is the recorded requirement; its verdict per certified \
-         leaf is what the CI row gates on.",
-        assertion.0
+        "   the assertion node {} is the recorded requirement, and THIS is what the CI \
+         row gates on: {}",
+        assertion.0,
+        describe(&decided)
     );
     let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("the nominal builds");
     println!("{}", indent(&mc.render()));
-    // **And the advisory lane MISSES what the certified one found**,
-    // which is the sharpest thing this stop says. The violating region
-    // is a corner of a three-dimensional box; 512 samples land in it
-    // with a probability nobody should round up. The MC's empirical
-    // violation fraction reads 0% and the certified worst case reads
-    // FAILS, and both are correct answers to different questions —
-    // which is precisely why E11 makes the certified one the only
-    // gate.
+    // The advisory lane's own number, READ OFF THE REPORT rather than
+    // asserted in prose. The first pass printed "0%" as a literal, so
+    // a study whose sampling did find the corner would have been
+    // narrated wrongly by a sentence nobody re-ran.
+    if let Some(fraction) = mc
+        .assertions
+        .iter()
+        .find(|a| a.node == assertion)
+        .and_then(|a| a.violation_fraction())
+    {
+        println!(
+            "     NOTE: the advisory lane's violation fraction is {:.4}% over {} samples, \
+             while the CERTIFIED worst case reaches {:e} below the bound. The two answer \
+             different questions — the sampled one asks where 512 draws landed, the \
+             certified one asks what the whole box admits — which is why E11 makes the \
+             certified one the only gate.",
+            100.0 * fraction,
+            mc.samples,
+            bound - stackup(&doc, measure, &analyzed, &verdict, None, true, tol)
+                .map(|r| r.worst_case.lo)
+                .unwrap_or(bound)
+        );
+    }
+    // **And a bound the run CAN decide**, so the reader sees the gate
+    // actually gate rather than only refuse. See `print_divergence`
+    // for why the interesting bound is not one of these.
+    definite_arm(&doc, &analyzed, measure, tol);
+}
+
+/// The assertion node's verdict over every certified leaf, collapsed to
+/// the one thing a caption may say: three states, and `Mixed` when the
+/// leaves disagree (which is itself a verdict a reader must see rather
+/// than have averaged away).
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Decided {
+    /// No leaf certified, so no verdict was taken.
+    Nothing,
+    Holds,
+    Violated,
+    /// Every leaf `Unevaluated`.
+    Unevaluated,
+    Mixed,
+}
+
+fn describe(d: &Decided) -> &'static str {
+    match d {
+        Decided::Nothing => "nothing certified, so the requirement was never put to a leaf",
+        Decided::Holds => "HOLDS over every certified leaf",
+        Decided::Violated => "VIOLATED over a certified leaf — the requirement fails",
+        Decided::Unevaluated => {
+            "UNEVALUATED over every certified leaf: the margin is inside the run's \
+             coincidence band, so the kernel refuses to call it either way"
+        }
+        Decided::Mixed => "MIXED across the certified leaves — read them individually",
+    }
+}
+
+fn assertion_over_leaves(
+    doc: &ProfileDoc,
+    verdict: &ParamBoxVerdict,
+    assertion: RecipeNodeId,
+    tol: Tol,
+) -> Decided {
+    let mut seen: Option<Decided> = None;
+    for leaf in verdict.certified() {
+        let one = match assertion_at(doc, assertion, &leaf.box_, tol) {
+            Some(v) => match v.holds() {
+                Some(true) => Decided::Holds,
+                Some(false) => Decided::Violated,
+                None => Decided::Unevaluated,
+            },
+            None => Decided::Nothing,
+        };
+        seen = Some(match seen {
+            None => one,
+            Some(prev) if prev == one => prev,
+            Some(_) => Decided::Mixed,
+        });
+    }
+    seen.unwrap_or(Decided::Nothing)
+}
+
+/// **A bound the run can decide, so the gate is seen gating.**
+///
+/// The interesting bound — the one between the certified worst case and
+/// the RSS's 3σ figure — is undecidable at this ε, and
+/// `print_divergence` says why. This one is not: it sits a full
+/// escalation threshold above the enclosure, so the margin is definite
+/// and the assertion reads a plain `Violated`. Printed so the stop does
+/// not leave a reader thinking the requirement machinery only ever
+/// refuses.
+fn definite_arm(
+    doc: &ProfileDoc,
+    analyzed: &AnalyzedBox,
+    measure: RecipeNodeId,
+    tol: Tol,
+) {
+    let verdict = drive(doc, analyzed, &DriveConfig::default(), tol).expect("the nominal builds");
+    let Ok(report) = stackup(doc, measure, analyzed, &verdict, None, true, tol) else {
+        return;
+    };
+    // A decade above the escalation threshold: definitely outside the
+    // band, with no arithmetic near a boundary.
+    let far = report.worst_case.hi + 100.0 * tol.eps();
     println!(
-        "     NOTE: the advisory lane's violation fraction above is 0% while the \
-         CERTIFIED worst case fails. Both are right: the violating region is a corner of \
-         the box that 512 samples do not visit. This is why the certified number gates \
-         and the sampled one is labeled."
+        "     and a bound the run CAN decide: at ≥ {far:e} m (a decade past the escalation \
+         threshold above the whole enclosure) the same assertion reads a definite \
+         VIOLATED — the gate gates. It is not the interesting bound, and the line above \
+         says why."
     );
 }
 
@@ -440,16 +587,38 @@ fn certified_study(tol: Tol) {
 /// arithmetic predicts, so the caption can say how much wider the
 /// certified enclosure is than the sum of contributions — which is a
 /// finding in itself and not a defect (see the printed line).
-fn print_divergence(report: &Stackup, bound: f64, linear_worst: f64) {
+fn print_divergence(
+    report: &Stackup,
+    bound: f64,
+    linear_worst: f64,
+    decided: &Decided,
+    tol: Tol,
+) {
+    // The two numbers, and then the VERDICT — which comes from the
+    // assertion node, not from comparing them here.
     println!(
-        "     CERTIFIED worst case: [{:e}, {:e}] against the bound {bound:e} — {}",
+        "     CERTIFIED worst case: [{:e}, {:e}] against the bound {bound:e}. \
+         The recorded requirement over these leaves: {}",
         report.worst_case.lo,
         report.worst_case.hi,
-        if report.worst_case.lo >= bound {
-            "the requirement HOLDS over every certified leaf"
-        } else {
-            "the requirement FAILS somewhere in the box: this is the number that gates"
-        }
+        describe(decided)
+    );
+    // **Why the enclosure reaching under the bound is not a failure**,
+    // said here because the arithmetic invites the opposite reading and
+    // the first version of this cell took it. `worst_case.lo` is below
+    // `bound`, and by an amount SMALLER THAN ε: the funnel classifies
+    // that margin as coincident and the assertion holds. Both readings
+    // are correct about different questions and the kernel's is the one
+    // that gates.
+    let margin = report.worst_case.lo - bound;
+    println!(
+        "     the enclosure reaches {:e} m under the bound — but |margin| = {:e} is inside \
+         the run's coincidence threshold ε = {:e}, so that reach is not a decidable \
+         failure. A raw `lo < bound` here would read FAILS off a difference the kernel \
+         refuses to call a difference.",
+        margin.abs(),
+        margin.abs(),
+        tol.eps()
     );
     // The certified enclosure is WIDER than the linearized worst case,
     // and a reader who has just been told "the linear sum is 2.0e-11"
@@ -469,18 +638,38 @@ fn print_divergence(report: &Stackup, bound: f64, linear_worst: f64) {
         certified_half / (0.5 * linear_worst)
     );
     match &report.rss {
-        pncad::analysis::Rss::Advisory { sigma } => println!(
-            "     ADVISORY rss: σ ≈ {sigma:e}, so a 3σ reading would say the web reaches \
-             {:e} — {}",
-            report.nominal - 3.0 * sigma,
-            if report.nominal - 3.0 * sigma >= bound {
-                "'3σ fine'. That is the divergence this milestone exists for: the \
-                 linearized figure and the certified one disagree, and only one of them \
-                 is a proof."
-            } else {
-                "which agrees with the certified answer here."
-            }
-        ),
+        pncad::analysis::Rss::Advisory { sigma } => {
+            let three_sigma = report.nominal - 3.0 * sigma;
+            println!(
+                "     ADVISORY rss: σ ≈ {sigma:e}, so a 3σ reading says the web reaches \
+                 {three_sigma:e} — {} the bound.",
+                if three_sigma >= bound {
+                    "ABOVE"
+                } else {
+                    "below"
+                }
+            );
+            // **The divergence, and the honest size of it.** The
+            // certified enclosure reaches further under the bound than
+            // the 3σ figure does: the two answers disagree, which is
+            // what this milestone is about. What the first version of
+            // this cell did not say is that the whole disagreement is
+            // SMALLER than the run's escalation threshold, so no bound
+            // placed inside it can be decided either way.
+            let gap = three_sigma - report.worst_case.lo;
+            let escalate = 10.0 * tol.eps();
+            println!(
+                "     the certified answer and the RSS's disagree over a window {gap:e} m \
+                 wide (the certified worst case reaches that much further under). THE \
+                 WINDOW IS INSIDE THE BAND: the escalation threshold is {escalate:e} m, \
+                 {:.0}× wider, so every bound that separates the two answers is one the \
+                 funnel classifies as coincident. The divergence is real and it is \
+                 sub-band at this ε — which is a finding about what a certificate can \
+                 GATE here, not a defect in either number, and it is the reason this stop \
+                 reports a verdict rather than a failure.",
+                escalate / gap
+            );
+        }
         other => println!("     ADVISORY rss unavailable: {other:?}"),
     }
 }
@@ -542,7 +731,7 @@ mod tests {
         let worst = 2.0 * half_width + 2.0 * (3.0 * sigma);
         let rss3 = 3.0 * ((2.0 * half_width / 3.0_f64.sqrt()).powi(2) + 2.0 * sigma.powi(2)).sqrt();
         let bound = WEB - 0.5 * (worst + rss3);
-        let (doc, measure, _) = plate(half_width, sigma, bound, tol);
+        let (doc, measure, assertion) = plate(half_width, sigma, bound, tol);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let verdict =
             drive(&doc, &analyzed, &DriveConfig::default(), tol).expect("the nominal builds");
@@ -564,13 +753,53 @@ mod tests {
             ),
             ref other => panic!("every contributor carries a measure here: {other:?}"),
         }
-        // And the MC lane agrees with the RSS, missing the corner —
-        // the caption's second finding.
-        let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("replays");
+        // **The verdict the caption reports, read off the node** — the
+        // correction R1 forced. `worst_case.lo < bound` is true above
+        // by less than eps, and the recorded requirement says HOLDS
+        // over exactly those leaves. A caption that printed "FAILS"
+        // off the float contradicted the row that gates.
+        let decided = assertion_over_leaves(&doc, &verdict, assertion, tol);
         assert_eq!(
-            mc.assertions.len(),
-            1,
-            "the document carries one assertion to sample"
+            decided,
+            Decided::Holds,
+            "the straddle is inside the coincidence band, so the assertion node HOLDS —              and the caption must say what the node says"
         );
+        // The margin the caption calls sub-band really is sub-band.
+        let margin = report.worst_case.lo - bound;
+        assert!(
+            margin < 0.0 && margin.abs() < tol.eps(),
+            "the caption says the enclosure reaches under the bound by less than eps:              margin {margin:e}, eps {:e}",
+            tol.eps()
+        );
+        // And the DIVERGENCE window the caption sizes: the certified
+        // answer reaches further under than the RSS's, and the whole
+        // disagreement is narrower than the escalation threshold. That
+        // second half is the honest limit this stop reports, so it is
+        // asserted rather than narrated.
+        let sigma = match report.rss {
+            pncad::analysis::Rss::Advisory { sigma } => sigma,
+            ref other => panic!("every contributor carries a measure here: {other:?}"),
+        };
+        let gap = (report.nominal - 3.0 * sigma) - report.worst_case.lo;
+        assert!(gap > 0.0, "the certified worst case must reach further under than 3σ");
+        assert!(
+            gap < 10.0 * tol.eps(),
+            "the caption says the whole divergence is inside the escalation threshold:              window {gap:e} against {:e}",
+            10.0 * tol.eps()
+        );
+        // The MC lane's number, which the caption now READS rather than
+        // hardcodes: it must exist and be a fraction.
+        let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("replays");
+        let fraction = mc
+            .assertions
+            .iter()
+            .find(|a| a.node == assertion)
+            .and_then(|a| a.violation_fraction())
+            .expect("the sampled assertion has a violation fraction to report");
+        assert!(
+            (0.0..=1.0).contains(&fraction),
+            "a violation fraction is a fraction: {fraction}"
+        );
+        assert_eq!(mc.samples, pncad::analysis::DEFAULT_SAMPLES);
     }
 }

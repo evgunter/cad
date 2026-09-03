@@ -192,7 +192,7 @@ pub use roots::RootFault;
 pub use stackup::{
     Chamber, ChamberSpan, LiftRefusal, PairingViolation, PerParam, Rss, Sensitivity,
     SensitivityOutcome, SensitivityRefusal, Stackup, StackupRefusal, Unavailable, WorstCase,
-    sensitivities, stackup,
+    render_sensitivity, sensitivities, stackup,
 };
 pub use update::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update_references};
 pub use witness::{

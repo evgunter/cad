@@ -66,8 +66,28 @@ pub use editor_core::{
 #[cfg(feature = "interval")]
 pub use editor_core::{
     Chamber, ChamberSpan, LiftRefusal, PerParam, Rss, Sensitivity, SensitivityOutcome,
-    SensitivityRefusal, Stackup, StackupRefusal, Unavailable, WorstCase, stackup,
+    SensitivityRefusal, Stackup, StackupRefusal, Unavailable, WorstCase, render_sensitivity,
+    stackup,
 };
+
+/// **The recorded requirement, read back over one certified leaf.**
+///
+/// E10 says an assertion's verdict per certified leaf is what a CI row
+/// gates on, and this is the door that answers it. Carried onto the
+/// façade because the alternative a consumer reaches for — comparing
+/// `Stackup::worst_case.lo` against the bound with `<` — is an `f64`
+/// comparison over quantities that can differ by less than the run's
+/// coincidence threshold, and it manufactures a certainty the kernel
+/// refuses one line away. The tour's tolerance cell made exactly that
+/// mistake before M10-6's review.
+#[cfg(feature = "interval")]
+pub use editor_core::drive::assertion_at;
+
+/// The three-state verdict [`assertion_at`] answers with, and the
+/// reasons its third state carries — a consumer that cannot NAME the
+/// states cannot keep them three.
+#[cfg(feature = "interval")]
+pub use editor_core::{AssertionVerdict, Certified, UnevaluatedReason, WINDOW_TIGHTENING};
 
 /// The E10/E11.6 reporting layer and the E11.1 advisory estimator.
 #[cfg(feature = "interval")]

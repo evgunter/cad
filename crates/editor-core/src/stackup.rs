@@ -1336,7 +1336,16 @@ impl Stackup {
 /// One sensitivity reading, in one spelling shared by the goldening
 /// form and the human one — the number and its E4 mark, never the
 /// number alone.
-fn render_sensitivity(outcome: &SensitivityOutcome) -> String {
+///
+/// **Public since M10-6's review**: a `NothingCertified` refusal hands
+/// a consumer its `sensitivities` and nothing to print them with, so
+/// the tour's stop 1 was `Debug`-printing `Derivative { value: 2.0,
+/// chamber: LocalOnly }` at a reader. The E4 mark is the load-bearing
+/// half of that reading — a derivative certified only in the nominal's
+/// own chamber is not a derivative over the box — and it deserves
+/// better than a struct dump, in ONE spelling rather than a second one
+/// per consumer.
+pub fn render_sensitivity(outcome: &SensitivityOutcome) -> String {
     match outcome {
         SensitivityOutcome::Derivative { value, chamber } => format!(
             "{value} ({})",
