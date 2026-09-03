@@ -104,12 +104,9 @@ fn hit_test_fields(py: Python<'_>, err: &s::HitTestError) -> [Py<PyAny>; 4] {
         s::HitTestError::NodePoisoned { node: n, through } => {
             [node(*n), node(*through), none(), none()]
         }
-        s::HitTestError::Unnamed { node: n, entity } => [
-            node(*n),
-            none(),
-            kind(entity.key.kind()),
-            int(entity.body),
-        ],
+        s::HitTestError::Unnamed { node: n, entity } => {
+            [node(*n), none(), kind(entity.key.kind()), int(entity.body)]
+        }
     }
 }
 
@@ -176,9 +173,7 @@ fn node_pick_err(py: Python<'_>, err: &s::NodePickError) -> PyErr {
     let [which, through, kind, body] = match err {
         s::NodePickError::Standing(inner) => hit_test_fields(py, inner),
         s::NodePickError::NotABody { node: n } => [node(*n), none(), none(), none()],
-        s::NodePickError::NoSuchBody { node: n, body } => {
-            [node(*n), none(), none(), int(*body)]
-        }
+        s::NodePickError::NoSuchBody { node: n, body } => [node(*n), none(), none(), int(*body)],
         s::NodePickError::Tessellate(_) | s::NodePickError::Index(_) => {
             [none(), none(), none(), none()]
         }
