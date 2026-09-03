@@ -2192,3 +2192,13 @@ at most one dot, so every malformed shape refuses earlier and under
 another arm. Defensive rather than dead — the lexer's rule need not
 stay a subset of `f64`'s — so it keeps its tag and the pin says why
 it has no fixture. Not a kernel change and not an item.
+
+**#917 residue DISCHARGED (2026-09-03, orchestrator note).** The
+G16-banked "#917 vocabulary exemption at the chamfer op message"
+found its home while LIB slept: the conversation is ratified as
+docs/BLEND-VOCAB-DESIGN.md (Ev, 2026-08-30) and executes as BLEND-6
+(V1/V2 wording, V3 rename, Filleted/Chamfered collapse with
+aliases). The G16-era crate markers are already gone (verified:
+only STEP-fixture #917 false positives remain in crates/). Nothing
+LIB holds; the recipe layer's NodeErrorKind::Blend shape is cited
+in that design as ratified precedent.
