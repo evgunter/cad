@@ -313,7 +313,7 @@ fn gated_to_names(code: &str) -> usize {
     let mut rest = code;
     while let Some(at) = rest.find("gated_to!") {
         rest = &rest[at + "gated_to!".len()..];
-        let Some(open) = rest.find(|c| c == '[' || c == '(' || c == '{') else {
+        let Some(open) = rest.find(['[', '(', '{']) else {
             break;
         };
         let opener = rest.as_bytes()[open] as char;
