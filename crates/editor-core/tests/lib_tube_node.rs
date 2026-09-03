@@ -844,7 +844,11 @@ fn a_document_written_before_the_tube_vocabulary_still_loads() {
         .map(|l| {
             if l.trim_start().starts_with("\"epsilon\":") {
                 let (indent, tail) = l.split_at(l.len() - l.trim_start().len());
-                let comma = if tail.trim_end().ends_with(',') { "," } else { "" };
+                let comma = if tail.trim_end().ends_with(',') {
+                    ","
+                } else {
+                    ""
+                };
                 format!("{indent}{wanted}{comma}")
             } else {
                 l.to_owned()
@@ -858,14 +862,10 @@ fn a_document_written_before_the_tube_vocabulary_still_loads() {
         "a vacuous document would prove nothing about growth"
     );
     assert!(
-        loaded
-            .doc
-            .order()
-            .iter()
-            .all(|&id| !matches!(
-                loaded.doc.node(id),
-                Some(Node::Tube { .. } | Node::HollowTube { .. })
-            )),
+        loaded.doc.order().iter().all(|&id| !matches!(
+            loaded.doc.node(id),
+            Some(Node::Tube { .. } | Node::HollowTube { .. })
+        )),
         "the older document names a kind it cannot have"
     );
 }
