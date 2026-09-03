@@ -1614,6 +1614,10 @@ when `cache-hit` is not an exact match**. Both build jobs move from the
 job-id default key to `shared-key: build-default` / `build-interval`,
 which is what lets a second job spell the same key; the values stay
 distinct, so the two feature graphs stay as separate as before.
+`scripts/check-cache-prime-parity.py`, in the `discipline` job and in the
+local half, holds the coupling: the primer and the job it primes must keep
+identical `env:` blocks and one shared key each, or the build is red
+rather than quietly cold.
 
 **What it costs.** The key rotates only when the rust environment or a
 lockfile moves: **5 commits in 14 days** touched `Cargo.lock`, any crate's
@@ -1656,19 +1660,28 @@ read here). Once a branch hits main's entry it writes nothing, so the
 ### What this cannot show yet, stated rather than implied
 
 **There is no after-reading from a PR run, and there cannot be.** The
-priming jobs run on `push` and on dispatch; a branch's first build job can
-only restore main's entry once this is merged and one push to main has
-primed it. What the PR run does show is the two build jobs computing the
-new `shared-key` form, and a dispatch on the branch shows `cache-prime`
-computing the *same string* as the job it primes — the one coupling that
-could silently fail. The reading owed, and the shape of it: **the first PR
+priming jobs run on `push` to main and on dispatch; a branch's first build
+job can only restore main's entry once this is merged and one push to main
+has primed it. What the PR run does show is the two build jobs computing
+the new `shared-key` form. What it does NOT show is the primer computing
+the *same string* — the one coupling that can fail silently — because the
+implementing lane's token could not dispatch this workflow (HTTP 403) and
+`push` runs only on main. That coupling is therefore held by
+`scripts/check-cache-prime-parity.py` rather than by a measurement: it
+fails the `discipline` job if the two jobs' `env:` blocks or their
+`shared-key`s ever differ, which is the whole of what a lane can control
+from a branch. **The first reading owed, and its shape: the first PR
 opened after this merges, first run, `build + archive`'s restore line and
 the `build test binaries + archive` duration**, against the 820 s / 840 s
-`--workspace` cold figures above at the same tier. Two other things one
-run cannot settle: whether main's entry survives eviction over days
-(the mechanism says it should, since every restore refreshes it and the
-competing churn is what this removes), and whether the ±25 % spread B1
-recorded across `tier=all` samples swamps a single pair — read several.
+`--workspace` cold figures above at the same tier. If that line still says
+`No cache found`, compare the two `Cache Key:` strings — this job's and
+the primer's on the merge commit's push run — before anything else.
+
+Two more things one run cannot settle: whether main's entry survives
+eviction over days (the mechanism says it should, since every restore
+refreshes it and the competing 4.6 GB/h of per-branch saves is what this
+removes), and whether the ±25 % spread B1 recorded across `tier=all`
+samples swamps a single pair — read several.
 
 **And the first run after this lands is cold by construction**, in both
 lanes: `shared-key` changes the key string, so the old entries are

@@ -1125,6 +1125,17 @@ jobs:
         run: |
           python3 scripts/check-interval-cfg-additive.py --selftest
           python3 scripts/check-interval-cfg-additive.py
+      # The build jobs restore a cache entry the `cache-prime*` jobs write on
+      # main, and the two sides agree only because their `env:` blocks are the
+      # same text and their `shared-key`s the same string. Drift either one and
+      # nothing goes red — the primer writes an entry nobody reads and every
+      # branch's first build job recompiles the dependency graph. Stdlib-only
+      # python3 over ci.yml itself, so it rides this cheap-tripwire job; the
+      # --selftest pass shows the guard actually fires.
+      - name: cache-prime key parity (the build jobs' warm start)
+        run: |
+          python3 scripts/check-cache-prime-parity.py --selftest
+          python3 scripts/check-cache-prime-parity.py
       - name: bit-identity consumer tripwire (retirement landed, M4 PR 5)
         run: |
           scripts/gates/bit-identity-consumer.sh --selftest
