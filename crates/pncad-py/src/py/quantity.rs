@@ -36,10 +36,11 @@
 //! an `Angle`, and it holds one precisely so that a length and an
 //! angle cannot be interchanged. Binding the free functions as free
 //! functions would hand back that interchange — `fmt_length(
-//! (90 * deg).radians, mm)` type-checks and prints a plausible
+//! (90 * deg).radians, mm)` type-checks and prints plausible
 //! nonsense — so the door lands where the value it needs already
-//! lives, and `Length.format(deg)` is a static error the way every
-//! other dimension confusion at this boundary is.
+//! lives. `Length.format(deg)` is then a `ty` error statically and a
+//! `TypeError` at run time, which is the same pair of answers every
+//! other dimension confusion at this boundary gets.
 
 use pyo3::basic::CompareOp;
 use pyo3::prelude::*;
