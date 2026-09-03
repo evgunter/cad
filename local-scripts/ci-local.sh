@@ -866,7 +866,9 @@ demos_hygiene() {
 # spelling of the lily's and the bottle's frontier pins.
 # HOSTED MIRROR: k-lint / demos tour suite (the #99 ε pin + the tour's own probes)
 demos_eps_pin() {
-  (cd demos/tour && cargo test --release)
+  # `--features interval` since M10-6, matching the hosted row: it is
+  # what compiles the tolerance cell and runs its row.
+  (cd demos/tour && cargo test --release --features interval)
 }
 
 # Spec D3: the large-K fragility lint (mirrors ci.yml's `k-lint` job —

@@ -61,6 +61,8 @@ mod skinned;
 mod teapot;
 #[cfg(feature = "budget")]
 mod tessbudget;
+#[cfg(feature = "interval")]
+mod tolerance;
 mod tube;
 mod tubewall;
 mod twopeg;
@@ -722,6 +724,21 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
          a cavity is not a component) --"
     );
     checks::narration(tol);
+
+    // The tolerance cell (M10-6 §6): narration-only, and behind the
+    // `interval` feature because its whole subject is the certified
+    // scalar's leaves. A tour built without the feature says so rather
+    // than silently walking one scene fewer.
+    #[cfg(feature = "interval")]
+    {
+        println!("\n-- the two-hole plate (M10/E10: a tolerance study, certified and advisory) --");
+        tolerance::narration(tol);
+    }
+    #[cfg(not(feature = "interval"))]
+    println!(
+        "\n-- the two-hole plate (M10/E10) is SKIPPED: build with `--features interval`, \
+         whose certified scalar is the cell's entire subject --"
+    );
 
     println!(
         "\n-- the bench (the assembly layer: pinned part documents, patterns, mates, \

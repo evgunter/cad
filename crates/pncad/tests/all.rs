@@ -3046,48 +3046,32 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   façade consumer can reach, and `NodePick` is not merely the
 ///   preferred door but the only one. `PickTarget` is carried because
 ///   `pick_face`'s signature names it, not because it can be built.
-/// - **The E6 driver and its parameter box** (`drive`, `DriveConfig`,
-///   `DriveRefusal`, `ParamBoxVerdict`, `CertifiedLeaf`,
-///   `RefusedLeaf`, `RefusalReason`, `BudgetKind`, `FlipEvidence`, `StructureFlip`,
-///   `ReasonClass`, `Receipt`, `LeafResults`, `MeasureAccounting`,
-///   `ReplayOutcome`, `VerdictVector`, `VerdictRow`,
-///   `VerdictVectorKey`, `DEFAULT_MAX_DEPTH`, `DEFAULT_MAX_LEAVES`,
-///   `ParamBox`, `BoxAxis`, `ParamBoxError`, `AxisScalar`,
-///   `param_env_over`; and the third lane seam `MinClearanceLane`
+/// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
+///   `StructureFlip`, `ReplayOutcome`, `VerdictVector`, `VerdictRow`,
+///   `VerdictVectorKey`, `AxisScalar`, `param_env_over`, `SeedScalar`,
+///   `SeedError`, `seed_env`, `std_deviation`, `sensitivities`,
+///   `PairingViolation`; and the third lane seam `MinClearanceLane`
 ///   with its `MinClearanceOperand`, which is how a `min_clearance`
 ///   measure asks the interval lane for the bracket only that lane
-///   can carry): the analysis lane's subdivision service and
-///   the box it drives over.
+///   can carry).
 ///
-///   Interior because the curated face is a DIFFERENT shape and is
-///   not built yet: what a consumer asks the analysis lane is "does
-///   this measurement hold over its tolerances", and E5's answer to
-///   that is a typed per-measurement stackup report whose INPUT is a
-///   leaf set. Carrying the leaf vocabulary now would door the
-///   intermediate and then have to un-door it. `drive` is also gated
-///   on the `interval` feature — there is no leaf to certify without
-///   the certified scalar — so a façade row for it would be a
-///   conditional door, which this surface does not have and should
-///   not acquire for a type its consumer does not want yet.
-/// - **The E4 seed door and the E4/E5 driver and report** (`SeedScalar`,
-///   `SeedError`, `seed_env`, `std_deviation`; `sensitivities`,
-///   `Sensitivity`, `SensitivityOutcome`, `SensitivityRefusal`,
-///   `Chamber`, `PairingViolation`, `LiftRefusal`; `stackup`, `Stackup`,
-///   `StackupRefusal`, `PerParam`, `ChamberSpan`, `Rss`, `WorstCase`,
-///   `Unavailable`):
-///   the analysis lane's derivative and stackup services.
+///   **The rest of this family is now CARRIED**, by `crate::analysis`
+///   behind the `interval` feature (M10-6): the driver and its box,
+///   the stackup and its field types, the reporting layer and the
+///   advisory estimator. The entry that stood here said the curated
+///   face "is the REPORTING surface — persisted, goldened stackups —
+///   which is where the façade row lands", and M10-6 built it, so the
+///   row landed. What that cost is a conditional door on a surface
+///   that had none, and `crate::analysis` states the trade at its own
+///   head rather than here.
 ///
-///   Interior for the row above's second reason, which now applies to
-///   the answer as well as the intermediate: `stackup` and the driver
-///   live behind the `interval` feature (the chamber mark's certified
-///   variant is an E6 leaf identity and the gating worst case is a
-///   certified enclosure), so a façade row would be the conditional
-///   door this surface does not have. The seed door's four names are
-///   the evaluation service's own scalar capability and its env
-///   plumbing — `AxisScalar`/`param_env_over`'s family, interior with
-///   them. The curated face is the reporting surface — persisted,
-///   goldened stackups — which is where the façade row lands.
-const NOT_CARRIED: [&str; 122] = [
+///   What stays interior is what a consumer of the REPORTS does not
+///   hold: the verdict-vector vocabulary (a certification identity,
+///   not a report), the flip evidence a refusal carries (read through
+///   the refusal's own `Display`), the two scalar CAPABILITY seams and
+///   their env plumbing, and `sensitivities` — the intermediate whose
+///   answer `stackup` already carries.
+const NOT_CARRIED: [&str; 92] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -3098,21 +3082,12 @@ const NOT_CARRIED: [&str; 122] = [
     "AttrSet",
     "AxisScalar",
     "BifurcationKind",
-    "BoxAxis",
     "BranchCertification",
     "BranchMarginEvidence",
-    "BudgetKind",
-    "CertifiedLeaf",
-    "Chamber",
-    "ChamberSpan",
     "ContentKey",
     "Coset",
-    "DEFAULT_MAX_DEPTH",
-    "DEFAULT_MAX_LEAVES",
     "Diagnosis",
     "DocDiff",
-    "DriveConfig",
-    "DriveRefusal",
     "EntityKey",
     "EntityRef",
     "Entry",
@@ -3122,9 +3097,6 @@ const NOT_CARRIED: [&str; 122] = [
     "FlipEvidence",
     "FlipSet",
     "Implicated",
-    "LeafResults",
-    "LiftRefusal",
-    "MeasureAccounting",
     "MeshPatchKey",
     "MeshPick",
     "MeshPickError",
@@ -3140,37 +3112,23 @@ const NOT_CARRIED: [&str; 122] = [
     "NodeVerdictDelta",
     "NodeVerdicts",
     "PairingViolation",
-    "ParamBox",
-    "ParamBoxError",
-    "ParamBoxVerdict",
     "ParamValue",
-    "PerParam",
     "PredicateDivergence",
     "Product",
     "ProfilePayload",
     "ProgramRefusal",
     "Qualifier",
-    "ReasonClass",
-    "Receipt",
     "RecipeEditRef",
-    "RefusalReason",
-    "RefusedLeaf",
     "ReplayOutcome",
     "ResolutionFailure",
     "ResolveError",
     "ResolveIndeterminate",
     "Resolved",
     "Rgba8",
-    "Rss",
     "RunStatus",
     "SeedError",
     "SeedScalar",
-    "Sensitivity",
-    "SensitivityOutcome",
-    "SensitivityRefusal",
     "SideVerdict",
-    "Stackup",
-    "StackupRefusal",
     "StructureFlip",
     "SummaryDelta",
     "SummaryDivergence",
@@ -3178,7 +3136,6 @@ const NOT_CARRIED: [&str; 122] = [
     "SummaryFlipSet",
     "TieWitness",
     "Tombstone",
-    "Unavailable",
     "VerdictFlip",
     "VerdictRow",
     "VerdictSummary",
@@ -3187,14 +3144,12 @@ const NOT_CARRIED: [&str; 122] = [
     "WitnessAge",
     "WitnessBifurcation",
     "WitnessDatum",
-    "WorstCase",
     "appearance_rebind_suggestions",
     "apply_with_names",
     "body_name",
     "derivation_nodes",
     "diff_summaries",
     "diff_verdicts",
-    "drive",
     "enrich_appearance_loss",
     "enrich_appearance_loss_with_prior",
     "entity_name",
@@ -3205,7 +3160,6 @@ const NOT_CARRIED: [&str; 122] = [
     "resolve_with_prior",
     "seed_env",
     "sensitivities",
-    "stackup",
     "std_deviation",
     "to_value",
     "verdict_summary",

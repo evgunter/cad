@@ -3315,7 +3315,11 @@ jobs:
       #
       # COST, MEASURED on the run that armed it (32973311618, this
       # row's own draw): release build 2m11, then the bin's unit tests
-      # 0.21 s and the three-ε `eps_regression` tour runs 13.60 s. The
+      # 0.21 s and the three-ε `eps_regression` tour runs 13.60 s.
+      # RE-MEASURED 2026-09-03 with `--features interval` below: the
+      # bin's unit tests go 0.21 s -> ~33 s, all of it the tolerance
+      # cell's two drives and its stackup, and the build pays one more
+      # kernel monomorphization. The
       # bin's unit tests link against the crate this row already builds
       # in release, so the widening pays a link plus ~14 s of running,
       # not a sixth feature unification. (Those same unit tests cost
@@ -3323,9 +3327,19 @@ jobs:
       # lily at δ = 2e-3 — which is why this row is the release one and
       # why widening the dev-default row instead would not have been
       # free.)
+      # `--features interval` SINCE M10-6, and it buys exactly one
+      # thing: the tolerance cell (`src/tolerance.rs`), whose subject is
+      # the E6 driver's certified leaves and the E5 stackup over them,
+      # is compiled and its row executed. Without the feature the cell
+      # is `cfg`'d out and a tour walk says so at the stop rather than
+      # walking one scene fewer in silence.
+      #
+      # COST: the kernel is built once more with the certified scalar
+      # for this crate's graph. It rides the same `release-default` draw
+      # as the rest of this row, so it is not a per-run price.
       - name: demos tour suite (the #99 ε pin + the tour's own probes)
         if: contains(fromJSON('["release-default", "all"]'), needs.filter.outputs.klint_row)
-        run: cd demos/tour && cargo test --release
+        run: cd demos/tour && cargo test --release --features interval
       # THE COMMITTED DIE CORPUS IS STILL THE SCENE THAT AUTHORED IT.
       # `crates/editor-core/tests/corpus/die_composed_tour.rs` registers
       # the tour's composed die by replaying committed BYTES, because
