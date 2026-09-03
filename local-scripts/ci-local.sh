@@ -188,6 +188,20 @@ RUN_INTERVAL_BACKEND=true
 RUN_INTERVAL_ORACLE=true
 RUN_K_LINT=true
 RUN_TOPO_RELEASE=true
+# THE GATED SUITES THIS RUN DOES NOT EXECUTE, as one nextest `-E` expression
+# excluding them — empty for the whole-suite run, which is what `--full`
+# always produces (tier `all` empties this key by construction). A suite
+# carrying a `test_utils::gated_to!` marker runs only when one of the source
+# paths it names, or its own file, is in the change set; the argument is at
+# THE PER-FILE TEST GATE in scripts/ci-filter.py, and the filter names each
+# skipped suite on stderr above.
+#
+# THIS HALF APPLIES IT FOR THE SAME REASON IT APPLIES THE TIER, and not
+# because minutes are billed here: a local gate that ran a strictly different
+# test SET from the hosted one would answer a different question than the run
+# it is standing in for. `--full` is the spelling for "run everything anyway",
+# and it already is.
+TEST_FILTER=
 if [ "$FULL" -eq 1 ]; then
   echo "=== change filter: --full, forcing tier 'all'"
 else
@@ -211,10 +225,16 @@ else
       RUN_INTERVAL_ORACLE) RUN_INTERVAL_ORACLE="$v" ;;
       RUN_K_LINT) RUN_K_LINT="$v" ;;
       RUN_TOPO_RELEASE) RUN_TOPO_RELEASE="$v" ;;
+      TEST_FILTER) TEST_FILTER="$v" ;;
     esac
   done < <(scripts/ci-filter.py --base "$BASE")
 fi
 echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
+if [ -n "$TEST_FILTER" ]; then
+  echo "=== gated suites: -E '$TEST_FILTER' (the filter's notices above name each one)"
+else
+  echo "=== gated suites: none excluded — the test rows run the whole scope"
+fi
 
 # --- tier-blind rows: A CHECK MUST BE SITED WHERE IT CAN FIRE ON ITS OWN
 # INPUTS (Evan, 2026-08-20, on S61). These read prose, documentation and this
@@ -546,11 +566,39 @@ nextest_check() {
 # parity checker compares which CHECKS each half names, never the flags on the
 # commands, so hosted and local can drift on reporting semantics with nothing
 # noticing — filed as its own issue rather than left as a note here.
+#
+# `$TEST_FILTER` IS COMPOSED WITH `&`, NEVER PASSED AS A SECOND `-E`. nextest
+# ORs its `-E` expressions, so a row that already selects a set — the interval
+# rows below do — would get the gated suites ADDED BACK by a second flag
+# rather than subtracted, which is the one way this could silently un-gate
+# what it means to gate. One `-E` per row, built by `gated_expr`.
+#
+# The whole-suite rows have no selection of their own, so `gated_expr` returns
+# the filter alone, and nothing at all when it is empty.
+# shellcheck disable=SC2086
+gated_expr() {
+  local sel=${1:-}
+  if [ -z "$TEST_FILTER" ]; then
+    [ -n "$sel" ] && printf -- '-E\n%s\n' "$sel"
+    return 0
+  fi
+  if [ -n "$sel" ]; then
+    printf -- '-E\n(%s) & (%s)\n' "$sel" "$TEST_FILTER"
+  else
+    printf -- '-E\n%s\n' "$TEST_FILTER"
+  fi
+}
 # shellcheck disable=SC2086
 # HOSTED MIRROR: test / run archived tests
-test_default() { nextest_check && cargo nextest run $SCOPE --no-fail-fast; }
+test_default() {
+  local -a g; mapfile -t g < <(gated_expr)
+  nextest_check && cargo nextest run $SCOPE ${g[@]+"${g[@]}"} --no-fail-fast
+}
 # shellcheck disable=SC2086
-test_eps() { nextest_check && CAD_TOLERANCE_EPS="$1" cargo nextest run $SCOPE --no-fail-fast; }
+test_eps() {
+  local -a g; mapfile -t g < <(gated_expr)
+  nextest_check && CAD_TOLERANCE_EPS="$1" cargo nextest run $SCOPE ${g[@]+"${g[@]}"} --no-fail-fast
+}
 # shellcheck disable=SC2086
 # HOSTED MIRROR: build / doc-tests
 doc_tests() { cargo test --doc $SCOPE; }
@@ -602,9 +650,11 @@ interval_selection() {
 interval_tests() {
   nextest_check && interval_selection || return 1
   local sel extra=""
+  local -a g
   sel=$(cat "$INTERVAL_SEL")
   [ "$sel" = "none()" ] && extra="--no-tests=pass"
-  cargo nextest run $SCOPE --features interval -E "$sel" $extra --no-fail-fast
+  mapfile -t g < <(gated_expr "$sel")
+  cargo nextest run $SCOPE --features interval ${g[@]+"${g[@]}"} $extra --no-fail-fast
 }
 # THE DEMOTED (NIGHTLY-ONLY) TESTS. A test carrying
 #
@@ -672,10 +722,12 @@ nightly_demoted() {
 interval_eps() {
   nextest_check && interval_selection || return 1
   local sel extra=""
+  local -a g
   sel=$(cat "$INTERVAL_SEL")
   [ "$sel" = "none()" ] && extra="--no-tests=pass"
+  mapfile -t g < <(gated_expr "$sel")
   CAD_TOLERANCE_EPS=1e-6 cargo nextest run $SCOPE --features interval \
-    -E "$sel" $extra --no-fail-fast
+    ${g[@]+"${g[@]}"} $extra --no-fail-fast
 }
 # shellcheck disable=SC2086
 # HOSTED MIRROR: lint-interval / doc-tests (interval)
