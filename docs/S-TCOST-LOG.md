@@ -239,3 +239,15 @@ WITH FIXES; fix passes run as the implementers' own lanes.
   found only by grepping constants — the prose sweep for "verbatim /
   re-derived / kept in step" returns nothing. A test-helper dedup
   unit for that crate follows TCOST-B1's pattern (**TCOST-7**).
+
+## Unit: TCOST-3 merged (2026-09-03, PR 1614 at 68960021)
+
+geom-brep's cert7 probes and the offset fixtures. Eight deletions
+(six assertion-free, two that carried liveness through `unwrap` — the
+review's finding; both liveness claims re-owned as labelled arms in
+`offset_fit` and a 0.03 cpu-s cert7 row), the recentring ladder
+trimmed to one station per trajectory with its coverage argument
+marked unguarded at the site, the skinned loft shrunk. Family
+88 → 42 cpu-s hosted at default/1e-6 (−52 %); roughly 46–50 cpu-s
+off a ~458 cpu-s suite. Lane asked for default; interval covered
+locally only (no interval semantics in the diff).
