@@ -1073,3 +1073,39 @@ home for `lo(k)`, docs at the site, the oracle as the old loop,
 declined with reason (`Cow`/names, `binom_row`'s clones for non-memo
 callers, committing the instruments). Correspondence and both reports
 under `/home/user/tcost-work/ab/`.
+
+## Seam: the K3 dual concluded; the fix pass dispatched (2026-09-03, 19:35 UTC)
+
+Both K3 reviewers MERGEABLE-AFTER-FIXES, 2 MAJ each, converging: the
+kernel change is sound (both traced every path, both killed the same
+mutants, both found the `unreachable!` input-unreachable) and the
+unit's EVIDENCE is not — every hosted run on the branch was at
+ε = 1e-12, the ε where K1 already removed the cost, so the headline
+−½/−⅓/−¼ is local-only and the acceptance's hosted before/after row
+is unmet; at that ε the new suite costs ≈9.6 cpu-s per lane (the #1
+and #2 slowest tests of their shards) against nothing saved, ungated
+though its subject persists. One MAJOR was UNILATERAL: R2 showed by
+mutation that the suite is vacuous at 1e-12 — the certifying fixture
+refuses after round 0 there, the identity row takes its `Err` arm and
+compares nothing, and three kernel mutants live at 1e-12 that die at
+1e-9. That is a v6 item-3 unilateral-instrument candidate (test-gap,
+demonstrated); adjudication is recorded at merge, blinded here. R2
+also showed the import path's "one certificate" has no guard (a
+`gate3` that recomputes leaves every row green). R1 identified the
+digest's "noise floor" as a likely ungated fuzzer (`R1_SEED` from
+`SystemTime`, unpinned by `CAD_FUZZ_SEED`) and the identity as held
+by convention at the non-f64 scalars. R1 corrected the dispatch: the
+suite's 1e-12 cost was in the implementer's report to the
+orchestrator, not the PR body, so it is undisclosed on the PR. Union
+of 10 items to a fresh fix lane on the implementer's arm: the suite
+certifying at every ε with its arm asserted, `gated_to!` plus a
+cheaper fixture, hosted evidence at 1e-9 on both lanes with a
+post-K1 merge-base probe (the plan's 2026-09-02 runs are PRE-K1 and
+are not K3's before), an import-path certificate count, the planted
+row's assertions made real, the digest's blind spots named and the
+fuzzer filed, the identity pinned across scalars, the needle's
+coverage stated, docs and one home, three files (two filings, one
+duplicate dropped). Program-level lesson, recorded: a kernel unit in
+a TEST-COST program has to price its own suite at every ε in the
+draw, and the orchestrator's brief should have asked for a hosted
+run at the ε where the saving lives.
