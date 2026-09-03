@@ -370,6 +370,16 @@ jobs:
       # The third sampled dimension (2026-08-22): which of `k-lint (gate)`'s
       # five feature unifications this run gates. Only that job reads it.
       klint_row: ${{ steps.classify.outputs.KLINT_ROW }}
+      # THE GATED SUITES THIS RUN DOES NOT EXECUTE, as one nextest `-E`
+      # expression that EXCLUDES them, or empty for the ordinary whole-suite
+      # run. A suite carrying a `test_utils::gated_to!` marker names the
+      # source paths it is specific to; the filter subtracts the ones none of
+      # whose paths — nor whose own file — is in the diff, and the nightly
+      # runs the whole gated set ungated on any day main moved. The argument,
+      # and every arm that empties this key, are at THE PER-FILE TEST GATE in
+      # scripts/ci-filter.py; the skips are named one per line in the notices
+      # the `the configuration this run gates` step relays.
+      test_filter: ${{ steps.classify.outputs.TEST_FILTER }}
       # The members whose OWN files changed, as opposed to `pkgs` (the
       # dependent closure they generate). Published because the viewer
       # toolkit axis below is keyed on it: a reader who sees that axis
@@ -976,6 +986,20 @@ jobs:
         run: |
           scripts/gates/probe-suite-census.sh --selftest
           scripts/gates/probe-suite-census.sh
+      # THE PER-FILE TEST GATE'S MARKERS (S-TCOST lever 3). A gated suite
+      # names the source paths it is specific to, and the change filter skips
+      # it on a pull request when none of them is in the diff. That filter
+      # FAILS OPEN — a marker it cannot resolve runs its suite — so a rename
+      # that moved a suite's subject out from under it leaves a gate that
+      # reads as narrow, is in fact "always runs", and shows up in no run's
+      # output. This is the row that makes it loud, and the row that keeps the
+      # nightly's ungated re-take (which REFUSES an unresolvable tree) from
+      # being where a rename is discovered hours later. Stdlib-only python3
+      # under lib.sh's contract, so it rides this cheap-tripwire job.
+      - name: gated-suite marker paths resolve
+        run: |
+          scripts/gates/gated-suite-paths.sh --selftest
+          scripts/gates/gated-suite-paths.sh
       # The run half's guards. `k_probe_sweep.sh`'s `run_dump` is the only
       # thing between "the harness ran" and "the sweep recorded nothing
       # and exited 0", and nothing else in the tree exercises it. No
@@ -1968,12 +1992,29 @@ jobs:
       # `PIPESTATUS[0]` takes nextest's own status regardless of shell options,
       # and `set +e` guarantees no intervening command can abort the step
       # before that status is read and re-exited.
+      #
+      # THE GATED-SUITE FILTER IS ECHOED BEFORE IT IS USED, and that is the
+      # same rule the fail-fast line above follows: what a shard did NOT run
+      # has to be legible from the shard's own log, not reconstructed from
+      # another job's outputs. Empty is the ordinary whole-suite run, which is
+      # byte for byte what ran before this key existed; non-empty is a `not
+      # (...)` expression naming exactly the suites whose marked paths this
+      # diff did not touch, and `filter`'s notices name them one per line.
       - name: run archived tests
+        env:
+          TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
         run: |
           set +e
           echo "fail-fast mode: --no-fail-fast — every test in this shard runs to completion."
+          if [ -n "$TEST_FILTER" ]; then
+            echo "gated-suite filter: -E '$TEST_FILTER' (the change filter's notices name each skipped suite)"
+            GATED=(-E "$TEST_FILTER")
+          else
+            echo "gated-suite filter: none — this shard runs its whole partition of the suite."
+            GATED=()
+          fi
           mkdir -p "$RUNNER_TEMP/test-cost"
-          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
+          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 ${GATED[@]+"${GATED[@]}"} --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
           status=${PIPESTATUS[0]}
           echo "fail-fast mode was --no-fail-fast: the summary above is this shard's whole failure SURFACE, not its first failure. (This shard is half the suite; the other shard is a job of its own.)"
           exit $status
@@ -2503,12 +2544,28 @@ jobs:
       # status is tee's, these steps run under `bash -e {0}` without
       # `pipefail`, and a capture that could turn a red shard green would be a
       # report breaking the thing it reports on.
+      #
+      # THE GATED-SUITE FILTER, echoed then applied, exactly as at the default
+      # lane's copy of this step and for the same reason. It is the SAME
+      # expression: the markers are a property of the tree, not of a compile
+      # mode, so a suite whose paths this diff did not touch is skipped on
+      # whichever lane the run drew — and the nightly's re-take runs the set
+      # once, ungated, rather than once per lane.
       - name: run archived tests
+        env:
+          TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
         run: |
           set +e
           echo "fail-fast mode: --no-fail-fast — every test in this shard runs to completion."
+          if [ -n "$TEST_FILTER" ]; then
+            echo "gated-suite filter: -E '$TEST_FILTER' (the change filter's notices name each skipped suite)"
+            GATED=(-E "$TEST_FILTER")
+          else
+            echo "gated-suite filter: none — this shard runs its whole partition of the suite."
+            GATED=()
+          fi
           mkdir -p "$RUNNER_TEMP/test-cost"
-          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || 'env -u CAD_TOLERANCE_EPS' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
+          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || 'env -u CAD_TOLERANCE_EPS' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 ${GATED[@]+"${GATED[@]}"} --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
           status=${PIPESTATUS[0]}
           echo "fail-fast mode was --no-fail-fast: the summary above is this shard's whole failure SURFACE, not its first failure. (This shard is half the suite; the other shard is a job of its own.)"
           exit $status
@@ -2517,6 +2574,17 @@ jobs:
       # run above; named here so the obligation is visible). One leg only
       # (default eps, shard 1), mirroring the pre-archive job, which ran
       # it once with no eps env.
+      #
+      # THESE TWO ROWS CARRY NO GATED-SUITE FILTER, AND MUST NEVER GAIN ONE AS
+      # A SECOND `-E`. nextest ORs its `-E` expressions, so appending
+      # `-E "$TEST_FILTER"` beside the `-E` below would not subtract the gated
+      # suites from this selection — it would ADD every test the filter
+      # excludes back into the row, which is the one way this mechanism can
+      # silently un-gate what it exists to gate. A row that needs both writes
+      # ONE expression, `(selection) & (filter)`, the way
+      # local-scripts/ci-local.sh's `gated_expr` builds it. Nothing is lost by
+      # their absence here: the archive run above already applies the filter,
+      # and these two select one module each from inside it.
       #
       # `--no-fail-fast` HERE AND ON THE ROW BELOW, unconditionally, and the
       # reason is that the alternative needs an invariant nothing enforces.

@@ -83,6 +83,8 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Validation => "ValidationError",
             ErrorClass::Dimension => "DimensionError",
             ErrorClass::Literal => "LiteralError",
+            ErrorClass::Parse => "ParseError",
+            ErrorClass::Eval => "EvalError",
             ErrorClass::Persist => "PersistError",
             ErrorClass::Export => "ExportError",
             ErrorClass::Tessellate => "TessellateError",
@@ -100,6 +102,8 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Inline => "InlineError",
             ErrorClass::Update => "UpdateError",
             ErrorClass::Readback => "ReadbackError",
+            ErrorClass::HitTest => "HitTestError",
+            ErrorClass::NodePick => "NodePickError",
             ErrorClass::Checks => "ChecksError",
             ErrorClass::Enforce => "CheckRefusal",
         }
@@ -110,6 +114,8 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Validation,
         ErrorClass::Dimension,
         ErrorClass::Literal,
+        ErrorClass::Parse,
+        ErrorClass::Eval,
         ErrorClass::Persist,
         ErrorClass::Export,
         ErrorClass::Tessellate,
@@ -127,6 +133,8 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Inline,
         ErrorClass::Update,
         ErrorClass::Readback,
+        ErrorClass::HitTest,
+        ErrorClass::NodePick,
         ErrorClass::Checks,
         ErrorClass::Enforce,
     ] {
@@ -199,6 +207,80 @@ fn readback_refusal_tags_are_stable() {
         "no_canonical_frame"
     );
     assert_eq!(tag(&E::Readback(R::NoCarrier)), "no_carrier");
+}
+
+/// LIB-B-PICKING: the two picking refusals, pinned tag by tag.
+///
+/// The standing ladder is spelled EXACTLY as the read-back doors spell
+/// it (the test above), and that is the property worth a pin rather
+/// than a comment: "node 7 has no result in this evaluation" is one
+/// fact about the run, and a caller that already branches on
+/// `node_not_evaluated` from a frame read must not have to learn a
+/// second word for it at the pick. The forwarding is what makes that
+/// true, so the assertions below are written to fail if a wrapper tag
+/// is ever introduced.
+///
+/// Two arms have no façade constructor and so no line here — the
+/// `select_refusal_tags_are_stable` caveat, for a different reason.
+/// `HitTestError::Unnamed`'s payload is an `EntityRef`, an arena key
+/// beside a body index, and the façade deliberately does not name that
+/// type; `NodePickError::Index`'s payload is `MeshPickError`, which
+/// CUR3 recorded DECIDED absent. Both tags are covered by the matches
+/// themselves, which are exhaustive and would stop compiling if an arm
+/// moved.
+#[test]
+fn picking_refusal_tags_are_stable() {
+    use crate::tags::{hit_test_error_tag, node_pick_error_tag};
+    use pncad::document::RecipeNodeId;
+    use pncad::mesh::TessellateError;
+    use pncad::select::{HitTestError as H, NodePickError as N};
+
+    let node = RecipeNodeId(0);
+    assert_eq!(
+        hit_test_error_tag(&H::NodeNotEvaluated { node }),
+        "node_not_evaluated"
+    );
+    assert_eq!(hit_test_error_tag(&H::NodeFailed { node }), "node_failed");
+    assert_eq!(
+        hit_test_error_tag(&H::NodePoisoned {
+            node,
+            through: node
+        }),
+        "node_poisoned"
+    );
+
+    // The pick door's own two arms: "never draws" and "draws nothing
+    // today" are different states and keep different tags.
+    assert_eq!(node_pick_error_tag(&N::NotABody { node }), "not_a_body");
+    assert_eq!(
+        node_pick_error_tag(&N::NoSuchBody { node, body: 1 }),
+        "no_such_body"
+    );
+
+    // The standing arm FORWARDS: no `standing` wrapper tag exists, and
+    // a caller reads the same three words at either door.
+    for standing in [
+        H::NodeNotEvaluated { node },
+        H::NodeFailed { node },
+        H::NodePoisoned {
+            node,
+            through: node,
+        },
+    ] {
+        assert_eq!(
+            node_pick_error_tag(&N::Standing(standing)),
+            hit_test_error_tag(&standing)
+        );
+    }
+
+    // ...and so does the tessellation arm, under the tessellator's own
+    // word rather than a `tessellate` wrapper.
+    assert_eq!(
+        node_pick_error_tag(&N::Tessellate(TessellateError::InvalidChordalTolerance {
+            value: 0.0
+        })),
+        "invalid_chordal_tolerance"
+    );
 }
 
 /// LIB-PYSEL: `SelectRefusal` is `#[non_exhaustive]`, so the tag
@@ -345,6 +427,185 @@ fn literal_refusals_come_from_the_kernel_with_stable_tags() {
     );
 }
 
+/// LIB-B-EXPR-READ: the text door's tag map, arm by arm, driven
+/// through `parse_expr` itself rather than by constructing arms.
+///
+/// Every case here is a SOURCE STRING, which is the honest fixture: a
+/// hand-built `ParseError` would pin the map against a value the
+/// parser might never produce, and the question the map answers is
+/// what a Python caller sees when their text is refused. The tags are
+/// the compile-time alarm's blind spot — `ParseError` is not
+/// `#[non_exhaustive]`, so a new arm stops this crate compiling, but a
+/// RENAMED tag compiles fine and silently breaks every caller
+/// branching on it.
+///
+/// Ten of the eleven arms are reachable from text, and this pins
+/// those ten. `malformed_number` is the exception, and it is a
+/// measurement rather than an omission: the lexer hands
+/// `f64::from_str` only a run of digits with at most one dot, so
+/// every malformed shape is refused EARLIER and under a different arm
+/// — `"1.2.3"` is an `unexpected_char` at the second dot, `"1e999"` a
+/// `dimension` refusal on the non-finite literal it reads to, `"1e"`
+/// an `unknown_unit`. The arm is defensive rather than removable (the
+/// lexer's rule is not `f64`'s and need not stay a subset of it), so
+/// it keeps its tag; what it does not have is a source string that
+/// produces it, which is why it is absent below rather than pinned
+/// against a hand-built value.
+///
+/// The `Dimension` arm IS reachable, and it is the one that shows why
+/// it carries a tag of its own — `"1 m + 1 rad"` is a dimension
+/// mismatch AT a byte offset, and the offset is what the inner
+/// refusal cannot say.
+#[test]
+fn expression_text_door_tags_are_stable() {
+    use crate::tags::parse_error_tag as tag;
+    use pncad::document::{ParamName, parse_expr};
+
+    let mut declared = BTreeMap::new();
+    declared.insert(ParamName::new("width"), Dimension::Length);
+    let refuse = |src: &str| {
+        parse_expr(src, &declared).expect_err("this source is not a well-formed expression")
+    };
+
+    assert_eq!(tag(&refuse("1 m $ 2")), "unexpected_char");
+    assert_eq!(tag(&refuse("1 m +")), "unexpected_end");
+    assert_eq!(tag(&refuse("(1 m 2 m)")), "unexpected_token");
+    assert_eq!(tag(&refuse("1 m 2 m")), "trailing_input");
+    assert_eq!(tag(&refuse("99999999999999999999999")), "integer_overflow");
+    assert_eq!(tag(&refuse("1 furlong")), "unknown_unit");
+    assert_eq!(tag(&refuse("hypot(1, 2)")), "unknown_function");
+    assert_eq!(tag(&refuse("sin(1 rad, 2 rad)")), "wrong_arity");
+    assert_eq!(tag(&refuse("height")), "unknown_param");
+    assert_eq!(tag(&refuse("1 m + 1 rad")), "dimension");
+
+    // The `Dimension` arm's position is the whole reason it keeps its
+    // own tag: the inner refusal carries no byte offset, so routing
+    // it to `LiteralError` would drop the one fact that says where to
+    // edit. The inner tag rides along as the exception's `kind`.
+    match refuse("1 m + 1 rad") {
+        pncad::document::ParseError::Dimension { pos, error } => {
+            assert!(
+                pos > 0,
+                "the refused reduction has a position in the source"
+            );
+            assert_eq!(expr_dimension_error_tag(&error), "mismatch");
+        }
+        other => panic!("a dimension mismatch, not {other}"),
+    }
+
+    // A well-formed source is not refused, so the assertions above
+    // are about the grammar and not about a door that refuses
+    // everything.
+    assert!(parse_expr("width / 2.0 + 3 mm", &declared).is_ok());
+}
+
+/// LIB-B-EXPR-READ: the evaluator's tag map, arm by arm.
+///
+/// Six of the seven arms are provoked through `eval`/`eval_count`
+/// themselves against a real document's environment;
+/// `count_overflow` is constructed, because reaching it needs a count
+/// expression whose exact arithmetic overflows `i64` and the text
+/// door refuses the literals that would build one.
+///
+/// The environments come from `Doc::param_env`, which is the door the
+/// binding uses — building a `ParamEnv` by hand would pin the map
+/// against bindings no document produces, and the
+/// `param_dimension_mismatch` case in particular is only honest
+/// because it is what a redeclared parameter actually does: an
+/// expression parsed against a document that declares `width` as a
+/// length, evaluated against one that declares it as a count.
+///
+/// What is NOT in this map is the point of the last assertion:
+/// division by zero is not a refusal in the expression layer at all.
+/// The evaluator has no branches, so the poison flows through the
+/// scalar and is caught at the END, as `non_finite_result` on the
+/// finished value.
+#[test]
+fn expression_evaluation_tags_are_stable() {
+    use crate::tags::eval_error_tag as tag;
+    use pncad::document::{
+        DocEdit, DocParam, EvalError, Expr, ParamName, ProfileDoc, apply, eval, eval_count,
+        parse_expr,
+    };
+
+    let tol = Tol::witness();
+    let width = ParamName::new("width");
+    let declare = |name: &ParamName, param: DocParam| {
+        let doc: ProfileDoc = crate::identity::derived("expression-evaluation-probe", tol);
+        apply(
+            &doc,
+            &DocEdit::SetDocParam {
+                name: name.clone(),
+                value: param,
+            },
+            tol,
+        )
+        .expect("a parameter declaration applies")
+        .doc
+    };
+
+    let lengths = declare(&width, DocParam::continuous(Dimension::Length, 0.1));
+    let counts = declare(&width, DocParam::Count { value: 3 });
+    let empty: ProfileDoc = crate::identity::derived("expression-evaluation-empty", tol);
+
+    let mut declared = BTreeMap::new();
+    declared.insert(width.clone(), Dimension::Length);
+    let parse = |src: &str| parse_expr(src, &declared).expect("a well-formed expression");
+
+    let bound = lengths.param_env::<f64>();
+
+    // The value the whole family exists for: an expression a caller
+    // could not otherwise evaluate without re-implementing the
+    // evaluator.
+    assert_eq!(
+        eval(&parse("width / 2.0 + 3 mm"), &bound).expect("it evaluates"),
+        // Spelled as the arithmetic rather than as `0.053`, because
+        // that is the claim: the evaluator IS the `f64` arithmetic
+        // over the document's exact stored values, with no rounding
+        // step anywhere in it. The decimal literal is not equal to
+        // this and saying so would be the wrong pin.
+        0.1 / 2.0 + 0.003
+    );
+
+    assert_eq!(
+        tag(&eval(&parse("width"), &empty.param_env::<f64>()).expect_err("no binding")),
+        "unknown_param"
+    );
+
+    // The expression's reference recorded a length; this document
+    // declares the same name as a count.
+    assert_eq!(
+        tag(&eval(&parse("width"), &counts.param_env::<f64>())
+            .expect_err("the dimensions disagree")),
+        "param_dimension_mismatch"
+    );
+
+    assert_eq!(
+        tag(&eval(&parse("3"), &bound).expect_err("a count does not evaluate continuously")),
+        "count_expr_in_continuous_eval"
+    );
+    assert_eq!(
+        tag(&eval_count(&parse("1 m"), &bound).expect_err("a length is not a count")),
+        "continuous_expr_in_count_eval"
+    );
+    assert_eq!(
+        tag(&eval(&parse("scalar(9999999999)"), &bound)
+            .expect_err("that count does not promote exactly")),
+        "count_to_scalar_out_of_range"
+    );
+    assert_eq!(tag(&EvalError::CountOverflow), "count_overflow");
+
+    // Division by zero: no refusal at the operation, a poisoned value
+    // caught at the boundary.
+    let zero = Expr::literal(0.0, Dimension::Scalar).expect("finite");
+    let one = Expr::literal(1.0, Dimension::Length).expect("finite");
+    let pole = Expr::div(one, zero).expect("a scalar divisor is legal");
+    assert_eq!(
+        tag(&eval(&pole, &bound).expect_err("the pole refuses at the boundary")),
+        "non_finite_result"
+    );
+}
+
 /// **The second door.** `WireExpr::rebuild` (the load path) re-runs
 /// every dimension check through `Expr`'s OPERATOR builders, so a
 /// hand-edited save file reaches the genuine dimension-mismatch arms
@@ -369,17 +630,39 @@ fn literal_refusals_come_from_the_kernel_with_stable_tags() {
 #[test]
 fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusal() {
     let tol = Tol::witness();
-    use pncad::document::{DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, apply, save};
-    use pncad::prelude::SketchPlane;
+    use pncad::document::{
+        Datum, DocEdit, Expr, LoopProgram, Node, ProfileDoc, ProfileProgram, apply, save,
+    };
+    use pncad::prelude::Dimension;
 
     let doc: ProfileDoc = crate::identity::derived("dimension-routing-probe", tol);
     let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
         .expect("finite corners");
-    let applied = apply(
+    // The frame the profile is drawn on. Its components are literals
+    // too, and they come first in the wire, so the FIRST-literal
+    // replacement below now lands on the frame's origin rather than on
+    // a profile point. The probe is about the load door's dimension
+    // walk, which reaches both alike.
+    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
+    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+    let framed = apply(
         &doc,
         &DocEdit::InsertNode {
+            node: Node::Datum(Datum::Frame {
+                origin: [len(0.0), len(0.0), len(0.0)],
+                u: [scl(1.0), scl(0.0), scl(0.0)],
+                v: [scl(0.0), scl(1.0), scl(0.0)],
+            }),
+        },
+        tol,
+    )
+    .expect("the frame inserts");
+    let plane = framed.record.minted.expect("a frame id");
+    let applied = apply(
+        &framed.doc,
+        &DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: SketchPlane::xy(),
+                plane,
                 loops: vec![square],
             }),
         },
@@ -539,17 +822,20 @@ fn path_error_tags_are_stable() {
         .expect_err("a corner tangent to its incoming leg refuses");
     assert_eq!(path_error_tag(&tangent), "junction_tangent");
 
-    let overdetermined = Open
+    // The collinear tangent-arc close: carrier identity is no longer a
+    // refusal (Ev, in-chat, 2026-09-02 — every zero-turn joint is a
+    // declared tangent joint). What refuses is the GEOMETRY: `Start` is
+    // collinear with the declared departure and BEHIND it, so the
+    // tangent-chord angle is pi, the bulge unbounded, and no arc spans
+    // the chord.
+    let degenerate = Open
         .at(p2(0.0, 0.0))
         .line_to(p2(1.0, 0.0), Tol::witness())
         .expect("a leg east")
         .tangent()
         .tangent_arc_to(Start, Tol::witness())
-        .expect_err("a collinear tangent-arc close refuses always");
-    // Carrier identity, and it does not become a different fact because
-    // the target is `Start`: the close-only second name for this was
-    // removed with the seam wall's departure half.
-    assert_eq!(path_error_tag(&overdetermined), "same_carrier_junction");
+        .expect_err("no arc spans a chord behind the departure");
+    assert_eq!(path_error_tag(&degenerate), "degenerate_arc_chord");
 }
 
 /// The prose rule's guard, checked against what it actually guards

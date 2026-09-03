@@ -14,7 +14,7 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -29,7 +29,6 @@ use editor_core::{
     NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram, evaluate,
 };
 use geom_core::Tol;
-use profile::SketchPlane;
 
 use fixture::{Recorder, len};
 
@@ -66,8 +65,16 @@ fn slab_with(dist: Distribution, nominal: f64) -> ProfileDoc {
             distribution: Some(dist),
         },
     });
+    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
+        origin: [0.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
+        u: [1.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        v: [0.0, 1.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+    }));
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: xy_frame_0,
         loops: vec![unit_square()],
     }));
     r.insert(Node::Extrude {
@@ -95,16 +102,32 @@ fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
             }),
         },
     });
+    let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
+        origin: [0.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
+        u: [1.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        v: [0.0, 1.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+    }));
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: xy_frame_1,
         loops: vec![unit_square()],
     }));
     r.insert(Node::Extrude {
         profile: p,
         distance: Expr::param(name("q"), Dimension::Length),
     });
+    let xy_frame_2 = r.insert(Node::Datum(editor_core::Datum::Frame {
+        origin: [0.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
+        u: [1.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        v: [0.0, 1.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+    }));
     let p2 = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: xy_frame_2,
         loops: vec![unit_square()],
     }));
     r.insert(Node::Extrude {
@@ -529,8 +552,16 @@ fn evidence_only_e2e_consumer_walk() {
                 distribution: Some(Distribution::Normal { sigma: half_d }),
             },
         });
+        let xy_frame_3 = r.insert(Node::Datum(editor_core::Datum::Frame {
+            origin: [0.0, 0.0, 0.0]
+                .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
+            u: [1.0, 0.0, 0.0]
+                .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+            v: [0.0, 1.0, 0.0]
+                .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        }));
         let p = r.insert(Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane: xy_frame_3,
             loops: vec![
                 LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
                     .expect("finite plate corners"),

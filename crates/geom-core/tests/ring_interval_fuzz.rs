@@ -48,6 +48,11 @@
 //! CAD_FUZZ_EFFORT=64 cargo test -p geom-core --test all -- ring_interval_fuzz --nocapture
 //! ```
 
+test_utils::gated_to![
+    "crates/geom-core/src/ring_interval.rs",
+    "crates/geom-core/src/real.rs"
+];
+
 use geom_core::RingInterval;
 use std::cmp::Ordering;
 use test_utils::fuzz;

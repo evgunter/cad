@@ -19,21 +19,20 @@
 //! EXCLUDES the truth rather than as a slightly different width.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::props::PropsError;
-use geom_brep::props::quad::nurbs_patch_face;
+use geom_core::RingInterval;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, RingInterval, Tol};
 
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use crate::shared::patch::{face_posture, oracle_patch, pt};
 
-fn pt(x: f64) -> RingInterval {
-    RingInterval::from_bounds(x, x)
-}
-
-/// Drive the patch door and return the flux bracket, or `None` on any
-/// honest typed refusal.
+/// Drive the patch door at this file's fixed perimeter and return the
+/// flux bracket, or `None` on any honest typed refusal — which of the
+/// door's refusals count as honest is
+/// [`crate::shared::patch::face_posture`]'s to say, and the rows here
+/// are about the WIDTHS of the brackets that do come back.
+///
+/// `#[track_caller]` so that a dishonest posture from the door names
+/// the ROW, not this wrapper.
+#[track_caller]
 fn drive(
     ku: &KnotVector,
     kv: &KnotVector,
@@ -41,28 +40,9 @@ fn drive(
     weights: &[f64],
     eps: f64,
 ) -> Option<(f64, f64)> {
-    let (a, b) = ku.domain();
-    let (c, d) = kv.domain();
-    match nurbs_patch_face::<f64>(
-        ku,
-        kv,
-        control,
-        weights,
-        (a, b, c, d),
-        8.0,
-        0.0,
-        eps,
-        band(),
-    ) {
-        Ok(fb) => Some((fb.flux.lo(), fb.flux.hi())),
-        Err(
-            PropsError::QuadratureBudget { .. }
-            | PropsError::QuadratureUnsupported { .. }
-            | PropsError::Escalated { .. }
-            | PropsError::DegenerateFace,
-        ) => None,
-        Err(other) => panic!("not an honest posture: {other}"),
-    }
+    face_posture(ku, kv, control, weights, 8.0, eps)
+        .ok()
+        .map(|fb| (fb.flux.lo(), fb.flux.hi()))
 }
 
 /// A rational wall whose u direction is a quarter-arc (so the weights
@@ -214,13 +194,13 @@ fn a_genuine_c0_jump_stays_contained() {
         "the C0-jump wall must certify at eps 1e-6, so that the containment \
          assertion below is actually exercised",
     );
-    // The truth, from the independent plain-`f64` Cox-de-Boor +
-    // Gauss-Legendre oracle in `cert5_r1_patch_probes.rs` — computed
-    // here rather than pinned, and believed only after it agrees
-    // between two resolutions a factor of two apart. Why that settles
-    // it is `Patch::dense`'s own doc, in
-    // `crates/geom-brep/tests/cert5_r1_patch_probes.rs`.
-    let pa = crate::cert5_r1_patch_probes::oracle_patch(&ku, &kv, &control, &weights);
+    // The truth, from the plain-`f64` Cox-de-Boor + Gauss-Legendre
+    // oracle in `crates/geom-brep/tests/shared/patch.rs` — independent
+    // of `props::quad`, which is the door under test — computed here
+    // rather than pinned, and believed only after it agrees between two
+    // resolutions a factor of two apart. Why that settles it is
+    // `dense_over`'s own doc, there.
+    let pa = oracle_patch(&ku, &kv, &control, &weights);
     let (f12, _) = pa.dense(12);
     let (f24, _) = pa.dense(24);
     assert!(

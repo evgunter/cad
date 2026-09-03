@@ -443,6 +443,49 @@ BOUND_AS = {
     "edge_frame": "Evaluation.edge_frame",
     "face_frame": "Evaluation.face_frame",
     "vertex_position": "Evaluation.vertex_position",
+    # PICKING, the fourth door onto a name. `pick_face` is a free
+    # function taking the evaluation, so it arrives as an `Evaluation`
+    # method beside the three read-back doors above — the same shift,
+    # for the same reason. `Ray`, `PickHit`, `NodePick`,
+    # `NodePickError` and `HitTestError` are spelled identically and
+    # are accounted by rule 1, not here. All seven left the `gap`
+    # roster at LIB-B-PICKING, which closed the family.
+    #
+    # `PickTarget` is the entry that carries the argument, and it is
+    # NOT a narrowing. Rust's `pick_face` takes a slice of them;
+    # Python's takes a list of `NodePick`s and makes each target
+    # itself — because CUR3 recorded `MeshPick` DECIDED absent from the
+    # façade and `PickTarget::pick` is a `&MeshPick`, so through
+    # `pncad` a raw target has no constructor in EITHER language. The
+    # value that plays the target's role is the `NodePick`, whose
+    # pairing cannot be mis-asserted. The carrier-projection rule reads
+    # out the same way it did for `DanglingRef` above: a payload's
+    # category follows what its CARRIER does at the crossing, the
+    # carrier here is the door's `targets` argument, and that argument
+    # crosses holding `NodePick`s.
+    "PickTarget": "NodePick",
+    "pick_face": "Evaluation.pick_face",
+    # The expression surface, which hangs off the DOCUMENT for the
+    # read-back doors' reason one layer over: all three free
+    # functions take a per-document table — `parse_expr` the declared
+    # DIMENSIONS, the two evaluators the bound VALUES — so all three
+    # arrive as `Doc` methods and the table is never threaded in
+    # separately, where it could drift from the document it describes.
+    # `Expr`, `ParseError` and `EvalError` are spelled identically and
+    # are accounted by rule 1, not here.
+    #
+    # `unparse` is the odd one: it is the text door OUTWARD and takes
+    # only the expression, so it is a property of the `Expr` rather
+    # than a document method — which is exactly the carrier-projection
+    # reading, the receiver following what the door actually needs.
+    #
+    # They left the `gap` roster at LIB-B-EXPR-READ, which closed
+    # B-EXPR-READ; the four G1-cited ones left as ordinary decay, and
+    # G1 stays open on its authoring half.
+    "eval": "Doc.eval",
+    "eval_count": "Doc.eval_count",
+    "parse_expr": "Doc.parse_expr",
+    "unparse": "Expr.text",
     # The four different-shape entries LIB-G18b left behind after
     # binding the rest of the assembly vocabulary name-for-name.
     #
@@ -488,6 +531,8 @@ BOUND_AS = {
     "declare_node": "Node.declare",
     "extrude": "Node.extrude",
     "chamfer_edges": "Node.chamfer",
+    "tube_along_arc": "Node.tube",
+    "tube_along_arc_hollow": "Node.hollow_tube",
     "fillet_edges": "Node.fillet",
     "find_flush_candidates": "Evaluation.find_flush_candidates",
     "intersect": "Node.boolean",
@@ -561,23 +606,11 @@ GAP = "gap"
 #: LIB-B-READBACK, the first family to close, and the four verbs it
 #: chartered say so where they now sit in `BOUND_AS`.
 FAMILIES = {
-    "B-PICKING": (
-        "picking, the fourth door onto a name — ray in, `StableName` "
-        "out; closing it binds `pick_face` with its ray/target/hit "
-        "vocabulary, answering in the same opaque-text alphabet "
-        "`Evaluation.select` speaks"
-    ),
     "B-RESOLVE": (
         "name resolution across re-evaluation; closing it binds "
         "`resolve` and its `Resolution` verdict — the question every "
         "consumer that STORES names must ask on the next run, which is "
         "every consumer the stub tells to store one"
-    ),
-    "B-EXPR-READ": (
-        "the expression READ side; closing it binds `eval` / "
-        "`eval_count` and their refusal, so a Python caller holding a "
-        "`DocParam` environment can ask an expression for its value "
-        "(the authoring half is G1's recorded residue, not this)"
     ),
     "B-CANCEL": (
         "cooperative cancellation; closing it puts a `CancelToken` on "
@@ -796,16 +829,50 @@ FAMILIES = {
 #: **`gap` — genuinely unbound doors, and each is OWED WORK.** This is
 #: the family that makes the census worth having: these are not
 #: decisions, they are debt, and the id after the colon says what owns
-#: each. TWO of the ids are the audit page's, cited (`G1`, `G2`); the
-#: other seven are `FAMILIES` keys
+#: each. Two of the ids are the audit page's, cited (`G1`, `G2`); the
+#: rest are `FAMILIES` keys
 #: this census owns, because the audit's SCENE-driven list does not
 #: reach a door no tour scene exercises — which is exactly why those
 #: accumulated unnoticed and why this census exists.
 #:
-#: - **G2 — sweep and tube.** `sweep_body`, `tube_along_arc`,
-#:   `tube_along_arc_hollow`, `TubeError`, `TubeWindow`. Banked, not
-#:   merely unbound: `wire_sweep` refuses unconditionally and
-#:   `Node::Tube` does not exist (a schema-version break).
+#: **No count of the families is written here, and that is a
+#: correction.** The sentence used to carry one, it was stale, and it
+#: was stale in BOTH halves at once — "two … the other seven" while
+#: nine families were cited. Worse, it went stale twice inside one
+#: afternoon: LIB-B-EXPR-READ re-cut it to "one … the other eight",
+#: and LIB-B-PICKING closing in the same window made that wrong
+#: before either landed. A number that two concurrent units can
+#: falsify is not a measurement, it is a merge conflict with a
+#: plausible face. What is checked always is
+#: [`TestBindingCensus.test_every_gap_entry_names_a_defined_id`],
+#: which fails on a charter nobody cites and on a citation nothing
+#: defines, and says nothing about how many there are — the module
+#: docstring's own argument against prose counts, arriving a second
+#: time at the paragraph that describes the rosters rather than at
+#: the one that describes the mapping rule.
+#:
+#: - **G2 — the SWEEP half only.** `sweep_body`. The family used to
+#:   hold five names; the tube half closed at LIB-TUBE (see the
+#:   paragraph below) and `sweep_body` is what is left. Banked, not
+#:   merely unbound: `wire_sweep` refuses unconditionally (U4/LQ3,
+#:   kernel-owned), so a binding would add a door that cannot
+#:   succeed.
+#: **G2's TUBE half is CLOSED** (LIB-TUBE). It held
+#: `tube_along_arc`, `tube_along_arc_hollow`, `TubeError` and
+#: `TubeWindow`, and its own row said what would close it: a
+#: `Node::Tube` that does not exist, behind a schema break. That
+#: break is not a thing any more (#1553 demolished the version
+#: machinery); both node kinds landed as additive vocabulary —
+#: `Node::Tube` and `Node::HollowTube` per the #1205 split ruling —
+#: and the four names moved to the
+#: dispositions their revolve twins already carry: the two kernel
+#: doors to `BOUND_AS` (`Node.tube` and `Node.hollow_tube` are the
+#: Python spellings of the questions they answer, one door each),
+#: `TubeError` to `INTERIOR` beside `RevolveError`, since its
+#: refusals cross as the `tube` error tag rather than as a type, and
+#: `TubeWindow` to a TOP-LEVEL python name — it is the one of the
+#: four a caller must be able to spell, because a window is an
+#: argument and `full()` is a choice, not an omission.
 #: **G18 is CLOSED and no longer a `gap` id here** (LIB-G18b). It
 #: held six families and 43 names: the pin-update door
 #: (`update_references`, `UpdateError`, `mixed_pins`,
@@ -861,26 +928,68 @@ FAMILIES = {
 #: when it is closed, and this is what that gap looks like in
 #: practice: the id and the door list stayed right, the resident
 #: count did not.
-#: - **B-PICKING — picking.** `pick_face`, `PickTarget`, `PickHit`,
-#:   `NodePick`, `NodePickError`, `HitTestError`, `Ray`. The fourth
-#:   door onto a name — ray in, `StableName` out, the same alphabet
-#:   `Evaluation.select` speaks.
+#: **B-PICKING is CLOSED and no longer a `gap` id here**
+#: (LIB-B-PICKING). It held seven names — `pick_face`, `PickTarget`,
+#: `PickHit`, `NodePick`, `NodePickError`, `HitTestError` and `Ray` —
+#: and the fourth door onto a name now answers in Python in the same
+#: opaque-text alphabet `Evaluation.select` speaks: a `PickHit.name`
+#: goes to `Node.fillet` unread.
+#:
+#: The closing measured one thing worth recording, and it is a
+#: SECOND-ORDER effect of a curation decision rather than anything the
+#: charter foresaw. CUR3 kept `MeshPick` and `MeshPickError` interior,
+#: which makes a raw `PickTarget` unconstructible through the façade —
+#: the argument is in `crates/pncad/src/select.rs`, and it is about
+#: CONSTRUCTION. Two consequences fall out of it downstream. The first
+#: is good and was intended: with no raw target to assemble, the door
+#: that cannot be mis-paired is not merely preferred but the only one,
+#: so the Python signature takes `NodePick`s and the
+#: confidently-wrong-name lane (#1098) has no spelling here at all.
+#: The second was not foreseen: `NodePickError::Index` CARRIES a
+#: `MeshPickError`, so a refusal whose payload type is unnameable
+#: crosses as one tag plus prose, where every other arm of that enum
+#: is matchable. That is not a relitigation of CUR3 and this unit did
+#: not treat it as one — it is banked as
+#: `work/lib/mesh-pick-error-is-unmatchable-under-node-pick-error.md`,
+#: the `DanglingRef` shape one rung along: a payload whose carrier
+#: projects arms, that has no arms of its own to project.
 #: - **B-RESOLVE — name resolution across re-evaluation.** `resolve`,
 #:   `Resolution`, `RunCtx`. The question a consumer that STORES names
 #:   must ask on every run — and Python's whole selection story is
 #:   store-then-reuse (`Node.fillet` freezes a name set), so the
 #:   absence bites exactly the consumers the stub tells to store.
-#: - **The expression surface, split at the half the audit reaches.**
-#:   `Expr`, `ParamEnv`, `parse_expr` and `ParseError` are **G1**: its
-#:   row records the residue by name ("a profile step whose argument
-#:   is an EXPRESSION rather than a literal" — the one door still
-#:   blocking `plate_param` from scratch, and the same door
-#:   `GeomPred.datum_distance`'s comparand waits on). The READ side
-#:   `eval`, `eval_count` and `EvalError` is **B-EXPR-READ**, unnamed
-#:   on that page or anywhere else: Python holds `DocParam` values and
-#:   has no door from an expression to its value. One family, two ids,
-#:   because the entries are what carry an id and only one half of
-#:   this family has one.
+#: **B-EXPR-READ is CLOSED and no longer a `gap` id here**
+#: (LIB-B-EXPR-READ). It held three names — `eval`, `eval_count` and
+#: `EvalError` — and closing it moved NINE, because the three could
+#: not be reached without the four the roster filed under `G1`
+#: (`Expr`, `ParseError`, `parse_expr`, `unparse`) plus the
+#: environment (`ParamEnv`) and the second refusal class. That is the
+#: measurement the closing paid for and the one worth keeping: **the
+#: entries an id owns are not always the entries a unit must move.**
+#: A read door needs the value it reads, and the census had split
+#: this family across two ids on WHICH HALF THE AUDIT REACHED rather
+#: than on what a unit would have to build — a split the module
+#: docstring predicted ("not that a cited id is the RIGHT owner") and
+#: this is the first case that executed it.
+#:
+#: `Expr`, `ParseError` and `EvalError` are top-level names in
+#: `pncad.pyi`; `parse_expr`, `eval` and `eval_count` are `BOUND_AS`
+#: `Doc` methods and `unparse` is `Expr.text`; `ParamEnv` is
+#: `INTERIOR`, corrected from a `gap` it should never have been (see
+#: its entry). The positive form is `tests/test_expressions.py`.
+#:
+#: **G1 stays open**, and the part of its row this unit touched is
+#: unchanged in what it measures: "a profile step whose argument is
+#: an EXPRESSION rather than a literal" — the door still blocking
+#: `plate_param` from scratch, and the one
+#: `GeomPred.datum_distance`'s comparand waits on. What changed is
+#: that THAT residue is now a SIGNATURE rather than a missing name,
+#: so this census cannot see it and does not pretend to;
+#: `tests/test_north_star.py` executes an `Expr` against the arc and
+#: parameter doors that refuse it, which is the shape every other
+#: signature gap on that page is watched in. G1 keeps a citation
+#: here regardless, on a different residue of the same row:
+#: `ArrivesTangent`, the seam's declared tangent joint.
 #: - **B-VALIDATE4 — the fourth validator rung.**
 #:   `validate_pseudomanifold`. `Body` binds three of the ladder's
 #:   four; this one is simply missing.
@@ -1017,6 +1126,12 @@ NOT_BOUND = {
     # `Evaluation.find_flush_candidates` and `Doc.declare`.
     "flush": SHAPE,
     "real": SHAPE,
+    # The loops-only resolution door the sketch frame created: a caller
+    # with loops in hand and no document — a form previewing what it is
+    # about to author — asks it rather than inventing a plane node. No
+    # Python door has that shape: `Node.profile` always has a document
+    # to name a frame in, so there is nothing here Python cannot say.
+    "resolve_loops": INTERIOR,
     "v2": SHAPE,
     "v3": SHAPE,
     "write_step": SHAPE,
@@ -1076,6 +1191,18 @@ NOT_BOUND = {
     "LoopProgram": INTERIOR,
     "NameTable": INTERIOR,
     "Operand": INTERIOR,
+    # The evaluation environment, and the entry that had been on the
+    # WRONG side of the line: it was listed as a `G1` gap on the
+    # reasoning that "`select_where` takes one, so a caller who cannot
+    # spell the type cannot call the door" — which is the RUST door's
+    # shape. Python's `select_where` never took one; `Evaluation`
+    # captures the environment at `evaluate` so the answer is as of
+    # the same document the evaluation is of. LIB-B-EXPR-READ put a
+    # second door on that footing rather than changing it: `Doc.eval`
+    # builds the environment from the document it is a method on. Two
+    # doors, both of them holding one internally, neither handing it
+    # to Python — which is what `behind-a-door` means.
+    "ParamEnv": INTERIOR,
     "Profile": INTERIOR,
     "ProfileEdgeRef": INTERIOR,
     "ProfileLoop": INTERIOR,
@@ -1093,6 +1220,7 @@ NOT_BOUND = {
     # `BlendError::UnsupportedCorner`'s second field, the policy
     # `CornerConfig::policy` assigns (LIB-CUR4).
     "RunOutPolicy": INTERIOR,
+    "TubeError": INTERIOR,
     "SegmentKind": INTERIOR,
     # `ValidationError::StaleContactDeclaration`'s payload (LIB-CUR4).
     "StaleDeclaration": INTERIOR,
@@ -1103,12 +1231,13 @@ NOT_BOUND = {
     "edge_name": INTERIOR,
     "face_name": INTERIOR,
     "validated": INTERIOR,
-    # --- gap: sweep and tube (audit G2) ---------------------------
-    "TubeError": f"{GAP}: G2 sweep/tube",
-    "TubeWindow": f"{GAP}: G2 sweep/tube",
-    "sweep_body": f"{GAP}: G2 sweep/tube",
-    "tube_along_arc": f"{GAP}: G2 sweep/tube",
-    "tube_along_arc_hollow": f"{GAP}: G2 sweep/tube",
+    # --- gap: the SWEEP half of G2, still banked -------------------
+    # The tube half closed at LIB-TUBE; `sweep_body` did not, and the
+    # reason is not "no binding was written" — `wire_sweep` refuses
+    # unconditionally (U4/LQ3, kernel-owned). Binding a door that
+    # cannot succeed would move a name out of this list without
+    # moving anything a caller can do.
+    "sweep_body": f"{GAP}: G2 sweep (wire_sweep banked on U4/LQ3)",
     # --- gap: parameter distributions and the analysis lane -------
     # --- gap: authoring a measurement (census-owned) --------------
     # The READING half ships (`Value.measure`, `Value.assertion`); what
@@ -1139,27 +1268,53 @@ NOT_BOUND = {
     # the registry's shape crossed unchanged, including the two knob
     # TYPES whose difference is DS6's waiver rule. The positive form
     # is `tests/test_checks.py`.
-    # --- gap: picking (census-owned) ------------------------------
-    "HitTestError": f"{GAP}: B-PICKING ray onto a name",
-    "NodePick": f"{GAP}: B-PICKING ray onto a name",
-    "NodePickError": f"{GAP}: B-PICKING ray onto a name",
-    "PickHit": f"{GAP}: B-PICKING ray onto a name",
-    "PickTarget": f"{GAP}: B-PICKING ray onto a name",
-    "Ray": f"{GAP}: B-PICKING ray onto a name",
-    "pick_face": f"{GAP}: B-PICKING ray onto a name",
+    # B-PICKING IS GONE FROM THIS ROSTER, closed at LIB-B-PICKING, and
+    # the id is gone from `FAMILIES` with it. Five of its seven names
+    # are top-level in `pncad.pyi` name for name (`Ray`, `PickHit`,
+    # `NodePick`, `NodePickError`, `HitTestError`); two are in
+    # `BOUND_AS` — `pick_face` as `Evaluation.pick_face`, and
+    # `PickTarget` as `NodePick`, the value that plays its role in a
+    # language where a raw target has no constructor. The positive
+    # form is `tests/test_picking.py`.
     # --- gap: name resolution (census-owned) ----------------------
     "Resolution": f"{GAP}: B-RESOLVE names across runs",
     "RunCtx": f"{GAP}: B-RESOLVE names across runs",
     "resolve": f"{GAP}: B-RESOLVE names across runs",
-    # --- gap: the expression surface (audit G1 + census-owned) ----
-    "EvalError": f"{GAP}: B-EXPR-READ an expression's value",
-    "Expr": f"{GAP}: G1 Expr-bearing authoring steps",
-    "ParamEnv": f"{GAP}: G1 Expr-bearing authoring steps",
-    "ParseError": f"{GAP}: G1 Expr-bearing authoring steps",
-    "eval": f"{GAP}: B-EXPR-READ an expression's value",
-    "eval_count": f"{GAP}: B-EXPR-READ an expression's value",
-    "parse_expr": f"{GAP}: G1 Expr-bearing authoring steps",
-    "unparse": f"{GAP}: G1 Expr-bearing authoring steps",
+    # --- gap: the seam's declared arrival (audit G1) ---------------
+    # The token that DECLARES the seam's tangent joint (PATHS-DESIGN §6;
+    # ruled 2026-09-02 — every zero-turn joint is a declared tangent
+    # joint, so there is one token rather than two). Not absorbed into
+    # the verbs the way `LineTarget`/`ContinueTarget`/`TangentArcTarget`
+    # are: those are traits naming what a parameter accepts, while this
+    # is a VALUE a caller writes — `line_to(Start.arrives_tangent())` —
+    # so a Python author who cannot name it cannot author a loop whose
+    # seam is a declared tangent joint. Same family as the profile
+    # lattice itself, and it rides beside `continue_to`, which the
+    # Rust-side surface census records as unbound for the same reason
+    # (`surface_census.rs`'s `Spelling::NotBound`).
+    "ArrivesTangent": f"{GAP}: G1 the seam's declared tangent joint",
+    # B-EXPR-READ IS GONE FROM THIS ROSTER, closed at
+    # LIB-B-EXPR-READ, and the id is gone from `FAMILIES` with it.
+    # `EvalError` is a top-level name in `pncad.pyi` and needed no
+    # `BOUND_AS`; `eval` and `eval_count` are in `BOUND_AS` as `Doc`
+    # methods, because the environment they read is the document's.
+    #
+    # The FIVE G1 entries left with them, and that is the decay rule
+    # rather than a re-assignment: `Expr`, `ParseError`, `parse_expr`
+    # and `unparse` are names Python now spells, and a `gap:` entry
+    # Python binds is stale whatever id it cites. `ParamEnv` moved
+    # for the OTHER reason — it is `INTERIOR` now, below, because
+    # both doors that take one build it from the document in hand.
+    # **G1 is not closed by any of that**, and it did not stop being
+    # cited here either: `ArrivesTangent` above carries the id now,
+    # for a residue of the SAME row that has nothing to do with
+    # expressions. What the expression half's residue became is a
+    # SIGNATURE rather than a missing name — no door takes an `Expr`
+    # INTO a document — so this census structurally cannot watch that
+    # half and does not pretend to; `tests/test_north_star.py` does,
+    # by executing an `Expr` against the arc and parameter doors that
+    # still refuse it. The positive form is
+    # `tests/test_expressions.py`.
     # --- gap: geometry read-back doors (census-owned) -------------
     # --- gap: assorted single doors -------------------------------
     "CancelToken": f"{GAP}: B-CANCEL cooperative cancellation",

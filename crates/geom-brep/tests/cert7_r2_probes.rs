@@ -1,5 +1,12 @@
-//! Offset-certificate probes on a rational base the shipped suite
-//! uses nowhere, driven through the public doors only.
+//! Offset-certificate probes driven through the public doors only.
+//!
+//! **Where the independence is, and where it is not.** The e2e row's
+//! base is a rational the shipped suite uses nowhere — that one is
+//! built here and stays here. The two hostile-weight rows are not
+//! about the carrier at all: what they perturb is the FIT's weight
+//! net, and the carrier under it was character-for-character
+//! `offset_fit.rs`'s quarter cylinder, so it is now the one
+//! `crate::shared::fixture::quarter_cylinder`.
 //!
 //! What these rows push on, beyond the shipped suite:
 //!
@@ -20,35 +27,14 @@ use core::f64::consts::FRAC_PI_2;
 use std::sync::Arc;
 
 use geom::NurbsSurface;
-use geom_brep::offset_fit::{
-    approx_offset_surface, certify_offset, fit_offset, offset_point, recertify_approx,
-};
-use geom_core::spline::KnotVector;
+use geom_brep::offset_fit::{approx_offset_surface, certify_offset, fit_offset, recertify_approx};
 use geom_core::{Band, Point3, Tol};
+
+use crate::shared::fixture::{arc_weight, kv2, quarter_cylinder};
+use crate::shared::sample::{grid, worst_offset_residual};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
-}
-
-fn kv2() -> KnotVector {
-    KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap()
-}
-
-fn kv1() -> KnotVector {
-    KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap()
-}
-
-fn quarter_cylinder(r: f64, h: f64) -> NurbsSurface<f64> {
-    let s = (FRAC_PI_2 * 0.5).cos();
-    let control = vec![
-        Point3::new(r, 0.0, 0.0),
-        Point3::new(r, 0.0, h),
-        Point3::new(r, r, 0.0),
-        Point3::new(r, r, h),
-        Point3::new(0.0, r, 0.0),
-        Point3::new(0.0, r, h),
-    ];
-    NurbsSurface::new(kv2(), kv1(), control, vec![1.0, 1.0, s, s, 1.0, 1.0]).unwrap()
 }
 
 /// An ellipse-of-revolution wall: the elliptic meridian arc from
@@ -70,7 +56,7 @@ fn ellipse_wall(a: f64, b: f64, t0: f64, t1: f64) -> NurbsSurface<f64> {
         (a * m2.0, b * m2.1),
     ];
     let mw = [1.0, wm, 1.0];
-    let wl = (FRAC_PI_2 * 0.5).cos();
+    let wl = arc_weight(FRAC_PI_2);
     let mut control = Vec::with_capacity(9);
     let mut weights = Vec::with_capacity(9);
     for (i, (x, z)) in mer.iter().enumerate() {
@@ -83,23 +69,13 @@ fn ellipse_wall(a: f64, b: f64, t0: f64, t1: f64) -> NurbsSurface<f64> {
     NurbsSurface::new(kv2(), kv2(), control, weights).unwrap()
 }
 
-fn dense(n: usize, m: usize) -> Vec<(f64, f64)> {
-    let mut out = Vec::new();
-    for i in 0..=n {
-        for j in 0..=m {
-            out.push((i as f64 / n as f64, j as f64 / m as f64));
-        }
-    }
-    out
-}
-
+/// The residual against the exact offset locus, on 41 x 41 stations —
+/// a schedule that lands ON a 40-cell fit grid rather than off it, so
+/// it is a lower bound on the sup and nothing more. Every row that
+/// uses it asserts containment (`hull_sup` at or above this), which is
+/// the direction that survives that.
 fn sampled_residual(base: &NurbsSurface<f64>, fit: &NurbsSurface<f64>, d: f64) -> f64 {
-    let mut worst = 0.0f64;
-    for (u, v) in dense(40, 40) {
-        let target = offset_point(base, d, u, v).unwrap();
-        worst = worst.max((fit.eval(u, v) - target).norm());
-    }
-    worst
+    worst_offset_residual(base, fit, d, &grid(41, 41)).unwrap()
 }
 
 /// E2E: the ellipse wall through the public storage door, both

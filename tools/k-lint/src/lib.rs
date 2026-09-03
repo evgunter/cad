@@ -223,9 +223,35 @@
 /// that: the failure would be silent, an exact row quietly answering to
 /// the ratio rules. That is the residue, stated rather than guarded,
 /// because the guard would have to live in the recorder.
+///
+/// **The separation itself IS checked**, in
+/// `tests/threshold_provenance.rs`: the M7 era's `band_zero`
+/// population is bimodal with an 88-decade gap, and every value inside
+/// that gap classifies every recorded row identically. The same
+/// derivation over all four committed eras is there too, `#[ignore]`d
+/// because M7 dominates them and they are frozen. So the digit is
+/// a choice within the gap and carries no information — which is what
+/// the paragraph above claims, now stated where it can fail. It does
+/// not reach the residue: these are past snapshots, and a future band
+/// construction is invisible to all of them.
 pub const AMBIENT_BAND_MIN: f64 = 1e-13;
 
 /// "Within 10^2 of the band": the spec's proximity factor (D3).
+///
+/// **A policy choice, and the only one of this crate's four constants
+/// that is** — nothing derives 1e2 and no re-measurement could. What
+/// bounds it is derived instead, in `tests/threshold_provenance.rs`:
+/// below the structural edge the rule-2 cap stops binding at the
+/// loosest supported row, and above the corpus's own largest zero-side
+/// ratio the baseline starts flagging itself under rule (2)-below.
+/// **That measured ceiling is the binding one of the two** — well
+/// under the structural edge, and under 2x above the shipped factor,
+/// at the 1e-12 row where a fixed rounding-scale coincidence is
+/// closest to `band_zero`. Both halves of that sentence are the
+/// assertions the test makes, in that order. It is NOT the crate's
+/// narrowest headroom: this one is 1.88x of a policy digit, while
+/// `EPS_COUPLED_FLOOR_RATIO` sits 8.9% below its P0 and this floor
+/// 16.6% below its datum — different quantities, not a ranking.
 pub const PROXIMITY_FACTOR: f64 = 1e2;
 
 /// The baseline distribution's bottom edge (provenance in the module
@@ -292,6 +318,15 @@ pub const EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
 /// minimum of 108 draws, so a firing here is likelier to be the
 /// threshold than the distribution, and the runbook rather than this
 /// line is where that gets decided.
+///
+/// **The derivation is executable**, in `tests/threshold_provenance.rs`:
+/// the population is re-cut from the committed M7 era on every
+/// `cargo test` and this constant re-checked against its P0 and the
+/// headroom above. The distinction the paragraph above draws survives
+/// intact — what is re-run is the CUT, over a fixed committed era;
+/// what nothing re-takes is the SWEEP that produced the era. When a
+/// later era supersedes M7 the constant is re-cut against it, and that
+/// test is where the move happens.
 pub const EPS_COUPLED_FLOOR_RATIO: f64 = 1.5e2;
 
 /// Whether `predicate` is one of the [`EPS_COUPLED_PREDICATES`].

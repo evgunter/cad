@@ -26,15 +26,15 @@
 //! the crossing does instead.
 
 use pncad::document::{
-    AssemblyError, CheckEvidence, ChecksError, DimensionError, EditError, InlineError, MateFault,
-    NodeErrorKind, PersistError, PlacementRuleFault, RecordedProgramError, RefusedRef, RootFault,
-    SplitError, UpdateError,
+    AssemblyError, CheckEvidence, ChecksError, DimensionError, EditError, EvalError, InlineError,
+    MateFault, NodeErrorKind, ParseError, PersistError, PlacementRuleFault, RecordedProgramError,
+    RefusedRef, RootFault, SplitError, UpdateError,
 };
 use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
 use pncad::prelude::BlendKind;
 use pncad::profile::{PathError, PathErrorKind};
-use pncad::select::{DanglingRef, InterrogateError, ReadbackError};
+use pncad::select::{DanglingRef, HitTestError, InterrogateError, NodePickError, ReadbackError};
 use pncad::step_import::StepImportError;
 // All three STL refusals are prelude-curated; the module path is the
 // spelling this file uses throughout, not a reach past the façade.
@@ -59,7 +59,8 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::JunctionTangent => "junction_tangent",
         PathErrorKind::JunctionCusp => "junction_cusp",
         PathErrorKind::SeamTangent => "seam_tangent",
-        PathErrorKind::SameCarrierJunction => "same_carrier_junction",
+        PathErrorKind::SeamArrivalOffDirection => "seam_arrival_off_direction",
+        PathErrorKind::SeamArrivalLeverTooShort => "seam_arrival_lever_too_short",
         PathErrorKind::ContinuationTargetOffRay => "continuation_target_off_ray",
         PathErrorKind::NoCornerForFillet => "no_corner_for_fillet",
         PathErrorKind::AnchorOutsideTrimmedExtent => "anchor_outside_trimmed_extent",
@@ -96,7 +97,6 @@ pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
         RecordedProgramError::Literal(inner) => expr_dimension_error_tag(inner),
         RecordedProgramError::SubdivisionCount(_) => "subdivision_count",
         RecordedProgramError::CarrierInChain => "carrier_in_chain",
-        RecordedProgramError::VerbNotInDocumentVocabulary(_) => "verb_not_in_document_vocabulary",
     }
 }
 
@@ -253,6 +253,14 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::ProfileAnchor { .. } => "profile_anchor",
         NodeErrorKind::Extrude { .. } => "extrude",
         NodeErrorKind::Revolve { .. } => "revolve",
+        // ONE tag for both tube kinds, matching every other op on
+        // this map (`revolve` covers ten `RevolveError` arms the
+        // same way): the tag names the OP that refused, and the
+        // refusal is already attributed to a node whose kind says
+        // solid or hollow. Per-arm tags would be worth having, but
+        // for every op at once — not for the one op whose unit
+        // happened to be written last.
+        NodeErrorKind::Tube { .. } => "tube",
         NodeErrorKind::Split { .. } => "split",
         // The two blends share one kernel error type, so the tag is
         // read off the VERB the node is: a chamfer's refusal must not
@@ -298,7 +306,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::MissingSlot { .. } => "missing_slot",
         NodeErrorKind::VerbArity { .. } => "verb_arity",
         NodeErrorKind::Escalated { .. } => "escalated",
-        NodeErrorKind::AxisNotInSketchPlane { .. } => "axis_not_in_sketch_plane",
+        NodeErrorKind::AxisInDifferentPlane { .. } => "axis_in_different_plane",
         NodeErrorKind::NonPositiveCount { .. } => "non_positive_count",
         NodeErrorKind::PlacementsUncertified { .. } => "placements_uncertified",
         NodeErrorKind::PlacementRule(fault) => placement_rule_fault_tag(fault),
@@ -549,6 +557,49 @@ pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
     }
 }
 
+/// The stable tag for an expression TEXT-door refusal (`parse_expr`).
+///
+/// The `Dimension` arm keeps a tag of its OWN rather than borrowing
+/// the inner refusal's: what refused is the parse, at a byte offset
+/// the inner `DimensionError` does not carry. The inner tag crosses
+/// beside it as the exception's `kind`
+/// ([`expr_dimension_error_tag`]), so a caller who wants to branch on
+/// WHICH reduction was refused still can.
+pub fn parse_error_tag(err: &ParseError) -> &'static str {
+    match err {
+        ParseError::UnexpectedChar { .. } => "unexpected_char",
+        ParseError::UnexpectedEnd { .. } => "unexpected_end",
+        ParseError::UnexpectedToken { .. } => "unexpected_token",
+        ParseError::TrailingInput { .. } => "trailing_input",
+        ParseError::MalformedNumber { .. } => "malformed_number",
+        ParseError::IntegerOverflow { .. } => "integer_overflow",
+        ParseError::UnknownUnit { .. } => "unknown_unit",
+        ParseError::UnknownFunction { .. } => "unknown_function",
+        ParseError::WrongArity { .. } => "wrong_arity",
+        ParseError::UnknownParam { .. } => "unknown_param",
+        ParseError::Dimension { .. } => "dimension",
+    }
+}
+
+/// The stable tag for an evaluation refusal (`eval` / `eval_count`).
+///
+/// Note what is NOT here: division by zero and out-of-domain trig.
+/// The evaluator has no branches to hide a numeric domain behind, so
+/// those follow the kernel's poison-value policy through the scalar
+/// and reach a caller as `non_finite_result` — on the finished VALUE,
+/// at the end of the evaluation, rather than at the operation.
+pub fn eval_error_tag(err: &EvalError) -> &'static str {
+    match err {
+        EvalError::UnknownParam(_) => "unknown_param",
+        EvalError::ParamDimensionMismatch { .. } => "param_dimension_mismatch",
+        EvalError::CountExprInContinuousEval => "count_expr_in_continuous_eval",
+        EvalError::ContinuousExprInCountEval { .. } => "continuous_expr_in_count_eval",
+        EvalError::CountOverflow => "count_overflow",
+        EvalError::CountToScalarOutOfRange(_) => "count_to_scalar_out_of_range",
+        EvalError::NonFiniteResult => "non_finite_result",
+    }
+}
+
 /// The stable tag for a tessellation refusal.
 ///
 /// Like every other map in this module the tag carries the branchable
@@ -736,6 +787,60 @@ pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
         InterrogateError::NoBodies { .. } => "no_bodies",
         InterrogateError::NoSuchBody { .. } => "no_such_body",
         InterrogateError::Readback(err) => readback_error_tag(err),
+    }
+}
+
+/// The stable tag for a hit-test refusal — the ray door's own.
+///
+/// The three standing arms are the SAME vocabulary
+/// [`interrogate_error_tag`] speaks for the read-back doors, spelled
+/// identically on purpose: "node 7 has no result in this evaluation"
+/// is one fact about the run, and a caller that already branches on
+/// `node_not_evaluated` from a frame read should not have to learn a
+/// second word for it at the pick.
+///
+/// `unnamed` is the BUG arm (spec D4): the node evaluated and the
+/// entity has no name in its table. Its payload is an `EntityRef`,
+/// which is an arena key plus a body index — the key does not cross
+/// (G1), so what the Python side projects beside this tag is the
+/// entity's KIND and its body index, which is the whole of the
+/// diagnostic a bug report can act on.
+pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
+    match err {
+        HitTestError::NodeNotEvaluated { .. } => "node_not_evaluated",
+        HitTestError::NodeFailed { .. } => "node_failed",
+        HitTestError::NodePoisoned { .. } => "node_poisoned",
+        HitTestError::Unnamed { .. } => "unnamed",
+    }
+}
+
+/// The stable tag for a pick-index build refusal.
+///
+/// Three arms FORWARD rather than wrap, the
+/// [`interrogate_error_tag`] / [`assembly_error_tag`] convention: the
+/// standing ladder arrives under [`hit_test_error_tag`]'s words (it is
+/// literally that type), and a tessellation refusal arrives under the
+/// tessellator's own tag, because "the chordal budget was not finite"
+/// is that fact whether it is reached through `Body.tessellate` or
+/// through a pick index.
+///
+/// The `Index` arm is the one that cannot forward. Its payload is
+/// `MeshPickError`, which CUR3 recorded DECIDED absent from the façade
+/// (`crates/pncad/tests/all.rs`'s `NOT_CARRIED`, argued in
+/// `crates/pncad/src/select.rs`): the type is not nameable here, so
+/// its arms cannot be matched and there is no per-arm tag to forward.
+/// The whole arm therefore crosses as ONE tag plus the kernel's own
+/// prose, which states the offending patch, triangle and index. That
+/// is a knowingly unprojected payload — `work/lib/mesh-pick-error-is-
+/// unmatchable-under-node-pick-error.md` records it — and not a lane
+/// this crate can close without a façade decision.
+pub fn node_pick_error_tag(err: &NodePickError) -> &'static str {
+    match err {
+        NodePickError::Standing(err) => hit_test_error_tag(err),
+        NodePickError::NotABody { .. } => "not_a_body",
+        NodePickError::NoSuchBody { .. } => "no_such_body",
+        NodePickError::Tessellate(err) => tessellate_error_tag(err),
+        NodePickError::Index(_) => "mesh_index",
     }
 }
 

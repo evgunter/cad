@@ -23,7 +23,7 @@
 //!    decide at all, and the verdict log is the receipt.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{annulus, coverage_corpus, p2, profile, rect, rounded_rect, tol};
 use geom_core::{Sign, Tol};
@@ -332,6 +332,7 @@ fn the_hairline_lens_at_interval_consumes_the_recorded_pick() {
         let pt = |p: Point2<f64>| Point2::new(T::from_f64(p.x), T::from_f64(p.y));
         let tgt = |t: Target<f64>| match t {
             Target::Start => Target::Start,
+            Target::StartArriving => Target::StartArriving,
             Target::Point(p) => Target::Point(pt(p)),
         };
         let spec = |s: ArcData<f64>| match s {

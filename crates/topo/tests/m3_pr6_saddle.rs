@@ -35,7 +35,7 @@
 //! operands — it stays armed, and this file is the standing hunt
 //! fixture (any future firing lands here).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod common;
+use crate::common;
 use common::{mapped_cube, prism_z};
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};

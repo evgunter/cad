@@ -41,7 +41,7 @@
 //!    goes red under the `pair_region_verified → true` mutation.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use geom::Surface;
 use geom_core::{Band, Point3, Tol, Vec3};

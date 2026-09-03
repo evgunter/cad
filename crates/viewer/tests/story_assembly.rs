@@ -28,7 +28,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use std::path::Path;
 
@@ -93,10 +93,11 @@ fn author_box_part(
         name: name.to_owned(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let plane = common::xy_frame_in(session);
     let profile = insert(
         session,
         SessionOp::AddProfile {
-            plane: pncad::profile::SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle { width, height })],
         },
     );

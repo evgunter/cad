@@ -1123,6 +1123,163 @@ jobs:
           echo "fail-fast mode was --no-fail-fast: the summary above is the whole demoted failure SURFACE, not its first failure."
           exit $status
 
+  # THE PER-FILE TEST GATE'S DAILY RE-TAKE (S-TCOST lever 3;
+  # docs/TCOST-1-SPEC.md). A suite carrying a `test_utils::gated_to!` marker
+  # names the source paths it is specific to, and ci.yml's run legs skip it
+  # when none of them — nor the suite's own file — is in the pull request's
+  # diff. This job is the other half of that bargain: it runs the WHOLE gated
+  # set, ungated, on any day main moved.
+  #
+  # WHY A SKIP IS SOUND AT ALL, and it is the rule rather than an appeal to
+  # this lane's existence: docs/CI-MINUTES-2026-08.md §*What is NOT sampled*
+  # licenses skipping a detector whose subject PERSISTS in the tree, and
+  # forbids it for a detector of ABSENCE. A gated suite's break persists — the
+  # code it was written against is still wrong tomorrow — so what the gate
+  # gives up is LATENCY, and this row is the bound on it: at most a day, and
+  # only for a break reached by a path the marker did not name.
+  #
+  # `--features interval`, ONE BUILD AND NOT TWO, and the choice is about
+  # coverage rather than thrift. The `interval` feature is purely additive —
+  # ci.yml's `discipline` row gates that with
+  # `scripts/check-interval-cfg-additive.py` — so the interval build compiles
+  # every test the default build does PLUS the interval-only ones, of which
+  # the gated set has some (a ring fuzz, an interval surfaces probe) that a
+  # default-lane row would re-take with nothing. What this does NOT re-take is
+  # a gated suite that breaks only in the DEFAULT compile mode, which is the
+  # standing residue of lane sampling and not a new one.
+  #
+  # AN EMPTY SET IS NOT A SILENT ZERO, the same distinction the `demoted` job
+  # draws one lane over. `--gated-set` prints `none()` only after proving from
+  # the SOURCE that no marker exists anywhere under crates/; markers present
+  # with a term it cannot derive is a broken rig and exits 1 there, and a
+  # selection that matches no test at all reds this row through nextest's own
+  # zero-test exit rather than being passed `--no-tests=pass`.
+  #
+  # WHAT THIS ROW COSTS, AND THE FIGURE IS UNMEASURED — said plainly rather
+  # than estimated, because this repo's convention is that a committed number
+  # comes from a hosted run and this job has never had one. Its SHAPE is
+  # knowable and is the whole of what can be claimed today:
+  #
+  #   * one `--workspace --features interval` TEST BUILD at the gate's opt-1
+  #     environment, which is the job's dominant term. It is the same compile
+  #     ci.yml's `build + archive (interval)` step pays, so that step is the
+  #     bound: 11.1 min at the 2026-09-02 reading in docs/S-TCOST-PLAN.md, and
+  #     11-15 min is the band those readings have moved in. This job pays no
+  #     artifact upload, so it should sit at or under that;
+  #   * plus the gated set's own EXECUTION, which is small against the build:
+  #     the set is 299 tests of the ~5 600 the workspace lists;
+  #   * plus nothing at all on a tree carrying no marker — the `derive the
+  #     gated set` step below is a text scan that emits `none()`, and the row
+  #     is skipped entirely rather than building.
+  #
+  # THE READING WILL COME FROM THIS JOB'S OWN DURATION on the row's first
+  # firing, and NOT BEFORE: the shape above is a bound derived from a different
+  # job's step, not a measurement of this one. The implementing lane could not
+  # take the measurement itself — a `workflow_dispatch` of nightly.yml answers
+  # `403 Resource not accessible by integration` for the lane's token and for
+  # the orchestrator's alike — so the first scheduled nightly after this lands
+  # is the first execution this row has ever had. Whoever reads that run should
+  # replace this paragraph with what it cost.
+  #
+  # NO LOCAL MIRROR: the local half applies the identical TEST_FILTER to its
+  # own test rows and undoes it with `--full`, so a developer who wants the
+  # gated set runs the whole suite in one command; what has no local analogue
+  # is the CADENCE — a scheduled re-take exists because a hosted pull-request
+  # gate skipped something, and nothing schedules a developer's box.
+  gated-suites:
+    name: gated suites (ungated re-take)
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    timeout-minutes: 90
+    env:
+      # The gate's own build environment, copied from ci.yml's `build-interval`
+      # job and TRACKING it, for the reason the `demoted` job states at its
+      # own copy: a cost measured in a configuration we do not use is not a
+      # cost anyone can act on.
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_STRIP: debuginfo
+      CARGO_PROFILE_DEV_OPT_LEVEL: "1"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: nightly-gated-suites
+      # The pinned nextest version is NOT restated here — ci.yml declares
+      # itself the single source of truth for it. Same step, same reason, as
+      # the `demoted` and `opt-level` jobs above.
+      - name: read the nextest pin from ci.yml
+        id: nextest
+        run: |
+          set -euo pipefail
+          v="$(sed -n 's/^ *NEXTEST_VERSION: *//p' .github/workflows/ci.yml | head -1 | tr -d "\"'"'"'")"
+          test -n "$v" || { echo "no NEXTEST_VERSION in ci.yml — that pin is this lane's input too"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "nextest pin read from ci.yml: $v"
+      - name: install cargo-nextest (pinned, official prebuilt)
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ steps.nextest.outputs.version }}
+      # ASK THE CHEAP QUESTION FIRST, exactly as the `demoted` job does: the
+      # build below is the whole bill, and on a tree carrying no marker there
+      # is nothing to re-take. `--gated-set` is a text scan; it compiles
+      # nothing, and it is the SAME derivation ci.yml's run legs subtract, not
+      # a second one written here.
+      - name: derive the gated set
+        id: set
+        run: |
+          set -euo pipefail
+          scripts/ci-filter.py --gated-set > "$RUNNER_TEMP/gated-set.txt"
+          sel="$(cat "$RUNNER_TEMP/gated-set.txt")"
+          if [ "$sel" = "none()" ]; then
+            echo "present=no" >> "$GITHUB_OUTPUT"
+            echo "no gated suites in this tree -- skipping a workspace build" \
+              >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "present=yes" >> "$GITHUB_OUTPUT"
+          fi
+      - name: run every gated suite (ungated)
+        if: steps.set.outputs.present == 'yes'
+        run: |
+          set -euo pipefail
+          sel="$(cat "$RUNNER_TEMP/gated-set.txt")"
+          # One `|`-joined term per gated suite — the expression's own shape,
+          # counted rather than re-derived. `printf '%s\n'`, not `'%s'`:
+          # `wc -l` counts NEWLINES, so without the trailing one this
+          # under-reports by exactly one, every time.
+          n="$(printf '%s\n' "$sel" | tr '|' '\n' | wc -l | tr -d ' ')"
+          echo "gated suites re-taken: $n"
+          echo "gated suites re-taken ungated: **$n**" >> "$GITHUB_STEP_SUMMARY"
+          # NO `--no-tests=pass`. A selection derived from markers that exist
+          # must match tests; zero matches means every term names a module the
+          # tree no longer has, and nextest's zero-test exit is the alarm.
+          #
+          # `--no-fail-fast`, and a cadence lane is the strongest case for it:
+          # these suites ran nowhere else today, so a truncated surface here is
+          # one failure per NIGHT rather than one failure now and the rest in
+          # an hour. Nobody is blocked on this run.
+          echo "fail-fast mode: --no-fail-fast — every selected gated test runs to completion."
+          status=0
+          cargo nextest run --workspace --features interval -E "$sel" --no-fail-fast || status=$?
+          echo "fail-fast mode was --no-fail-fast: the summary above is the whole gated-set failure SURFACE, not its first failure."
+          exit $status
+
   # THE CRITERION BENCHMARK LANE — PERF-PLAN §5's item 1, which that document
   # has called "the blocking item" since 2026-08-14 and which nothing had
   # picked up. §2.3 forbids every micro-optimization until a harness exists to
@@ -1309,7 +1466,7 @@ jobs:
   record:
     name: record that the nightly ran
     runs-on: ubuntu-latest
-    needs: [gate, watertight, rebuild-latency, opt-level, criterion, demoted]
+    needs: [gate, watertight, rebuild-latency, opt-level, criterion, demoted, gated-suites]
     # `!cancelled()` rather than `success()`, DELIBERATELY. The tag records
     # that this tree WAS EXAMINED, not that it passed: a red row here is
     # visible in the run list and in the summary, and re-examining the same
