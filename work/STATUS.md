@@ -515,6 +515,8 @@ area `kernel`; prefix `verbs/`; tag `(VERBS orchestrator)`; ab_band `100-199`.
 | `interval-orthonormal-basis-sign-hull` | 2026-09-03 | Vec3::orthonormal_basis returns a sign-hulled frame at Interval when n.z encloses zero |
 | `m10-4-bore-pin-row-red-at-interval-1e-6` | 2026-09-03 | M10-4 the_bore_pin_fit_as_a_consumer_reads_it is red at interval / eps 1e-6 on main |
 | `m10-5-e2e-channel-slider-reds-at-eps-1e-6` | 2026-09-03 | m10_5_r1 e2e_channel_slider_over_an_epsilon_box reds on the interval lane at eps = 1e-6 |
+| `nightly-pin-reading-idiom-four-copies` | 2026-09-03 | nightly.yml reads ci.yml's tool pins with a sed idiom that is now in four places and breaks silently on a second match |
+| `python-suite-zero-test-guard-three-copies` | 2026-09-03 | The python suite's zero-test guard exists in three places because no shared runner does |
 | `render-lanes-checkout-merge-ref-vanishes` | 2026-09-03 | render lanes: ~100 hosted reds are 'couldn't find remote ref refs/pull/N/merge' at checkout |
 | `revolve-pole-export-interior-on-axis-vertex` | 2026-09-03 | M9/D1 revolve naming: a subdivided axis run is now representable, so the pole export's deleted-interior branch is editor-reachable |
 | `shell-curved-clearance-consumer` | 2026-09-03 | where a curved wall-clearance gate can call the E7 engine from (the shell verb sits below it) |
