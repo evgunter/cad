@@ -977,13 +977,21 @@ guard and the name greps are for, and they moved WITH the job, so the
 detector kept its cadence relative to the rows it guards. The full argument
 is at the job, which is where the rule says it belongs.
 
-**Billed minutes.** −2 per code-tier PR run whose closure holds `topo` — the
-job's own line in the reference table at the top of this document (1.37 min
-wall, 2 billed), and `topo` is in the closure of 89 of the last 128
-first-parent merges. Against that, ~2 billed minutes a night: the nightly
-pays the same rounded-up minute, once, on days main moved. Re-read from this
-unit's own PR run rather than quoted forward — a billed figure here is only
-true as of its own measurement (the F6 addendum's rule).
+**Billed minutes: −2 per code-tier PR run whose closure holds `topo`.**
+The subtrahend is the job's own line in the reference table at the top of
+this document — 1.37 min wall, **2 billed** — and `topo` is in the closure
+of 89 of the last 128 first-parent merges. Against that, **~2 billed
+minutes a night**: the nightly pays the same rounded-up minute, once, on
+days main moved.
+
+The *after* is read from this unit's own PR run, `33721373132` (16 jobs,
+default lane drawn): `corrupt input (release profile)` **is not among
+them**, which is what −2 means here — the job is gone from ci.yml rather
+than shortened, so there is no new duration to read and the delta is the
+whole of its old line. What that run cannot re-take is the 1.37/2 itself,
+because the job no longer runs there; per the F6 addendum's rule, that
+figure is true as of the audit that measured it and the nightly is now
+where a fresh reading of it comes from.
 
 **What the demotion gives up, and what it does not.** It gives up
 attribution: a break lands on the night's merges rather than on the PR that
