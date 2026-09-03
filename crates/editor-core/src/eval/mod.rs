@@ -284,6 +284,29 @@ pub enum ValuePayload<T: Decide> {
         /// a reader never has to reconstruct it from the number.
         dim: crate::expr::Dimension,
     },
+    /// **A `Measure` node that has no value AT THIS SCALAR** — a typed
+    /// absence, and the honest answer where the alternative would be a
+    /// number nothing backs.
+    ///
+    /// One primitive produces it today
+    /// ([`crate::MeasurePrimitive::MinClearance`], whose answer is an
+    /// ENCLOSURE the interval lane computes and a point scalar has no
+    /// channel for), and the reason it is a value rather than a node
+    /// error is the E10 shape: an assertion over it must report
+    /// [`crate::AssertionVerdict::Unevaluated`] — the third state,
+    /// used for exactly what it exists for — where a node error would
+    /// poison the assertion into having no verdict at all (F2), and
+    /// would additionally refuse every f64 build of a document
+    /// carrying such a measure, `drive`'s witness build included.
+    ///
+    /// It carries the dimension for the same reason
+    /// [`Self::Measure`] does: a reader knows WHAT was not measured.
+    MeasureUnavailable {
+        /// Why there is no value, in the measure layer's own words.
+        reason: crate::measure::MeasureUnavailableAt,
+        /// The F1 dimension the measure would have had.
+        dim: crate::expr::Dimension,
+    },
     /// An `Assertion` node's verdict (E10). REPORT-ONLY: no op in the
     /// vocabulary takes a verdict as an operand, so this payload is
     /// consumed by reports and by nothing else.
@@ -303,6 +326,12 @@ impl<T: Decide> ValuePayload<T> {
             Self::Declarations(_) => "declarations",
             Self::Mate(_) => "mate",
             Self::Measure { .. } => "measure",
+            // The SAME family name as a measure that has a value: the
+            // node kind is what a typed operand mismatch is about, and
+            // "measure" is what this node is either way. Which of the
+            // two a reader is holding is a question about the value,
+            // and the two variants are how it is asked.
+            Self::MeasureUnavailable { .. } => "measure",
             Self::Assertion(_) => "assertion",
         }
     }
@@ -859,6 +888,27 @@ pub enum NodeErrorKind {
         /// The expression evaluator's refusal, unaltered.
         source: EvalError,
     },
+    /// A `min_clearance` reference names something that is not a
+    /// selection: the primitive's two operands are SCOPES — a whole
+    /// body or one of its faces — and a vertex, an edge or a datum
+    /// names neither.
+    ///
+    /// Its own arm rather than [`NodeErrorKind::MeasureUnsupported`],
+    /// which says "the closed-form table has no row for this carrier
+    /// pair" — false here, because there is no table to have a row in:
+    /// the clearance engine measures FACES, and the fault is in what
+    /// was selected rather than in what the vocabulary covers.
+    MeasureSelectionKind {
+        /// Which primitive.
+        verb: &'static str,
+        /// What the reference resolved to instead, as its class.
+        found: &'static str,
+    },
+    /// The clearance engine refused a `min_clearance` measurement,
+    /// typed and by its own class name (E7's refusal vocabulary,
+    /// carried across the feature boundary by
+    /// [`measure::MinClearanceRefusal`]).
+    MeasureClearanceRefused(crate::measure::MinClearanceRefusal),
     /// An `Assertion`'s bound is dimensioned differently from the
     /// measure it constrains — comparing metres with radians is a
     /// document fault, refused rather than compared.
@@ -1187,6 +1237,12 @@ impl core::fmt::Display for NodeErrorKind {
                 source,
             } => write!(f, "{what} {index} failed to evaluate: {source}"),
             Self::MeasureMalformed(fault) => write!(f, "{fault}"),
+            Self::MeasureSelectionKind { verb, found } => write!(
+                f,
+                "`{verb}` measures between two selections — a whole body or one of its faces — \
+                 and this reference resolves to {found}"
+            ),
+            Self::MeasureClearanceRefused(refusal) => write!(f, "{refusal}"),
             Self::AssertionDimension { measured, bound } => write!(
                 f,
                 "the assertion's bound is {} {bound} and the measure it constrains is \
@@ -1274,6 +1330,7 @@ pub trait EvalScalar:
     + topo::AtRestPolicy
     + crate::analysis::AxisScalar
     + crate::analysis::SeedScalar
+    + crate::measure::MinClearanceLane
 {
 }
 
@@ -1286,6 +1343,7 @@ impl<T> EvalScalar for T where
         + topo::AtRestPolicy
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
+        + crate::measure::MinClearanceLane
 {
 }
 
@@ -2833,6 +2891,10 @@ fn feed_measure_expr(h: &mut KeyHasher, expr: &crate::measure::MeasureExpr) {
                 P::Distance { .. } => 1,
                 P::Angle { .. } => 2,
                 P::Gap { .. } => 3,
+                // APPENDED, never reused: a content-key tag is an
+                // identity, so the day a primitive is retired its tag
+                // retires with it.
+                P::MinClearance { .. } => 4,
             });
             for index in p.refs() {
                 h.write_u64(u64::from(index));

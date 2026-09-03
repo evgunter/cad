@@ -554,6 +554,17 @@ fn measure_of<T: geom_core::Decide + Copy>(
     match ev.result(id) {
         Some(NodeResult::Ok(v)) => match &v.payload {
             ValuePayload::Measure { value, .. } => Ok(*value),
+            // **A measure with no value at this scalar reads as a
+            // refusal HERE**, carrying its own reason, and that is the
+            // honest shape rather than a gap in this report: E5's
+            // nominal is the f64 build's number, its per-param table is
+            // a `Dual` pass's, and a `min_clearance` has neither. So a
+            // stackup over one refuses `MeasureRefusedAtNominal` naming
+            // the scalar and the door, and the certified answer for
+            // such a measure is the per-leaf enclosure table
+            // ([`crate::report::LeafHistogram`]) rather than a nominal
+            // with contributions around it.
+            ValuePayload::MeasureUnavailable { reason, .. } => Err((id, format!("{reason}"))),
             // Unreachable while the driver's front check holds (the
             // node IS a measure and it evaluated Ok); answered as the
             // node's own refusal rather than panicking.
@@ -884,6 +895,12 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
             d.u64(22);
             d.scalar(*value);
         }
+        // APPENDED, never reused (the tag rule this digest shares with
+        // the content keys). A measure with no value digests as the
+        // ABSENCE and not as some stand-in number: two passes that both
+        // failed to measure agree, and neither agrees with a pass that
+        // measured something.
+        ValuePayload::MeasureUnavailable { .. } => d.u64(24),
         ValuePayload::Assertion(verdict) => {
             d.u64(23);
             match verdict {
@@ -1168,6 +1185,218 @@ pub struct Stackup {
     /// refused + tail; sums to 1 where it prices — E2/E6). Not
     /// recomputed here.
     pub coverage: MeasureAccounting,
+}
+
+impl Stackup {
+    /// **The goldening form** (E10's "serializable for CI goldening"):
+    /// deterministic text with every float as its exact bits.
+    ///
+    /// The driver's own idiom, so a CI row that golden-compares a
+    /// stackup and one that golden-compares a verdict read the same
+    /// way. Nothing here rounds: a rounded golden is a golden that
+    /// stops moving when the report does.
+    pub fn serialize(&self) -> String {
+        use core::fmt::Write as _;
+        let mut s = String::new();
+        let _ = writeln!(
+            s,
+            "stackup measure={} nominal={:016x} chamber={}",
+            self.measurement.0,
+            self.nominal.to_bits(),
+            match &self.chamber {
+                Chamber::ChamberCertified {
+                    verdict_vector_key,
+                    ..
+                } => format!("certified:{:032x}", verdict_vector_key.0),
+                Chamber::LocalOnly => "local_only".to_owned(),
+            }
+        );
+        let _ = writeln!(
+            s,
+            "worst_case lo={:016x} hi={:016x} leaves={}",
+            self.worst_case.lo.to_bits(),
+            self.worst_case.hi.to_bits(),
+            self.worst_case.leaves
+        );
+        for row in &self.per_param {
+            let _ = writeln!(
+                s,
+                "param {} sensitivity={} contribution={} chamber_span={}",
+                row.param.0,
+                render_sensitivity(&row.sensitivity),
+                match &row.contribution {
+                    Ok(v) => format!("{:016x}", v.to_bits()),
+                    Err(u) => format!("unavailable:{}", u.param().0),
+                },
+                match &row.chamber_span {
+                    Some(c) => format!(
+                        "{:016x},{:016x}",
+                        c.half_width.to_bits(),
+                        c.contribution.to_bits()
+                    ),
+                    None => "none".to_owned(),
+                }
+            );
+        }
+        let _ = writeln!(
+            s,
+            "rss {}",
+            match &self.rss {
+                Rss::Advisory { sigma } => format!("advisory:{:016x}", sigma.to_bits()),
+                Rss::UnavailableBecause { blockers } => format!(
+                    "unavailable:{}",
+                    blockers
+                        .iter()
+                        .map(|b| b.param().0.clone())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                ),
+            }
+        );
+        let _ = write!(s, "{}", coverage_bits(&self.coverage));
+        s
+    }
+
+    /// **The content key** of everything [`Self::serialize`] renders —
+    /// D9's proof, taken over the report's own bits.
+    ///
+    /// Derived on demand, never persisted (E10's "derived, never
+    /// persisted"), and it moves exactly when the serialized form
+    /// moves: two runs of one (recipe slice, box, ε, K) produce equal
+    /// keys, and any bit that differs anywhere in the report produces
+    /// different ones.
+    pub fn content_key(&self) -> ContentKey {
+        crate::report::key_of(0xE5, &self.serialize())
+    }
+
+    /// **The human form**: the gating number first, the advisory table
+    /// after it and labeled, the coverage with its tail on every line.
+    ///
+    /// The ORDER is the E5 rule ("labeling and ordering, not
+    /// omission"): an engineer who reads only the first two lines has
+    /// read the certified answer, and the RSS cannot be met before the
+    /// number that gates.
+    pub fn render(&self, analyzed: &crate::analysis::AnalyzedBox) -> String {
+        use core::fmt::Write as _;
+        let mut s = String::new();
+        let _ = writeln!(s, "stackup of measure node {}", self.measurement.0);
+        let _ = writeln!(
+            s,
+            "  CERTIFIED WORST CASE (the only gating number): [{}, {}] over {} certified \
+             leaf/leaves",
+            self.worst_case.lo, self.worst_case.hi, self.worst_case.leaves
+        );
+        let _ = writeln!(
+            s,
+            "  nominal (f64 build): {}  [{}]",
+            self.nominal,
+            match &self.chamber {
+                Chamber::ChamberCertified { .. } =>
+                    "the nominal sits in a certified chamber".to_owned(),
+                Chamber::LocalOnly =>
+                    "LOCAL ONLY: the nominal's chamber was not certified".to_owned(),
+            }
+        );
+        let _ = writeln!(s, "  ADVISORY, never gating:");
+        let _ = writeln!(
+            s,
+            "    rss {}",
+            match &self.rss {
+                Rss::Advisory { sigma } => format!("σ ≈ {sigma} (linearized, first-order)"),
+                Rss::UnavailableBecause { blockers } => format!(
+                    "UNAVAILABLE — {}",
+                    blockers
+                        .iter()
+                        .map(|b| format!("{b}"))
+                        .collect::<Vec<_>>()
+                        .join("; ")
+                ),
+            }
+        );
+        for row in &self.per_param {
+            let _ = writeln!(
+                s,
+                "    ∂m/∂{}: {}   contribution {}",
+                row.param.0,
+                render_sensitivity(&row.sensitivity),
+                match &row.contribution {
+                    Ok(v) => format!("{v}"),
+                    Err(u) => format!("[{u}]"),
+                }
+            );
+        }
+        let _ = write!(
+            s,
+            "{}",
+            crate::report::MassBudget::of(&self.coverage, analyzed).render()
+        );
+        s
+    }
+}
+
+/// One sensitivity reading, in one spelling shared by the goldening
+/// form and the human one — the number and its E4 mark, never the
+/// number alone.
+fn render_sensitivity(outcome: &SensitivityOutcome) -> String {
+    match outcome {
+        SensitivityOutcome::Derivative { value, chamber } => format!(
+            "{value} ({})",
+            match chamber {
+                Chamber::ChamberCertified { .. } => "chamber-certified",
+                Chamber::LocalOnly => "LOCAL ONLY",
+            }
+        ),
+        SensitivityOutcome::TangentDegraded { tangent } => {
+            format!("degraded tangent ({tangent})")
+        }
+        SensitivityOutcome::MeasureRefused { node, cause } => {
+            format!("refused at node {}: {cause}", node.0)
+        }
+        // Spelled out rather than `Debug`-printed: this string is read
+        // by a person in `render` and compared by a golden in
+        // `serialize`, and `Debug` is a form neither of those wants.
+        SensitivityOutcome::Unliftable { node, refusal } => format!(
+            "unliftable at node {}: {}",
+            node.0,
+            match refusal {
+                LiftRefusal::PinnedSection { section, param } => format!(
+                    "{} feeds the section of node {}, which stays f64 (C6/D9)",
+                    param.0, section.0
+                ),
+                LiftRefusal::GuidedReplay { loop_, step } => format!(
+                    "the guided elaboration could not re-confirm loop {loop_} step {step} \
+                     at this pass's scalar"
+                ),
+            }
+        ),
+    }
+}
+
+/// The coverage block of the goldening form — the accounting's own
+/// bits, through the reporting layer's one spelling.
+fn coverage_bits(coverage: &MeasureAccounting) -> String {
+    use core::fmt::Write as _;
+    let mut s = String::new();
+    let _ = writeln!(
+        s,
+        "coverage certified={}",
+        crate::report::mass_bits(&coverage.certified)
+    );
+    for (class, m) in &coverage.refused {
+        let _ = writeln!(
+            s,
+            "coverage refused {} {}",
+            class.name(),
+            crate::report::mass_bits(m)
+        );
+    }
+    let _ = writeln!(
+        s,
+        "coverage tail={} containment={}",
+        crate::report::mass_bits(&coverage.unanalyzed),
+        coverage.containment
+    );
+    s
 }
 
 /// A stackup that could not be built. Advisory degradation is carried

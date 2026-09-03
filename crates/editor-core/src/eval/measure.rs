@@ -284,6 +284,16 @@ pub(crate) fn primitive<T: Decide>(
         MeasurePrimitive::Distance { .. } => distance(a, b, band),
         MeasurePrimitive::Angle { .. } => angle(a, b),
         MeasurePrimitive::Gap { .. } => gap(a, b, band),
+        // Not a closed form over carriers at all: its answer is the E7
+        // engine's, computed at the node's wiring and read off the
+        // pre-order vector in `eval_measure_inner`, which intercepts
+        // this primitive before it reaches here. Announced as the
+        // kernel bug it would be rather than measured by some other
+        // arm that happens to compile.
+        MeasurePrimitive::MinClearance { .. } => unreachable!(
+            "`min_clearance` is answered by the clearance engine before the closed-form table \
+             is consulted; reaching this arm means the interception and this dispatch disagree"
+        ),
     }
 }
 
@@ -592,9 +602,19 @@ pub(crate) fn eval_measure<T: Decide>(
     carriers: &[Carrier<T>],
     leaves: &[T],
     cursor: &mut usize,
+    clearances: &[T],
+    clearance_cursor: &mut usize,
     band: Band,
 ) -> Result<T, PrimitiveRefusal> {
-    let value = eval_measure_inner(expr, carriers, leaves, cursor, band)?;
+    let value = eval_measure_inner(
+        expr,
+        carriers,
+        leaves,
+        cursor,
+        clearances,
+        clearance_cursor,
+        band,
+    )?;
     crate::expr::refuse_non_finite(value).map_err(PrimitiveRefusal::NonFinite)
 }
 
@@ -615,11 +635,16 @@ fn eval_measure_inner<T: Decide>(
     carriers: &[Carrier<T>],
     leaves: &[T],
     cursor: &mut usize,
+    clearances: &[T],
+    clearance_cursor: &mut usize,
     band: Band,
 ) -> Result<T, PrimitiveRefusal> {
-    let binary = |a: &MeasureExpr, b: &MeasureExpr, cursor: &mut usize| {
-        let x = eval_measure_inner(a, carriers, leaves, cursor, band)?;
-        let y = eval_measure_inner(b, carriers, leaves, cursor, band)?;
+    let binary = |a: &MeasureExpr,
+                      b: &MeasureExpr,
+                      cursor: &mut usize,
+                      clearance_cursor: &mut usize| {
+        let x = eval_measure_inner(a, carriers, leaves, cursor, clearances, clearance_cursor, band)?;
+        let y = eval_measure_inner(b, carriers, leaves, cursor, clearances, clearance_cursor, band)?;
         Ok::<(T, T), PrimitiveRefusal>((x, y))
     };
     match expr.kind() {
@@ -648,6 +673,26 @@ fn eval_measure_inner<T: Decide>(
                     p.verb()
                 )
             }
+            // **The one primitive whose value did not come from a
+            // carrier.** `min_clearance` measures between two
+            // SELECTIONS through the E7 engine, which wants bodies and
+            // face scopes; its answers were computed once, in the
+            // node's wiring, and arrive here in this very pre-order —
+            // the same arrangement the value leaves have, for the same
+            // reason (one walk, one order, no chance of two consumers
+            // disagreeing about which leaf is which).
+            if matches!(p, MeasurePrimitive::MinClearance { .. }) {
+                let i = *clearance_cursor;
+                *clearance_cursor += 1;
+                return match clearances.get(i) {
+                    Some(v) => Ok(*v),
+                    None => unreachable!(
+                        "`min_clearance` leaf {i} of {} computed answers is missing, yet that \
+                         vector is this expression's own primitives walked in this very order",
+                        clearances.len()
+                    ),
+                };
+            }
             primitive(*p, a, b, band)
         }
         MeasureKind::Value(_) => {
@@ -665,29 +710,37 @@ fn eval_measure_inner<T: Decide>(
                 ),
             }
         }
-        MeasureKind::Neg(a) => Ok(-eval_measure_inner(a, carriers, leaves, cursor, band)?),
+        MeasureKind::Neg(a) => Ok(-eval_measure_inner(
+            a,
+            carriers,
+            leaves,
+            cursor,
+            clearances,
+            clearance_cursor,
+            band,
+        )?),
         MeasureKind::Add(a, b) => {
-            let (x, y) = binary(a, b, cursor)?;
+            let (x, y) = binary(a, b, cursor, clearance_cursor)?;
             Ok(x + y)
         }
         MeasureKind::Sub(a, b) => {
-            let (x, y) = binary(a, b, cursor)?;
+            let (x, y) = binary(a, b, cursor, clearance_cursor)?;
             Ok(x - y)
         }
         MeasureKind::Mul(a, b) => {
-            let (x, y) = binary(a, b, cursor)?;
+            let (x, y) = binary(a, b, cursor, clearance_cursor)?;
             Ok(x * y)
         }
         MeasureKind::Div(a, b) => {
-            let (x, y) = binary(a, b, cursor)?;
+            let (x, y) = binary(a, b, cursor, clearance_cursor)?;
             Ok(x / y)
         }
         MeasureKind::Min(a, b) => {
-            let (x, y) = binary(a, b, cursor)?;
+            let (x, y) = binary(a, b, cursor, clearance_cursor)?;
             Ok(x.min(y))
         }
         MeasureKind::Max(a, b) => {
-            let (x, y) = binary(a, b, cursor)?;
+            let (x, y) = binary(a, b, cursor, clearance_cursor)?;
             Ok(x.max(y))
         }
     }

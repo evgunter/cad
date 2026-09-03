@@ -74,7 +74,8 @@ where
         + topo::AtRestPolicy
         + editor_core::eval::ContentBits
         + editor_core::analysis::AxisScalar
-        + editor_core::analysis::SeedScalar,
+        + editor_core::analysis::SeedScalar
+        + editor_core::MinClearanceLane,
 {
 }
 
@@ -97,7 +98,8 @@ where
         + topo::AtRestPolicy
         + editor_core::eval::ContentBits
         + editor_core::analysis::AxisScalar
-        + editor_core::analysis::SeedScalar,
+        + editor_core::analysis::SeedScalar
+        + editor_core::MinClearanceLane,
 {
     let _ = editor_core::eval::evaluate::<T>;
 }
@@ -116,7 +118,8 @@ where
         + topo::AtRestPolicy
         + editor_core::eval::ContentBits
         + editor_core::analysis::AxisScalar
-        + editor_core::analysis::SeedScalar,
+        + editor_core::analysis::SeedScalar
+        + editor_core::MinClearanceLane,
 {
     requires_the_whole_eval_scalar_set::<T>();
 }

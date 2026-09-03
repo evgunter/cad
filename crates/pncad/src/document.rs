@@ -50,9 +50,15 @@ pub use editor_core::{
 // point is that a verdict is consumed by reports. `ASSERT_BOUND` is
 // the funnel site name, carried like `SEL_DATUM_DISTANCE` so a
 // K-census consumer can name the row rather than spell the string.
+// `MeasureUnavailableAt` and `MinClearanceRefusal` are carried for the
+// reason a payload's payload always is: they are what
+// `UnevaluatedReason::MeasureUnavailable` and
+// `NodeErrorKind::MeasureClearanceRefused` CARRY, so a consumer who can
+// name the outer type and not the inner one can see that there is a
+// reason and never read it.
 pub use editor_core::{
     ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive, MeasureRef,
-    UnevaluatedReason,
+    MeasureUnavailableAt, MinClearanceRefusal, UnevaluatedReason,
 };
 
 // Expressions and their text door.

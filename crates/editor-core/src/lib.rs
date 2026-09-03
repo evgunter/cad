@@ -49,6 +49,13 @@ pub mod placement;
 pub mod product;
 pub mod program;
 pub mod refactor;
+/// The E10/E11.6 reporting layer: the goldening and human forms every
+/// derived report carries, the priced-vs-forced budget type, the
+/// leaf-mass histogram, and the one content-key cache. Gated on
+/// `interval` because every report in it is derived from a drive, and
+/// a drive needs the certified scalar to have leaves at all.
+#[cfg(feature = "interval")]
+pub mod report;
 pub mod resolve;
 pub mod roots;
 /// The E4 sensitivity driver and the E5 stackup — the analysis lane's
@@ -109,7 +116,9 @@ pub use mate::{
     solve_document,
 };
 pub use measure::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive, UnevaluatedReason,
+    ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive,
+    MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, MinClearanceRefusal,
+    UnevaluatedReason,
 };
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{

@@ -79,7 +79,7 @@ use crate::eval::{
     CancelToken, ContentKey, EvalOptions, Evaluation, KeyHasher, NodeErrorKind, NodeResult,
     ProfileLift, evaluate,
 };
-use crate::node::RecipeNodeId;
+use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
 use crate::resolve::{FlipSet, diff_verdicts};
 use crate::witness::WitnessBifurcation;
@@ -276,6 +276,44 @@ impl VerdictVector {
             })
             .collect();
         Self { rows }
+    }
+
+    /// **The CERTIFYING vector**: [`Self::of`] with the rows of nodes
+    /// that only report left out.
+    ///
+    /// One node kind qualifies and it is [`Node::Assertion`], whose own
+    /// contract is that nothing downstream reads its verdict — "no gate
+    /// consults it" (E10 v1: assertions report; a gating mode is
+    /// additive policy nobody has ratified). Certification IS a gate,
+    /// and it was consulting it.
+    ///
+    /// **What that cost, measured on the case this unit needed.** An
+    /// assertion decides `measured − bound` at the `assert_bound`
+    /// funnel site. At the f64 witness that comparand is a number and
+    /// the site records a definite verdict; over a leaf it is an
+    /// enclosure, and an enclosure STRADDLING the bound records nothing
+    /// (the verdict is `Unevaluated`, which is exactly E10's third
+    /// state doing its job). The two rows then differ, so the leaf was
+    /// refused `FlipCrossing` and priced as refused mass — a report
+    /// node reported as a change of SHAPE, on the very documents E10
+    /// exists for: a bound near the measured value is the ordinary
+    /// case, not a pathological one. The `min_clearance` measure this
+    /// unit adds makes it unconditional rather than occasional, because
+    /// its value exists only at the interval scalar
+    /// ([`crate::measure::MeasurePrimitive::MinClearance`]), so its
+    /// assertion is `Unevaluated` at EVERY f64 witness.
+    ///
+    /// **What is NOT dropped**: the measure node itself. A measurement
+    /// can escalate a parallelism predicate or fail to be taken at all,
+    /// and a leaf where the measurement could not be taken is not the
+    /// witness build — that difference is a real one and stays in the
+    /// comparison.
+    pub fn certifying<T: geom_core::Decide, P>(doc: &Doc<P>, ev: &Evaluation<T>) -> Self {
+        let mut vector = Self::of(ev);
+        vector
+            .rows
+            .retain(|row| !matches!(doc.node(row.node), Some(Node::Assertion { .. })));
+        vector
     }
 
     /// The vector's content key — the `verdict_vector_key` a certified
@@ -621,6 +659,44 @@ impl ParamBoxVerdict {
         s
     }
 
+    /// **The human form** (M10-6 §2), beside the goldening one and
+    /// never instead of it: leaf counts as counts, masses as
+    /// percentages, the tail on its own line, and the
+    /// priced-or-forced basis stated rather than assumed.
+    ///
+    /// It takes the analyzed box because the BASIS is a property of
+    /// the box's distributions, not of the verdict: a drive over a
+    /// band-only box produces exactly the same masses as one over a
+    /// uniform box, and only the box knows that none of them is a
+    /// probability ([`crate::report::MassBasis`]).
+    pub fn render(&self, analyzed: &AnalyzedBox) -> String {
+        use core::fmt::Write as _;
+        let mut s = String::new();
+        let r = self.receipt;
+        let _ = writeln!(
+            s,
+            "drive over {} axis/axes: {} certified, {} refused ({} splits; receipt {})",
+            self.root.axes().len(),
+            r.certified,
+            r.refused,
+            r.splits,
+            if r.holds() { "holds" } else { "BROKEN" }
+        );
+        let mut classes: BTreeMap<&'static str, usize> = BTreeMap::new();
+        for leaf in &self.refused {
+            *classes.entry(leaf.reason.class().name()).or_default() += 1;
+        }
+        for (class, n) in &classes {
+            let _ = writeln!(s, "  {n} leaf/leaves refused {class}");
+        }
+        let _ = write!(
+            s,
+            "{}",
+            crate::report::MassBudget::of(&self.accounting, analyzed).render()
+        );
+        s
+    }
+
     /// The verdict's content key: the identity of everything
     /// [`Self::serialize`] renders.
     ///
@@ -815,7 +891,7 @@ pub fn drive(
             .map_or_else(|| "not evaluated".to_owned(), |e| e.kind.to_string());
         return Err(DriveRefusal::WitnessDoesNotBuild { node, cause });
     }
-    let witness_vector = Arc::new(VerdictVector::of(&witness));
+    let witness_vector = Arc::new(VerdictVector::certifying(doc, &witness));
     let witness_key = witness_vector.key();
     // The witness EVALUATION stays alive for the whole drive, not just
     // long enough to take its vector: `diff_verdicts` names a leaf's
@@ -1080,9 +1156,10 @@ fn classify(
         }
     }
 
-    // (ii) The comparison. EXACT, on the verdict vector — never a
-    // width.
-    let vector = VerdictVector::of(&leaf);
+    // (ii) The comparison. EXACT, on the CERTIFYING verdict vector —
+    // never a width, and never a report node
+    // ([`VerdictVector::certifying`]).
+    let vector = VerdictVector::certifying(doc, &leaf);
     if structure_flips.is_empty() && vector == *witness_vector {
         return LeafVerdict::Certified(CertifiedLeaf {
             box_: box_.clone(),

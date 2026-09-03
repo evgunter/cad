@@ -3053,7 +3053,10 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `ReplayOutcome`, `VerdictVector`, `VerdictRow`,
 ///   `VerdictVectorKey`, `DEFAULT_MAX_DEPTH`, `DEFAULT_MAX_LEAVES`,
 ///   `ParamBox`, `BoxAxis`, `ParamBoxError`, `AxisScalar`,
-///   `param_env_over`): the analysis lane's subdivision service and
+///   `param_env_over`; and the third lane seam `MinClearanceLane`
+///   with its `MinClearanceOperand`, which is how a `min_clearance`
+///   measure asks the interval lane for the bracket only that lane
+///   can carry): the analysis lane's subdivision service and
 ///   the box it drives over.
 ///
 ///   Interior because the curated face is a DIFFERENT shape and is
@@ -3084,7 +3087,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   plumbing — `AxisScalar`/`param_env_over`'s family, interior with
 ///   them. The curated face is the reporting surface — persisted,
 ///   goldened stackups — which is where the façade row lands.
-const NOT_CARRIED: [&str; 120] = [
+const NOT_CARRIED: [&str; 122] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -3128,6 +3131,8 @@ const NOT_CARRIED: [&str; 120] = [
     "MetaError",
     "MetaValue",
     "MetaVersionError",
+    "MinClearanceLane",
+    "MinClearanceOperand",
     "MintRefusal",
     "NamingError",
     "NamingKey",
