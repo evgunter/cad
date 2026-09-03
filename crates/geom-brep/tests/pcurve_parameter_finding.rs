@@ -32,6 +32,7 @@
 
 use core::f64::consts::PI;
 
+use crate::shared::surf;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane};
@@ -44,12 +45,7 @@ const TILT: f64 = 0.3;
 const H: f64 = 0.5;
 
 fn cylinder() -> Surface<f64> {
-    Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
-        radius: R,
-        u_ref: Vec3::unit_x(),
-    }
+    surf::cylinder(R)
 }
 
 fn section() -> Curve3<f64> {

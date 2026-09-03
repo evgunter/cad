@@ -39,19 +39,11 @@
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_6};
 
+use crate::shared::surf::cylinder as zcyl;
 use crate::shared::tol::band;
 use geom::Surface;
 use geom_brep::{OffsetError, offset_surface};
 use geom_core::{Point3, Tol, Vec3};
-
-fn zcyl(radius: f64) -> Surface<f64> {
-    Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::unit_z(),
-        radius,
-        u_ref: Vec3::unit_x(),
-    }
-}
 
 fn zcone(alpha: f64) -> Surface<f64> {
     Surface::Cone {
