@@ -11,7 +11,7 @@
 use bvh::Aabb;
 use viewer::camera::{self, Camera, CameraError, CameraOp, CameraOpError};
 
-mod common;
+use crate::common;
 use common::{corners, plate_bounds};
 
 /// The plate framed on a 16:9 pane.

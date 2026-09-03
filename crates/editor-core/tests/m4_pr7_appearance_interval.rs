@@ -7,13 +7,13 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     Attr, AttrKind, BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Evaluation,
     Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, StableName, evaluate,
 };
-use fixture::{declare_x_offset_flush, desc, insert, len, step};
+use fixture::{declare_x_offset_flush, insert, len, on_frame, step};
 use geom_core::Interval;
 use geom_core::Tol;
 
@@ -25,14 +25,12 @@ fn block(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
     );
     insert(
         doc,

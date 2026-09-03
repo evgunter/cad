@@ -14,7 +14,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use pncad::document::{Dimension, Doc, Expr, Node, ProfileProgram, SlotId};
 use pncad::geom_core::Tol;
@@ -186,7 +186,7 @@ fn a_value_that_fixes_a_failure_is_not_a_boundary() {
 fn the_session_probes_a_real_slots_range() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("valid-range", tol);
-    let (doc, profile) = common::inserted(&doc, common::square(0.04), tol);
+    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {

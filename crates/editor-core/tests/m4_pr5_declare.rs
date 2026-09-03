@@ -16,13 +16,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     BooleanOp, BooleanValue, CapEnd, EntityKind, Node, NodeErrorKind, NodeResult, ProfileDoc,
     ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, ValuePayload,
 };
-use fixture::{declare_x_offset_flush, desc, fname, insert, len, wall};
+use fixture::{declare_x_offset_flush, fname, insert, len, on_frame, wall};
 use geom_core::Tol;
 use topo::validate_pseudomanifold;
 
@@ -44,14 +44,12 @@ fn block(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
     );
     insert(
         doc,
@@ -607,23 +605,21 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
     // candidates name the tied row itself, width = the recorded tie.
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
     let (doc, ua) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
-    let (doc, up) = insert(
+    let (doc, up) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (2.0, 1.0),
-                (6.0, 1.0),
-                (6.0, 3.0),
-                (2.0, 3.0),
-                (2.0, 2.5),
-                (5.0, 2.5),
-                (5.0, 1.5),
-                (2.0, 1.5),
-            ]],
-        )),
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (2.0, 1.0),
+            (6.0, 1.0),
+            (6.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 2.5),
+            (5.0, 2.5),
+            (5.0, 1.5),
+            (2.0, 1.5),
+        ]],
     );
     let (doc, ub) = insert(
         doc,

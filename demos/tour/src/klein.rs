@@ -1174,3 +1174,44 @@ mod r1_mesh2_review_probes {
         }
     }
 }
+
+#[cfg(test)]
+mod wall_probes_run_here {
+    //! The whole wall list, driven by the TEST SUITE (issue #1434).
+    //!
+    //! [`wall_probes`] had exactly one caller — `main.rs`'s render
+    //! walk — so `cd demos/tour && cargo test --release`, which is
+    //! both the spec-level local acceptance command and CI's "demos
+    //! tour suite" row, was fully green over walls nobody had run.
+    //! That is the silent-coverage shape this repo keeps naming: a
+    //! green job name sitting over an unexecuted probe. The walls did
+    //! execute — in the k-lint gate's tour step, a SAMPLED row — so
+    //! the cost of the blind spot was paid only in the runs where that
+    //! sample did not draw.
+    //!
+    //! It has to be an in-bin test. `demo-tour` is bin-only (no
+    //! `[lib]`, modules hang off `main.rs`), so nothing under
+    //! `tests/` can name `klein::wall_probes` at all.
+    //!
+    //! There is nothing to assert here that the probe does not already
+    //! assert: `crate::walls::wall` panics on BOTH off-nominal
+    //! outcomes — a different refusal (the frontier moved) and no
+    //! refusal at all (the wall is gone) — and walls 6 and 7 assert
+    //! their own retirements inline. Running it IS the check, which is
+    //! why the missing caller was the whole defect.
+    //!
+    //! Not free: the probe rebuilds `bottle::<f64>`, four more
+    //! revolves for the sharp-band pair and the hollow ring, a sweep,
+    //! a STEP export and four wall-7 tessellations. It overlaps
+    //! `verbs_gate_r1_probes` above by two walls (3 and 4) and that
+    //! module stays as it is — it pins the boolean pair's SHAPE against
+    //! the operand gate for a one-second answer, and this test is the
+    //! one that says every wall was attempted.
+
+    use super::*;
+
+    #[test]
+    fn every_klein_wall_is_attempted_by_the_suite() {
+        wall_probes::<f64>(Tol::witness());
+    }
+}

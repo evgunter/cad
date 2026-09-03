@@ -11,8 +11,7 @@
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
 
 /// The Probe lane (K-funnel registration): the document evaluates green
 /// at the recording scalar, which is the probe sweep's precondition —

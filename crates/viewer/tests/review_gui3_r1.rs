@@ -18,7 +18,6 @@ use pncad::document::{
     ProfileProgram, RecipeNodeId, SlotId, apply,
 };
 use pncad::geom_core::Tol;
-use pncad::profile::SketchPlane;
 use viewer::evalseam::EvalDone;
 use viewer::history::History;
 use viewer::props::{SlotDriver, SlotValue};
@@ -33,9 +32,25 @@ fn depth_param() -> ParamName {
 
 /// A triangle profile — deliberately not the square the unit's own
 /// fixtures use.
-fn triangle(side: f64) -> Node<ProfileProgram> {
+/// The world xy frame — this suite's own, like every other fixture
+/// here (a review suite derives what it needs independently).
+fn xy_frame() -> Node<ProfileProgram> {
+    let len = |v: f64| {
+        pncad::document::Expr::literal(v, pncad::document::Dimension::Length).expect("finite")
+    };
+    let scl = |v: f64| {
+        pncad::document::Expr::literal(v, pncad::document::Dimension::Scalar).expect("finite")
+    };
+    Node::Datum(pncad::document::Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    })
+}
+
+fn triangle(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
     Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (side, 0.0), (0.0, side)]).expect("finite corners"),
         ],
@@ -81,7 +96,8 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         },
         tol,
     );
-    let (doc, profile) = insert(&doc, triangle(0.03), tol);
+    let (doc, plane) = insert(&doc, xy_frame(), tol);
+    let (doc, profile) = insert(&doc, triangle(plane, 0.03), tol);
     let (doc, extrude) = insert(
         &doc,
         Node::Extrude {
@@ -331,7 +347,8 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
         },
         tol,
     );
-    let (doc, profile) = insert(&doc, triangle(0.03), tol);
+    let (doc, plane) = insert(&doc, xy_frame(), tol);
+    let (doc, profile) = insert(&doc, triangle(plane, 0.03), tol);
     let (doc, extrude) = insert(
         &doc,
         Node::Extrude {
@@ -389,7 +406,8 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
 fn r1_document_edits_are_refused_while_a_gesture_is_in_flight() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r1-gesture-fence", tol);
-    let (doc, profile) = insert(&doc, triangle(0.03), tol);
+    let (doc, plane) = insert(&doc, xy_frame(), tol);
+    let (doc, profile) = insert(&doc, triangle(plane, 0.03), tol);
     let (doc, extrude) = insert(
         &doc,
         Node::Extrude {
@@ -455,7 +473,8 @@ fn r1_document_edits_are_refused_while_a_gesture_is_in_flight() {
 fn r1_a_two_hop_poison_chain_reports_the_root_cause() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r1-poison-chain", tol);
-    let (doc, profile) = insert(&doc, triangle(0.03), tol);
+    let (doc, plane) = insert(&doc, xy_frame(), tol);
+    let (doc, profile) = insert(&doc, triangle(plane, 0.03), tol);
     let (doc, extrude) = insert(
         &doc,
         Node::Extrude {

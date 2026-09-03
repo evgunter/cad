@@ -5,7 +5,7 @@
 //! storage under GQ3, content-key movement, replay determinism).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     BifurcationKind, BranchCertification, BranchMarginEvidence, CancelToken, CapEnd, ContactClass,
@@ -13,7 +13,7 @@ use editor_core::{
     ProfileDoc, RecipeNodeId, Resolution, RoleSeg, RunCtx, StableName, WitnessAge,
     WitnessBifurcation, WitnessDatum, evaluate, resolve,
 };
-use fixture::{desc, insert, len, step};
+use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
@@ -31,14 +31,12 @@ fn block(
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
     );
     let (doc, e) = insert(
         doc,

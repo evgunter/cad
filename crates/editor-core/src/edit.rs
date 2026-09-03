@@ -1190,7 +1190,7 @@ fn check_node_slots<P: crate::ProfilePayload>(
 /// Reject cycles in the recipe DAG (spec D3/D6). Defensive: insertion
 /// referencing only existing nodes cannot cycle, but the invariant is
 /// checked. Iterative DFS, three-color, deterministic order.
-fn check_acyclic<P>(doc: &Doc<P>) -> Result<(), EditError> {
+fn check_acyclic<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), EditError> {
     use std::collections::BTreeMap;
     #[derive(Clone, Copy, PartialEq)]
     enum Color {
@@ -1250,7 +1250,10 @@ fn check_acyclic<P>(doc: &Doc<P>) -> Result<(), EditError> {
 /// order and an insertion's inputs must already be live, making the
 /// list topological: a consumer is always seen after every input it
 /// could inherit doom from.
-pub fn cascade_delete_order<P>(doc: &Doc<P>, id: RecipeNodeId) -> Vec<RecipeNodeId> {
+pub fn cascade_delete_order<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    id: RecipeNodeId,
+) -> Vec<RecipeNodeId> {
     use std::collections::BTreeSet;
     if doc.node(id).is_none() {
         return Vec::new();

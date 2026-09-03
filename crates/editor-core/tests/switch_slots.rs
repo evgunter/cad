@@ -9,27 +9,41 @@
 //! evaluation error (V1 class 2). Both directions pinned here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::fixture;
+
 use editor_core::{
     CancelToken, Dimension, DocEdit, DocParam, EditError, EvalOptions, Expr, ExprPath, LoopProgram,
     Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram, ProgramRefusal,
     RecipeNodeId, SlotId, StepArg, ValuePayload, evaluate,
 };
 use geom_core::Tol;
-use profile::SketchPlane;
+
+/// Every document below is a frame and then the profile drawn on it,
+/// in that order.
+const PLANE: RecipeNodeId = RecipeNodeId(0);
+const PROFILE: RecipeNodeId = RecipeNodeId(1);
 
 fn circle_doc(r: f64) -> ProfileDoc {
-    ProfileDoc::empty_derived("switch_slots", Tol::witness())
+    let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::xy(),
-                    loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
-                }),
+                node: fixture::xy_frame(),
             },
             Tol::witness(),
         )
         .unwrap()
-        .doc
+        .doc;
+    doc.apply(
+        &DocEdit::InsertNode {
+            node: Node::Profile(ProfileProgram {
+                plane: PLANE,
+                loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
+            }),
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .doc
 }
 
 fn radius_slot() -> SlotId {
@@ -46,7 +60,7 @@ fn radius_slot() -> SlotId {
 #[test]
 fn profile_nodes_enumerate_program_slots() {
     let doc = circle_doc(0.5);
-    let Some(node) = doc.node(RecipeNodeId(0)) else {
+    let Some(node) = doc.node(PROFILE) else {
         panic!("profile node");
     };
     let slots = node.slots();
@@ -81,7 +95,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
     let grown = doc
         .apply(
             &DocEdit::SetParam {
-                node: RecipeNodeId(0),
+                node: PROFILE,
                 slot: radius_slot(),
                 expr: Expr::literal(0.75, Dimension::Length).unwrap(),
             },
@@ -99,7 +113,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let Some(v) = ev.value(RecipeNodeId(0)) else {
+    let Some(v) = ev.value(PROFILE) else {
         panic!("profile evaluates");
     };
     let ValuePayload::Profile(pv) = &v.payload else {
@@ -128,7 +142,7 @@ fn set_expression_and_expr_at_route_into_programs() {
     let doc = doc
         .apply(
             &DocEdit::SetParam {
-                node: RecipeNodeId(0),
+                node: PROFILE,
                 slot: radius_slot(),
                 expr: sum,
             },
@@ -137,7 +151,7 @@ fn set_expression_and_expr_at_route_into_programs() {
         .unwrap()
         .doc;
     let path = ExprPath {
-        node: RecipeNodeId(0),
+        node: PROFILE,
         slot: radius_slot(),
         path: vec![0],
     };
@@ -169,7 +183,7 @@ fn program_slots_refuse_wrong_dimensions() {
     let doc = circle_doc(0.5);
     match doc.apply(
         &DocEdit::SetParam {
-            node: RecipeNodeId(0),
+            node: PROFILE,
             slot: radius_slot(),
             expr: Expr::literal(0.5, Dimension::Angle).unwrap(),
         },
@@ -193,7 +207,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
     let doc = circle_doc(0.5);
     match doc.apply(
         &DocEdit::SetParam {
-            node: RecipeNodeId(0),
+            node: PROFILE,
             slot: radius_slot(),
             expr: Expr::literal(0.0, Dimension::Length).unwrap(),
         },
@@ -209,7 +223,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
                     ..
                 },
         }) => {
-            assert_eq!(node, RecipeNodeId(0));
+            assert_eq!(node, PROFILE);
             assert_eq!(kind, profile::PathErrorKind::NonpositiveCircleRadius);
         }
         other => panic!("r = 0 must refuse at the edit door, got {other:?}"),
@@ -235,8 +249,17 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
+                node: fixture::xy_frame(),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .doc;
+    let doc = doc
+        .apply(
+            &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::xy(),
+                    plane: PLANE,
                     loops: vec![LoopProgram::Circle {
                         centre: [
                             Expr::literal(0.0, Dimension::Length).unwrap(),
@@ -269,7 +292,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    match ev.nodes.get(&RecipeNodeId(0)) {
+    match ev.nodes.get(&PROFILE) {
         Some(NodeResult::Failed(e)) => match &e.kind {
             NodeErrorKind::ProfileReplay { loop_: 0, error } => {
                 assert_eq!(error.step, 0, "the circle step names itself");
@@ -285,8 +308,21 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
 /// program ever enters the document (the check_node_slots walk).
 #[test]
 fn insert_node_checks_program_dimensions() {
+    // The frame goes in first. The insert door checks that a node's
+    // INPUTS resolve before it walks the slot dimensions, so a profile
+    // naming a plane the document does not have is turned away as an
+    // unresolved input — which is not the refusal this row is about.
+    let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
+        .apply(
+            &DocEdit::InsertNode {
+                node: fixture::xy_frame(),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .doc;
     let bad = ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: PLANE,
         loops: vec![LoopProgram::Circle {
             centre: [
                 Expr::literal(0.0, Dimension::Length).unwrap(),
@@ -296,7 +332,7 @@ fn insert_node_checks_program_dimensions() {
             radius: Expr::literal(0.5, Dimension::Angle).unwrap(),
         }],
     };
-    match ProfileDoc::empty_derived("switch_slots", Tol::witness()).apply(
+    match doc.apply(
         &DocEdit::InsertNode {
             node: Node::Profile(bad),
         },

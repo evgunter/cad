@@ -6,7 +6,7 @@
 //! bit-identically.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     CancelToken, DocParam, EvalOptions, Evaluation, ParamName, ProfileDoc, evaluate,
@@ -77,17 +77,21 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// The pinned die digest (update ONLY on a ratified naming change —
 /// this is the replay-identity family's naming member).
 ///
-/// RE-PINNED at M4 PR 5: the die document now DECLARES its 21
-/// flush pip contacts (F5 — Declare nodes between each
-/// Transform/Subtract pair), so every node id downstream of the
-/// first Declare shifted and the digests moved. The naming
-/// VOCABULARY did not change; the fixture's authoring did (21 new
-/// Declare nodes, 56 → 77).
-const DIE_TABLE_DIGEST: u64 = 0x8d2e_4c61_3057_071e;
+/// RE-PINNED twice, both times for the same reason — the fixture's
+/// AUTHORING moved node ids, while the naming vocabulary stood still.
+///
+/// At M4 PR 5 the die began DECLARING its 21 flush pip contacts (F5 —
+/// Declare nodes between each Transform/Subtract pair), 56 nodes → 77.
+/// Here, a profile's sketch plane became a document node, so each of
+/// the die's seven distinct face frames is a node the document did not
+/// have, and every id after the first shifted again. A `StableName`
+/// carries the id of the node that minted it, so the tables move
+/// wholesale; nothing about what the names SAY changed.
+const DIE_TABLE_DIGEST: u64 = 0xd773_3105_3f8a_87fe;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
-const DIE_NAMES_DIGEST: u64 = 0xf154_2d1e_3b36_a26e;
+const DIE_NAMES_DIGEST: u64 = 0xce7f_2339_f296_6e64;
 
 #[test]
 fn die_name_tables_are_golden() {

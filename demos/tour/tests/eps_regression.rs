@@ -13,12 +13,15 @@
 //! loses nothing: a demo whose scenes are all inside the kernel's
 //! shipped surface has no refusal that is not a regression.
 //!
-//! **Whether that is the right posture is a real question, and it has
-//! a register rather than a resolution here: issue #795.** If a scene
-//! ever legitimately reaches a frontier, the tour has to grow a way to
-//! SAY so at that scene — and this file has to grow the arm that
-//! accepts it — before any exit code could carry the news; #795 is
-//! where the three candidate shapes are written down.
+//! **That posture is RULED (#795, Ev), and `success()` is the
+//! contract this pin keeps.** A demo may panic when the kernel does
+//! something unexpected, and it may narrate a frontier it DECLARES up
+//! front at the scene — a declared frontier still exits 0, so no
+//! second exit convention is needed here and none was built. An
+//! undeclared refusal still panics. The forward obligation rides with
+//! whoever declares the first one: it must fail loudly when it stops
+//! refusing. `work/code-quality/demo-typed-refusal-exit-convention.md`
+//! holds the ruling.
 //!
 //! The escalation that motivated this pin: the bracket fillet's via
 //! point was decimally rounded (1.146 vs the exact 1.5 − 0.5/√2 =

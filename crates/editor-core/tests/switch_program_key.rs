@@ -2,10 +2,15 @@
 //! of the retired `ProfileDesc::tokens` key pins (#101 MINOR-1/NOTE-1;
 //! their subject, the stored token stream, died with the stored
 //! segments): the profile content key now feeds from the program's
-//! (tag, payload) stream — plane bits, per-loop LoopStart tags, per
-//! resolved step the verb tag + structural tags + resolved-f64 bits —
-//! so structure can never alias float data, resolved values move the
-//! key, and display units NEVER enter it (D7).
+//! (tag, payload) stream — per-loop LoopStart tags, per resolved step
+//! the verb tag + structural tags + resolved-f64 bits — so structure
+//! can never alias float data, resolved values move the key, and
+//! display units NEVER enter it (D7).
+//!
+//! The plane is NOT in that stream. It is a document node the profile
+//! names, so it folds into the key as an upstream input key, the same
+//! way every other input does; these rows build every document with
+//! its frame at node 0 and read the profile at node 1.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
@@ -14,7 +19,11 @@ use editor_core::{
     parse_expr,
 };
 use geom_core::Tol;
-use profile::SketchPlane;
+
+/// The frame every document below is built on, and the profile drawn
+/// on it: two nodes, inserted in that order.
+const PLANE: RecipeNodeId = RecipeNodeId(0);
+const PROFILE: RecipeNodeId = RecipeNodeId(1);
 
 fn key_of(doc: &ProfileDoc) -> ContentKey {
     let ev = evaluate::<f64>(
@@ -24,24 +33,48 @@ fn key_of(doc: &ProfileDoc) -> ContentKey {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    ev.value(RecipeNodeId(0))
-        .expect("profile evaluates")
-        .content_key
+    ev.value(PROFILE).expect("profile evaluates").content_key
 }
 
 fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness());
+    with_frame(doc)
+        .apply(
+            &DocEdit::InsertNode {
+                node: Node::Profile(ProfileProgram {
+                    plane: PLANE,
+                    loops,
+                }),
+            },
+            Tol::witness(),
+        )
+        .expect("valid program")
+        .doc
+}
+
+/// The world xy frame at node 0. Every row here is about the PROGRAM's
+/// key, so every document shares one plane: a key difference between
+/// two of these documents can only have come from their programs.
+fn with_frame(doc: ProfileDoc) -> ProfileDoc {
     doc.apply(
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
-                plane: SketchPlane::xy(),
-                loops,
+            node: Node::Datum(editor_core::Datum::Frame {
+                origin: [lit_len(0.0), lit_len(0.0), lit_len(0.0)],
+                u: [lit_scl(1.0), lit_scl(0.0), lit_scl(0.0)],
+                v: [lit_scl(0.0), lit_scl(1.0), lit_scl(0.0)],
             }),
         },
         Tol::witness(),
     )
-    .expect("valid program")
+    .expect("the frame inserts")
     .doc
+}
+
+fn lit_len(v: f64) -> Expr {
+    Expr::literal(v, Dimension::Length).expect("finite")
+}
+fn lit_scl(v: f64) -> Expr {
+    Expr::literal(v, Dimension::Scalar).expect("finite")
 }
 
 /// Authored program ORDER is structure: the same hole wound the other
@@ -90,23 +123,24 @@ fn resolved_values_feed_the_key() {
             )
             .unwrap()
             .doc;
-        doc.apply(
-            &DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::xy(),
-                    loops: vec![LoopProgram::Circle {
-                        centre: [
-                            Expr::literal(0.0, Dimension::Length).unwrap(),
-                            Expr::literal(0.0, Dimension::Length).unwrap(),
-                        ],
-                        radius: Expr::param(ParamName::new("r"), Dimension::Length),
-                    }],
-                }),
-            },
-            Tol::witness(),
-        )
-        .unwrap()
-        .doc
+        with_frame(doc)
+            .apply(
+                &DocEdit::InsertNode {
+                    node: Node::Profile(ProfileProgram {
+                        plane: PLANE,
+                        loops: vec![LoopProgram::Circle {
+                            centre: [
+                                Expr::literal(0.0, Dimension::Length).unwrap(),
+                                Expr::literal(0.0, Dimension::Length).unwrap(),
+                            ],
+                            radius: Expr::param(ParamName::new("r"), Dimension::Length),
+                        }],
+                    }),
+                },
+                Tol::witness(),
+            )
+            .unwrap()
+            .doc
     };
     let k_half = key_of(&with_param(0.5));
     let k_quarter = key_of(&with_param(0.25));

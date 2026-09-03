@@ -10,7 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     Dimension, DocEdit, DocParam, Expr, MetaValue, Node, ParamName, ProfileDoc, load, save,
@@ -31,18 +31,24 @@ fn round_trip(value: f64) -> ProfileDoc {
             value: DocParam::continuous(Dimension::Length, value),
         },
     );
-    // The profile's RAW-float channel is the PLANE PLACEMENT under v4
-    // (program args are Exprs, and the VQ9 door validates program
-    // GEOMETRY, so arbitrary-magnitude coordinates no longer belong in
-    // loops — they ride the placement, which validation passes
-    // through as conventional data).
+    // **The profile has no raw-float channel any more.** v4's was the
+    // plane PLACEMENT, twelve floats inline; the plane is a node now,
+    // and a frame's origin is an `Expr` like every other datum's. So
+    // the arbitrary magnitude rides the FRAME below, through the
+    // expression channel — which is the same channel the datum point
+    // further down covers, and the reason this row's profile arm
+    // becomes a frame arm rather than disappearing.
+    doc = push(
+        &doc,
+        DocEdit::InsertNode {
+            node: fixture::frame([value, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        },
+    );
     doc = push(
         &doc,
         DocEdit::InsertNode {
             node: Node::Profile(desc(
-                [value, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
+                editor_core::RecipeNodeId(0),
                 vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
             )),
         },
@@ -79,18 +85,31 @@ fn check_all_slots(value: f64) {
         panic!("param lost");
     };
     assert_bits("doc param", value, *p);
-    let Some(Node::Profile(prof)) = doc.node(editor_core::RecipeNodeId(0)) else {
+    // The frame the profile is drawn on: its origin x carries the
+    // value, as a literal `Expr`, so the bits are asserted the way
+    // every other expression literal's are.
+    let Some(Node::Datum(editor_core::Datum::Frame { origin, .. })) =
+        doc.node(editor_core::RecipeNodeId(0))
+    else {
+        panic!("frame lost");
+    };
+    let mut frame_bits = Vec::new();
+    origin[0].literal_bits(&mut frame_bits);
+    assert_eq!(
+        frame_bits,
+        vec![value.to_bits()],
+        "the frame origin's literal bits"
+    );
+    let Some(Node::Profile(prof)) = doc.node(editor_core::RecipeNodeId(1)) else {
         panic!("profile lost");
     };
-    // The value rides the placement origin (v4's raw-float channel);
-    // arbitrary-value EXPRESSION coverage is the datum literal below.
-    assert_bits(
-        "profile placement",
-        value,
-        prof.plane.placement.translation.x,
+    assert_eq!(
+        prof.plane,
+        editor_core::RecipeNodeId(0),
+        "the profile still names its frame across the wire"
     );
     let Some(Node::Datum(editor_core::Datum::Point { position })) =
-        doc.node(editor_core::RecipeNodeId(1))
+        doc.node(editor_core::RecipeNodeId(2))
     else {
         panic!("datum lost");
     };

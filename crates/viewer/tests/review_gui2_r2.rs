@@ -21,6 +21,8 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+test_utils::gated_to!["crates/viewer/src/", "crates/pncad/src/", "crates/bvh/src/"];
+
 use std::sync::{Arc, Mutex};
 
 use pncad::document::{
@@ -29,7 +31,6 @@ use pncad::document::{
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::prelude::StableName;
-use pncad::profile::SketchPlane;
 use pncad::select::{Ray, Resolution};
 use viewer::camera::Camera;
 use viewer::evalseam::{EvalDone, EvalRequest, EvalService, InlineEvaluator};
@@ -69,9 +70,25 @@ fn insert(
 }
 
 /// A rectangle profile in the XY plane, `w` by `h`, at the origin.
-fn rectangle(w: f64, h: f64) -> Node<ProfileProgram> {
+/// The world xy frame — this suite's own, like every other fixture
+/// here (a review suite derives what it needs independently).
+fn xy_frame() -> Node<ProfileProgram> {
+    let len = |v: f64| {
+        pncad::document::Expr::literal(v, pncad::document::Dimension::Length).expect("finite")
+    };
+    let scl = |v: f64| {
+        pncad::document::Expr::literal(v, pncad::document::Dimension::Scalar).expect("finite")
+    };
+    Node::Datum(pncad::document::Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    })
+}
+
+fn rectangle(plane: RecipeNodeId, w: f64, h: f64) -> Node<ProfileProgram> {
     Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]).expect("finite corners"),
         ],
@@ -92,7 +109,8 @@ fn translated(input: RecipeNodeId, dx: f64, dy: f64, dz: f64) -> Node<ProfilePro
 /// below are not tuned to the fixture the unit was written against.
 fn slab(w: f64, h: f64, t: f64, label: &str) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol());
-    let (doc, profile) = insert(&doc, rectangle(w, h));
+    let (doc, plane) = insert(&doc, xy_frame());
+    let (doc, profile) = insert(&doc, rectangle(plane, w, h));
     let (doc, extrude) = insert(
         &doc,
         Node::Extrude {

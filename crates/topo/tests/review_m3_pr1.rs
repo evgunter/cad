@@ -14,7 +14,7 @@ use topo::{
     validate_closed, validate_geometric,
 };
 
-mod common;
+use crate::common;
 use common::{describe_as_intersections, geometric_cube, line, plane};
 use geom_core::Tol;
 

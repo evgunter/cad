@@ -49,6 +49,12 @@
 //! ops with finite endpoints. One step is the design target (one outward
 //! pad per operation); the observed value is in the test output.
 
+test_utils::gated_to![
+    "crates/geom-core/src/ring_interval.rs",
+    "crates/geom-core/src/interval.rs",
+    "interval-transcendentals/src/",
+];
+
 use geom_core::RingInterval;
 use interval_transcendentals::DInterval;
 use test_utils::fuzz;

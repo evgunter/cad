@@ -10,7 +10,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use pncad::document::SlotId;
 use pncad::geom_core::Tol;
@@ -173,7 +173,7 @@ fn a_gallery_document_opens_evaluates_and_saves_back() {
     session.pump();
 
     let rows = session.tree_rows();
-    assert_eq!(rows.len(), 3, "profile, axis datum, revolve");
+    assert_eq!(rows.len(), 4, "sketch frame, profile, axis datum, revolve");
     assert!(
         !viewer::tree::has_faults(&rows),
         "a gallery document evaluates clean: {:?}",
@@ -244,10 +244,11 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
     let mut doc = pncad::document::Doc::empty_derived("gui-overlap", tol);
     let mut roots = Vec::new();
     for _ in 0..2 {
+        let plane = insert_node(&mut doc, common::xy_frame(), tol);
         let profile = insert_node(
             &mut doc,
             pncad::document::Node::Profile(pncad::document::ProfileProgram {
-                plane: pncad::prelude::SketchPlane::xy(),
+                plane,
                 loops: vec![
                     pncad::prelude::LoopProgram::polygon([
                         (0.0, 0.0),

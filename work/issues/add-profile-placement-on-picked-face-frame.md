@@ -11,7 +11,7 @@ github: 1374
 
 Opened 2026-08-31; 0 comments.
 
-The GAUTH-1 spec (docs/GAUTH-PLAN.md, unit item 3) wants the add-profile tool to offer, when the current selection is a planar face, placing the new profile on that face's frame — the `select::face_frame` door the mate tool uses, frozen f64 in the program's placement struct, stated in the form as a snapshot.
+The GAUTH-1 spec (unit item 3 of GAUTH's plan — GAUTH is closed and its plan left the tracker with the program, recoverable at `docs/DOC-LEDGER.md` sweep 5's SHA) wants the add-profile tool to offer, when the current selection is a planar face, placing the new profile on that face's frame — the `select::face_frame` door the mate tool uses, frozen f64 in the program's placement struct, stated in the form as a snapshot.
 
 The spec's own fallback was taken: the shipped tool authors on world XY only, and this issue is the scheduled follow-up (protocol v5 — a filed issue, not a silent narrowing).
 

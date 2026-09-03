@@ -22,26 +22,18 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::FRAC_PI_2;
 use std::sync::Arc;
 
 use geom::{NurbsSurface, Surface};
 use geom_brep::offset_fit::{
     OffsetFitError, approx_offset_surface, certify_offset, offset_point, recertify_approx,
 };
-use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point3, Tol, Vec3};
+
+use crate::shared::fixture::{kv2, quarter_cylinder};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
-}
-
-fn kv1() -> KnotVector {
-    KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap()
-}
-
-fn kv2() -> KnotVector {
-    KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap()
 }
 
 /// A gently bowed polynomial patch over `[0,1]²` — a base whose offset
@@ -55,22 +47,6 @@ fn bowed() -> NurbsSurface<f64> {
         }
     }
     NurbsSurface::new(kv2(), kv2(), control, vec![1.0; 9]).unwrap()
-}
-
-/// The exact quarter cylinder — a RATIONAL base (unit weights are the
-/// fit's business, not the base's).
-fn quarter_cylinder(r: f64, h: f64) -> NurbsSurface<f64> {
-    let s = (FRAC_PI_2 * 0.5).cos();
-    let control = vec![
-        Point3::new(r, 0.0, 0.0),
-        Point3::new(r, 0.0, h),
-        Point3::new(r, r, 0.0),
-        Point3::new(r, r, h),
-        Point3::new(0.0, r, 0.0),
-        Point3::new(0.0, r, h),
-    ];
-    let weights = vec![1.0, 1.0, s, s, 1.0, 1.0];
-    NurbsSurface::new(kv2(), kv1(), control, weights).unwrap()
 }
 
 /// `map`'s image of a spline, control point by control point — the

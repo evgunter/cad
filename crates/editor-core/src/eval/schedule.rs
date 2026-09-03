@@ -28,7 +28,7 @@ pub(crate) struct Schedule {
     pub unschedulable: Vec<RecipeNodeId>,
 }
 
-pub(crate) fn schedule<P>(doc: &Doc<P>) -> Schedule {
+pub(crate) fn schedule<P: crate::ProfilePayload>(doc: &Doc<P>) -> Schedule {
     // In-degree counts edges from inputs that EXIST in the doc; a
     // dangling input (unreachable through `apply`) simply contributes
     // no edge and the node fails later at operand lookup.

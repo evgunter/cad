@@ -2,8 +2,9 @@
 id: LIB-B-PICKING
 kind: unit
 title: binding census family B-PICKING
-status: open
+status: dispatched
 opened: 2026-09-03
+branch: lib/b-picking
 ---
 
 Queued mechanical census family (the B-READBACK/B-CHECKS shape): sweep the

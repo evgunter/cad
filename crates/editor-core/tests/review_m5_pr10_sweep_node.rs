@@ -10,12 +10,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     CancelToken, EvalOptions, Expr, Node, NodeErrorKind, NodeResult, ProfileDoc, evaluate,
 };
-use fixture::{desc, insert};
+use fixture::{insert, on_frame};
 use geom_core::Tol;
 
 #[test]
@@ -24,42 +24,47 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
     // a two-vertex loop (two arc segments — a circle), and a plain
     // rectangle. Both refuse at the multi-segment arm; sweep_geometry
     // is unreachable from the recipe layer.
-    let paths: Vec<(&str, editor_core::ProfileProgram)> = vec![
+    // The loops alone: the plane each rides on is a node now, minted
+    // per iteration alongside the document it goes into.
+    let paths: Vec<(&str, Vec<editor_core::LoopProgram>)> = vec![
         (
             "rectangle path",
-            desc(
-                [0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0],
-                vec![vec![(0.0, 0.0), (3.0, 0.0), (3.0, 2.0), (0.0, 2.0)]],
-            ),
+            vec![
+                editor_core::LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 2.0), (0.0, 2.0)])
+                    .unwrap(),
+            ],
         ),
-        ("two-vertex circle path", {
-            let mut d = desc(
-                [0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0],
-                vec![vec![(0.0, 0.0), (3.0, 0.0)]],
-            );
+        (
             // v4: the two half-turn arcs ARE the circle program form's
             // private lowering — a full circle of diameter (0,0)–(3,0).
-            d.loops[0] = editor_core::LoopProgram::circle(1.5, 0.0, 1.5).unwrap();
-            d
-        }),
+            "two-vertex circle path",
+            vec![editor_core::LoopProgram::circle(1.5, 0.0, 1.5).unwrap()],
+        ),
     ];
-    for (name, path_desc) in paths {
+    for (name, path_loops) in paths {
         let mut doc = ProfileDoc::empty_derived("review_m5_pr10_sweep_node", Tol::witness());
-        let (d, profile) = insert(
+        let (d, profile) = on_frame(
             doc,
-            Node::Profile(desc(
-                [0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-                vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-            )),
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
         );
         doc = d;
-        let (d, path) = insert(doc, Node::Profile(path_desc));
+        // The path is sketched on the xz plane, not the section's xy:
+        // a second frame, because it is a second plane.
+        let (d, path_plane) = insert(
+            doc,
+            fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+        );
+        doc = d;
+        let (d, path) = insert(
+            doc,
+            Node::Profile(editor_core::ProfileProgram {
+                plane: path_plane,
+                loops: path_loops,
+            }),
+        );
         doc = d;
         let (doc, sweep) = insert(
             doc,
@@ -113,14 +118,12 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
 #[test]
 fn review_recipe_doors_precede_the_sweep_frontier() {
     let mut doc = ProfileDoc::empty_derived("review_m5_pr10_sweep_node", Tol::witness());
-    let (d, profile) = insert(
+    let (d, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     doc = d;
     let (d, datum) = insert(

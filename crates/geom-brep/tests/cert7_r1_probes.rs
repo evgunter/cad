@@ -14,20 +14,14 @@
 use core::f64::consts::FRAC_PI_2;
 
 use geom::NurbsSurface;
-use geom_brep::offset_fit::{approx_offset_surface, certify_offset, fit_offset, offset_point};
-use geom_core::spline::KnotVector;
+use geom_brep::offset_fit::{approx_offset_surface, certify_offset, fit_offset};
 use geom_core::{Band, Point3, Tol};
+
+use crate::shared::fixture::{arc_weight, kv1, kv2};
+use crate::shared::sample::{grid, worst_offset_residual};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
-}
-
-fn kv2() -> KnotVector {
-    KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap()
-}
-
-fn kv1() -> KnotVector {
-    KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap()
 }
 
 /// A quarter **ellipse** wall: the exact rational quadratic quarter
@@ -35,7 +29,7 @@ fn kv1() -> KnotVector {
 /// weights) extruded linearly in `z`. Rational in `u`, and NOT a
 /// surface this suite ships anywhere.
 fn elliptic_wall(a: f64, b: f64, h: f64) -> NurbsSurface<f64> {
-    let s = (FRAC_PI_2 * 0.5).cos();
+    let s = arc_weight(FRAC_PI_2);
     let control = vec![
         Point3::new(a, 0.0, 0.0),
         Point3::new(a, 0.0, h),
@@ -62,7 +56,7 @@ fn ellipsoid_band(r: f64, q: f64, lat0: f64, lat1: f64) -> NurbsSurface<f64> {
     let mlen = (mid.0 * mid.0 + mid.1 * mid.1).sqrt();
     let m = (mid.0 / mlen * r / wm, mid.1 / mlen * r / wm);
     let meridian = [(a.0, a.1, 1.0), (m.0, m.1, wm), (b.0, b.1, 1.0)];
-    let wr = (FRAC_PI_2 * 0.5).cos();
+    let wr = arc_weight(FRAC_PI_2);
     let mut control = Vec::with_capacity(9);
     let mut weights = Vec::with_capacity(9);
     for iu in 0..3 {
@@ -79,27 +73,13 @@ fn ellipsoid_band(r: f64, q: f64, lat0: f64, lat1: f64) -> NurbsSurface<f64> {
     NurbsSurface::new(kv2(), kv2(), control, weights).unwrap()
 }
 
-fn dense() -> Vec<(f64, f64)> {
-    let (nu, nv) = (23usize, 19usize);
-    let mut out = Vec::new();
-    for i in 0..nu {
-        for j in 0..nv {
-            #[allow(clippy::cast_precision_loss)]
-            out.push((i as f64 / (nu - 1) as f64, j as f64 / (nv - 1) as f64));
-        }
-    }
-    out
-}
-
+/// The residual against the exact offset locus on 23 x 19 stations,
+/// or INFINITY where the base has no offset point at one of them —
+/// these rows hand the door hostile rationals, so a locus with a hole
+/// in it is a possible answer, and the containment assertions below
+/// must FAIL on it rather than the sampler panicking above them.
 fn sampled(base: &NurbsSurface<f64>, fit: &NurbsSurface<f64>, d: f64) -> f64 {
-    let mut worst = 0.0f64;
-    for (u, v) in dense() {
-        let Some(t) = offset_point(base, d, u, v) else {
-            return f64::INFINITY;
-        };
-        worst = worst.max((fit.eval(u, v) - t).norm());
-    }
-    worst
+    worst_offset_residual(base, fit, d, &grid(23, 19)).unwrap_or(f64::INFINITY)
 }
 
 /// **E2E, rational bases nobody shipped, through the public doors.**

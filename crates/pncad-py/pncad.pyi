@@ -845,6 +845,22 @@ class BooleanOp:
     Intersect: Final[BooleanOp]
     Subtract: Final[BooleanOp]
 
+class TubeWindow:
+    """A tube's traversed window — the full ring, or an arc of it.
+
+    Two spellings and no third. A class rather than an optional pair
+    of angles, because "the full ring" is one of two things a caller
+    chooses between, not the shape you get by not saying anything —
+    and the kernel refuses an arc that reaches one full period
+    precisely so the two never blur.
+    """
+
+    @staticmethod
+    def full() -> TubeWindow: ...
+    @staticmethod
+    def arc(t0: Angle, t1: Angle) -> TubeWindow: ...
+    def __repr__(self) -> str: ...
+
 class SketchPlane:
     """The rigid placement of a sketch plane in 3-space.
 
@@ -994,29 +1010,72 @@ class Node:
     """A recipe node, before insertion."""
 
     @staticmethod
+    def sketch_frame(
+        plane: Optional[SketchPlane] = None,
+        elevation: Optional[Length] = None,
+    ) -> Node:
+        """The sketch frame a profile is drawn on, as a node.
+
+        `plane=` and `elevation=` are the two spellings of one thing
+        and are mutually exclusive; they moved here from the sketch
+        doors when a profile's plane became a document node.
+        """
+
+    @staticmethod
     def polygon(
         points: list[tuple[Length, Length]],
-        elevation: Optional[Length] = None,
-        plane: Optional[SketchPlane] = None,
+        plane: NodeId,
     ) -> Node: ...
     @overload
     @staticmethod
-    def profile(
-        outline: ClosedLoop,
-        elevation: Optional[Length] = None,
-        plane: Optional[SketchPlane] = None,
-    ) -> Node: ...
+    def profile(outline: ClosedLoop, plane: NodeId) -> Node: ...
     @overload
     @staticmethod
-    def profile(
-        outline: list[ClosedLoop],
-        elevation: Optional[Length] = None,
-        plane: Optional[SketchPlane] = None,
-    ) -> Node: ...
+    def profile(outline: list[ClosedLoop], plane: NodeId) -> Node: ...
     @staticmethod
     def extrude(profile: NodeId, distance: Length) -> Node: ...
     @staticmethod
     def revolve(profile: NodeId, axis: NodeId, angle: Angle) -> Node: ...
+    @staticmethod
+    def tube(
+        spine: NodeId,
+        u_ref: tuple[float, float, float],
+        major_radius: Length,
+        window: TubeWindow,
+        minor_radius: Length,
+    ) -> Node:
+        """A solid ring torus, or an elbow of one, from its intent parameters.
+
+        `spine` is a `Node.datum_axis`: its origin is the tube's centre
+        and its direction the spine axis. `u_ref` is the reference
+        direction the window's angles are measured from. Every number
+        is STORED, never reconstructed, so `minor_radius` comes back
+        out of the body bit for bit.
+
+        There is no wall argument — a tube with a wall is
+        `Node.hollow_tube`, a different node kind.
+        """
+
+    @staticmethod
+    def hollow_tube(
+        spine: NodeId,
+        u_ref: tuple[float, float, float],
+        major_radius: Length,
+        window: TubeWindow,
+        minor_radius: Length,
+        wall: Length,
+    ) -> Node:
+        """`Node.tube`'s sibling with a WALL, which is REQUIRED.
+
+        `minor_radius` is the OUTER radius; the inner wall stores
+        `minor_radius - wall`. A full window builds a torus shell whose
+        cavity is a void, an arc an open elbow of annular section.
+
+        A non-positive wall, a wall that eats the bore, and a wall
+        whose realized gap collapses at the stored radii are the three
+        refusals only this door raises.
+        """
+
     @staticmethod
     def loft(profiles: list[NodeId], v_degree: int) -> Node: ...
     @staticmethod
@@ -1035,6 +1094,18 @@ class Node:
         origin: tuple[Length, Length, Length],
         direction: tuple[float, float, float],
     ) -> Node: ...
+    @staticmethod
+    def datum_axis_in_plane(
+        plane: NodeId,
+        origin: tuple[Length, Length],
+        direction: tuple[float, float],
+    ) -> Node:
+        """An axis written IN a sketch frame — a revolve's axis.
+
+        The two pairs are `plane`'s own 2-D coordinates. A revolve
+        takes one of these and not a `datum_axis`: an axis written in
+        the frame cannot leave the plane it turns.
+        """
     @staticmethod
     def datum_plane(
         origin: tuple[Length, Length, Length],
@@ -1349,6 +1420,18 @@ class Doc:
         non-empty only on one a `split` minted."""
 
     def insert(self, node: Node) -> NodeId: ...
+    def sketch_frame(
+        self,
+        plane: Optional[SketchPlane] = None,
+        elevation: Optional[Length] = None,
+    ) -> NodeId:
+        """Insert a sketch frame and return its id.
+
+        Exactly `insert(Node.sketch_frame(...))`. Each call mints a
+        FRESH frame; two sketches meant to share a plane bind the id
+        once and pass it twice.
+        """
+
     def declare(self, finding: FlushFinding) -> NodeId:
         """Insert a `Declare` node for ONE inspected finding and
         return its id for `Node.boolean`'s `declare=` (the

@@ -8,8 +8,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
-
 use geom_core::Tol;
 use geom_core::{Point3, Real, Vec3};
 use topo::{

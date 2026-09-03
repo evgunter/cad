@@ -55,7 +55,7 @@
 //! and it is the whole list these rows read.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use geom_core::Tol;
 use topo::{Body, ContactRecords, FaceKey, PatchContact, ValidationError};
