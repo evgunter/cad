@@ -336,15 +336,18 @@ fn regime_poses(rr: f64, r: f64) -> Vec<(&'static str, Point3<f64>, Vec3<f64>)> 
 /// that never decided: a certifier that escalated on everything would
 /// satisfy the disagreement assertion perfectly.
 ///
-/// The 25 rays that legitimately do not decide are the tangencies —
-/// both equator tangents in each of the two symmetry planes, and the
-/// axis-parallel ray up the hole, which grazes the inner equator — at
-/// all five shapes. A double root inside the band is exactly what the
-/// certifier is supposed to escalate on. Every transverse regime
-/// decides at every shape, which is what this floor holds: 40 rays at
-/// the default ε, 41 at 1e-12 and 38 at 1e-6, so the floor is the
-/// smallest of the three. Lower it only with the regime that stopped
-/// deciding named, and only once escalating there is the right answer.
+/// The rays that legitimately do not decide are the ones carrying a
+/// double root inside the band — the two equator tangents in each of
+/// the two symmetry planes, and the axis-parallel ray up the hole,
+/// which grazes the inner equator — where escalating is the right
+/// answer. Which of them escalate MOVES WITH ε, and so does the count:
+/// 40 rays decided at the default ε, 41 at 1e-12, 38 at 1e-6. The
+/// membership moves too, not just the total — at 1e-6 the two midplane
+/// tangents on the `(0.2, 0.19)` torus decide while the tube-centre ray
+/// through the two thinnest tubes does not — so this is a FLOOR over
+/// the three ε rows and not a per-regime pin. Lower it only with the
+/// regime that stopped deciding named, and only once escalating there
+/// is the right answer for it.
 const DECIDED_FLOOR: usize = 38;
 
 /// CLAIM 1 + 5 — the certified count and the biquadratic sign, against
