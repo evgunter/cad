@@ -10,7 +10,7 @@ refs: [1400]
 
 ## From GitHub issue 1412
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 Filed from the MATE-1 dual review (PR #1400, R2 MINOR-2, verified at the site). `crates/viewer/src/matetool.rs:417` gates mate-member picks through `is_instance` (`display.rs:193`), which matches `InstantiatePart` heads only — so the GUI refuses `NotAnInstancePick` for exactly the pattern-placed heads the member-vocabulary rider now admits and the solve now places. A user can author these mates through the recipe/Python doors but not by picking in the viewer.
 

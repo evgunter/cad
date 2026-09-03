@@ -10,7 +10,7 @@ refs: [1048]
 
 ## From GitHub issue 1056
 
-opened 2026-08-27, 0 comments.
+Opened 2026-08-27; 0 comments.
 
 **Shelling an already-hollow body.** Raised by the OFF-D PR-2 review (#1048, ordinal 82, MAJ-2) and adjudicated with Ev.
 

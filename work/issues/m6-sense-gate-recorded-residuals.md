@@ -10,7 +10,7 @@ refs: [223, 250]
 
 ## From GitHub issue 226
 
-opened 2026-08-07, 0 comments.
+Opened 2026-08-07; 0 comments.
 
 Tracking issue for #223's recorded residuals (Ev's ask — recorded AND scheduled). Each is pinned in-tree (the pin's doc names its flip condition; the pin fails the day the condition lands, forcing the honest update):
 

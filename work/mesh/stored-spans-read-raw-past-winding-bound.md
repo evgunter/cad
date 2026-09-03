@@ -10,7 +10,7 @@ refs: [1617, saturated-sphere-span-folds-short, MESH-12, MESH-R]
 
 ## From GitHub issue 1618
 
-opened 2026-09-03, 0 comments.
+Opened 2026-09-03; 0 comments.
 
 **Found by:** MESH-12's class sweep (PR #1617, the sweep table), filed by the S-MESH orchestrator. Same class as issue 1601 (closed by MESH-12): a stored edge span `e.t1 − e.t0` read into a closed form without re-deciding certification's per-edge winding bound. MESH-12 closed the sphere meridian arm (`props_meridian_span_winding` at the parse and at the branch door); MESH-10 closed the torus CHAIN arm (`props_meridian_pieces_winding`, chains of ≥ 2 pieces). Two homes remain:
 

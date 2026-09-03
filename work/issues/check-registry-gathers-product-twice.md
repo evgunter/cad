@@ -10,7 +10,7 @@ refs: [1162]
 
 ## From GitHub issue 1181
 
-opened 2026-08-29, 0 comments.
+Opened 2026-08-29; 0 comments.
 
 Raised by the review of [#1162](https://github.com/evgunter/cad/pull/1162) (findings m14 + S7 + the residue of m9). Not a defect in that PR's behaviour — it is the structural cause behind two of its findings, and the fix is an API-shape decision rather than a mechanical dedup, so it is filed rather than folded in.
 
@@ -37,7 +37,7 @@ The same decision produced `ChecksError::Product` — a gather refusal became a 
 
 ## What makes this more than a dedup
 
-The obvious fix — hand `run_checks` a `&Product` — does not compose, because **`assemble` gathers internally too** and then *consumes* what it gathered:
+The obvious fix — hand `run_checks` a `&Product<T>` — does not compose, because **`assemble` gathers internally too** and then *consumes* what it gathered:
 
 ```rust
 // crates/editor-core/src/assembly.rs

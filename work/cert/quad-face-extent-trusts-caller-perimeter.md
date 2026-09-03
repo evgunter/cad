@@ -10,7 +10,7 @@ refs: [1366]
 
 ## From GitHub issue 1368
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 (S-CERT orchestrator) Filed from CERT-6's calibration corpus (PR 1366), which minted the instrument that makes this checkable.
 

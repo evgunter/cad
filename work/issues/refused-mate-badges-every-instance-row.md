@@ -10,7 +10,7 @@ refs: [1461]
 
 ## From GitHub issue 1463
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 Found by the `story_assembly` integration lane. When a mate solve refuses (repro: the `mate_clocking_redundant` refusal of issue 1461), the failure badges land on the **instance** rows — including instances the offending mate does not touch: in the observed document all four instance rows read "node 0 failed: the mate solve refused …", while the one mate that caused the refusal is not where the eye is sent.
 

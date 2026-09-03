@@ -1024,16 +1024,45 @@ NOT_BOUND = {
     "Band": INTERIOR,
     "BandError": INTERIOR,
     "BlendKind": INTERIOR,
+    # The blend refusal's payload vocabulary, curated at LIB-CUR4 so a
+    # prelude-carried `BlendError` is matchable THROUGH the prelude.
+    # `INTERIOR` by the rule the two CUR3/CUR4 cases together settle:
+    # **a payload's category follows what its CARRIER does at the
+    # crossing.** `ReadbackError` projects its arms as tags, so CUR3's
+    # `DanglingRef` is in `BOUND_AS` at `ReadbackError.variant` and its
+    # arms ARE two tags. `BlendError` projects no arms at all —
+    # `node_error_tag` reads the VERB, so the whole refusal arrives as
+    # one `fillet`/`chamfer` tag plus the kernel's `Display` prose — so
+    # there is no tag to split, none to pin, and nothing for a Python
+    # caller to branch on. Not a `gap:` either: the debt is the blend
+    # door being unprojected, which is #1479's row and not a missing
+    # binding for these four types.
+    "BlendSite": INTERIOR,
     "BooleanBody": INTERIOR,
     "BooleanDeclarations": INTERIOR,
     "BooleanResult": INTERIOR,
     "BooleanResultKind": INTERIOR,
     "BooleanValue": INTERIOR,
+    # The tier-3′ census vocabulary, curated at LIB-CUR4 beside the
+    # `ValidationError` the prelude already carried. Same rule as the
+    # blend four above, and the validate doors are the starker case:
+    # they cross their failures as joined `Display` prose with a `door`
+    # and a `failure_count` and NO per-arm tag whatsoever, so which
+    # coincidence the census found is not a thing Python can read at
+    # all today. `DeclaredContact` below is the sibling that settles
+    # the category — it is `ValidationError::ContactContradicted`'s
+    # payload, it has been curated all along, and it sits at
+    # `INTERIOR`.
+    "CensusContact": INTERIOR,
     "Chamfered": INTERIOR,
     "ContactRecords": INTERIOR,
     "ContactRefusal": INTERIOR,
     "ContactVerdict": INTERIOR,
     "ContentBits": INTERIOR,
+    # `BlendError::ConvexitySignFlip`'s payload and
+    # `UnsupportedCorner`'s, the other two of the blend four.
+    "Convexity": INTERIOR,
+    "CornerConfig": INTERIOR,
     "Curve3": INTERIOR,
     "DeclaredContact": INTERIOR,
     "DuplicateName": INTERIOR,
@@ -1059,7 +1088,14 @@ NOT_BOUND = {
     "PropsQuadLane": INTERIOR,
     "Revolution": INTERIOR,
     "Revolved": INTERIOR,
+    # `ValidationError::RingMeetsOuter`'s payload (LIB-CUR4).
+    "RingContact": INTERIOR,
+    # `BlendError::UnsupportedCorner`'s second field, the policy
+    # `CornerConfig::policy` assigns (LIB-CUR4).
+    "RunOutPolicy": INTERIOR,
     "SegmentKind": INTERIOR,
+    # `ValidationError::StaleContactDeclaration`'s payload (LIB-CUR4).
+    "StaleDeclaration": INTERIOR,
     "StepArg": INTERIOR,
     "Surface": INTERIOR,
     "ValidatedLoop": INTERIOR,

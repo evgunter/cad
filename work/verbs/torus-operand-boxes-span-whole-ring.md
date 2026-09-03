@@ -10,7 +10,7 @@ refs: [1477, 968]
 
 ## From GitHub issue 1488
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 Filed at MATE-7a's adjudication (PR #1477) as the scheduled home for a residue both review arms flagged as disclosed-but-unscheduled (deviation 2's "not attempted here").
 

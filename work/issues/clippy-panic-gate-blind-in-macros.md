@@ -10,7 +10,7 @@ refs: [447]
 
 ## From GitHub issue 454
 
-opened 2026-08-13, 0 comments.
+Opened 2026-08-13; 0 comments.
 
 The workspace's panic-family lint gate — the enforcement mechanism for D9's "the kernel never panics on any input" — does not apply to code written inside a `macro_rules!` body. **clippy does not lint inside `macro_rules!` expansions.**
 
@@ -22,9 +22,9 @@ Verified independently on this toolchain (clippy 1.97.0):
 
 ```rust
 // [lints.clippy] expect_used = "warn"
-macro_rules! make { ($n:ident) => { pub fn $n(v: Option) -> u32 { v.expect("in macro") } }; }
+macro_rules! make { ($n:ident) => { pub fn $n(v: Option<u32>) -> u32 { v.expect("in macro") } }; }
 make!(from_macro);
-pub fn written_directly(v: Option) -> u32 { v.expect("direct") }
+pub fn written_directly(v: Option<u32>) -> u32 { v.expect("direct") }
 ```
 
 `cargo clippy` warns **once**, on `written_directly`. The macro-generated `expect` produces no diagnostic.

@@ -10,7 +10,7 @@ refs: [1113]
 
 ## From GitHub issue 1117
 
-opened 2026-08-28, 0 comments.
+Opened 2026-08-28; 0 comments.
 
 Found by GUI-4's R2 review (a failing probe), banked from the fix pass of PR #1113.
 

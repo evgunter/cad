@@ -10,7 +10,7 @@ refs: [VERBS-C5ARMS, 1048]
 
 ## From GitHub issue 1057
 
-opened 2026-08-27, 0 comments.
+Opened 2026-08-27; 0 comments.
 
 **Two analytic section arms the C5 table is missing, and the demo debt they block.** Raised by OFF-D PR-2 (#1048) — see that PR's Klein deviation row and banked finding 5, and the pinned row `verbs_shell::the_klein_wall_pair_waits_on_a_plane_torus_route`.
 

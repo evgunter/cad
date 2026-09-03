@@ -86,6 +86,8 @@ mod e4_dual_door;
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]
 mod gui1_pick_r2;
+#[path = "lib_dietool_crossing.rs"]
+mod lib_dietool_crossing;
 #[path = "lib_doors_node_result.rs"]
 mod lib_doors_node_result;
 #[path = "lib_g14_split_walls.rs"]
@@ -126,6 +128,15 @@ mod m10_3_driver_k_probe_interval;
 mod m10_3_r1_probes_interval;
 #[path = "m10_3_r2_probes_interval.rs"]
 mod m10_3_r2_probes_interval;
+#[path = "m10_4_r1_probes_interval.rs"]
+mod m10_4_r1_probes_interval;
+#[path = "m10_4_seed.rs"]
+mod m10_4_seed;
+
+#[path = "m10_4_r2_probes_interval.rs"]
+mod m10_4_r2_probes_interval;
+#[path = "m10_4_stackup_interval.rs"]
+mod m10_4_stackup_interval;
 #[path = "m10_5_clearance_interval.rs"]
 mod m10_5_clearance_interval;
 #[path = "m10_di_dual_corpus.rs"]

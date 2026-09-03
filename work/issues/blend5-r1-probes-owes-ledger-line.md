@@ -9,7 +9,7 @@ github: 1327
 
 ## From GitHub issue 1327
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 (S-CERT orchestrator) Found by CERT-4's fix pass on a full local `cargo test --workspace` and **verified on `origin/main` directly (at f790dd62): identical failure** — pre-existing on main, not that unit's change.
 

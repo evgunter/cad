@@ -10,7 +10,7 @@ refs: [1420]
 
 ## From GitHub issue 1429
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 Filed from the MATE-6 dual review (PR #1420; the finding is bilateral, and one half narrows the Q1 ruling's letter — **flagging that for Ev explicitly**). Two faces of one gap, both loud today, neither wrong:
 

@@ -10,7 +10,7 @@ refs: [978, 907]
 
 ## From GitHub issue 979
 
-opened 2026-08-25, 0 comments.
+Opened 2026-08-25; 0 comments.
 
 Recording Ev's ruling (2026-08-25, the checks-registry conversation): the structural alternative that DISCIPLINES-DESIGN DS6 round 4 (PR #978) recorded as "considered and deferred" is the **eventual plan**, not a rejected option. Planned, unscheduled, not to be implemented yet — this issue is the record.
 

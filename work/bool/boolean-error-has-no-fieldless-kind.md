@@ -10,7 +10,7 @@ refs: [1490]
 
 ## From GitHub issue 1491
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 (SMELL-UV orchestrator) Filed as the durable home for a deviation PR 1490's sweep disclosed and could not carry — the fix lives in `crates/topo`, Track Q's fence (S-BOOL's per the register).
 

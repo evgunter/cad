@@ -10,7 +10,7 @@ refs: [1375]
 
 ## From GitHub issue 1385
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 Recorded deviation from GAUTH-1 (PR #1375), filed as its schedule per protocol v5.
 

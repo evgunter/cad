@@ -10,7 +10,7 @@ refs: [921, 1329, 1330]
 
 ## From GitHub issue 1338
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 **Found by SMELL Track T lane T-a (PR #1329) when its CI draw landed on `interval, eps = 1e-12` — a point that branch's earlier runs never drew. Reported, not fixed: these rows are outside that lane's two rows, and the fix is a re-measurement someone has to adjudicate.**
 

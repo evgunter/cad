@@ -10,7 +10,7 @@ refs: [1458]
 
 ## From GitHub issue 1459
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 Found by the `story_parametric` integration lane, and partly self-disclosed in `crates/viewer/src/props.rs`'s module docs (the slot/param asymmetry is named there — this issue is the schedule that disclosure was owing).
 

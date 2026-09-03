@@ -10,7 +10,7 @@ refs: [881, 1389]
 
 ## From GitHub issue 1402
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 (S-MESH orchestrator) Filed from MESH-1's dual review ([#1389](https://github.com/evgunter/cad/pull/1389)); both reviewers converged on the class independently. At frozen head `f0618c8e`:
 

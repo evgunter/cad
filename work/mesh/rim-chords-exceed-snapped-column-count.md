@@ -9,7 +9,7 @@ github: 950
 
 ## From GitHub issue 950
 
-opened 2026-08-23, 0 comments.
+Opened 2026-08-23; 0 comments.
 
 Filed from the TESS-SPLIT unit as the concretely scheduled followup for a disclosed residual.
 

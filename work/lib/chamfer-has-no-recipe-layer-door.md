@@ -10,7 +10,7 @@ refs: [708]
 
 ## From GitHub issue 918
 
-opened 2026-08-22, 0 comments.
+Opened 2026-08-22; 0 comments.
 
 `sweep::chamfer_edges` ships (VERBS-CHAMFER) and is reachable only from the plain-body API. There is no `Node::chamfer`, so:
 

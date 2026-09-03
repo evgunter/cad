@@ -10,7 +10,7 @@ refs: [685, 1507, 678, S29]
 
 ## From GitHub issue 1513
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 Filed at MESH-5's state-sync (PR [#1507](https://github.com/evgunter/cad/pull/1507)); both blinded reviews flagged the unscheduled siblings independently.
 

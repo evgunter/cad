@@ -10,7 +10,7 @@ refs: [1296]
 
 ## From GitHub issue 1304
 
-opened 2026-08-30, 0 comments.
+Opened 2026-08-30; 0 comments.
 
 (S-CERT orchestrator) Found by CERT-4's lane while trying to produce a k-lint verdict for its branch; **verified identical at merge base `ad2f9757`** — pre-existing, not that unit's change.
 

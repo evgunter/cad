@@ -10,7 +10,7 @@ refs: [762]
 
 ## From GitHub issue 1218
 
-opened 2026-08-29, 0 comments.
+Opened 2026-08-29; 0 comments.
 
 Measured while writing the D286 fixture for the CERT-2 lane (SMELL scan Track Q, residue of issue 762). Tests-only scope from that lane's fence, so it is filed rather than fixed.
 
@@ -44,7 +44,7 @@ This is the same shape as issue 762's third item, one lane over: **not a wrong a
 
 Refuse the plane at the door, where `plane_nurbs_ssi` already destructures `Surface::Plane { origin, normal, u_ref }` and already refuses `WrongLane` there. A plane whose origin or normal is not finite denotes no plane at all, and the operation can say so in its own terms before any sweep runs — the same argument the chart-speed guard ten lines below makes for the wall.
 
-Note the D2-addendum row-0 question is live here: `Surface::Plane` admits a non-finite origin because `Point3` does. Whether that state should be representable at all is the prior question; a typed refusal at the door is the answer if it should not be.
+Note the D2-addendum row-0 question is live here: `Surface::Plane` admits a non-finite origin because `Point3<f64>` does. Whether that state should be representable at all is the prior question; a typed refusal at the door is the answer if it should not be.
 
 ## Home
 

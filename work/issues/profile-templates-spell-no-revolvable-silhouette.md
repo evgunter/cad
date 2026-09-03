@@ -9,7 +9,7 @@ github: 1457
 
 ## From GitHub issue 1457
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 Found by the `story_authoring` integration lane: `ProfileShape` offers exactly `Circle` (with an offsettable centre) and `Rectangle` (always centred on the sketch origin). The only revolvable solids the creation forms can spell are therefore offset circles — tori. A revolved *silhouette* — the natural body of a chess piece, a vase, a goblet, most turned parts — is unspellable through the forms, even though the op vocabulary underneath would accept a richer `LoopProgram` (the kernel's profile programs already support it; only the template layer is this narrow).
 

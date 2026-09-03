@@ -10,7 +10,7 @@ refs: [1267]
 
 ## From GitHub issue 1281
 
-opened 2026-08-30, 0 comments.
+Opened 2026-08-30; 0 comments.
 
 A **pre-existing attribution gap** in the arc-carrier fillet's refusal channel, measured during the BLEND-7 review (PR #1267) and disclosed there rather than changed by it.
 

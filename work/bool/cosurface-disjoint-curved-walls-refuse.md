@@ -10,7 +10,7 @@ refs: [1351]
 
 ## From GitHub issue 1352
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 Two solids stacked on a shared footprint have COSURFACE outer walls with
 DISJOINT extents: same carrier, same outward sense, meeting only along the

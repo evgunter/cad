@@ -10,7 +10,7 @@ refs: [1378, 1382, 1390, G9]
 
 ## From GitHub issue 1391
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 (S-BOOL orchestrator) Filed from BOOL-1's dual review ([#1378](https://github.com/evgunter/cad/pull/1378)); both reviewers converged on the class independently. At #1378's frozen head `3f14f3c4`, three sites hand-spell "is this edge description coherent with its adjacent faces / stale":
 

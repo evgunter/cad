@@ -10,7 +10,7 @@ refs: [1328, 1278]
 
 ## From GitHub issue 1336
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 **Raised bilaterally by BLEND-6's review round** (PR #1328; R1 executed it, R2 flagged the same asymmetry as style).
 
@@ -26,4 +26,4 @@ BLEND-6 adopted a characterization probe pinning the current behavior and cites 
 
 ## Home
 
-The issue names S-BLEND territory (`crates/sweep/src/blend/build.rs`), but `work/blend/` is a closed program and may hold only closed items, and no open program's territory covers the blend module — so it lands in `work/issues/` until a program claims the blend doors.
+The issue names S-BLEND territory (`crates/sweep/src/blend/build.rs`), but S-BLEND is closed (`docs/S-BLEND-EXIT-WALK.md`, its tracker directory deleted) and no open program's territory covers the blend module — so it lands in `work/issues/` until a program claims the blend doors.

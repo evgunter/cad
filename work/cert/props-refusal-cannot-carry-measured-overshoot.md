@@ -10,7 +10,7 @@ refs: [1599, 1571, S19]
 
 ## From GitHub issue 1602
 
-opened 2026-09-02, 0 comments.
+Opened 2026-09-02; 0 comments.
 
 **Filed from MESH-11 (PR [#1599](https://github.com/evgunter/cad/pull/1599)) as the schedule for a disclosed deviation; both reviews asked for one.**
 

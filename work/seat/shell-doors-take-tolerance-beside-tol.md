@@ -10,7 +10,7 @@ refs: [1399]
 
 ## From GitHub issue 1409
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 (SEAT orchestrator) Two related findings from SEAT-1's dual review (PR #1399), filed as one issue because both are about the verb doors' tolerance vocabulary.
 

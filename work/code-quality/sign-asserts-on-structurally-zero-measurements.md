@@ -11,7 +11,7 @@ track: W
 
 ## From GitHub issue 1396
 
-opened 2026-08-31, 1 comment.
+Opened 2026-08-31; 1 comment.
 
 (S-MESH orchestrator) Filed from MESH-1 ([#1389](https://github.com/evgunter/cad/pull/1389), issue 1362). Correcting `revolve_common`'s origin-anchored fan oracle turned `crates/sweep/tests/revolve_washer.rs::donut_two_arc_profile_shares_one_torus` red — and the investigation showed the row had been vacuous its whole life: for that body the fan-based signed volume is a **structural zero** (the two half-torus fans from a boundary vertex are mirror images and cancel identically in exact arithmetic), so `assert!(signed_volume > 0.0)` was passing on `3.1e-16` of cancellation noise. Honest arithmetic returns the 0 that was always the answer. #1389 repairs that one row with `signed_volume_lifted` + per-face interior lifts (a real orientation oracle: +2.828, and −2.828 under swapped lifts).
 
@@ -23,7 +23,7 @@ Related: issue 1362 (the anchor-conditioning class), issue 303 / PR 1361 (the `s
 
 ## Comments
 
-**2026-08-31** — orchestrator:
+**2026-08-31** — comment:
 
 **A third member, found and measured during PR 1389's fix pass: the partially-revolved ball ("ball quarter").** Latent, not live — no committed row asserts a sign on that body today — but it carries the same signature and would become a vacuous row the moment one did.
 

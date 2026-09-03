@@ -11,7 +11,7 @@ refs: [449]
 
 ## From GitHub issue 461
 
-opened 2026-08-13, 0 comments.
+Opened 2026-08-13; 0 comments.
 
 The 2-way `--partition count:N/2` sharding of the `test` and `test-interval` matrices was sized against a much slower suite. **The arithmetic that justified it has changed, and the arithmetic that would justify changing it isn't stable yet.**
 
