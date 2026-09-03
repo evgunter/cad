@@ -25,7 +25,20 @@
 //! - the `prism`/`brick` builders of the OTHER crates' suites
 //!   (`topo`, `mesh`, `stl`, `step-export`, `editor-core`) — a
 //!   cross-crate home is LIB-U6's territory, which this tree's routing
-//!   rule says is deliberately not built here.
+//!   rule says is deliberately not built here;
+//! - two copy classes of the same SHAPE elsewhere in this crate's
+//!   corpus, which are a different family and not this unit's:
+//!   `brick(x, y, z)` over tuple ranges (`bool2_cone_doors.rs`,
+//!   `bool3_torus_doors.rs`, `verbs_gate_r1_probes.rs` byte-identical,
+//!   plus `bool2_r2_probes.rs`, `r1_probes_m9_3.rs`,
+//!   `s49_census_jurisdiction.rs` diverged), and
+//!   `prism(pts, h)` over `(f64, f64)` pairs from `SketchPlane::xy()`
+//!   (`sf2a_r2_probes.rs` = `verbs_shell.rs`,
+//!   `m8_4_intersection_iso.rs` = `r1_p2_probes.rs`, plus six
+//!   singletons). They are tracked as
+//!   `work/tcost/sweep-boolean-suite-brick-and-prism-copies.md`;
+//! - `super::approx::prism`, which builds the `Surface::Approx`
+//!   surgery's base rather than a boolean operand.
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
