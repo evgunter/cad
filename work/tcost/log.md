@@ -635,3 +635,22 @@ conclude. Hosted reading of record for the program: default-lane
 shard totals 219.7 + 300.1 → 135.0 + 127.6 cpu-s at 1e-12; the
 digest instrument found every certified bound byte-identical across
 six lane×ε rows.
+
+## Unit: TCOST-6 merged (2026-09-03)
+
+PR 1666 at `5666f015` (run 33743321953, interval 1e-12 asked, green).
+editor-core's three chamber heads (39.3 cpu-s on the interval lane)
+are one labelled row at 6.7 cpu-s hosted: every assertion kept, two
+strengthened (receipt identity on the D9 drive; the widest frontier
+the schedule had to spread, ≥ 64, with the single-axis precondition
+asserted). The budget constant 4096 → `CHAMBER_LEAVES = 1280` on a
+measured, ε-invariant threshold at 1024 (sweep table in the doc);
+the two partition rows keep `FULL_PARTITION_LEAVES = 4096` with the
+measured cost of not cutting them; the ulp-wide box row gets
+`GRID_FLOOR_LEAVES`. The suite is gated (`gated_to!`) to the driver,
+analysis, distribution, resolve and tolerance modules its claims
+rest on — the first marker inside a whole-file `cfg(interval)` suite
+(no default-lane run needed: the filterset term is derived from the
+path). Findings: no slow-kernel candidate (cost linear in the leaf
+budget); the four other interval-only census rows are corpus-shaped
+and want a corpus unit, not this mechanism.
