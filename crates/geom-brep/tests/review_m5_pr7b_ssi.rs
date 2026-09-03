@@ -47,6 +47,9 @@ fn cutting_plane() -> Surface<f64> {
     }
 }
 
+/// **Deliberately not shared with `m5_pr7_ssi.rs`'s**, which is this
+/// box: this suite reviews that one, so the region it marches in has
+/// to be its own. See that file's copy for the same note.
 fn wall_domain() -> SsiDomain {
     SsiDomain {
         center: Point3::new(0.5, 0.0, 0.4),

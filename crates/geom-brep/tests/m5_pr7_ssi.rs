@@ -1058,6 +1058,11 @@ fn cutting_plane() -> Surface<f64> {
     }
 }
 
+/// **Deliberately not shared with `review_m5_pr7b_ssi.rs`'s**, which
+/// is this box character for character. That suite is the reviewer's
+/// independent consumer of the same door: the box it marches in is
+/// part of what it asserts for itself, and a shared one would make the
+/// two agree about the search region by construction.
 fn wall_domain() -> SsiDomain {
     SsiDomain {
         center: Point3::new(0.5, 0.0, 0.4),

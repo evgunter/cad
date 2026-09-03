@@ -7,13 +7,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::ring::pt;
+use crate::shared::tol::band;
 use geom_brep::props::quad::{RVec3, nurbs_patch_face};
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Tol};
 
 #[test]
 fn r2_quad_raw_digit_probe() {
-    let band = Band::linear(Tol::witness()).unwrap();
+    let band = band();
     let kv_v = KnotVector::unit_segment(1);
     let (pu, nv, height) = (3usize, 2usize, 2.0f64);
     for mult in [2usize, 3] {

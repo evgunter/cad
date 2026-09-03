@@ -7,11 +7,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::surf::table;
+use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{CERT_SAMPLES, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Mat3, Point3, Vec3};
+use geom_core::{Affine3, Mat3, Point3, Vec3};
 
 /// Line x-axis = intersection of z=0 and y=0 planes; witness offset
 /// ALONG the line by 0.9ε from the mid point — on both surfaces
@@ -21,7 +22,7 @@ use geom_core::{Affine3, Band, Mat3, Point3, Vec3};
 #[test]
 fn marginal_witness_slack_vs_remint_freshness() {
     let eps = Tol::witness().get().eps;
-    let band = Band::linear(Tol::witness()).unwrap();
+    let band = band();
     let (keys, resolve) = table(vec![
         Surface::Plane {
             origin: Point3::new(0.0, 0.0, 0.0),

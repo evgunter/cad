@@ -59,6 +59,9 @@ const V0: f64 = 0.2;
 const V1: f64 = 1.2;
 const U0: f64 = -1.0;
 const U1: f64 = 1.0;
+/// **Deliberately not shared**, for R1's reason above — and this one
+/// cannot be shared anyway: its `tmer` takes the carrier id through,
+/// which is R2's whole subject.
 fn control() -> Vec<LoopEdge<f64>> {
     vec![
         trim(V0, U0, U1, 0, 1),

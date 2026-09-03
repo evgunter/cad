@@ -194,6 +194,10 @@ fn trim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 /// A torus meridian ARC on the minor circle at azimuth `u`, stamped
 /// with the identity of the edge it is a piece of (`None`: a loop
 /// built without a body records none).
+/// **Deliberately not shared with `mesh10r1_probes.rs`'s `tmer`,**
+/// which is this text: the reviewer-pair independence above. The
+/// geometry IS shared — `topo::torus_meridian_circle` — so what stays
+/// apart is only how each suite stamps the carrier id.
 fn tmer(u: f64, v0: f64, v1: f64, a: u32, b: u32, id: Option<u64>) -> LoopEdge<f64> {
     LoopEdge {
         carrier_id: id.map(CarrierId::minted),
@@ -211,6 +215,12 @@ const V0: f64 = 0.2;
 const V1: f64 = 1.2;
 const U0: f64 = -1.0;
 const U1: f64 = 1.0;
+/// **Deliberately not shared with `mesh10r1_probes.rs` /
+/// `mesh10r2_probes.rs`, whose `control` is this text.** This file is
+/// the shipped door suite; those two are an R1/R2 reviewer pair whose
+/// value is that they rebuild the rectangle for themselves. A shared
+/// `control` would make all three agree by construction about the loop
+/// the door is supposed to accept.
 fn control() -> Vec<LoopEdge<f64>> {
     vec![
         trim(V0, U0, U1, 0, 1),

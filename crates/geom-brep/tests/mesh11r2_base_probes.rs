@@ -9,11 +9,12 @@
     clippy::print_stdout
 )]
 
+use crate::shared::tol::band;
 use crate::shared::topo;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, curved_face};
 use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
+use geom_core::{Point3, Vec3};
 
 const PI: f64 = core::f64::consts::PI;
 const RS: f64 = 0.010;
@@ -33,7 +34,7 @@ fn r2_base_the_fold_on_a_saturated_span_measures_the_hemisphere() {
         axis: Vec3::new(0.0, 0.0, 1.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    let bd = Band::linear(Tol::witness()).unwrap();
+    let bd = band();
     let exact = 2.0 * PI * RS * RS;
     let mut short = Vec::new();
     for k in 1..=400 {

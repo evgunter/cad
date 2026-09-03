@@ -28,6 +28,13 @@ fn p2(x: f64, y: f64) -> Point2<Interval> {
     Point2::new(iv(x), iv(y))
 }
 
+/// The width of an enclosure, and (below) the widest coordinate of a
+/// point's.
+///
+/// **Deliberately not shared with `review_arceval_r1_probes.rs`'s
+/// pair**, which is this text: that suite is R1's independent
+/// re-derivation of this file's anchor comparison, and the METER it
+/// measures widths with is the thing its verdict turns on.
 fn width(x: Interval) -> f64 {
     x.hi() - x.lo()
 }

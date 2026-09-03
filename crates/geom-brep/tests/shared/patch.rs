@@ -31,8 +31,8 @@
 
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::{FaceCutBounds, nurbs_patch_face};
+use geom_core::RingInterval;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, RingInterval, Tol};
 
 /// All basis values `N_{i,p}(t)`, seeded by a `t >= knots[n]` branch at
 /// the domain end.
@@ -316,9 +316,10 @@ pub(crate) fn oracle_patch(
 /// every caller passed; `boundary_defect` is zero, which is what an
 /// untrimmed rectangle means. `perimeter` and `eps` stay the caller's —
 /// they are what the probes vary. The BAND does not: both callers
-/// passed `Band::linear(Tol::witness())`, so it is taken here, and a
-/// row that ever needs a different one should call the door itself
-/// rather than grow a parameter nothing varies.
+/// passed the run's linear band, so it is taken here from
+/// [`crate::shared::tol::band`] — the one home for it, this tree
+/// included — and a row that ever needs a different one should call the
+/// door itself rather than grow a parameter nothing varies.
 #[track_caller]
 #[allow(clippy::panic)] // the posture contract above is the point of it
 pub(crate) fn face_posture(
@@ -331,8 +332,7 @@ pub(crate) fn face_posture(
 ) -> Result<FaceCutBounds, PropsError> {
     let (a, b) = ku.domain();
     let (c, d) = kv.domain();
-    #[allow(clippy::unwrap_used)] // a linear band on the witness tolerance is valid by construction
-    let band = Band::linear(Tol::witness()).unwrap();
+    let band = crate::shared::tol::band();
     let out = nurbs_patch_face::<f64>(
         ku,
         kv,

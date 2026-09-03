@@ -35,6 +35,10 @@ fn torus() -> Surface<f64> {
 fn trim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
     edge(topo::torus_rim_circle(RR, R0, v), u0, u1, a, b)
 }
+/// **Deliberately not shared with `iso_rectangle_door.rs`'s `tmer`**
+/// (reviewer-pair independence, see `control` below), and not with
+/// `mesh10r2_probes.rs`'s either, whose `edge` stamps the id itself.
+/// The circle is shared; the stamping is not.
 fn tmer(u: f64, v0: f64, v1: f64, a: u32, b: u32, id: Option<u64>) -> LoopEdge<f64> {
     LoopEdge {
         carrier_id: id.map(CarrierId::minted),
@@ -47,6 +51,10 @@ const V1: f64 = 1.2;
 const U0: f64 = -1.0;
 const U1: f64 = 1.0;
 
+/// **Deliberately not shared**, though `iso_rectangle_door.rs` and
+/// `mesh10r2_probes.rs` spell the same four calls: this is R1's own
+/// rebuild of the rectangle, and the door suite it reviews must not be
+/// the source of the loop it is checked against.
 /// The unit's control rectangle: each meridian one edge.
 fn control() -> Vec<LoopEdge<f64>> {
     vec![

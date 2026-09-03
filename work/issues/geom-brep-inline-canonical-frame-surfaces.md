@@ -18,8 +18,10 @@ for the SHAPE — `Surface::{Sphere,Cylinder,Torus} {` with an origin
 centre, a `+z` axis and a `+x` `u_ref`, in any of the spellings the
 tree uses (`p3(0,0,0)`, `Point3::new(0,0,0)`, `Point3::origin()`;
 `v3(0,0,1)`, `Vec3::new(0,0,1)`, `Vec3::unit_z()`; and the same for
-`u_ref`) — finds **34 more, spelled inline at their use sites** on
-`8433129ac`, after TCOST-8's own diff:
+`u_ref`) — finds **34 more, spelled inline at their use sites**. Every
+`file:line` below is a **merge-base (`8433129ac`) line number**, taken
+before TCOST-8's diff, so they can be resolved against `git show
+8433129ac:<path>`:
 
 - `Sphere` x 11: `intersect_table.rs:302`, `m5_pr7_ssi.rs:2073`,
   `m5_pr9_tangent.rs:357`, `mesh11r2_base_probes.rs:30`,
@@ -40,9 +42,10 @@ tree uses (`p3(0,0,0)`, `Point3::new(0,0,0)`, `Point3::origin()`;
   `s58_iso_rectangle.rs:283`, `s58_iso_rectangle.rs:692`,
   `s81_one_rim_level_rule.rs:50`
 
-(A few of those line numbers are inside the helpers TCOST-8 rewrote —
-`offa_r1_probes.rs:48` and `pcurve_parameter_finding.rs:47` were the
-`zcyl`/`cylinder` bodies it took — so the residue is nearer thirty.)
+Two of them are no longer inline: `offa_r1_probes.rs:48` and
+`pcurve_parameter_finding.rs:47` were the bodies of the `zcyl` and
+`cylinder` helpers TCOST-8 took into `shared::surf`. **The residue is
+therefore 32**, and it is 32 use sites, not 32 helpers.
 
 **Why TCOST-8 did not take them, and what a taker owes.** These are
 not helpers; they are fixtures written at the row, and the frame is

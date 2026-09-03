@@ -56,6 +56,8 @@ fn zcone(alpha: f64) -> Surface<f64> {
 
 /// Meridian signed distance to a cone (extended generator line — the
 /// same spelling the shipped suite uses, restated here independently).
+/// **Deliberately not shared with `offset_mint.rs`'s**, which is this
+/// closed form: it is a DERIVATION, and this suite reviews that one.
 fn cone_dist(apex: Point3<f64>, axis: Vec3<f64>, alpha: f64, q: Point3<f64>) -> f64 {
     let rel = q - apex;
     let h = rel.dot(axis);

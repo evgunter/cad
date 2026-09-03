@@ -23,16 +23,35 @@
 //! - each module below says which of its neighbours it deliberately
 //!   did not absorb;
 //! - every suite that keeps its own copy of something this tree holds
-//!   says why AT the copy — the two `basis` seedings
-//!   (`cert5_r2_probes.rs`, `review_r1_rational_probes.rs`), the two
-//!   reviewer rebuilds of the quarter cylinder (`cert10_r1_probes.rs`,
-//!   `cert10r2_probes.rs`), the three door-driving helpers that do not
-//!   go through `patch::face_posture` (`cert5_r2_probes.rs`,
-//!   `r2_cert6_probes.rs`, and `cert5_r1_patch_probes.rs`'s `width`),
-//!   the four bands that are not the run's (`decoration_plane_mint.rs`,
-//!   `pcurve_p1a_meter.rs` twice, `r2_probes.rs`) and the loop-edge and
-//!   rim builders that are not this tree's job
-//!   (`mesh10r2_probes.rs`'s `edge`, `iso_rectangle_door.rs`'s `rim`).
+//!   says why AT the copy. **The list below is the whole of it**, so a
+//!   reader can check the rule by grepping `Deliberately not` and
+//!   comparing counts, rather than trusting a sample:
+//!
+//!   - the two `basis` seedings (`cert5_r2_probes.rs`,
+//!     `review_r1_rational_probes.rs`) and `review_r1_rational_probes`'s
+//!     own `eval`;
+//!   - the two reviewer rebuilds of the quarter cylinder
+//!     (`cert10_r1_probes.rs`, `cert10r2_probes.rs`);
+//!   - the three door-driving helpers that do not go through
+//!     `patch::face_posture` (`cert5_r2_probes.rs`, `r2_cert6_probes.rs`,
+//!     and `cert5_r1_patch_probes.rs`'s `width`);
+//!   - the five bands that are not the run's
+//!     (`decoration_plane_mint.rs`, `pcurve_p1a_meter.rs` twice,
+//!     `r2_probes.rs`, and one row of `pcurve_p1b_r2_probes.rs`);
+//!   - the loop-edge and rim builders that are not this tree's job
+//!     (`mesh10r2_probes.rs`'s `edge`, `iso_rectangle_door.rs`'s `rim`,
+//!     `imported_chart_arc_rim.rs`'s and `revolved_point_anchor.rs`'s);
+//!   - the surfaces that are not in the canonical frame
+//!     (`review_m6_3_chart_probes.rs`, `pcurve_conic.rs`,
+//!     `review_m2_pr7_props.rs`, `offset_mint.rs`,
+//!     `review_m5_pr9_jet_probe.rs`'s `zcyl`);
+//!   - the reviewer-pair rebuilds, which are the class this tree must
+//!     never absorb even when the text is identical: `control` and
+//!     `tmer` across `iso_rectangle_door.rs` / `mesh10r1_probes.rs` /
+//!     `mesh10r2_probes.rs`, `wall_domain` across `m5_pr7_ssi.rs` /
+//!     `review_m5_pr7b_ssi.rs`, `width`/`point_width` across
+//!     `arc_eval_anchor.rs` / `review_arceval_r1_probes.rs`, and
+//!     `cone_dist` across `offa_r1_probes.rs` / `offset_mint.rs`.
 //!
 //! The bar has a second half that only shows up on the small helpers.
 //! A one-line constructor carries no derivation, so nothing about

@@ -5,11 +5,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::surf;
+use crate::shared::tol::band;
 use crate::shared::topo;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, curved_face};
-use geom_core::Band;
-use geom_core::Tol;
 
 const RS: f64 = 0.010;
 const PI: f64 = core::f64::consts::PI;
@@ -27,7 +26,7 @@ fn great(u: f64, t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 /// Report, never assert: print ACCEPT/REFUSE and the relative error
 /// against a closed form so the reviewer reads execution.
 fn report(kind: &str, edges: &[LoopEdge<f64>], exact: f64) -> Option<f64> {
-    let band = Band::linear(Tol::witness()).unwrap();
+    let band = band();
     match curved_face(&sphere(), edges, 1.0, band) {
         Ok(fc) => {
             let rel = (fc.area - exact) / exact;
@@ -232,7 +231,7 @@ fn probe_polar_cap_no_meridian() {
 #[test]
 fn probe_near_polar_separation_sweep() {
     println!("\n== claim 3: staircase separation sweep ==");
-    let band = Band::linear(Tol::witness()).unwrap();
+    let band = band();
     println!(
         "  band.zero()={:e} band.escalate()={:e}",
         band.zero(),
@@ -287,12 +286,13 @@ fn probe_near_polar_separation_sweep() {
 #[cfg(feature = "interval")]
 mod interval_lane {
     use crate::shared::surf;
+    use crate::shared::tol::band;
     use crate::shared::topo;
     use geom::Surface;
     use geom_brep::props::{LoopEdge, curved_face};
     #[allow(unused_imports)]
     use geom_core::Decide as _;
-    use geom_core::{Band, Interval, Real, Tol};
+    use geom_core::{Interval, Real};
 
     const RSF: f64 = 0.010;
 
@@ -364,7 +364,7 @@ mod interval_lane {
 
     #[test]
     fn probe_interval_outcomes_match_f64() {
-        let band = Band::linear(Tol::witness()).unwrap();
+        let band = band();
         let mut mismatches = 0;
         for ((name, ef), (_, ei)) in cases::<f64>().into_iter().zip(cases::<Interval>()) {
             let a = curved_face(&sphere::<f64>(), &ef, 1.0, band);

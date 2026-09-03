@@ -279,6 +279,10 @@ struct Patch {
 
 impl Patch {
     /// (S, S_u, S_v) by the quotient rule on the homogeneous sums.
+    /// **Deliberately not `shared::patch::Patch::eval`**, which is this
+    /// text: it calls this file's OWN `basis`, whose span seeding is
+    /// where this suite's independence lives (see this module's `basis`).
+    /// The quadrature loop under it IS shared — `patch::dense_over`.
     fn eval(&self, u: f64, v: f64) -> ([f64; 3], [f64; 3], [f64; 3]) {
         let bu = basis(&self.ku, self.du, self.nu, u);
         let bv = basis(&self.kv, self.dv, self.nv, v);
