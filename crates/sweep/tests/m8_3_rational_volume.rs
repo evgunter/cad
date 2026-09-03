@@ -37,12 +37,11 @@
 //! escalate). Anything else panics.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::{arc_section, stacked};
 use geom_brep::PropsError;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::{Section, loft_body};
+use profile::{Profile, SketchPlane};
+use sweep::loft_body;
 use topo::{MassProperties, MassPropsError};
 
 /// The convergence target's tolerance factor, mirrored from
@@ -105,25 +104,6 @@ fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) ->
     }
 }
 
-/// A unit square with a quarter-circle bulge on the `+x` side — the
-/// arc-bearing profile whose lofted wall is RATIONAL (weights
-/// `1, cos 22.5°, 1` over two 45° sub-arcs).
-fn arc_section(s: f64) -> Section {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
-    vec![ProfileLoop::new(vec![
-        v(-s, -s, 0.0),
-        // tan(π/8): a quarter-circle bulge-out.
-        v(s, -s, 0.4142135623730951),
-        v(s, s, 0.0),
-        v(-s, s, 0.0),
-    ])]
-}
-
-fn stack(z: [f64; 3]) -> Vec<Affine3<f64>> {
-    z.map(|h| Affine3::translation(Vec3::new(0.0, 0.0, h)))
-        .into()
-}
-
 /// **The arc PRISM** (the `#288` waypoint's body): three identical
 /// arc sections stacked, so the loft reproduces an extrusion exactly.
 ///
@@ -136,7 +116,7 @@ fn stack(z: [f64; 3]) -> Vec<Affine3<f64>> {
 ///
 /// The tier-3 verdict and the volume bracket were two separate tests
 /// until the test-cost audit. Both built THIS prism — the same three
-/// `arc_section(1.0)` sections on the same `stack([0.0, 1.0, 2.0])`,
+/// `arc_section(1.0)` sections on the same `stacked(&[0.0, 1.0, 2.0], 1.0)`,
 /// the same 2 samples — and both then ran the same rational
 /// quadrature over it. Under nextest's process-per-test isolation
 /// there is no cache between them, so every ε row paid that
@@ -176,7 +156,7 @@ fn stack(z: [f64; 3]) -> Vec<Affine3<f64>> {
 fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     let loft = loft_body::<f64>(
         &[arc_section(1.0), arc_section(1.0), arc_section(1.0)],
-        &stack([0.0, 1.0, 2.0]),
+        &stacked(&[0.0, 1.0, 2.0], 1.0),
         2,
         Tol::witness(),
     )

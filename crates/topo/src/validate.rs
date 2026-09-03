@@ -1,6 +1,16 @@
 //! The validation harness: [`validate`] (tier 1), [`validate_closed`]
-//! (tier 2), [`validate_geometric`] (tier 3 — M2 PR 3), and
-//! [`ValidationError`].
+//! (tier 2), [`validate_geometric`] (tier 3 — M2 PR 3),
+//! [`validate_pseudomanifold`] (tier 3′ — tier 3 over a body's
+//! resolved contact declarations, the door a boolean result and a STEP
+//! import are gated through), and [`ValidationError`].
+//!
+//! Each certifying tier has a **certificate form** beside it —
+//! [`validate_geometric_certificate`], its `_declared` twin, and
+//! [`validate_pseudomanifold_certificate`] — which runs the same pass
+//! and returns the [`crate::MassProperties`] its check 7 derived
+//! instead of dropping it. Same verdicts, one certified quadrature; the
+//! `()`-returning doors above ARE those calls with the value mapped
+//! away.
 //!
 //! # The two validity tiers (ratified via the M1-PLAN conversation)
 //!
@@ -2242,6 +2252,20 @@ pub fn validate_geometric<T: crate::props::PropsQuadLane + geom_core::CertifiedB
 /// `quad_lane::cut_face`), against the same `Band::linear(tol)`, over
 /// the same face-arena order.
 ///
+/// **What is evidence for that, and at which scalar.** At `f64` the
+/// identity is measured on a real rational-walled body —
+/// `sweep`'s `tcost_k3_certificate` compares all four fields as raw
+/// bits. At the other certifying scalars it rests on the lane impls
+/// agreeing, which is a fact about four function bodies rather than a
+/// type-system guarantee, so it is pinned as one:
+/// `topo`'s `quad_lane_is_the_certified_lane` asserts that every
+/// `PropsQuadLane::quad_cut_face` in `crate::props` IS
+/// `quad_lane::cut_face(..).map(Some)` — same function, same arguments,
+/// same order — except the `Dual` lane, which answers `Ok(None)` and so
+/// cannot form this call at all. That pin covers the DISPATCH; it does
+/// not re-prove what the quadrature computes, which is the `f64` row's
+/// job.
+///
 /// **A refusing arm returns no properties**: a refusal carries no
 /// blessed number, so the `Err` is the verdict vector exactly as
 /// [`validate_geometric`]'s is — same rejections, same typed verdicts,
@@ -2460,6 +2484,22 @@ pub fn validate_geometric_certificate_declared<
 /// included. [`validate_geometric`] wires the same hook to the
 /// certified quadrature instead, which is why its bound is tighter and
 /// why its check 7 is a claim rather than a lane query.
+/// **Check 7's derivation at the SCALAR'S OWN LANE** — the
+/// [`PlusVCheck`] every door that dispatches rather than certifies
+/// hands the battery.
+///
+/// One home, because it was two: [`tier3_local_checks`] and
+/// [`contact_marks_declared`] each spelled this closure out, and two
+/// spellings of one derivation are two places for the count of
+/// certified quadratures per gate to drift apart.
+fn lane_certificate<T: crate::props::PropsQuadLane>(
+    body: &Body<T>,
+    band: Band,
+    tol: Tol,
+) -> Check7Certificate<T> {
+    Some(crate::props::mass_properties_with(body, band, tol))
+}
+
 pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     declarations: &[DeclaredContact],
@@ -2467,14 +2507,7 @@ pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane>(
     tol: Tol,
 ) -> (Vec<ValidationError>, Check7Certificate<T>) {
     let mut marks = slotmap::SecondaryMap::new();
-    tier3_local_checks_marked(
-        body,
-        declarations,
-        band,
-        &mut marks,
-        tol,
-        &|body, band, tol| Some(crate::props::mass_properties_with(body, band, tol)),
-    )
+    tier3_local_checks_marked(body, declarations, band, &mut marks, tol, &lane_certificate)
 }
 
 /// **Check 7's verdict**, given the mass properties however they were
@@ -2715,14 +2748,8 @@ pub fn contact_marks_declared<T: crate::props::PropsQuadLane>(
     // hand it on, so the pass runs exactly the certificates it always
     // did (`crate::validate_geometric_certificate` is the returning
     // door).
-    let (errors, _) = tier3_local_checks_marked(
-        body,
-        declarations,
-        band,
-        &mut marks,
-        tol,
-        &|body, band, tol| Some(crate::props::mass_properties_with(body, band, tol)),
-    );
+    let (errors, _) =
+        tier3_local_checks_marked(body, declarations, band, &mut marks, tol, &lane_certificate);
     if errors.is_empty() {
         Ok(marks)
     } else {
@@ -4054,6 +4081,17 @@ pub fn validate_pseudomanifold<T: crate::props::PropsQuadLane>(
 /// check 7 runs through the scalar's own quadrature lane at every
 /// [`crate::PropsQuadLane`] scalar, so the certificate is that lane's
 /// and its bound is the pass's, not the certified door's.
+///
+/// **At [`Dual`](geom_core::Dual) that lane is CLOSED FORM ONLY**, and
+/// this door is where the difference from
+/// [`validate_geometric_certificate`] shows. The certified door is
+/// bounded on `CertifiedBounds`, so a dual cannot form it at all (the
+/// `compile_fail` guarantee); this one admits every
+/// [`crate::PropsQuadLane`] scalar, and at a dual `quad_cut_face`
+/// answers `Ok(None)` — no lane. The closed form then answers, and a
+/// face that needs the quadrature refuses TYPED rather than passing
+/// unbounded. So a certificate handed back at a dual is a closed-form
+/// body's, and its pads are `0`.
 ///
 /// # Errors
 ///

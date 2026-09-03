@@ -13,91 +13,125 @@
 //! lane: the identity claim is only interesting on a body whose faces
 //! carry certified enclosures rather than closed forms, and the arc
 //! prism's rational wall is the cheapest such body the public API
-//! builds. `topo` cannot build one — `sweep` is above it.
+//! builds. `topo` cannot build one — `sweep` is above it. The
+//! import-path half of the same claim needs a reader, so it is
+//! `step-import`'s `tcost_k3_import_certificate` and is gated to the
+//! same set.
 //!
 //! Every row NAMES its property in the assertion message, because the
 //! rows share their expensive fixture (the aggregation rule in
 //! `memories/test-suite-cost.md`): `IDENTITY`, `ONE CERTIFICATE`,
-//! `REFUSAL`, `PLANTED`.
+//! `PLANTED`.
 //!
-//! # ε
+//! # ε, and why the fixture is ε-SCALED
 //!
 //! ε is the run's, not the row's — `Tol` is a witness, and the doors
-//! under test take one. So no row pins a posture: each derives what it
-//! expects from the measurement door on the same body at the same
-//! tolerance and asserts the GATE agrees with it, which is the claim
-//! anyway. The one place a fixed posture is needed (the quadrature's
-//! refusal class) is bought by SIZE instead — `exhausting_prism`
-//! below — which is ε-independent.
+//! under test take one. A fixture of FIXED size therefore certifies at
+//! some ε rows and refuses at others, and a row that tolerates both
+//! postures compares nothing on the refusing ones: the identity
+//! assertions sit under an `Ok` arm that is never taken, and the row
+//! degenerates into a comparison of refusal counts. That is what a
+//! fixed 5 cm prism did here at ε = 1e-12, where the last-round bound
+//! refuses after round 0 — and three mutants that red at 1e-9 lived
+//! through it.
+//!
+//! So SIZE is ε's partner, in both directions, and both fixtures are
+//! scaled by it:
+//!
+//! * [`prism`] is `1e5·ε` across, and certifies at EVERY ε row this
+//!   repo runs, in the schedule's first round;
+//! * [`exhausting_prism`] is `1e11·ε` across, and its schedule cannot
+//!   converge at any of them.
+//!
+//! Each row then ASSERTS the arm it takes rather than branching on it.
+//! A silent `Err` arm is not a row.
+//!
+//! # Cost
+//!
+//! Cost here is one number: a certified quadrature over this body, and
+//! how many of them the suite runs. Everything else — the loft, the
+//! ball, the verdict log — is under a millisecond, measured. So the
+//! suite is written to run as few as its claims need: the ε-scaling
+//! above puts the body in the schedule's first round at every ε, the
+//! loft is the cheapest one that still has a rational wall (two
+//! sections at `v`-degree 1 — half the cost of the three-section
+//! degree-2 spelling, measured, and the wall is rational either way),
+//! and no row calls a door whose answer another door's answer already
+//! is.
+//!
+//! In particular `validate_geometric` is not called for its COUNT: it
+//! IS `validate_geometric_certificate(..).map(|_| ())`, so counting it
+//! counts one function twice and buys a quadrature's worth of nothing.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+// The doors under test (`validate.rs`), the quadrature they run
+// (`topo`'s lane dispatch and `geom-brep`'s props lane), and the
+// reader that consumes the tier-3′ door's certificate. `sweep`'s own
+// sources are deliberately NOT named: this suite's subject is the
+// doors, and the loft is a fixture builder whose breakage every other
+// sweep row catches first. The helper module IS named — a marker's own
+// file is implicit, a sibling helper module is not.
+test_utils::gated_to![
+    "crates/topo/src/validate.rs",
+    "crates/topo/src/props.rs",
+    "crates/geom-brep/src/props/",
+    "crates/step-import/src/lib.rs",
+    "crates/sweep/tests/common/",
+];
+
+use crate::common::{arc_section, stacked};
 use geom_core::k_stats::{start_verdict_log, take_verdict_log};
-use geom_core::{Affine3, Point2, Tol, Vec3};
+use geom_core::{Point2, Tol};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::{Section, loft_body};
+use sweep::loft_body;
 use topo::{Body, MassProperties};
 
-/// A unit square with a quarter-circle bulge on the `+x` side, scaled
-/// by `s` — the arc-bearing profile whose lofted wall is RATIONAL
-/// (weights `1, cos 22.5°, 1` over two 45° sub-arcs).
-fn arc_section(s: f64) -> Section {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
-    vec![ProfileLoop::new(vec![
-        v(-s, -s, 0.0),
-        // tan(π/8): a quarter-circle bulge-out.
-        v(s, -s, 0.4142135623730951),
-        v(s, s, 0.0),
-        v(-s, s, 0.0),
-    ])]
-}
-
-fn stack(z: [f64; 3], s: f64) -> Vec<Affine3<f64>> {
-    z.map(|h| Affine3::translation(Vec3::new(0.0, 0.0, h * s)))
-        .into()
-}
-
-/// The arc PRISM at scale `s`: three identical arc sections stacked,
-/// so the loft reproduces an extrusion exactly. Its `+x` wall is
-/// rational, which is what puts every enclosure below on the
-/// quadrature lane rather than a closed form.
+/// The arc PRISM at scale `s`: two identical arc sections stacked and
+/// skinned at `v`-degree 1. Its `+x` wall is RATIONAL, which is what
+/// puts every enclosure below on the quadrature lane rather than on a
+/// closed form.
+///
+/// Two sections and not three: the wall is rational either way, and the
+/// extra station doubles the quadrature's cost for a property no row
+/// here reads (the extrusion oracle is `m8_3_rational_volume`'s claim,
+/// and that row keeps the three-section spelling for it).
 fn arc_prism(s: f64) -> Body<f64> {
     loft_body::<f64>(
-        &[arc_section(s), arc_section(s), arc_section(s)],
-        &stack([0.0, 1.0, 2.0], s),
-        2,
+        &[arc_section(s), arc_section(s)],
+        &stacked(&[0.0, 1.0], s),
+        1,
         Tol::witness(),
     )
     .expect("the arc prism lofts")
     .body
 }
 
-/// **The body the certifying rows measure** — the arc prism at 5 cm.
+/// **The body the certifying row measures** — the arc prism at `1e5·ε`.
 ///
-/// Scale is this suite's cost dial and nothing else; the identity and
-/// counting claims are scale-free. The quadrature's convergence target
-/// is a LENGTH (the flux width over three times the area), so it scales
-/// as the body does, and 5 cm is where the two ε extremes are BOTH
-/// cheap: the schedule converges in a few rounds at ε = 1e-9 and 1e-6
-/// (~0.9 s a call), and at 1e-12 it is out of reach from the start, so
-/// the last-round bound refuses after round 0 (~0.85 s a call) instead
-/// of running the schedule out. Measured, because the middle is the
-/// expensive place to be: at 5 mm the body CERTIFIES at 1e-12 and this
-/// row costs 30 s; at 50 cm it runs more rounds at every ε.
+/// SIZE is ε's partner. The quadrature's convergence target is
+/// `1024·ε` on a LENGTH (the flux width over three times the area), and
+/// that length scales as the body does while the target does not, so a
+/// prism scaled by `k·ε` sits a FIXED factor from its target at every
+/// ε — one posture at every ε row, which is what the module docs'
+/// vacuity argument needs.
+///
+/// `k = 1e5` is four to five orders below the exhaustion threshold
+/// (`9.3e9·ε`, [`exhausting_prism`]) and five orders above ε itself, so
+/// neither end of the window is near. It converges in the schedule's
+/// FIRST round at every ε row — measured: the same 8 quadrature
+/// verdicts and the same ~0.43 s a call at 1e-9, 1e-6 and 1e-12, where
+/// `k = 5e7` costs 13 verdicts and ~0.86 s for no extra claim.
 fn prism() -> Body<f64> {
-    arc_prism(0.05)
+    arc_prism(1.0e5 * Tol::witness().get().eps)
 }
 
 /// **The prism whose schedule cannot converge, at whichever ε the run
 /// committed to** — the planted quadrature refusal.
 ///
-/// SIZE buys the refusal, and ε sets the size. The convergence target
-/// is `1024·ε` on a LENGTH — the flux width over three times the area
-/// — and that length scales as the body does while the target does
-/// not, so a prism scaled by `k·ε` ends its schedule a fixed factor
-/// above the target at every ε. The window is two-sided and both ends
-/// are real:
+/// The same scaling argument as [`prism`], read from the other side.
+/// The window is two-sided and both ends are real:
 ///
 /// * from BELOW, the unit prism's own end-of-schedule length is
 ///   ~1.1e-7 m, so the schedule exhausts once `s > 9.3e9·ε`;
@@ -187,27 +221,28 @@ fn bits(m: &MassProperties<f64>) -> [u64; 4] {
 /// Every assertion therefore NAMES its property — `IDENTITY`,
 /// `ONE CERTIFICATE` — so the message alone says which one broke.
 ///
-/// **IDENTITY.** The returned properties are the object check 7
-/// decided on, so the comparison is an identity rather than an
-/// agreement: the same `mass_properties_impl` over the same face-arena
-/// order against the same `Band::linear(tol)`, dispatched to the same
+/// **The row asserts the arm it takes.** [`prism`] certifies at every ε
+/// row by construction, so each door's `Ok` is `expect`ed rather than
+/// matched: a refusal here is this row FAILING, never this row having
+/// nothing to compare. That is the module docs' vacuity argument, in
+/// three `expect`s.
+///
+/// **IDENTITY.** The returned properties are the object check 7 decided
+/// on, so the comparison is an identity rather than an agreement: the
+/// same `mass_properties_impl` over the same face-arena order against
+/// the same `Band::linear(tol)`, dispatched to the same
 /// `quad_lane::cut_face`. A single differing ulp would be a real
-/// finding, not a tolerance question. The claim is about the
-/// QUADRATURE lane and the row proves it is there — a nonzero
-/// `volume_pad` is a certified enclosure and nothing else produces
-/// one.
+/// finding, not a tolerance question. The claim is about the QUADRATURE
+/// lane and the row proves it is there — a nonzero `volume_pad` is a
+/// certified enclosure and nothing else produces one.
 ///
 /// **ONE CERTIFICATE.** Counted, not timed. `k_stats`' verdict log
 /// records every classification the kernel's one funnel makes, so the
 /// `props_quad_*` verdicts of a call are a deterministic function of
 /// the certificates it ran: one measurement's count is the unit, and
-/// the two returning doors and the composed door each cost exactly
-/// that. A caller that gated a body and then measured it therefore
-/// paid twice that, and now pays once — which is this unit.
-///
-/// At an ε where the schedule refuses, both doors refuse and the row
-/// says so instead of pinning a posture (module docs); the counting
-/// half holds either way.
+/// each returning door costs exactly that. A caller that gated a body
+/// and then measured it therefore paid twice that, and now pays once —
+/// which is this unit.
 #[test]
 fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
     let body = prism();
@@ -215,11 +250,18 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
 
     let mut measured = None;
     let one = quad_verdicts(|| measured = Some(topo::mass_properties(&body, tol)));
-    let measured = measured.expect("the closure ran");
+    let measured = measured.expect("the closure ran").expect(
+        "IDENTITY: the fixture is scaled to 1e5·ε so that it certifies at EVERY ε row — \
+         a refusal here is a moved schedule or a moved fixture, not an ε this row may \
+         quietly skip",
+    );
 
     let mut gated = None;
     let gate = quad_verdicts(|| gated = Some(topo::validate_geometric_certificate(&body, tol)));
-    let gated = gated.expect("the closure ran");
+    let gated = gated.expect("the closure ran").expect(
+        "IDENTITY: the returning tier-3 door must certify the body its own measurement \
+         door just certified",
+    );
 
     let mut gated3 = None;
     let gate3 = quad_verdicts(|| {
@@ -229,11 +271,9 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
             tol,
         ));
     });
-    let gated3 = gated3.expect("the closure ran");
-
-    let composed = quad_verdicts(|| {
-        let _ = topo::validate_geometric(&body, tol);
-    });
+    let gated3 = gated3
+        .expect("the closure ran")
+        .expect("IDENTITY: and so must the tier-3′ door, which is the one the import path pays");
 
     // ---- ONE CERTIFICATE ----
     assert!(
@@ -243,69 +283,42 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
     );
     assert_eq!(
         gate, one,
-        "ONE CERTIFICATE: the returning door must run ONE certificate, the same work \
-         one measurement is"
+        "ONE CERTIFICATE: the returning door must run ONE certificate, the same work one \
+         measurement is — so gate-then-measure was {one} + {one} verdicts for a number \
+         the gate already held"
     );
     assert_eq!(
         gate3, one,
-        "ONE CERTIFICATE: and so must the tier-3′ door, which is the one the import \
-         path pays"
-    );
-    assert_eq!(
-        composed, one,
-        "ONE CERTIFICATE: the composed door still runs one, so gate-then-measure was \
-         {one} + {one} verdicts for a number the gate already held"
+        "ONE CERTIFICATE: and so must the tier-3′ door, which is the one the import path \
+         pays"
     );
 
     // ---- IDENTITY ----
-    match (&measured, &gated, &gated3) {
-        (Ok(m), Ok(g), Ok(g3)) => {
-            assert!(
-                m.volume_pad > 0.0,
-                "IDENTITY: this row's claim is about the QUADRATURE lane, so the body \
-                 must carry a certified enclosure: pad {}",
-                m.volume_pad
-            );
-            assert_eq!(
-                bits(g),
-                bits(m),
-                "IDENTITY: tier 3's certificate must BE the measurement, in all four \
-                 fields: gate {g:?} vs measurement {m:?}"
-            );
-            assert_eq!(
-                bits(g3),
-                bits(m),
-                "IDENTITY: tier 3′'s certificate must BE the measurement, in all four \
-                 fields: gate {g3:?} vs measurement {m:?}"
-            );
-        }
-        (Err(source), Err(errors), Err(errors3)) => {
-            // The schedule's honest frontier at this ε: no certificate
-            // exists to compare, and both doors say what the
-            // measurement door said.
-            let expected = vec![topo::ValidationError::VolumeUncomputable {
-                source: source.clone(),
-            }];
-            assert_eq!(
-                *errors, expected,
-                "IDENTITY: a refusing measurement must reach the gate as its own verdict"
-            );
-            assert_eq!(*errors3, expected, "IDENTITY: and the same through tier 3′");
-        }
-        other => panic!(
-            "IDENTITY: the measurement door and the two gates must agree on whether this \
-             body certifies at this ε: {other:?}"
-        ),
-    }
+    assert!(
+        measured.volume_pad > 0.0,
+        "IDENTITY: this row's claim is about the QUADRATURE lane, so the body must carry \
+         a certified enclosure: pad {}",
+        measured.volume_pad
+    );
+    assert_eq!(
+        bits(&gated),
+        bits(&measured),
+        "IDENTITY: tier 3's certificate must BE the measurement, in all four fields: \
+         gate {gated:?} vs measurement {measured:?}"
+    );
+    assert_eq!(
+        bits(&gated3),
+        bits(&measured),
+        "IDENTITY: tier 3′'s certificate must BE the measurement, in all four fields: \
+         gate {gated3:?} vs measurement {measured:?}"
+    );
 }
 
-/// **REFUSAL / PLANTED** — no gate is weakened, and a refusal carries
-/// no blessed number.
+/// **PLANTED** — no gate is weakened: the class that refuses a planted
+/// body is the planted one, through every tier-3 door.
 ///
-/// One planted body per refusal class the doors reach, each asserted
-/// through BOTH the old door and the new one: the verdict vectors must
-/// be IDENTICAL — same rejections, same typed verdicts, same order —
-/// and the returning door must hand back no properties on any of them.
+/// One planted body per refusal class the doors reach, asserted through
+/// BOTH tiers and through BOTH the composed door and the returning one.
 /// The classes:
 ///
 /// * **check 7's own, on the value** — an inverted rimless body, whose
@@ -314,8 +327,27 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
 ///   quadrature cannot reach its target, which arrives as
 ///   `VolumeUncomputable`;
 /// * **the structural half** — a curved face with its sense inverted,
-///   which check 6 refuses before check 7 is ever consulted, so the
-///   returning door computes NO certificate on this arm at all.
+///   which CHECK 4's material arm refuses as a lamina before check 7 is
+///   ever consulted, so the returning door computes NO certificate on
+///   this arm at all.
+///
+/// # Two things this row deliberately does NOT assert
+///
+/// **That the returning door's verdicts equal the composed door's.**
+/// They are one function: `validate_geometric` IS
+/// `validate_geometric_certificate(..).map(|_| ())`, and
+/// `validate_pseudomanifold` is that same shape one tier up, so the
+/// equality is `Result::map`'s and holds for every input by
+/// construction. What the four calls buy is the CLASS, pinned once per
+/// door — evidence about the battery, which is the thing that can
+/// actually move.
+///
+/// **That a refusing arm returns no properties.** The return type
+/// carries it: `Result<MassProperties<T>, Vec<ValidationError>>` has no
+/// arm that is both an `Err` and a certificate, so asserting it is a
+/// codomain assertion — a deletion, in `memories/test-suite-cost.md`'s
+/// terms. The claim survives where it is a claim: in the type, and in
+/// `validate_geometric_certificate`'s doc.
 #[test]
 fn a_refusing_arm_returns_no_properties_through_either_door() {
     let tol = Tol::witness();
@@ -343,10 +375,9 @@ fn a_refusing_arm_returns_no_properties_through_either_door() {
             "exhausted schedule",
             &exhausted,
             topo::ValidationError::VolumeUncomputable {
-                // Filled in per-body below; only the CLASS is pinned
-                // here, because which of budget or escalation the
-                // schedule reaches is an ε question and the class is
-                // not.
+                // Only the CLASS is pinned: which of budget or
+                // escalation the schedule reaches is an ε question and
+                // the class is not.
                 source: topo::MassPropsError::Corrupt { what: "" },
             },
         ),
@@ -359,36 +390,28 @@ fn a_refusing_arm_returns_no_properties_through_either_door() {
         ),
     ] {
         let old = topo::validate_geometric(body, tol);
-        let new = topo::validate_geometric_certificate(body, tol);
+        let new = topo::validate_geometric_certificate(body, tol).map(|_| ());
         let old3 = topo::validate_pseudomanifold(body, &Default::default(), tol);
-        let new3 = topo::validate_pseudomanifold_certificate(body, &Default::default(), tol);
+        let new3 =
+            topo::validate_pseudomanifold_certificate(body, &Default::default(), tol).map(|_| ());
 
-        let errors = new
-            .as_ref()
-            .err()
-            .unwrap_or_else(|| panic!("PLANTED {label}: the returning door must refuse"));
-        assert_eq!(
-            old.as_ref().err(),
-            Some(errors),
-            "PLANTED {label}: no gate is weakened — the returning door's verdicts must be \
-             the composed door's, same classes in the same order"
-        );
-        assert_eq!(
-            new3.as_ref().err(),
-            old3.as_ref().err(),
-            "PLANTED {label}: and the same through tier 3′"
-        );
-        assert!(
-            new.is_err() && new3.is_err(),
-            "REFUSAL {label}: a refusing arm returns no properties — a refusal carries \
-             no blessed number"
-        );
-        let found = errors
-            .iter()
-            .any(|e| std::mem::discriminant(e) == std::mem::discriminant(&wanted));
-        assert!(
-            found,
-            "PLANTED {label}: the planted class must be the one that refuses, got {errors:?}"
-        );
+        for (door, got) in [
+            ("tier 3, composed door", &old),
+            ("tier 3, returning door", &new),
+            ("tier 3′, composed door", &old3),
+            ("tier 3′, returning door", &new3),
+        ] {
+            let errors = got.as_ref().err().unwrap_or_else(|| {
+                panic!("PLANTED {label} through the {door}: the door must refuse")
+            });
+            let found = errors
+                .iter()
+                .any(|e| std::mem::discriminant(e) == std::mem::discriminant(&wanted));
+            assert!(
+                found,
+                "PLANTED {label} through the {door}: the planted class must be the one \
+                 that refuses, got {errors:?}"
+            );
+        }
     }
 }
