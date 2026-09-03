@@ -2096,3 +2096,12 @@ address is that the type also arrives as a PAYLOAD of a curated
 refusal whose other four arms are all matchable, which is exactly the
 case the CUR3/CUR4 carrier-projection rule was written for. Joins the
 curation micro-unit queue; not relitigated in this unit.
+Also banked, and deliberately NOT fixed in the diff: **the census
+points at `docs/LIB-LOG.md` three times in the present tense and that
+file is gone** — the register it names lives at `work/lib/log.md:439`
+now (`work/lib/census-points-at-a-deleted-lib-log.md`). The fix is
+three one-line hunks in the most contended file on this track, for a
+reason unrelated to any family, so it waits for a pass with no
+concurrent B-lane rather than riding a family unit. Two of the three
+are LIVE claims about where a reader should go, so the ledger's
+append-only-log dispensation does not cover them.
