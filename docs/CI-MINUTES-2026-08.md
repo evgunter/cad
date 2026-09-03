@@ -1205,3 +1205,51 @@ script's pipelines to tolerate a closed reader (or for the readers to
 drain), rather than one more `grep` being padded around. Until then a
 red on this step alone, with the real census step green in the same
 run, is a re-run and not a diagnosis.
+
+## 2026-09-03 — the python suite becomes seed-keyed
+
+S-TCOST unit C3, Ev's approval in chat the same day. `python suite
+(wheel + guide + north-star)` was gated on `pncad-py` being in the
+dependent CLOSURE — the wheel compiles that crate's whole dependency
+graph, so the condition read as "something the wheel compiles moved".
+`pncad-py` sits under `pncad`, which re-exports the entire kernel, so
+that is true of nearly every kernel change: the gate selected almost
+nothing, and what it bought on each of those runs was a SECOND compile
+of the kernel under the non-default `python` feature.
+
+It is now keyed on the change filter's SEEDS — the members whose OWN
+files moved — intersecting `{pncad-py, pncad, editor-core}`, exactly the
+shape and exactly the argument of the viewer toolkit axis
+(`RUN_VIEWER_TOOLKIT`, Ev's 2026-08-27 ruling), one crate over.
+
+**Billed minutes: −2 on every code-tier PR run whose seeds miss that
+set.** Read from this unit's own run, `33722922975` (head `13f8a2fb`,
+interval lane drawn, 21 jobs, ~62 billed): the job ran 120 s, i.e.
+**2 billed**, which is also what the audit table at the top of this
+document recorded (1.58 min wall, 2 billed) — so this is the row's cost
+re-taken rather than inherited. Against that, ~2 billed minutes a night
+for `nightly.yml`'s `python suite (ungated re-take)`. The run this
+figure comes from is itself a tier-`all` diff, so the axis was TRUE
+there; the saving is on the kernel-change population it is now false
+for, which is the majority.
+
+**Argued against §*What is NOT sampled, and the rule*, per this row.**
+What the suite detects persists: a broken `.pyi` signature, a guide
+script that stops running, a north-star assertion that stops holding.
+It is not a detector of absence — the suite is DISCOVERED
+(`unittest discover`), not listed, so a test module that vanishes is
+not something this row reports on at any cadence. The one hole the
+seeds open is a kernel change that moves a NUMBER the `.py` assertions
+pin while touching no seed; that is the analogue of the viewer axis's
+toolkit-dependency drift and gets the identical answer, the ungated
+nightly re-take. A change that BREAKS the re-exported Rust API is not
+in that hole: it reds the offending crate's ordinary closure rows on
+the same PR.
+
+**RECORDED, NEVER SILENT — and it needed a different seat from the
+viewer's.** The viewer axis prints its verdict inside `fmt`, beside the
+rows it gates. This axis cannot: when it is false the whole JOB is
+skipped, and a skipped job runs no step at all, so there is no seat
+inside it from which to speak. The verdict is a step of the `filter`
+job, which computed the value and carries no `if:` — `python suite -
+the filter's verdict`, printing the seeds it was decided from.
