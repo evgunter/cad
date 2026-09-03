@@ -3,6 +3,24 @@
 //! rotation and traversal reversal of every input loop.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+// Gated to the code it tests (TCOST-1). The claim is that validation's
+// output is byte-identical under starting-vertex rotation and traversal
+// reversal of every input loop — a property of the canonicalisation inside
+// validation and of the structure it emits, not of the fixtures. It rests
+// on the validator, on the loop/segment types whose `Debug` form is the
+// byte-level comparison, and on the lift that turns a raw loop into one.
+// `geom-core`'s tolerance and predicate are named because a rotation-
+// invariant answer is only invariant if the decisions taken along the way
+// are, and both are decided there.
+test_utils::gated_to![
+    "crates/profile/src/validate.rs",
+    "crates/profile/src/structure.rs",
+    "crates/profile/src/seg.rs",
+    "crates/profile/src/lift.rs",
+    "crates/geom-core/src/tolerance.rs",
+    "crates/geom-core/src/predicate.rs",
+];
+
 use crate::common;
 
 use common::{annulus, bracket, circle_h, l_profile, lens, profile, rect, rounded_rect, tol};

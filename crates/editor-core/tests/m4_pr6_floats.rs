@@ -10,6 +10,24 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+// Gated to the code it tests (TCOST-1). The claim is bit-exact float
+// round-tripping through save/load across EVERY float slot the format has,
+// so it rests on the persistence layer that writes and reads them and on
+// the four document modules that own those slots (doc params, expression
+// literals, frame placements, D7 metadata) plus the edit door the fixture
+// is built through. `geom-core/src/tolerance.rs` is named because the
+// recorded eps is one of the slots.
+test_utils::gated_to![
+    "crates/editor-core/src/persist/",
+    "crates/editor-core/src/doc.rs",
+    "crates/editor-core/src/edit.rs",
+    "crates/editor-core/src/expr.rs",
+    "crates/editor-core/src/node.rs",
+    "crates/editor-core/src/placement.rs",
+    "crates/editor-core/src/meta/",
+    "crates/geom-core/src/tolerance.rs",
+];
+
 use crate::fixture;
 
 use editor_core::{

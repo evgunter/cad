@@ -21,6 +21,27 @@
     clippy::too_many_arguments
 )]
 
+// Gated to the code it tests (TCOST-1). Every row here drives the public
+// props door `nurbs_patch_face` on an adversarially knotted patch and
+// checks the returned bracket against an independent plain-f64 oracle, so
+// the claim rests on the quad props module — the cut list, the arm choice
+// and the refusal vocabulary — and on the spline machinery the cut list is
+// built from. The certified scalars are named because a bracket IS a
+// `RingInterval` over `Interval`, and the band that decides refusal is
+// `predicate`/`tolerance`; `tests/shared/` is named because the oracle's
+// basis and dense-quadrature helpers live there and a change to them moves
+// the truth this suite compares against.
+test_utils::gated_to![
+    "crates/geom-brep/src/props/",
+    "crates/geom-core/src/spline/",
+    "crates/geom-core/src/ring_interval.rs",
+    "crates/geom-core/src/interval.rs",
+    "crates/geom-core/src/real.rs",
+    "crates/geom-core/src/predicate.rs",
+    "crates/geom-core/src/tolerance.rs",
+    "crates/geom-brep/tests/shared/",
+];
+
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::RingInterval;
