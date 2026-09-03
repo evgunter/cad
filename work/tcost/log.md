@@ -1182,3 +1182,179 @@ units on the style-batch track; and a read-only shard-count census
 over the post-K3 hosted runs (fixed cost per leg, imbalance, the
 longest test, N = 2/3/4 modelled), which is the measurement the
 program's keep_out asks for before any sharding knob moves.
+
+## Seam: the shard-count question answered (2026-09-03, 21:30 UTC)
+
+The parked `nextest-shard-count-needs-remeasure` item (issue 461 of
+2026-08-13, "blocked on the test-speedup work") is closed on the
+post-K3 census: test legs are 34–74 s wall (were 250–430 s), the fixed
+cost per leg is unchanged at ~15.6 s and is now a quarter to a half of
+a leg, the 296 s floor is a 30 s floor, and the shard imbalance the
+old audit found structural is now noise around 1.15×. Stay at N=2:
+every added shard costs a billed minute for a 20–45 % wall cut on legs
+already under a minute; the interval rows' boundary case (~1 billed
+minute per row, modelled) is not worth a measured PR. One finding for
+the CI-minutes arithmetic: saturation reads ~3.9× on every leg, so the
+runner presents ~4 vCPUs now, not the 2 the 2026-08 figures assumed.
+
+## Seam: TCOST-10 reported; style batch 5 dispatched (2026-09-03, 21:45 UTC)
+
+TCOST-10 (PR 1715, head `4da8f030`, interval 1e-6 asked, run
+33809383460 green but the inherited row): the blend suite's builders
+and the two oracle families homed in `sweep/tests/common/`
+(`cavity.rs`, `oracles.rs`), builders retired in six suites and
+oracle spellings at seven sites; `nextest list` byte-identical at
+both feature sets; no execution win claimed (constructors). The lane
+applied a narrower rule than the candidate asked for — "a spelling
+that could not disagree comes home; one that could stays and says
+so" — and kept the die/surgery Steiner spelling in five files because
+its association differs at the bit level; reviewer suites gave up
+their BUILDERS on the argument that the audit, not the constructor,
+is their independence. Both calls go to the batch review as
+questions. Filed: the same brick/prism shape outside the blend family
+(`sweep-boolean-suite-brick-and-prism-copies`). Style batch 5
+dispatched on TCOST-10 now; TCOST-11 joins by message when it reports.
+
+## Seam: batch 5 on TCOST-10; TCOST-11 reported (2026-09-03, 22:05 UTC)
+
+Batch 5 read TCOST-10 MERGEABLE WITH FIXES: nothing moved (the
+reviewer re-took the test-name multiset itself, 1100 = 1100, and
+checked the seven retired oracle spellings token by token), but the
+reason written at seven die/surgery copy sites — "different
+association, so not the same f64" — is false at the constants those
+rows use (bit-identical at all but one, and that one 8.9e-16 against a
+1e-9·volume tolerance); two headers went stale; a constants sweep
+found four copies of the homed forms outside `sweep` that the lane's
+name-based census could not see; and the rule's "could disagree"
+discriminator is never exercised (a = b = c has measure zero; θ = π/2
+is never visited). Ten fixes sent to the lane, including the two
+agreement rows that turn the rule into a gate. The reviewer also
+found the two test-support trees holding opposite rules for the same
+class — `geom-brep/tests/shared` refuses reviewer-pair rebuilds "even
+when the text is identical", `sweep/tests/common` absorbs them on the
+argument that blend fixtures are bodies under audit, not derivations
+— a reading of a ratified memory that goes to Ev (`needs_ev`), filed
+by the lane with its fixes. TCOST-11 reported (PR 1716): the guard's
+fourteen copies are one `test_utils::source::aggregation_violations`
+call each (−807 lines of test source), a selftest plants four
+violations, `pncad` gets no guard for a stated reason and a new `bvh`
+row that reds if any non-aggregating crate's `tests/` grows a second
+file; binary size at CI's profile +0.02 % (neutral, as the unit
+says), the dev-profile +2.1 MB recorded and explicitly not quoted.
+Joined to batch 5 by message.
+
+## Unit: TCOST-10 merged (2026-09-03)
+
+PR 1715 at `ab47d903c` (interval lane asked, ε default drawn, run
+33812074765, every job green but the inherited row). The blend
+suite's cavity/cube builders and the two closed-form volume oracle
+families have one home in `sweep/tests/common/`; builders retired in
+six suites, oracle spellings at seven sites; `nextest list`
+byte-identical at both feature sets; no execution win claimed. Batch
+5's fixes landed: the false "not the same f64" reason at seven copy
+sites retracted with the measurement (bit-identical at all but one
+constant, 1 ulp at that one against 1e-9·volume) and the copies kept
+as conservatism; the two agreement rows that make the "could
+disagree" rule a gate (a planted 1e-7 perturbation of each home form
+reds exactly those two rows); a distinctive marker (``NOT `common::``)
+at every kept copy so the disclosure list is grep-comparable (14 = 14);
+the four out-of-crate copies named and filed as
+`chamfered-cube-and-steiner-oracles-outside-sweep` (a CONSTANTS
+sweep, not names); the home's header states it takes the opposite
+line from `geom-brep/tests/shared` on reviewer-pair rebuilds, and the
+policy question is on the board for Ev
+(`reviewer-pair-rebuilds-two-trees-two-rules`, `needs_ev`).
+
+## Seam: batch 5 on TCOST-11 (2026-09-03, 22:40 UTC)
+
+MERGEABLE WITH FIXES. The reviewer re-derived rather than read: the
+fourteen merge-base guard bodies hash identical (so "nothing
+crate-specific was lost" is true because there was nothing to lose),
+the RULE paragraph is untouched, the source-reader census's predicate
+recomputed on all fourteen heads, the new `bvh` row's population
+enumerated across the tree ({pncad}, and `test-utils` confirmed a
+non-hazard), and TCOST-10's merge proved non-conflicting by
+`merge-tree`. Findings, all cheap: the new row passes green if
+`pncad`'s aggregator is renamed or moved (it keys on a readable
+`all.rs`, not on `autotests = false`); the census's detection margin
+fell from two tells to one and nobody is told; fourteen byte-identical
+guard doc paragraphs arrived with the unit that kills fourteen
+byte-identical guard bodies; the quoted binary-size figure is a local
+build unlabelled; check 2's message lost `assert_eq!`'s left/right
+lines and the body calls it unchanged. Six fixes sent to the lane.
+
+## Unit: TCOST-11 merged (2026-09-03)
+
+PR 1716 at `52ab13d1d` (default lane, ε 1e-6 drawn, run 33814096354;
+earlier heads on the interval lane at 1e-6 and 1e-12; every job green
+but the inherited row on each). The one-declaration guard's fourteen
+byte-identical bodies are one `test_utils::source::aggregation_violations`
+call each (−891 lines across the fourteen `all.rs`, +204 in the
+library compiled once), with a selftest that plants four violations
+and reports every one rather than the first; `pncad` gets no guard
+for a stated reason and a `bvh` row keyed on `autotests = false` that
+reds if a non-aggregating crate's `tests/` grows a second file — the
+review's receipt showed the first spelling of that row passing green
+over a renamed aggregator, and the fix closed it. Batch 5's other
+fixes landed: the census's detection margin (now one tell per
+`all.rs`) stated at the helper, the fourteen doc paragraphs cut to
+pointers, the size figure labelled LOCAL. Binary size at CI's profile
++0.02 %: the unit buys one home, not bytes, and says so.
+
+## Readout: the 2026-09-03 stretch (22:55 UTC)
+
+What landed today on top of the post-K1 readout (15:47): the two
+remaining kernel units of block TCOST-KB1 and two content units, all
+through their reviews, plus the shard-count question closed on a
+census.
+
+- **TCOST-K2** (ordinal 1401, sample #119): the Bernstein product's
+  structural weight memoized per degree pair — `offset_fit::`
+  −29.7 % / −29.9 % normalised on the two lanes, every coefficient and
+  certificate bit-identical (both reviewers measured it independently
+  over every consumer). The dual found the suite's patch-level blind
+  spot; the fix pass closed it with asymmetric guard rows and a typed
+  table.
+- **TCOST-K3** (ordinal 1402, sample #120): the tier-3 doors return
+  the certificate they computed — the three adopted rows give back
+  −13.4 / −6.7 cpu-s (default / interval lane) at the default ε and
+  nothing at 1e-12 (K1 already took it). The dual found the unit's
+  evidence lane wanting (no hosted run at the ε where the saving
+  lives; a suite that was vacuous at 1e-12 and cost 9.6 cpu-s there);
+  the fix pass bought the evidence hosted at both ε on both lanes with
+  a post-K1 merge-base probe and gated a cheaper suite. The
+  unilateral-instrument candidate was tallied for R2 at merge.
+- **TCOST-10 / TCOST-11**: one home each for the blend suite's
+  fixtures and oracles and for the aggregation guard (−891 lines of
+  test source); no execution win claimed by either, none expected.
+- **Shard count**: stay at N=2; legs are under a minute; the runner
+  presents ~4 vCPUs now.
+
+Where the suite stands (hosted, code-tier, both lanes, the runs of
+record 33803928081 / 33802978677): test legs 46–74 s wall against the
+program's opening picture of 250–430 s; the longest test 30 s at the
+default ε (was 296 s); the per-file gate skipping 33–54 suites on
+closure-tier diffs; the build's rust-cache restore a full-match hit on
+every PR run after a push to main (271 / 325 s against 820 / 840 s
+cold); −5 billed minutes per code-tier run from the CI-posture units.
+`main` is red at the code tier on one `pncad-py` row (M10's; on the
+board), which every PR of the day carried as an inherited red on its
+`2/2` shards.
+
+Open on the board: two kernel candidates that would each need a spec
+and a new A/B block (`offset-composite-lazy-sign-gate`, ~15 % of the
+recentring call in the all-or-nothing case, bounded by the mixed
+rounds; `tcost-area-pad-lever`, the area pass a refused patch face
+still pays), one kernel finding (`edge-nurbs-computes-the-chart-
+image-and-discards-it`), two test-only dedups (`sweep-boolean-suite-
+brick-and-prism-copies`, `chamfered-cube-and-steiner-oracles-outside-
+sweep`), two parked items, and one question for Ev
+(`reviewer-pair-rebuilds-two-trees-two-rules`: `geom-brep/tests/shared`
+refuses reviewer-pair rebuilds even when identical; `sweep/tests/common`
+absorbs them on the argument that blend fixtures are bodies under
+audit — one reading should win and be written into the memory).
+Recommendation: the two test-only dedups are cheap and can go as one
+content unit; the kernel candidates are worth a second block only if
+Ev wants the A/B sample to grow — the suite's seconds are no longer
+where they were, and the next lever on the real program's cost (the
+area pass) is a kernel question more than a test-cost one.

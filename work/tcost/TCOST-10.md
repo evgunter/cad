@@ -2,9 +2,11 @@
 id: TCOST-10
 kind: unit
 title: The blend suite tree: one test-support home for the cavity/cube fixture builders and the blend volume oracles
-status: dispatched
+status: closed
 opened: 2026-09-03
 branch: tcost/10-blend-fixture-home
+pr: 1715
+closed: 2026-09-03
 ---
 
 
