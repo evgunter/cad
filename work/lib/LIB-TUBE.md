@@ -6,6 +6,7 @@ status: dispatched
 branch: lib/tube
 opened: 2026-08-29
 refs: [LIB-G17]
+pr: 1628
 ---
 
 RECIPE-DOORS unit 2 of 3 (D1 + D4 as revised by the #1205 mode-flag ruling,
