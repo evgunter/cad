@@ -2,9 +2,10 @@
 id: LIB-B-RESOLVE
 kind: unit
 title: binding census family B-RESOLVE
-status: review
+status: closed
 pr: 1664
 opened: 2026-09-03
+closed: 2026-09-03
 branch: lib/b-resolve
 ---
 
