@@ -31,17 +31,14 @@
 //! `round_trip`, under binary `all` rather than binary `export`); the set
 //! of tests is otherwise identical.
 
-// Each suite keeps its own verbatim `mod <helper>;`, so a shared helper is
-// loaded once per suite that uses it. That is deliberate — the alternative
-// is editing the suites — and it is what `duplicate_mod` is warning about.
-// Allowed HERE ONLY, by name: no blanket `#![allow]`, which would weaken
-// the lint gate for every suite module included below.
-#![allow(clippy::duplicate_mod)]
-
 #[path = "aggregator_headers.rs"]
 mod aggregator_headers;
 #[path = "determinism.rs"]
 mod determinism;
+#[path = "proximity.rs"]
+mod proximity;
+#[path = "proximity_r2.rs"]
+mod proximity_r2;
 #[path = "ray.rs"]
 mod ray;
 #[path = "ray_r2.rs"]

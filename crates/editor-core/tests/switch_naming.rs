@@ -10,19 +10,26 @@
 
 use std::collections::BTreeSet;
 
+use crate::fixture;
+
 use editor_core::{
     CancelToken, Dimension, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node, ParamName,
     ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, StableName, ValuePayload,
     evaluate,
 };
 use geom_core::Tol;
-use profile::SketchPlane;
 
 /// A quad whose LAST authored corner x is a document parameter: at
 /// x0 = 0.5 that corner (0.5, 1) is lex-min (canonical offset 3); at
 /// x0 = 1.5 the ENTRY corner (1, 0) is — the canonical rotation
 /// changes under a pure parameter edit, the §6 renumbering class on
 /// the nose.
+/// Every document here is a sketch frame, the profile drawn on it, and
+/// the extrude over that: node 0 is the frame, so these two are what
+/// the rows address.
+const PROFILE: RecipeNodeId = RecipeNodeId(1);
+const BODY: RecipeNodeId = RecipeNodeId(2);
+
 fn param_rect_doc(x0: f64) -> ProfileDoc {
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     let x0e = || Expr::param(ParamName::new("x0"), Dimension::Length);
@@ -43,11 +50,12 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
         ProgramStep::LineTo(ProgramTarget::Point([x0e(), lit(1.0)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    let (doc, xy) = fixture::insert(doc, fixture::xy_frame());
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::xy(),
+                    plane: xy,
                     loops: vec![loop_],
                 }),
             },
@@ -58,7 +66,7 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
     doc.apply(
         &DocEdit::InsertNode {
             node: Node::Extrude {
-                profile: RecipeNodeId(0),
+                profile: PROFILE,
                 distance: lit(1.0),
             },
         },
@@ -92,7 +100,7 @@ fn anchor_offset(doc: &ProfileDoc) -> (u32, bool) {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let ValuePayload::Profile(pv) = &ev.value(RecipeNodeId(0)).expect("profile").payload else {
+    let ValuePayload::Profile(pv) = &ev.value(PROFILE).expect("profile").payload else {
         panic!("profile payload");
     };
     let a = pv.naming.loops[0];
@@ -117,10 +125,7 @@ fn lex_min_swap_cannot_renumber_program_names() {
         "the edit must actually swap the lex-min vertex for this row to demonstrate anything"
     );
     // …and the NAME substrate did not: identical name sets…
-    assert_eq!(
-        names_of(&before, RecipeNodeId(1)),
-        names_of(&after, RecipeNodeId(1))
-    );
+    assert_eq!(names_of(&before, BODY), names_of(&after, BODY));
     // …AND (review MINOR-1: set equality alone is renumbering-blind
     // for a full table) the DENOTATION held: in both documents,
     // program segment 0 — Lateral(0)'s referent — is the leg leaving
@@ -133,7 +138,7 @@ fn lex_min_swap_cannot_renumber_program_names() {
             &EvalOptions::default(),
             Tol::witness(),
         );
-        let ValuePayload::Profile(pv) = &ev.value(RecipeNodeId(0)).expect("profile").payload else {
+        let ValuePayload::Profile(pv) = &ev.value(PROFILE).expect("profile").payload else {
             panic!("profile payload");
         };
         let a = pv.naming.loops[0];
@@ -151,11 +156,15 @@ fn lex_min_swap_cannot_renumber_program_names() {
 #[test]
 fn circle_radius_edit_keeps_names() {
     let mk = |r: f64| {
-        let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
+        let (doc, xy) = fixture::insert(
+            ProfileDoc::empty_derived("switch_naming", Tol::witness()),
+            fixture::xy_frame(),
+        );
+        let doc = doc
             .apply(
                 &DocEdit::InsertNode {
                     node: Node::Profile(ProfileProgram {
-                        plane: SketchPlane::xy(),
+                        plane: xy,
                         loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                     }),
                 },
@@ -166,7 +175,7 @@ fn circle_radius_edit_keeps_names() {
         doc.apply(
             &DocEdit::InsertNode {
                 node: Node::Extrude {
-                    profile: RecipeNodeId(0),
+                    profile: PROFILE,
                     distance: Expr::literal(1.0, Dimension::Length).unwrap(),
                 },
             },
@@ -175,10 +184,7 @@ fn circle_radius_edit_keeps_names() {
         .unwrap()
         .doc
     };
-    assert_eq!(
-        names_of(&mk(0.5), RecipeNodeId(1)),
-        names_of(&mk(0.75), RecipeNodeId(1))
-    );
+    assert_eq!(names_of(&mk(0.5), BODY), names_of(&mk(0.75), BODY));
 }
 
 /// The freeze-doctrine backstop (§6, unchanged by the resolution): a
@@ -198,7 +204,7 @@ fn stale_program_refs_refuse_vanished() {
     );
     let ghost = StableName {
         kind: EntityKind::Edge,
-        node: RecipeNodeId(1),
+        node: BODY,
         path: vec![RoleSeg::RimEdge(
             CapEnd::Top,
             ProfileEdgeRef {
@@ -207,7 +213,7 @@ fn stale_program_refs_refuse_vanished() {
             },
         )],
     };
-    let table = &ev.value(RecipeNodeId(1)).expect("extrude").name_table;
+    let table = &ev.value(BODY).expect("extrude").name_table;
     assert!(
         table.lookup(&ghost).is_none(),
         "a ref beyond the program's segments resolves to NOTHING — the \
@@ -217,7 +223,7 @@ fn stale_program_refs_refuse_vanished() {
     // And a REAL program-anchored ref resolves.
     let real = StableName {
         kind: EntityKind::Edge,
-        node: RecipeNodeId(1),
+        node: BODY,
         path: vec![RoleSeg::RimEdge(
             CapEnd::Top,
             ProfileEdgeRef {
@@ -244,7 +250,7 @@ fn program_vertex_zero_is_the_authored_entry() {
             &EvalOptions::default(),
             Tol::witness(),
         );
-        let ValuePayload::Profile(pv) = &ev.value(RecipeNodeId(0)).expect("profile").payload else {
+        let ValuePayload::Profile(pv) = &ev.value(PROFILE).expect("profile").payload else {
             panic!("profile payload");
         };
         let anchor = pv.naming.loops[0];
@@ -276,11 +282,15 @@ fn hole_circle_anchor_recovers_reversal() {
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     let outer = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]).unwrap();
     let hole = LoopProgram::circle(2.0, 2.0, 0.5).unwrap();
-    let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
+    let (doc, xy) = fixture::insert(
+        ProfileDoc::empty_derived("switch_naming", Tol::witness()),
+        fixture::xy_frame(),
+    );
+    let doc = doc
         .apply(
             &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::xy(),
+                    plane: xy,
                     loops: vec![outer, hole],
                 }),
             },
@@ -292,7 +302,7 @@ fn hole_circle_anchor_recovers_reversal() {
         .apply(
             &DocEdit::InsertNode {
                 node: Node::Extrude {
-                    profile: RecipeNodeId(0),
+                    profile: PROFILE,
                     distance: lit(1.0),
                 },
             },
@@ -307,7 +317,7 @@ fn hole_circle_anchor_recovers_reversal() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let ValuePayload::Profile(pv) = &ev.value(RecipeNodeId(0)).expect("profile").payload else {
+    let ValuePayload::Profile(pv) = &ev.value(PROFILE).expect("profile").payload else {
         panic!("profile payload");
     };
     // Canonical loop 1 is the hole; its anchor must say REVERSED
@@ -343,11 +353,11 @@ fn hole_circle_anchor_recovers_reversal() {
     // Denotation at the name layer: both program-anchored semicircle
     // walls exist under the hole's PROGRAM indices.
     use editor_core::{EntityKind, ProfileEdgeRef, RoleSeg};
-    let table = &ev.value(RecipeNodeId(1)).expect("extrude").name_table;
+    let table = &ev.value(BODY).expect("extrude").name_table;
     for seg in 0..2u32 {
         let name = StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(1),
+            node: BODY,
             path: vec![RoleSeg::Lateral(ProfileEdgeRef {
                 loop_index: 1,
                 segment: seg,

@@ -70,15 +70,15 @@ use std::path::Path;
 use std::sync::Arc;
 
 use pncad::document::{
-    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, Dimension, DocEdit,
-    DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame, InlineError,
-    LoopProgram, MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind, ProfileDoc,
-    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, apply, assemble, content_pin,
-    evaluate, inline, load, mixed_pins, parse_expr, product_named, save, solve_document, split,
+    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, Datum, Dimension,
+    DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame,
+    InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind,
+    ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, apply, assemble,
+    content_pin, evaluate, inline, load, mixed_pins, parse_expr, product_named, save,
+    solve_document, split,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
-use pncad::profile::SketchPlane;
 use pncad::select::{
     CapEnd, ContactClass, EntityKind, NamePat, NameTable, RoleSeg, SegPat, SegTag, Selector,
 };
@@ -291,10 +291,21 @@ fn prism_part(
         scope.insert(name, Dimension::Length);
     }
     let zero = pe("0 mm", &scope);
+    let plane = insert(
+        &mut doc,
+        Node::Datum(Datum::Frame {
+            origin: [pe("0 mm", &scope), pe("0 mm", &scope), pe("0 mm", &scope)],
+            // A bare integer parses as a Count; the frame's axes are
+            // Scalars, so they are spelled as decimals.
+            u: [pe("1.0", &scope), pe("0.0", &scope), pe("0.0", &scope)],
+            v: [pe("0.0", &scope), pe("1.0", &scope), pe("0.0", &scope)],
+        }),
+        tol,
+    );
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![rect(&pe(plan.0, &scope), &pe(plan.1, &scope), &zero)],
         }),
         tol,
@@ -366,11 +377,14 @@ fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
 /// Every placement carries [`FLAT_PACK_GAP`] along +x, which is how the
 /// flat-pack sits BESIDE the assembled bench in their shared montage
 /// cell. It is AUTHORED into the frames rather than applied to the
-/// gathered body, and that is not a preference: both furniture bodies
-/// carry declared contacts, and `transform_rigid` re-mints face keys,
-/// so a moved product would carry `ContactRecords` naming faces that
-/// no longer exist. A common offset on every placement moves the
-/// product and changes nothing else about it.
+/// gathered body, and that is not a preference: a layout document's
+/// placements ARE its subject, so where the parts sit has to be
+/// something this document SAYS. What the montage ships is the body
+/// `assemble` returned from this document (`layout_scene`); moving
+/// that afterwards would hand the renderer a body no gate had seen,
+/// standing at coordinates no document records. A common offset on
+/// every placement moves the product and changes nothing else about
+/// it.
 fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut doc = ProfileDoc::empty(DocumentId::derive("pncad-demo-layout"), tol);
     let scope = BTreeMap::new();

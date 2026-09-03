@@ -14,7 +14,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use pncad::document::{Doc, DocEdit, ProfileProgram, SlotId};
 use pncad::geom_core::Tol;

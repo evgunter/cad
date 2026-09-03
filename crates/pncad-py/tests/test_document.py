@@ -37,7 +37,7 @@ def slab(doc, x, y, z):
     profile = doc.insert(
         Node.polygon(
             [(x0, y0), (x1, y0), (x1, y1), (x0, y1)],
-            elevation=z0,
+            plane=doc.sketch_frame(elevation=z0),
         )
     )
     return doc.insert(Node.extrude(profile, z1 - z0))
@@ -52,14 +52,23 @@ class TestDocumentEditing(unittest.TestCase):
     def test_insert_mints_ids_and_grows_the_document(self):
         doc = Doc()
         box = unit_box(doc, 2 * m, 3 * m, 1 * m)
-        self.assertEqual(doc.node_count, 2)
+        # THREE: the sketch frame, the profile drawn on it, the extrude.
+        self.assertEqual(doc.node_count, 3)
         self.assertIn(box, doc.order())
 
     def test_edits_go_through_the_docedit_vocabulary(self):
         doc = Doc()
-        minted = doc.apply(DocEdit.insert_node(Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m)])))
+        # The frame is its own insert, through the same one door.
+        frame = doc.sketch_frame()
+        minted = doc.apply(
+            DocEdit.insert_node(
+                Node.polygon(
+                    [(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m)], plane=frame
+                )
+            )
+        )
         self.assertIsNotNone(minted)
-        self.assertEqual(doc.node_count, 1)
+        self.assertEqual(doc.node_count, 2)
 
     def test_a_refused_edit_leaves_the_document_untouched(self):
         doc = Doc()
@@ -96,7 +105,10 @@ class TestEvaluation(unittest.TestCase):
         doc = Doc()
         box = unit_box(doc, 2 * m, 3 * m, 1 * m)
         ev = evaluate(doc)
-        profile_node, extrude_node = doc.order()
+        # THREE nodes: the sketch frame the profile is drawn on comes
+        # first, because a profile names one.
+        frame_node, profile_node, extrude_node = doc.order()
+        self.assertEqual(ev.value(frame_node).kind, "datum")
         self.assertEqual(ev.value(profile_node).kind, "profile")
         value = ev.value(extrude_node)
         self.assertEqual(value.kind, "body")
@@ -467,7 +479,8 @@ class TestStepExport(unittest.TestCase):
     def test_export_of_a_profile_is_a_typed_refusal(self):
         doc = Doc()
         unit_box(doc, 1 * m, 1 * m, 1 * m)
-        profile_node = doc.order()[0]
+        # Index 1: the frame the profile is drawn on comes first.
+        profile_node = doc.order()[1]
         ev = evaluate(doc)
         with self.assertRaises(pncad.ExportError) as caught:
             ev.step_string(profile_node)

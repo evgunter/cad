@@ -206,9 +206,10 @@ gate_ok() {
 
 # --- THE SHARED RUST READER -------------------------------------------
 #
-# WHY THIS IS HERE. Six grep gates in this directory each carried the
-# same one-line comment strip -- `grep -vE ':[0-9]+:\s*(//|///|//!)'` --
-# and it is leading-`//` only, so it is wrong in BOTH directions:
+# WHY THIS IS HERE. Every grep gate in this directory carried its own
+# copy of the same one-line comment strip -- `grep -vE
+# ':[0-9]+:\s*(//|///|//!)'` -- and it is leading-`//` only, so it is
+# wrong in BOTH directions:
 #
 #   * CRY WOLF. A trailing comment is not stripped, so a line of prose
 #     naming the forbidden spelling fires the gate. That is not
@@ -231,8 +232,12 @@ gate_ok() {
 # their needle wants — `code_only`, `code_and_literals` (comments
 # stripped, literals KEPT) and `comments_only` (the inverse view: the
 # needle is prose) — and this reader builds the CODE-ONLY view, because
-# that is what the six gates converted to it need: their needles are
-# bounds, calls and operators.
+# that is what the gates converted to it need: their needles are
+# bounds, calls and operators. WHICH gates those are is DERIVED, not
+# copied — `grep -l gate_rust_code scripts/gates/*.sh | grep -v /lib.sh`,
+# and the exclusion is part of the derivation rather than a subtraction
+# left to the reader: this file names the function because it DEFINES
+# it. For the same reason the paragraph below gives.
 #
 # THAT POPULATION HAS ONE HOME, AND IT IS NOT THIS COMMENT.
 # `crates/test-utils/tests/reader_census.rs` carries one ledger line
@@ -253,7 +258,8 @@ gate_ok() {
 # uniform: **S163(b)** is the row.
 #
 # THREE RECORD SHAPES, one lexer, because two hand-rolled Rust readers
-# under `scripts/gates/` is how the leading-`//` strip got six copies:
+# under `scripts/gates/` is how the leading-`//` strip came to be
+# copied into every grep gate in this directory:
 #
 #   (default)      one record per source line
 #   --statements   one record per STATEMENT, cut at `{`, `}` and `;`,
@@ -527,11 +533,15 @@ gate_selftest_clean() {
   esac
   # AN EMPTY TREE IS NOT A CLEAN TREE, proved on every gate. This file
   # makes a paragraph of `gate_require_crate_sources` and `gate_require_
-  # file`, and a trace of `gate_error` across all fourteen self-tests
-  # found both of their diagnoses UNREACHED — `gate_plant_clean` always
-  # writes a source file, so no fixture ever asked. `lib.sh` says a guard
-  # never shown to fire is not a guard; that sentence had not been
-  # applied inside this file.
+  # file`, and a trace of `gate_error` across every self-test in this
+  # directory found both of their diagnoses UNREACHED — `gate_plant_clean`
+  # always writes a source file, so no fixture ever asked. `lib.sh` says a
+  # guard never shown to fire is not a guard; that sentence had not been
+  # applied inside this file. The two cases below are the rest of it, and
+  # the way to check the claim is the trace, not this comment: instrument
+  # `gate_error` with `BASH_SOURCE`/`BASH_LINENO`, run every `--selftest`,
+  # and diff what fired against what is written. `D109(d)` carries the
+  # standing count and the guards that remain.
   tmp=$(mktemp -d)
   if out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
     rm -rf "$tmp"
@@ -540,6 +550,76 @@ gate_selftest_clean() {
   fi
   rm -rf "$tmp"
   gate_selftest_assert_diagnosed "an empty tree" "$out"
+  # A TREE THAT HAS THE DIRECTORIES AND NONE OF THE FILES IS NOT A
+  # CLEAN TREE, and it is a DIFFERENT tree from the empty one above.
+  # The empty tree has no `crates/*/src` to glob at all, so it stops at
+  # the FIRST of `gate_require_crate_sources`'s two guards and the
+  # second — a `crates/*/src` that exists and holds no `.rs` — was
+  # reached by no case in this directory. The manifest gates read the
+  # same tree the other way: a `crates/` that exists with no
+  # `crates/*/Cargo.toml` under it. One fixture, because it is one
+  # question — did the gate mistake an empty subject for a clean one.
+  tmp=$(mktemp -d)
+  mkdir -p "$tmp/crates/scanned/src"
+  if out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the gate PASSED on a tree whose crates/ directories are all EMPTY — a gate that scanned nothing is not a pass\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  gate_selftest_assert_diagnosed "a crates/ tree with no files in it" "$out"
+  # THE MARKER'S OWN GUARD, proved on every gate rather than asserted in
+  # its comment. `gate_main` refuses to scan when it cannot create
+  # `$GATE_MATCHER_FAILED`, because a marker that cannot be written
+  # cannot report a matcher that died — and that guard was itself the
+  # thing no fixture had ever reached, which is the sentence this file
+  # keeps repeating at other people's guards. The clean fixture is
+  # planted so the ONLY reason to fail is the unwritable TMPDIR.
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  if out=$(TMPDIR="$tmp/no-such-tmpdir" "$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the gate PASSED with an unwritable TMPDIR — the marker a dead matcher writes could not have been created, so the green means nothing\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  gate_selftest_assert_diagnosed "an unwritable TMPDIR" "$out"
+  case "$out" in
+    *"cannot create"*) ;;
+    *) printf 'SELFTEST FAILED (an unwritable TMPDIR): the gate failed for some OTHER reason than the marker it could not create:\n%s\n' "$out" >&2
+       exit 1 ;;
+  esac
+  # `gate_main`'s OWN no-self-test guard, and the fixture is not a gate
+  # in this directory. The guard was recorded as unreachable on the
+  # argument that every gate defines a `gate_selftest` and one that did
+  # not would red `gate-roster.sh` — which is an argument about the
+  # DIRECTORY, not about the guard. The guard's subject is anything that
+  # sources this file, so six lines of scratch reach it: a `gate`, a
+  # `gate_parse_args`, a `gate_main`, and no `gate_selftest`. Written
+  # here rather than in one gate because the guard is this file's, so
+  # every caller of this function carries it exactly as it carries the
+  # unreadable `--root` and the unwritable TMPDIR above.
+  tmp=$(mktemp -d)
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'set -euo pipefail\n'
+    printf '. %s\n' "${BASH_SOURCE[0]}"
+    printf 'gate() { gate_ok "nothing"; }\n'
+    printf 'gate_parse_args "$@"\n'
+    printf 'gate_main\n'
+  } > "$tmp/no-selftest.sh"
+  if out=$(bash "$tmp/no-selftest.sh" --selftest 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: a script sourcing lib.sh with NO gate_selftest passed --selftest — a guard that has never been shown to fire is not a guard, which is the sentence this file keeps repeating at other guards\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  gate_selftest_assert_diagnosed "a caller defining no gate_selftest" "$out"
+  case "$out" in
+    *"defines no gate_selftest"*) ;;
+    *) printf 'SELFTEST FAILED (a caller defining no gate_selftest): it failed for some OTHER reason:\n%s\n' "$out" >&2
+       exit 1 ;;
+  esac
   tmp=$(mktemp -d)
   gate_plant_clean "$tmp"
   if ! out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
@@ -668,7 +748,7 @@ gate_main() {
   if [ "$GATE_SELFTEST" = true ]; then
     # NO DEFAULT SELF-TEST. There used to be one — clean fixture plus a
     # single planted violation, parameterised through `gate_main`'s
-    # arguments — and every one of the fourteen gates overrode it, while
+    # arguments — and every gate in this directory overrode it, while
     # two still passed it arguments naming a planter that call did not
     # run. A default that plants only what the matcher was written for
     # is the shape this whole directory is a reaction to, so a gate with

@@ -565,3 +565,35 @@ four days later against a main that had moved 524 merges — the fresh
 lane delivered in ~60 minutes, the rows annotate it. The six merged M10
 specs (M10-1, DI, P, 2, 3, 4) leave `docs/` with this merge per the
 ledger's rule. M10-5 is in flight; M10-6's spec is next.
+
+## M10-5 MERGED (2026-09-03)
+
+PR #1638 merged, sample #115 (ordinal 506). E7 is real: over a
+certified leaf the engine answers `Holds` / `Violated` with an
+f64-verified witness / `Refused` typed and priced, with the receipt
+identity riding the report — and after the fix pass the three
+places the deliverable could have lied are closed at the root: a
+fold over a drive that certified nothing refuses instead of passing,
+refused leaves are priced under their own class instead of riding as
+certified mass, and the BVH's admission threshold carries the
+funnel's band so nothing inside the window the funnel would refuse
+is silently held. R2's unilateral MAJOR — the strict violation arm
+had no reachable path, so gross interpenetration came back
+`Refused(Budget)` — was fixed by an exhibit arm that can only ADD
+verified violations; R1's unilateral MAJOR — the sweep never stopped
+at the first violation, so every `Violated` was a budget exhaustion
+and the limit narrative was wrong — by early exit with the
+unexamined frontier accounted `abandoned` and the cost curve
+re-measured in three regimes. The program's first symmetric tally
+pair. Two design-level residues are filed, not fixed: the window
+superset (D3) needs the boundary in chart coordinates; a signed
+penetration depth (D7) needs a margin that is not a norm. The 1055
+stretch did not land — the valve is the layering question (where a
+curved gate lives: above editor-core or a duplicate engine in topo),
+filed with the cost figures. The accelerator ships behind the
+`MonotoneOracle` seam with `NoTangents`; the `Dual<Interval>` oracle
+is the item M10-4 filed. Process: the lane spent three extra CI
+cycles on doc-truth fixes found after the first push and said so —
+the doc sweep belongs before the first push, recorded here for the
+next brief. The spec leaves `docs/` with this merge. M10-6 is next
+and last.

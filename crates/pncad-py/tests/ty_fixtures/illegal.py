@@ -21,6 +21,8 @@ from pncad import (
     NamePat,
     Node,
     NodeId,
+    NodePick,
+    Ray,
     Open,
     PatternKind,
     SegPat,
@@ -29,6 +31,7 @@ from pncad import (
     SketchPlane,
     Start,
     SurfaceKind,
+    TubeWindow,
     Sweep,
     Workspace,
     enforce_checks,
@@ -43,6 +46,7 @@ from pncad import (
     circle,
     content_pin,
     deg,
+    rad,
     evaluate,
     m,
     mm,
@@ -91,7 +95,10 @@ Node.loft([], 2.5)  # ty: error
 # below are about the ARGUMENT types, not about a missing name.
 doc = Doc()
 solid: NodeId = doc.insert(
-    Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m))), 1 * m)
+    Node.extrude(
+        doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=doc.sketch_frame())),
+        1 * m,
+    )
 )
 
 # A fillet selection is NAMES — the text a materializer answered with,
@@ -105,6 +112,14 @@ Node.fillet(solid, 1.0, [])  # ty: error
 # names — the twin holds the same two lines.
 Node.chamfer(solid, 1.0, [])  # ty: error
 Node.chamfer(solid, 1 * m, [solid])  # ty: error
+
+# A tube's radii are Lengths, its window is a `TubeWindow` and never a
+# pair of raw angles, and the hollow kind's WALL IS REQUIRED — the
+# three ways a caller reaches for the shape this vocabulary refuses to
+# have.
+Node.tube(solid, (1.0, 0.0, 0.0), 0.2, TubeWindow.full(), 0.05 * m)  # ty: error
+Node.tube(solid, (1.0, 0.0, 0.0), 0.2 * m, (0 * rad, 1 * rad), 0.05 * m)  # ty: error
+Node.hollow_tube(solid, (1.0, 0.0, 0.0), 0.2 * m, TubeWindow.full(), 0.05 * m)  # ty: error
 
 # A transform's axis is dimensionless and its angle is an Angle; the
 # two do not stand in for each other.
@@ -292,3 +307,73 @@ enforce_checks(doc)  # ty: error
 # A subject is named by a node and an OUTPUT INDEX — the same
 # attribution a finding carries — never by the finding's rendering.
 subject_body(evaluate(doc), solid)  # ty: error
+
+# A ray's ORIGIN is a position and carries `Length`s; writing it as
+# bare floats is the same dimension mistake `Pose.origin` catches
+# above, and the surface refuses to guess a unit.
+Ray((0.0, 0.0, 10.0), (0.0, 0.0, -1.0))  # ty: error
+
+# ...and its DIRECTION is dimensionless. Handing it lengths claims a
+# direction has a unit, which is the mistake in the other direction.
+Ray((0 * m, 0 * m, 10 * m), (0 * m, 0 * m, -1 * m))  # ty: error
+
+# A pick index is built against the EVALUATION that minted the body,
+# not against the document: a `(node, body)` pairing only means
+# something as of one run, which is the whole reason this type exists.
+NodePick.build(doc, solid, 0, 1 * mm)  # ty: error
+
+# The chordal budget is a DISTANCE (δ), never a bare float — the same
+# closed-set rule `Body.tessellate` states.
+NodePick.build(evaluate(doc), solid, 0, 0.001)  # ty: error
+
+# `pick_face` takes the pre-paired targets, not the node they were
+# built for. There is no spelling of a raw target here, and that is
+# what stops a confidently wrong name.
+evaluate(doc).pick_face([solid], Ray((0 * m, 0 * m, 1 * m), (0.0, 0.0, -1.0)))  # ty: error
+
+# A miss is `None`, so a hit is OPTIONAL: reading `.name` off the
+# answer without asking whether there was one is the mistake the typed
+# miss exists to make visible.
+maybe_hit = evaluate(doc).pick_face([], Ray((0 * m, 0 * m, 1 * m), (0.0, 0.0, -1.0)))
+hit_name: str = maybe_hit.name  # ty: error
+
+# `resolve` is EVALUATION-wide: it takes a name and nothing else. The
+# node-scoped door is `denotation`, and handing this one a node is the
+# confusion between the two the docstrings exist to prevent.
+evaluate(doc).resolve(solid, "a face")  # ty: error
+
+# A name crosses as opaque TEXT, never as the `NodeId` that minted it.
+evaluate(doc).resolve(solid)  # ty: error
+
+# The verdict is a value, and its location attributes are OPTIONAL
+# because two of the three states have no location. Binding one to a
+# bare `NodeId` claims a verdict always resolved, which is exactly the
+# assumption the three states exist to stop.
+where: NodeId = evaluate(doc).resolve("a face").node  # ty: error
+
+# ...and the same on the failure half: `detail` is prose that is
+# `None` on a resolved verdict, so it is not a `str`.
+reason: str = evaluate(doc).resolve("a face").detail  # ty: error
+
+# `offers` is a list of NAMES — opaque texts — not of parsed
+# structures, and it is `None` where suggestions do not apply.
+rebinds: list[str] = evaluate(doc).resolve("a face").offers  # ty: error
+
+# The status is a stable tag STRING, not the kind enum: "which of the
+# three states" and "what kind of entity" are different questions.
+tag: EntityKind = evaluate(doc).resolve("a face").status  # ty: error
+# The two evaluators are not interchangeable and neither takes text:
+# an expression is a VALUE, built by the document that declares the
+# parameters it references.
+doc.eval("width / 2.0")  # ty: error
+doc.eval_count("4")  # ty: error
+
+# `eval` answers a quantity where the expression is dimensioned, so
+# reading it as a bare float is the same dimension mistake the
+# quantity boundary catches elsewhere.
+plain: float = doc.eval(doc.parse_expr("1 m"))  # ty: error
+
+# NOT here, deliberately: an expression is unhashable on purpose
+# (equality is an IEEE comparison of the literals inside it), and `ty`
+# does not check hashability of a set member, so the pin would be a
+# comment wearing a marker. `tests/test_expressions.py` executes it.

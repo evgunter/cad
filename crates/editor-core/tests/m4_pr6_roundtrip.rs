@@ -20,8 +20,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
 
 use editor_core::{
     CancelToken, DocEdit, EvalOptions, ProfileDoc, ProfileProgram, apply, evaluate, load, save,

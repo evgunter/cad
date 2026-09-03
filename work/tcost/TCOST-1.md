@@ -2,11 +2,12 @@
 id: TCOST-1
 kind: unit
 title: gate a suite to the code it tests, and re-take the set nightly
-status: dispatched
+status: closed
 pr: 1612
 branch: tcost/1-per-file-gate
 opened: 2026-09-02
 refs: [1613]
+closed: 2026-09-03
 ---
 
 Charter lever 3, the per-file gate: an in-file marker names the source paths
