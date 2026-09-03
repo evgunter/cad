@@ -13,6 +13,16 @@
 //!   ("Brute force, deliberately, for now"): this tree swaps in under
 //!   that module's already-merged differential suite when profiling
 //!   asks for it. Nothing in the C3 contract changes when it does.
+//! - **Clearance candidate pairs at the certified scalar** — LIVE
+//!   (`editor_core::clearance`): [`Bvh::build_bounded`] builds the tree
+//!   over item point clouds read at `T: Bounds`, and [`Bvh::within`] /
+//!   [`Bvh::pairs_within`] / [`Bvh::self_pairs_within`] answer the
+//!   proximity queries the E7 clearance engine subdivides from. At
+//!   `T = Interval` an item box encloses every real configuration in the
+//!   analysis leaf's parameter box, so the candidate set is conservative
+//!   over the whole box; the engine re-decides every exclusion at its
+//!   own funnel from [`Aabb::separation_lo`], because the contract below
+//!   is that this tree decides nothing.
 //! - **Viewport picking** — LIVE since GUI-1: [`Bvh::ray`], the
 //!   conservative ray-slab query the editor-core hit-test service
 //!   traverses (candidates ordered by conservative entry parameter;

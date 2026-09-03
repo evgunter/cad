@@ -17,7 +17,7 @@
 //! no Q1 predicate, nothing semantic, is decided in this crate (crate
 //! docs; D9's "results a function of exact tests only").
 
-use geom_core::{Bounds, Point3};
+use geom_core::{Bounds, Point3, Vec3};
 
 /// A coordinate axis — named, total, no index arithmetic (the linalg
 /// charter's no-indexing rule).
@@ -186,5 +186,48 @@ impl Aabb {
     /// `total_cmp` ordering stays total regardless.
     pub fn centroid(&self, axis: Axis) -> f64 {
         (self.min(axis) + self.max(axis)) * 0.5
+    }
+
+    /// A certified **lower bound** on the Euclidean distance between the
+    /// two boxes' point sets — a VALUE, never a decision.
+    ///
+    /// A caller that must classify a separation needs a number it can
+    /// put through its own funnel, and a box test's boolean is not one.
+    /// Both boxes contain their entities' loci (the containment
+    /// contract), so a lower bound on the boxes' separation is a lower
+    /// bound on the entities' distance.
+    ///
+    /// Per axis the gap is `max(0, other.min − self.max, self.min −
+    /// other.max)`; the answer is the norm of the three gaps rounded
+    /// **down** four ulps. Four covers the arithmetic: each of the three
+    /// squares and two sums rounds by at most half an ulp, so the sum
+    /// carries at most ~3.1 · 2⁻⁵³ of relative error, the square root
+    /// halves that and adds its own half ulp — under 2.6 ulps of the
+    /// answer, whichever binade it lands in.
+    ///
+    /// Overlapping, inverted and poison boxes all answer `0.0`: zero is
+    /// a true lower bound for every configuration this cannot separate,
+    /// and it is the direction that never prunes and never over-claims.
+    /// NaN is therefore mapped to zero rather than propagated — a poison
+    /// box may not be shown far from anything (module docs).
+    pub fn separation_lo(&self, other: &Self) -> f64 {
+        let gap = |a_min: f64, a_max: f64, b_min: f64, b_max: f64| -> f64 {
+            let g = (b_min - a_max).max(a_min - b_max);
+            // Spelled rather than left to the fold: `f64::max` IGNORES
+            // NaN, so a poison bound would come out of it as the other
+            // operand and silently claim a separation.
+            if g.is_nan() || g < 0.0 { 0.0 } else { g }
+        };
+        let gx = gap(self.min_x, self.max_x, other.min_x, other.max_x);
+        let gy = gap(self.min_y, self.max_y, other.min_y, other.max_y);
+        let gz = gap(self.min_z, self.max_z, other.min_z, other.max_z);
+        // `geom_core`'s own norm — one home for the fold's association
+        // order (D9) — rather than a product written here.
+        let d = Vec3::new(gx, gy, gz).norm();
+        if d.is_nan() {
+            return 0.0;
+        }
+        let d = d.next_down().next_down().next_down().next_down();
+        if d < 0.0 { 0.0 } else { d }
     }
 }
