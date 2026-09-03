@@ -10,8 +10,8 @@ one dimension-generic Measure sink; E6 adopts **no-flips v1** (Ev's
 proposal); E11 MC softened to a labeled advisory lane; E11.6
 histogram note. Post-ratification amendment on record (#110 thread,
 Ev's one-branch-tails observation, 2026-07-27): chamber containment
-added to E2. **Revision E12 (2026-09-03, PROPOSED — an `[ev]` PR,
-in-chat design conversation with Ev at M10's exit walk):** E12
+added to E2. **Revision E12 (2026-09-03, RATIFIED — Ev on PR #1712, "lgtm";
+in-chat design conversation at M10's exit walk):** E12
 added (certification is parameter-aware — identities decide
 symbolically at any box width); E3 amended (the `min_clearance`
 primitive is binary; parallelism verdicts a measure consumes are
@@ -477,8 +477,8 @@ v1 says no — assertions report; a gating mode is additive policy.
 
 ## E12 — Certification is parameter-aware: identities decide symbolically, at any box width
 
-**Decision** (revision E12, 2026-09-03; opened by Ev at M10's exit
-walk: "we need to make this parameter-aware so it's usable; that's
+**Decision** (revision E12, 2026-09-03, ratified on #1712; opened by
+Ev at M10's exit walk: "we need to make this parameter-aware so it's usable; that's
 the whole point of this machinery"). The E6 leaf protocol gains a
 SYMBOLIC tier ahead of the numeric one: beside every lane value the
 replay carries a handle into a hash-consed expression DAG over the
