@@ -226,23 +226,34 @@ gate_ok() {
 #
 # STRING LITERALS are the third direction and the one that decides the
 # interface. A blanket strip that also removed literals would make a
-# gate whose needle IS a string literal vacuous — S117 sorts eleven
-# source-text guards three ways (code-only, comments-only, and the
-# inverse), and this reader builds the CODE-ONLY view because that is
-# what the six gates converted to it need: their needles are bounds,
-# calls and operators.
+# gate whose needle IS a string literal vacuous. S117 sorts the guards
+# that read source text by which of `test_utils::source`'s three views
+# their needle wants — `code_only`, `code_and_literals` (comments
+# stripped, literals KEPT) and `comments_only` (the inverse view: the
+# needle is prose) — and this reader builds the CODE-ONLY view, because
+# that is what the six gates converted to it need: their needles are
+# bounds, calls and operators.
+#
+# THAT POPULATION HAS ONE HOME, AND IT IS NOT THIS COMMENT.
+# `crates/test-utils/tests/reader_census.rs` carries one ledger line
+# per site in the tree that reads Rust source as text, naming the view
+# each takes, and a second quantity beside it — the sites still reading
+# through something other than a shared lexer. Both live there and
+# nowhere else: a count copied into prose goes stale in the silent
+# direction, because the population grows by a reader arriving.
 #
 # THAT IS A STATEMENT ABOUT THE CALLERS, NOT ABOUT THE DIRECTORY. There
 # IS a gate here whose needle contains a string literal —
 # `probe-suite-census.sh`'s probe-gate matcher looks for
 # `#[cfg(feature = "probe")]` — and it wants comments stripped and
-# literals KEPT, which is a fourth view this reader does not build. It
-# is not converted, its matcher is anchored at column zero instead, and
-# it carries a prose fixture because of that. Naming it here rather than
-# claiming the directory is uniform: **S163(b)** is the row.
+# literals KEPT, which is `code_and_literals`: the one of the three
+# views this reader does not build. It is not converted, its matcher is
+# anchored at column zero instead, and it carries a prose fixture
+# because of that. Naming it here rather than claiming the directory is
+# uniform: **S163(b)** is the row.
 #
-# THREE VIEWS, one lexer, because two hand-rolled Rust readers under
-# `scripts/gates/` is how the leading-`//` strip got six copies:
+# THREE RECORD SHAPES, one lexer, because two hand-rolled Rust readers
+# under `scripts/gates/` is how the leading-`//` strip got six copies:
 #
 #   (default)      one record per source line
 #   --statements   one record per STATEMENT, cut at `{`, `}` and `;`,

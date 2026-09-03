@@ -10,6 +10,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 
+test_utils::gated_to![
+    "crates/geom/src/surfaces/",
+    "crates/geom/src/surfaces.rs",
+    "crates/geom-core/src/spline/",
+];
+
 use geom_core::spline::KnotVector;
 use test_utils::fuzz;
 // Promotion adaptation (mechanical): dropped an unused Real import.

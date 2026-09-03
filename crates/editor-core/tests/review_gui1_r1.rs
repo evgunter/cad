@@ -31,6 +31,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+test_utils::gated_to![
+    "crates/editor-core/src/resolve/",
+    "crates/bvh/src/",
+    "crates/mesh/src/",
+    "crates/geom-core/src/linalg/",
+];
+
 use crate::fixture;
 
 use editor_core::{

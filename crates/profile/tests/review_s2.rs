@@ -81,6 +81,8 @@
 //! the distribution rather than a rare class.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+test_utils::gated_to!["crates/profile/src/", "crates/geom-core/src/tolerance.rs"];
+
 use crate::common;
 
 use common::tol;

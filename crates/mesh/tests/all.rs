@@ -380,8 +380,12 @@ fn every_suite_file_is_aggregated() {
 /// 3. **The test half of each file** — deliberately, because a test
 ///    that reads ε is not a place ε reaches the mesh. **The cut is
 ///    crude and its failure modes are not symmetric.** It is the first
-///    line equal to `#[cfg(test)]` at column 0; the row asserts there
-///    is at most one, so the cut is unambiguous. A file with no such
+///    line equal to `#[cfg(test)]` at column 0 that OPENS a test half;
+///    one that mounts another file (`#[cfg(test)] mod <name>;`, with or
+///    without a `#[path]` between) is not a cut, because the text it
+///    declares is not this file's and everything below it is still
+///    production — `lib.rs` carries two such mounts and no cut. The row
+///    asserts there is at most one real cut, so the cut is unambiguous. A file with no such
 ///    line counts WHOLE — conservative, so it over-counts rather than
 ///    under-counts. `tessellate.rs` is the crate's only such file now;
 ///    `trimmed.rs` was one until #887 gave it a test module, which is
@@ -419,6 +423,26 @@ fn every_suite_file_is_aggregated() {
 /// (`source_walk::crate_sources`) is `pub(crate)`, the identical
 /// obstacle `code_only` was moved to remove, and re-forking it
 /// reproduced exactly the defect the sharing was for.
+/// Whether the top-level `#[cfg(test)]` at `i` MOUNTS another file
+/// (`mod <name>;`, optionally through intervening attributes) rather
+/// than opening this file's test half.
+///
+/// A mount declares a SEPARATE source file. Its text is not this file's,
+/// so nothing after the mount is test code and the walk reaches the
+/// mounted file on its own (or, for a `#[path]` mount, that file lives
+/// under another root and is out of this inventory's scope either way).
+/// Treating a mount as a cut would hide every production line below it
+/// from the ε columns — the one unsound direction this row has.
+fn mounts_a_module(lines: &[&str], i: usize) -> bool {
+    lines[i + 1..]
+        .iter()
+        .find(|l| !l.trim_start().starts_with('#') && !l.trim().is_empty())
+        .is_some_and(|l| {
+            let l = l.trim_start();
+            (l.starts_with("mod ") || l.starts_with("pub mod ")) && l.trim_end().ends_with(';')
+        })
+}
+
 #[test]
 #[allow(clippy::expect_used)]
 fn the_eps_inventory_is_pinned() {
@@ -443,17 +467,17 @@ fn the_eps_inventory_is_pinned() {
             .replace('\\', "/");
         let text = std::fs::read_to_string(&path).expect("a readable source file");
         let code = test_utils::source::code_only(&text);
-        let cuts = code.lines().filter(|l| *l == "#[cfg(test)]").count();
+        let lines: Vec<&str> = code.lines().collect();
+        let cuts: Vec<usize> = (0..lines.len())
+            .filter(|i| lines[*i] == "#[cfg(test)]" && !mounts_a_module(&lines, *i))
+            .collect();
         assert!(
-            cuts <= 1,
-            "{name} has {cuts} top-level `#[cfg(test)]` lines, so the production/test \
-             cut is ambiguous. See this row's docs on what the cut assumes."
+            cuts.len() <= 1,
+            "{name} has {} top-level `#[cfg(test)]` lines that begin a test half, so the \
+             production/test cut is ambiguous. See this row's docs on what the cut assumes.",
+            cuts.len()
         );
-        let prod: String = code
-            .lines()
-            .take_while(|l| *l != "#[cfg(test)]")
-            .collect::<Vec<_>>()
-            .join("\n");
+        let prod: String = lines[..cuts.first().copied().unwrap_or(lines.len())].join("\n");
         // Identifier occurrences, not substrings: `steps` and
         // `grid_steps` are not ε carriers and outnumber the real ones.
         let carriers = prod
