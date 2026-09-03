@@ -955,6 +955,20 @@ jobs:
         run: |
           scripts/gates/probe-suite-census.sh --selftest
           scripts/gates/probe-suite-census.sh
+      # THE PER-FILE TEST GATE'S MARKERS (S-TCOST lever 3). A gated suite
+      # names the source paths it is specific to, and the change filter skips
+      # it on a pull request when none of them is in the diff. That filter
+      # FAILS OPEN — a marker it cannot resolve runs its suite — so a rename
+      # that moved a suite's subject out from under it leaves a gate that
+      # reads as narrow, is in fact "always runs", and shows up in no run's
+      # output. This is the row that makes it loud, and the row that keeps the
+      # nightly's ungated re-take (which REFUSES an unresolvable tree) from
+      # being where a rename is discovered hours later. Stdlib-only python3
+      # under lib.sh's contract, so it rides this cheap-tripwire job.
+      - name: gated-suite marker paths resolve
+        run: |
+          scripts/gates/gated-suite-paths.sh --selftest
+          scripts/gates/gated-suite-paths.sh
       # The run half's guards. `k_probe_sweep.sh`'s `run_dump` is the only
       # thing between "the harness ran" and "the sweep recorded nothing
       # and exited 0", and nothing else in the tree exercises it. No

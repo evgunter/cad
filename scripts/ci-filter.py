@@ -1328,9 +1328,24 @@ def _scan_gated(root: str, dir_of: dict[str, str] | None = None) -> list[GatedSu
                             problem = f"{want!r} is not a repo-relative path"
                             break
                         target = os.path.join(root, want)
-                        ok = os.path.isdir(target) if want.endswith("/") else os.path.isfile(target)
-                        if not ok:
-                            problem = f"{want!r} does not exist in the tree"
+                        if want.endswith("/"):
+                            if not os.path.isdir(target):
+                                problem = f"{want!r} does not exist in the tree as a directory"
+                                break
+                        elif not os.path.isfile(target):
+                            # A DIRECTORY WRITTEN WITHOUT ITS TRAILING SLASH is
+                            # the one near-miss that would otherwise pass a
+                            # bare existence test and then match no changed
+                            # file ever — the path is compared for EQUALITY
+                            # unless it ends in `/`, and no changed file equals
+                            # a directory.
+                            extra = (
+                                " — it is a DIRECTORY: name it with a trailing `/`, which is "
+                                "what makes it match everything under it"
+                                if os.path.isdir(target)
+                                else ""
+                            )
+                            problem = f"{want!r} does not exist in the tree{extra}"
                             break
                     term, term_problem = _suite_term(root, rel, dir_of)
                     out.append(GatedSuite(rel, paths, term, problem or term_problem))
@@ -1436,6 +1451,104 @@ def gated_set(root: str) -> int:
     for s in suites:
         sys.stderr.write("    {} -> {}\n".format(s.path, s.term))
     print(" | ".join(s.term for s in suites))
+    return 0
+
+
+def gated_check(root: str) -> int:
+    """`--gated-check`: every marker in the tree resolves. The LOUD half.
+
+    THE FILTER FAILS OPEN AND THIS DOES NOT, and that division is the whole
+    design. A marker whose paths have been renamed out from under it still
+    RUNS its suite — nothing is lost, only minutes are spent — which means
+    nothing about the run says the marker is broken. Left there, the marker
+    would stay broken, and the next reader would believe a gate that had
+    quietly become "always runs". So the state is made loud somewhere it stops
+    a merge instead: `scripts/gates/gated-suite-paths.sh`, in the `discipline`
+    row of both halves.
+
+    It is also what stops a rename going the OTHER way. A marker naming a path
+    that no longer exists is one edit away from naming a path that never runs,
+    and `--gated-set`'s nightly row refuses such a tree outright — so without
+    this row a renamed source file would red the NIGHTLY, hours later and in
+    someone else's lane.
+    """
+    problems: list[str] = []
+    try:
+        dir_of, _ = _members(root)
+    except Exception as exc:  # noqa: BLE001 — the directory name stands in
+        print(f"ci-filter: gated-check: no member map ({exc})", file=sys.stderr)
+        dir_of = None
+
+    # MARKERS SITED WHERE NOTHING WILL EVER READ THEM. `_scan_gated` walks
+    # `crates/*/{src,tests}` because those are the two shapes a nextest term
+    # can be derived for; a marker anywhere else is not a narrower gate, it is
+    # a comment, and it reads exactly like the real thing to its author.
+    for dirpath, dirs, names in os.walk(root):
+        dirs[:] = sorted(d for d in dirs if d not in (".git", "target", "node_modules"))
+        for name in sorted(names):
+            if not name.endswith(".rs"):
+                continue
+            full = os.path.join(dirpath, name)
+            rel = os.path.relpath(full, root).replace(os.sep, "/")
+            parts = rel.split("/")
+            sited = (
+                len(parts) > 3
+                and parts[0] == "crates"
+                and parts[1] != "test-utils"
+                and parts[2] in ("src", "tests")
+            )
+            if sited:
+                continue
+            with open(full, encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+            if "gated_to!" not in text:
+                continue
+            if rel.startswith("crates/test-utils/"):
+                problems.append(
+                    f"{rel}: a gated_to! call inside crates/test-utils/, which is the "
+                    "marker's own home and is never scanned — nothing would ever read it"
+                )
+            else:
+                problems.append(
+                    f"{rel}: a gated_to! call outside crates/<crate>/src/ and "
+                    "crates/<crate>/tests/. Those are the two shapes a nextest term can "
+                    "be derived for, so a marker here gates nothing while reading like "
+                    "one that does"
+                )
+
+    suites = _scan_gated(root, dir_of)
+    for suite in suites:
+        if suite.problem is not None:
+            problems.append(f"{suite.path}: {suite.problem}")
+        # A MARKER ON A FILE THAT HOLDS NO TEST gates an empty set. Harmless to
+        # the run and misleading to every reader of it, which is the class this
+        # whole unit is about.
+        with open(os.path.join(root, suite.path), encoding="utf-8", errors="replace") as fh:
+            body = fh.read()
+        if "#[test]" not in body and "#[cfg(test)]" not in body:
+            problems.append(
+                f"{suite.path}: carries a marker and no `#[test]` or `#[cfg(test)]`. "
+                "The term it derives selects nothing, so the marker gates nothing and "
+                "says otherwise"
+            )
+
+    if problems:
+        for p in problems:
+            sys.stderr.write(f"    {p}\n")
+        sys.stderr.write(
+            "\nA marker names the source paths its suite is SPECIFIC TO, repo-relative, "
+            "files or directories with a trailing `/`; the suite's own file is implicit "
+            "and is never listed. Fix the path, or delete the marker deliberately — an "
+            "unresolvable one leaves the suite running on every pull request while "
+            "reading as gated, and reds the nightly's ungated re-take.\n"
+        )
+        raise SystemExit(
+            "error: {} problem(s) in {} gated-suite marker(s)".format(len(problems), len(suites))
+        )
+    print(
+        "gated-suite markers OK: {} suite(s), every named path resolves in the tree "
+        "and every term derives".format(len(suites))
+    )
     return 0
 
 
@@ -3067,6 +3180,16 @@ def main() -> int:
     # suite, whether or not anything changed — which is exactly the question
     # the nightly re-take asks.
     src.add_argument(
+        "--gated-check",
+        nargs="?",
+        const="",
+        metavar="DIR",
+        help="check every gated-suite marker in DIR (default: this repo) — "
+        "paths resolve, terms derive, markers are sited where they are read; "
+        "reds on the first problem. scripts/gates/gated-suite-paths.sh is its "
+        "wrapper under lib.sh's two-mode contract",
+    )
+    src.add_argument(
         "--gated-set",
         action="store_true",
         help="print one nextest filterset expression selecting EVERY gated "
@@ -3115,6 +3238,12 @@ def main() -> int:
     if args.selftest:
         selftest()
         return 0
+
+    if args.gated_check is not None:
+        # Outside the fail-closed wrapper, like `--gated-set` and for the twin
+        # reason: this mode's whole product is a verdict about the markers, so
+        # a failure to reach one is the verdict, not a fallback.
+        return gated_check(args.gated_check or _repo_root())
 
     if args.gated_set:
         # NOT under the fail-closed wrapper below, and that is the whole
