@@ -3506,3 +3506,8 @@ VERBS-RIMCAP PR-1 review ordinal fixed at dispatch (2026-09-03,
 PR #1674 open — frozen head `8c8a7b7f1`): **ordinal 113** (VERBS
 band; the #1095 shape). v6 DUAL, concurrent, briefs symmetric.
 Sample number AT MERGE in main's order. Row at merge.
+VERBS-1031B review ordinal fixed at dispatch (2026-09-03, PR
+#1671 open — frozen head `93bcce7e6`): **ordinal 114** (VERBS
+band; the #1095 shape). v6 DUAL, parity byte 208 ⇒ R1 OPUS +
+R2 FABLE, concurrent, briefs symmetric. Sample number AT MERGE
+in main's order. Row at merge.
