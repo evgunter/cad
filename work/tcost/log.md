@@ -562,3 +562,12 @@ behalf per the inherited-red rule (the causing lane owes the fix).
 Lesson for build units that touch per-feature suites: a `use` that
 replaces a `mod` must sit where the `mod`'s uses are, and the lane
 should ask for BOTH lanes on its final head, not one.
+
+## Seam: second usage-limit interruption (2026-09-03, ~07:55–09:20 UTC)
+
+Five lanes (TCOST-6, TCOST-B2, TCOST-K1, C1..C3, C4) died on a 429 at
+about 07:55; nothing was lost — every lane's worktree was clean and
+its last commit pushed (TCOST-6's two local commits excepted, still on
+disk). Resumed from their transcripts at 09:22 with the cwd-reset rule
+and the state each needed (the m10_p_lift hotfix on main; K1's
+incremental cache dropped). TCOST-8 reported before the cut (PR 1659).
