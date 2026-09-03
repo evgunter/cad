@@ -2,11 +2,12 @@
 id: LIB-MECH1
 kind: unit
 title: the mechanical residue bundle — the python-feature clippy row and five banked repairs
-status: review
+status: closed
 opened: 2026-09-03
 pr: 1696
 branch: claude/lib-mechanical-clippy-ci-tadd42
 refs: [the-python-feature-half-of-pncad-py-is-linted-by-no-ci-row, pncad-py-python-feature-clippy-lane-is-red, census-points-at-a-deleted-lib-log, stub-check-never-descends-class-attributes, python-refusal-tag-values-pinned-nowhere, pin-mismatch-recourse-emitted-twice, subject-body-drops-the-declared-contacts]
+closed: 2026-09-03
 ---
 
 Mechanical under the 08-29 ruling (no A/B row, no block slot; brief-as-spec,
