@@ -76,3 +76,51 @@ guard stable code), but a family whose cost is measured and whose
 return is zero is where lever 4–6 work starts; the R1/R2 asymmetry
 says the second reviewer's suite of a pair is the first candidate to
 gate or fold.
+
+## Seam: the timing census landed (2026-09-03)
+
+Per-test cpu-s over 104 green hosted runs (298 shard legs; all six
+lane × ε rows covered 23–27 times), parsed with `scripts/slowest-tests.py`'s
+own reader, shares normalised inside each run. Coverage caveat: the
+Actions run-listing API caps at 1000 results and this repo makes
+~150 runs a day, so PR runs are reachable only from 2026-08-27 and
+main pushes from 2026-08-09; the trend is anchored on the latter.
+
+- **Snapshot 2026-09-02**: default lane 459 cpu-s over ~5 700 tests
+  (~113 s wall per shard), interval 535 cpu-s (~138 s). Top 20 tests
+  = 50 % / 61 %; top 40 = 64 % / 80 %. **89 % of tests cost under
+  20 ms and are 8 % of the bill** — the tail is free; the head is the
+  work.
+- **One file is a quarter to a third of the suite**:
+  `crates/geom-brep/tests/cert5_r2_probes.rs` (11 tests: 118 cpu-s =
+  26 % default, 163 cpu-s = 30 % interval). `geom-brep` as a crate is
+  ~50 % of both lanes. Files whose own headers call them review probes
+  are 60 % of the cpu-s on ~32 % of the tests.
+- **The suite doubled in the last week** (255 → 459 cpu-s on the
+  default lane, 08-27 → 09-02) from two suites landing (`cert5_r2_probes`,
+  `cert7_r1_probes`) and one row slowing.
+- **Rows that cannot fail**: `cert7_r1_probes::hunt_for_a_genuine_refinement_stall`
+  (29 s, 6.4 % of the default suite alone) and
+  `cert7_r2_probes::r2_stall_hunt` (4.7 s) hold no assertion — every
+  arm is an `eprintln!`; the file header says "local, not for merge".
+  `cert5_r2_probes::many_offgrid_knots_cost` / `many_dyadic_knots_cost`
+  (24 s + 23 s) are cost-measurement probes printing `R2 COST`.
+- **The dominant mechanism** is an independent dense Gauss–Legendre +
+  Cox–de Boor oracle rebuilt per test (cert5_r2's `drive()` evaluates
+  it twice, at 16 and 32 cells per span, only to decide `converged`);
+  second is a ladder inside one `#[test]` (`width_versus_gap_from_a_block_edge`
+  = 7 `drive()` calls, 43–59 s; the topo torus probe = 5 shapes × ~262
+  ray poses, 23 s). ε barely moves the suite total but swings single
+  certification rows 4–7× (1e-6 is the cheap row).
+- **Interval-only**: `editor-core/tests/m10_3_r1_probes_interval.rs`
+  is 42 cpu-s (7.9 % of the interval suite); its head row runs the E6
+  driver at a 4096 budget three times.
+
+**Units cut (test-only track, Opus lanes, batched style review):**
+TCOST-2 geom-brep cert5/cert6 probes; TCOST-3 geom-brep cert7 +
+rational review probes + offset_fit + offb_r2; TCOST-4 topo
+`solid_contain::r1_probes` and the boolean in-src rows; TCOST-5 the
+sweep + step-import rational family; TCOST-6 editor-core's interval
+probes and the three fixture-dump infra rows. TCOST-2/3/4 dispatched
+first (one heavy cargo at a time on this box; 5 and 6 follow when
+disk frees).
