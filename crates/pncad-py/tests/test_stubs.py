@@ -430,6 +430,30 @@ class TestStubClassDrift(unittest.TestCase):
         }
         self.assertIn("__mul__", operators)
         self.assertIn("__len__", operators)
+        # THE COUNT THE NAMED PINS ABOVE CANNOT HOLD. Roughly a
+        # quarter of the stub's classes compare as two EMPTY sets, and
+        # correctly so: the whole `PncadError` hierarchy declares its
+        # payload as instance attributes (see `stub_class_names`), and
+        # a handful of value classes declare only `__init__`. Those
+        # are vacuous rows by construction, not by defect — but they
+        # mean a future edit could hollow the walk out to a fraction
+        # of its reach with every pin above still green. So the number
+        # of classes where at least ONE side is non-empty is itself
+        # pinned. It was 98 of 136 when this was written; the floor is
+        # set below that with room for ordinary churn, and a DROP
+        # through it is the signal — a rise needs no permission.
+        compared = sum(
+            1
+            for name, node in classes.items()
+            if stub_class_names(node) or module_class_names(getattr(pncad, name))
+        )
+        self.assertGreater(
+            compared,
+            90,
+            "the class walk is comparing far fewer classes non-vacuously than "
+            "the 98 it reached when this floor was written — something has "
+            "stopped reading a side rather than the surface having shrunk",
+        )
 
 
 if __name__ == "__main__":

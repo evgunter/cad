@@ -441,26 +441,19 @@ impl PartResolver for Workspace {
             // paragraph to make an exception for, and a variant added
             // later answers for itself.
             //
-            // There WAS an arm here that re-appended
-            // [`PIN_MISMATCH_RECOURSE`] to a `PinMismatch`, so that a
-            // caller holding only the kernel-side
-            // `ResolveFailure::message` — which never sees the store's
-            // `WorkspaceError` — would still be told what to do. That
-            // reason is sound and still holds; the arm was not. The
-            // `Display` arm for `PinMismatch` ends on that same
-            // sentence UNCONDITIONALLY (see the arm above), so the
-            // append was not a fallback for a message that lacked the
-            // recourse, it was a second copy of the paragraph in every
-            // pin-mismatch message that reached an evaluation. Dropping
-            // it is safe precisely BECAUSE `Display` is the guaranteed
-            // source.
-            //
-            // The coupling is therefore real and unguarded by any
-            // test on this side: if a later edit makes `Display`'s
-            // `PinMismatch` arm stop ending on the recourse, this door
-            // silently stops carrying it. The pins that would catch
-            // that live at the far ends (the demo's update walk, the
-            // Python author suite), not here.
+            // A caller holding only the kernel-side
+            // `ResolveFailure::message` never sees the store's
+            // `WorkspaceError`, so this door carries the recourse ONLY
+            // because [`WorkspaceError`]'s `PinMismatch` arm ends on
+            // [`PIN_MISMATCH_RECOURSE`] unconditionally (see the arm
+            // above) — a real coupling between two impls, and the
+            // reason a second copy appended here would be a second
+            // copy rather than a fallback. It is held rather than
+            // merely hoped: `crates/viewer/tests/instance_authoring.rs`
+            // asserts the recourse on the badge an evaluation renders,
+            // which is this message, in this workspace and with no
+            // interpreter. The demo's update walk and the Python author
+            // suite pin the COUNT at one from further out.
             message: e.to_string(),
         })
     }

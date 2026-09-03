@@ -403,13 +403,9 @@ pub(crate) struct Datum {
     // reader checking the binding against the stub would have to chase
     // the alias to learn nothing new. The two fields above it —
     // `direction`'s triple and `in_plane`'s pair of pairs — are literal
-    // for the same reason and stay under clippy's threshold; naming only
-    // the third would make three projections of one kind read as two. The bare `f64`s are the
-    // dimensionless-direction convention (`py/place.rs:8-10`: "a bare
-    // float appears only where the Rust side is itself a dimensionless
-    // direction or a matrix entry"), unlike `origin`, which is
-    // `Length` — a further reason to leave the primitive shape visible
-    // at the site.
+    // for the same reason and stay under clippy's threshold; naming
+    // only the third would make three projections of one kind read as
+    // two.
     #[allow(clippy::type_complexity)] // the tuple IS the Python-side contract; see above
     #[pyo3(get)]
     axes: Option<((f64, f64, f64), (f64, f64, f64))>,

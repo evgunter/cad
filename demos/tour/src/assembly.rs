@@ -1253,8 +1253,11 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     // One is the count with meaning on BOTH sides: zero would mean the
     // store's `Display` dropped the sentence and the kernel-side
     // message no longer tells an author what to do, two would mean the
-    // seam started re-appending it. Neither is caught anywhere nearer
-    // the code than here and in the Python author suite.
+    // seam started re-appending it. The ZERO case is also held inside
+    // the workspace, by `crates/viewer/tests/instance_authoring.rs`,
+    // which asserts the recourse on the badge; what only this line and
+    // the Python author suite hold is the COUNT, which is what a
+    // `contains` assertion cannot see.
     assert_eq!(
         refused
             .kind
