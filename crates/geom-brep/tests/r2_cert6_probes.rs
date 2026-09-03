@@ -49,20 +49,50 @@ fn drive(weights: &[f64], eps: f64) -> Result<geom_brep::props::quad::FaceCutBou
     nurbs_patch_face::<f64>(&ku, &kv, &net, weights, (a, b, c, d), 8.0, 0.0, eps, band())
 }
 
-/// E2E half 1: an honest face certifies with the gauge live and the
-/// assert is silent — integral (unit-weight) lane.
+/// Everything this dome is read for, in ONE row: the gauge's silence
+/// at both patch lanes, and the ε-invariance of the area enclosure's
+/// bits.
 ///
-/// **ε posture (added when this row was adopted).** The premise is
-/// per band, not unconditional: the fixed area schedule and the
-/// ε-scaled flux target mean a tighter band legitimately refuses at
-/// the round budget — the superset direction the unit's posture
-/// argument names, and observed live on the rational sibling below at
-/// ε = 1e-12. Either outcome is honest; what this row reads is that
-/// the GAUGE stayed silent, which is true of a refusal too (reaching
-/// this line at all is the reading, since a fire is a panic).
+/// One row rather than three because nextest is process-per-test, so
+/// three rows drive the same dome at overlapping ε and each pays in
+/// full; `at` below evaluates each distinct (lane, ε) pair once, which
+/// also means a leg whose own ε equals one of the literals here pays
+/// for that drive once instead of twice. Every assertion names the
+/// reading it makes.
+///
+/// **ε posture.** The premise of the gauge readings is per band, not
+/// unconditional: the fixed area schedule and the ε-scaled flux target
+/// mean a tighter band legitimately refuses at the round budget — the
+/// superset direction the unit's posture argument names, and observed
+/// live on the rational lane at ε = 1e-12. Either outcome is honest;
+/// what the gauge readings check is that the GAUGE stayed silent,
+/// which is true of a refusal too (reaching the line at all is the
+/// reading, since a fire is a panic). The bit readings are taken only
+/// where the face certifies, for the same reason.
 #[test]
-fn r2_honest_nurbs_face_is_gauge_silent() {
-    match drive(&[1.0; 9], Tol::witness().get().eps) {
+fn r2_dome_gauge_silence_and_area_bit_invariance() {
+    let unit = [1.0; 9];
+    let mut rational = [1.0; 9];
+    rational[4] = 1.25;
+    let lane_eps = Tol::witness().get().eps;
+
+    type Reading = Result<geom_brep::props::quad::FaceCutBounds, PropsError>;
+    fn at<'a>(memo: &'a mut Vec<((bool, u64), Reading)>, w: &[f64; 9], eps: f64) -> &'a Reading {
+        let key = (w[4] != 1.0, eps.to_bits());
+        let idx = match memo.iter().position(|(k, _)| *k == key) {
+            Some(i) => i,
+            None => {
+                memo.push((key, drive(w, eps)));
+                memo.len() - 1
+            }
+        };
+        &memo[idx].1
+    }
+    let mut memo: Vec<((bool, u64), Reading)> = Vec::new();
+
+    // Reading 1 — integral (unit-weight) lane at the run's own ε: an
+    // honest face and a silent gauge.
+    match at(&mut memo, &unit, lane_eps) {
         Ok(out) => {
             println!(
                 "R2 nurbs dome: area [{:e},{:e}] width {:e}",
@@ -70,23 +100,24 @@ fn r2_honest_nurbs_face_is_gauge_silent() {
                 out.area.hi(),
                 out.area.width()
             );
-            assert!(out.area.width().is_finite() && out.area.lo() > 0.0);
+            assert!(
+                out.area.width().is_finite() && out.area.lo() > 0.0,
+                "integral-lane gauge reading: a certified dome must return a finite, \
+                 strictly positive area enclosure, got [{:e},{:e}]",
+                out.area.lo(),
+                out.area.hi()
+            );
         }
         Err(PropsError::QuadratureBudget { .. }) => {
             println!("R2 nurbs dome: honest budget refusal at this band — gauge silent");
         }
         Err(e) => panic!("the mild dome should certify or refuse at the budget, got {e}"),
     }
-}
 
-/// E2E half 1, rational lane: non-unit weights route to
-/// `rational_patch_face`; a certified return means the gauge (and its
-/// new `Ladder::point` perimeter) ran silently.
-#[test]
-fn r2_honest_rational_face_is_gauge_silent() {
-    let mut w = [1.0; 9];
-    w[4] = 1.25;
-    match drive(&w, Tol::witness().get().eps) {
+    // Reading 2 — rational lane at the run's own ε: non-unit weights
+    // route to `rational_patch_face`, so a posture here means that
+    // arm's gauge (and its `Ladder::point` perimeter) ran silently.
+    match at(&mut memo, &rational, lane_eps) {
         Ok(out) => {
             println!(
                 "R2 rational dome: area [{:e},{:e}] width {:e}",
@@ -94,47 +125,61 @@ fn r2_honest_rational_face_is_gauge_silent() {
                 out.area.hi(),
                 out.area.width()
             );
-            assert!(out.area.width().is_finite() && out.area.lo() > 0.0);
+            assert!(
+                out.area.width().is_finite() && out.area.lo() > 0.0,
+                "rational-lane gauge reading: a certified dome must return a finite, \
+                 strictly positive area enclosure, got [{:e},{:e}]",
+                out.area.lo(),
+                out.area.hi()
+            );
         }
-        // ε posture, per band: at ε = 1e-12 this dome stalls at
-        // 2.902e-7 against a 1.024e-9 target and refuses honestly.
-        // The typed budget refusal is a correct outcome, not a red;
-        // the row's subject is the gauge's silence, which holds either
-        // way. (Adopted row: the unconditional panic here sampled only
-        // the default band.)
         Err(PropsError::QuadratureBudget { .. }) => {
             println!("R2 rational dome: honest budget refusal at this band — gauge silent");
         }
         Err(e) => panic!("the mild rational dome should certify or refuse at the budget, got {e}"),
     }
-}
 
-/// The calibration's ε-invariance premise: the area enclosure is
-/// built before the round loop, so its BITS cannot move with ε.
-#[test]
-fn r2_area_enclosure_bits_are_eps_invariant() {
-    let a = drive(&[1.0; 9], Tol::witness().get().eps).expect("default");
-    let b = drive(&[1.0; 9], 1e-6).expect("1e-6");
-    assert_eq!(a.area.lo().to_bits(), b.area.lo().to_bits());
-    assert_eq!(a.area.hi().to_bits(), b.area.hi().to_bits());
-    // At 1e-12 the dome may honestly refuse (fixed schedule, tighter
-    // target) — the ε-superset direction of the PR's posture argument,
-    // observed live. Bits are compared only when it certifies.
-    match drive(&[1.0; 9], 1e-12) {
-        Ok(c) => {
-            assert_eq!(a.area.lo().to_bits(), c.area.lo().to_bits());
-            assert_eq!(a.area.hi().to_bits(), c.area.hi().to_bits());
-        }
+    // Reading 3 — the calibration's ε-invariance premise: the area
+    // enclosure is built BEFORE the round loop, so its bits cannot
+    // move with ε. Integral lane, against the run's ε as the baseline.
+    let (a_lo, a_hi) = {
+        let a = at(&mut memo, &unit, lane_eps)
+            .as_ref()
+            .expect("integral-lane ε-invariance baseline: the dome certifies at the run's ε");
+        (a.area.lo().to_bits(), a.area.hi().to_bits())
+    };
+    {
+        let b = at(&mut memo, &unit, 1e-6)
+            .as_ref()
+            .expect("integral-lane ε-invariance: the dome certifies at ε = 1e-6");
+        assert_eq!(
+            (a_lo, a_hi),
+            (b.area.lo().to_bits(), b.area.hi().to_bits()),
+            "integral-lane area enclosure bits moved between the run's ε and 1e-6"
+        );
+    }
+    match at(&mut memo, &unit, 1e-12) {
+        Ok(c) => assert_eq!(
+            (a_lo, a_hi),
+            (c.area.lo().to_bits(), c.area.hi().to_bits()),
+            "integral-lane area enclosure bits moved between the run's ε and 1e-12"
+        ),
         Err(e) => println!("R2 eps=1e-12: honest refusal ({e}) — superset direction observed"),
     }
-    let mut w = [1.0; 9];
-    w[4] = 1.25;
-    let ra = drive(&w, 1e-6).expect("rational 1e-6");
-    match drive(&w, 1e-12) {
-        Ok(rb) => {
-            assert_eq!(ra.area.lo().to_bits(), rb.area.lo().to_bits());
-            assert_eq!(ra.area.hi().to_bits(), rb.area.hi().to_bits());
-        }
+
+    // Reading 4 — the same premise on the rational lane.
+    let (r_lo, r_hi) = {
+        let ra = at(&mut memo, &rational, 1e-6)
+            .as_ref()
+            .expect("rational-lane ε-invariance baseline: the dome certifies at ε = 1e-6");
+        (ra.area.lo().to_bits(), ra.area.hi().to_bits())
+    };
+    match at(&mut memo, &rational, 1e-12) {
+        Ok(rb) => assert_eq!(
+            (r_lo, r_hi),
+            (rb.area.lo().to_bits(), rb.area.hi().to_bits()),
+            "rational-lane area enclosure bits moved between ε = 1e-6 and ε = 1e-12"
+        ),
         Err(e) => println!("R2 rational eps=1e-12: honest refusal ({e})"),
     }
 }

@@ -231,6 +231,13 @@ pub(crate) fn oracle_patch(
 /// oracle (with a 1e-9-relative slack for the oracle's own f64
 /// drift); a refusal must be a typed quadrature posture. Returns the
 /// certified widths when certified.
+///
+/// The oracle is what a certified bracket is checked against, so it is
+/// evaluated inside the `Ok` arm only — a typed refusal has no bracket.
+/// Its two resolutions must agree before either is believed; cells
+/// never straddle a knot, so composite 5-point Gauss-Legendre on one
+/// is `h^10`-convergent and the observed 12-against-24 gap bounds the
+/// finer value's own error by that gap over `2^10 - 1`.
 fn drive(
     name: &str,
     ku: &KnotVector,
@@ -240,14 +247,6 @@ fn drive(
     perimeter: f64,
     eps: f64,
 ) -> Option<(f64, f64)> {
-    let pa = oracle_patch(ku, kv, control, weights);
-    let (of1, oa1) = pa.dense(24);
-    let (of2, oa2) = pa.dense(48);
-    assert!(
-        (of1 - of2).abs() < 1e-7 * (1.0 + of2.abs())
-            && (oa1 - oa2).abs() < 1e-7 * (1.0 + oa2.abs()),
-        "{name}: oracle did not converge: flux {of1} vs {of2}, area {oa1} vs {oa2}"
-    );
     let out = nurbs_patch_face::<f64>(
         ku,
         kv,
@@ -265,6 +264,16 @@ fn drive(
     );
     match out {
         Ok(fb) => {
+            let pa = oracle_patch(ku, kv, control, weights);
+            let (of1, oa1) = pa.dense(12);
+            let (of2, oa2) = pa.dense(24);
+            assert!(
+                (of1 - of2).abs() < 1e-7 * (1.0 + of2.abs())
+                    && (oa1 - oa2).abs() < 1e-7 * (1.0 + oa2.abs()),
+                "{name}: oracle did not converge, so the containment assertions below \
+                 would compare against a number that is not the truth: flux {of1} vs \
+                 {of2}, area {oa1} vs {oa2}"
+            );
             let sf = 1e-9 * (1.0 + of2.abs());
             let sa = 1e-9 * (1.0 + oa2.abs());
             eprintln!(

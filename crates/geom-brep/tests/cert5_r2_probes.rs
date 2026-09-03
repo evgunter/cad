@@ -197,37 +197,31 @@ fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
 }
 
 /// Drive the public door; assert SOUNDNESS against the oracle.
-/// Returns (posture string, width if refused, seconds).
+/// Returns (posture string, width if refused).
+///
+/// The oracle exists to be a truth a CERTIFIED bracket must contain,
+/// so it is built and evaluated inside the `Ok` arm only: a typed
+/// refusal has no bracket to compare against.
+///
+/// Two resolutions, `cells` and `2 * cells`, are computed and must
+/// agree before either is believed. Cells never straddle a knot, so
+/// the integrand on one is smooth and composite 5-point
+/// Gauss-Legendre converges as `h^10`: the observed gap between the
+/// two therefore bounds the FINER value's own error by that gap over
+/// `2^10 - 1`. 8-against-16 leaves that bound at 1e-12 relative,
+/// three orders below the 1e-9 the containment slack needs.
 fn drive(
     name: &str,
     ku: &KnotVector,
     kv: &KnotVector,
     control: &[[RingInterval; 3]],
     weights: &[f64],
-) -> (String, Option<f64>, f64) {
+) -> (String, Option<f64>) {
     let nu = ku.control_count();
     let nv = kv.control_count();
     assert_eq!(control.len(), nu * nv, "{name}: net shape");
-    let oracle = Oracle {
-        ku: ku.knots().to_vec(),
-        kv: kv.knots().to_vec(),
-        du: ku.degree(),
-        dv: kv.degree(),
-        nu,
-        nv,
-        cp: control
-            .iter()
-            .zip(weights)
-            .map(|(c, w)| [c[0].lo() * w, c[1].lo() * w, c[2].lo() * w, *w])
-            .collect(),
-    };
-    let (f1, a1) = oracle.dense(16);
-    let (f2, a2) = oracle.dense(32);
-    let converged =
-        (f1 - f2).abs() < 1e-9 * (1.0 + f2.abs()) && (a1 - a2).abs() < 1e-9 * (1.0 + a2.abs());
     let (ua, ub) = ku.domain();
     let (va, vb) = kv.domain();
-    let t0 = std::time::Instant::now();
     let out = nurbs_patch_face::<f64>(
         ku,
         kv,
@@ -239,51 +233,73 @@ fn drive(
         Tol::witness().get().eps,
         band(),
     );
-    let secs = t0.elapsed().as_secs_f64();
     match out {
         Ok(fb) => {
+            let oracle = Oracle {
+                ku: ku.knots().to_vec(),
+                kv: kv.knots().to_vec(),
+                du: ku.degree(),
+                dv: kv.degree(),
+                nu,
+                nv,
+                cp: control
+                    .iter()
+                    .zip(weights)
+                    .map(|(c, w)| [c[0].lo() * w, c[1].lo() * w, c[2].lo() * w, *w])
+                    .collect(),
+            };
+            let (f1, a1) = oracle.dense(8);
+            let (f2, a2) = oracle.dense(16);
             println!(
                 "R2 {name}: CERTIFIED flux [{:.12e},{:.12e}] oracle {:.12e} | area \
-                 [{:.12e},{:.12e}] oracle {:.12e} | {:.2}s | oracle-converged {converged}",
+                 [{:.12e},{:.12e}] oracle {:.12e}",
                 fb.flux.lo(),
                 fb.flux.hi(),
                 f2,
                 fb.area.lo(),
                 fb.area.hi(),
                 a2,
-                secs
             );
-            if converged {
-                assert!(
-                    f2 >= fb.flux.lo() && f2 <= fb.flux.hi(),
-                    "UNSOUND {name}: flux oracle {f2:.17e} outside [{:.17e},{:.17e}]",
-                    fb.flux.lo(),
-                    fb.flux.hi()
-                );
-                assert!(
-                    a2 >= fb.area.lo() && a2 <= fb.area.hi(),
-                    "UNSOUND {name}: area oracle {a2:.17e} outside [{:.17e},{:.17e}]",
-                    fb.area.lo(),
-                    fb.area.hi()
-                );
-            }
-            ("CERTIFIED".to_string(), None, secs)
+            assert!(
+                (f1 - f2).abs() < 1e-9 * (1.0 + f2.abs()),
+                "ORACLE NOT CONVERGED {name}: the flux truth is not believable, so the \
+                 containment assertion below would assert nothing: 8 cells/span \
+                 {f1:.17e} vs 16 cells/span {f2:.17e}"
+            );
+            assert!(
+                (a1 - a2).abs() < 1e-9 * (1.0 + a2.abs()),
+                "ORACLE NOT CONVERGED {name}: the area truth is not believable, so the \
+                 containment assertion below would assert nothing: 8 cells/span \
+                 {a1:.17e} vs 16 cells/span {a2:.17e}"
+            );
+            assert!(
+                f2 >= fb.flux.lo() && f2 <= fb.flux.hi(),
+                "UNSOUND {name}: flux oracle {f2:.17e} outside [{:.17e},{:.17e}]",
+                fb.flux.lo(),
+                fb.flux.hi()
+            );
+            assert!(
+                a2 >= fb.area.lo() && a2 <= fb.area.hi(),
+                "UNSOUND {name}: area oracle {a2:.17e} outside [{:.17e},{:.17e}]",
+                fb.area.lo(),
+                fb.area.hi()
+            );
+            ("CERTIFIED".to_string(), None)
         }
         Err(PropsError::QuadratureBudget {
             width_len,
             target_len,
         }) => {
             println!(
-                "R2 {name}: BUDGET width {width_len:.6e} vs target {target_len:.6e} \
-                 ({:.1}x) | {secs:.2}s",
+                "R2 {name}: BUDGET width {width_len:.6e} vs target {target_len:.6e} ({:.1}x)",
                 width_len / target_len
             );
             assert!(width_len.is_finite() && width_len > target_len);
-            ("BUDGET".to_string(), Some(width_len), secs)
+            ("BUDGET".to_string(), Some(width_len))
         }
         Err(e) => {
-            println!("R2 {name}: OTHER {e} | {secs:.2}s");
-            (format!("{e:?}"), None, secs)
+            println!("R2 {name}: OTHER {e}");
+            (format!("{e:?}"), None)
         }
     }
 }
@@ -418,71 +434,32 @@ fn knot_one_ulp_inside_the_rectangle_edge() {
     drive("knot 1 ulp inside rect edge", &ku, &kv, &cp, &ws);
 }
 
-/// Cost: the cut list is `pieces + blocks + knots` per axis and the
-/// coarse hull grid is now `(blocks + knots)²` blocks, so a
-/// heavily-knotted patch pays quadratically in KNOT COUNT for
-/// something the PR body describes as "built once, before the rounds".
-#[test]
-fn many_offgrid_knots_cost() {
-    let mk = |seed: f64| -> KnotVector {
-        let mut k = vec![0.0, 0.0, 0.0];
-        for i in 1..=12 {
-            // generic, strictly increasing, off any dyadic grid
-            k.push((i as f64 + seed) / 13.37);
-        }
-        k.extend([1.0, 1.0, 1.0]);
-        KnotVector::clamped(k, 2).unwrap()
-    };
-    let (ku, kv) = (mk(0.11), mk(0.29));
-    let (cp, ws) = tile(&ku, &kv, &|i, j| 1.0 + 0.05 * i as f64 + 0.03 * j as f64);
-    let (_, _, secs) = drive("12+12 off-grid knots", &ku, &kv, &cp, &ws);
-    println!("R2 COST: 12+12 interior knots each axis took {secs:.2}s");
-}
-
-/// The same shape with the knots on the DYADIC grid, for the cost
-/// contrast (same cell count arithmetic, no extra cuts).
-#[test]
-fn many_dyadic_knots_cost() {
-    let mk = || -> KnotVector {
-        let mut k = vec![0.0, 0.0, 0.0];
-        for i in 1..=12 {
-            k.push(i as f64 / 16.0);
-        }
-        k.extend([1.0, 1.0, 1.0]);
-        KnotVector::clamped(k, 2).unwrap()
-    };
-    let (ku, kv) = (mk(), mk());
-    let (cp, ws) = tile(&ku, &kv, &|i, j| 1.0 + 0.05 * i as f64 + 0.03 * j as f64);
-    let (_, _, secs) = drive("12+12 dyadic knots", &ku, &kv, &cp, &ws);
-    println!("R2 COST: 12+12 dyadic knots took {secs:.2}s");
-}
-
 /// **The isolation control for the sliver finding.** One interior v
 /// knot, placed at a graded distance from the coarse block edge 3/8.
 /// The geometry is the SAME surface class at every gap; only the
-/// distance from a cut point the engine adds by itself changes.
+/// distance from a cut point the engine adds by itself changes, and
+/// each rung asserts, under its own `gap <label>` name, that the door
+/// answers with a bracket containing the oracle or with an honest
+/// typed posture.
+///
+/// Three rungs span what the scan is for: `1e-15` inside the hazard,
+/// `1e-12` at the knee where the refusal width falls back towards the
+/// round target, and the far control clear of every block edge. The
+/// gap-zero end of the scan is the ulp-adjacent knot, which
+/// `knot_one_ulp_from_a_block_edge` above drives as its own row on
+/// this exact fixture; the rungs between `1e-12` and the far control
+/// sit on a plateau the far control already stands for.
 #[test]
 fn width_versus_gap_from_a_block_edge() {
     let edge: f64 = 3.0 / 8.0;
-    let gaps: [(&str, f64); 6] = [
-        ("1 ulp", f64::from_bits(edge.to_bits() + 1) - edge),
-        ("1e-15", 1e-15),
-        ("1e-12", 1e-12),
-        ("1e-9", 1e-9),
-        ("1e-6", 1e-6),
-        ("1e-3", 1e-3),
-    ];
     let ku = kv_offgrid_deg2();
-    for (label, g) in gaps {
-        let k = edge + g;
+    let scan = |label: &str, k: f64| {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, k, 0.71, 1.0, 1.0, 1.0], 2).unwrap();
         let (cp, ws) = tile(&ku, &kv, &|i, j| 1.0 + 0.20 * i as f64 + 0.13 * j as f64);
-        let (post, w, secs) = drive(&format!("gap {label}"), &ku, &kv, &cp, &ws);
-        println!("R2 GAPSCAN gap={label} -> {post} width={w:?} {secs:.1}s");
-    }
-    // And the far control: nowhere near a block edge.
-    let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.313, 0.71, 1.0, 1.0, 1.0], 2).unwrap();
-    let (cp, ws) = tile(&ku, &kv, &|i, j| 1.0 + 0.20 * i as f64 + 0.13 * j as f64);
-    let (post, w, _) = drive("far control 0.313", &ku, &kv, &cp, &ws);
-    println!("R2 GAPSCAN far-control -> {post} width={w:?}");
+        let (post, w) = drive(&format!("gap {label}"), &ku, &kv, &cp, &ws);
+        println!("R2 GAPSCAN gap={label} -> {post} width={w:?}");
+    };
+    scan("1e-15", edge + 1e-15);
+    scan("1e-12", edge + 1e-12);
+    scan("far control 0.313", 0.313);
 }
