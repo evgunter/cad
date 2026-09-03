@@ -110,6 +110,8 @@ mod mate8_witness_schedule;
 mod mate9_crossing_rung;
 #[path = "merge_skip.rs"]
 mod merge_skip;
+#[path = "mesh12_rim_row_reach.rs"]
+mod mesh12_rim_row_reach;
 #[path = "mesh8_coherence.rs"]
 mod mesh8_coherence;
 #[path = "r1_mate4a_probes.rs"]
