@@ -29,7 +29,13 @@ fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
     apply(d, e, Tol::witness()).expect("edit applies").doc
 }
 
-fn doc_with_axis_dir(dir: [f64; 3]) -> (ProfileDoc, editor_core::RecipeNodeId, editor_core::RecipeNodeId) {
+fn doc_with_axis_dir(
+    dir: [f64; 3],
+) -> (
+    ProfileDoc,
+    editor_core::RecipeNodeId,
+    editor_core::RecipeNodeId,
+) {
     let mut doc = ProfileDoc::empty_derived("r1_probe2", Tol::witness());
     doc = push(
         &doc,
