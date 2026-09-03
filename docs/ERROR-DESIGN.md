@@ -10,7 +10,14 @@ one dimension-generic Measure sink; E6 adopts **no-flips v1** (Ev's
 proposal); E11 MC softened to a labeled advisory lane; E11.6
 histogram note. Post-ratification amendment on record (#110 thread,
 Ev's one-branch-tails observation, 2026-07-27): chamber containment
-added to E2.
+added to E2. **Revision E12 (2026-09-03, RATIFIED — Ev on PR #1712, "lgtm";
+in-chat design conversation at M10's exit walk):** E12
+added (certification is parameter-aware — identities decide
+symbolically at any box width); E3 amended (the `min_clearance`
+primitive is binary; parallelism verdicts a measure consumes are
+levered by the operands' extent, no floor). Ev's ruling that opened
+it: the program does not close while a macroscopic tolerance box
+certifies nothing.
 
 Written alongside NAMING-DESIGN (#74) and SOLVER-DESIGN (#79) as the
 third pre-M4 design doc. Grounding: DESIGN.md's central commitment
@@ -139,7 +146,7 @@ is a typed document error).
 sink node — typed F1 quantity out, no body output. The quantity
 kind rides the measured *expression* through the F1 lattice, never
 per-kind node variants: measurement primitives are typed functions
-in the F7 extension — `distance(a, b)`, `min_clearance(sel)` →
+in the F7 extension — `distance(a, b)`, `min_clearance(a, b)` →
 Length; `angle(a, b)` → Angle; mass properties in their own
 dimensions (their Length-powers force the recorded *additive* F1
 lattice growth, never a Measure-local type) — over StableName
@@ -168,6 +175,41 @@ content-key cached like everything.
   Accepted; sinks are lazily evaluable, the GUI presents them as a
   panel, and the document is the right home for design intent
   (E10's assertions).
+
+**E3 amendments (revision E12, 2026-09-03).**
+
+- **`min_clearance` is BINARY**: `min_clearance(a, b)` over two
+  selections, each "which faces of which body" (a body reference is
+  all of its faces, a face reference is that one); the value is the
+  minimum over the pairs A × B and the closest pair is the OUTPUT
+  (the witness), never an input. The same body on both sides is its
+  self-clearance (adjacent pairs excluded by the wedge rule). The
+  earlier `min_clearance(sel)` spelling read as "this selection
+  against the rest of the document" — the assembly consumer's
+  question — which the binary door asks only pairwise; a complement
+  selection ("everything but this") is a LATER selection spelling,
+  not a different primitive. (M10-6 shipped the binary door and
+  disclosed the arity as deviation D8; ratified here.)
+- **Parallelism verdicts a measure consumes are levered by the
+  operands' EXTENT, with no floor.** `distance`/`gap` over plane or
+  axis pairs consume `bool_plane_parallel` /
+  `carrier_cyl_axis_parallel` at margin `sin θ · L`. M10-2 shipped
+  `L = max(separation, 1 m)`, an ad-hoc absolute constant of exactly
+  the class the rejected lever-arm unification names: for every
+  sub-metre part the separation never enters and the tilt is priced
+  across a metre it does not span. The separation is the wrong
+  lever in either direction — at zero separation the distance VALUE
+  is zero whether or not the planes are tilted, but the verdict
+  "parallel" is consumed as "constant separation across the faces"
+  by the gap sign and the mate consumers, and two planes crossing
+  within ε of the reference point at 45° would certify it. The
+  lever is `L` = an UPPER bound on the extent of the two operands
+  together (their carrier windows' diameter, which E7's BVH already
+  carries): the margin then means "parallel to within ε across the
+  faces it is consumed over", scale-aware, and a real face has
+  positive extent by construction so no floor exists. Over-refusal
+  is the safe direction, which is why the bound is an upper one.
+  The `max(·, 1 m)` sibling in `mate.rs` takes the same lever.
 
 ## E4 — Sensitivity semantics: forward Dual<f64>, one seed per parameter, chamber-local and marked as such
 
@@ -288,7 +330,7 @@ ratified default).
 For a **certified leaf** (fixed topology), the analysis answers two
 questions:
 global self-intersection-freedom, and `min-clearance ≥ c` for a
-named selection (a `min_clearance` Measure + E10 assertion).
+pair of selections (a `min_clearance` Measure + E10 assertion).
 
 **Mechanism**: two nested subdivisions. Outer: the E6 parameter
 leaves. Inner: geometry-domain subdivision with interval exclusion
@@ -433,6 +475,132 @@ v1 says no — assertions report; a gating mode is additive policy.
 8. **No optimization/inverse loops** ("resize until clearance
    holds") — consumers of the MVP's reports, not part of it.
 
+## E12 — Certification is parameter-aware: identities decide symbolically, at any box width
+
+**Decision** (revision E12, 2026-09-03, ratified on #1712; opened by
+Ev at M10's exit walk: "we need to make this parameter-aware so it's usable; that's
+the whole point of this machinery"). The E6 leaf protocol gains a
+SYMBOLIC tier ahead of the numeric one: beside every lane value the
+replay carries a handle into a hash-consed expression DAG over the
+document's continuous-parameter symbols, and a funnel margin whose
+expression is IDENTICALLY ZERO in the parameters decides `Zero`
+before any enclosure is consulted — for every parameter value, at
+any box width. Everything else decides numerically as today.
+
+**The defect it closes** (measured by M10-3, pinned by
+`m10_3_driver_interval::a_macroscopic_box_refuses_all_of_its_mass_as_budget_today`).
+The funnel's certification population includes checked IDENTITIES —
+an edge endpoint lies on its carrier (`carrier_endpoint_start/end`),
+consecutive walls are cosurface (`side_planes_cosurface`); 57 names of
+that shape in PR #1231's sweep — whose margin is exactly zero in real
+arithmetic for every parameter value and whose interval enclosure over
+a box of width w is `[0, c·w]`, c ≈ 2–4. The two sides of the identity
+were evaluated into two separate intervals from ONE parameter
+upstream of the site, and interval arithmetic cannot see that the
+occurrences are one number. A leaf goes definite only below ~ε/8 of
+width, so a ±0.05 band on a 1.0 nominal (10⁸ ε) refuses all of its
+mass as `Budget` and the MVP's own sentence — "2.1% of the tolerance
+mass has no valid build" — is not sayable about any macroscopic box.
+
+**Mechanism.**
+
+- **The scalar.** `Sym<T>` for the lane scalar `T` (`Interval` in the
+  driver's replay): the numeric value as today plus a DAG node id.
+  Parameters are symbols; every `Real` op mints one hash-consed node
+  (structural sharing is free and deterministic — D9). Float
+  literals are atoms keyed by their bits. Nothing in the kernel
+  changes: `Sym<T>` is one more scalar in the Real-generic pipeline,
+  and no funnel site is edited.
+- **The identity test, on demand.** A `decide` site first asks the
+  DAG whether the margin's expression is identically zero: the
+  node's POLYNOMIAL NORMAL FORM in the parameter symbols, with
+  EXACT rational coefficients, in which `sqrt`, the transcendentals
+  and every non-rational literal are OPAQUE ATOMS keyed by the normal
+  form of their argument. Normal forms are computed lazily and
+  memoized per node, so their cost is paid only for margins that
+  reach a decide site (thousands per build), never per op. A form
+  exceeding a stated term/degree budget is FROZEN into an atom —
+  cancellation past that point is lost, soundness is not (an atom is
+  an unknown function; the margin falls to the numeric path).
+- **What "identically zero" buys.** `carrier.eval(t0) − start` with
+  both built from the profile vertex P(p): the zero polynomial.
+  `y₁ − y₂` with both `h`: zero. `|(Q − P) × d|` with `Q = P + t·d`:
+  zero after `d × d = 0`. A genuine coincidence at the nominal —
+  two segments collinear at p₀ but not for p ≠ p₀ — is NOT zero in
+  the normal form, decides numerically, widens with the box, and is
+  refined toward and priced as the flip it is: the symbolic tier
+  distinguishes an identity from a coincidence, which no enclosure
+  can.
+- **Soundness.** A symbolic `Zero` is a theorem about real
+  arithmetic (exact coefficients, no rounding in the test), so the
+  identity holds at every real parameter point in the box; the leaf
+  replay's numeric channel is untouched for every non-identity
+  margin, so E6's containment claims are unchanged. The f64 witness
+  pass still evaluates every residual numerically at a point, so a
+  constructor that fails to build what it claims is still caught
+  where widening cannot hide it.
+- **The K instrument sees it.** A symbolic `Zero` is recorded in the
+  k_stats funnel as its OWN outcome (`SymbolicZero`), never as a
+  vanished sample — the driver population E6 promised K stays
+  complete, and the ratio of symbolic to numeric decisions is itself
+  the E12 evidence.
+- **What opens.** With identities discharged, a leaf is bounded only
+  by the real geometry — a normal component's sign, a gap that can
+  cross zero — which is bounded away from zero over most of a
+  macroscopic box and, where it is not, is exactly a flip the driver
+  already refines toward and prices (no-flips v1). Certified worst
+  cases become statements about the study's box.
+
+**The frontier, named.** A quantity computed by ITERATION — an SSI
+march point, a projection foot, a polished root — has no expression
+in the parameters; its residual is a genuine numeric margin that
+widens with the box whatever the symbolic tier does. Over a box that
+is a parameter-dependent existence-and-uniqueness certificate per
+family (interval Newton / Krawczyk, uniform over p), a different
+deliverable: S-CERT's
+`work/cert/param-box-certification-of-implicit-quantities.md` (filed
+at this revision). The driver's refusal for such a residual stays
+typed and priced. The plate does not reach it (plane × cylinder is
+closed form); the E12 unit's census says which of the 57 do.
+
+**Acceptance for the unit that builds this (M10-7).** The two-hole
+plate's REAL study — ±0.05 mm on the spacing, σ = 0.01 mm on the
+radii — returns certified leaves whose refusals are flips, slivers or
+the recorded tail, not `Budget`; the M10-3 limit row flips (it fails
+the day the widening closes, by design) and is re-cut as the
+positive pin; the K population reports the symbolic/numeric split;
+the ceiling is RE-MEASURED after the change so the next limit is a
+number.
+
+- **Rejected — an affine-form lane scalar** (noise symbols per box
+  axis, interval remainder): re-association performed by the
+  arithmetic, exact for identities affine in the parameters but
+  O(w²) for nonlinear ones — a ceiling at ~√ε, which is not the
+  study's box. The symbolic tier subsumes it on every explicit
+  identity; plain intervals suffice for the real margins.
+- **Rejected — per-site re-association** of the 57 residuals: the
+  sites receive VALUES, and the dependence was lost upstream when
+  one parameter became two intervals; no algebra at the site can
+  recover it. (Tempting for its simplicity — Ev — and ruled out for
+  this reason.)
+- **Rejected — mean-value / Taylor bounds**: the residual of a true
+  identity and its derivative are both identically zero, and the
+  interval evaluation of the derivative has the same dependency
+  loss; the enclosure stays O(w).
+- **Kept in reserve — discharge by provenance** (a typed "built as
+  `carrier.eval(t0)`" token, verified at the f64 witness point,
+  discharged structurally over the box): exact and simple but only
+  for same-OBJECT identities; the cosurface case is an
+  expression identity. Taken only if the census shows a family the
+  symbolic tier misses.
+
+Rationale: the driver's job is to certify over the STUDY's box; a
+certifier that can only certify boxes narrower than its own ε is
+correct and useless, and the honest state M10-3 pinned was never the
+deliverable. The symbolic tier is the minimal machinery that tracks
+the parameters fully for explicit geometry, touches no site, and
+leaves the numeric channel's soundness argument where it was.
+
 ## Worked example: the two-hole plate
 
 Plate width w (Uniform ±0.1 mm), hole diameters d₁, d₂ (Normal
@@ -481,3 +649,9 @@ d's — tail mass 1 − 0.9973² ≈ 0.54%, carried additively throughout.
   surface coverage deltas. Wiring is PR-spec.
 - **Naming-pillar composition**: Measure verdict vectors should
   join the N-machinery diff reports; confirm at implementation.
+- **Implicit quantities over a box** (E12's frontier): per-family
+  box certificates for iterated quantities — S-CERT's item; the
+  driver names the refusal until then.
+- **The complement selection** for `min_clearance` (E3): "this
+  selection against everything else" as a selection spelling, for
+  the assembly consumer.
