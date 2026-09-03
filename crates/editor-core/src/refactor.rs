@@ -721,6 +721,38 @@ fn remap_node(
             axis: id(*axis)?,
             angle: angle.clone(),
         },
+        // The two tube kinds remap the same way — one spine edge, every
+        // other field carried — and are written apart rather than
+        // through a helper, so which fields each kind has stays
+        // readable at the site that has to name them all.
+        Node::Tube {
+            spine,
+            u_ref,
+            major_radius,
+            window,
+            minor_radius,
+        } => Node::Tube {
+            spine: id(*spine)?,
+            u_ref: u_ref.clone(),
+            major_radius: major_radius.clone(),
+            window: window.clone(),
+            minor_radius: minor_radius.clone(),
+        },
+        Node::HollowTube {
+            spine,
+            u_ref,
+            major_radius,
+            window,
+            minor_radius,
+            wall,
+        } => Node::HollowTube {
+            spine: id(*spine)?,
+            u_ref: u_ref.clone(),
+            major_radius: major_radius.clone(),
+            window: window.clone(),
+            minor_radius: minor_radius.clone(),
+            wall: wall.clone(),
+        },
         Node::Loft { profiles, v_degree } => Node::Loft {
             profiles: profiles.iter().map(|&p| id(p)).collect::<Result<_, _>>()?,
             v_degree: v_degree.clone(),

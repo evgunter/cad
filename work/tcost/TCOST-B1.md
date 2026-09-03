@@ -2,7 +2,7 @@
 id: TCOST-B1
 kind: unit
 title: declare editor-core's shared test helpers once, not once per suite
-status: dispatched
+status: review
 pr: 1616
 branch: tcost/b1-dedup-suite-helpers
 opened: 2026-09-03

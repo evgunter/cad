@@ -171,6 +171,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // v4: the constructed fillet authors as the chain fillet form
     // (exact `toward` directors — G1/VQ4).
     let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+    let len0 = || Expr::literal(0.0, Dimension::Length).expect("finite");
     let fillet_loop = LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, 0.0)),
         ProgramStep::LineTo(ProgramTarget::Point(lpt(3.0, 0.0))),
@@ -331,6 +332,80 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 measure: editor_core::RecipeNodeId(8),
                 bound: Expr::literal(0.1, Dimension::Length).expect("finite"),
                 dir: editor_core::AssertionDir::AtLeast,
+            },
+        },
+    );
+    // BOTH tube kinds, and both window spellings between them. Two
+    // kinds arrived in one vocabulary change, so a golden pinning one
+    // of them would leave the other's wire shape frozen by nothing —
+    // and the window variant is recipe payload that decides which
+    // slots the node has, so `Full` and `Arc` are two shapes, not one
+    // with different numbers. (There is no schema version to pin any
+    // of this against: #1553 retired the version machinery, and these
+    // bytes are the whole freeze.)
+    //
+    // The solid kind takes the full ring and the hollow kind the arc,
+    // rather than the reverse, because that pairing puts the wall
+    // slot beside the two window-angle slots — the widest slot list
+    // either kind can carry — in the same node.
+    //
+    // Appended LAST — nodes 9, 10, 11, after the measurement pair —
+    // so every existing id and every name the appearance rows and the
+    // assertion address is untouched. Ids here are positional, and
+    // inserting earlier is exactly what the assertion's own
+    // `AssertionTarget` door refuses; this block was written when the
+    // document ended at node 6 and moved here when it did not. R > r
+    // holds for both (the ring-torus convention), and the hollow
+    // one's wall clears its own bore.
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Datum(editor_core::Datum::Axis {
+                origin: [len0(), len0(), len0()],
+                direction: [scl(0.0), scl(0.0), scl(1.0)],
+            }),
+        },
+    );
+    // The axis just inserted, found by kind rather than by the literal
+    // id this block was written with: the sketch frame is a node too,
+    // so the spine is no longer node 9. It is the document's only
+    // 3-D axis.
+    let spine = doc
+        .order()
+        .iter()
+        .copied()
+        .find(|&id| {
+            matches!(
+                doc.node(id),
+                Some(Node::Datum(editor_core::Datum::Axis { .. }))
+            )
+        })
+        .expect("the golden document carries one 3-D axis");
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Tube {
+                spine,
+                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+                major_radius: Expr::literal(2.0, Dimension::Length).expect("finite"),
+                window: editor_core::TubeWindow::Full,
+                minor_radius: Expr::literal(0.5, Dimension::Length).expect("finite"),
+            },
+        },
+    );
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::HollowTube {
+                spine,
+                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+                major_radius: Expr::literal(2.0, Dimension::Length).expect("finite"),
+                window: editor_core::TubeWindow::Arc {
+                    t0: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+                    t1: Expr::literal(1.5, Dimension::Angle).expect("finite"),
+                },
+                minor_radius: Expr::literal(0.5, Dimension::Length).expect("finite"),
+                wall: Expr::literal(0.125, Dimension::Length).expect("finite"),
             },
         },
     );

@@ -29,6 +29,7 @@ from pncad import (
     SketchPlane,
     Start,
     SurfaceKind,
+    TubeWindow,
     Sweep,
     Workspace,
     enforce_checks,
@@ -43,6 +44,7 @@ from pncad import (
     circle,
     content_pin,
     deg,
+    rad,
     evaluate,
     m,
     mm,
@@ -108,6 +110,14 @@ Node.fillet(solid, 1.0, [])  # ty: error
 # names — the twin holds the same two lines.
 Node.chamfer(solid, 1.0, [])  # ty: error
 Node.chamfer(solid, 1 * m, [solid])  # ty: error
+
+# A tube's radii are Lengths, its window is a `TubeWindow` and never a
+# pair of raw angles, and the hollow kind's WALL IS REQUIRED — the
+# three ways a caller reaches for the shape this vocabulary refuses to
+# have.
+Node.tube(solid, (1.0, 0.0, 0.0), 0.2, TubeWindow.full(), 0.05 * m)  # ty: error
+Node.tube(solid, (1.0, 0.0, 0.0), 0.2 * m, (0 * rad, 1 * rad), 0.05 * m)  # ty: error
+Node.hollow_tube(solid, (1.0, 0.0, 0.0), 0.2 * m, TubeWindow.full(), 0.05 * m)  # ty: error
 
 # A transform's axis is dimensionless and its angle is an Angle; the
 # two do not stand in for each other.

@@ -36,7 +36,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use geom_core::{Decide, Indeterminate};
 use profile::ProfileError;
-use sweep::{ExtrudeError, RevolveError, SkinError};
+use sweep::{ExtrudeError, RevolveError, SkinError, TubeError};
 use topo::splitting::SplitError;
 use topo::transform::TransformError;
 use topo::{Body, BooleanError, BooleanResultKind, ContactClass, ContactRecords};
@@ -423,6 +423,21 @@ pub enum NodeErrorKind {
     Extrude(ExtrudeError),
     /// The revolve op refused.
     Revolve(RevolveError),
+    /// A TUBE door refused — the solid door's or the hollow door's.
+    ///
+    /// ONE arm for both kinds, because the kernel's two doors carry
+    /// one error type and that type already says which door it came
+    /// from: the three wall arms are reachable only through
+    /// `tube_along_arc_hollow`, and its own `Display` names the door
+    /// on every arm. Splitting this into `Tube`/`HollowTube` here
+    /// would put the door's identity in a payload for the arms that
+    /// do not depend on it, and then state it twice for the arms that
+    /// do — the shape [`NodeErrorKind::Blend`] needs a `verb` for
+    /// precisely because `FilletError` does NOT carry one.
+    ///
+    /// Carried UNALTERED like every other kernel refusal; the node
+    /// never substitutes a body for one that did not build.
+    Tube(Box<TubeError>),
     /// The split op refused.
     Split(SplitError),
     /// A BLEND op refused — the fillet's (M5 PR 12) or the chamfer's:
@@ -982,6 +997,11 @@ impl core::fmt::Display for NodeErrorKind {
             ),
             Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
             Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
+            // The kernel error names its own door, so this line
+            // must not name one: "the tube op refused: tube door: …"
+            // would read a hollow refusal as a solid one half the
+            // time.
+            Self::Tube(e) => write!(f, "the tube op refused: {e}"),
             Self::Split(e) => write!(f, "the split op refused: {e}"),
             Self::Blend { verb, error } => write!(f, "the {verb} op refused: {error}"),
             Self::Boolean(e) => write!(
@@ -2103,12 +2123,27 @@ where
         // geometry out of the memo, and a frame and a plane evaluate
         // to different payloads.
         Node::Datum(Datum::Frame { .. }) => 27,
+        // LIB-TUBE. The roster was READ and appended to at every
+        // re-merge, which is how these two arrived here as 28/29
+        // rather than the 25/26 this unit first wrote — M10-2 and the
+        // sketch frame landed first, and an already-published tag is
+        // never taken back. Two tags, not one: a solid tube and a
+        // hollow tube of the same radii are different artifacts, and
+        // sharing a tag would let one's memo serve the other — the
+        // exact hazard the append rule exists for.
+        Node::Tube { .. } => 28,
+        Node::HollowTube { .. } => 29,
         // The in-plane axis. Tags APPEND — it does NOT share the 3-D
         // axis's tag 2: the two carry different numbers (four against
         // six), mean them against different things (a frame against
         // the world), and evaluate to different payloads, so a shared
         // key would serve one's geometry for the other out of the memo.
-        Node::Datum(Datum::AxisInPlane { .. }) => 28,
+        //
+        // 30, not the 28 this rung first wrote: LIB-TUBE's pair landed
+        // on main first and took 28/29, and by the same append rule
+        // quoted above a published tag is never taken back — so the
+        // unpublished one moves. This is that rule applied to itself.
+        Node::Datum(Datum::AxisInPlane { .. }) => 30,
     };
     // NODE-TAG-SPACE END
     h.write_tag(tag);
@@ -2315,6 +2350,18 @@ where
             crate::measure::AssertionDir::AtLeast => 1,
             crate::measure::AssertionDir::AtMost => 2,
         }),
+        // A tube's WINDOW VARIANT is recipe payload, not a slot: which
+        // variant it is decides whether the node has window slots at
+        // all, so re-authoring a full ring into an arc must move the
+        // key by more than the arrival of two slot values. Fed as a
+        // tag for both kinds — the two share this payload exactly as
+        // they share the slots it governs.
+        Node::Tube { window, .. } | Node::HollowTube { window, .. } => {
+            h.write_tag(match window {
+                crate::node::TubeWindow::Full => 0,
+                crate::node::TubeWindow::Arc { .. } => 1,
+            });
+        }
         // Fully expressed by tag plus slots: their whole recipe payload
         // is either an input edge (excluded from the key by design — the
         // inputs' own keys carry it) or a slot expression, fed below.

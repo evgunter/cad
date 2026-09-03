@@ -2,8 +2,9 @@
 id: TCOST-K1
 kind: unit
 title: the patch-flux lanes' exhausted-budget cost (kernel, A/B track)
-status: spec
+status: dispatched
 opened: 2026-09-03
+branch: tcost/k1-flux-budget-exit
 ---
 
 Spec: `docs/TCOST-K1-SPEC.md`. Cut from TCOST-2's kernel finding:

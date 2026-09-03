@@ -28,6 +28,7 @@ from pncad import (
     ClassAdmission,
     ClusterMaintenance,
     Denotation,
+    TubeWindow,
     Doc,
     DocEdit,
     DocRef,
@@ -72,6 +73,7 @@ from pncad import (
     clusters,
     content_pin,
     deg,
+    rad,
     enforce_checks,
     evaluate,
     gauge_of,
@@ -202,6 +204,24 @@ blended: NodeId = doc.insert(Node.fillet(upright, 0.05 * m, blend_edges))
 
 # Chamfer by NAME: the fillet's twin, and the SETBACK is a Length too.
 chamfered: NodeId = doc.insert(Node.chamfer(upright, 0.05 * m, blend_edges))
+
+# The tube pair. The window is a VALUE with two spellings, and the
+# hollow kind's wall is a required Length — there is no `wall=None`
+# that quietly makes it the solid door.
+spine: NodeId = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+donut: NodeId = doc.insert(
+    Node.tube(spine, (1.0, 0.0, 0.0), 0.2 * m, TubeWindow.full(), 0.05 * m)
+)
+elbow: NodeId = doc.insert(
+    Node.hollow_tube(
+        spine,
+        (1.0, 0.0, 0.0),
+        0.2 * m,
+        TubeWindow.arc(0 * rad, 1.5 * rad),
+        0.05 * m,
+        0.01 * m,
+    )
+)
 
 # Split by a datum plane; the value is a split, read as two optional
 # bodies rather than one.

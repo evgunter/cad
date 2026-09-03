@@ -2,7 +2,7 @@ id: 7ddec231df0049f879136a2f7624647d
 {
   "snapshot": {
     "id": "7ddec231df0049f879136a2f7624647d",
-    "next_id": 10,
+    "next_id": 13,
     "nodes": {
       "0": {
         "Datum": {
@@ -826,6 +826,168 @@ id: 7ddec231df0049f879136a2f7624647d
           },
           "dir": "AtLeast"
         }
+      },
+      "10": {
+        "Datum": {
+          "Axis": {
+            "origin": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "m"
+                }
+              }
+            ],
+            "direction": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ]
+          }
+        }
+      },
+      "11": {
+        "Tube": {
+          "spine": 10,
+          "u_ref": [
+            {
+              "Literal": {
+                "value": 1.0,
+                "dim": "Scalar",
+                "unit": ""
+              }
+            },
+            {
+              "Literal": {
+                "value": 0.0,
+                "dim": "Scalar",
+                "unit": ""
+              }
+            },
+            {
+              "Literal": {
+                "value": 0.0,
+                "dim": "Scalar",
+                "unit": ""
+              }
+            }
+          ],
+          "major_radius": {
+            "Literal": {
+              "value": 2.0,
+              "dim": "Length",
+              "unit": "m"
+            }
+          },
+          "window": "Full",
+          "minor_radius": {
+            "Literal": {
+              "value": 0.5,
+              "dim": "Length",
+              "unit": "m"
+            }
+          }
+        }
+      },
+      "12": {
+        "HollowTube": {
+          "spine": 10,
+          "u_ref": [
+            {
+              "Literal": {
+                "value": 1.0,
+                "dim": "Scalar",
+                "unit": ""
+              }
+            },
+            {
+              "Literal": {
+                "value": 0.0,
+                "dim": "Scalar",
+                "unit": ""
+              }
+            },
+            {
+              "Literal": {
+                "value": 0.0,
+                "dim": "Scalar",
+                "unit": ""
+              }
+            }
+          ],
+          "major_radius": {
+            "Literal": {
+              "value": 2.0,
+              "dim": "Length",
+              "unit": "m"
+            }
+          },
+          "window": {
+            "Arc": {
+              "t0": {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Angle",
+                  "unit": "rad"
+                }
+              },
+              "t1": {
+                "Literal": {
+                  "value": 1.5,
+                  "dim": "Angle",
+                  "unit": "rad"
+                }
+              }
+            }
+          },
+          "minor_radius": {
+            "Literal": {
+              "value": 0.5,
+              "dim": "Length",
+              "unit": "m"
+            }
+          },
+          "wall": {
+            "Literal": {
+              "value": 0.125,
+              "dim": "Length",
+              "unit": "m"
+            }
+          }
+        }
       }
     },
     "order": [
@@ -838,13 +1000,18 @@ id: 7ddec231df0049f879136a2f7624647d
       6,
       7,
       8,
-      9
+      9,
+      10,
+      11,
+      12
     ],
     "roots": [
       9,
       3,
       4,
-      7
+      7,
+      11,
+      12
     ],
     "placements": {},
     "params": {

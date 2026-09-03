@@ -114,9 +114,11 @@
 //! the same reason — it is the same digest over the same ids at a
 //! different scalar — and it was re-blessed a cycle later than they
 //! were, because it compiles only under the `interval` feature and a
-//! default-lane run never builds it. The hosted lane is what said so. This scalar moves anyway, because it feeds `id.0`
-//! for every node in every document and two of the die documents'
-//! ids swapped. The geometric evidence below is unchanged and was
+//! default-lane run never builds it, and the hosted lane is what
+//! said so.
+//!
+//! This scalar moves anyway, because it feeds `id.0` for every node
+//! in every document and two of the die documents' ids swapped. The geometric evidence below is unchanged and was
 //! re-checked: the exact mass pins, the realized-vs-idealized bit
 //! equality, the curved and cert corpora, and the persistence round
 //! trip all hold.
@@ -145,7 +147,17 @@
 //! of any body moved — and what moved is the numbering the digest also
 //! hashes.
 //!
-//! RE-BLESSED FOUR TIMES FOR A ROSTER CHANGE (the build-path
+//! RE-BLESSED ONCE MORE ON MERGING LIB-TUBE, all three rows. Nothing
+//! new happened to the corpus here — the tube nodes and the sketch
+//! frame are independent changes that landed in the same tree, and
+//! this whole-corpus scalar cannot say so, because it moves for any
+//! of them. `lib_g16_corpus_name_digests` CAN and does: re-blessed
+//! against the merged code, its twenty-two pre-tube rows come back at
+//! this branch's values and its two tube rows at main's, each side
+//! unmoved by the other. That is the separation this coarse number is
+//! not built to make.
+//!
+//! RE-BLESSED FIVE TIMES FOR A ROSTER CHANGE (the build-path
 //! re-derivation below is a separate move of these numbers and a
 //! different kind): this digest walks `corpus::documents()`, so a new
 //! document moves it by construction. Each re-blessing was MEASURED
@@ -170,6 +182,18 @@
 //!   carried on `main` before the M10-2 merge, and the rows came back
 //!   GREEN against them rather than being compared by hand.
 //!
+//! - LIB-TUBE added `tube_ring` and `hollow_tube_elbow`, the two
+//!   recipe-door documents for the tube pair. Removing the PAIR alone
+//!   returned `f64`/`probe` `8769278b494d64ca, e1060e5d41665d46` and
+//!   `interval` `ebeb77112becf970, dd49270b7798ab34` — the committed
+//!   constants of the tree they landed on, and all three rows came
+//!   back GREEN against them, the probe row EXECUTED rather than
+//!   inferred from the f64 one. The pair is removed together because
+//!   the two kinds arrived together; neither is a prior tree's roster
+//!   on its own. `lib_g16_corpus_name_digests` agrees the finer way —
+//!   every pre-existing per-document row unchanged, with two rows
+//!   added.
+//!
 //! - SEAT-5 added `kiss_carry`, the corner-kiss assembly whose
 //!   boolean values carry non-empty surviving contacts. Removing it
 //!   alone returned `f64`/`probe` `6542ae63e161000c, e9e2cd7e8a6adda0`
@@ -178,11 +202,15 @@
 //!   back GREEN against them. `lib_g16_corpus_name_digests` agrees
 //!   the finer way — every pre-existing per-document row unchanged.
 //!
-//! The M10-2 and SEAT-5 measurements are the strongest of the four,
-//! for a reason worth stating: in each, the roster minus the addition
-//! IS the prior tree's roster, so the expected values were not
-//! re-derived for the occasion — they were already committed here by
-//! someone else. A measurement sink denotes no body, so it contributes
+//! The M10-2, SEAT-5 and LIB-TUBE measurements are the strongest of
+//! the five, for a reason worth stating: in each, the roster minus the
+//! addition IS the prior tree's roster, so the expected values were
+//! not re-derived for the occasion — they were already committed here
+//! by someone else. (LIB-TUBE removes a PAIR rather than one
+//! document, because the two node kinds arrived in one vocabulary
+//! change and neither half was ever a tree's roster alone; the
+//! constants it came back to are still the ones the prior tree had
+//! committed, which is what the ranking turns on.) A measurement sink denotes no body, so it contributes
 //! no geometry to any pre-existing document (the M10-2 prediction);
 //! the removal is what confirms each.
 //!
@@ -510,7 +538,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x9bfd_b11d_abac_600c, 0xecc8_9467_9596_a7a0),
+        (0x84d0_1f5a_a8fc_46bb, 0x628f_1718_c78e_ff37),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -537,7 +565,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x86b7_35d8_075a_5ba2, 0x2c42_e065_4155_aa5e),
+        (0x429b_b854_4165_fe04, 0xb1ba_b6fa_d216_5b10),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -561,7 +589,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x9bfd_b11d_abac_600c, 0xecc8_9467_9596_a7a0),
+        (0x84d0_1f5a_a8fc_46bb, 0x628f_1718_c78e_ff37),
         "the corpus's Probe evaluation moved"
     );
 }

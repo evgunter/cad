@@ -133,6 +133,14 @@ const PINNED: &[(&str, u64)] = &[
     ("die_composed_tour", 0xfcbc_3092_7d57_5aea),
     ("plate_param", 0xdf84_033a_2c18_1acc),
     ("kiss_carry", 0x8008_375b_ab91_3274),
+    // LIB-TUBE. Both tables are minted by `name_revolve` — the
+    // tube doors return `Revolved<T>` and the emitter reads only
+    // its maps — so these two rows are the revolve role vocabulary
+    // over a body no revolve node built. Their arrival moved no
+    // other row, which is the property this table exists to make
+    // readable.
+    ("tube_ring", 0x1293_7fbf_295c_f16c),
+    ("hollow_tube_elbow", 0x98e4_97a0_679c_33ad),
 ];
 
 #[test]
