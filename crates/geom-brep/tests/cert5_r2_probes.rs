@@ -208,9 +208,22 @@ fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
 /// 16-cell value's own error bounded at ~1e-12 relative — three orders
 /// below what the containment slack needs. The argument for why two
 /// rungs a factor of two apart settle that is written once, on
-/// `Patch::dense` in `crates/geom-brep/tests/cert5_r1_patch_probes.rs`;
-/// the oracle in THIS file is an independent spelling of the same
-/// rule, and shares nothing with that one but the reasoning.
+/// `Patch::dense` in `crates/geom-brep/tests/shared/patch.rs`.
+///
+/// **Why the oracle here is not that one, and what it does share.**
+/// Its Cox–de Boor bases are a DIFFERENT derivation — they clamp `t`
+/// into the last nonzero span at the domain end where the shared one
+/// takes a separate `t >= knots[n]` branch — and that is the part of
+/// an oracle a `props::quad` defect could plausibly be mirrored by, so
+/// the crate keeps more than one. Its quadrature loop is the same
+/// arithmetic in a different arrangement, and claims no more than
+/// that.
+///
+/// **And why this row does not use `shared::patch::face_posture`.**
+/// That gate answers "certified, or an honest refusal"; the rows here
+/// need the budget refusal told apart from the rest, because a budget
+/// stop is a reading they assert on (a finite width above the target)
+/// rather than a pass.
 fn drive(
     name: &str,
     ku: &KnotVector,

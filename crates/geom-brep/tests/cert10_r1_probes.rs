@@ -162,6 +162,13 @@ fn extreme_weights() -> NurbsSurface<f64> {
 
 /// A quarter cylinder — the PR body's own headline fixture for the
 /// 11x `muv` tightening, rebuilt here independently.
+///
+/// The net it produces is `crate::shared::fixture::quarter_cylinder`'s
+/// at `r = 1, h = 2` (same knots, same control order, `FRAC_1_SQRT_2`
+/// being `cos(π/4)`), and it is spelled out here on purpose: this file
+/// re-derives a claim the unit made about that fixture, and a probe
+/// that reached for the unit's own spelling would be checking the claim
+/// against the thing the claim was written from.
 fn quarter_cylinder() -> NurbsSurface<f64> {
     let ku = kv(2, &[]);
     let kv_ = kv(1, &[]);
