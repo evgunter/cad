@@ -3239,3 +3239,8 @@ So: slot 0 TCOST-K1 = FABLE, slots 1–2 = OPUS. Recorded branch-side
 (the PCURVE/GUI shape, Evan's 2026-08-28 ruling): this record reaches
 main only when the block's last slot's reviews conclude; the ordinal
 claim at review dispatch goes to main on its own.
+
+Block TCOST-KB1 slot record (branch-side, appended as each slot concludes):
+slot 0 = TCOST-K1 (FABLE) — concluded 2026-09-03 at merge 5e668ba6, ordinal 1400, sample #117.
+slot 1 = TCOST-K2 (OPUS; pre-draw M / STRUCTURAL at `docs/TCOST-K2-SPEC.md`) — concluded 2026-09-03 at merge 87d33648c, ordinal 1401, sample #119.
+slot 2 = TCOST-K3 (OPUS; pre-draw M / STRUCTURAL at `docs/TCOST-K3-SPEC.md`) — ordinal 1402 claimed 2026-09-03; dual concluded, union fix pass in flight; concludes at merge.
