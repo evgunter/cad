@@ -124,3 +124,47 @@ sweep + step-import rational family; TCOST-6 editor-core's interval
 probes and the three fixture-dump infra rows. TCOST-2/3/4 dispatched
 first (one heavy cargo at a time on this box; 5 and 6 follow when
 disk frees).
+
+## Seam: the build profile landed (2026-09-03)
+
+`cargo build --workspace --tests --timings` under CI's profile env on
+this 4-core container (shares carry to the 2-vCPU runner, seconds do
+not; the hosted archive step's median is 609 s over five code-tier
+runs on 2026-09-02, `docs/perf-data/opt-level/`).
+
+- **82 % of the workspace's own compile time is test targets** (the
+  ~225 dependency crates ride `rust-cache`; workspace libs are 18 %).
+  Within the test half: the `all` integration binaries 74 %, the
+  `--lib` unit-test binaries 26 % (the `crates/*/src` `#[cfg(test)]`
+  rows — 1 396 tests in ~44 400 lines — are a fifth of the bill a
+  `tests/`-only programme would miss).
+- **Four crates are 70 % of test-target compile time**: editor-core,
+  topo, sweep, mesh. `editor-core::all` alone spans the last 55 % of
+  the build's wall — an indivisible ~170 s unit on this box, the
+  plausible reason the hosted step is ~2× this box's wall.
+- **What predicts a test target's cost is the number of items it
+  instantiates** (r = 0.94), not its line count, and the intercept is
+  zero: no per-binary constant is left to harvest after #179/#387.
+  70–89 % of every test binary's symbols are library code pulled in
+  by the link, so deleting test files shrinks a binary far less than
+  proportionally (halving topo's suites: −17.6 % binary).
+- **The largest single finding: shared helpers are compiled once PER
+  SUITE.** Every aggregated suite keeps its own `mod common;` /
+  `mod fixture;` / `mod corpus;`, so the binaries compile ~2.2× the
+  workspace's actual test source — 342 533 redundant lines, 197 762
+  of them in editor-core (`corpus` ×37 at 3 502 lines, `fixture` ×108),
+  where `fixture::desc` is codegen'd 168 times. The aggregator headers
+  declined this cost ("the alternative is editing the suites"); it is
+  now measured, and it is the one build lever that removes compile
+  work without removing a test or an assertion.
+- Levers restated for the build side: simpler objects (lever 6) is a
+  build lever too (fewer distinct instantiations); deleting a test
+  pays ≈ 129 ms of compile on this box, flat; merging rows sharing a
+  fixture is build-neutral; comments and `#[ignore]` are not levers.
+
+**Unit cut: TCOST-B1** — deduplicate the per-suite helper modules,
+prototyped on editor-core (the tail-owning unit, 58 % of the
+redundant lines) with the hosted archive-step time before/after as the
+measurement of record, then the same pass over topo, mesh, sweep,
+viewer and profile if the prototype pays. Dispatched after a content
+lane frees this box (disk and the one-cargo rule).
