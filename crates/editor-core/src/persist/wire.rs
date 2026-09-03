@@ -6,7 +6,8 @@
 //!   hand-edited file can never smuggle an ill-dimensioned tree (or a
 //!   non-finite literal) past the construction door. The cached
 //!   dimension is deliberately not persisted: it re-derives.
-//! - [`ProfileProgram`] persists STRUCTURALLY (plane placement columns
+//! - [`ProfileProgram`] persists STRUCTURALLY (the `plane` NODE ID —
+//!   twelve placement columns until the sketch plane became a node —
 //!   plus per-loop step lists whose continuous args are [`Expr`]s) and
 //!   its kernel-foreign tags (`ArcSweep`) via wire mirrors — the
 //!   kernel crates gain no serde dependency (G1 layering). Crucially,
