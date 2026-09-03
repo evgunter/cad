@@ -93,7 +93,7 @@
 //!   boundary polyline its source `EdgeKey` (each segment is a
 //!   consecutive point pair of that polyline) and its endpoint
 //!   `VertexKey`s. STL export (PR 7) simply drops them.
-//! - **No appearance artifact** (final, Evan 2026-07-20): display
+//! - **No appearance artifact** (final, Ev 2026-07-20): display
 //!   attributes live in the document layer from M4, keyed by stable
 //!   names — nothing attaches anywhere at M2 (DESIGN.md Band 1).
 //! - **No face merging** (ratified): coplanar/cosurface neighbors stay
@@ -251,6 +251,10 @@ pub mod cert;
 mod chords;
 mod curved;
 mod nurbs_cert;
+// `nurbs_cert`'s randomized sweeps, in a module of their own so the per-file
+// test gate can skip them without skipping that file's deterministic pins.
+#[cfg(test)]
+mod nurbs_cert_fuzz;
 mod planar;
 // The sizing vocabulary is this crate's own: nothing in the module is
 // `pub`, and its shared names are `pub(crate)`. The module itself is

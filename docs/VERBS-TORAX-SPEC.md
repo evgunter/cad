@@ -204,7 +204,7 @@ any code, payloads and raising sites quoted — a refusal's text is
 not evidence of its cause. Targeted local runs and probes only —
 hosted CI verified at the STEP level is the suite evidence (read
 the change filter's own output; a green job name is not
-evidence; per Evan's 2026-08-31 method ruling the regular suite
+evidence; per Ev's 2026-08-31 method ruling the regular suite
 is not re-run locally). Merge origin/main before opening the PR;
 confirm runs actually fire (the silent faces); note inherited
 main reds (#1449, #1296/#1304) and distinguish them from yours;

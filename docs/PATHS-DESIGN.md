@@ -4,7 +4,7 @@ Status: **RATIFIED** (design-conversation PR #124, signed off and
 merged 2026-07-29; the ratified doc was the deliverable of that
 conversation). **IMPLEMENTED** as LIB unit U2 (`crates/profile/`);
 `docs/LIB-U2-SPEC.md` and `docs/LIB-LOG.md` are the implementation
-record. Designed across twelve review rounds with Evan
+record. Designed across twelve review rounds with Ev
 (2026-07-27/29, #104 + the #124 threads); the round-by-round trail
 lives in #124 and the M5 log — this document states only the
 resulting design.
@@ -14,7 +14,7 @@ declared-tangency discipline (flags verified-never-trusted,
 `UndeclaredTangency`/`TangencyContradicted`, fillet fit gating,
 same-carrier-is-identity) landed at #109/#112 and is the layer this
 algebra lowers to. **End state (the #104 recorded v2 commitment,
-affirmed here per Evan's round-13 note): the algebra IS the core
+affirmed here per Ev's round-13 note): the algebra IS the core
 representation of paths** — the program is the profile's definition
 and derived segments are caches/provenance, exactly as Q8
 definitional surfaces work (the constructing function is the
@@ -154,7 +154,7 @@ half-bound tip.
   unrepresentable, not refused (§2c round 10). Bare `fillet(r)`
   after a NURBS leg is the uniform ray extension: the surviving
   ray piece is a genuine line leg off the curve's end.
-- **NURBS legs CAN close** (round 13, Evan's observation that
+- **NURBS legs CAN close** (round 13, Ev's observation that
   trailing DOFs can be left off exactly as leading ones are): the
   FULLY-authored form cannot target `Start` (placement consumed
   at departure, the end lands where the data says), but the
@@ -525,11 +525,11 @@ types. The register's full text is the git history of this section
 (and #386/#413's threads); the ratified surface is §2c.
 
 ## 2c. The fillet-family redesign (RATIFIED — fifteen rounds with
-## Evan, merged #419; implemented by LIB-RESPELL, which re-spelled
+## Ev, merged #419; implemented by LIB-RESPELL, which re-spelled
 ## §2/§2a/§3 to this surface and compressed §2b to its historical
 ## note)
 
-**THE AXIOM (leads by design — Evan, round 11): every verb can
+**THE AXIOM (leads by design — Ev, round 11): every verb can
 depend ONLY on its incoming lattice state — Open / Point /
 Angle / Directed, carrying nothing but its binding bits
 (position and/or tangent) — plus the verb's own authored
@@ -556,7 +556,7 @@ Everything below DERIVES from the axiom:
   refusal (`NoCornerForFillet`) consumes only the verb's own
   inputs.
 
-**The axiom is ENFORCED BY CONSTRUCTION (Evan, round 12 — not
+**The axiom is ENFORCED BY CONSTRUCTION (Ev, round 12 — not
 discipline, structure):** every verb is a PURE FUNCTION over
 bare state VALUES — e.g. `fillet(dp: DirectedPoint<T>, r: T) ->
 FilletArrival<T>`, where the state types hold NOTHING but their
@@ -570,7 +570,7 @@ one parameter has two fields; the module cannot name the
 accumulator) — re-introducing carrier-awareness would require
 changing a signature, the loud reviewable act such a change
 should be. CONSEQUENCE (the drift-proofing dividend, completed by
-Evan's round-13 push toward full unification): the surface and
+Ev's round-13 push toward full unification): the surface and
 the replay driver become TWO MECHANICAL PROJECTIONS OF ONE
 DECLARATION — a single TRANSITION TABLE, one row per
 (state, verb, kernel fn, next state), macro-expanded (the
@@ -598,7 +598,7 @@ the delegation alternative (typed methods calling through the
 driver) was considered and rejected: it needs an unreachable!()
 where the statically-known state meets the enum return, a
 runtime assertion standing where the types should speak.
-Spelling freedom (round 14, Evan's trait suggestion): the
+Spelling freedom (round 14, Ev's trait suggestion): the
 REQUIREMENT is the invariant — every transition declared exactly
 once, all projections (typed method, driver arm, Step variant,
 tag) mechanically derived, drift unwritable. TWO spellings
@@ -608,7 +608,7 @@ one per row, calling the kernel fn — rustdoc-visible, consistent
 with the ArcSpecFor admissibility impls) plus a SLIM macro for
 only the enum-side projections, which Rust cannot derive from
 impls (no reflection — without that step the enum match is
-hand-written and the drift point quietly returns). RULED (Evan, round 15): **lean (a), the
+hand-written and the drift point quietly returns). RULED (Ev, round 15): **lean (a), the
 table-macro** — a macro exists in both spellings, so the trait
 layer buys little, and (b)'s generic impls (flavored states ×
 verb types × associated Out types) add trait-resolution surface
@@ -640,7 +640,7 @@ compile, and there is no second place to write a transition.
 - Plain `arc_to(spec)` remains for SHARP-cornered arcs;
   converting sharp→filleted is an edit at the same call site.
 - **The endpoint lives INSIDE the endpoint-full variants**
-  (Evan's round-8 observation, vindicating his wrap-the-args
+  (Ev's round-8 observation, vindicating his wrap-the-args
   instinct): once the family admits endpoint-FREE modes, `p`
   stops being a uniform argument — so `Bulge{p, b}`,
   `Via{q, p}`, `Center{c, w, p}` carry their target, and the
@@ -682,7 +682,7 @@ chord exists: leg targets AND the fused verbs' incoming specs
 the re-spell unit's spec. The wire/program layer records ONE
 unified `ArcData` enum (record-as-you-lower keeps the authored
 mode; the VQ contracts rely on that distinctness).
-**RULED (Evan, round 9): the ENTIRE family ships in stage 1 —
+**RULED (Ev, round 9): the ENTIRE family ships in stage 1 —
 every admissible (site, mode) pair, tested.** The forcing
 argument is exhaustiveness one layer down: the wire enum is
 matched exhaustively by the replay driver, persist wire, and
@@ -725,7 +725,7 @@ capture and nothing second-order to carry). `at_on`, `to_on`,
 `at_toward` all dissolve at the re-spell; the §2b register and
 the §2/§3 fillet text rewrite at that unit.
 
-**Round 10 (Evan): `FilletCarrierUnsupported` RETIRES.** The
+**Round 10 (Ev): `FilletCarrierUnsupported` RETIRES.** The
 incoming contact of bare `fillet(r)` lies on the tangent ray
 AHEAD of the directed point, as new path (latent in §2's own
 anchoring: the corner is the carrier INTERSECTION; behind-the-
@@ -746,12 +746,12 @@ surface: pre-release, the step set is not a compatibility
 surface (LQ7a's clean break).
 
 ### §2c dissolution amendment — OnArc RETIRES (RATIFIED
-### 2026-08-16; Evan's in-chat ruling, ratification delegated
+### 2026-08-16; Ev's in-chat ruling, ratification delegated
 ### on a clean blast-radius census)
 
 The re-spell unit shipped a fifth tip state, `OnArc` (an
 interior arc arrival's tip, its carrier run to the anchor left
-un-emitted for the NEXT fused verb to trim). Evan's ruling: the
+un-emitted for the NEXT fused verb to trim). Ev's ruling: the
 axiom's own state vocabulary is the four binding states and the
 directed point suffices — carrier continuation folds into the
 fused verbs the way `arc_fillet` already folds carrier
@@ -939,7 +939,7 @@ and the angle slot bound.
    departure is the point's own tangent by construction, so nothing
    is checked and nothing is declared.
 
-**RULED (#433 — Evan, in-chat, 2026-09-01, with a second-round
+**RULED (#433 — Ev, in-chat, 2026-09-01, with a second-round
 extension): the lattice and `validate` AGREE.** A straight run
 subdivided at an interior vertex is well formed as DATA
 (`validate`, unchanged: it is what STEP import and raw authored
@@ -968,7 +968,7 @@ landed in full** — the interior continuation (BOOL-8) and the declared
 point-target form with its structural closer (BOOL-11); the RAW DOOR
 remains (BOOL-9), and #433 closes when it lands.
 
-**The seam, measured here and RULED (third round, Evan, in-chat,
+**The seam, measured here and RULED (third round, Ev, in-chat,
 2026-09-01) — and LANDED (BOOL-11).** The interior continuation as
 BOOL-8 shipped it spells INTERIOR subdivisions only, and a straight run
 crossing the SEAM was unauthorable in either rotation: with the seam at
@@ -1091,7 +1091,7 @@ demo does NOT migrate here: its remaining wall is PQ4's, reached by the
 one section whose seam is forced onto a subdivision vertex.
 
 **That leaves a question this document does not answer, and it is
-Evan's.** BOOL-8 already made a side legal with two authored vertices
+Ev's.** BOOL-8 already made a side legal with two authored vertices
 on one carrier, so "one authored side, one carrier" is not what PQ4 is
 protecting any more. Whether a DECLARED subdivision vertex is an
 admissible seam — the loop cut where the author said the carrier
@@ -1187,7 +1187,7 @@ second-order wedge arm) with the authoring verb banked at #941 —
 cusps refuse here until it ships; there is no
 path-concatenation operator (builder functions instead).
 
-**PQ4 — mid-carrier seams: DECIDED (Evan, in-session,
+**PQ4 — mid-carrier seams: DECIDED (Ev, in-session,
 2026-08-01), as recommended.** The v1 rule stands: a closed
 loop's seam sits at a junction or fillet only; closing mid-side
 is refused. The M2 closed-carrier conventional-split precedent
@@ -1195,7 +1195,7 @@ was considered and declined — the relaxation touches the
 same-carrier discipline (one authored side = one carrier), which
 germ matching and the merge ladders lean on. Revisit only with a
 concrete authoring need, as a revision to this section.
-**REOPENED (Evan, in-chat, 2026-09-01) — relaxed for the DECLARED
+**REOPENED (Ev, in-chat, 2026-09-01) — relaxed for the DECLARED
 case only, on BOOL-11's measured need (the block-quote below):
 a closing leg may declare that it arrives straight into the
 entry's first side, checked within ε through the funnel;
@@ -1204,7 +1204,7 @@ the loop-start reading of the two consumers named above ride
 BOOL-12's PR as a revision to this entry.**
 
 > **A concrete authoring need is now on the table (§4, BOOL-11, open —
-> Evan-gated).** The declared closer made a seam at a CORNER sufficient,
+> Ev-gated).** The declared closer made a seam at a CORNER sufficient,
 > which is what closed the departure half of the seam wall; it did not
 > reach the lily leaf family, because that family's two sections put
 > their corners at disjoint stations (tips vs shoulders) while a loft

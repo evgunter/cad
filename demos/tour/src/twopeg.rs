@@ -6,7 +6,7 @@
 //! Plate P is a 6×4×1 plate with two radius-0.5 pegs standing proud of
 //! it; plate Q is the same plate with two through-bores on the same
 //! centres. Both outlines are SHARP: the montage-v3 pass attempted the
-//! profile fillets Evan asked for and met a wall — see [`outline`],
+//! profile fillets Ev asked for and met a wall — see [`outline`],
 //! which states it and the controlled pair that isolates it. Set Q down on P and the two parts touch on THREE declared
 //! contacts: the mating plane, and each peg's wall against its own
 //! bore's wall. One is planar; two are CYLINDRICAL.
@@ -125,7 +125,7 @@ const V_MATED: f64 = 2.0 * PLATE_VOL;
 ///
 /// # The corner fillets, attempted and REFUSED (#1352)
 ///
-/// Evan's montage-v3 note asked for the extruded PROFILE to be
+/// Ev's montage-v3 note asked for the extruded PROFILE to be
 /// filleted — `bracket`/`rocker`'s PATHS line×line door, four rounded
 /// corners, top and bottom edges left sharp so both mating faces stay
 /// the SAME rounded rectangle. It authors cleanly and both plates
@@ -260,7 +260,7 @@ fn plate_with_pegs<S: Scalar>(tol: Tol) -> Body<S> {
 /// Plate Q: the same plate a storey up, its two bores authored as
 /// INNER LOOPS of the sketch — one extrude, no boolean.
 ///
-/// **Why this is not two subtracts** (montage-v3, Evan): it is what a
+/// **Why this is not two subtracts** (montage-v3, Ev): it is what a
 /// machinist's drawing says — a plate with two holes in it — and it is
 /// the one thing the retired `plate` cell was carrying, a profile whose
 /// inner loops extrude to a genus-2 body. It also deletes a dodge: the

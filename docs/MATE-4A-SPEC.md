@@ -5,7 +5,7 @@ difficulty pre-logged in the plan's opening commit: **M** — the
 plan's MATE-4 entry, impl half). Read
 `docs/prompts/implementer-discipline.md` in full before starting.
 The primary specification is the RULING — `docs/S-MATE-PLAN.md`
-§Rulings item 2, part (a) (Evan, in-chat 2026-08-31) — with issue
+§Rulings item 2, part (a) (Ev, in-chat 2026-08-31) — with issue
 973's section (a) as the map and #969's U-R1 (the ratified
 CENSUS-REST-CLOSURE gap-1 pattern) as the precedent this extends.
 **Part (b) of issue 973 — the `EdgeEdgeCross`/`EdgeFacePierce`

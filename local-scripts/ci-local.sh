@@ -159,7 +159,7 @@ BASE=""
 # THE NIGHTLY (DEMOTED) ROW IS OPT-IN, and that is the one place this script
 # is NOT a superset of a hosted run. The superset claim it makes elsewhere is
 # about the sampled MATRIX — both lanes, all three eps, all five k-lint
-# unifications — and a demoted test is not a matrix point: it is a test Evan
+# unifications — and a demoted test is not a matrix point: it is a test Ev
 # ruled need not run per-PR at all, and this script is the per-PR gate of
 # record when hosted Actions is unavailable. Running it by default would put
 # back, in the half a developer waits on, exactly the cost the demotion
@@ -188,6 +188,20 @@ RUN_INTERVAL_BACKEND=true
 RUN_INTERVAL_ORACLE=true
 RUN_K_LINT=true
 RUN_TOPO_RELEASE=true
+# THE GATED SUITES THIS RUN DOES NOT EXECUTE, as one nextest `-E` expression
+# excluding them — empty for the whole-suite run, which is what `--full`
+# always produces (tier `all` empties this key by construction). A suite
+# carrying a `test_utils::gated_to!` marker runs only when one of the source
+# paths it names, or its own file, is in the change set; the argument is at
+# THE PER-FILE TEST GATE in scripts/ci-filter.py, and the filter names each
+# skipped suite on stderr above.
+#
+# THIS HALF APPLIES IT FOR THE SAME REASON IT APPLIES THE TIER, and not
+# because minutes are billed here: a local gate that ran a strictly different
+# test SET from the hosted one would answer a different question than the run
+# it is standing in for. `--full` is the spelling for "run everything anyway",
+# and it already is.
+TEST_FILTER=
 if [ "$FULL" -eq 1 ]; then
   echo "=== change filter: --full, forcing tier 'all'"
 else
@@ -211,13 +225,19 @@ else
       RUN_INTERVAL_ORACLE) RUN_INTERVAL_ORACLE="$v" ;;
       RUN_K_LINT) RUN_K_LINT="$v" ;;
       RUN_TOPO_RELEASE) RUN_TOPO_RELEASE="$v" ;;
+      TEST_FILTER) TEST_FILTER="$v" ;;
     esac
   done < <(scripts/ci-filter.py --base "$BASE")
 fi
 echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
+if [ -n "$TEST_FILTER" ]; then
+  echo "=== gated suites: -E '$TEST_FILTER' (the filter's notices above name each one)"
+else
+  echo "=== gated suites: none excluded — the test rows run the whole scope"
+fi
 
 # --- tier-blind rows: A CHECK MUST BE SITED WHERE IT CAN FIRE ON ITS OWN
-# INPUTS (Evan, 2026-08-20, on S61). These read prose, documentation and this
+# INPUTS (Ev, 2026-08-20, on S61). These read prose, documentation and this
 # file — inputs whose change sets classify TIER=docs, which is exactly what the
 # early exit below returns on. Placed ABOVE it, because a check the tier
 # selection can skip is not a check, and because siting them below would
@@ -244,6 +264,11 @@ echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
 # HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
 # HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
+# The work tracker's lint (work/README.md) reads work/ and docs/ — markdown,
+# the docs tier — so it sits here too. The territory row is advisory on both
+# halves: it prints paths another program owns and never fails.
+# HOSTED MIRROR: mirror / work tracker lint (work/ items resolve and docs/ holds no plan or log)
+# HOSTED MIRROR: mirror / work tracker territory (advisory)
 tier_blind_rows() {
   local rc=0
   scripts/gates/gate-roster.sh --selftest || rc=1
@@ -255,6 +280,9 @@ tier_blind_rows() {
   scripts/tess_budget_cut.sh --selftest || rc=1
   python3 scripts/check-python-lint.py --selftest || rc=1
   python3 scripts/check-python-lint.py || rc=1
+  python3 scripts/work.py --selftest || rc=1
+  python3 scripts/work.py lint || rc=1
+  python3 scripts/work.py territory --base "$BASE" || rc=1
   return $rc
 }
 echo
@@ -546,11 +574,39 @@ nextest_check() {
 # parity checker compares which CHECKS each half names, never the flags on the
 # commands, so hosted and local can drift on reporting semantics with nothing
 # noticing — filed as its own issue rather than left as a note here.
+#
+# `$TEST_FILTER` IS COMPOSED WITH `&`, NEVER PASSED AS A SECOND `-E`. nextest
+# ORs its `-E` expressions, so a row that already selects a set — the interval
+# rows below do — would get the gated suites ADDED BACK by a second flag
+# rather than subtracted, which is the one way this could silently un-gate
+# what it means to gate. One `-E` per row, built by `gated_expr`.
+#
+# The whole-suite rows have no selection of their own, so `gated_expr` returns
+# the filter alone, and nothing at all when it is empty.
+# shellcheck disable=SC2086
+gated_expr() {
+  local sel=${1:-}
+  if [ -z "$TEST_FILTER" ]; then
+    [ -n "$sel" ] && printf -- '-E\n%s\n' "$sel"
+    return 0
+  fi
+  if [ -n "$sel" ]; then
+    printf -- '-E\n(%s) & (%s)\n' "$sel" "$TEST_FILTER"
+  else
+    printf -- '-E\n%s\n' "$TEST_FILTER"
+  fi
+}
 # shellcheck disable=SC2086
 # HOSTED MIRROR: test / run archived tests
-test_default() { nextest_check && cargo nextest run $SCOPE --no-fail-fast; }
+test_default() {
+  local -a g; mapfile -t g < <(gated_expr)
+  nextest_check && cargo nextest run $SCOPE ${g[@]+"${g[@]}"} --no-fail-fast
+}
 # shellcheck disable=SC2086
-test_eps() { nextest_check && CAD_TOLERANCE_EPS="$1" cargo nextest run $SCOPE --no-fail-fast; }
+test_eps() {
+  local -a g; mapfile -t g < <(gated_expr)
+  nextest_check && CAD_TOLERANCE_EPS="$1" cargo nextest run $SCOPE ${g[@]+"${g[@]}"} --no-fail-fast
+}
 # shellcheck disable=SC2086
 # HOSTED MIRROR: build / doc-tests
 doc_tests() { cargo test --doc $SCOPE; }
@@ -602,9 +658,11 @@ interval_selection() {
 interval_tests() {
   nextest_check && interval_selection || return 1
   local sel extra=""
+  local -a g
   sel=$(cat "$INTERVAL_SEL")
   [ "$sel" = "none()" ] && extra="--no-tests=pass"
-  cargo nextest run $SCOPE --features interval -E "$sel" $extra --no-fail-fast
+  mapfile -t g < <(gated_expr "$sel")
+  cargo nextest run $SCOPE --features interval ${g[@]+"${g[@]}"} $extra --no-fail-fast
 }
 # THE DEMOTED (NIGHTLY-ONLY) TESTS. A test carrying
 #
@@ -656,7 +714,7 @@ nightly_selection() {
 #
 # NO `--run-ignored`, IN ANY SPELLING. Under the cfg these are ordinary tests
 # and a plain filtered run executes them; the flag would sweep in the whole
-# pre-existing `#[ignore]`d population, which is what Evan ruled out.
+# pre-existing `#[ignore]`d population, which is what Ev ruled out.
 # HOSTED MIRROR: demoted / run the demoted tests (and nothing else)
 # shellcheck disable=SC2086
 nightly_demoted() {
@@ -672,10 +730,12 @@ nightly_demoted() {
 interval_eps() {
   nextest_check && interval_selection || return 1
   local sel extra=""
+  local -a g
   sel=$(cat "$INTERVAL_SEL")
   [ "$sel" = "none()" ] && extra="--no-tests=pass"
+  mapfile -t g < <(gated_expr "$sel")
   CAD_TOLERANCE_EPS=1e-6 cargo nextest run $SCOPE --features interval \
-    -E "$sel" $extra --no-fail-fast
+    ${g[@]+"${g[@]}"} $extra --no-fail-fast
 }
 # shellcheck disable=SC2086
 # HOSTED MIRROR: lint-interval / doc-tests (interval)
@@ -929,7 +989,7 @@ tesslint_gate() {
 }
 
 # The wasm32 guard (#807).
-# ONE LEG, the interval one, on Evan's ruling of 2026-08-21 that the
+# ONE LEG, the interval one, on Ev's ruling of 2026-08-21 that the
 # purely-additive lint suffices for the default build. Read that step's
 # comment for the subsumption argument, for the lint residual this guard
 # now inherits, and for the dated third-party graph measurement the
@@ -971,7 +1031,7 @@ run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D w
 # UNCONDITIONAL HERE, GATED HOSTED, and that asymmetry is the same one
 # the sampled matrix already has: the hosted gate skips the eframe/wgpu
 # graph unless the change filter's SEEDS intersect {viewer, pncad, bvh}
-# (Evan's viewer-CI-posture ruling, docs/GUI-LOG.md 2026-08-27), because
+# (Ev's viewer-CI-posture ruling, docs/GUI-LOG.md 2026-08-27), because
 # it is billed by the minute on every PR. This half is not billed by the
 # minute — it is billed in one developer's wall clock, on a run they
 # chose to make — and it is already the lane that runs every point of a
@@ -1002,7 +1062,7 @@ rustdoc_gate() {
 run_row "rustdoc (gate)"               rustdoc_gate
 # HOSTED MIRROR: fmt / wasm32 check (kernel + editor-core, --features interval)
 run_row "wasm32 check (#807)"          wasm_check
-# ε battery {default, 1e-6, 1e-12} (Evan's ruling, 2026-07-30): the two
+# ε battery {default, 1e-6, 1e-12} (Ev's ruling, 2026-07-30): the two
 # env rows straddle the compiled default — DEFAULT_EPS = 1e-9, geom-core/
 # src/tolerance.rs — three orders either side. Over the default archive;
 # the first row compiles, the eps rows

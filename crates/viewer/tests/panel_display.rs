@@ -465,7 +465,7 @@ fn a_unit_change_refuses_typed_on_a_computed_slot_and_a_foreign_unit() {
 
 /// **The value field says the number, and the picker says the unit.**
 ///
-/// The two sat adjacent saying the same thing, which is what Evan's
+/// The two sat adjacent saying the same thing, which is what Ev's
 /// report was about; the field is the half that gives it up, because
 /// the picker is also the door that CHANGES the unit.
 #[test]

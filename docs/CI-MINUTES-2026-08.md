@@ -91,7 +91,7 @@ A real reduction here has to change **both halves together**: gate the
 lanes off PR runs *and* make `render-hosted.sh`'s default dispatch on
 demand (~5 runner-minutes, only when someone actually wants frames,
 versus 12 on every code-tier run). That is a change to a documented
-agent tool, not a CI tuning knob, and belongs to Evan.
+agent tool, not a CI tuning knob, and belongs to Ev.
 
 ### F2 — the round-up, where it is collectable
 
@@ -126,7 +126,7 @@ branch becomes the PR's head, triggers no run of its own, and strands
 every green check on the parent — observed on #598 as "30 green jobs
 on 048edc9, and a head commit carrying a single check".
 
-**Landed** (Evan authorised, 2026-08-20; commit `0768882`): keep the `push: main` trigger but
+**Landed** (Ev authorised, 2026-08-20; commit `0768882`): keep the `push: main` trigger but
 reduce it to `filter` + `rebuild-latency` + `renders`, skipping build,
 test, clippy and k-lint. Preserves both write paths; drops ~65 of the
 87 minutes per merged code PR.
@@ -137,7 +137,7 @@ last run and its merge — frequent at this repo's merge rate — that
 exact combination went untested.
 
 **The scheduled full run on main that would have paired with this is
-DECLINED** (Evan, 2026-08-22). The next PR's merge-ref is main plus
+DECLINED** (Ev, 2026-08-22). The next PR's merge-ref is main plus
 that branch, so it tests the landed tree anyway; a scheduled run buys
 a second discovery of the same fact and costs a full gate per period
 whether or not anything landed. The residue is accepted, not
@@ -359,7 +359,7 @@ landed here: this finding measured the `fmt` job, and a claim about a
 >
 > **And the schedule improved under it rather than only being described.**
 > A change under `tools/` now PINS the k-lint row that compiles it instead
-> of drawing one (`KLINT_PATH_ROWS` in `scripts/ci-filter.py`, Evan's
+> of drawing one (`KLINT_PATH_ROWS` in `scripts/ci-filter.py`, Ev's
 > ruling of 2026-08-29). That is *unconditional-when-`tools/`-changes*,
 > which is a real schedule and is what the corrected sentences point at.
 > It does not restore any of the three claims above to *unconditional*:
@@ -475,7 +475,7 @@ sound rather than a cut. They land together on one branch.
   already runs at the ε THIS RUN DREW. The two jobs re-ran them at 1e-6
   AND 1e-12 unconditionally, which is not extra coverage: it is the ε
   sampling defeated for exactly those modules. **No replacement
-  mechanism** (Evan: *"no need to make any special attempt to keep
+  mechanism** (Ev: *"no need to make any special attempt to keep
   m4_pr8_corpus visible. just make it a normal test"*) — no filter
   expression, no named row, no doc pointer. `m4_pr6_eps_diff::` never
   needed the loop at all: it re-execs itself per ε, which is the only way
@@ -485,7 +485,7 @@ sound rather than a cut. They land together on one branch.
   F6 above for why this and not a cache, and for the per-row
   absence-detector audit that had to come first. **−7 to −8 billed min**,
   the largest single item in this pass.
-* **`watertight` → the nightly** (Evan, explicit). A persistence-detector
+* **`watertight` → the nightly** (Ev, explicit). A persistence-detector
   with one solo red in 37 days, and that one was a rustup outage.
   **−1 to −2 billed min.**
 * **`rebuild latency (reporting)` SPLIT.** The wall-clock table moved to
@@ -515,7 +515,7 @@ sound rather than a cut. They land together on one branch.
   since it last ran — an append-only `nightly/<epoch>-<sha>` tag, with
   the tier question handed to `scripts/ci-filter.py` rather than to a
   second classifier. **This is not the scheduled full run on main that
-  F3 left owed and Evan declined**; see *What did not land* below, where
+  F3 left owed and Ev declined**; see *What did not land* below, where
   that entry now says why the two are different questions.
 
 **Two things in that list are coverage ADDITIONS, and it is worth saying
@@ -684,7 +684,7 @@ F-numbers).
 A demoted test is one the gate would otherwise run, so what this job has
 to answer is whether it still passes, and what it costs, *in the
 configuration we actually use*. Pinning it to a level the gate has
-stopped running would answer a question nobody has (Evan, 2026-08-25): a
+stopped running would answer a question nobody has (Ev, 2026-08-25): a
 cost measured in a configuration we do not use is not a cost anyone can
 act on. That also shrinks the gate-side listing's saving rather than
 removing it — against opt-1 the gap is ~164 s on a 4-core sweep (143 s →
@@ -713,7 +713,7 @@ demotion argument rests on — stated with a number rather than assumed.
   different feature unifications and share no artifacts, so the merge
   buys only one runner setup (~1 billed min) while serialising ~4
   minutes into a single job. Not worth it.
-* **a scheduled full run on main** — DECLINED (Evan, 2026-08-22), not
+* **a scheduled full run on main** — DECLINED (Ev, 2026-08-22), not
   owed. The next PR's merge-ref is main plus that branch and tests the
   landed tree anyway. See F3 for the residue that is accepted with it.
 
@@ -741,7 +741,7 @@ demotion argument rests on — stated with a number rather than assumed.
 
 ## 2026-08-22 — configuration sampling, and the draft skip (F5)
 
-Evan's proposal, and the reason it is a separate section rather than a
+Ev's proposal, and the reason it is a separate section rather than a
 finding: the audit above tuned what each job costs, and this changes
 **what a run gates**. A code-tier run used to execute every point of
 {default features, `interval`} x {default eps, 1e-6, 1e-12}. It now
@@ -925,7 +925,7 @@ and the nightly builds with `RUSTFLAGS="--cfg nightly_suite"`. At the
 gate the attribute is present and the test is skipped; in the nightly it
 vanishes and the test is ordinary.
 
-**Evan's constraint, and it holds by construction rather than by a
+**Ev's constraint, and it holds by construction rather than by a
 list**: tests that are ALREADY plain `#[ignore]` — reporting rows,
 instruments, tests only valid as the sole test in a process — must stay
 unexecuted in the nightly too. So the nightly must never pass
@@ -1002,7 +1002,7 @@ not a saving, it is a hole.
 3. **A scheduled full run on main** — still owed from F3, and now owed
    more: with the push run trimmed and the PR run sampled, no single
    tree is gated at every point by hosted CI. Deliberately not bundled
-   here (Evan: "the PRs will get it"). **Unchanged by the nightly lane**,
+   here (Ev: "the PRs will get it"). **Unchanged by the nightly lane**,
    which is a different proposal — see *What did not land* above.
 
 **New, and ranked from here (2026-08-22).**
@@ -1048,7 +1048,7 @@ not a saving, it is a hole.
    > `n/a` — the jobs API gives durations, not test counts — so what the
    > check compares is the measured arms against each other.
    >
-   > **AND THEN THE TREE MOVED (Evan, 2026-08-25): `ci.yml`'s two archive
+   > **AND THEN THE TREE MOVED (Ev, 2026-08-25): `ci.yml`'s two archive
    > jobs are at `opt-level = 1`.** Made on the sweep above, i.e. on
    > evidence from a box this lane explicitly distrusts, before a single
    > runner sample of opt-1 existed — deliberately, because *the fastest

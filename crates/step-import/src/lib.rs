@@ -180,6 +180,10 @@
 mod adopt;
 mod assemble;
 mod chart;
+// `chart`'s randomized sweep, in a module of its own so the per-file test
+// gate can skip it without skipping `chart`'s deterministic rows.
+#[cfg(test)]
+mod chart_review_fuzz;
 #[cfg(test)]
 mod cr_r1_probes;
 mod entities;

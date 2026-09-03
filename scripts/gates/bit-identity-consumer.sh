@@ -5,7 +5,7 @@
 # local-scripts/ci-local.sh's discipline row both call this file.
 #
 # Bit-identity coincidence checking is RETIRED from production
-# (M4 PR 5, NAMING-DESIGN N6; DESIGN.md roadmap; Evan, #53): the
+# (M4 PR 5, NAMING-DESIGN N6; DESIGN.md roadmap; Ev, #53): the
 # declared rung is GeomSource lookup, and the production-consumer
 # allowlist is EMPTY. The remaining rows are NON-consumers:
 #  - bit_identity.rs — the sanctioned seam itself;

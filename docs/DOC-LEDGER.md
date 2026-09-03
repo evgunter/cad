@@ -1,7 +1,8 @@
 # docs ledger — deleted historical documents
 
-This file is the permanent record of documents deleted from `docs/`.
-It replaces `docs/archive/`, whose method was to **move** dead
+This file is the permanent record of documents deleted from `docs/`
+and — since sweep 5 — of closed programs' directories deleted from
+`work/`. It replaces `docs/archive/`, whose method was to **move** dead
 documents aside and index them; the method now is to **delete** them
 and record the filenames here. Git is the archive — the repo is
 merge-only and never rewrites history (`memories/git-workflow.md`),
@@ -21,8 +22,12 @@ git log --diff-filter=D -- docs/<NAME>      # find the deleting commit
 ```
 
 Files listed under the `docs/archive/` group below need that prefix in
-the path: `git show <sweep-sha>:docs/archive/<NAME>`. Every deleted
-path is still greppable across history with `git log -S<string> --all`.
+the path: `git show <sweep-sha>:docs/archive/<NAME>`. The tracker
+directories sweep 5 deleted take their own prefix —
+`git show <sweep-sha>:work/<program>` lists one, and
+`git show <sweep-sha>:work/<program>/log.md` prints a file from it.
+Every deleted path is still greppable across history with
+`git log -S<string> --all`.
 
 ## The rule this sweep applied
 
@@ -128,7 +133,7 @@ after it are register items, all closed.
 - `LIB-RESPELL-SPEC.md` — LIB-RESPELL spec — the §2c fillet family, implemented (binding)
 - `LIB-RETTAIL-SPEC.md` — LIB-RETTAIL spec — the retirement's tail: ProfileLoop demotion, bowtie re-home, shim deletion (binding)
 - `LIB-RTABLE-SPEC.md` — LIB-RTABLE spec — the four-projection transition table (RESPELL-TABLE; binding)
-- `LIB-SEAL-SPEC.md` — LIB-SEAL spec — ProfileLoop seals: private fields + read accessors (ruled by Evan in-chat 2026-08-16; binding)
+- `LIB-SEAL-SPEC.md` — LIB-SEAL spec — ProfileLoop seals: private fields + read accessors (ruled by Ev in-chat 2026-08-16; binding)
 - `LIB-SEL1-SPEC.md` — LIB-SEL1 spec — geometric selectors PR-1 (binding)
 - `LIB-SWITCH-SPEC.md` — LIB-SWITCH spec — profiles-as-programs v2: the schema-v4 representation switch
 - `LIB-U1-SPEC.md` — LIB-U1 spec — the façade crate + prelude (binding)
@@ -173,7 +178,7 @@ unit is queued, not done.
 
 ### `docs/archive/` — the 2026-08-05 archive, retired in full (50 files)
 
-The archive directory was created 2026-08-05 (method ratified by Evan:
+The archive directory was created 2026-08-05 (method ratified by Ev:
 `docs/archive/` + an index + the git tag `archive/2026-08-05`) to hold
 M0–M6 historical milestone documents. Its index recorded, per file,
 what superseded it: the milestone conventions ratified into
@@ -228,7 +233,7 @@ by this ledger, and **`docs/archive/` no longer exists.**
 - `M5-S13-SPEC.md` — M5 S13 — the die-pips enablers: containment-fallback re-cut + the plane×sphere germ arm (binding spec)
 - `M5-S2-SPEC.md` — M5 S2 — arc-leg fillet sugar (binding spec)
 - `M5-S6-SPEC.md` — M5 S6 — two-tolerance message-unification sweep (binding spec)
-- `M5-S7-SPEC.md` — M5 S7 — CI/docs hygiene sweep (binding spec; Evan-directed 2026-07-30)
+- `M5-S7-SPEC.md` — M5 S7 — CI/docs hygiene sweep (binding spec; Ev-directed 2026-07-30)
 - `M5-S8-SPEC.md` — M5 S8 — fillet branch selection: nearest-the-authored-corner (binding spec)
 - `M5-S9-SPEC.md` — M5 S9 — chord_spec arc-side repair: azimuth-window containment (binding spec)
 - `M6-2-SPEC.md` — M6-2 spec — the SSI generic-T lift (binding)
@@ -251,7 +256,7 @@ at M5 PR 13), and its F5 entry still cross-referenced "the M4 roadmap
 entry above" — a pointer back into `DESIGN.md` that dangled the moment
 it was relocated.
 
-Ruled by Evan, 2026-08-20: **delete the passage rather than re-home the
+Ruled by Ev, 2026-08-20: **delete the passage rather than re-home the
 record.** Two edits to `docs/DESIGN.md` accompany this sweep:
 
 - the `### M4 fork outcomes (F1–F8)` section (10 lines) was removed. It
@@ -394,3 +399,122 @@ of this document resolves any of them. One source comment was edited
 rather than left, because its tense made a live claim: `crates/mesh/
 src/sizing.rs` said `TESS-SPLIT-SPEC.md` "binds its execution", present
 tense, of a unit that had merged.
+
+## Sweep 4 — 2026-09-03: the work tracker replaces the register and the survey
+
+The tracker under `work/` (contract: `work/README.md`) is now the one
+home of live work, and two documents whose content it carries are
+deleted. Recover either with `git show <this sweep's SHA>^:docs/<NAME>`.
+
+- **`SMELL-SCAN-2026-08.md`** — the structural findings register and
+  its Tracks K–X schedule. Every live row is an item file
+  `work/code-quality/<ROWID>.md` (109 rows, the row id kept as the file
+  name), every Ev-only decision a `ruling` item there, every live
+  unrowed finding an `issue` item there, and the four ordering rules,
+  the partition rules, the territories table and the seams are
+  `work/code-quality/plan.md`. §C's process observations are
+  `work/code-quality/process-observations.md` verbatim. The census
+  that reconciles all 94 finding headings against the tree is
+  `work/code-quality/logs/migration-census-2026-09-03.md`; nothing
+  was dropped. One source defect is carried as a flagged
+  reconstruction: partition rule 4's opening sentence was already
+  missing from the document (its text began mid-sentence), and the
+  plan states it as "A style review runs on every unit against …".
+- **`WORK-STREAMS-2026-08.md`** — the 2026-08-29 stream cut. Every
+  stream it proposed graduated to a program, and each program's
+  `work/<program>/program.md` now carries the charter and territory
+  the cut assigned it. Plans that cite the cut as their charter keep
+  the citation; it resolves here.
+
+### Moved, not deleted
+
+Every `docs/<NAME>-PLAN.md` / `docs/<NAME>-LOG.md` pair is now
+`work/<program>/plan.md` / `log.md` (git rename history intact), and
+the nine `SMELL-*-LOG.md` track logs are under
+`work/code-quality/logs/`. `MODEL-AB-LOG.md` stays in `docs/` as the
+experiment log it is. `scripts/work.py lint` refuses a plan or log
+reappearing in `docs/`.
+
+## Sweep 5 — 2026-09-03: the five closed programs leave the tracker
+
+Sweep SHA: `f955ddc75cda454a268f9214d2a753ae1a9bbd0f` — `main`'s tip
+immediately before the deletion, so every path below is recoverable at
+`git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/<program>/<FILE>`.
+
+**A new rule, and it is broader than the earlier sweeps'.** `work/` tracks
+work still to be done, not work that has been done (Ev, 2026-09-03), so a
+closed program's directory leaves the tracker whole — `program.md` with
+`plan.md` and `log.md`, not just the narrative pair sweeps 1 and 3 took.
+This supersedes sweep 3's file-specific decision to keep the GUI plan and
+log. Fifteen files, five programs, every one of them `status: closed` with
+no live items:
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `blend` | S-BLEND — fillet/chamfer completion | 2026-08-31 | `docs/S-BLEND-EXIT-WALK.md` (criteria quoted verbatim from the plan) |
+| `gauth` | GAUTH — part authoring in the GUI | 2026-08-31 | Ev's in-chat ruling that no exit walk is needed — see the honesty note below |
+| `gui` | GUI v1 | 2026-08-28 | `docs/GUI-EXIT-WALK.md` (paraphrases the plan's criteria — see below) |
+| `pcurve` | PCURVE — edge-description unification | 2026-08-29 | `docs/PCURVE-EXIT-WALK.md` (criterion rows quoted verbatim) |
+| `qa` | S-QA — gates that lie | 2026-08-31 | `docs/S-QA-EXIT-WALK.md` (criteria quoted verbatim) |
+
+### Two honesty notes — content that now lives only in git
+
+Sweeps 1 and 3 deleted only what a living document still carried. Two of
+these five do not meet that bar, and went anyway on the rule above:
+
+- **`gauth` had no exit walk.** Ev ruled one unnecessary (2026-08-31), and
+  the closing entry of `work/gauth/log.md` was itself the program's
+  done-state of record: the five merged units (#1375, #1381, #1376, #1397,
+  #1407), their A/B ordinals 900–904, and the eight residue pointers. The
+  residue survives on its own issues — #1374, #1379, #1384, #1385, #1387,
+  #1394, #1395 and the #1386 conversation — and the ordinals survive in
+  `docs/MODEL-AB-LOG.md`. The narrative does not: recover it at the sweep
+  SHA.
+- **`gui`'s exit walk paraphrases its plan.** `GUI-EXIT-WALK.md` checks the
+  program against `GUI-PLAN.md` in the walk's own words rather than quoting
+  the criteria, which is exactly why sweep 3 kept the plan. The criteria
+  text is now recoverable only at the sweep SHA; the walk remains the
+  done-state of record, and `docs/GUI-DESIGN.md` carries the v1 shape.
+
+### Nothing else moved with them
+
+- **A/B bands** (`ab_band` on each deleted `program.md`) were never the
+  tracker's record: they are claimed in `docs/MODEL-AB-LOG.md`'s
+  ordinal-bands section, which still names GAUTH's 900–999 and the rest.
+- **`work/STATUS.md`** is regenerated by CI on main; the five closed rows
+  and their empty per-program slates drop out on the next render. That is
+  the board agreeing with the tracker, not a loss.
+- **Residue** is unaffected. No item file anywhere in `work/` named a
+  deleted program in `parent`, `blocked_on`, `rides_with` or `refs`;
+  everything these programs left open had already been re-homed to a live
+  program or to `work/issues/`. `scripts/work.py lint` is green.
+
+### Inbound references
+
+The old `docs/<NAME>-PLAN.md` / `-LOG.md` citations in CI workflows, source
+comments and append-only logs were already historical after sweep 4's move;
+they resolve here as before. Three *live, present-tense* claims cited the
+tracker paths and were re-pointed in this sweep rather than left:
+
+- `work/code-quality/corner-config-tag-all-concave-trihedron.md` and
+  `work/issues/fillet-nonpositive-radius-false-fact-refusal.md` each argued
+  their home by naming `work/blend/` as a closed program; both now name
+  S-BLEND and its exit walk.
+- `work/cert/unify-edge-descriptions-on-pcurves.md` pointed at
+  `work/pcurve/program.md` as PCURVE's done-state of record; it now points
+  at `docs/PCURVE-EXIT-WALK.md`, which is what that record actually is.
+
+## Per-merge deletion — M10's merged-unit specs (2026-09-03)
+
+Recoverable at `git show 08931277cf23c29d35daa41a15a4cecc6495022e:docs/<NAME>`
+(the M10-4 unit head, before the state-sync commit that deleted
+them). The rule above, applied at M10-4's merge to every M10 spec
+whose unit had merged; each unit's record is its row in
+`MODEL-AB-LOG.md` and its MERGED entry in `work/m10/log.md`.
+
+- `M10-1-SPEC.md` — M10-1, distributions in the document (#1147)
+- `M10-DI-SPEC.md` — M10-DI, the Dual contract implementation (#1154)
+- `M10-P-SPEC.md` — M10-P, the profile-parameter lift (#1174)
+- `M10-2-SPEC.md` — M10-2, Measure nodes and Assertions (#1213)
+- `M10-3-SPEC.md` — M10-3, the E6 subdivision driver (#1231)
+- `M10-4-SPEC.md` — M10-4, sensitivities and the stackup (#1627)

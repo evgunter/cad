@@ -347,10 +347,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     vec![Stop {
         name: "hollowring",
         caption: "THE ONE-CALL HOLLOW RING (a holed profile, fully revolved)".to_string(),
-        // Montage cell RETIRED by the montage-v3 curation (Evan,
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
         // 2026-08-30), with `hollowelbow` and `hollowtorus` beside it.
         // A cavity is invisible in an opaque render at every camera and
-        // the see-through render is only a partial answer — Evan's
+        // the see-through render is only a partial answer — Ev's
         // ruling: "they just aren't that interesting-looking". This is
         // `voidbox`'s own precedent one door over: its panel was
         // retired at the #91 refresh because an opaque void is

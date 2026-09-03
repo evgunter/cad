@@ -287,12 +287,153 @@ fn repo_root() -> PathBuf {
 ///   … `read_to_string(p.join(TARGET))`) never has them on one line at
 ///   all. Both are ordinary spellings, and both went undetected.
 ///
+/// **A GATED-SUITE MARKER IS THE SECOND WAY TO NAME A SOURCE FILE
+/// WITHOUT READING ONE**, and it is subtracted for the same reason a
+/// mount is. `test_utils::gated_to!["crates/x/src/y.rs", …]` declares
+/// the paths a suite is specific to so the change filter can skip it;
+/// the suite never opens them, and `scripts/ci-filter.py` is what
+/// reads that text. Unsubtracted, every marked suite in the tree reads
+/// as a source reader and owes a ledger line it cannot honestly carry.
+///
+/// A marker's paths are NOT one-per-invocation the way a mount's is —
+/// `rustfmt` collapses a short list onto one line — so this one is
+/// counted by scanning each invocation's own brackets rather than by a
+/// second whole-file needle. That is a BOUNDED slice, not the ad-hoc
+/// source slicer rejected above, and its failure direction is the safe
+/// one: an invocation whose brackets do not close subtracts NOTHING, so
+/// the file stays a hit and someone has to look at it.
+///
 /// The counting needle is written with its quote ESCAPED where it is
 /// itself a literal, so this file does not match itself.
+/// `.rs"` literals inside `gated_to!` INVOCATIONS — the paths a gated suite
+/// DECLARES rather than reads.
+///
+/// **The strict spelling, and over-subtraction is why.** This number is
+/// SUBTRACTED from the count of named `.rs` files, so anything it over-counts
+/// hides a real source reader from the ledger — the silent direction. So an
+/// invocation is `gated_to!` with its bracket IMMEDIATELY after (whitespace
+/// and nothing else between), read over the CODE VIEW with comments stripped,
+/// which is exactly what `scripts/ci-filter.py` requires before it treats a
+/// file as marked. A prose mention followed later in the file by an unrelated
+/// bracketed `.rs"` literal is not an invocation and subtracts nothing.
+///
+/// Zero when an invocation's brackets do not close, which leaves the file
+/// counted as a reader — the safe direction again.
+fn gated_to_names(code: &str) -> usize {
+    let code = strip_line_comments(code);
+    let mut total = 0;
+    let mut rest = code.as_str();
+    while let Some(at) = rest.find("gated_to!") {
+        rest = &rest[at + "gated_to!".len()..];
+        // IMMEDIATELY after, modulo whitespace. Skipping ahead to the next
+        // bracket ANYWHERE in the file is how a mention of the macro starts
+        // subtracting some unrelated reader's literals.
+        let after = rest.trim_start();
+        let Some(opener) = after.chars().next().filter(|c| "[({".contains(*c)) else {
+            continue;
+        };
+        let open = rest.len() - after.len();
+        let closer = match opener {
+            '[' => ']',
+            '(' => ')',
+            _ => '}',
+        };
+        let mut depth = 0usize;
+        let mut end = None;
+        for (i, c) in rest[open..].char_indices() {
+            if c == opener {
+                depth += 1;
+            } else if c == closer {
+                depth -= 1;
+                if depth == 0 {
+                    end = Some(open + i);
+                    break;
+                }
+            }
+        }
+        let Some(end) = end else { break };
+        total += rest[open..end].matches(".rs\"").count();
+        rest = &rest[end..];
+    }
+    total
+}
+
+/// `code` with `//`-to-end-of-line comments removed — a marker is an ITEM and
+/// never a comment, and without the cut the macro's own documentation (which
+/// quotes a call) subtracts paths nothing declares. A line cut rather than a
+/// lexer, the same trade `scripts/ci-filter.py` makes and for the same reason:
+/// a `//` inside a string literal truncates the line early, which can only
+/// LOSE an invocation and never invent one.
+fn strip_line_comments(code: &str) -> String {
+    code.lines()
+        .map(|l| match l.find("//") {
+            Some(i) => &l[..i],
+            None => l,
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// **The subtraction's own guard.** `gated_to_names` is the one number in this
+/// file that makes the detector LESS sensitive, so its near misses are what
+/// need planting: only a real invocation may subtract, and a mention must not.
+///
+/// EVERY CASE IS ASSEMBLED, never spelled — `call` joins the macro name to its
+/// bracket at run time, so this file's own SOURCE carries no invocation and
+/// neither this census nor `scripts/gates/gated-suite-paths.sh` reads a
+/// fixture as a marker. Same self-non-matching trick as `reads_rust_source`'s
+/// escaped needle below, for the same reason.
+#[test]
+fn only_a_real_marker_invocation_subtracts_its_paths() {
+    fn call(tail: &str) -> String {
+        format!("{}{}", "gated_to", tail)
+    }
+    let cases: [(&str, usize, String); 7] = [
+        (
+            "a one-line invocation",
+            2,
+            call(r#"!["a/b.rs", "c/d.rs"];"#),
+        ),
+        (
+            "a wrapped invocation",
+            2,
+            call("![\n    \"a/b.rs\",\n    \"c/d.rs\",\n];"),
+        ),
+        (
+            "a directory entry is not a .rs name",
+            0,
+            call(r#"!["a/b/"];"#),
+        ),
+        (
+            "a mention in a doc comment",
+            0,
+            format!("/// `test_utils::{}` declares.", call(r#"!["a/b.rs"]"#)),
+        ),
+        (
+            "the macro NAMED in a string, with an unrelated bracket after it",
+            0,
+            format!("let n = \"{}!\";\nlet v = [\"src/lib.rs\"];", "gated_to"),
+        ),
+        (
+            "the macro's own definition",
+            0,
+            format!(
+                "macro_rules! {} {{ ($($p:literal),+ $(,)?) => {{}}; }}",
+                "gated_to"
+            ),
+        ),
+        ("brackets that never close", 0, call(r#"!["a/b.rs","#)),
+    ];
+    for (what, want, code) in cases {
+        assert_eq!(gated_to_names(&code), want, "{what}: {code:?}");
+    }
+}
+
 fn reads_rust_source(code: &str) -> bool {
-    // (1) Names more `.rs` files than it mounts as modules.
+    // (1) Names more `.rs` files than it mounts as modules or declares
+    //     in a gated-suite marker.
     let named = code.matches(".rs\"").count();
-    let mounted = code.matches("#[path = \"").count();
+    let mounted = code.matches("#[path = \"").count() + gated_to_names(code);
     // (2) Walks a source tree.
     let walks_a_source_tree = [
         "rust_sources(",
