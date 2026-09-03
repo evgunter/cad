@@ -121,6 +121,30 @@ const BUDGETS: &[Budget] = &[
         basis: "priced",
     },
     Budget {
+        document: "distributed_plate",
+        // **The entry MINOR-2 asked for**: a document that actually
+        // DRIVES. Every other row here either takes the `NothingVaries`
+        // path (`measured_web`, which declares no distribution at all)
+        // or certifies its whole box in a single leaf, so all three
+        // recorded budgets were 0.0 and none of them could
+        // discriminate — a budget of zero passes at `max_leaves: 1`.
+        // This is the two-hole plate at the tour's own ε-scaled
+        // tolerances: three varying axes and a real subdivision.
+        //
+        // The number is the analyzed box's own EXCLUDED TAIL. The two
+        // radii are normals, so the ±3σ box leaves mass outside on
+        // each axis, and the product measure over the three leaves
+        // 0.5393% unresolved even when every leaf certifies. Recorded
+        // rather than derived at run time — deriving it would make the
+        // row a tautology — and tight enough to bite: it is the tail
+        // alone, so a drive that refused any leaf at all exceeds it.
+        // MEASURED at 0.005392710000000176; recorded one significant
+        // figure above so a last-ulp move in the quantile arithmetic
+        // is not a red, and a refused leaf still is.
+        unresolved: 0.0054,
+        basis: "priced",
+    },
+    Budget {
         document: "band_placement",
         // A BAND parameter: the box is the band's own support, so the
         // drive's masses are what set theory forces rather than what a
@@ -168,7 +192,138 @@ fn registry() -> Vec<Entry> {
         name: "band_placement",
         doc: band_placement(),
     });
+    out.push(Entry {
+        name: "distributed_plate",
+        doc: distributed_plate(),
+    });
     out
+}
+
+/// The two-hole plate at the tour's stop-2 tolerances — the one
+/// registered document whose drive actually subdivides (MINOR-2).
+///
+/// Authored here rather than imported from `demos/tour`, which is a
+/// detached workspace the kernel must not depend on: the SHAPE is the
+/// worked example's and the numbers are stop 2's.
+fn distributed_plate() -> ProfileDoc {
+    const SPACING: f64 = 3.1e-3;
+    const RADIUS: f64 = 1.25e-3;
+    let spread = half();
+    let mut r = Recorder::new();
+    r.push(DocEdit::SetDocParam {
+        name: name("half_spacing"),
+        value: DocParam::Continuous {
+            dim: Dimension::Length,
+            value: SPACING / 2.0,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
+            distribution: Some(Distribution::Uniform {
+                lo: -0.05 * spread,
+                hi: 0.05 * spread,
+            }),
+        },
+    });
+    for n in ["hole_a_r", "hole_b_r"] {
+        r.push(DocEdit::SetDocParam {
+            name: name(n),
+            value: DocParam::Continuous {
+                dim: Dimension::Length,
+                value: RADIUS,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
+                distribution: Some(Distribution::Normal {
+                    sigma: 0.2 * spread,
+                }),
+            },
+        });
+    }
+    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plate_p = r.insert(Node::Profile(ProfileProgram {
+        plane,
+        loops: vec![
+            LoopProgram::polygon([
+                (-4.0e-3, -2.0e-3),
+                (4.0e-3, -2.0e-3),
+                (4.0e-3, 2.0e-3),
+                (-4.0e-3, 2.0e-3),
+            ])
+            .expect("finite plate corners"),
+        ],
+    }));
+    let _plate = r.insert(Node::Extrude {
+        profile: plate_p,
+        distance: len(1.0e-3),
+    });
+    let hs = Expr::param(name("half_spacing"), Dimension::Length);
+    let hole_a_p = r.insert(Node::Profile(ProfileProgram {
+        plane,
+        loops: vec![LoopProgram::Circle {
+            centre: [Expr::neg(hs.clone()), len(0.0)],
+            radius: Expr::param(name("hole_a_r"), Dimension::Length),
+        }],
+    }));
+    let hole_a = r.insert(Node::Extrude {
+        profile: hole_a_p,
+        distance: len(1.0e-3),
+    });
+    let hole_b_p = r.insert(Node::Profile(ProfileProgram {
+        plane,
+        loops: vec![LoopProgram::Circle {
+            centre: [hs, len(0.0)],
+            radius: Expr::param(name("hole_b_r"), Dimension::Length),
+        }],
+    }));
+    let hole_b = r.insert(Node::Extrude {
+        profile: hole_b_p,
+        distance: len(1.0e-3),
+    });
+    let ev = evaluate::<f64>(
+        &r.doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions {
+            profile_lift: ProfileLift::Guided,
+            ..EvalOptions::default()
+        },
+        Tol::witness(),
+    );
+    let wall = |node: RecipeNodeId| {
+        let mut faces = editor_core::select_where(
+            &ev,
+            node,
+            &editor_core::Selector::of(editor_core::NamePat::of_kind(
+                editor_core::EntityKind::Face,
+            )),
+            &[editor_core::GeomPred::SurfaceKind(
+                editor_core::SurfaceKindSet::just(geom_brep::SurfaceKind::Cylinder),
+            )],
+            &r.doc.param_env::<f64>(),
+            Tol::witness(),
+        )
+        .expect("the hole wall is an exact atom");
+        faces.sort();
+        MeasureRef::new(node, faces.remove(0))
+    };
+    let refs = vec![wall(hole_a), wall(hole_b)];
+    let radius_of = |n: &str| MeasureExpr::value(Expr::param(name(n), Dimension::Length));
+    let web = MeasureExpr::sub(
+        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("L + L"),
+    )
+    .expect("L - L");
+    let measure = r.insert(Node::measure(web, refs).expect("indices in range"));
+    // A bound the run can DECIDE: a decade past the escalation
+    // threshold below the nominal web, so the verdict is a plain
+    // `Holds` rather than a band-coincident one. Row 1 is about the
+    // verdict being taken and holding, not about the band.
+    r.insert(Node::Assertion {
+        measure,
+        bound: Expr::literal(
+            SPACING - 2.0 * RADIUS - 100.0 * Tol::witness().eps(),
+            Dimension::Length,
+        )
+        .expect("finite"),
+        dir: AssertionDir::AtLeast,
+    });
+    r.doc
 }
 
 fn carries_assertion(doc: &ProfileDoc) -> bool {

@@ -456,6 +456,26 @@ pub enum RefusalReason {
     /// partial answer, and never a leaf quietly dropped from the
     /// receipt.
     Budget(BudgetKind),
+    /// **A measure could not be taken, for a reason the BOX cannot
+    /// change** (M10-6, R1's MINOR-6): a selection that names the wrong
+    /// kind of entity, a pairing the wedge rule empties, a carrier the
+    /// engine does not support.
+    ///
+    /// These are facts about the DOCUMENT, not about the parameter
+    /// values, so every sub-box inherits them exactly. Before this
+    /// class they fell to the catch-all `Bisect` and the driver split
+    /// its way through the whole leaf budget re-deriving the same
+    /// refusal — a measured >60 s on a `NoAdmittedPair` fixture — and
+    /// then priced the mass as `Budget`, which named the symptom
+    /// instead of the cause. Refusing terminally is both faster and
+    /// truer: the mass is refused under its own class, and the class
+    /// carries the engine's own name for the refusal.
+    MeasureRefused {
+        /// The measure node that could not be taken.
+        node: RecipeNodeId,
+        /// The engine's or the wiring's own class name for it.
+        class: &'static str,
+    },
 }
 
 impl RefusalReason {
@@ -467,6 +487,7 @@ impl RefusalReason {
             Self::Bifurcation(_) => ReasonClass::Bifurcation,
             Self::Infeasible => ReasonClass::Infeasible,
             Self::Budget(_) => ReasonClass::Budget,
+            Self::MeasureRefused { .. } => ReasonClass::MeasureRefused,
         }
     }
 }
@@ -506,6 +527,8 @@ pub enum ReasonClass {
     Infeasible,
     /// [`RefusalReason::Budget`].
     Budget,
+    /// [`RefusalReason::MeasureRefused`].
+    MeasureRefused,
 }
 
 impl ReasonClass {
@@ -517,6 +540,7 @@ impl ReasonClass {
             Self::Bifurcation => "bifurcation",
             Self::Infeasible => "infeasible",
             Self::Budget => "budget",
+            Self::MeasureRefused => "measure_refused",
         }
     }
 }
@@ -1160,7 +1184,24 @@ fn classify(
                     });
                 }
             },
-            _ => return LeafVerdict::Bisect,
+            // **Box-independent measure refusals are TERMINAL**
+            // (M10-6, R1's MINOR-6). A selection naming the wrong kind
+            // of entity, or a pairing the wedge rule empties, is a
+            // fact about the document: every sub-box inherits it
+            // exactly, so refining re-derives the same refusal until
+            // the budget runs out and then prices the mass `Budget`,
+            // naming the symptom. The classes listed in
+            // `box_independent_measure_class` are the ones that
+            // provably cannot move under refinement; a clearance
+            // refusal that CAN (a cell budget, a poisoned enclosure,
+            // an unverified witness) still bisects, because for those
+            // a smaller box is exactly the remedy.
+            kind => {
+                if let Some(class) = box_independent_measure_class(kind) {
+                    return LeafVerdict::Refused(RefusalReason::MeasureRefused { node, class });
+                }
+                return LeafVerdict::Bisect;
+            }
         }
     }
 
@@ -1415,6 +1456,9 @@ fn render_reason(r: &RefusalReason) -> String {
     use core::fmt::Write as _;
     match r {
         RefusalReason::SliverTerminal { predicate } => format!("sliver_terminal {predicate}"),
+        RefusalReason::MeasureRefused { node, class } => {
+            format!("measure_refused {} {class}", node.0)
+        }
         RefusalReason::FlipCrossing { flipped } => {
             let mut s = String::from("flip_crossing");
             // Deterministic by construction: `FlipSet` is a `BTreeMap`
@@ -1515,6 +1559,38 @@ pub fn assertion_at(
     match ev.result(assertion) {
         Some(crate::eval::NodeResult::Ok(v)) => match &v.payload {
             crate::eval::ValuePayload::Assertion(a) => Some(a.clone()),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// The measure-refusal classes a smaller box cannot change
+/// ([`RefusalReason::MeasureRefused`]).
+///
+/// Conservative by construction: a class is here only when refinement
+/// PROVABLY cannot alter it, and everything else keeps bisecting. The
+/// cost of being wrong in this direction is a leaf refused early
+/// (visible, priced under its own name); the cost of being wrong the
+/// other way is a leaf that could have certified and did not, which is
+/// why the list is enumerated rather than defaulted.
+#[cfg(feature = "interval")]
+fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<&'static str> {
+    match kind {
+        // The selection resolved to the wrong KIND of entity. Document
+        // structure; no parameter value moves it.
+        NodeErrorKind::MeasureSelectionKind { .. } => Some("selection_kind"),
+        NodeErrorKind::MeasureClearanceRefused(r) => match r.class {
+            // Which faces are admitted, whether the two scopes pair at
+            // all, and whether the carrier has an implementation: all
+            // decided by the document's own topology and the engine's
+            // support table, not by the box.
+            c @ ("no_admitted_pair" | "unsupported" | "selection" | "empty_scope"
+            | "not_a_distance") => Some(c),
+            // `budget`, `sliver`, `poison_enclosure`, `witness_unverified`,
+            // `nothing_certified`, `tolerance_has_no_band`: every one of
+            // these can differ over a smaller box, so refinement is the
+            // right answer and the catch-all keeps it.
             _ => None,
         },
         _ => None,
