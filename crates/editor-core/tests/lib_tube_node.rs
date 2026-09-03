@@ -634,8 +634,23 @@ fn the_three_wall_arms_are_reachable_and_only_through_the_hollow_kind() {
 
     // The realized-gap arm: an outer radius whose own ulp exceeds a
     // wall that is itself comfortably above ε.
-    let collapsed = tube_refusal(hollow_node(u, 1e14, TubeWindow::Full, 1e12, 1e-6), z)
-        .expect("a wall under the outer radius's own ulp collapses the stored gap");
+    //
+    // BOTH halves of that sentence have to hold AT THE RUN'S ε, so the
+    // wall is derived from ε rather than written as a constant. It was
+    // a constant (1e-6) and that made the row ε-dependent in a way its
+    // own prose denied: at the 1e-6 CI row the wall was exactly ε, so
+    // the POSITIVITY arm fired first and the row failed claiming the
+    // gap arm was unreachable. The outer radius is 1e16, whose ulp is
+    // 2 — three orders above the widest wall any CI row produces here
+    // (1e-3 at ε = 1e-6), so `minor_radius − wall` rounds straight back
+    // onto `minor_radius` at every point in the matrix, while the wall
+    // stays a thousand ε above the positivity threshold at every one.
+    let wall_over_eps = Tol::witness().eps() * 1e3;
+    let collapsed = tube_refusal(
+        hollow_node(u, 1e18, TubeWindow::Full, 1e16, wall_over_eps),
+        z,
+    )
+    .expect("a wall under the outer radius's own ulp collapses the stored gap");
     assert!(collapsed.contains("tube_wall_gap"), "{collapsed}");
 
     // All three name the HOLLOW door outright — the solid door cannot
