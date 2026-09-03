@@ -3351,3 +3351,8 @@ same slots (M10-4 = B2 slot 3, M10-5 = B3 slot 1), the drafts
 handed over as UNTRUSTED reference material at lane-private paths.
 The rows at merge annotate the interruption; the arms and slots
 are unchanged, so the pairs count.
+
+**M10-4 dual draw (branch-side, 2026-09-03, at review dispatch).**
+Ordinal 505. Slot byte 124, parity 0 ⇒ R1 OPUS + R2 FABLE,
+concurrent, frozen head fc8de0ac (PR #1627), v5 instrument. The
+implementer lane is the FRESH same-arm redispatch recorded above.
