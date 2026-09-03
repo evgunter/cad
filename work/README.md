@@ -23,6 +23,9 @@ work/
     plan.md            the plan (narrative; present state only)
     log.md             the log (append-only narrative; its tail is
                        the program's story, never its slate)
+    process-observations.md
+                       code-quality only: the C1–C27 observations
+                       (narrative, unparsed)
     <ID>.md            one file per item: unit, issue or ruling
 ```
 
@@ -32,8 +35,8 @@ every CI tier; an item that lint rejects does not merge.
 
 ## The header
 
-Every file except `plan.md`, `log.md`, `README.md` and `STATUS.md`
-opens with a YAML front-matter block. The parser is a deliberately
+Every file except `plan.md`, `log.md`, `process-observations.md`,
+`README.md` and `STATUS.md` opens with a YAML front-matter block. The parser is a deliberately
 small subset: `key: scalar` and `key: [a, b, c]` only, no nesting, no
 multi-line values, no anchors. Anything else is a lint error.
 

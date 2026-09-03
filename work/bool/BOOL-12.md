@@ -7,6 +7,7 @@ pr: 1573
 branch: bool/12-declared-arrival
 opened: 2026-09-02
 refs: [433]
+needs_ev: true
 ---
 
 Under the Q1 fifth-round ruling (PQ4 reopened for the declared case) and the

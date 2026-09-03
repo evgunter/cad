@@ -5,6 +5,7 @@ title: ratification of the S-MATE exit walk
 status: open
 opened: 2026-09-01
 refs: [1528]
+needs_ev: true
 ---
 
 The S-MATE exit walk (`docs/S-MATE-EXIT-WALK.md`, STATUS: PROPOSED) walks

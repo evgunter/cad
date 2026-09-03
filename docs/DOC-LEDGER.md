@@ -394,3 +394,38 @@ of this document resolves any of them. One source comment was edited
 rather than left, because its tense made a live claim: `crates/mesh/
 src/sizing.rs` said `TESS-SPLIT-SPEC.md` "binds its execution", present
 tense, of a unit that had merged.
+
+## Sweep 4 — 2026-09-03: the work tracker replaces the register and the survey
+
+The tracker under `work/` (contract: `work/README.md`) is now the one
+home of live work, and two documents whose content it carries are
+deleted. Recover either with `git show <this sweep's SHA>^:docs/<NAME>`.
+
+- **`SMELL-SCAN-2026-08.md`** — the structural findings register and
+  its Tracks K–X schedule. Every live row is an item file
+  `work/code-quality/<ROWID>.md` (109 rows, the row id kept as the file
+  name), every Ev-only decision a `ruling` item there, every live
+  unrowed finding an `issue` item there, and the four ordering rules,
+  the partition rules, the territories table and the seams are
+  `work/code-quality/plan.md`. §C's process observations are
+  `work/code-quality/process-observations.md` verbatim. The census
+  that reconciles all 94 finding headings against the tree is
+  `work/code-quality/logs/migration-census-2026-09-03.md`; nothing
+  was dropped. One source defect is carried as a flagged
+  reconstruction: partition rule 4's opening sentence was already
+  missing from the document (its text began mid-sentence), and the
+  plan states it as "A style review runs on every unit against …".
+- **`WORK-STREAMS-2026-08.md`** — the 2026-08-29 stream cut. Every
+  stream it proposed graduated to a program, and each program's
+  `work/<program>/program.md` now carries the charter and territory
+  the cut assigned it. Plans that cite the cut as their charter keep
+  the citation; it resolves here.
+
+### Moved, not deleted
+
+Every `docs/<NAME>-PLAN.md` / `docs/<NAME>-LOG.md` pair is now
+`work/<program>/plan.md` / `log.md` (git rename history intact), and
+the nine `SMELL-*-LOG.md` track logs are under
+`work/code-quality/logs/`. `MODEL-AB-LOG.md` stays in `docs/` as the
+experiment log it is. `scripts/work.py lint` refuses a plan or log
+reappearing in `docs/`.
