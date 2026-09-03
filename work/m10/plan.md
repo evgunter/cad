@@ -241,6 +241,21 @@ ERROR-DESIGN's own "Open after this doc" list.
   plate, certified worst-case vs. RSS optimism printed side by
   side with the tail riding every line, which is the MVP's reason
   to exist rendered as a demo.
+- **M10-7 — parameter-aware certification (E12); after M10-6, opened
+  at the exit walk (Ev, 2026-09-03).** The symbolic identity tier of
+  ERROR-DESIGN E12: `Sym<T>` beside the lane scalar (a hash-consed
+  expression DAG over the parameter symbols), the on-demand exact
+  polynomial normal form with opaque atoms and a freezing budget,
+  the `decide` protocol that answers an identically-zero margin
+  `Zero` at any box width and records it in k_stats as its own
+  outcome; the census of the 57 identity-shaped predicates into
+  explicit (this unit) and implicit (S-CERT's frontier item); the
+  E3 amendments riding along — the extent lever replacing the 1 m
+  floor at the parallelism sites the measures consume (and the
+  `mate.rs` sibling), the binary `min_clearance` ratified.
+  Acceptance is E12's: the two-hole plate's ±0.05 mm study certifies
+  with refusals that are flips, slivers or tail, the M10-3 limit
+  row re-cut as the positive pin, the ceiling re-measured.
 
 Cross-program interfaces, named so "error" does not become a
 bucket: the PARAM-LINT unit (DISCIPLINES) is not ours and blocks
@@ -316,4 +331,7 @@ witnesses; the Dual question is ANSWERED and the
 the three E10 CI rows are live; the two-hole-plate cell ships in
 the tour; k_stats carries driver rows (the K re-open trigger
 armed with real data); every unit merged on its own green hosted
-head; the walk convention applies at exit.
+head; **a macroscopic box certifies** — the two-hole plate's real
+study returns certified leaves bounded by genuine flips, not by ε
+(E12; Ev's condition for closing the program, 2026-09-03); the walk
+convention applies at exit.

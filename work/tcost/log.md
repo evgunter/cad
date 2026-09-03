@@ -1166,3 +1166,19 @@ under concurrent writers, so a body measured once can vanish from a
 and one filing on the rule alone (`R1_SEED` from `SystemTime`,
 unpinned by `CAD_FUZZ_SEED`). `docs/TCOST-K3-SPEC.md` deleted at
 merge and ledgered.
+
+## Seam: after the block — two content units and a census (2026-09-03, 21:20 UTC)
+
+With TCOST-KB1 concluded (three kernel units, three A/B rows), the
+board's open items are two kernel candidates (`offset-composite-lazy-
+sign-gate`, `tcost-area-pad-lever` — each a spec and a new block if
+taken), one kernel finding filed by K3's fix pass (`edge-nurbs-
+computes-the-chart-image-and-discards-it`), two test-only dedups and
+the parked shard-count question. Dispatched now: TCOST-10 (the blend
+suite's fixture builders and volume oracles homed in
+`sweep/tests/common/`) and TCOST-11 (the one-declaration guard's
+fourteen copies homed in `test_utils`, pncad decided) as content
+units on the style-batch track; and a read-only shard-count census
+over the post-K3 hosted runs (fixed cost per leg, imbalance, the
+longest test, N = 2/3/4 modelled), which is the measurement the
+program's keep_out asks for before any sharding knob moves.
