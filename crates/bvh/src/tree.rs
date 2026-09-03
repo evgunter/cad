@@ -200,7 +200,6 @@ impl Bvh {
     /// caller asking what could be NEAR a box rather than what could
     /// touch it.
     ///
-
     /// Pruning is [`Aabb::separation_lo`], a certified LOWER bound on a
     /// Euclidean separation, so a subtree is dropped only when every
     /// item under it is provably further than `pad` — and dropping it

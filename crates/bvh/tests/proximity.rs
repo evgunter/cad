@@ -51,15 +51,15 @@ fn dist(p: [f64; 3], q: [f64; 3]) -> f64 {
     d[0].mul_add(d[0], d[1].mul_add(d[1], d[2] * d[2])).sqrt()
 }
 
-/// The whole claim of [`Aabb::separation_lo`]: no pair of points, one
-/// from each box, is closer than the reported bound.
-///
-/// The sweep's blind spot: the generator makes finite, non-inverted,
-/// axis-aligned boxes of bounded extent, so it never lands the
-/// degenerate and poison cases. Those are the table test below.
+// The sweep's blind spot, stated once for every property below: the
+// generator makes finite, non-inverted, axis-aligned boxes of bounded
+// extent, so it never lands a degenerate, inverted or poison box. Those
+// are the table tests that follow.
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(256))]
 
+    /// The whole claim of `Aabb::separation_lo`: no pair of points, one
+    /// from each box, is closer than the reported bound.
     #[test]
     fn separation_lo_never_exceeds_a_real_separation(
         a in arb_box(),
