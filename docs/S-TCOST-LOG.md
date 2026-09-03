@@ -265,3 +265,19 @@ Two assertion-free cross-profile dumps retired with owners; a
 dangling module-path citation in `solid_contain.rs` corrected. The
 row left the hosted top-20 at both ε rows drawn (from 23 cpu-s, rank
 2); topo's lib suite locally 77 → 10 s.
+
+## Unit: TCOST-2 merged (2026-09-03, PR 1609 at e8922ec1)
+
+geom-brep's cert5/cert6 probes. The gap ladder 7 → 3 drives (the
+duplicated 1-ulp rung's owner named), the dense oracles lazy and
+halved with the silent `converged` gate turned into labelled
+assertions, three cert6 rows merged with the baseline now taking the
+readings' posture (a 1e-4 row added so the bit reading is live at
+every ε — the fix pass found main's own reading had been standing
+down at 1e-6 silently). The two heavily-knotted containment rows
+came back from the review's MAJOR without their timing prints, at
+8.2 and 4.7 cpu-s against 24 and 22 on main; both are TCOST-1 gate
+candidates (specific to `crates/geom-brep/src/props/quad.rs`) and
+their residual cost is TCOST-K1's. Family ≥ 44 % down hosted
+(interval/1e-6 drawn on the fix head; default/1e-12 on the first);
+row count 24 → 22, nothing deleted.
