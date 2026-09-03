@@ -169,18 +169,6 @@
 //! poisoned/non-finite hulls. The placeholder refuses
 //! [`TessellateError::UnsupportedSurface`] upstream in `trimmed`.
 
-// `cfg(test)`: this file carries production code, and the marker's crate
-// is a dev-dependency.
-#[cfg(test)]
-test_utils::gated_to![
-    "crates/mesh/src/curved.rs",
-    "crates/mesh/src/tessellate.rs",
-    "crates/geom-brep/src/patch_bound.rs",
-    "crates/geom-core/src/ring_interval.rs",
-    "crates/geom/src/surfaces/",
-    "crates/geom/src/surfaces.rs",
-];
-
 use geom::NurbsSurface;
 use geom_brep::patch_bound::{self, PatchBoundError};
 use geom_core::ring_interval::RingInterval;
@@ -1193,6 +1181,19 @@ impl NurbsCellGrid {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    // The marker gates every test in this FILE's module; it sits INSIDE
+    // the test module because a bare top-level `#[cfg(test)]` line is what
+    // this crate's `the_eps_inventory_is_pinned` reads as the
+    // production/test cut, and a second one makes that cut ambiguous.
+    test_utils::gated_to![
+        "crates/mesh/src/curved.rs",
+        "crates/mesh/src/tessellate.rs",
+        "crates/geom-brep/src/patch_bound.rs",
+        "crates/geom-core/src/ring_interval.rs",
+        "crates/geom/src/surfaces/",
+        "crates/geom/src/surfaces.rs",
+    ];
 
     /// The whole-patch bound of a single face, with no memo — the door
     /// the rows below take. The shipped lane never has this shape (it

@@ -55,9 +55,14 @@ pub mod vacuity;
 /// * `crates/<c>/tests/<suite>.rs` — gates every test in that suite, which
 ///   is one `#[path]` module of the crate's aggregated `tests/all.rs`.
 /// * `crates/<c>/src/<path>.rs` — gates every test in that file's module,
-///   whole-file granularity. A file that also carries production code needs
-///   `#[cfg(test)]` on the invocation, because this crate is a
-///   dev-dependency and does not exist in a production build.
+///   whole-file granularity. A file that also carries production code puts
+///   the invocation INSIDE that file's `#[cfg(test)]` module, because this
+///   crate is a dev-dependency and does not exist in a production build —
+///   and because a bare top-level `#[cfg(test)]` line is what this tree's
+///   source censuses read as the production/test cut, so a second one makes
+///   that cut ambiguous (`mesh`'s `the_eps_inventory_is_pinned` asserts
+///   there is at most one). A file whose whole module is already
+///   `#[cfg(test)] mod …` in its parent needs neither.
 ///
 /// # What the paths mean
 ///
