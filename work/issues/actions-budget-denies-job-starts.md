@@ -2,7 +2,8 @@
 id: actions-budget-denies-job-starts
 kind: issue
 title: hosted CI job starts denied: 'an Actions budget is preventing further use'
-status: open
+status: closed
+closed: 2026-09-03
 opened: 2026-09-03
 ---
 
@@ -35,3 +36,8 @@ this, until the annotation says otherwise.**
 While it holds, hosted CI cannot be the verification of record for
 anything (`docs/prompts/implementer-discipline.md` §2), and a PR whose
 gate is half-run should say which jobs did run rather than claim green.
+
+Closed 2026-09-03: Ev raised the spending limit at 14:24 UTC; the
+first runs after it got runners within seconds (33766712819,
+33766720238, 33766730064). [ev] PR 1687 closed unmerged (this file
+reached main through PR 1684).

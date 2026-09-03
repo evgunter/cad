@@ -789,6 +789,68 @@ topo-closure run) −2 (C3, per seed-miss run); nightly side +~7, of
 which C2's ~3 is derived and wants a re-read from the first nightly
 that executes it. C4 lands last after its final main merge.
 
+## Unit: TCOST-C4 merged (2026-09-03)
+
+PR 1648 at `eb7a78a2` (run 33748099185, interval 1e-6 asked, all
+green; the default lane on earlier heads of the same tier). The
+sccache trial re-run under its own rules — seven runs, two lanes,
+tier=all, 18 packages, lane asked by trailer — and its verdict
+written into CI-MINUTES F4: sccache 0.16.0 refuses `--crate-type
+bin`, so the 47 refusals on a warm run are the workspace's test
+binaries and build scripts, 82 % of compile time by the build
+profile's census (now inline in F4 with provenance: test targets
+726.3 s, libs 159.5 s, 297 units); dependency hits are zero on any
+warm run because a restored rust-cache means rustc never runs for
+deps; the object cache barely persists. Rig kept, inverted to
+`vars.SCCACHE == '1'` (inert with nothing set). The finding that
+outgrew the unit — a branch's first build job restores nothing
+(branch-scoped caches + F3's "main never runs the job"), the control
+verified by its 275 MB save — is TCOST-B3, dispatched. The four
+CI-posture units are landed: PR side −5 billed minutes on a typical
+code-tier run, nightly side +~7.
+
+## Seam: hosted CI down account-wide — the Actions spending limit (2026-09-03, from 11:52 UTC)
+
+Every `ci.yml` run created after 11:52 UTC fails within seconds with
+no job started, on main and every branch ("The job was not started
+because an Actions budget is preventing further use"); the last run
+to get a runner was 33751935948 at 11:51. Verified against the run
+list, not a lane's clock (an earlier "stall" report from the TCOST-9
+lane was a clock error and is retracted). Routed to Ev as an `[ev]`
+PR carrying `work/issues/actions-budget-denies-job-starts.md`
+(`needs_ev: true`; the B3 lane filed it). Lanes told: no empty
+commits to re-gate until CI is back. State at the cut: TCOST-9's
+head green on both test legs (only the runner-less archive-cleanup
+job red); TCOST-B3's default run green on every job that started,
+test legs never started; K1's fix pass had a green default-lane run
+at 11:45. TCOST-B3 is in review (PR 1684) — its finding is the
+program's biggest CI-minutes lever so far: ~45 billed minutes an
+hour going to dependency rebuilds on a cache no branch could read,
+against ~7 for a main-scoped primer.
+
+## Seam: style batch 4 adjudicated (2026-09-03)
+
+TCOST-9 (PR 1681) MERGEABLE WITH FIXES — everything load-bearing
+reproduced (the 54 terms, both proof counts by hand from the filter
+logs, byte-identical moved rows, no `#[path]` mount on the two new
+files, the census re-derived). One MAJOR on the batch-2 bar, one
+level over: a marker's own file is implicit but a sibling test-helper
+module is not, and three sets omit the helper their fixtures and
+tolerance come from (`profile/tests/common/` for two, `editor-core/
+tests/fixture/` for one) — a PR editing that helper would skip the
+suites that depend on it; the class swept across all 54 markers, and
+a mechanical guard (marker set vs the suite's own helper imports)
+filed as a candidate. `curves/boxes.rs` omits `linalg/` where its bvh
+siblings name it. Minors: an orphaned doc paragraph from the split, a
+stale fuzz label, a title contradicting its body, and §0's wrong
+diagnosis of the red housekeeping job (it is the budget denial).
+TCOST-B3 (PR 1684) MERGEABLE WITH FIXES — the mechanism proved from
+the tree, the YAML coupling verified character-identical, the parity
+selftest's seven plants confirmed; two arithmetic lines (a rate whose
+denominator does not close; commits vs pushes), `runs-on` added to
+the parity check, the never-executed primer and the cancel-in-
+progress interaction stated. Landing ruling: on a re-gate of the head
+when runners return, not before. Both fix passes dispatched locally.
 ## Unit: TCOST-K1 fix pass landed (2026-09-03)
 
 The union of both reviews of PR 1652 (frozen 554f2b0f) applied on the
@@ -803,3 +865,53 @@ cell factor; the bound's monotonicity written at the site; the stale
 "measured width" prose swept, the Display and its five matchers with
 it; the area pad filed as `tcost-area-pad-lever`. Refusal payloads
 bit-identical to the frozen head on the digest's probe subset.
+
+## Unit: TCOST-K1 merged (2026-09-03) — the program's first A/B row
+
+PR 1652 at `b28b734f` (interval 1e-12 with the dev-probe k-lint row
+asked, run 33766712819, every job green; the fix pass's default-lane
+run 33750172871 green at 1c78f3c9). Merged at 5e668ba6, recorded as
+ordinal 1400 / sample #117 in `docs/MODEL-AB-LOG.md`; block TCOST-KB1
+slot 0 concluded (record branch-side). The NURBS-patch lanes refuse at
+the budget without running the schedule: a lower bound on the last
+round's flux width, decided through the k-funnel under
+`props_quad_last_round` once after round 0; `QuadratureBudget` carries
+the rounds it paid. Hosted at 1e-12: default-lane shard totals
+219.7 + 300.1 → 135.0 + 127.6 cpu-s; the block-edge gap row 27 → 2.9.
+Every certified bound byte-identical across six lane×ε rows; no pin
+re-baselined. `docs/TCOST-K1-SPEC.md` deleted at merge per the
+DOC-LEDGER rule (the PR body and this entry are its record).
+
+## Unit: TCOST-B3 merged (2026-09-03)
+
+PR 1684 at `cf9392f4` (default 1e-6, run 33766730064, all green
+including the new `cache-prime` parity step). The build jobs'
+rust-cache lived in a scope no branch could read (main never saved
+one; 40 of 49 first build jobs missed; ≈45 billed minutes an hour on
+dependency rebuilds). Two primer jobs on `push: main` save under the
+shared keys the build jobs now restore, at ~7 billed minutes an hour;
+`scripts/check-cache-prime-parity.py` reds if the primer and build
+jobs' env, key or runner drift. OWED: the after-reading — the first
+PR run after the next push to main, `build + archive`'s restore line
+and archive duration against 820/840 s cold — and the first push to
+main pays one full dependency build per lane.
+
+## Unit: TCOST-9 merged (2026-09-03)
+
+PR 1681 at `b09a0b33` (default 1e-6, run 33766720238, all green).
+The second gating batch: the proptest population (8 whole suites, 2
+splits so pins stay ungated, cert5_r2_probes whole) plus TCOST-2's and
+TCOST-4's gate candidates — gated set 43 → 54 suites, 257 → 384 tests;
+both hosted proofs (54 skip notices on an unrelated diff; the named
+suite running on a touched path). The batch-4 MAJOR closed as a class:
+ten markers (three of this unit's, seven of TCOST-1's) now name the
+sibling test-helper module their fixtures come from. Left ungated with
+a filed question for Ev: 14 in-src proptest modules at 0.62 cpu-s
+total. Filed: the `#[path]`-mount blind spot in `ci-filter.py`'s
+src-module derivation; the marker-set-vs-imports guard. Evidence PRs
+1679/1680 closed unmerged.
+
+## Seam: the outage ended (2026-09-03, 14:24 UTC)
+
+Ev raised the spending limit; the three re-gate runs got runners
+within seconds and every one went green. Issue closed.
