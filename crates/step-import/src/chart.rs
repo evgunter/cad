@@ -49,16 +49,6 @@
 //! honored AND cross-checked against this inference; disagreement is a
 //! typed error, not a preference (`entities`' face reader).
 
-// `cfg(test)`: this file carries production code, and the marker's crate
-// is a dev-dependency.
-#[cfg(test)]
-test_utils::gated_to![
-    "crates/step-import/src/recognize.rs",
-    "crates/step-import/src/normalize.rs",
-    "crates/geom/src/surfaces/",
-    "crates/geom/src/surfaces.rs",
-];
-
 use geom::Surface;
 use geom_core::{Point2, Point3, Vec3};
 
@@ -417,6 +407,18 @@ fn boundary_distance(poly: &[Point2<f64>], p: Point2<f64>) -> f64 {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::{infer_outer, uv_of};
+    // The marker gates every test in this FILE's module, these three
+    // submodules included; it sits inside one of them because a bare
+    // top-level `#[cfg(test)]` line is what the tree's source censuses
+    // read as the production/test cut, and a second one makes that cut
+    // ambiguous.
+    test_utils::gated_to![
+        "crates/step-import/src/recognize.rs",
+        "crates/step-import/src/normalize.rs",
+        "crates/geom/src/surfaces/",
+        "crates/geom/src/surfaces.rs",
+    ];
+
     use geom::Surface;
     use geom_core::{Point3, Vec3};
 
