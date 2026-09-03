@@ -14,6 +14,27 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+// Gated to the code it tests (TCOST-1). This suite is specific to the E6
+// subdivision driver and the M10-3 predicates it reads: the driver and
+// its accounting, the analyzed box and the distributions it quantizes,
+// the flip engine that NAMES a crossing, the parameter-box evaluation
+// the driver calls per leaf, the extrusion predicate the flip rows
+// assert on by name, and the tolerance the whole fixture is written in
+// units of. Deliberately wide: a run costs seconds, a missed break costs
+// a day.
+test_utils::gated_to![
+    "crates/editor-core/src/drive.rs",
+    "crates/editor-core/src/analysis.rs",
+    "crates/editor-core/src/distribution.rs",
+    "crates/editor-core/src/measure.rs",
+    "crates/editor-core/src/node.rs",
+    "crates/editor-core/src/resolve/",
+    "crates/editor-core/src/eval/",
+    "crates/sweep/src/extrude.rs",
+    "crates/geom-core/src/tolerance.rs",
+    "crates/geom-core/src/interval.rs",
+];
+
 use crate::fixture;
 
 use std::collections::BTreeMap;
@@ -263,62 +284,143 @@ fn an_unsplittable_box_refuses_resolution_or_certifies_and_the_receipt_holds() {
     }
 }
 
-// ------------------------------------------------------------- claim 5
-// D9 determinism on a drive of this reviewer's construction: the
-// bounded-chamber document, whose refinement pattern (two flip walls,
-// a band region, budget floors) is nothing like the PR's fixture.
+// ------------------------------------------------- claims 3, 4, 5 and 6
+// ONE driven chamber, four claims. The bounded-chamber drive is the
+// expensive object in this file, and nextest is process-per-test: three
+// rows that each rebuilt it paid for it three times over. They are
+// merged here, every assertion labelled so the failing property is
+// unambiguous from the message alone.
 
-#[test]
-fn my_own_parallel_drive_is_bit_identical_across_schedules_and_repeats() {
-    let doc = bounded_chamber(60.0 * eps(), 30.0 * eps(), 100.0 * eps());
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let seq = drive(&doc, &analyzed, &config(4096), Tol::witness()).unwrap();
-    let par = drive(
-        &doc,
-        &analyzed,
-        &DriveConfig {
-            parallel: true,
-            ..config(4096)
-        },
-        Tol::witness(),
-    )
-    .unwrap();
-    let par2 = drive(
-        &doc,
-        &analyzed,
-        &DriveConfig {
-            parallel: true,
-            ..config(4096)
-        },
-        Tol::witness(),
-    )
-    .unwrap();
-    assert!(
-        seq.receipt().splits > 16 && !seq.certified().is_empty() && !seq.refused().is_empty(),
-        "not a vacuous comparison: {:?}",
-        seq.receipt()
-    );
-    assert_eq!(seq.serialize(), par.serialize());
-    assert_eq!(par.serialize(), par2.serialize());
-    assert_eq!(seq.content_key(), par.content_key());
+/// The leaf budget the merged chamber row drives at.
+///
+/// MEASURED, not chosen: on this chamber every claim below first holds
+/// at **1024** leaves — at or below 832 the far wall's flip is not yet
+/// named, at or below 960 a boundary box is still refused for `Budget`
+/// rather than on a flip, so containment does not fire. `1280` clears
+/// that threshold with margin while costing about a third of a 4096-leaf
+/// drive. The subdivision is scale-free — the fixture is written in
+/// units of ε and the certification predicates are relative — so the
+/// receipts, and this threshold, are identical at every ε the matrix
+/// draws; the margin is not an ε artefact.
+const CHAMBER_LEAVES: usize = 1280;
+
+/// The widest frontier the drive ever handed to its schedule,
+/// reconstructed from the shipped leaves.
+///
+/// The driver refines level-synchronously and bisects one axis, so a
+/// leaf's depth is `log2(root width / leaf width)` on that axis and the
+/// level widths follow: `boxes(0) = 1`, `boxes(k+1) = 2 * (boxes(k) -
+/// leaves(k))`. It is what the parallel schedule had to spread across
+/// threads, and the number the budget below must not quietly cut to one.
+fn widest_frontier(v: &editor_core::ParamBoxVerdict, axis: &ParamName) -> usize {
+    let (rlo, rhi) = v.root().get(axis).unwrap().span();
+    let root_width = rhi - rlo;
+    let depth_of = |b: &ParamBox| -> usize {
+        let (lo, hi) = b.get(axis).unwrap().span();
+        let w = hi - lo;
+        if w <= 0.0 || !w.is_finite() {
+            return LEVEL_CEILING - 1;
+        }
+        ((root_width / w).log2().round().max(0.0) as usize).min(LEVEL_CEILING - 1)
+    };
+    let mut leaves_at = [0usize; LEVEL_CEILING];
+    for l in v.certified() {
+        leaves_at[depth_of(&l.box_)] += 1;
+    }
+    for l in v.refused() {
+        leaves_at[depth_of(&l.box_)] += 1;
+    }
+    let mut boxes = 1usize;
+    let mut widest = 0usize;
+    for leaves in leaves_at {
+        if boxes == 0 {
+            break;
+        }
+        widest = widest.max(boxes);
+        boxes = 2 * boxes.saturating_sub(leaves);
+    }
+    widest
 }
 
-// ------------------------------------------------------------- claim 6
-// Flip honesty on this reviewer's own geometry: the SECOND extrude's
-// sign predicate is the one that flips at the right-hand wall, and the
-// named flip says so.
+/// One more than the deepest level `f64` bisection can reach on any
+/// axis, so the reconstruction above needs no growable buffer.
+const LEVEL_CEILING: usize = 128;
 
+/// **The bounded chamber, driven once, read four ways.** Its refinement
+/// pattern (two flip walls, a band region, budget floors) is nothing
+/// like the PR's fixture, and every claim below is this reviewer's own
+/// derivation from the public doors.
+///
+/// - **receipt (claim 3)** — the identity holds on a drive of this
+///   construction.
+/// - **D9 (claim 5)** — the serialized verdict and its content key are
+///   bit-identical across the rayon schedule and across a REPEAT of the
+///   parallel schedule, which no other row in the tree takes: the
+///   driver suite's D9 row repeats the SEQUENTIAL drive
+///   (`m10_3_driver_interval::the_verdict_is_bit_identical_across_repeats_and_schedules`)
+///   and R2's repeats it on its own fixture
+///   (`m10_3_r2_probes_interval::my_own_drive_is_bit_identical_across_repeats_and_schedules`).
+///   Non-vacuity is asserted, including the width of the widest frontier
+///   the schedule actually had to spread.
+/// - **flip honesty (claim 6)** — the SECOND extrude's sign predicate is
+///   the one that flips at the right-hand wall, and the named flip says
+///   so; the first extrude's flips at the left.
+/// - **containment (claim 4)** — containment's POSITIVE arm, which no
+///   shipped fixture exercises: on a chamber bounded inside the box
+///   every boundary leaf flips and the verdict reports containment.
 #[test]
-fn a_flip_on_the_far_wall_names_the_second_extrudes_predicate() {
+fn the_driven_chamber_replays_bit_identically_names_both_wall_flips_and_reports_containment() {
     let doc = bounded_chamber(60.0 * eps(), 30.0 * eps(), 100.0 * eps());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let v = drive(&doc, &analyzed, &config(4096), Tol::witness()).unwrap();
-    assert!(v.receipt().holds());
+    let par_config = DriveConfig {
+        parallel: true,
+        ..config(CHAMBER_LEAVES)
+    };
+    let seq = drive(&doc, &analyzed, &config(CHAMBER_LEAVES), Tol::witness()).unwrap();
+    let par = drive(&doc, &analyzed, &par_config, Tol::witness()).unwrap();
+    let par2 = drive(&doc, &analyzed, &par_config, Tol::witness()).unwrap();
+
+    // -------------------------------------------------------- claim 3
+    assert!(
+        seq.receipt().holds(),
+        "receipt identity on the chamber drive: {:?}",
+        seq.receipt()
+    );
+
+    // -------------------------------------------------------- claim 5
+    assert!(
+        seq.receipt().splits > 16 && !seq.certified().is_empty() && !seq.refused().is_empty(),
+        "D9 non-vacuity: the compared drive must split, certify and refuse: {:?}",
+        seq.receipt()
+    );
+    let widest = widest_frontier(&seq, &name("q"));
+    assert!(
+        widest >= 64,
+        "D9 non-vacuity: the parallel schedule had a widest frontier of only {widest} boxes to \
+         spread across threads, so the two schedules barely differ"
+    );
+    assert_eq!(
+        seq.serialize(),
+        par.serialize(),
+        "D9: the parallel schedule must replay the sequential one byte for byte"
+    );
+    assert_eq!(
+        par.serialize(),
+        par2.serialize(),
+        "D9: two runs of the PARALLEL schedule must agree byte for byte"
+    );
+    assert_eq!(
+        seq.content_key(),
+        par.content_key(),
+        "D9: the content key must not depend on the schedule"
+    );
+
+    // -------------------------------------------------------- claim 6
     // Both walls flip: collect every named predicate flip with the box
     // it refused on.
     let mut left_wall = false;
     let mut right_wall = false;
-    for leaf in v.refused() {
+    for leaf in seq.refused() {
         let RefusalReason::FlipCrossing { flipped } = &leaf.reason else {
             continue;
         };
@@ -347,46 +449,35 @@ fn a_flip_on_the_far_wall_names_the_second_extrudes_predicate() {
     }
     assert!(
         left_wall && right_wall,
-        "both walls must refuse with a truthfully-located extrusion sign flip \
+        "flip honesty: both walls must refuse with a truthfully-located extrusion sign flip \
          (left: {left_wall}, right: {right_wall})"
     );
-}
 
-// ------------------------------------------------------------- claim 4
-// Containment's POSITIVE arm, which no shipped fixture exercises: on a
-// chamber bounded inside the box, every boundary leaf flips and the
-// verdict reports containment.
-
-#[test]
-fn containment_fires_when_the_chamber_is_bounded_inside_the_box() {
-    let doc = bounded_chamber(60.0 * eps(), 30.0 * eps(), 100.0 * eps());
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let v = drive(&doc, &analyzed, &config(4096), Tol::witness()).unwrap();
-    assert!(v.receipt().holds());
+    // -------------------------------------------------------- claim 4
     // Re-derive the predicate from the shipped leaves first, so a
     // failure distinguishes "the driver disagrees with its own
     // definition" from "this fixture did not corner the chamber".
-    let root = v.root();
-    let boundary_certified = v
+    let root = seq.root();
+    let boundary_certified = seq
         .certified()
         .iter()
         .any(|l| l.box_.touches_boundary_of(root));
     let mut saw = false;
     let mut all_flips = true;
-    for leaf in v.refused() {
+    for leaf in seq.refused() {
         if leaf.box_.touches_boundary_of(root) {
             saw = true;
             all_flips &= matches!(leaf.reason, RefusalReason::FlipCrossing { .. });
         }
     }
     assert_eq!(
-        v.accounting().containment,
+        seq.accounting().containment,
         !boundary_certified && saw && all_flips,
-        "the shipped bool must agree with its own definition"
+        "containment: the shipped bool must agree with its own definition"
     );
     assert!(
-        v.accounting().containment,
-        "a chamber bounded inside the box must report containment \
+        seq.accounting().containment,
+        "containment: a chamber bounded inside the box must report containment \
          (boundary_certified: {boundary_certified}, saw: {saw}, all_flips: {all_flips})"
     );
 }
