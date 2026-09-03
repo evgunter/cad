@@ -39,11 +39,23 @@
 //! reports a COINCIDENCE and never a signed penetration depth; that
 //! gap is scoped in `work/m10/signed-penetration-depth.md`.
 //!
-//! [`ClearanceVerdict::Refused`] is typed: a terminal sliver (the
-//! driver's rule shape — the deciding enclosure sits wholly inside the
-//! funnel's band, so refinement provably cannot move it), a named
-//! budget, a carrier with no admitted window, or a selection that does
-//! not resolve.
+//! [`ClearanceVerdict::Refused`] is typed, and there are TEN arms
+//! rather than the spec's two: a terminal sliver (the driver's rule
+//! shape — the deciding enclosure sits wholly inside the funnel's
+//! band, so refinement provably cannot move it), a named budget, a
+//! carrier with no admitted window, a selection that does not resolve,
+//! an enclosure that did not evaluate, a fold over a drive that
+//! certified nothing, a bound that is not a distance, a scope that
+//! names nothing, a tolerance the funnel cannot band, and a witness
+//! the `f64` rebuild would not confirm. [`ClearanceRefusal`] carries
+//! the argument for each; five of them have no row in any suite and
+//! the suite's own module door says which and why.
+//!
+//! **The sweep stops at the first VERIFIED violation.** A witness is
+//! the deliverable, and continuing past one buys a bigger receipt and
+//! no more truth. What was on the frontier when it stopped is counted
+//! [`CellReceipt::abandoned`] — never folded into `refused`, which
+//! would be a claim that it was tried.
 //!
 //! # The one place a verdict is loose, stated at the door
 //!
@@ -79,8 +91,17 @@
 //! [`CLEARANCE_MARGIN`] (`d − c`, metres minus metres) and
 //! [`SELF_INTERSECTION_GAP`] (`d`, the separation a non-adjacent face
 //! pair must classify strictly positive). Both carry a row in
-//! `docs/predicate-dimension-audit.md`. Nothing here compares a float
-//! raw, mints a tolerance, or reads a width as evidence.
+//! `docs/predicate-dimension-audit.md`. No DECISION here compares a
+//! float raw, mints a tolerance, or reads a width as evidence.
+//!
+//! One raw compare survives, and it is not a decision: the proximity
+//! tree's admission test, which decides which pairs are EXAMINED
+//! rather than what any of them means. It is padded by the funnel's
+//! own escalate threshold (`c + band.escalate()`), so a pair it drops
+//! is one the funnel would have discharged definitely — the two agree
+//! in the only direction that matters, and everything inside the band
+//! reaches the funnel. Stated because a reviewer should meet it here
+//! rather than find it.
 //!
 //! # Read-only (E8)
 //!

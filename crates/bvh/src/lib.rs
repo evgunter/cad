@@ -1,6 +1,8 @@
 //! Deterministic AABB bounding-volume hierarchy (C10, PERF-PLAN §2.1).
 //!
-//! One tree, several duties — **two of them wired so far**:
+//! One tree, several duties — **four of them wired so far** (the count
+//! was stale before this crate gained its proximity lane; the bullets
+//! below are the roster, and LIVE/INTENDED is the truth of each):
 //!
 //! - **Boolean edge×face sweep** candidate generation — LIVE since
 //!   M5 PR 8 (`topo::boolean::reduce`).
