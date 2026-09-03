@@ -59,6 +59,10 @@ Usage:
                                    reason, the interval advisory) to <file>,
                                    for a caller that relays them verbatim
   ci-filter.py --force-all         take no diff at all; return the `all` tier
+  ci-filter.py --gated-set         print ONE nextest filterset expression
+                                   selecting every gated suite in the tree
+                                   (the nightly's ungated re-take), or
+                                   `none()`; not the KEY=value stream
 
 Output: KEY=value lines on stdout, one per line, safe to append to
 $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
@@ -97,6 +101,12 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
                                 `_forces_klint` substituted it ahead of the
                                 draw), `requested` (--config) or
                                 `commit-trailer`
+  TEST_FILTER=<nextest filterset expression>|<empty>
+                                the GATED SUITES this run does not execute,
+                                as one `-E` expression EXCLUDING them
+                                (`not (A | B | ...)`), or empty for the
+                                ordinary whole-suite run. Both run legs
+                                append it; see THE PER-FILE TEST GATE below
   RUN_VIEWER_TOOLKIT=true|false the eframe/wgpu rows (`clippy -p viewer
                                 --features app`, the doc gate's
                                 --all-features pass over viewer) — keyed on
@@ -230,6 +240,35 @@ means "every row" to the local half, which loops over them, while the hosted
 eps rows put the value straight into CAD_TOLERANCE_EPS, where `all` is a
 parse error by design. `lane=both` and `klint=all` ARE legal — every job
 condition already spells those as "run every row of that dimension".
+
+THE PER-FILE TEST GATE (2026-09-02, S-TCOST lever 3; docs/TCOST-1-SPEC.md).
+A suite that exercises the logic of a few named source files runs on a
+pull-request gate only when one of those files, or the suite's own file, is
+in the diff — rather than whenever any crate in its dependency closure moved,
+which is what TIER=closure alone says. The suite names those paths ITSELF, in
+a `test_utils::gated_to!` marker at the top of its file, and `TEST_FILTER`
+above is the nextest expression that subtracts the untouched ones.
+
+WHY A SUITE MAY BE SKIPPED AT ALL, since a skipped detector is normally the
+thing this file refuses. `docs/CI-MINUTES-2026-08.md` §*What is NOT sampled*
+draws the line at PERSISTENCE: skipping is sound for a detector whose subject
+persists in the tree, and unsound for a detector of ABSENCE, which leaves no
+future red behind. A gated suite's break persists — the code it was written
+against is still wrong tomorrow — and the nightly's `--gated-set` row runs the
+WHOLE gated set ungated on any day main moved, so the longest a break confined
+to an unnamed path can hide is a day. This is the same argument the eps and
+lane sampling rest on, at a longer period, and `memories/test-suite-cost.md`
+already RULED the case for the first users: a fuzzer must be *"MARKED to run
+only on changes to the code it was written to test"*, and one that is not
+gated is a defect in the fuzzer.
+
+RECORDED, NEVER SILENT, like every other skip here: one notice line per
+skipped suite naming the suite and the paths that were not in the diff,
+relayed by ci.yml's `the configuration this run gates` step, and both run legs
+echo `TEST_FILTER` before invoking nextest.
+
+The derivation, the marker's spelling and every fail-open arm are at THE
+PER-FILE TEST GATE section further down this file, beside the code.
 
 `--force-all` TAKES NO DIFF AT ALL and returns the `all` tier: everything
 runs, unscoped. It is for the dispatch aimed at a ref whose diff against a
@@ -517,14 +556,24 @@ def _repo_root() -> str:
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+_MEMBERS_CACHE: dict[str, tuple[dict[str, str], dict[str, set[str]]]] = {}
+
+
 def _members(root: str) -> tuple[dict[str, str], dict[str, set[str]]]:
     """Return (dir-name -> package name, package -> set of member deps).
+
+    MEMOISED PER ROOT. Two callers now want the member map in one process —
+    the closure, and the gated-suite terms' binary ids — and `cargo metadata`
+    is a subprocess. The cache is keyed on the root and holds for the life of
+    the process, which is one classification.
 
     `--no-deps` reads the workspace manifests only: no registry resolution,
     no network, no lockfile update. Dependency kinds are all kept — normal,
     build, AND dev — because `cargo test -p X` builds X's dev-dependencies,
     so a dev-dep edge propagates a change just as a normal one does.
     """
+    if root in _MEMBERS_CACHE:
+        return _MEMBERS_CACHE[root]
     meta = json.loads(
         _run(["cargo", "metadata", "--no-deps", "--format-version", "1"], root)
     )
@@ -544,6 +593,7 @@ def _members(root: str) -> tuple[dict[str, str], dict[str, set[str]]]:
         }
     if not dir_of:
         raise Bail("no workspace members found")
+    _MEMBERS_CACHE[root] = (dir_of, deps)
     return dir_of, deps
 
 
@@ -1037,6 +1087,356 @@ def _advises_interval(files: list[str] | None) -> list[str]:
     about the size of what it is asking about.
     """
     return [f for f in (files or []) if "interval" in f.rsplit("/", 1)[-1]]
+
+
+# ----------------------------------------------------- the per-file test gate
+#
+# WHAT A MARKER IS. A gated suite names, in its own file, the source paths it
+# was written to exercise:
+#
+#     test_utils::gated_to!["crates/geom-core/src/ring.rs", "crates/geom-core/src/interval/"];
+#
+# The suite then runs on a pull-request gate only when one of those paths, or
+# the suite's own file, is in the diff. `crates/test-utils/src/lib.rs` carries
+# the macro and the rules a marker's AUTHOR needs; what follows is what the
+# READER of this file needs, which is how the set becomes a nextest expression
+# and every way that derivation is allowed to fail.
+#
+# WHY THIS IS READ FROM THE TEXT AND NOT FROM A ROSTER. The same argument
+# `scripts/nightly-only-selection.py` makes for the demoted set and
+# `check-ci-mirror-parity.py` makes for its citations: a central list of which
+# suites are gated is a second copy of a fact the tree already holds, free to
+# drift from it, while a mark at the test cannot. The set below is DERIVED on
+# every run, from the tree that is about to be tested.
+#
+# WHY IT IS A MACRO AND NOT A COMMENT, given that this script reads text
+# either way. A comment can be misspelt and stay a comment; the misspelling
+# then reads as "this suite is not gated", which is the safe direction for
+# COVERAGE and the wrong one for a reader who believes their fuzzer is gated.
+# `gated_to!` is a real path into a real crate, so the same typo is a compile
+# error. The macro expands to nothing and costs no build time.
+#
+# `crates/test-utils/` IS NOT SCANNED. It is the marker's home, its docs quote
+# the spelling, and a diff touching it empties this filter outright (below) —
+# so a marker there could never gate anything and would only make this scan's
+# own fixtures ambiguous.
+
+# `gated_to!` with any of the three delimiters a macro call may use, whether or
+# not it is written through the `test_utils::` path. The literals are pulled
+# out of the balanced text that follows, so a call rustfmt has wrapped across
+# lines reads exactly like a one-line one.
+_GATED_CALL_RE = re.compile(r"\bgated_to!\s*([\[({])")
+_GATED_CLOSER = {"[": "]", "(": ")", "{": "}"}
+_GATED_LITERAL_RE = re.compile(r'"([^"\n\\]*)"')
+# `#[path = "curves/lt_r1_probes.rs"]` immediately above `mod curves_lt_r1_probes;`
+# in a crate's aggregated `tests/all.rs`. That pair is the only place the
+# module prefix a nextest test id carries is written down.
+_ALL_RS_PATH_RE = re.compile(r'#\s*\[\s*path\s*=\s*"([^"\n]+)"\s*\]')
+_ALL_RS_MOD_RE = re.compile(r"^\s*(?:pub\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*;")
+# What may go into `test(/^<module>::/)` unquoted and unescaped. A Rust module
+# path cannot contain anything else; a path that does is not silently emitted
+# as a malformed filterset, it fails open (below).
+_MODULE_PATH_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*$")
+_BINARY_ID_RE = re.compile(r"^[A-Za-z0-9_-]+(?:::[A-Za-z0-9_-]+)?$")
+
+# A diff touching one of these empties the whole filter: they are the inputs
+# the derivation itself is made of, and a run that changed how the gate is
+# COMPUTED has no business trusting the gate's answer about itself.
+#
+#   crates/test-utils/ — the macro, and the harness every gated suite draws
+#     its RNG and its EFFORT dial from. A change here can move what any of
+#     them does.
+#   scripts/ci-filter.py — this file.
+#   */tests/all.rs — the aggregation file each `tests/` term's module prefix
+#     is read out of. A suite renamed there is a term pointing at nothing, and
+#     a term that matches no test EXCLUDES no test, which is silent.
+#
+# The first two are already unscopable by `classify` (a `scripts/` path forces
+# TIER=all, a test-utils change seeds a closure that is nearly the workspace),
+# so this is belt and braces for those; `tests/all.rs` is not, and is the one
+# that earns the arm.
+def _gate_fails_open(files: list[str] | None) -> str | None:
+    for f in files or ():
+        if f.startswith("crates/test-utils/"):
+            return f
+        if f == "scripts/ci-filter.py":
+            return f
+        if f.endswith("/tests/all.rs"):
+            return f
+    return None
+
+
+class GatedSuite:
+    """One marked file: what it declared, and the nextest term that selects it.
+
+    `problem` is set when the term could not be derived or a declared path
+    does not resolve. Such a suite is never excluded — it runs — and says so
+    in a notice. The LOUD half of that is `scripts/gates/gated-suite-paths.sh`
+    in the `discipline` row: this script's job is to keep the gate honest, and
+    a gate that reds the run is the gate's job.
+    """
+
+    def __init__(self, path: str, paths: list[str], term: str | None, problem: str | None):
+        self.path = path
+        self.paths = paths
+        self.term = term
+        self.problem = problem
+
+    def selected_by(self, changed: set[str]) -> bool:
+        """Is one of this suite's paths — its OWN FILE INCLUDED — in the diff?"""
+        if self.path in changed:
+            return True
+        for want in self.paths:
+            if want.endswith("/"):
+                if any(f.startswith(want) for f in changed):
+                    return True
+            elif want in changed:
+                return True
+        return False
+
+
+def _marker_paths(text: str) -> list[str] | None:
+    """The literals of the ONE `gated_to!` call in `text`, or None if there is
+    no call. Raises `Bail` on a second call in one file, and on a call this
+    reader cannot bracket-match — both of which mean the file says something
+    this script would otherwise answer by ignoring half of it."""
+    calls = list(_GATED_CALL_RE.finditer(text))
+    if not calls:
+        return None
+    if len(calls) > 1:
+        raise Bail(
+            "more than one gated_to! call: one marker per file, so that the "
+            "path set a reader sees at the top is the whole set"
+        )
+    match = calls[0]
+    opener = match.group(1)
+    closer = _GATED_CLOSER[opener]
+    depth = 0
+    end = None
+    for i in range(match.end() - 1, len(text)):
+        ch = text[i]
+        if ch == opener:
+            depth += 1
+        elif ch == closer:
+            depth -= 1
+            if depth == 0:
+                end = i
+                break
+    if end is None:
+        raise Bail("a gated_to! call whose delimiters do not close")
+    return [m.group(1) for m in _GATED_LITERAL_RE.finditer(text[match.end() : end])]
+
+
+def _all_rs_modules(root: str, crate_dir: str) -> dict[str, str]:
+    """`tests/<file>.rs` -> the module name `tests/all.rs` includes it under.
+
+    The module name is what a nextest test id is prefixed with, and it is NOT
+    derivable from the filename: `crates/geom/tests/all.rs` includes
+    `curves/lt_r1_probes.rs` as `curves_lt_r1_probes`. Read the pair, never
+    guess it.
+    """
+    all_rs = os.path.join(root, "crates", crate_dir, "tests", "all.rs")
+    out: dict[str, str] = {}
+    try:
+        with open(all_rs, encoding="utf-8", errors="replace") as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return out
+    pending: str | None = None
+    for line in lines:
+        found = _ALL_RS_PATH_RE.search(line)
+        if found:
+            pending = found.group(1)
+            continue
+        mod = _ALL_RS_MOD_RE.match(line)
+        if mod and pending is not None:
+            out[pending] = mod.group(1)
+        if line.strip():
+            pending = None
+    return out
+
+
+def _suite_term(root: str, rel: str, dir_of: dict[str, str] | None) -> tuple[str | None, str | None]:
+    """`(term, problem)` — the nextest filterset term selecting `rel`'s tests.
+
+    Two shapes, because the tree has two. A `tests/` suite is one `#[path]`
+    module of its crate's single aggregated test binary, so the term names
+    that binary and the module prefix. A `src/` file's tests are in the
+    crate's LIB test binary, whose binary id is the package name alone, and
+    the module prefix is the file's own module path.
+    """
+    parts = rel.split("/")
+    crate_dir = parts[1]
+    pkg = (dir_of or {}).get(crate_dir, crate_dir)
+    if not _BINARY_ID_RE.match(pkg):
+        return None, f"package name {pkg!r} cannot go into a filterset unquoted"
+    if parts[2] == "tests":
+        inner = "/".join(parts[3:])
+        modules = _all_rs_modules(root, crate_dir)
+        mod = modules.get(inner)
+        if mod is None:
+            return None, (
+                f"crates/{crate_dir}/tests/all.rs declares no `#[path = \"{inner}\"]` "
+                "module, so the test-id prefix this suite's tests carry is unknown"
+            )
+        return f"(binary_id({pkg}::all) & test(/^{mod}::/))", None
+    # src/: the module path IS the file path. `mod.rs` names its directory.
+    inner = parts[3:]
+    if inner[-1] == "mod.rs":
+        inner = inner[:-1]
+    else:
+        inner[-1] = inner[-1][: -len(".rs")]
+    mod = "::".join(inner)
+    if not mod or not _MODULE_PATH_RE.match(mod):
+        return None, f"module path {mod!r} is not a plain Rust path"
+    return f"(binary_id({pkg}) & test(/^{mod}::/))", None
+
+
+def _scan_gated(root: str, dir_of: dict[str, str] | None = None) -> list[GatedSuite]:
+    """Every marked file under `crates/`, in path order.
+
+    Walks `crates/*/src` and `crates/*/tests` only: a marker anywhere else is
+    not a suite this gate can name a binary for, and `gated-suite-paths.sh`
+    reds the run on one.
+    """
+    out: list[GatedSuite] = []
+    crates = os.path.join(root, "crates")
+    for crate_dir in sorted(os.listdir(crates)):
+        if crate_dir == "test-utils":
+            continue
+        for sub in ("src", "tests"):
+            base = os.path.join(crates, crate_dir, sub)
+            for dirpath, dirs, names in os.walk(base):
+                dirs.sort()
+                for name in sorted(names):
+                    if not name.endswith(".rs"):
+                        continue
+                    full = os.path.join(dirpath, name)
+                    rel = os.path.relpath(full, root).replace(os.sep, "/")
+                    with open(full, encoding="utf-8", errors="replace") as fh:
+                        text = fh.read()
+                    if "gated_to!" not in text:
+                        continue
+                    paths = _marker_paths(text)
+                    if paths is None:
+                        continue
+                    problem = None
+                    if not paths:
+                        problem = "the marker names no path at all"
+                    for want in paths:
+                        if want.startswith("/") or ".." in want.split("/"):
+                            problem = f"{want!r} is not a repo-relative path"
+                            break
+                        target = os.path.join(root, want)
+                        ok = os.path.isdir(target) if want.endswith("/") else os.path.isfile(target)
+                        if not ok:
+                            problem = f"{want!r} does not exist in the tree"
+                            break
+                    term, term_problem = _suite_term(root, rel, dir_of)
+                    out.append(GatedSuite(rel, paths, term, problem or term_problem))
+    return out
+
+
+def gated_filter(
+    root: str,
+    files: list[str] | None,
+    tier: str,
+    dir_of: dict[str, str] | None = None,
+) -> tuple[str, list[str]]:
+    """`(TEST_FILTER, notices)` for this run.
+
+    FAILS OPEN, ALWAYS TOWARD RUNNING, and the empty string is what that looks
+    like: it is the ordinary whole-suite run, byte for byte what ran before
+    this key existed. Every arm below returns it —
+    tier `docs` (nothing runs at all), tier `all` (no diff to read, so nothing
+    can be proven still), a diff with no file list, a diff touching the
+    derivation's own inputs, and any exception anywhere in the scan.
+    A suite whose own marker cannot be resolved fails open ALONE, so one
+    broken marker cannot un-gate the rest.
+    """
+    if tier != "closure" or files is None:
+        return "", []
+    touched = _gate_fails_open(files)
+    if touched is not None:
+        return "", [
+            f"gated suites: the whole gated set RUNS — this diff touches {touched}, "
+            "which is an input to the gate's own derivation.\n"
+            "  A change to the marker macro, to the fuzz harness, to this filter or to a "
+            "crate's tests/all.rs can move what a gated suite DOES or which tests its term "
+            "names, so the gate does not get to answer a question about itself."
+        ]
+    try:
+        suites = _scan_gated(root, dir_of)
+    except Exception as exc:  # noqa: BLE001 — fail OPEN, like every other arm here
+        return "", [
+            f"gated suites: the whole gated set RUNS — the marker scan failed ({exc}).\n"
+            "  Nothing is excluded on a scan this script could not complete; "
+            "scripts/gates/gated-suite-paths.sh is the row that reds for it."
+        ]
+    changed = set(files)
+    notices: list[str] = []
+    excluded: list[str] = []
+    for suite in suites:
+        if suite.selected_by(changed):
+            continue
+        if suite.problem is not None or suite.term is None:
+            notices.append(
+                f"gated: {suite.path} RUNS despite an untouched path set — {suite.problem}.\n"
+                "  A marker this script cannot resolve never skips its suite. Fix the marker; "
+                "scripts/gates/gated-suite-paths.sh reds the discipline row until it is fixed."
+            )
+            continue
+        excluded.append(suite.term)
+        shown = ", ".join(suite.paths) or "(no paths)"
+        notices.append(f"gated: {suite.path} skipped — none of {shown} in the diff")
+    if not excluded:
+        return "", notices
+    return "not (" + " | ".join(excluded) + ")", notices
+
+
+def gated_set(root: str) -> int:
+    """`--gated-set`: the union of EVERY gated suite's term, for the nightly.
+
+    NOT the KEY=value stream — one filterset expression on stdout, the shape
+    `nightly-only-selection.py` emits, because the caller passes it straight
+    to `nextest -E`.
+
+    AN EMPTY SET IS LEGITIMATE AND IS STILL NOT ACCEPTED BLINDLY, exactly as
+    the demoted lane's is: a tree with no marker anywhere has no gated set,
+    and `none()` is the honest answer. Markers PRESENT with nothing derivable
+    is a broken rig — the shape that would report green having executed
+    nothing, every night — and it exits 1.
+    """
+    try:
+        dir_of, _ = _members(root)
+    except Exception as exc:  # noqa: BLE001
+        print(f"ci-filter: cargo metadata unavailable ({exc}); using directory names", file=sys.stderr)
+        dir_of = None
+    suites = _scan_gated(root, dir_of)
+    if not suites:
+        sys.stderr.write(
+            "NOTE: no gated suites — not one file under crates/ carries a "
+            "`test_utils::gated_to!` marker, so this tree HAS none and the nightly has "
+            "nothing of this kind to re-take. Emitting `none()`.\n"
+        )
+        print("none()")
+        return 0
+    broken = [s for s in suites if s.problem is not None or s.term is None]
+    if broken:
+        for s in broken:
+            sys.stderr.write(f"    {s.path}: {s.problem}\n")
+        raise SystemExit(
+            "error: {} of {} gated suite(s) could not be resolved to a nextest term. This lane "
+            "exists to run the set the pull-request gate skipped, so emitting a filter that "
+            "silently omits them would report green over exactly the suites nothing else "
+            "runs. Fix the markers (scripts/gates/gated-suite-paths.sh names them "
+            "individually).".format(len(broken), len(suites))
+        )
+    sys.stderr.write("gated suites: {} selected\n".format(len(suites)))
+    for s in suites:
+        sys.stderr.write("    {} -> {}\n".format(s.path, s.term))
+    print(" | ".join(s.term for s in suites))
+    return 0
 
 
 def _sample(seed: str, salt: str, choices: tuple[str, ...]) -> str:
@@ -1736,6 +2136,7 @@ def selftest() -> None:
     _selftest_klint_workflow()
     _selftest_sampling()
     _selftest_config()
+    _selftest_gated()
     print(
         "ci-filter selftest OK: the docs tier is reached by prose, memories/, "
         "local-scripts/ and .claude/ and by nothing else here — not a .rs beside a .md, "
@@ -1776,8 +2177,230 @@ def selftest() -> None:
         "configuration REQUESTED by hand "
         "— by flag or by `CI-Config:` commit trailer — reaches the dimension it names "
         "and only that one, beats the interval pin, is recorded in CONFIG_SOURCE, and "
-        "reds the step rather than falling back to the draw when it names no real point"
+        "reds the step rather than falling back to the draw when it names no real point; "
+        "and the per-file test gate excludes a gated suite whose named paths and own file "
+        "are all untouched — reading the module prefix out of the crate\'s tests/all.rs "
+        "rather than off the filename, and the src/ shape off the module path — while "
+        "running it on any of them, on tier all, on tier docs, on a change to the "
+        "test-utils harness or to a tests/all.rs, and on a marker whose path is not in "
+        "the tree, which is named in a notice and does not un-gate its healthy "
+        "siblings; --gated-set prints every marked suite for the nightly, `none()` for a "
+        "tree that has none, and reds rather than a short filter when a marker cannot be "
+        "resolved"
     )
+
+
+# A THIRD FIXTURE, for the per-file test gate. Separate from the two above for
+# the reason the viewer one is separate from the docs one: this one needs a
+# `tests/all.rs`, a `#[path]` module whose name is NOT its filename, a `src/`
+# file whose module path is its file path, and a marker that names a directory
+# — none of which the other fixtures have any use for, and all of which would
+# move the closures those cases assert.
+_GATED_FIXTURE_PKGS = {
+    "geom-core": [],
+    "stl": [("geom-core", "normal")],
+    "topo": [("geom-core", "normal")],
+}
+
+# The two terms the fixture's healthy markers derive to, written out here
+# rather than rebuilt by the cases: a case that computed its own expectation
+# from the same rule the code uses would assert that the rule is applied
+# consistently, not that it is right.
+_GATED_TERM_RING = "(binary_id(geom-core::all) & test(/^ring_fuzz::/))"
+_GATED_TERM_PROBE = "(binary_id(topo) & test(/^review_probe::/))"
+
+
+def _plant_gated_fixture(t: str) -> str:
+    """A miniature workspace carrying three markers: a healthy `tests/` suite,
+    a healthy `src/` one, and one naming a path that is not there."""
+    import shutil
+
+    for pkg in _GATED_FIXTURE_PKGS:
+        os.makedirs(os.path.join(t, "crates", pkg, "src"), exist_ok=True)
+        os.makedirs(os.path.join(t, "crates", pkg, "tests"), exist_ok=True)
+        open(os.path.join(t, "crates", pkg, "Cargo.toml"), "w").close()
+        open(os.path.join(t, "crates", pkg, "src", "lib.rs"), "w").close()
+    # The code the gated suites are about.
+    open(os.path.join(t, "crates", "geom-core", "src", "ring.rs"), "w").close()
+    os.makedirs(os.path.join(t, "crates", "geom-core", "src", "interval"), exist_ok=True)
+    open(os.path.join(t, "crates", "geom-core", "src", "interval", "scalar.rs"), "w").close()
+    open(os.path.join(t, "crates", "topo", "src", "euler.rs"), "w").close()
+    # THE MODULE NAME IS NOT THE FILENAME, deliberately: `geom`'s real
+    # `tests/all.rs` includes `curves/lt_r1_probes.rs` as
+    # `curves_lt_r1_probes`, so a fixture whose two agreed would pass with the
+    # `#[path]` pair unread.
+    with open(os.path.join(t, "crates", "geom-core", "tests", "all.rs"), "w") as fh:
+        fh.write('#[path = "ring_fuzz.rs"]\nmod ring_fuzz;\n')
+        fh.write('#[path = "sub/orphan_fuzz.rs"]\nmod sub_orphan_fuzz;\n')
+    with open(os.path.join(t, "crates", "geom-core", "tests", "ring_fuzz.rs"), "w") as fh:
+        fh.write(
+            'test_utils::gated_to![\n'
+            '    "crates/geom-core/src/ring.rs",\n'
+            '    "crates/geom-core/src/interval/",\n'
+            '];\n'
+        )
+    # THE MARKER THAT CANNOT RESOLVE, and it is a live shape rather than an
+    # invented one: a suite whose subject was renamed away under it.
+    os.makedirs(os.path.join(t, "crates", "geom-core", "tests", "sub"), exist_ok=True)
+    with open(os.path.join(t, "crates", "geom-core", "tests", "sub", "orphan_fuzz.rs"), "w") as fh:
+        fh.write('test_utils::gated_to!["crates/geom-core/src/renamed_away.rs"];\n')
+    with open(os.path.join(t, "crates", "topo", "src", "review_probe.rs"), "w") as fh:
+        fh.write('test_utils::gated_to!["crates/topo/src/euler.rs"];\n')
+    os.makedirs(os.path.join(t, "crates", "test-utils", "src"), exist_ok=True)
+    open(os.path.join(t, "crates", "test-utils", "Cargo.toml"), "w").close()
+    with open(os.path.join(t, "crates", "test-utils", "src", "lib.rs"), "w") as fh:
+        fh.write("// the marker's home; never scanned\n")
+    os.makedirs(os.path.join(t, "scripts"), exist_ok=True)
+    os.makedirs(os.path.join(t, "bin"), exist_ok=True)
+    shutil.copy(os.path.abspath(__file__), os.path.join(t, "scripts", "ci-filter.py"))
+    meta = {
+        "packages": [
+            {
+                "name": pkg,
+                "manifest_path": os.path.join(t, "crates", pkg, "Cargo.toml"),
+                "dependencies": [{"name": d, "kind": k} for d, k in deps],
+            }
+            for pkg, deps in _GATED_FIXTURE_PKGS.items()
+        ]
+    }
+    stub = os.path.join(t, "bin", "cargo")
+    with open(stub, "w") as fh:
+        fh.write("#!/bin/sh\n")
+        fh.write('[ "$1" = metadata ] || { echo "stub cargo: $*" >&2; exit 1; }\n')
+        fh.write("cat <<'JSON'\n" + json.dumps(meta) + "\nJSON\n")
+    os.chmod(stub, 0o700)
+    return t
+
+
+def _selftest_gated() -> None:
+    """The per-file test gate, from both directions.
+
+    WEIGHTED AT THE DIRECTION THAT LOSES COVERAGE, the way the docs battery
+    above is. Emitting an expression that excludes a suite the diff SHOULD
+    have run is the failure that ships a break; emitting nothing is the
+    ordinary whole-suite run and costs only minutes. So every case that must
+    RUN a suite asserts the term is absent, and the one case that skips
+    asserts the exact expression and the notice a reader will look for.
+    """
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as t:
+        _plant_gated_fixture(t)
+
+        def case(what: str, files: list[str], **want: str) -> None:
+            _expect(
+                what,
+                _selftest_invoke(t, ["--files", "-"], "\n".join(files) + "\n"),
+                want,
+            )
+
+        # UNTOUCHED: both healthy suites are excluded, the unresolvable one is
+        # not. Full-string, because the shape of the expression is the
+        # contract with nextest and a substring test would pass on a filter
+        # that had lost its `not`.
+        case(
+            "a change touching neither suite's paths",
+            ["crates/stl/src/lib.rs"],
+            TIER="closure",
+            TEST_FILTER=f"not ({_GATED_TERM_RING} | {_GATED_TERM_PROBE})",
+        )
+        # A NAMED FILE moved: that suite runs, the other stays skipped.
+        case(
+            "a named file in the diff",
+            ["crates/geom-core/src/ring.rs"],
+            TEST_FILTER=f"not ({_GATED_TERM_PROBE})",
+        )
+        # A NAMED DIRECTORY's descendant moved. `crates/geom-core/src/interval/`
+        # means anything under it, at any depth.
+        case(
+            "a named directory's descendant in the diff",
+            ["crates/geom-core/src/interval/scalar.rs"],
+            TEST_FILTER=f"not ({_GATED_TERM_PROBE})",
+        )
+        # THE SUITE'S OWN FILE is an implicit member of its own path set —
+        # editing a fuzzer is the one change certain to be about it.
+        case(
+            "the suite's own file in the diff",
+            ["crates/geom-core/tests/ring_fuzz.rs"],
+            TEST_FILTER=f"not ({_GATED_TERM_PROBE})",
+        )
+        # The `src/`-module shape, from its own side.
+        case(
+            "a src/ marker's named file in the diff",
+            ["crates/topo/src/euler.rs"],
+            TEST_FILTER=f"not ({_GATED_TERM_RING})",
+        )
+        # TIER=all — no diff that can prove anything held still.
+        case(
+            "an unscopable change",
+            ["Cargo.lock"],
+            TIER="all",
+            TEST_FILTER="",
+        )
+        # THE DERIVATION'S OWN INPUTS. A test-utils change can move what every
+        # gated suite DOES; a tests/all.rs change can move which tests a term
+        # NAMES, and a term that names nothing excludes nothing, silently.
+        case(
+            "a test-utils change",
+            ["crates/test-utils/src/fuzz.rs"],
+            TEST_FILTER="",
+        )
+        case(
+            "a tests/all.rs change",
+            ["crates/geom-core/tests/all.rs", "crates/stl/src/lib.rs"],
+            TEST_FILTER="",
+        )
+        # A DOCS-TIER RUN RUNS NO TESTS AT ALL, so the key is empty rather
+        # than an expression nothing will consume.
+        case("a docs-tier change", ["README.md"], TIER="docs", TEST_FILTER="")
+
+        # THE UNRESOLVABLE MARKER, and both halves of what it must do: never
+        # skip its own suite, and say why in the notices a reader of the run
+        # is handed. The healthy sibling is still skipped in the same run —
+        # one broken marker does not un-gate the tree.
+        run = _selftest_run(
+            t, ["--files", "-"], "crates/stl/src/lib.rs\n"
+        )
+        for want in (
+            "crates/geom-core/tests/sub/orphan_fuzz.rs RUNS despite an untouched path set",
+            "'crates/geom-core/src/renamed_away.rs' does not exist in the tree",
+            "gated: crates/topo/src/review_probe.rs skipped — none of "
+            "crates/topo/src/euler.rs in the diff",
+        ):
+            if want not in run.stderr:
+                raise SystemExit(
+                    f"SELFTEST FAILED: the gate's notices did not carry {want!r}\n{run.stderr}"
+                )
+
+        # --gated-set: EVERY marked suite, and a tree whose markers cannot all
+        # be resolved is a RED step rather than a short filter — the nightly
+        # runs only what this prints.
+        broken = _selftest_invoke_must_fail(t, ["--gated-set"])
+        if "could not be resolved to a nextest term" not in broken:
+            raise SystemExit(f"SELFTEST FAILED: --gated-set was not loud about a broken marker\n{broken}")
+        os.remove(os.path.join(t, "crates", "geom-core", "tests", "sub", "orphan_fuzz.rs"))
+        run = _selftest_run(t, ["--gated-set"])
+        want_set = f"{_GATED_TERM_RING} | {_GATED_TERM_PROBE}"
+        if run.stdout.strip() != want_set:
+            raise SystemExit(
+                f"SELFTEST FAILED: --gated-set printed {run.stdout.strip()!r}, wanted {want_set!r}"
+            )
+
+    # AND THE EMPTY TREE, which is legitimate and is still not accepted
+    # blindly — the same distinction `nightly-only-selection.py` draws. Here
+    # `none()` is provable from the source: no marker anywhere under crates/.
+    with tempfile.TemporaryDirectory() as t:
+        _plant_fixture(t)
+        run = _selftest_run(t, ["--gated-set"])
+        if run.stdout.strip() != "none()":
+            raise SystemExit(
+                f"SELFTEST FAILED: --gated-set on a marker-free tree printed "
+                f"{run.stdout.strip()!r}, wanted 'none()'"
+            )
+        if "no gated suites" not in run.stderr:
+            raise SystemExit(
+                f"SELFTEST FAILED: --gated-set said nothing about the empty case\n{run.stderr}"
+            )
 
 
 def _selftest_sampling() -> None:
@@ -2439,6 +3062,17 @@ def main() -> int:
     src.add_argument("--base", help="git ref/sha to diff HEAD against")
     src.add_argument("--files", help="file with a newline-separated list, or -")
     src.add_argument("--selftest", action="store_true", help="run the fixture battery")
+    # In the `src` group for the same reason `--force-all` is: it takes no
+    # diff. The gated SET is a property of the tree alone — every marked
+    # suite, whether or not anything changed — which is exactly the question
+    # the nightly re-take asks.
+    src.add_argument(
+        "--gated-set",
+        action="store_true",
+        help="print one nextest filterset expression selecting EVERY gated "
+        "suite in the tree (the nightly's ungated re-take), or `none()` when "
+        "the tree carries no marker; not the KEY=value stream",
+    )
     # In the `src` group because it is the third way to answer "what changed":
     # by declining to ask. It takes no diff, so it cannot be combined with one.
     src.add_argument(
@@ -2481,6 +3115,16 @@ def main() -> int:
     if args.selftest:
         selftest()
         return 0
+
+    if args.gated_set:
+        # NOT under the fail-closed wrapper below, and that is the whole
+        # difference between this mode and the filter. The filter's failure
+        # answer is "run everything", which is safe because everything then
+        # runs; this mode's caller runs ONLY what it prints, so its failure
+        # answer has to be a red step. An empty answer it cannot prove is the
+        # silent-zero-coverage shape `nightly-only-selection.py` was written
+        # against, one lane over.
+        return gated_set(_repo_root())
 
     # BEFORE ANY WORK, AND OUTSIDE THE FAIL-CLOSED WRAPPER BELOW. A malformed
     # request is not a classification that could not be made, so it does not
@@ -2621,6 +3265,29 @@ def main() -> int:
             "  If they did not change, this notice is noise and you can ignore it. "
             "The convention is in docs/prompts/implementer-discipline.md."
         )
+
+    # THE GATED-SUITE FILTER, COMPUTED LAST AND FAILING OPEN INTO THE EMPTY
+    # STRING. It reads the tier `decorate` has already settled and the same
+    # file list every other path-keyed signal here reads, and it is the one
+    # output key whose value is a nextest expression rather than a word — so
+    # it is composed here, beside the notices that explain it, rather than in
+    # `decorate`, which does no I/O and cannot open a source file.
+    #
+    # THE MEMBER MAP IS BEST-EFFORT. It supplies the PACKAGE name for a term's
+    # binary id; without it the directory name stands in, which is the same
+    # string for every member of this workspace and is checked by the local
+    # verification the gate's own `--selftest` cannot do (a term that matches
+    # no test excludes no test). A cargo that cannot run is therefore not a
+    # reason to skip the gate, and not a reason to trust it either: the
+    # `gated: … skipped` notices name every suite the run did not execute.
+    try:
+        gate_dir_of, _ = _members(root)
+    except Exception as exc:  # noqa: BLE001 — the directory name stands in
+        print(f"ci-filter: gated suites: no member map ({exc})", file=sys.stderr)
+        gate_dir_of = None
+    test_filter, gate_notices = gated_filter(root, files, out["TIER"], gate_dir_of)
+    out["TEST_FILTER"] = test_filter
+    notices.extend(gate_notices)
 
     for note in notices:
         print(f"ci-filter: {note}", file=sys.stderr)
