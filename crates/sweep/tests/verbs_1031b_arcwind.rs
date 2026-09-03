@@ -188,19 +188,23 @@ fn merge_the_cup(mut cup: Body<f64>, tol: Tol) -> (Body<f64>, Merged) {
             let f = cup.get_face(g.kept).expect("the survivor is live");
             (
                 loop_radii(&cup, f.outer),
-                f.rings.iter().map(|&r| loop_radii(&cup, r)).fold(
-                    vec![],
-                    |mut acc, mut r| {
+                f.rings
+                    .iter()
+                    .map(|&r| loop_radii(&cup, r))
+                    .fold(vec![], |mut acc, mut r| {
                         acc.append(&mut r);
                         acc
-                    },
-                ),
+                    }),
             )
         })
         .collect();
     let m = Merged {
         census: (before, census(&cup)),
-        annuli: out.groups.iter().filter(|g| !g.rings_made.is_empty()).count(),
+        annuli: out
+            .groups
+            .iter()
+            .filter(|g| !g.rings_made.is_empty())
+            .count(),
         pole_caps: out
             .groups
             .iter()

@@ -1584,36 +1584,35 @@ impl<T: Decide> Body<T> {
             // resolved for `decidable` above; announcing rather than
             // discarding is what keeps a body torn under us from
             // answering a role question anyway.
-            let arc_term =
-                |he| -> Result<(geom_core::Vec3<T>, T), MergeCoplanarError> {
-                    let chord = || -> Result<T, MergeCoplanarError> {
-                        Ok((end_point_of(he)? - point_of(he)?).norm())
-                    };
-                    let edge = self
-                        .get_half_edge(he)
-                        .and_then(|hd| self.get_edge(hd.edge))
-                        .ok_or_else(corrupt)?;
-                    let curve = self
-                        .get_curve_geom(edge.curve)
-                        .and_then(crate::null::CurveGeom::certified)
-                        .ok_or_else(corrupt)?;
-                    let (t0, t1) = curve.params();
-                    let (axis, sa, sb) = match *curve.carrier() {
-                        geom::Curve3::Circle { axis, radius, .. } => (axis, radius, radius),
-                        geom::Curve3::Ellipse {
-                            axis, major, minor, ..
-                        } => (axis, major, minor),
-                        geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => {
-                            return Ok((zero, chord()?));
-                        }
-                    };
-                    // Signed by traversal: the half-edge runs with
-                    // increasing carrier parameter iff it is the plus
-                    // half. `|Δ|·sa` is the circle's exact arc length
-                    // and the ellipse's upper bound.
-                    let span = if edge.he_plus == he { t1 - t0 } else { t0 - t1 };
-                    Ok((axis * (sa * sb * (span - span.sin())), span.abs() * sa))
+            let arc_term = |he| -> Result<(geom_core::Vec3<T>, T), MergeCoplanarError> {
+                let chord = || -> Result<T, MergeCoplanarError> {
+                    Ok((end_point_of(he)? - point_of(he)?).norm())
                 };
+                let edge = self
+                    .get_half_edge(he)
+                    .and_then(|hd| self.get_edge(hd.edge))
+                    .ok_or_else(corrupt)?;
+                let curve = self
+                    .get_curve_geom(edge.curve)
+                    .and_then(crate::null::CurveGeom::certified)
+                    .ok_or_else(corrupt)?;
+                let (t0, t1) = curve.params();
+                let (axis, sa, sb) = match *curve.carrier() {
+                    geom::Curve3::Circle { axis, radius, .. } => (axis, radius, radius),
+                    geom::Curve3::Ellipse {
+                        axis, major, minor, ..
+                    } => (axis, major, minor),
+                    geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => {
+                        return Ok((zero, chord()?));
+                    }
+                };
+                // Signed by traversal: the half-edge runs with
+                // increasing carrier parameter iff it is the plus
+                // half. `|Δ|·sa` is the circle's exact arc length
+                // and the ellipse's upper bound.
+                let span = if edge.he_plus == he { t1 - t0 } else { t0 - t1 };
+                Ok((axis * (sa * sb * (span - span.sin())), span.abs() * sa))
+            };
             let mut bulge = zero;
             let mut metered = T::zero();
             for &he in &cycle {
@@ -2073,6 +2072,33 @@ mod winding_arm_tests {
 
     fn band(tol: Tol) -> Band {
         Band::linear(tol).unwrap()
+    }
+
+    /// **The Line-only path, unchanged.** A chord triangle is decided
+    /// by the chord Newell sum and nothing else: the arc correction
+    /// block is structurally skipped for it, so every decision this
+    /// site made before the conic arm existed it still makes, from the
+    /// same arithmetic in the same order. This row is what a mutation
+    /// inside that block must leave green.
+    #[test]
+    fn a_line_only_cycle_is_decided_by_the_chord_sum_alone() {
+        let tol = Tol::witness();
+        let t = tri(
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+            tol,
+        );
+        assert_eq!(
+            t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)),
+            Ok(Some(Sign::Positive)),
+            "the chord triangle winds positively about +z"
+        );
+        assert_eq!(
+            t.body.loop_winding(t.r#loop, -Vec3::unit_z(), band(tol)),
+            Ok(Some(Sign::Negative)),
+            "and negatively about the opposite normal"
+        );
     }
 
     /// **The pure-arc pair**: a disc bounded by two semicircles, and
