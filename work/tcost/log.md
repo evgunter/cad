@@ -502,3 +502,26 @@ M10-4's bore-pin row is red at interval/1e-6 on any tree, issue 1646
 filed for the M10 lane. Next batch: the `proptest!` population (22
 files), and the two content units' gate candidates (TCOST-2's
 heavily-knotted rows, TCOST-4's torus sweep).
+
+## Unit: TCOST-7 merged (2026-09-03, PR 1635 at 6d7f577a)
+
+`crates/geom-brep/tests/shared/`: one home each for the quarter
+cylinder, the sphere band, the knot vectors, the dense grid, the
+offset-residual loop (nine call sites, three `None` policies, one
+routine) and the `Patch` oracle, with `dense_over`/`dbasis_over`
+parameterised on each oracle's own `basis` so the three deliberately
+independent seedings stay three (the price — a shared-recurrence typo
+now mirrors in all three — stated in the PR). Bit-identical fixtures
+at every caller, checked by the finisher and the reviewer; 509 rows
+byte-identical in listing; green on both lanes (interval asked on
+an empty trailer commit because one touched suite is
+`cfg(feature = "interval")`). Compile-time delta inside this box's
+noise. TCOST-8 holds the deferred families.
+
+## Tracker adopted (2026-09-03)
+
+Ev (in-chat): GitHub issues are retired; `work/` is the tracker. The
+two issues this program filed (1607 render-lane checkout; 1646 the
+M10-4 ε-band row) are now `work/issues/` files carrying their numbers,
+and every open unit has an item: TCOST-6 (blocked on B1), B2, 8, C1–C4
+(dispatched), K3 (candidate); TCOST-1/5/7 closed at their merges.

@@ -4,6 +4,7 @@ kind: unit
 title: editor-core's interval probes and the three fixture-dump infra rows
 status: open
 opened: 2026-09-03
+blocked_on: [TCOST-B1]
 ---
 
 Cut at the timing census (`log.md`): editor-core's interval probes
