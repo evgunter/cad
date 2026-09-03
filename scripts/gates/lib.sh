@@ -234,8 +234,10 @@ gate_ok() {
 # needle is prose) — and this reader builds the CODE-ONLY view, because
 # that is what the gates converted to it need: their needles are
 # bounds, calls and operators. WHICH gates those are is DERIVED, not
-# copied — `grep -l gate_rust_code scripts/gates/*.sh` — for the same
-# reason the paragraph below gives.
+# copied — `grep -l gate_rust_code scripts/gates/*.sh | grep -v /lib.sh`,
+# and the exclusion is part of the derivation rather than a subtraction
+# left to the reader: this file names the function because it DEFINES
+# it. For the same reason the paragraph below gives.
 #
 # THAT POPULATION HAS ONE HOME, AND IT IS NOT THIS COMMENT.
 # `crates/test-utils/tests/reader_census.rs` carries one ledger line
@@ -587,6 +589,37 @@ gate_selftest_clean() {
     *) printf 'SELFTEST FAILED (an unwritable TMPDIR): the gate failed for some OTHER reason than the marker it could not create:\n%s\n' "$out" >&2
        exit 1 ;;
   esac
+  # `gate_main`'s OWN no-self-test guard, and the fixture is not a gate
+  # in this directory. The guard was recorded as unreachable on the
+  # argument that every gate defines a `gate_selftest` and one that did
+  # not would red `gate-roster.sh` — which is an argument about the
+  # DIRECTORY, not about the guard. The guard's subject is anything that
+  # sources this file, so six lines of scratch reach it: a `gate`, a
+  # `gate_parse_args`, a `gate_main`, and no `gate_selftest`. Written
+  # here rather than in one gate because the guard is this file's, so
+  # every caller of this function carries it exactly as it carries the
+  # unreadable `--root` and the unwritable TMPDIR above.
+  tmp=$(mktemp -d)
+  {
+    printf '#!/usr/bin/env bash\n'
+    printf 'set -euo pipefail\n'
+    printf '. %s\n' "${BASH_SOURCE[0]}"
+    printf 'gate() { gate_ok "nothing"; }\n'
+    printf 'gate_parse_args "$@"\n'
+    printf 'gate_main\n'
+  } > "$tmp/no-selftest.sh"
+  if out=$(bash "$tmp/no-selftest.sh" --selftest 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: a script sourcing lib.sh with NO gate_selftest passed --selftest — a guard that has never been shown to fire is not a guard, which is the sentence this file keeps repeating at other guards\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  gate_selftest_assert_diagnosed "a caller defining no gate_selftest" "$out"
+  case "$out" in
+    *"defines no gate_selftest"*) ;;
+    *) printf 'SELFTEST FAILED (a caller defining no gate_selftest): it failed for some OTHER reason:\n%s\n' "$out" >&2
+       exit 1 ;;
+  esac
   tmp=$(mktemp -d)
   gate_plant_clean "$tmp"
   if ! out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
@@ -715,7 +748,7 @@ gate_main() {
   if [ "$GATE_SELFTEST" = true ]; then
     # NO DEFAULT SELF-TEST. There used to be one — clean fixture plus a
     # single planted violation, parameterised through `gate_main`'s
-    # arguments — and every one of the fourteen gates overrode it, while
+    # arguments — and every gate in this directory overrode it, while
     # two still passed it arguments naming a planter that call did not
     # run. A default that plants only what the matcher was written for
     # is the shape this whole directory is a reaction to, so a gate with
