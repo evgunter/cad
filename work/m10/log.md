@@ -384,3 +384,19 @@ The plan and this log moved here from `docs/M10-PLAN.md` /
 item files and in `work/STATUS.md` (generated); this log stays the
 narrative. Items created at migration: M10-4 (spec), M10-5 (spec),
 M10-6 (open).
+
+## M10-4 and M10-5 redispatched fresh (2026-09-03)
+
+Both units' first implementer lanes were dispatched 2026-08-30 and
+died within the hour at the account session limit, pre-first-commit;
+the orchestrator session was away four days and main moved 524
+merges in the interval — rewriting exactly the eval/bvh/props files
+the lanes' unpushed drafts touched. Per the death-recovery rule and
+the G16A precedent, fresh same-slot lanes go out today from current
+main, the drafts handed over as untrusted reference material. The
+tracker migration's "not yet dispatched" on both items was written
+without sight of the branch-side dispatch records; the records
+annotate the interruption and the pairs stand. Both specs' grounding
+was re-verified against the moved main before redispatch — every
+cited symbol still exists; the specs bind as written, with their
+plan/log pointers updated to this directory.
