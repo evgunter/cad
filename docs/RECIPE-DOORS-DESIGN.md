@@ -10,6 +10,14 @@ items are G16 (#918), the audit's tube row (24, widened by
 VERBS-TUBEWALL), and G17. Mechanics are measured (file:line), not
 assumed.
 
+*(Factual update, 2026-09-03: BOOL-13 (#1553, ratified #1540)
+demolished the persist schema version after this doc's ratification.
+The "bump"/"version" clauses in D1 and D4 read today as ordinary
+additive vocabulary changes — no version to claim, no ledger, no
+coordination; the sequencing and vocabulary decisions themselves are
+unaffected. See docs/LIB-TUBE-SPEC.md's amendment for the tube
+unit's adaptation.)*
+
 ## The problem, priced
 
 Three kernel verbs ship with no recipe node, so each is

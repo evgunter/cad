@@ -3280,3 +3280,16 @@ VERBS-CYLSPH review ordinal fixed at dispatch (2026-09-03, PR
 #1604 open — frozen head `d49ddd894`): **ordinal 112** (VERBS
 band; the #1095 shape). v6 DUAL, concurrent, briefs symmetric.
 Sample number AT MERGE in main's order. Row at merge.
+
+LIB-TUBE SPEC AMENDED (2026-09-03, orchestrator; recorded BEFORE any
+review dispatched and applying identically to both future arms): the
+implementer lane — dispatched 2026-08-29, complete locally, UNPUSHED
+— was killed by a session usage limit at the finish line, and in the
+four idle days that followed main ratified and landed BOOL-13's
+schema demolition (#1540/#1553), voiding the spec's deliverable-3
+bump machinery mid-unit. Amendment in docs/LIB-TUBE-SPEC.md
+(deliverable 3 rewritten to the post-BOOL-13 persist contract; record
+surfaces moved by the work/ tracker migration). The lane RESUMES with
+its context (the M10-DI/BLEND-1 implementer-resume precedent —
+recorded, not excluded; annotated in the row at merge). Slot-4 arm
+discipline unchanged; ordinal still claimed at review dispatch.
