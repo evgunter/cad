@@ -24,7 +24,7 @@
 use geom_core::spline::basis::basis_funs;
 use geom_core::spline::{KnotVector, hull};
 
-mod span_fixtures;
+use crate::span_fixtures;
 use span_fixtures::vectors;
 
 /// Far outside the base coefficients' `[0, 1)` range, in both

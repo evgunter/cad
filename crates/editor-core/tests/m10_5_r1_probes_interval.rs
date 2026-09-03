@@ -864,7 +864,17 @@ fn e2e_channel_slider_over_an_epsilon_box() {
         assert_eq!(report.verdict().label(), expect, "{}", report.serialize());
         if expect == "Violated" {
             let d = recomputed_distance(&report);
-            assert!(d < c && d >= 0.5 - 1e-9, "{d}");
+            // The floor is the BOX's own width, not an absolute
+            // constant: a carrier window is a superset of its face by
+            // about the width of the parameter box it was enclosed
+            // over, so a station can sit that far outside the face and
+            // the witness distance can undershoot the nominal gap by
+            // the same order (measured: 0.5 − 3.125e-8 at ε = 1e-6,
+            // where this box is ε/32 wide). The old `1e-9` held only
+            // while ε was 1e-9 or finer; the 1e-6 row of the matrix
+            // read a real property of the window superset as a defect.
+            let slack = 4.0 * half();
+            assert!(d < c && d >= 0.5 - slack, "{d} (slack {slack})");
         }
     }
 }
