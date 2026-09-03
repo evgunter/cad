@@ -685,7 +685,29 @@ fn remap_node(
     };
     let nm = |n: &StableName| remap_name(n, map).map_err(|_| RemapMiss::Name(Box::new(n.clone())));
     Ok(match node {
-        Node::Datum(_) | Node::Profile(_) => node.clone(),
+        // **An in-plane axis is not a leaf**: its frame is an input,
+        // and a clone would carry the OTHER document's node number
+        // across the cut — exactly the trap the profile's plane hit
+        // one rung down, where this arm cloned because a profile
+        // referenced nothing.
+        Node::Datum(crate::Datum::AxisInPlane {
+            plane,
+            origin,
+            direction,
+        }) => Node::Datum(crate::Datum::AxisInPlane {
+            plane: id(*plane)?,
+            origin: origin.clone(),
+            direction: direction.clone(),
+        }),
+        Node::Datum(_) => node.clone(),
+        // A profile's PLANE is an input like any other: it crosses the
+        // cut with the profile or the remap misses loudly. (Before the
+        // sketch frame became a node this arm cloned, because a
+        // profile referenced nothing.)
+        Node::Profile(p) => Node::Profile(ProfileProgram {
+            plane: id(p.plane)?,
+            loops: p.loops.clone(),
+        }),
         Node::Extrude { profile, distance } => Node::Extrude {
             profile: id(*profile)?,
             distance: distance.clone(),

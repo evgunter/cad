@@ -70,7 +70,7 @@
 use geom::Curve3;
 use geom_brep::SurfaceKind;
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey};
@@ -540,6 +540,37 @@ pub enum DatumValue<T: Real> {
         /// `u`.
         v: UnitVec3<T>,
     },
+    /// **An axis that lives in a sketch frame**, carried in BOTH
+    /// spellings — the frame's own 2-D coordinates, and the world
+    /// line those coordinates name.
+    ///
+    /// Neither is derivable from this value alone (the frame is not in
+    /// it), and the two have different readers: a revolve consumes the
+    /// sketch pair, because a `RevolveAxis` IS sketch-plane metres and
+    /// a round trip out to world and back would round the numbers a
+    /// person typed; everything that measures or draws in 3-D consumes
+    /// the world line. Carrying one and deriving the other at each
+    /// reader would put the lift in two places.
+    AxisInPlane {
+        /// A point on the axis in the frame's 2-D coordinates, as
+        /// authored.
+        plane_origin: Point2<T>,
+        /// The axis direction in the frame's 2-D coordinates, as
+        /// authored and NOT normalized: `RevolveAxis` takes "any
+        /// definitely nonzero vector" and refuses a sliver at its own
+        /// door, so normalizing here would be a second opinion about
+        /// the same vector. The lift below is unit because a 3-D
+        /// direction in this vocabulary always is, and because the
+        /// frame's axes are orthonormal the two refusals coincide
+        /// exactly: `|lift(d)| = |d|`.
+        plane_dir: Vec2<T>,
+        /// The same axis lifted through its frame — a point on it in
+        /// world space.
+        origin: Point3<T>,
+        /// The same axis lifted through its frame — its world
+        /// direction, unit.
+        dir: UnitVec3<T>,
+    },
 }
 
 impl<T: Real> DatumValue<T> {
@@ -592,6 +623,14 @@ pub fn datum_distance<T: Real>(datum: &DatumValue<T>, p: Point3<T>) -> T {
         }
         DatumValue::Point { position } => (p - *position).norm(),
         DatumValue::Frame { origin, u, v } => (p - *origin).dot(DatumValue::frame_normal(*u, *v)),
+        // The world lift, by the same arithmetic the 3-D axis uses —
+        // an axis is an axis to a measurement, whichever coordinates
+        // it was written in.
+        DatumValue::AxisInPlane { origin, dir, .. } => {
+            let d = dir.get();
+            let v = p - *origin;
+            (v - d * v.dot(d)).norm()
+        }
     }
 }
 

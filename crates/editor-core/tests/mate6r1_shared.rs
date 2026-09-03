@@ -20,7 +20,7 @@ use editor_core::{
     ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName, assemble,
     content_pin, evaluate, product_recorded, run_checks,
 };
-use fixture::{desc, insert, len, step};
+use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
 // ---- store / eval plumbing (ASM-R2a's shape, as the unit's own suite) ----
@@ -74,14 +74,12 @@ fn block(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
     );
     insert(
         doc,

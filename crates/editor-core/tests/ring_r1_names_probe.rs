@@ -11,10 +11,10 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, Datum, EntityKind, EvalOptions, Evaluation, MeridianEnd, NameTable, Node,
-    ProfileDoc, ProfileEdgeRef, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, evaluate,
+    CancelToken, EntityKind, EvalOptions, Evaluation, MeridianEnd, NameTable, Node, ProfileDoc,
+    ProfileEdgeRef, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, evaluate,
 };
-use fixture::{ang, desc, insert, len};
+use fixture::{ang, axis_in_plane, insert, on_frame_keeping};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -58,26 +58,24 @@ fn pv(l: u32, v: u32) -> ProfileVertexRef {
 #[test]
 fn full_wire_holed_revolve_names_totally() {
     let doc = ProfileDoc::empty_derived("ring_r1_names_probe", Tol::witness());
-    let (doc, p) = insert(
+    let (doc, plane, p) = on_frame_keeping(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![
-                // Outer touches the axis along its left edge (wire
-                // case); the hole is strictly off-axis.
-                vec![(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)],
-                vec![(0.5, 1.0), (1.5, 1.0), (1.5, 2.0), (0.5, 2.0)],
-            ],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![
+            // Outer touches the axis along its left edge (wire
+            // case); the hole is strictly off-axis.
+            vec![(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)],
+            vec![(0.5, 1.0), (1.5, 1.0), (1.5, 2.0), (0.5, 2.0)],
+        ],
     );
     let (doc, axis) = insert(
         doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [fixture::scl(0.0), fixture::scl(1.0), fixture::scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
     );
     let (doc, rev) = insert(
         doc,

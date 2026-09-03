@@ -137,6 +137,7 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::PlacedUnion { .. } => "PlacedUnion",
         Node::Datum(Datum::Plane { .. }) => "Datum plane",
         Node::Datum(Datum::Frame { .. }) => "Datum frame",
+        Node::Datum(Datum::AxisInPlane { .. }) => "Datum axis (in sketch)",
         Node::Datum(Datum::Axis { .. }) => "Datum axis",
         Node::Datum(Datum::Point { .. }) => "Datum point",
         Node::Declare { .. } => "Declare",

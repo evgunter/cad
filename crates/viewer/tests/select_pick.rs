@@ -79,7 +79,7 @@ fn down_at(x: f64, y: f64) -> Ray {
 /// Answers the document, the extrude node and the pattern node.
 fn patterned_blocks(tol: Tol, count: i64) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-pattern", tol);
-    let (doc, profile) = common::inserted(&doc, common::square(0.02), tol);
+    let (doc, profile) = common::framed_square(&doc, 0.02, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {

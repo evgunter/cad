@@ -12,7 +12,7 @@ use editor_core::{
     BooleanOp, CancelToken, Datum, EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult,
     PatternKind, ProfileDoc, ValuePayload, evaluate,
 };
-use fixture::{ang, desc, insert, len, scl};
+use fixture::{ang, insert, len, on_frame, on_frame_keeping, scl};
 use geom_core::Tol;
 use topo::{mass_properties, validate, validate_closed};
 
@@ -29,19 +29,17 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// A unit-square profile `[x0,x0+1]×[y0,y0+1]` on the xy plane plus
 /// its extrude, as a two-node prelude.
 fn unit_cube(doc: ProfileDoc, x0: f64, y0: f64) -> (ProfileDoc, editor_core::RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (x0, y0),
-                (x0 + 1.0, y0),
-                (x0 + 1.0, y0 + 1.0),
-                (x0, y0 + 1.0),
-            ]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (x0, y0),
+            (x0 + 1.0, y0),
+            (x0 + 1.0, y0 + 1.0),
+            (x0, y0 + 1.0),
+        ]],
     );
     insert(
         doc,
@@ -66,16 +64,16 @@ fn y_axis(doc: ProfileDoc, origin_z: f64) -> (ProfileDoc, editor_core::RecipeNod
 fn revolve_wires_the_datum_axis_through_the_sketch_plane() {
     let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
     // Unit square touching the axis: full revolve → cylinder r=1 h=1.
-    let (doc, prof) = insert(
+    let (doc, plane, prof) = on_frame_keeping(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
-    let (doc, axis) = y_axis(doc, 0.0);
+    // The sketch's own +y through its origin — the same line the
+    // world-space `y_axis` named, in the coordinates the revolve reads.
+    let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let (doc, rev) = insert(
         doc,
         Node::Revolve {
@@ -94,35 +92,87 @@ fn revolve_wires_the_datum_axis_through_the_sketch_plane() {
     assert!((vol - PI).abs() < 1e-9, "cylinder volume π, got {vol}");
 }
 
+/// **The out-of-plane revolve axis is not a refusal any more — it is
+/// not a document.**
+///
+/// This row asserted `AxisNotInSketchPlane`: a 3-D axis whose origin
+/// sat a metre off the sketch plane, caught by a decided projection.
+/// A revolve takes an axis written IN a frame now, so the two ways
+/// that authoring can go wrong are both KIND questions, and neither
+/// needs a band:
+///
+///  1. a 3-D `Datum::Axis` at the seat is the wrong kind of node, and
+///  2. an in-plane axis written in a DIFFERENT frame is the right kind
+///     in the wrong place.
+///
+/// The old row's own numbers cannot be spelled at all: `y_axis`'s
+/// `origin_z` has no counterpart in a frame's two coordinates, which
+/// is the whole claim of the rung.
 #[test]
-fn revolve_axis_out_of_plane_is_a_typed_refusal() {
+fn a_revolve_refuses_an_axis_it_cannot_turn_in() {
     let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
-    let (doc, prof) = insert(
+    let (doc, plane, prof) = on_frame_keeping(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.5, 1.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.5, 1.0)]],
     );
-    let (doc, axis) = y_axis(doc, 1.0); // origin OFF the sketch plane
-    let (doc, rev) = insert(
+
+    // (1) The 3-D axis: a kind mismatch at the operand door, naming
+    //     what to author instead.
+    let (doc, world_axis) = y_axis(doc, 1.0);
+    let (doc, bad_kind) = insert(
         doc,
         Node::Revolve {
             profile: prof,
-            axis,
+            axis: world_axis,
+            angle: ang(PI),
+        },
+    );
+
+    // (2) The right kind in the wrong frame: a SECOND frame, parallel
+    //     to the first and a metre up, carrying an axis of its own.
+    //     Nothing about the axis is out of ITS plane — the numbers are
+    //     identical to a legal one — so no projection could tell these
+    //     two documents apart. The node ids can, exactly.
+    let (doc, other_plane) = insert(
+        doc,
+        fixture::frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let (doc, stranger) = insert(
+        doc,
+        fixture::axis_in_plane(other_plane, (0.0, 0.0), (0.0, 1.0)),
+    );
+    let (doc, wrong_frame) = insert(
+        doc,
+        Node::Revolve {
+            profile: prof,
+            axis: stranger,
             angle: ang(PI),
         },
     );
     let ev = run(&doc);
-    match ev.nodes.get(&rev) {
-        Some(NodeResult::Failed(e)) => {
-            assert!(matches!(
+    match ev.nodes.get(&bad_kind) {
+        Some(NodeResult::Failed(e)) => assert!(
+            matches!(e.kind, NodeErrorKind::WrongOperand { input, .. } if input == world_axis),
+            "got {:?}",
+            e.kind
+        ),
+        other => panic!("expected Failed, got {other:?}"),
+    }
+    match ev.nodes.get(&wrong_frame) {
+        Some(NodeResult::Failed(e)) => assert!(
+            matches!(
                 e.kind,
-                NodeErrorKind::AxisNotInSketchPlane { axis: a } if a == axis
-            ));
-        }
+                NodeErrorKind::AxisInDifferentPlane { axis, axis_plane, profile_plane }
+                    if axis == stranger
+                        && axis_plane == Some(other_plane)
+                        && profile_plane == Some(plane)
+            ),
+            "got {:?}",
+            e.kind
+        ),
         other => panic!("expected Failed, got {other:?}"),
     }
 }

@@ -10,24 +10,22 @@ use crate::fixture;
 
 use editor_core::persist::SnapshotError;
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, EvalOptions, MetaValue, Node, NodeErrorKind,
+    CancelToken, Dimension, DocEdit, DocParam, EvalOptions, Expr, MetaValue, Node, NodeErrorKind,
     NodeResult, ParamName, PersistError, ProfileDoc, RecipeNodeId, WitnessDatum, apply, evaluate,
     load, save,
 };
-use fixture::{desc, insert, len};
+use fixture::{insert, len, on_frame, xy_frame};
 use geom_core::Tol;
 
 /// A small valid document (profile + extrude + witness) and its save.
 fn small() -> (ProfileDoc, String) {
     let doc = ProfileDoc::empty_derived("m4_pr6_refusal", Tol::witness());
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, _) = insert(
         doc,
@@ -134,17 +132,20 @@ fn corrupt_payloads_refuse_typed() {
 #[test]
 fn snapshot_invariant_violations_refuse_typed() {
     let (_, text) = small();
-    // next_id below the live ids (a replay would re-mint id 1).
-    let clipped = text.replace("\"next_id\": 2", "\"next_id\": 1");
+    // next_id below the live ids (a replay would re-mint id 2).
+    let clipped = text.replace("\"next_id\": 3", "\"next_id\": 2");
     assert_ne!(clipped, text);
     match load(&clipped, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::IdBeyondCounter { id, next_id: 1 })) => {
-            assert_eq!(id, RecipeNodeId(1));
+        Err(PersistError::Snapshot(SnapshotError::IdBeyondCounter { id, next_id: 2 })) => {
+            assert_eq!(id, RecipeNodeId(2));
         }
         other => panic!("expected IdBeyondCounter, got {other:?}"),
     }
     // order/nodes disagreement.
-    let unordered = text.replace("\"order\": [\n      0,\n      1\n    ]", "\"order\": [0]");
+    let unordered = text.replace(
+        "\"order\": [\n      0,\n      1,\n      2\n    ]",
+        "\"order\": [0]",
+    );
     if unordered != text {
         assert!(
             matches!(
@@ -174,22 +175,17 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
         ),
         other => panic!("expected NonFinite Edit site, got {other:?}"),
     }
-    // A NaN inside a profile payload (opaque to apply's doors).
-    let (bad_doc, p) = insert(
-        doc.clone(),
-        Node::Profile(desc(
-            [f64::INFINITY, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
-        )),
+    // A profile has no raw float left to smuggle one through: its
+    // plane is a NODE and its programs are `Expr`s, so the non-finite
+    // that used to reach the save door as a placement float is refused
+    // a layer earlier, when the frame's slot is authored.
+    assert!(
+        matches!(
+            Expr::literal(f64::INFINITY, Dimension::Length),
+            Err(editor_core::DimensionError::NonFiniteLiteral)
+        ),
+        "the frame's origin slot refuses a non-finite at its literal door"
     );
-    match save(&bad_doc, &[], Tol::witness()) {
-        Err(PersistError::NonFinite {
-            site: NonFiniteSite::Profile { node, .. },
-        }) => assert_eq!(node, p),
-        other => panic!("expected NonFinite Profile site, got {other:?}"),
-    }
     // A NaN inside a metadata tree carried by an unapplied edit.
     let mut m = std::collections::BTreeMap::new();
     m.insert("v".to_owned(), MetaValue::Int(1));
@@ -246,7 +242,7 @@ fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    assert_eq!(ev.nodes.len(), 2);
+    assert_eq!(ev.nodes.len(), 3);
     for result in ev.nodes.values() {
         assert!(
             matches!(
@@ -319,10 +315,14 @@ fn program_structure_doors_refuse_typed_at_load() {
     // wrong-dimension argument ROLE and a lattice-violating step
     // order, both refused by the shared validator on the parsed
     // document. Craft a valid file, then mutate the JSON body.
-    let (doc, _) = insert(
+    let (doc, plane) = insert(
         ProfileDoc::empty_derived("m4_pr6_refusal", Tol::witness()),
+        xy_frame(),
+    );
+    let (doc, circle) = insert(
+        doc,
         Node::Profile(editor_core::ProfileProgram {
-            plane: profile::SketchPlane::xy(),
+            plane,
             loops: vec![editor_core::LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
         }),
     );
@@ -337,9 +337,9 @@ fn program_structure_doors_refuse_typed_at_load() {
     // notation, so leaving `"m"` beside an `Angle` dim would be caught
     // one door earlier as a display-unit mismatch, and this row is
     // about the SLOT's role dimension, not the literal's own coherence.
-    v["snapshot"]["nodes"]["0"]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]["dim"] =
+    v["snapshot"]["nodes"]["1"]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]["dim"] =
         serde_json::Value::String("Angle".into());
-    v["snapshot"]["nodes"]["0"]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]["unit"] =
+    v["snapshot"]["nodes"]["1"]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]["unit"] =
         serde_json::Value::String("rad".into());
     let mangled = format!("{header}\n{}\n", serde_json::to_string_pretty(&v).unwrap());
     match load(&mangled, Tol::witness()) {
@@ -351,25 +351,23 @@ fn program_structure_doors_refuse_typed_at_load() {
                     found: editor_core::Dimension::Angle,
                     ..
                 },
-        }) => assert_eq!(node, RecipeNodeId(0)),
+        }) => assert_eq!(node, circle),
         other => panic!("wrong-dimension role must refuse typed at load, got {other:?}"),
     }
     // (b) Lattice violation: an unclosed chain (a step list that stops
     // mid-air) — reachable only from a hand-edited file, refused by
     // the replay PROBE with the Transition class.
-    let (doc2, _) = insert(
+    let (doc2, chain) = on_frame(
         ProfileDoc::empty_derived("m4_pr6_refusal", Tol::witness()),
-        Node::Profile(fixture::desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
     );
     let text2 = save(&doc2, &[], Tol::witness()).expect("save");
     let (header2, body2) = text2.split_once('\n').expect("id line");
     let mut v2: serde_json::Value = serde_json::from_str(body2).expect("body parses");
-    let steps = v2["snapshot"]["nodes"]["0"]["Profile"]["loops"][0]["Chain"]
+    let steps = v2["snapshot"]["nodes"]["1"]["Profile"]["loops"][0]["Chain"]
         .as_array_mut()
         .expect("chain steps");
     steps.pop(); // drop the closing LineTo(Start)
@@ -389,14 +387,14 @@ fn program_structure_doors_refuse_typed_at_load() {
                     ..
                 },
         }) => {
-            assert_eq!(node, RecipeNodeId(0));
+            assert_eq!(node, chain);
             assert_eq!(step, n_left, "one past the end: the chain never closed");
         }
         other => panic!("an unclosed chain must refuse typed at load, got {other:?}"),
     }
     // The unmangled file loads and the program survives bit-exactly.
     let loaded = load(&text, Tol::witness()).expect("canonical program loads");
-    let Some(Node::Profile(prog)) = loaded.doc.node(RecipeNodeId(0)) else {
+    let Some(Node::Profile(prog)) = loaded.doc.node(circle) else {
         panic!("profile lost");
     };
     assert_eq!(prog.loops.len(), 1);
@@ -412,12 +410,19 @@ fn corrupt_program_refuses_at_the_edit_door_before_any_save() {
     // a document at all — and the save-door twin (the shared
     // validator's replay probe) stays for parsed files.
     use editor_core::{EditError, LoopProgram, ProgramRefusal, ProgramStep};
+    // The frame goes in first: the row is about the PROGRAM's refusal,
+    // and a profile naming a plane the document does not have would be
+    // turned away for that instead.
+    let (doc, plane) = insert(
+        ProfileDoc::empty_derived("m4_pr6_refusal", Tol::witness()),
+        xy_frame(),
+    );
     let unclosed = editor_core::ProfileProgram {
-        plane: profile::SketchPlane::xy(),
+        plane,
         loops: vec![LoopProgram::Chain(vec![ProgramStep::Tangent])],
     };
     match editor_core::apply(
-        &ProfileDoc::empty_derived("m4_pr6_refusal", Tol::witness()),
+        &doc,
         &DocEdit::InsertNode {
             node: Node::Profile(unclosed),
         },

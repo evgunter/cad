@@ -45,7 +45,7 @@ struct Die {
 
 fn die_shaped(tol: Tol) -> Die {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("cascade-die", tol);
-    let (doc, blank_profile) = common::inserted(&doc, common::square(0.04), tol);
+    let (doc, blank_profile) = common::framed_square(&doc, 0.04, tol);
     let (doc, blank) = common::inserted(
         &doc,
         Node::Extrude {
@@ -54,7 +54,7 @@ fn die_shaped(tol: Tol) -> Die {
         },
         tol,
     );
-    let (doc, pip_profile) = common::inserted(&doc, common::square(0.004), tol);
+    let (doc, pip_profile) = common::framed_square(&doc, 0.004, tol);
     let (mut doc, pip) = common::inserted(
         &doc,
         Node::Extrude {

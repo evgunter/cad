@@ -28,10 +28,10 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
+    CancelToken, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
     ProfileDoc, ProfileVertexRef, RecipeNodeId, RimSupport, RoleSeg, StableName, evaluate,
 };
-use fixture::{ang, desc, insert, len, scl};
+use fixture::{ang, axis_in_plane, insert, len, on_frame_keeping};
 use geom::Surface;
 use geom_core::Tol;
 use topo::{Body, EdgeKey};
@@ -50,21 +50,19 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// stay one-line diffs against the reviewed fixture.
 fn lantern_with(profile_pts: Vec<(f64, f64)>) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("blend5_r2_probes", Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, plane, profile) = on_frame_keeping(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![profile_pts],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![profile_pts],
     );
     let (doc, axis) = insert(
         doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
     );
     let (doc, revolve) = insert(
         doc,

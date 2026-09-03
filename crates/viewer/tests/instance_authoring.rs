@@ -604,7 +604,7 @@ fn an_authored_instance_whose_part_moved_badges_the_pin_mismatch() {
     // mean the assembly is NOT retargeted, so its pin no longer holds.
     let text = std::fs::read_to_string(post_file(&bench)).expect("the post reads");
     let loaded = pncad::document::load(&text, tol).expect("the post loads");
-    let (edited, _) = common::inserted(&loaded.doc, common::square(0.005), tol);
+    let (edited, _) = common::framed_square(&loaded.doc, 0.005, tol);
     let mut ws = Workspace::open(&bench.dir).expect("the directory scans");
     ws.resave(&edited, tol).expect("the post rewrites");
 

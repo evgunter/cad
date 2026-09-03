@@ -66,8 +66,10 @@ use editor_core::{
 };
 use topo::PlaneRelation;
 
+use crate::fixture::len;
+
 use super::{CorpusDoc, MassPin, Recorder};
-use crate::fixture::{desc, len};
+
 use geom_core::Tol;
 
 /// The four leg footprints, corner order `(0,0) → (4,0) → (4,3) →
@@ -85,12 +87,12 @@ fn legs() -> [[(f64, f64); 4]; 4] {
 /// The corner-table corpus document.
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
-    let top_profile = r.insert(Node::Profile(desc(
+    let top_profile = r.profile(
         [0.0, 0.0, 1.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (0.0, 3.0)]],
-    )));
+    );
     let top = r.insert(Node::Extrude {
         profile: top_profile,
         distance: len(0.25),
@@ -100,12 +102,12 @@ pub fn document() -> CorpusDoc {
     let mut first_leg = top; // overwritten by the first leg's extrude
     let mut prior: Option<Evaluation<f64>> = None;
     for (i, poly) in legs().into_iter().enumerate() {
-        let prof = r.insert(Node::Profile(desc(
+        let prof = r.profile(
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             vec![poly.to_vec()],
-        )));
+        );
         let ext = r.insert(Node::Extrude {
             profile: prof,
             distance: len(1.125),

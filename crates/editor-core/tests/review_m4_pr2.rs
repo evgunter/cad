@@ -13,7 +13,9 @@ use editor_core::{
     Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SlotId, ValuePayload, evaluate,
 };
 use editor_core::{CapEnd, RoleSeg};
-use fixture::{ang, desc, die, insert, len, scl, square, step};
+use fixture::{
+    ang, axis_in_plane, die, insert, len, on_frame, on_frame_keeping, scl, square, step,
+};
 use geom_core::Tol;
 use topo::{Body, mass_properties};
 
@@ -67,14 +69,12 @@ fn boolean_body(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Body<f64> {
 /// so both docs address the Subtract by the SAME id.
 fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
-    let (doc, pa) = insert(
+    let (doc, pa) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(1.0, 1.0, 1.0)],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(1.0, 1.0, 1.0)],
     );
     let (doc, a) = insert(
         doc,
@@ -83,14 +83,12 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
             distance: len(2.0),
         },
     );
-    let (doc, pb) = insert(
+    let (doc, pb) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(1.5, 1.5, 1.0)],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(1.5, 1.5, 1.0)],
     );
     let (doc, b) = insert(
         doc,
@@ -155,14 +153,12 @@ fn operand_swap_never_reuses_the_prior_subtract() {
 #[test]
 fn delete_and_reinsert_identical_node_recomputes() {
     let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(0.5, 0.5, 0.5)],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.5, 0.5, 0.5)],
     );
     let (doc, e_old) = insert(
         doc,
@@ -205,14 +201,12 @@ fn delete_and_reinsert_identical_node_recomputes() {
 #[test]
 fn diamond_with_two_failed_ancestors_has_deterministic_through() {
     let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(0.5, 0.5, 0.5)],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.5, 0.5, 0.5)],
     );
     // Two failing extrudes: distance = 1/0 (NonFiniteResult).
     let bad = || Expr::div(len(1.0), scl(0.0)).unwrap();
@@ -351,14 +345,12 @@ fn canceled_partials_are_typed_and_never_pollute_the_memo() {
 /// and a poisoned subgraph — the R5 stressor.
 fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(1.0, 1.0, 0.5)],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(1.0, 1.0, 0.5)],
     );
     let (doc, base) = insert(
         doc,
@@ -409,21 +401,19 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         },
     );
     // Revolve: half-turn of a square offset from the axis.
-    let (doc, rp) = insert(
+    let (doc, plane, rp) = on_frame_keeping(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(1.5, 0.0, 0.25)],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(1.5, 0.0, 0.25)],
     );
     let (doc, rax) = insert(
         doc,
-        Node::Datum(editor_core::Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
     );
     let (doc, rev) = insert(
         doc,
@@ -569,21 +559,19 @@ fn four_way_schedule_memo_identity_on_rich_doc() {
 /// by `angle`.
 fn revolve_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
-    let (doc, rp) = insert(
+    let (doc, plane, rp) = on_frame_keeping(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(1.5, 0.0, 0.25)],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(1.5, 0.0, 0.25)],
     );
     let (doc, rax) = insert(
         doc,
-        Node::Datum(editor_core::Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
     );
     let (doc, rev) = insert(
         doc,
@@ -671,14 +659,12 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
     // axis from face-coords (1,1) — same target pocket by symmetry.
     let build = |rotate: bool| {
         let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
-        let (doc, cp) = insert(
+        let (doc, cp) = on_frame(
             doc,
-            Node::Profile(desc(
-                [0.0; 3],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-                vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
-            )),
+            [0.0; 3],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
         );
         let (doc, cube) = insert(
             doc,
@@ -687,14 +673,12 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
                 distance: len(2.0),
             },
         );
-        let (doc, pp) = insert(
+        let (doc, pp) = on_frame(
             doc,
-            Node::Profile(desc(
-                [0.0, 0.0, 2.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-                vec![square(0.0, 0.0, 0.125)],
-            )),
+            [0.0, 0.0, 2.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![square(0.0, 0.0, 0.125)],
         );
         let (doc, pip) = insert(
             doc,
@@ -799,9 +783,12 @@ fn wire_doors_refuse_typed() {
         },
         other => panic!("expected Failed, got {other:?}"),
     }
-    // Revolve about an out-of-plane axis: AxisNotInSketchPlane. The
-    // rich doc's `ax` is the z axis; its profile plane is xy — the
-    // DIRECTION is out of plane.
+    // Revolve about the rich doc's `ax` — a 3-D z-axis datum. This
+    // asserted `AxisNotInSketchPlane`, a decided projection finding the
+    // direction out of plane. A revolve seats an axis written IN a
+    // frame now, so a world-space axis never reaches that question: it
+    // is refused one door earlier, as the wrong KIND of node, with no
+    // band consulted.
     let (d, bad_rev) = insert(
         doc.clone(),
         Node::Revolve {
@@ -814,7 +801,7 @@ fn wire_doors_refuse_typed() {
     match ev.nodes.get(&bad_rev) {
         Some(NodeResult::Failed(e)) => {
             assert!(
-                matches!(e.kind, NodeErrorKind::AxisNotInSketchPlane { .. }),
+                matches!(e.kind, NodeErrorKind::WrongOperand { input, .. } if input == ax),
                 "got {:?}",
                 e.kind
             );
@@ -1019,6 +1006,8 @@ fn edit_back_restores_bit_identical_bodies() {
         fp0,
         "edit-back must restore the ORIGINAL bits (memo through a stale prior)"
     );
-    // Reverted transform + final subtract recompute; the rest reuses.
-    assert_eq!((e2.recomputed, e2.reused), (2, 75));
+    // Reverted transform + final subtract recompute; the rest reuses —
+    // the die's seven sketch frames among them, since a slot edit on a
+    // transform does not touch a plane.
+    assert_eq!((e2.recomputed, e2.reused), (2, 82));
 }

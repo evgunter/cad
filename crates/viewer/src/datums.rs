@@ -360,6 +360,15 @@ fn draw_one(node: RecipeNodeId, datum: &DatumValue<f64>, view: View) -> DatumDra
             kind: DatumKind::Frame,
             segments: frame_segments(*origin, u.get(), v.get(), view),
         },
+        // Drawn from the WORLD lift, and drawn as the axis it is: the
+        // sketch coordinates it was authored in are what a revolve
+        // reads, not what a viewport shows, and a line in space looks
+        // the same however it was written down.
+        DatumValue::AxisInPlane { origin, dir, .. } => DatumDraw {
+            node,
+            kind: DatumKind::Axis,
+            segments: axis_segments(*origin, dir.get(), view),
+        },
     }
 }
 

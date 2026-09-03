@@ -30,7 +30,7 @@ use editor_core::{
 };
 use geom_brep::SurfaceKind;
 
-use fixture::{insert, len};
+use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
@@ -47,14 +47,12 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
 /// its normal along +z — the frame every position row below measures
 /// against, referenced as a node exactly like any other input (GS-Q6).
 fn box_doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         ProfileDoc::empty_derived("lib_sel1_geoselect", Tol::witness()),
-        Node::Profile(fixture::desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, cube) = insert(
         doc,

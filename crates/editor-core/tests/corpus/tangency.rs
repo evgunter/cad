@@ -30,10 +30,10 @@
 use editor_core::{
     Dimension, DocEdit, Expr, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget, SlotId,
 };
-use profile::SketchPlane;
+
+use crate::fixture::{frame, len, xy_frame};
 
 use super::{CorpusDoc, Recorder};
-use crate::fixture::len;
 
 /// The declared-tangency corpus document.
 pub fn document() -> CorpusDoc {
@@ -67,8 +67,9 @@ pub fn document() -> CorpusDoc {
         ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 3.0))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    let fillet_plane = r.insert(xy_frame());
     let fillet_p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: fillet_plane,
         loops: vec![filleted],
     }));
     let fillet_body = r.insert(Node::Extrude {
@@ -101,13 +102,10 @@ pub fn document() -> CorpusDoc {
         ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 3.0))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    // A parallel plane, so the two bodies never interact.
+    let tangent_plane = r.insert(frame([0.0, 0.0, 4.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let tangent_p = r.insert(Node::Profile(ProfileProgram {
-        // A parallel plane, so the two bodies never interact.
-        plane: SketchPlane::from_frame(
-            geom_core::Point3::new(0.0, 0.0, 4.0),
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 1.0, 0.0),
-        ),
+        plane: tangent_plane,
         loops: vec![bracket],
     }));
     let tangent_body = r.insert(Node::Extrude {

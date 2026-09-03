@@ -28,14 +28,13 @@ use crate::common;
 
 use core::f64::consts::TAU;
 
-use common::{ang, body_volume, insert, len, len3, near, scl3, shape};
+use common::{ang, body_volume, insert, len, len2, len3, near, scl2, scl3, shape};
 use pncad::document::{
     Datum, Dimension, DimensionError, Doc, DocumentId, Expr, LoopProgram, Node, ProfileProgram,
     RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, StableName, ValuePayload};
-use pncad::profile::SketchPlane;
 use pncad::quantity::{WrittenAngle, WrittenLength};
 use viewer::props;
 use viewer::revolvetool::RevolveTool;
@@ -80,10 +79,11 @@ fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
         name: "hollow-ring".to_owned(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![
                 shape(&ProfileShape::Circle {
                     centre: [R, 0.0],
@@ -99,9 +99,12 @@ fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 1.0, 0.0]),
+            // The revolve's axis, in the sketch it turns: the frame's
+            // v is world +Y, so this is its own +y through (0, 0).
+            datum: DatumSpec::AxisInPlane {
+                plane,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
             },
         },
     );
@@ -202,10 +205,11 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
         },
     );
     // Rectangle profile → extrude: a 40 × 20 × 10 mm block.
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.04,
                 height: 0.02,
@@ -243,12 +247,15 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
     assert!(session.perform(SessionOp::Undo).refusal.is_none());
     assert!(session.committed_doc().node(extrude).is_none());
     assert!(session.committed_doc().node(profile).is_some());
-    assert!(session.perform(SessionOp::Undo).refusal.is_none());
-    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    // Four creations now, not three: the sketch frame is a node the
+    // profile names, so authoring it was its own undoable step.
+    for _ in 0..3 {
+        assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    }
     assert!(session.committed_doc().order().is_empty(), "back to empty");
     let at_root = session.perform(SessionOp::Undo);
     assert!(matches!(at_root.refusal, Some(Refusal::NothingToDo)));
-    for _ in 0..3 {
+    for _ in 0..4 {
         assert!(session.perform(SessionOp::Redo).refusal.is_none());
     }
     assert!(session.committed_doc().bit_eq(&authored), "redo restores");
@@ -264,10 +271,11 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
 fn the_op_vocabulary_exceeds_the_chrome_templates_and_that_works() {
     let tol = Tol::witness();
     let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![
                 shape(&ProfileShape::Rectangle {
                     width: 0.06,
@@ -302,10 +310,11 @@ fn new_document_derives_its_id_and_clears_the_session() {
     let mut session = session(tol);
     // Give the session things to clear: a selection, a hover, and —
     // via Save — a backing path and its directory resolver.
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.02,
                 height: 0.01,
@@ -375,10 +384,11 @@ fn new_document_refuses_a_blank_name_and_a_gesture_in_flight() {
     // Mid-gesture, every creation door refuses — and so does Open,
     // which shares NewDocument's policy (both replace the document a
     // drag is previewing against).
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius: 0.01,
@@ -408,7 +418,7 @@ fn new_document_refuses_a_blank_name_and_a_gesture_in_flight() {
             },
         },
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius: 0.01,
@@ -520,10 +530,11 @@ fn each_datum_form_inserts_its_variant_with_literal_slots() {
 fn the_rectangle_template_is_the_centred_polygon() {
     let tol = Tol::witness();
     let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.04,
                 height: 0.02,
@@ -531,7 +542,7 @@ fn the_rectangle_template_is_the_centred_polygon() {
         },
     );
     let want = Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![
             LoopProgram::polygon([(-0.02, -0.01), (0.02, -0.01), (0.02, 0.01), (-0.02, 0.01)])
                 .expect("finite corners"),
@@ -555,12 +566,15 @@ fn the_rectangle_template_is_the_centred_polygon() {
 fn profile_refusals_are_typed_at_the_door() {
     let tol = Tol::witness();
     let mut session = session(tol);
+    // The frame lands FIRST and is not part of what this row measures:
+    // the states counted are the ones a REFUSED profile might leave.
+    let plane = common::xy_frame_in(&mut session);
     let states = session.history().len();
 
     // No loops: the profile layer's own refusal ("no loops — nothing
     // to sweep"), through the edit door.
     let empty = session.perform(SessionOp::AddProfile {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![],
     });
     assert!(
@@ -573,7 +587,7 @@ fn profile_refusals_are_typed_at_the_door() {
     // way; no rule about them is restated in the session.
     for radius in [0.0, -0.01] {
         let degenerate = session.perform(SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius,
@@ -617,12 +631,17 @@ fn profile_refusals_are_typed_at_the_door() {
 fn a_refusal_at_any_creation_door_leaves_no_history_state() {
     let tol = Tol::witness();
     let mut session = session(tol);
+    // The frame comes FIRST now: the axis is written in it.
+    let plane = common::xy_frame_in(&mut session);
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 1.0, 0.0]),
+            // The revolve's axis, in the sketch it turns: the frame's
+            // v is world +Y, so this is its own +y through (0, 0).
+            datum: DatumSpec::AxisInPlane {
+                plane,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
             },
         },
     );
@@ -642,7 +661,7 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
             },
         },
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![],
         },
         SessionOp::AddExtrude {
@@ -666,10 +685,11 @@ fn a_refusal_at_any_creation_door_leaves_no_history_state() {
 fn extrude_and_revolve_require_their_node_kinds() {
     let tol = Tol::witness();
     let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [R, 0.0],
                 radius: RO,
@@ -679,9 +699,12 @@ fn extrude_and_revolve_require_their_node_kinds() {
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 1.0, 0.0]),
+            // The revolve's axis, in the sketch it turns: the frame's
+            // v is world +Y, so this is its own +y through (0, 0).
+            datum: DatumSpec::AxisInPlane {
+                plane,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
             },
         },
     );
@@ -745,7 +768,7 @@ fn extrude_and_revolve_require_their_node_kinds() {
         assert!(
             matches!(
                 refused.refusal,
-                Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Axis })
+                Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::SketchAxis })
                     if node == wrong
             ),
             "{:?}",
@@ -772,10 +795,11 @@ fn extrude_and_revolve_require_their_node_kinds() {
 fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
     let tol = Tol::witness();
     let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [R, 0.0],
                 radius: RO,
@@ -785,9 +809,12 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 1.0, 0.0]),
+            // The revolve's axis, in the sketch it turns: the frame's
+            // v is world +Y, so this is its own +y through (0, 0).
+            datum: DatumSpec::AxisInPlane {
+                plane,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
             },
         },
     );
@@ -850,9 +877,12 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 1.0, 0.0]),
+            // The revolve's axis, in the sketch it turns: the frame's
+            // v is world +Y, so this is its own +y through (0, 0).
+            datum: DatumSpec::AxisInPlane {
+                plane,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
             },
         },
     );
@@ -869,10 +899,11 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
 fn a_dropped_profile_does_not_promote_the_axis() {
     let tol = Tol::witness();
     let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [R, 0.0],
                 radius: RO,
@@ -882,9 +913,12 @@ fn a_dropped_profile_does_not_promote_the_axis() {
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 1.0, 0.0]),
+            // The revolve's axis, in the sketch it turns: the frame's
+            // v is world +Y, so this is its own +y through (0, 0).
+            datum: DatumSpec::AxisInPlane {
+                plane,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
             },
         },
     );
@@ -918,10 +952,11 @@ fn a_dropped_profile_does_not_promote_the_axis() {
         "one seat empty, no op"
     );
     // The next pick refills the PROFILE seat, not the axis.
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [R, 0.0],
                 radius: RI,
@@ -948,10 +983,11 @@ fn a_dropped_profile_does_not_promote_the_axis() {
 fn reconcile_drops_both_picks_across_a_new_document() {
     let tol = Tol::witness();
     let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [R, 0.0],
                 radius: RO,
@@ -961,9 +997,12 @@ fn reconcile_drops_both_picks_across_a_new_document() {
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 1.0, 0.0]),
+            // The revolve's axis, in the sketch it turns: the frame's
+            // v is world +Y, so this is its own +y through (0, 0).
+            datum: DatumSpec::AxisInPlane {
+                plane,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
             },
         },
     );
@@ -1008,10 +1047,11 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
     // the draft is canonical, the picker says how it is written.
     let extrude_distance = Expr::written_length(WrittenLength::canonical_in(0.01, mm.length))
         .expect("10 mm is a length");
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![
                 viewer::sketch::loop_program(
                     &ProfileShape::Circle {
@@ -1086,9 +1126,12 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 0.0, 1.0]),
+            // The circle is drawn on `plane`, so the revolve's axis is
+            // written there too — its +y through (0, 0).
+            datum: DatumSpec::AxisInPlane {
+                plane,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
             },
         },
     );

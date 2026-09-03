@@ -51,16 +51,14 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, BooleanValue, CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Expr, LoopProgram,
-    Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId, ValuePayload, apply, evaluate,
-    parse_expr,
+    BooleanOp, BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation,
+    Expr, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId, ValuePayload,
+    apply, evaluate, parse_expr,
 };
-use pncad::geom_core::{Point3, Vec3};
 // `probe_solids` is the only scene door pinned to the recording scalar
 // (see its note), and it rides the `probe` feature with it.
 #[cfg(feature = "probe")]
 use pncad::geom_core::Probe;
-use pncad::profile::SketchPlane;
 
 use crate::scalar::Scalar;
 
@@ -107,38 +105,42 @@ fn build_doc(tol: Tol) -> Recipe {
     // v4 (LIB-SWITCH): the document stores the PROGRAM — the polygon
     // chain (`At`, `LineTo`…, `LineTo(Start)`), replayed through the
     // driver at every evaluation.
-    let base_profile = ProfileProgram {
-        plane: SketchPlane::xy(),
-        loops: vec![
-            LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 1.0), (0.0, 1.0)])
-                .expect("finite corners"),
-        ],
-    };
-    // Fin sketch sits at z = 0.1875 — 1/16 INSIDE the 0.25-thick base.
-    let fin_plane = SketchPlane::from_frame(
-        Point3::new(0.0, 0.0, 0.1875),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-    );
-    let fin_profile = ProfileProgram {
-        plane: fin_plane,
-        loops: vec![
-            LoopProgram::polygon([
-                (0.25, 0.125),
-                (0.4375, 0.125),
-                (0.4375, 0.875),
-                (0.25, 0.875),
-            ])
+    let base_loops = vec![
+        LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 1.0), (0.0, 1.0)])
             .expect("finite corners"),
-        ],
-    };
+    ];
+    let fin_loops = vec![
+        LoopProgram::polygon([
+            (0.25, 0.125),
+            (0.4375, 0.125),
+            (0.4375, 0.875),
+            (0.25, 0.875),
+        ])
+        .expect("finite corners"),
+    ];
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("heatsink", tol);
     let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
         let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("insert node");
         *doc = applied.doc;
         applied.record.minted.expect("insert mints an id")
     };
-    let base_p = insert(&mut doc, Node::Profile(base_profile));
+    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
+    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+    let frame_at = |z: f64| {
+        Node::Datum(Datum::Frame {
+            origin: [len(0.0), len(0.0), len(z)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        })
+    };
+    let base_plane = insert(&mut doc, frame_at(0.0));
+    let base_p = insert(
+        &mut doc,
+        Node::Profile(ProfileProgram {
+            plane: base_plane,
+            loops: base_loops,
+        }),
+    );
     let base_e = insert(
         &mut doc,
         Node::Extrude {
@@ -146,7 +148,16 @@ fn build_doc(tol: Tol) -> Recipe {
             distance: pe("250 mm"),
         },
     );
-    let fin_p = insert(&mut doc, Node::Profile(fin_profile));
+    // Fin sketch sits at z = 0.1875 — 1/16 INSIDE the 0.25-thick base:
+    // its own plane, so its own frame.
+    let fin_plane = insert(&mut doc, frame_at(0.1875));
+    let fin_p = insert(
+        &mut doc,
+        Node::Profile(ProfileProgram {
+            plane: fin_plane,
+            loops: fin_loops,
+        }),
+    );
     let fin_e = insert(
         &mut doc,
         Node::Extrude {
@@ -314,15 +325,20 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         // edit re-runs the fin group AND the union that consumes it —
         // which is what it means for the whole part to live in the
         // document now (#1344). Everything upstream of the edited slot
-        // — both profiles and both extrudes — is still reused by
-        // content key, so this is the same downstream-only-recompute
-        // claim measured over a chain that is one node longer, not a
-        // weaker one. It read 1 while the union lived in demo code.
+        // — both sketch frames, both profiles and both extrudes — is
+        // still reused by content key, so this is the same
+        // downstream-only-recompute claim measured over a chain that is
+        // one node longer, not a weaker one. It read 1 while the union
+        // lived in demo code.
         assert_eq!(
             ev.recomputed, 2,
             "a count edit re-runs exactly the fin group and the union below it"
         );
-        assert_eq!(ev.reused, 4, "everything upstream reuses by content key");
+        // SIX since a profile is drawn on a frame NODE: the two frames
+        // are upstream of the edited slot like the profiles that name
+        // them, so they reuse for the same reason and the number that
+        // counts reuse has to count them.
+        assert_eq!(ev.reused, 6, "everything upstream reuses by content key");
         evs.push((n, ev, caption));
     }
 

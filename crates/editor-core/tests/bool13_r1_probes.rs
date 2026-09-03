@@ -16,21 +16,19 @@ use crate::fixture;
 use editor_core::{
     Node, PersistError, ProfileDoc, REGENERATE_RECOURSE, header_document_id, load, save,
 };
-use fixture::{desc, insert, len};
+use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
 /// A profile and an extrude (the same shape `unreadable_by_this_build`
 /// mutates).
 fn small() -> String {
     let doc = ProfileDoc::empty_derived("bool13-r1-probes", Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, _) = insert(
         doc,
@@ -213,7 +211,7 @@ fn a_positional_array_body_loads() {
     let arr = serde_json::json!([v["snapshot"], v["edits"]]);
     let text = join(&header, &arr);
     match load(&text, Tol::witness()) {
-        Ok(loaded) => assert_eq!(loaded.doc.order().len(), 2),
+        Ok(loaded) => assert_eq!(loaded.doc.order().len(), 3),
         Err(e) => panic!("recorded expectation: a positional body loads; got {e:?}"),
     }
 }
@@ -341,7 +339,7 @@ fn display_carries_a_long_detail_untruncated() {
 #[test]
 fn the_unknown_variant_detail_lists_the_vocabulary_in_full() {
     let (header, mut v) = split(&small());
-    let node = v["snapshot"]["nodes"]["1"].as_object_mut().unwrap();
+    let node = v["snapshot"]["nodes"]["2"].as_object_mut().unwrap();
     let payload = node.remove("Extrude").unwrap();
     node.insert("Extrudez".to_string(), payload);
     let detail = expect_unreadable_naming("Extrudez", &join(&header, &v), "Extrudez");
@@ -361,22 +359,42 @@ fn the_unknown_variant_detail_lists_the_vocabulary_in_full() {
 
 // ---- The additive-growth LOAD row, with the ε escape hatch closed ----
 
-/// The unit's frozen older-shaped bytes, verbatim.
+/// The unit's frozen minimal-vocabulary bytes, verbatim.
+///
+/// RE-FROZEN when a profile's sketch plane became a document node.
+/// The previous exemplar was written by a real earlier build of this
+/// repository and carried a twelve-float placement object in the
+/// profile's `plane`; that field is a node reference now, which is a
+/// BREAKING wire change, so those bytes are `Unreadable` today. That
+/// outcome is the ruling working — a breaking change refuses typed
+/// rather than migrating — and it is asserted on the real historical
+/// corpus by `bool13r2_probes::real_historical_documents_refuse_typed\
+/// _and_name_what_they_lack`. What CANNOT be measured with bytes older
+/// than the break is the additive half, so this exemplar is written by
+/// today's writer and kept minimal: its node vocabulary is
+/// {Datum, Profile, Extrude} and nothing newer, so the row still says
+/// that a document lacking every later arm loads.
 const OLDER_SHAPED: &str = concat!(
-    "id: 403dad134a805e2f6ad6d453633789a4\n",
-    "{\"snapshot\":{\"id\":\"403dad134a805e2f6ad6d453633789a4\",\"next_id\":2,",
-    "\"nodes\":{\"0\":{\"Profile\":{\"plane\":{\"basis\":[[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,1.0]],",
-    "\"origin\":[0.0,0.0,0.0]},\"loops\":[{\"Chain\":[{\"At\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",",
-    "\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}}]},",
-    "{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}},",
-    "{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},",
-    "{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}},",
-    "{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},",
-    "{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},",
-    "{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":\"Start\"}]}]}},",
-    "\"1\":{\"Extrude\":{\"profile\":0,\"distance\":{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",",
-    "\"unit\":\"m\"}}}}},\"order\":[0,1],\"roots\":[1],\"placements\":{},\"params\":{},\"epsilon\":1e-09,",
-    "\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
+    "id: 12c74470374c7c76269f22a931efab85\n",
+    "{\"snapshot\":{\"id\":\"12c74470374c7c76269f22a931efab85\",\"next_id\":3,\"nodes\":{\"0",
+    "\":{\"Datum\":{\"Frame\":{\"origin\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"un",
+    "it\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal",
+    "\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}}],\"u\":[{\"Literal\":{\"value\":1.0",
+    ",\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"uni",
+    "t\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}}],\"v\":[{\"Lit",
+    "eral\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":1.0,\"d",
+    "im\":\"Scalar\",\"unit\":\"\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Scalar\",\"unit\":",
+    "\"\"}}]}}},\"1\":{\"Profile\":{\"plane\":0,\"loops\":[{\"Chain\":[{\"At\":[{\"Literal\":",
+    "{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":",
+    "\"Length\",\"unit\":\"m\"}}]},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\"",
+    ":\"Length\",\"unit\":\"m\"}},{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m",
+    "\"}}]}},{\"LineTo\":{\"Point\":[{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":",
+    "\"m\"}},{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":{",
+    "\"Point\":[{\"Literal\":{\"value\":0.0,\"dim\":\"Length\",\"unit\":\"m\"}},{\"Literal\":",
+    "{\"value\":1.0,\"dim\":\"Length\",\"unit\":\"m\"}}]}},{\"LineTo\":\"Start\"}]}]}},\"2\":",
+    "{\"Extrude\":{\"profile\":1,\"distance\":{\"Literal\":{\"value\":1.0,\"dim\":\"Length\",",
+    "\"unit\":\"m\"}}}}},\"order\":[0,1,2],\"roots\":[2],\"placements\":{},\"params\":{},\"ep",
+    "silon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":[]}",
     "\n"
 );
 
@@ -398,8 +416,8 @@ fn the_older_shaped_document_loads_at_the_ambient_eps() {
         .values()
         .map(|n| n.as_object().unwrap().keys().next().unwrap())
         .collect();
-    assert_eq!(tags, ["Profile", "Extrude"]);
-    let loaded = load(&text, Tol::witness()).expect("an older-shaped document loads");
-    assert_eq!(loaded.doc.order().len(), 2);
+    assert_eq!(tags, ["Datum", "Profile", "Extrude"]);
+    let loaded = load(&text, Tol::witness()).expect("a minimal-vocabulary document loads");
+    assert_eq!(loaded.doc.order().len(), 3);
     assert_eq!(loaded.doc.epsilon().to_bits(), eps.to_bits());
 }

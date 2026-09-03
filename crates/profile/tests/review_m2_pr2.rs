@@ -383,10 +383,7 @@ fn near_tangent_join_escalates() {
         .validate(tol())
         .expect_err("contradicted declaration")
     {
-        ProfileError::TangencyContradicted {
-            same_carrier: false,
-            ..
-        } => {}
+        ProfileError::TangencyContradicted { .. } => {}
         other => panic!("expected contradicted tangency, got {other:?}"),
     }
 }

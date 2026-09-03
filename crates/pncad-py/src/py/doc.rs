@@ -466,6 +466,32 @@ impl Doc {
             })
     }
 
+    /// **Insert a sketch frame and return its id** — the one line a
+    /// profile needs before it can name a plane.
+    ///
+    /// Exactly `insert(Node.sketch_frame(...))`, and it takes that
+    /// constructor's two spellings unchanged (`plane=` a rigid frame,
+    /// `elevation=` the xy sugar, never both). It exists because a
+    /// profile's plane became a node: a plane used to be an argument
+    /// and is now an EDIT, and without this every sketch would have to
+    /// be broken into two statements even where the profile itself is
+    /// one expression.
+    ///
+    /// Each call mints a FRESH frame. Two sketches meant to live on
+    /// one plane should bind the id once and pass it twice — that
+    /// sharing is a fact about the document, and now there is
+    /// something in the document for it to be a fact about.
+    #[pyo3(signature = (plane=None, elevation=None))]
+    fn sketch_frame(
+        &mut self,
+        py: Python<'_>,
+        plane: Option<SketchPlane>,
+        elevation: Option<super::quantity::Length>,
+    ) -> PyResult<NodeId> {
+        let node = Node::sketch_frame(py, plane, elevation)?;
+        self.insert(py, &node)
+    }
+
     /// Declare ONE inspected finding: insert a `Declare` node with
     /// its pair and return the node's id, for `Node.boolean`'s
     /// `declare=` input — the detect/declare protocol's declare arm
@@ -514,6 +540,107 @@ impl Doc {
     /// Bit-exact document equality (D9's replay currency).
     fn bit_eq(&self, other: &Self) -> bool {
         self.inner.bit_eq(&other.inner)
+    }
+
+    /// **Read `source` as an expression** against this document's
+    /// declared parameters (`parse_expr`).
+    ///
+    /// The one door inward. The parser is CHECKING — every reduction
+    /// runs the expression layer's smart constructors — so a text
+    /// that survives it is a dimension-checked tree, and the whole
+    /// algebra (operators, `sin`/`cos`/`tan`/`atan2`/`min`/`max`,
+    /// unit suffixes, parameter references) is reachable through this
+    /// one call.
+    ///
+    /// The DECLARATIONS come from the document, not from the caller:
+    /// a bare identifier is a reference to a parameter this document
+    /// declares, and it carries that parameter's dimension. So
+    /// `"width / 2.0"` parses in a document that declares `width`
+    /// and refuses `unknown_param` in one that does not — which is
+    /// the same table `apply` re-checks a stored expression against,
+    /// not a second one. Note the `2.0`: a bare integer literal is an
+    /// exact `Count`, and dividing a length by one needs an explicit
+    /// promotion, so the decimal point is what makes the divisor
+    /// dimensionless.
+    ///
+    /// Refuses typed on `ParseError`, carrying `variant` and the byte
+    /// offset `pos`; a reduction the dimension checker refused
+    /// arrives as `variant == "dimension"` with the constructor's own
+    /// tag as `kind`.
+    fn parse_expr(&self, py: Python<'_>, source: &str) -> PyResult<super::expr::Expr> {
+        let declared = self
+            .inner
+            .params()
+            .iter()
+            .map(|(name, param)| (name.clone(), param.dim()))
+            .collect();
+        d::parse_expr(source, &declared)
+            .map(super::expr::Expr)
+            .map_err(|err| super::expr::parse_err(py, &err))
+    }
+
+    /// **This expression's value** under the document's current
+    /// parameter values (`eval`).
+    ///
+    /// Answers a `Length` for a length expression, an `Angle` for an
+    /// angle, and a bare `float` for a dimensionless one — the
+    /// crossing rule the rest of this surface follows, rather than
+    /// the kernel-unit `f64` the Rust door returns with its dimension
+    /// erased.
+    ///
+    /// **Not `evaluate(doc)`.** That one runs the RECIPE and answers
+    /// geometry; this one runs one expression's arithmetic and
+    /// answers a number. Nothing about the document changes either
+    /// way.
+    ///
+    /// A `Count` expression does not evaluate here: counts are exact,
+    /// and promotion to a continuous value is explicit in the
+    /// expression language or not at all, so this refuses
+    /// `count_expr_in_continuous_eval` and `eval_count` is the door.
+    /// Refuses typed on `EvalError` otherwise — `unknown_param` names
+    /// the parameter with no binding, `param_dimension_mismatch`
+    /// names both dimensions, and `non_finite_result` is the
+    /// arithmetic having overflowed or hit a pole.
+    fn eval(&self, py: Python<'_>, expr: &super::expr::Expr) -> PyResult<Py<PyAny>> {
+        let env = self.inner.param_env::<f64>();
+        let value = d::eval(&expr.0, &env).map_err(|err| super::expr::eval_err(py, &err))?;
+        // Re-dimensioning what `eval` erased: the expression's own
+        // dimension is what says which quantity the number is, and it
+        // is correct by construction. `Count` cannot reach here — the
+        // evaluator refused it above — and `Scalar` is dimensionless
+        // by definition, so both fall to the bare float.
+        match expr.0.dim() {
+            d::Dimension::Length => Py::new(
+                py,
+                super::quantity::Length(pncad::quantity::Length::from_meters(value)),
+            )
+            .map(|v| v.into_any()),
+            d::Dimension::Angle => Py::new(
+                py,
+                super::quantity::Angle(pncad::quantity::Angle::from_radians(value)),
+            )
+            .map(|v| v.into_any()),
+            // `f64`'s conversion into Python is INFALLIBLE (its error
+            // type is `Infallible`), so this arm cannot fail; the
+            // match is what says so.
+            d::Dimension::Count | d::Dimension::Scalar => match value.into_pyobject(py) {
+                Ok(bound) => Ok(bound.unbind().into_any()),
+            },
+        }
+    }
+
+    /// **This count expression's exact value** under the document's
+    /// current parameter values (`eval_count`).
+    ///
+    /// Exact integer arithmetic, never floating point: a count that
+    /// overflows refuses `count_overflow` rather than wrapping, since
+    /// a wrapped count is a fabricated one. A non-`Count` expression
+    /// refuses `continuous_expr_in_count_eval` naming the dimension
+    /// it actually has — a count is never inferred from a continuous
+    /// value.
+    fn eval_count(&self, py: Python<'_>, expr: &super::expr::Expr) -> PyResult<i64> {
+        let env = self.inner.param_env::<f64>();
+        d::eval_count(&expr.0, &env).map_err(|err| super::expr::eval_err(py, &err))
     }
 
     /// Serialize this document to the persistence text format
@@ -790,14 +917,12 @@ impl Node {
     /// different heights — or the detect/declare protocol
     /// (`Evaluation.find_flush_candidates` → `Doc.declare_all`).
     #[staticmethod]
-    #[pyo3(signature = (points, elevation=None, plane=None))]
     fn polygon(
         py: Python<'_>,
         points: Vec<(super::quantity::Length, super::quantity::Length)>,
-        elevation: Option<super::quantity::Length>,
-        plane: Option<SketchPlane>,
+        plane: NodeId,
     ) -> PyResult<Self> {
-        let plane = sketch_plane(plane, elevation)?;
+        let plane = plane.0;
         // The polygon as a loop PROGRAM (the post-switch v4 payload:
         // the program IS the profile's definition): anchor at the
         // first vertex, one `line_to` per remaining vertex, close by
@@ -851,14 +976,8 @@ impl Node {
     /// typed refusal at `evaluate`. The binding's only job is that the
     /// loops arrive in the order they were written.
     #[staticmethod]
-    #[pyo3(signature = (outline, elevation=None, plane=None))]
-    fn profile(
-        py: Python<'_>,
-        outline: &Bound<'_, PyAny>,
-        elevation: Option<super::quantity::Length>,
-        plane: Option<SketchPlane>,
-    ) -> PyResult<Self> {
-        let plane = sketch_plane(plane, elevation)?;
+    fn profile(py: Python<'_>, outline: &Bound<'_, PyAny>, plane: NodeId) -> PyResult<Self> {
+        let plane = plane.0;
         // ONE loop or a sequence of them, and nothing else: a value
         // that is neither is `extract`'s own `TypeError`, so a
         // stringly-typed or numeric argument still refuses at the
@@ -1045,6 +1164,56 @@ impl Node {
         }
     }
 
+    /// **The sketch frame a profile is drawn on**, as a node.
+    ///
+    /// `plane=` is a [`SketchPlane`] (any rigid frame, including the
+    /// named `yz`/`zx`); `elevation=` is the xy sugar — the world
+    /// xy-plane, that far up z. Exactly one, never both, and the
+    /// default is the xy-plane itself: the same two spellings
+    /// `Node.polygon` used to take, through the same one lowering.
+    ///
+    /// They moved HERE because a profile's plane became a document
+    /// node. A `Node` constructor cannot insert anything, so it cannot
+    /// mint the frame a profile would name; the caller inserts this
+    /// first and passes its id. That is not extra ceremony — it is the
+    /// frame becoming a thing in the document, editable and visible,
+    /// instead of twelve floats frozen inside a sketch.
+    #[staticmethod]
+    #[pyo3(signature = (plane=None, elevation=None))]
+    fn sketch_frame(
+        py: Python<'_>,
+        plane: Option<SketchPlane>,
+        elevation: Option<super::quantity::Length>,
+    ) -> PyResult<Self> {
+        let place = sketch_plane(plane, elevation)?.placement;
+        let (u, v) = (place.linear.c0, place.linear.c1);
+        let len3 = |x: f64, y: f64, z: f64| -> PyResult<[d::Expr; 3]> {
+            Ok([
+                literal(py, x, d::Dimension::Length)?,
+                literal(py, y, d::Dimension::Length)?,
+                literal(py, z, d::Dimension::Length)?,
+            ])
+        };
+        let scl3 = |v: pncad::prelude::Vec3<f64>| -> PyResult<[d::Expr; 3]> {
+            Ok([
+                literal(py, v.x, d::Dimension::Scalar)?,
+                literal(py, v.y, d::Dimension::Scalar)?,
+                literal(py, v.z, d::Dimension::Scalar)?,
+            ])
+        };
+        Ok(Self {
+            inner: d::Node::Datum(d::Datum::Frame {
+                origin: len3(
+                    place.translation.x,
+                    place.translation.y,
+                    place.translation.z,
+                )?,
+                u: scl3(u)?,
+                v: scl3(v)?,
+            }),
+        })
+    }
+
     /// A datum axis: a point and a direction.
     ///
     /// The origin is dimensioned (`Length`); the direction is a
@@ -1071,6 +1240,40 @@ impl Node {
         ];
         Ok(Self {
             inner: d::Node::Datum(d::Datum::Axis { origin, direction }),
+        })
+    }
+
+    /// A datum axis written IN a sketch frame — what a revolve turns.
+    ///
+    /// `plane` is the `Datum.frame` node the axis lives in, and the
+    /// two pairs are that frame's own 2-D coordinates: the origin
+    /// dimensioned (`Length`), the direction dimensionless and
+    /// unnormalized, as `SlotId::Direction`'s `Scalar` says.
+    ///
+    /// A revolve takes one of these and NOT a `datum_axis`: a 3-D axis
+    /// would have to be checked into the profile's plane, and that
+    /// check was a tolerance verdict on a direction residual. Written
+    /// here, the axis cannot leave the frame — and whether it is the
+    /// frame the profile was drawn on is an equality of node ids.
+    #[staticmethod]
+    fn datum_axis_in_plane(
+        py: Python<'_>,
+        plane: NodeId,
+        origin: (super::quantity::Length, super::quantity::Length),
+        direction: (f64, f64),
+    ) -> PyResult<Self> {
+        Ok(Self {
+            inner: d::Node::Datum(d::Datum::AxisInPlane {
+                plane: plane.0,
+                origin: [
+                    literal(py, origin.0.0.meters(), d::Dimension::Length)?,
+                    literal(py, origin.1.0.meters(), d::Dimension::Length)?,
+                ],
+                direction: [
+                    literal(py, direction.0, d::Dimension::Scalar)?,
+                    literal(py, direction.1, d::Dimension::Scalar)?,
+                ],
+            }),
         })
     }
 

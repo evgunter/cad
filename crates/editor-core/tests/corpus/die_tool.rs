@@ -54,13 +54,12 @@
 //! pins is validity and the census; `lib_placedunion.rs` pins the tool
 //! against the pairwise Transform + Union chain it replaces.
 
-use editor_core::{BooleanOp, Datum, DocEdit, Frame, LoopProgram, Node, ProfileProgram, SlotId};
-use geom_core::{Point3, Vec3};
-use profile::SketchPlane;
+use editor_core::{BooleanOp, DocEdit, Frame, LoopProgram, Node, ProfileProgram, SlotId};
+
+use crate::fixture::{ang, axis_in_plane, frame, len, xy_frame};
 
 use super::die_pips::{DIE_L, PIP_H, PIP_R, half_disc_program};
 use super::{CorpusDoc, Recorder};
-use crate::fixture::{ang, len, scl};
 
 /// The pip ball's centre coordinate along its face normal, in the
 /// cube's `[0, L]³` frame (`die_pips`' derivation verbatim: the face
@@ -103,8 +102,9 @@ pub fn document() -> CorpusDoc {
     // ---- the sharp cube, [0, L]³ ----
     let square = LoopProgram::polygon([(0.0, 0.0), (DIE_L, 0.0), (DIE_L, DIE_L), (0.0, DIE_L)])
         .expect("the die's square");
+    let cube_plane = r.insert(xy_frame());
     let cube_p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: cube_plane,
         loops: vec![square],
     }));
     let cube = r.insert(Node::Extrude {
@@ -113,16 +113,13 @@ pub fn document() -> CorpusDoc {
     });
 
     // ---- the master ball, poled along +Z (`die_pips`' construction) ----
-    let axis = r.insert(Node::Datum(Datum::Axis {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scl(0.0), scl(0.0), scl(1.0)],
-    }));
+    let ball_plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
+    // The axis, written in the meridian frame it turns: that frame's
+    // v is world +Z, so the pole axis is its own +y through (0, 0).
+    // It is minted AFTER the frame because it names it.
+    let axis = r.insert(axis_in_plane(ball_plane, (0.0, 0.0), (0.0, 1.0)));
     let ball_p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::from_frame(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-        ),
+        plane: ball_plane,
         loops: vec![half_disc_program()],
     }));
     let ball = r.insert(Node::Revolve {

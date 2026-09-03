@@ -51,7 +51,6 @@ use editor_core::{
 };
 use fixture::{len, prism_edges};
 use geom_core::Tol;
-use profile::SketchPlane;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -74,8 +73,16 @@ fn both_blends() -> BothBlends {
     // round-trip a test of the wire spelling of every node.
     let snapshot = r.doc.clone();
     let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
+    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
+        origin: [0.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
+        u: [1.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        v: [0.0, 1.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+    }));
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: xy_frame_0,
         loops: vec![square],
     }));
     let cube = r.insert(Node::Extrude {
@@ -325,11 +332,21 @@ fn feed_body(feed: &mut impl FnMut(&[u8]), body: &topo::Body<f64>) {
 /// They are goldens in the ordinary sense — when one moves the question
 /// is whether the new behaviour is right, never how to restore the old
 /// number.
+///
+/// RE-BLESSED for the sketch frame, and the differential above no
+/// longer stands behind these numbers: a profile's plane became a
+/// document node, so each of these documents gained frames and every
+/// later node was renumbered. The digest feeds each node's id and each
+/// `StableName` — which carries the id of the node that minted it — so
+/// it moves for renumbering alone. What did NOT move is the body half:
+/// the corpus's exact mass pins (`m4_pr8_corpus::exact_mass_pins_hold`)
+/// and the realized-vs-idealized bit equality (`m5_pr8_bvh_diff`) were
+/// green across this change untouched, and those are id-free.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
-        ("die_fillet", 0xc88b_608e_e0eb_be22_u64),
-        ("die_chamfer", 0x0d1a_ec94_58b0_afd6),
+        ("die_fillet", 0xc73e_54fb_cb42_a7db_u64),
+        ("die_chamfer", 0xcb6b_1dc1_3231_856d),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -399,12 +416,22 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// authors through doors the migration did not add. That differential
 /// is what "nothing observable moved" means here; without it the
 /// constants would only say the branch agrees with itself.
+///
+/// RE-BLESSED for the sketch frame, and the differential above no
+/// longer stands behind these numbers: a profile's plane became a
+/// document node, so each of these documents gained frames and every
+/// later node was renumbered. The digest feeds each node's id and each
+/// `StableName` — which carries the id of the node that minted it — so
+/// it moves for renumbering alone. What did NOT move is the body half:
+/// the corpus's exact mass pins (`m4_pr8_corpus::exact_mass_pins_hold`)
+/// and the realized-vs-idealized bit equality (`m5_pr8_bvh_diff`) were
+/// green across this change untouched, and those are id-free.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
-        ("crossing_slots", 0x7865_325e_8719_d6a0_u64),
-        ("heat_sink", 0x4c79_8719_cbc2_5c5a),
-        ("kiss_carry", 0x6dd7_1fcd_ed94_9fff),
+        ("crossing_slots", 0x639e_16ef_1cdd_84a7_u64),
+        ("heat_sink", 0x9659_b4c0_7f46_4f38),
+        ("kiss_carry", 0xfc1e_89f4_9a13_daea),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -447,16 +474,32 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
     let square =
         |x0: f64| LoopProgram::polygon([(x0, 0.0), (x0 + L, 0.0), (x0 + L, L), (x0, L)]).unwrap();
+    let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
+        origin: [0.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
+        u: [1.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        v: [0.0, 1.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+    }));
     let pa = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: xy_frame_1,
         loops: vec![square(0.0)],
     }));
     let a = r.insert(Node::Extrude {
         profile: pa,
         distance: len(L),
     });
+    let xy_frame_2 = r.insert(Node::Datum(editor_core::Datum::Frame {
+        origin: [0.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
+        u: [1.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        v: [0.0, 1.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+    }));
     let pb = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: xy_frame_2,
         loops: vec![square(3.0)],
     }));
     let b = r.insert(Node::Extrude {
@@ -482,7 +525,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xfd6f_d386_9889_c0f7,
+        got, 0x06ac_a28a_21f7_a4a5,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

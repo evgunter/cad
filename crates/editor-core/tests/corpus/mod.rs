@@ -339,10 +339,12 @@ pub const EDIT_KINDS: [&str; 15] = [
 /// The node SUB-kinds the corpus must also cover in full: every datum
 /// flavour, every boolean operator (and the declared boolean), and
 /// both pattern kinds.
-pub const SUB_KINDS: [&str; 13] = [
+pub const SUB_KINDS: [&str; 15] = [
     "Datum::Plane",
     "Datum::Axis",
+    "Datum::AxisInPlane",
     "Datum::Point",
+    "Datum::Frame",
     "Boolean::Union",
     "Boolean::Intersect",
     "Boolean::Subtract",
@@ -374,12 +376,16 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         Node::Datum(Datum::Plane { .. }) => vec!["Datum::Plane"],
         Node::Datum(Datum::Axis { .. }) => vec!["Datum::Axis"],
         Node::Datum(Datum::Point { .. }) => vec!["Datum::Point"],
-        // NOT a listed sub-kind, for `PlacedUnion::Circular`'s reason
-        // above: no corpus document authors a frame yet — nothing
-        // consumes one — and a listed-but-uncovered sub-kind fails the
-        // tally. It is exercised directly in `m4_pr2_frame.rs`, and it
-        // joins this list when a profile takes a frame as its plane.
-        Node::Datum(Datum::Frame { .. }) => Vec::new(),
+        // Listed since a profile takes its plane as a frame NODE: every
+        // corpus document authors at least one, which is the condition
+        // this arm was written waiting for.
+        Node::Datum(Datum::Frame { .. }) => vec!["Datum::Frame"],
+        // Listed: four corpus documents revolve, and a revolve's axis
+        // is written in the profile's frame. `kitchen_sink` carries
+        // BOTH axis kinds — a world line for its circular pattern, an
+        // in-plane axis for its revolve — which is the whole reason
+        // they are two sub-kinds to count.
+        Node::Datum(Datum::AxisInPlane { .. }) => vec!["Datum::AxisInPlane"],
         Node::Boolean { op, declare, .. } => {
             let mut v = vec![match op {
                 BooleanOp::Union => "Boolean::Union",

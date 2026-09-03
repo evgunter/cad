@@ -53,14 +53,12 @@ fn table_of(
 #[test]
 fn p1_shrunk_supports_wrap_exactly_the_targets_face_names() {
     let doc = ProfileDoc::empty_derived("review_m6_5_pr2_probes", Tol::witness());
-    let (doc, p) = fixture::insert(
+    let (doc, p) = fixture::on_frame(
         doc,
-        Node::Profile(fixture::desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, cube) = fixture::insert(
         doc,
@@ -155,14 +153,12 @@ fn p2_surgery_supports_wrap_names_the_target_table_carries() {
 fn p3_totality_holds_for_a_triangular_prism() {
     use editor_core::resolve::{Resolution, RunCtx, resolve};
     let doc = ProfileDoc::empty_derived("review_m6_5_pr2_probes", Tol::witness());
-    let (doc, p) = fixture::insert(
+    let (doc, p) = fixture::on_frame(
         doc,
-        Node::Profile(fixture::desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (2.0, 0.0), (0.0, 2.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (2.0, 0.0), (0.0, 2.0)]],
     );
     let (doc, prism) = fixture::insert(
         doc,

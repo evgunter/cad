@@ -43,17 +43,18 @@
 
 use editor_core::{BooleanOp, Dimension, DocEdit, Expr, Node, RecipeNodeId, SlotId};
 
+use crate::fixture::len;
+
 use super::{CorpusDoc, MassPin, Recorder};
-use crate::fixture::{desc, len};
 
 /// A rectangle in the xy plane at height `z`, extruded `h`.
 fn block(r: &mut Recorder, x: (f64, f64), y: (f64, f64), z: f64, h: f64) -> RecipeNodeId {
-    let p = r.insert(Node::Profile(desc(
+    let p = r.profile(
         [0.0, 0.0, z],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-    )));
+    );
     r.insert(Node::Extrude {
         profile: p,
         distance: len(h),

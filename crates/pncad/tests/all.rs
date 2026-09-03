@@ -987,14 +987,29 @@ fn lib_doors_vocabulary_is_nameable() {
     named::<Option<pncad::export::ExportError>>(None);
 }
 
-/// A square profile-program node, `[0,s]²` on the xy-plane.
-fn doors_square(s: f64) -> pncad::document::Node<pncad::document::ProfileProgram> {
+/// The world xy frame — the plane these door fixtures sketch on.
+fn doors_xy_frame() -> pncad::document::Node<pncad::document::ProfileProgram> {
+    use pncad::document::{Datum, Dimension, Expr, Node};
+    let len = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
+    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).unwrap();
+    Node::Datum(Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    })
+}
+
+/// A square profile-program node, `[0,s]²` on `plane`.
+fn doors_square(
+    plane: pncad::document::RecipeNodeId,
+    s: f64,
+) -> pncad::document::Node<pncad::document::ProfileProgram> {
     use pncad::document::{
         Dimension, Expr, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget,
     };
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([lit(0.0), lit(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([lit(s), lit(0.0)])),
@@ -1031,7 +1046,8 @@ fn doors_box_doc() -> (
     use pncad::document::{Dimension, Expr, Node};
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     let doc = pncad::document::ProfileDoc::empty_derived("all", Tol::witness());
-    let (doc, profile) = doors_insert(doc, doors_square(2.0));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, profile) = doors_insert(doc, doors_square(plane, 2.0));
     let (doc, body) = doors_insert(
         doc,
         Node::Extrude {
@@ -1099,10 +1115,11 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
 
     // And it evaluates as a document node.
     let doc = pncad::document::ProfileDoc::empty_derived("all", Tol::witness());
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
     let (doc, profile) = doors_insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![lifted],
         }),
     );
@@ -1214,14 +1231,18 @@ fn the_export_door_serves_the_one_shot_journey() {
     }
 }
 
-/// A square of side `s` whose lower-left corner sits at `x`.
-fn doors_square_at(s: f64, x: f64) -> pncad::document::Node<pncad::document::ProfileProgram> {
+/// A square of side `s` on `plane`, lower-left corner at `x`.
+fn doors_square_at(
+    plane: pncad::document::RecipeNodeId,
+    s: f64,
+    x: f64,
+) -> pncad::document::Node<pncad::document::ProfileProgram> {
     use pncad::document::{
         Dimension, Expr, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget,
     };
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([lit(x), lit(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([lit(x + s), lit(0.0)])),
@@ -1241,7 +1262,8 @@ fn the_document_export_door_ships_the_multi_solid_product() {
     use pncad::document::{Dimension, Expr, Node};
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     let doc = pncad::document::ProfileDoc::empty_derived("asm-roots-doc-export", Tol::witness());
-    let (doc, p0) = doors_insert(doc, doors_square_at(2.0, 0.0));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, p0) = doors_insert(doc, doors_square_at(plane, 2.0, 0.0));
     let (doc, b0) = doors_insert(
         doc,
         Node::Extrude {
@@ -1249,7 +1271,8 @@ fn the_document_export_door_ships_the_multi_solid_product() {
             distance: lit(1.5),
         },
     );
-    let (doc, p1) = doors_insert(doc, doors_square_at(1.0, 10.0));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, p1) = doors_insert(doc, doors_square_at(plane, 1.0, 10.0));
     let (doc, b1) = doors_insert(
         doc,
         Node::Extrude {
@@ -1290,7 +1313,8 @@ fn the_document_export_door_refuses_a_bodiless_document() {
     use pncad::export::ExportError;
     let doc =
         pncad::document::ProfileDoc::empty_derived("asm-roots-doc-export-bodiless", Tol::witness());
-    let (doc, _profile) = doors_insert(doc, doors_square_at(2.0, 0.0));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, _profile) = doors_insert(doc, doors_square_at(plane, 2.0, 0.0));
     let ev = doors_evaluate(&doc);
     match pncad::export::export_document_step(&ev, &doc, &StepOptions::default(), Tol::witness()) {
         Err(ExportError::Product(ProductError::NoBodyRoots)) => {}
@@ -1304,7 +1328,8 @@ fn the_export_door_refuses_typed_not_vaguely() {
     use pncad::export::ExportError;
     let (doc, profile_node, first_box) = doors_box_doc();
     // A failing Boolean (undeclared coincidence) and its downstream.
-    let (doc, second_profile) = doors_insert(doc, doors_square(1.0));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, second_profile) = doors_insert(doc, doors_square(plane, 1.0));
     let (doc, second_box) = doors_insert(
         doc,
         Node::Extrude {
@@ -1405,10 +1430,11 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         ProgramStep::LineTo(ProgramTarget::Point([lit(0.0), lit(2.0)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
     let (doc, profile) = doors_insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
         }),
     );
@@ -1419,10 +1445,22 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             distance: lit(0.5),
         },
     );
+    // The tab sits inside the plate's slab: its own plane, so its own
+    // frame.
+    let scl =
+        |v: f64| pncad::document::Expr::literal(v, pncad::document::Dimension::Scalar).unwrap();
+    let (doc, tab_plane) = doors_insert(
+        doc,
+        Node::Datum(pncad::document::Datum::Frame {
+            origin: [lit(0.0), lit(0.0), lit(0.125)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
     let (doc, tab_p) = doors_insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.125))),
+            plane: tab_plane,
             loops: vec![
                 LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
                     .expect("finite tab corners"),
@@ -1631,13 +1669,18 @@ impl Drop for WsDir {
 }
 
 /// A one-block document under the given derived-id label, saved.
+/// The extrude in a [`ws_doc`] part: its sketch frame, the profile
+/// drawn on it, then the body. A part-local name is minted by node 2.
+const WS_PART_BODY: pncad::document::RecipeNodeId = pncad::document::RecipeNodeId(2);
+
 fn ws_doc(label: &str) -> (pncad::document::ProfileDoc, String) {
     use pncad::document::{Expr, Node};
     let doc = pncad::document::ProfileDoc::empty(
         pncad::document::DocumentId::derive(label),
         Tol::witness(),
     );
-    let (doc, profile) = doors_insert(doc, doors_square(2.0));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, profile) = doors_insert(doc, doors_square(plane, 2.0));
     let (doc, _) = doors_insert(
         doc,
         Node::Extrude {
@@ -1976,7 +2019,8 @@ fn asm2a_row5b_stale_pin_refuses_through_the_real_store() {
     // after the assembly pinned it" state.
     let edited = {
         let doc = pncad::document::ProfileDoc::empty(doc_ref.id, Tol::witness());
-        let (doc, profile) = doors_insert(doc, doors_square(3.0));
+        let (doc, plane) = doors_insert(doc, doors_xy_frame());
+        let (doc, profile) = doors_insert(doc, doors_square(plane, 3.0));
         let (doc, _) = doors_insert(
             doc,
             pncad::document::Node::Extrude {
@@ -2082,7 +2126,7 @@ fn asm_r2a_mated_assembly(
     pncad::document::ProfileDoc,
     Vec<pncad::document::RecipeNodeId>,
 ) {
-    use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive, Node, RecipeNodeId};
+    use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive, Node};
     use pncad::prelude::StableName;
     use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
     let mut doc = pncad::document::ProfileDoc::empty(
@@ -2101,7 +2145,7 @@ fn asm_r2a_mated_assembly(
         path: vec![RoleSeg::InPart {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: WS_PART_BODY,
                 path: vec![RoleSeg::Cap(CapEnd::Bottom)],
             }),
         }],
@@ -2218,7 +2262,7 @@ const ASM_R2B_PROBE_OUT: &str = "ASM_R2B_PROBE_OUT";
 /// question that may move.
 #[test]
 fn asm_r2b_child_crossing_probe() {
-    use pncad::document::{DocEdit, Node, RecipeNodeId};
+    use pncad::document::{DocEdit, Node};
     use pncad::prelude::StableName;
     use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
     let Ok(out) = std::env::var(ASM_R2B_PROBE_OUT) else {
@@ -2237,12 +2281,12 @@ fn asm_r2b_child_crossing_probe() {
             class: ContactClass::Rest,
             outer: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: WS_PART_BODY,
                 path: vec![RoleSeg::Cap(CapEnd::Top)],
             },
             inner: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: WS_PART_BODY,
                 path: vec![RoleSeg::Cap(CapEnd::Bottom)],
             },
         }],
@@ -2546,7 +2590,8 @@ fn asm4_workspace_create_and_resave() {
 
     // Resave rewrites in place; the old pin no longer holds and the
     // stale reference is a typed PinMismatch (A4 — never retargeted).
-    let (moved, _) = doors_insert(doc.clone(), doors_square(3.0));
+    let (moved, plane) = doors_insert(doc.clone(), doors_xy_frame());
+    let (moved, _) = doors_insert(moved, doors_square(plane, 3.0));
     let resaved = ws
         .resave(&moved, Tol::witness())
         .expect("the resave writes");
@@ -2699,7 +2744,8 @@ fn asm_upd_resave_part(
 ) -> pncad::document::ContentPin {
     use pncad::document::{Expr, Node};
     let doc = pncad::document::ProfileDoc::empty(id, Tol::witness());
-    let (doc, profile) = doors_insert(doc, doors_square(side));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, profile) = doors_insert(doc, doors_square(plane, side));
     let (doc, _) = doors_insert(
         doc,
         Node::Extrude {

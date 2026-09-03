@@ -23,7 +23,7 @@ use editor_core::{
     BooleanOp, DocEdit, EditError, Expr, Frame, Node, NodeErrorKind, NodeResult, PatternKind,
     PlacementRuleFault, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, ValuePayload, apply,
 };
-use fixture::{ang, desc, len, scl};
+use fixture::{ang, len, scl};
 
 use corpus::{body_of, documents, eval, failures};
 use geom_core::Tol;
@@ -32,7 +32,7 @@ use geom_core::Tol;
 /// document: the extrude alone, no base, no group.
 fn fin_only() -> (ProfileDoc, RecipeNodeId) {
     let mut r = corpus::Recorder::new();
-    let p = r.insert(Node::Profile(desc(
+    let p = r.profile(
         [0.0, 0.0, 0.1875],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
@@ -42,7 +42,7 @@ fn fin_only() -> (ProfileDoc, RecipeNodeId) {
             (0.4375, 0.875),
             (0.25, 0.875),
         ]],
-    )));
+    );
     let fin = r.insert(Node::Extrude {
         profile: p,
         distance: len(0.8125),
@@ -308,12 +308,12 @@ fn every_instance_is_one_instance_segment_deep() {
 /// Builds a one-node document: a unit box, grouped at `frames`.
 fn boxes_at(frames: Vec<Frame>) -> (ProfileDoc, RecipeNodeId) {
     let mut r = corpus::Recorder::new();
-    let p = r.insert(Node::Profile(desc(
+    let p = r.profile(
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-    )));
+    );
     let solid = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
@@ -389,12 +389,12 @@ fn a_circular_group_places_around_a_datum_axis() {
         origin: [len(0.0), len(0.0), len(0.0)],
         direction: [scl(0.0), scl(0.0), scl(1.0)],
     }));
-    let p = r.insert(Node::Profile(desc(
+    let p = r.profile(
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(4.0, -0.5), (5.0, -0.5), (5.0, 0.5), (4.0, 0.5)]],
-    )));
+    );
     let solid = r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
@@ -656,12 +656,12 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
     use std::f64::consts::FRAC_PI_2;
 
     let prototype = |mut r: corpus::Recorder| -> (ProfileDoc, RecipeNodeId) {
-        let p = r.insert(Node::Profile(desc(
+        let p = r.profile(
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]],
-        )));
+        );
         let solid = r.insert(Node::Extrude {
             profile: p,
             distance: len(1.0),
