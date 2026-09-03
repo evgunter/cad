@@ -690,3 +690,18 @@ closed: `gate-roster.sh` no longer counts a bare `--print-roots`
 invocation as a run of the gate (planted failure added); `--scope ""`
 is refused rather than silently widening to `--workspace`. Landing
 order C2 → C1 → C3; C1 re-merges main now.
+
+## Seam: C4 reviewed (2026-09-03)
+
+PR 1648 MERGEABLE WITH FIXES: the verdict (sccache refuses
+`--crate-type bin`, so its ceiling is the libs' 18 %) confirmed
+from the stats themselves; the control's miss verified from its
+job (a 275 MB save on the post step, against `Cache up-to-date.` on
+the warm run). Owed: F4's 82 % figure cited a lane-private path —
+the seconds go inline or the table into `docs/perf-data/`; one
+number that does not reconcile (90 − 47 = 43, not "62-odd"); the
+miss rows lack the rust-cache key they missed; the "compiles from
+scratch on most runs" claim narrowed to what one branch's runs
+show (a branch's first build job restores nothing; main never runs
+the job under F3). C4 lands last of the four. TCOST-B3's body
+narrowed the same way.
