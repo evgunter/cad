@@ -11,37 +11,65 @@
 # SUFFICES not being the argument the rule asks for — are stated at
 # geom-core/src/real.rs's `Bounds` scope rule. The ratified seams are one
 # entry per ratification in its `bounds_allowlist` module, and every
-# filter in `gate()` below cites the entry that earned it by the ruling's
-# LABEL and DATE, which is what survives a move that a line number would
-# not. A new file writing a compound bound fails here until it is
-# ratified into that rule AND cited into the list below.
+# filter in `gate()` below cites the entry that earned it by the RULING'S
+# NAME — its label, its date, or both, whichever names the entry. MOST of
+# the ratifications record no date at their own home; there the label is
+# the whole name, and it is what a reader greps. A name is what survives
+# a move that a line number would not. A new file writing a compound
+# bound fails here until it is ratified into that rule AND cited into the
+# list below.
 #
-# `profile/src/path/arc_fillet.rs` is the one filter whose ratification
-# is not in that ledger: LIB-G2's LB3 is written in the file's own module
-# docs, beside the `fillet_select` rule it rests on.
+# NOTHING CHECKS THAT CITATION, and the ledger says the same of itself
+# (`real.rs`: "New entries are appended here, and nothing checks that").
+# A filter naming an entry that does not exist, or naming the wrong one,
+# reds nothing here or anywhere — and neither would a filter carrying no
+# comment at all. The correspondence is kept by hand, exactly like the
+# entries it points at. Said out loud for the reason `real.rs` says the
+# matching thing about `verbs/run.rs`'s abstention: so nobody reads this
+# instrument as stronger than it is.
+#
+# TWO of the eleven filters cite a ratification that is NOT in that
+# ledger, and the two are homed differently rather than alike.
+# `crates/verbs/src/run.rs`'s SEAT-4 is in `real.rs` as well — inside the
+# `Bounds` trait's OWN doc, above the `bounds_allowlist` module that
+# holds the rest. `profile/src/path/arc_fillet.rs`'s LIB-G2 LB3 is not in
+# `real.rs` at all: it is in that file's own module docs, beside the
+# `fillet_select` rule it rests on. The axis is WHICH HOME, not
+# in-or-out of one file.
 #
 # WHAT THIS FILE IS THE ONE HOME FOR — three properties of the
 # INSTRUMENT, which no ledger entry states:
 #
-# 1. THE LIST IS PER FILE, AND `Enclosure` RIDES IT. `Enclosure` is
-#    grepped exactly as `Bounds` (DUAL-DESIGN DL4, the issue-701 hole:
-#    the blanket `impl<T: Bounds> Enclosure for T` makes every `Dual` an
-#    `Enclosure`, so an `…Enclosure`-named term in a compound bound is
-#    the same class of decide-and-bracket parameter), against this same
-#    list. So a file ratified for its `Bounds` compounds is thereby
-#    exempt for `Enclosure` compounds too: a new `Decide + Enclosure`
-#    inside an allowlisted file rides that file's ratification and never
-#    fires here.
+# 1. THE LIST IS PER FILE, AND `Enclosure` RIDES IT. WHY `Enclosure` is
+#    grepped exactly as `Bounds` is DUAL-DESIGN DL4's argument and is
+#    stated at the blanket `impl<T: Bounds> Enclosure for T` in
+#    `real.rs`; not restated here. What has no other home is the
+#    RIDE-ALONG CONSEQUENCE of putting both names against this one list:
+#    a file ratified for its `Bounds` compounds is thereby exempt for
+#    `Enclosure` compounds too — a new `Decide + Enclosure` inside an
+#    allowlisted file rides that file's ratification and never fires
+#    here. Read that per-FILE granularity as an OPEN QUESTION and not a
+#    settled property of the instrument: KNOWN GAP 6.
 # 2. A CRATE THE RULE NAMES IS NOT A FILTER. The 2026-07-29 amendment
 #    licenses `crates/bvh/` — C10 spatial-index driver code — to write
 #    `T: Decide + Bounds`, and the crate has no filter below, so the
 #    compound form fires there. That absence is deliberate: bvh writes
-#    the SOLE bound everywhere today (the form this gate must NOT fire
-#    on, watched instead by geom-core/tests/bounds_census.rs's roster),
-#    a filter is owed by the first file that writes the compound one,
-#    and until then the red is what puts the amendment's driver-code
-#    scope in front of whoever writes it. A crate-wide filter would
-#    exempt files that do not exist yet.
+#    a bracket bound at exactly ONE site today and it is the SOLE form
+#    (`bvh/src/aabb.rs`'s `from_points`) — the form this gate must NOT
+#    fire on, watched instead by geom-core/tests/bounds_census.rs's
+#    roster — a filter is owed by the first file that writes the
+#    compound one, and until then the red is what puts the amendment's
+#    driver-code scope in front of whoever writes it. A crate-wide
+#    filter would exempt files that do not exist yet.
+#
+#    THAT RED WOULD BE FALSE, and the cost is recorded here rather than
+#    discovered: the construct it lands on is one the 2026-07-29
+#    amendment ALREADY ratified, so this gate's own message — *ratify
+#    before allowlisting* — would be wrong about it. What is owed there
+#    is a FILTER, not a ratification. `lib.sh`'s warning applies at full
+#    strength (a false red "is a nudge toward the allowlist rather than
+#    the fix"), and the disposition stands anyway, with its price paid
+#    in one red on the first bvh file that writes the compound form.
 # 3. THE DEFINITION SKIP OVERLAPS ITS SUBJECT CHECK, and the overlap is
 #    worth knowing rather than hiding: with `gate_definition_skip_subject`
 #    below in place, reverting the two skipped `CertifiedBounds`
@@ -155,6 +183,17 @@
 # today, so a hole rather than a violation. Closing that is a redesign of
 # what this gate matches, not a patch to this regex.
 #
+# KNOWN GAP 6, and it is the LIST's gap rather than the matcher's: every
+# filter below is a PATH, while the ratification each one cites is
+# per-seam and often per-function. So a second, unrelated compound bound
+# added to an allowlisted file inherits the first entry's ratification
+# silently, and item 1's `Enclosure` ride-along is that same granularity
+# seen from the other side. That is S159 / D103's class — an OPEN row,
+# whose evidence is this file ("Every entry in `bounds-allowlist.sh` is a
+# path") — and nothing here answers it: what a per-file list should
+# become, if anything, is that row's question and not this header's.
+# `interval-square-allowlist.sh` carries the same disclosure, citing the
+# same row, for the same reason.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -199,7 +238,7 @@ gate() {
     gate_grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' |
     # M5 PR 11, the certified-quadrature plumbing.
     gate_grep -vE '^crates/topo/src/props\.rs$' |
-    # M5 PR 12, the edge-blend battery.
+    # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
     gate_grep -vE '^crates/sweep/src/blend/(battery|build|surgery)\.rs$' |
     # M6-2, the SSI rung-3 certificate; edge_nurbs under M7-8.
     gate_grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' |
@@ -209,10 +248,11 @@ gate() {
     gate_grep -vE '^crates/editor-core/src/checks\.rs$' |
     # 2026-09-02, the certified at-rest validator and the shell verbs.
     gate_grep -vE '^crates/topo/src/(validate|shell)\.rs$' |
-    # SEAT-4, in the `Bounds` scope rule itself rather than the ledger:
-    # the verb dispatch site, which decides nothing and reads no bracket.
+    # SEAT-4, in the `Bounds` trait's own doc rather than the
+    # `bounds_allowlist` ledger: the verb dispatch site, which decides
+    # nothing and reads no bracket.
     gate_grep -vE '^crates/verbs/src/run\.rs$' |
-    # LIB-G2's LB3, homed in the file's own module docs.
+    # LIB-G2's LB3 (ruled 2026-08-08), homed in the file's own module docs.
     gate_grep -vE '^crates/profile/src/path/arc_fillet\.rs$')
   if [ -n "$hits" ]; then
     echo "$hits"
