@@ -2038,3 +2038,21 @@ authorship-preserving, wired in as permanent rows.
 
 Next per ratified D1 sequencing: shell, still HELD behind #1202's
 kernel birth channel.
+
+**LIB-TUBE MERGED (2026-09-03, #1628 — ordinal 302, sample #114, row
+in MODEL-AB-LOG). RECIPE-DOORS unit 2 of 3 complete; block LIB-12
+consumed and OPENED.** `Node::Tube` and `Node::HollowTube` land per
+the #1205 split ruling — wall required, `Option` nowhere in the
+vocabulary, kernel untouched, revolve emitter wholesale with zero new
+RoleSegs. The dual converged A-W-F/A-W-F with no MAJOR; the fix pass
+took the full 10-item union and adopted both probe branches as merge
+parents. The unit survived the most interrupted history in the log
+(usage-limit death unpushed, a four-day gap in which BOOL-13
+demolished the schema version mid-unit, a container-restart mid-merge
+discard, a pre-review spec amendment) with the seam proven clean by
+both reviewers' interdiffs. The sampled matrix earned its keep twice
+in the fix pass alone: the rustdoc gate and a 1e-6 draw that
+falsified a unit-written ε-dependent fixture no other point could
+see. Next per D1: shell stays parked on #1202; the census B-families
+resume the mechanical track; a LIB-13 block draw precedes any next
+full-protocol unit.

@@ -2,9 +2,10 @@
 id: LIB-TUBE
 kind: unit
 title: Node::Tube and Node::HollowTube, the tube recipe doors
-status: review
+status: closed
 branch: lib/tube
 opened: 2026-08-29
+closed: 2026-09-03
 refs: [LIB-G17]
 pr: 1628
 ---
