@@ -36,7 +36,7 @@ use pyo3::types::PyString;
 use crate::errors::ErrorClass;
 use crate::py::quantity::Length;
 use crate::py::{doc::NodeId, typed_err};
-use crate::tags::{export_error_tag, node_error_tag, step_import_error_tag};
+use crate::tags::{NODE_NOT_EVALUATED, export_error_tag, node_error_tag, step_import_error_tag};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 use pncad::topo;
@@ -667,6 +667,18 @@ impl Evaluation {
     /// `reason` is `"node_failed"` or `"poisoned"`, `kind` is the
     /// `NodeErrorKind`'s stable tag, a poisoning carries `through`,
     /// and the message renders the kernel's own `NodeError`.
+    ///
+    /// A node with no ENTRY at all is two different states and they
+    /// are kept apart: `unknown_node` for an id this document does
+    /// not have, and `node_not_evaluated` — the standing ladder's own
+    /// spelling, shared with `ReadbackError` and `HitTestError` — for
+    /// a live node that this run never reached. The second arm exists
+    /// because [`super::value::evaluate`]'s `cancel=` made it
+    /// reachable: a canceled run holds the completed PREFIX, and every
+    /// node past it is in [`Self::order`] with no result. Before that
+    /// keyword the arm was unreachable and the door said "no such
+    /// node" for both, which was true only because the false case
+    /// could not arise.
     fn value(&self, py: Python<'_>, node: &NodeId) -> PyResult<Value> {
         match self.inner.result(node.0) {
             Some(d::NodeResult::Ok(node_value)) => Ok(Value {
@@ -678,6 +690,13 @@ impl Evaluation {
                 let root = self.inner.node_error(node.0);
                 Err(poisoning(py, *node, NodeId(*through), root))
             }
+            None if self.inner.order.contains(&node.0) => Err(eval_err(
+                py,
+                "this evaluation never reached the node: it was canceled first, \
+                 and holds the completed prefix only",
+                NODE_NOT_EVALUATED,
+                *node,
+            )),
             None => Err(eval_err(
                 py,
                 "no such node in the evaluated document",
@@ -685,6 +704,28 @@ impl Evaluation {
                 *node,
             )),
         }
+    }
+
+    /// **Whether this run was CANCELED** — the Python shape of the
+    /// kernel's `EvalOutcome`, whose two variants are a yes/no and
+    /// cross as one.
+    ///
+    /// `True` means the token passed as [`super::value::evaluate`]'s
+    /// `cancel=` was observed set at a yield point, so
+    /// [`Self::order`] is still the FULL deterministic order (order is
+    /// data, not schedule) while the results hold the completed
+    /// PREFIX only. Every node past that prefix answers `False` from
+    /// [`Self::succeeded`] and raises `node_not_evaluated` from
+    /// [`Self::value`] — a canceled run is a PARTIAL ANSWER, never a
+    /// failed one, and no node in it is marked failed by the
+    /// cancelation.
+    ///
+    /// `False` without a `cancel=` token is not a claim worth
+    /// doubting: `evaluate` mints a fresh token nobody can reach, so
+    /// a run with no token cannot be canceled.
+    #[getter]
+    fn canceled(&self) -> bool {
+        self.inner.outcome == d::EvalOutcome::Canceled
     }
 
     /// Whether the node produced a value.
@@ -1183,6 +1224,80 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
     }
 }
 
+/// **The cooperative cancel token (spec D5)** — what a caller holds
+/// to stop an evaluation it has already launched.
+///
+/// Shared, not copied: the token is a handle onto one flag, so the
+/// thread that calls [`Self::cancel`] and the thread inside
+/// [`super::value::evaluate`] are looking at the same bit. That is
+/// why this class is FROZEN and `cancel` takes no mutable borrow —
+/// setting the flag is not a mutation of the Python object, and a
+/// token that had to be borrowed mutably could not be held by a
+/// running evaluation at all.
+///
+/// **Cooperative, at NODE granularity.** The kernel reads the flag
+/// between nodes (or between levels on the parallel schedule) and
+/// never inside a kernel op, so `cancel()` does not abort the boolean
+/// or the tessellation already in flight; it stops the run before the
+/// next node starts. The token is one-way — there is no `reset`,
+/// because the flag a canceled run observed cannot be un-observed and
+/// a reusable token would let two runs disagree about what it meant.
+/// Mint a new one per launch, which is what `evaluate` does when no
+/// `cancel=` is passed.
+///
+/// What a canceled run ANSWERS is `Evaluation.canceled`, and the
+/// answer is a partial result rather than a raise: see that property.
+#[pyclass(frozen, module = "pncad")]
+#[derive(Default)]
+pub(crate) struct CancelToken {
+    inner: d::CancelToken,
+}
+
+#[pymethods]
+impl CancelToken {
+    /// A fresh, un-canceled token.
+    #[new]
+    fn new() -> Self {
+        Self::default()
+    }
+
+    /// **Request cancelation** — any thread, any time, idempotent.
+    ///
+    /// Setting the flag before the run starts is legal and is the
+    /// deterministic case: the evaluation checks the token before its
+    /// first node, so a pre-canceled token yields a run with the full
+    /// `order()`, no results at all, and `canceled` true.
+    fn cancel(&self) {
+        self.inner.cancel();
+    }
+
+    /// Whether cancelation has been requested on THIS token.
+    ///
+    /// A property of the token, not of any run: it says the flag is
+    /// set, never that an evaluation observed it. `Evaluation.canceled`
+    /// is the run's own answer, and the two differ exactly when a run
+    /// finished before the flag was set.
+    #[getter]
+    fn canceled(&self) -> bool {
+        self.inner.is_canceled()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CancelToken(canceled={})",
+            if self.canceled() { "True" } else { "False" }
+        )
+    }
+}
+
+impl CancelToken {
+    /// The kernel token this handle carries — cloned, which shares
+    /// the flag rather than copying it.
+    pub(crate) fn token(&self) -> d::CancelToken {
+        self.inner.clone()
+    }
+}
+
 /// Evaluate a document, producing its per-node result DAG.
 ///
 /// Total: evaluation never raises. Individual nodes may still have
@@ -1232,26 +1347,43 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
 ///
 /// Pass no prior when the question is "does this document still
 /// resolve against the store as it stands".
+///
+/// `cancel` is the COOPERATIVE STOP: a [`CancelToken`] the caller
+/// keeps a handle on, checked between nodes, so a run already under
+/// way can be abandoned. Omitted, this door mints a fresh token
+/// nobody holds — which is exactly what it did before the keyword
+/// existed, and is why an evaluation without one is never canceled.
+/// A canceled run is a PARTIAL ANSWER and not a raise: it returns
+/// normally with `Evaluation.canceled` true, the full `order()`, and
+/// results for the completed prefix only.
+///
+/// **The GIL is released for the kernel run**, and that is what makes
+/// the token reachable rather than decorative: the flag is set by
+/// ANOTHER Python thread while this one is inside the evaluation, and
+/// a thread that cannot run cannot set it. `doc` is borrowed for the
+/// whole call, so a concurrent `Doc.accept` on the SAME document
+/// raises Python's own already-borrowed `RuntimeError` instead of
+/// mutating the recipe under a running evaluation.
 #[pyfunction]
-#[pyo3(signature = (doc, *, resolver=None, prior=None))]
+#[pyo3(signature = (doc, *, resolver=None, prior=None, cancel=None))]
 pub(crate) fn evaluate(
+    py: Python<'_>,
     doc: &super::doc::Doc,
     resolver: Option<&super::store::Workspace>,
     prior: Option<&Evaluation>,
+    cancel: Option<&CancelToken>,
 ) -> Evaluation {
     let tol = Tol::witness();
     let opts = d::EvalOptions {
         resolver: resolver.map(super::store::Workspace::resolver),
         ..d::EvalOptions::default()
     };
+    let token = cancel.map_or_else(d::CancelToken::new, CancelToken::token);
+    let recipe = &doc.inner;
+    let memo = prior.map(|p| &p.inner);
+    let inner = py.detach(|| d::evaluate::<f64>(recipe, memo, &token, &opts, tol));
     Evaluation {
-        inner: d::evaluate::<f64>(
-            &doc.inner,
-            prior.map(|p| &p.inner),
-            &d::CancelToken::new(),
-            &opts,
-            tol,
-        ),
+        inner,
         params: doc.inner.param_env::<f64>(),
         doc: doc.inner.clone(),
     }
@@ -1259,6 +1391,7 @@ pub(crate) fn evaluate(
 
 /// Register the value surface on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<CancelToken>()?;
     m.add_class::<Evaluation>()?;
     m.add_class::<Value>()?;
     m.add_class::<Body>()?;

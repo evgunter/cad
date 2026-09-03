@@ -2511,6 +2511,36 @@ class NodePick:
         coordinate valid for one tessellation — and reads the name out
         of here."""
 
+class CancelToken:
+    """The cooperative stop for a running evaluation — a handle onto
+    ONE flag, shared with the run it was passed to.
+
+    Cooperative at NODE granularity: the kernel reads the flag between
+    nodes (between levels on the parallel schedule) and never inside a
+    kernel op, so `cancel()` does not abort a boolean already in
+    flight — it stops the run before the next node starts.
+
+    One-way, with no reset: a flag a canceled run observed cannot be
+    un-observed, and a reusable token would let two runs disagree
+    about what it meant. Mint one per launch, which is what
+    `evaluate` does when no `cancel=` is passed."""
+
+    def __init__(self) -> None: ...
+    def cancel(self) -> None:
+        """Request cancelation — any thread, any time, idempotent.
+
+        Setting it BEFORE the run starts is legal and is the
+        deterministic case: the evaluation checks the token before its
+        first node, so a pre-canceled token yields a run with the full
+        `order()`, no results at all, and `Evaluation.canceled` true."""
+
+    @property
+    def canceled(self) -> bool:
+        """Whether cancelation has been requested on THIS token — a
+        property of the token, never a claim that a run observed it.
+        `Evaluation.canceled` is the run's own answer, and the two
+        differ exactly when a run finished before the flag was set."""
+
 class Evaluation:
     """The per-node result DAG."""
 
@@ -2680,6 +2710,22 @@ class Evaluation:
         part count 1; a part that instantiates a part counts here too.
         Zero without a resolver: nothing crosses. Zero, too, when every
         instance was a memo hit: a reused node never asks."""
+    @property
+    def canceled(self) -> bool:
+        """Whether this run was CANCELED — the kernel's `EvalOutcome`,
+        whose two variants are a yes/no and cross as one.
+
+        True means `evaluate`'s `cancel=` token was observed set at a
+        yield point. `order()` is still the FULL deterministic order —
+        order is data, not schedule — while the results hold the
+        completed PREFIX only: every node past it answers False from
+        `succeeded` and raises `node_not_evaluated` from `value`. A
+        canceled run is a PARTIAL ANSWER, never a failed one; no node
+        in it is marked failed by the cancelation.
+
+        False with no `cancel=` passed is not a claim worth doubting:
+        `evaluate` mints a fresh token nobody can reach, so a run
+        without one cannot be canceled."""
     def step_string(
         self,
         node: NodeId,
@@ -2707,6 +2753,7 @@ def evaluate(
     *,
     resolver: Optional[Workspace] = None,
     prior: Optional[Evaluation] = None,
+    cancel: Optional[CancelToken] = None,
 ) -> Evaluation:
     """Evaluate a document. Total — never raises.
 
@@ -2743,7 +2790,24 @@ def evaluate(
     retargeted" holds for evaluations that cross the seam; a run that
     never asks does not re-assert it. Pass no prior when the question
     is whether the document still resolves against the store as it
-    stands."""
+    stands.
+
+    `cancel` is the COOPERATIVE STOP: a `CancelToken` the caller keeps
+    a handle on, checked between nodes, so a run already under way can
+    be abandoned. Omitted, this door mints a fresh token nobody holds
+    — which is what it did before the keyword existed, and is why an
+    evaluation without one is never canceled. A canceled run is a
+    PARTIAL ANSWER and not a raise: it returns normally with
+    `Evaluation.canceled` true, the full `order()`, and results for
+    the completed prefix only.
+
+    THE GIL IS RELEASED for the kernel run, which is what makes the
+    token reachable rather than decorative: the flag is set by another
+    Python thread while this one is inside the evaluation, and a
+    thread that cannot run cannot set it. `doc` is borrowed for the
+    whole call, so a concurrent `Doc.accept` on the SAME document
+    raises Python's own already-borrowed `RuntimeError` rather than
+    mutating a recipe under a running evaluation."""
 
 # --- the assembly vocabulary ------------------------------------------
 # Two part documents in a store, instances of them in a third, mates
