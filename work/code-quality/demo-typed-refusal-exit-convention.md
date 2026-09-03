@@ -2,12 +2,37 @@
 id: demo-typed-refusal-exit-convention
 kind: ruling
 title: Should a demo surface a typed refusal as a clean nonzero exit, or is every refusal a demo bug?
-status: open
+status: closed
 opened: 2026-08-20
+closed: 2026-09-03
 github: 795
 refs: [787]
-needs_ev: true
 ---
+
+## Ruled (Ev, in chat, 2026-09-03)
+
+**The same rule applies as to test code: the demo is allowed to panic if
+the kernel does something unexpected, but it is also fine for it to
+narrate a preexisting, already-known frontier.**
+
+Refinement accepted: *already-known* means the frontier is **declared up
+front at the scene**, not discovered by catching a refusal at runtime. A
+declared frontier narrates and the run still exits **0**, so the second
+exit convention (b) would have cost us — the one `eps_regression.rs`,
+`render.sh`, `render.yml` and `check_render_provenance.py` would all have
+had to learn — is not needed. An undeclared refusal still panics: that
+half of today's behaviour is unchanged.
+
+**Forward obligation:** if we end up with something with a declared
+frontier, make sure it fails loudly when it stops refusing — a declared
+frontier whose refusal has gone away is a silent skip, and silent skips
+are the class the tour has already been bitten by.
+
+No mechanism is being built now: no scene currently reaches a frontier,
+and `step_expected` — cited in (a) as `true` at every construction site —
+no longer exists anywhere in the repo (zero hits, checked at close). The
+first scene that needs a declaration builds the mechanism and can size it
+against a real case.
 
 ## From GitHub issue 795
 
