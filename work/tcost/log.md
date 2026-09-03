@@ -673,3 +673,20 @@ profile, not comparable with B1's table. main regrew the class within
 a day (five lib_tube suites, 21 965 lines) and B1's guard caught it —
 the argument for the guard. Filed: the fourteen-copy assertion wants
 one home in `test_utils`, and `pncad/tests/all.rs` sits outside it.
+
+## Unit: TCOST-C2 merged (2026-09-03)
+
+PR 1654 at `b6a85c32` (run 33742313504, default 1e-12 drawn, green;
+interval covered by the pre-fix run 33730257957 — every fix sits in a
+lane-independent seat). The rustdoc gate's excluded roots and pass 3
+leave the PR gate for the nightly; pass 1 is scoped to the dependent
+closure (a second demotion, argued per row: a member whose sources
+changed is its own seed; a rename/delete break lands in a dependent
+by construction; prose-only breaks in unrelated members are the
+nightly's). `fmt` job 222 s / 4 billed → 179 s / 3, warm against warm
+(run 33727294346); the nightly side priced at ~3 billed a night,
+DERIVED, to be re-read from the first nightly run. The review's hole
+closed: `gate-roster.sh` no longer counts a bare `--print-roots`
+invocation as a run of the gate (planted failure added); `--scope ""`
+is refused rather than silently widening to `--workspace`. Landing
+order C2 → C1 → C3; C1 re-merges main now.
