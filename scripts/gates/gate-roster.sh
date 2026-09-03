@@ -241,7 +241,29 @@ gate() {
       rc=1
       continue
     fi
-    if ! grep -qE "(^|[[:space:]])$esc[[:space:]]*(\$|\||&|;)" <<<"$cmds"; then
+    # A REAL RUN IS ANY INVOCATION THAT IS NOT THE SELF-TEST — FLAGS AND
+    # ALL. The matcher used to demand a BARE invocation (path, then end of
+    # line or a shell operator), which read "runs the gate" as "runs it
+    # with no arguments". That was true of this repo by accident and
+    # stopped being true when the hosted rustdoc row started passing
+    # `--pr` and a `--scope`: a gate the hosted half genuinely runs would
+    # have reported as unwired, and the fix a reader reaches for at that
+    # point is to add a bare call beside the real one, which is a second
+    # invocation written to satisfy a checker. What the claim needs is
+    # only that the hosted half does something with this gate OTHER than
+    # self-test it, and that is what this reads.
+    #
+    # SPELLED AS "the invocations that are not the self-test", by dropping
+    # the self-test LINES and then looking for any invocation left. Not as
+    # one regex: ERE has no negative lookahead, so the only single-pattern
+    # spellings are an enumeration of every flag that is not `--selftest`,
+    # which is a roster. And not with `-oE`, deliberately — the broken-grep
+    # arm of this gate's own self-test shims exactly that call shape, and a
+    # matcher failing HERE would report as "never RUNS" instead of reaching
+    # the marker `gate_ok` reads.
+    local runs
+    runs=$(gate_grep -vE "(^|[[:space:]])$esc[[:space:]]+--selftest([[:space:]]|\$)" <<<"$cmds") || rc=1
+    if ! grep -qE "(^|[[:space:]])$esc([[:space:]]|\$)" <<<"$runs"; then
       gate_error "$HOSTED_HALF never RUNS $outlier — it is a gate under lib.sh's contract sited outside scripts/gates/, so this list is the only thing watching its wiring (naming it in a comment, or only self-testing it, does not run it)"
       rc=1
     fi
@@ -334,6 +356,18 @@ plant_outlier_unwired_hosted() {
 
 plant_outlier_hosted_selftest_deleted() {
   outlier_ci_yml_without "$1" "^ *${OUTLIER_GATES[0]} --selftest\$"
+}
+
+# THE NEAR MISS FOR THE WIDENING ABOVE: the hosted half's real run
+# carries flags. That is what ci.yml does today (`--pr`, a `--scope`, and
+# `--skip-viewer-toolkit` on some runs), and a matcher that demanded a
+# bare invocation would call it unwired. The `unwired_hosted` case above
+# is the other direction and is what keeps this from being a hole: delete
+# the real run and leave only `--selftest`, and the gate still fires.
+plant_outlier_hosted_run_has_flags() {
+  local root=$1
+  sed -i "s#^\( *\)${OUTLIER_GATES[0]}\$#\1${OUTLIER_GATES[0]} --pr --scope '-p a'#" \
+    "$root/.github/workflows/ci.yml"
 }
 
 plant_outlier_unwired_local() {
@@ -450,11 +484,13 @@ exec "$GATE_REAL_TOOL" "$@"'
   gate_selftest_case "never RUNS ${OUTLIER_GATES[0]}" plant_outlier_unwired_hosted
   gate_selftest_case "runs ${OUTLIER_GATES[0]} without running its --selftest" \
     plant_outlier_hosted_selftest_deleted
+  gate_selftest_passes "an outlier whose hosted run carries flags" \
+    plant_outlier_hosted_run_has_flags
   gate_selftest_case "never RUNS ${OUTLIER_GATES[0]}" plant_outlier_unwired_local
   gate_selftest_case "runs ${OUTLIER_GATES[0]} without its --selftest" \
     plant_outlier_local_selftest_deleted
   gate_selftest_case "which is not an executable file" plant_outlier_missing
-  printf '%s selftest OK: every case is a REAL subprocess invocation, so a diagnosis lost to errexit fails the self-test. Passes a clean fixture; refuses to go green when a matcher dies mid-scan inside a process substitution (the marker path through gate_ok); fires on an unwired gate, a comment-only mention, a selftest-only call, a ghost step, a gate that landed mode 0644, a deleted local loop, a local loop that stopped self-testing, a local loop that went back to excluding lib.sh by mode, a step running lib.sh, and — for a gate sited outside scripts/gates/ — either half dropping its real call or its --selftest, and a list entry naming a file that is not there\n' "$(gate_name)"
+  printf '%s selftest OK: every case is a REAL subprocess invocation, so a diagnosis lost to errexit fails the self-test. Passes a clean fixture and a hosted run that carries flags (which is what the rustdoc row is today); refuses to go green when a matcher dies mid-scan inside a process substitution (the marker path through gate_ok); fires on an unwired gate, a comment-only mention, a selftest-only call, a ghost step, a gate that landed mode 0644, a deleted local loop, a local loop that stopped self-testing, a local loop that went back to excluding lib.sh by mode, a step running lib.sh, and — for a gate sited outside scripts/gates/ — either half dropping its real call or its --selftest, and a list entry naming a file that is not there\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

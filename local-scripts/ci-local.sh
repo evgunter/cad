@@ -1056,6 +1056,18 @@ run_row "clippy (viewer app)"          cargo clippy -p viewer --features app --a
 # `--skip-viewer-toolkit` exists for the hosted half only (see the
 # clippy note above): this row documents viewer under --all-features
 # like everything else.
+#
+# NO `--pr`, AND NO `--scope`, FOR THE SAME REASON. Hosted, the `fmt`
+# job runs the WORKSPACE pass alone and scopes it to the change closure;
+# the six cargo roots the workspace excludes and the
+# --no-default-features re-read of every root with a not(feature) half
+# are nightly.yml's `rustdoc (gate, every root)`, ungated, once a day.
+# This half runs all three passes over every root on every invocation,
+# which is the same asymmetry the toolkit rows above have and the same
+# argument: hosted is billed by the minute per PR and this is billed in
+# one developer's wall clock on a run they chose to make, so the local
+# gate stays a strict superset of any hosted one.
+# HOSTED MIRROR: rustdoc-roots / rustdoc (gate, every root)
 rustdoc_gate() {
   scripts/doc-gate.sh --selftest && scripts/doc-gate.sh
 }

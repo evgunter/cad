@@ -1158,13 +1158,20 @@ jobs:
   # Merging rotates Swatinem/rust-cache's key (it hashes the job), so
   # expect exactly one cold run after any change here and warm thereafter.
   #
-  # WHY THESE THREE AND NOT SOME OTHER SET. All three are UNSCOPED
-  # workspace-wide ratchets: `cargo fmt --all`, doc-gate's fixed crate
-  # list, and a `--workspace` cross-compile. They do not read
-  # `cargo_scope`, so they behave identically in tier `all` and tier
-  # `closure` — which is what makes them shareable in one job at all.
-  # `clippy` is the counter-example and stays out: it IS the filter's
-  # per-closure row.
+  # WHY THESE THREE AND NOT SOME OTHER SET. All three are workspace-wide
+  # ratchets that share one checkout and one toolchain: `cargo fmt --all`,
+  # the rustdoc gate over a derived root set, and a `--workspace`
+  # cross-compile. Two of them still read nothing from the filter and
+  # behave identically in tier `all` and tier `closure`.
+  #
+  # THE RUSTDOC ROW NO LONGER DOES, and that is a change to this
+  # paragraph's own premise rather than a footnote to it (S-TCOST C2): it
+  # reads `cargo_scope` and runs the workspace pass over the closure. The
+  # sharing still holds, because what makes these three shareable is one
+  # checkout, one toolchain and three verdicts that must not merge — not
+  # the scoping. `clippy` stays out for a different reason than "it is
+  # scoped": it is the job the filter's per-closure row is NAMED by, and a
+  # red there should say `clippy`.
   fmt:
     name: rustfmt + rustdoc (gate) + wasm32
     runs-on: ubuntu-latest
@@ -1184,16 +1191,26 @@ jobs:
       - name: prune local-only tooling (hosted CI may not depend on it)
         run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
-      # THE CACHE'S SCOPE IS THE RUSTDOC GATE'S OWN ROOT LIST (#921).
+      # THE CACHE'S SCOPE IS THE RUSTDOC GATE'S OWN ROOT LIST (#921) —
+      # AND SINCE S-TCOST C2, THE ROOT LIST OF THE MODE THIS JOB RUNS.
       #
       # `Swatinem/rust-cache` caches the target directories it is TOLD
       # about, and its default is one: `./target`. The rustdoc gate below
-      # documents SEVEN cargo roots — the workspace plus the six the
-      # workspace excludes — and each of those six builds into a target
-      # directory of its own, under its own directory. Every one of them
-      # therefore compiled from nothing on EVERY run of this job,
-      # `demos/tour` and `demos/wild` rebuilding the whole kernel each
-      # time, while the workspace pass ran against a warm graph.
+      # used to document SEVEN cargo roots here — the workspace plus the
+      # six the workspace excludes — and each of those six builds into a
+      # target directory of its own. Every one of them therefore compiled
+      # from nothing on EVERY run of this job, `demos/tour` and
+      # `demos/wild` rebuilding the whole kernel each time, while the
+      # workspace pass ran against a warm graph. F6 fixed that by telling
+      # the cache about all seven.
+      #
+      # THIS JOB NOW DOCUMENTS ONE, so `--print-roots` under `--pr` prints
+      # one and this input names one. The six excluded roots moved to the
+      # nightly with the pass that reads them; caching them here would
+      # restore and re-save target directories no step in this job writes.
+      # The derivation is unchanged and still comes from the gate, so the
+      # cache's scope cannot drift from the passes that run — which is the
+      # whole point of asking rather than listing.
       #
       # MEASURED, hosted, 2 vCPU, warm cache with one kernel doc comment
       # changed — the case a real PR is (run 32583370980, two jobs one
@@ -1232,7 +1249,7 @@ jobs:
         # diagnosis. The assignment fails under `bash -e` before
         # anything is appended.
         run: |
-          roots=$(scripts/doc-gate.sh --print-roots)
+          roots=$(scripts/doc-gate.sh --print-roots --pr)
           {
             echo 'roots<<DOC_GATE_ROOTS'
             printf '%s\n' "$roots"
@@ -1259,10 +1276,36 @@ jobs:
       # command and the flags live in scripts/doc-gate.sh — one
       # implementation, called from here and from
       # local-scripts/ci-local.sh, the ci-filter.py arrangement.
-      # NOT scoped by the filter, deliberately: it is a tree-wide
-      # ratchet over a derived root set, so scoping it to the change
-      # closure would trade the ratchet's meaning for no measurable
-      # time. It still respects the docs tier via this job's run_build.
+      # SCOPED, AND ONLY THE WORKSPACE PASS RUNS HERE (S-TCOST C2, Ev's
+      # approval in chat 2026-09-03). This step used to be the whole gate:
+      # the workspace pass, one `--no-deps` pass per cargo root the
+      # workspace excludes, and a `--no-default-features` re-read of every
+      # root carrying a `not(feature)` half. Passes 2 and 3 are now
+      # nightly.yml's `rustdoc (gate, every root)`, ungated, once a day,
+      # and this row runs `--pr`.
+      #
+      # WHY THAT IS SOUND, and it is the persistence case:
+      # docs/CI-MINUTES-2026-08.md §*What is NOT sampled, and the rule*
+      # licenses a cadence for a detector whose subject PERSISTS in the
+      # tree, and forbids one for a detector of ABSENCE. A broken
+      # intra-doc link, a doc comment that stopped rendering, a
+      # `not(feature)` half that no longer compiles: every one of them
+      # stays broken in the tree until someone fixes it, so tonight's run
+      # finds what this row would have found today. Nothing in passes 2
+      # and 3 detects an absence — the derivations that WOULD (the two
+      # readers, and the root list itself, which is exactly the "a root
+      # fell out of coverage and nothing said so" shape the gate's header
+      # argues about) moved WITH the passes and run in full every night,
+      # over the same tree. The residue is attribution: a break lands on
+      # the night's merges rather than on the PR that wrote it, and
+      # nightly.yml's `ref` dispatch input and the local gate — which
+      # still runs every pass over every root — are the handles for that.
+      #
+      # AND THE WORKSPACE PASS IS SCOPED to the change filter's closure
+      # when the tier is `closure`, the way `build` scopes, so a PR that
+      # touches one crate documents that crate and its dependents rather
+      # than the whole workspace. `cargo_scope` is `--workspace` on tier
+      # `all`, which is the fail-open direction every signal here takes.
       #
       # THE `--selftest` LINE IS PART OF THE GATE, not a nicety: the
       # script's `-D warnings`, its `--document-private-items`, its
@@ -1291,10 +1334,13 @@ jobs:
         if: '!cancelled()'
         run: |
           scripts/doc-gate.sh --selftest
+          echo 'PR mode: the workspace pass only, over ${{ needs.filter.outputs.cargo_scope }}.'
+          echo 'The excluded roots and the --no-default-features pass are re-taken ungated by'
+          echo "nightly.yml's \`rustdoc (gate, every root)\` job — see this step's comment."
           if [ '${{ needs.filter.outputs.run_viewer_toolkit }}' = 'true' ]; then
-            scripts/doc-gate.sh
+            scripts/doc-gate.sh --pr --scope '${{ needs.filter.outputs.cargo_scope }}'
           else
-            scripts/doc-gate.sh --skip-viewer-toolkit
+            scripts/doc-gate.sh --pr --scope '${{ needs.filter.outputs.cargo_scope }}' --skip-viewer-toolkit
           fi
       # THE ONE VERDICT FOR BOTH TOOLKIT ROWS, IN AN EVERY-LANE SEAT.
       #

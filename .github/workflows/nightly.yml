@@ -287,6 +287,94 @@ jobs:
         if: '!cancelled()'
         run: cargo doc -p viewer --all-features --no-deps
 
+  # THE RUSTDOC GATE'S OTHER TWO PASSES, and the reason ci.yml is allowed
+  # to run only the first one.
+  #
+  # `scripts/doc-gate.sh` documents every cargo manifest this repository
+  # tracks, in three passes: the WORKSPACE at --all-features; one
+  # `--no-deps` pass per cargo root the workspace EXCLUDES (`benches`,
+  # `demos/tour`, `demos/wild`, the three `tools/` crates,
+  # `interval-transcendentals`); and a `--no-default-features` re-read of
+  # every root carrying a `#[cfg(not(feature = …))]` half, which no
+  # feature selection above it can compile. ci.yml's `fmt` job runs the
+  # first, `--pr`, scoped to the change filter's closure. This job runs
+  # ALL THREE over EVERY root, ungated, on any night main moved.
+  #
+  # WHY THE SPLIT IS SOUND, per docs/CI-MINUTES-2026-08.md §*What is NOT
+  # sampled, and the rule*: what passes 2 and 3 detect PERSISTS in the
+  # tree. A broken intra-doc link in `tools/tess-meter`, a doc comment in
+  # `demos/tour` that stopped rendering, a `not(feature)` half that no
+  # longer compiles — none of them heals itself, so a run a few hours
+  # later finds exactly what the PR run would have. Nothing in those
+  # passes detects an ABSENCE, which is the shape the rule forbids
+  # demoting; and the derivations that WOULD be absence-detectors — the
+  # `git ls-files` and `cargo metadata` readers, and the derived root list
+  # whose whole subject is "a root fell out of coverage and nothing said
+  # so" — moved WITH the passes and run here in full, over the same tree,
+  # every night. They did not stay behind on a cadence of their own.
+  #
+  # WHAT IT GIVES UP is attribution: a break lands on the night's merges
+  # rather than on the PR that wrote it. Two handles — this file's `ref`
+  # dispatch input, and `local-scripts/ci-local.sh`, which runs the gate
+  # unscoped and unsplit on every local gate.
+  #
+  # `--selftest` FIRST, as both other callers do it. The gate's flags, its
+  # per-root feature choice, its `--bins --examples` invocation and each
+  # of its three passes can be dropped and leave it green over a broken
+  # tree; the self-test is what fires on that, and it now carries an arm
+  # per MODE so "the PR half runs less" is a checked claim rather than a
+  # sentence in a workflow comment.
+  #
+  # THE CACHE IS THIS JOB'S OWN, keyed apart from `fmt`'s: the six roots
+  # each build into a target directory of their own and pass 3 adds a
+  # second fingerprint set to each of them, which is precisely the entry
+  # `fmt` stopped carrying. One shared entry would thrash between a job
+  # that writes seven target directories and one that writes one.
+  rustdoc-roots:
+    name: rustdoc (gate, every root)
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      # THE SAME DERIVATION THE GATE RUNS, asked rather than copied — the
+      # argument is at `--print-roots` in scripts/doc-gate.sh and at
+      # ci.yml's copy of this step. No `--pr` here: this job documents
+      # every root, so it caches every root. BEFORE rust-cache, which it
+      # has to be, since its output is that action's input.
+      - name: derive the cargo roots the rustdoc gate documents
+        id: doc-roots
+        run: |
+          roots=$(scripts/doc-gate.sh --print-roots)
+          {
+            echo 'roots<<DOC_GATE_ROOTS'
+            printf '%s\n' "$roots"
+            echo 'DOC_GATE_ROOTS'
+          } >> "$GITHUB_OUTPUT"
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: nightly-rustdoc-roots
+          workspaces: ${{ steps.doc-roots.outputs.roots }}
+      - name: rustdoc (gate, every root)
+        run: |
+          scripts/doc-gate.sh --selftest
+          scripts/doc-gate.sh
+
   # THE WALL-CLOCK HALF OF THE OLD ci.yml JOB (M4 PR 8a spec D2, M4-PLAN F8).
   # It prints a per-document table (full rebuild + incremental recompute,
   # median of 5) and diffs it against the newest entry in the timing history,
@@ -1466,7 +1554,7 @@ jobs:
   record:
     name: record that the nightly ran
     runs-on: ubuntu-latest
-    needs: [gate, watertight, rebuild-latency, opt-level, criterion, demoted, gated-suites]
+    needs: [gate, watertight, rebuild-latency, opt-level, criterion, demoted, gated-suites, rustdoc-roots]
     # `!cancelled()` rather than `success()`, DELIBERATELY. The tag records
     # that this tree WAS EXAMINED, not that it passed: a red row here is
     # visible in the run list and in the summary, and re-examining the same
