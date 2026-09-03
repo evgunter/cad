@@ -198,6 +198,11 @@ fn probe1_signed_reading_encloses_random_rational_sweep() {
 
 /// The unit's own quarter cylinder (fixture reproduced from
 /// nurbs_cert.rs) — the face the 11x muv tightening is claimed on.
+///
+/// The net is `crate::shared::fixture::quarter_cylinder`'s at
+/// `r = h = 1`, and stays spelled out here for the same reason as
+/// `cert10_r1_probes.rs`'s: a review probe that re-derives a claim
+/// must not read its fixture from the claim.
 fn quarter_cylinder() -> NurbsSurface<f64> {
     let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
     let kv_v = KnotVector::unit_segment(1);
