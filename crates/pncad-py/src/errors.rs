@@ -245,6 +245,25 @@ pub enum ErrorClass {
     /// arrive under their OWN tags rather than a wrapper tag, so
     /// which invariant broke is what a caller branches on.
     Readback,
+    /// A hit test could not answer: a target was offered whose node
+    /// this evaluation has no `Ok` value for, or the winning face
+    /// inverted to no name at all. The Python class keeps the Rust
+    /// type's own name, `HitTestError`.
+    ///
+    /// A MISS never reaches here. The ray hitting no offered triangle
+    /// is the typed `None`, and errors are never flattened into it.
+    HitTest,
+    /// A pick index could not be built: the node has no `Ok` value, its
+    /// value never draws, it has no output body at that index, or
+    /// tessellating and indexing that body refused. The Python class is
+    /// `NodePickError`.
+    ///
+    /// A separate class from [`Self::HitTest`] because the two are
+    /// different stages of one story: this one means there is nothing
+    /// to pick AGAINST, that one means the pick itself could not
+    /// answer. The standing ladder is shared, and arrives here under
+    /// the hit-test door's own tags rather than a wrapper's.
+    NodePick,
     /// The advisory-check registry could not RUN: a root without a
     /// value, a tolerance that forms no band, roots that gather into
     /// no product. The Python class is `ChecksError`.
@@ -294,6 +313,8 @@ impl ErrorClass {
             Self::Inline => "InlineError",
             Self::Update => "UpdateError",
             Self::Readback => "ReadbackError",
+            Self::HitTest => "HitTestError",
+            Self::NodePick => "NodePickError",
             Self::Checks => "ChecksError",
             Self::Enforce => "CheckRefusal",
         }

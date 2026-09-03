@@ -29,6 +29,7 @@ from pncad import (
     ClassAdmission,
     ClusterMaintenance,
     Denotation,
+    HitTestError,
     Expr,
     TubeWindow,
     Doc,
@@ -44,6 +45,7 @@ from pncad import (
     GeomPred,
     Length,
     Body,
+    Mesh,
     MateFault,
     MateFrame,
     MatePrimitive,
@@ -51,6 +53,8 @@ from pncad import (
     NamePat,
     Node,
     NodeId,
+    NodePick,
+    PickHit,
     Pose,
     PinMultiplicity,
     ParamName,
@@ -62,6 +66,7 @@ from pncad import (
     PlaneRelation,
     SegPat,
     SegTag,
+    Ray,
     Selector,
     Severity,
     SketchPlane,
@@ -451,6 +456,24 @@ label: CheckKind = CheckId.Connectedness.kind
 enforce_checks(report, strict)
 flagged: Body | None = subject_body(seamed, instance, 0)
 
+# Picking, the fourth door onto a name. A ray's origin is a POSITION
+# and carries `Length`s; its direction is dimensionless and is a bare
+# triple — the same split `Pose` draws. `t` is neither: it is in units
+# of the ray's own direction, so it is a float, and `point` is where
+# the dimensioned answer lives.
+index: NodePick = NodePick.build(seamed, upright, 0, 1 * mm)
+every_body: list[NodePick] = NodePick.build_all(seamed, upright, 1 * mm)
+aimed: Ray = Ray((0 * mm, 0 * mm, 10 * mm), (0.0, 0.0, -1.0))
+from_here: tuple[Length, Length, Length] = aimed.origin
+along: tuple[float, float, float] = aimed.direction
+struck: PickHit | None = seamed.pick_face([index], aimed)
+drawn: Mesh = index.mesh
+paired_with: NodeId = index.node
+which_body: int = index.body
+# The per-slot inversion: a name, or the loud arm as a VALUE in the
+# slot it concerns.
+per_patch: list[str | HitTestError] = index.patch_names(seamed)
+per_edge: list[str | HitTestError] = index.boundary_names(seamed)
 # The expression READ side: text in through the document that declares
 # the parameters, a dimension-checked tree out, and a DIMENSIONED
 # value back. `eval` answers the quantity the expression measures, so

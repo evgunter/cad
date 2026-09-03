@@ -194,7 +194,14 @@ fn probe_no_junction_is_minted_and_nothing_is_declared() {
         .line_to(Start, Tol::witness())
         .map(pinned)
         .unwrap();
-    assert!(lp.tangent_joints().is_empty(), "nothing may be declared");
+    // Since the 2026-09-02 ruling the continuation DOES declare its
+    // own zero-turn joint; what this probe is really about — that no
+    // junction is MINTED, i.e. the vertex count — is asserted above.
+    assert_eq!(
+        lp.tangent_joints(),
+        &[1, 2, 3],
+        "each continuation declares its own joint"
+    );
     let v: Vec<_> = lp
         .vertices()
         .iter()
@@ -266,7 +273,12 @@ fn probe_the_data_gate_accepts_awkward_subdivided_runs() {
                 .line_to(Start, Tol::witness())
                 .map(pinned)
                 .unwrap();
-            assert!(lp.tangent_joints().is_empty());
+            // Every continuation joint is DECLARED (Ev, in-chat,
+            // 2026-09-02): the subdivisions are `1..legs.len()`, and
+            // the run's two closing junctions turn definitely.
+            let declared: Vec<usize> = lp.tangent_joints().to_vec();
+            let want: Vec<usize> = (1..legs.len()).collect();
+            assert_eq!(declared, want, "legs={legs:?}");
             Profile::new(SketchPlane::xy(), vec![lp.clone()])
                 .validate(Tol::witness())
                 .unwrap_or_else(|e| {
@@ -327,13 +339,17 @@ fn probe_no_spelling_sneaks_an_authored_tangency_through() {
         ),
         "an in-band-but-not-exact director must still refuse"
     );
-    // (e) declared identity.
+    // (e) declared identity — RULED LEGAL (Ev, in-chat, 2026-09-02):
+    // every zero-turn joint is a declared tangent joint, and the
+    // lattice never asks whether the carriers are the same. This used
+    // to refuse `SameCarrierJunction`. It is the one arm of this probe
+    // that moved, and it moved by ruling: the probe's subject is that
+    // no AUTHORED DIRECTION sneaks a tangency through undeclared, and
+    // (a)-(d) and (f)-(h) still hold that line.
+    let declared = base().tangent().line(2.0, t);
     assert!(
-        matches!(
-            base().tangent().line(2.0, t),
-            Err(PathError::SameCarrierJunction { .. })
-        ),
-        "declared identity must still refuse"
+        declared.is_ok(),
+        "declared identity is a tangent joint: {declared:?}"
     );
     // (f) `.tangent()` binds the angle slot, and `line_to` is not
     // available on a Directed tip at all — recorded here as a typed
@@ -357,13 +373,12 @@ fn probe_no_spelling_sneaks_an_authored_tangency_through() {
         ),
         "the continuation must not launder a later authored tangency"
     );
-    // (i) the continuation, then declared identity off it.
+    // (i) the continuation, then declared identity off it — legal for
+    // the same ruling, and the laundering worry it was written against
+    // is answered by (h) above, which is about an AUTHORED direction.
     assert!(
-        matches!(
-            base().line(2.0, t).unwrap().tangent().line(1.0, t),
-            Err(PathError::SameCarrierJunction { .. })
-        ),
-        "the continuation must not launder a later declared identity"
+        base().line(2.0, t).unwrap().tangent().line(1.0, t).is_ok(),
+        "a declared identity after a continuation is a tangent joint"
     );
 }
 
@@ -425,8 +440,9 @@ fn probe_a_declared_departure_then_continuations_declares_exactly_once() {
         .unwrap();
     assert_eq!(
         lp.tangent_joints(),
-        &[1],
-        "only the arc/line joint is declared; the subdivisions declare nothing"
+        &[1, 2, 3],
+        "the arc/line joint AND every continuation joint are declared \
+         (Ev, in-chat, 2026-09-02); each is declared exactly once"
     );
     Profile::new(SketchPlane::xy(), vec![lp])
         .validate(t)
@@ -454,6 +470,7 @@ fn probe_hunt_a_silently_accepted_undeclared_tangency_off_an_arc() {
     let lens = [1.0, 1e-2, 1e-4, 100.0];
     let mut accepted: Vec<(f64, f64)> = Vec::new();
     let mut authored_refused: Vec<(f64, f64)> = Vec::new();
+    let mut undeclared_at_gate: Vec<(f64, f64)> = Vec::new();
     let mut checked = 0usize;
     for b in bulges {
         for len in lens {
@@ -475,13 +492,22 @@ fn probe_hunt_a_silently_accepted_undeclared_tangency_off_an_arc() {
                 }
             };
             assert!(
-                lp.tangent_joints().is_empty(),
-                "the continuation declares nothing even off an arc"
+                lp.tangent_joints().contains(&1),
+                "the continuation DECLARES its joint, off an arc as anywhere \
+                 (Ev, in-chat, 2026-09-02)"
             );
             checked += 1;
             let verdict = Profile::new(SketchPlane::xy(), vec![lp]).validate(t);
-            if verdict.is_ok() {
-                accepted.push((b, len));
+            match verdict {
+                Ok(_) => accepted.push((b, len)),
+                // The one verdict this hunt is about. Anything else —
+                // a sliver, a non-simple loop, a degenerate segment at
+                // the extreme lengths this sweep walks — is a different
+                // fact and not this probe's subject.
+                Err(profile::ProfileError::UndeclaredTangency { .. }) => {
+                    undeclared_at_gate.push((b, len));
+                }
+                Err(_) => {}
             }
         }
     }
@@ -491,10 +517,22 @@ fn probe_hunt_a_silently_accepted_undeclared_tangency_off_an_arc() {
         accepted.len(),
         authored_refused.len()
     );
+    // RULED (Ev, in-chat, 2026-09-02): the continuation DECLARES the
+    // joint it mints, so no arc/line tangency reaches the gate
+    // undeclared from this door any more — which is what the hunt was
+    // looking for, inverted. The assertion above (every loop carries
+    // joint 1 in `tangent_joints`) is the door's half; this is the
+    // gate's: it never sees an undeclared one.
+    //
+    // NOT asserted: that every one of them VALIDATES. This sweep walks
+    // lengths of 1e-4 and 100 against every bulge, which makes slivers
+    // and non-simple loops; those refuse for their own reasons and are
+    // not this probe's subject. {accepted} of {checked} pass, and the
+    // print above carries the numbers.
     assert!(
-        accepted.is_empty(),
-        "MAJOR: the data gate ACCEPTED an undeclared arc/line tangency the \
-         authoring door let through: {accepted:?}"
+        undeclared_at_gate.is_empty(),
+        "MAJOR: an UNDECLARED arc/line tangency reached the data gate from a \
+         continuation that is supposed to declare it: {undeclared_at_gate:?}"
     );
     assert!(checked > 0, "the hunt must actually reach the gate");
 }
@@ -604,14 +642,20 @@ fn probe_the_junction_pattern_really_alternates() {
 /// rotation. A plan carrying both a `shoulder = 1` base and a
 /// `shoulder = 0` belly therefore has no rotation that gives every
 /// section a corner at its seam — the parity flips between them and a
-/// uniform rotation cannot follow it. The remaining wall is PQ4's
-/// (a seam at a subdivision vertex is mid-carrier), which the ruling
-/// left standing deliberately.
+/// uniform rotation cannot follow it.
+///
+/// **And that is why the wall was never the departure's to move.** A
+/// third column runs here now: the DECLARED ARRIVAL, which says the
+/// seam's own junction on the target instead of on the closing leg's
+/// departure. It closes all 64 — both sections, every starting vertex,
+/// both directions — so the parity measurement above stands as a fact
+/// about lily's corner sets while ceasing to be a wall.
 #[test]
 fn probe_exhaustive_third_spelling_hunt_across_the_seam() {
     let t = Tol::witness();
     let mut undeclared: Vec<String> = Vec::new();
     let mut declared: Vec<(f64, f64, usize, bool)> = Vec::new();
+    let mut arriving: Vec<(f64, f64, usize, bool)> = Vec::new();
     let mut attempts = 0usize;
     for (w, r, k) in [(0.170, 0.028, 0.020), (0.420, 0.034, 0.016)] {
         for shoulder in [0.0_f64, 1.0] {
@@ -645,14 +689,19 @@ fn probe_exhaustive_third_spelling_hunt_across_the_seam() {
                     if try_author(&ring, Closer::ContinueTo, t).is_ok() {
                         declared.push((w, shoulder, start, rev));
                     }
+                    if try_author(&ring, Closer::DeclaredArrival, t).is_ok() {
+                        arriving.push((w, shoulder, start, rev));
+                    }
                 }
             }
         }
     }
     println!(
-        "probe: {attempts} rings; undeclared closed {}, declared closed {}",
+        "probe: {attempts} rings; undeclared closed {}, declared-departure closed {}, \
+         declared-arrival closed {}",
         undeclared.len(),
-        declared.len()
+        declared.len(),
+        arriving.len()
     );
     assert!(
         undeclared.is_empty(),
@@ -693,6 +742,20 @@ fn probe_exhaustive_third_spelling_hunt_across_the_seam() {
              pins one rotation for all of them: kite {kite:?} vs rectangle {rect:?}"
         );
     }
+    // **THE PARITY WALL FALLS.** The measurement above is unchanged and
+    // still true of the DEPARTURE-side spellings — it is a fact about
+    // lily's corner sets, not about the closer, and no departure-side
+    // declaration could ever follow a corner set that moves. What the
+    // ARRIVAL-side declaration adds is the other junction: with it,
+    // every ring closes, both sections at every starting vertex and in
+    // both directions, so a loft that pins one rotation for all its
+    // sections now has one.
+    assert_eq!(
+        arriving.len(),
+        attempts,
+        "the declared arrival closes every ring: {} of {attempts}",
+        arriving.len()
+    );
 }
 
 /// **The positive control for the exhaustive hunt above, and the
@@ -781,6 +844,12 @@ enum Closer {
     /// the departure is checked against the ray rather than inferred
     /// from it.
     ContinueTo,
+    /// The DECLARED ARRIVAL (BOOL-12): the closing leg's departure is
+    /// spelled by whichever verb its own junction wants, and the SEAM's
+    /// joint is declared on the target — `Start.arrives_tangent()`,
+    /// the one arrival declaration. This is the spelling the parity
+    /// wall was waiting for.
+    DeclaredArrival,
 }
 
 /// Author `ring` as a closed loop: `toward` at every vertex whose
@@ -827,6 +896,20 @@ fn try_author(ring: &[Point2<f64>], closer: Closer, t: Tol) -> Result<&'static s
     let lp = match closer {
         Closer::LineTo => chain.line_to(Start, t).map_err(|_| ())?,
         Closer::ContinueTo => chain.continue_to(Start, t).map_err(|_| ())?,
+        // The two junctions the closing leg touches are independent, and
+        // this arm says each with the verb it wants: the DEPARTURE with
+        // `continue_to` where the run continues through `ring[n-1]` and
+        // `line_to` where it turns there, the ARRIVAL with the target
+        // where the run continues through `ring[0]` and plain `Start`
+        // where it turns.
+        Closer::DeclaredArrival => match (straight_at(n - 1), straight_at(0)) {
+            (false, false) => chain.line_to(Start, t).map_err(|_| ())?,
+            (false, true) => chain.line_to(Start.arrives_tangent(), t).map_err(|_| ())?,
+            (true, false) => chain.continue_to(Start, t).map_err(|_| ())?,
+            (true, true) => chain
+                .continue_to(Start.arrives_tangent(), t)
+                .map_err(|_| ())?,
+        },
     };
     let lp = pinned(lp);
     Profile::new(SketchPlane::xy(), vec![lp])
@@ -835,6 +918,7 @@ fn try_author(ring: &[Point2<f64>], closer: Closer, t: Tol) -> Result<&'static s
     Ok(match closer {
         Closer::LineTo => "line_to(Start)",
         Closer::ContinueTo => "continue_to(Start)",
+        Closer::DeclaredArrival => "the junction each seam side wants",
     })
 }
 

@@ -21,6 +21,8 @@ from pncad import (
     NamePat,
     Node,
     NodeId,
+    NodePick,
+    Ray,
     Open,
     PatternKind,
     SegPat,
@@ -306,6 +308,34 @@ enforce_checks(doc)  # ty: error
 # attribution a finding carries — never by the finding's rendering.
 subject_body(evaluate(doc), solid)  # ty: error
 
+# A ray's ORIGIN is a position and carries `Length`s; writing it as
+# bare floats is the same dimension mistake `Pose.origin` catches
+# above, and the surface refuses to guess a unit.
+Ray((0.0, 0.0, 10.0), (0.0, 0.0, -1.0))  # ty: error
+
+# ...and its DIRECTION is dimensionless. Handing it lengths claims a
+# direction has a unit, which is the mistake in the other direction.
+Ray((0 * m, 0 * m, 10 * m), (0 * m, 0 * m, -1 * m))  # ty: error
+
+# A pick index is built against the EVALUATION that minted the body,
+# not against the document: a `(node, body)` pairing only means
+# something as of one run, which is the whole reason this type exists.
+NodePick.build(doc, solid, 0, 1 * mm)  # ty: error
+
+# The chordal budget is a DISTANCE (δ), never a bare float — the same
+# closed-set rule `Body.tessellate` states.
+NodePick.build(evaluate(doc), solid, 0, 0.001)  # ty: error
+
+# `pick_face` takes the pre-paired targets, not the node they were
+# built for. There is no spelling of a raw target here, and that is
+# what stops a confidently wrong name.
+evaluate(doc).pick_face([solid], Ray((0 * m, 0 * m, 1 * m), (0.0, 0.0, -1.0)))  # ty: error
+
+# A miss is `None`, so a hit is OPTIONAL: reading `.name` off the
+# answer without asking whether there was one is the mistake the typed
+# miss exists to make visible.
+maybe_hit = evaluate(doc).pick_face([], Ray((0 * m, 0 * m, 1 * m), (0.0, 0.0, -1.0)))
+hit_name: str = maybe_hit.name  # ty: error
 # The two evaluators are not interchangeable and neither takes text:
 # an expression is a VALUE, built by the document that declares the
 # parameters it references.

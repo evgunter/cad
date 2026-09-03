@@ -2064,7 +2064,56 @@ see. Next per D1: shell stays parked on #1202; the census B-families
 resume the mechanical track; a LIB-13 block draw precedes any next
 full-protocol unit.
 
-**B-EXPR-READ IN REVIEW (2026-09-03, PR pending; mechanical under the
+**B-PICKING AT REVIEW (2026-09-03, #1661; mechanical under the 08-29
+ruling, no A/B row). Census family B-PICKING CLOSED — the fourth door
+onto a name reaches Python, and it answers in the alphabet the other
+three speak.** Seven names, all seven unbound at the start: five cross
+name-for-name (`Ray`, `PickHit`, `NodePick`, `NodePickError`,
+`HitTestError`), `pick_face` becomes `Evaluation.pick_face` beside the
+read-back verbs, and `PickTarget` maps to `NodePick` — not a
+narrowing but CUR3's construction argument reading out downstream: with
+`MeshPick` interior, a raw target has no constructor in EITHER
+language, so the value that cannot be mis-paired is the only target
+there is and the confidently-wrong-name lane (#1098) has no Python
+spelling at all. 39 Python tests, oracled against the doors that
+already existed rather than against restated arithmetic: the picked
+name IS `select`'s answer for the same face, `patch_names` IS
+`all_faces`' set, `boundary_names` IS `all_edges`', and a `NodePick`'s
+mesh is triangle-for-triangle `Body.tessellate`'s at the same δ (the
+"what is drawn is what is picked" claim, checked rather than asserted).
+The tie-break is pinned in both directions — two coincident cubes, the
+list reversed — so the winner is the documented rule and not chance.
+
+Two things the closing measured. **The `Mesh` docstring was carrying a
+falsehood on both sides of the boundary**: it said a door from a patch
+to a `StableName` "does not exist on either side", which stopped being
+true when `NodePick::patch_names` shipped kernel-side; binding it is
+what makes a patch INDEX a handle rather than a dead end, and both the
+stub and `py/mesh.rs` now say so. And **`HitTestError` crosses as a
+VALUE, not only as a raise** — `patch_names` is total per patch with
+the loud arm in its own slot, and a Python exception being a value is
+what makes that kernel shape spellable at all; the stub types the slot
+`str | HitTestError` and the fixtures pin it.
+
+Banked, register category A: **`MeshPickError` unmatchable under
+`NodePickError`** (`work/lib/mesh-pick-error-is-unmatchable-under-node-
+pick-error.md`) — the `DanglingRef` shape one rung along. CUR3's stanza
+argues from CONSTRUCTION and is honored verbatim here; what it does not
+address is that the type also arrives as a PAYLOAD of a curated
+refusal whose other four arms are all matchable, which is exactly the
+case the CUR3/CUR4 carrier-projection rule was written for. Joins the
+curation micro-unit queue; not relitigated in this unit.
+Also banked, and deliberately NOT fixed in the diff: **the census
+points at `docs/LIB-LOG.md` three times in the present tense and that
+file is gone** — the register it names lives at `work/lib/log.md:439`
+now (`work/lib/census-points-at-a-deleted-lib-log.md`). The fix is
+three one-line hunks in the most contended file on this track, for a
+reason unrelated to any family, so it waits for a pass with no
+concurrent B-lane rather than riding a family unit. Two of the three
+are LIVE claims about where a reader should go, so the ledger's
+append-only-log dispensation does not cover them.
+
+**B-EXPR-READ IN REVIEW (2026-09-03, #1662; mechanical under the
 08-29 ruling, no A/B row). Census family B-EXPR-READ CLOSED — the
 expression READ side crosses, and the family cost three times the
 names it owned.** `Doc.parse_expr` / `Doc.eval` / `Doc.eval_count`
@@ -2086,12 +2135,16 @@ rather than on what a unit would have to build. Nine entries moved,
 that executed it, and it is recorded in the closure paragraph rather
 than smoothed.
 
-**G1 is NOT closed by that**, and the re-cut says so twice: its
-residue is the AUTHORING half, which is now a SIGNATURE rather than a
-missing name — no door takes an `Expr` INTO a document — so the
-census structurally cannot watch it and `tests/test_north_star.py`
-does, executing an `Expr` against `Radius` and `DocParam.length` and
-watching both refuse. `ParamEnv` moved to `INTERIOR` rather than
+**G1 is NOT closed by that**, and the re-cut says so twice: the
+residue this unit touched is the AUTHORING half, which is now a
+SIGNATURE rather than a missing name — no door takes an `Expr` INTO a
+document — so the census structurally cannot watch it and
+`tests/test_north_star.py` does, executing an `Expr` against `Radius`
+and `DocParam.length` and watching both refuse. G1 also keeps a
+census citation outright, which the pre-merge draft of this row got
+wrong: B-PICKING's merge brought `ArrivesTangent` in under the same
+id, for a residue of the same row that has nothing to do with
+expressions. `ParamEnv` moved to `INTERIOR` rather than
 anywhere else, correcting an entry that had been a `gap` on the RUST
 door's shape: Python's `select_where` never took one, `Evaluation`
 captures the environment at `evaluate`, and `Doc.eval` now builds one
@@ -2126,7 +2179,12 @@ families — which named `B-READBACK` after it closed and never gained
 `B-NOTATION` or `B-MEASURES` — now replaced by the pointer the
 sentence already claimed to be. The census's gap-id counts were
 stale the same way ("two … the other seven" against nine cited
-families) and are re-cut with the staleness recorded, not smoothed.
+families). They are now GONE rather than corrected: this unit first
+re-cut them to "one … the other eight", and B-PICKING closing in the
+same window falsified that before either landed. A number two
+concurrent units can invalidate is not a measurement, it is a merge
+conflict with a plausible face, and the guard that IS checked says
+nothing about how many there are.
 
 Measured and not filed: `ParseError::MalformedNumber` is unreachable
 from text. The lexer hands `f64::from_str` only a run of digits with

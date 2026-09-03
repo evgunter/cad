@@ -216,6 +216,11 @@ impl WireSide {
 enum WireTarget {
     /// The entry vertex — the closing form.
     Start,
+    /// The entry vertex with the seam's TANGENT JOINT declared — the
+    /// seam's own declaration, structural (no expressions) and without
+    /// a payload, because the arriving leg is the later-authored one
+    /// and there is one thing to declare there (PATHS-DESIGN §6).
+    StartArriving,
     /// An authored point (two Length expressions; every `Expr` field
     /// on this wire rebuilds through the dimension door — per-ROLE
     /// dimension agreement is the shared validator's walk).
@@ -226,12 +231,14 @@ impl WireTarget {
     fn from_target(t: &ProgramTarget) -> Self {
         match t {
             ProgramTarget::Start => WireTarget::Start,
+            ProgramTarget::StartArriving => WireTarget::StartArriving,
             ProgramTarget::Point(p) => WireTarget::Point(p.clone()),
         }
     }
     fn into_target(self) -> ProgramTarget {
         match self {
             WireTarget::Start => ProgramTarget::Start,
+            WireTarget::StartArriving => ProgramTarget::StartArriving,
             WireTarget::Point(p) => ProgramTarget::Point(p),
         }
     }
@@ -276,6 +283,9 @@ enum WireStep {
     Line(Expr),
     /// `line_to(target)`.
     LineTo(WireTarget),
+    /// `continue_to(target)` — the declared point-target straight
+    /// continuation.
+    ContinueTo(WireTarget),
     /// `arc_to(spec)` — the unified §2c arc-spec record.
     ArcTo(WireArcData),
     /// `tangent_arc_to(target)`.
@@ -459,6 +469,7 @@ impl WireStep {
             P::Turn(e) => WireStep::Turn(e.clone()),
             P::Line(e) => WireStep::Line(e.clone()),
             P::LineTo(t) => WireStep::LineTo(WireTarget::from_target(t)),
+            P::ContinueTo(t) => WireStep::ContinueTo(WireTarget::from_target(t)),
             P::ArcTo(spec) => WireStep::ArcTo(WireArcData::from_spec(spec)),
             P::TangentArcTo(t) => WireStep::TangentArcTo(WireTarget::from_target(t)),
             P::ArcContinue(p) => WireStep::ArcContinue(p.clone()),
@@ -496,6 +507,7 @@ impl WireStep {
             WireStep::Turn(e) => P::Turn(e),
             WireStep::Line(e) => P::Line(e),
             WireStep::LineTo(t) => P::LineTo(t.into_target()),
+            WireStep::ContinueTo(t) => P::ContinueTo(t.into_target()),
             WireStep::ArcTo(spec) => P::ArcTo(spec.into_spec()),
             WireStep::TangentArcTo(t) => P::TangentArcTo(t.into_target()),
             WireStep::ArcContinue(p) => P::ArcContinue(p),
