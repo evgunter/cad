@@ -129,8 +129,7 @@ fn r1_the_attach_and_split_doors_do_not_widen_a_span() {
     println!("R1-DOOR set_edge_curve (+one period) -> {r:?}");
     let e = format!(
         "{:?}",
-        r.err()
-            .expect("the attach door widened a span past the bound")
+        r.expect_err("the attach door widened a span past the bound")
     );
     assert!(
         e.contains("ParamSpan") || e.contains("WindingExceeded"),
