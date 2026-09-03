@@ -1195,6 +1195,22 @@ class GatedSuite:
         return False
 
 
+def _gated_code_only(text: str) -> str:
+    """`text` with `//`-to-end-of-line comments removed.
+
+    A MARKER IS AN ITEM AND NEVER A COMMENT, and the difference has to be
+    drawn or the macro's own documentation reads as a marker: three files here
+    quote the spelling in prose without calling it (the macro's docs, the gate
+    that describes it, the reader census that subtracts what a marker
+    declares). This is a line cut, not a lexer — a `//` inside a string
+    literal truncates the line early, which can only LOSE a call and never
+    invent one, and losing one leaves its suite running.
+    """
+    return "\n".join(
+        line if (i := line.find("//")) < 0 else line[:i] for line in text.splitlines()
+    )
+
+
 def _marker_paths(text: str) -> list[str] | None:
     """The literals of the ONE `gated_to!` call in `text`, or None if there is
     no call. Raises `Bail` on a second call in one file, and on a call this
@@ -1317,7 +1333,7 @@ def _scan_gated(root: str, dir_of: dict[str, str] | None = None) -> list[GatedSu
                         text = fh.read()
                     if "gated_to!" not in text:
                         continue
-                    paths = _marker_paths(text)
+                    paths = _marker_paths(_gated_code_only(text))
                     if paths is None:
                         continue
                     problem = None
@@ -1501,7 +1517,14 @@ def gated_check(root: str) -> int:
                 continue
             with open(full, encoding="utf-8", errors="replace") as fh:
                 text = fh.read()
-            if "gated_to!" not in text:
+            # THE SAME RECOGNISER THE SCANNER USES, and it has to be. A bare
+            # substring test fires on the macro's own NAME, which is written
+            # without being called in three legitimate places — the macro's
+            # docs, its definition, and `reader_census.rs`, which counts the
+            # paths a marker declares so it can subtract them. A gate that
+            # reds on a file for saying the word is a gate authors route
+            # around.
+            if not _GATED_CALL_RE.search(_gated_code_only(text)):
                 continue
             if rel.startswith("crates/test-utils/"):
                 problems.append(

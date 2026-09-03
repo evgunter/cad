@@ -3153,6 +3153,38 @@ The PR is HELD for Evan's sign-off (PATHS §6 PQ4 / §4 / verb table —
 design surface); merge follows the dual + sign-off. Sample number at
 merge; row in the docs PR after the merge.
 
+MESH-12 (PR #1617) ordinal FIXED AT DISPATCH (2026-09-03):
+**ordinal 1210** (S-MESH band 1200–1299). v6 dual: parity byte **40**,
+parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `0e053a727`
+(run 33705079950 verified at dispatch: head SHA matches, 21 checks —
+16 success + 5 skipped; gate point lane=interval × eps default, both
+ASKED by trailer, CONFIG_SOURCE lane:commit-trailer eps:commit-trailer),
+R2 isolated from R1, briefs symmetric (HARD RULES written fresh for
+this unit — the MESH-10/11 briefs had inherited MESH-8's), no
+relaxations granted. Implementer difficulty S (pre-logged at the spec,
+pre-draw). Sample number at merge; the row rides the unit branch as
+its last commit. Two forward findings filed at dispatch: issue 1615
+(a rim-only sphere cap the shape door admits panics at the issue-897
+census — pre-existing, Euler-door reach only) and issue 1618 (the
+torus single-edge meridian span and the rim Δu sum read raw past the
+winding bound — hand-built reach only); both parked on the S-MESH
+slate. S-CERT notified on the PR of the CERT-1 3π row's re-aim.
+
+DRAW-VIOLATION DISCLOSURE (2026-09-03, orchestrator): block MESH-B3
+(byte 198 ⇒ slot 0 fable, slot 1 opus, slot 2 opus) was NOT honoured
+at slot 2. MESH-10 (ordinal 1208, sample #112) was dispatched to FABLE
+and its row's arm cell says "FABLE (block MESH-B3 slot 2)" — the arm
+named is the arm that ran, so the row is truthful about the sample,
+but the draw said OPUS. The error was the orchestrator's at dispatch
+(the block's slots were recalled from memory, not re-read from the
+private draw file). Consequence for the ledger: the S-MESH implementer
+arm balance is one fable heavier than the draws prescribe; the MESH-10
+sample stands as a fable sample (v6 records what ran) and no re-run is
+owed. Going forward: MESH-B4 (byte 112 ⇒ 0 opus, 1 fable, 2 opus) was
+dispatched from the file (MESH-11 opus at slot 0, MESH-12 fable at
+slot 1, both verified against the file at dispatch), and every future
+dispatch record quotes the private file's line before the arm is named.
+
 MESH-11 (PR #1599) ordinal FIXED AT DISPATCH (2026-09-02):
 **ordinal 1209** (S-MESH band 1200–1299). v6 dual: parity byte **188**,
 parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `d8b4e6c67`
@@ -3174,7 +3206,6 @@ symmetric, no relaxations granted. Implementer difficulty S
 the unit PR as its last commit (the 2026-08-27 rule, reaffirmed by
 Evan 2026-09-02).
 
-
 MESH-8 (PR #1585) ordinal FIXED AT DISPATCH (2026-09-02):
 **ordinal 1207** (S-MESH band 1200–1299). v6 dual: parity byte **221**,
 parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `5311997b4`
@@ -3184,7 +3215,6 @@ interval DRAWN), R2 isolated from R1, briefs symmetric, no relaxations
 granted. Implementer difficulty M/L, recorded M (pre-logged at the
 spec, pre-draw). Sample number at merge; row in the docs PR after the
 merge.
-
 
 BOOL-11 REVIEWS DELIVERED + ROW (2026-09-01/02; CONCURRENT on frozen
 0d285cd3f per the fixed-at-dispatch record above; fix pass
@@ -3222,3 +3252,31 @@ PR #1577 open — frozen head `d4e67f57a`): **ordinal 111** (VERBS
 band; the #1095 shape). v6 DUAL, concurrent, briefs symmetric.
 Sample number AT MERGE in main's order. Row at merge.
 | C5-1 | 2026-09-02 | VERBS-C5ARMS PR-1 (PR #1577; the plane×torus section arm — the unit that STOPped honestly at its first dispatch, spawned TORAX as its enabler via adjudication (c), and RESUMED after the enabler merged): plane_torus_section with MeridianCircles / the demanded ConcentricCircles / TangentCircle-as-classification-data / Empty; six named pt_* trileans after the fix pass; the (Plane,Torus) table arm flips Closed+implemented; the opening measurement found the elbow already at the RIM door and the barrel/teapot hollows flag-independent (TORAX's axial door never consults route — verified at code level by both reviewers: exactly ONE production implemented-gate in the workspace); the direct door moved exactly one refusal deeper under the flip; elbow rows re-scoped to the rim-capability unit per the TORAX adjudication; refusal-text instance 7 recorded | M (pre-logged; VERBS-7 slot 4's assignment carried through the STOP + resume) | FABLE (block VERBS-7 slot 4, per-slot arm line — the block's drawn fable executed; NEAR THE 5.1 BOUNDARY, see the release note above: the implementer spans the mark, the fix pass is after-near) | **DUAL (ordinal 111; sample #111 at merge — ledger max #110, main's merge order rules; parity byte 181 ⇒ R1 FABLE + R2 OPUS, frozen d4e67f57a, v6; suites-via-CI rule both arms). R1 0 MAJ / 4 MIN, 5/4/4.5, APPROVE — independent pure-python re-derivation of all three closed forms (residuals ≤2.5e-16), 6/6 aimed mutations caught + THREE SURVIVING MUTANTS found (the negative-station h.abs() blind spot; two identity levers), and the 8.472-vs-8.331 gap discrepancy resolved to different fixtures (honest, not stale). R2 2 MAJ / 7 MIN, 4/4/3, APPROVE WITH FIXES — 10/10 aimed mutations caught; the tangency attacked specifically for the SPHSPH operand-order class: NONE exists (orientation-invariant by construction). PRINCIPAL BILATERAL severity-split (R2 MAJ-1 = R1 MIN-4, adjudicated to R2): pt_ring_guard decided R−r only against its documented R>r>0 — R2 walked the named threat through it (r=−0.3 minted MeridianCircles{radius:−0.3}; r=0 a zero-radius circle + spurious TangentCircle; R<0 transposed centres). R2 MAJ-2 unilateral but DOC-CLASS (3b-excluded): four in-repo sentences still asserted the table declines the pair post-flip, one in the opening-measurement row's own doc (which also misattributed the rim carrier — it is SPIRIC, which the shipped arm refuses). NO TALLY CANDIDATES — tally 1/8, candidates 5 | 0 (all deviations declared; the guard gap was a code defect, not a silent deviation) | 4 | 4 | 4 (R1 5/4/4.5; R2 4/4/3) | substantial, IMPLEMENTER-INHERITED: pt_tube_guard added as a SECOND named trilean before pt_ring_guard (the file's one-margin-per-question shape over a min() fold, so in-band operands escalate naming the actually-ambiguous inequality) with the three threat poses planted RED-MEASURED-FIRST (the unguarded arm minted radius −0.3 on the probe) and an in-band twin pinned to the predicate; all four stale sentences fixed including the spiric misattribution; negative-station + non-unit-lever rows added each red under its own mutant; diag.predicate pinned on all six in-band rows; the lever condition recorded at site and audit row; counts re-measured honestly (121 on the stated filter list; 30+4; neither reviewer's count adopted blind); CI wording corrected to the run's own ASKED-FOR-NOT-DRAWN line | impl run 33626098475 step-verified green (interval by trailer, 1e-6 drawn); fix head f70397777: 33654893911 (PR, interval, 1e-12 drawn) + 33654890961 (dispatch, default 1e-12) BOTH fully green, every new/changed row by name, no inherited reds surfaced | impl ~261k / fix ~200k + ~130k pre-unpark / R1 ~171k / R2 ~212k | impl ~5.4h / fix ~2h + an unparked stall / R1 ~2.4h / R2 ~2.7h |
+## INSTRUMENT NOTE — FABLE 5.1 RELEASE BOUNDARY (Evan, in-chat 2026-09-02)
+
+**Fable 5.1 was released 2026-09-01.** The exact identity (5.0 vs
+5.1) of fable-armed sessions dispatched a bit before or after
+that mark is NOT KNOWN — dispatches near the boundary may have
+landed on either. Fable rows from clearly after the mark onward
+must be ANALYZED SEPARATELY from those before; any readout whose
+window spans 2026-09-01 must say so and should report the two
+eras separately (the v5-discontinuity convention applies to the
+model axis exactly as it did to the instrument axis).
+
+Affected VERBS rows near the boundary, for the analysis agent's
+era assignment: the ordinal-107 R1 redispatch and ordinal-108 R2
+(both 2026-08-31, before, near-mark); the ordinal-110 R1 and the
+C5ARMS implementer (dispatched 2026-09-01, SPANNING the mark);
+the ordinal-111 R1 and the C5ARMS fix pass (2026-09-02, after,
+near-mark). Other programs' fable rows in the same window carry
+the same caveat.
+
+Also recorded, PENDING (not ratified): Evan is considering
+switching the implementer arm ratio from the v4 blocks'
+{opus,opus,opus,fable} (1:3) back to fable:opus 1:2. If ratified,
+it takes effect at the next block draw; already-drawn per-slot
+arms stand unless Evan says redraw.
+VERBS-CYLSPH review ordinal fixed at dispatch (2026-09-03, PR
+#1604 open — frozen head `d49ddd894`): **ordinal 112** (VERBS
+band; the #1095 shape). v6 DUAL, concurrent, briefs symmetric.
+Sample number AT MERGE in main's order. Row at merge.

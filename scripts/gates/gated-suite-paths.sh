@@ -144,6 +144,23 @@ plant_marker_in_test_utils() {
     >> "$1/crates/test-utils/src/lib.rs"
 }
 
+# THE NEAR MISS FOR THE SITING CHECK, and it is a live shape rather than an
+# invented one: three files in this repo write the macro's NAME without
+# calling it — its own docs, its definition, and the reader census, which
+# counts the paths a marker declares in order to subtract them. A gate that
+# reds on saying the word is a gate people route around.
+plant_named_not_called_outside() {
+  mkdir -p "$1/demos/tour/src"
+  printf 'const N: &str = "gated_to!";\n// see gated_to in test-utils\n' \
+    > "$1/demos/tour/src/lib.rs"
+  # The shape that reds this gate against its own tree if the recogniser
+  # stops separating an item from a comment: the macro's docs QUOTE a call.
+  printf '/// `test_utils::gated_to!["crates/geom-core/src/ring.rs"]` declares.\n' \
+    >> "$1/crates/test-utils/src/lib.rs"
+  printf '//! `test_utils::gated_to!["crates/geom-core/src/ring.rs"]` again.\n' \
+    >> "$1/crates/geom-core/src/lib.rs"
+}
+
 # THE NEAR MISS, and every widened matcher in this directory owes one: prose
 # naming the macro is not a call, and a gate that fired on it would push
 # authors to stop writing about the mechanism in the files that use it.
@@ -165,7 +182,9 @@ gate_selftest() {
   gate_selftest_case 'no `#[test]` or `#[cfg(test)]`' plant_marker_without_tests
   gate_selftest_case 'gates nothing while reading like one that does' plant_marker_outside_crates
   gate_selftest_case "marker's own home" plant_marker_in_test_utils
-  printf '%s selftest OK: passes a tree whose one marker resolves (and prose that merely names the macro); fires on a path that is not there, a directory written without its trailing slash, an absolute path, one escaping the repo, an empty path set, two markers in one file, a suite tests/all.rs does not aggregate, a marker on a file with no test, and a marker sited outside crates/<crate>/{src,tests} or inside the macro'"'"'s own crate\n' "$(gate_name)"
+  gate_selftest_passes "the macro NAMED but not called, outside the scanned trees and inside test-utils" \
+    plant_named_not_called_outside
+  printf '%s selftest OK: passes a tree whose one marker resolves (and prose that merely names the macro); fires on a path that is not there, a directory written without its trailing slash, an absolute path, one escaping the repo, an empty path set, two markers in one file, a suite tests/all.rs does not aggregate, a marker on a file with no test, and a marker sited outside crates/<crate>/{src,tests} or inside the macro'"'"'s own crate — and passes a file that merely NAMES the macro in either place\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
