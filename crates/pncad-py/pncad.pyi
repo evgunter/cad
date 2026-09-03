@@ -58,6 +58,14 @@ worth right now — which is what a panel showing `width / 2.0 -
 margin` needs and cannot compute for itself. Reading only: putting an
 expression INTO an authoring step is still a named gap.
 
+Text goes the other way too. `Length.format` / `Angle.format` render
+a quantity in a unit — `"25 mm"` — choosing digits so that
+`Doc.parse_expr` reads the text back to the value's exact bits. That
+pin is the reason to use them rather than an f-string over
+`in_unit`'s bare float, which does not round-trip; the price is that
+a value with no exact spelling in the unit asked for falls back to
+metres or radians, so read the suffix off the text.
+
 Deliberately ABSENT, and tracked as named gaps in
 `docs/guide/north-star-audit.md`: sweep and tube, the pattern node
 (`placed_union` says a placed family whose value is one body; the
@@ -125,6 +133,24 @@ class DimensionError(PncadError):
     op: str
     left: str
     right: str
+
+class FmtQuantityError(PncadError):
+    """`Length.format` or `Angle.format` refused a value: it is NaN or
+    ±∞, and a non-finite quantity has no display form.
+
+    `value` is the refused float, `variant` the stable tag
+    (`"non_finite"`).
+
+    Reachable, which is why it is typed. The quantity newtypes are
+    plain value wrappers that refuse no float, so `float("inf") * mm`
+    is an ordinary Length; poison is stopped at the doors values LEAVE
+    through, and rendering one for a reader is one of those. The tag
+    is deliberately the same string LiteralError uses for a non-finite
+    literal — same fact, opposite doors — and the CLASS is what says
+    which door refused."""
+
+    variant: str
+    value: float
 
 class LiteralError(PncadError):
     """A value the expression layer refused (`Expr::literal`'s own
@@ -571,6 +597,7 @@ class Length:
     @property
     def meters(self) -> float: ...
     def in_unit(self, unit: LengthUnit) -> float: ...
+    def format(self, unit: LengthUnit) -> str: ...
     def __add__(self, other: Length) -> Length: ...
     def __sub__(self, other: Length) -> Length: ...
     def __neg__(self) -> Length: ...
@@ -589,6 +616,7 @@ class Angle:
     @property
     def radians(self) -> float: ...
     def in_unit(self, unit: AngleUnit) -> float: ...
+    def format(self, unit: AngleUnit) -> str: ...
     def __add__(self, other: Angle) -> Angle: ...
     def __sub__(self, other: Angle) -> Angle: ...
     def __neg__(self) -> Angle: ...

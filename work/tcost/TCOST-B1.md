@@ -2,10 +2,11 @@
 id: TCOST-B1
 kind: unit
 title: declare editor-core's shared test helpers once, not once per suite
-status: review
+status: closed
 pr: 1616
 branch: tcost/b1-dedup-suite-helpers
 opened: 2026-09-03
+closed: 2026-09-03
 ---
 
 First build-side unit, cut from the build profile: editor-core's shared test

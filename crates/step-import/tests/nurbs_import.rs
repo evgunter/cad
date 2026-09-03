@@ -35,7 +35,7 @@
 //! anything left to say about the rational one.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::import_body;
 use geom_core::Tol;

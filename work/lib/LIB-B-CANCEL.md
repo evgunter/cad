@@ -2,8 +2,9 @@
 id: LIB-B-CANCEL
 kind: unit
 title: binding census family B-CANCEL
-status: open
+status: dispatched
 opened: 2026-09-03
+branch: lib/b-cancel
 ---
 
 Queued mechanical census family (the B-READBACK/B-CHECKS shape): sweep the

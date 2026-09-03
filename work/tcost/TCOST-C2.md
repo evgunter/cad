@@ -2,9 +2,10 @@
 id: TCOST-C2
 kind: unit
 title: rustdoc gate: excluded roots and pass 3 to the nightly; workspace pass scoped to the closure on PRs
-status: dispatched
+status: review
 opened: 2026-09-03
 branch: tcost/c2-rustdoc-roots-nightly
+pr: 1654
 ---
 
 CI-posture unit (Ev's ask). The rustdoc gate's six excluded roots
