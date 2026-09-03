@@ -287,12 +287,66 @@ fn repo_root() -> PathBuf {
 ///   … `read_to_string(p.join(TARGET))`) never has them on one line at
 ///   all. Both are ordinary spellings, and both went undetected.
 ///
+/// **A GATED-SUITE MARKER IS THE SECOND WAY TO NAME A SOURCE FILE
+/// WITHOUT READING ONE**, and it is subtracted for the same reason a
+/// mount is. `test_utils::gated_to!["crates/x/src/y.rs", …]` declares
+/// the paths a suite is specific to so the change filter can skip it;
+/// the suite never opens them, and `scripts/ci-filter.py` is what
+/// reads that text. Unsubtracted, every marked suite in the tree reads
+/// as a source reader and owes a ledger line it cannot honestly carry.
+///
+/// A marker's paths are NOT one-per-invocation the way a mount's is —
+/// `rustfmt` collapses a short list onto one line — so this one is
+/// counted by scanning each invocation's own brackets rather than by a
+/// second whole-file needle. That is a BOUNDED slice, not the ad-hoc
+/// source slicer rejected above, and its failure direction is the safe
+/// one: an invocation whose brackets do not close subtracts NOTHING, so
+/// the file stays a hit and someone has to look at it.
+///
 /// The counting needle is written with its quote ESCAPED where it is
 /// itself a literal, so this file does not match itself.
+/// `.rs"` literals inside `gated_to!` invocations — the paths a gated
+/// suite DECLARES rather than reads. Zero when the invocation's
+/// brackets do not close, which leaves the file counted as a reader.
+fn gated_to_names(code: &str) -> usize {
+    let mut total = 0;
+    let mut rest = code;
+    while let Some(at) = rest.find("gated_to!") {
+        rest = &rest[at + "gated_to!".len()..];
+        let Some(open) = rest.find(|c| c == '[' || c == '(' || c == '{') else {
+            break;
+        };
+        let opener = rest.as_bytes()[open] as char;
+        let closer = match opener {
+            '[' => ']',
+            '(' => ')',
+            _ => '}',
+        };
+        let mut depth = 0usize;
+        let mut end = None;
+        for (i, c) in rest[open..].char_indices() {
+            if c == opener {
+                depth += 1;
+            } else if c == closer {
+                depth -= 1;
+                if depth == 0 {
+                    end = Some(open + i);
+                    break;
+                }
+            }
+        }
+        let Some(end) = end else { break };
+        total += rest[open..end].matches(".rs\"").count();
+        rest = &rest[end..];
+    }
+    total
+}
+
 fn reads_rust_source(code: &str) -> bool {
-    // (1) Names more `.rs` files than it mounts as modules.
+    // (1) Names more `.rs` files than it mounts as modules or declares
+    //     in a gated-suite marker.
     let named = code.matches(".rs\"").count();
-    let mounted = code.matches("#[path = \"").count();
+    let mounted = code.matches("#[path = \"").count() + gated_to_names(code);
     // (2) Walks a source tree.
     let walks_a_source_tree = [
         "rust_sources(",
