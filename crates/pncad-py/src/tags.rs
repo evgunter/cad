@@ -306,7 +306,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::MissingSlot { .. } => "missing_slot",
         NodeErrorKind::VerbArity { .. } => "verb_arity",
         NodeErrorKind::Escalated { .. } => "escalated",
-        NodeErrorKind::AxisNotInSketchPlane { .. } => "axis_not_in_sketch_plane",
+        NodeErrorKind::AxisInDifferentPlane { .. } => "axis_in_different_plane",
         NodeErrorKind::NonPositiveCount { .. } => "non_positive_count",
         NodeErrorKind::PlacementsUncertified { .. } => "placements_uncertified",
         NodeErrorKind::PlacementRule(fault) => placement_rule_fault_tag(fault),

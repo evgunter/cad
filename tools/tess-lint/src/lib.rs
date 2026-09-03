@@ -145,21 +145,34 @@
 //! **What it cannot see, measured rather than shaped:** two faces of
 //! one scene agreeing on every identity column and swapping ordinals.
 //! Counted over the SIZED rows — an unsized swap costs rule 2 nothing,
-//! and that restriction is doing the work — the committed baseline has
-//! **8 such pairs, 16 of its 64 sized rows, across 6 of the 12 scenes
-//! carrying a sized face** (`lily_leaf_b` ×2, `lily_leaf_c` ×2,
-//! `lily_sepal_c`, `loft_prism`, `nonuniform_loft`, `s_duct`), each two
-//! walls of one body. Taken across all 1327 rows it is **22,545**.
+//! and that restriction is doing the work: the corpus-wide count is
+//! three orders of magnitude larger and gates nothing.
 //!
-//! And among the sized rows the list is mostly constant, which is the
-//! honest reading of that 8: `chart` is `nurbs` on all 64 and the trim
-//! box is `0e0,1e0,0e0,1e0` on all 64, so **five of the eight entries
-//! discriminate nothing there and the live pair is `nu`/`nv` alone**.
-//! Corpus-wide `chart` and the sizing block do discriminate — six
-//! charts appear, and the reroute they catch is a named case — but a
-//! reader sizing up the hole should size up `(nu, nv)`. Closing it
-//! needs a face identity in a column of the sweep's own, which is
-//! `tess_meter`'s half of the contract.
+//! **The count itself is not written here.** It is a reading of
+//! `docs/tess-budget-data/tess-budget-baseline.csv`, so it moves
+//! whenever that file is re-cut, and a number transcribed into prose
+//! is a number nothing can check. Its one home is
+//! `tests/baseline_census.rs`, which states the sweep's definition
+//! beside its result and re-derives every quantity from the committed
+//! baseline on each `cargo test`: a re-cut that moves the census fails
+//! there and names what moved. That is this crate's own rule-5
+//! discipline one instrument down — the cost of growth is paid by the
+//! growth.
+//!
+//! The SHAPE of the hole, which the cut does not move: each pair is
+//! two walls of one body, and among the sized rows the identity list
+//! is mostly constant — `chart` is `nurbs` on every one of them, the
+//! trim box is the whole unit square on every one, and the sizing
+//! block is "present" on every one because that is what SIZED means,
+//! so **six of the eight entries discriminate nothing there and the
+//! live pair is `nu`/`nv` alone**. Six plus that pair is the whole
+//! list of eight. Corpus-wide `chart` and the sizing block do
+//! discriminate, and the reroute they catch is a named case — but a
+//! reader sizing up the hole should size up `(nu, nv)`. The same test
+//! pins those statements, deriving the split column by column from
+//! [`identity_readings`] rather than spot-checking members of it.
+//! Closing it needs a face identity in a column of the sweep's own,
+//! which is `tess_meter`'s half of the contract.
 //!
 //! **A re-key is a finding where it can cost a measurement**, judged
 //! per SCENE: does either side carry a sized face at all. That is
@@ -177,7 +190,11 @@
 //! sizing columns are therefore admitted or refused where they are
 //! read (`Admissible`, private), per column, and a refused one leaves in the
 //! harness voice — a sweep the lint cannot read is not a tessellation
-//! that got better. Rules 3, 4 and 5 say the same thing one level up:
+//! that got better. One of those refusals is CROSS-column, because one
+//! column cannot state it: `worst_dev` spells "the sweep did not
+//! resample" and "a sample came back `NaN`" identically, and
+//! `dev_samples` is what separates them ([`Deviation`]). Rules 3, 4
+//! and 5 say the same thing one level up:
 //! a comparison that stopped HAPPENING — or never started — is not
 //! growth of any size.
 //!
@@ -243,11 +260,9 @@ pub struct Nurbs {
     pub span_opt_cells: f64,
     /// Worst per-triangle certificate the face emitted.
     pub worst_cert: f64,
-    /// Worst SAMPLED deviation, `None` when the sweep did not
-    /// resample. The CSV spells that `NaN`; the absence is kept in the
-    /// type rather than in a float, so no arithmetic can read it as a
-    /// small number.
-    pub worst_dev: Option<f64>,
+    /// The deviation pass: whether it ran on this face, and what it
+    /// found. See [`Deviation`] — `worst_dev` alone cannot say.
+    pub deviation: Deviation,
     /// Bands the shipped schedule emitted.
     pub bands: f64,
     /// The constraint-activity indicator (TESS-SPLIT): bands whose
@@ -261,6 +276,61 @@ pub struct Nurbs {
     /// line lives at `mesh::nurbs_cert::SAFE_ASPECT` and is read
     /// there, never from a copy in this crate.
     pub realized_aspect: f64,
+}
+
+/// The deviation pass as ONE reading over the two columns that
+/// describe it, `worst_dev` and `dev_samples`.
+///
+/// **`worst_dev` is `NaN` in two different situations and only
+/// `dev_samples` tells them apart.** `mesh::trimmed` seeds `worst_dev`
+/// at `NaN` and accumulates it sticky-NaN, so a face the sweep never
+/// resampled and a face whose resampling returned a `NaN` sample write
+/// the same three characters; `dev_samples` is `0` on the first and
+/// positive on the second. Reading `worst_dev` alone parses genuine
+/// deviation drift as "not resampled" — the loudest reading the
+/// producer emits, arriving as a benign absence.
+///
+/// So the second case is not a variant here: it is REFUSED at the
+/// parse boundary, in the harness voice, the same exit an unreadable
+/// cell count gets and for the same reason ([`Admissible`]). Giving it
+/// a variant would only move the collapse one caller along — every
+/// arithmetic use of it is a division that resolves the drift into an
+/// absent or infinite slack, which is the smallest movement
+/// expressible and passes by construction.
+///
+/// The pairing is a CROSS-COLUMN rule, which is why it lives in
+/// [`parse`] beside the per-column table rather than inside it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Deviation {
+    /// The sweep did not resample this face: `dev_samples` is zero and
+    /// `worst_dev` is `NaN`. Every `--sizing-only` sweep — the one CI
+    /// gates on — is this on every row.
+    NotResampled,
+    /// The sweep resampled and the pass returned a reading.
+    Sampled {
+        /// The worst sampled `|S − Π|`, finite and non-negative. Zero
+        /// is a face whose triangles are exact, which is a reading.
+        worst: f64,
+        /// How many samples `worst` is over: `dev_samples`, always
+        /// positive here.
+        samples: usize,
+    },
+}
+
+impl Deviation {
+    /// The worst sampled deviation, or `None` on a face the sweep did
+    /// not resample.
+    ///
+    /// The one lossy read of this type, and callers that divide by it
+    /// want exactly this: `None` means the pass did not run, and it
+    /// cannot also mean the pass ran and broke, because that row never
+    /// parsed.
+    pub fn worst(self) -> Option<f64> {
+        match self {
+            Self::NotResampled => None,
+            Self::Sampled { worst, .. } => Some(worst),
+        }
+    }
 }
 
 impl Row {
@@ -285,13 +355,17 @@ impl Row {
     ///
     /// **A resampled face that attained EXACTLY zero deviation is not
     /// an absence**, and folding it back into `None` would undo, in
-    /// the first caller, the distinction [`Nurbs::worst_dev`]'s type
+    /// the first caller, the distinction [`Nurbs::deviation`]'s type
     /// exists to draw: it spent none of its budget, which is
     /// `f64::INFINITY`, and [`totals`] reads that as the zero
     /// triangles the extrapolation says such a face needs.
+    ///
+    /// `None` therefore means "the sweep did not resample this face"
+    /// and only that — a face whose resampling could not be read never
+    /// reaches here, having been refused by [`parse`].
     pub fn total_slack(&self) -> Option<f64> {
         self.nurbs
-            .and_then(|n| n.worst_dev)
+            .and_then(|n| n.deviation.worst())
             .map(|dev| self.delta / dev)
     }
 }
@@ -310,8 +384,16 @@ impl Row {
 ///
 /// Absence is a real state for exactly one measured column, and it has
 /// its own spelling: `worst_dev` is `NaN` on every `--sizing-only`
-/// sweep, which is the CI gate's own, so it parses to `None` rather
-/// than to a number.
+/// sweep, which is the CI gate's own, so it parses to
+/// [`Deviation::NotResampled`] rather than to a number.
+///
+/// **That `NaN` is admitted here PROVISIONALLY.** The same three
+/// characters also spell a resampling that returned `NaN`, which is a
+/// broken measurement and gets the refusal this table exists to give —
+/// but telling the two apart needs `dev_samples`, and a per-column
+/// table cannot read a second column. [`parse`] settles it beside this
+/// pass, the same way the trim box's non-degeneracy is settled outside
+/// [`Self::Extent`].
 ///
 /// **A cell count is never absent, and the mechanism differs by
 /// column** — worth stating, because the floor is what the rest of
@@ -337,8 +419,9 @@ enum Admissible {
     /// A certificate: finite and non-negative (zero is a face whose
     /// triangles are exact).
     Certificate,
-    /// A sampled deviation: finite and non-negative, or `NaN` for "the
-    /// sweep did not resample".
+    /// A sampled deviation: finite and non-negative, or `NaN` — which
+    /// is settled against `dev_samples` after this pass, since only
+    /// one of its two meanings is a reading.
     OptionalDeviation,
     /// A constraint-activity count: finite, non-negative (zero is an
     /// inactive constraint, which is a reading).
@@ -417,6 +500,17 @@ const SIZING_COLUMNS: [(&str, Admissible); 6] = [
     ("worst_cert", Admissible::Certificate),
     ("worst_dev", Admissible::OptionalDeviation),
 ];
+
+/// Where `dev_samples` sits in [`EXPECTED_HEADER`] — between the
+/// sizing block and the indicator block, and in neither.
+///
+/// It is a COUNT, not a measurement, so it goes through the same
+/// `usize` read `face` and `triangles` do rather than through
+/// [`Admissible`]: a negative or fractional sample count cannot be
+/// spelled at all, and there is no in-band fallback to refuse. What it
+/// is FOR is [`Deviation`] — it is the only column that says which of
+/// `worst_dev`'s two `NaN`s a row carries.
+const DEV_SAMPLES: usize = 23;
 
 /// Where the constraint-activity indicator block starts in
 /// [`EXPECTED_HEADER`] (TESS-SPLIT D-3), after `dev_samples`.
@@ -679,6 +773,37 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 worst_dev,
             ] = read;
             let [bands, cap_bands, snap_bands, realized_aspect] = ind;
+            // THE CROSS-COLUMN RULE the per-column table cannot state.
+            // `Admissible::OptionalDeviation` admits `NaN` because one
+            // of its two meanings is a real state; `dev_samples` is
+            // what says which meaning this row carries, and the pair
+            // is checked here, once, where both readings are in hand.
+            let dev_samples = idx(DEV_SAMPLES, "dev_samples")?;
+            let deviation = match (dev_samples, worst_dev.is_nan()) {
+                (0, true) => Deviation::NotResampled,
+                (0, false) => {
+                    return Err(ParseError {
+                        line: n,
+                        text: format!(
+                            "worst_dev: {worst_dev:e} over zero deviation samples \
+                             (sweep drift?)"
+                        ),
+                    });
+                }
+                (samples, true) => {
+                    return Err(ParseError {
+                        line: n,
+                        text: format!(
+                            "worst_dev: NaN over {samples} deviation sample(s) — a sample \
+                             that could not be read, not an unresampled sweep (sweep drift?)"
+                        ),
+                    });
+                }
+                (samples, false) => Deviation::Sampled {
+                    worst: worst_dev,
+                    samples,
+                },
+            };
             Some(Nurbs {
                 u0,
                 u1,
@@ -691,7 +816,7 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 opt_cells,
                 span_opt_cells,
                 worst_cert,
-                worst_dev: worst_dev.is_finite().then_some(worst_dev),
+                deviation,
                 bands,
                 cap_bands,
                 snap_bands,
@@ -912,7 +1037,7 @@ pub const GROWTH_TOLERANCE: f64 = 1.05;
 /// "the sizing block" is whether the row carries the Hessian-sized
 /// columns at all — the reroute case, where a face keeps its surface
 /// description and leaves the sized lane.
-const IDENTITY_COLUMNS: [&str; 8] = [
+pub const IDENTITY_COLUMNS: [&str; 8] = [
     "chart",
     "the sizing block",
     "u0",
@@ -970,6 +1095,31 @@ fn identity(r: &Row) -> [Reading<'_>; IDENTITY_COLUMNS.len()] {
         col(|n| n.nu),
         col(|n| n.nv),
     ]
+}
+
+/// One row's reading of [`IDENTITY_COLUMNS`], index for index, in the
+/// form the precondition would ANNOUNCE it — the one shape of this
+/// definition that can be grouped, and the crate's answer to anyone
+/// who needs to key rows by face identity.
+///
+/// `tests/baseline_census.rs` is that anyone. It exists so the census
+/// groups on THIS definition rather than on a transcription of it: a
+/// ninth entry in [`IDENTITY_COLUMNS`] changes this array's length and
+/// the census's grouping with it, which a second copy of the list
+/// could not do.
+///
+/// **It is the precondition's comparison with one documented
+/// divergence.**
+/// Rule 4 compares numbers AS numbers; this renders them, and `-0e0`
+/// and `0e0` render apart. `parse` admits nothing non-finite into
+/// these columns, so the only reachable divergence is that signed
+/// zero, and it can only SPLIT a group — a caller counting equal rows
+/// undercounts rather than over-. A caller that cannot afford even
+/// that must check the sign bits it cares about itself, as the census
+/// does by asserting the trim box is the unit square on every sized
+/// row.
+pub fn identity_readings(r: &Row) -> [String; IDENTITY_COLUMNS.len()] {
+    identity(r).map(Reading::show)
 }
 
 /// Why an ordinal's two rows are not the same face.
@@ -1483,7 +1633,7 @@ mod tests {
     /// zero.
     fn sizing_only(tris: usize, span_opt: f64) -> Vec<Row> {
         let text = with_field(&csv(tris, span_opt), SIZING_FIRST + 5, "NaN");
-        let text = with_field(&text, SIZING_FIRST + SIZING_COLUMNS.len(), "0");
+        let text = with_field(&text, DEV_SAMPLES, "0");
         parse(&text).unwrap()
     }
 
@@ -1515,8 +1665,12 @@ mod tests {
             // A face whose triangles are exact certifies at zero, and
             // a certificate is a length, not a count.
             ("worst_cert", [true, false, false, false, true]),
-            // The one absence with a spelling: NaN is "not resampled".
-            ("worst_dev", [true, false, false, true, true]),
+            // NaN is refused HERE — on this fixture `dev_samples` is
+            // 99, so the NaN is a sample that could not be read, not
+            // an unresampled sweep. The absence has a spelling only
+            // when the two columns agree on it, which is
+            // `the_two_nans_are_told_apart_by_dev_samples`.
+            ("worst_dev", [true, false, false, false, true]),
         ];
         for (k, (name, admitted)) in ADMITTED.iter().enumerate() {
             assert_eq!(*name, SIZING_COLUMNS[k].0, "column {k} of the table");
@@ -1611,6 +1765,15 @@ mod tests {
             "dev_samples",
             "the block ends too early"
         );
+        // The one column in NEITHER block, read by index of its own:
+        // it is a count, and it is the discriminator `Deviation` rests
+        // on, so nothing may slide underneath it either.
+        assert_eq!(cols[DEV_SAMPLES], "dev_samples", "the count moved");
+        assert_eq!(
+            DEV_SAMPLES,
+            SIZING_FIRST + SIZING_COLUMNS.len(),
+            "a column arrived between the sizing block and the count"
+        );
         // …and the indicator block is bracketed the same way: after
         // `dev_samples`, through to the end of the header.
         assert_eq!(
@@ -1683,13 +1846,13 @@ mod tests {
 
     /// The absence that is NOT breakage, and the reason the refusals
     /// above are per column: `worst_dev` is `NaN` on every
-    /// `--sizing-only` sweep, which is the sweep CI gates on. It
-    /// parses, it reports no total slack, and both cell-count rules
-    /// still run over it.
+    /// `--sizing-only` sweep, which is the sweep CI gates on, and
+    /// `dev_samples` is zero there to say so. It parses, it reports no
+    /// total slack, and both cell-count rules still run over it.
     #[test]
     fn a_sizing_only_sweep_still_gates() {
         let base = sizing_only(100, 2.5e1);
-        assert_eq!(base[1].nurbs.unwrap().worst_dev, None);
+        assert_eq!(base[1].nurbs.unwrap().deviation, Deviation::NotResampled);
         assert_eq!(base[1].total_slack(), None);
         assert_eq!(compare(&base, &sizing_only(100, 2.5e1)), Report::default());
         assert_eq!(
@@ -1750,14 +1913,67 @@ mod tests {
     /// A resampled face that attained EXACTLY zero deviation spent
     /// none of its budget: infinite slack, and a reading. `None` still
     /// means "not resampled" and only that — collapsing the two is
-    /// what the `Option` exists to prevent, and the first caller is
+    /// what [`Deviation`] exists to prevent, and the first caller is
     /// where that collapse would happen.
     #[test]
     fn an_exact_face_reports_infinite_slack_not_an_absence() {
         let rows = parse(&with_column(5, "0e0")).unwrap();
-        assert_eq!(rows[1].nurbs.unwrap().worst_dev, Some(0.0));
+        assert_eq!(
+            rows[1].nurbs.unwrap().deviation,
+            Deviation::Sampled {
+                worst: 0.0,
+                samples: 99
+            }
+        );
         assert_eq!(rows[1].total_slack(), Some(f64::INFINITY));
         assert_eq!(totals(&rows)[0].1.total_slack(), Some(f64::INFINITY));
+    }
+
+    /// **The two `NaN`s, told apart.** `worst_dev` alone spells "the
+    /// sweep did not resample" and "a sample came back `NaN`"
+    /// identically; `dev_samples` is what separates them, and the
+    /// second is a measurement that could not be read, so it leaves in
+    /// the harness voice rather than parsing as an absence.
+    ///
+    /// The negative control is the whole test: without the
+    /// `--sizing-only` line below, refusing every `NaN` would pass
+    /// this and break the sweep CI actually gates on.
+    #[test]
+    fn the_two_nans_are_told_apart_by_dev_samples() {
+        // Resampled 99 triangles, and the answer was NaN.
+        let drift = with_field(&csv(100, 2.5e1), SIZING_FIRST + 5, "NaN");
+        let e = parse(&drift).unwrap_err();
+        assert_eq!(e.line, 3);
+        assert!(e.text.contains("worst_dev"), "{}", e.text);
+        assert!(e.text.contains("99 deviation sample"), "{}", e.text);
+        // Not resampled at all: the same `worst_dev`, and a reading.
+        let quiet = with_field(&drift, DEV_SAMPLES, "0");
+        assert_eq!(
+            parse(&quiet).unwrap()[1].nurbs.unwrap().deviation,
+            Deviation::NotResampled
+        );
+        // And the third combination is the producer contradicting
+        // itself: `mesh::trimmed` writes `worst_dev` only from inside
+        // the sample loop, so a reading over zero samples is drift.
+        let e = parse(&with_field(&csv(100, 2.5e1), DEV_SAMPLES, "0")).unwrap_err();
+        assert!(e.text.contains("zero deviation samples"), "{}", e.text);
+    }
+
+    /// `dev_samples` is a COUNT, and a count that cannot be read is
+    /// harness breakage in the same voice: the discriminator being
+    /// unreadable is exactly the case where guessing which `NaN` a row
+    /// carries would be manufacturing a reading.
+    #[test]
+    fn an_unreadable_sample_count_is_harness_breakage() {
+        for bad in ["-1", "1e2", "9.5", "NaN"] {
+            let e = parse(&with_field(&csv(100, 2.5e1), DEV_SAMPLES, bad)).unwrap_err();
+            assert!(e.text.contains("dev_samples"), "{bad}: {}", e.text);
+        }
+        // Blank is the other failure and it is a DIFFERENT one: the
+        // sizing block is all-present or all-absent, so an emptied
+        // count is a half-filled row, refused one check earlier.
+        let e = parse(&with_field(&csv(100, 2.5e1), DEV_SAMPLES, "")).unwrap_err();
+        assert!(e.text.contains("partially filled"), "{}", e.text);
     }
 
     /// [`GROWTH_TOLERANCE`] boxed from BELOW on the triangle rule: a

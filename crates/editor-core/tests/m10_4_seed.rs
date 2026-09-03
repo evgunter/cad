@@ -37,7 +37,6 @@ use editor_core::{
     SeedError, ValuePayload, evaluate, seed_env,
 };
 use geom_core::{Dual64, Tol};
-use profile::SketchPlane;
 
 use fixture::{Recorder, fname, len, wall};
 
@@ -116,12 +115,20 @@ fn two_param_web() -> ProfileDoc {
             value: continuous(0.1),
         },
     );
-    // The plate is node 1 (profile 0 extruded); its distance becomes
-    // the parameter.
+    // The plate is the corpus web's extrude; its distance becomes the
+    // parameter. Found by kind, not by literal id: the sketch frame
+    // is a node too, so a profile's own index is no longer one less
+    // than its extrude's.
+    let plate = doc
+        .order()
+        .iter()
+        .copied()
+        .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
+        .expect("the corpus web extrudes its plate");
     doc = push(
         &doc,
         DocEdit::SetParam {
-            node: RecipeNodeId(1),
+            node: plate,
             slot: editor_core::SlotId::Distance,
             expr: param("depth"),
         },
@@ -169,8 +176,9 @@ fn width_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
         ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(1.0)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: frame,
         loops: vec![chain],
     }));
     let slab = r.insert(Node::Extrude {
@@ -387,11 +395,27 @@ fn the_memo_never_serves_one_parameters_pass_to_another() {
     assert_eq!(threaded.value.to_bits(), fresh.value.to_bits());
     // The nodes downstream of EITHER seed differ in tangent bits
     // between the two passes and must recompute; the rest reuses.
-    let r_cone = corpus::cone(&doc, RecipeNodeId(2))
-        .union(&corpus::cone(&doc, RecipeNodeId(4)))
+    // Each seed's readers by what they READ, not by literal id: the
+    // hole profiles are the programs whose expressions name `hole_r`,
+    // and `depth` drives the plate extrude's distance (set above).
+    let r_cone = doc
+        .order()
+        .iter()
         .copied()
+        .filter(|&id| match doc.node(id) {
+            Some(Node::Profile(p)) => p.references(&name("hole_r")),
+            _ => false,
+        })
+        .flat_map(|id| corpus::cone(&doc, id))
         .collect::<std::collections::BTreeSet<_>>();
-    let d_cone = corpus::cone(&doc, RecipeNodeId(1));
+    let d_cone = corpus::cone(
+        &doc,
+        doc.order()
+            .iter()
+            .copied()
+            .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
+            .expect("the corpus web extrudes its plate"),
+    );
     let either: std::collections::BTreeSet<_> = r_cone.union(&d_cone).copied().collect();
     assert_eq!(on_d_threaded.recomputed, either.len());
     assert_eq!(on_d_threaded.reused, doc.len() - either.len());

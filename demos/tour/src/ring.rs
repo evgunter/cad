@@ -199,23 +199,36 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
         centre: [mm(R_MM), mm(0.0)],
         radius: mm(r_mm),
     };
+    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+    let plane = insert(
+        &mut doc,
+        Node::Datum(Datum::Frame {
+            origin: [mm(0.0), mm(0.0), mm(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane,
             // Outer first, then the holes: the list IS the hole
             // vocabulary, and nothing else here mentions one.
             loops: vec![circle(RO_MM), circle(RI_MM)],
         }),
     );
+    // The axis of revolution, written in the sketch it turns: the
+    // frame's v is world +Y, so this is its own +y through (0, 0).
+    // Four numbers in the frame's coordinates rather than six in the
+    // world's — and no way to write one that leaves the plane.
     let axis = insert(
         &mut doc,
-        Node::Datum(Datum::Axis {
-            origin: [mm(0.0), mm(0.0), mm(0.0)],
+        Node::Datum(Datum::AxisInPlane {
+            plane,
+            origin: [mm(0.0), mm(0.0)],
             direction: [
                 Expr::literal(0.0, Dimension::Scalar).expect("a scalar"),
                 Expr::literal(1.0, Dimension::Scalar).expect("a scalar"),
-                Expr::literal(0.0, Dimension::Scalar).expect("a scalar"),
             ],
         }),
     );

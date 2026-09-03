@@ -33,14 +33,22 @@ fn boxed(
     z0: f64,
     h: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let p = RecipeNodeId(doc.len() as u64);
+    // The FRAME first, so the id predicted for the profile below is
+    // taken after it: this helper reads ids off the document's length,
+    // and a profile now lands one node later than it used to.
+    let plane = RecipeNodeId(doc.len() as u64);
     let doc = push(
         doc,
         &DocEdit::InsertNode {
+            node: fixture::frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        },
+    );
+    let p = RecipeNodeId(doc.len() as u64);
+    let doc = push(
+        &doc,
+        &DocEdit::InsertNode {
             node: Node::Profile(fixture::desc(
-                [0.0, 0.0, z0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
+                plane,
                 vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
             )),
         },
@@ -78,14 +86,19 @@ fn r2_measure_free_content_keys() {
     );
     let (d2, a) = boxed(&d1, (0.0, 1.0), (0.0, 2.0), 0.0, 3.0);
     // A parameter under a slot, so the parameter channel is live.
+    let bplane = RecipeNodeId(d2.len() as u64);
+    let d2 = push(
+        &d2,
+        &DocEdit::InsertNode {
+            node: fixture::frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        },
+    );
     let bp = RecipeNodeId(d2.len() as u64);
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
             node: Node::Profile(fixture::desc(
-                [0.0, 0.0, 1.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
+                bplane,
                 vec![vec![(0.5, 0.5), (1.5, 0.5), (1.5, 2.5), (0.5, 2.5)]],
             )),
         },
