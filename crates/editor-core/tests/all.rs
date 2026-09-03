@@ -155,6 +155,8 @@ mod m10_4_r2_probes_interval;
 mod m10_4_stackup_interval;
 #[path = "m10_5_clearance_interval.rs"]
 mod m10_5_clearance_interval;
+#[path = "m10_5_r1_probes_interval.rs"]
+mod m10_5_r1_probes_interval;
 #[path = "m10_di_dual_corpus.rs"]
 mod m10_di_dual_corpus;
 #[path = "m10_p_fence.rs"]
