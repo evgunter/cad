@@ -247,15 +247,15 @@ fn arc_loft_natively_computes_its_rational_volume() {
     //
     // WHAT THIS ROW ACTUALLY PAYS, so the next reader does not have to
     // re-measure it: (1) this native quadrature; (2) the at-rest gate
-    // INSIDE `import_step` below, which runs the same
-    // `topo::validate_geometric` and its +V invariant; (3) the
-    // `mass_properties` call on the imported body, which is what
-    // produces the number the bit-identity assertion needs — the gate
-    // computes the same flux but hands nothing back, so the two cannot
-    // be shared without a kernel API change; (4) the gate inside the
-    // reversed-DATA re-import. Four, not one. The FIFTH — a
-    // `mass_properties` on the reordered body — was removed on
-    // 2026-08-22 in favour of a body-identity comparison; see that arm.
+    // INSIDE `import_step` below — the tier-3′ door, which computes
+    // the imported body's enclosure to decide its +V invariant and
+    // hands it back as `StepImport::Solid`'s `enclosure`, so the
+    // bit-identity assertion below reads THAT object and no second
+    // quadrature runs on the imported body; (3) the gate inside the
+    // reversed-DATA re-import. Three, not four and not one. The
+    // fourth — a `mass_properties` on the reordered body — was removed
+    // on 2026-08-22 in favour of a body-identity comparison; see that
+    // arm.
     //
     // Tier 3 consumes exactly this number through its +V invariant, and
     // the sweep suite's
@@ -300,15 +300,20 @@ fn arc_loft_natively_computes_its_rational_volume() {
     )
     .expect("the writer exports the rational-walled body");
     match import_step(&text, &ImportOptions::default(), Tol::witness()) {
-        Ok(step_import::StepImport::Solid { body, .. }) => {
+        Ok(step_import::StepImport::Solid {
+            body, enclosure, ..
+        }) => {
             assert!(
                 certified,
                 "an imported Solid means the at-rest gate passed, which means the \
                  quadrature certified — it cannot happen at an ε where the native \
                  body's own flux ran out of schedule"
             );
-            let got = topo::mass_properties(&body, Tol::witness())
-                .expect("imported rational mass properties");
+            // The gate's own enclosure of this body, not a second one:
+            // `import_step` cannot hand back a `Solid` without its
+            // aggregate gate having certified it, and the field IS what
+            // that check decided on.
+            let got = enclosure;
             let want = native_props.expect("the native side certified");
             // **BIT identity, not overlap** (R1 MINOR-2). Overlap is
             // what soundness needs — two certified enclosures of one
