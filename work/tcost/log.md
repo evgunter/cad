@@ -1109,3 +1109,16 @@ duplicate dropped). Program-level lesson, recorded: a kernel unit in
 a TEST-COST program has to price its own suite at every ε in the
 draw, and the orchestrator's brief should have asked for a hosted
 run at the ε where the saving lives.
+
+## Seam: B3's owed after-reading, taken (2026-09-03, 19:35 UTC)
+
+The first PR-context `build + archive` restore under B3's shared keys:
+run 33791378275 (K3's `lane=both` head, 18:36 UTC), both lanes —
+`Cache hit for: v0-rust-build-default-Linux-x64-fa41882e-fd5fb1c1`
+and its interval twin, `full match: true`, restore 14 s / 12 s;
+`build test binaries + archive` 271 s (default) / 325 s (interval)
+against the 820 / 840 s cold figure B3 recorded — the build critical
+path −67 % / −61 % on a branch's first build job, which is the case
+F4's premise was false for. The parity step is green on the same run.
+B3's after-reading is closed; the primer's ~7 billed minutes an hour
+buy this on every PR run after a push to main.
