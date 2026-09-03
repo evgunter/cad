@@ -305,6 +305,18 @@ pub enum SampleOutcome {
     Indeterminate,
     /// The margin was poisoned (NaN).
     Invalid,
+    /// **The symbolic tier answered** (`crate::sym`, ERROR-DESIGN E12):
+    /// the margin's expression is identically zero in the document's
+    /// parameters, so `Zero` was a theorem and no enclosure was
+    /// consulted.
+    ///
+    /// A separate outcome rather than a `Definite(Sign::Zero)` row, and
+    /// the distinction is the whole E12 evidence: this sample's margin
+    /// was never CLASSIFIED against the band, so it is never a rule-1
+    /// in-band landing and never evidence about K. What it is evidence
+    /// about is the ratio of symbolic to numeric decisions, which is
+    /// what the tier exists to move.
+    SymbolicZero,
 }
 
 /// One recorded classification: the raw material of a margin
@@ -356,6 +368,24 @@ fn record(margin: f64, band: Band, outcome: SampleOutcome) {
             });
         }
     });
+}
+
+/// Records one [`SampleOutcome::SymbolicZero`] if a sink is installed —
+/// the symbolic tier's own door into the SAME funnel population
+/// (`crate::sym`'s `Decide` impl calls it where it short-circuits).
+///
+/// `bracket` is the margin's certified bracket, which the caller has in
+/// hand because clause 1 of the theorem just read it; its low end is
+/// recorded as the margin so a reader sees what the numeric channel
+/// would have been handed. A `None` cannot occur on that path and is
+/// recorded as poison rather than fabricated.
+#[cfg(feature = "probe")]
+pub(crate) fn record_symbolic_zero(bracket: Option<(f64, f64)>, band: Band) {
+    record(
+        bracket.map_or(f64::NAN, |(lo, _)| lo),
+        band,
+        SampleOutcome::SymbolicZero,
+    );
 }
 
 /// A transparent `f64` wrapper that records every sign classification —
