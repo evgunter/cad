@@ -14,6 +14,7 @@ use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Tol};
+use test_utils::vacuity;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
@@ -67,8 +68,16 @@ fn drive(weights: &[f64], eps: f64) -> Result<geom_brep::props::quad::FaceCutBou
 /// live on the rational lane at ε = 1e-12. Either outcome is honest;
 /// what the gauge readings check is that the GAUGE stayed silent,
 /// which is true of a refusal too (reaching the line at all is the
-/// reading, since a fire is a panic). The bit readings are taken only
-/// where the face certifies, for the same reason.
+/// reading, since a fire is a panic).
+///
+/// The bit readings carry that same posture rather than fighting it:
+/// their baseline is whichever ε row certifies first, so no particular
+/// band is required to certify, and where fewer than two certify the
+/// row stands down by name through `test_utils::vacuity::stood_down`.
+/// Both halves of that are deliberate — the baseline moves so a
+/// legitimately refusing band cannot red a claim that is not about
+/// postures, and the stand-down is loud so a band that quietly stopped
+/// asserting ε-invariance is visible in the battery log.
 #[test]
 fn r2_dome_gauge_silence_and_area_bit_invariance() {
     let unit = [1.0; 9];
@@ -77,8 +86,11 @@ fn r2_dome_gauge_silence_and_area_bit_invariance() {
     let lane_eps = Tol::witness().get().eps;
 
     type Reading = Result<geom_brep::props::quad::FaceCutBounds, PropsError>;
-    fn at<'a>(memo: &'a mut Vec<((bool, u64), Reading)>, w: &[f64; 9], eps: f64) -> &'a Reading {
-        let key = (w[4] != 1.0, eps.to_bits());
+    type Key = ([u64; 9], u64);
+    // Keyed on the WHOLE weight net, not on a lane flag derived from one
+    // entry: two nets that differ anywhere are two different faces.
+    fn at<'a>(memo: &'a mut Vec<(Key, Reading)>, w: &[f64; 9], eps: f64) -> &'a Reading {
+        let key: Key = (w.map(f64::to_bits), eps.to_bits());
         let idx = match memo.iter().position(|(k, _)| *k == key) {
             Some(i) => i,
             None => {
@@ -88,7 +100,25 @@ fn r2_dome_gauge_silence_and_area_bit_invariance() {
         };
         &memo[idx].1
     }
-    let mut memo: Vec<((bool, u64), Reading)> = Vec::new();
+    let mut memo: Vec<(Key, Reading)> = Vec::new();
+
+    // The ε rows this run drives, deduplicated: on the ε = 1e-6 and
+    // ε = 1e-12 legs the run's own ε IS one of the literals, and the
+    // memo above then pays for that drive once rather than twice.
+    //
+    // 1e-4 is here to keep the bit reading below LIVE on every band.
+    // The dome refuses at 1e-12, so on the ε = 1e-12 leg the two
+    // tighter rows leave at most one certified enclosure and the
+    // reading would stand down with nothing to compare; a band loose
+    // enough that the fixed area schedule always closes it gives every
+    // leg a second certified enclosure. It is the cheapest row here
+    // for the same reason — a loose target closes in few rounds.
+    let mut eps_rows: Vec<f64> = vec![lane_eps];
+    for e in [1e-4f64, 1e-6f64, 1e-12f64] {
+        if !eps_rows.iter().any(|x| x.to_bits() == e.to_bits()) {
+            eps_rows.push(e);
+        }
+    }
 
     // Reading 1 — integral (unit-weight) lane at the run's own ε: an
     // honest face and a silent gauge.
@@ -139,48 +169,51 @@ fn r2_dome_gauge_silence_and_area_bit_invariance() {
         Err(e) => panic!("the mild rational dome should certify or refuse at the budget, got {e}"),
     }
 
-    // Reading 3 — the calibration's ε-invariance premise: the area
-    // enclosure is built BEFORE the round loop, so its bits cannot
-    // move with ε. Integral lane, against the run's ε as the baseline.
-    let (a_lo, a_hi) = {
-        let a = at(&mut memo, &unit, lane_eps)
-            .as_ref()
-            .expect("integral-lane ε-invariance baseline: the dome certifies at the run's ε");
-        (a.area.lo().to_bits(), a.area.hi().to_bits())
-    };
-    {
-        let b = at(&mut memo, &unit, 1e-6)
-            .as_ref()
-            .expect("integral-lane ε-invariance: the dome certifies at ε = 1e-6");
-        assert_eq!(
-            (a_lo, a_hi),
-            (b.area.lo().to_bits(), b.area.hi().to_bits()),
-            "integral-lane area enclosure bits moved between the run's ε and 1e-6"
+    // Readings 3 and 4 — the calibration's ε-invariance premise, per
+    // lane: the area enclosure is built BEFORE the round loop, so its
+    // bits cannot move with ε.
+    //
+    // The baseline is taken from an ε at which the dome CERTIFIES,
+    // never from a fixed one: Readings 1 and 2 above treat a budget
+    // refusal as an honest posture, and a baseline that demanded a
+    // certified return at one particular ε would contradict them —
+    // one legitimately refusing band would take down all four
+    // readings. When fewer than two ε rows certify there is no second
+    // enclosure to compare against, and the row stands down BY NAME
+    // through the tree's door rather than asserting nothing in
+    // silence or reddening on a posture that is not its subject.
+    for (lane, w) in [("integral lane", &unit), ("rational lane", &rational)] {
+        let mut certified: Vec<(f64, (u64, u64))> = Vec::new();
+        for eps in &eps_rows {
+            if let Ok(fb) = at(&mut memo, w, *eps) {
+                certified.push((*eps, (fb.area.lo().to_bits(), fb.area.hi().to_bits())));
+            }
+        }
+        if certified.len() < 2 {
+            vacuity::stood_down(
+                &format!("r2 dome area-bit ε-invariance, {lane}"),
+                &format!(
+                    "the dome certifies at {} of the {} ε rows this run drives, so there is \
+                     no second certified enclosure to compare against — the ε-invariance of \
+                     the area enclosure is NOT asserted for this lane on this band",
+                    certified.len(),
+                    eps_rows.len()
+                ),
+            );
+            continue;
+        }
+        let (e0, bits0) = certified[0];
+        for (e, bits) in &certified[1..] {
+            assert_eq!(
+                bits0, *bits,
+                "{lane}: the area enclosure bits moved between ε = {e0:e} and ε = {e:e}, but \
+                 the enclosure is built before the round loop and cannot depend on ε"
+            );
+        }
+        println!(
+            "R2 dome {lane}: area bits identical across {} certified ε rows",
+            certified.len()
         );
-    }
-    match at(&mut memo, &unit, 1e-12) {
-        Ok(c) => assert_eq!(
-            (a_lo, a_hi),
-            (c.area.lo().to_bits(), c.area.hi().to_bits()),
-            "integral-lane area enclosure bits moved between the run's ε and 1e-12"
-        ),
-        Err(e) => println!("R2 eps=1e-12: honest refusal ({e}) — superset direction observed"),
-    }
-
-    // Reading 4 — the same premise on the rational lane.
-    let (r_lo, r_hi) = {
-        let ra = at(&mut memo, &rational, 1e-6)
-            .as_ref()
-            .expect("rational-lane ε-invariance baseline: the dome certifies at ε = 1e-6");
-        (ra.area.lo().to_bits(), ra.area.hi().to_bits())
-    };
-    match at(&mut memo, &rational, 1e-12) {
-        Ok(rb) => assert_eq!(
-            (r_lo, r_hi),
-            (rb.area.lo().to_bits(), rb.area.hi().to_bits()),
-            "rational-lane area enclosure bits moved between ε = 1e-6 and ε = 1e-12"
-        ),
-        Err(e) => println!("R2 rational eps=1e-12: honest refusal ({e})"),
     }
 }
 

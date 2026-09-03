@@ -203,13 +203,14 @@ fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
 /// so it is built and evaluated inside the `Ok` arm only: a typed
 /// refusal has no bracket to compare against.
 ///
-/// Two resolutions, `cells` and `2 * cells`, are computed and must
-/// agree before either is believed. Cells never straddle a knot, so
-/// the integrand on one is smooth and composite 5-point
-/// Gauss-Legendre converges as `h^10`: the observed gap between the
-/// two therefore bounds the FINER value's own error by that gap over
-/// `2^10 - 1`. 8-against-16 leaves that bound at 1e-12 relative,
-/// three orders below the 1e-9 the containment slack needs.
+/// Two resolutions, 8 and 16 cells per span, are computed and must
+/// agree to 1e-9 relative before either is believed, which leaves the
+/// 16-cell value's own error bounded at ~1e-12 relative — three orders
+/// below what the containment slack needs. The argument for why two
+/// rungs a factor of two apart settle that is written once, on
+/// `Patch::dense` in `crates/geom-brep/tests/cert5_r1_patch_probes.rs`;
+/// the oracle in THIS file is an independent spelling of the same
+/// rule, and shares nothing with that one but the reasoning.
 fn drive(
     name: &str,
     ku: &KnotVector,
@@ -432,6 +433,72 @@ fn knot_one_ulp_inside_the_rectangle_edge() {
     let kv = kv_offgrid_deg2_v();
     let (cp, ws) = tile(&ku, &kv, &|i, j| 1.0 + 0.20 * i as f64 + 0.13 * j as f64);
     drive("knot 1 ulp inside rect edge", &ku, &kv, &cp, &ws);
+}
+
+/// **The knot-aligned cut list, under many interior knots off the
+/// dyadic grid.** The cut list is `pieces + blocks + knots` per axis
+/// and the coarse hull grid is `(blocks + knots)²` blocks, so twelve
+/// interior knots per axis is the shape that exercises that
+/// arithmetic. Every other row in this file drives two or three, and
+/// two or three knots cannot separate a cut list that honours knots
+/// from one that does not: the claim here is the soundness of the
+/// cut list at a knot count where the cut points genuinely crowd the
+/// block edges. What is asserted is `drive`'s whole contract — a
+/// certified bracket CONTAINS the independent oracle, a refusal is an
+/// honest typed posture with a finite width above target.
+///
+/// **Cost, and where it belongs.** This row is expensive for the
+/// KERNEL's reason, not the oracle's: at a band where it refuses it
+/// builds no oracle at all and the row is one `nurbs_patch_face` call
+/// running the refinement schedule to its end — the exhausted-budget
+/// path TCOST-K1 is cutting. It is also the first candidate for the
+/// TCOST-1 per-file gate, whose marker would name
+/// `crates/geom-brep/src/props/quad.rs`, the cut list and hull grid
+/// this row is specific to.
+#[test]
+fn many_offgrid_knots_per_axis_stay_sound() {
+    let mk = |seed: f64| -> KnotVector {
+        let mut k = vec![0.0, 0.0, 0.0];
+        for i in 1..=12 {
+            // generic, strictly increasing, off any dyadic grid
+            k.push((i as f64 + seed) / 13.37);
+        }
+        k.extend([1.0, 1.0, 1.0]);
+        KnotVector::clamped(k, 2).unwrap()
+    };
+    let (ku, kv) = (mk(0.11), mk(0.29));
+    let (cp, ws) = tile(&ku, &kv, &|i, j| 1.0 + 0.05 * i as f64 + 0.03 * j as f64);
+    drive("12+12 off-grid knots", &ku, &kv, &cp, &ws);
+}
+
+/// The same knot count with every interior knot ON the dyadic grid,
+/// where the engine's own block edges already sit: the cut points
+/// COINCIDE instead of crowding, which is the opposite degeneracy of
+/// the row above and the one that would expose a cut list that
+/// double-counts or drops a zero-width cell.
+///
+/// `sweep::cert5_offgrid_knot_rational::dyadic_knots_were_free_and_stay_free`
+/// is not this row's owner, which is why it is here: that row does
+/// assert containment on a dyadic-knot body through the body door, but
+/// its blade carries TWO interior v knots (5 stations at degree 2), so
+/// it never reaches the coincident-cut regime this one is about.
+///
+/// Same cost note as the row above: kernel-bound at a refusing band,
+/// TCOST-K1's subject, and a TCOST-1 gate candidate naming
+/// `crates/geom-brep/src/props/quad.rs`.
+#[test]
+fn many_dyadic_knots_per_axis_stay_sound() {
+    let mk = || -> KnotVector {
+        let mut k = vec![0.0, 0.0, 0.0];
+        for i in 1..=12 {
+            k.push(i as f64 / 16.0);
+        }
+        k.extend([1.0, 1.0, 1.0]);
+        KnotVector::clamped(k, 2).unwrap()
+    };
+    let (ku, kv) = (mk(), mk());
+    let (cp, ws) = tile(&ku, &kv, &|i, j| 1.0 + 0.05 * i as f64 + 0.03 * j as f64);
+    drive("12+12 dyadic knots", &ku, &kv, &cp, &ws);
 }
 
 /// **The isolation control for the sliver finding.** One interior v

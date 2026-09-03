@@ -217,10 +217,9 @@ fn a_genuine_c0_jump_stays_contained() {
     // The truth, from the independent plain-`f64` Cox-de-Boor +
     // Gauss-Legendre oracle in `cert5_r1_patch_probes.rs` — computed
     // here rather than pinned, and believed only after it agrees
-    // between two resolutions. Cells never straddle a knot, so the
-    // 5-point composite rule is `h^10`-convergent on each and the gap
-    // between the two bounds the finer value's error by that gap over
-    // `2^10 - 1`.
+    // between two resolutions a factor of two apart. Why that settles
+    // it is `Patch::dense`'s own doc, in
+    // `crates/geom-brep/tests/cert5_r1_patch_probes.rs`.
     let pa = crate::cert5_r1_patch_probes::oracle_patch(&ku, &kv, &control, &weights);
     let (f12, _) = pa.dense(12);
     let (f24, _) = pa.dense(24);
