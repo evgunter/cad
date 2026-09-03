@@ -362,3 +362,18 @@ rebinds: list[str] = evaluate(doc).resolve("a face").offers  # ty: error
 # The status is a stable tag STRING, not the kind enum: "which of the
 # three states" and "what kind of entity" are different questions.
 tag: EntityKind = evaluate(doc).resolve("a face").status  # ty: error
+# The two evaluators are not interchangeable and neither takes text:
+# an expression is a VALUE, built by the document that declares the
+# parameters it references.
+doc.eval("width / 2.0")  # ty: error
+doc.eval_count("4")  # ty: error
+
+# `eval` answers a quantity where the expression is dimensioned, so
+# reading it as a bare float is the same dimension mistake the
+# quantity boundary catches elsewhere.
+plain: float = doc.eval(doc.parse_expr("1 m"))  # ty: error
+
+# NOT here, deliberately: an expression is unhashable on purpose
+# (equality is an IEEE comparison of the literals inside it), and `ty`
+# does not check hashability of a set member, so the pin would be a
+# comment wearing a marker. `tests/test_expressions.py` executes it.

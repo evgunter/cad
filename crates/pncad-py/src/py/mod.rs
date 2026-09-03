@@ -3,6 +3,7 @@
 mod assembly;
 mod checks;
 mod doc;
+mod expr;
 mod flush;
 mod mate;
 mod mesh;
@@ -64,13 +65,15 @@ pyo3::create_exception!(
      the operator and the two dimension tags.\n\n\
      This is the quantity boundary only, and it is not the only \
      dimension check in the library. The document layer has its own \
-     refusal type, which reaches Python two ways: through literal \
-     construction, raising `LiteralError`; and through `load`, where \
-     a save file's ill-dimensioned expression — a genuine mismatch — \
-     arrives as `PersistError` with `variant == \"parse\"` rather \
-     than as any dimension class (issue #694). So `DimensionError` \
-     does not intercept an expression-layer mismatch, and nothing \
-     else does either yet."
+     refusal type, which reaches Python three ways: through literal \
+     construction, raising `LiteralError`; through `Doc.parse_expr`, \
+     raising `ParseError` with `variant == \"dimension\"` and the \
+     mismatch's own tag as `kind`; and through `load`, where a save \
+     file's ill-dimensioned expression arrives as `PersistError` \
+     with `variant == \"parse\"` rather than as any dimension class \
+     (issue #694). So `DimensionError` never intercepts an \
+     expression-layer mismatch — the text door is where one is \
+     branchable."
 );
 pyo3::create_exception!(
     pncad,
@@ -81,10 +84,41 @@ pyo3::create_exception!(
      of the refusing arm.\n\n\
      Not `DimensionError`: that one is the quantity boundary's \
      operator check. The expression layer's refusal type has \
-     dimension-mismatch arms too, and `load` DOES reach them from a \
-     hand-edited save file — but they arrive as `PersistError` with \
-     `variant == \"parse\"`, not here (issue #694). Every `kind` \
-     raised on this class is a literal-value refusal."
+     dimension-mismatch arms too, and two other doors reach them — \
+     `load` from a hand-edited save file (as `PersistError` with \
+     `variant == \"parse\"`, issue #694) and `Doc.parse_expr` from \
+     source text (as `ParseError`). Every `kind` raised on THIS \
+     class is a literal-value refusal."
+);
+pyo3::create_exception!(
+    pncad,
+    ParseError,
+    PncadError,
+    "`Doc.parse_expr` could not read the source as an expression. \
+     Carries `variant`, the stable tag of the refusing arm, and \
+     `pos`, the byte offset in the source — which for a parser is \
+     the recourse, since it says WHERE to edit.\n\n\
+     The arm's own payload rides beside them and is `None` on the \
+     arms that do not carry it: `char`, `expected`, `found`, `text`, \
+     `symbol`, `name`, `arity`/`given` (a function's declared arity \
+     and the count supplied), and `kind`. That last one is the \
+     dimension checker's tag, on `variant == \"dimension\"` — the \
+     text door runs every smart constructor, so a reduction the \
+     checker refuses arrives here rather than as `LiteralError`, \
+     with the position a `LiteralError` has nowhere to put."
+);
+pyo3::create_exception!(
+    pncad,
+    EvalError,
+    PncadError,
+    "`Doc.eval` or `Doc.eval_count` refused an expression. Carries \
+     `variant`, the stable tag of the refusing arm, plus `name` (the \
+     parameter at fault), `expected` and `found` (dimension tags) \
+     and `count`, each `None` where the arm does not carry it.\n\n\
+     Numeric domain is NOT here: division by zero and out-of-domain \
+     trig are not refusals in the expression layer — the evaluator \
+     has no branches to hide them behind — and reach a caller as \
+     `non_finite_result` on the finished value instead."
 );
 pyo3::create_exception!(
     pncad,
@@ -379,6 +413,17 @@ pyo3::create_exception!(
 /// makes the rule hold for doors written after it rather than only
 /// for the ones it was written for.
 ///
+/// **One attribute name is unusable: `args`.** It is
+/// `BaseException`'s own, and CPython requires it to be a tuple, so
+/// setting it to anything else — `None` included, which is what the
+/// "every field on every arm" shape puts on the arms that do not
+/// carry it — raises `TypeError: 'NoneType' object is not iterable`
+/// from inside the raise itself. Found at LIB-B-EXPR-READ, where
+/// `WrongArity`'s argument count wanted the name; it is `given`
+/// there instead. The rest of `BaseException`'s surface
+/// (`with_traceback`, `add_note`, `__notes__`) is method- or
+/// dunder-shaped and no payload has wanted one.
+///
 /// It is a `debug_assert`, which in this workspace is live in every
 /// profile — the root manifest keeps them on under release too — so it
 /// runs over every door the Python suite exercises and stays on in a
@@ -404,6 +449,8 @@ pub(crate) fn typed_err(
         ErrorClass::Validation => ValidationError::new_err(message),
         ErrorClass::Dimension => DimensionError::new_err(message),
         ErrorClass::Literal => LiteralError::new_err(message),
+        ErrorClass::Parse => ParseError::new_err(message),
+        ErrorClass::Eval => EvalError::new_err(message),
         ErrorClass::Persist => PersistError::new_err(message),
         ErrorClass::Export => ExportError::new_err(message),
         ErrorClass::Tessellate => TessellateError::new_err(message),
@@ -458,6 +505,8 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ValidationError", py.get_type::<ValidationError>())?;
     m.add("DimensionError", py.get_type::<DimensionError>())?;
     m.add("LiteralError", py.get_type::<LiteralError>())?;
+    m.add("ParseError", py.get_type::<ParseError>())?;
+    m.add("EvalError", py.get_type::<EvalError>())?;
     m.add("PersistError", py.get_type::<PersistError>())?;
     m.add("ExportError", py.get_type::<ExportError>())?;
     m.add("TessellateError", py.get_type::<TessellateError>())?;
@@ -484,6 +533,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     path::register(m)?;
     place::register(m)?;
     doc::register(m)?;
+    expr::register(m)?;
     select::register(m)?;
     readback::register(m)?;
     pick::register(m)?;

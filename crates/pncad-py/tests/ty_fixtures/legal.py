@@ -9,6 +9,7 @@ the guide's own executed blocks.
 from pncad import (
     Advisory,
     Alignment,
+    Angle,
     ArcSweep,
     Assembly,
     AxisSense,
@@ -29,6 +30,7 @@ from pncad import (
     ClusterMaintenance,
     Denotation,
     HitTestError,
+    Expr,
     TubeWindow,
     Doc,
     DocEdit,
@@ -486,3 +488,14 @@ in_body: int | None = standing.body
 denotes: EntityKind | None = standing.kind
 why: str | None = standing.detail
 suggested: list[str] | None = standing.offers
+# The expression READ side: text in through the document that declares
+# the parameters, a dimension-checked tree out, and a DIMENSIONED
+# value back. `eval` answers the quantity the expression measures, so
+# the union is narrowed by what the caller knows about the source.
+derived: Expr = doc.parse_expr("1 m + 2 mm")
+reads_back: str = derived.text
+measures: str = derived.dimension
+depends_on: list[ParamName] = derived.params
+bare: float | None = derived.literal_value
+worth: Length | Angle | float = doc.eval(derived)
+how_many: int = doc.eval_count(doc.parse_expr("4"))
