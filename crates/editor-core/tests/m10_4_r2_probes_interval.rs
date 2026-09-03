@@ -58,6 +58,15 @@ use geom_core::{CertifiedEnclosure, Dual64, Tol};
 
 use fixture::{Recorder, fname, len, scl, wall};
 
+/// The bore/pin worst-case hull's enclosure padding per analyzed
+/// half-width, measured at every CI ε row (see the consumer-walk row).
+/// A bound, not a target — if it grows, the question is why the lane
+/// widened.
+const BORE_PIN_PADDING_PER_HALF_WIDTH: f64 = 1.0;
+/// The rounding on top of the dependency padding (measured ~1e-15 at
+/// the 1e-12 row, where it is largest relative to the half-width).
+const BORE_PIN_ROUNDING: f64 = 1.0e-14;
+
 fn eps() -> f64 {
     Tol::witness().eps()
 }
@@ -997,8 +1006,7 @@ fn the_shared_prior_does_not_move_the_hull() {
     // rather than parameter spread. Measured at `fc8de0ac`: hull width
     // 1.75e-9 against a true range of 5e-10 — 3.5×, i.e. ~1.25 ε of
     // padding, which is what a consumer reads as "worst case" at this
-    // scale. (The unit's e2e row tolerates `4·half + 1e-9`: a slack of
-    // one ε, twice the quantity it bounds.)
+    // scale.
     println!(
         "hull width {:e} vs true range {:e} (ratio {:.2}); padding {:e} = {:.2} ε",
         hi - lo,
@@ -1263,8 +1271,29 @@ fn the_bore_pin_fit_as_a_consumer_reads_it() {
     assert_eq!(row.contribution, Ok(half));
     let wc = report.worst_case;
     assert!(wc.lo <= report.nominal && report.nominal <= wc.hi);
+    // The hull ENCLOSES the true range `0.2 ± half` (the gap is linear
+    // in the radius with slope −1) and exceeds it by the interval
+    // lane's enclosure padding alone. The padding is proportional to
+    // the box, not to ε: measured at every CI ε row (default, 1e-6,
+    // 1e-12) the hull is 3·half wide — 2·half of spread plus exactly
+    // 1·half of padding (3.000, 3.000, 3.003 × half) — so the bound is
+    // stated per half-width plus the rounding of a 0.2-scale quantity
+    // through a few dozen outward-rounded operations (~1e-15). No
+    // absolute slack: an ε-independent term says nothing at the tight
+    // rows and the wrong thing at the loose ones (issue 1646).
     assert!(wc.lo <= 0.2 - half && wc.hi >= 0.2 + half, "{wc:?}");
-    assert!(wc.hi - wc.lo <= 2.0 * half + 1e-9, "{wc:?}");
+    let padding = (wc.hi - wc.lo) - 2.0 * half;
+    println!(
+        "EVIDENCE-ONLY worst-case padding: hull width {:e}, true range {:e}, padding {padding:e} \
+         ({:.3} half-widths)",
+        wc.hi - wc.lo,
+        2.0 * half,
+        padding / half
+    );
+    assert!(
+        padding <= BORE_PIN_PADDING_PER_HALF_WIDTH * half + BORE_PIN_ROUNDING,
+        "padding {padding:e} exceeds the measured bound: {wc:?}"
+    );
     match report.rss {
         Rss::Advisory { sigma } => {
             let expect = (2.0 * half) / 12f64.sqrt();
