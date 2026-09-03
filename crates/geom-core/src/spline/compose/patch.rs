@@ -39,12 +39,19 @@
 //!
 //! # Degree budget
 //!
-//! Every product routes through `super::bern_mul_row`, whose
-//! exactness cap (`BINOM_EXACT_MAX`) bounds the per-direction
-//! degree a product may reach; beyond it the binomial row is
-//! all-poison and every hull is `NaN`, which fails every `≤ ε`
-//! certification loudly (D4 ¶2). Work per cell scales as
-//! `(a+1)(c+1)` row products of length `O(b + d)`.
+//! Every product routes through `super::bern_mul_row_into` (and
+//! `super::bern_mul_row_with` for degree elevation) over the weight
+//! tables `super::bern_weights` serves, whose exactness cap
+//! (`BINOM_EXACT_MAX`) bounds the per-direction degree a product may
+//! reach; beyond it the binomial row is all-poison and every hull is
+//! `NaN`, which fails every `≤ ε` certification loudly (D4 ¶2). Work
+//! per cell scales as `(a+1)(c+1)` row products of length `O(b + d)`.
+//!
+//! Those tables are functions of the degrees alone, so each entry
+//! point looks them up ONCE for the whole patch and hands them down
+//! to the per-cell loop; the table carries the degree pair it was
+//! built for, so a table reaching the wrong direction announces
+//! itself rather than answering.
 //!
 //! # C6 and poison
 //!
@@ -53,8 +60,11 @@
 //! samples anything.
 
 use super::super::knots::KnotVector;
-use super::{bern_mul_row_into, bern_mul_row_with, bern_weights, to_bezier_spans_extra};
+use super::{
+    BernWeights, bern_mul_row_into, bern_mul_row_with, bern_weights, to_bezier_spans_extra,
+};
 use crate::ring_interval::RingInterval;
+use std::borrow::Cow;
 
 /// One scalar channel of a tensor-product spline in per-cell Bernstein
 /// form: `cell(su, sv)` holds `(deg_u + 1)·(deg_v + 1)` ring
@@ -218,7 +228,7 @@ impl PatchSpans {
 
     /// This channel raised to bidegree `(du, dv)` — Bernstein degree
     /// elevation as multiplication by the constant `1` at the missing
-    /// degree, which is exactly what `super::bern_mul_row`'s
+    /// degree, which is exactly what `super::bern_mul_row_with`'s
     /// binomial-quotient product computes (and is exact in ℝ).
     /// Returns `self` unchanged when it is already there; poison when
     /// asked to LOWER a degree.
@@ -229,15 +239,16 @@ impl PatchSpans {
         if du == self.deg_u && dv == self.deg_v {
             return self.clone();
         }
-        let one = RingInterval::one();
-        let pad_u = du - self.deg_u;
-        let pad_v = dv - self.deg_v;
+        // The multipliers are functions of the degrees alone, so one
+        // set of them serves every cell of this elevation — the same
+        // lever `mul` pulls one altitude up.
+        let pads = ElevationPads::new((self.deg_u, self.deg_v), (du - self.deg_u, dv - self.deg_v));
         let cells = self
             .cells
             .iter()
             .map(|row| {
                 row.iter()
-                    .map(|block| elevate_block(block, self.deg_u, self.deg_v, pad_u, pad_v, one))
+                    .map(|block| elevate_block(block, self.deg_u, self.deg_v, &pads))
                     .collect()
             })
             .collect();
@@ -350,41 +361,62 @@ impl PatchSpans {
     }
 }
 
+/// Degree elevation's per-direction multiplier: the all-ones row of
+/// the padding degree and the weight table its product reads, or
+/// `None` in a direction with no padding, which multiplies by nothing.
+///
+/// Both are functions of the degrees alone, so they are built once per
+/// patch rather than once per cell (and not at all in an unpadded
+/// direction). Nothing about the arithmetic moves: the same rows and
+/// the same table entries reach the same fold in the same order.
+type ElevationPad = Option<(Vec<RingInterval>, Cow<'static, BernWeights>)>;
+
+/// The two directions' multipliers for one elevation.
+struct ElevationPads {
+    u: ElevationPad,
+    v: ElevationPad,
+}
+
+impl ElevationPads {
+    fn new((deg_u, deg_v): (usize, usize), (pad_u, pad_v): (usize, usize)) -> Self {
+        let dir = |deg: usize, pad: usize| {
+            (pad > 0).then(|| (vec![RingInterval::one(); pad + 1], bern_weights(deg, pad)))
+        };
+        Self {
+            u: dir(deg_u, pad_u),
+            v: dir(deg_v, pad_v),
+        }
+    }
+}
+
 /// One cell's Bernstein degree elevation, `u` then `v`, each as a
 /// product with the all-ones row of the padding degree.
 fn elevate_block(
     block: &[RingInterval],
     deg_u: usize,
     deg_v: usize,
-    pad_u: usize,
-    pad_v: usize,
-    one: RingInterval,
+    pads: &ElevationPads,
 ) -> Vec<RingInterval> {
     let nv = deg_v + 1;
-    // v-direction first, per u index. One weight table and one
-    // all-ones row serve every index: both are functions of the
-    // degrees alone.
-    let ones_v = vec![one; pad_v + 1];
-    let wv = bern_weights(deg_v, pad_v);
+    // v-direction first, per u index.
     let mut rows: Vec<Vec<RingInterval>> = (0..=deg_u)
         .map(|i| {
             let row = &block[i * nv..(i + 1) * nv];
-            if pad_v == 0 {
-                row.to_vec()
-            } else {
-                bern_mul_row_with(row, &ones_v, &wv)
+            match &pads.v {
+                None => row.to_vec(),
+                Some((ones, w)) => bern_mul_row_with(row, ones, w),
             }
         })
         .collect();
-    if pad_u > 0 {
+    if let Some((ones, w)) = &pads.u {
         let width = rows.first().map_or(0, Vec::len);
-        let ones = vec![one; pad_u + 1];
-        let wu = bern_weights(deg_u, pad_u);
+        // `ones.len() == pad_u + 1`, so the elevated u-extent is
+        // `deg_u + pad_u + 1`.
         let mut out: Vec<Vec<RingInterval>> =
-            vec![vec![RingInterval::zero(); width]; deg_u + pad_u + 1];
+            vec![vec![RingInterval::zero(); width]; deg_u + ones.len()];
         for k in 0..width {
             let col: Vec<RingInterval> = rows.iter().map(|r| r[k]).collect();
-            let elevated = bern_mul_row_with(&col, &ones, &wu);
+            let elevated = bern_mul_row_with(&col, ones, w);
             for (j, e) in elevated.iter().enumerate() {
                 out[j][k] = *e;
             }
@@ -396,14 +428,15 @@ fn elevate_block(
 
 /// One cell's tensor Bernstein product (module docs): the v-direction
 /// row product for every `(i, k)` u-index pair, accumulated into the
-/// u-convolution slot `r = i + k` with the u-binomial quotient weight.
+/// u-convolution slot `r = i + k` with the u-binomial quotient weight,
+/// both read out of the tables the whole product shares.
 fn mul_block(
     ba: &[RingInterval],
     bb: &[RingInterval],
     (a, b): (usize, usize),
     (c, d): (usize, usize),
-    wu: &[Vec<RingInterval>],
-    wv: &[Vec<RingInterval>],
+    wu: &BernWeights,
+    wv: &BernWeights,
 ) -> Vec<RingInterval> {
     let (nb, nd) = (b + 1, d + 1);
     let out_v = b + d + 1;
@@ -418,7 +451,9 @@ fn mul_block(
             let row_b = &bb[k * nd..(k + 1) * nd];
             bern_mul_row_into(row_a, row_b, wv, &mut prod);
             let r = i + k;
-            let w = wu[r][i - r.saturating_sub(c)];
+            // `at` carries the `lo(r)` convention with the table, so
+            // this lookup cannot disagree with the fold's keying.
+            let w = wu.at(r, i);
             for (t, p) in prod.iter().enumerate() {
                 out[r * out_v + t] = out[r * out_v + t] + *p * w;
             }
@@ -430,7 +465,184 @@ fn mul_block(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod tests {
+    use super::super::binom_row;
+    use super::super::tests::{bern_mul_row_base, same_bits};
     use super::*;
+
+    /// A patch of bidegree `(du, dv)` with one interior break in each
+    /// direction, decomposed. Every operand here shares the same two
+    /// break values whatever its degrees, so any two are aligned.
+    fn decomposed_at(du: usize, dv: usize, seed: f64) -> PatchSpans {
+        let clamped = |d: usize, interior: f64| {
+            let mut k = vec![0.0; d + 1];
+            k.push(interior);
+            k.resize(2 * d + 3, 1.0);
+            KnotVector::clamped(k, d).unwrap()
+        };
+        let ku = clamped(du, 0.4);
+        let kv = clamped(dv, 0.6);
+        let (nu, nv) = (ku.control_count(), kv.control_count());
+        let grid: Vec<RingInterval> = (0..nu * nv)
+            .map(|n| {
+                let c = (n as f64 - 5.0) * seed / 3.0;
+                RingInterval::from_bounds(c - 2e-14, c + 5e-14)
+            })
+            .collect();
+        PatchSpans::decompose(&ku, &kv, &grid, &[], &[])
+    }
+
+    /// [`mul_block`] as it was before the weight tables existed: the
+    /// pre-memo convolution in the v direction, and the u weight
+    /// rebuilt as a ring quotient per `(i, k)` pair — the retired
+    /// spelling, verbatim, so the rows below pin the hoisted tables
+    /// against the code they replaced.
+    fn mul_block_base(
+        ba: &[RingInterval],
+        bb: &[RingInterval],
+        (a, b): (usize, usize),
+        (c, d): (usize, usize),
+    ) -> Vec<RingInterval> {
+        let bin_a = binom_row(a);
+        let bin_c = binom_row(c);
+        let bin_ac = binom_row(a + c);
+        let (nb, nd) = (b + 1, d + 1);
+        let out_v = b + d + 1;
+        let mut out = vec![RingInterval::zero(); (a + c + 1) * out_v];
+        for i in 0..=a {
+            let row_a = &ba[i * nb..(i + 1) * nb];
+            for k in 0..=c {
+                let row_b = &bb[k * nd..(k + 1) * nd];
+                let prod = bern_mul_row_base(row_a, row_b);
+                let r = i + k;
+                let w = RingInterval::point(bin_a[i] * bin_c[k]) / RingInterval::point(bin_ac[r]);
+                for (t, p) in prod.iter().enumerate() {
+                    out[r * out_v + t] = out[r * out_v + t] + *p * w;
+                }
+            }
+        }
+        out
+    }
+
+    /// [`elevate_block`] as it was before the weight tables existed.
+    fn elevate_block_base(
+        block: &[RingInterval],
+        deg_u: usize,
+        deg_v: usize,
+        pad_u: usize,
+        pad_v: usize,
+    ) -> Vec<RingInterval> {
+        let one = RingInterval::one();
+        let nv = deg_v + 1;
+        let mut rows: Vec<Vec<RingInterval>> = (0..=deg_u)
+            .map(|i| {
+                let row = &block[i * nv..(i + 1) * nv];
+                if pad_v == 0 {
+                    row.to_vec()
+                } else {
+                    bern_mul_row_base(row, &vec![one; pad_v + 1])
+                }
+            })
+            .collect();
+        if pad_u > 0 {
+            let width = rows.first().map_or(0, Vec::len);
+            let ones = vec![one; pad_u + 1];
+            let mut out: Vec<Vec<RingInterval>> =
+                vec![vec![RingInterval::zero(); width]; deg_u + pad_u + 1];
+            for k in 0..width {
+                let col: Vec<RingInterval> = rows.iter().map(|r| r[k]).collect();
+                let elevated = bern_mul_row_base(&col, &ones);
+                for (j, e) in elevated.iter().enumerate() {
+                    out[j][k] = *e;
+                }
+            }
+            rows = out;
+        }
+        rows.concat()
+    }
+
+    /// The product hoists ONE weight table per direction to the whole
+    /// patch, so the two tables have to stay told apart — and on a
+    /// symmetric bidegree they are the same table, which no comparison
+    /// against itself can see. Asymmetric bidegrees in both operands,
+    /// against the pre-memo convolution: every coefficient of every
+    /// cell, bitwise.
+    #[test]
+    fn an_asymmetric_products_coefficients_are_the_pre_memo_convolution() {
+        for ((au, av), (bu, bv)) in [((1, 3), (3, 1)), ((2, 4), (4, 2)), ((3, 1), (1, 2))] {
+            let a = decomposed_at(au, av, 1.0);
+            let b = decomposed_at(bu, bv, -0.7);
+            let p = a.mul(&b);
+            let (nu, nv) = p.cell_counts();
+            assert!(nu > 1 && nv > 1, "the fixture must have interior breaks");
+            assert_eq!(
+                (p.deg_u, p.deg_v),
+                (au + bu, av + bv),
+                "product bidegree of ({au}, {av}) × ({bu}, {bv})"
+            );
+            for su in 0..nu {
+                for sv in 0..nv {
+                    let want =
+                        mul_block_base(&a.cells[su][sv], &b.cells[su][sv], (au, av), (bu, bv));
+                    let got = &p.cells[su][sv];
+                    assert_eq!(
+                        got.len(),
+                        want.len(),
+                        "block width at ({su}, {sv}) of ({au}, {av}) × ({bu}, {bv})"
+                    );
+                    for (n, (g, w)) in got.iter().zip(want.iter()).enumerate() {
+                        assert!(
+                            same_bits(*g, *w),
+                            "({au}, {av}) × ({bu}, {bv}) cell ({su}, {sv}) coefficient {n}: \
+                             {g:?} vs {w:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// The same claim for degree elevation, whose two tables are
+    /// hoisted to the whole patch as well: asymmetric degrees and
+    /// asymmetric pads, both directions, including a pad of zero in
+    /// each — every coefficient of every cell against the pre-memo
+    /// convolution, bitwise.
+    #[test]
+    fn an_asymmetric_elevations_coefficients_are_the_pre_memo_convolution() {
+        for ((du, dv), (pad_u, pad_v)) in [
+            ((1, 3), (3, 1)),
+            ((2, 1), (1, 4)),
+            ((3, 2), (2, 0)),
+            ((2, 3), (0, 2)),
+        ] {
+            let p = decomposed_at(du, dv, 0.9);
+            let e = p.elevated(du + pad_u, dv + pad_v);
+            let (nu, nv) = e.cell_counts();
+            assert!(nu > 1 && nv > 1, "the fixture must have interior breaks");
+            assert_eq!(
+                (e.deg_u, e.deg_v),
+                (du + pad_u, dv + pad_v),
+                "elevated bidegree of ({du}, {dv}) by ({pad_u}, {pad_v})"
+            );
+            for su in 0..nu {
+                for sv in 0..nv {
+                    let want = elevate_block_base(&p.cells[su][sv], du, dv, pad_u, pad_v);
+                    let got = &e.cells[su][sv];
+                    assert_eq!(
+                        got.len(),
+                        want.len(),
+                        "block width at ({su}, {sv}) of ({du}, {dv}) by ({pad_u}, {pad_v})"
+                    );
+                    for (n, (g, w)) in got.iter().zip(want.iter()).enumerate() {
+                        assert!(
+                            same_bits(*g, *w),
+                            "({du}, {dv}) by ({pad_u}, {pad_v}) cell ({su}, {sv}) \
+                             coefficient {n}: {g:?} vs {w:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
 
     /// The one cell `(su, sv)` of `p`, as a patch in its own right.
     fn single_cell(p: &PatchSpans, su: usize, sv: usize) -> PatchSpans {

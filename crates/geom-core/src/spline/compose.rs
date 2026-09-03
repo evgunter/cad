@@ -457,48 +457,110 @@ fn bern_mul_row(a: &[RingInterval], b: &[RingInterval]) -> Vec<RingInterval> {
     bern_mul_row_with(a, b, &w)
 }
 
-/// The Bernstein product's weight rows for one degree pair:
-/// `rows[k][i − lo(k)] = C(da,i)·C(db,k−i)/C(da+db,k)` as the ring
-/// quotient, over the `i` the convolution actually visits
+/// The Bernstein product's weight rows for ONE degree pair, carrying
+/// that pair: `row(k)[i − lo(k)] = C(da,i)·C(db,k−i)/C(da+db,k)` as
+/// the ring quotient, over the `i` the convolution actually visits
 /// (`lo(k) = k − db` clamped at zero, up to `min(k, da)`), in the
-/// ascending order [`bern_mul_row_with`] folds them in.
+/// ascending order [`bern_mul_row_into`] folds them in.
+///
+/// **The degrees are part of the value because the shape is not.** A
+/// table built for `(db, da)` has exactly the same row widths as one
+/// built for `(da, db)`, so a table handed to the wrong operands
+/// indexes perfectly and answers with the wrong numbers — the failure
+/// no index check can catch. Carrying `(da, db)` with the rows is what
+/// lets [`bern_mul_row_into`] check the table against the operands it
+/// folds it over, and gives the `lo(k)` convention ONE home rather
+/// than one spelling per reader: the builder, the fold, the tensor
+/// product's u-lookup and the tests all read it here.
+#[derive(Clone)]
+struct BernWeights {
+    da: usize,
+    db: usize,
+    rows: Vec<Vec<RingInterval>>,
+}
+
+impl BernWeights {
+    /// The first `i` that row `k` holds: `k − db`, clamped at zero.
+    fn lo(&self, k: usize) -> usize {
+        k.saturating_sub(self.db)
+    }
+
+    /// Row `k`, over `i ∈ lo(k) ..= min(k, da)`, ascending.
+    fn row(&self, k: usize) -> &[RingInterval] {
+        &self.rows[k]
+    }
+
+    /// The weight at `(k, i)`, `i` being an operand index rather than
+    /// an offset into the row.
+    fn at(&self, k: usize, i: usize) -> RingInterval {
+        self.rows[k][i - self.lo(k)]
+    }
+
+    /// The number of output coefficients the table serves,
+    /// `da + db + 1`.
+    fn row_count(&self) -> usize {
+        self.rows.len()
+    }
+}
+
+/// The [`BernWeights`] of one degree pair, from the binomial rows.
 ///
 /// The weight depends on the two DEGREES alone — pure structure — so
 /// there is exactly one value per `(da, db, k, i)` for the life of the
 /// process, while the loop that reads it runs once per coefficient
 /// pair of every span of every product. This is a memo, not a second
 /// spelling: each entry is the same two `f64` binomials multiplied and
-/// the same ring division, in the same order, bit for bit.
-fn build_bern_weights(da: usize, db: usize) -> Vec<Vec<RingInterval>> {
+/// the same ring division, in the same order, bit for bit. Giving the
+/// table a type moves no arithmetic — `lo(k)` is the same
+/// `k.saturating_sub(db)` the loop spelled, read from one place now.
+fn build_bern_weights(da: usize, db: usize) -> BernWeights {
     let bin_a = binom_row(da);
     let bin_b = binom_row(db);
     let bin_ab = binom_row(da + db);
-    bin_ab
-        .iter()
-        .enumerate()
-        .map(|(k, bk)| {
-            // `point(*bk)` is a pure constructor of the same divisor
-            // the inline loop rebuilt per term; the quotients below
-            // are that loop's, term for term.
-            let den = RingInterval::point(*bk);
-            (k.saturating_sub(db)..=k.min(da))
-                .map(|i| RingInterval::point(bin_a[i] * bin_b[k - i]) / den)
-                .collect()
-        })
-        .collect()
+    let mut out = BernWeights {
+        da,
+        db,
+        rows: Vec::with_capacity(da + db + 1),
+    };
+    for (k, bk) in bin_ab.iter().enumerate() {
+        // `point(*bk)` is a pure constructor of the same divisor the
+        // inline loop rebuilt per term; the quotients below are that
+        // loop's, term for term.
+        let den = RingInterval::point(*bk);
+        let row = (out.lo(k)..=k.min(da))
+            .map(|i| RingInterval::point(bin_a[i] * bin_b[k - i]) / den)
+            .collect();
+        out.rows.push(row);
+    }
+    out
 }
 
-/// [`build_bern_weights`], memoized on the degree pair. The table is
-/// built on first ask and shared thereafter; a degree past
-/// [`BINOM_EXACT_MAX`] (whose rows are all-poison anyway, and which no
-/// kernel-sized spline reaches) is served fresh rather than given a
-/// slot, so the grid stays bounded without a second builder.
-fn bern_weights(da: usize, db: usize) -> Cow<'static, [Vec<RingInterval>]> {
+/// [`build_bern_weights`], memoized on the degree pair: the table is
+/// built on first ask and shared thereafter.
+///
+/// **Poison is not what the grid excludes.** Every pair with
+/// `da + db >` [`BINOM_EXACT_MAX`] has an all-poison table, and plenty
+/// of those pairs are INSIDE the grid — `(27, 27)` is a slotted pair
+/// whose every entry is `NaN`. That is the correct answer for the pair
+/// and it is memoized like any other. What is served fresh rather than
+/// given a slot is a pair with a SINGLE degree past the cap, and that
+/// is a bound on the grid rather than a statement about the values: no
+/// kernel-sized spline reaches such a degree (composite degrees are
+/// ≤ 4·p), and keeping it out keeps the grid square and bounded
+/// without a second builder.
+///
+/// **Retained memory**, all of it for the life of the process and
+/// never freed: `(BINOM_EXACT_MAX + 1)² = 55 × 55` `OnceLock` slots,
+/// plus, for each pair actually asked for, that pair's table —
+/// `da + db + 1` rows holding `(da + 1)·(db + 1)` ring values in
+/// total. A structural memo of a pure function, like [`binom_table`]
+/// one level down.
+fn bern_weights(da: usize, db: usize) -> Cow<'static, BernWeights> {
     const N: usize = BINOM_EXACT_MAX + 1;
     if da >= N || db >= N {
         return Cow::Owned(build_bern_weights(da, db));
     }
-    static GRID: std::sync::OnceLock<Vec<std::sync::OnceLock<Vec<Vec<RingInterval>>>>> =
+    static GRID: std::sync::OnceLock<Vec<std::sync::OnceLock<BernWeights>>> =
         std::sync::OnceLock::new();
     let grid = GRID.get_or_init(|| (0..N * N).map(|_| std::sync::OnceLock::new()).collect());
     Cow::Borrowed(grid[da * N + db].get_or_init(|| build_bern_weights(da, db)))
@@ -507,12 +569,8 @@ fn bern_weights(da: usize, db: usize) -> Cow<'static, [Vec<RingInterval>]> {
 /// [`bern_mul_row`] over a weight table the caller already holds —
 /// the entry point for the tensor product, where one degree pair
 /// serves every cell of a whole patch.
-fn bern_mul_row_with(
-    a: &[RingInterval],
-    b: &[RingInterval],
-    w: &[Vec<RingInterval>],
-) -> Vec<RingInterval> {
-    let mut out = Vec::with_capacity(w.len());
+fn bern_mul_row_with(a: &[RingInterval], b: &[RingInterval], w: &BernWeights) -> Vec<RingInterval> {
+    let mut out = Vec::with_capacity(w.row_count());
     bern_mul_row_into(a, b, w, &mut out);
     out
 }
@@ -520,19 +578,33 @@ fn bern_mul_row_with(
 /// [`bern_mul_row_with`] into a caller-owned buffer (overwritten), so
 /// a loop over cells allocates one output row rather than one per
 /// coefficient block.
+///
+/// The table must be the one built for these two operands. A table for
+/// the transposed pair has the same row widths, so the mismatch is a
+/// wrong answer rather than an out-of-range index; the pair travels
+/// with the rows so that the check below can exist at all, and a
+/// hoisted lookup handed to the wrong direction announces itself here
+/// (D2 addendum row 5).
 fn bern_mul_row_into(
     a: &[RingInterval],
     b: &[RingInterval],
-    w: &[Vec<RingInterval>],
+    w: &BernWeights,
     out: &mut Vec<RingInterval>,
 ) {
-    let db = b.len() - 1;
+    debug_assert!(
+        w.da == a.len() - 1 && w.db == b.len() - 1,
+        "weight table for degrees ({}, {}) folded over operands of degree ({}, {})",
+        w.da,
+        w.db,
+        a.len() - 1,
+        b.len() - 1
+    );
     out.clear();
-    out.reserve(w.len());
-    for (k, wk) in w.iter().enumerate() {
-        let lo = k.saturating_sub(db);
+    out.reserve(w.row_count());
+    for k in 0..w.row_count() {
+        let lo = w.lo(k);
         let mut acc = RingInterval::zero();
-        for (t, wt) in wk.iter().enumerate() {
+        for (t, wt) in w.row(k).iter().enumerate() {
             let i = lo + t;
             acc = acc + a[i] * b[k - i] * *wt;
         }
@@ -1208,21 +1280,52 @@ mod tests {
         assert!(lin.sup_bound() <= 4.0 * worst.max(1.0));
     }
 
-    /// The recurrence [`build_bern_weights`] replaces, spelled inline
-    /// exactly as the product loop used to spell it — the oracle for
-    /// the rows below, and the only place this arithmetic appears
-    /// twice.
-    fn weight_inline(da: usize, db: usize, k: usize, i: usize) -> RingInterval {
+    /// **The convolution this unit replaced, kept verbatim**: the body
+    /// [`bern_mul_row`] had before the weight table existed, with the
+    /// binomial rows read and the ring quotient formed inside the
+    /// coefficient loop. It is the oracle for every bit-identity row
+    /// here and in [`super::patch`], so those rows pin the memo
+    /// against the code it retired rather than against a second typing
+    /// of the code that replaced it — a re-typed oracle agrees with a
+    /// mis-typed builder.
+    pub(super) fn bern_mul_row_base(a: &[RingInterval], b: &[RingInterval]) -> Vec<RingInterval> {
+        let da = a.len() - 1;
+        let db = b.len() - 1;
         let bin_a = binom_row(da);
         let bin_b = binom_row(db);
         let bin_ab = binom_row(da + db);
-        RingInterval::point(bin_a[i] * bin_b[k - i]) / RingInterval::point(bin_ab[k])
+        let mut out = Vec::with_capacity(da + db + 1);
+        for (k, bk) in bin_ab.iter().enumerate() {
+            let mut acc = RingInterval::zero();
+            for (i, ai) in a.iter().enumerate() {
+                let Some(j) = k.checked_sub(i) else { continue };
+                if j > db {
+                    continue;
+                }
+                let w = RingInterval::point(bin_a[i] * bin_b[j]) / RingInterval::point(*bk);
+                acc = acc + *ai * b[j] * w;
+            }
+            out.push(acc);
+        }
+        out
+    }
+
+    /// A coefficient row of degree `n` with mixed sign, magnitude and
+    /// width, so a dropped, reordered or mis-weighted term shows in
+    /// the endpoints.
+    pub(super) fn sample_row(n: usize, seed: usize) -> Vec<RingInterval> {
+        (0..=n)
+            .map(|i| {
+                let c = (i as f64 - 3.5) * (1.0 + seed as f64) / 7.0;
+                RingInterval::from_bounds(c - 1e-13, c + 3e-13)
+            })
+            .collect()
     }
 
     /// Bitwise identity of a ring value: NaN endpoints compare equal
     /// to each other and to nothing else, which is what a poisoned
     /// weight has to preserve.
-    fn same_bits(x: RingInterval, y: RingInterval) -> bool {
+    pub(super) fn same_bits(x: RingInterval, y: RingInterval) -> bool {
         x.lo().to_bits() == y.lo().to_bits() && x.hi().to_bits() == y.hi().to_bits()
     }
 
@@ -1248,22 +1351,27 @@ mod tests {
             (80, 2),
         ]);
         for (da, db) in pairs {
-            let rows = bern_weights(da, db);
-            assert_eq!(rows.len(), da + db + 1, "row count at ({da}, {db})");
+            let table = bern_weights(da, db);
+            // The table knows which pair it is for, and its keying is
+            // the convolution's: `lo(k) = k − db` clamped at zero.
+            assert_eq!((table.da, table.db), (da, db), "pair at ({da}, {db})");
+            assert_eq!(table.row_count(), da + db + 1, "row count at ({da}, {db})");
             let poisoned = da + db > BINOM_EXACT_MAX;
-            for (k, row) in rows.iter().enumerate() {
-                let lo = k.saturating_sub(db);
+            for k in 0..table.row_count() {
+                let lo = table.lo(k);
+                assert_eq!(lo, k.saturating_sub(db), "lo({k}) at ({da}, {db})");
                 assert_eq!(
-                    row.len(),
+                    table.row(k).len(),
                     k.min(da) + 1 - lo,
                     "row {k} width at ({da}, {db})"
                 );
-                for (t, w) in row.iter().enumerate() {
-                    let i = lo + t;
+                for (t, w) in table.row(k).iter().enumerate() {
+                    // `at` is the one door the u-lookup reads through;
+                    // it must land on the entry the fold folds.
                     assert!(
-                        same_bits(*w, weight_inline(da, db, k, i)),
-                        "weight ({da}, {db}) k={k} i={i}: memo {w:?} vs recurrence {:?}",
-                        weight_inline(da, db, k, i)
+                        same_bits(*w, table.at(k, lo + t)),
+                        "at({k}, {}) at ({da}, {db})",
+                        lo + t
                     );
                     // Past the cap the row is all-poison, and the memo
                     // must carry the poison rather than a rounded
@@ -1271,42 +1379,36 @@ mod tests {
                     assert_eq!(
                         w.lo().is_nan() && w.hi().is_nan(),
                         poisoned,
-                        "poison at ({da}, {db}) k={k} i={i}"
+                        "poison at ({da}, {db}) k={k} i={}",
+                        lo + t
                     );
                 }
+            }
+            // The arithmetic, against the loop the table replaced: a
+            // product driven through the memo equals the pre-memo
+            // convolution, coefficient for coefficient, bitwise. A
+            // memo whose entries were merely re-typed from the builder
+            // would pass every assertion above and fail this one.
+            let (a, b) = (sample_row(da, da + 1), sample_row(db, db + 3));
+            let (got, want) = (bern_mul_row(&a, &b), bern_mul_row_base(&a, &b));
+            assert_eq!(got.len(), want.len(), "row length at ({da}, {db})");
+            for (k, (g, w)) in got.iter().zip(want.iter()).enumerate() {
+                assert!(
+                    same_bits(*g, *w),
+                    "memoized product ({da}, {db}) coefficient {k}: {g:?} vs {w:?}"
+                );
             }
         }
     }
 
     #[test]
     fn the_row_product_is_the_inline_convolution_bitwise() {
-        // Coefficient rows with mixed sign, magnitude and width, so a
-        // dropped or reordered term shows in the endpoints.
-        let sample = |n: usize, seed: usize| -> Vec<RingInterval> {
-            (0..=n)
-                .map(|i| {
-                    let c = (i as f64 - 3.5) * (1.0 + seed as f64) / 7.0;
-                    RingInterval::from_bounds(c - 1e-13, c + 3e-13)
-                })
-                .collect()
-        };
         for da in 0..=9 {
             for db in 0..=9 {
-                let a = sample(da, da + 1);
-                let b = sample(db, db + 3);
+                let a = sample_row(da, da + 1);
+                let b = sample_row(db, db + 3);
                 // The pre-memo spelling, term for term.
-                let mut want = Vec::with_capacity(da + db + 1);
-                for k in 0..=(da + db) {
-                    let mut acc = RingInterval::zero();
-                    for (i, ai) in a.iter().enumerate() {
-                        let Some(j) = k.checked_sub(i) else { continue };
-                        if j > db {
-                            continue;
-                        }
-                        acc = acc + *ai * b[j] * weight_inline(da, db, k, i);
-                    }
-                    want.push(acc);
-                }
+                let want = bern_mul_row_base(&a, &b);
                 let got = bern_mul_row(&a, &b);
                 assert_eq!(got.len(), want.len(), "row length at ({da}, {db})");
                 for (k, (g, w)) in got.iter().zip(want.iter()).enumerate() {
