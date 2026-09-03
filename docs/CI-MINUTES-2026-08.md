@@ -427,6 +427,73 @@ roots, of which `demos/tour` compiles the whole kernel — and not its
 lint set, which is what makes the pass worth anything. The two job
 growths above are the larger target and are nobody's row yet.
 
+### 2026-09-03 — the rustdoc gate's other two passes demoted to the nightly
+
+S-TCOST unit C2, Ev's approval in chat the same day, and it is F6's own
+subject read one step further. F6 made the six excluded roots cheap by
+caching them; the addendum above then recorded that the entry's −1 had
+been spent twice over — once by growth elsewhere in the `fmt` job, once
+by pass 3 — and named pass 3's root set as the lever if the minute were
+ever worth reclaiming. This is that lever, taken at the SCHEDULE rather
+than at the root set, so no coverage is dropped.
+
+**What moved.** `scripts/doc-gate.sh` grew `--pr` / `--nightly` and a
+`--scope`. ci.yml's `fmt` job runs `--pr`: the workspace pass alone, over
+the change filter's `CARGO_SCOPE` (the closure on tier `closure`, the
+whole workspace on tier `all`, the way `build` scopes). Pass 2 — one
+`--no-deps` pass per cargo root the workspace excludes — and pass 3 —
+`--no-default-features` over every root with a `not(feature)` half — are
+nightly.yml's `rustdoc (gate, every root)`, ungated, on any night main
+moved. `local-scripts/ci-local.sh` is unchanged and still runs all three
+over every root.
+
+**Argued against §*What is NOT sampled, and the rule*.** A broken
+intra-doc link, a doc comment that stopped rendering, a `not(feature)`
+half that no longer compiles: each PERSISTS in the tree until someone
+fixes it, so a later run finds what a PR run would have. None of them is
+a detector of ABSENCE. The parts of that gate which ARE about absence —
+the two readers that refuse to report green over a tree they could not
+read, and the derived root list whose whole subject is a root falling
+silently out of coverage — live inside passes 2 and 3 and moved WITH
+them, so they run in full every night rather than being left behind at a
+cadence their guard does not share. That is the distinction the `k-lint`
+entry above turns on, argued here rather than inherited.
+
+**The cache moved with the passes.** `--print-roots --pr` prints `.`
+alone, and the `fmt` job's `workspaces:` input is that: F6 taught the
+cache about seven target directories because the job wrote seven, and
+the job now writes one. The derivation is still ASKED FOR rather than
+copied, so the cache's scope cannot drift from the passes that run.
+
+**Billed minutes — COLD, and that is not the comparable number.** The
+`fmt` job's rust-cache key hashes the job definition, so the first run
+after any edit to that job is cold; F6 says so at its own entry and it
+applies to this one. Run `33722478540` (this unit's opening run, head
+`4ca9102a`): the job billed **6** (360 s), of which `rustdoc (gate)` was
+246 s and the cache restore was a 10 s miss. Against the addendum's own
+cold reading of 331 s for that step on run `33342678074`, the direction
+is right and the magnitude is not yet the answer.
+
+**The warm figure follows in the next commit on this branch, read from
+the run that commit triggers** — same head shape, same job definition,
+cache saved by the run above, which is the identical two-runs-one-input-
+apart method F6 and its addendum both used. The warm baseline it is
+against is the addendum's: job 179 s / **3 billed** at the merge base
+and 222 s / **4 billed** with pass 3, runs `33342571322` and
+`33346546955`.
+
+**What the split does NOT buy back, said so it is not rediscovered.**
+The `--selftest` is the half no cache reaches — every case plants a
+fresh fixture under `mktemp -d` and cargo keys fingerprints on the
+package path — and this unit made it LONGER, not shorter: it added an
+arm per mode in both directions, a second fixture member, and three
+refusal cases, because a mode nobody checks is a second gate nobody
+checks. So the saving here is entirely in the real gate's passes, and
+the self-test is now the larger share of that step. The lever on it is
+still the one F6 named — running the cases in parallel — and it is still
+nobody's row.
+
+
 ## What landed
 
 * `db4f7ca` — `test-interval`'s 2x2 matrix (eps x shard) → one job,
