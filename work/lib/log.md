@@ -1893,3 +1893,60 @@ This log moved here from `docs/LIB-LOG.md`; the program's contract stays
 directory's item files and in `work/STATUS.md` (generated); this log
 stays the narrative. Items created at migration: LIB-TUBE (spec),
 LIB-G17 (parked on issue 1202).
+
+**CUR4 MERGED (2026-09-03, #1633; mechanical under the 08-29 ruling,
+no A/B row).** CUR3's three banked twins come back measured, and two
+of the three answers are not the ones the bank assumed. The
+`FilletError` structural twin is CARRIED — but every coordinate in
+CUR3's row had moved: `6cedf722b` renamed `sweep::fillet` to
+`sweep::blend`, so it is `BlendSite`/`CornerConfig`/`RunOutPolicy` off
+`sweep::blend`, and `FilletError`/`FilletSite` have zero references in
+the tree. The case is STRONGER than the one CUR3 fixed: `DanglingRef`
+at least sat at `topo`'s root, while `sweep` re-exports nothing from
+`blend`, so the only spelling was `pncad::sweep::blend::CornerConfig`.
+A fourth name rides with them — `Convexity`
+(`BlendError::ConvexitySignFlip`), which CUR3's scan could not see
+because its narrowing rule was "same module as the carrier" and
+`Convexity` lives one deeper in `blend::battery`. The
+`ValidationError` trio is CARRIED too, one rung and no further:
+`CensusContact`/`RingContact`/`StaleDeclaration` sit at `topo`'s root
+exactly as `DanglingRef` did, which is what settles that
+root-reachability does NOT discharge a curated list; the list was
+already half-persuaded, since `DeclaredContact` (the
+`ContactContradicted` payload) has been curated through select.rs all
+along. `BandField` is the one that flips: ARGUED NON-CARRIAGE, because
+every verb derives its band through `Band::linear` = `Band::new(ε,
+K·ε)` and `Tol`'s invariant makes the `zero` check unfirable, so the
+only `InvalidValue` a prelude caller can receive is `field: Escalate`
+— a discriminant that is CONSTANT at the curated boundary has nothing
+to branch on. `Band::angular_at` has no live call site anywhere, and
+the argument is written into prelude.rs with its own falsifier (a
+caller for `angular_at` makes `Zero` reachable and flips it). NO
+PYTHON TAG MOVES either way, measured not skipped: `BlendError`
+projects no arms (`node_error_tag` reads the VERB) and the validate
+doors cross as joined `Display` prose with no per-arm tag at all — so
+the rule the two units together settle, now written into the census,
+is that **a payload's category follows what its CARRIER does at the
+crossing** (`DanglingRef` is `BOUND_AS` because `ReadbackError`
+projects; these seven are `INTERIOR` beside `BandError` and
+`DeclaredContact`). New pin
+`carried_refusal_payloads_are_matchable_through_the_prelude` reaches
+every carried name by BARE prelude name with no module path, which is
+the failure mode all.rs's nameability sinks cannot see. CUR3's blind
+spot (a) closed one rung: the struct-payload sweep over 425 curated
+names and 51 carried refusals found 77 uncurated payloads at rung 1
+(20 of them structs) and 24 at the new rung 2, tabled in the PR. Three
+findings banked with homes rather than swept up: `Indeterminate` +
+`MarginDiag` (the escalation payload, uncurated under THIRTEEN
+refusals — far the largest in the tree, and its answer may well be
+`BandField`'s); `EntityId`/`GeomRef`/`ContactFinding` (the rung both
+curation units stopped at, now named once instead of twice);
+`LoopKey`, curated out of step with `VertexKey`/`EdgeKey`/`FaceKey`
+and invisible to both scans because `slotmap::new_key_type!` mints it
+— a FIFTH blind spot (e) beside CUR3's four, filed with the
+methodology note that a flat name index also silently takes the wrong
+definition across crates (`viewer::blend::BlendError` shadowed
+`sweep::blend::BlendError` and hid the whole fillet quartet on the
+first run). `MeshPickError` re-verified DECIDED absent, unchanged. No
+kernel edits; the diff is `pub use` lines, prelude arguments, one test
+and census rows.
