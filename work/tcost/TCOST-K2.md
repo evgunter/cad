@@ -2,7 +2,7 @@
 id: TCOST-K2
 kind: unit
 title: offset_fit::fit_offset at 3.5 s per station: the Bernstein product weight, hoisted
-status: dispatched
+status: review
 opened: 2026-09-03
 branch: tcost/k2-unit
 ---
