@@ -531,11 +531,15 @@ gate_selftest_clean() {
   esac
   # AN EMPTY TREE IS NOT A CLEAN TREE, proved on every gate. This file
   # makes a paragraph of `gate_require_crate_sources` and `gate_require_
-  # file`, and a trace of `gate_error` across all fourteen self-tests
-  # found both of their diagnoses UNREACHED — `gate_plant_clean` always
-  # writes a source file, so no fixture ever asked. `lib.sh` says a guard
-  # never shown to fire is not a guard; that sentence had not been
-  # applied inside this file.
+  # file`, and a trace of `gate_error` across every self-test in this
+  # directory found both of their diagnoses UNREACHED — `gate_plant_clean`
+  # always writes a source file, so no fixture ever asked. `lib.sh` says a
+  # guard never shown to fire is not a guard; that sentence had not been
+  # applied inside this file. The two cases below are the rest of it, and
+  # the way to check the claim is the trace, not this comment: instrument
+  # `gate_error` with `BASH_SOURCE`/`BASH_LINENO`, run every `--selftest`,
+  # and diff what fired against what is written. `D109(d)` carries the
+  # standing count and the guards that remain.
   tmp=$(mktemp -d)
   if out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
     rm -rf "$tmp"
@@ -544,6 +548,45 @@ gate_selftest_clean() {
   fi
   rm -rf "$tmp"
   gate_selftest_assert_diagnosed "an empty tree" "$out"
+  # A TREE THAT HAS THE DIRECTORIES AND NONE OF THE FILES IS NOT A
+  # CLEAN TREE, and it is a DIFFERENT tree from the empty one above.
+  # The empty tree has no `crates/*/src` to glob at all, so it stops at
+  # the FIRST of `gate_require_crate_sources`'s two guards and the
+  # second — a `crates/*/src` that exists and holds no `.rs` — was
+  # reached by no case in this directory. The manifest gates read the
+  # same tree the other way: a `crates/` that exists with no
+  # `crates/*/Cargo.toml` under it. One fixture, because it is one
+  # question — did the gate mistake an empty subject for a clean one.
+  tmp=$(mktemp -d)
+  mkdir -p "$tmp/crates/scanned/src"
+  if out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the gate PASSED on a tree whose crates/ directories are all EMPTY — a gate that scanned nothing is not a pass\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  gate_selftest_assert_diagnosed "a crates/ tree with no files in it" "$out"
+  # THE MARKER'S OWN GUARD, proved on every gate rather than asserted in
+  # its comment. `gate_main` refuses to scan when it cannot create
+  # `$GATE_MATCHER_FAILED`, because a marker that cannot be written
+  # cannot report a matcher that died — and that guard was itself the
+  # thing no fixture had ever reached, which is the sentence this file
+  # keeps repeating at other people's guards. The clean fixture is
+  # planted so the ONLY reason to fail is the unwritable TMPDIR.
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  if out=$(TMPDIR="$tmp/no-such-tmpdir" "$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the gate PASSED with an unwritable TMPDIR — the marker a dead matcher writes could not have been created, so the green means nothing\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+  gate_selftest_assert_diagnosed "an unwritable TMPDIR" "$out"
+  case "$out" in
+    *"cannot create"*) ;;
+    *) printf 'SELFTEST FAILED (an unwritable TMPDIR): the gate failed for some OTHER reason than the marker it could not create:\n%s\n' "$out" >&2
+       exit 1 ;;
+  esac
   tmp=$(mktemp -d)
   gate_plant_clean "$tmp"
   if ! out=$("$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
