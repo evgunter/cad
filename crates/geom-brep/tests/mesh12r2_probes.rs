@@ -182,7 +182,7 @@ fn r2_the_lever_is_the_carrier_radius_at_certification_and_the_sphere_radius_at_
         // three rungs below collapse onto one span and both decides
         // land in the ambiguity band together. Asserted only where
         // the window is resolvable.
-        let resolvable = (hi - lo) > 8.0 * f64::EPSILON * TAU;
+        let resolvable = (hi - lo) > 4.0 * f64::EPSILON * TAU;
         for frac in [0.25, 0.5, 0.75] {
             let x = lo + frac * (hi - lo);
             let dt = TAU + x;
