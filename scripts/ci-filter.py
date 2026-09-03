@@ -77,7 +77,9 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   RUN_PNCAD_PY=true|false       python suite (wheel + unittest) row
   RUN_INTERVAL_BACKEND=true|false   interval-transcendentals' own workspace
   RUN_INTERVAL_ORACLE=true|false    its oracle-inari certification tier
-  RUN_TOPO_RELEASE=true|false   corrupt input (release profile) row
+  RUN_TOPO_RELEASE=true|false   corrupt input (release profile) row. LOCAL-ONLY
+                                today — the hosted job moved to nightly.yml and
+                                runs ungated there; see JOB_ROOTS
   RUN_K_LINT=true|false         k-lint (gate) row
   LANE_ADVISORY=true|false      this diff touches `*interval*` files and this
                                 run gates the DEFAULT lane, so if interval
@@ -723,8 +725,22 @@ def _all_tier(root: str) -> dict[str, str]:
 # topo          the release-profile corrupt-input row compiles
 #               `-p topo --lib`, so topo's own closure membership is
 #               exactly the condition under which anything it runs can
-#               have moved. It is the one job whose root is the crate the
-#               suite lives in rather than a downstream consumer.
+#               have moved. It is the one root whose crate is where the
+#               suite lives rather than a downstream consumer.
+#
+#               THE HOSTED HALF OF THIS ROW IS GONE (S-TCOST C1,
+#               2026-09-03): `corrupt input (release profile)` moved to
+#               nightly.yml, where it runs UNGATED once a day, so no job
+#               in ci.yml reads this key any more and ci.yml's `filter`
+#               publishes no `run_topo_release` output. THE KEY STAYS
+#               because `local-scripts/ci-local.sh` still consumes it —
+#               nothing bills the local gate by the minute, so the row
+#               keeps its per-change scoping there. Deleting the key
+#               would silently promote a scoped local row to
+#               unconditional, which is the opposite of what the demotion
+#               decided. The soundness argument for the demotion is at
+#               the job in nightly.yml, per row, against
+#               docs/CI-MINUTES-2026-08.md's absence rule.
 JOB_ROOTS = {
     "RUN_EDITOR_CORE": {"editor-core"},
     "RUN_STL": {"stl"},

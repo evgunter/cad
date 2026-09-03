@@ -2,10 +2,12 @@
 id: k-probe-sweep-stalls-at-eps-1e-6
 kind: issue
 title: k_probe_sweep.sh cannot complete at eps = 1e-6: the E6 driver probe row panics 'nothing certified, nothing to sample'
-status: open
+status: closed
 opened: 2026-08-30
 github: 1304
 refs: [1296]
+closed: 2026-09-03
+pr: 1670
 ---
 
 ## From GitHub issue 1304
@@ -23,3 +25,24 @@ The fixture and row are M10-3's ground — (M10 orchestrator) flagged for owners
 ## Home
 
 `work/m10/` — the fixture and row are M10-3's ground (`crates/editor-core/tests/m10*`), which the issue states explicitly; S-CERT filed it as a reporter.
+
+## Closed (2026-09-03, the M10-6 lane's k-probe hotfix branch)
+
+Closed with `driver-k-probe-nothing-certified-red` and
+`e6-driver-k-probe-reds-at-eps-1e-6`: three reports of one defect.
+
+The sweep completes at every ε again. The row's shape is the fix — an
+empty certified set is now a census line rather than a panic — and the
+budget half was already fixed on main by `eb21e503` (#1343), verified
+here by running `m10_3_driver_k_probe_interval` at 1e-6, 1e-9 and 1e-12
+green, dumping 745 and 256280 margins at each.
+
+The issue asked which SHAPE the row is, per `memories/test-suite-cost.md`.
+Answer: a POPULATION DUMP, not a counterexample search and not a
+witness — so its floor is what the population census says, and the
+claim that survives at every ε is the biconditional (certified > 0 iff
+sampled > 0), which is what the row now asserts.
+
+`scripts/k_probe_sweep.sh`'s per-row floor was reworded to match what
+it actually checks (the harness wrote something past its header) and
+now says why the driver row's floor cannot be a margin count.
