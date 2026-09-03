@@ -39,11 +39,16 @@
 //! the door — a full corpus build at `Dual64`, value channel
 //! bit-identical to `f64` — is `m10_di_dual_corpus.rs`.
 //!
-//! **It deliberately does not build E4.** No seeding surface, no
-//! sensitivity API, no stackup reporting — those are M10-4's. What DL2
-//! already settles about them lives at the `ContentBits for Dual` impl:
-//! the seed rides the tangent bits, so the memo cannot serve one
-//! parameter's pass from another's.
+//! **The successor law.** The set now carries the two per-scalar
+//! analysis capabilities — `AxisScalar` (the parameter-box door) and
+//! `SeedScalar` (E4's seed door), both scalar-free options at
+//! `EvalOptions` whose capability lives at the scalar. The seeding
+//! surface itself is exercised by `m10_4_seed.rs`; the sensitivity
+//! driver and the stackup by `m10_4_stackup_interval.rs`. This suite
+//! stays the compiler fact that the door is open. What DL2 settles
+//! about seeding lives at the `ContentBits for Dual` impl: the seed
+//! rides the tangent bits, so the memo cannot serve one parameter's
+//! pass from another's.
 //!
 //! The certification half of the dual ruling is pinned where it lives:
 //! `geom-core/src/dual.rs`'s `compile_fail` doctests keep
@@ -68,7 +73,8 @@ where
         + Sync
         + topo::AtRestPolicy
         + editor_core::eval::ContentBits
-        + editor_core::analysis::AxisScalar,
+        + editor_core::analysis::AxisScalar
+        + editor_core::analysis::SeedScalar,
 {
 }
 
@@ -90,7 +96,8 @@ where
         + Sync
         + topo::AtRestPolicy
         + editor_core::eval::ContentBits
-        + editor_core::analysis::AxisScalar,
+        + editor_core::analysis::AxisScalar
+        + editor_core::analysis::SeedScalar,
 {
     let _ = editor_core::eval::evaluate::<T>;
 }
@@ -108,7 +115,8 @@ where
         + Sync
         + topo::AtRestPolicy
         + editor_core::eval::ContentBits
-        + editor_core::analysis::AxisScalar,
+        + editor_core::analysis::AxisScalar
+        + editor_core::analysis::SeedScalar,
 {
     requires_the_whole_eval_scalar_set::<T>();
 }

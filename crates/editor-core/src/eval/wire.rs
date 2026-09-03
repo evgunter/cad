@@ -136,7 +136,8 @@ where
         + Send
         + Sync
         + topo::AtRestPolicy
-        + crate::analysis::AxisScalar,
+        + crate::analysis::AxisScalar
+        + crate::analysis::SeedScalar,
 {
     match node {
         Node::Datum(d) => Ok(OpOut::plain(wire_datum(d, vals, tol)?, names::empty())),
@@ -264,7 +265,8 @@ where
         + Send
         + Sync
         + topo::AtRestPolicy
-        + crate::analysis::AxisScalar,
+        + crate::analysis::AxisScalar
+        + crate::analysis::SeedScalar,
 {
     let part = env
         .parts

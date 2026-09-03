@@ -49,14 +49,22 @@ pub mod program;
 pub mod refactor;
 pub mod resolve;
 pub mod roots;
+/// The E4 sensitivity driver and the E5 stackup — the analysis lane's
+/// derivative and report services over [`drive`]'s leaves. Gated on
+/// `interval` for the driver's own reason: every sensitivity carries a
+/// chamber mark whose certified variant IS an E6 leaf identity, and
+/// the gating `worst_case` is a certified interval enclosure; without
+/// the certified scalar neither exists to be minted.
+#[cfg(feature = "interval")]
+pub mod stackup;
 pub mod update;
 mod verbs;
 pub mod witness;
 
 pub use analysis::{
     AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, AxisScalar, BoxAxis,
-    DEFAULT_QUANTILE_MASS, MeasureUnavailable, OffsetInterval, ParamBox, ParamBoxError,
-    analyzed_box, box_mass, param_env_over, tail_mass,
+    DEFAULT_QUANTILE_MASS, MeasureUnavailable, OffsetInterval, ParamBox, ParamBoxError, SeedError,
+    SeedScalar, analyzed_box, box_mass, param_env_over, seed_env, std_deviation, tail_mass,
 };
 pub use appearance::{
     AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord, AppearanceResolution,
@@ -151,6 +159,11 @@ pub use resolve::{
     MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickTarget, pick_face,
 };
 pub use roots::RootFault;
+#[cfg(feature = "interval")]
+pub use stackup::{
+    Chamber, PairingViolation, PerParam, Rss, Sensitivity, SensitivityOutcome,
+    SensitivityRefusal, Stackup, StackupRefusal, Unavailable, WorstCase, sensitivities, stackup,
+};
 pub use update::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update_references};
 pub use witness::{
     BifurcationKind, BranchCertification, BranchMarginEvidence, Implicated, WitnessAge,

@@ -228,6 +228,23 @@ impl AnalyzedBox {
         })
     }
 
+    /// The standard deviation of ONE named axis under the axis's own
+    /// distribution — the same pairing guarantee
+    /// [`Self::axis_tail_mass`] gives, for the E5 RSS column. `None` if
+    /// the document has no such continuous parameter.
+    ///
+    /// An unannotated axis is FIXED — a point mass at its nominal — and
+    /// its standard deviation is exactly `0.0`: the typed spelling of
+    /// "a fixed parameter carries a measure and spreads nothing", so an
+    /// RSS over it is available and it contributes no term.
+    pub fn axis_std_deviation(&self, name: &ParamName) -> Option<Result<f64, MeasureUnavailable>> {
+        let axis = self.params.get(name)?;
+        Some(match axis.distribution {
+            Some(dist) => std_deviation(name, &dist),
+            None => Ok(0.0),
+        })
+    }
+
     /// The mass ONE named axis puts inside `sub`, with the axis's own
     /// distribution — the same pairing guarantee
     /// [`Self::axis_tail_mass`] gives, for the leaf-pricing door.
@@ -377,6 +394,171 @@ where
 {
     fn axis(lo: f64, hi: f64) -> Option<Self> {
         T::axis(lo, hi).map(geom_core::Dual::constant)
+    }
+}
+
+/// **A scalar that can carry a derivative seed** — the [`AxisScalar`]
+/// seam's twin (E4): a compile-time, per-scalar capability behind a
+/// scalar-free option ([`crate::eval::EvalOptions::seed`]).
+///
+/// [`Self::seed`] answers the ALREADY-LIFTED parameter value with a
+/// unit tangent attached — exactly `1.0` on the seeded parameter's
+/// lift — or `None` when this scalar has no tangent channel to carry
+/// one. Taking the lifted value rather than the raw `f64` is what makes
+/// seeding compose with the parameter box: at `Dual<Interval>` the
+/// value channel already carries the axis enclosure
+/// (`nominal + [lo, hi]`, outward-rounded), and the seed touches only
+/// the tangent channel beside it.
+///
+/// A tangentless scalar answers `None`, and that is the whole content
+/// of the trait: an `f64` (or `Interval`) evaluation asked to seed a
+/// parameter is not a degenerate sensitivity pass, it is a different
+/// question in the same shape, and the evaluation service refuses it on
+/// every node rather than silently evaluating with the seed dropped —
+/// [`ParamBoxError::AxisUnrepresentable`]'s posture, on the derivative
+/// axis.
+pub trait SeedScalar: geom_core::Real {
+    /// `lifted` with a unit tangent attached, or `None` when this
+    /// scalar carries no tangent channel.
+    fn seed(lifted: Self) -> Option<Self>;
+}
+
+/// A point scalar carries no tangent channel: every seed refuses.
+impl SeedScalar for f64 {
+    fn seed(_lifted: Self) -> Option<Self> {
+        None
+    }
+}
+
+/// The recording scalar is `f64` with a sink attached; it carries
+/// exactly what `f64` carries — no tangent channel.
+#[cfg(feature = "probe")]
+impl SeedScalar for geom_core::Probe {
+    fn seed(_lifted: Self) -> Option<Self> {
+        None
+    }
+}
+
+/// The interval scalar is an enclosure, not a tangent bundle: a box
+/// axis is [`AxisScalar`]'s to carry and a seed is not, and the two stay
+/// separate acts on the same environment (the `AxisScalar` dual impl
+/// states the same boundary from the other side).
+#[cfg(feature = "interval")]
+impl SeedScalar for geom_core::Interval {
+    fn seed(_lifted: Self) -> Option<Self> {
+        None
+    }
+}
+
+/// A dual is the tangent bundle (DL1): the seed is the base scalar's
+/// exact `1.0` on the tangent channel, beside whatever the value channel
+/// already carries — the nominal at `Dual64`, the leaf's enclosure at
+/// `Dual<Interval>` (the certified tier's composition: value channel
+/// the box, tangent channel the seed).
+impl<T: geom_core::Real> SeedScalar for geom_core::Dual<T>
+where
+    geom_core::Dual<T>: geom_core::Real,
+{
+    fn seed(lifted: Self) -> Option<Self> {
+        Some(geom_core::Dual::variable(lifted.value))
+    }
+}
+
+/// A seed that cannot be bound — refused at env construction, before
+/// any node runs (the [`ParamBoxError`] posture, on the derivative
+/// axis).
+#[derive(Debug, Clone, PartialEq)]
+pub enum SeedError {
+    /// The seed names a parameter the document does not carry.
+    UnknownParam {
+        /// The unmatched name.
+        param: ParamName,
+    },
+    /// The seed names a `Count` parameter. Structural parameters are
+    /// fixed under any error analysis (E11.3): there is no derivative
+    /// axis to seed, and refusing is the typed spelling of that.
+    CountParam {
+        /// The structural name.
+        param: ParamName,
+    },
+    /// The evaluation scalar carries no tangent channel — a seeded
+    /// `f64` (or `Interval`) evaluation would be a sensitivity question
+    /// with the seed silently dropped, so it refuses instead.
+    TangentUnrepresentable {
+        /// The parameter that was asked for.
+        param: ParamName,
+    },
+}
+
+impl core::fmt::Display for SeedError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::UnknownParam { param } => write!(
+                f,
+                "the seed names {:?}, which is not a parameter of this document",
+                param.0
+            ),
+            Self::CountParam { param } => write!(
+                f,
+                "the seed names {:?}, a Count parameter — structural parameters are fixed \
+                 under any error analysis and carry no derivative axis",
+                param.0
+            ),
+            Self::TangentUnrepresentable { param } => write!(
+                f,
+                "parameter {:?} is seeded and this evaluation scalar carries no tangent \
+                 channel — a sensitivity pass needs a dual",
+                param.0
+            ),
+        }
+    }
+}
+
+/// Attaches the E4 seed to one binding of an already-built parameter
+/// environment: exactly one parameter's lift gains tangent `1.0`; every
+/// other binding — unseeded parameters and, through `T::from_f64`,
+/// every literal — keeps tangent zero by construction.
+///
+/// The environment is whichever door built it ([`crate::Doc::param_env`]
+/// or [`param_env_over`]), so seeding composes with the parameter box
+/// by doing nothing besides the one tangent write. One seed per
+/// environment (E4: n parameters ⇒ n independent passes).
+///
+/// # Errors
+///
+/// [`SeedError`], checked against the DOCUMENT first so an unknown or
+/// structural name refuses identically at every scalar, and the
+/// per-scalar capability refusal comes only after the name is real.
+pub fn seed_env<T: SeedScalar, P>(
+    doc: &Doc<P>,
+    mut env: crate::expr::ParamEnv<T>,
+    seed: &ParamName,
+) -> Result<crate::expr::ParamEnv<T>, SeedError> {
+    match doc.params().get(seed) {
+        None => Err(SeedError::UnknownParam {
+            param: seed.clone(),
+        }),
+        Some(DocParam::Count { .. }) => Err(SeedError::CountParam {
+            param: seed.clone(),
+        }),
+        Some(DocParam::Continuous { .. }) => {
+            // Both environment doors bind every document parameter, so
+            // a continuous document parameter always has a continuous
+            // binding; answering `UnknownParam` on a broken pairing (a
+            // caller's env built from a different document) is
+            // fail-honest, never a wrong number.
+            let Some(crate::expr::ParamValue::Continuous { value, .. }) =
+                env.bindings.get_mut(seed)
+            else {
+                return Err(SeedError::UnknownParam {
+                    param: seed.clone(),
+                });
+            };
+            *value = T::seed(*value).ok_or_else(|| SeedError::TangentUnrepresentable {
+                param: seed.clone(),
+            })?;
+            Ok(env)
+        }
     }
 }
 
@@ -748,6 +930,62 @@ pub fn box_mass(
     sub: (f64, f64),
 ) -> Result<f64, MeasureUnavailable> {
     interval_mass(param, dist, sub)
+}
+
+/// The standard deviation a distribution puts around its own mean —
+/// the σ the E5 RSS column consumes (`√Σ(∂m/∂pᵢ·σᵢ)²` is a statement
+/// about spreads, and this is the one place a spread is read off a
+/// distribution).
+///
+/// [`Band`](Distribution::Band) refuses, naming the parameter: limits
+/// without a shape have no standard deviation, and no report may
+/// quietly promote them to uniform (E2). A partial RSS is still a lie,
+/// so the consumer's obligation is to refuse the WHOLE column when any
+/// contributor lands here.
+///
+/// Reporting-lane `f64` arithmetic like everything in this module: it
+/// decides no predicate and consults no tolerance. The truncated
+/// normal's σ is about the truncated law's OWN mean — under asymmetric
+/// truncation that mean is off the nominal, and the advisory RSS
+/// consumes the spread, not the shift.
+pub fn std_deviation(param: &ParamName, dist: &Distribution) -> Result<f64, MeasureUnavailable> {
+    match *dist {
+        Distribution::Band { .. } => Err(MeasureUnavailable::BandHasNoMeasure {
+            param: param.clone(),
+        }),
+        // Uniform on a width-w support: σ = w / √12; a zero-width
+        // uniform is the point mass and spreads nothing.
+        Distribution::Uniform { lo, hi } => Ok((hi - lo) / f64::sqrt(12.0)),
+        Distribution::Normal { sigma } => Ok(sigma),
+        Distribution::TruncatedNormal { sigma, lo, hi } => {
+            // The two-sided truncation formula, in standard deviations
+            // of the underlying normal: with α = lo/σ, β = hi/σ and
+            // Z = Φ(β) − Φ(α),
+            //   Var/σ² = 1 + (α·φ(α) − β·φ(β))/Z − ((φ(α) − φ(β))/Z)².
+            // Z goes through `std_normal_mass` — the same measure the
+            // mass doors report — so the σ and the masses describe one
+            // law. A zero-mass window (the degenerate point) spreads
+            // nothing.
+            let (a, b) = (lo / sigma, hi / sigma);
+            let z = std_normal_mass(a, b);
+            if z > 0.0 {
+                let var = 1.0 + (a * std_normal_pdf(a) - b * std_normal_pdf(b)) / z
+                    - ((std_normal_pdf(a) - std_normal_pdf(b)) / z).powi(2);
+                // Rounding can push the variance a few ulps negative
+                // where the truncation is extreme; a variance is
+                // non-negative, so clamp before the root.
+                Ok(sigma * var.max(0.0).sqrt())
+            } else {
+                Ok(0.0)
+            }
+        }
+    }
+}
+
+/// The standard normal density `φ(x) = exp(−x²/2)/√(2π)` —
+/// [`std_deviation`]'s truncation arm is its only consumer.
+fn std_normal_pdf(x: f64) -> f64 {
+    libm::exp(-0.5 * x * x) / f64::sqrt(2.0 * core::f64::consts::PI)
 }
 
 /// The shared kernel of both mass doors: `P(offset ∈ [lo, hi])`.
