@@ -2,7 +2,9 @@
 id: LIB-B-FORMAT
 kind: unit
 title: binding census family B-FORMAT
-status: open
+status: review
+pr: 1668
+branch: lib/b-format
 opened: 2026-09-03
 ---
 
