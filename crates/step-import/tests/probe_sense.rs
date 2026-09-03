@@ -4,7 +4,7 @@
 //! silent misgeometry.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 use common::census;
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
