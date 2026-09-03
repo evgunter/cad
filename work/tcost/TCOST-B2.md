@@ -2,9 +2,10 @@
 id: TCOST-B2
 kind: unit
 title: helper dedup for the five crates B1 skipped, with the one-declaration guard
-status: dispatched
+status: review
 opened: 2026-09-03
 branch: tcost/b2-dedup-remaining
+pr: 1669
 ---
 
 Cut at batch style review 2 (`log.md`). TCOST-B1's one-declaration

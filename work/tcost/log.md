@@ -596,3 +596,29 @@ Landing order C2 → C1 → C3 (C2 is the only one not touching
 green run each before landing. Two candidate `work/issues/` items
 filed by the lane: D107's prose now points at the wrong workflow;
 the pin-reading `sed | head -1` idiom's fourth copy in nightly.yml.
+
+## Seam: style batch 3 adjudicated (2026-09-03)
+
+TCOST-8 (PR 1659), TCOST-6 (PR 1666), TCOST-B2 (PR 1669, found open
+by the reviewer before its lane reported): all MERGEABLE WITH FIXES.
+Every cited chain verified character-exact (the `Band::linear` chain,
+`Real::from_f64` on f64 and `Probe`, the `sin(±0)` merge, the
+turbofish sites). Fixes owed — TCOST-8: a `Band::linear` spelled
+inline inside the shared tree it made a home for; reasons AT the copy
+for `control`/`tmer`/`wall_domain`/`width` (the reviewer's ruling: the
+R1/R2 pair and the carrier-id stamp are the reason, "file-local
+tokens" is a preference); the ~29 inline `Band::linear(Tol::witness())`
+sites taken since the home now exists; a default-lane run before
+merge (64 of 71 suites compile there — the B1 lesson). TCOST-6: the
+new frontier-width claim lacks its column and its `>= 64` floor its
+argument; `LEVEL_CEILING = 128`'s justification is false for f64 (the
+bound is `DEFAULT_MAX_DEPTH = 24`); the single-axis assumption of
+`widest_frontier` made a stated precondition; no default-lane run
+needed (whole-file `cfg(interval)`, textual filterset term — the first
+gated marker inside such a suite). TCOST-B2: the hosted evidence sits
+two commits behind the head, whose own default-lane run was still
+running; a false "no path-relative read" sentence (step-import's
+`common/mod.rs` reads `CARGO_MANIFEST_DIR`; conclusion holds).
+Candidates filed by the lanes: the rename-only blind spot of the
+body-hash census; the one-declaration assertion's nine verbatim copies
+wanting one home in `test_utils`, with `pncad/tests/all.rs` outside it.
