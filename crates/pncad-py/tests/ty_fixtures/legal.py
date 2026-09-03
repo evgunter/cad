@@ -519,3 +519,13 @@ flagged: bool = stop.canceled
 stopped: Evaluation = evaluate(doc, cancel=stop)
 was_stopped: bool = stopped.canceled
 still_ordered: list[NodeId] = stopped.order()
+
+# The validator ladder, all four rungs. Each answers NOTHING and
+# raises on failure, which is what makes `-> None` the honest return:
+# a verdict a caller could forget to read would be the wrong shape for
+# a gate. The fourth takes no arguments either, because the contacts
+# it certifies against ride with the body.
+gathered.validate()
+gathered.validate_closed()
+gathered.validate_geometric()
+gathered.validate_pseudomanifold()

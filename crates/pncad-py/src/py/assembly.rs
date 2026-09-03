@@ -124,10 +124,13 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
 #[pyfunction]
 pub(crate) fn product(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> PyResult<Body> {
     let tol = Tol::witness();
+    // The gather DECLARES NOTHING: it is the root list's solids side
+    // by side, with no gate and no minted records, so the product
+    // body is plain and `Body.validate_pseudomanifold` will report
+    // any seam between two roots as undeclared. `assemble` is the
+    // door that mints declarations over the same geometry.
     d::product(&doc.inner, &evaluation.inner, tol)
-        .map(|body| Body {
-            inner: Arc::new(body),
-        })
+        .map(|body| Body::plain(Arc::new(body)))
         .map_err(|err| product_err(py, &err))
 }
 
@@ -154,12 +157,7 @@ pub(crate) fn product_named(
         .iter()
         .map(|(name, _)| name_text(py, name))
         .collect::<PyResult<Vec<String>>>()?;
-    Ok((
-        Body {
-            inner: Arc::new(body),
-        },
-        names,
-    ))
+    Ok((Body::plain(Arc::new(body)), names))
 }
 
 // ---- The gate's payload types ----
@@ -527,9 +525,13 @@ pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> Py
         .map(|(name, _)| name_text(py, name))
         .collect::<PyResult<Vec<String>>>()?;
     Ok(Assembly {
-        body: Body {
-            inner: Arc::new(assembly.body),
-        },
+        // The at-rest body keeps the record set the gate certified it
+        // against — the parts' own carried declarations (D-1) plus
+        // this document's minted mate declarations (D-2). Reaching an
+        // `Assembly` at all means tier 3′ ALREADY passed over exactly
+        // this pair, so `Assembly.body.validate_pseudomanifold()` is
+        // the same verdict re-taken, un-attributed.
+        body: Body::declared(Arc::new(assembly.body), Arc::new(assembly.contacts)),
         names,
         minted: assembly.minted.into_iter().map(MintedDeclaration).collect(),
     })

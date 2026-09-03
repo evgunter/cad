@@ -2466,3 +2466,135 @@ standing `type_complexity` at `py/value.rs:319` — pre-existing on
 main, and the only one, so the debt is one lint rather than a backlog.
 Not fixed here: it touches the merge gate and a field this unit does
 not bind.
+
+**B-VALIDATE4 IN REVIEW (2026-09-03, #1677; mechanical under the 08-29
+ruling, no A/B row). Census family B-VALIDATE4 CLOSED — the ladder's
+fourth rung crosses, and the family's whole content is HOW its second
+argument does.** `validate_pseudomanifold` becomes
+`Body.validate_pseudomanifold`. 13 Python rows in the new
+`tests/test_validate.py`, one Rust row in `src/tests.rs`, ty fixtures
+both directions. The suite count is re-cut at the merge and stated
+once: the lane measured 454 to 467, B-CANCEL landed its 19 in the
+same window, and the merged tree runs 486. The DELTA is what this
+unit owns and it is 13 either way — which is the reason the count is
+given as a delta here rather than as a total two concurrent lanes can
+each invalidate (#1662's lesson, one register entry later).
+
+**The derived scope, and the audit-reach check.** One chartered name,
+one `gap:` roster entry, and the #1662 check came back NEGATIVE, as
+it did at #1668 and for the same reason: the door needs a `Body<f64>`
+and a `ContactRecords`, Python has had `Body` since §L4, and no other
+id owned an entry this unit had to build. One chartered, one moved.
+Three families in a row now say the audit-reach check is a step
+rather than a discovery — and this one says something the other two
+could not, because its arguments did NOT both already cross and it
+still cost nothing: the second one crossed by being CAPTURED.
+
+**The measurement the family exists for.** `ContactRecords` has no
+Python constructor and never will — it is minted by the ops that
+certify geometry — so a `validate_pseudomanifold(contacts)` door
+would be a door nobody can call, and one taking ANOTHER body's
+records would spell exactly the mis-pairing F1 refuses ("the
+validator never blesses discovered contacts"). So a `Body` carries
+the declarations its own producer minted for it and the Python door
+is a bare method like the three rungs below it. That is #1668's
+carrier-projection rule (`fmt_length` landing on the `Length` it
+needs) at a door whose Rust signature takes two things, and #1664's
+pairing argument (`RunCtx` becoming `Evaluation`) at a door that
+would otherwise let a caller ask one body about another's intent.
+`ContactRecords` accordingly STAYS `INTERIOR` — same disposition,
+second reason under it. The demo tour states the same rule from the
+other side and was the brief's pointer to it: its `SceneBody` carries
+`contacts` beside the body and runs 3′ "with the op's OWN declared
+contacts".
+
+**The capture reconciles the kernel's two homes, where the kernel
+does.** `NodeValue::contacts` is `instantiate`'s carried D-1 set; a
+boolean's records ride `BooleanValue::Body`; `product::sources_of` is
+where they meet, and `Value.body`/`Value.bodies` now make the same
+reconciliation so a body read off a value and the same body read by
+the gather cannot disagree about what was declared over it.
+`assemble` is the second source (D-1 plus the mates' minted D-2).
+`product` is deliberately the third case: it gathers and declares
+NOTHING. Empty is the honest default rather than a hole — with no
+declarations the kernel's own contract is 3′ ≡ tier 3 plus the census
+actually run, the STRICTEST rung — so a door that drops records can
+only make this gate refuse, never falsely pass. That property is what
+made the two filed findings safe to file rather than guess at.
+
+**The oracle is two doors over one geometry, and nothing else would
+have done.** A claim that records are captured is worth what a test
+can show, and every single-door test passes whether the capture works
+or not. The mated bench stand is the separating pair: `assemble(doc,
+ev).body.validate_pseudomanifold()` PASSES over its two seats while
+`product(doc, ev)` — same document, same evaluation, volume asserted
+equal — reports 16 undeclared contacts. The mate-less `layout` is the
+control that stops that reading as "assemble answers more kindly":
+zero minted, both doors pass. Corpus loaded through
+`test_assembly_eval.opened`, so the geometry is the tour's own scene
+and the Rust side already asserts about it. Second oracle, on the
+rung itself: two touching slabs gathered by `product` pass tiers 1, 2
+and 3 and refuse at 3′ — the census IS what the fourth rung adds,
+asserted rather than restated.
+
+**Measured and NOT pinned, because there is no door to pin it with.**
+A DECLARED glue — two slabs resting face to face, unioned through
+`Node.boolean(declare=…)` — comes out with an EMPTY record set: the
+union welds the declared faces, so no coincidence survives for a
+record to back. Its 3′ pass is the empty-record case, not the
+certified-seam case. No Python door reads a body's record count, so
+the distinction cannot be asserted from Python at all; it is written
+into the test file's header instead, because a reader would otherwise
+take that row for evidence of the capture it does not demonstrate.
+
+**Banked, and the sharper of the two: `work/lib/tier-3-prime-
+findings-render-through-debug.md`.** Only tier 3′ runs the census, so
+the other three rungs cannot reach its arms — and the kernel words
+three of them out of `Debug` (`UndeclaredContact`'s `CensusContact`,
+`StaleContactDeclaration`'s payload, and `census::witness`, which is
+`format!("{p:?}")`). The first honest call of the new door PANICKED
+inside this crate's own `reads_as_prose` assertion, on the ordinary
+path: two touching solids gathered by `product`. The assertion's own
+docstring predicted it — "what the check cannot see is a door no test
+reaches" — and the kernel has already made this exact fix one arm
+over (`validate.rs:1587`, the S6 sweep). Not fixed here: the
+rendering is `crates/topo`'s, the `witness` is an opaque `String` no
+consumer can re-derive, and re-wording at the boundary would fork a
+diagnosis the kernel owns while DROPPING the coordinate that makes a
+finding actionable. `run_validator` raises through a new
+`typed_err_kernel_authored` instead — one caller, message is
+`ValidationError::to_string()` by construction, the whole argument in
+its doc comment — and the current text is pinned in BOTH directions,
+`src/tests.rs` (no-interpreter row) and `test_validate.py`, so the
+fix goes red rather than silent and takes the exemption with it.
+Note what is NOT the complaint: `edge {edge:?}` reads that way in two
+dozen tier-1/2/3 arms and crosses today. The fingerprint is the
+STRUCT brace, not the arena key.
+
+**Also banked: `work/lib/subject-body-drops-the-declared-
+contacts.md`.** `editor_core::checks::subject_body` calls
+`product::sources_of`, which returns `(ix, body, contacts)`, and
+discards the third element one line later. So `pncad.subject_body`
+answers with a plain body, and a subject that IS a declared boolean
+result reports its own certified seam as undeclared where the same
+body through `Value.body` passes. Filed rather than worked around,
+for the reason the whole family turns on: a binding-side guess about
+which records belong to a subject would be the invention F1 forbids,
+and the failure is loud either way. The narrowing is stated at the
+door.
+
+**A false claim corrected in a file this unit touches**: `docs/
+GUIDE.md`'s validator-ladder section documented tier 3′ as
+`validate_pseudomanifold(body, contacts)` with a "3-versus-3′ choice"
+paragraph addressed to the caller, and said nothing about Python —
+which after this merge would read as a promise that the Python door
+takes contacts and that the choice is the caller's. It now says all
+four rungs are `Body` methods, that the fourth takes none, and which
+door puts a body on which side of the choice.
+
+**Not this unit's, and re-measured rather than assumed:** the
+python-feature clippy lane is still red on `Datum.axes`
+(`type_complexity`, `py/value.rs:395` — the same field at
+B-RESOLVE's `:319`, shifted by this diff), exactly as
+`work/lib/pncad-py-python-feature-clippy-lane-is-red.md` records, and
+no CI row runs it. One error, unchanged, inherited.
