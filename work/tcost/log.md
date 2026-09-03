@@ -769,3 +769,22 @@ census's rename-only blind spot (a sweep obligation across geom-brep
 and the B1/B2 crates). Operational: the session scratchpad is shared
 across sibling lanes — one lane's PR draft was overwritten by
 another's; lane notes belong under `~/tcost-work/<lane>-notes/`.
+
+## Unit: TCOST-C3 merged (2026-09-03)
+
+PR 1655 at `82cdff58` (run 33746592219, interval 1e-6 drawn, green;
+default covered by the fix-head run 33742871112). The python suite is
+seed-keyed on {pncad-py, pncad, editor-core}: −2 billed minutes on
+every code-tier run whose seeds miss, with the verdict step sited in
+the `filter` job because a skipped job runs no step. The review's
+hole closed as a class: `unittest discover` over an empty match exits
+0, so a nonzero-count guard now stands at all three call sites
+(ci.yml's job, the nightly re-take, `run-python-tests.sh` — no single
+seam exists for them, and that is filed). As the last of the three
+to land, C3 set the nightly budget total once (~8 → ~15; calibration
+night ~34 → ~41), dropped the three per-row "not yet included" notes,
+and corrected the paragraph under the table that had gone false.
+Ledger after the three: PR side −1 (C2, measured) −2 (C1, per
+topo-closure run) −2 (C3, per seed-miss run); nightly side +~7, of
+which C2's ~3 is derived and wants a re-read from the first nightly
+that executes it. C4 lands last after its final main merge.
