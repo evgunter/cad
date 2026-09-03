@@ -519,6 +519,15 @@ whose unit had merged; each unit's record is its row in
 - `M10-3-SPEC.md` — M10-3, the E6 subdivision driver (#1231)
 - `M10-4-SPEC.md` — M10-4, sensitivities and the stackup (#1627)
 
+## Per-merge deletion — M10-6's spec (2026-09-03)
+
+Recoverable at `git show c0b38dadf3b5b7af4f6165ecd8d37ea51b39423b:docs/M10-6-SPEC.md`
+(the M10-6 unit head, before the state-sync commit that deleted it).
+The rule above; the unit's record is its row in `MODEL-AB-LOG.md`
+and its MERGED entry in `work/m10/log.md`.
+
+- `M10-6-SPEC.md` — M10-6, reporting, CI rows, the advisory lanes, the demo (E10/E11) (#1685)
+
 ## Per-merge deletion — M10-5's spec (2026-09-03)
 
 Recoverable at `git show f02d2af15f04ef7d24f0b18efba1b1d19dd6af0d:docs/M10-5-SPEC.md`
