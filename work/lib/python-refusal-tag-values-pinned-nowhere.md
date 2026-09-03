@@ -2,10 +2,11 @@
 id: python-refusal-tag-values-pinned-nowhere
 kind: issue
 title: pncad-py — edit_error_tag / refusal-tag VALUES are compile-checked for existence but pinned nowhere
-status: open
+status: closed
 opened: 2026-08-16
 github: 561
 refs: [652]
+closed: 2026-09-03
 ---
 
 ## From GitHub issue 561
@@ -43,3 +44,105 @@ Worth adding to this issue's inventory alongside the tag values, since the pin i
 ## Home
 
 LIB: `crates/pncad-py/*` is the program's territory, and the LIB orchestrator adopted the issue on-thread as a bindings hygiene row.
+
+## Closed
+
+2026-09-03. `crates/pncad-py/src/tests.rs`'s
+`the_whole_tag_table_matches_its_committed_inventory`.
+
+**The state as found, re-derived rather than inherited.** The 2026-08
+filing said the values are "asserted almost nowhere"; a year of units
+later that is overstated for some maps and still true for most.
+`src/tags.rs` holds **37 tag functions** returning **354 literal
+occurrences** (326 distinct words) plus one `pub const` tag word
+(`NODE_NOT_EVALUATED`). **18** of the 37 carry at least one
+CONSTRUCTION pin on the Python-independent path — the
+`*_tags_are_stable` family: `interrogate`, `readback`, `hit_test`,
+`node_pick`, `tessellate`, `resolution_status`, `select_refusal`,
+`declare_error`, `expr_dimension`, `fmt_quantity`, `parse_error`,
+`eval_error`, `persist_error`, `workspace_error`, `step_import_error`,
+`path_error`, `checks_error`, `check_evidence`. **19 carry none**:
+`assembly`, `binary_header`, `edit`, `export`, `frame`, `inline`,
+`mate_fault`, `node_error`, `part_fault`, `placement_rule_fault`,
+`product`, `recorded_program`, `refused_ref`, `resolve_fault`,
+`root_fault`, `solid_name`, `split`, `stl`, `update` — 192 of the 354
+literals, including `edit_error_tag`'s 50 and `node_error_tag`'s 54.
+And the 18 that are pinned are SAMPLED, not exhaustive:
+`persist_error_tag` 2 arms of 13, `step_import_error_tag` 2 of 22,
+`path_error_tag` 3 of 30. Counting words rather than functions, 66 of
+the 326 distinct values appear as an asserted string on the Rust path
+and 115 anywhere in `tests/*.py`; **189 appeared in no test at all**.
+So the issue's shape held: the hole was real and roughly 58% of the
+vocabulary wide. What had changed is that the *first* claim ("the
+Python suite pins only `unknown_node`") was long obsolete.
+
+**What landed.** One value-pinning guard over the whole table, sited in
+the crate's Python-independent test module so it runs on the default
+no-interpreter CI row. It reads `src/tags.rs` at test time via
+`env!("CARGO_MANIFEST_DIR")` — the
+`crate_lints_match_the_workspace_minus_unsafe_code` idiom — enumerates
+every tag function and every literal each can return, and compares that
+against `TAG_INVENTORY`, a committed table of function name to exact
+value set (plus each function's DELEGATIONS, so flattening
+`Roots(f) => root_fault_tag(f)` into a bare `"roots"` reds too).
+`src/tags.rs`'s module header gained a paragraph saying the file is
+read as data and what the reader accepts; **no tag value was touched**.
+
+The reader is a RECOGNISER THAT ENUMERATES in the
+`scripts/check-ci-mirror-parity.py` sense, not an approximate parser.
+Every top-level line must be a comment, a `use` item, a
+`pub fn NAME(..) -> &'static str {` closed by a `}` in column 0, or a
+`pub const NAME: &str = "..";`; every arm body must be a literal, a
+nested `match`, a block around one of those, or a call to another tag
+function. Anything else panics with *I do not understand this*, naming
+the line. Floors (>= 30 functions, >= 250 literals, >= 1 const) refuse a
+reader that came back with a plausible-looking nothing.
+
+**What it proves**: a renamed value, an added value, a deleted value, a
+new tag function, a deleted tag function, a moved delegation — each
+reds by name, with the message stating that tag values are a public
+Python contract.
+
+**What it does NOT prove**, stated in the test's own doc comment
+because a guard that overstates is worse than none: an inventory pins
+the VOCABULARY, not the MAPPING. Swap two arms' literals and the word
+set is unchanged and the guard is green. Only the construction pins
+catch that, and they cover 18 of 37 functions by sample. The two
+guards are complements; neither subsumes the other, and the residual
+mis-mapping exposure on the 19 unpinned functions is unchanged by this
+work.
+
+**The `SelectRefusal.predicate` half: re-derived, and DELIBERATELY NOT
+TAKEN.** The 2026-08-19 comment still holds — `predicate: &'static str`
+rides `InBand` and `PairInBand`
+(`crates/editor-core/src/names/geompred.rs:202,253`), `py/select.rs`
+projects it as `SelectRefusal.predicate`
+(`crates/pncad-py/src/py/select.rs:676,748`), and exactly one name is
+pinned, `"sel_datum_distance"` at
+`crates/pncad-py/tests/test_selectors.py:124`. The reachable set is
+**five** names, not one:
+
+* `InBand` — `SEL_DATUM_DISTANCE` = `"sel_datum_distance"`, one
+  construction site, `names/geompred.rs:486`.
+* `PairInBand` — `source.predicate.unwrap_or("flush_pair_relation")` at
+  `crates/editor-core/src/names/flush.rs:267`, where `source` is the
+  verify door's `Indeterminate`; the funnel sites it can carry are
+  `"bool_plane_parallel"`, `"bool_plane_orient"` and
+  `"bool_plane_offset"`
+  (`crates/topo/src/boolean/plane_eq.rs:203,225,242,274,282,301,311`),
+  plus the `"flush_pair_relation"` fallback.
+
+Not taken here, and the reason is not scope discipline alone: **neither
+arm is constructible from `pncad-py`** — `select_refusal_tags_are_stable`
+already records that `InBand`/`PairInBand`/`BadValue` carry funnel
+internals with no public constructor — so a Rust-side pin would have to
+either drive real geometry through the datum-distance selector and the
+flush detector inside this crate's no-interpreter tests, or sweep
+`topo`'s predicate-constant namespace from three crates away. That is
+the K-name-space job, not a small clean addition. A one-line
+`assert_eq!(SEL_DATUM_DISTANCE, "sel_datum_distance")` was considered
+and rejected: it re-pins the one name already pinned, closes none of
+the other four, and would read as coverage. **Residue for its own
+issue**: four reachable `SelectRefusal.predicate` names unpinned
+anywhere, and the pin that exists sits in the Python suite rather than
+on the no-interpreter row.

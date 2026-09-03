@@ -36,31 +36,15 @@
 //! onto its own f64-rounding allowance. The lock is the REFUSAL side.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::{arc_section, stacked};
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
-use profile::RawLoop;
-use profile::{ProfileLoop, ProfileVertex};
-use sweep::{Section, loft_body};
-
-fn arc_section(s: f64) -> Section {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
-    vec![ProfileLoop::new(vec![
-        v(-s, -s, 0.0),
-        v(s, -s, 0.4142135623730951),
-        v(s, s, 0.0),
-        v(-s, s, 0.0),
-    ])]
-}
-
-fn stack(z: [f64; 3]) -> Vec<Affine3<f64>> {
-    z.map(|h| Affine3::translation(Vec3::new(0.0, 0.0, h)))
-        .into()
-}
+use geom_core::{Point2, Vec3};
+use sweep::loft_body;
 
 fn native_arc_loft() -> topo::Body<f64> {
     loft_body::<f64>(
         &[arc_section(1.0), arc_section(1.25), arc_section(1.0)],
-        &stack([0.0, 1.0, 2.0]),
+        &stacked(&[0.0, 1.0, 2.0], 1.0),
         2,
         Tol::witness(),
     )
@@ -80,7 +64,7 @@ fn probe_dense_isoarc_residuals_at_joins() {
             "arc prism",
             loft_body::<f64>(
                 &[arc_section(1.0), arc_section(1.0), arc_section(1.0)],
-                &stack([0.0, 1.0, 2.0]),
+                &stacked(&[0.0, 1.0, 2.0], 1.0),
                 2,
                 Tol::witness(),
             )

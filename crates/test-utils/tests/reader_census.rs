@@ -135,6 +135,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // eps inventory, code view
     },
     Entry {
+        path: "crates/pncad-py/src/tests.rs",
+        disposition: Shared, // the tag table in src/tags.rs: code view to locate, literal to read
+    },
+    Entry {
         path: "crates/pncad/tests/all.rs",
         disposition: Unconverted("Track E, issue #763 — `code_without_comments`, line-based"),
     },
@@ -217,6 +221,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/topo/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/topo/tests/quad_lane_is_the_certified_lane.rs",
+        disposition: Shared, // the props.rs lane impls, code view: their bodies ARE the pin
     },
     Entry {
         path: "crates/verbs/tests/all.rs",

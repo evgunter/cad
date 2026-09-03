@@ -639,6 +639,24 @@ jobs:
           echo "maturin=$m" >> "$GITHUB_OUTPUT"
           echo "ty=$t" >> "$GITHUB_OUTPUT"
           echo "pins read from ci.yml: maturin $m, ty $t"
+      # THE SAME CLIPPY ROW ci.yml's `python-suite` CARRIES, and the
+      # reason it is duplicated here is the reason this whole job exists:
+      # that copy inherits the seed key, so it does not run on a PR whose
+      # seeds miss {pncad-py, pncad, editor-core}, and the lints it would
+      # catch from FURTHER DOWN — `quantity`, the kernel through `pncad`'s
+      # re-exports, or a `stable` toolchain bump shipping a new lint —
+      # seed nothing at all. That is the same class of skip the suite
+      # below is re-taken for, so it is re-taken the same way: ungated,
+      # once a day. The full argument for the command and for its siting
+      # is at ci.yml's copy; it is not restated here, so that there is one
+      # place to edit it.
+      #
+      # SAME POSITION IN THE JOB as ci.yml's copy — immediately before the
+      # wheel machinery, since it needs none of it. The pins step stays
+      # ahead of it because it is a `sed` that costs nothing and reds on a
+      # pin this lane cannot read.
+      - name: clippy (pncad-py, python feature)
+        run: cargo clippy -p pncad-py --features python --all-targets -- -D warnings
       - name: install maturin (pinned, official prebuilt)
         env:
           MATURIN_VERSION: ${{ steps.pins.outputs.maturin }}

@@ -37,12 +37,11 @@
 //! escalate). Anything else panics.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::{arc_section, stacked};
 use geom_brep::PropsError;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::{Section, loft_body};
+use profile::{Profile, SketchPlane};
+use sweep::loft_body;
 use topo::{MassProperties, MassPropsError};
 
 /// The convergence target's tolerance factor, mirrored from
@@ -105,25 +104,6 @@ fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) ->
     }
 }
 
-/// A unit square with a quarter-circle bulge on the `+x` side — the
-/// arc-bearing profile whose lofted wall is RATIONAL (weights
-/// `1, cos 22.5°, 1` over two 45° sub-arcs).
-fn arc_section(s: f64) -> Section {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
-    vec![ProfileLoop::new(vec![
-        v(-s, -s, 0.0),
-        // tan(π/8): a quarter-circle bulge-out.
-        v(s, -s, 0.4142135623730951),
-        v(s, s, 0.0),
-        v(-s, s, 0.0),
-    ])]
-}
-
-fn stack(z: [f64; 3]) -> Vec<Affine3<f64>> {
-    z.map(|h| Affine3::translation(Vec3::new(0.0, 0.0, h)))
-        .into()
-}
-
 /// **The arc PRISM** (the `#288` waypoint's body): three identical
 /// arc sections stacked, so the loft reproduces an extrusion exactly.
 ///
@@ -136,7 +116,7 @@ fn stack(z: [f64; 3]) -> Vec<Affine3<f64>> {
 ///
 /// The tier-3 verdict and the volume bracket were two separate tests
 /// until the test-cost audit. Both built THIS prism — the same three
-/// `arc_section(1.0)` sections on the same `stack([0.0, 1.0, 2.0])`,
+/// `arc_section(1.0)` sections on the same `stacked(&[0.0, 1.0, 2.0], 1.0)`,
 /// the same 2 samples — and both then ran the same rational
 /// quadrature over it. Under nextest's process-per-test isolation
 /// there is no cache between them, so every ε row paid that
@@ -159,15 +139,24 @@ fn stack(z: [f64; 3]) -> Vec<Affine3<f64>> {
 /// rows where the volume honestly refuses on budget and this test
 /// returns early. That unconditional pin is the whole reason the
 /// tier-3 row was split out originally; it must never migrate under
-/// the `Certified` branch. Tier 3 itself runs the +V invariant, which
-/// CONSUMES the quadrature (a budget refusal there is an honest
-/// tier-3 refusal), so `validate_geometric` stays inside the
-/// `Certified` branch, exactly where it always was.
+/// the `Certified` branch.
+///
+/// Tier 3 itself runs the +V invariant, which CONSUMES the quadrature,
+/// and it is now the SAME quadrature this row measures: the row takes
+/// `validate_geometric_certificate`, which returns the enclosure check
+/// 7 decided on, so the tier-3 verdict and the volume bracket cost one
+/// certificate between them instead of two. Its consequence for the
+/// order: the gate is what runs unconditionally now, and the posture
+/// is read off its verdict — a budget refusal arrives as the single
+/// `VolumeUncomputable` the match below names, which is an honest
+/// tier-3 refusal exactly as it was when the two calls were separate,
+/// and any OTHER verdict in that vector is the tier-3 break the
+/// `TIER-3` label used to catch.
 #[test]
 fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     let loft = loft_body::<f64>(
         &[arc_section(1.0), arc_section(1.0), arc_section(1.0)],
-        &stack([0.0, 1.0, 2.0]),
+        &stacked(&[0.0, 1.0, 2.0], 1.0),
         2,
         Tol::witness(),
     )
@@ -179,7 +168,26 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     // the volume posture below turns out to be. Nothing may gate this
     // line on that posture.
     topo::validate_closed(&loft).expect("TIER-1/2: tiers 1/2 admit the rational-wall body");
-    let got = topo::mass_properties(&loft, Tol::witness());
+    // ONE certificate for this row. The tier-3 gate computes a full
+    // enclosure to decide its +V invariant; `validate_geometric_
+    // certificate` hands that object back, so the verdict below and
+    // the number this row measures are the same computation rather
+    // than two runs of it.
+    let gated = topo::validate_geometric_certificate(&loft, Tol::witness());
+    // TIER 3: tier 3 certifies a rational-wall body (M8-3 flip of
+    // #288/#276) — or refuses through CHECK 7 ALONE, the quadrature's
+    // honest frontier at a tight ε. Any other verdict in the vector is
+    // a break, and this match is where the tier-3 pin says so.
+    let got: Result<MassProperties<f64>, MassPropsError> = match &gated {
+        Ok(props) => Ok(*props),
+        Err(errors) => match errors.as_slice() {
+            [topo::ValidationError::VolumeUncomputable { source }] => Err(source.clone()),
+            other => panic!(
+                "TIER-3: tier 3 certifies a rational-wall body (M8-3 flip of #288/#276): \
+                 {other:?}"
+            ),
+        },
+    };
     let posture = body_posture("arc prism", &got);
     eprintln!(
         "EPS-ROW arc prism @ eps={:e}: {posture:?}{}",
@@ -197,12 +205,6 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
         return;
     }
     let got = got.expect("certified");
-
-    // TIER 3: the +V invariant consumes the quadrature, so the verdict
-    // is pinned exactly where the quadrature certifies (a budget
-    // refusal here would be an honest tier-3 refusal, not a break).
-    topo::validate_geometric(&loft, Tol::witness())
-        .expect("TIER-3: tier 3 certifies a rational-wall body (M8-3 flip of #288/#276)");
 
     // The oracle: the same solid through `extrude`, whose bulged wall
     // is an analytic cylinder (closed form, pad 0).

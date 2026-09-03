@@ -513,6 +513,24 @@ pub enum StepImport {
         /// state its native twin does not occupy — and nothing imports
         /// into a state the kernel will not certify.
         body: Body<f64>,
+        /// **The at-rest gate's own enclosure of `body`** — the
+        /// [`topo::MassProperties`] the aggregate gate's check 7
+        /// derived and decided the +V invariant on, handed back rather
+        /// than dropped. **Not a second computation**: a reader that
+        /// wants the imported body's volume reads this field instead of
+        /// calling [`topo::mass_properties`] again, and gets the same
+        /// four fields bit for bit, because it is the same object.
+        ///
+        /// Present on every `Solid`, and that is the gate's structure
+        /// rather than a convenience: check 7 runs on a clean battery
+        /// and reports its own refusal, so a body that reaches this
+        /// variant has a certificate by construction (the gate would
+        /// otherwise have refused [`StepImportError::TierInvalid`]).
+        ///
+        /// Its band is `Band::linear` of the import's `tol`, and its
+        /// lane is the tier-3′ door's — the `f64` quadrature lane,
+        /// which is the certified one at this scalar.
+        enclosure: topo::MassProperties<f64>,
         /// The import's input tolerance ε_in (meters): the override if
         /// given, else the file's declared uncertainty.
         eps_in: f64,
@@ -759,9 +777,10 @@ pub fn import_step(
             // aggregate-body fact, and the aggregate census sweeps
             // every entity of every instance.
             let records = resolve_declarations(&body, &options.declared_contacts, eps_in)?;
-            gate3(&body, &records, tol)?;
+            let enclosure = gate3(&body, &records, tol)?;
             Ok(StepImport::Solid {
                 body,
+                enclosure,
                 eps_in,
                 normalizations: model.normalizations.clone(),
                 curve_promotions: model.curve_promotions.clone(),
@@ -792,12 +811,18 @@ fn gate(body: &topo::Body<f64>, solid: Option<u64>, tol: Tol) -> Result<(), Step
 /// The aggregate subject's gate: the tier-3′ form over the resolved
 /// declaration records — the same function a native declared-contact
 /// body's caller runs, with the same no-opinion contract as [`gate`].
+///
+/// It returns the enclosure the gate itself computed. That is MORE
+/// returned and nothing filtered: the subject, the records, the
+/// tolerance and every verdict are what they were, and the value is the
+/// one check 7 decided on rather than a second quadrature over the same
+/// body.
 fn gate3(
     body: &topo::Body<f64>,
     records: &topo::ContactRecords,
     tol: Tol,
-) -> Result<(), StepImportError> {
-    topo::validate_pseudomanifold(body, records, tol).map_err(|errors| {
+) -> Result<topo::MassProperties<f64>, StepImportError> {
+    topo::validate_pseudomanifold_certificate(body, records, tol).map_err(|errors| {
         StepImportError::TierInvalid {
             solid: None,
             errors,
