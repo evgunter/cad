@@ -737,3 +737,15 @@ result privately, R2's mutant matrix is flagged as possibly
 contaminated (its outcomes agree with R1's on every shared mutant).
 Union fix pass dispatched to the implementing lane, same arm; the
 row records at merge.
+
+## Unit: TCOST-C1 merged (2026-09-03)
+
+PR 1650 at `f593881e` (run 33745119482, default 1e-6 drawn, green;
+interval covered by the pre-fix run 33722960963). `corrupt input
+(release profile)` leaves the PR gate: −2 billed minutes on every
+code-tier run whose closure holds topo (89 of the last 128 merges),
+re-taken nightly with its absence detectors (count guard + name
+greps) moved with it. The nightly job-insertion conflict with C2 was
+resolved by rebuilding nightly.yml from main and re-inserting C1's
+job (both parse; both jobs present; no markers). The nightly budget
+total is edited once, by C3 as the last to land.
