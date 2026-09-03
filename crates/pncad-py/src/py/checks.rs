@@ -599,9 +599,20 @@ pub(crate) fn enforce_checks(
 /// root has no value, denotes no body, or has no output at that index:
 /// exactly the attributions a `stale_expectation` finding names, which
 /// is what makes that arm's `None` an answer rather than a failure.
+///
+/// The body arrives with NO declared contacts, which is a NARROWING of
+/// this door and not a fact about the subject: `editor_core::checks::
+/// subject_body` returns the body alone, dropping the records
+/// `product::sources_of` produced beside it one line earlier. So a
+/// subject that IS a boolean result reports its own certified seam as
+/// undeclared under `Body.validate_pseudomanifold` — loud, never a
+/// false pass — where the same body read through `Value.body` passes.
+/// Reaching the records needs a widened editor-core signature, which
+/// is filed rather than taken here
+/// (`work/lib/subject-body-drops-the-declared-contacts.md`).
 #[pyfunction]
 pub(crate) fn subject_body(evaluation: &Evaluation, root: &NodeId, output_ix: u32) -> Option<Body> {
-    d::subject_body(&evaluation.inner, root.0, output_ix).map(|inner| Body { inner })
+    d::subject_body(&evaluation.inner, root.0, output_ix).map(Body::plain)
 }
 
 /// Register the advisory-check registry on the module.

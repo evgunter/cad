@@ -409,3 +409,13 @@ evaluate(doc).canceled = False  # ty: error
 # raise: reading the run where the TOKEN was meant, or the other way
 # round, is the confusion the two names invite and the types refuse.
 finished: CancelToken = evaluate(doc, cancel=CancelToken())  # ty: error
+# The fourth rung takes NO contacts argument. `ContactRecords` has no
+# Python spelling at all — it is minted by the ops that certify
+# geometry, never built by a caller — so the two shapes a reader might
+# reach for from the Rust signature are both unspellable: there is no
+# value to pass, and the door would not take one.
+product(doc, evaluate(doc)).validate_pseudomanifold(doc)  # ty: error
+
+# And it answers nothing. A rung that returned a verdict would be a
+# gate a caller could pass without reading; every rung raises instead.
+verdict: bool = product(doc, evaluate(doc)).validate_pseudomanifold()  # ty: error
