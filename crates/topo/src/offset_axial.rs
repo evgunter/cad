@@ -1762,7 +1762,7 @@ fn mint_carrier<T: Decide>(
         return Ok(Curve3::Circle {
             center: *sc + mh * t,
             axis: *axis,
-            radius: (*sr * *sr - t * t).sqrt(),
+            radius: (sr.powi(2) - t.powi(2)).sqrt(),
             u_ref: *u_ref,
         });
     }
