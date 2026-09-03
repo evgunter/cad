@@ -105,19 +105,22 @@ fn certification_on(r_c: f64, t0: f64, dt: f64, band: Band) -> Rung {
     }
 }
 
-/// The parse's answer for the same span, through the flux lane.
+/// The parse's answer for the SAME ONE span, through the branch
+/// door on a single-edge slice. One edge, so the rung under test is
+/// the only span decided and the two sites see the identical stored
+/// `t1 − t0` — a pair would put a second, complementary span in front
+/// of the decide, whose own rounding is not the rung's.
 fn parse(t0: f64, dt: f64, band: Band) -> Rung {
-    disposition(&curved_face(
-        &sphere::<f64>(),
-        &pair::<f64>(t0, dt),
-        1.0,
-        band,
-    ))
+    let edges = vec![arc(meridian::<f64>(0.0, RS), t0, t0 + dt, 0, 1)];
+    disposition(&require_one_chart_branch(&sphere::<f64>(), &edges, band))
 }
 
 fn disposition<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> Rung {
     match r {
         Ok(_) => Rung::Admits,
+        // The span was admitted and the POLE test then spoke: that is
+        // a different question, and for this ladder it is an admit.
+        Err(PropsError::NotOneChartBranch { .. }) => Rung::Admits,
         Err(PropsError::NotIsoRectangle { what }) if *what == "props_meridian_span_winding" => {
             Rung::Refuses
         }
@@ -368,7 +371,10 @@ fn r1_the_admitted_spans_answers_digest_to_one_line() {
         let t0 = -PI + 0.157 * f64::from(i);
         for j in -60..=60 {
             let dt = TAU + 0.02 * f64::from(j) * z;
-            if !admits(dt) || !admits(4.0 * PI - dt) {
+            // The spans as the two edges STORE them, rounding and all
+            // — the decide reads these, not the exact `dt`.
+            let (s0, s1) = ((t0 + dt) - t0, (t0 + 4.0 * PI) - (t0 + dt));
+            if !admits(s0) || !admits(s1) {
                 continue;
             }
             let fc = curved_face(&sphere::<f64>(), &pair::<f64>(t0, dt), 1.0, bd)
