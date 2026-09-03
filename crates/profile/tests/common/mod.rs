@@ -540,6 +540,51 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .continue_to(Start, Tol::witness())
         .unwrap();
 
+    // 14. The DECLARED STRAIGHT ARRIVAL at the seam (BOOL-12): Ev's
+    //     D-shape, whose entry sits at a SUBDIVISION point of its one
+    //     straight side. The closing leg declares both facts — its own
+    //     departure continues the run, and its arrival continues the
+    //     entry's first side — and each is checked, never inferred.
+    let d_shape = Open
+        .at(p2(0.0, 0.0))
+        .angle(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .arc_to(
+            Bulge {
+                p: p2(0.0, -2.0),
+                b: 1.0,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .line_to(p2(0.0, -1.0), Tol::witness())
+        .unwrap()
+        .continue_to(Start.arrives_tangent(), Tol::witness())
+        .unwrap();
+
+    // 15. The DECLARED G1 ARRIVAL at the seam (BOOL-12): a stadium,
+    //     tangent at all four joints. The closing cap's departure
+    //     tangency CONSTRUCTS the arc and its arrival tangency is
+    //     CHECKED, so the seam joint carries a declared flag the verify
+    //     layer re-checks.
+    let stadium = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .tangent()
+        .tangent_arc_to(p2(2.0, 2.0), Tol::witness())
+        .unwrap()
+        .tangent()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .tangent()
+        .tangent_arc_to(Start.arrives_tangent(), Tol::witness())
+        .unwrap();
+
     // 10/11. The complete-loop program forms.
     let circle = profile::circle(p2(1.0, 2.0), 0.75, Tol::witness()).unwrap();
     let split = profile::circle_split(p2(0.0, 0.0), 1.0, 5, 0.3, Tol::witness()).unwrap();
@@ -556,6 +601,8 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         lune,
         mode_legs,
         subdivided_square,
+        d_shape,
+        stadium,
         circle,
         split,
     ]

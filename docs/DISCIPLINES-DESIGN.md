@@ -151,8 +151,10 @@ case; the discipline's verdicts move *acceptance* (and F7's
 lattice/`validate` divergence on exact collinearity is RULED
 (**#433**, 2026-09-01): they agree — the authoring door was missing
 its spelling, which is now the straight continuation and its declared
-point-target form; both lattice halves have landed, and the issue's
-remaining half is the raw-door demotion. It remains the clearest in-repo instance of this grade's
+point-target form; both lattice halves and the SEAM have landed (the
+seam's own declaration rides the closing verb's target — PATHS §6's
+revised PQ4), and the issue's remaining half is the raw-door
+demotion. It remains the clearest in-repo instance of this grade's
 authoring-gate vs data-gate structure. Likewise the
 smooth-vs-transverse fork (MappedCurve vs Intersection descriptions,
 wedge legality, prefer-intrinsic) resolves from sampled geometry,
