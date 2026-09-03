@@ -35,14 +35,11 @@ use geom_brep::offset_fit::{
 };
 use geom_brep::offset_meters::{MeterError, OFFSET_METER_LADDER, patch_collapse, patch_regularity};
 use geom_brep::patch_bound::patch_cells_refined;
-use geom_core::{Band, Point3, Tol};
+use geom_core::Point3;
 
 use crate::shared::fixture::{kv1, kv2, quarter_cylinder, sphere_band};
 use crate::shared::sample::{grid, worst_offset_residual};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use crate::shared::tol::band;
 
 // ---------------------------------------------------------------------
 // Fixtures

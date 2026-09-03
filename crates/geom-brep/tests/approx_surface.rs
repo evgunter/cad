@@ -28,13 +28,10 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::offset_fit::{
     OffsetFitError, approx_offset_surface, certify_offset, offset_point, recertify_approx,
 };
-use geom_core::{Affine3, Band, Point3, Tol, Vec3};
+use geom_core::{Affine3, Point3, Vec3};
 
 use crate::shared::fixture::{kv2, quarter_cylinder};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use crate::shared::tol::band;
 
 /// A gently bowed polynomial patch over `[0,1]²` — a base whose offset
 /// is genuinely not a NURBS, so the fit has real work to do.
