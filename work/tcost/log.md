@@ -546,3 +546,19 @@ red annotated on the PR: the M10-4 bore-pin row at ε 1e-6
 (`work/issues/m10-4-bore-pin-row-red-at-interval-1e-6.md`). TCOST-6
 and TCOST-B2 were dispatched on B1's head before the merge (Ev's call)
 and share its target dir; they retarget onto main from here.
+
+## Seam: B1's merge reddened main's default lane; hotfix (2026-09-03)
+
+TCOST-B1's merge turned `editor-core/tests/m10_p_lift.rs`'s `mod
+fixture;` into a module-scope `use crate::fixture;` whose only use is
+inside an `#[cfg(feature = "interval")]` row, so the default-feature
+build carries an unused import and `-D warnings` reds every default-
+lane draw on main (first seen on PR 1647's run 33723972788). B1's own
+gating run drew the interval lane, which compiles the row — the
+sampled point missed it, exactly the shape the sampling accepts. The
+TCOST-C2 lane found it on its merge run and carried the fix; the
+orchestrator cherry-picked it as PR 1658 (one file, 4 lines) on B1's
+behalf per the inherited-red rule (the causing lane owes the fix).
+Lesson for build units that touch per-feature suites: a `use` that
+replaces a `mod` must sit where the `mod`'s uses are, and the lane
+should ask for BOTH lanes on its final head, not one.
