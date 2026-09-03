@@ -281,3 +281,26 @@ candidates (specific to `crates/geom-brep/src/props/quad.rs`) and
 their residual cost is TCOST-K1's. Family ≥ 44 % down hosted
 (interval/1e-6 drawn on the fix head; default/1e-12 on the first);
 row count 24 → 22, nothing deleted.
+
+## Seam: TCOST-5 back (2026-09-03)
+
+PR 1621, green at interval (asked) / 1e-6 (drawn). The sweep and
+step-import rational family: one duplicated arc-loft row deleted
+(the step-import native row owns every assertion and adds tiers
+1/2), the cross-crate twin balloon rows merged into the import-door
+row with every assertion labelled and a bare early return turned
+into a named loud skip, two assertion-free digit dumps deleted with
+owners, and the `r2_probe_cert8` sweep put on the fuzz harness (it
+had a fixed seed, a private LCG and no replay line). Family −10 %
+hosted at the cheap ε row, −21 % locally at 1e-12. The
+four-quadrature import row measured irreducible from the test side
+(the imported body is not the native body; `ImportOptions` cannot
+skip the at-rest gate). Awaiting style batch 2.
+
+**Third kernel finding for the A/B track — TCOST-K3 candidate:**
+`topo::validate_geometric` recomputes the enclosure its caller just
+computed and hands nothing back, so three rows in this family (and
+the real import path) pay two rational certificates per body. An API
+that lets the gate consume or return the mass properties removes one
+certificate per body. Separate from K1 (a schedule exit) and K2 (the
+fit loop); its own spec after K1 lands.
