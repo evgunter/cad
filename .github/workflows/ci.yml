@@ -127,9 +127,6 @@ concurrency:
 #
 # So every OTHER job is gated below, and a push to main now runs
 # `filter` + `rebuild-latency` + `renders`.
-# `cleanup-archives` is deliberately NOT gated: its `needs` (test,
-# test-interval) skip on a push, which skips it too — one mechanism
-# rather than two saying the same thing.
 #
 # THE CONDITION IS SPELLED `!= 'push'`, NOT `== 'pull_request'` (2026-08-28,
 # with the configuration dispatch at the top of this file). What this rule is
@@ -2689,48 +2686,6 @@ jobs:
           path: ${{ runner.temp }}/test-cost/test-list.json
           retention-days: 7
           if-no-files-found: ignore
-
-  # The archives exist only to ferry binaries from the build jobs to the
-  # run legs; on a fully green run they have no further use, and this
-  # private repo's artifact quota is small (500 MB, and the Actions
-  # budget has been exhausted before). retention-days: 1 already caps
-  # stragglers; this deletes the happy-path bulk immediately. On a FAILED
-  # run the artifacts are deliberately kept (retention window) so failed
-  # legs can be re-run without rebuilding.
-  # NO LOCAL MIRROR: it deletes the nextest archive artifacts this run
-  # uploaded, which exist only because the hosted halves of build and test are
-  # different jobs on different machines. A local run compiles and executes in
-  # one process and produces no artifact to clean up.
-  cleanup-archives:
-    name: delete nextest archives (green run)
-    runs-on: ubuntu-latest
-    # A SAMPLED RUN SKIPS ONE OF THESE TWO BY CONSTRUCTION, and a skipped
-    # `needs` skips the dependent job unless the condition says otherwise —
-    # which would have quietly stopped the cleanup and let a ~500 MB archive
-    # ride the retention window on every run. `always()` re-enables the job;
-    # the explicit result tests then restore what `success()` meant, keeping
-    # the archives on a FAILED run so failed legs can be re-run without
-    # rebuilding. `run_build` keeps the job off docs-tier runs, where there
-    # is nothing to delete and the round-up would still bill a minute.
-    needs: [filter, test, test-interval]
-    if: >-
-      always()
-      && needs.filter.outputs.run_build == 'true'
-      && needs.test.result != 'failure' && needs.test.result != 'cancelled'
-      && needs.test-interval.result != 'failure'
-      && needs.test-interval.result != 'cancelled'
-    permissions:
-      actions: write
-    steps:
-      - env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          for name in nextest-default nextest-interval; do
-            for id in $(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" \
-                          -q ".artifacts[] | select(.name==\"$name\") | .id"); do
-              gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$id"
-            done
-          done
 
   interval-backend:
     name: interval backend crate
