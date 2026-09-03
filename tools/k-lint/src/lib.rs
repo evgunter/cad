@@ -225,9 +225,11 @@
 /// because the guard would have to live in the recorder.
 ///
 /// **The separation itself IS checked**, in
-/// `tests/threshold_provenance.rs`: every committed era's `band_zero`
+/// `tests/threshold_provenance.rs`: the M7 era's `band_zero`
 /// population is bimodal with an 88-decade gap, and every value inside
-/// that gap classifies every recorded row identically. So the digit is
+/// that gap classifies every recorded row identically. The same
+/// derivation over all four committed eras is there too, `#[ignore]`d
+/// because M7 dominates them and they are frozen. So the digit is
 /// a choice within the gap and carries no information — which is what
 /// the paragraph above claims, now stated where it can fail. It does
 /// not reach the residue: these are past snapshots, and a future band
@@ -242,10 +244,14 @@ pub const AMBIENT_BAND_MIN: f64 = 1e-13;
 /// below the structural edge the rule-2 cap stops binding at the
 /// loosest supported row, and above the corpus's own largest zero-side
 /// ratio the baseline starts flagging itself under rule (2)-below.
-/// **That measured ceiling is the binding one and the tightest
-/// headroom any threshold here carries** — well under the structural
-/// edge, and under 2x above the shipped factor, at the 1e-12 row where
-/// a fixed rounding-scale coincidence is closest to `band_zero`.
+/// **That measured ceiling is the binding one of the two** — well
+/// under the structural edge, and under 2x above the shipped factor,
+/// at the 1e-12 row where a fixed rounding-scale coincidence is
+/// closest to `band_zero`. Both halves of that sentence are the
+/// assertions the test makes, in that order. It is NOT the crate's
+/// narrowest headroom: this one is 1.88x of a policy digit, while
+/// `EPS_COUPLED_FLOOR_RATIO` sits 8.9% below its P0 and this floor
+/// 16.6% below its datum — different quantities, not a ranking.
 pub const PROXIMITY_FACTOR: f64 = 1e2;
 
 /// The baseline distribution's bottom edge (provenance in the module

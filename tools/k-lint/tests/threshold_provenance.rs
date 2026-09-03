@@ -14,12 +14,14 @@
 //!   sweep and the constant is re-checked against that population's
 //!   P0 and the headroom its doc claims.
 //! * [`AMBIENT_BAND_MIN`] is a **separator**, and what it can be held
-//!   to is the SEPARATION, not the digit: the sweeps' `band_zero`
+//!   to is the SEPARATION, not the digit: the sweep's `band_zero`
 //!   population is bimodal with an 88-decade gap, and every value in
 //!   that gap classifies identically. So the interval is re-derived
 //!   and the constant asserted to lie in it — which also says what the
 //!   digit is: arbitrary within the gap, and therefore carrying no
-//!   information that a re-measurement could move.
+//!   information that a re-measurement could move. Every run derives
+//!   it from [`M7`]; the same derivation over all four committed eras
+//!   is `#[ignore]`d and run on demand, for the reason [`ERAS`] gives.
 //! * [`PROXIMITY_FACTOR`] is a **policy choice** (spec D3, "within
 //!   10² of the band"). Nothing derives 1e2 and no test can pretend
 //!   to; asserting it equals 1e2 would be the declaration written
@@ -60,10 +62,26 @@ use k_lint::{
 /// `docs/k-report-data/README.md` marks "current lint baseline".
 const M7: &str = "m7-";
 
-/// Every committed era, oldest first. The separator claim is asserted
-/// across all of them because "the gap has never been crossed" is a
-/// stronger statement than "the gap is not crossed today", and the
-/// four eras are what the tree has to say it with.
+/// Every committed era, oldest first — M2, M4, M5, M7.
+///
+/// **Only [`M7`] is swept on every run, and this is why.** The gap
+/// claim over the historical three cannot go red at any value of
+/// [`AMBIENT_BAND_MIN`] that leaves M7 green, because M7 DOMINATES
+/// them: M4 and M5 record the same two tie-break bands (`5e-324`,
+/// `1e-100`) and the same ambient side, so their coupled assertions
+/// are pointwise identical to M7's, and M2 records only the smaller
+/// band, so its lower bound is strictly weaker. Nor can the eras
+/// themselves move — `docs/k-report-data/README.md` forbids re-cutting
+/// a committed file in place, a new distribution being a new file. So
+/// the three historical arms answer to nothing but an edit to this
+/// test, while costing 8.2 s of a 12.0 s suite on every `k-lint (gate)`
+/// job.
+///
+/// They are kept, not deleted, because "the gap has never been
+/// crossed" is a stronger statement than "the gap is not crossed
+/// today" and it is worth having executable rather than transcribed
+/// into prose. It runs on demand:
+/// `cargo test --test threshold_provenance -- --ignored`.
 const ERAS: [&str; 4] = ["", "m4-", "m5-", M7];
 
 /// The ratified ε matrix. `band_escalate` is `K·ε` at the ratified
@@ -254,9 +272,11 @@ fn eps_coupled_floor_ratio_is_re_derivable_from_the_m7_population() {
 /// **[`AMBIENT_BAND_MIN`], re-derived as an interval.** Its doc says
 /// the separator "sits in a gap between two things a sweep cannot
 /// move" and that no re-measurement could shift it. Both halves are
-/// checkable against the committed eras, and this checks them: the
-/// `band_zero` population is bimodal in every era, the gap is 88
-/// decades wide, and the constant is inside it.
+/// checkable against the committed eras, and this checks them over
+/// [`M7`], the era the shipped thresholds were cut from: the
+/// `band_zero` population is bimodal, the gap is 88 decades wide, and
+/// the constant is inside it. The historical eras are the `#[ignore]`d
+/// twin below, for the reason [`ERAS`] gives.
 ///
 /// What this establishes is the SEPARATION, which is the whole content
 /// of the constant. Every factor between the exact bands' top and the
@@ -271,8 +291,30 @@ fn eps_coupled_floor_ratio_is_re_derivable_from_the_m7_population() {
 /// invisible here — the residue stays exactly where the doc leaves it,
 /// with the recorder.
 #[test]
+fn ambient_band_min_lies_in_the_gap_the_current_era_shows() {
+    the_gap_holds_across(&[M7]);
+}
+
+/// The same claim over **every** committed era — the archaeological
+/// half, *"the gap has never been crossed"*.
+///
+/// `#[ignore]`d rather than deleted or transcribed, for the reason
+/// [`ERAS`] gives: M7 dominates the historical three, so nothing this
+/// can red is not already red above, and the eras are frozen by
+/// `docs/k-report-data/README.md`'s never-re-cut-in-place rule, so
+/// they cannot move under it either. It is still CODE, so a re-derivation
+/// is one command away and the compiler keeps it in step with the
+/// crate. Run it when a new era lands, or when the dominance argument
+/// in [`ERAS`] stops obviously holding:
+/// `cargo test --test threshold_provenance -- --ignored`.
+#[test]
+#[ignore = "M7 dominates the historical eras and they are frozen; see ERAS"]
 fn ambient_band_min_lies_in_the_gap_every_committed_era_shows() {
-    for era in ERAS {
+    the_gap_holds_across(&ERAS);
+}
+
+fn the_gap_holds_across(eras: &[&str]) {
+    for era in eras.iter().copied() {
         for row in ROWS {
             let mut exact = Vec::new();
             let mut ambient = Vec::new();
@@ -363,9 +405,13 @@ fn ambient_band_min_lies_in_the_gap_every_committed_era_shows() {
 /// half nothing said before: rule (2)-below flags a zero-classified
 /// margin above `band_zero / PROXIMITY_FACTOR`, and the M7 corpus's
 /// own largest zero-side ratio puts a ceiling on the factor at the
-/// tightest row. That ceiling is the narrowest headroom any of this
-/// crate's four constants carries, and it is derived here rather than
-/// asserted, so a corpus that moves toward it says so.
+/// tightest row. That ceiling is the BINDING one of the two edges —
+/// asserted as a comparison against the structural edge rather than as
+/// a number — and the room it leaves is bounded above by the doc's own
+/// "under 2x", so a corpus that moves toward it says so. It is not a
+/// ranking against this crate's other constants: their headrooms are
+/// fractions below a measured datum and this one is a multiple of a
+/// policy digit.
 ///
 /// The definite arm is deliberately not part of this: post-cap,
 /// `proximity_above_threshold` never exceeds [`BASELINE_FLOOR_MARGIN`],
@@ -481,12 +527,19 @@ fn proximity_factor_is_a_policy_choice_and_this_is_what_moving_it_costs() {
          structural edge does ({ceiling:e} vs {upper:e}) — the upper \
          half of this pin has gone slack and wants re-stating"
     );
-    // How much room is actually left. Under 2× is not comfortable, and
-    // this is the assertion that says so if it narrows further.
+    // How much room is actually left. The UPPER edge here is the
+    // constant's doc sentence — "under 2x above the shipped factor" —
+    // made load-bearing rather than approximated: a corpus drifting to
+    // 2.2× must red here, not leave the doc quietly false. The lower
+    // edge is not a sentence anywhere; it is an alarm that the corpus
+    // loosened enough to want re-reading, and it is deliberately the
+    // looser half.
     let room = ceiling / PROXIMITY_FACTOR;
     assert!(
-        (1.5..2.5).contains(&room),
+        (1.5..2.0).contains(&room),
         "the corpus's zero-side headroom over PROXIMITY_FACTOR moved \
-         to {room:.3}× ({at}); the shipped factor was cut with ~1.88×"
+         to {room:.3}× ({at}); the shipped factor was cut with ~1.88×, \
+         and PROXIMITY_FACTOR's doc says \"under 2x above the shipped \
+         factor\""
     );
 }
