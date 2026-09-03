@@ -134,9 +134,6 @@ concurrency:
 # nothing else on this side writes. The CACHE PRIMING note above those
 # jobs carries the measurement, and says why F3's declined "scheduled
 # full run on main" is a different proposal rather than this one.
-# `cleanup-archives` is deliberately NOT gated: its `needs` (test,
-# test-interval) skip on a push, which skips it too — one mechanism
-# rather than two saying the same thing.
 #
 # THE CONDITION IS SPELLED `!= 'push'`, NOT `== 'pull_request'` (2026-08-28,
 # with the configuration dispatch at the top of this file). What this rule is
@@ -229,11 +226,13 @@ concurrency:
 #   is a second, unchecked copy of something the tooling already knows):
 #     default build compile step   514 s -> 389 s  (-24%)
 #     interval build compile step  618 s -> 495 s  (-20%)
-#   The runner is 2 vCPU / 7 GB (`nproc` from the provenance step below —
-#   standard GitHub-hosted for a private repo; the Bazel report's "4 vCPU"
-#   was wrong). That is why 261 independent link/codegen units are so
-#   expensive here, and why item 1 (collapsing 249 test crates into ~12)
-#   is still the big one.
+#   The runner is 4 vCPU / 16 GB (`nproc` from the provenance step below),
+#   the standard GitHub-hosted machine for a public repo. THE TIMINGS
+#   ABOVE PREDATE IT — they were taken at 2 vCPU / 7 GB — so read them as
+#   an ordering of the costs and not as a budget until something re-takes
+#   them. Item 1 (collapsing 249 test crates into ~12) is still the big
+#   one either way: 261 independent link/codegen units is a serialization
+#   that a core count moves but does not remove.
 #
 # LINKER — mold RETIRED 2026-08-12. #174 adopted it on a -24%/-20% result
 # measured across 261 static links; that is the whole basis for it, and
@@ -259,18 +258,6 @@ concurrency:
 # their `install mold` step. Do it on a measurement, not a hunch — and
 # note that a single run cannot settle it, because any env change here
 # rotates the rust-cache key and buys one cold rebuild.
-#
-#   BUILD_RUNNER   repo variable, unset today ⇒ `ubuntu-latest`. Item 4
-#     of the ranked list (8-vCPU runner) is NOT LANDABLE on this repo:
-#     GitHub-hosted larger runners require an ORGANIZATION on Team or
-#     Enterprise Cloud, and evgunter/cad is a User-owned private repo
-#     (`gh api repos/evgunter/cad --jq .owner.type` ⇒ "User"). Hard-coding
-#     a larger-runner label would fail the build job with "no runner
-#     matching labels" and take the whole gate — and the two build jobs
-#     are the gate's critical path. The variable makes it a one-setting
-#     flip if the repo ever moves under an org. Note also that larger-
-#     runner minutes are billed SEPARATELY from the included-minutes
-#     allowance this repo's change filter exists to protect.
 #
 # NOT MIRRORED into local-scripts/ci-local.sh, deliberately: these are hosted-
 # runner performance knobs, not gate semantics. No job is added, removed
@@ -1879,8 +1866,9 @@ jobs:
   # inside each test row (`nextest_check`).
   build:
     name: build + archive (default)
-    # BUILD_RUNNER (repo variable) — see the LINK/DEBUGINFO note above.
-    # Unset today, so this is `ubuntu-latest` and nothing changes.
+    # BUILD_RUNNER: repo variable, unset today, so this is `ubuntu-latest`
+    # and nothing changes. It exists so that swapping the runner is one
+    # setting rather than an edit to this job and `build-interval` both.
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
     if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
@@ -2911,48 +2899,6 @@ jobs:
           path: ${{ runner.temp }}/test-cost/test-list.json
           retention-days: 7
           if-no-files-found: ignore
-
-  # The archives exist only to ferry binaries from the build jobs to the
-  # run legs; on a fully green run they have no further use, and this
-  # private repo's artifact quota is small (500 MB, and the Actions
-  # budget has been exhausted before). retention-days: 1 already caps
-  # stragglers; this deletes the happy-path bulk immediately. On a FAILED
-  # run the artifacts are deliberately kept (retention window) so failed
-  # legs can be re-run without rebuilding.
-  # NO LOCAL MIRROR: it deletes the nextest archive artifacts this run
-  # uploaded, which exist only because the hosted halves of build and test are
-  # different jobs on different machines. A local run compiles and executes in
-  # one process and produces no artifact to clean up.
-  cleanup-archives:
-    name: delete nextest archives (green run)
-    runs-on: ubuntu-latest
-    # A SAMPLED RUN SKIPS ONE OF THESE TWO BY CONSTRUCTION, and a skipped
-    # `needs` skips the dependent job unless the condition says otherwise —
-    # which would have quietly stopped the cleanup and let a ~500 MB archive
-    # ride the retention window on every run. `always()` re-enables the job;
-    # the explicit result tests then restore what `success()` meant, keeping
-    # the archives on a FAILED run so failed legs can be re-run without
-    # rebuilding. `run_build` keeps the job off docs-tier runs, where there
-    # is nothing to delete and the round-up would still bill a minute.
-    needs: [filter, test, test-interval]
-    if: >-
-      always()
-      && needs.filter.outputs.run_build == 'true'
-      && needs.test.result != 'failure' && needs.test.result != 'cancelled'
-      && needs.test-interval.result != 'failure'
-      && needs.test-interval.result != 'cancelled'
-    permissions:
-      actions: write
-    steps:
-      - env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          for name in nextest-default nextest-interval; do
-            for id in $(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" \
-                          -q ".artifacts[] | select(.name==\"$name\") | .id"); do
-              gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$id"
-            done
-          done
 
   interval-backend:
     name: interval backend crate
