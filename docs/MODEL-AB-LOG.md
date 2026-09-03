@@ -3388,3 +3388,7 @@ phase-note commit subjects stay verdict-free (tallies in the body
 only). Both reviews' costs: R1 ~240k/~26m harness; R2 ~219k/~18m
 harness (~65m self-est). Fix pass dispatches to the implementer
 lane next; row at merge.
+VERBS-RIMCAP PR-1 review ordinal fixed at dispatch (2026-09-03,
+PR #1674 open — frozen head `8c8a7b7f1`): **ordinal 113** (VERBS
+band; the #1095 shape). v6 DUAL, concurrent, briefs symmetric.
+Sample number AT MERGE in main's order. Row at merge.

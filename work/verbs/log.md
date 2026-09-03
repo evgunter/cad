@@ -3153,3 +3153,23 @@ the unmerged cup as the differential; the register's two settled
 sentences (the lily gate-admission deferral, the cup-seam
 straightness) sync by citation. STOP if a second gap sits behind
 the winding arm.
+## Ordinal 113 claimed — RIMCAP PR-1 dual (2026-09-03)
+
+RIMCAP PR-1 delivered with the mechanism hypothesis CONFIRMED
+(the pole arm answers on-axis while both moved caps stand 0.05
+off — instrumented; one refinement: the shipped refusal's true
+raising site is the axis-edge meter, not param_on, and the
+module doc was corrected to the measured version). Two arms
+beside the pole arm (meridian-pair + carried-datum; the lune's
+pole corners are the 2-CAP case the spec's one-cap wording
+cannot answer — flagged for spec re-cut) + the off-axis-circle
+mint arm computed inline; corners bit-exact at ρ=t√2; the elbow
+moves ONE DOOR DEEPER (TogetherAxialEdge, the spiric boundary
+stated — PR-2's design gate). ONE DECLARED DEVIATION with a
+filed schedule: the spec's shell-level acceptance rests on a
+measurably false premise — the operand lune is tier-3
+VolumeUncomputable (props_band_coplanar) TODAY, so the hollow
+delivered at the public direct door with a
+red-the-day-props-lands row; work/issues/
+sphere-flux-arm-refuses-partial-bands.md filed. Dual claim to
+main at dispatch; parity per the draw line.
