@@ -565,3 +565,71 @@ four days later against a main that had moved 524 merges — the fresh
 lane delivered in ~60 minutes, the rows annotate it. The six merged M10
 specs (M10-1, DI, P, 2, 3, 4) leave `docs/` with this merge per the
 ledger's rule. M10-5 is in flight; M10-6's spec is next.
+
+## M10-5 dual review adjudication (2026-09-03)
+
+Both arms on frozen 9f143595 (PR #1638): R1 NOT-MERGEABLE (4 MAJ,
+rubric 4/2/2), R2 REQUEST-CHANGES (3 MAJ, rubric 4/3/3). Two
+headlines are bilateral and identically diagnosed with independent
+red probes. First, the fold door: `clearance_over` starts its
+accumulator at `Holds`, so a drive that certified NOTHING (a real
+±0.05 placement tolerance — 0 certified, 100% Budget-refused) folds
+to `Holds`, `holds() == Some(true)` — E7's "never silence" with a
+fourth state spelled as a pass; R1 adds that leaves whose clearance
+query REFUSED stay priced as certified mass (the drive's accounting
+handed through verbatim) and that no per-leaf verdict survives the
+fold. Second, the prune band: the BVH admits candidates on a raw
+`separation_lo > c` while the funnel classifies through the (ε, Kε)
+band — two blocks ε/2 apart under `StrictlyPositive` are pruned to
+`Holds` with an empty receipt where the funnel's own doc calls a
+definite `Sign::Zero` the violation; a gap of c+5ε (the driver's
+terminal-sliver shape) silently holds; moving two bodies FURTHER
+apart by less than a tolerance flips the answer. Deviation D4
+disclosed this on the wrong argument ("the same certified
+enclosures") — it prunes on a different threshold. Then one
+unilateral-by-execution MAJOR each way: R2 showed the strict
+violation arm has no reachable path (the margin is a norm minus
+zero, never negative; a definite `Zero` needs both cells below ε;
+two unit blocks overlapping by 1.5 m return `Refused(Budget)` at
+every budget — gross interpenetration cannot be reported and
+nothing says so); R1 showed the measured-limit narrative is
+contradicted by its own table (every `Violated` row is a budget
+exhaustion at exactly 65 536 cells because the sweep never stops at
+the first definite violation and the d = c frontier never resolves;
+whether `Violated` is reached at all depends on DFS order — the same
+question answers `Violated` revolved about ẑ and `Refused(Budget)`
+about ŷ). The remaining findings converge on honesty and reach: the
+witness is a cell midpoint, not the closest-point pair the field
+doc and E7 promise (unreported); `bvh`'s "LIVE" claims name doors
+the engine never calls; `separation_lo` over-claims past √f64::MAX;
+D3's window-superset reach understated and unscheduled; four
+refusal arms without a row and the §3 acceptance row handing zero
+candidates to the funnel; `c` unvalidated (NaN/∞ burn the budget
+and come back `Budget`); `serialize()` omitting the witness it is
+supposed to make goldenable. Every claim the reviewers could
+execute against otherwise held: the diff is purely additive to
+`bvh`, exactly two `decide` sites and no ε, the receipt identity on
+75 configurations between them, D9 bit-stable, the re-chart the
+same chart at f64, the 1055 layering argument correct.
+
+Fix pass IMPLEMENTER-INHERITED: the fold refuses typed over zero
+certified leaves and prices refused/violated leaves by reason with
+per-leaf verdicts kept; the prune folds the funnel's band into
+admission (never a raw compare deciding inside the band) and D4's
+text says what is true; the sweep stops at the first VERIFIED
+violation (a witness is the deliverable — a `Violated` definite at
+the root costs one cell) and the limit section is rewritten from
+measurements; the strict-violation reach is disclosed as a deviation
+with a signed-penetration arm as a filed follow-up unless it fits;
+the witness becomes a closest-point pair within the cell or the
+field is renamed to what it is; both probe suites adopted (the five
+`_r2_finding` rows and R1's seven pinned counterexamples go green
+with the fixes).
+
+Tally candidates: R2's unreachable-violation-arm MAJ and R1's
+measured-limit MAJ — one unilateral execution finding each way, the
+program's first symmetric pair. Durable homes at adjudication: the
+window-tightening class (D3, chart-coordinate boundary) and the
+signed penetration arm get `work/m10` issue items from the fix
+pass; D4 needs none once fixed; the `DEFAULT_MAX_CELL_PAIRS` /
+`DEFAULT_MAX_LEAVES` double home is folded in the fix.
