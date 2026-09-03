@@ -12,10 +12,13 @@
     clippy::print_stdout
 )]
 
+// `tests/common/` is named because `witness_bodies` and the shared tolerance live
+// there. A marker's own file is implicit; a sibling helper module is not.
 test_utils::gated_to![
     "crates/mesh/src/",
     "crates/topo/src/coherence.rs",
     "crates/topo/src/splitting/",
+    "crates/mesh/tests/common/",
 ];
 
 use crate::common;

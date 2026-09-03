@@ -17,6 +17,9 @@
 // literals, frame placements, D7 metadata) plus the edit door the fixture
 // is built through. `geom-core/src/tolerance.rs` is named because the
 // recorded eps is one of the slots.
+// `tests/fixture/` is named because `fixture::desc` builds the documents every
+// slot is round-tripped through. A marker's own file is implicit; a sibling
+// helper module is not.
 test_utils::gated_to![
     "crates/editor-core/src/persist/",
     "crates/editor-core/src/doc.rs",
@@ -26,6 +29,7 @@ test_utils::gated_to![
     "crates/editor-core/src/placement.rs",
     "crates/editor-core/src/meta/",
     "crates/geom-core/src/tolerance.rs",
+    "crates/editor-core/tests/fixture/",
 ];
 
 use crate::fixture;

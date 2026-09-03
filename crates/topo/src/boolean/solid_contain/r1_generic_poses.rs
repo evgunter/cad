@@ -2,11 +2,11 @@
 //! nobody chose, against the same geometric oracle its enumeration
 //! sibling uses.
 //!
-//! It lives in its own file because a marker gates a whole file's
-//! module, and `r1_probes.rs` next door holds deterministic pins — the
+//! A file of its own because a marker gates a whole file's MODULE
+//! (`test_utils::gated_to!`'s docs are where that granularity is
+//! stated), and `r1_probes.rs` next door holds deterministic pins — the
 //! regime enumeration and the two `cbrt` rows — that must keep running
-//! on every leg. Gating those to buy this one sweep would be the wrong
-//! half of the trade.
+//! on every leg.
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
@@ -40,7 +40,7 @@ use super::r1_probes::{SHAPES, Tally};
 #[test]
 fn r1_generic_poses_agree_with_the_geometric_oracle() {
     use test_utils::fuzz;
-    let mut rng = fuzz::start("boolean::r1_probes::generic_poses");
+    let mut rng = fuzz::start("boolean::solid_contain::r1_generic_poses");
     let per_shape = fuzz::scaled(4);
     let mut tally = Tally::new();
     for (rr, r) in SHAPES {

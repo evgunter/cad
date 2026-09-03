@@ -12,6 +12,9 @@
 // the spline machinery the NURBS box's hulls are read from, the `Bounds`
 // and `Interval` scalars a certified box is built in, and `bvh`'s `Aabb`,
 // which is the box type itself.
+// `geom-core/src/linalg/` is named because the containment assertion is a `Point3`
+// against an `Aabb`'s corners and the frames are built by normalising `Vec3`s —
+// the same judgement the two bvh markers in this batch make.
 test_utils::gated_to![
     "crates/geom/src/curves/",
     "crates/geom/src/curves.rs",
@@ -19,6 +22,7 @@ test_utils::gated_to![
     "crates/geom-core/src/spline/",
     "crates/geom-core/src/interval.rs",
     "crates/geom-core/src/real.rs",
+    "crates/geom-core/src/linalg/",
     "crates/bvh/src/aabb.rs",
 ];
 

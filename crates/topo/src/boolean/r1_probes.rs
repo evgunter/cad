@@ -396,10 +396,6 @@ fn r1_certified_counts_agree_with_a_geometric_oracle() {
     );
 }
 
-/// CLAIM 1 + 5 at poses nobody chose — a counterexample search over
-/// rays drawn uniformly through the box the shapes occupy, with a
-/// direction uniform on the sphere.
-///
 /// The four-root ray through the hole, asserted at the ROOT level
 /// rather than through `point_in_solid` — the shipped suite pins the
 /// consequence, not the count.

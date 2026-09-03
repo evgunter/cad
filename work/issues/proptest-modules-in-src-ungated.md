@@ -1,7 +1,7 @@
 ---
 id: proptest-modules-in-src-ungated
 kind: issue
-title: the 15 in-src proptest modules stay ungated: a split per file buys 0.55 cpu-s
+title: the 14 in-src proptest modules stay ungated: a split per file buys 0.62 cpu-s
 status: open
 opened: 2026-09-03
 ---

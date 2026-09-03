@@ -12,6 +12,9 @@
 // `geom-core`'s tolerance and predicate are named because a rotation-
 // invariant answer is only invariant if the decisions taken along the way
 // are, and both are decided there.
+// `tests/common/` is named for the same reason: every fixture loop and the
+// tolerance the byte comparison is taken at come from `common`. A marker's own
+// file is implicit; a sibling helper module is not.
 test_utils::gated_to![
     "crates/profile/src/validate.rs",
     "crates/profile/src/structure.rs",
@@ -19,6 +22,7 @@ test_utils::gated_to![
     "crates/profile/src/lift.rs",
     "crates/geom-core/src/tolerance.rs",
     "crates/geom-core/src/predicate.rs",
+    "crates/profile/tests/common/",
 ];
 
 use crate::common;

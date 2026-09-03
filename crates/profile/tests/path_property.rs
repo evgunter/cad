@@ -26,6 +26,8 @@
 // predicate are named because the near-tangent bands the sweep aims at are
 // decided there, so a change to either moves which refusals are reachable
 // with `profile/` untouched.
+// `tests/common/` is named for the same reason: `common::pinned` supplies the
+// fixtures. A marker's own file is implicit; a sibling helper module is not.
 test_utils::gated_to![
     "crates/profile/src/path/",
     "crates/profile/src/path.rs",
@@ -35,6 +37,7 @@ test_utils::gated_to![
     "crates/profile/src/sugar.rs",
     "crates/geom-core/src/tolerance.rs",
     "crates/geom-core/src/predicate.rs",
+    "crates/profile/tests/common/",
 ];
 
 use crate::common;

@@ -1,12 +1,12 @@
 //! The op-sequence counterexample SEARCH: properties (a)–(d) of
 //! `seqgen`'s module docs over random valid op sequences.
 //!
-//! It lives in its own file because a marker gates a whole file's
-//! module, and `seqgen.rs`'s `tests` module next door holds the
-//! deterministic pins — the issue-60 distillation, the genus-one
-//! teardown, the generator's determinism and the pinned selection —
-//! which must keep running on every leg. The helpers stay where their
-//! other callers are and are borrowed from here.
+//! A file of its own for the reason `test_utils::gated_to!`'s docs
+//! give — a marker gates a whole file's MODULE — and `seqgen.rs`'s
+//! `tests` module next door holds the deterministic pins (the issue-60
+//! distillation, the genus-one teardown, the generator's determinism,
+//! the pinned selection) that must keep running on every leg. The
+//! helpers stay where their other callers are and are borrowed here.
 
 // Gated to the code it tests (TCOST-1), as `memories/test-suite-cost.md`
 // requires of every fuzzer: proptest draws this row's decision vectors
@@ -18,7 +18,11 @@
 // here, on every euler module the walk calls, on the body and entity arenas
 // it validates, and on the validator, the ledger's iso oracle and the
 // fixture the walk starts from. Named wide on purpose: a run costs about a
-// second and a half, and a break this misses waits for the nightly.
+// second and a half, and a break this misses waits for the nightly. It is the
+// SAME nine paths `crates/topo/src/review_m1_pr4.rs` carries, and deliberately
+// so — the two rows walk the same operators over the same fixtures, so one
+// judgement answers for both; they are spelled twice because a marker is read
+// out of the source text of the file it gates and cannot name another's.
 test_utils::gated_to![
     "crates/topo/src/seqgen.rs",
     "crates/topo/src/euler.rs",

@@ -1126,7 +1126,7 @@ mod tests {
     /// One proptest decision per step: op-kind roll, site roll, and a
     /// mode roll (every fourth mode value turns the step into a
     /// make/kill roundtrip instead of a plain op).
-    pub(super) type Decision = (u32, u32, u32);
+    type Decision = (u32, u32, u32);
 
     /// What one decision vector did to property (c): how many steps the
     /// mode roll SELECTED for a roundtrip, how many of those executed,
