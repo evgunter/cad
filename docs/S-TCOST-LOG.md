@@ -251,3 +251,17 @@ marked unguarded at the site, the skinned loft shrunk. Family
 88 → 42 cpu-s hosted at default/1e-6 (−52 %); roughly 46–50 cpu-s
 off a ~458 cpu-s suite. Lane asked for default; interval covered
 locally only (no interval semantics in the diff).
+
+## Unit: TCOST-4 merged (2026-09-03, PR 1608 at 06e4d74a)
+
+The topo torus-oracle probe: 1 310 rays → a 13-regime enumeration
+(65 rays) with an AGREEMENT assertion and a DECIDEDNESS floor whose
+failure names the regime (the fix pass measured 40/41/38 decided at
+the three ε rows and found membership moves with ε, so the floor is
+a floor over the rows, not a per-regime pin), plus a seeded
+counterexample-search row over the generic poses (ungated until
+TCOST-1; specific to `crates/topo/src/boolean/solid_contain.rs`).
+Two assertion-free cross-profile dumps retired with owners; a
+dangling module-path citation in `solid_contain.rs` corrected. The
+row left the hosted top-20 at both ε rows drawn (from 23 cpu-s, rank
+2); topo's lib suite locally 77 → 10 s.
