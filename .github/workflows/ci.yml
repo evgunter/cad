@@ -126,7 +126,14 @@ concurrency:
 # of its own, and strands every green check on the parent commit.
 #
 # So every OTHER job is gated below, and a push to main now runs
-# `filter` + `rebuild-latency` + `renders`.
+# `filter` + `rebuild-latency` + `renders` — plus, since 2026-09-03,
+# `cache-prime` and `cache-prime-interval`, which are a THIRD write
+# side-effect and not a fourth gate. They assert nothing and block
+# nothing; their whole output is a rust-cache entry in the DEFAULT
+# BRANCH's scope, which is the only scope every branch can read and which
+# nothing else on this side writes. The CACHE PRIMING note above those
+# jobs carries the measurement, and says why F3's declined "scheduled
+# full run on main" is a different proposal rather than this one.
 # `cleanup-archives` is deliberately NOT gated: its `needs` (test,
 # test-interval) skip on a push, which skips it too — one mechanism
 # rather than two saying the same thing.
@@ -1749,7 +1756,15 @@ jobs:
     # carries os + arch, so priming on another runner class would write an
     # entry the build job cannot use.
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
-    if: github.event_name == 'push'
+    # `push` is what primes main's scope. `workflow_dispatch` is here so the
+    # entry can be repaired on demand after a key rotation without waiting
+    # for the next merge — and it is also how the key identity between this
+    # job and the job it primes was VERIFIED before this landed, since a
+    # dispatch is the only event that runs both in one run. A dispatch on a
+    # branch writes a branch-scoped entry, which is useless to anyone else
+    # and costs one billed minute once main's entry exists (exact hit, no
+    # build, no save).
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     # IDENTICAL to `build`'s env block, and that is load-bearing —
     # Swatinem/rust-cache hashes CARGO_*/RUST* into the key. See the
     # COUPLING TO WATCH paragraph above.
@@ -1791,7 +1806,15 @@ jobs:
   cache-prime-interval:
     name: prime the build cache (interval)
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
-    if: github.event_name == 'push'
+    # `push` is what primes main's scope. `workflow_dispatch` is here so the
+    # entry can be repaired on demand after a key rotation without waiting
+    # for the next merge — and it is also how the key identity between this
+    # job and the job it primes was VERIFIED before this landed, since a
+    # dispatch is the only event that runs both in one run. A dispatch on a
+    # branch writes a branch-scoped entry, which is useless to anyone else
+    # and costs one billed minute once main's entry exists (exact hit, no
+    # build, no save).
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     # IDENTICAL to `build-interval`'s env block — see the COUPLING TO WATCH
     # paragraph in the CACHE PRIMING note above.
     env:
