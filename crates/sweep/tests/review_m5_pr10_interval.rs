@@ -11,7 +11,7 @@ use geom_brep::SketchSegment;
 use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec3};
 use sweep::skin::{lift_surface, loft_geometry, segment_curve, sweep_geometry};
 
-mod common;
+use crate::common;
 use common::chain;
 use geom_core::Tol;
 

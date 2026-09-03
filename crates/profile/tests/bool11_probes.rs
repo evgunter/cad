@@ -20,7 +20,7 @@
 //! doc lives, in `path_property.rs`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::pinned;
 use geom_core::{Point2, Tol};

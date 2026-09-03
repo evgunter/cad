@@ -2,7 +2,10 @@
 //! Each `revolve_*.rs` suite includes this via `mod revolve_common;`,
 //! so it is loaded once per suite inside the crate's one aggregated
 //! test binary (`tests/all.rs`).
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)]
+// one instance per binary; no single consumer uses all of it
+// Why a helper tree allows these: `crates/editor-core/tests/fixture/mod.rs`.
+#![allow(clippy::unwrap_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use geom_brep::{EdgeAuthority, EdgeDescription};

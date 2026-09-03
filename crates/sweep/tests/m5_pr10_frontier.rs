@@ -24,7 +24,7 @@ use sweep::skin::{lift_surface, loft_geometry};
 use sweep::{Extrusion, extrude};
 use topo::{FaceSurface, validate_geometric};
 
-mod common;
+use crate::common;
 
 /// A three-section loft of a square, middle section scaled — the
 /// acceptance shape's wall set (§5's "at least one non-affine pair").

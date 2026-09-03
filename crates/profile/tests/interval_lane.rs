@@ -10,7 +10,7 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{annulus, lift, near_tangent_hole, profile, rect, tangent_hole, tol};
 use geom_core::Tol;

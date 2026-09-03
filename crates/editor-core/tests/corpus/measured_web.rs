@@ -34,8 +34,8 @@ use editor_core::{
 use geom_core::Tol;
 use profile::SketchPlane;
 
-use super::super::fixture::len;
 use super::{CorpusDoc, Recorder};
+use crate::fixture::len;
 
 /// The parameter driving both holes.
 pub const HOLE_R: &str = "hole_r";

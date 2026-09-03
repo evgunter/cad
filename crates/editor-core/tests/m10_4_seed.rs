@@ -26,8 +26,8 @@
 //!   degenerate-only box rule; `Interval` plus a seed refuses.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
+use crate::fixture;
 
 use editor_core::UnitSym;
 use editor_core::{

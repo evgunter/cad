@@ -13,8 +13,8 @@
 use editor_core::{Datum, DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
 use profile::SketchPlane;
 
-use super::super::fixture::{len, scl};
 use super::{CorpusDoc, Recorder};
+use crate::fixture::{len, scl};
 
 /// The tilt angle (radians) of the cutting plane's normal off the
 /// cylinder axis — comfortably transverse, far from both the rim and

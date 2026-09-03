@@ -18,8 +18,7 @@ test_utils::gated_to![
     "crates/topo/src/props.rs",
 ];
 
-mod corpus;
-mod fixture;
+use crate::corpus;
 
 use editor_core::{
     AnalysisPolicy, CancelToken, DEFAULT_QUANTILE_MASS, Dimension, Distribution, DocEdit, DocParam,

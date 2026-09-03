@@ -17,7 +17,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{insert, len, shape};
 use pncad::document::{Doc, ValuePayload};

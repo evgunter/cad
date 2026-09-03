@@ -28,7 +28,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{ang, insert, len, len3, scl3, shape};
 use pncad::document::{

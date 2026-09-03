@@ -509,6 +509,67 @@ pub fn suite_files(tests_dir: &std::path::Path) -> Vec<String> {
         .collect()
 }
 
+/// Every `mod <name>;` declaration in a Rust source text — the FILE
+/// form of a module declaration, never an inline `mod <name> { … }`.
+///
+/// **ONE HOME, and why the shape is the thing being counted.** In an
+/// aggregated test binary (`autotests = false`, every suite mounted in
+/// `tests/all.rs` with `#[path]`) a `mod <name>;` inside a SUITE loads
+/// that helper file as a module of that suite — so the helper is
+/// parsed, resolved, type-checked and codegen'd once per suite that
+/// declares it, inside the one binary. Declared once at the root of
+/// `all.rs` and reached with `use crate::<name>;`, it is compiled once
+/// for the whole binary. An inline `mod <name> { … }` block loads no
+/// file and duplicates nothing, so it is deliberately NOT reported:
+/// suites use it freely to group rows (`mod interval { … }`).
+///
+/// The view is [`code_only`], not [`code_and_literals`]: this needle is
+/// a code fragment carrying no literal of its own, so blanking literals
+/// as well as comments can lose no real declaration and it removes the
+/// one false positive available — a `"mod x;"` written inside a string.
+///
+/// Names are returned in source order, with repeats kept: the caller is
+/// reporting sites, not a set.
+#[must_use]
+pub fn file_module_decls(text: &str) -> Vec<String> {
+    let blanked = code_only(text);
+    let b = blanked.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0usize;
+    while let Some(off) = blanked[i..].find("mod") {
+        let at = i + off;
+        i = at + "mod".len();
+        // `mod` has to be a whole token, not the tail of `xmod`.
+        if at > 0 && (b[at - 1].is_ascii_alphanumeric() || b[at - 1] == b'_') {
+            continue;
+        }
+        let mut j = i;
+        // ... and the head of one: `model` is not a declaration.
+        if j >= b.len() || !b[j].is_ascii_whitespace() {
+            continue;
+        }
+        while j < b.len() && b[j].is_ascii_whitespace() {
+            j += 1;
+        }
+        let start = j;
+        while j < b.len() && (b[j].is_ascii_alphanumeric() || b[j] == b'_') {
+            j += 1;
+        }
+        if j == start {
+            continue;
+        }
+        let name = &blanked[start..j];
+        while j < b.len() && b[j].is_ascii_whitespace() {
+            j += 1;
+        }
+        // `;` is the file form; `{` is an inline block and costs nothing.
+        if j < b.len() && b[j] == b';' {
+            out.push(name.to_string());
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
@@ -518,7 +579,8 @@ mod tests {
     // flakes about one run in thirteen (15/200; **issue #882**). Do not
     // copy that shape here.
     use super::{
-        Region, balanced_end, code_and_literals, code_only, comments_only, keeping, top_level_split,
+        Region, balanced_end, code_and_literals, code_only, comments_only, file_module_decls,
+        keeping, top_level_split,
     };
 
     /// Every construct a needle can hide in, and the code read each one
@@ -800,5 +862,34 @@ mod tests {
         assert!(!code_only(row).contains("Version 7 is"), "blanked as one");
         // The `///` spelling, which IS prose, for contrast.
         assert!(comments_only("/// Version 7 is a break.").contains("Version 7 is"));
+    }
+
+    /// The selftest for the ONE HOME guard the aggregated crates carry:
+    /// the FILE form of a module declaration is reported, and every
+    /// shape that is not one is not — an inline block, a hiding place,
+    /// and an identifier that merely starts or ends with `mod`.
+    #[test]
+    fn file_module_decls_reports_the_file_form_and_nothing_else() {
+        let src = "\
+mod common;
+pub mod helper ;
+pub(crate) mod nested;
+mod interval { fn f() {} }
+// mod commented_out;
+/// mod in_a_doc_comment;
+let s = \"mod in_a_literal;\";
+let m = model;
+let x = xmod;
+";
+        assert_eq!(
+            file_module_decls(src),
+            vec![
+                "common".to_string(),
+                "helper".to_string(),
+                "nested".to_string()
+            ]
+        );
+        // Repeats are sites, not a set — the caller reports each one.
+        assert_eq!(file_module_decls("mod a;\nmod a;").len(), 2);
     }
 }

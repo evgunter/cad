@@ -20,7 +20,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{ang, body_volume, insert, len, len3, near, scl3, shape};
 use pncad::document::SplitSide;

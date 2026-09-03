@@ -36,8 +36,8 @@ use editor_core::{
     RoleSeg, SlotId, StableName,
 };
 
-use super::super::fixture::{desc, len};
 use super::{CorpusDoc, MassPin, Recorder};
+use crate::fixture::{desc, len};
 
 /// A cap-vertex name at `node`.
 fn cap_vertex(node: RecipeNodeId, end: CapEnd, vertex: u32) -> StableName {

@@ -4,7 +4,7 @@
 //! lane, the revolve τ door, and wire refusal doors.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use std::fmt::Write as _;
 

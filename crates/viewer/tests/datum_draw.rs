@@ -13,7 +13,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{inserted, len3, scl3, square};
 use pncad::document::{

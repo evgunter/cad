@@ -8,7 +8,7 @@
 //! The `Dual<f64>` tests here stay in the default build.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{
     annulus, arc_kisses_line, bowtie, lift, near_tangent_hole, profile, tangent_hole, tol,

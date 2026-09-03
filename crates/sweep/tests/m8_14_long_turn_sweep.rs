@@ -37,7 +37,7 @@ use geom::NurbsCurve3;
 use geom_core::Point3;
 use sweep::sweep_body;
 
-mod common;
+use crate::common;
 use common::orient::{
     FIXED_AXIS_GUARD_COS, LevelIndex, along_v, assert_caps_face_out, assert_walls_face_out,
     min_roll_turn, stack_axis,
