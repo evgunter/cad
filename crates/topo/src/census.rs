@@ -89,7 +89,7 @@
 //! overlap it bounds, edge-edge or edge-on-face.
 //!
 //! **The ruled strength is UNIFIED** (CONTACT-DESIGN C3/C4's
-//! post-ratification annotation; `docs/MATE-4B-CROSSING-DESIGN.md`):
+//! post-ratification annotation; `crates/topo/README.md`):
 //! *a declared pair answers exactly for its verified interface — the
 //! overlap region, with material opposition being what "interface"
 //! means for a crossing.* One consult site holds that strength today:
@@ -1214,7 +1214,7 @@ enum CrossingBacking {
 }
 
 /// **The `EdgeEdgeCross` backing rung** — the unified strength's
-/// first instance (module docs; `docs/MATE-4B-CROSSING-DESIGN.md`,
+/// first instance (module docs; `crates/topo/README.md`,
 /// option A, planar-first): a declared face pair backs a crossing of
 /// two coplanar boundary edges iff
 ///

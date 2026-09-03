@@ -344,7 +344,7 @@ exercised — not as a fix for the corpus timings.
 ### 3.1 Where GPU genuinely pays
 
 - **Rendering and picking — the big one, and it is GUI-side.**
-  GUI-DESIGN.md commits to wgpu regardless of framework and ratifies
+  `crates/viewer/README.md` commits to wgpu regardless of framework and ratifies
   GPU ID-buffer picking + CPU ray-cast confirm. Viewport LOD,
   silhouettes, section views live here. The kernel's whole obligation
   is meshes with stable back-references, which it already produces.

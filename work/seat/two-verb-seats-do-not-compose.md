@@ -58,7 +58,7 @@ the calls happened. That is the entire split.
 
 ## The measured cost, today
 
-`docs/GROUP-BOOLEAN-DESIGN.md` priced adding one node under "Costs, eyes
+`crates/editor-core/README.md` priced adding one node under "Costs, eyes
 open":
 
 > New arms at every `Node` dispatch site (inputs/slots/run_op/content_key/

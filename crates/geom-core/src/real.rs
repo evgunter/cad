@@ -841,7 +841,7 @@ pub mod bounds_allowlist {
 }
 
 /// **Bracket access without the `Real` obligation** — the certification
-/// seam (M5 PR 2, `docs/CURVED-DESIGN.md` C9).
+/// seam (M5 PR 2, `crates/geom-brep/README.md` C9).
 ///
 /// [`Bounds`] is a subtrait of [`Real`], which is right for *evaluation
 /// scalars* that also carry a bracket (`f64`, the interval scalar): they

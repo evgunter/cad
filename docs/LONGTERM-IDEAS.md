@@ -4,7 +4,7 @@ Ev's running list of things the kernel should eventually support
 (2026-08-03 batch, in-session). NON-BINDING: nothing here is
 scheduled; each idea names its natural prerequisites so the
 milestone that makes one cheap can pick it up deliberately. GUI-
-specific ideas live in GUI-DESIGN.md's UI-ideas sketchpad instead.
+specific ideas are the last section, below.
 
 ## I1 — Custom "unit tests" for parts
 
@@ -45,7 +45,7 @@ eventually:
   Ev's framing, #328; the split-as-signal half is a natural
   default, not a requirement). Warn, never refuse, per the lane's
   charter. Prerequisite: the assembly design's multi-solid evaluation
-  (docs/ASSEMBLY-DESIGN.md A2), which is what makes "disconnected on
+  (crates/editor-core/ASSEMBLY.md A2), which is what makes "disconnected on
   purpose" a common, expressible state — the ASM program has since
   shipped it, so the prerequisite is met.
 - **(a) Injection-molding / draft**: the shape is 1-1 along the
@@ -146,6 +146,54 @@ first has landed, the other two are parked here.
   analytic charts) is NOT worth taking alone — the picture is wrong
   at every analytic/NURBS face boundary, and the tolerance-nasty
   visibility pass is still owed.
+
+## GUI ideas (non-binding sketchpad)
+
+Ideas captured during the GUI and solver design conversations. Each
+builds on a ratified contract (the witness mechanism W1–W9 in
+`crates/editor-core/README.md`, the naming rules in
+`crates/editor-core/src/names/README.md`) and none is scheduled.
+
+- **Wall-mode drag** (on W2/W4) — the default click-and-drag refuses
+  to cross the discriminant locus: as the drag approaches it the
+  preview solver's branch margin shrinks and at the wall the dragged
+  point sticks, with the parameter-space wall indicated. Every
+  default-mode drag is then a fold-free homotopy, so the drag-end
+  re-witness is uniquely branch-selected and needs no dialog. A
+  modifier key crosses the wall; the keypress is the recorded intent
+  to flip branches. Only the recorded endpoint enters the solution.
+- **Bulk re-witness on clean certificates** (on W4) — certified
+  same-branch re-witnessing is semantically invisible, so do it in
+  bulk on commit edits; dialogs are reserved for certificate
+  refusals, which concentrate at degenerate geometry.
+- **Margin as an ambient affordance** (on W3) — the branch margin is
+  a live scalar during editing; surfacing it (proximity shading near
+  walls) turns "why did it ask?" into something the user saw coming.
+- **Scale-relative sliver lint** — a document-layer lint that reuses
+  the K machinery verbatim and compares predicate margins against a
+  display-relative threshold (viewport scale × pixel size, not ε),
+  badging features that render indistinguishably from exact
+  coincidence. The kernel never refuses such a feature; K guards
+  certification honesty, not intent.
+- **Painted operands through booleans** — joining painted bodies
+  never errors (paint keeps resolving on the operand node); the GUI
+  renders the displayed node's appearance, and when a boolean is
+  appended above appearance-carrying names the suggestion ladder
+  offers one-click `Rebind`s for the wrapping derivations. Silently
+  following faces by topological-naming heuristics is the N5-banned
+  shape.
+- **Undo as a history tree, not a stack** — edit history as a DAG of
+  document states: undo moves a pointer toward the root, an edit
+  after undo mints a sibling branch, and the abandoned branch stays
+  reachable. Nearly free here because `Doc` is an immutable value and
+  every `DocEdit` a recorded value, so the tree is parent pointers
+  over states already materialized; the structural node-granular
+  diff shows what a branch changed. v1 ships the tree-shaped state
+  under linear chrome (`viewer::history`); the branch picker and a
+  separable history sidecar are the banked GUI-6 unit. The on-disk
+  form stays snapshot + edit log, so "state without history" is a
+  save with a compacted log, an explicit operation that says what it
+  drops, and the main document never depends on the sidecar.
 
 ## Process note
 

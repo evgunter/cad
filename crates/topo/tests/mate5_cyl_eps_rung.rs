@@ -1,7 +1,7 @@
 //! **MATE-5 acceptance — issue 943's cylinder residue: the certified
 //! everywhere-within-ε overlap enclosure for declared cylinder pairs**
-//! (`docs/MATE-5-SPEC.md`; the sanctioned closing shape of
-//! `docs/CENSUS-REST-CLOSURE-DESIGN.md` Q2 + latitude note 2).
+//! (the sanctioned closing shape of
+//! `crates/topo/README.md` Q2 + latitude note 2).
 //!
 //! These rows are about the PREDICATE (the census-consumption rows
 //! live with the patch certifier's own in-src rows): they call

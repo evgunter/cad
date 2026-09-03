@@ -2,10 +2,11 @@
 id: TCOST-C4
 kind: unit
 title: "sccache trial re-read: per-crate hit stats on warm runs, verdict under F4"
-status: review
+status: closed
 pr: 1648
 branch: tcost/c4-sccache-reread
 opened: 2026-09-03
+closed: 2026-09-03
 refs: [852, 853, 1648]
 ---
 

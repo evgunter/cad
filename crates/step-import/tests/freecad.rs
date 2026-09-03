@@ -1172,7 +1172,7 @@ fn refusals_survive_the_dialect_relaxations() {
     }
 }
 
-/// **The A7 assembly record** (`docs/ASSEMBLY-DESIGN.md`): flattening
+/// **The A7 assembly record** (`crates/editor-core/ASSEMBLY.md`): flattening
 /// is the correct evaluation product, but flattening is not
 /// forgetting. Every shipped solid carries a [`PlacedInstance`] saying
 /// which component representation it came from, which

@@ -19,7 +19,7 @@ representation of paths** — the program is the profile's definition
 and derived segments are caches/provenance, exactly as Q8
 definitional surfaces work (the constructing function is the
 surface). That representation switch is designed in
-`docs/PROFILES-V2-DESIGN.md` and shipped in the LIB SWITCH units;
+`crates/profile/README.md` and shipped in the LIB SWITCH units;
 this document specifies the algebra itself, which is what both the
 pre-switch generator surface and the stored profile-program speak.
 

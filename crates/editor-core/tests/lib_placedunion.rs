@@ -1,6 +1,6 @@
 //! LIB-PLACEDUNION — the ratified A′ group boolean, pinned.
 //!
-//! `docs/GROUP-BOOLEAN-DESIGN.md`'s acceptance list, row for row: the
+//! `crates/editor-core/README.md`'s acceptance list, row for row: the
 //! die tour's tool collapses to one node; a cavity face's name is one
 //! `Instance(i)` segment instead of a twenty-deep `FromA`/`FromB`
 //! stack; the heat sink's fin union moves INTO the document with its

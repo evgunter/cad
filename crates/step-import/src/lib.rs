@@ -213,7 +213,7 @@ pub struct FaceCensus {
 }
 
 /// **One materialized assembly instance** — the A7 record shape
-/// (`docs/ASSEMBLY-DESIGN.md`), kept so a flattened import can later
+/// (`crates/editor-core/ASSEMBLY.md`), kept so a flattened import can later
 /// be re-adopted as an assembly document **without re-parsing the
 /// STEP file**.
 ///
