@@ -1214,3 +1214,31 @@ is their independence. Both calls go to the batch review as
 questions. Filed: the same brick/prism shape outside the blend family
 (`sweep-boolean-suite-brick-and-prism-copies`). Style batch 5
 dispatched on TCOST-10 now; TCOST-11 joins by message when it reports.
+
+## Seam: batch 5 on TCOST-10; TCOST-11 reported (2026-09-03, 22:05 UTC)
+
+Batch 5 read TCOST-10 MERGEABLE WITH FIXES: nothing moved (the
+reviewer re-took the test-name multiset itself, 1100 = 1100, and
+checked the seven retired oracle spellings token by token), but the
+reason written at seven die/surgery copy sites — "different
+association, so not the same f64" — is false at the constants those
+rows use (bit-identical at all but one, and that one 8.9e-16 against a
+1e-9·volume tolerance); two headers went stale; a constants sweep
+found four copies of the homed forms outside `sweep` that the lane's
+name-based census could not see; and the rule's "could disagree"
+discriminator is never exercised (a = b = c has measure zero; θ = π/2
+is never visited). Ten fixes sent to the lane, including the two
+agreement rows that turn the rule into a gate. The reviewer also
+found the two test-support trees holding opposite rules for the same
+class — `geom-brep/tests/shared` refuses reviewer-pair rebuilds "even
+when the text is identical", `sweep/tests/common` absorbs them on the
+argument that blend fixtures are bodies under audit, not derivations
+— a reading of a ratified memory that goes to Ev (`needs_ev`), filed
+by the lane with its fixes. TCOST-11 reported (PR 1716): the guard's
+fourteen copies are one `test_utils::source::aggregation_violations`
+call each (−807 lines of test source), a selftest plants four
+violations, `pncad` gets no guard for a stated reason and a new `bvh`
+row that reds if any non-aggregating crate's `tests/` grows a second
+file; binary size at CI's profile +0.02 % (neutral, as the unit
+says), the dev-profile +2.1 MB recorded and explicitly not quoted.
+Joined to batch 5 by message.
