@@ -37,4 +37,7 @@ on what merging destroys.
 public):** no email addresses or personal identifiers beyond the
 commit-signing identity `evgunter` in issues, PRs, comments, commits or
 committed files. Name accounts by role; concrete addresses live only in
-local cad-work logs.
+local cad-work logs. **The rule itself now lives in CLAUDE.md** — this
+memory is read as relevance dictates and a publication rule cannot
+depend on an agent judging it relevant, so the two are stated together
+there and this entry is the pointer, not the source.
