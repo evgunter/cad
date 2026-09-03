@@ -1,0 +1,30 @@
+{
+  "run_id": 33722975323,
+  "head_sha": "2eb2cf450c873a67f0585f38b9eba8e5de4bf5a4",
+  "lane": "interval",
+  "lane_source": "requested (CI-Config: lane=interval)",
+  "filter": "tier=all pkgs=bvh,editor-core,geom,geom-brep,geom-core,mesh,pncad,pncad-py,profile,quantity,step-export,step-import,stl,sweep,test-utils,topo,verbs,viewer",
+  "state": "cold — the interval lane's own first run with RUSTC_WRAPPER set; rust-cache reported 'No cache found' and the sccache object cache (keyed per lane) had nothing under sccache-obj-interval-",
+  "archive_step_s": 910,
+  "compiling_lines": 192,
+  "sccache": {
+    "compile_requests": 302,
+    "compile_requests_executed": 195,
+    "cache_hits": 0,
+    "cache_misses": 191,
+    "cache_hits_rate": "0.00 %",
+    "compilations": 191,
+    "non_cacheable_calls": 104,
+    "non_compilation_calls": 3,
+    "non_cacheable_reasons": {
+      "crate-type": 90,
+      "-": 6,
+      "missing input": 4,
+      "-o": 3,
+      "missing emit": 1
+    },
+    "cache_size_written": "205 MiB",
+    "average_compiler_s": 2.15
+  },
+  "object_cache_saved": "sccache-obj-interval-33722975323"
+}
