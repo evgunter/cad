@@ -304,3 +304,17 @@ the real import path) pay two rational certificates per body. An API
 that lets the gate consume or return the mass properties removes one
 certificate per body. Separate from K1 (a schedule exit) and K2 (the
 fit loop); its own spec after K1 lands.
+
+## Seam: usage-limit interruption (2026-09-03, ~03:00–04:22 UTC)
+
+Evan's session usage limit bound at ~03:00 UTC; the four lanes then
+running (TCOST-1, TCOST-K1, TCOST-B1, TCOST-7) were killed mid-turn
+by the 429 and no new work was dispatched until the reset (Evan's
+ask, in-chat). State at the kill, verified from the pushed branches:
+TCOST-1's head 4cba1468 fully green on the interval lane (asked) with
+the report unwritten; TCOST-B1 pushed through its five-crate widening;
+TCOST-7 pushed its first consolidation commit; TCOST-K1 had two
+uncommitted instrumentation files and no branch. All four resumed
+from their own transcripts at 04:25 UTC with the cwd-reset rule in
+the message; a lane that shows no progress by the next check-in is
+re-spawned fresh from its pushed state rather than resumed again.
