@@ -987,10 +987,19 @@ fn exactly_one_validation_call_site_in_the_reader() {
     // blanked: a commented-out door must not answer for a live one,
     // and prose naming the validator must not manufacture a site. The
     // blanked view keeps line structure, so the line number is real.
+    //
+    // It matches the door FAMILY, not one spelling. Each tier has more
+    // than one entry — `validate_geometric` and
+    // `validate_geometric_certificate`, `validate_pseudomanifold` and
+    // `validate_pseudomanifold_certificate`, plus the structural and
+    // `_declared` forms — and they are the same door with the same
+    // verdicts. A needle pinned to one spelling would let the reader
+    // grow a second entry by taking a sibling, which is exactly the
+    // shape this row exists to catch.
     for path in test_utils::source::rust_sources(&src) {
         let text = std::fs::read_to_string(&path).unwrap();
         for (i, line) in test_utils::source::code_only(&text).lines().enumerate() {
-            if line.contains("validate_geometric(") || line.contains("validate_pseudomanifold(") {
+            if line.contains("validate_geometric") || line.contains("validate_pseudomanifold") {
                 sites.push(format!("{}:{}", path.display(), i + 1));
             }
         }
