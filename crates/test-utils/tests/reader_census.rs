@@ -232,7 +232,7 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "tools/tess-meter/tests/derivations.rs",
-        disposition: Unconverted("Track K — its own string-continuation lexer"),
+        disposition: Shared, // cross-root const pins: code view to locate, literal view to read
     },
 ];
 
@@ -587,7 +587,7 @@ fn the_unconverted_readers_are_the_ones_this_tree_still_owes() {
 /// The number of sites still reading Rust source through something
 /// other than [`test_utils::source`]. **Hand-synced with the ledger
 /// above, and it goes one way.**
-const UNCONVERTED_TODAY: usize = 10;
+const UNCONVERTED_TODAY: usize = 9;
 
 /// The languages other than Rust that a guard in this tree reads. **A
 /// `NotRust` line must name one of these**, because free text is what

@@ -16,14 +16,14 @@ use crate::fixture;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocParam, DocParamValue,
-    DocumentId, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive,
-    MeasureRef, Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, ValuePayload, apply, evaluate,
+    AssertionDir, AssertionVerdict, CancelToken, Datum, Dimension, DocEdit, DocParam,
+    DocParamValue, DocumentId, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr,
+    MeasurePrimitive, MeasureRef, Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc,
+    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, ValuePayload,
+    apply, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
-use profile::SketchPlane;
 
 /// The plate's hole radius, as a document parameter — the thing the
 /// e2e edits to flip the assertion.
@@ -49,6 +49,25 @@ fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
         .doc
 }
 
+/// Inserts a node and returns the document beside the minted id — the
+/// [`push`] shape for a node whose id the caller needs, which a frame
+/// datum's is: every profile drawn on it names it.
+fn mint(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+    let applied = apply(doc, &DocEdit::InsertNode { node }, Tol::witness())
+        .unwrap_or_else(|e| panic!("edit refused: {e}"));
+    let id = applied.record.minted.expect("an insert mints an id");
+    (applied.doc, id)
+}
+
+/// The world xy frame as a node — what a profile is drawn on.
+fn xy_frame() -> Node<ProfileProgram> {
+    Node::Datum(Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    })
+}
+
 /// **The two-hole plate**, authored through the public edit door as a
 /// user would: a rectangular plate, and beside it two
 /// parameter-driven cylindrical hole tools.
@@ -62,6 +81,11 @@ fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
 /// Returns the plate body and the two hole nodes.
 fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-plate"), Tol::witness());
+    // ONE frame for every sketch in this document: they were all on
+    // the world xy plane, and a frame that several profiles name is
+    // what "the same plane" is now spelled as.
+    let (next, xy) = mint(&doc, xy_frame());
+    doc = next;
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
@@ -81,32 +105,37 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
         ProgramStep::LineTo(ProgramTarget::Point([len(-1.0), len(0.5)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    // Ids are READ from the document rather than counted out here:
+    // the frame above is a node, so a written-out number would be a
+    // second place to keep the layout in step.
+    let outer_p = RecipeNodeId(doc.len() as u64);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: SketchPlane::xy(),
+                plane: xy,
                 loops: vec![outer],
             }),
         },
     );
+    let plate = RecipeNodeId(doc.len() as u64);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Node::Extrude {
-                profile: RecipeNodeId(0),
+                profile: outer_p,
                 distance: len(0.1),
             },
         },
     );
-    let mut holes = [RecipeNodeId(3), RecipeNodeId(5)];
+    let mut holes = [plate; 2];
     for (i, cx) in [-HOLE_X, HOLE_X].into_iter().enumerate() {
-        let i = i as u64;
+        let hole_p = RecipeNodeId(doc.len() as u64);
         doc = push(
             &doc,
             &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::xy(),
+                    plane: xy,
                     loops: vec![LoopProgram::Circle {
                         centre: [len(cx), len(0.0)],
                         radius: Expr::param(ParamName::new(HOLE_R), Dimension::Length),
@@ -114,18 +143,18 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                 }),
             },
         );
+        holes[i] = RecipeNodeId(doc.len() as u64);
         doc = push(
             &doc,
             &DocEdit::InsertNode {
                 node: Node::Extrude {
-                    profile: RecipeNodeId(2 + 2 * i),
+                    profile: hole_p,
                     distance: len(0.1),
                 },
             },
         );
-        holes[i as usize] = RecipeNodeId(3 + 2 * i);
     }
-    (doc, RecipeNodeId(1), holes)
+    (doc, plate, holes)
 }
 
 fn faces_of_kind(
@@ -193,19 +222,30 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             ProgramStep::LineTo(ProgramTarget::Start),
         ])
     };
+    let mut slabs = Vec::new();
     for z in [0.0, 1.0 + SLAB_GAP] {
+        // A frame PER SLAB: these are two different planes (the second
+        // is lifted in z), so they are two frames, not one shared.
+        let (next, plane) = mint(
+            &doc,
+            Node::Datum(Datum::Frame {
+                origin: [len(0.0), len(0.0), len(z)],
+                u: [scl(1.0), scl(0.0), scl(0.0)],
+                v: [scl(0.0), scl(1.0), scl(0.0)],
+            }),
+        );
+        doc = next;
         doc = push(
             &doc,
             &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::new(geom_core::Affine3::translation(geom_core::Vec3::new(
-                        0.0, 0.0, z,
-                    ))),
+                    plane,
                     loops: vec![square()],
                 }),
             },
         );
         let profile = RecipeNodeId(doc.len() as u64 - 1);
+        slabs.push(RecipeNodeId(doc.len() as u64));
         doc = push(
             &doc,
             &DocEdit::InsertNode {
@@ -216,7 +256,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             },
         );
     }
-    (doc, RecipeNodeId(1), RecipeNodeId(3))
+    (doc, slabs[0], slabs[1])
 }
 
 /// A named cap of a prism, read at the node that owns it.
@@ -241,12 +281,15 @@ fn hole_wall_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> MeasureRef {
 /// is exactly `r_bore - r_pin`. Returns (doc, bore, pin).
 fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-coaxial"), Tol::witness());
+    let (next, xy) = mint(&doc, xy_frame());
+    doc = next;
+    let mut prisms = Vec::new();
     for r in [bore_r, pin_r] {
         doc = push(
             &doc,
             &DocEdit::InsertNode {
                 node: Node::Profile(ProfileProgram {
-                    plane: SketchPlane::xy(),
+                    plane: xy,
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
                         radius: len(r),
@@ -255,6 +298,7 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
             },
         );
         let profile = RecipeNodeId(doc.len() as u64 - 1);
+        prisms.push(RecipeNodeId(doc.len() as u64));
         doc = push(
             &doc,
             &DocEdit::InsertNode {
@@ -265,7 +309,14 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
             },
         );
     }
-    (doc, RecipeNodeId(1), RecipeNodeId(3))
+    (doc, prisms[0], prisms[1])
+}
+
+/// The node the last push minted. These rows insert a measure and then
+/// read it back, so the id is the document's own count rather than a
+/// number written out beside it — which the frame nodes would shift.
+fn last(doc: &ProfileDoc) -> RecipeNodeId {
+    RecipeNodeId(doc.len() as u64 - 1)
 }
 
 fn measured(ev: &Evaluation<f64>, id: RecipeNodeId) -> (f64, Dimension) {
@@ -312,13 +363,14 @@ fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         MeasureExpr::add(r(), r()).expect("Length + Length"),
     )
     .expect("Length - Length");
+    let measure = RecipeNodeId(doc.len() as u64);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Node::measure(web, walls).expect("both indices address a reference"),
         },
     );
-    let measure = RecipeNodeId(6);
+    let assertion = RecipeNodeId(doc.len() as u64);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -329,7 +381,7 @@ fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             },
         },
     );
-    (doc, measure, RecipeNodeId(7))
+    (doc, measure, assertion)
 }
 
 // ---- The worked example (spec §6) ----
@@ -480,7 +532,7 @@ fn cylinder_distance_is_the_axis_separation() {
             .expect("indices in range"),
         },
     );
-    let (d, dim) = measured(&eval(&doc), RecipeNodeId(6));
+    let (d, dim) = measured(&eval(&doc), last(&doc));
     assert_eq!(dim, Dimension::Length);
     assert!(
         (d - 2.0 * HOLE_X).abs() < 1e-12,
@@ -526,7 +578,7 @@ fn plane_angle_between_opposed_caps_is_pi() {
             .expect("indices in range"),
         },
     );
-    let (a, dim) = measured(&eval(&doc), RecipeNodeId(6));
+    let (a, dim) = measured(&eval(&doc), last(&doc));
     assert_eq!(dim, Dimension::Angle, "an angle is an Angle");
     assert!(
         (a - std::f64::consts::PI).abs() < 1e-12,
@@ -564,7 +616,7 @@ fn a_plane_gap_over_disjoint_slabs_is_positive_both_ways() {
                 .expect("indices in range"),
             },
         );
-        let (g, dim) = measured(&eval(&doc), RecipeNodeId(4));
+        let (g, dim) = measured(&eval(&doc), last(&doc));
         assert_eq!(dim, Dimension::Length);
         assert!(
             (g - SLAB_GAP).abs() < 1e-12,
@@ -595,7 +647,7 @@ fn a_plane_gap_over_an_aligned_pair_negates_under_a_role_swap() {
                 .expect("indices in range"),
             },
         );
-        measured(&eval(&doc), RecipeNodeId(4)).0
+        measured(&eval(&doc), last(&doc)).0
     };
     let forward = read(top_of_lower.clone(), top_of_upper.clone());
     let swapped = read(top_of_upper, top_of_lower);
@@ -638,7 +690,7 @@ fn the_gap_sign_convention_walks_all_three_regimes() {
                 .expect("indices in range"),
             },
         );
-        let (g, dim) = measured(&eval(&doc), RecipeNodeId(4));
+        let (g, dim) = measured(&eval(&doc), last(&doc));
         assert_eq!(dim, Dimension::Length, "a gap is a signed Length");
         let want = bore_r - pin_r;
         assert!(
@@ -694,7 +746,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
             node: Node::measure(over_zero, Vec::new()).expect("no references to bound"),
         },
     );
-    let measure = RecipeNodeId(0);
+    let measure = last(&doc);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -705,6 +757,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
             },
         },
     );
+    let assertion = last(&doc);
     let ev = eval(&doc);
 
     let err = failed_kind(&ev, measure);
@@ -715,12 +768,9 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
     // And the assertion produces NO verdict at all: it is poisoned
     // through the DAG edge, never `Holds` over infinity.
     assert!(
-        matches!(
-            ev.nodes.get(&RecipeNodeId(1)),
-            Some(NodeResult::Poisoned { .. })
-        ),
+        matches!(ev.nodes.get(&assertion), Some(NodeResult::Poisoned { .. })),
         "no verdict may be reported over a non-finite measure, got {:?}",
-        ev.nodes.get(&RecipeNodeId(1))
+        ev.nodes.get(&assertion)
     );
 }
 
@@ -730,6 +780,8 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
 #[test]
 fn the_same_division_in_a_slot_has_always_refused() {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-inf-slot"), Tol::witness());
+    let (next, xy) = mint(&doc, xy_frame());
+    doc = next;
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
@@ -746,7 +798,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
         &doc,
         &DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: SketchPlane::xy(),
+                plane: xy,
                 loops: vec![LoopProgram::Circle {
                     centre: [len(0.0), len(0.0)],
                     radius: len(0.2),
@@ -754,11 +806,12 @@ fn the_same_division_in_a_slot_has_always_refused() {
             }),
         },
     );
+    let disc = last(&doc);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Node::Extrude {
-                profile: RecipeNodeId(0),
+                profile: disc,
                 distance: Expr::div(
                     Expr::literal(13.0, Dimension::Length).expect("finite"),
                     Expr::param(ParamName::new("s"), Dimension::Scalar),
@@ -767,8 +820,9 @@ fn the_same_division_in_a_slot_has_always_refused() {
             },
         },
     );
+    let extrude = last(&doc);
     let ev = eval(&doc);
-    let err = failed_kind(&ev, RecipeNodeId(1));
+    let err = failed_kind(&ev, extrude);
     assert!(
         matches!(
             err,
@@ -794,11 +848,13 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
     use editor_core::{EntityKind, NamePat, Selector, select};
     const SHIFT: f64 = 100.0;
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-placed"), Tol::witness());
+    let (next, xy) = mint(&doc, xy_frame());
+    doc = next;
     doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: SketchPlane::xy(),
+                plane: xy,
                 loops: vec![LoopProgram::Chain(vec![
                     ProgramStep::At([len(0.0), len(0.0)]),
                     ProgramStep::LineTo(ProgramTarget::Point([len(1.0), len(0.0)])),
@@ -809,17 +865,18 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
             }),
         },
     );
-    let solid = RecipeNodeId(1);
+    let square_p = last(&doc);
+    let solid = RecipeNodeId(doc.len() as u64);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Node::Extrude {
-                profile: RecipeNodeId(0),
+                profile: square_p,
                 distance: len(1.0),
             },
         },
     );
-    let placed = RecipeNodeId(2);
+    let placed = RecipeNodeId(doc.len() as u64);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -861,7 +918,7 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
             .expect("indices in range"),
         },
     );
-    let (d, _) = measured(&eval(&doc), RecipeNodeId(3));
+    let (d, _) = measured(&eval(&doc), last(&doc));
     assert!(
         (d - SHIFT).abs() < 1e-9,
         "the same vertex read at the extrude and at the transform is {SHIFT} m apart, got {d} \
@@ -940,7 +997,7 @@ fn a_reference_that_stops_resolving_refuses_typed() {
         },
     );
     let ev = eval(&doc);
-    let err = failed_kind(&ev, RecipeNodeId(6));
+    let err = failed_kind(&ev, last(&doc));
     assert!(
         matches!(err, NodeErrorKind::MeasureRefResolve { .. }),
         "got {err:?}"
@@ -999,7 +1056,7 @@ fn an_unsupported_carrier_pair_refuses_naming_the_pair() {
         },
     );
     let ev = eval(&doc);
-    match failed_kind(&ev, RecipeNodeId(6)) {
+    match failed_kind(&ev, last(&doc)) {
         NodeErrorKind::MeasureUnsupported(refusal) => {
             assert_eq!(refusal.verb, "distance");
             let msg = refusal.to_string();
@@ -1032,7 +1089,7 @@ fn a_mixed_carrier_pair_refuses() {
         },
     );
     let ev = eval(&doc);
-    let err = failed_kind(&ev, RecipeNodeId(6));
+    let err = failed_kind(&ev, last(&doc));
     assert!(
         matches!(err, NodeErrorKind::MeasureUnsupported(_)),
         "got {err:?}"
@@ -1064,28 +1121,27 @@ fn an_assertion_over_a_failed_measure_is_poisoned() {
             .expect("indices in range"),
         },
     );
+    let measure = last(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Node::Assertion {
-                measure: RecipeNodeId(6),
+                measure,
                 bound: Expr::literal(0.1, Dimension::Length).expect("finite"),
                 dir: AssertionDir::AtLeast,
             },
         },
     );
+    let assertion = last(&doc);
     let ev = eval(&doc);
     assert!(
-        matches!(ev.nodes.get(&RecipeNodeId(6)), Some(NodeResult::Failed(_))),
+        matches!(ev.nodes.get(&measure), Some(NodeResult::Failed(_))),
         "the measure must fail for this probe to mean anything"
     );
     assert!(
-        matches!(
-            ev.nodes.get(&RecipeNodeId(7)),
-            Some(NodeResult::Poisoned { .. })
-        ),
+        matches!(ev.nodes.get(&assertion), Some(NodeResult::Poisoned { .. })),
         "the assertion must be poisoned, got {:?}",
-        ev.nodes.get(&RecipeNodeId(7))
+        ev.nodes.get(&assertion)
     );
 }
 

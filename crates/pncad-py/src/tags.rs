@@ -253,6 +253,14 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::ProfileAnchor { .. } => "profile_anchor",
         NodeErrorKind::Extrude { .. } => "extrude",
         NodeErrorKind::Revolve { .. } => "revolve",
+        // ONE tag for both tube kinds, matching every other op on
+        // this map (`revolve` covers ten `RevolveError` arms the
+        // same way): the tag names the OP that refused, and the
+        // refusal is already attributed to a node whose kind says
+        // solid or hollow. Per-arm tags would be worth having, but
+        // for every op at once — not for the one op whose unit
+        // happened to be written last.
+        NodeErrorKind::Tube { .. } => "tube",
         NodeErrorKind::Split { .. } => "split",
         // The two blends share one kernel error type, so the tag is
         // read off the VERB the node is: a chamfer's refusal must not
@@ -298,7 +306,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::MissingSlot { .. } => "missing_slot",
         NodeErrorKind::VerbArity { .. } => "verb_arity",
         NodeErrorKind::Escalated { .. } => "escalated",
-        NodeErrorKind::AxisNotInSketchPlane { .. } => "axis_not_in_sketch_plane",
+        NodeErrorKind::AxisInDifferentPlane { .. } => "axis_in_different_plane",
         NodeErrorKind::NonPositiveCount { .. } => "non_positive_count",
         NodeErrorKind::PlacementsUncertified { .. } => "placements_uncertified",
         NodeErrorKind::PlacementRule(fault) => placement_rule_fault_tag(fault),

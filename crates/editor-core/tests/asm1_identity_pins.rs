@@ -17,7 +17,7 @@ use editor_core::{
     ParamName, PersistError, ProfileDoc, Rgba8, RoleSeg, StableName, WitnessDatum, content_pin,
     header_document_id, load, save,
 };
-use fixture::{desc, insert, len, step};
+use fixture::{desc, insert, len, on_frame, step};
 use geom_core::Tol;
 
 /// The shared exemplar: a block (profile + extrude) and a document
@@ -30,14 +30,12 @@ fn exemplar(
     editor_core::RecipeNodeId,
 ) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, extrude) = insert(
         doc,
@@ -402,12 +400,14 @@ fn stated_consequence_undone_insert_moves_pin() {
     let (doc, _, _) = exemplar("asm1-next-id");
     let nodes_before = doc.len();
     let before = content_pin(&doc, Tol::witness()).unwrap();
+    // One node in, one node out: the profile alone, on a frame the
+    // document already carries, so the delete restores the count.
+    // The exemplar's own frame: node 0, ahead of its profile.
+    let plane = doc.order()[0];
     let (with_extra, extra) = insert(
         doc,
         Node::Profile(desc(
-            [0.0, 0.0, 2.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
+            plane,
             vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
         )),
     );

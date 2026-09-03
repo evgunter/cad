@@ -58,7 +58,7 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 ///
 /// Two more rows are worth a reader's second look, and neither is a bug.
 ///
-/// `die` is `0x8d2e4c613057071e` — the same number
+/// `die` is `0xd77331053f8a87fe` — the same number
 /// `m4_pr3_names_ci::DIE_TABLE_DIGEST` carries, because it is the same
 /// digest of the same tables. The two pins agreeing is a cross-check,
 /// not a duplication: that one covers the die FIXTURE through its own
@@ -98,28 +98,48 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// within-one-document case, where the two nodes differ and the names
 /// must be disjoint.
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0x8d2e_4c61_3057_071e),
-    ("corner_table", 0x9a0f_6669_27a4_02f7),
-    ("heat_sink", 0x348d_1478_bcea_6a5e),
-    ("crossing_slots", 0xcd4a_536d_9410_2d32),
-    ("nested_islands_105", 0x4f21_dd91_9b3f_cf12),
-    ("nested_islands_106_depth1", 0x9655_e39f_84e3_f037),
-    ("nested_islands_106_depth2", 0x499e_b7b3_2443_6f91),
-    ("declared_tangency", 0xdef9_76c6_1d04_25bb),
-    ("kitchen_sink", 0xc624_18ea_8ee0_e5aa),
-    ("cut_cylinder", 0xc461_0a86_1d7e_379b),
-    ("measured_web", 0x9a4c_06c4_6086_685b),
-    ("boss_union", 0xefcb_deb5_ef3a_3873),
-    ("die_fillet", 0xb6ab_9ad5_a321_15f2),
-    ("die_chamfer", 0xb6ab_9ad5_a321_15f2),
-    ("die_pips", 0x4116_0291_2c74_aa6d),
-    ("heat_sink_fins", 0xae39_7800_c351_3248),
-    ("die_tool", 0x9e24_4be7_b06b_9a40),
-    ("loft_prism", 0x7318_e99f_2b22_dafb),
-    ("die_composed", 0xc801_9fd6_e360_ce3e),
-    ("die_composed_tour", 0x2813_3d38_1e83_f02d),
-    ("plate_param", 0x3bfe_3e78_5eec_a227),
-    ("kiss_carry", 0xe4c5_64dd_af60_08ce),
+    ("die", 0xd773_3105_3f8a_87fe),
+    ("corner_table", 0xb673_87e5_9fec_7a49),
+    ("heat_sink", 0xe6c9_bc2c_6126_7d8b),
+    ("crossing_slots", 0x676e_0a08_79be_357c),
+    ("nested_islands_105", 0xf01b_971b_ffbd_9c19),
+    ("nested_islands_106_depth1", 0x1aa6_20bb_6917_8f6d),
+    ("nested_islands_106_depth2", 0xcda5_e910_7e81_9968),
+    ("declared_tangency", 0xb6e1_4ab8_871e_2a8b),
+    // Moved by the in-plane revolve axis, and the ONLY row that did.
+    // `kitchen_sink` shared one `Datum::Axis` between a circular
+    // pattern and a revolve; those are two node kinds now — a pattern
+    // turns a body about a world line, a revolve turns a sketch about a
+    // line in its own plane — so the document authors both and every
+    // node after the new one is renumbered.
+    //
+    // The three die documents mint their axis in the same edit as
+    // before, one position later (after the frame it names), and a
+    // datum mints no names, so the swap moves no id that any name
+    // holds: their rows are byte-identical. That is what this
+    // per-document instrument is for.
+    ("kitchen_sink", 0x4c53_ed70_a7fc_43e8),
+    ("cut_cylinder", 0xc700_93ca_419f_9d81),
+    ("measured_web", 0x50b4_88ab_2fe5_8e7d),
+    ("boss_union", 0x1d0f_6334_988b_11bd),
+    ("die_fillet", 0xeeaa_6c7d_9ac0_6d44),
+    ("die_chamfer", 0xeeaa_6c7d_9ac0_6d44),
+    ("die_pips", 0xdbdf_dd4f_1d10_5da9),
+    ("heat_sink_fins", 0x78b6_1cf3_87e1_40c2),
+    ("die_tool", 0x1826_addb_ac81_96b4),
+    ("loft_prism", 0xb00f_c86f_2ce8_fcf6),
+    ("die_composed", 0x9f65_6fe9_b3d7_6184),
+    ("die_composed_tour", 0xfcbc_3092_7d57_5aea),
+    ("plate_param", 0xdf84_033a_2c18_1acc),
+    ("kiss_carry", 0x8008_375b_ab91_3274),
+    // LIB-TUBE. Both tables are minted by `name_revolve` — the
+    // tube doors return `Revolved<T>` and the emitter reads only
+    // its maps — so these two rows are the revolve role vocabulary
+    // over a body no revolve node built. Their arrival moved no
+    // other row, which is the property this table exists to make
+    // readable.
+    ("tube_ring", 0x1293_7fbf_295c_f16c),
+    ("hollow_tube_elbow", 0x98e4_97a0_679c_33ad),
 ];
 
 #[test]

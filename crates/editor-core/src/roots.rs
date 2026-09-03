@@ -94,7 +94,7 @@ impl core::error::Error for RootFault {}
 
 /// The strict ancestors of `from`, visited depth-first over `inputs()`
 /// in deterministic order; `visit` sees each reached node once.
-fn walk_strict_ancestors<P>(
+fn walk_strict_ancestors<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     from: RecipeNodeId,
     seen: &mut std::collections::BTreeSet<RecipeNodeId>,
@@ -120,7 +120,7 @@ fn walk_strict_ancestors<P>(
 /// # Errors
 ///
 /// The first [`RootFault`] found.
-pub(crate) fn check<P>(doc: &Doc<P>) -> Result<(), RootFault> {
+pub(crate) fn check<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), RootFault> {
     let mut listed = std::collections::BTreeSet::new();
     for &root in &doc.roots {
         if doc.node(root).is_none() {
@@ -166,7 +166,11 @@ pub(crate) fn check<P>(doc: &Doc<P>) -> Result<(), RootFault> {
 /// roots REPLACES them at the earliest consumed position (tip
 /// transfer), because those roots just stopped being sinks. Consumed
 /// non-root inputs change nothing — they were not sinks either way.
-pub(crate) fn on_insert<P>(doc: &mut Doc<P>, id: RecipeNodeId, inputs: &[RecipeNodeId]) {
+pub(crate) fn on_insert<P: crate::ProfilePayload>(
+    doc: &mut Doc<P>,
+    id: RecipeNodeId,
+    inputs: &[RecipeNodeId],
+) {
     let Some(at) = doc.roots.iter().position(|r| inputs.contains(r)) else {
         doc.roots.push(id);
         return;
@@ -183,7 +187,11 @@ pub(crate) fn on_insert<P>(doc: &mut Doc<P>, id: RecipeNodeId, inputs: &[RecipeN
 /// deleted root's list position. Deleting a non-root touches nothing
 /// (and cannot happen through `apply`: a non-root has a live consumer,
 /// which is the dangling refusal).
-pub(crate) fn on_delete<P>(doc: &mut Doc<P>, id: RecipeNodeId, inputs: &[RecipeNodeId]) {
+pub(crate) fn on_delete<P: crate::ProfilePayload>(
+    doc: &mut Doc<P>,
+    id: RecipeNodeId,
+    inputs: &[RecipeNodeId],
+) {
     let Some(at) = doc.roots.iter().position(|&r| r == id) else {
         return;
     };

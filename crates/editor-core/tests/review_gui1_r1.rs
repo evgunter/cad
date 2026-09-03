@@ -44,7 +44,7 @@ use editor_core::{
     CancelToken, EntityKey, EvalOptions, Evaluation, MeshPick, Node, PickTarget, ProfileDoc, Ray,
     RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face, resolve,
 };
-use fixture::{desc, insert, len};
+use fixture::{insert, len, on_frame};
 use geom_core::{Point3, Tol, Vec3};
 use mesh::Mesh;
 use test_utils::fuzz;
@@ -71,14 +71,12 @@ fn ray(origin: [f64; 3], dir: [f64; 3]) -> Ray {
 
 /// A unit cube `[dx, dx+1] × [0,1] × [0,1]` as one extrude node.
 fn cube_doc_node(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(dx, 0.0), (dx + 1.0, 0.0), (dx + 1.0, 1.0), (dx, 1.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(dx, 0.0), (dx + 1.0, 0.0), (dx + 1.0, 1.0), (dx, 1.0)]],
     );
     insert(
         doc,

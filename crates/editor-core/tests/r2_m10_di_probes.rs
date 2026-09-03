@@ -48,7 +48,6 @@ use editor_core::{
 };
 use geom::{Curve3, Surface};
 use geom_core::{Bounds, Decide, Dual64, Tol};
-use profile::SketchPlane;
 use topo::{Body, CurveGeom};
 
 /// FNV-1a 64 (independent constants derivation: offset basis
@@ -277,6 +276,23 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                         d.v3(&u.get());
                         d.v3(&v.get());
                     }
+                    // Tag 24, appended: both spellings of an in-plane
+                    // axis, so a drift in the numbers a revolve
+                    // actually consumes cannot hide behind the lift.
+                    ValuePayload::Datum(DatumValue::AxisInPlane {
+                        plane_origin,
+                        plane_dir,
+                        origin,
+                        dir,
+                    }) => {
+                        d.u64(24);
+                        d.s(plane_origin.x);
+                        d.s(plane_origin.y);
+                        d.s(plane_dir.x);
+                        d.s(plane_dir.y);
+                        d.p3(origin);
+                        d.v3(&dir.get());
+                    }
                     ValuePayload::Profile(p) => {
                         d.u64(13);
                         for lp in p.validated.loops() {
@@ -501,8 +517,16 @@ fn assemble_census_door_matches_f64_at_dual64() {
 fn own_document_builds_at_dual64_with_f64_value_channel() {
     let mut r = fixture::Recorder::new();
     let disc = LoopProgram::circle(0.0, 0.0, 0.75).unwrap();
+    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
+        origin: [0.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
+        u: [1.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        v: [0.0, 1.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+    }));
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: xy_frame_0,
         loops: vec![disc],
     }));
     let puck = r.insert(Node::Extrude {

@@ -31,7 +31,7 @@ use editor_core::{
 };
 use topo::{PlaneRelation, mass_properties};
 
-use fixture::{desc, insert, len};
+use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
@@ -52,14 +52,12 @@ fn box_at(
     (x1, y1): (f64, f64),
     height: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
     );
     insert(
         doc,
@@ -332,14 +330,12 @@ fn tilted_in_band_pairs_pin_the_verification_arm() {
         );
         // A block resting on the top cap, sketched on a plane through
         // z = 1 tilted by theta about the x axis.
-        let (doc, p) = insert(
+        let (doc, p) = on_frame(
             doc,
-            Node::Profile(desc(
-                [0.0, 0.0, 1.0],
-                [1.0, 0.0, 0.0],
-                [0.0, c, s],
-                vec![vec![(0.25, 0.25), (0.75, 0.25), (0.75, 0.75), (0.25, 0.75)]],
-            )),
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            [0.0, c, s],
+            vec![vec![(0.25, 0.25), (0.75, 0.25), (0.75, 0.75), (0.25, 0.75)]],
         );
         let (doc, tilted) = insert(
             doc,

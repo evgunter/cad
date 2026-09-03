@@ -13,11 +13,10 @@
 //! are pinned by the boolean's own acceptance suites.
 
 use editor_core::{BooleanOp, DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
-use geom_core::{Affine3, Vec3};
-use profile::SketchPlane;
+
+use crate::fixture::{frame, len, xy_frame};
 
 use super::{CorpusDoc, Recorder};
-use crate::fixture::len;
 
 /// The boss-union corpus document: 3×3×0.8 plate ∪ r = 0.35 three-arc
 /// boss at (1.2, 1.7), sketched at z = 0.3, extruded 1.0 (pokes 0.5
@@ -27,8 +26,9 @@ pub fn document() -> CorpusDoc {
 
     let plate_loop =
         LoopProgram::polygon([(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]).unwrap();
+    let plate_plane = r.insert(xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: plate_plane,
         loops: vec![plate_loop],
     }));
     let plate = r.insert(Node::Extrude {
@@ -44,8 +44,9 @@ pub fn document() -> CorpusDoc {
     // deviation: the boss's export bits shift; geometry is the same
     // circle).
     let boss_loop = LoopProgram::circle_split(1.2, 1.7, 0.35, 3, 0.0).unwrap();
+    let boss_plane = r.insert(frame([0.0, 0.0, 0.3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let boss_p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3))),
+        plane: boss_plane,
         loops: vec![boss_loop],
     }));
     let boss = r.insert(Node::Extrude {
