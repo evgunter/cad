@@ -1260,7 +1260,7 @@ class TestDiechamfer(unittest.TestCase):
 
 class DieScene:
     """The 21-pip die construction rows 9 and 10 share (a mixin, not a
-    TestCase): one re-charted ball, twenty-one `Node.transform`
+    TestCase): one ball on the scene's own chart, twenty-one `Node.transform`
     placements whose pole rides the face normal, the twenty-one balls
     fused into a single tool, ONE subtract."""
 
@@ -1292,26 +1292,29 @@ class DieScene:
 
     def ball(self, doc):
         """A radius-PIP_R sphere at the origin, pole along +z: the
-        half-disc revolved fully.
+        half-disc revolved fully — the SCENE's own chart, one bulge-1
+        semicircular arc from pole to pole closed by its on-axis
+        diameter (`demos/tour/src/diefillet.rs::ball` and the oracle
+        test `sweep/tests/m5_pr12_die.rs::ball_at`, constant for
+        constant).
 
-        The CHART is not the scene's. Both the scene
-        (`demos/tour/src/diefillet.rs::ball`) and the oracle test
-        (`sweep/tests/m5_pr12_die.rs::ball_at`) revolve ONE bulge-1
-        semicircular arc; that chart refuses through the document
-        layer (`kind == "naming"` — a meridian running pole to pole
-        gives the revolve emitter a two-vertex all-on-axis loop it
-        cannot name). This is the corpus `die_pips` workaround
-        instead: two quarter arcs, so no meridian runs pole to pole.
-        Same sphere, differently charted — the volume oracle is
-        untouched by it, and the re-chart is what makes the scene
-        reachable at all."""
+        This row used to carry the EQUATOR WORKAROUND — two quarter
+        arcs meeting at an off-axis equator vertex, the second's bulge
+        derived from `tan(pi/8)` — because the revolve name emitter
+        refused an all-on-axis two-pole loop ("revolve vertex
+        resolution exceeded elimination"), so a pole-to-pole meridian
+        reached no `Node.revolve` at all. The emitter grew its pole
+        export and `7581fb65d` deleted the workaround from `die_pips`,
+        `die_composed` and the tour on 2026-08-15; this copy outlived
+        it, its note still asserting a refusal that no longer fires.
+        LIB-DIETOOL executed the natural chart and retired it here
+        too."""
         plane = SketchPlane.from_frame(
             (0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0)
         )
         half = (
             Open.at((0 * m, -self.PIP_R * m))
-            .arc_to(Bulge((self.PIP_R * m, 0 * m), math.tan(math.pi / 8)))
-            .arc_continue((0 * m, self.PIP_R * m))
+            .arc_to(Bulge((0 * m, self.PIP_R * m), 1.0))
             .line_to(Start)
         )
         frame = doc.sketch_frame(plane=plane)
@@ -1364,8 +1367,10 @@ class TestDiepips(DieScene, unittest.TestCase):
     """Tour scene `diepips` (row 9): twenty-one spherical dimples on
     the six faces of a unit cube, cut in ONE group operation.
 
-    The scene's STRUCTURE transfers whole — see `DieScene`. Its ball
-    is RE-CHARTED (`DieScene.ball` states why and what it dodges).
+    The scene's STRUCTURE transfers whole — see `DieScene` — and so
+    now does its CHART: the ball's meridian is the scene's own
+    pole-to-pole semicircle, the re-chart having been retired at
+    LIB-DIETOOL (`DieScene.ball` records what it used to dodge).
     The scene's oracle is crates/sweep/tests/m5_pr12_die.rs: the cube
     less twenty-one spherical caps."""
 

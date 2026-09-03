@@ -50,6 +50,43 @@ pub use crate::authoring::{p2, p3, real, v2, v3, validated};
 // prelude that cannot name it is a prelude you cannot author from.
 // `Tol::witness()` is the one line a program writes before modelling
 // — see `crate::tolerance`.
+//
+// **`BandField` is NOT here, and that is a measured decision, not an
+// oversight.** It is `BandError::InvalidValue`'s discriminant, so it
+// looks exactly like the payloads groups 3, 5 and 9 carry beside
+// their refusals. What makes it different is that the discriminant is
+// CONSTANT at this boundary:
+//
+// Every kernel verb derives its band from `Band::linear(tol)` at its
+// own entry (the paragraph above), which is `Band::new(ε, K·ε)`.
+// `Tol`'s invariant is ε finite and strictly positive and K finite
+// and greater than one, so `Band::new`'s `zero` check cannot fire —
+// the only `InvalidValue` reachable from a prelude door is
+// `field: Escalate`, the K·ε overflow residue that `Band::linear`'s
+// own docs call unreachable for any physically meaningful tolerance.
+// The other producer, `Band::angular_at`, has no caller anywhere in
+// the workspace outside `geom_core`'s OWN tests — no kernel verb
+// reaches it — and `Band::new` is called directly only in
+// geometry-layer interiors and test fixtures. `geom_core`'s
+// `band_tolerance` test is worth naming rather than waving at: it is
+// the one place `angular_at`'s overflow residue is exercised, and it
+// lands on `field: Escalate` too.
+//
+// So a curated `BandField` would publish a two-arm type whose only
+// use here is comparison against a value it always has. CUR3 carried
+// `DanglingRef` because its two arms are two different facts about
+// the model and a caller branches on which; `BandField`'s two arms
+// collapse to one reachable fact, and the field's name is already in
+// the refusal's own `Display` prose. A caller who really does
+// construct a band directly has left the prelude for the geometry
+// layer by definition, and there `Band`, `BandError` and `BandField`
+// sit at ONE root together (`pncad::geom_core`) — contract clause 1,
+// one crate, one path.
+//
+// This flips if `Band::angular_at` ever acquires a kernel caller:
+// `ε/lever_arm` can underflow to zero for a large enough arm, which
+// makes `field: Zero` reachable and the discriminant real. Stated so
+// the next curation pass re-measures rather than re-deriving.
 pub use geom_core::{
     Affine3, Band, BandError, Mat3, Point2, Point3, Real, Tol, Tolerance, Vec2, Vec3,
 };
@@ -119,6 +156,48 @@ pub use sweep::chamfer::{Chamfered, chamfer_edges};
 // both `fillet_edges` and `chamfer_edges` return, the verb attached
 // once around the shared verb-neutral error.
 pub use sweep::blend::{BlendKind, BlendRefusal};
+// **The blend refusal's own payload vocabulary**, carried beside the
+// refusal for the reason `DanglingRef` rides beside `ReadbackError`
+// in group 9: a curated list owes MATCHABILITY, not just
+// nameability, and `BlendError` is on this list while the types its
+// arms carry were not.
+//
+// The reach is worse here than it was there. `DanglingRef` at least
+// sat at `topo`'s root, so `pncad::topo::DanglingRef` named it;
+// `sweep` re-exports NOTHING from `blend`, so before this line the
+// only spelling was `pncad::sweep::blend::CornerConfig` — and
+// `pncad::sweep::blend::battery::Convexity`, three submodules deep.
+// Contract clause 1 was met (one crate, a longer path); what was not
+// met is that a caller holding a prelude-curated `BlendError` could
+// not branch on what its arms say.
+//
+// What each one decides, which is why matchability is worth the four
+// names:
+//
+// - `CornerConfig` is `UnsupportedCorner`'s whole content (the OQ6
+//   vocabulary, decided at #85). A valence-4 vertex says "request the
+//   other edges"; a `SeamVertex` says "ask for the rim whole", a door
+//   that EXISTS — and `CornerConfig::policy` is the map that keeps a
+//   refusal from disagreeing with its own tag. Different recourses,
+//   so a caller branches, which is exactly CUR3's test.
+// - `RunOutPolicy` is that arm's second field, and `None` is a fact
+//   of its own: a seam vertex is not a corner, so no run-out helps.
+// - `BlendSite` is `Escalated`'s: link, joint, or the chain whole —
+//   the payload half of the two-tolerance shape (D4 ¶1 addendum).
+// - `Convexity` is `ConvexitySignFlip`'s: which way the chain's
+//   material wedge turns. It is NOT one of the three the CUR3 bank
+//   named — the struct-payload sweep found it — and leaving it out
+//   would ship a `BlendError` matchable in three arms and not the
+//   fourth.
+//
+// The Python half of the CUR3 treatment does NOT apply to these, and
+// that is measured rather than skipped: `BlendError` projects no arms
+// into Python at all (`node_error_tag` reads the VERB, giving one
+// `fillet`/`chamfer` tag for the whole refusal), so there is no tag
+// here to split and none to pin. That the blend door is unprojected
+// is #1479's census row, not this list's business.
+pub use sweep::blend::battery::Convexity;
+pub use sweep::blend::{BlendSite, CornerConfig, RunOutPolicy};
 pub use sweep::{
     ExtrudeError, Extruded, Extrusion, LoftError, Lofted, Revolution, RevolveAxis, RevolveError,
     Revolved, TubeError, TubeWindow, extrude, loft_body, revolve, sweep_body, tube_along_arc,
@@ -143,8 +222,42 @@ pub use topo::{
 };
 
 // --- 5. The validation ladder ---------------------------------
+// The tier-3′ census vocabulary rides with `ValidationError` for the
+// group-9 reason again, and here the list was already half-persuaded:
+// `DeclaredContact` — the payload of `ValidationError::
+// ContactContradicted` — has been curated (through `crate::select`)
+// all along, so the surface already carried ONE payload of this
+// refusal and left its siblings a module hop away. These three are
+// that inconsistency closed, not a new policy:
+//
+// - `CensusContact` is `UndeclaredContact`'s: which coincidence the
+//   census found. The arms are not one fact — `EdgeFacePierce` is
+//   interpenetration and categorically undeclarable until the C6 era,
+//   while `EdgeEdgeOverlap` is certifiable through the D3
+//   reconstruction TODAY. A caller that cannot tell them apart cannot
+//   tell "declare this" from "you cannot declare this".
+// - `StaleDeclaration` is `StaleContactDeclaration`'s: which record
+//   lost its witness, so which record to withdraw.
+// - `RingContact` is `RingMeetsOuter`'s: vertex-on-vertex,
+//   vertex-on-edge, or edge-along-edge.
+//
+// ONE RUNG, AND THE STOP IS DELIBERATE.
+// `CensusContact::ConformalPatch` carries a `topo::ContactFinding`,
+// which is uncurated, and carrying THAT would open the same question
+// about its own fields. So this list stops where CUR3 stopped:
+// `DanglingRef`'s arms carry `EntityId` and `GeomRef`, both still
+// uncurated, and the arm is matchable anyway because a caller binds
+// the payload and branches on the DISCRIMINANT. Same here — the
+// contact rung's own next rung is a banked finding, not this unit's
+// scope.
+//
+// As with the blend vocabulary above, no Python tag moves: the
+// validate doors cross their failures as joined `Display` prose with
+// a `door` and a `failure_count` and no per-arm tag at all, so there
+// is nothing here to split or pin.
 pub use topo::{
-    ValidationError, validate, validate_closed, validate_geometric, validate_pseudomanifold,
+    CensusContact, RingContact, StaleDeclaration, ValidationError, validate, validate_closed,
+    validate_geometric, validate_pseudomanifold,
 };
 
 // --- 6. Mass properties ---------------------------------------
