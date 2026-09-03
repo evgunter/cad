@@ -72,7 +72,10 @@ fn r2_the_two_level_rim_row_inside_the_band_imports_meshes_and_is_quiet() {
     assert!(report.findings.is_empty(), "{:?}", report.findings);
     assert!(report.unexamined.is_empty(), "{:?}", report.unexamined);
     let mp = topo::mass_properties(&body, tol).unwrap_or_else(|e| panic!("{name}: {e:?}"));
-    println!("R2-IMPORT {name}: volume={:e} pad={:e}", mp.volume, mp.volume_pad);
+    println!(
+        "R2-IMPORT {name}: volume={:e} pad={:e}",
+        mp.volume, mp.volume_pad
+    );
     for delta in [1.0e-3, 1.0e-4] {
         let m = mesh::tessellate(&body, delta, tol)
             .unwrap_or_else(|e| panic!("{name} at δ={delta}: {e:?}"));

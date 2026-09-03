@@ -129,7 +129,10 @@ fn r2_set_edge_curve_refuses_a_span_past_the_winding_bound() {
         tol,
     );
     println!("R2-SET-EDGE-CURVE τ+0.5ε/R: {r:?}");
-    assert!(r.is_ok(), "a span inside the coincidence band restates: {r:?}");
+    assert!(
+        r.is_ok(),
+        "a span inside the coincidence band restates: {r:?}"
+    );
 }
 
 /// **A certified edge the parse escalates.** The meridian carrier is
@@ -153,16 +156,18 @@ fn r2_a_certified_edge_at_the_carrier_lever_escalates_at_the_sphere_lever() {
     println!("R2-LEVER-MEV x={x:e}: {}", describe(&built));
     let (body, _) = built.expect("the edge certifies at the carrier's lever");
     let (face, _) = body.faces().next().unwrap();
-    let face = body.faces().find(|(k, _)| *k == face).map(|(_, f)| f).unwrap();
+    let face = body
+        .faces()
+        .find(|(k, _)| *k == face)
+        .map(|(_, f)| f)
+        .unwrap();
     let surface = body.get_surface(face.surface).unwrap();
     let (outer, _) = topo::props::loop_edges(&body, face.outer).unwrap();
     let flux = curved_face(surface, &outer, face.sense_sign(), band);
     let door = require_one_chart_branch(surface, &outer, band);
     let mp = topo::mass_properties(&body, tol);
     println!("R2-LEVER-MEV flux={flux:?}\nR2-LEVER-MEV door={door:?}\nR2-LEVER-MEV mass={mp:?}");
-    let escalated = |r: &Result<(), PropsError>| {
-        matches!(r, Err(PropsError::Escalated { cause }) if cause.predicate == Some("props_meridian_span_winding"))
-    };
+    let escalated = |r: &Result<(), PropsError>| matches!(r, Err(PropsError::Escalated { cause }) if cause.predicate == Some("props_meridian_span_winding"));
     assert!(
         escalated(&flux.map(|_| ())) && escalated(&door),
         "expected the parse and the door to escalate the certified span under the winding name"

@@ -103,9 +103,7 @@ fn props_rung<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> Result<Rung, St
     match r {
         Ok(_) => Ok(Rung::Admit),
         Err(PropsError::NotOneChartBranch { .. }) => Ok(Rung::Admit),
-        Err(PropsError::Escalated { cause }) if cause.predicate == Some(NAME) => {
-            Ok(Rung::Escalate)
-        }
+        Err(PropsError::Escalated { cause }) if cause.predicate == Some(NAME) => Ok(Rung::Escalate),
         Err(PropsError::NotIsoRectangle { what }) if *what == NAME => Ok(Rung::Refuse),
         Err(e) => Err(format!("{e:?}")),
     }
@@ -172,7 +170,10 @@ fn r2_the_two_decides_agree_rung_for_rung_on_the_sphere_radius() {
 fn r2_the_lever_is_the_carrier_radius_at_certification_and_the_sphere_radius_at_the_parse() {
     let bd = band();
     let t0 = 0.0;
-    for (label, r_c) in [("R - 0.9 zero", RS - 0.9 * bd.zero()), ("R + 0.9 zero", RS + 0.9 * bd.zero())] {
+    for (label, r_c) in [
+        ("R - 0.9 zero", RS - 0.9 * bd.zero()),
+        ("R + 0.9 zero", RS + 0.9 * bd.zero()),
+    ] {
         let lo = bd.zero() / RS.max(r_c);
         let hi = bd.zero() / RS.min(r_c);
         let mut seen = Vec::new();
@@ -264,7 +265,7 @@ fn r2_an_admitted_span_folds_the_pole_at_the_antipode_of_its_midpoint() {
 #[test]
 fn r2_a_rim_span_past_the_period_is_answered_not_decided() {
     let bd = band();
-    let v = 0.3;
+    let v: f64 = 0.3;
     let rim = LoopEdge::hand_built(
         Curve3::Circle {
             center: Point3::new(0.0, 0.0, RS * v.sin()),
@@ -278,7 +279,11 @@ fn r2_a_rim_span_past_the_period_is_answered_not_decided() {
         0,
         1,
     );
-    let cap = vec![rim, great(PI, v, PI / 2.0, 1, 2), great(0.0, PI / 2.0, v, 2, 0)];
+    let cap = vec![
+        rim,
+        great(PI, v, PI / 2.0, 1, 2),
+        great(0.0, PI / 2.0, v, 2, 0),
+    ];
     let exact_half_cap = RS * RS * PI * (1.0 - v.sin());
     let shape = require_iso_rectangle(&sphere(), &cap, bd);
     let fc = curved_face(&sphere(), &cap, 1.0, bd);
@@ -303,10 +308,7 @@ fn r2_a_rim_span_past_the_period_is_answered_not_decided() {
 #[test]
 fn r2_a_zero_span_meridian_is_not_re_decided_for_forwardness() {
     let bd = band();
-    let edges = vec![
-        great(0.0, 0.3, 0.3, 0, 1),
-        great(0.0, 0.3, 0.3 + TAU, 1, 0),
-    ];
+    let edges = vec![great(0.0, 0.3, 0.3, 0, 1), great(0.0, 0.3, 0.3 + TAU, 1, 0)];
     let fc = curved_face(&sphere(), &edges, 1.0, bd);
     let door = require_one_chart_branch(&sphere(), &edges, bd);
     let shape = require_iso_rectangle(&sphere(), &edges, bd);
