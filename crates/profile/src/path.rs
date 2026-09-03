@@ -2088,8 +2088,11 @@ fn seam_arrival_check<T: Decide>(
 
 /// **§2c arc extension's same-carrier decision**: whether the carrier a
 /// fused `Radius` incoming derives from a directed point IS that
-/// point's own incoming carrier — the same d + |Δr| identity margin as
-/// [`refuse_identical_carriers`], read as a DECISION: `Zero` continues
+/// point's own incoming carrier — a d + |Δr| identity margin read as a
+/// DECISION rather than as a refusal (the refusing twin,
+/// `refuse_identical_carriers`, retired with the 2026-09-02 ruling;
+/// this one survives because it CHOOSES A CONSTRUCTION rather than
+/// judging a junction): `Zero` continues
 /// the arriving leg (the vertex-move exemption), definite non-zero is
 /// a new tangent carrier constructed at the tip. Both outcomes are
 /// legal spellings, which is what deletes the old mismatched-r hole

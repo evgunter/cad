@@ -833,11 +833,12 @@ transition_table! {
             /// neighbor is minted — §4 item 4's by-construction exemption).
             ///
             /// A declared straight continuation of a straight leg
-            /// (`.tangent().line(len)` after a line) IS the same carrier and
-            /// refuses [`PathError::SameCarrierJunction`] — extend the
-            /// original leg, or, where the extra vertex is the point, take the
-            /// straight-continuation row below: `line(len)` off the directed
-            /// point subdivides the carrier structurally and declares nothing.
+            /// (`.tangent().line(len)` after a line) IS the same carrier, and
+            /// since 2026-09-02 that is legal: every zero-turn joint is a
+            /// declared tangent joint, so the joint is declared and the leg
+            /// emitted. The straight-continuation row below says the same
+            /// thing without the explicit `.tangent()` — `line(len)` off the
+            /// directed point declares the joint it mints.
             ///
             /// `len` must classify definitely positive
             /// ([`PathError::NonpositiveLeg`] otherwise): a negative length
