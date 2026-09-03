@@ -3570,6 +3570,57 @@ jobs:
             ../../target/k-fresh/k-eps-1e-6.csv \
             ../../target/k-fresh/k-eps-1e-9.csv \
             ../../target/k-fresh/k-eps-1e-12.csv
+      # **M10-6's THIRD E10 CI ROW: the E6 driver's own K population**
+      # (ERROR-DESIGN E6's T6 obligation; docs/K-REPORT.md's runbook).
+      #
+      # WHICH AXIS IT RIDES, and what a green means. This row is inside
+      # `k-lint (gate)` and gated on the `dev-probe` draw of the
+      # `klint_row` axis, exactly like the sweep that produces its
+      # input — so a green on a run that drew another row means the row
+      # did not run, not that the population is clean. A branch that
+      # wants it says `CI-Config: klint=dev-probe` on its head commit.
+      #
+      # WHY IT IS ADVISORY, stated rather than assumed. The lint's
+      # thresholds were calibrated over the Band 4 corpus and the tour
+      # scenes — a population of AUTHOR-CHOSEN nominals. The driver's
+      # certified-midpoint population is the opposite by construction:
+      # the subdivision refines until every predicate is definite, so
+      # its margins pile up just outside the escalation band, and the
+      # lint fires in bulk (measured 2026-09-03: 15,768 flags over
+      # 257,025 samples at ε = 1e-6). That is exactly the E6 evidence
+      # this row exists to produce, and `tools/k-lint`'s own discipline
+      # text names the disposition: re-derive the thresholds, or demote
+      # the row to advisory with a recorded justification. This is the
+      # recorded justification. Changing geometry to get under a
+      # threshold remains the forbidden move, and nothing here does it.
+      #
+      # WHAT STILL REDS THIS ROW: harness breakage (exit 1) — an
+      # unreadable CSV, a malformed sample row, a sweep that wrote a
+      # file the lint cannot parse. Findings (exit 2) are printed and
+      # summarized. So the row cannot rot into a green over a broken
+      # sweep, which is the failure a plain `|| true` would have.
+      - name: driver K-telemetry lint (E6 evidence — advisory, harness breakage still reds)
+        if: contains(fromJSON('["dev-probe", "all"]'), needs.filter.outputs.klint_row)
+        run: |
+          set -uo pipefail
+          cd tools/k-lint
+          status=0
+          cargo run -- \
+            ../../target/k-fresh/driver/k-eps-1e-6.csv \
+            ../../target/k-fresh/driver/k-eps-1e-9.csv \
+            ../../target/k-fresh/driver/k-eps-1e-12.csv || status=$?
+          echo "driver K-telemetry lint exit status: $status" >> "$GITHUB_STEP_SUMMARY"
+          case "$status" in
+            0) echo "the driver population crowds no decision boundary" >> "$GITHUB_STEP_SUMMARY" ;;
+            2) echo "FLAGS — distribution EVIDENCE, not a defect: the driver refines margins toward zero by construction, so they crowd the band. Read them per docs/K-REPORT.md; do not change geometry." >> "$GITHUB_STEP_SUMMARY" ;;
+            *) echo "harness breakage — the sweep wrote something this lint cannot read" >&2; exit 1 ;;
+          esac
+          # Solver predicates are VACUOUS in v1 (the M10 plan's ruling
+          # Q1: no sketch solver exists, so no `solver_branch_margin`
+          # row can appear in any population this sweep collects). The
+          # row's k-population is the driver's alone, and that is a
+          # scope statement rather than a gap in the sweep.
+          echo "solver predicates are vacuous in v1 (ruling Q1): no solver exists to sample" >> "$GITHUB_STEP_SUMMARY"
 
   # THE RENDER GATE. The committed montages are build products of the
   # kernel that nothing checked: for a while `k-lint` gated the UV sheet

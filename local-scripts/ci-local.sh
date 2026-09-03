@@ -914,12 +914,26 @@ probe_targets() {
       | scripts/gates/probe-suite-census.sh --check-listing "$c" || return 1
   done
 }
+# HOSTED MIRROR: k-lint / driver K-telemetry lint (E6 evidence — advisory, harness breakage still reds)
 klint_gate() {
   scripts/k_probe_sweep.sh target/k-fresh || return 1
   (cd tools/k-lint && cargo run -- \
     ../../target/k-fresh/k-eps-1e-6.csv \
     ../../target/k-fresh/k-eps-1e-9.csv \
-    ../../target/k-fresh/k-eps-1e-12.csv)
+    ../../target/k-fresh/k-eps-1e-12.csv) || return 1
+  # The E6 driver's own population, ADVISORY — the hosted row carries
+  # the argument in full; the short version is that the driver refines
+  # margins toward zero by construction, so the corpus-calibrated
+  # thresholds fire in bulk over it and that IS the evidence. Findings
+  # (exit 2) are printed; harness breakage (exit 1) still fails the row,
+  # so a sweep that wrote an unreadable file cannot pass here either.
+  (cd tools/k-lint && cargo run -- \
+    ../../target/k-fresh/driver/k-eps-1e-6.csv \
+    ../../target/k-fresh/driver/k-eps-1e-9.csv \
+    ../../target/k-fresh/driver/k-eps-1e-12.csv)
+  local status=$?
+  [ "$status" = 1 ] && return 1
+  return 0
 }
 
 # The tessellation-budget lint (issue #320; mirrors the two ci.yml

@@ -576,6 +576,23 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         if line.is_empty() {
             continue;
         }
+        // **A `#` line is a COMMENT, not a sample.** The E6 driver
+        // sweep writes one census line per fixture ahead of that
+        // fixture's rows — `# census driver/<shape> eps=… certified=N
+        // samples=M` — because an empty population is a legitimate
+        // outcome there and a bare header would leave a reader unable
+        // to tell it from a harness that died. Skipping the line rather
+        // than parsing it keeps this lint's subject exactly what it has
+        // always been (a sample distribution) while letting the file it
+        // reads say what produced it.
+        //
+        // It is not a hole in the malformed-row alarm: a row that DROPS
+        // a field or misspells an outcome still fails, because a `#` is
+        // never the first character of a sample row (a shape is
+        // namespaced `corpus/`, `demo/` or `driver/`).
+        if line.starts_with('#') {
+            continue;
+        }
         let err = || ParseError {
             line: i + 1,
             text: line.to_string(),
@@ -864,6 +881,23 @@ mod tests {
         assert!(
             lint_csv(
                 "shape,predicate,margin,band_zero,band_escalate,outcome\nx,y,notafloat,1,1,zero\n"
+            )
+            .is_err()
+        );
+        // A `#` census line is skipped, and skipping it does not
+        // disarm the malformed-row alarm one line over: the E6 driver
+        // sweep writes those lines, and a dropped field in a real row
+        // still fails.
+        let censused = "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+                        # census driver/slab eps=1e-9 certified=0 samples=0\n\
+                        demo/x,p1,2e0,1e-9,1e-8,positive\n";
+        let scan = lint_csv(censused).expect("a census line is a comment");
+        assert_eq!(scan.scanned, 1, "the comment is not a sample");
+        assert!(
+            lint_csv(
+                "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+                 # census driver/slab eps=1e-9 certified=1 samples=1\n\
+                 x,y,2e0,1e-9,1e-8\n"
             )
             .is_err()
         );
