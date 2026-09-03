@@ -298,8 +298,8 @@ fn min_separation_brackets_a_curved_pair_at_every_budget() {
         eprintln!(
             "pins @ max_cell_pairs={pairs}: [{}, {}] width {:e} (truth {truth})",
             m.lo(),
-            m.hi(),
-            m.hi() - m.lo()
+            m.window_hi(),
+            m.window_hi() - m.lo()
         );
         assert!(
             m.lo() <= truth,
@@ -308,12 +308,12 @@ fn min_separation_brackets_a_curved_pair_at_every_budget() {
             m.lo()
         );
         assert!(
-            truth <= m.hi(),
+            truth <= m.window_hi(),
             "budget {pairs}: hi {} is below the true minimum {truth}",
-            m.hi()
+            m.window_hi()
         );
         assert!(m.receipt().holds(), "budget {pairs}: the receipt identity");
-        widths.push(m.hi() - m.lo());
+        widths.push(m.window_hi() - m.lo());
     }
     for w in widths.windows(2) {
         assert!(

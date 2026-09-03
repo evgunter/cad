@@ -319,7 +319,7 @@ fn the_interval_value_is_the_engine_bracket_re_derived() {
     let direct = min_separation(&neck.side(0), &neck.side(1), MinSeparationConfig::default())
         .expect("the neck pair is admitted");
     assert_eq!(value.lo().to_bits(), direct.lo().to_bits());
-    assert_eq!(value.hi().to_bits(), direct.hi().to_bits());
+    assert_eq!(value.hi().to_bits(), direct.window_hi().to_bits());
 
     // And the bracket is a bracket: it contains the gap the geometry
     // was built with.
@@ -354,12 +354,12 @@ fn the_budget_narrows_the_bracket_and_never_falsifies_it() {
         )
         .expect("the neck pair is admitted");
         assert!(
-            m.lo() <= NECK_GAP && NECK_GAP <= m.hi(),
+            m.lo() <= NECK_GAP && NECK_GAP <= m.window_hi(),
             "budget {pairs}: [{}, {}] must enclose {NECK_GAP}",
             m.lo(),
-            m.hi()
+            m.window_hi()
         );
-        assert!(m.lo() <= m.hi(), "budget {pairs}: a bracket is ordered");
+        assert!(m.lo() <= m.window_hi(), "budget {pairs}: a bracket is ordered");
         assert!(
             m.receipt().holds(),
             "budget {pairs}: the receipt identity holds"
@@ -370,11 +370,11 @@ fn the_budget_narrows_the_bracket_and_never_falsifies_it() {
         eprintln!(
             "min_separation @ max_cell_pairs={pairs}: [{}, {}] (width {:e}), receipt {:?}",
             m.lo(),
-            m.hi(),
-            m.hi() - m.lo(),
+            m.window_hi(),
+            m.window_hi() - m.lo(),
             m.receipt()
         );
-        widths.push(m.hi() - m.lo());
+        widths.push(m.window_hi() - m.lo());
         // The goldening form is exact bits and is stable across
         // repeats: the same query twice is the same text.
         let again = min_separation(

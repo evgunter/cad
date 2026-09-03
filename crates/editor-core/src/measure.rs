@@ -345,6 +345,32 @@ impl MeasureExpr {
         }
     }
 
+    /// **Which endpoints of this tree's enclosure are certified for
+    /// the subject** ([`Certified`], M10-6/R1).
+    ///
+    /// Structural, not numeric: it reads the tree's SHAPE, so it is
+    /// the same answer at every scalar and over every box, and an
+    /// assertion's admissible arms cannot depend on the numbers it is
+    /// about to compare.
+    pub fn certified(&self) -> Certified {
+        if matches!(
+            self.kind,
+            MeasureKind::Primitive(MeasurePrimitive::MinClearance { .. })
+        ) {
+            return Certified::LowerBoundOnly;
+        }
+        let mut prims = Vec::new();
+        self.primitives(&mut prims);
+        if prims
+            .iter()
+            .any(|p| matches!(p, MeasurePrimitive::MinClearance { .. }))
+        {
+            Certified::Neither
+        } else {
+            Certified::Enclosure
+        }
+    }
+
     /// Every VALUE leaf, in pre-order — the deterministic order the
     /// evaluator resolves them in and the order the evaluation walk
     /// consumes them in.
@@ -708,6 +734,82 @@ pub enum UnevaluatedReason {
     /// requirement is recorded, the run cannot answer it, and neither
     /// half of that is hidden.
     MeasureUnavailable(MeasureUnavailableAt),
+    /// **The verdict would have been read off an endpoint this run
+    /// certifies for the CARRIER rather than for the thing the measure
+    /// names** (M10-6; R1's MAJOR). See [`Certified`] for the table of
+    /// which arm reads which endpoint and why only two of the four are
+    /// sound.
+    WindowSuperset {
+        /// The primitive that brought the superset in.
+        verb: &'static str,
+        /// The endpoint the arm would have read.
+        endpoint: &'static str,
+        /// The tracker item whose fix retires this refusal.
+        recourse: &'static str,
+    },
+}
+
+/// **The tracker item that retires [`UnevaluatedReason::WindowSuperset`]**:
+/// tightening a carrier window to its trimmed face needs the trim
+/// boundary in chart coordinates. Named from the type so the recourse
+/// travels with the refusal instead of living in a reader's memory.
+pub const WINDOW_TIGHTENING: &str =
+    "work/m10/clearance-window-tightening-needs-chart-boundary.md";
+
+/// **How much of a measured enclosure is certified for the thing the
+/// measure NAMES**, as against the carrier the engine subdivided.
+///
+/// Every measure but `min_clearance` answers about its own subject, so
+/// both endpoints are the subject's and an assertion may read either.
+/// `min_clearance` does not: M10-5's engine subdivides carrier
+/// WINDOWS, a disclosed SUPERSET of the trimmed faces. Writing `m` for
+/// the window separation and `M` for the faces', `m ≤ M` pointwise —
+/// so a lower bound on `m` is a lower bound on `M`, while an attained
+/// window distance is NOT an upper bound on `M`. On an L-shaped cap
+/// the engine finds a window pair straight across the notch that
+/// neither face occupies, and reports it.
+///
+/// The endpoints are therefore not interchangeable, and which VERDICT
+/// an assertion may reach depends on which endpoint its arm reads:
+///
+/// | direction | verdict | endpoint | sound for the faces? |
+/// | --- | --- | --- | --- |
+/// | `AtLeast c` | `Holds` | `lo` | yes — `M ≥ m ≥ lo ≥ c` |
+/// | `AtLeast c` | `Violated` | `hi` | **no** |
+/// | `AtMost c` | `Violated` | `lo` | yes — `M ≥ m ≥ lo > c` |
+/// | `AtMost c` | `Holds` | `hi` | **no** |
+///
+/// The two unsound arms refuse [`UnevaluatedReason::WindowSuperset`]
+/// rather than answering; [`WINDOW_TIGHTENING`] retires the refusal.
+/// Both gating directions survive: a clearance requirement (`AtLeast`)
+/// still certifies, and a maximum-gap requirement (`AtMost`) still
+/// fails loudly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Certified {
+    /// Both endpoints are the subject's — every tree that reads no
+    /// `min_clearance`.
+    Enclosure,
+    /// The LOWER endpoint only: the tree is exactly one
+    /// `min_clearance` primitive, so `lo` bounds the faces from below
+    /// and `hi` is the carrier's alone.
+    LowerBoundOnly,
+    /// NEITHER endpoint, because a `min_clearance` sits under
+    /// arithmetic that can carry it to either end (a `Neg`, a `Sub`
+    /// with it on the right, a `Min`/`Max` against something else).
+    /// Refusing the whole assertion is the reading that needs no
+    /// per-operator argument; no document this unit ships takes it.
+    Neither,
+}
+
+impl Certified {
+    /// Whether an arm reading `endpoint` may answer.
+    fn admits(self, upper: bool) -> bool {
+        match self {
+            Self::Enclosure => true,
+            Self::LowerBoundOnly => !upper,
+            Self::Neither => false,
+        }
+    }
 }
 
 impl core::fmt::Display for UnevaluatedReason {
@@ -718,6 +820,18 @@ impl core::fmt::Display for UnevaluatedReason {
                  so the assertion has no verdict — tighten the tolerance or move the bound",
             ),
             Self::MeasureUnavailable(why) => write!(f, "there is no measured value: {why}"),
+            Self::WindowSuperset {
+                verb,
+                endpoint,
+                recourse,
+            } => write!(
+                f,
+                "this verdict would be read off the enclosure's {endpoint} endpoint, which \
+                 `{verb}` certifies only over the carrier WINDOWS — a superset of the trimmed \
+                 faces the measure names — so a window pair neither face occupies could decide \
+                 it. The opposite verdict on this same bound is still available and still \
+                 gates. Recourse: {recourse}"
+            ),
         }
     }
 }
@@ -764,22 +878,55 @@ impl<T> AssertionVerdict<T> {
 /// [`AssertionVerdict::Unevaluated`] rather than a node failure: a
 /// bound the run cannot separate from the measurement is a fact about
 /// the report, not a broken document.
+/// # Which arms may answer (M10-6/R1)
+///
+/// `certified` says which endpoints of `measured` belong to the thing
+/// the measure NAMES; [`Certified`] carries the table and the
+/// argument. The funnel runs either way — the decision is the same one
+/// at the same site, and demoting it after the fact rather than
+/// branching before it keeps `assert_bound`'s k-population complete,
+/// so the E6 telemetry still sees every comparison the document asked
+/// for. What changes is only whether the verdict it reached is one
+/// this run may report.
 pub(crate) fn decide_assertion<T: Decide>(
     measured: T,
     bound: T,
     dir: AssertionDir,
     band: geom_core::Band,
+    certified: Certified,
 ) -> AssertionVerdict<T> {
     let comparand = match dir {
         AssertionDir::AtLeast => measured - bound,
         AssertionDir::AtMost => bound - measured,
     };
+    // Which END of the enclosure each arm reads. `AtLeast` decides
+    // `Holds` off the smallest the measure can be and `Violated` off
+    // the largest; `AtMost` is the mirror.
+    let refuse = |upper: bool| AssertionVerdict::Unevaluated {
+        reason: UnevaluatedReason::WindowSuperset {
+            verb: MeasurePrimitive::MinClearance { a: 0, b: 0 }.verb(),
+            endpoint: if upper { "upper" } else { "lower" },
+            recourse: WINDOW_TIGHTENING,
+        },
+    };
     match geom_core::k_stats::decide_flagged(ASSERT_BOUND, comparand, band, "F16") {
         // At the bound exactly, a non-strict relation holds.
         Ok(geom_core::Sign::Positive | geom_core::Sign::Zero) => {
-            AssertionVerdict::Holds { measured, bound }
+            let upper = matches!(dir, AssertionDir::AtMost);
+            if certified.admits(upper) {
+                AssertionVerdict::Holds { measured, bound }
+            } else {
+                refuse(upper)
+            }
         }
-        Ok(geom_core::Sign::Negative) => AssertionVerdict::Violated { measured, bound },
+        Ok(geom_core::Sign::Negative) => {
+            let upper = matches!(dir, AssertionDir::AtLeast);
+            if certified.admits(upper) {
+                AssertionVerdict::Violated { measured, bound }
+            } else {
+                refuse(upper)
+            }
+        }
         Err(_) => AssertionVerdict::Unevaluated {
             reason: UnevaluatedReason::Indeterminate,
         },

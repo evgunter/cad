@@ -130,9 +130,9 @@ pub use mc::{
     monte_carlo,
 };
 pub use measure::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive,
+    ASSERT_BOUND, AssertionDir, AssertionVerdict, Certified, MeasureExpr, MeasurePrimitive,
     MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, MinClearanceRefusal,
-    UnevaluatedReason,
+    UnevaluatedReason, WINDOW_TIGHTENING,
 };
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{

@@ -228,7 +228,26 @@ where
             measure,
             bound,
             dir,
-        } => wire_assertion(*measure, bound, *dir, payload_values, results, tol),
+        } => {
+            // **Which endpoints this assertion may read** (M10-6/R1).
+            // Structural, off the referenced measure's own expression,
+            // so it is the same answer at every scalar; a reference
+            // that does not name a measure falls through to
+            // `wire_assertion`'s existing typed `WrongOperand`.
+            let certified = match doc.node(*measure) {
+                Some(Node::Measure { expr, .. }) => expr.certified(),
+                _ => crate::measure::Certified::Enclosure,
+            };
+            wire_assertion(
+                *measure,
+                bound,
+                *dir,
+                certified,
+                payload_values,
+                results,
+                tol,
+            )
+        }
         Node::InstantiatePart {
             doc_ref, interface, ..
         } => {
@@ -1797,6 +1816,7 @@ fn wire_assertion<T: Decide>(
     measure: RecipeNodeId,
     bound_expr: &crate::expr::Expr,
     dir: crate::measure::AssertionDir,
+    certified: crate::measure::Certified,
     payload_values: Option<&[T]>,
     results: &Results<T>,
     tol: Tol,
@@ -1850,6 +1870,7 @@ fn wire_assertion<T: Decide>(
             bound,
             dir,
             band(tol)?,
+            certified,
         )),
         names::empty(),
     ))

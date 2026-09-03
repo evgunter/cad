@@ -1324,55 +1324,70 @@ impl Default for MinSeparationConfig {
     }
 }
 
-/// **A certified bracket on the minimum separation between two
-/// selections**, over whatever parameter box the two bodies were
-/// evaluated over.
+/// **A bracket on the minimum separation between two selections**,
+/// over whatever parameter box the two bodies were evaluated over —
+/// with its two ends certified about DIFFERENT SETS, which is the
+/// thing to read before anything else here.
 ///
 /// # What the two numbers mean, exactly
 ///
 /// Write `m(p)` for the minimum distance between the two selections'
-/// carrier windows at parameter point `p`, and let the bodies have been
-/// evaluated over a box `B`.
+/// carrier WINDOWS at parameter point `p`, `M(p)` for the same over
+/// the trimmed FACES the measure actually names, and let the bodies
+/// have been evaluated over a box `B`. The windows contain the faces
+/// (this module's header, M10-5's disclosed superset), so
+///
+/// ```text
+///     m(p) ≤ M(p)   for every p
+/// ```
+///
+/// and the two ends of this bracket inherit that asymmetry:
 ///
 /// - `lo` is a certified LOWER bound on `inf{ m(p) : p ∈ B }` — the
 ///   least `separation_lo` over every cell pair the sweep did not
 ///   discharge, together with the pairs it excluded at admission (by
 ///   their own `separation_lo`, which is what admission compared).
-/// - `hi` is a certified UPPER bound on `sup{ m(p) : p ∈ B }` — the
+///   Because `m ≤ M`, it is EQUALLY a lower bound on `inf M` — the
+///   faces' own worst-case clearance. **This is the end a defect gate
+///   reads, and it is sound for the faces.**
+/// - `hi` is a certified upper bound on `sup{ m(p) : p ∈ B }` — the
 ///   least, over every cell pair the sweep examined, of that pair's
-///   `separation_hi` AND of its two centre STATIONS' separation. Each
-///   bounds the distance between some realizable point of each window
-///   at EVERY `p ∈ B`, so each bounds `m(p)` at every `p`; the least
-///   such bound is therefore an upper bound on the supremum, and a
-///   fortiori on the minimum. The station half is what makes it tight:
-///   see the comment at the site.
+///   `separation_hi` AND of its two centre cells' furthest separation.
+///   Each bounds the distance between some realizable point of each
+///   WINDOW at every `p ∈ B`. **It is not a bound on `M` in either
+///   direction**: the window points that attain it may lie in the trim
+///   holes, so `hi` can sit strictly below the faces' true clearance.
+///   It is named [`MinSeparation::window_hi`] for that reason.
 ///
-/// So `[lo, hi]` is a containment-true enclosure of the measure over
-/// the box — every `m(p)` lies in it — AND a bracket on the worst case
-/// `inf m`. Both readings matter and they are not the same statement:
-/// the first is what makes an `AtMost` assertion over this measure
-/// sound at [`crate::measure::decide_assertion`], the second is what a
-/// consumer bisecting a clearance bound was doing by hand.
+/// So `[lo, window_hi]` is a containment-true enclosure of `m`, and
+/// `[lo, ∞)` is what it certifies about `M`. Both readings matter and
+/// they are not the same statement, which is exactly why
+/// [`crate::measure::Certified`] exists: an assertion over this
+/// measure may read `lo` and may not read `hi`, and the two arms that
+/// would have read `hi` refuse typed rather than answering.
+///
+/// A worked counterexample, in the suite: an L-shaped cap under a
+/// block parked over its notch brackets `[0.100…, 0.100…]` while the
+/// faces are `0.269` apart — the window pair straight across the notch
+/// belongs to neither face
+/// (`m10_6_r1_probes_interval::the_notch_bracket_is_the_windows_not_the_faces`).
 ///
 /// # Budget-honest, and no width rule anywhere
 ///
 /// Refinement narrows the bracket and can never falsify it: `lo` only
-/// rises as cells shrink, `hi` only falls, and every intermediate state
-/// is a true bracket. So a query that runs out of budget REPORTS —
-/// there is no width threshold below which this door starts answering
-/// and above which it refuses, no ε, and no decision: nothing here
-/// classifies a margin, which is why this door funnels no predicate.
-/// The one decision over the bracket is the assertion's, at the
-/// existing `assert_bound` site.
+/// rises as cells shrink, `window_hi` only falls, and every
+/// intermediate state is a true bracket on `m`. So a query that runs
+/// out of budget REPORTS — there is no width threshold below which
+/// this door starts answering and above which it refuses, no ε, and no
+/// decision: nothing here classifies a margin, which is why this door
+/// funnels no predicate. The one decision over the bracket is the
+/// assertion's, at the existing `assert_bound` site.
 ///
-/// # What it is loose about, one way
+/// # What closes the gap
 ///
-/// The window superset stated in this module's header: `m` is the
-/// minimum over carrier WINDOWS, which contain the trimmed faces, so
-/// `m(p)` is at most the faces' own minimum separation. `lo` therefore
-/// remains a sound lower bound on the faces' clearance — the direction
-/// a defect gate needs — while `hi` may sit below it, on a pair of
-/// window points neither face occupies.
+/// [`crate::measure::WINDOW_TIGHTENING`]: a window tightened to its
+/// trimmed face makes `m = M` and every arm sound again. Until then
+/// the asymmetry is typed rather than papered over.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MinSeparation {
     lo: f64,
@@ -1382,18 +1397,24 @@ pub struct MinSeparation {
 }
 
 impl MinSeparation {
-    /// The certified lower bound (see the type docs).
+    /// **The lower bound, certified for the FACES** — the end a gate
+    /// reads. See the type docs for why this end and not the other.
     pub fn lo(&self) -> f64 {
         self.lo
     }
 
-    /// The certified upper bound.
-    pub fn hi(&self) -> f64 {
+    /// **The upper bound, certified only over the carrier WINDOWS.**
+    /// Not a bound on the trimmed faces' separation in either
+    /// direction; the name is the warning. See the type docs and
+    /// [`crate::measure::Certified`].
+    pub fn window_hi(&self) -> f64 {
         self.hi
     }
 
-    /// The bracket as the interval it is — the value the
-    /// `min_clearance` measure evaluates to.
+    /// The bracket as the interval it is: a containment-true enclosure
+    /// of the WINDOW separation, and the value the `min_clearance`
+    /// measure evaluates to. What an assertion may conclude from it is
+    /// [`crate::measure::Certified`]'s question, not this door's.
     pub fn enclosure(&self) -> Interval {
         Interval::from_bounds(self.lo, self.hi)
     }
@@ -1420,8 +1441,9 @@ impl MinSeparation {
         let mut s = String::new();
         let _ = writeln!(
             s,
-            "minimum separation ∈ [{}, {}] (width {:e}), certified over the whole \
-             parameter box",
+            "minimum separation: FACES ≥ {} (certified over the whole parameter box); \
+             WINDOWS ∈ [{}, {}] (width {:e})",
+            self.lo,
             self.lo,
             self.hi,
             self.hi - self.lo
@@ -1436,8 +1458,10 @@ impl MinSeparation {
         let _ = writeln!(
             s,
             "  the bracket is honest at any budget: refinement narrows it and cannot \
-             falsify it. `lo` bounds the FACES' clearance from below; `hi` is over the \
-             carrier windows, which contain the faces."
+             falsify it. `lo` bounds the FACES' clearance from below and is what gates; \
+             `window_hi` is over the carrier WINDOWS, which contain the faces, so it \
+             bounds the faces in NEITHER direction and no assertion arm may read it \
+             (see Certified)."
         );
         s
     }

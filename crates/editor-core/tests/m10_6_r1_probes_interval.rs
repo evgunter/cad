@@ -4,11 +4,19 @@
 //!
 //! Row shapes, per `memories/test-suite-cost.md`: every row is a
 //! written-down witness (a static fixture) — no sampling, no seeds.
-//! Rows whose subject is a finding the review reports as red on the
-//! frozen head are `#[ignore]`d with the finding named, so the suite
-//! stays green while the counterexample stays runnable
-//! (`--ignored`). Rows marked EVIDENCE-ONLY print and assert only the
-//! shape (they are not gates).
+//! Rows whose subject was a finding red at that head arrived
+//! `#[ignore]`d with the finding named. **The fix pass un-ignored
+//! them**: they are PINS now, and each one reds again if the fix is
+//! undone. Rows marked EVIDENCE-ONLY print and assert only the shape
+//! (they are not gates).
+//!
+//! What changed under them, for a reader who has the review beside
+//! this file: the enclosure's two ends are now typed about different
+//! sets (`measure::Certified`), so the two assertion arms that would
+//! read the carrier's end refuse `Unevaluated { WindowSuperset }`
+//! instead of answering. Rows 1 and 3-4 below therefore pass by
+//! REFUSING rather than by bracketing — which is the whole content of
+//! the fix, and row 2 keeps the looseness itself visible.
 //!
 //! What the rows attack, in order:
 //!
@@ -202,29 +210,43 @@ fn true_notch_clearance() -> f64 {
     (OFFSET * OFFSET + LIFT * LIFT).sqrt()
 }
 
-/// **Finding (MAJOR): the bracket excludes the truth on a non-convex
-/// face.** The L cap's carrier window is its bounding square, which
-/// covers the notch, so the engine finds a station pair straight under
-/// the block at distance `LIFT` and reports `hi ≈ LIFT`, below the
-/// faces' real separation. `MinSeparation`'s docs claim "every `m(p)`
-/// lies in it"; it does not.
+/// **The finding, and the shape the fix gave it.** The L cap's carrier
+/// window is its bounding square, which covers the notch, so the engine
+/// finds a window pair straight under the block at distance `LIFT` and
+/// reports it — BELOW the faces' real separation. The review wrote this
+/// row as "the bracket must contain the truth", and that is not what
+/// was fixed: closing it needs the trim boundary in chart coordinates
+/// (`measure::WINDOW_TIGHTENING`), which is a tracker item, not this
+/// unit.
+///
+/// What was fixed is the CLAIM. The docs said `[lo, hi]` encloses the
+/// faces' separation and that this made an `AtMost` assertion sound;
+/// both sentences were false. The bracket is now typed about two
+/// different sets, and this row pins the half that is true and load-
+/// bearing: **`lo` is a lower bound on the faces' own clearance**,
+/// because the windows contain the faces and so their minimum is no
+/// larger. That is the end every gate reads, and it survives any
+/// amount of window slack.
+///
+/// The other half — `window_hi` bounding the faces from above — is
+/// pinned FALSE by the row below, deliberately, so that tightening the
+/// windows reds it and sends a reader back here.
 #[test]
-#[ignore = "R1 counterexample, red at bf67a734: the min_clearance enclosure over an L-shaped cap excludes the true face separation (window superset)"]
-fn the_min_clearance_bracket_contains_the_true_separation_of_trimmed_faces() {
+fn the_min_clearance_bracket_bounds_the_trimmed_faces_from_below() {
     let (doc, measure, _) = notch(0.2, AssertionDir::AtLeast);
     let ev = eval_over::<geom_core::Interval>(&doc, None);
     let value = measure_value(&ev, measure).expect("the measure has an interval value");
     let truth = true_notch_clearance();
     eprintln!(
-        "notch: min_clearance ∈ [{}, {}], true face separation {truth}",
+        "notch: min_clearance windows ∈ [{}, {}], true face separation {truth}",
         value.lo(),
         value.hi()
     );
     assert!(
-        value.lo() <= truth && truth <= value.hi(),
-        "[{}, {}] must enclose the faces' true minimum separation {truth}",
-        value.lo(),
-        value.hi()
+        value.lo() <= truth,
+        "`lo` ({}) must bound the faces' true minimum separation {truth} from below — the \
+         windows contain the faces, so their minimum cannot be the larger of the two",
+        value.lo()
     );
 }
 
@@ -258,7 +280,6 @@ fn the_notch_bracket_is_the_windows_not_the_faces() {
 /// reads a certified `Violated`, because the bracket's `hi` is the
 /// window's 0.1. A CI row 1 over this document reds a true assertion.
 #[test]
-#[ignore = "R1 counterexample, red at bf67a734: a min_clearance AtLeast assertion reads Violated on a pair that holds"]
 fn an_at_least_assertion_over_a_notch_does_not_read_violated_when_the_faces_clear_it() {
     let (doc, _, assertion) = notch(0.2, AssertionDir::AtLeast);
     let ev = eval_over::<geom_core::Interval>(&doc, None);
@@ -273,7 +294,6 @@ fn an_at_least_assertion_over_a_notch_does_not_read_violated_when_the_faces_clea
 /// **And `AtMost` reads a false `Holds`** — the direction the
 /// `MinSeparation` docs say the containment-true reading makes sound.
 #[test]
-#[ignore = "R1 counterexample, red at bf67a734: a min_clearance AtMost assertion reads Holds on a pair that violates it"]
 fn an_at_most_assertion_over_a_notch_does_not_read_holds_when_the_faces_exceed_it() {
     let (doc, _, assertion) = notch(0.15, AssertionDir::AtMost);
     let ev = eval_over::<geom_core::Interval>(&doc, None);
@@ -339,10 +359,10 @@ fn a_convex_pair_brackets_the_built_gap_at_every_budget() {
             m.serialize().replace('\n', " | ")
         );
         assert!(
-            m.lo() <= 0.7 && 0.7 <= m.hi(),
+            m.lo() <= 0.7 && 0.7 <= m.window_hi(),
             "budget {pairs}: [{}, {}]",
             m.lo(),
-            m.hi()
+            m.window_hi()
         );
         assert!(m.receipt().holds());
     }
@@ -395,9 +415,9 @@ fn min_clearance_of_a_body_against_itself_is_the_selections_self_clearance() {
         "dumbbell self-clearance: {}",
         m.serialize().replace('\n', " | ")
     );
-    assert!(m.lo() <= 0.4 && 0.4 <= m.hi(), "[{}, {}]", m.lo(), m.hi());
+    assert!(m.lo() <= 0.4 && 0.4 <= m.window_hi(), "[{}, {}]", m.lo(), m.window_hi());
     // Tight enough to be the neck and not the outer walls (5 apart).
-    assert!(m.hi() < 1.0);
+    assert!(m.window_hi() < 1.0);
 }
 
 // ------------------------------------ 3. the certifying vector
@@ -606,6 +626,19 @@ fn report_key_cannot_tell_two_budgets_apart() {
 
 /// The unit's neck with the bound / the pairing / the box as arguments.
 fn neck(bound: f64, wall_b: u32, law: Distribution) -> (ProfileDoc, RecipeNodeId) {
+    neck_dir(bound, wall_b, law, AssertionDir::AtLeast)
+}
+
+/// The same, with the assertion's direction chosen — which the fix
+/// pass made load-bearing: `min_clearance` reaches `Violated` only
+/// through `AtMost` now (`measure::Certified`), because the `AtLeast`
+/// arm that would read the carrier's upper end refuses instead.
+fn neck_dir(
+    bound: f64,
+    wall_b: u32,
+    law: Distribution,
+    dir: AssertionDir,
+) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     param(&mut r, "place", 0.0, Some(law));
     let solid = prism(
@@ -649,16 +682,25 @@ fn neck(bound: f64, wall_b: u32, law: Distribution) -> (ProfileDoc, RecipeNodeId
     let assertion = r.insert(Node::Assertion {
         measure,
         bound: len(bound),
-        dir: AssertionDir::AtLeast,
+        dir,
     });
     (r.doc, assertion)
 }
 
-/// Planted `Violated`: the bound above the neck's 0.4 reads `Violated`
-/// over a certified leaf — the red row 1 promises.
+/// Planted `Violated`: `min_clearance ≤ 0.3` over a neck that is `0.4`
+/// apart reads `Violated` over a certified leaf — the red row 1
+/// promises.
+///
+/// **`AtMost`, not `AtLeast`, and that is the fix showing through.**
+/// The verdict is read off `lo` (`lo > 0.3`), the end certified for the
+/// faces, so it is sound and it survives. The row as the review wrote
+/// it planted the violation through `AtLeast 0.5`, which reaches
+/// `Violated` only by reading the carrier's upper end — the false
+/// certification the two rows above pin. That arm now refuses, so
+/// planting through it would be planting a refusal.
 #[test]
 fn a_planted_violated_reads_violated_over_a_certified_leaf() {
-    let (doc, assertion) = neck(0.5, 9, uniform());
+    let (doc, assertion) = neck_dir(0.3, 9, uniform(), AssertionDir::AtMost);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
     assert!(!verdict.certified().is_empty());
@@ -666,6 +708,33 @@ fn a_planted_violated_reads_violated_over_a_certified_leaf() {
     let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
     let v = assertion_verdict(&ev, assertion);
     assert!(matches!(v, AssertionVerdict::Violated { .. }), "{v:?}");
+}
+
+/// **And the arm that no longer decides says so rather than going
+/// quiet**: the review's own `AtLeast 0.5` fixture, which used to read
+/// a certified `Violated` off the windows, now refuses typed and names
+/// both the endpoint and the tracker item that retires the refusal.
+#[test]
+fn the_at_least_arm_that_read_the_carriers_end_now_refuses_by_name() {
+    let (doc, assertion) = neck(0.5, 9, uniform());
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).expect("builds");
+    let leaf = &verdict.certified()[0];
+    let ev = eval_over::<geom_core::Interval>(&doc, Some(leaf.box_.clone()));
+    match assertion_verdict(&ev, assertion) {
+        AssertionVerdict::Unevaluated {
+            reason:
+                UnevaluatedReason::WindowSuperset {
+                    verb,
+                    endpoint,
+                    recourse,
+                },
+        } => {
+            assert_eq!((verb, endpoint), ("min_clearance", "upper"));
+            assert_eq!(recourse, editor_core::WINDOW_TIGHTENING);
+        }
+        other => panic!("expected a typed window-superset refusal, got {other:?}"),
+    }
 }
 
 /// Planted engine refusal (a wall against itself, `NoAdmittedPair`):
