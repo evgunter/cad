@@ -145,21 +145,30 @@
 //! **What it cannot see, measured rather than shaped:** two faces of
 //! one scene agreeing on every identity column and swapping ordinals.
 //! Counted over the SIZED rows — an unsized swap costs rule 2 nothing,
-//! and that restriction is doing the work — the committed baseline has
-//! **8 such pairs, 16 of its 64 sized rows, across 6 of the 12 scenes
-//! carrying a sized face** (`lily_leaf_b` ×2, `lily_leaf_c` ×2,
-//! `lily_sepal_c`, `loft_prism`, `nonuniform_loft`, `s_duct`), each two
-//! walls of one body. Taken across all 1327 rows it is **22,545**.
+//! and that restriction is doing the work: the corpus-wide count is
+//! three orders of magnitude larger and gates nothing.
 //!
-//! And among the sized rows the list is mostly constant, which is the
-//! honest reading of that 8: `chart` is `nurbs` on all 64 and the trim
-//! box is `0e0,1e0,0e0,1e0` on all 64, so **five of the eight entries
-//! discriminate nothing there and the live pair is `nu`/`nv` alone**.
-//! Corpus-wide `chart` and the sizing block do discriminate — six
-//! charts appear, and the reroute they catch is a named case — but a
-//! reader sizing up the hole should size up `(nu, nv)`. Closing it
-//! needs a face identity in a column of the sweep's own, which is
-//! `tess_meter`'s half of the contract.
+//! **The count itself is not written here.** It is a reading of
+//! `docs/tess-budget-data/tess-budget-baseline.csv`, so it moves
+//! whenever that file is re-cut, and a number transcribed into prose
+//! is a number nothing can check. Its one home is
+//! `tests/baseline_census.rs`, which states the sweep's definition
+//! beside its result and re-derives every quantity from the committed
+//! baseline on each `cargo test`: a re-cut that moves the census fails
+//! there and names what moved. That is this crate's own rule-5
+//! discipline one instrument down — the cost of growth is paid by the
+//! growth.
+//!
+//! The SHAPE of the hole, which the cut does not move: each pair is
+//! two walls of one body, and among the sized rows the identity list
+//! is mostly constant — `chart` is `nurbs` on every one of them and
+//! the trim box is the whole unit square on every one, so **five of
+//! the eight entries discriminate nothing there and the live pair is
+//! `nu`/`nv` alone**. Corpus-wide `chart` and the sizing block do
+//! discriminate, and the reroute they catch is a named case — but a
+//! reader sizing up the hole should size up `(nu, nv)`. The same test
+//! pins those statements. Closing it needs a face identity in a column
+//! of the sweep's own, which is `tess_meter`'s half of the contract.
 //!
 //! **A re-key is a finding where it can cost a measurement**, judged
 //! per SCENE: does either side carry a sized face at all. That is
