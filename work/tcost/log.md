@@ -1242,3 +1242,25 @@ row that reds if any non-aggregating crate's `tests/` grows a second
 file; binary size at CI's profile +0.02 % (neutral, as the unit
 says), the dev-profile +2.1 MB recorded and explicitly not quoted.
 Joined to batch 5 by message.
+
+## Unit: TCOST-10 merged (2026-09-03)
+
+PR 1715 at `ab47d903c` (interval lane asked, ε default drawn, run
+33812074765, every job green but the inherited row). The blend
+suite's cavity/cube builders and the two closed-form volume oracle
+families have one home in `sweep/tests/common/`; builders retired in
+six suites, oracle spellings at seven sites; `nextest list`
+byte-identical at both feature sets; no execution win claimed. Batch
+5's fixes landed: the false "not the same f64" reason at seven copy
+sites retracted with the measurement (bit-identical at all but one
+constant, 1 ulp at that one against 1e-9·volume) and the copies kept
+as conservatism; the two agreement rows that make the "could
+disagree" rule a gate (a planted 1e-7 perturbation of each home form
+reds exactly those two rows); a distinctive marker (``NOT `common::``)
+at every kept copy so the disclosure list is grep-comparable (14 = 14);
+the four out-of-crate copies named and filed as
+`chamfered-cube-and-steiner-oracles-outside-sweep` (a CONSTANTS
+sweep, not names); the home's header states it takes the opposite
+line from `geom-brep/tests/shared` on reviewer-pair rebuilds, and the
+policy question is on the board for Ev
+(`reviewer-pair-rebuilds-two-trees-two-rules`, `needs_ev`).
