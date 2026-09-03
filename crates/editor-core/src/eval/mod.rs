@@ -517,6 +517,30 @@ pub enum NodeErrorKind {
         /// The door's refusal, unaltered.
         source: crate::analysis::ParamBoxError,
     },
+    /// The evaluation's E4 seed could not bind (the seed door, the
+    /// [`NodeErrorKind::ParamBox`] shape): the seed names a parameter
+    /// the document does not carry, names a structural `Count`
+    /// parameter, or this scalar has no tangent channel to carry it.
+    /// Refused on EVERY node, before any node runs, and for the same
+    /// reason as the box arm — a dropped seed is a different question
+    /// answered in the same shape.
+    Seed {
+        /// The door's refusal, unaltered.
+        source: crate::analysis::SeedError,
+    },
+    /// The evaluation's E4 seed names a parameter a loft's or a sweep's
+    /// SECTION reads, and a section stays `f64` in every lane (C6/D9:
+    /// the skinned surface's structure must be lane-identical) — the
+    /// seed has no channel to ride there and would reach the surface
+    /// as a constant. Refused at the consuming node, naming the
+    /// section, rather than embedded as a finite wrong zero: the
+    /// profile gap, typed.
+    SeedPinnedSection {
+        /// The section profile node the seed reaches and stops at.
+        section: RecipeNodeId,
+        /// The seeded parameter the section reads.
+        param: crate::doc::ParamName,
+    },
     /// An input's value family does not fit this operand (e.g. a
     /// boolean fed a split's two-part value — selecting a part needs
     /// PR 3's naming layer).
@@ -984,6 +1008,14 @@ impl core::fmt::Display for NodeErrorKind {
                  (one process, one ε)"
             ),
             Self::ParamBox { source } => write!(f, "parameter box: {source}"),
+            Self::Seed { source } => write!(f, "parameter seed: {source}"),
+            Self::SeedPinnedSection { section, param } => write!(
+                f,
+                "the seed on parameter {:?} reaches section profile node {}, which stays f64 \
+                 in every lane (a loft's or a sweep's section is structure) — the tangent \
+                 cannot ride through it, so this node refuses rather than embed a zero",
+                param.0, section.0
+            ),
             Self::WrongOperand {
                 input,
                 expected,
@@ -1194,7 +1226,11 @@ impl CancelToken {
 /// needs, the scalar's at-rest gate policy (`topo::AtRestPolicy`,
 /// which carries `topo::PropsQuadLane` as its supertrait — the part
 /// seam gathers a referenced document's product, so evaluation owns a
-/// gate policy per scalar), and `Send + Sync` for the rayon schedule.
+/// gate policy per scalar), the two per-scalar analysis capabilities
+/// (`crate::analysis::AxisScalar` for the parameter box,
+/// `crate::analysis::SeedScalar` for the E4 seed — both scalar-free
+/// options whose capability lives at the scalar), and `Send + Sync`
+/// for the rayon schedule.
 /// ONE name for the set, stated at the evaluation-service seam that
 /// owns it — so the modules below this one (`parts`) name the
 /// requirement rather than restate it, and the compound `Bounds` bound
@@ -1207,6 +1243,7 @@ pub trait EvalScalar:
     + Sync
     + topo::AtRestPolicy
     + crate::analysis::AxisScalar
+    + crate::analysis::SeedScalar
 {
 }
 
@@ -1218,6 +1255,7 @@ impl<T> EvalScalar for T where
         + Sync
         + topo::AtRestPolicy
         + crate::analysis::AxisScalar
+        + crate::analysis::SeedScalar
 {
 }
 
@@ -1264,6 +1302,23 @@ pub struct EvalOptions {
     /// the whole evaluation, node by node, rather than quietly
     /// evaluating at the nominals.
     pub param_box: Option<Arc<crate::analysis::ParamBox>>,
+    /// The E4 SEED: which parameter's lift carries tangent `1.0` in
+    /// this evaluation — the `param_box` seam's twin. `None` — the
+    /// default — is every build-path evaluation, bit for bit: the
+    /// environment is left exactly as the box door (or the nominal
+    /// door) built it.
+    ///
+    /// Exactly one parameter per evaluation (E4: n parameters ⇒ n
+    /// independent passes; a multi-seed vector mode is E11.4's door,
+    /// deliberately not this field's). Scalar-free like the box: the
+    /// seed is a name, and the evaluation's scalar decides whether it
+    /// can carry a tangent ([`crate::analysis::SeedScalar`]) — a
+    /// tangentless scalar refuses every node typed rather than silently
+    /// dropping the seed, and an unknown or `Count` name refuses at env
+    /// construction, before any node runs. Seeding composes with
+    /// `param_box` exactly where both capabilities meet
+    /// (`Dual<Interval>`: value channel the box, tangent the seed).
+    pub seed: Option<crate::doc::ParamName>,
 }
 
 /// Where profile geometry comes from at a non-`f64` scalar.
@@ -1305,6 +1360,7 @@ impl Default for EvalOptions {
             resolver: None,
             profile_lift: ProfileLift::Pinned,
             param_box: None,
+            seed: None,
         }
     }
 }
@@ -1384,6 +1440,17 @@ where
             Err(source) => return refuse_param_box(doc, sched, opts, source),
         },
     };
+    // The E4 seed rides the SAME environment (a seed is a separate act
+    // on the environment the box door built, never a property of the
+    // box — `AxisScalar`'s dual impl states the boundary): exactly one
+    // binding gains tangent 1.0, checked here, before any node runs.
+    let env = match opts.seed.as_ref() {
+        None => env,
+        Some(name) => match crate::analysis::seed_env(doc, env, name) {
+            Ok(env) => env,
+            Err(source) => return refuse_seed(doc, sched, opts, source),
+        },
+    };
     let parts = parts::PartCache::<T>::new(
         opts.resolver.as_ref(),
         chain,
@@ -1404,6 +1471,7 @@ where
         lane: wire::LaneEnv {
             lift: opts.profile_lift,
             params: &env,
+            seed: opts.seed.as_ref(),
         },
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
@@ -1524,6 +1592,25 @@ where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     refuse_every_node(doc, sched, opts, move || NodeErrorKind::ParamBox {
+        source: source.clone(),
+    })
+}
+
+/// The all-nodes seed refusal: the seed named a parameter the document
+/// does not have (or a `Count` one), or this evaluation's scalar
+/// carries no tangent channel. Loud on every node for the
+/// [`refuse_param_box`] reason — an evaluation that silently dropped
+/// its seed would report a build's answer for a sensitivity question.
+fn refuse_seed<T>(
+    doc: &Doc<ProfileProgram>,
+    sched: schedule::Schedule,
+    opts: &EvalOptions,
+    source: crate::analysis::SeedError,
+) -> Evaluation<T>
+where
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+{
+    refuse_every_node(doc, sched, opts, move || NodeErrorKind::Seed {
         source: source.clone(),
     })
 }

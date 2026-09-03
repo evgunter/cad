@@ -31,34 +31,16 @@ use core::f64::consts::FRAC_PI_2;
 
 use geom::NurbsSurface;
 use geom::curves::fit::interpolate_columns;
-use geom_brep::offset_fit::{OffsetFitError, certify_offset, fit_offset, offset_point};
+use geom_brep::offset_fit::{OffsetFitError, certify_offset, fit_offset};
 use geom_brep::offset_meters::{OFFSET_METER_LADDER, patch_collapse};
 use geom_brep::patch_bound::patch_cells_refined;
-use geom_core::spline::KnotVector;
 use geom_core::{Band, Point3, Tol};
+
+use crate::shared::fixture::{arc_weight, kv1, kv2, quarter_cylinder};
+use crate::shared::sample::{grid, worst_offset_residual};
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
-}
-
-fn kv2() -> KnotVector {
-    KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap()
-}
-
-fn kv1() -> KnotVector {
-    KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap()
-}
-
-/// A deterministic dense schedule, coprime counts, off the fit's grid.
-fn dense(nu: usize, nv: usize) -> Vec<(f64, f64)> {
-    let mut out = Vec::with_capacity(nu * nv);
-    for i in 0..nu {
-        for j in 0..nv {
-            #[allow(clippy::cast_precision_loss)]
-            out.push((i as f64 / (nu - 1) as f64, j as f64 / (nv - 1) as f64));
-        }
-    }
-    out
 }
 
 // ---------------------------------------------------------------------
@@ -237,7 +219,7 @@ fn skinned_loft() -> NurbsSurface<f64> {
 /// two-directional weight net, unlike the cylinder's one-directional
 /// one.
 fn torus_patch(major: f64, minor: f64) -> NurbsSurface<f64> {
-    let w = (FRAC_PI_2 * 0.5).cos();
+    let w = arc_weight(FRAC_PI_2);
     // Minor quarter arc in the (r, z) half-plane, from (major+minor, 0)
     // to (major, minor), tangent-intersection point at
     // (major+minor, minor).
@@ -269,12 +251,8 @@ fn contains_dense_sample(name: &str, base: &NurbsSurface<f64>, d: f64, tol: f64)
         "{name}: certified sup {} exceeds {tol}",
         cert.hull_sup
     );
-    let mut worst = 0.0f64;
-    for (u, v) in dense(41, 37) {
-        let target = offset_point(base, d, u, v)
-            .unwrap_or_else(|| panic!("{name}: the exact offset is undefined at ({u}, {v})"));
-        worst = worst.max((fit.eval(u, v) - target).norm());
-    }
+    let worst = worst_offset_residual(base, &fit, d, &grid(41, 37))
+        .unwrap_or_else(|(u, v)| panic!("{name}: the exact offset is undefined at ({u}, {v})"));
     // The red direction: a bound that UNDER-reports.
     assert!(
         worst <= cert.hull_sup,
@@ -329,11 +307,7 @@ fn p3_offset_just_inside_the_certified_reach_still_bounds_the_sample() {
     let d = -0.9 * coll.reach;
     match fit_offset(&base, d, 1e-2, band()) {
         Ok((fit, cert)) => {
-            let mut worst = 0.0f64;
-            for (u, v) in dense(41, 37) {
-                let target = offset_point(&base, d, u, v).unwrap();
-                worst = worst.max((fit.eval(u, v) - target).norm());
-            }
+            let worst = worst_offset_residual(&base, &fit, d, &grid(41, 37)).unwrap();
             assert!(
                 worst <= cert.hull_sup,
                 "extreme d = {d}: certified sup {} UNDER-reports {worst}",
@@ -436,11 +410,7 @@ fn p4_certify_offset_on_a_rational_fit() {
     )
     .unwrap();
     // What the handed-in surface's residual actually is.
-    let mut worst = 0.0f64;
-    for (u, v) in dense(41, 37) {
-        let target = offset_point(&base, d, u, v).unwrap();
-        worst = worst.max((rational_fit.eval(u, v) - target).norm());
-    }
+    let worst = worst_offset_residual(&base, &rational_fit, d, &grid(41, 37)).unwrap();
     // A tolerance ABOVE the true residual: limb 1 cannot refuse, so
     // whatever limb 2 reports is what certifies — and far enough above
     // it that the door's own `≤ tolerance` test is not what caps the
@@ -469,21 +439,6 @@ fn p4_certify_offset_on_a_rational_fit() {
         cert.hull_sup,
         cert.hull_sup / worst
     );
-}
-
-/// A quarter cylinder, exact (the shipped suite's fixture, re-spelled
-/// here so the probes stand alone).
-fn quarter_cylinder(r: f64, h: f64) -> NurbsSurface<f64> {
-    let s = (FRAC_PI_2 * 0.5).cos();
-    let control = vec![
-        Point3::new(r, 0.0, 0.0),
-        Point3::new(r, 0.0, h),
-        Point3::new(r, r, 0.0),
-        Point3::new(r, r, h),
-        Point3::new(0.0, r, 0.0),
-        Point3::new(0.0, r, h),
-    ];
-    NurbsSurface::new(kv2(), kv1(), control, vec![1.0, 1.0, s, s, 1.0, 1.0]).unwrap()
 }
 
 /// **P6 — the regularity predicate's lever.** AMENDED at adoption:

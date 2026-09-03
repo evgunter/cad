@@ -23,6 +23,8 @@
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
+test_utils::gated_to!["crates/viewer/src/", "crates/pncad/src/"];
+
 use std::sync::Arc;
 
 use pncad::document::{

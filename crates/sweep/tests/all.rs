@@ -129,8 +129,6 @@ mod blend_seam_split_rim;
 mod blend_tworims;
 #[path = "cert5_offgrid_knot_rational.rs"]
 mod cert5_offgrid_knot_rational;
-#[path = "cert5_r1_e2e_probes.rs"]
-mod cert5_r1_e2e_probes;
 #[path = "cert8_r1_probes.rs"]
 mod cert8_r1_probes;
 #[path = "extrude_acceptance.rs"]

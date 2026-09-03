@@ -3412,3 +3412,55 @@ until the 2026-08-29 redaction, and git history retains it; the
 blinded adjudication weighs the flags as it sees fit. No further
 units draw from this block; the next full-protocol LIB unit requires
 a LIB-13 block draw first.
+
+**Block M10-B2 (recorded branch-side on `m10/orchestrator` at draw,
+2026-08-29, per the branch-side shape — merges to main when this
+block's last slot's reviews conclude).** v3 triple {opus, opus,
+fable}. Slot 1 = M10-2 (Measure nodes + Assertions; difficulty
+pre-logged M before the draw). Draw: /dev/urandom byte 197, no
+rejections ⇒ fable position 2 (0-indexed) ⇒ slot 1 OPUS, slot 2
+OPUS, slot 3 FABLE.
+
+**M10-3 dispatch (branch-side, 2026-08-29).** Block M10-B2 slot 2
+(arm per the block draw above). Difficulty pre-logged L at
+dispatch. Spec docs/M10-3-SPEC.md (merged main fed57094).
+
+**M10-2 dual draw (branch-side, 2026-08-29, at review dispatch).**
+Ordinal 503. Slot byte 199, parity 1 ⇒ R1 FABLE + R2 OPUS,
+concurrent, frozen head e0cc0b20, v5 instrument.
+
+**M10-3 dual draw (branch-side, 2026-08-29, at review dispatch).**
+Ordinal 504. Slot byte 5, parity 1 ⇒ R1 FABLE + R2 OPUS,
+concurrent, frozen head 54a77ad9, v5 instrument.
+
+**M10-4 dispatch (branch-side, 2026-08-30).** Block M10-B2 slot 3
+(arm per the block draw above — the block's last; this record and
+the block record merge to main when this unit's reviews conclude).
+Difficulty pre-logged M at dispatch. Spec docs/M10-4-SPEC.md
+(merged main 114e5ae8).
+
+**M10-4 + M10-5 first dispatches DIED (branch-side, 2026-08-30 →
+2026-09-03).** Both implementer lanes were killed by the account
+session limit (~01:30Z, 2026-08-30) pre-first-commit — nothing
+pushed; the surviving worktrees held early drafts (a 970-line
+`stackup.rs`, a 1790-line `clearance.rs`, plus small substrate
+edits). The orchestrator session was itself away four days; main
+moved 524 merges in the interval, rewriting exactly the files the
+drafts touched (`eval/mod.rs`, `eval/wire.rs`, `bvh`, `props.rs`,
+`dual.rs`). Per the death-recovery rule (fresh over resume when
+stalled over an hour with the remaining work specifiable from
+pushed commits) and the G16A precedent (first dispatch died to a
+usage limit — partial discarded, fresh run recorded pre-delivery):
+FRESH SAME-ARM lanes dispatched 2026-09-03 from current main, the
+same slots (M10-4 = B2 slot 3, M10-5 = B3 slot 1), the drafts
+handed over as UNTRUSTED reference material at lane-private paths.
+The rows at merge annotate the interruption; the arms and slots
+are unchanged, so the pairs count.
+
+**M10-4 dual draw (branch-side, 2026-09-03, at review dispatch).**
+Ordinal 505. Slot byte 124, parity 0 ⇒ R1 OPUS + R2 FABLE,
+concurrent, frozen head fc8de0ac (PR #1627), v5 instrument. The
+implementer lane is the FRESH same-arm redispatch recorded above.
+
+
+| M10-4 | 2026-09-03 | M10-4 (PR #1627; ERROR-DESIGN E4/E5/E9 + DUAL-DESIGN DL1–DL3, spec M10-4-SPEC): sensitivities and the stackup — the seed door (`EvalOptions::seed`, the `param_box` seam's twin; compile-time `SeedScalar` beside `AxisScalar`; `Dual<T>` seeds exactly `T::one()`, every non-dual scalar refuses `NodeErrorKind::Seed` on every node; seed+box compose exactly at `Dual<Interval>`), the n-pass forward driver (`stackup::sensitivities`, one `Dual64` pass per continuous parameter, rayon idiom 1 pinned bit-identical), DL3's pairing hook as a typed two-half `PairingViolation` gate (f64 anchor content keys handed-vs-rebuilt; every dual pass value-paired per node by a whole-payload value-channel digest) — DISCHARGING M10-DI's adjudication obligation — the E5 `Stackup` verbatim (`worst_case` the hull of `Interval` evaluations over certified leaves, the only gating number; `rss` advisory-or-`UnavailableBecause` naming every Band; `coverage` = M10-3's accounting verbatim), the two-variant chamber mark with no third state, E9 forfeiture live, and the profile-dimension seed through the guided lift (∂gap/∂r = −1 guided, 0 pinned on the bore/pin fit; the plate's −2 turned out to be the measure EXPRESSION's, corrected) | M (pre-logged at dispatch) | FABLE (block M10-B2 slot 3 — the block's last; the FIRST dispatch died at the account session limit 2026-08-30 ~01:30Z pre-first-commit, the orchestrator away four days, main moved 524 merges over the draft's own files — partial discarded, FRESH same-arm lane 2026-09-03, the G16A shape) | **DUAL (ordinal 505; sample #114 at merge; slot byte 124 parity 0 ⇒ R1 OPUS + R2 FABLE, concurrent, frozen fc8de0ac, v5 instrument; briefs symmetric, no relaxations, no interruptions).** R1 REQUEST-CHANGES 1/6/8, rubric 4/3/4 — the MAJ: the chamber verdict is never bound to the build (`ForeignVerdict` compares axis NAMES, `ForeignBox` offsets; `sensitivities` checks no box), two green counterexamples: a stale value edit still marks every entry `ChamberCertified` with the old drive's key, and document A's verdict prices document B end to end; named the raw material (the drive's per-leaf `node_keys`, recomputed and discarded by `worst_case`'s replay). R2 NOT-MERGEABLE 2/5/6, rubric 4/3/3 — the SAME MAJ found independently with its own red probe (bilateral, dedup single) and the trap named (a verdict-vector compare would NOT close it — a value edit keeps the vector); UNILATERAL BY EXECUTION: a LOFT section's dimension seeds to a silent finite ZERO (`section_of` emits the f64 elaboration's loops; true derivative 1) — the exact state the spec's grounding forbids ("the profile gap TYPED, never silent zeros") while the PR body said no valve was needed; R1 had flagged the loft as the unexecuted arm (T1). TALLY CANDIDATE: R2's loft MAJ (coding at the blinded adjudication). Bilateral beyond the headline: deviation 3 unscheduled; the −0.0 unseeded tangent; `NothingCertified` data-free. Both arms confirmed by execution: zero impact bit-identical over 22 corpus documents at three scalars; seed hygiene under DL2 in six threading orders; σ derivations to 1e-9 against quadrature; `worst_case` tangent-free by type and right where the linearization is wrong | R1 counted 3 silent (the RSS fixed-parameter door; the chamber never bound to "a drive over the box asked about"; `worst_case` bare `f64`); R2 counted 4 (the loft/sweep silent zero; the verdict unpaired; D2's no-stringification; the e2e pin claim) — all remedied or disclosed at fix (deviations 6→10) | R1 4 / R2 4 | R1 3 / R2 3 | R1 4 / R2 3 | substantial, IMPLEMENTER-INHERITED: MAJ-1 a CONTENT tie — the leaf about to be cited is replayed with the drive's own options (`Interval`, guided lift, the leaf's box) and its recorded `node_keys` compared node-for-node (`VerdictNotOfThisBuild { leaf, node, recorded, replayed }`), a verdict-vector compare deliberately NOT used, the tie made against a Guided replay so the build-path/Guided key difference does not bite; `worst_case` ties EVERY certified leaf on the replays it runs anyway; MAJ-2 `NodeErrorKind::SeedPinnedSection { section, param }` at `wire::section_of` — loft sections AND the sweep's profile and path through one function — recognised BY KIND into per-entry `Unliftable`, never a zero, never a pairing violation; the per-node value-channel digest (the in-tree `ValueChannelBits` idiom) lifted into `pair_pass` and the check made total; `NothingCertified` now carries the nominal, the `LocalOnly` sensitivities, the coverage and the receipt; `contribution` labeled chamber-exceeding with `chamber_span` beside it (4× smaller on the plate); the containment predicate homed at `BoxAxis::contains_nominal`; padding MEASURED (exactly 2·half on the plate — a dependency problem in the recovered hole axes — 10·half on the slab) and the row's slack removed; issue item `work/m10/contribution-bounds-via-dual-interval.md` filed for deviation 3; deviations 6→10 (fixed-param σ = 0; rendered refusals — `NodeErrorKind` is neither `Clone` nor `PartialEq`; the plate pin is the expression's; one-seed-per-env documented not enforced); both probe suites adopted authorship-preserving (four red-by-design rows green); TWO argued pushbacks ACCEPTED (`sensitivities` takes no analyzed box — a content-tied leaf of this build holding the nominal is a certificate over itself, spreads-vs-leaves pairing stays the report's `ForeignBox`; `WorstCase` stays two `f64` — the type IS the certified bracket) | impl CI 33712082517 GREEN (interval, 1e-12, asked for by trailer) on fc8de0ac; fix CI 33717165975 GREEN (interval, 1e-12, asked for, trailer-only final head) on 08931277 after one intermediate clippy red; MERGED #1627 | impl ~560k / fix ~200k (unit ~760k) / R1 ~270k / R2 ~300k | impl ~60m / fix ~75m / R1 ~55m / R2 ~35m; the first dispatch's death annotated in the arm cell |
