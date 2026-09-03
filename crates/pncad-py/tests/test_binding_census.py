@@ -512,6 +512,27 @@ BOUND_AS = {
     "eval_count": "Doc.eval_count",
     "parse_expr": "Doc.parse_expr",
     "unparse": "Expr.text",
+    # The display formatter, on the receiver the carrier-projection
+    # rule picks — the same reading that put `unparse` on `Expr` two
+    # entries up, applied to a door whose Rust signature does NOT
+    # name its carrier. `fmt_length` takes canonical metres as a bare
+    # `f64` because Rust reaches this module from BELOW, where the
+    # newtype is already unwrapped; Python has no such caller, and
+    # what a Python consumer holds is a `Length` precisely so that a
+    # length and an angle cannot be interchanged. Binding the free
+    # functions as free functions would hand that interchange back —
+    # `fmt_length((90 * deg).radians, mm)` type-checks and prints
+    # plausible nonsense — so the door lands where the value it needs
+    # already lives, and `Length.format(deg)` is refused the way
+    # every other dimension confusion at this boundary is.
+    #
+    # `FmtQuantityError` is spelled identically in the stub and is
+    # accounted by rule 1, not here.
+    #
+    # They left the `gap` roster at LIB-B-FORMAT, which closed
+    # B-FORMAT.
+    "fmt_angle": "Angle.format",
+    "fmt_length": "Length.format",
     # The four different-shape entries LIB-G18b left behind after
     # binding the rest of the assembly vocabulary name-for-name.
     #
@@ -645,12 +666,6 @@ FAMILIES = {
         "today the unit erases at the `Length` door and the document "
         "records the canonical row, which is what Rust authoring "
         "stopped doing at schema v20"
-    ),
-    "B-FORMAT": (
-        "the D6 display formatter; closing it binds `fmt_length` / "
-        "`fmt_angle` and their refusal, so choosing digits and a symbol "
-        "stops being hand-work Python redoes beside `Length.in_unit`'s "
-        "bare float"
     ),
     "B-DISTRIBUTIONS": (
         "parameter uncertainty and the analysis lane (ERROR-DESIGN "
@@ -1060,10 +1075,28 @@ FAMILIES = {
 #: - **B-CANCEL — cooperative cancellation.** `CancelToken`.
 #:   `evaluate(doc)` takes none, so a Python caller cannot stop a long
 #:   evaluation.
-#: - **B-FORMAT — the D6 display formatter.** `fmt_length`,
-#:   `fmt_angle`, `FmtQuantityError`. `Length.in_unit` answers a bare
-#:   float; choosing digits and a symbol is the formatter's job and
-#:   Python redoes it by hand.
+#: **B-FORMAT is CLOSED and no longer a `gap` id here**
+#: (LIB-B-FORMAT). It held three names — `fmt_length`, `fmt_angle`
+#: and `FmtQuantityError` — and closing it moved exactly those three,
+#: which is worth recording only because the family before it did not:
+#: B-EXPR-READ chartered three and moved nine. The difference is not
+#: luck, it is that this family's pins were ALREADY BOUND.
+#: `fmt_length` needs a canonical value and a `LengthUnit`; Python has
+#: had `Length` and the seven unit constants since §L4, so there was
+#: nothing to build first and no entry filed under another id to
+#: reclaim. A family is cheap when its arguments already cross, and
+#: that is the only general thing the two closings say together.
+#:
+#: `FmtQuantityError` is a top-level name in `pncad.pyi` and needed no
+#: `BOUND_AS`; `fmt_length` and `fmt_angle` are `BOUND_AS` METHODS on
+#: the quantity they format, for the reason recorded at their entry —
+#: the receiver is what makes `Length.format(deg)` unspellable. The
+#: positive form is `tests/test_quantities.py`, whose oracle is the
+#: EXPRESSION PARSER: `Doc.parse_expr(x.format(u))` evaluates back to
+#: `x`'s exact bits, which is the formatter's own headline pin
+#: checked against the door it names — something the Rust side cannot
+#: do, since `quantity` sits below `editor-core` and its fixture has
+#: to transliterate the parser's literal rule by hand.
 NOT_BOUND = {
     # --- different-shape ------------------------------------------
     "ALL_SURFACE_KINDS": SHAPE,
@@ -1371,9 +1404,10 @@ NOT_BOUND = {
     # --- gap: geometry read-back doors (census-owned) -------------
     # --- gap: assorted single doors -------------------------------
     "CancelToken": f"{GAP}: B-CANCEL cooperative cancellation",
-    "FmtQuantityError": f"{GAP}: B-FORMAT the D6 display formatter",
-    "fmt_angle": f"{GAP}: B-FORMAT the D6 display formatter",
-    "fmt_length": f"{GAP}: B-FORMAT the D6 display formatter",
+    # B-FORMAT IS GONE FROM THIS ROSTER, closed at LIB-B-FORMAT, and
+    # the id is gone from `FAMILIES` with it. All three of its names
+    # left and nothing else moved with them — the paragraph above says
+    # why that is the boring case and B-EXPR-READ's was not.
     "validate_pseudomanifold": f"{GAP}: B-VALIDATE4 the fourth validator rung",
 }
 

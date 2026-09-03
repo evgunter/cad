@@ -7,6 +7,40 @@
 //! for it; Python has no compile step to refuse at, so those cases
 //! become typed `DimensionError` raises here. That is the whole of
 //! the rule that runtime checks live at the Rust boundary, once.
+//!
+//! # Reading a quantity out: two doors, and why the second is not a
+//! convenience
+//!
+//! `in_unit` answers a bare `float` — the magnitude, with the unit
+//! erased on the way out. `format` answers TEXT: the same magnitude
+//! rendered with the unit's own symbol beside it, at digits chosen so
+//! that reading the text back recovers the value's exact bits
+//! (`quantity::fmt`'s pin; the module docs there carry the
+//! derivation and the canonical-unit fallback that pays for it).
+//!
+//! The distance between those two is the whole of what LIB-B-FORMAT
+//! closed. Choosing digits from a bare float is a decision — how many,
+//! and does the answer read back as the same number — and until this
+//! door crossed, every Python consumer showing a dimension made that
+//! decision by hand, differently, with `%g` or `round()` or an
+//! f-string, none of which round-trips. The formatter is the library's
+//! one answer, and the text it produces is exactly the text
+//! `Doc.parse_expr` reads.
+//!
+//! # The receiver is the quantity, not a float
+//!
+//! `quantity::fmt_length` takes canonical METRES as an `f64` and
+//! `fmt_angle` canonical radians, because Rust reaches this module
+//! from below, where the newtype has already been unwrapped. Python
+//! has no such caller: what a Python consumer holds is a `Length` or
+//! an `Angle`, and it holds one precisely so that a length and an
+//! angle cannot be interchanged. Binding the free functions as free
+//! functions would hand back that interchange — `fmt_length(
+//! (90 * deg).radians, mm)` type-checks and prints plausible
+//! nonsense — so the door lands where the value it needs already
+//! lives. `Length.format(deg)` is then a `ty` error statically and a
+//! `TypeError` at run time, which is the same pair of answers every
+//! other dimension confusion at this boundary gets.
 
 use pyo3::basic::CompareOp;
 use pyo3::prelude::*;
@@ -14,6 +48,7 @@ use pyo3::types::PyString;
 
 use crate::errors::{ErrorClass, QuantityOpMismatch, dimension_tag};
 use crate::py::typed_err;
+use crate::tags::fmt_quantity_error_tag;
 use pncad::document::Dimension;
 use pncad::quantity as q;
 
@@ -54,6 +89,33 @@ fn mismatch(py: Python<'_>, op: &'static str, left: Dimension, other: &Bound<'_,
             ("left", text(dimension_tag(left))),
             ("right", text(dimension_tag(right))),
         ],
+    )
+}
+
+/// Raise `FmtQuantityError` carrying the refusal's stable tag and the
+/// refused value.
+///
+/// The field shape is the projected one `py/readback.rs` states and
+/// `py/expr.rs` follows: `variant` plus every arm's payload, present
+/// on every arm. There is one arm and it carries one number, so the
+/// projection is `variant` and `value` and nothing is `None` — the
+/// smallest case of the rule rather than an exception to it.
+fn fmt_err(py: Python<'_>, err: &q::FmtQuantityError) -> PyErr {
+    let q::FmtQuantityError::NonFinite { value } = err;
+    let tag = PyString::new(py, fmt_quantity_error_tag(err))
+        .unbind()
+        .into_any();
+    // `f64`'s conversion into a Python float is infallible, the same
+    // reason `py/expr.rs`'s integer conversions are: the `Err` type is
+    // uninhabited, so the one arm IS exhaustive.
+    let refused: Py<PyAny> = match (*value).into_pyobject(py) {
+        Ok(object) => object.into_any().unbind(),
+    };
+    typed_err(
+        py,
+        ErrorClass::FmtQuantity,
+        err.to_string(),
+        &[("variant", tag), ("value", refused)],
     )
 }
 
@@ -117,10 +179,28 @@ macro_rules! continuous_quantity {
                 let rhs = other
                     .extract::<PyRef<'_, Self>>()
                     .map_err(|_| mismatch(py, "<=>", $dim, other))?;
-                // Canonical f64s; NaN cannot arise from the
-                // constructors (the boundary refuses non-finite
-                // input), so an absent ordering is unreachable rather
-                // than silently coerced.
+                // Canonical f64s. The `None` arm is REACHABLE and the
+                // comment here used to say it was not — "NaN cannot
+                // arise from the constructors (the boundary refuses
+                // non-finite input)", which is false in both halves:
+                // `quantity`'s newtypes are plain value wrappers that
+                // refuse no float (its module docs say so outright),
+                // and `float("nan") * mm` is an ordinary `Length`
+                // here. LIB-B-FORMAT found it by binding the door
+                // that has to have an opinion about poison.
+                //
+                // What it does about it is NOT settled, and the
+                // untyped `ValueError` below is the evidence: `==`
+                // goes through this same match, so two NaN lengths
+                // RAISE rather than answering `False` the way IEEE
+                // and every other Python float do. Banked in `work/lib`
+                // as `the-quantity-boundary-compares-and-hashes-as-if-
+                // poison-and-signed-zero-cannot-arrive` rather than
+                // decided here: it is a semantics call on a door
+                // LIB-B-FORMAT does not bind, and it shares a root
+                // with `__hash__`'s signed-zero split, which is in the
+                // same item. `tests/test_quantities.py` pins the
+                // behaviour AS IT STANDS, so changing it goes red.
                 match self.0.$canonical().partial_cmp(&rhs.0.$canonical()) {
                     Some(ordering) => Ok(op.matches(ordering)),
                     None => Err(pyo3::exceptions::PyValueError::new_err(
@@ -153,6 +233,34 @@ continuous_quantity!(Length, Dimension::Length, meters, {
         self.0.in_unit(unit.0)
     }
 
+    /// This length as DISPLAY TEXT in `unit` — `"25 mm"` — with
+    /// digits chosen so the text reads back to this exact value
+    /// (`quantity::fmt_length`).
+    ///
+    /// The pin, which is the reason to use this rather than an
+    /// f-string: `doc.parse_expr(x.format(u))` evaluates to `x`
+    /// BIT-EXACTLY, for every finite length and every length unit.
+    /// The formatter searches the f64 quotients around
+    /// `meters / unit.factor` for one whose product with the factor
+    /// reproduces these bits, and renders the shortest.
+    ///
+    /// **The suffix is not guaranteed to be `unit`'s.** Some values
+    /// have no preimage in the asked unit at all — the multiply by
+    /// the factor steps over them — and those render in metres
+    /// instead, because the pin above is the promise and the suffix
+    /// is what pays for it. A length AUTHORED in the unit (`25 * mm`,
+    /// or parsed from `"25 mm"`) always keeps it; the fallback bites
+    /// values arrived at by arithmetic. Read the suffix off the text
+    /// rather than assuming it.
+    ///
+    /// # Raises
+    ///
+    /// `FmtQuantityError` when this length is NaN or ±∞ — poison
+    /// never lands in display text.
+    fn format(&self, py: Python<'_>, unit: &LengthUnit) -> PyResult<String> {
+        q::fmt_length(self.0.meters(), unit.0).map_err(|err| fmt_err(py, &err))
+    }
+
     fn __repr__(&self) -> String {
         format!("Length({} m)", self.0.meters())
     }
@@ -173,6 +281,26 @@ continuous_quantity!(Angle, Dimension::Angle, radians, {
     /// The value expressed in `unit`.
     fn in_unit(&self, unit: &AngleUnit) -> f64 {
         self.0.in_unit(unit.0)
+    }
+
+    /// This angle as DISPLAY TEXT in `unit` — `"90 deg"` — with
+    /// digits chosen so the text reads back to this exact value
+    /// (`quantity::fmt_angle`). Same pin, same canonical fallback
+    /// (to radians here) and same caveats as `Length.format`.
+    ///
+    /// `pi_rad` is the row this matters most for: a quarter turn
+    /// written `0.5 * pi_rad` and one written `90 * deg` are the same
+    /// canonical radians to within an ulp, and NEITHER is exact, so
+    /// nothing but the unit you ask for distinguishes them —
+    /// `format(pi_rad)` says `"0.5 pi rad"` and `format(deg)` says
+    /// `"90 deg"` for the respective values, each read back in the
+    /// notation it was authored in.
+    ///
+    /// # Raises
+    ///
+    /// `FmtQuantityError` when this angle is NaN or ±∞.
+    fn format(&self, py: Python<'_>, unit: &AngleUnit) -> PyResult<String> {
+        q::fmt_angle(self.0.radians(), unit.0).map_err(|err| fmt_err(py, &err))
     }
 
     fn __repr__(&self) -> String {

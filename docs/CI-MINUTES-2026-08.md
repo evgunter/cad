@@ -427,6 +427,119 @@ roots, of which `demos/tour` compiles the whole kernel — and not its
 lint set, which is what makes the pass worth anything. The two job
 growths above are the larger target and are nobody's row yet.
 
+### 2026-09-03 — the rustdoc gate's other two passes demoted to the nightly
+
+S-TCOST unit C2, Ev's approval in chat the same day, and it is F6's own
+subject read one step further. F6 made the six excluded roots cheap by
+caching them; the addendum above then recorded that the entry's −1 had
+been spent twice over — once by growth elsewhere in the `fmt` job, once
+by pass 3 — and named pass 3's root set as the lever if the minute were
+ever worth reclaiming. This is that lever, taken at the SCHEDULE rather
+than at the root set, so no coverage is dropped.
+
+**What moved.** `scripts/doc-gate.sh` grew `--pr` / `--nightly` and a
+`--scope`. ci.yml's `fmt` job runs `--pr`: the workspace pass alone, over
+the change filter's `CARGO_SCOPE` (the closure on tier `closure`, the
+whole workspace on tier `all`, the way `build` scopes). Pass 2 — one
+`--no-deps` pass per cargo root the workspace excludes — and pass 3 —
+`--no-default-features` over every root with a `not(feature)` half — are
+nightly.yml's `rustdoc (gate, every root)`, ungated, on any night main
+moved. `local-scripts/ci-local.sh` is unchanged and still runs all three
+over every root.
+
+**Argued against §*What is NOT sampled, and the rule*.** A broken
+intra-doc link, a doc comment that stopped rendering, a `not(feature)`
+half that no longer compiles: each PERSISTS in the tree until someone
+fixes it, so a later run finds what a PR run would have. None of them is
+a detector of ABSENCE. The parts of that gate which ARE about absence —
+the two readers that refuse to report green over a tree they could not
+read, and the derived root list whose whole subject is a root falling
+silently out of coverage — live inside passes 2 and 3 and moved WITH
+them, so they run in full every night rather than being left behind at a
+cadence their guard does not share. That is the distinction the `k-lint`
+entry above turns on, argued here rather than inherited.
+
+**THE SCOPING IS A SECOND DEMOTION, and it gets its own row-by-row
+sentence rather than riding the one above.** Pass 1 does not merely move;
+it also narrows, from `--workspace` to the change filter's `CARGO_SCOPE`
+on tier `closure`. So a workspace MEMBER outside the closure — one no
+changed crate depends on — has its prose read on a PR run by nothing, and
+is covered by the nightly alone. Against the rule that is the same
+persistence case as the excluded roots, and it is weaker in one direction
+and stronger in another. Weaker: a member's prose is likelier to be
+edited by a PR than an excluded root's is — but a member whose OWN
+sources changed is a seed and so is in its own closure by construction,
+and what is skipped is a member nothing in the diff touches or depends
+on. Stronger: what a doc link most often breaks on is a RENAMED or
+DELETED item, and a rename in crate A that breaks a link in crate B puts
+B in A's dependent closure, which is exactly what `CARGO_SCOPE` selects.
+What genuinely escapes is a link broken by an edit to prose in an
+unrelated member — ordinary persistence: it stays broken, and the nightly
+reads every member. Tier `all` is unscoped, so an unclassifiable change
+still documents everything.
+
+**The cache moved with the passes.** `--print-roots --pr` prints `.`
+alone, and the `fmt` job's `workspaces:` input is that: F6 taught the
+cache about seven target directories because the job wrote seven, and
+the job now writes one. The derivation is still ASKED FOR rather than
+copied, so the cache's scope cannot drift from the passes that run.
+
+**Billed minutes — COLD, and that is not the comparable number.** The
+`fmt` job's rust-cache key hashes the job definition, so the first run
+after any edit to that job is cold; F6 says so at its own entry and it
+applies to this one. Run `33722478540` (this unit's opening run, head
+`4ca9102a`): the job billed **6** (360 s), of which `rustdoc (gate)` was
+246 s and the cache restore was a 10 s miss. Against the addendum's own
+cold reading of 331 s for that step on run `33342678074`, the direction
+is right and the magnitude is not yet the answer.
+
+**Billed minutes — WARM AGAINST WARM, which is the reading this entry
+turns on.** Run `33727294346` (head `416b94bf`, cache hit, restore 17 s)
+against the addendum's two, whose method this copies:
+
+| | run | `rustdoc (gate)` | non-gate steps | whole job | billed |
+|---|---|---|---|---|---|
+| merge base, before pass 3 | `33342571322` | 110 s | 69 s | 179 s | **3** |
+| with pass 3, on every PR | `33346546955` | 153 s | 69 s | 222 s | **4** |
+| this unit | `33727294346` | **110 s** | **69 s** | **179 s** | **3** |
+
+**−1 billed minute per code-tier PR run**, and the shape of the number
+is worth more than the minute: the job is back at the merge base's cost
+to the second, with pass 3's coverage KEPT rather than dropped — it runs
+nightly instead of per PR. The non-gate steps are 69 s in all three,
+which is what makes the three rows comparable at all.
+
+**And the nightly side is priced, because a demotion that books only its
+saving is half a measurement.** `rustdoc (gate, every root)` runs all
+three passes over all seven roots on a cache lane of its own, once a
+night: **~3 billed**, derived from F6's warm all-seven job (99 s) plus
+the addendum's pass-3 delta (+43 s), with one night at ~6-7 whenever that
+lane's key rotates — the one-cold-run tax F6 records. So the ledger is
+−1 per code-tier PR run against +~3 a night; at this repo's PR rate that
+is a saving, and on a quiet day the `gate` job spends nothing at all. It
+is DERIVED and not yet measured on a nightly; the row in the nightly
+budget table below says so and asks for the re-read.
+
+Two things the row does NOT claim. It is not F6's −1 recovered: that one
+was spent by job growth as well as by pass 3, and this reading says
+nothing about the growth. And 110 s is the gate plus the self-test on a
+tree whose passes 2 and 3 no longer run here — that the total lands on
+the pre-pass-3 figure exactly is a coincidence of two movements in
+opposite directions (fewer passes, a longer self-test), not a
+cancellation anyone designed.
+
+**What the split does NOT buy back, said so it is not rediscovered.**
+The `--selftest` is the half no cache reaches — every case plants a
+fresh fixture under `mktemp -d` and cargo keys fingerprints on the
+package path — and this unit made it LONGER, not shorter: it added an
+arm per mode in both directions, a second fixture member, and three
+refusal cases, because a mode nobody checks is a second gate nobody
+checks. So the saving here is entirely in the real gate's passes, and
+the self-test is now the larger share of that step. The lever on it is
+still the one F6 named — running the cases in parallel — and it is still
+nobody's row.
+
+
 ## What landed
 
 * `db4f7ca` — `test-interval`'s 2x2 matrix (eps x shard) → one job,
@@ -670,6 +783,7 @@ measured, and the largest line is not the one you would guess:
 | `rebuild latency` | ~2 | its own compile, deliberately not the archive |
 | `gate` + `record` | ~2 | |
 | `opt-level` | ~2 | the free arm only; **+~25-30 one night a week** when the two measured arms run |
+| `rustdoc (gate, every root)` | ~3 | S-TCOST C2. DERIVED, not yet measured on a nightly: F6's warm all-seven reading is a 99 s job and the addendum's pass-3 delta is +43 s, so ~142 s. Its own cache lane (`nightly-rustdoc-roots`) is warm night to night; a key rotation costs one night at ~6-7, the same one-cold-run tax F6 records. Re-read it from the first nightly run. The `an ordinary night` line below does not yet include this row |
 | `corrupt input (release profile)` | ~2 | S-TCOST C1. The job's own audit-table line, unchanged by the move: it is one `-p topo --lib` release compile and five rows that execute in milliseconds. Read at 98 s / 2 billed on run `33722922975`, where it was still a ci.yml job on a comparable tree. The `an ordinary night` line below does not yet include this row |
 | **an ordinary night** | **~8** | **~34 on a calibration night** (both figures assume `demoted` is short-circuited; add ~11 once anything is demoted) |
 

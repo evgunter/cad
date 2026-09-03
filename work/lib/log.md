@@ -545,15 +545,6 @@ family — and every `gap:` entry names ONE id that owns the work. An
 audit gap id where `docs/guide/north-star-audit.md` defines one
 (cited, never minted, since that page's ids are scene-anchored and
 its tallies depend on staying that way); otherwise a census-owned
-family id — `B-CHECKS`, `B-PICKING`, `B-RESOLVE`,
-`B-EXPR-READ`, `B-CANCEL`, `B-FORMAT`, `B-VALIDATE4` — each carrying
-a one-line charter saying what a unit closing it would deliver. A
-closed family leaves no charter behind, because the census's own
-guard fails on one no entry cites: `B-READBACK` was chartered here
-and closed at LIB-B-READBACK, and what records that is the four
-read-back verbs sitting in the census's `BOUND_AS` with the unit
-named beside them. The
-
 family id, each carrying a one-line charter saying what a unit
 closing it would deliver. **The ids are NOT listed here** — they are
 `FAMILIES` in `crates/pncad-py/tests/test_binding_census.py`, and a
@@ -2263,6 +2254,99 @@ another arm. Defensive rather than dead — the lexer's rule need not
 stay a subset of `f64`'s — so it keeps its tag and the pin says why
 it has no fixture. Not a kernel change and not an item.
 
+**B-FORMAT IN REVIEW (2026-09-03, #1668; mechanical under the 08-29
+ruling, no A/B row). Census family B-FORMAT CLOSED — the D6 display
+formatter crosses, and the family cost exactly the names it owned.**
+`Length.format` / `Angle.format` plus `FmtQuantityError`. 13 Python
+rows in `tests/test_quantities.py` (421 suite rows to 434), the tag
+map pinned in `src/tests.rs` through the formatter itself rather than
+against a hand-built arm, ty fixtures on both sides.
+
+**The measurement, and it is the negative of B-EXPR-READ's.** That
+family chartered three names and moved nine, because the census had
+split it on which half the audit reached rather than on what a unit
+would have to build. The same check ran first here and came back
+negative: `fmt_length` needs a canonical value and a `LengthUnit`,
+Python has had `Length`, `Angle` and the seven unit constants since
+§L4, so the pins were already constructible and there was nothing to
+reclaim from another id. Three chartered, three moved. **A family is
+cheap exactly when its arguments already cross** — which is the only
+general thing the two closings say together, and it is worth writing
+down because the audit-reach check is now a step rather than a
+discovery.
+
+**One mapping decision, on a door whose Rust signature does not name
+its carrier.** `quantity::fmt_length` takes canonical metres as a
+bare `f64` because Rust reaches that module from BELOW, where the
+newtype is already unwrapped; Python has no such caller. What a
+Python consumer holds is a `Length`, and it holds one precisely so a
+length and an angle cannot be interchanged — so binding the free
+functions AS free functions would hand the interchange back
+(`fmt_length((90 * deg).radians, mm)` type-checks and prints
+plausible nonsense). The door lands on the value it needs instead.
+That is #1661's `PickTarget` argument one door over: the value that
+cannot be mis-paired is the only receiver there is.
+
+**The oracle is the parser, and Rust structurally cannot use it.**
+`crates/quantity/src/fmt.rs` claims `parse(fmt(x, unit))` recovers
+`x`'s exact bits, where `parse` is the expression text parser's
+literal semantics. `quantity` sits below `editor-core`, so the Rust
+round-trip test transliterates that rule by hand
+(`tests.rs::parse_back`). Python is above both, so the pin is checked
+against the door it names — every unit, `pi rad` included, on values
+authored in the unit and on values arrived at by arithmetic, bit
+equality rather than a tolerance. That became possible one merge ago:
+without #1662's `Doc.parse_expr` / `Doc.eval` there is no Python-side
+parser to be an oracle, and this unit would have had to restate the
+arithmetic instead. The charter's own claim is an assertion too —
+`1.0240000000000047 m` has no preimage in millimetres, the hand
+form `f"{x.in_unit(mm)} {mm.symbol}"` reads back to different bits and
+`format` does not, so the family closes against a measured difference.
+
+**Banked, one item, two defects with one root:
+`work/lib/the-quantity-boundary-compares-and-hashes-as-if-poison-and-
+signed-zero-cannot-arrive.md`.** The formatter is the first Python
+door that must have an opinion about a non-finite quantity, and asking
+that of `Length` found two its neighbours answer wrongly: `==` goes
+through the same `partial_cmp` the orderings do, so two NaN lengths
+RAISE an untyped `ValueError` where a bare float answers `False`; and
+`-0.0 * m == 0.0 * m` is true while their hashes differ, the
+data-model violation `DocParam`'s fold already avoids one layer up.
+Neither is a kernel need — `crates/quantity/src/lib.rs:69` says the
+newtypes refuse no float, deliberately — and neither is fixed here,
+because both are semantics calls on doors this unit does not bind.
+Both are PINNED as they stand, so a fix goes red rather than silent.
+
+**A false claim corrected in place**, in a file this unit touches and
+falsifies: `py/quantity.rs`'s comparison arm said "NaN cannot arise
+from the constructors (the boundary refuses non-finite input)". Both
+halves are false. The kernel is deliberate about it; the BINDING was
+what assumed otherwise, and binding the door that has to render
+poison is what made the assumption visible.
+
+**A spliced paragraph in this register, removed rather than banked.**
+The bindings-parity section carried the same paragraph twice — an old
+half ending mid-sentence on a dangling "The", a blank line, then
+#1662's replacement resuming the clause. The stale half carried a
+LIVE enumeration naming seven family ids as open charters, two of them
+already closed and a third closed by this PR. The duplication predates
+#1662, whose merge replaced only the second half. #1661 banked the
+`docs/LIB-LOG.md` pointer fix because it was "for a reason unrelated
+to any family"; this one is not unrelated — leaving it ships a
+register saying B-FORMAT is open on the PR that closes it. What
+survives is #1662's text, which already makes the argument the deleted
+half violated.
+
+Measured and not filed: the canonical-unit fallback rate. `fmt.rs`
+records mm ~2.8% over uniform random finite f64; a Python sample over
+`uniform(-1e3, 1e3)` metres measured 2.3%, and over lengths AUTHORED
+in millimetres, zero in 20k — which is the module's own honest
+statement ("a value authored in the unit lies in the parse map's
+image and always keeps its suffix") reproduced from the other side.
+Not a new fact and not a pin: a sampled rate two lanes could
+re-measure differently is not a guard. What the suite checks instead
+is that ONE named fallback value falls back, and that its text still
+reads back exactly.
 **#917 residue DISCHARGED (2026-09-03, orchestrator note).** The
 G16-banked "#917 vocabulary exemption at the chamfer op message"
 found its home while LIB slept: the conversation is ratified as
