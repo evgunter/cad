@@ -349,3 +349,33 @@ re-spawned fresh from its pushed state rather than resumed again.
   or compare post-merge distributions; the 609 s figure in the plan's
   brief was a median over mixed tiers. Under style batch 2 with
   TCOST-5.
+
+## Seam: batch style review 2 and the TCOST-1 review adjudicated (2026-09-03)
+
+- **TCOST-1 (PR 1612)**: MERGEABLE WITH FIXES — the selection right in
+  both directions (every arm planted with the full filterset string
+  asserted), the composition one `-E` on every leg, 35 + 7 = 42
+  notices in the demo run, the discipline gate wired in both halves.
+  One MAJOR in marker CONTENT: `mesh8r2_probes`' set named only
+  `crates/mesh/src/` while its subject is `topo::examine_chart_coherence`.
+  Fix pass: widen that set and `r1_p2_onb_probes`', re-audit every
+  set against "does it name the module the CLAIM rests on", move the
+  two production files' fuzz rows into their own `#[cfg(test)]` files
+  so 44 deterministic pins stop being gated with them, tighten the
+  reader census's marker recogniser to the python's shape with a
+  unit test, state the nightly row's cost shape in-file.
+- **TCOST-B1 (PR 1616)**: MERGEABLE — every claim reproduced
+  independently, the lint delta strictly narrower than before, the
+  matched hosted pair better matched than claimed (same cache key,
+  members evicted on both sides). Three cheap fixes (a counted token
+  in six header comments; one home for the allow-block prose; the
+  two inert `duplicate_mod` allows dropped, the two live ones kept).
+  **TCOST-B2 cut**: the same pass over step-export, step-import, stl,
+  geom and geom-core (11 933 redundant lines, ~3 % of the class).
+- **TCOST-5 (PR 1621)**: MERGEABLE WITH FIXES — one assertion
+  narrowed (the ORACLE pad check moved inside the certified path, so
+  it no longer runs at 1e-12), contradicting "nothing was weakened";
+  the loud skip not in the tree's named-`#[test]` idiom; a copied
+  const doc calling a 60° arc 150°; the deleted suite's measured
+  negative findings dropped; the fuzz row still the floor-plus-search
+  trap the memory names — split per the memory's remedy.
