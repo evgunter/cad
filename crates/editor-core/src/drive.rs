@@ -1363,7 +1363,7 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, tol: Tol) {
 
 /// A box's goldening rendering: `name=[lo_bits,hi_bits]` per axis, in
 /// name order, floats as exact bits.
-fn render_box(b: &ParamBox) -> String {
+pub(crate) fn render_box(b: &ParamBox) -> String {
     use core::fmt::Write as _;
     let mut s = String::new();
     for (name, axis) in b.axes() {

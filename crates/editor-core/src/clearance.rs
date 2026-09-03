@@ -934,10 +934,7 @@ impl ClearanceReport {
         let mut s = String::new();
         match &self.verdict {
             ClearanceVerdict::Holds => {
-                let _ = writeln!(
-                    s,
-                    "HOLDS over the whole leaf box and both carrier windows"
-                );
+                let _ = writeln!(s, "HOLDS over the whole leaf box and both carrier windows");
             }
             ClearanceVerdict::Violated(v) => {
                 let g = &v.geometry;
@@ -965,8 +962,10 @@ impl ClearanceReport {
         let _ = writeln!(
             s,
             "  discharged at cell diameters {} … {} (deepest subdivision {})",
-            w.widest.map_or_else(|| "none".to_owned(), |x| format!("{x}")),
-            w.narrowest.map_or_else(|| "none".to_owned(), |x| format!("{x}")),
+            w.widest
+                .map_or_else(|| "none".to_owned(), |x| format!("{x}")),
+            w.narrowest
+                .map_or_else(|| "none".to_owned(), |x| format!("{x}")),
             w.deepest
         );
         s
@@ -1509,8 +1508,10 @@ pub fn min_separation(
     // construction as its tightest gap.
     let same_body = a.at == b.at && a.index == b.index;
     let mut seen: BTreeSet<(FaceKey, FaceKey)> = BTreeSet::new();
-    let root_a: Vec<Point3<Interval>> = wa.iter().map(|w| enclosure(&w.surface, w.u, w.v)).collect();
-    let root_b: Vec<Point3<Interval>> = wb.iter().map(|w| enclosure(&w.surface, w.u, w.v)).collect();
+    let root_a: Vec<Point3<Interval>> =
+        wa.iter().map(|w| enclosure(&w.surface, w.u, w.v)).collect();
+    let root_b: Vec<Point3<Interval>> =
+        wb.iter().map(|w| enclosure(&w.surface, w.u, w.v)).collect();
 
     // **The root pass is quadratic in the admitted faces, and the tree
     // is not used here.** The clearance sweep excludes pairs by
@@ -1780,17 +1781,9 @@ impl LeafFold {
             "    {} of the measure holds",
             crate::report::percent(&m.holds)
         );
-        let _ = writeln!(
-            s,
-            "    {} violated",
-            crate::report::percent(&m.violated)
-        );
+        let _ = writeln!(s, "    {} violated", crate::report::percent(&m.violated));
         for (class, v) in &m.refused {
-            let _ = writeln!(
-                s,
-                "    {} refused ({class})",
-                crate::report::percent(v)
-            );
+            let _ = writeln!(s, "    {} refused ({class})", crate::report::percent(v));
         }
         let _ = writeln!(
             s,

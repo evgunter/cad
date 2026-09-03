@@ -1205,8 +1205,7 @@ impl Stackup {
             self.nominal.to_bits(),
             match &self.chamber {
                 Chamber::ChamberCertified {
-                    verdict_vector_key,
-                    ..
+                    verdict_vector_key, ..
                 } => format!("certified:{:032x}", verdict_vector_key.0),
                 Chamber::LocalOnly => "local_only".to_owned(),
             }

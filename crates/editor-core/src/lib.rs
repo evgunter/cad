@@ -38,6 +38,14 @@ pub mod expr;
 mod finding;
 pub mod ident;
 pub mod mate;
+/// The E11.1 Monte-Carlo ADVISORY estimator lane (ruling Q3): pure f64
+/// replay over samples drawn from the document's own distributions.
+/// Never gates, never persists as an assertion, never enters the
+/// accounting. Gated on `interval` only because its report is written
+/// to sit beside the certified one, whose types the reporting layer
+/// carries.
+#[cfg(feature = "interval")]
+pub mod mc;
 pub mod measure;
 pub mod meta;
 pub mod names;

@@ -1702,24 +1702,25 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
         let crate::measure::MeasurePrimitive::MinClearance { a, b } = prim else {
             continue;
         };
-        let operand = |i: &u32| -> Result<crate::measure::MinClearanceOperand<'_, T>, NodeErrorKind> {
-            // Bounds are the node door's and the load door's; a miss
-            // here is the same kernel bug `eval_measure` announces.
-            let Some(Some(sel)) = selections.get(*i as usize) else {
-                unreachable!(
-                    "`min_clearance` reads reference {i} of {} resolved selections, yet \
+        let operand =
+            |i: &u32| -> Result<crate::measure::MinClearanceOperand<'_, T>, NodeErrorKind> {
+                // Bounds are the node door's and the load door's; a miss
+                // here is the same kernel bug `eval_measure` announces.
+                let Some(Some(sel)) = selections.get(*i as usize) else {
+                    unreachable!(
+                        "`min_clearance` reads reference {i} of {} resolved selections, yet \
                      `Node::measure_fault` bounds every index at both doors and the read set \
                      is computed from these very primitives",
-                    selections.len()
-                )
+                        selections.len()
+                    )
+                };
+                Ok(crate::measure::MinClearanceOperand {
+                    at: sel.at,
+                    index: sel.index,
+                    body: sel.body,
+                    faces: sel.faces()?,
+                })
             };
-            Ok(crate::measure::MinClearanceOperand {
-                at: sel.at,
-                index: sel.index,
-                body: sel.body,
-                faces: sel.faces()?,
-            })
-        };
         let (oa, ob) = (operand(a)?, operand(b)?);
         match T::min_separation(&oa, &ob) {
             Some(Ok(v)) => clearances.push(v),

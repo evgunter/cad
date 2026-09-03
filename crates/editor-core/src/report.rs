@@ -257,7 +257,12 @@ impl LeafHistogram {
     pub fn serialize(&self) -> String {
         use core::fmt::Write as _;
         let mut s = String::new();
-        let _ = writeln!(s, "histogram measure={} rows={}", self.measurement.0, self.rows.len());
+        let _ = writeln!(
+            s,
+            "histogram measure={} rows={}",
+            self.measurement.0,
+            self.rows.len()
+        );
         let _ = writeln!(s, "basis {}", self.basis.word());
         for row in &self.rows {
             let _ = writeln!(
@@ -308,6 +313,82 @@ impl LeafHistogram {
             percent(&self.uncovered)
         );
         s
+    }
+}
+
+/// **Builds the E11.6 histogram** over a drive's certified leaves.
+///
+/// One interval replay per certified leaf, exactly as
+/// `stackup::worst_case` runs — and the enclosure a row carries is the
+/// same enclosure that hull is taken over, read through the same
+/// payload. Nothing here re-derives geometry a second way.
+///
+/// A leaf whose replay does not produce a measured value contributes NO
+/// row and its mass falls into `uncovered`: a histogram row is a mass
+/// AT a value, and a leaf with no value has no place to put its mass.
+/// That is the honest direction — the uncovered column grows rather
+/// than a row appearing at a made-up interval.
+///
+/// # Errors
+///
+/// Nothing: a leaf that cannot be read is accounted, not refused. The
+/// mass columns carry [`MeasureUnavailable`] where a band blocks
+/// pricing, exactly as the drive's own accounting does.
+pub fn leaf_histogram(
+    doc: &crate::doc::Doc<crate::program::ProfileProgram>,
+    analyzed: &AnalyzedBox,
+    verdict: &crate::drive::ParamBoxVerdict,
+    measurement: crate::node::RecipeNodeId,
+    tol: geom_core::Tol,
+) -> LeafHistogram {
+    use geom_core::Bounds as _;
+
+    let mut rows = Vec::new();
+    let mut unplaced: Result<f64, MeasureUnavailable> = Ok(0.0);
+    for leaf in verdict.certified() {
+        let opts = crate::eval::EvalOptions {
+            param_box: Some(std::sync::Arc::new(leaf.box_.clone())),
+            profile_lift: crate::eval::ProfileLift::Guided,
+            ..crate::eval::EvalOptions::default()
+        };
+        let ev: crate::eval::Evaluation<geom_core::Interval> =
+            crate::eval::evaluate(doc, None, &crate::eval::CancelToken::new(), &opts, tol);
+        let mass = leaf.box_.mass(analyzed);
+        let enclosure = match ev.result(measurement) {
+            Some(crate::eval::NodeResult::Ok(v)) => match &v.payload {
+                crate::eval::ValuePayload::Measure { value, .. } => Some((value.lo(), value.hi())),
+                _ => None,
+            },
+            _ => None,
+        };
+        match enclosure {
+            Some(enclosure) => rows.push(HistogramRow {
+                leaf: crate::drive::render_box(&leaf.box_),
+                mass,
+                enclosure,
+            }),
+            None => {
+                if let (Ok(acc), Ok(m)) = (&mut unplaced, &mass) {
+                    *acc += m;
+                } else if let Err(e) = mass {
+                    unplaced = Err(e);
+                }
+            }
+        }
+    }
+    // The uncovered column is the drive's own unresolved budget PLUS
+    // the certified mass no row could place. Two different reasons for
+    // "this table does not speak for it", summed because a reader's
+    // question is one: how much of the measure is not in the rows.
+    let uncovered = match (verdict.accounting().unresolved(), unplaced) {
+        (Ok(a), Ok(b)) => Ok(a + b),
+        (Err(e), _) | (_, Err(e)) => Err(e),
+    };
+    LeafHistogram {
+        measurement,
+        rows,
+        uncovered,
+        basis: MassBasis::of(analyzed),
     }
 }
 

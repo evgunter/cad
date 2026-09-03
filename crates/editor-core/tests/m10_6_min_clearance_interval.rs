@@ -46,9 +46,9 @@ use editor_core::clearance::{MinSepSelection, MinSeparationConfig, min_separatio
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, DocParam,
-    EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, MeasureUnavailableAt,
-    Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, UnitSym,
-    UnevaluatedReason, ValuePayload, evaluate,
+    EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef,
+    MeasureUnavailableAt, Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram,
+    RecipeNodeId, UnevaluatedReason, UnitSym, ValuePayload, evaluate,
 };
 use geom_core::{Bounds, Tol};
 
@@ -233,7 +233,10 @@ fn leaf() -> ParamBox {
 }
 
 /// Evaluates over a box at the caller's scalar, through the public door.
-fn eval_over<T: editor_core::EvalScalar>(doc: &ProfileDoc, box_: Option<ParamBox>) -> editor_core::Evaluation<T> {
+fn eval_over<T: editor_core::EvalScalar>(
+    doc: &ProfileDoc,
+    box_: Option<ParamBox>,
+) -> editor_core::Evaluation<T> {
     let opts = EvalOptions {
         param_box: box_.map(std::sync::Arc::new),
         profile_lift: editor_core::ProfileLift::Guided,

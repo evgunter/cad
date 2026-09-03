@@ -639,14 +639,28 @@ fn eval_measure_inner<T: Decide>(
     clearance_cursor: &mut usize,
     band: Band,
 ) -> Result<T, PrimitiveRefusal> {
-    let binary = |a: &MeasureExpr,
-                      b: &MeasureExpr,
-                      cursor: &mut usize,
-                      clearance_cursor: &mut usize| {
-        let x = eval_measure_inner(a, carriers, leaves, cursor, clearances, clearance_cursor, band)?;
-        let y = eval_measure_inner(b, carriers, leaves, cursor, clearances, clearance_cursor, band)?;
-        Ok::<(T, T), PrimitiveRefusal>((x, y))
-    };
+    let binary =
+        |a: &MeasureExpr, b: &MeasureExpr, cursor: &mut usize, clearance_cursor: &mut usize| {
+            let x = eval_measure_inner(
+                a,
+                carriers,
+                leaves,
+                cursor,
+                clearances,
+                clearance_cursor,
+                band,
+            )?;
+            let y = eval_measure_inner(
+                b,
+                carriers,
+                leaves,
+                cursor,
+                clearances,
+                clearance_cursor,
+                band,
+            )?;
+            Ok::<(T, T), PrimitiveRefusal>((x, y))
+        };
     match expr.kind() {
         MeasureKind::Primitive(p) => {
             let [ia, ib] = p.refs();
