@@ -20,6 +20,8 @@ pub mod analysis;
 pub mod appearance;
 pub mod assembly;
 pub mod checks;
+#[cfg(feature = "interval")]
+pub mod clearance;
 pub mod diff;
 pub mod distribution;
 pub mod doc;
