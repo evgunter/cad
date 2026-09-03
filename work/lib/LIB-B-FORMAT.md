@@ -2,10 +2,11 @@
 id: LIB-B-FORMAT
 kind: unit
 title: binding census family B-FORMAT
-status: review
+status: closed
 pr: 1668
 branch: lib/b-format
 opened: 2026-09-03
+closed: 2026-09-03
 ---
 
 Queued mechanical census family (the B-READBACK/B-CHECKS shape): sweep the
