@@ -273,3 +273,30 @@ fn a_hostile_weight_spread_never_yields_a_finite_wrong_bound() {
         }
     }
 }
+
+/// **Liveness on the carrier the probes above stand on.** The e2e row
+/// admits a typed refusal on every case it drives, because a refusal
+/// is a sound answer to a hostile request. That makes it unable to
+/// notice a door that has stopped certifying ANYTHING: the elliptic
+/// wall at a millimetre offset and a millimetre tolerance is a
+/// request this kernel answers, and if it stops, the rows above go
+/// quietly vacuous rather than red.
+#[test]
+fn the_elliptic_wall_certifies_at_the_tolerance_the_probes_ask_of_it() {
+    let base = elliptic_wall(2.0, 1.0, 1.0);
+    let (d, tol) = (0.1, 1e-3);
+    let (fit, cert) = fit_offset(&base, d, tol, band()).unwrap_or_else(|e| {
+        panic!("LIVENESS: the elliptic wall refused at d = {d}, tol = {tol}: {e}")
+    });
+    assert!(
+        cert.hull_sup <= tol,
+        "LIVENESS: certified sup {} exceeds the tolerance {tol} it was asked for",
+        cert.hull_sup
+    );
+    let worst = sampled(&base, &fit, d);
+    assert!(
+        worst <= cert.hull_sup,
+        "CONTAINMENT: certified sup {} UNDER-reports the sampled max {worst}",
+        cert.hull_sup
+    );
+}

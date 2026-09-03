@@ -201,9 +201,24 @@ fn cylinder_fit_matches_the_closed_form_both_signs() {
     let base = quarter_cylinder(r, h);
     // The oracle's content is CONTAINMENT and the closed form, not
     // how small the tolerance is: at 1e-4 the loop spends a third
-    // refinement round whose cells cost more CI wall clock than the
-    // row buys in evidence. The achieved numbers are printed either
-    // way and the containment assertions are unchanged.
+    // refinement round whose cells cost more CI wall clock than a
+    // second full oracle pass buys in evidence. So the tighter
+    // tolerance is held here as a LIVENESS claim only — the door
+    // still answers, and answers within what it was asked for — and
+    // the dense containment oracle runs once, at 3e-4.
+    {
+        let tol = 1e-4;
+        let d = 0.3;
+        let (_, cert) = fit_offset(&base, d, tol, band()).unwrap_or_else(|e| {
+            panic!("LIVENESS: fit_offset refused this cylinder at d = {d}, tol = {tol}: {e}")
+        });
+        assert!(
+            cert.hull_sup <= tol,
+            "LIVENESS at tol = {tol}: certified sup {} exceeds the tolerance it was \
+             asked for",
+            cert.hull_sup
+        );
+    }
     let tol = 3e-4;
     for d in [0.3_f64, -0.4] {
         let (fit, cert) = fit_offset(&base, d, tol, band())
@@ -746,18 +761,27 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
         )
         .unwrap()
     };
-    // The stations, not every decade: `fit_offset` takes the SAME
-    // trajectory (308 cells over 4 rounds) at every shift from the
-    // origin through 1e7, and the same larger one (364 over 5) at 1e8
-    // and 1e9, so a decade that reproduces a neighbour's trajectory
-    // re-derives a bound already asserted. What is kept is one station
-    // per distinct behaviour: the origin's baseline, three in-band
-    // stations up to the band edge at 1e6, the first out-of-band
-    // station, the station where the trajectory changes, and the
-    // refusal below.
-    for e in [0usize, 3, 5, 6, 7, 8] {
-        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-        let shift = if e == 0 { 0.0 } else { 10f64.powi(e as i32) };
+    // The stations, not every decade: as measured, `fit_offset` takes
+    // the SAME trajectory (308 cells over 4 rounds) at every shift
+    // from the origin through 1e7, and the same larger one (364 over
+    // 5) at 1e8 and 1e9, so a decade that reproduces a neighbour's
+    // trajectory re-derives a bound already asserted. What is kept is
+    // one station per distinct behaviour: the origin's baseline,
+    // three in-band stations up to the band edge at 1e6, the first
+    // out-of-band station, the station where the trajectory changes,
+    // and the refusal below.
+    //
+    // That trajectory reading is UNGUARDED, deliberately. The
+    // schedule it describes is the kernel's, not this row's, and
+    // pinning `cells`/`rounds` here would turn any refinement
+    // improvement red in a row whose subject is recentring
+    // invariance. What lapses if the schedule moves is only the
+    // coverage argument for the decades not visited: every station
+    // this row does visit still asserts containment, and the
+    // invariance band is still asserted where the claim is
+    // meaningful.
+    for e in [0i32, 3, 5, 6, 7, 8] {
+        let shift = if e == 0 { 0.0 } else { 10f64.powi(e) };
         let base = shifted(shift);
         let (fit, cert) = fit_offset(&base, d, 1e-2, band())
             .unwrap_or_else(|err| panic!("shift 1e{e}: a micron offset refused: {err}"));
