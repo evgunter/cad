@@ -10,7 +10,7 @@ refs: [222, 316, BOOL-6]
 
 ## From GitHub issue 368
 
-opened 2026-08-11, 0 comments.
+Opened 2026-08-11; 0 comments.
 
 Filed per the inclusion-or-follow-up rule at the #222 (M8-14) close.
 

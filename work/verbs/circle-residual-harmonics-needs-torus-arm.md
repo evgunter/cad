@@ -10,7 +10,7 @@ refs: [1477, 968]
 
 ## From GitHub issue 1489
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 Filed at MATE-7a's adjudication (PR #1477) as the scheduled home for its disclosed deviation 3, per the unit's own stop-report and both review arms' confirmation.
 

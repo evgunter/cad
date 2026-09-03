@@ -10,7 +10,7 @@ refs: [BOOL-7]
 
 ## From GitHub issue 134
 
-opened 2026-07-29, 0 comments.
+Opened 2026-07-29; 0 comments.
 
 Banked at the PR 8 rulings (Ev, in-session 2026-07-29, option (a) on the N5 diagnosis question): the C10 sweep legitimately prunes candidate pairs, so their predicates record no verdicts (−51% of the log on the corpus), and a vanish whose flip evidence lived on a pruned pair diagnoses to the documented evidence-free fallback (RecipeEdit{NodeChanged}) instead of PredicateFlip. Recording pruned-pair pseudo-verdicts is out (reintroduces the quadratic in space).
 

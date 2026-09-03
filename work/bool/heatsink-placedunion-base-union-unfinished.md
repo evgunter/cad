@@ -10,7 +10,7 @@ refs: [571]
 
 ## From GitHub issue 1344
 
-opened 2026-08-31, 1 comment.
+Opened 2026-08-31; 1 comment.
 
 `PlacedUnion` landed at #571 to retire F4's out-of-document union, and the
 ratified acceptance names the heat sink by name. Half of it happened: the
@@ -115,7 +115,7 @@ the first.
 
 ## Comments
 
-**2026-08-31** — orchestrator:
+**2026-08-31** — comment:
 
 On why the fins overlap the base by 1/16: it is dodging the
 **undeclared-coincidence refusal**, not a tangency guard — and the tour

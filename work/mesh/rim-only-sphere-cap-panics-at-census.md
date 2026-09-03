@@ -11,7 +11,7 @@ refs: [897, 1571, rim-continuation-witness-fixture-needed]
 
 ## From GitHub issue 1615
 
-opened 2026-09-03, 0 comments.
+Opened 2026-09-03; 0 comments.
 
 **Found by:** MESH-12's measurement pass (issue 1588's rim-continuation witness), filed by the S-MESH orchestrator as a forward observation. MESH-12 does NOT touch the walk; this is out of its fence.
 

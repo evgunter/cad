@@ -10,7 +10,7 @@ refs: [1191, 1268]
 
 ## From GitHub issue 1296
 
-opened 2026-08-30, 0 comments.
+Opened 2026-08-30; 0 comments.
 
 Exposed by [PR #1268](https://github.com/evgunter/cad/pull/1268)'s repair of the k-lint probe census (the census had built `--features probe` only, so this `all(probe, interval)` suite was never compiled by the k-lint job — the defect that PR fixes). With the census repaired and the `dev-probe` k-lint row pinned by trailer for verification, the suite executed on hosted CI for the first time and failed:
 

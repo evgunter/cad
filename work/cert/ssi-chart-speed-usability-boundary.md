@@ -10,7 +10,7 @@ refs: [762, 1221]
 
 ## From GitHub issue 1238
 
-opened 2026-08-29, 0 comments.
+Opened 2026-08-29; 0 comments.
 
 **Filed from CERT-2's fix pass (S-CERT). Class issue — deliberately not fixed in PR 1221**, whose fence covers the non-positive-finite *class* guards (issue 762's residue) and not the design question below. Measurements are the blinded reviews' probes; reproduction sources are the two filed reviewer branches **`cert/2r1-probes`** and **`cert/2r2-probes`**.
 

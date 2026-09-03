@@ -10,7 +10,7 @@ refs: [431, 1520, BOOL-9, BOOL-12]
 
 ## From GitHub issue 433
 
-opened 2026-08-12, 1 comment.
+Opened 2026-08-12; 1 comment.
 
 (LIB orchestrator) Surfaced by LIB-RETTAIL's demotion sweep (PR #431): lily's lofted blade authors exactly-collinear vertices; the PATHS lattice REFUSES that junction while `validate` ACCEPTS the same loop as data — two rules disagreeing about one geometry, with the lattice stricter. Recorded per the demos' finding rule, not worked around (the scene stays raw-data-authored for now). Needs a design disposition: either the junction check admits exact collinearity (the validate stance), or validate tightens (the lattice stance), or the disagreement is ruled intentional with the reason stated at both sites. Touches PATHS §4 junction rules; natural to adjudicate alongside the §2c re-spell unit (LIB-RESPELL) which rewrites the surrounding text.
 
@@ -18,7 +18,7 @@ opened 2026-08-12, 1 comment.
 
 ## Comments
 
-**2026-09-02** — orchestrator:
+**2026-09-02** — comment:
 
 Status: the lattice half landed with BOOL-11 ([#1520](https://github.com/evgunter/cad/pull/1520), merged 2026-09-02): `continue_to(target)` as the declared point-target continuation and `continue_to(Start)` as the structural closer, with the seam wall's departure half collapsed into `JunctionTangent` and the seam refusal renamed `SeamTangent`. This issue stays open for the raw-door half (BOOL-9 on the S-BOOL slate, `docs/S-BOOL-PLAN.md`). The wire spelling of `ContinueTo` is deferred to BOOL-12 after the schema demolition (BOOL-13).
 

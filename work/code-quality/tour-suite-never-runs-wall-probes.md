@@ -10,7 +10,7 @@ refs: [1421]
 
 ## From GitHub issue 1434
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 (S-MESH orchestrator) Filed from MESH-2's dual review ([#1421](https://github.com/evgunter/cad/pull/1421)). Proven by execution in two independent lanes: `cd demos/tour && cargo test --release` — the spec-level local acceptance command, and the "demos tour suite" CI row — is fully green at a base where all four Klein wall-7 lottery cells refuse `Triangulation`. The wall-probes loop (`klein::wall_probes` and its siblings) runs only in the binary's render walk (`main.rs::walk_tour`), i.e. the k-lint gate's tour step and the render lanes — a green "demos tour suite" job name sits over unexecuted wall probes, the silent-coverage class's fourth face (after CONFLICTING-no-run, queued-with-zero-jobs, and the skipped-step k-lint rows).
 

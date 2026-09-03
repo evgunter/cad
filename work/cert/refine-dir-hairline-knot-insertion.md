@@ -10,7 +10,7 @@ refs: [1314, C3, D30]
 
 ## From GitHub issue 1358
 
-opened 2026-08-31, 1 comment.
+Opened 2026-08-31; 1 comment.
 
 (S-CERT orchestrator) Filed from CERT-5's fix pass (PR 1314), which measured its way past an initially-wrong attribution: the dual review blamed `knot_aligned_cuts`' exact dedup for sliver blow-ups, and the fix pass proved the blow-up tracks the *refinement* grid instead — a knot at 1/16+1ulp (a refine point, not a block edge) blows up; at 0.313+1ulp (neither grid) nothing happens.
 
@@ -22,7 +22,7 @@ Related, same family, filed together rather than separately: the `inner` knot-sl
 
 ## Comments
 
-**2026-08-31** — orchestrator:
+**2026-08-31** — comment:
 
 (S-CERT orchestrator) Residual instance with digits, from CERT-5's delta re-review on the fix head (PR 1314, `ed7a7623`): with the unit's own `SLIVER_CUT_ULPS` guard in place, a knot within ~1e-12 of a `QUAD2_REFINE_SPANS` grid point still costs ~5.2e-2 width (≈51,000× a 1.024e-6 target) — essentially unchanged from pre-guard, because the hairline span is created by `refine_dir`'s insertion at the grid point one ulp away, exactly this issue's mechanism. The delta lane verified the unit's guard is not the lever (it drops *grid* cuts; the insertion happens downstream). So this issue is the sole remaining owner of that width class; nothing else in the tree records it.
 

@@ -10,7 +10,7 @@ refs: [723, 1220]
 
 ## From GitHub issue 1250
 
-opened 2026-08-29, 0 comments.
+Opened 2026-08-29; 0 comments.
 
 **Filed from CERT-1's fix pass (S-CERT), found independently by both blinded reviewers.** Deliberately not fixed in PR 1220, whose ground is the meridian-arc extent (issue 723) and the rim lever (issue 893); this is the sphere arm the span-derived fold cannot reach because there is no span to read.
 

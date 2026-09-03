@@ -10,7 +10,7 @@ refs: [1012]
 
 ## From GitHub issue 1020
 
-opened 2026-08-26, 0 comments.
+Opened 2026-08-26; 0 comments.
 
 `topo::transform_rigid` refuses a `Surface::Approx` face typed (`TransformError::ApproxSurface`). The composition law itself holds and is pinned numerically in `geom-brep`'s suite (`approx_surface::a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map`): a rigid map carries unit normals to unit normals, so `M(S + d·n) = M(S) + d·n_M`, and the mapped fit certifies against the mapped base at the same `d` and the same tolerance, the two sup bounds agreeing to 1e-9.
 

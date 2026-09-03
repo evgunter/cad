@@ -10,7 +10,7 @@ refs: [1506]
 
 ## From GitHub issue 1518
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 `demos/tour/src/probe.rs`'s `projectbox_cutaway` group says it samples
 the same bodies the tour ships:

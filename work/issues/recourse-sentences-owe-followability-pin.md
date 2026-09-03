@@ -10,7 +10,7 @@ refs: [1222, 1267]
 
 ## From GitHub issue 1278
 
-opened 2026-08-30, 0 comments.
+Opened 2026-08-30; 0 comments.
 
 Class finding from the S-BLEND program's first two review cycles, filed so it has a durable home.
 

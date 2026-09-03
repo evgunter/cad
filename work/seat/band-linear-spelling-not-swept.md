@@ -10,7 +10,7 @@ refs: [1399]
 
 ## From GitHub issue 1408
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 (SEAT orchestrator) Class finding from SEAT-1's dual review (PR #1399), filed per the findings-need-a-durable-home rule. Both reviewers converged on it independently.
 

@@ -10,7 +10,7 @@ refs: [1585, 868, MESH-12, coherence-findings-have-no-consumer]
 
 ## From GitHub issue 1588
 
-opened 2026-09-02, 0 comments.
+Opened 2026-09-02; 0 comments.
 
 **Filed from MESH-8 (PR [#1585](https://github.com/evgunter/cad/pull/1585)) as the schedule for a disclosed forward observation.**
 

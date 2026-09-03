@@ -10,7 +10,7 @@ refs: [1082, 1099]
 
 ## From GitHub issue 1123
 
-opened 2026-08-28, 0 comments.
+Opened 2026-08-28; 0 comments.
 
 `rings(&body)` (sum of `Face::rings.len()`) and `genus(&body)` (the
 Euler–Poincaré identity with a parity check before halving) are

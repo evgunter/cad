@@ -9,7 +9,7 @@ github: 1374
 
 ## From GitHub issue 1374
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 The GAUTH-1 spec (docs/GAUTH-PLAN.md, unit item 3) wants the add-profile tool to offer, when the current selection is a planar face, placing the new profile on that face's frame — the `select::face_frame` door the mate tool uses, frozen f64 in the program's placement struct, stated in the form as a snapshot.
 
@@ -20,7 +20,7 @@ Why the arm proved deep rather than a form field: the offer is conditioned on th
 1. a deliberate revision of the interrogation posture (a carrier-kind or planarity door at the layer 2/3 boundary), discussed as a design change rather than slipped in from a GUI unit, or
 2. offering the frame for ANY picked face with wording that says what frame it actually is — a different UX decision than the spec's, which somebody should make on purpose.
 
-What already exists on the op side: `SessionOp::AddProfile` carries `plane: SketchPlane` (the program's own frozen-f64 placement struct), so the vocabulary already expresses arbitrary placement — the missing piece is only the chrome affordance and the planarity gate. A headless consumer can author on any plane today.
+What already exists on the op side: `SessionOp::AddProfile` carries `plane: SketchPlane<f64>` (the program's own frozen-f64 placement struct), so the vocabulary already expresses arbitrary placement — the missing piece is only the chrome affordance and the planarity gate. A headless consumer can author on any plane today.
 
 ## Home
 

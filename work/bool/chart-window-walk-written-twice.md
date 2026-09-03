@@ -10,7 +10,7 @@ refs: [1464]
 
 ## From GitHub issue 1483
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 Recorded at BOOL-3's adjudication (PR [#1464](https://github.com/evgunter/cad/pull/1464)); both blinded reviews flagged the unscheduled deviation independently.
 

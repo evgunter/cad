@@ -10,7 +10,7 @@ refs: [447, 463, 468]
 
 ## From GitHub issue 475
 
-opened 2026-08-13, 0 comments.
+Opened 2026-08-13; 0 comments.
 
 `Span` is validated against a `KnotVector` it does not carry, so the pairing is prose. Same for `SurfaceWindow` and its surface. This is the one obligation the newtype sweep (#447, #463, #468) left with the caller, and each PR in the sweep has restated it rather than closed it. Filing the option so the decision is made deliberately rather than by accumulation.
 
@@ -19,8 +19,8 @@ opened 2026-08-13, 0 comments.
 A `Span` proves "in range and nonempty **for the vector it was drawn from**", and then travels separately from that vector:
 
 ```rust
-pub fn basis_funs(kv: &KnotVector, span: Span, t: T) -> Vec
-pub fn span_hull(kv: &KnotVector, coeffs: &[E], span: Span) -> RingInterval
+pub fn basis_funs<T: Real>(kv: &KnotVector, span: Span, t: T) -> Vec<T>
+pub fn span_hull<E: Enclosure>(kv: &KnotVector, coeffs: &[E], span: Span) -> RingInterval
 ```
 
 Nothing relates the two arguments. Hand a `Span` from vector A to an evaluator holding vector B and:

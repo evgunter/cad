@@ -10,7 +10,7 @@ github: 1159
 
 ## From GitHub issue 1159
 
-opened 2026-08-29, 0 comments.
+Opened 2026-08-29; 0 comments.
 
 (M10 orchestrator) Ordinal 501 claimed for the M10-DI dual review at dispatch, from the M10 band (500–599). Row recorded at merge per protocol.
 

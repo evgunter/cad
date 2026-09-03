@@ -11,7 +11,7 @@ track: W
 
 ## From GitHub issue 1401
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 (S-MESH orchestrator) Filed from MESH-1's dual review ([#1389](https://github.com/evgunter/cad/pull/1389), issue 1362). The unit fixed the kernel fold and three named template sites, but review enumeration (executed, two independent sweeps) found the copy population is larger, in two spellings:
 

@@ -10,7 +10,7 @@ refs: [1256]
 
 ## From GitHub issue 1288
 
-opened 2026-08-30, 0 comments.
+Opened 2026-08-30; 0 comments.
 
 Found by the VERBS-AZIMUTH lane (#1256's CI): `k-lint (gate)`'s probe-suite-census row reds on main — `editor-core`'s `m10_3_driver_k_probe_interval` is gated `#![cfg(all(feature = \"probe\", feature = \"interval\"))]` and the probe loop builds without `interval`, so the census sees a declared probe suite that built no tests. Byte-identical to origin/main in the finding lane; k-lint samples 1-of-5 rows per run, which is why it surfaces intermittently (the sampled-axis class). @ m10 — the m10-3 driver lane's to fix (enable the feature in the probe loop for that target, or un-gate, or register the exemption).
 

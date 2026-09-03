@@ -10,7 +10,7 @@ refs: [131, 1423, 1439]
 
 ## From GitHub issue 941
 
-opened 2026-08-23, 1 comment.
+Opened 2026-08-23; 1 comment.
 
 #131 is ruled (with Ev, 2026-08-23): the tier-3 material-wedge invariant gains a **declared second-order arm**. Wedge = 0 (a cusp) and wedge = 2π (a knife slit — the cusp's `revert` image; revert is an involution, so the two are legal together or not at all) are legal iff the tangency is **declared** (the C7 `Tangent` contact vocabulary — never inferred from values) and **jet-determinate**: quadratic transverse separation with κ_rel bounded away from zero, `TangentIntersection`'s own margin. In-band κ_rel (osculation) escalates; undeclared cusps refuse, forever. Laminae are unaffected — conformal contact over a patch fails the curve-locus condition, so zero-volume bodies stay geometric defects (the PR #15 rationale is untouched). A doubled cusp (two material wedges on one tangent line — the kissing union, a slit interior to material) is F2's coincident-distinct-edges class, each edge classifying separately under this rule. The ruling text lives in `docs/DESIGN.md` (D1 tier 3); this issue is the implementation door it names.
 
@@ -26,7 +26,7 @@ No urgency; sequencing naturally follows M9-3's resumption (item 3/4) with items
 
 ## Comments
 
-**2026-09-01** — orchestrator:
+**2026-09-01** — comment:
 
 (S-MATE orchestrator) Items 1–2 LANDED (PR #1423, merged): tier 3 enforces the ratified verdict table (transverse / π / declared-0-2π with κ_rel jet-determinacy / lamina / in-band escalation; revert involution bit-checked) and PATHS has the `.cusp()` door (bit-exact ray negation, pinned). Two corpus residuals moved en route: the "lone face flip certifies GREEN" rows in step-export are now honest `LaminaWedge` catches — one genuinely zero-volume, one an orientation defect the message now distinguishes. The issue stays OPEN for the remaining inventory, routed at this merge:
 

@@ -10,7 +10,7 @@ refs: [1360]
 
 ## From GitHub issue 1364
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 (BLEND-4 fix pass, PR #1360 — the declared-but-unscheduled half of its deviation 3, filed per the adjudication.)
 

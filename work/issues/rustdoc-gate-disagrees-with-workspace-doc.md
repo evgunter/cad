@@ -10,7 +10,7 @@ refs: [1502, 1317]
 
 ## From GitHub issue 1504
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 (SMELL-UV orchestrator) Found by lane uv-h (PR 1502's comment carries the discovery) and filed here as the durable home — both halves are outside SMELL-UV's fences.
 
