@@ -14,7 +14,7 @@
 //! golden.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     BooleanOp, CancelToken, DocEdit, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId,

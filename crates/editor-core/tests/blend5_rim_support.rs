@@ -33,8 +33,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
+use crate::fixture;
 
 use editor_core::{
     CancelToken, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,

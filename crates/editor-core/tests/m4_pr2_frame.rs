@@ -8,7 +8,7 @@
 //! pair which cannot span a plane refuses rather than producing one.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     Axis3, CancelToken, Datum, DatumValue, Dimension, EvalOptions, Evaluation, Node, NodeErrorKind,

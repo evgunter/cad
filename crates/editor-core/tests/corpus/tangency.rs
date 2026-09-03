@@ -32,8 +32,8 @@ use editor_core::{
 };
 use profile::SketchPlane;
 
-use super::super::fixture::len;
 use super::{CorpusDoc, Recorder};
+use crate::fixture::len;
 
 /// The declared-tangency corpus document.
 pub fn document() -> CorpusDoc {

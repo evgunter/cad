@@ -37,9 +37,9 @@ use editor_core::{BooleanOp, Datum, DocEdit, Frame, LoopProgram, Node, ProfilePr
 use geom_core::{Point3, Vec3};
 use profile::SketchPlane;
 
-use super::super::fixture::{ang, len, scl};
 use super::die_pips::{DIE_L, PIP_H, PIP_R, half_disc_program};
 use super::{CorpusDoc, Recorder};
+use crate::fixture::{ang, len, scl};
 
 /// The pip ball's centre coordinate along its face normal, in the
 /// cube's `[0, L]³` frame (`die_pips`' derivation verbatim: the face

@@ -9,7 +9,7 @@
     clippy::unreachable
 )]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,

@@ -32,8 +32,8 @@ use editor_core::{
     BooleanOp, Dimension, DocEdit, DocParam, Expr, Node, ParamName, PatternKind, SlotId,
 };
 
-use super::super::fixture::{ang, desc, len, scl};
 use super::{CorpusDoc, MassPin, Recorder};
+use crate::fixture::{ang, desc, len, scl};
 
 /// The fin count the document starts at.
 const FINS: i64 = 5;

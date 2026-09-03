@@ -31,7 +31,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     CancelToken, EntityKey, EvalOptions, Evaluation, MeshPick, Node, PickTarget, ProfileDoc, Ray,

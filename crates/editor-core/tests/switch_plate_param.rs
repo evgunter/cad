@@ -11,8 +11,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
 
 use corpus::plate_param::{
     HOLE_CENTRES, HOLE_R, HOLE_R_VALUE, PLATE, PLATE_DEPTH, hole_loop, plate_profile,

@@ -21,8 +21,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
 
 /// FNV-1a 64 over the tables' deterministic Debug encoding — copied
 /// from `m4_pr3_names_ci.rs::digest` so the number is comparable.

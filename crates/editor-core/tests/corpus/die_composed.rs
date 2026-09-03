@@ -54,8 +54,8 @@ use editor_core::{
 use geom_core::{Point3, Vec3};
 use profile::SketchPlane;
 
-use super::super::fixture::{ang, len, prism_edges, scl};
 use super::{CorpusDoc, Recorder};
+use crate::fixture::{ang, len, prism_edges, scl};
 
 /// The die's side, meters.
 pub const DIE_L: f64 = 1.0;

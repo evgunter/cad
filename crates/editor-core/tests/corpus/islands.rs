@@ -43,8 +43,8 @@
 
 use editor_core::{BooleanOp, Dimension, DocEdit, Expr, Node, RecipeNodeId, SlotId};
 
-use super::super::fixture::{desc, len};
 use super::{CorpusDoc, MassPin, Recorder};
+use crate::fixture::{desc, len};
 
 /// A rectangle in the xy plane at height `z`, extruded `h`.
 fn block(r: &mut Recorder, x: (f64, f64), y: (f64, f64), z: f64, h: f64) -> RecipeNodeId {
