@@ -142,6 +142,12 @@ fn r2_a_certified_edge_at_the_carrier_lever_escalates_at_the_sphere_lever() {
     let band = Band::linear(tol).unwrap();
     let r_c = RS - 0.9 * eps;
     let x = 0.5 * (eps / RS + eps / r_c);
+    // The window `(ε/R, ε/r_c]` is ~ε²/R² radians; at ε = 1e-12 it is
+    // below f64's resolution at τ, and the row has nothing to place.
+    if (eps / r_c - eps / RS) <= 4.0 * f64::EPSILON * TAU {
+        println!("R2-LEVER-MEV window below f64 resolution at eps {eps:e}; not asserted");
+        return;
+    }
     let built = mev_span(r_c, 0.0, TAU + x);
     println!("R2-LEVER-MEV x={x:e}: {}", describe(&built));
     let (body, _) = built.expect("the edge certifies at the carrier's lever");
@@ -152,12 +158,6 @@ fn r2_a_certified_edge_at_the_carrier_lever_escalates_at_the_sphere_lever() {
         .map(|(_, f)| f)
         .unwrap();
     let surface = body.get_surface(face.surface).unwrap();
-    // The window `(ε/R, ε/r_c]` is ~ε²/R² radians; at ε = 1e-12 it is
-    // below f64's resolution at τ, and the row has nothing to place.
-    if (eps / r_c - eps / RS) <= 4.0 * f64::EPSILON * TAU {
-        println!("R2-LEVER-MEV window below f64 resolution at eps {eps:e}; not asserted");
-        return;
-    }
     let (outer, _) = topo::props::loop_edges(&body, face.outer).unwrap();
     let flux = curved_face(surface, &outer, face.sense_sign(), band);
     let door = require_one_chart_branch(surface, &outer, band);
