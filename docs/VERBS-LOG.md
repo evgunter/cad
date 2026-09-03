@@ -3045,3 +3045,24 @@ curved pairs are CYLSPH's (running) and the fenced families'.
 Lane swept. WAVE STATE: CYLSPH is the last implementation unit
 of the register scope; RIMCAP's sphere half and the exit-walk
 ratification follow it.
+## ORDINAL 112 CLAIMED — CYLSPH dual (2026-09-03)
+
+CYLSPH delivered with NEITHER STOP firing: the opening
+measurement is a TABLE (crossing pose → the pierce frontier with
+the LINE-seam carrier — the implementer's own Circle guess
+refuted by the run and recorded; non-crossing → the extent scan
+— the contained-ball SPHSPH-shape guess also refuted; the germ
+frame reached by NEITHER pose), so the acceptance's contingent
+second branch fired: classification + frame pinned by direct
+tests, the union's refusals re-verified TRUE at their standing
+doors. CoaxialEvidence {Declared, None} with the guard covering
+the FULL convention (ordinal-111 lesson inherited explicitly,
+MUT-A red-measured-first on all four threat poses); one frame
+serves both circles argued AND measured (16-point sense
+equality); #974 deferred WITH its residual story measured
+passing (the real blocker restated as structural — TangentLocus'
+single direction-reading variant); the route note retired with a
+test asserting the old sentence gone; three adjudication asks
+declared (two SectionError variants vs STOP-2's spirit; the
+cs_pair_frame helper shape; the rest.rs sentence move). Dual
+claim to main at dispatch; parity per the draw line.

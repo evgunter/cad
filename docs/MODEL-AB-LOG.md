@@ -3218,3 +3218,7 @@ switching the implementer arm ratio from the v4 blocks'
 {opus,opus,opus,fable} (1:3) back to fable:opus 1:2. If ratified,
 it takes effect at the next block draw; already-drawn per-slot
 arms stand unless Evan says redraw.
+VERBS-CYLSPH review ordinal fixed at dispatch (2026-09-03, PR
+#1604 open — frozen head `d49ddd894`): **ordinal 112** (VERBS
+band; the #1095 shape). v6 DUAL, concurrent, briefs symmetric.
+Sample number AT MERGE in main's order. Row at merge.
