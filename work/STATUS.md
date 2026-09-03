@@ -509,7 +509,9 @@ area `kernel`; prefix `verbs/`; tag `(VERBS orchestrator)`; ab_band `100-199`.
 | `coherence-findings-have-no-consumer` | 2026-09-02 | coherence findings have no consumer: wire examine_chart_coherence into editor-core's checks (CheckId::ChartCoherence) and step-import |
 | `render-lanes-red-at-missing-merge-ref` | 2026-09-02 | render lanes: ~100 hosted reds are couldn't find remote ref refs/pull/N/merge at checkout |
 | `add-profile-mints-no-frame` | 2026-09-03 | The add-profile form cannot mint the frame it needs, and names the ones it finds by node number |
+| `body-hash-census-misses-rename-only-duplicates` | 2026-09-03 | the body-hash duplicate census misses rename-only twins |
 | `d107-release-profile-job-lives-in-nightly` | 2026-09-03 | D107's --nocapture question is now a nightly.yml question, not a ci.yml one |
+| `geom-brep-inline-canonical-frame-surfaces` | 2026-09-03 | geom-brep tests spell the canonical-frame elementary surfaces inline at 34 use sites |
 | `interval-orthonormal-basis-sign-hull` | 2026-09-03 | Vec3::orthonormal_basis returns a sign-hulled frame at Interval when n.z encloses zero |
 | `m10-4-bore-pin-row-red-at-interval-1e-6` | 2026-09-03 | M10-4 the_bore_pin_fit_as_a_consumer_reads_it is red at interval / eps 1e-6 on main |
 | `m10-5-e2e-channel-slider-reds-at-eps-1e-6` | 2026-09-03 | m10_5_r1 e2e_channel_slider_over_an_epsilon_box reds on the interval lane at eps = 1e-6 |
