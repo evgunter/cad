@@ -29,6 +29,7 @@ from pncad import (
     CheckFinding,
     ClassAdmission,
     ClusterMaintenance,
+    Datum,
     Denotation,
     HitTestError,
     Expr,
@@ -177,6 +178,22 @@ turned: NodeId = doc.insert(
         doc.insert(Node.datum_axis_in_plane(turned_frame, (0 * m, 0 * m), (0.0, 1.0))),
         360 * deg,
     )
+)
+
+# A datum read back. `origin` is a POSITION and carries `Length`s;
+# `direction` and `axes` are dimensionless and are bare. `in_plane` is
+# the one that is BOTH — its second pair is a direction and its first
+# is a position that nonetheless crosses bare (recorded at the stub).
+# Exercised here because the name-for-name check in `test_stubs.py`
+# compares NAMES and hands SIGNATURES to `ty`: a property this file
+# never mentions is a property neither of them reads.
+turned_axis: Datum = evaluate(doc).value(
+    doc.insert(Node.datum_axis_in_plane(turned_frame, (0 * m, 0 * m), (0.0, 1.0)))
+).datum()
+axis_kind: str = turned_axis.kind
+axis_at: tuple[Length, Length, Length] = turned_axis.origin
+axis_written_in_plane: tuple[tuple[float, float], tuple[float, float]] | None = (
+    turned_axis.in_plane
 )
 
 # A three-section loft: the sections are NodeIds in skin order, the

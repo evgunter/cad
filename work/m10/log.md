@@ -597,3 +597,120 @@ cycles on doc-truth fixes found after the first push and said so —
 the doc sweep belongs before the first push, recorded here for the
 next brief. The spec leaves `docs/` with this merge. M10-6 is next
 and last.
+
+## M10-6 dual review adjudication (2026-09-03)
+
+Both arms on frozen bf67a734 (PR #1685), with hosted CI
+budget-blocked account-wide, so every claim rests on the reviewers'
+local runs of what the gate would have covered — both stated their
+coverage row by row. R1 NOT-MERGEABLE (2 MAJ, rubric 3/3/2); R2
+"mergeable once two MAJORs are answered" (2 MAJ, rubric 4/3/3). The
+four MAJORs are four different findings. R1, by execution: the
+`min_separation` enclosure is over carrier WINDOWS (M10-5's
+disclosed superset) but `MinSeparation`'s docs sell it as
+containment-true over the trimmed faces and "what makes an `AtMost`
+assertion sound" — an L-cap parked over a notch brackets
+`[0.1, 0.1]` where the true face separation is 0.269, so `AtLeast
+0.2` certifies a FALSE `Violated` and `AtMost 0.15` a FALSE `Holds`
+(the row-1 gate would red a true assertion). The asymmetry is
+exact: windows ⊇ faces, so `lo` is a valid lower bound for the
+faces and `hi` is not — the two arms that consume `hi` are the
+unsound ones. R2 met the same shape (`lo = 0` on a non-convex body,
+the assertion `Unevaluated`) and scoped it to M10-5's filed item;
+R1 is right that its propagation into a VALUE and two assertion
+directions is this unit's. R1's second, by execution: the tour's
+stop-2 headline — "the requirement FAILS somewhere in the box: this
+is the number that gates" — comes from a raw `worst_case.lo <
+bound` at −4.2e-11, inside the coincidence band, while the
+document's own `Assertion` over the identical enclosure reads
+`Holds`; the demo preaches the funnel and decides on a float. R2,
+by execution: `VerdictVector::certifying` drops `Assertion` rows
+from the certification comparison, moving `witness_vector`,
+`serialize()` and every leaf's key for EVERY assertion-carrying
+document — defensible, load-bearing, nowhere in D1–D9, its
+justification written four commits after the code (R1 had it as a
+MINOR). R2's second: the row-3 demotion is per-invocation, so the
+E6 re-open trigger (rule 1 — an in-band indeterminate) would print
+among 15,768 rule-2/3 flags and not red; the rule-1 count, the
+number E6 actually asked for, is reported nowhere (zero today — the
+population piles up just outside the escalation band at a floor of
+1.0083e-5 ≈ Kε, which is the runbook's recourse 2 and correct). The
+MINORs converge: the cache seam's `report_key` blind to every dial
+and consumed by nothing; row 1's first entry never driven and its
+budgets all 0.0; `stackup` refusing a `min_clearance` measure whole
+where `worst_case` is computable (E9's own rule inverted); the
+Python read door answering a typed absence with "not a measure";
+the ci-local k-lint gate's exit-code mismatch; the MC tail row
+admitting 0.0; the ci.yml cost note attributing 33 s to a 0.34 s
+cell; `mc`/`report` interval-gated so E11.1's pure-f64 lane is
+unusable in the default build. Everything both arms could execute
+held otherwise: D1's additive load door refusing an unknown variant
+by name, D2's value-not-error absence judged better than the spec's
+own self-contradictory sentence, D6's goldens at all three ε rows
+with mutation and re-bless, D8's binary primitive the faithful
+elaboration, the enclosure's soundness ON WINDOWS surviving every
+attack, the MC stream re-derived bit-exact.
+
+Fix pass IMPLEMENTER-INHERITED: the enclosure typed one-sided for
+faces (the `hi`-consuming assertion arms refuse typed until window
+tightening lands, docs telling the truth); the tour deciding by the
+assertion's verdict, never a float, on a fixture whose failure is
+definite; `certifying` disclosed, justified and pinned; rule 1
+gated red with its count reported and a K-REPORT entry; the MINOR
+set; both probe suites adopted (R1's three ignored counterexamples
+go green as pins).
+
+Tally candidates: R1's window-enclosure MAJ and R1's tour-headline
+MAJ (both by execution, both unilateral — R2 scoped the first and
+did not exercise the narration); R2's two are bilateral at split
+severity with R1's MINOR 3 and MINOR 10. Durable homes: window
+tightening stays M10-5's filed item (this unit's fix is the honest
+typing until it lands); the PRNG's single-copy sentence in
+`test_utils::fuzz` is the fix pass's to make true again.
+
+## M10-6 MERGED (2026-09-03)
+
+PR #1685 merged, sample #118 (ordinal 507). The program's last unit.
+E10 and E11 are real: every derived report serializes exact-bits,
+keys on its content and renders for a human, priced and forced mass
+are two types, the three CI rows run on the sampled matrix and were
+read executing by step conclusion (rows 1–2 in the interval shards,
+row 3 on the k-lint axis with rule 1 gating and 65,992 advisory
+flags over the driver population, the tour cell in its own step),
+the MC lane estimates and never gates, and E3's last primitive
+ships with the engine door both M10-5 reviewers asked for — a
+certified bracket of the minimum separation the budget narrows and
+cannot falsify. The review's central finding shaped the door: the
+bracket is over carrier windows, not trimmed faces, so only its
+lower end is a bound on the measure; that is now a type the
+assertion consults, the two arms that would read the upper end
+refuse typed until window tightening lands, and the two gating
+directions survive. R1's second execution finding — the tour
+deciding on a float against its own assertion — is closed by a
+door that did not exist (`assertion_at`), with the measured fact
+that a definite failure and a real RSS divergence cannot coexist at
+this ε stated in the caption rather than faked. R2's key-move
+finding stands as a disclosed, pinned deviation (D10, retracting the
+body's "keys bit-identical"); its demotion finding makes rule 1 the
+one thing no caller can demote. Two tally candidates, both R1's, both
+by execution. Filed, not fixed: `MinClearanceRefusal`'s stringly
+twin (D12); ERROR-DESIGN's unary `min_clearance` arity against the
+shipped binary door (D8) goes to the exit walk as a doc revision for
+Ev.
+
+Process, for the next brief: (1) the lane died five times on API
+529s during the fix pass and was resumed each time from its
+worktree — never redispatched — at 60- then 30-minute backoffs;
+nothing was lost, but the pass took 4h40m for ~1h of work. (2) The
+orchestrator's re-gate of the frozen head (an empty trailer commit
+pushed after the Actions budget outage) reset the unit branch's
+local ref UNDER the lane's live worktree and orphaned its four
+unpushed commits; they were recovered from the reflog and the
+re-gate merged in. Rule: an orchestrator re-gating a branch a lane is
+working on makes the commit in its own checkout and pushes by
+ref, never `branch -f` on the shared local ref. (3) Two red CI cycles
+on one trap: `tools/` and `demos/` are excluded from the root
+workspace, so the root `cargo fmt` reaches neither; the pre-push
+sweep must run CI's own commands in every excluded root. The spec
+leaves `docs/` with this merge. What remains for M10 is the exit
+walk.

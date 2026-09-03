@@ -915,3 +915,53 @@ src-module derivation; the marker-set-vs-imports guard. Evidence PRs
 
 Ev raised the spending limit; the three re-gate runs got runners
 within seconds and every one went green. Issue closed.
+
+## Seam: API overload after the K1 merge (2026-09-03, 14:47–15:22 UTC)
+
+The K2 and K3 implementer lanes (block TCOST-KB1 slots 1 and 2) each
+died three times on server-side 529 overloads before doing any work;
+resumed after a 10-minute backoff at 15:22. They stay on the block's
+drawn arm. The census re-run, which is read-only aggregation of run
+logs and no unit's work, was moved to a different model to get the
+readout; its report lands under `~/tcost-work/timing-history/`.
+Interim reading from it: the suite's cost distribution is much
+flatter (the old 42.6 cpu-s head row is gone; no shard's top row now
+exceeds ~11 % of its shard); K1's interval total at 1e-12 is ~355 cpu-s
+against the 535 baseline (tier differs); the build critical path is
+unchanged inside its own ±25 % noise; most of today's runs were
+tier=all because they touched the workflow, which makes the per-file
+gate a no-op in that sample; the nightly has not yet run on a tree
+carrying C1–C3, and its 09:54 run's gated-suite re-take row failed at
+a pin-read step (being read); B3's first primer run on main was
+cancelled mid-save by the next push, as its own entry predicted.
+
+## Seam: the program's before/after readout (2026-09-03, post-K1)
+
+Re-taken from hosted runs only (`~/tcost-work/timing-history/
+REPORT-after.md`, every number labelled with its run id). What is
+clean: K1's own controlled pair at 1e-12 on the default lane,
+219.7 + 300.1 → 135.0 + 127.6 cpu-s (−48 %); the head of the
+distribution is flat — the 2026-09-02 top row (42.6 cpu-s) is gone,
+the largest row on a comparable run is 9.8 cpu-s, and no row exceeds
+~5 % of a shard. What is indicative: tier=all runs at ε 1e-6 read
+333–337 cpu-s per default-lane run against the 459 baseline (~−27 %,
+but 1e-6 was already the cheap row); the cleanest like-for-like at
+1e-12 (447) shows only a small drop; K1's interval run at 1e-12 reads
+356 against 535 (−33 %, tier=closure). What is noise: the build
+critical path (631–793 s default, 647–685 s interval at tier=all) sits
+inside B1's own ±25 % envelope; a one-pair billed-minutes comparison
+was swamped by the k-lint draw and the render-lane scene, so the
+CI-posture saving of record stays CI-MINUTES' own matched pairs,
+−5 billed minutes per code-tier PR run. Two structural facts the
+readout surfaces: (1) a diff touching `ci.yml` forces tier=all, which
+makes the per-file gate a no-op — 4 of 6 default and 5 of 6 interval
+runs sampled were such runs, so the gate's steady-state saving is not
+in this sample (TCOST-9's closure-tier run skipped 33 suites; TCOST-8's
+41); (2) the nightly has not run on a tree carrying C1–C3 or
+TCOST-9, and its last run (09:54, pre-TCOST tree but carrying
+TCOST-1's row) FAILED the gated-suite re-take at "read the nextest
+pin from ci.yml" before any suite ran — the pin-reading idiom the C3
+lane filed as `nightly-pin-reading-idiom-four-copies` biting first on
+TCOST-1's own row; a fix is owed before tomorrow's nightly. B3's
+primer: the first push to main after it was cancelled mid-save by the
+next push (predicted); its restore-hit reading is still owed.

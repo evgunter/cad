@@ -134,9 +134,6 @@ concurrency:
 # nothing else on this side writes. The CACHE PRIMING note above those
 # jobs carries the measurement, and says why F3's declined "scheduled
 # full run on main" is a different proposal rather than this one.
-# `cleanup-archives` is deliberately NOT gated: its `needs` (test,
-# test-interval) skip on a push, which skips it too — one mechanism
-# rather than two saying the same thing.
 #
 # THE CONDITION IS SPELLED `!= 'push'`, NOT `== 'pull_request'` (2026-08-28,
 # with the configuration dispatch at the top of this file). What this rule is
@@ -229,11 +226,13 @@ concurrency:
 #   is a second, unchecked copy of something the tooling already knows):
 #     default build compile step   514 s -> 389 s  (-24%)
 #     interval build compile step  618 s -> 495 s  (-20%)
-#   The runner is 2 vCPU / 7 GB (`nproc` from the provenance step below —
-#   standard GitHub-hosted for a private repo; the Bazel report's "4 vCPU"
-#   was wrong). That is why 261 independent link/codegen units are so
-#   expensive here, and why item 1 (collapsing 249 test crates into ~12)
-#   is still the big one.
+#   The runner is 4 vCPU / 16 GB (`nproc` from the provenance step below),
+#   the standard GitHub-hosted machine for a public repo. THE TIMINGS
+#   ABOVE PREDATE IT — they were taken at 2 vCPU / 7 GB — so read them as
+#   an ordering of the costs and not as a budget until something re-takes
+#   them. Item 1 (collapsing 249 test crates into ~12) is still the big
+#   one either way: 261 independent link/codegen units is a serialization
+#   that a core count moves but does not remove.
 #
 # LINKER — mold RETIRED 2026-08-12. #174 adopted it on a -24%/-20% result
 # measured across 261 static links; that is the whole basis for it, and
@@ -259,18 +258,6 @@ concurrency:
 # their `install mold` step. Do it on a measurement, not a hunch — and
 # note that a single run cannot settle it, because any env change here
 # rotates the rust-cache key and buys one cold rebuild.
-#
-#   BUILD_RUNNER   repo variable, unset today ⇒ `ubuntu-latest`. Item 4
-#     of the ranked list (8-vCPU runner) is NOT LANDABLE on this repo:
-#     GitHub-hosted larger runners require an ORGANIZATION on Team or
-#     Enterprise Cloud, and evgunter/cad is a User-owned private repo
-#     (`gh api repos/evgunter/cad --jq .owner.type` ⇒ "User"). Hard-coding
-#     a larger-runner label would fail the build job with "no runner
-#     matching labels" and take the whole gate — and the two build jobs
-#     are the gate's critical path. The variable makes it a one-setting
-#     flip if the repo ever moves under an org. Note also that larger-
-#     runner minutes are billed SEPARATELY from the included-minutes
-#     allowance this repo's change filter exists to protect.
 #
 # NOT MIRRORED into local-scripts/ci-local.sh, deliberately: these are hosted-
 # runner performance knobs, not gate semantics. No job is added, removed
@@ -1879,8 +1866,9 @@ jobs:
   # inside each test row (`nextest_check`).
   build:
     name: build + archive (default)
-    # BUILD_RUNNER (repo variable) — see the LINK/DEBUGINFO note above.
-    # Unset today, so this is `ubuntu-latest` and nothing changes.
+    # BUILD_RUNNER: repo variable, unset today, so this is `ubuntu-latest`
+    # and nothing changes. It exists so that swapping the runner is one
+    # setting rather than an edit to this job and `build-interval` both.
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
     if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
@@ -2912,48 +2900,6 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  # The archives exist only to ferry binaries from the build jobs to the
-  # run legs; on a fully green run they have no further use, and this
-  # private repo's artifact quota is small (500 MB, and the Actions
-  # budget has been exhausted before). retention-days: 1 already caps
-  # stragglers; this deletes the happy-path bulk immediately. On a FAILED
-  # run the artifacts are deliberately kept (retention window) so failed
-  # legs can be re-run without rebuilding.
-  # NO LOCAL MIRROR: it deletes the nextest archive artifacts this run
-  # uploaded, which exist only because the hosted halves of build and test are
-  # different jobs on different machines. A local run compiles and executes in
-  # one process and produces no artifact to clean up.
-  cleanup-archives:
-    name: delete nextest archives (green run)
-    runs-on: ubuntu-latest
-    # A SAMPLED RUN SKIPS ONE OF THESE TWO BY CONSTRUCTION, and a skipped
-    # `needs` skips the dependent job unless the condition says otherwise —
-    # which would have quietly stopped the cleanup and let a ~500 MB archive
-    # ride the retention window on every run. `always()` re-enables the job;
-    # the explicit result tests then restore what `success()` meant, keeping
-    # the archives on a FAILED run so failed legs can be re-run without
-    # rebuilding. `run_build` keeps the job off docs-tier runs, where there
-    # is nothing to delete and the round-up would still bill a minute.
-    needs: [filter, test, test-interval]
-    if: >-
-      always()
-      && needs.filter.outputs.run_build == 'true'
-      && needs.test.result != 'failure' && needs.test.result != 'cancelled'
-      && needs.test-interval.result != 'failure'
-      && needs.test-interval.result != 'cancelled'
-    permissions:
-      actions: write
-    steps:
-      - env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          for name in nextest-default nextest-interval; do
-            for id in $(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" \
-                          -q ".artifacts[] | select(.name==\"$name\") | .id"); do
-              gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$id"
-            done
-          done
-
   interval-backend:
     name: interval backend crate
     runs-on: ubuntu-latest
@@ -3246,6 +3192,57 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: python
+      # THE `python` FEATURE'S CLIPPY ROW, AND IT IS SITED IN THIS JOB ON
+      # PURPOSE. `crates/pncad-py/src/py/` — the whole PyO3 surface —
+      # compiles only under the crate's non-default `python` feature
+      # (`src/lib.rs`, `#[cfg(feature = "python")] mod py;`), so the
+      # `clippy` job's `cargo clippy $cargo_scope --all-targets`, which
+      # runs at DEFAULT features, has every one of those lines `#[cfg]`-ed
+      # away before clippy sees them. Until this row that half was linted
+      # by NO row: the `clippy` job cannot see it, and the wheel build
+      # below compiles it without linting it.
+      #
+      # WHY NOT IN THE `clippy` JOB. That job is on the Rust critical
+      # path, and a `--features python` row there is a SECOND compile of
+      # the façade stack under a second feature set — the same second
+      # compile the seed-key argument in this job's header was written to
+      # stop buying on every code-tier run — plus an interpreter the Rust
+      # jobs are STRUCTURALLY free of (the U9S gating property; see
+      # crates/pncad-py/Cargo.toml's header). Here it costs neither: this
+      # job already installs Python 3.12, already restores the `python`
+      # feature graph's own cache, and nothing `needs` it, so the row adds
+      # work to no job the gate waits on and opens no new job or cache lane.
+      # The LOCAL half sites the same command with the other clippy rows
+      # instead, and argues why the two differ at `local-scripts/ci-local.sh`.
+      #
+      # FIRST AMONG THIS JOB'S CARGO WORK, before maturin is even
+      # installed, because it needs none of the wheel machinery and it is
+      # the step that says "the `python` half compiles" in clippy's words
+      # rather than in a maturin log a minute later. The order is free
+      # either way: maturin builds `extension-module` (a different feature
+      # set, hence different unit fingerprints) and codegens where clippy
+      # emits metadata, so neither warms the other's units.
+      #
+      # NO libpython IS LINKED, even though `python` alone does not imply
+      # `extension-module`: clippy is check-only, so the `cdylib` is never
+      # linked (a cold `cargo clippy -p pncad-py --features python
+      # --all-targets` leaves no `libpncad_py.so` in target/debug/deps —
+      # only the proc-macro dylibs every clippy run builds). pyo3's BUILD
+      # SCRIPT does need an interpreter — with none on PATH it fails
+      # `error: no Python 3.x interpreter found` — and setup-python above
+      # is it.
+      #
+      # WHAT THE SITING GIVES UP is this job's seed key and its `push`
+      # skip: on a PR whose seeds miss {pncad-py, pncad, editor-core} the
+      # row does not run. A lint introduced BY the binding code, or by
+      # `pncad`/`editor-core`, seeds the axis and is caught on its own PR;
+      # one reaching `src/py/` from further down (`quantity`, the kernel
+      # through `pncad`'s re-exports) or from a `stable` toolchain bump
+      # shipping a new lint seeds nothing, and waits for nightly.yml's
+      # `python suite (ungated re-take)`, which carries this same step
+      # ungated once a day.
+      - name: clippy (pncad-py, python feature)
+        run: cargo clippy -p pncad-py --features python --all-targets -- -D warnings
       - name: install maturin (pinned, official prebuilt)
         run: curl -LsSf "https://github.com/PyO3/maturin/releases/download/v$MATURIN_VERSION/maturin-x86_64-unknown-linux-musl.tar.gz" | tar zxf - -C "$HOME/.cargo/bin" maturin
       # Debug profile on purpose (no --release): fastest honest build.
@@ -3556,17 +3553,43 @@ jobs:
       #
       # COST, MEASURED on the run that armed it (32973311618, this
       # row's own draw): release build 2m11, then the bin's unit tests
-      # 0.21 s and the three-ε `eps_regression` tour runs 13.60 s. The
+      # 0.21 s and the three-ε `eps_regression` tour runs 13.60 s.
+      # RE-MEASURED 2026-09-03 with `--features interval` below: the
+      # bin's unit tests go 0.21 s -> ~32 s. **That is NOT the tolerance
+      # cell**, and the first version of this note said it was, which
+      # R2's MINOR-12 caught. Measured on this branch, same machine,
+      # release profile:
+      #
+      #   whole bin suite, --features interval          32.02 s
+      #   the same with `-- --skip tolerance`           32.30 s
+      #   the tolerance cell alone                       1.19 s
+      #
+      # The cell's differential is inside the noise. The ~32 s is what
+      # the OTHER 26 rows cost once the crate is built with the
+      # certified scalar — the feature changes the kernel they link
+      # against, so they all pay for it — and attributing it to the one
+      # new row would have sent the next person optimising the wrong
+      # thing. The
       # bin's unit tests link against the crate this row already builds
-      # in release, so the widening pays a link plus ~14 s of running,
+      # in release, so the widening pays a link plus that running time,
       # not a sixth feature unification. (Those same unit tests cost
       # ~412 s in the DEV profile — the finding-13 rows tessellate the
       # lily at δ = 2e-3 — which is why this row is the release one and
       # why widening the dev-default row instead would not have been
       # free.)
+      # `--features interval` SINCE M10-6, and it buys exactly one
+      # thing: the tolerance cell (`src/tolerance.rs`), whose subject is
+      # the E6 driver's certified leaves and the E5 stackup over them,
+      # is compiled and its row executed. Without the feature the cell
+      # is `cfg`'d out and a tour walk says so at the stop rather than
+      # walking one scene fewer in silence.
+      #
+      # COST: the kernel is built once more with the certified scalar
+      # for this crate's graph. It rides the same `release-default` draw
+      # as the rest of this row, so it is not a per-run price.
       - name: demos tour suite (the #99 ε pin + the tour's own probes)
         if: contains(fromJSON('["release-default", "all"]'), needs.filter.outputs.klint_row)
-        run: cd demos/tour && cargo test --release
+        run: cd demos/tour && cargo test --release --features interval
       # THE COMMITTED DIE CORPUS IS STILL THE SCENE THAT AUTHORED IT.
       # `crates/editor-core/tests/corpus/die_composed_tour.rs` registers
       # the tour's composed die by replaying committed BYTES, because
@@ -3871,6 +3894,78 @@ jobs:
             ../../target/k-fresh/k-eps-1e-6.csv \
             ../../target/k-fresh/k-eps-1e-9.csv \
             ../../target/k-fresh/k-eps-1e-12.csv
+      # **M10-6's THIRD E10 CI ROW: the E6 driver's own K population**
+      # (ERROR-DESIGN E6's T6 obligation; docs/K-REPORT.md's runbook).
+      #
+      # WHICH AXIS IT RIDES, and what a green means. This row is inside
+      # `k-lint (gate)` and gated on the `dev-probe` draw of the
+      # `klint_row` axis, exactly like the sweep that produces its
+      # input — so a green on a run that drew another row means the row
+      # did not run, not that the population is clean. A branch that
+      # wants it says `CI-Config: klint=dev-probe` on its head commit.
+      #
+      # WHY IT IS ADVISORY, stated rather than assumed. The lint's
+      # thresholds were calibrated over the Band 4 corpus and the tour
+      # scenes — a population of AUTHOR-CHOSEN nominals. The driver's
+      # certified-midpoint population is the opposite by construction:
+      # the subdivision refines until every predicate is definite, so
+      # its margins pile up just outside the escalation band, and the
+      # lint fires in bulk (measured 2026-09-03: 15,768 flags over
+      # 257,025 samples at ε = 1e-6). That is exactly the E6 evidence
+      # this row exists to produce, and `tools/k-lint`'s own discipline
+      # text names the disposition: re-derive the thresholds, or demote
+      # the row to advisory with a recorded justification. This is the
+      # recorded justification. Changing geometry to get under a
+      # threshold remains the forbidden move, and nothing here does it.
+      #
+      # WHAT STILL REDS THIS ROW: harness breakage (exit 1) — an
+      # unreadable CSV, a malformed sample row, a sweep that wrote a
+      # file the lint cannot parse. Findings (exit 2) are printed and
+      # summarized. So the row cannot rot into a green over a broken
+      # sweep, which is the failure a plain `|| true` would have.
+      - name: driver K-telemetry lint (E6 evidence — rule 1 GATES, rules 2/3 advisory)
+        if: contains(fromJSON('["dev-probe", "all"]'), needs.filter.outputs.klint_row)
+        run: |
+          set -uo pipefail
+          cd tools/k-lint
+          status=0
+          # `--gate-rule-1-only` is the demotion, and it is NARROW: rule
+          # 1 (indeterminate / invalid margins) still reds this row.
+          # That is the arm ERROR-DESIGN E6 names as the trigger for
+          # re-opening the K question, and a blanket demotion would have
+          # covered it — a future in-band margin would have printed
+          # among tens of thousands of rule-2/3 flags and gone green.
+          # Rules 2 and 3 are the ones this population makes in bulk by
+          # construction, and only they are demoted.
+          cargo run -- --gate-rule-1-only \
+            ../../target/k-fresh/driver/k-eps-1e-6.csv \
+            ../../target/k-fresh/driver/k-eps-1e-9.csv \
+            ../../target/k-fresh/driver/k-eps-1e-12.csv \
+            2>&1 | tee ../../k-lint-driver.out || status=$?
+          status=${PIPESTATUS[0]:-$status}
+          # THE PER-RULE COUNTS ARE THE ROW'S REPORT, at all three eps
+          # rows, not a summary of one. `k-lint` prints a per-file line
+          # and a TOTAL line; both are relayed so a reader gets the
+          # numbers without opening the log.
+          {
+            echo "### driver K-telemetry (E6 evidence)"
+            echo
+            echo '```'
+            grep -E '^k-lint: (TOTAL|.*samples,)' ../../k-lint-driver.out || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "driver K-telemetry lint exit status: $status" >> "$GITHUB_STEP_SUMMARY"
+          case "$status" in
+            0) echo "no rule-1 margin: every margin the driver produced was DECIDED. Rule-2/3 flags, if any, are distribution EVIDENCE — the driver refines margins toward zero by construction, so they crowd the band. Read them per docs/K-REPORT.md; do not change geometry." >> "$GITHUB_STEP_SUMMARY" ;;
+            2) echo "RULE 1 FIRED — a driver margin was indeterminate or invalid. This is the E6 re-open trigger, not a distribution note: read docs/K-REPORT.md's runbook and the flagged rows before anything else." >&2; exit 1 ;;
+            *) echo "harness breakage — the sweep wrote something this lint cannot read" >&2; exit 1 ;;
+          esac
+          # Solver predicates are VACUOUS in v1 (the M10 plan's ruling
+          # Q1: no sketch solver exists, so no `solver_branch_margin`
+          # row can appear in any population this sweep collects). The
+          # row's k-population is the driver's alone, and that is a
+          # scope statement rather than a gap in the sweep.
+          echo "solver predicates are vacuous in v1 (ruling Q1): no solver exists to sample" >> "$GITHUB_STEP_SUMMARY"
 
   # THE RENDER GATE. The committed montages are build products of the
   # kernel that nothing checked: for a while `k-lint` gated the UV sheet

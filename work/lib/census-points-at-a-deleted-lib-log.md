@@ -2,9 +2,10 @@
 id: census-points-at-a-deleted-lib-log
 kind: issue
 title: The census's three docs/LIB-LOG.md pointers name a deleted file
-status: open
+status: closed
 opened: 2026-09-03
 refs: [1661]
+closed: 2026-09-03
 ---
 
 Noticed at LIB-B-PICKING while re-cutting the census; **banked rather
@@ -57,3 +58,36 @@ under `crates/`. At the time of filing the census was the only
 non-`work/` file naming it in a live tense; `docs/DESIGN.md:1931` and
 `docs/ASM-EXIT-WALK.md:26` name it historically and are covered by the
 ledger's dispensation.
+
+## Closed
+
+All three pointers re-pointed at `work/lib/log.md`'s "LIB residual
+register", which was confirmed to exist (heading at `work/lib/log.md:439`)
+and to enumerate a category B ("B. Bindings-parity residuals (the
+north-star audit, executable)", `work/lib/log.md:529`) — the destination
+resolves, which is the whole point of the repair.
+
+- module docstring (`test_binding_census.py:109`) — live claim, now
+  names `work/lib/log.md`'s "LIB residual register".
+- `FAMILIES`' spelling note (`:637`) — the lineage sentence, so it
+  KEEPS `docs/LIB-LOG.md` as the historical spelling the entries were
+  written against and says where the register lives now. A reader
+  arriving with the old filename in hand still lands.
+- `test_every_gap_entry_names_a_defined_id`'s docstring (`:1608`) — the
+  "pointer at a PARAGRAPH" argument, which is about the register's
+  SHAPE and stays true wherever it lives, re-pointed to the new path.
+
+The sweep the issue asked for was run over the whole tree
+(`grep -rn "LIB-LOG"`): outside `work/` and `docs/`, the census was and
+is the ONLY file naming it — nothing else under `crates/`, nothing in
+`demos/`, `scripts/` or `local-scripts/`. The `docs/` hits
+(`DESIGN.md:1937`, `DOC-LEDGER.md`, `MODEL-AB-LOG.md`,
+`PATHS-DESIGN.md`) are all historical or ledger-covered and were left
+alone; `docs/ASM-EXIT-WALK.md` no longer exists, so that citation from
+the filing has already gone.
+
+WHAT THIS DOES NOT COVER: nothing guards the class. These three
+pointers were found by eye and fixed by hand, and the next dangling
+path in a test docstring will be too —
+`work/code-quality/doc-line-citations-rot-silently.md` is the open item
+for the general sweep, and it is not closed by this.

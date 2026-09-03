@@ -861,7 +861,12 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("E9: {e}"));
-    assert_eq!(report.nominal, 0.0);
+    assert_eq!(
+        report
+            .nominal
+            .expect("this fixture measures a closed form, which has an f64 nominal"),
+        0.0
+    );
     // The enclosure of an angle in [0, π] arrives a few subnormals
     // BELOW zero (outward rounding through `atan2`, unclipped to the
     // codomain) — M10-2's arithmetic, noted, and harmless here.
@@ -929,7 +934,12 @@ fn where_the_linearization_says_zero_the_hull_still_encloses_the_range() {
     let verdict = drive(&doc, &analyzed, &config(64), Tol::witness()).expect("builds");
     let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness())
         .unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(report.nominal, -1.0);
+    assert_eq!(
+        report
+            .nominal
+            .expect("this fixture measures a closed form, which has an f64 nominal"),
+        -1.0
+    );
     let row = &report.per_param[0];
     match &row.sensitivity {
         SensitivityOutcome::Derivative { value, .. } => assert_eq!(*value, 0.0),
@@ -942,9 +952,15 @@ fn where_the_linearization_says_zero_the_hull_still_encloses_the_range() {
         "the hull encloses the true range: {wc:?}"
     );
     assert!(
-        wc.hi > report.nominal + row.contribution.clone().unwrap(),
+        wc.hi
+            > report
+                .nominal
+                .expect("this fixture measures a closed form, which has an f64 nominal")
+                + row.contribution.clone().unwrap(),
         "the linearized top {} is below the hull's {}",
-        report.nominal,
+        report
+            .nominal
+            .expect("this fixture measures a closed form, which has an f64 nominal"),
         wc.hi
     );
     println!("curvature hull {wc:?} vs linearized [-1, -1]; true range [-1, -0.75]");
@@ -1070,7 +1086,12 @@ fn the_rss_sigma_of_every_distribution_form_derived_independently() {
     assert!(!verdict.certified().is_empty(), "{:?}", verdict.receipt());
     let report = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness())
         .unwrap_or_else(|e| panic!("{e}"));
-    assert_eq!(report.nominal, 4.0);
+    assert_eq!(
+        report
+            .nominal
+            .expect("this fixture measures a closed form, which has an f64 nominal"),
+        4.0
+    );
     let sigma_u = 0.4 / 12f64.sqrt();
     let sigma_n = 0.02;
     let sigma_tn = truncated_sigma(0.05, -0.05, 0.1);
@@ -1258,7 +1279,14 @@ fn the_bore_pin_fit_as_a_consumer_reads_it() {
     .unwrap_or_else(|e| panic!("{e}"));
     println!("ε-scale study: {report:#?}");
     assert_eq!(report.measurement, m);
-    assert!((report.nominal - 0.2).abs() < 1e-12);
+    assert!(
+        (report
+            .nominal
+            .expect("this fixture measures a closed form, which has an f64 nominal")
+            - 0.2)
+            .abs()
+            < 1e-12
+    );
     let row = &report.per_param[0];
     assert_eq!(row.param, name("r"));
     match &row.sensitivity {
@@ -1270,7 +1298,16 @@ fn the_bore_pin_fit_as_a_consumer_reads_it() {
     }
     assert_eq!(row.contribution, Ok(half));
     let wc = report.worst_case;
-    assert!(wc.lo <= report.nominal && report.nominal <= wc.hi);
+    assert!(
+        wc.lo
+            <= report
+                .nominal
+                .expect("this fixture measures a closed form, which has an f64 nominal")
+            && report
+                .nominal
+                .expect("this fixture measures a closed form, which has an f64 nominal")
+                <= wc.hi
+    );
     // The hull ENCLOSES the true range `0.2 ± half` (the gap is linear
     // in the radius with slope −1) and exceeds it by the interval
     // lane's enclosure padding alone. The padding is proportional to
