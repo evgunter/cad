@@ -111,3 +111,6 @@ mod tests {
         assert_eq!(eq_bits(&a, &c), Some(false));
     }
 }
+
+// TCOST-9 demonstration head: a comment-only edit to a file no gated_to!
+// marker names. Evidence, never merged.
