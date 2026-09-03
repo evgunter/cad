@@ -2867,16 +2867,24 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # sentence still cannot say is the half below: two
             # documents a workspace accepts side by side, and no way to
             # assemble them.
-            # G1's residue: no Expr door, so a profile step's argument
-            # cannot be a named parameter. It is ALSO a naming
-            # decision — the expression layer's genuine
-            # dimension-mismatch arms already reach Python through
-            # `load` (as `PersistError`/`parse`, issue #694), and
-            # binding the operator builders would give them a second
-            # route with `LiteralError` the nearest class while
-            # `DimensionError` means the quantity boundary. Whoever
-            # binds it decides which class those arms raise.
-            "Expr",
+            # `Expr` LEFT this list at LIB-B-EXPR-READ, and it is
+            # half of G1's residue that went with it: the TYPE
+            # crosses, built by `Doc.parse_expr` and read by
+            # `Doc.eval` / `Doc.eval_count`
+            # (`tests/test_expressions.py` is the positive form). The
+            # naming decision this entry flagged is made and recorded:
+            # the expression layer's genuine dimension-mismatch arms
+            # reach Python through the TEXT door as `ParseError` with
+            # `variant == "dimension"` and the mismatch's own tag as
+            # `kind` — not `LiteralError`, which has no position to
+            # put the byte offset in, and not `DimensionError`, which
+            # is the quantity boundary's own check. `load`'s route is
+            # untouched and still misrouted (issue #694).
+            #
+            # What is left of G1 is the AUTHORING half, and it is a
+            # SIGNATURE rather than a name — no door takes an `Expr`
+            # INTO a document — so it is pinned below the loop with
+            # the other signature gaps rather than here.
             # G18 LEFT this list at LIB-G18b, the series' second half:
             # `Alignment`, `MateFrame`, `MatePrimitive`, `AxisSense`,
             # `assemble`, `Assembly`, `AssemblyError`,
@@ -2916,6 +2924,29 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         )
         with self.assertRaises(TypeError):
             evaluate(Doc(), None)
+
+        # **G1's residue, as the signature it actually is.** The
+        # expression TYPE crosses now (LIB-B-EXPR-READ), so its
+        # absence is no longer the measurement; what the row records
+        # is that a profile step's argument cannot BE one, and that is
+        # about which doors accept an `Expr`, not about whether the
+        # word exists. The arc verbs take quantities, so a parametric
+        # radius is still unsayable and the read side cannot make it
+        # sayable: an expression goes in through no door at all.
+        #
+        # Executed at the verb the row names, and at the parameter
+        # door beside it, because those are the two the row's sentence
+        # is about. Both refuse at the boundary: an `Expr` is not a
+        # `Length`, and `set_doc_param` writes a NUMBER, so a
+        # parameter defined in terms of another is unsayable too.
+        radius = Doc().parse_expr("3 mm")
+        self.assertEqual(radius.dimension, "length")
+        with self.assertRaises(TypeError):
+            # Fully applied, so the refusal is about the ARGUMENT's
+            # type and not about arity.
+            pncad.Radius(radius, pncad.ArcSide.Left)
+        with self.assertRaises(TypeError):
+            pncad.DocParam.length(radius)
 
         # `circle` left this list when G1 closed (LIB-PYG1): it is a
         # profile PRIMITIVE, `pncad.circle`, not a node kind, and the

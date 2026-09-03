@@ -443,6 +443,27 @@ BOUND_AS = {
     "edge_frame": "Evaluation.edge_frame",
     "face_frame": "Evaluation.face_frame",
     "vertex_position": "Evaluation.vertex_position",
+    # The expression surface, which hangs off the DOCUMENT for the
+    # read-back doors' reason one layer over: all three free
+    # functions take a per-document table — `parse_expr` the declared
+    # DIMENSIONS, the two evaluators the bound VALUES — so all three
+    # arrive as `Doc` methods and the table is never threaded in
+    # separately, where it could drift from the document it describes.
+    # `Expr`, `ParseError` and `EvalError` are spelled identically and
+    # are accounted by rule 1, not here.
+    #
+    # `unparse` is the odd one: it is the text door OUTWARD and takes
+    # only the expression, so it is a property of the `Expr` rather
+    # than a document method — which is exactly the carrier-projection
+    # reading, the receiver following what the door actually needs.
+    #
+    # They left the `gap` roster at LIB-B-EXPR-READ, which closed
+    # B-EXPR-READ; the four G1-cited ones left as ordinary decay, and
+    # G1 stays open on its authoring half.
+    "eval": "Doc.eval",
+    "eval_count": "Doc.eval_count",
+    "parse_expr": "Doc.parse_expr",
+    "unparse": "Expr.text",
     # The four different-shape entries LIB-G18b left behind after
     # binding the rest of the assembly vocabulary name-for-name.
     #
@@ -574,12 +595,6 @@ FAMILIES = {
         "`resolve` and its `Resolution` verdict — the question every "
         "consumer that STORES names must ask on the next run, which is "
         "every consumer the stub tells to store one"
-    ),
-    "B-EXPR-READ": (
-        "the expression READ side; closing it binds `eval` / "
-        "`eval_count` and their refusal, so a Python caller holding a "
-        "`DocParam` environment can ask an expression for its value "
-        "(the authoring half is G1's recorded residue, not this)"
     ),
     "B-CANCEL": (
         "cooperative cancellation; closing it puts a `CancelToken` on "
@@ -798,11 +813,21 @@ FAMILIES = {
 #: **`gap` — genuinely unbound doors, and each is OWED WORK.** This is
 #: the family that makes the census worth having: these are not
 #: decisions, they are debt, and the id after the colon says what owns
-#: each. TWO of the ids are the audit page's, cited (`G1`, `G2`); the
-#: other seven are `FAMILIES` keys
+#: each. ONE of the ids is the audit page's, cited (`G2`); the other
+#: eight are `FAMILIES` keys
 #: this census owns, because the audit's SCENE-driven list does not
 #: reach a door no tour scene exercises — which is exactly why those
 #: accumulated unnoticed and why this census exists.
+#:
+#: Those two numbers were BOTH stale when LIB-B-EXPR-READ re-cut this
+#: paragraph — it read "two … the other seven" while nine families
+#: were cited — and they are recorded here rather than quietly fixed,
+#: because they are the module docstring's own argument against prose
+#: counts arriving a second time. A count in prose is checked when
+#: someone happens to look; what is checked always is
+#: [`TestBindingCensus.test_every_gap_entry_names_a_defined_id`],
+#: which fails on a charter nobody cites and on a citation nothing
+#: defines, and says nothing about how many there are.
 #:
 #: - **G2 — the SWEEP half only.** `sweep_body`. The family used to
 #:   hold five names; the tube half closed at LIB-TUBE (see the
@@ -890,17 +915,35 @@ FAMILIES = {
 #:   must ask on every run — and Python's whole selection story is
 #:   store-then-reuse (`Node.fillet` freezes a name set), so the
 #:   absence bites exactly the consumers the stub tells to store.
-#: - **The expression surface, split at the half the audit reaches.**
-#:   `Expr`, `ParamEnv`, `parse_expr` and `ParseError` are **G1**: its
-#:   row records the residue by name ("a profile step whose argument
-#:   is an EXPRESSION rather than a literal" — the one door still
-#:   blocking `plate_param` from scratch, and the same door
-#:   `GeomPred.datum_distance`'s comparand waits on). The READ side
-#:   `eval`, `eval_count` and `EvalError` is **B-EXPR-READ**, unnamed
-#:   on that page or anywhere else: Python holds `DocParam` values and
-#:   has no door from an expression to its value. One family, two ids,
-#:   because the entries are what carry an id and only one half of
-#:   this family has one.
+#: **B-EXPR-READ is CLOSED and no longer a `gap` id here**
+#: (LIB-B-EXPR-READ). It held three names — `eval`, `eval_count` and
+#: `EvalError` — and closing it moved NINE, because the three could
+#: not be reached without the four the roster filed under `G1`
+#: (`Expr`, `ParseError`, `parse_expr`, `unparse`) plus the
+#: environment (`ParamEnv`) and the second refusal class. That is the
+#: measurement the closing paid for and the one worth keeping: **the
+#: entries an id owns are not always the entries a unit must move.**
+#: A read door needs the value it reads, and the census had split
+#: this family across two ids on WHICH HALF THE AUDIT REACHED rather
+#: than on what a unit would have to build — a split the module
+#: docstring predicted ("not that a cited id is the RIGHT owner") and
+#: this is the first case that executed it.
+#:
+#: `Expr`, `ParseError` and `EvalError` are top-level names in
+#: `pncad.pyi`; `parse_expr`, `eval` and `eval_count` are `BOUND_AS`
+#: `Doc` methods and `unparse` is `Expr.text`; `ParamEnv` is
+#: `INTERIOR`, corrected from a `gap` it should never have been (see
+#: its entry). The positive form is `tests/test_expressions.py`.
+#:
+#: **G1 stays open**, and its row is unchanged in what it measures:
+#: "a profile step whose argument is an EXPRESSION rather than a
+#: literal" — the door still blocking `plate_param` from scratch, and
+#: the one `GeomPred.datum_distance`'s comparand waits on. What
+#: changed is that its residue is now a SIGNATURE rather than a
+#: missing name, so this census cannot see it at all and does not
+#: pretend to: `tests/test_north_star.py` executes an `Expr` against
+#: the arc and parameter doors that refuse it, which is the shape
+#: every other signature gap on that page is watched in.
 #: - **B-VALIDATE4 — the fourth validator rung.**
 #:   `validate_pseudomanifold`. `Body` binds three of the ladder's
 #:   four; this one is simply missing.
@@ -1102,6 +1145,18 @@ NOT_BOUND = {
     "LoopProgram": INTERIOR,
     "NameTable": INTERIOR,
     "Operand": INTERIOR,
+    # The evaluation environment, and the entry that had been on the
+    # WRONG side of the line: it was listed as a `G1` gap on the
+    # reasoning that "`select_where` takes one, so a caller who cannot
+    # spell the type cannot call the door" — which is the RUST door's
+    # shape. Python's `select_where` never took one; `Evaluation`
+    # captures the environment at `evaluate` so the answer is as of
+    # the same document the evaluation is of. LIB-B-EXPR-READ put a
+    # second door on that footing rather than changing it: `Doc.eval`
+    # builds the environment from the document it is a method on. Two
+    # doors, both of them holding one internally, neither handing it
+    # to Python — which is what `behind-a-door` means.
+    "ParamEnv": INTERIOR,
     "Profile": INTERIOR,
     "ProfileEdgeRef": INTERIOR,
     "ProfileLoop": INTERIOR,
@@ -1179,15 +1234,24 @@ NOT_BOUND = {
     "Resolution": f"{GAP}: B-RESOLVE names across runs",
     "RunCtx": f"{GAP}: B-RESOLVE names across runs",
     "resolve": f"{GAP}: B-RESOLVE names across runs",
-    # --- gap: the expression surface (audit G1 + census-owned) ----
-    "EvalError": f"{GAP}: B-EXPR-READ an expression's value",
-    "Expr": f"{GAP}: G1 Expr-bearing authoring steps",
-    "ParamEnv": f"{GAP}: G1 Expr-bearing authoring steps",
-    "ParseError": f"{GAP}: G1 Expr-bearing authoring steps",
-    "eval": f"{GAP}: B-EXPR-READ an expression's value",
-    "eval_count": f"{GAP}: B-EXPR-READ an expression's value",
-    "parse_expr": f"{GAP}: G1 Expr-bearing authoring steps",
-    "unparse": f"{GAP}: G1 Expr-bearing authoring steps",
+    # B-EXPR-READ IS GONE FROM THIS ROSTER, closed at
+    # LIB-B-EXPR-READ, and the id is gone from `FAMILIES` with it.
+    # `EvalError` is a top-level name in `pncad.pyi` and needed no
+    # `BOUND_AS`; `eval` and `eval_count` are in `BOUND_AS` as `Doc`
+    # methods, because the environment they read is the document's.
+    #
+    # The FIVE G1 entries left with them, and that is the decay rule
+    # rather than a re-assignment: `Expr`, `ParseError`, `parse_expr`
+    # and `unparse` are names Python now spells, and a `gap:` entry
+    # Python binds is stale whatever id it cites. `ParamEnv` moved
+    # for the OTHER reason — it is `INTERIOR` now, below, because
+    # both doors that take one build it from the document in hand.
+    # **G1 is not closed by any of that.** Its residue is the
+    # AUTHORING half and it is a signature, not a name, so nothing
+    # here can watch it: `tests/test_north_star.py` does, by
+    # executing an `Expr` against the arc and parameter doors that
+    # still refuse it. The positive form is
+    # `tests/test_expressions.py`.
     # --- gap: geometry read-back doors (census-owned) -------------
     # --- gap: assorted single doors -------------------------------
     "CancelToken": f"{GAP}: B-CANCEL cooperative cancellation",

@@ -617,9 +617,12 @@ impl Doc {
                 super::quantity::Angle(pncad::quantity::Angle::from_radians(value)),
             )
             .map(|v| v.into_any()),
-            d::Dimension::Count | d::Dimension::Scalar => {
-                value.into_pyobject(py).map(|v| v.unbind().into_any())
-            }
+            // `f64`'s conversion into Python is INFALLIBLE (its error
+            // type is `Infallible`), so this arm cannot fail; the
+            // match is what says so.
+            d::Dimension::Count | d::Dimension::Scalar => match value.into_pyobject(py) {
+                Ok(bound) => Ok(bound.unbind().into_any()),
+            },
         }
     }
 

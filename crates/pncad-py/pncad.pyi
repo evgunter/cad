@@ -51,13 +51,18 @@ anything; `enforce_checks` is the one door that turns findings the
 caller marked `Severity.Error` into a refusal, which is how a program
 chooses to gate rather than having the kernel choose for it.
 
+A recipe slot is not always a number. `Doc.parse_expr` reads text as
+a dimension-checked `Expr` against the document's declared
+parameters, and `Doc.eval` / `Doc.eval_count` answer what one is
+worth right now — which is what a panel showing `width / 2.0 -
+margin` needs and cannot compute for itself. Reading only: putting an
+expression INTO an authoring step is still a named gap.
+
 Deliberately ABSENT, and tracked as named gaps in
 `docs/guide/north-star-audit.md`: sweep and tube, the pattern node
 (`placed_union` says a placed family whose value is one body; the
-plural-payload node stays unbound), chamfer and shell (which have no
-recipe node at all), and the geometry read-back doors — a name is
-carried, compared and handed back, and where it SITS is not yet
-readable.
+plural-payload node stays unbound), and chamfer's shell sibling,
+which has no recipe node at all.
 """
 
 from typing import Any, Final, Generic, Optional, TypeAlias, TypeVar, overload
@@ -108,11 +113,14 @@ class DimensionError(PncadError):
     admit it — `1 * m + 1 * rad`.
 
     The quantity boundary only, and not the library's only dimension
-    check. The document layer's own refusal type reaches Python
-    through literal construction (as LiteralError) and through `load`,
-    where a save file's ill-dimensioned expression arrives as
-    PersistError with `variant == "parse"` rather than as any
-    dimension class (issue #694)."""
+    check. The document layer's own refusal type reaches Python three
+    other ways: through literal construction (as LiteralError),
+    through `Doc.parse_expr` (as ParseError with `variant ==
+    "dimension"` and the mismatch's own tag as `kind` — the one of the
+    three that keeps it branchable), and through `load`, where a save
+    file's ill-dimensioned expression arrives as PersistError with
+    `variant == "parse"` rather than as any dimension class (issue
+    #694)."""
 
     op: str
     left: str
@@ -124,13 +132,64 @@ class LiteralError(PncadError):
 
     Not DimensionError, which is the quantity boundary's operator
     check. The expression layer's refusal type has dimension-mismatch
-    arms too, and `load` does reach them from a hand-edited save file
-    — but they arrive as PersistError with `variant == "parse"`, not
-    here (issue #694). Every `kind` raised on this class is a
+    arms too, and two other doors reach them: `load` does, from a
+    hand-edited save file, and they arrive as PersistError with
+    `variant == "parse"` (issue #694); `Doc.parse_expr` does, and they
+    arrive as ParseError. Every `kind` raised on THIS class is a
     literal-value refusal."""
 
     kind: str
     value: float
+
+class ParseError(PncadError):
+    """`Doc.parse_expr` could not read the source as an expression.
+
+    `pos` is the byte offset in the source, and for a parser that is
+    the recourse: it says where to edit. The rest of the payload is
+    the refusing arm's own and is None where the arm does not carry
+    it — `char`, `expected`, `found`, `text`, `symbol`, `name`,
+    `arity`/`given` (a function's declared arity and the count
+    supplied), and `kind`.
+
+    `given` rather than `args`: an exception's `args` is
+    `BaseException`'s own and CPython requires a tuple there.
+
+    `kind` is the dimension checker's tag, on `variant ==
+    "dimension"`. The text door runs every smart constructor as it
+    reduces, so a dimension mismatch inside the source refuses HERE
+    rather than as LiteralError — with the position that one has
+    nowhere to put."""
+
+    variant: str
+    pos: int
+    char: Optional[str]
+    expected: Optional[str]
+    found: Optional[str]
+    text: Optional[str]
+    symbol: Optional[str]
+    name: Optional[str]
+    arity: Optional[int]
+    given: Optional[int]
+    kind: Optional[str]
+
+class EvalError(PncadError):
+    """`Doc.eval` or `Doc.eval_count` refused an expression.
+
+    `name` is the parameter at fault, `expected` and `found` are
+    dimension tags, `count` the offending integer; each is None where
+    the arm does not carry it.
+
+    Numeric domain is deliberately NOT here. Division by zero and
+    out-of-domain trig are not refusals in the expression layer — the
+    evaluator has no branches to hide them behind — so they follow the
+    kernel's poison-value policy through the arithmetic and reach a
+    caller as `non_finite_result` on the finished value."""
+
+    variant: str
+    name: Optional[str]
+    expected: Optional[str]
+    found: Optional[str]
+    count: Optional[int]
 
 class PersistError(PncadError):
     """A save or load the persistence doors refused."""
@@ -1232,6 +1291,44 @@ class Node:
         A dangling reference head is not refused here: the solve
         refuses typed naming it (`mate_dangling_head`)."""
 
+class Expr:
+    """A dimension-checked expression — the recipe's arithmetic, as a
+    value.
+
+    `Doc.parse_expr` is the only door that builds one, and the
+    dimension checker runs as it parses, so an ill-dimensioned tree
+    does not exist to be handed around. `Doc.eval` and
+    `Doc.eval_count` are what read its value back.
+
+    `dimension` says what it measures and is the fact that decides
+    which evaluator answers. `text` is the source it reads back as —
+    a rendering, not your original string. `params` names the document
+    parameters it references, which is what tells you when a value you
+    displayed has gone stale.
+
+    Unhashable on purpose. Equality is the kernel's `PartialEq`, an
+    IEEE comparison of the literals inside, so `0.0` and `-0.0` are
+    equal expressions whose bit patterns are not — and no hash
+    respects the first without lying about the second."""
+
+    @property
+    def dimension(self) -> str:
+        """`"length"`, `"angle"`, `"count"` or `"scalar"`."""
+    @property
+    def text(self) -> str:
+        """The source text this reads back as (`unparse`)."""
+    @property
+    def literal_value(self) -> Optional[float]:
+        """The number a BARE literal carries, in canonical kernel
+        units, or None for anything else — including a count literal,
+        since handing a count back as a float is the implicit
+        promotion the expression language refuses."""
+    @property
+    def params(self) -> list[ParamName]:
+        """The document parameters this references, sorted and without
+        repeats."""
+    def __eq__(self, other: object) -> bool: ...
+
 class ParamName:
     """A document-level parameter name (guide §3.2). NOT an arena
     key: the same plain name the recipe's expressions reference."""
@@ -1448,6 +1545,55 @@ class Doc:
     @property
     def epsilon(self) -> float: ...
     def bit_eq(self, other: Doc) -> bool: ...
+    def parse_expr(self, source: str) -> Expr:
+        """Read `source` as an expression against this document's
+        declared parameters (`parse_expr`).
+
+        The one door inward, and a CHECKING one: every reduction runs
+        the expression layer's smart constructors, so text that
+        survives it is a dimension-checked tree, and the whole algebra
+        — operators, `sin`/`cos`/`tan`/`atan2`/`min`/`max`/`scalar`,
+        unit suffixes, parameter references — is reachable through
+        this one call.
+
+        The declarations come from the document, not from you: a bare
+        identifier references a parameter this document declares and
+        carries that parameter's dimension. `"width / 2.0"` parses
+        where `width` is declared and refuses `unknown_param` where it
+        is not. Note the `2.0`: a bare integer is an exact `count`,
+        and dividing a length by one needs an explicit promotion, so
+        the decimal is what makes the divisor dimensionless.
+
+        Raises ParseError, carrying `variant` and the byte offset
+        `pos`."""
+
+    def eval(self, expr: Expr) -> Length | Angle | float:
+        """This expression's value under the document's current
+        parameter values (`eval`).
+
+        A Length for a length expression, an Angle for an angle, a
+        bare float for a dimensionless one.
+
+        NOT `evaluate(doc)`: that runs the RECIPE and answers
+        geometry, this runs one expression's arithmetic and answers a
+        number. Neither changes the document.
+
+        A `count` expression does not evaluate here — counts are exact
+        and promotion is explicit or nothing — so it raises EvalError
+        (`count_expr_in_continuous_eval`) and `eval_count` is the
+        door. Other refusals: `unknown_param`,
+        `param_dimension_mismatch`, `non_finite_result`."""
+
+    def eval_count(self, expr: Expr) -> int:
+        """This count expression's exact value (`eval_count`).
+
+        Exact integer arithmetic: an overflow raises EvalError
+        (`count_overflow`) rather than wrapping, because a wrapped
+        count is a fabricated one. A non-count expression raises
+        `continuous_expr_in_count_eval` naming the dimension it
+        actually has — a count is never inferred from a continuous
+        value."""
+
     def save(self) -> str: ...
     def __len__(self) -> int: ...
 

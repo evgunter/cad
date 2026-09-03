@@ -163,11 +163,12 @@ impl Expr {
 /// each present on every arm and `None` where that arm does not carry
 /// it. `pos` is on every arm and so is never `None`.
 ///
-/// The two numeric fields of `WrongArity` are `arity` and `args`
+/// The two numeric fields of `WrongArity` are `arity` and `given`
 /// rather than the kernel's `expected`/`found`: those two names are
 /// already taken here by the grammar's own STRINGS, and one attribute
 /// that is sometimes a word and sometimes a number is a payload a
-/// caller cannot branch on.
+/// caller cannot branch on. `given` is deliberately not spelled
+/// `args`, which is unusable — see [`crate::py::typed_err`].
 pub(crate) fn parse_err(py: Python<'_>, err: &d::ParseError) -> PyErr {
     use d::ParseError as P;
 
@@ -187,7 +188,7 @@ pub(crate) fn parse_err(py: Python<'_>, err: &d::ParseError) -> PyErr {
     // The tuple is positional and the match is exhaustive, so an arm
     // added kernel-side arrives here as a compile error rather than
     // as a silently unprojected payload.
-    let (pos, char_, expected, found, wanted_text, symbol, name, arity, args, kind) = match err {
+    let (pos, char_, expected, found, wanted_text, symbol, name, arity, given, kind) = match err {
         P::UnexpectedChar { pos, ch } => (
             *pos,
             text(&ch.to_string()),
@@ -316,7 +317,7 @@ pub(crate) fn parse_err(py: Python<'_>, err: &d::ParseError) -> PyErr {
         ("symbol", symbol),
         ("name", name),
         ("arity", arity),
-        ("args", args),
+        ("given", given),
         ("kind", kind),
     ];
     typed_err(py, ErrorClass::Parse, err.to_string(), &fields)
