@@ -146,8 +146,12 @@ runs on 2026-09-02, `docs/perf-data/opt-level/`).
   instantiates** (r = 0.94), not its line count, and the intercept is
   zero: no per-binary constant is left to harvest after #179/#387.
   70–89 % of every test binary's symbols are library code pulled in
-  by the link, so deleting test files shrinks a binary far less than
-  proportionally (halving topo's suites: −17.6 % binary).
+  by the link. Halving topo's suites shrank its binary only 17.6 % but
+  cut the target's compile TIME 32 % (ten repeats, quiet-box clusters
+  42 s → 28 s): about a third of a test target is fixed link and
+  dependency instantiation and two thirds scales with test content,
+  so deleting test content pays roughly two thirds of proportional on
+  the build.
 - **The largest single finding: shared helpers are compiled once PER
   SUITE.** Every aggregated suite keeps its own `mod common;` /
   `mod fixture;` / `mod corpus;`, so the binaries compile ~2.2× the
