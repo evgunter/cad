@@ -7,7 +7,7 @@ survey (`docs/WORK-STREAMS-2026-08.md`, merged #1200 after Evan's
 read, carrying VERBS' cession and both handoff records from that
 PR's thread). Every design decision this plan leans on is ratified
 elsewhere and cited, not re-litigated. Live state is
-`docs/S-BLEND-LOG.md`'s tail, never this file.
+`work/blend/log.md`'s tail, never this file.
 
 Branch prefix (the #396 convention): **`blend/`** — unit branches
 `blend/<slug>`, orchestrator branch `blend/orchestrator`.

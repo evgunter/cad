@@ -124,7 +124,7 @@ fails the existing wasm guard.
 Ordered; 1 is independent of 0 and may run concurrently. Units
 GUI-0…GUI-4 are merged and the entries below are the delivered
 scope; GUI-5 is DEFERRED post-v1 beside GUI-6 (Evan's ruling,
-2026-08-28, at the close of `docs/GUI-LOG.md`).
+2026-08-28, at the close of `work/gui/log.md`).
 
 0. **GUI-0 — the scaffold spike** (RESURVEY §5's named increment):
    the `viewer` crate (DESIGN.md's crate table row) — eframe app,

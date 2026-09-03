@@ -595,3 +595,9 @@ root cause — a `None` two readers interpreted differently — and it
 dissolved when the drafts became typed and non-optional
 (`length_unit: LengthUnit`, `angle_unit: AngleUnit`, defaulting to `m`
 and `pi rad`, which preserves exactly what the editor renders today).
+
+## Tracker migration (2026-09-03)
+
+The plan and this log moved here from `docs/GUI-PLAN.md` /
+`docs/GUI-LOG.md`. The program is closed (exit walk #1121, 2026-08-28);
+no live items. The slate view is `work/STATUS.md`.

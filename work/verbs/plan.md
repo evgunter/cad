@@ -5,7 +5,7 @@ verbs whose prerequisites are already ratified, in dependency order,
 plus the register's verb-gating defect rows. Kicked off by Evan
 in-chat 2026-08-21. Branch prefix **`verbs/`** (orchestrator worktree
 branch `mngr/kernel-verbs` predates the prefix and is armed
-alongside). Narrative record and live state: `docs/VERBS-LOG.md`'s
+alongside). Narrative record and live state: `work/verbs/log.md`'s
 tail, never this file. The register stays the reference view; rows
 scheduled here are marked there only by this plan's existence — the
 register itself never schedules.

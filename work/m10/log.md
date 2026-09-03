@@ -376,3 +376,11 @@ escalation thread from implementation routes to #1223 (the teapot
 tess-budget baseline, filed same-day). M10-4 is now dispatchable:
 its spec's inputs — this unit's sink, M10-3's door, the DL3
 pairing hook — are all on main.
+
+## Tracker migration (2026-09-03)
+
+The plan and this log moved here from `docs/M10-PLAN.md` /
+`docs/M10-LOG.md`. The program's slate now lives in this directory's
+item files and in `work/STATUS.md` (generated); this log stays the
+narrative. Items created at migration: M10-4 (spec), M10-5 (spec),
+M10-6 (open).

@@ -140,3 +140,9 @@ operands), #1395 (pick window-bookkeeping class), #1386 (the
 session.rs/app.rs/Tools accretion split conversation, four data
 points in). Blocks B1 concluded balanced, B2 closed short (records
 in docs/MODEL-AB-LOG.md).
+
+## Tracker migration (2026-09-03)
+
+The plan and this log moved here from `docs/GAUTH-PLAN.md` /
+`docs/GAUTH-LOG.md`. The program is closed (Ev's ruling, 2026-08-31);
+no live items. The slate view is `work/STATUS.md`.

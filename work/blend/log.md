@@ -1060,3 +1060,9 @@ After this merge: T-R7's NO-LIFT ruling binds; D322–D324's
 keep-out releases (they name #1360).
 
 CI-Config: lane=interval eps=1e-6
+
+## Tracker migration (2026-09-03)
+
+The plan and this log moved here from `docs/S-BLEND-PLAN.md` /
+`docs/S-BLEND-LOG.md`. The program is closed (exit walk ratified
+2026-08-31); no live items. The slate view is `work/STATUS.md`.

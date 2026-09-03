@@ -9,7 +9,7 @@ that have been waiting on that migration rather than on each other.
 
 Branch prefix `pcurve/`; orchestrator branch `pcurve/orchestrator`;
 away-channel tag `(PCURVE orchestrator)`. Live state is
-`docs/PCURVE-LOG.md`'s tail, never this file.
+`work/pcurve/log.md`'s tail, never this file.
 
 ## Why a program and not a unit
 

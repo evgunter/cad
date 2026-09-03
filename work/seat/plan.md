@@ -4,7 +4,7 @@ Executes `docs/VERB-SEAT-DESIGN.md` (ratified 2026-08-31, PR #1388,
 Evan sign-off in-session): the kernel query seat (§1), one verb
 vocabulary (§2), and the lowered parameter-identity channel (§3).
 Branch prefix **`seat/`** (orchestrator branch `seat/orchestrator`).
-Narrative record and live state: `docs/SEAT-LOG.md`'s tail, never
+Narrative record and live state: `work/seat/log.md`'s tail, never
 this file. Ordinal band **1000–1099** (claimed in
 `docs/MODEL-AB-LOG.md` at this program's opening).
 

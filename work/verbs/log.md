@@ -2971,3 +2971,12 @@ exactly one refusal deeper under the scratch flip (the
 ReanchorOffCarrier family at 0.83mm, re-pinned as row 4's
 replacement); refusal-text instance 7 recorded spec-directed.
 Dual claim to main at dispatch; parity per the draw line.
+
+## Tracker migration (2026-09-03)
+
+The plan and this log moved here from `docs/VERBS-PLAN.md` /
+`docs/VERBS-LOG.md`. The program's slate now lives in this directory's
+item files and in `work/STATUS.md` (generated); this log stays the
+narrative. Items created at migration: VERBS-CYLSPH (dispatched, PR
+#1604), VERBS-C5ARMS (open — PR-1 merged #1577, PR-2 remains),
+VERBS-CONE (open).

@@ -231,3 +231,10 @@ SEAT5 (ordinal 1005, sample #109 at merge — corrected from #107, a concurrent-
 
 Next: SEAT-6 (the ParamSource channel; the issue-1372 handoff note to
 VERBS rides the dispatch per the plan) on block SEAT-B2's next slot.
+
+## Tracker migration (2026-09-03)
+
+The plan and this log moved here from `docs/SEAT-PLAN.md` /
+`docs/SEAT-LOG.md`. The program's slate now lives in this directory's
+item files and in `work/STATUS.md` (generated); this log stays the
+narrative. Items created at migration: SEAT-6 (dispatched, PR #1593).

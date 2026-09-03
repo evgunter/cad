@@ -247,3 +247,12 @@ malformed configuration REQUEST, not as prose -- and failed `change
 filter` with exactly the error the docstring promises for that case.
 Fixed by rewording the commit message; the file text above was never
 the problem.)
+
+## Tracker migration (2026-09-03)
+
+The plan and this log moved here from `docs/PCURVE-PLAN.md` /
+`docs/PCURVE-LOG.md`. The program is closed on the ratified exit walk
+(`docs/PCURVE-EXIT-WALK.md`, 2026-08-29; P-2 merged as #1177), so the
+slate is empty — no live items. Any successor work is filed under the
+issues the walk names, or as a new program; the slate view is
+`work/STATUS.md`.

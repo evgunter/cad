@@ -2,13 +2,13 @@
 
 **STATUS: CLOSED 2026-08-31 — all five units merged (PRs #1375,
 #1381, #1376, #1397, #1407); closed on Evan's in-chat ruling that
-no exit walk is needed, recorded in `docs/GAUTH-LOG.md`'s closing
+no exit walk is needed, recorded in `work/gauth/log.md`'s closing
 entry, which is the done-state of record. Scope was ruled by Evan
 in-chat (2026-08-31): Phase A and Phase B definitely; fillet/
 chamfer authoring and assembly instance authoring wanted.** Program prefix `gauth/`; A/B ordinal
 band **900–999** (claimed in `docs/MODEL-AB-LOG.md` in this plan's
 opening commit); blocks named `GAUTH-B<n>`. The live status is the
-tail of `docs/GAUTH-LOG.md`.
+tail of `work/gauth/log.md`.
 
 Every decision this plan leans on is ratified elsewhere and cited,
 not re-litigated: the three-layer split and boundary rules

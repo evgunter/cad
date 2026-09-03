@@ -1833,3 +1833,11 @@ FOUND MAIN RED (display_budget's `include_str!` naming the
 v15 fixture #1224 renamed — a union break gating every PR's Rust
 shards) — routed orchestrator-direct as #1264, per the
 red-goes-straight-to-a-fix social rule.
+
+## Tracker migration (2026-09-03)
+
+This log moved here from `docs/LIB-LOG.md`; the program's contract stays
+`docs/LIBRARY-DESIGN.md` (no plan file). The slate now lives in this
+directory's item files and in `work/STATUS.md` (generated); this log
+stays the narrative. Items created at migration: LIB-TUBE (spec),
+LIB-G17 (parked on issue 1202).

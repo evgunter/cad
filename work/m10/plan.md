@@ -12,7 +12,7 @@ Away-channel tag `(M10 orchestrator)`. A/B ordinal band
 **M10 = 500–599**, claimed in `docs/MODEL-AB-LOG.md`'s banding entry
 in this same PR, per that entry's rule; implementer blocks are named
 `M10-B1, M10-B2, …` (the GUI precedent — unit names occupy
-`M10-<n>`). Live state is `docs/M10-LOG.md`'s tail, never this file.
+`M10-<n>`). Live state is `work/m10/log.md`'s tail, never this file.
 
 ## Ratified ground (cited, not re-litigated)
 
