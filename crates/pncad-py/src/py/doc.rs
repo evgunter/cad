@@ -911,6 +911,111 @@ impl Node {
         })
     }
 
+    /// **A solid tube** — a ring torus, or an elbow of one, from its
+    /// INTENT parameters.
+    ///
+    /// `spine` is a `Node.datum_axis`: its origin is the tube's
+    /// centre and its direction is the spine axis, both used, both
+    /// stored EXACTLY. `u_ref` is the reference direction the
+    /// window's angles are measured from — a dimensionless triple,
+    /// matching `SlotId::Direction`, exactly as `Node.datum_axis`
+    /// takes its own direction.
+    ///
+    /// # This is not `Node.revolve` of a circle
+    ///
+    /// It would build a different body. A revolve reconstructs its
+    /// minor radius through the profile's bulge arithmetic; this door
+    /// stores the number you gave it, so `minor_radius` comes back
+    /// out of the body bit for bit.
+    ///
+    /// # What refuses, and the one thing that does not
+    ///
+    /// A non-unit `u_ref`, a `u_ref` not perpendicular to the axis, a
+    /// degenerate or reversed window, a window reaching one full
+    /// period (say `TubeWindow.full()` instead), and the ring-torus
+    /// convention `R > r > 0` — every one of those is the kernel's own
+    /// typed refusal at `evaluate`, tagged `tube`.
+    ///
+    /// The AXIS is the exception, and it is worth knowing: `spine` is
+    /// a `Node.datum_axis`, and a datum axis NORMALIZES its direction
+    /// when it evaluates — exactly as it does for `Node.revolve`. So
+    /// `datum_axis` given `(0, 0, 2)` is the unit z axis and this
+    /// builds silently; only a zero-length or non-finite direction
+    /// refuses, and it refuses at the DATUM node rather than here.
+    /// `u_ref` is a bare triple that passes through no datum, which is
+    /// why it is the one direction whose length you must get right.
+    ///
+    /// There is no wall argument: a tube with a wall is
+    /// `Node.hollow_tube`, a different node kind.
+    #[staticmethod]
+    fn tube(
+        py: Python<'_>,
+        spine: &NodeId,
+        u_ref: (f64, f64, f64),
+        major_radius: &super::quantity::Length,
+        window: &TubeWindow,
+        minor_radius: &super::quantity::Length,
+    ) -> PyResult<Self> {
+        Ok(Self {
+            inner: d::Node::Tube {
+                spine: spine.0,
+                u_ref: u_ref_expr(py, u_ref)?,
+                major_radius: literal(py, major_radius.0.meters(), d::Dimension::Length)?,
+                window: window.inner.clone(),
+                minor_radius: literal(py, minor_radius.0.meters(), d::Dimension::Length)?,
+            },
+        })
+    }
+
+    /// **A hollow tube** — `Node.tube`'s sibling with a WALL.
+    ///
+    /// `minor_radius` is the OUTER cross-sectional radius and `wall`
+    /// the thickness; the inner wall stores `minor_radius - wall`,
+    /// one subtraction of your own two numbers, so you recover it by
+    /// writing the same subtraction.
+    ///
+    /// **`wall` is REQUIRED and has no default.** Hollowness is
+    /// spelled by which door you call, not by whether you passed an
+    /// argument: a solid tube and a hollow one are different
+    /// artifacts — a full disc against an annulus — and there is no
+    /// `wall=None` that quietly turns this into `Node.tube`.
+    ///
+    /// A `TubeWindow.full()` builds a torus SHELL, whose cavity is a
+    /// void; an arc builds an open elbow of annular section.
+    ///
+    /// # Nothing is pre-checked, and the wall least of all
+    ///
+    /// Everything `Node.tube` refuses, this refuses identically — the
+    /// axis normalizes at the datum here too — plus
+    /// three verdicts only this door can raise: the thickness is not
+    /// positive at tolerance, `minor_radius - wall` is not a bore,
+    /// and — the one neither of the others can see — the gap between
+    /// the two radii the body would STORE collapses, because at a
+    /// large outer radius the subtraction rounds the inner radius
+    /// back onto the outer. All three are the kernel's, decided
+    /// before anything is minted, and all three arrive tagged `tube`.
+    #[staticmethod]
+    fn hollow_tube(
+        py: Python<'_>,
+        spine: &NodeId,
+        u_ref: (f64, f64, f64),
+        major_radius: &super::quantity::Length,
+        window: &TubeWindow,
+        minor_radius: &super::quantity::Length,
+        wall: &super::quantity::Length,
+    ) -> PyResult<Self> {
+        Ok(Self {
+            inner: d::Node::HollowTube {
+                spine: spine.0,
+                u_ref: u_ref_expr(py, u_ref)?,
+                major_radius: literal(py, major_radius.0.meters(), d::Dimension::Length)?,
+                window: window.inner.clone(),
+                minor_radius: literal(py, minor_radius.0.meters(), d::Dimension::Length)?,
+                wall: literal(py, wall.0.meters(), d::Dimension::Length)?,
+            },
+        })
+    }
+
     /// A skinned solid through two or more section profiles.
     ///
     /// `profiles` are upstream profile nodes IN SKIN ORDER — order is
@@ -1849,6 +1954,86 @@ pub(crate) fn load(py: Python<'_>, text: &str) -> PyResult<Loaded> {
     })
 }
 
+/// A reference direction's three components as Scalar literals — the
+/// spelling `Node.datum_axis` gives its own direction, shared so the
+/// two cannot drift.
+fn u_ref_expr(py: Python<'_>, u: (f64, f64, f64)) -> PyResult<[d::Expr; 3]> {
+    Ok([
+        literal(py, u.0, d::Dimension::Scalar)?,
+        literal(py, u.1, d::Dimension::Scalar)?,
+        literal(py, u.2, d::Dimension::Scalar)?,
+    ])
+}
+
+/// **A tube's traversed window** — the kernel's `TubeWindow`, crossing
+/// as a VALUE with two spellings and no third.
+///
+/// A class rather than an optional pair of angles, and that is the
+/// design rather than ceremony: `window=None` would make "the full
+/// ring" the shape you get by not saying anything, when it is one of
+/// two things a caller must actually choose between. `Full` is a
+/// spelling, not an omission, and the kernel refuses an arc that
+/// reaches one full period precisely so the two never blur.
+#[pyclass(module = "pncad", frozen)]
+pub(crate) struct TubeWindow {
+    inner: d::TubeWindow,
+}
+
+#[pymethods]
+impl TubeWindow {
+    /// The full ring — the donut.
+    #[staticmethod]
+    fn full() -> Self {
+        Self {
+            inner: d::TubeWindow::Full,
+        }
+    }
+
+    /// The arc from `t0` to `t1` about the spine axis, measured from
+    /// the reference direction, right-handed. Wedge caps close the
+    /// ends.
+    ///
+    /// Both angles cross as `Angle`, the same dimensioned quantity
+    /// `Node.revolve` takes its sweep angle as — an angle is never a
+    /// bare float on this surface.
+    ///
+    /// Nothing is checked here. A reversed or degenerate span, and a
+    /// span reaching one full period (which must say `full()`), are
+    /// the kernel's own typed refusals at `evaluate`.
+    #[staticmethod]
+    fn arc(
+        py: Python<'_>,
+        t0: &super::quantity::Angle,
+        t1: &super::quantity::Angle,
+    ) -> PyResult<Self> {
+        Ok(Self {
+            inner: d::TubeWindow::Arc {
+                t0: literal(py, t0.0.radians(), d::Dimension::Angle)?,
+                t1: literal(py, t1.0.radians(), d::Dimension::Angle)?,
+            },
+        })
+    }
+
+    fn __repr__(&self) -> String {
+        match &self.inner {
+            d::TubeWindow::Full => "TubeWindow.full()".to_owned(),
+            d::TubeWindow::Arc { .. } => "TubeWindow.arc(...)".to_owned(),
+        }
+    }
+}
+
+/// Every kernel window spelling has a constructor on the python
+/// mirror, enforced in the load-bearing direction (the `BooleanOp`
+/// mirror's argument, verbatim): the match is over the KERNEL enum, so
+/// a variant added there breaks this build rather than leaving the
+/// python surface silently short of it. Never called.
+const fn _binds_every_kernel_window(kernel: &d::TubeWindow) -> &'static str {
+    match kernel {
+        d::TubeWindow::Full => "full",
+        d::TubeWindow::Arc { .. } => "arc",
+    }
+}
+
 /// Register the document surface on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<NodeId>()?;
@@ -1860,6 +2045,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Node>()?;
     m.add_class::<SketchPlane>()?;
     m.add_class::<BooleanOp>()?;
+    m.add_class::<TubeWindow>()?;
     m.add_class::<Loaded>()?;
     m.add_function(wrap_pyfunction!(load, m)?)?;
     Ok(())

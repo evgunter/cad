@@ -48,6 +48,7 @@ from pncad import (
     SketchPlane,
     Start,
     SurfaceKind,
+    TubeWindow,
     Via,
     circle,
     circle_split,
@@ -2451,6 +2452,304 @@ class TestMeshCrossCheck(unittest.TestCase):
         )
 
 
+class TestTubeAndHollowTube(unittest.TestCase):
+    """Tour scenes `tube_along_arc` (row 23), `hollowelbow` (row 25)
+    and `hollowtorus` (row 26), through the recipe doors LIB-TUBE
+    opened.
+
+    Two doors, because a solid tube and a hollow one are different
+    artifacts (the #1205 ruling): `Node.tube` and `Node.hollow_tube`,
+    and the wall is a REQUIRED argument on the second rather than an
+    optional one on a single door.
+
+    The oracles are Pappus, the same forms the tour's `tubewall` scene
+    states:
+
+        solid ring    V = 2*pi**2*R*r**2        A = 4*pi**2*R*r
+        hollow ring   V = 2*pi**2*R*(ro**2 - ri**2)
+        hollow elbow  V = theta*R*pi*(ro**2 - ri**2)
+
+    But volumes are NOT what rows 25/26 are about. Their subject is
+    the STORAGE contract — the door holds the caller's numbers rather
+    than reconstructing them — and a volume row would pass either way.
+    Python cannot read a surface's stored `minor_radius` field (that
+    is `lib_tube_node.rs`, which meters the bits directly), so what
+    this suite pins from the outside is the OBSERVABLE consequence:
+    the differential between the two doors over one document is the
+    bore's own closed form, which is false unless each node reached
+    its own kernel door.
+    """
+
+    R, OUTER, WALL = 2.0, 0.5, 0.125
+    T0, T1 = 0.0, 1.5
+
+    def spine(self, doc, direction=(0.0, 0.0, 1.0)):
+        return doc.insert(
+            Node.datum_axis((0 * m, 0 * m, 0 * m), direction)
+        )
+
+    def test_the_solid_ring_meters_its_closed_form(self):
+        doc = Doc()
+        spine = self.spine(doc)
+        ring = doc.insert(
+            Node.tube(
+                spine,
+                (1.0, 0.0, 0.0),
+                self.R * m,
+                TubeWindow.full(),
+                self.OUTER * m,
+            )
+        )
+        props = evaluate(doc).value(ring).body().mass_properties()
+        self.assertAlmostEqual(
+            props.volume, 2 * math.pi**2 * self.R * self.OUTER**2, places=9
+        )
+        self.assertAlmostEqual(
+            props.surface_area, 4 * math.pi**2 * self.R * self.OUTER, places=9
+        )
+
+    def test_the_hollow_torus_meters_its_closed_form(self):
+        """Row 27: the full window, which closes the inner wall into a
+        CAVITY rather than leaving an open end."""
+        doc = Doc()
+        spine = self.spine(doc)
+        torus = doc.insert(
+            Node.hollow_tube(
+                spine,
+                (1.0, 0.0, 0.0),
+                self.R * m,
+                TubeWindow.full(),
+                self.OUTER * m,
+                self.WALL * m,
+            )
+        )
+        inner = self.OUTER - self.WALL
+        props = evaluate(doc).value(torus).body().mass_properties()
+        self.assertAlmostEqual(
+            props.volume,
+            2 * math.pi**2 * self.R * (self.OUTER**2 - inner**2),
+            places=9,
+        )
+        self.assertAlmostEqual(
+            props.surface_area,
+            4 * math.pi**2 * self.R * (self.OUTER + inner),
+            places=9,
+        )
+
+    def test_the_hollow_elbow_meters_its_closed_form(self):
+        """Row 26: the windowed hollow tube, an open elbow of annular
+        section."""
+        doc = Doc()
+        spine = self.spine(doc, (0.0, 1.0, 0.0))
+        elbow = doc.insert(
+            Node.hollow_tube(
+                spine,
+                (1.0, 0.0, 0.0),
+                self.R * m,
+                TubeWindow.arc(self.T0 * rad, self.T1 * rad),
+                self.OUTER * m,
+                self.WALL * m,
+            )
+        )
+        inner = self.OUTER - self.WALL
+        theta = self.T1 - self.T0
+        area = math.pi * (self.OUTER**2 - inner**2)
+        props = evaluate(doc).value(elbow).body().mass_properties()
+        self.assertAlmostEqual(props.volume, theta * self.R * area, places=9)
+        self.assertAlmostEqual(
+            props.surface_area,
+            theta * self.R * 2 * math.pi * (self.OUTER + inner) + 2 * area,
+            places=9,
+        )
+
+    def test_solid_minus_hollow_is_the_bore_in_one_document(self):
+        """The row that DISCRIMINATES the two doors from outside.
+
+        One document, one spine, one window, two nodes with identical
+        radii. Their volume difference is the bore's Pappus form,
+        which is only true if the second node reached the hollow
+        kernel door — a single door with a mode flag could pass a
+        volume row on either node alone, but not this one."""
+        doc = Doc()
+        spine = self.spine(doc, (0.0, 1.0, 0.0))
+        window = TubeWindow.arc(self.T0 * rad, self.T1 * rad)
+        solid = doc.insert(
+            Node.tube(spine, (1.0, 0.0, 0.0), self.R * m, window, self.OUTER * m)
+        )
+        hollow = doc.insert(
+            Node.hollow_tube(
+                spine,
+                (1.0, 0.0, 0.0),
+                self.R * m,
+                TubeWindow.arc(self.T0 * rad, self.T1 * rad),
+                self.OUTER * m,
+                self.WALL * m,
+            )
+        )
+        ev = evaluate(doc)
+        inner = self.OUTER - self.WALL
+        bore = (self.T1 - self.T0) * self.R * math.pi * inner**2
+        self.assertAlmostEqual(
+            ev.value(solid).body().mass_properties().volume
+            - ev.value(hollow).body().mass_properties().volume,
+            bore,
+            places=9,
+        )
+
+    def test_both_kinds_name_their_own_entities(self):
+        """Both name tables are reachable and PINNED by shape: the
+        revolve emitter names a tube body, so every face, edge and
+        vertex the materializers answer with is a name a later node
+        could carry."""
+        doc = Doc()
+        spine = self.spine(doc)
+        ring = doc.insert(
+            Node.tube(
+                spine, (1.0, 0.0, 0.0), self.R * m, TubeWindow.full(), self.OUTER * m
+            )
+        )
+        elbow = doc.insert(
+            Node.hollow_tube(
+                spine,
+                (1.0, 0.0, 0.0),
+                self.R * m,
+                TubeWindow.arc(self.T0 * rad, self.T1 * rad),
+                self.OUTER * m,
+                self.WALL * m,
+            )
+        )
+        ev = evaluate(doc)
+        # A full solid ring: two half-wall faces, and no cap.
+        self.assertEqual(len(ev.all_faces(ring)), 2)
+        # A hollow elbow: two half-walls per circle plus two annular
+        # caps.
+        self.assertEqual(len(ev.all_faces(elbow)), 6)
+        for node in (ring, elbow):
+            for name in ev.all_faces(node):
+                # Every materialized name resolves back to a frame,
+                # which is what "the emitter named it" means from out
+                # here.
+                self.assertIsNotNone(ev.face_frame(node, name))
+
+    def test_select_where_narrows_a_hollow_tubes_own_faces(self):
+        """The selection surface DOES reach a hollow tube naturally,
+        measured rather than assumed: a hollow elbow's boundary is
+        torus walls and planar annular caps, which is exactly the
+        distinction `GeomPred.surface_kind` draws, and the rim edges
+        between them are what `adjacent_kinds` draws.
+
+        Nothing is contrived to make this row exist — a tube node
+        takes no selection of its own, so the natural flow is
+        narrowing what it PRODUCES, and that is the same flow every
+        other body node offers."""
+        doc = Doc()
+        spine = self.spine(doc, (0.0, 1.0, 0.0))
+        elbow = doc.insert(
+            Node.hollow_tube(
+                spine,
+                (1.0, 0.0, 0.0),
+                self.R * m,
+                TubeWindow.arc(self.T0 * rad, self.T1 * rad),
+                self.OUTER * m,
+                self.WALL * m,
+            )
+        )
+        ev = evaluate(doc)
+        faces = Selector.of(NamePat.of_kind(EntityKind.Face))
+        edges = Selector.of(NamePat.of_kind(EntityKind.Edge))
+        walls = ev.select_where(
+            elbow, faces, [GeomPred.surface_kind(SurfaceKind.Torus)]
+        )
+        caps = ev.select_where(
+            elbow, faces, [GeomPred.surface_kind(SurfaceKind.Plane)]
+        )
+        self.assertEqual(len(walls), 4, "two half-walls per circle")
+        self.assertEqual(len(caps), 2, "one annular cap per open end")
+        self.assertEqual(
+            sorted(walls + caps), sorted(ev.all_faces(elbow)),
+            "the two filters partition the boundary",
+        )
+        rims = ev.select_where(
+            elbow,
+            edges,
+            [GeomPred.adjacent_kinds(SurfaceKind.Plane, SurfaceKind.Torus)],
+        )
+        self.assertTrue(rims, "a cap meets a wall at a rim edge")
+
+    def test_the_wall_is_required_and_the_three_wall_arms_refuse(self):
+        """The wall has no default: `Node.tube` does not accept one and
+        `Node.hollow_tube` does not do without one. And all three wall
+        verdicts are reachable, tagged, through the hollow door only —
+        the solid door has no wall to be wrong about."""
+        with self.assertRaises(TypeError):
+            Node.tube(
+                self.spine(Doc()),
+                (1.0, 0.0, 0.0),
+                self.R * m,
+                TubeWindow.full(),
+                self.OUTER * m,
+                self.WALL * m,
+            )
+
+        def refuse(minor, wall):
+            doc = Doc()
+            spine = self.spine(doc)
+            node = doc.insert(
+                Node.hollow_tube(
+                    spine,
+                    (1.0, 0.0, 0.0),
+                    self.R * m,
+                    TubeWindow.full(),
+                    minor * m,
+                    wall * m,
+                )
+            )
+            with self.assertRaises(EvaluationError) as caught:
+                evaluate(doc).value(node)
+            self.assertEqual(caught.exception.kind, "tube")
+            return str(caught.exception)
+
+        # Not a wall at all; a wall that eats the bore; and a wall
+        # under the outer radius's own ulp, which the first two cannot
+        # see because it is a fact about the STORED radii.
+        self.assertIn("tube_wall", refuse(self.OUTER, 0.0))
+        self.assertIn("tube_wall_bore", refuse(self.OUTER, self.OUTER))
+        doc = Doc()
+        spine = self.spine(doc)
+        collapsed = doc.insert(
+            Node.hollow_tube(
+                spine, (1.0, 0.0, 0.0), 1e14 * m, TubeWindow.full(),
+                1e12 * m, 1e-6 * m,
+            )
+        )
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(collapsed)
+        self.assertIn("tube_wall_gap", str(caught.exception))
+
+    def test_a_window_is_a_value_with_two_spellings(self):
+        """`TubeWindow.full()` is a CHOICE, not an omitted argument —
+        there is no `window=None` — and an arc reaching one full period
+        refuses rather than being read as the full ring."""
+        with self.assertRaises(TypeError):
+            Node.tube(
+                self.spine(Doc()), (1.0, 0.0, 0.0), self.R * m, None, self.OUTER * m
+            )
+        doc = Doc()
+        spine = self.spine(doc)
+        node = doc.insert(
+            Node.tube(
+                spine,
+                (1.0, 0.0, 0.0),
+                self.R * m,
+                TubeWindow.arc(0 * rad, 7 * rad),
+                self.OUTER * m,
+            )
+        )
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(node)
+        self.assertEqual(caught.exception.kind, "tube")
+
+
 class TestNamedGapsAreStillGaps(unittest.TestCase):
     """The NO rows' gaps, asserted as absences.
 
@@ -2463,10 +2762,11 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
                 "boolean", "chamfer", "datum_axis", "datum_plane", "declare",
-                "extrude", "fillet", "instantiate_part", "loft", "mate",
+                "extrude", "fillet", "hollow_tube", "instantiate_part",
+                "loft", "mate",
                 "placed_union",
                 "placed_union_at", "polygon", "profile", "revolve", "split",
-                "transform",
+                "transform", "tube",
             ],
         )
         self.assertEqual(
@@ -2576,10 +2876,10 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `TestTiltedcut` and `TestCrosslapExploded`/`TestDiepips`.
         # `declare` left it when LIB-PYG5 closed G5 — the positive
         # forms are `TestTable` and `TestCrosslapGlued`.
-        # `sweep` and `tube` STAY: `wire_sweep` refuses unconditionally
-        # (SWEEP_FRONTIER, the path-composition lane banked past M6),
-        # and no `Node::Tube` exists at all. `pattern` stays for the
-        # measured reason below — and note what is NOT in this list:
+        # `sweep` STAYS: `wire_sweep` refuses unconditionally
+        # (SWEEP_FRONTIER, the path-composition lane banked past M6).
+        # `tube` LEFT this list at LIB-TUBE — see the paragraph two
+        # below. `pattern` stays for the measured reason below — and note what is NOT in this list:
         # `placed_union`/`placed_union_at` left it when LIB-PYPU bound
         # the group boolean, whose value is an ordinary body.
         #
@@ -2590,12 +2890,20 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # longer has: the kernel verb ships (#1048) and `Node` has no
         # variant for it, so the scene that uses it has no document.
         #
+        # `tube` LEFT this list at LIB-TUBE, and it left as TWO
+        # doors: `Node::Tube` and `Node::HollowTube` landed under the
+        # #1205 split ruling, so `Node.tube` and
+        # `Node.hollow_tube` bind one kernel door each and the wall is
+        # required on the second. `hollow_tube` was never on this list
+        # to leave — it never existed to be absent — which is why the
+        # positive row above names both.
+        #
         # `instantiate_part` and `mate` LEFT this list at LIB-G18b,
         # and `set_placement` with them — it was never a `Node` at
         # all, it is `DocEdit.set_placement`, which is where the A11
         # rule that placement is the CLUSTER's puts it.
         for node_kind in [
-            "sweep", "tube", "pattern",
+            "sweep", "pattern",
             "shell", "shell_open",
         ]:
             with self.subTest(node=node_kind):
@@ -2812,11 +3120,20 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             Node.profile(circle((0 * m, 0 * m), 1 * m), plane="yz")
 
     def test_a_swept_solid_is_still_out_of_reach(self):
-        """G2's remaining half, positively: there is no `Node.sweep`
-        to call, and the reason is not an unbound door — `wire_sweep`
-        refuses unconditionally, so binding one would flip no row."""
+        """G2's SWEEP half, positively: there is no `Node.sweep` to
+        call, and the reason is not an unbound door — `wire_sweep`
+        refuses unconditionally (U4/LQ3, kernel-owned), so binding one
+        would flip no row.
+
+        The TUBE half is closed and this row says so in the direction
+        that can fail: both doors exist, and they are two, because a
+        solid tube and a hollow one are different artifacts. A future
+        edit that folded them back into one door with an optional wall
+        fails here.
+        """
         self.assertFalse(hasattr(Node, "sweep"))
-        self.assertFalse(hasattr(Node, "tube"))
+        self.assertTrue(hasattr(Node, "tube"))
+        self.assertTrue(hasattr(Node, "hollow_tube"))
 
 
 if __name__ == "__main__":
