@@ -2,8 +2,9 @@
 id: LIB-B-CANCEL
 kind: unit
 title: binding census family B-CANCEL
-status: review
+status: closed
 opened: 2026-09-03
+closed: 2026-09-03
 pr: 1676
 branch: lib/b-cancel
 ---
