@@ -542,6 +542,101 @@ impl Doc {
         self.inner.bit_eq(&other.inner)
     }
 
+    /// **Read `source` as an expression** against this document's
+    /// declared parameters (`parse_expr`).
+    ///
+    /// The one door inward. The parser is CHECKING — every reduction
+    /// runs the expression layer's smart constructors — so a text
+    /// that survives it is a dimension-checked tree, and the whole
+    /// algebra (operators, `sin`/`cos`/`tan`/`atan2`/`min`/`max`,
+    /// unit suffixes, parameter references) is reachable through this
+    /// one call.
+    ///
+    /// The DECLARATIONS come from the document, not from the caller:
+    /// a bare identifier is a reference to a parameter this document
+    /// declares, and it carries that parameter's dimension. So
+    /// `"width / 2"` parses in a document that declares `width` and
+    /// refuses `unknown_param` in one that does not — which is the
+    /// same table `apply` re-checks a stored expression against, not
+    /// a second one.
+    ///
+    /// Refuses typed on `ParseError`, carrying `variant` and the byte
+    /// offset `pos`; a reduction the dimension checker refused
+    /// arrives as `variant == "dimension"` with the constructor's own
+    /// tag as `kind`.
+    fn parse_expr(&self, py: Python<'_>, source: &str) -> PyResult<super::expr::Expr> {
+        let declared = self
+            .inner
+            .params()
+            .iter()
+            .map(|(name, param)| (name.clone(), param.dim()))
+            .collect();
+        d::parse_expr(source, &declared)
+            .map(super::expr::Expr)
+            .map_err(|err| super::expr::parse_err(py, &err))
+    }
+
+    /// **This expression's value** under the document's current
+    /// parameter values (`eval`).
+    ///
+    /// Answers a `Length` for a length expression, an `Angle` for an
+    /// angle, and a bare `float` for a dimensionless one — the
+    /// crossing rule the rest of this surface follows, rather than
+    /// the kernel-unit `f64` the Rust door returns with its dimension
+    /// erased.
+    ///
+    /// **Not `evaluate(doc)`.** That one runs the RECIPE and answers
+    /// geometry; this one runs one expression's arithmetic and
+    /// answers a number. Nothing about the document changes either
+    /// way.
+    ///
+    /// A `Count` expression does not evaluate here: counts are exact,
+    /// and promotion to a continuous value is explicit in the
+    /// expression language or not at all, so this refuses
+    /// `count_expr_in_continuous_eval` and `eval_count` is the door.
+    /// Refuses typed on `EvalError` otherwise — `unknown_param` names
+    /// the parameter with no binding, `param_dimension_mismatch`
+    /// names both dimensions, and `non_finite_result` is the
+    /// arithmetic having overflowed or hit a pole.
+    fn eval(&self, py: Python<'_>, expr: &super::expr::Expr) -> PyResult<Py<PyAny>> {
+        let env = self.inner.param_env::<f64>();
+        let value = d::eval(&expr.0, &env).map_err(|err| super::expr::eval_err(py, &err))?;
+        // Re-dimensioning what `eval` erased: the expression's own
+        // dimension is what says which quantity the number is, and it
+        // is correct by construction. `Count` cannot reach here — the
+        // evaluator refused it above — and `Scalar` is dimensionless
+        // by definition, so both fall to the bare float.
+        match expr.0.dim() {
+            d::Dimension::Length => Py::new(
+                py,
+                super::quantity::Length(pncad::quantity::Length::from_meters(value)),
+            )
+            .map(|v| v.into_any()),
+            d::Dimension::Angle => Py::new(
+                py,
+                super::quantity::Angle(pncad::quantity::Angle::from_radians(value)),
+            )
+            .map(|v| v.into_any()),
+            d::Dimension::Count | d::Dimension::Scalar => {
+                value.into_pyobject(py).map(|v| v.unbind().into_any())
+            }
+        }
+    }
+
+    /// **This count expression's exact value** under the document's
+    /// current parameter values (`eval_count`).
+    ///
+    /// Exact integer arithmetic, never floating point: a count that
+    /// overflows refuses `count_overflow` rather than wrapping, since
+    /// a wrapped count is a fabricated one. A non-`Count` expression
+    /// refuses `continuous_expr_in_count_eval` naming the dimension
+    /// it actually has — a count is never inferred from a continuous
+    /// value.
+    fn eval_count(&self, py: Python<'_>, expr: &super::expr::Expr) -> PyResult<i64> {
+        let env = self.inner.param_env::<f64>();
+        d::eval_count(&expr.0, &env).map_err(|err| super::expr::eval_err(py, &err))
+    }
+
     /// Serialize this document to the persistence text format
     /// (the schema-v4 doors, via the curated façade).
     ///

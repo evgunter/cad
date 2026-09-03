@@ -129,14 +129,43 @@ pub enum ErrorClass {
     /// `DimensionError`, raised on the LITERAL-CONSTRUCTION door.
     /// The Python class is `LiteralError`.
     ///
-    /// That type has genuine dimension-mismatch arms too, and `load`
-    /// reaches them (`WireExpr::rebuild` re-runs every check through
-    /// the operator builders), but they arrive as
-    /// [`ErrorClass::Persist`] with the `parse` tag rather than under
-    /// any dimension class — issue #694. Nothing here is routed to
+    /// That type has genuine dimension-mismatch arms too, and two
+    /// other doors reach them. `load` does (`WireExpr::rebuild`
+    /// re-runs every check through the operator builders) and they
+    /// arrive as [`ErrorClass::Persist`] with the `parse` tag rather
+    /// than under any dimension class — issue #694. The expression
+    /// TEXT door does too, and they arrive as [`ErrorClass::Parse`]
+    /// with `variant == "dimension"` and the mismatch's own tag as
+    /// `kind`, which is the one of the three that keeps the inner
+    /// refusal branchable. Nothing anywhere is routed to
     /// [`ErrorClass::Dimension`], which is the quantity boundary's
     /// own check and a different type.
     Literal,
+    /// The expression TEXT door refused: `parse_expr` could not read
+    /// the source as an expression. The Python class keeps the Rust
+    /// type's own name, `ParseError`.
+    ///
+    /// Its `Dimension` arm forwards the expression layer's
+    /// `DimensionError` — the type [`Self::Literal`] also carries —
+    /// and it lands here rather than there because what refused is
+    /// the PARSE: the byte offset of the token whose reduction failed
+    /// is the recourse, and a `LiteralError` carries no position to
+    /// put it in. The inner refusal's own tag rides along as `kind`,
+    /// so nothing is lost by the routing.
+    Parse,
+    /// An expression the evaluator refused: a parameter with no
+    /// binding, a dimension the environment disagrees with, a count
+    /// crossing the continuous door (or the reverse), exact count
+    /// arithmetic that overflowed, or a non-finite result. The Python
+    /// class keeps the Rust type's own name, `EvalError`.
+    ///
+    /// Deliberately NOT a numeric-domain class. Division by zero and
+    /// out-of-domain trig are not refusals in the expression layer at
+    /// all — they follow the kernel's poison-value policy through the
+    /// scalar, because the AST has no branches to hide them behind —
+    /// and they reach this class only where they make the FINAL value
+    /// non-finite, under the `non_finite_result` tag.
+    Eval,
     /// A save or load the persistence doors refused.
     Persist,
     /// An export the document-layer door refused.
@@ -246,6 +275,8 @@ impl ErrorClass {
             Self::Validation => "ValidationError",
             Self::Dimension => "DimensionError",
             Self::Literal => "LiteralError",
+            Self::Parse => "ParseError",
+            Self::Eval => "EvalError",
             Self::Persist => "PersistError",
             Self::Export => "ExportError",
             Self::Tessellate => "TessellateError",

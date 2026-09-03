@@ -26,9 +26,9 @@
 //! the crossing does instead.
 
 use pncad::document::{
-    AssemblyError, CheckEvidence, ChecksError, DimensionError, EditError, InlineError, MateFault,
-    NodeErrorKind, PersistError, PlacementRuleFault, RecordedProgramError, RefusedRef, RootFault,
-    SplitError, UpdateError,
+    AssemblyError, CheckEvidence, ChecksError, DimensionError, EditError, EvalError, InlineError,
+    MateFault, NodeErrorKind, ParseError, PersistError, PlacementRuleFault, RecordedProgramError,
+    RefusedRef, RootFault, SplitError, UpdateError,
 };
 use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
@@ -554,6 +554,49 @@ pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
         DimensionError::NonFiniteLiteral => "non_finite",
         DimensionError::DisplayUnitMismatch { .. } => "display_unit_mismatch",
         DimensionError::UnknownDisplayUnit { .. } => "unknown_display_unit",
+    }
+}
+
+/// The stable tag for an expression TEXT-door refusal (`parse_expr`).
+///
+/// The `Dimension` arm keeps a tag of its OWN rather than borrowing
+/// the inner refusal's: what refused is the parse, at a byte offset
+/// the inner `DimensionError` does not carry. The inner tag crosses
+/// beside it as the exception's `kind`
+/// ([`expr_dimension_error_tag`]), so a caller who wants to branch on
+/// WHICH reduction was refused still can.
+pub fn parse_error_tag(err: &ParseError) -> &'static str {
+    match err {
+        ParseError::UnexpectedChar { .. } => "unexpected_char",
+        ParseError::UnexpectedEnd { .. } => "unexpected_end",
+        ParseError::UnexpectedToken { .. } => "unexpected_token",
+        ParseError::TrailingInput { .. } => "trailing_input",
+        ParseError::MalformedNumber { .. } => "malformed_number",
+        ParseError::IntegerOverflow { .. } => "integer_overflow",
+        ParseError::UnknownUnit { .. } => "unknown_unit",
+        ParseError::UnknownFunction { .. } => "unknown_function",
+        ParseError::WrongArity { .. } => "wrong_arity",
+        ParseError::UnknownParam { .. } => "unknown_param",
+        ParseError::Dimension { .. } => "dimension",
+    }
+}
+
+/// The stable tag for an evaluation refusal (`eval` / `eval_count`).
+///
+/// Note what is NOT here: division by zero and out-of-domain trig.
+/// The evaluator has no branches to hide a numeric domain behind, so
+/// those follow the kernel's poison-value policy through the scalar
+/// and reach a caller as `non_finite_result` — on the finished VALUE,
+/// at the end of the evaluation, rather than at the operation.
+pub fn eval_error_tag(err: &EvalError) -> &'static str {
+    match err {
+        EvalError::UnknownParam(_) => "unknown_param",
+        EvalError::ParamDimensionMismatch { .. } => "param_dimension_mismatch",
+        EvalError::CountExprInContinuousEval => "count_expr_in_continuous_eval",
+        EvalError::ContinuousExprInCountEval { .. } => "continuous_expr_in_count_eval",
+        EvalError::CountOverflow => "count_overflow",
+        EvalError::CountToScalarOutOfRange(_) => "count_to_scalar_out_of_range",
+        EvalError::NonFiniteResult => "non_finite_result",
     }
 }
 
