@@ -472,7 +472,6 @@ jobs:
           grep -q 'corrupt input (release profile)' crates/topo/src/review_m1_pr2/release_corruption.rs
           grep -q 'corrupt input (release profile)' crates/topo/src/review_m1_pr4.rs
 
-
   # THE WALL-CLOCK HALF OF THE OLD ci.yml JOB (M4 PR 8a spec D2, M4-PLAN F8).
   # It prints a per-document table (full rebuild + incremental recompute,
   # median of 5) and diffs it against the newest entry in the timing history,

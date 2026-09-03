@@ -670,6 +670,7 @@ measured, and the largest line is not the one you would guess:
 | `rebuild latency` | ~2 | its own compile, deliberately not the archive |
 | `gate` + `record` | ~2 | |
 | `opt-level` | ~2 | the free arm only; **+~25-30 one night a week** when the two measured arms run |
+| `corrupt input (release profile)` | ~2 | S-TCOST C1. The job's own audit-table line, unchanged by the move: it is one `-p topo --lib` release compile and five rows that execute in milliseconds. Read at 98 s / 2 billed on run `33722922975`, where it was still a ci.yml job on a comparable tree. The `an ordinary night` line below does not yet include this row |
 | **an ordinary night** | **~8** | **~34 on a calibration night** (both figures assume `demoted` is short-circuited; add ~11 once anything is demoted) |
 
 **`demoted` is over half of it, and the reason is structural rather than

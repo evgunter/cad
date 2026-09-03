@@ -359,11 +359,34 @@ jobs:
       run_interval_oracle: ${{ steps.classify.outputs.RUN_INTERVAL_ORACLE }}
       # NO `run_topo_release` OUTPUT. The filter still emits the key — the
       # local half reads it (`local-scripts/ci-local.sh`'s
-      # `corrupt input (release profile)` row) — but no job in THIS file
-      # consumes it any more: that row moved to nightly.yml, where it runs
-      # ungated, and the tombstone where it stood carries the argument.
-      # Publishing an output nothing reads is how a reader concludes a job
-      # still exists here.
+      # `corrupt input (release profile)` row) — but the QUESTION that
+      # output answered has no hosted job left to ask it of: "does this
+      # run gate the release-profile row?" has one answer now, `no`, on
+      # every run, because that row moved to nightly.yml and runs ungated
+      # there. The tombstone below carries the argument.
+      #
+      # NOT "an output nothing reads is dead wiring" — this job publishes
+      # two of those on purpose, and they are eight lines down.
+      # `config_source` and `lane_advisory` are read by no job and exist
+      # so that a question ABOUT THIS RUN — which configuration gated it,
+      # was it possibly about the axis it did not gate — is answerable
+      # from the run's outputs. That test is what `run_topo_release`
+      # fails: it would not describe this run, it would describe a job
+      # that is not in this workflow, and its value would be the same
+      # function of the diff it always was with nothing here acting on it.
+      # An output is worth keeping when a reader needs it to interpret
+      # THIS run; it is not worth keeping to record that a job used to
+      # live here.
+      #
+      # AND NO VERDICT STEP, which is where this differs from the python
+      # suite's seed-keyed axis (that one prints RUN/SKIP with its seeds
+      # in a step of this job). A verdict is worth a step when the run
+      # MADE a decision a reader could otherwise only infer from a job's
+      # absence. This run makes none: the demotion is unconditional, so
+      # the step would print one identical constant on every run forever,
+      # and a constant restated in a workflow step is the second copy this
+      # file has twice watched drift away from its source. The tombstone
+      # is where a constant belongs.
       run_k_lint: ${{ steps.classify.outputs.RUN_K_LINT }}
       # The sampled matrix point (scripts/ci-filter.py, CONFIGURATION
       # SAMPLING) — or the REQUESTED one: a dispatch input or a `CI-Config:`
@@ -3356,9 +3379,9 @@ jobs:
       # the tally every merge and prints it per crate.
       #
       # WHY HERE AND NOT IN A JOB OF ITS OWN, which is the shape
-      # `release-corruption` above would suggest. That job is separate
-      # because release artifacts share no fingerprint with any
-      # dev-profile job, so it had to own a cache key. The opposite holds
+      # `release-corruption` — nightly.yml's since 2026-09-03 — would
+      # suggest. That job is separate because release artifacts share no
+      # fingerprint with any dev-profile job, so it had to own a cache key. The opposite holds
       # here: this is already the only job that passes `--features
       # probe`, so its cache is where the probe-instantiated graph lives,
       # and its gate (`run_k_lint`, "whenever anything builds") is
