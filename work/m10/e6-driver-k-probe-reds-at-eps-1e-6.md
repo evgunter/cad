@@ -2,10 +2,11 @@
 id: e6-driver-k-probe-reds-at-eps-1e-6
 kind: issue
 title: E6 driver K-telemetry row reds at eps=1e-6 (nothing certified, nothing to sample) - pre-existing on main, never drawn by the klint axis
-status: open
+status: closed
 opened: 2026-08-31
 github: 1342
 refs: [1290]
+closed: 2026-09-03
 ---
 
 ## From GitHub issue 1342
@@ -60,3 +61,16 @@ and #1290's own suites are green at every lane and ε locally.
 ## Home
 
 M10: the row is `crates/editor-core/tests/m10_3_driver_k_probe_interval.rs`, inside M10's `crates/editor-core/tests/m10*` territory glob, and the E6 interval subdivision driver is M10's charter.
+
+## Closed (2026-09-03, the M10-6 lane's k-probe hotfix branch)
+
+Closed with `driver-k-probe-nothing-certified-red` (same defect, third
+report). The suggested disposition was "the slabs need to scale so the
+driver has something to certify at a coarse ε, or the row needs an
+honest ε-scoped skip". Neither, in the end, and the measurement is why:
+the slabs ALREADY scale — they are ε-relative and certify 1 and 344
+leaves identically at 1e-2, 1e-6, 1e-9 and 1e-12 — so there was no
+ε-scoped population to skip. The emptiness came from the leaf budget
+(#1343, fixed at `eb21e503`), and what this change fixes is the row's
+shape: an empty certified set is reported as a census line, at any ε
+and any dial, and never as a panic.
