@@ -98,6 +98,9 @@ TIER_BLIND = (
     # else it would skip those while claiming the repo. No count is written
     # here: the row derives and prints its own from `git ls-files`.
     "scripts/check-python-lint.py",
+    # The work tracker's lint. Its inputs are work/ and docs/ — markdown,
+    # TIER=docs; work/README.md is the contract it enforces.
+    "scripts/work.py lint",
 )
 
 # Declared asymmetries in claim 1. `path: (half, reason)`. An entry is a

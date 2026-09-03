@@ -3,10 +3,11 @@
 Read the files as relevance dictates; this index says what each is for,
 not what it says.
 
-**Finding the work.** Each program has a `docs/<NAME>-PLAN.md` and a
-`docs/<NAME>-LOG.md`; **the tail of a log is that program's live status
-— it is never here.** A program is closed when its
-`docs/<NAME>-EXIT-WALK.md` is ratified, and that walk is then its
+**Finding the work.** `work/` is the tracker and `work/README.md` its
+contract: `work/STATUS.md` is the board, `work/<program>/` holds a
+program's `program.md`, `plan.md`, `log.md` and one file per open
+item; **live state is there and never here.** A program is closed when
+its `docs/<NAME>-EXIT-WALK.md` is ratified, and that walk is then its
 done-state of record. Ratified design is `docs/DESIGN.md` plus its
 companion table. Merge gate = hosted Actions.
 

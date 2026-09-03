@@ -244,6 +244,11 @@ echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
 # HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
 # HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
+# The work tracker's lint (work/README.md) reads work/ and docs/ — markdown,
+# the docs tier — so it sits here too. The territory row is advisory on both
+# halves: it prints paths another program owns and never fails.
+# HOSTED MIRROR: mirror / work tracker lint (work/ items resolve and docs/ holds no plan or log)
+# HOSTED MIRROR: mirror / work tracker territory (advisory)
 tier_blind_rows() {
   local rc=0
   scripts/gates/gate-roster.sh --selftest || rc=1
@@ -255,6 +260,9 @@ tier_blind_rows() {
   scripts/tess_budget_cut.sh --selftest || rc=1
   python3 scripts/check-python-lint.py --selftest || rc=1
   python3 scripts/check-python-lint.py || rc=1
+  python3 scripts/work.py --selftest || rc=1
+  python3 scripts/work.py lint || rc=1
+  python3 scripts/work.py territory --base "$BASE" || rc=1
   return $rc
 }
 echo

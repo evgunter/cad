@@ -1267,7 +1267,7 @@ topology change is stated, not emergent.
   `Err` and keeps the body can therefore fire a later operator's
   postcondition from **API misuse rather than a kernel bug**. That
   state class is not among the D2 addendum's five and is open as
-  **S14** in `docs/SMELL-SCAN-2026-08.md`; this footnote records the
+  **S14** (`work/code-quality/S14.md`); this footnote records the
   door, not a disposition. Everywhere else a firing postcondition is a
   kernel bug by definition. What the kernel then DOES about such a state is the D2
   addendum below — which supersedes this footnote's original
@@ -2408,7 +2408,7 @@ shipped state.
   row-5 assert meeting a real part is information nothing else produces.
   **Deleting the stanza is a real reduction in what a release build
   checks, so it is a decision to take at publish rather than a chore to
-  tick off** — `SMELL-SCAN-2026-08.md`'s **S65** is the worked example
+  tick off** — **S65** (`work/code-quality/S65.md`) is the worked example
   (the #678 watertightness backstop, ruled row 5 in **#884**: the
   `debug_assert` is the settled mechanism, and only its release REACH
   was ever in question — which is exactly what this stanza sets).

@@ -779,6 +779,27 @@ jobs:
       # above turns on WHERE the check runs, not on what it costs.
       - name: change filter selftest (the docs tier fails open)
         run: python3 scripts/ci-filter.py --selftest
+      # THE WORK TRACKER'S LINT (work/README.md is the contract). Its inputs
+      # are `work/` and `docs/` — markdown, TIER=docs — so it is sited here for
+      # the same reason as every row above. Stdlib python and git; the
+      # selftest builds a scratch repo.
+      - name: work tracker lint (work/ items resolve and docs/ holds no plan or log)
+        run: |
+          python3 scripts/work.py --selftest
+          python3 scripts/work.py lint
+      # TERRITORY IS ADVISORY. Every path in this PR's diff that another
+      # program's globs own is printed as a warning annotation; nothing reds.
+      # The diff is base-sha..HEAD on the merge ref, which is the PR's own
+      # change set and needs no history — one extra depth-1 fetch.
+      - name: work tracker territory (advisory)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          git fetch --depth=1 origin "$BASE_SHA"
+          git diff --name-only "$BASE_SHA" HEAD \
+            | python3 scripts/work.py territory --files - --branch "$HEAD_REF"
       # The script that writes the tessellation-budget baseline's own
       # provenance line, and refuses to walk it forward past the rows it
       # describes. Sited HERE, in the tier-blind job, because it is git

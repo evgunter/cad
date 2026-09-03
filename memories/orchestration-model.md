@@ -24,7 +24,9 @@ Evan's standing instructions for implementation work:
   questions with several viable answers where Evan's preference matters.
   When unsure which kind a decision is, treat it as a fork.
 - **Keep an orchestrator log of decisions made unilaterally** and keep
-  state-of-work knowledge in version control.
+  state-of-work knowledge in version control: the program's
+  `work/<program>/log.md`, and one item file per unit, issue or ruling
+  (`work/README.md` in full before the first dispatch).
 - **Before stopping, commit all crucial state** (log updates, memories,
   in-flight branch status) so the next session can resume cold.
 
@@ -65,10 +67,11 @@ Evan's standing instructions for implementation work:
   both the thread subscription and the self-suppression key); to watch a
   thread your filter misses, post "(<ROLE> orchestrator) subscribing.";
   SIGN issue bodies you file.
-- **Channel to Evan**: questions go out as design-conversation PRs (edit
-  the doc to state the question, update in place with the answer) or
-  issues — NEVER comments on merged PRs, he doesn't scan them. Watch 👍
-  reactions only on comments you explicitly requested sign-off on.
+- **Channel to Ev**: questions go out as PRs titled `[ev] ...` (edit
+  the doc to state the question, update in place with the answer) with
+  `needs_ev: true` on the asking item in `work/` — NEVER comments on
+  merged PRs, he doesn't scan them. Watch 👍 reactions only on comments
+  you explicitly requested sign-off on.
 - **State-sync records RIDE THE UNIT'S OWN PR (Evan, 2026-08-27)** — a
   unit's ledger row and log entries go on as one more commit to that
   unit's branch. Two conditions: **LAST, after both reviews are
