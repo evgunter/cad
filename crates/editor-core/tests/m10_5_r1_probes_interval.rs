@@ -149,9 +149,10 @@ fn query(bound: ClearanceBound, config: ClearanceConfig) -> ClearanceQuery<'stat
 
 // ------------------------------------------------ claim 2 / deviation D4
 
-/// **PINNED COUNTEREXAMPLE (D4).** The interval BVH prunes on a RAW
-/// compare `separation_lo > c`, and the funnel classifies through the
-/// band. Inside the band the two disagree, and the pruned answer wins.
+/// **PIN (D4), and R1's counterexample before it was fixed.** The
+/// interval BVH USED TO prune on a raw compare `separation_lo > c`,
+/// where the funnel classifies through the band. Inside the band the
+/// two disagreed, and the pruned answer won.
 ///
 /// Under `SELF_INTERSECTION_GAP` the module's own prose (and ledger row
 /// F17) says a definite `Sign::Zero` — two faces coincident at the
@@ -212,11 +213,11 @@ fn the_bvh_prune_decides_inside_the_band_where_the_funnel_would_not() {
     );
 }
 
-/// **EVIDENCE.** The same two questions when the tree CANNOT prune
-/// (the gap is inside the box widening, so the boxes overlap): what the
-/// funnel does with a pair it is actually handed. Read beside the row
-/// above — the verdict a coincident-at-tolerance pair gets depends on
-/// whether the tree happened to hand it over.
+/// **EVIDENCE.** The same two questions when the tree could not prune
+/// even under the old raw compare (the gap is inside the box widening,
+/// so the boxes overlap): what the funnel does with a pair it is
+/// actually handed. Read beside the row above — which is the point of
+/// the fix, since the two now agree where they used to diverge.
 #[test]
 fn a_pair_the_tree_hands_over_is_classified_at_the_funnel() {
     let (doc, a, b) = blocks(eps() / 256.0);
