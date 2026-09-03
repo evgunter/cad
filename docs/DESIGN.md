@@ -14,18 +14,18 @@ a reader entering here should know all of them exist.
 | `docs/CURVED-DESIGN.md` | RATIFIED (#85) | Curved-geometry program: C1–C12 (locus ladder, certificates, SSI, pcurves, dispatch, fillets, NURBS scope) |
 | `docs/NAMING-DESIGN.md` | RATIFIED (#74) | Persistent naming N1–N7 (derivation-path names, split/merge policy, name table) |
 | `docs/SOLVER-DESIGN.md` | RATIFIED (#79) | GQ1 witness mechanism W1–W9 (solved assignments, certification, `WitnessBifurcation`) |
-| `docs/ERROR-DESIGN.md` | RATIFIED (#110) | Error-propagation program E1–E11 (duals, stackups, subdivision driver, trichotomy); RUNNING as the M10 program (`docs/M10-PLAN.md` / `docs/M10-LOG.md`) |
+| `docs/ERROR-DESIGN.md` | RATIFIED (#110) | Error-propagation program E1–E11 (duals, stackups, subdivision driver, trichotomy); RUNNING as the M10 program (`work/m10/plan.md` / `work/m10/log.md`) |
 | `docs/DUAL-DESIGN.md` | RATIFIED (#1146) | The Dual contract DL1–DL6 (M10-D): a Dual is tangent transport and never certifies (D1's hedge closed); ContentBits feeds both channels; certified gates absent at Dual by scalar policy; Enclosure gated; the delegation rule; poison-vs-widen in certified lanes |
 | `docs/PROFILE-LIFT-DESIGN.md` | RATIFIED with a recorded hedge (#1151) | The profile-parameter lift PP1–PP6 (M10-P): guided replay — structure f64-once as the witness, geometry at the lane scalar with every consumed decision re-verified at `T`; canonicalization and naming pinned; the f64 build path bit-identical |
 | `docs/CONTACT-DESIGN.md` | RATIFIED (#178) | Contact census & declared contact C1–C8 (closes CURVED OQ5); the C7 join lane shipped at M9 |
 | `docs/PATHS-DESIGN.md` | RATIFIED (#124) | PartialPath authoring algebra (S5); implemented at LIB U2 |
 | `docs/PROFILES-V2-DESIGN.md` | RATIFIED (#242) | Profiles-as-programs V1–V8: the stored profile-program, Expr-bearing steps, the replay driver; implemented at the LIB SWITCH units |
 | `docs/SELECT-DESIGN.md` | RATIFIED (#286) | Geometric selectors, the detect/declare protocol, and the GQ7 re-homing |
-| `docs/GUI-DESIGN.md` | RATIFIED (G1–G5) | GUI/editor architecture: three-layer split, document-as-value, edit vocabulary; the v1 GUI program is CLOSED — plan `docs/GUI-PLAN.md`, exit walk `docs/GUI-EXIT-WALK.md` (ratified #1121, 2026-08-28); GUI-5 and GUI-6 banked post-v1 |
+| `docs/GUI-DESIGN.md` | RATIFIED (G1–G5) | GUI/editor architecture: three-layer split, document-as-value, edit vocabulary; the v1 GUI program is CLOSED — exit walk `docs/GUI-EXIT-WALK.md` (ratified #1121, 2026-08-28); GUI-5 and GUI-6 banked post-v1 |
 | `docs/ASSEMBLY-DESIGN.md` | RATIFIED (#333) | Band 3 assemblies A1–A13 + AQ1–AQ8: scope ladder, assembly-evaluates-to-a-body, mates-as-declarations, pins/split-inline, validity, mirror, relative freedom, product roots, the constructive-solve boundary; implementation ladder R0–R4, CLOSED at v1 scope through R1–R2 (`docs/ASM-EXIT-WALK.md`) |
-| `docs/LIBRARY-DESIGN.md` | RATIFIED (#229) | Usable-as-a-library program L1–L8: façade, Python bindings via the document layer, v2-fronted PATHS, authoring-ergonomics unit ladder; the program is OPEN and resting — dispatchable column at the `docs/LIB-LOG.md` tail |
+| `docs/LIBRARY-DESIGN.md` | RATIFIED (#229) | Usable-as-a-library program L1–L8: façade, Python bindings via the document layer, v2-fronted PATHS, authoring-ergonomics unit ladder; the program is OPEN and resting — dispatchable column at the `work/lib/log.md` tail |
 | `docs/DISCIPLINES-DESIGN.md` | WIP — provisionally accepted (2026-08-25) | Disciplines/checks registry DS1–DS9: the identification criterion, the severity invariant, the four grades, the recording dial, out-of-tree checks; two residents SHIPPED (`editor_core::checks`: connectedness, separation) |
-| `docs/PCURVE-UNIFY-DESIGN.md` | RATIFIED (#514) | Pcurve unification (#427): `EdgeGeometry`'s conventional variants collapse to ONE (surface, `Pcurve`) form, the exact variants kept as certification lanes; `MappedCurve` demotes to an authority record behind a transience fence. Executed by the PCURVE program (`docs/PCURVE-PLAN.md` / `docs/PCURVE-LOG.md`) |
+| `docs/PCURVE-UNIFY-DESIGN.md` | RATIFIED (#514) | Pcurve unification (#427): `EdgeGeometry`'s conventional variants collapse to ONE (surface, `Pcurve`) form, the exact variants kept as certification lanes; `MappedCurve` demotes to an authority record behind a transience fence. Executed by the PCURVE program, now CLOSED — exit walk `docs/PCURVE-EXIT-WALK.md` |
 | `docs/CENSUS-REST-CLOSURE-DESIGN.md` | RATIFIED (#965) | At-rest census structural identity (#943 + #591 Door-2): the world-space Door 2 for declared planar pairs with its C3/C4 revision; cross-instance curved declared `Rest` as named residue |
 | `docs/RECIPE-DOORS-DESIGN.md` | RATIFIED (2026-08-29, in-chat: D2–D5; D1 reclassified as orchestrator sequencing) | Recipe doors for the shipped surgery verbs — chamfer, tube, shell. D2/D3: `Node::Chamfer` is `Node::Fillet`'s twin and reuses the fillet ROLE vocabulary (the minting node is the discrimination); the emitter pays #708's tie-deferral debt at the same time. D4: `Node::Tube` is ONE node kind carrying `wall: Option<Expr>`. D5: shell WAITS on a kernel `ShellNaming` birth record. D2/D3 implemented at LIB-G16 (schema v16, #918) |
 | `docs/GROUP-BOOLEAN-DESIGN.md` | RATIFIED (#496, option A′) | Group boolean in the recipe layer (D2 + F4): `PlacedUnion` — "a Pattern that fuses", one prototype, one body out, `Instance{i}` naming unchanged; implemented by LIB (#571, schema v12) |
@@ -34,10 +34,10 @@ a reader entering here should know all of them exist.
 | `docs/DRAFT-DESIGN.md` | RATIFIED (#908) | Draft, the molding taper, DR1–DR6: plane walls only at v1, a certified re-geom pass, the pull-direction selector as a SELECT-DESIGN amendment, survivor naming; NOT YET IMPLEMENTED (VERBS) |
 | `docs/ARMS3-DESIGN.md` | RATIFIED (#992) | ARMS-3, A3-1…A3-3: the general sphere×sphere fillet arm, the valence-4 "corner" that is not a corner, and what a run-out at a seam vertex IS; implemented at #1028, the recourse's missing door is #1022 (VERBS) |
 | `docs/ENCLOSING-TANGENCY-DESIGN.md` | RATIFIED (#1210) | The enclosing (ρ < 0) fillet tangency: the class is permanently unreachable — no door emits it — and a radius demanding it refuses typed (closes #827); implemented at S-BLEND's BLEND-7 |
-| `docs/VERB-SEAT-DESIGN.md` | RATIFIED (#1388, 2026-08-31) | The kernel query seat, one verb vocabulary, and lowered parameter identity (the issue-1345 conversation, with the issue-757 producer gap and the issue-1372 channel): §1 the query doors at `topo` with `select_where` delegating; §2 the per-verb kernel `Verb` declaration, commitments as owner-held stable-tag matches; §3 the opaque per-field `ParamSource` channel (`GeomSource` one level finer). Executed by the SEAT program (`docs/SEAT-PLAN.md` / `docs/SEAT-LOG.md`); §1 implemented at SEAT-1/SEAT-2/SEAT-3 |
-| `docs/KERNEL-VERBS.md` | Reference register | The modeling verbs the kernel does not yet have, each with its prerequisites; worked in dependency order by the VERBS program (`docs/VERBS-PLAN.md` / `docs/VERBS-LOG.md`). The register never schedules |
+| `docs/VERB-SEAT-DESIGN.md` | RATIFIED (#1388, 2026-08-31) | The kernel query seat, one verb vocabulary, and lowered parameter identity (the issue-1345 conversation, with the issue-757 producer gap and the issue-1372 channel): §1 the query doors at `topo` with `select_where` delegating; §2 the per-verb kernel `Verb` declaration, commitments as owner-held stable-tag matches; §3 the opaque per-field `ParamSource` channel (`GeomSource` one level finer). Executed by the SEAT program (`work/seat/plan.md` / `work/seat/log.md`); §1 implemented at SEAT-1/SEAT-2/SEAT-3 |
+| `docs/KERNEL-VERBS.md` | Reference register | The modeling verbs the kernel does not yet have, each with its prerequisites; worked in dependency order by the VERBS program (`work/verbs/plan.md` / `work/verbs/log.md`). The register never schedules |
 | `docs/K-REPORT.md` | Reference | K-constant evidence record (#89 CLOSED, K = 10 permanent) + milestone addenda |
-| `docs/PERF-PLAN.md` | Merged-and-advisory (D9 addendum) | Performance plan and Q-P answers |
+| `work/perf/plan.md` | Merged-and-advisory (D9 addendum) | Performance plan and Q-P answers |
 | `docs/CURVO-AUDIT.md` | Reference | curvo vendor audit behind Q5's resolution |
 | `docs/LONGTERM-IDEAS.md` | Parked, non-binding | Idea bank with a graduation rule |
 | `docs/MODEL-AB-LOG.md` | Experiment log | Model A/B protocol + running data; process data, not design |
@@ -1489,7 +1489,7 @@ never by the body's tier-1 validity** — which is a whole-body property
 no single call establishes, and which would have been falsified across
 roughly half the sites.
 
-*The `crates/sweep/src/fillet` half is also done* (D2, PR #740).
+*The `crates/sweep/src/blend` half is also done* (D2, PR #740).
 `AssemblyUnsupported`'s **103** construction sites re-derived to **108**
 — five refusals that conflated two of these rows behind one test split
 in two — partitioned **41 row 2**, **49 row 1** and **18 row 4**. Row 2
@@ -1525,7 +1525,7 @@ classification. **Rows 1–5
 stand unamended** — nothing was added to the classification and nothing
 in it was reclassified; what this case produced is **row 0** above, the
 question that comes before them. The same unit retired the front-door invariants
-the surgery was carrying as prose: `crates/sweep/src/fillet/admit.rs`
+the surgery was carrying as prose: `crates/sweep/src/blend/admit.rs`
 mints one value per admitted clause, and the helpers that used to
 re-refuse a state their caller had already excluded now take the value
 and have no branch to write. **Nothing there became an `unreachable!`**
@@ -1852,8 +1852,8 @@ precursor of the error-propagation feature.
   at-rest census door ASSEMBLY-DESIGN A5 that binds to it, and the
   lily FULL rebuild. *(Complete 2026-08-27; the done-state of record
   is `docs/M9-EXIT-WALK.md`.)*
-- **M10 (OPEN — running as the M10 program, `docs/M10-PLAN.md` /
-  `docs/M10-LOG.md`)** — Error-propagation MVP: distributions over
+- **M10 (OPEN — running as the M10 program, `work/m10/plan.md` /
+  `work/m10/log.md`)** — Error-propagation MVP: distributions over
   parameters; dual-number sensitivities of measurements (tolerance
   stackups); interval-based self-intersection / minimum-clearance
   checks over the parameter box. Design record:
@@ -1867,9 +1867,9 @@ precursor of the error-propagation feature.
 - **The usability program** — see
   [Beyond the kernel](#beyond-the-kernel-the-usability-gap) below.
   Its library half is designed and RATIFIED as
-  `docs/LIBRARY-DESIGN.md` and is RUNNING (`docs/LIB-LOG.md`), at
+  `docs/LIBRARY-DESIGN.md` and is RUNNING (`work/lib/log.md`), at
   Ev's per-unit discretion. Its GUI half ran as the v1 GUI program
-  (`docs/GUI-PLAN.md`, RATIFIED 2026-08-27): units GUI-0…GUI-4 are
+  (RATIFIED 2026-08-27): units GUI-0…GUI-4 are
   merged and `docs/GUI-EXIT-WALK.md` is the proposed exit walk.
   Licensing-hygiene work with
   no usability payoff is deliberately *not* sequenced here — it is
@@ -1881,11 +1881,11 @@ precursor of the error-propagation feature.
 - **Modeling-verb breadth** — the missing modeling verbs whose
   prerequisites are already ratified, registered in
   `docs/KERNEL-VERBS.md` and RUNNING as the VERBS program
-  (`docs/VERBS-PLAN.md` / `docs/VERBS-LOG.md`), concurrently with
+  (`work/verbs/plan.md` / `work/verbs/log.md`), concurrently with
   the above.
 - **Edge-description unification** — the #427 pcurve migration
-  ratified as PCURVE-UNIFY-DESIGN U2, RUNNING as the PCURVE program
-  (`docs/PCURVE-PLAN.md` / `docs/PCURVE-LOG.md`) since M9's close.
+  ratified as PCURVE-UNIFY-DESIGN U2, executed by the PCURVE program since M9's close, and CLOSED
+  2026-08-29 — done-state of record `docs/PCURVE-EXIT-WALK.md`.
 
 ## Beyond the kernel: the usability gap
 
@@ -1922,7 +1922,7 @@ toolkit/viewport/picking/wasm re-survey was refreshed 2026-08-16 in
 walk). The survey's viewport and picking rows were recommendations
 and GUI-0…GUI-2 decided them in the building — §3's ID-buffer/ray
 roles came out INVERTED, the ray path authoritative and the id pass
-advisory (`docs/GUI-LOG.md`). Both layers below the pixels are real —
+advisory (`docs/GUI-EXIT-WALK.md`). Both layers below the pixels are real —
 `editor-core` and now `viewer` ship, and GUI-DESIGN's freshness note
 carries the verified shipped-vs-absent inventory. (GQ4's
 assemblies-are-recipes-of-the-same-formalism commitment is restated
@@ -1992,7 +1992,7 @@ below records what shipped and what remains.)*
 
 Named here so its cost is never underestimated. Architecture is
 ratified (`docs/GUI-DESIGN.md` G1–G5) and v1 is built:
-`docs/GUI-PLAN.md` (RATIFIED 2026-08-27), units GUI-0…GUI-4 merged,
+units GUI-0…GUI-4 merged,
 done-state of record `docs/GUI-EXIT-WALK.md`. What v1 delivered
 against the bullets below is partial and is stated there; the items
 keep their full-size framing because that is what they still cost.
@@ -2049,7 +2049,7 @@ keep their full-size framing because that is what they still cost.
   features. Individually small; the long tail
   dominates "why can't I model my part." The kernel-side view with
   dependencies is `docs/KERNEL-VERBS.md`; the program executing its
-  scheduled rows is `docs/VERBS-PLAN.md` / `docs/VERBS-LOG.md`.
+  scheduled rows is `work/verbs/plan.md` / `work/verbs/log.md`.
 - **Interchange breadth**: 3MF (supersedes STL for printing), DXF
   in/out (profiles, drawings), OBJ. Each small; STEP remains the
   only hard one.
