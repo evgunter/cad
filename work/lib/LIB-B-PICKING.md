@@ -2,9 +2,10 @@
 id: LIB-B-PICKING
 kind: unit
 title: binding census family B-PICKING
-status: review
+status: closed
 pr: 1661
 opened: 2026-09-03
+closed: 2026-09-03
 branch: lib/b-picking
 ---
 
