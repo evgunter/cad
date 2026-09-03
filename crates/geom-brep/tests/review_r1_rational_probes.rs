@@ -133,7 +133,13 @@ enum Posture {
     /// (checked in the `Ok` arm of [`probe`]).
     Certified,
     /// [`PropsError::QuadratureBudget`]: the fixed schedule's floor is
-    /// DEFINITELY above the run's target. Carries the measured floor.
+    /// DEFINITELY above the run's target. Carries the width the
+    /// schedule's LAST round reaches: measured, when the schedule ran
+    /// out, or its lower bound, when the loop proved after round 0
+    /// that the last round could not certify and refused without
+    /// running it. The two differ by the midpoint sum's own rounding
+    /// width — at most 4e-4 relative on every carrier below, inside
+    /// the pins' 1e-3 window — so a pin reads either the same way.
     Budget(f64),
     /// The same shortfall, in-band for the run's `Band{ε, Kε}` — so
     /// `props_quad_converged` escalates through the funnel before the
@@ -153,7 +159,10 @@ enum Posture {
 /// The refinement schedule is fixed by D9 and only the target moves
 /// with ε, so a carrier that refuses at the budget refuses with the
 /// SAME width on every ε row; the pinned number is that width, as
-/// measured by this suite. A carrier whose floor sits under the run's
+/// measured by this suite. The refusal's payload is that width or its
+/// lower bound ([`Posture::Budget`]) — every pin below was re-read
+/// against the bound, none moved past its window, and no pinned
+/// number changed. A carrier whose floor sits under the run's
 /// target certifies instead (the ε row working as designed), so only
 /// the budget arm is pinned — the anti-vacuity test below is what
 /// keeps "everything refuses" from being green.
@@ -1044,7 +1053,11 @@ fn probe_determinism_bits() {
             println!("BUDGET width_len {width_len:.15e} target {target_len:.6e}");
             assert!(width_len.is_finite() && width_len > target_len);
             // The schedule is fixed (D9), so this carrier bottoms out
-            // at the same displacement whatever the target is.
+            // at the same displacement whatever the target is. The
+            // payload is the last round's lower bound (the loop refuses
+            // after round 0 once it has proved the schedule cannot
+            // certify): 2.0e-5 relative under the pinned measurement,
+            // which the window below covers without a digit moving.
             assert!(
                 (width_len - QUARTER_CYLINDER_FLOOR).abs() <= 1e-3 * QUARTER_CYLINDER_FLOOR,
                 "the quarter cylinder's refusal floor MOVED: {width_len:e} against \

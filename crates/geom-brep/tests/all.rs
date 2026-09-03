@@ -237,3 +237,5 @@ mod mesh11r2_base_probes;
 mod mesh11r2_probes;
 #[path = "r2_mesh7_door_probes.rs"]
 mod r2_mesh7_door_probes;
+#[path = "tcost_k1_budget_exit.rs"]
+mod tcost_k1_budget_exit;
