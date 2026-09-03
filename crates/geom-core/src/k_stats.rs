@@ -622,3 +622,6 @@ mod tests {
         assert_eq!(log[0].predicate, "vlog_h");
     }
 }
+
+// TCOST-1 gate demonstration — this branch is evidence for PR #1612 and is
+// never merged.

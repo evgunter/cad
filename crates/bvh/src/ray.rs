@@ -227,3 +227,6 @@ impl Ray {
         (t_min <= t_max).then_some(t_min)
     }
 }
+
+// TCOST-1 gate demonstration — this branch is evidence for PR #1612 and is
+// never merged.
