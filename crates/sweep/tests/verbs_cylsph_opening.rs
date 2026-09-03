@@ -326,10 +326,16 @@ fn the_deferred_join_windows_door_still_names_itself() {
 ///
 /// **The operand here is a NURBS wall, deliberately.** The variant is
 /// per-KIND and its Display carries no per-site branch, so any body
-/// that raises it serves; a NURBS wall is the only construction that
-/// reaches it through the public `union` door in this build, because
-/// the cyl×sphere and sphere×sphere germ poses are stopped two layers
-/// above (the rows at the top of this file are that measurement).
+/// that raises it serves. A NURBS wall is a construction that DOES
+/// reach it through the public `union` door — measured, by this row.
+/// What is NOT available is the germ pose the corrected clause is
+/// about: the cyl×sphere and sphere×sphere crossings are stopped two
+/// layers above (the rows at the top of this file are that
+/// measurement), so the join dispatch's catch-all cannot be reached
+/// end to end for them. No claim is made that a NURBS wall is the ONLY
+/// construction that reaches this variant — the error has several raise
+/// sites (`sectors.rs`, `vtxfac.rs`, `recl.rs`, `reduce.rs` beside
+/// `join.rs`) and this row measured one of them, not all.
 #[test]
 fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
     let a = cyl(1.0, -2.0, 2.0);
