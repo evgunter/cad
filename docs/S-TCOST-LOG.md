@@ -172,3 +172,29 @@ redundant lines) with the hosted archive-step time before/after as the
 measurement of record, then the same pass over topo, mesh, sweep,
 viewer and profile if the prototype pays. Dispatched after a content
 lane frees this box (disk and the one-cargo rule).
+
+## Seam: first content lanes back (2026-09-03)
+
+- **TCOST-4** (PR 1608, green on the drawn point default/1e-6): the
+  topo torus probe 23 cpu-s → under the hosted top-20 cutoff; its
+  1 310-ray lattice was an edge-value table plus a deterministic
+  lattice, re-formed as a 13-regime enumeration plus a properly seeded
+  counterexample-search row (a TCOST-1 gate candidate, specific to
+  `crates/topo/src/boolean/solid_contain.rs`); two assertion-free
+  profile dumps retired with named owners. The three fixture-dump reds
+  from the census were already fixed on main.
+- **TCOST-2** (PR 1609, green on default/1e-12): the cert5/cert6
+  family 189 → ~100 cpu-s hosted (~47 %): the two cost probes deleted,
+  the gap ladder 7 → 3 drives with the duplicated rung's owner named,
+  the oracle ladder halved with the silent `converged` gate turned into
+  a labelled assertion, three cert6 rows merged. **The brief's premise
+  was wrong for 9 of 11 rows**: the cost is the KERNEL, not the test's
+  oracle — `nurbs_patch_face` costs 22–33 s per call (local) when it
+  exhausts its round budget against 3–5 s when it certifies or refuses
+  early, and **the rational lane costs ~90× the integral lane on the
+  same face** (a 3×3 dome: unit weights 0.23 s, one weight at 1.25 →
+  21.7 s). Both go to the A/B track as **TCOST-K1** (spec to follow).
+  Open question left by the lane: the merged cert6 row hard-expects
+  the unit dome to certify at the run's ε while its comment admits a
+  tighter band may refuse; preserved as-is (green at all three ε
+  locally), flagged for the style batch.
