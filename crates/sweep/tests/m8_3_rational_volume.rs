@@ -13,6 +13,18 @@
 //! representation, a different props lane, and no shared arithmetic
 //! with the quadrature under test.
 //!
+//! # The arc LOFT's disposition lives in `step-import`
+//!
+//! The three-station loft at scales `1.0, 1.25, 1.0` — sections of
+//! DIFFERENT scale, so the rational wall genuinely varies in `v` — is
+//! pinned by `step-import::nurbs_import::arc_loft_natively_computes_
+//! its_rational_volume`, which builds a character-identical body and
+//! already pays a native rational quadrature on it for its round-trip
+//! comparison. That row asserts the same posture classification, the
+//! same `12.0 < volume < 13.0` band and the same `2·1024·ε` pad
+//! ceiling, and adds tiers 1 and 2 on top. A second certificate here
+//! would buy the same quadrature at the same ε.
+//!
 //! # ε posture (the PR-1 discipline, applied at the BODY level)
 //!
 //! The convergence target is `1024·ε` against a **fixed** schedule
@@ -236,50 +248,3 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
 /// coincidence: `volume_pad` is flux-side, and #313 healed the AREA
 /// rule. The area pad moved; the volume pad could not.
 const ARC_PRISM_PAD_AT_DEFAULT_EPS: f64 = 9.816_714_3e-7;
-
-/// The same for the arc loft.
-const ARC_LOFT_PAD_AT_DEFAULT_EPS: f64 = 1.009_875_4e-6;
-
-/// **The arc LOFT** (`#276`'s honestly-refused class): sections of
-/// DIFFERENT scale, so the rational wall genuinely varies in `v` and
-/// no analytic body reproduces it. The oracle here is the enclosure's
-/// own internal consistency plus the pad ceiling; the accuracy oracle
-/// is the prism row above, which shares every line of the lane.
-#[test]
-fn arc_loft_is_volume_computable_with_a_pinned_pad() {
-    let loft = loft_body::<f64>(
-        &[arc_section(1.0), arc_section(1.25), arc_section(1.0)],
-        &stack([0.0, 1.0, 2.0]),
-        2,
-        Tol::witness(),
-    )
-    .expect("the arc loft builds")
-    .body;
-    let got = topo::mass_properties(&loft, Tol::witness());
-    let posture = body_posture("arc loft", &got);
-    eprintln!(
-        "EPS-ROW arc loft @ eps={:e}: {posture:?}{}",
-        Tol::witness().get().eps,
-        match &got {
-            Ok(m) => format!(" volume {} ± {}", m.volume, m.volume_pad),
-            Err(e) => format!(" ({e})"),
-        }
-    );
-    if posture != EpsPosture::Certified {
-        return;
-    }
-    let got = got.expect("certified");
-    // A loft that bulges outward in the middle must exceed the prism.
-    assert!(
-        got.volume > 12.0 && got.volume < 13.0,
-        "arc-loft volume out of band: {}",
-        got.volume,
-    );
-    let ceiling = 2.0 * QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
-    assert!(
-        got.volume_pad < ceiling,
-        "volume pad ceiling: {} vs {ceiling} (M8-3 measured {} at ε=1e-9)",
-        got.volume_pad,
-        ARC_LOFT_PAD_AT_DEFAULT_EPS,
-    );
-}

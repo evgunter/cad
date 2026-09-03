@@ -1,15 +1,22 @@
-//! CERT-8 review probes (reviewer lane 8r2). Not for merge.
+//! CERT-8 review probes (reviewer lane 8r2).
+//!
+//! What survives here asserts: the sampled soundness of
+//! `chart_stretch_inf`'s certified floors and ceilings and of the
+//! `certified_arms` metric contraction, on the unit's acceptance walls
+//! and on randomly drawn charts. The digit-dump rows that printed the
+//! same walls' `inf`/`sup`/`rho` figures for a one-shot comparison are
+//! gone: they held no assertion, so they could not gate, and every
+//! bound they printed is asserted by
+//! `probe_sampled_bounds_hold_on_the_acceptance_walls` below and by
+//! `cert8_r1_probes::probe_loft_wall_digits_and_sampled_soundness` on
+//! the same two walls.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Point2, Vec3};
+use geom_core::{Affine3, Point2, Vec3};
 use profile::{ProfileLoop, ProfileVertex, RawLoop};
 use topo::{Body, FaceKey};
-
-fn band() -> Band {
-    Band::new(1e-9, 1e-8).unwrap()
-}
 
 fn nurbs_wall(body: &Body<f64>) -> FaceKey {
     body.faces()
@@ -21,105 +28,6 @@ fn nurbs_wall(body: &Body<f64>) -> FaceKey {
         })
         .map(|(key, _)| key)
         .expect("a loft has described NURBS walls")
-}
-
-fn report(tag: &str, s: &Surface<f64>) {
-    let i = geom_brep::chart_stretch_inf(s);
-    let (su, sv) = geom_brep::chart_stretch_sup(s);
-    let t = (i.sup_u / i.inf_u).powi(2) + (i.sup_v / i.inf_v).powi(2);
-    let d = (i.area_inf / (i.inf_u * i.inf_v)).powi(2);
-    let root = (t * t - 4.0 * d).max(0.0).sqrt();
-    let rho = (2.0 * d / (t + root)).sqrt().min(1.0);
-    println!(
-        "{tag}: inf=({:.6}, {:.6}) sup=({:.6}, {:.6}) [chart_stretch_sup=({:.6},{:.6})] area_inf={:.6} T={:.6} D={:.6} rho={:.6} arms=({:.6},{:.6})",
-        i.inf_u,
-        i.inf_v,
-        i.sup_u,
-        i.sup_v,
-        su,
-        sv,
-        i.area_inf,
-        t,
-        d,
-        rho,
-        i.inf_u * rho,
-        i.inf_v * rho
-    );
-    // mean width of the unit square scaled by the arms
-    let (au, av) = (i.inf_u * rho, i.inf_v * rho);
-    println!(
-        "{tag}: unit-square mean width 2A/P = {:.6}",
-        2.0 * au * av / (2.0 * (au + av))
-    );
-}
-
-#[test]
-fn probe_loft_wall_digits() {
-    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
-    let square = || {
-        vec![ProfileLoop::new(vec![
-            v(-1.0, -1.0),
-            v(1.0, -1.0),
-            v(1.0, 1.0),
-            v(-1.0, 1.0),
-        ])]
-    };
-    let sections = vec![square(), square(), square()];
-    let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.5, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
-    ];
-    let body = sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
-        .expect("builds")
-        .body;
-    let wall = nurbs_wall(&body);
-    let s = body
-        .get_surface(body.get_face(wall).unwrap().surface)
-        .unwrap()
-        .clone();
-    report("BOWED-ISOLINE", &s);
-    let _ = band();
-}
-
-#[test]
-fn probe_rational_wall_digits() {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
-    let bulged = || {
-        vec![ProfileLoop::new(vec![
-            v(0.0, 0.0, 0.0),
-            v(2.0, 0.0, 0.4),
-            v(2.0, 2.0, 0.0),
-            v(0.0, 2.0, 0.0),
-        ])]
-    };
-    let sections = vec![bulged(), bulged()];
-    let places = vec![
-        Affine3::identity(),
-        Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
-    ];
-    let body = sweep::loft_body::<f64>(&sections, &places, 1, Tol::witness())
-        .expect("builds")
-        .body;
-    for (key, face) in body.faces() {
-        if let Some(Surface::Nurbs(p)) = body.get_surface(face.surface) {
-            if p.is_placeholder() {
-                continue;
-            }
-            let w = p.weights();
-            let rational = w.iter().any(|x| (x - w[0]).abs() > 1e-15);
-            let s = body.get_surface(face.surface).unwrap().clone();
-            report(
-                if rational {
-                    "RATIONAL-WALL"
-                } else {
-                    "poly-wall"
-                },
-                &s,
-            );
-            let _ = key;
-        }
-    }
 }
 
 /// **Sampled falsification of the certified inf/arm claims.** Evaluate
@@ -257,32 +165,36 @@ fn probe_sampled_bounds_hold_on_the_acceptance_walls() {
     sample_check("BOWED", s);
 }
 
-/// Deterministic LCG, so the hunt below is reproducible.
-struct Lcg(u64);
-impl Lcg {
-    fn next_f64(&mut self, lo: f64, hi: f64) -> f64 {
-        self.0 = self
-            .0
-            .wrapping_mul(6_364_136_223_846_793_005)
-            .wrapping_add(1);
-        lo + (hi - lo) * (((self.0 >> 11) as f64) / ((1u64 << 53) as f64))
-    }
-}
-
 /// **Randomised soundness hunt for the inf-arm assembly.** Build
 /// random (rational and polynomial) charts, run the exact
 /// `chart_stretch_inf` + `certified_arms` assembly, and sample the
 /// real surface for a violation of any of the four claims.
+///
+/// # It is a counterexample search, and it is harnessed as one
+///
+/// The shape is *for all sampled charts, P(chart)*
+/// ([[test-suite-cost]]'s first shape), so the seed VARIES and is
+/// logged unconditionally by `fuzz::start`; `CAD_FUZZ_SEED` replays an
+/// exact draw and every assertion message carries the line that does
+/// it. The trial count is a multiple of the workspace `CAD_FUZZ_EFFORT`
+/// dial rather than a private constant, so depth is one env var away
+/// and cutting it can only lose detection power, never correctness.
+/// It is shipped at the depth it ran at before the harness, because
+/// the change filter cannot yet gate a suite to the code it tests —
+/// when it can, this row's marker names `crates/geom-brep/src`'s
+/// chart-stretch lane and the count moves to the gated level.
 #[test]
 fn probe_random_charts_never_break_the_certified_arms() {
     use geom::NurbsSurface;
     use geom_core::Point3;
     use geom_core::spline::KnotVector;
-    let mut r = Lcg(0x9E37_79B9_7F4A_7C15);
+    use test_utils::fuzz;
+    let mut r = fuzz::start("cert8-random-charts");
+    let replay = fuzz::replay();
     let mut checked = 0usize;
     let mut worst_overall = f64::MAX;
     let mut worst_case = String::new();
-    for trial in 0..4000 {
+    for trial in 0..fuzz::scaled(4000) {
         let rational = trial % 2 == 0;
         let (pu, nu) = (2usize, 3usize);
         let (pv, nv) = (2usize, 3usize);
@@ -292,14 +204,14 @@ fn probe_random_charts_never_break_the_certified_arms() {
         for i in 0..nu {
             for j in 0..nv {
                 ctl.push(Point3::new(
-                    i as f64 + r.next_f64(-0.4, 0.4),
-                    j as f64 + r.next_f64(-0.4, 0.4),
-                    r.next_f64(-0.6, 0.6),
+                    i as f64 + r.range(-0.4, 0.4),
+                    j as f64 + r.range(-0.4, 0.4),
+                    r.range(-0.6, 0.6),
                 ));
             }
         }
         let w: Vec<f64> = (0..nu * nv)
-            .map(|_| if rational { r.next_f64(0.3, 3.0) } else { 1.0 })
+            .map(|_| if rational { r.range(0.3, 3.0) } else { 1.0 })
             .collect();
         let Ok(surf) = NurbsSurface::new(ku, kv, ctl, w) else {
             continue;
@@ -334,19 +246,19 @@ fn probe_random_charts_never_break_the_certified_arms() {
                 let sv = (p.eval(u, v + h) - p.eval(u, v - h)) * (1.0 / (2.0 * h));
                 assert!(
                     su.norm() >= i.inf_u - 1e-5,
-                    "trial {trial}: inf_u {} > |S_u| {} at ({u},{v})",
+                    "trial {trial}: inf_u {} > |S_u| {} at ({u},{v}) — {replay}",
                     i.inf_u,
                     su.norm()
                 );
                 assert!(
                     sv.norm() >= i.inf_v - 1e-5,
-                    "trial {trial}: inf_v {} > |S_v| {}",
+                    "trial {trial}: inf_v {} > |S_v| {} at ({u},{v}) — {replay}",
                     i.inf_v,
                     sv.norm()
                 );
                 assert!(
                     su.cross(sv).norm() >= i.area_inf - 1e-5,
-                    "trial {trial}: area_inf {} > |SuxSv| {}",
+                    "trial {trial}: area_inf {} > |SuxSv| {} at ({u},{v}) — {replay}",
                     i.area_inf,
                     su.cross(sv).norm()
                 );
@@ -363,7 +275,7 @@ fn probe_random_charts_never_break_the_certified_arms() {
                     assert!(
                         ratio >= 1.0 - 1e-7,
                         "trial {trial} rational={rational}: NOT a contraction, \
-                         ratio {ratio} at ({u},{v}) arms ({au},{av})"
+                         ratio {ratio} at ({u},{v}) arms ({au},{av}) — {replay}"
                     );
                 }
             }
@@ -372,8 +284,15 @@ fn probe_random_charts_never_break_the_certified_arms() {
     println!(
         "checked {checked} random charts; worst contraction ratio {worst_overall} at {worst_case}"
     );
+    // The anti-vacuity floor, and why a varying seed cannot flake it:
+    // the draw survives both filters (`inf_u`/`inf_v` above 1e-6, `rho`
+    // above 1e-12) on ~92% of trials — measured 3 649, 3 676 and 3 699
+    // of 4 000 on three independent seeds — so a floor at 5% of the
+    // count is nowhere near the distribution. It is a floor on the
+    // sweep's own liveness, not a witness claim that would want a
+    // pinned seed.
     assert!(
-        checked > 200,
-        "the hunt must actually build charts, got {checked}"
+        checked > fuzz::scaled(200),
+        "the hunt must actually build charts, got {checked} — {replay}"
     );
 }
