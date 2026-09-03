@@ -503,6 +503,14 @@ step_import() {
 # compile is the whole cost (93 s on a cold hosted cache). The guards
 # after the run are the point: a name filter that matches nothing exits
 # 0, so an empty selection must fail rather than pass quietly.
+# THE HOSTED HALF OF THIS ROW IS THE NIGHTLY, NOT THE GATE (2026-09-03).
+# `release-corruption` moved to .github/workflows/nightly.yml and runs there
+# ungated once a day; the per-row argument that it may sit on a cadence is at
+# the job. This row keeps its per-change gate (`RUN_TOPO_RELEASE`, which no
+# hosted job reads any more) because nothing bills a local gate by the minute
+# and scoping it costs nothing here. So on a local gate these suites still run
+# against the tree in front of you, which is the whole reason the demotion is
+# affordable.
 # HOSTED MIRROR: release-corruption / corrupt-input suites, release profile
 topo_release() {
   local log rc passed

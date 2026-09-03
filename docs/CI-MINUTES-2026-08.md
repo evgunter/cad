@@ -784,6 +784,7 @@ measured, and the largest line is not the one you would guess:
 | `gate` + `record` | ~2 | |
 | `opt-level` | ~2 | the free arm only; **+~25-30 one night a week** when the two measured arms run |
 | `rustdoc (gate, every root)` | ~3 | S-TCOST C2. DERIVED, not yet measured on a nightly: F6's warm all-seven reading is a 99 s job and the addendum's pass-3 delta is +43 s, so ~142 s. Its own cache lane (`nightly-rustdoc-roots`) is warm night to night; a key rotation costs one night at ~6-7, the same one-cold-run tax F6 records. Re-read it from the first nightly run. The `an ordinary night` line below does not yet include this row |
+| `corrupt input (release profile)` | ~2 | S-TCOST C1. The job's own audit-table line, unchanged by the move: it is one `-p topo --lib` release compile and five rows that execute in milliseconds. Read at 98 s / 2 billed on run `33722922975`, where it was still a ci.yml job on a comparable tree. The `an ordinary night` line below does not yet include this row |
 | **an ordinary night** | **~8** | **~34 on a calibration night** (both figures assume `demoted` is short-circuited; add ~11 once anything is demoted) |
 
 **`demoted` is over half of it, and the reason is structural rather than
@@ -1069,6 +1070,54 @@ empty set and would zero the lane permanently. The script separates them
 from the SOURCE, the way the interval one does: no marker anywhere under
 `crates/` proves the empty case, markers present with an empty difference
 is a broken rig and fails.
+
+### 2026-09-03 — `corrupt input (release profile)` demoted to the nightly
+
+S-TCOST unit C1, Ev's approval in chat the same day. The job moved out of
+`ci.yml` into `nightly.yml` verbatim — its steps, its non-empty-selection
+count guard and its five `... ok` name greps plus the two suite-header
+greps — and now runs ungated on any night main moved, rather than on every
+code-tier PR run whose closure holds `topo`.
+
+**Argued against §*What is NOT sampled, and the rule*, per row**, which is
+what that section demands of a new entry rather than inheriting another
+job's licence. The three profile-independent-but-release-named rows assert
+on the body the operators produce, and a wrong body persists. `review_d18`'s
+two `cfg(not(debug_assertions))` hammer rows run in NO other lane, which is
+the case that looks like an absence detector and is not one: what they
+detect — a row-4 `unreachable!` becoming input-reachable — is a property of
+the tree's code and persists exactly as the rows above do. The genuine
+absence risk, those rows silently ceasing to be selected, is what the count
+guard and the name greps are for, and they moved WITH the job, so the
+detector kept its cadence relative to the rows it guards. The full argument
+is at the job, which is where the rule says it belongs.
+
+**Billed minutes: −2 per code-tier PR run whose closure holds `topo`.**
+The subtrahend is the job's own line in the reference table at the top of
+this document — 1.37 min wall, **2 billed** — and `topo` is in the closure
+of 89 of the last 128 first-parent merges. Against that, **~2 billed
+minutes a night**: the nightly pays the same rounded-up minute, once, on
+days main moved.
+
+The *after* is read from this unit's own PR run, `33721373132` (16 jobs,
+default lane drawn): `corrupt input (release profile)` **is not among
+them**, which is what −2 means here — the job is gone from ci.yml rather
+than shortened, so there is no new duration to read and the delta is the
+whole of its old line. What that run cannot re-take is the 1.37/2 itself,
+because the job no longer runs there; per the F6 addendum's rule, that
+figure is true as of the audit that measured it and the nightly is now
+where a fresh reading of it comes from.
+
+**What the demotion gives up, and what it does not.** It gives up
+attribution: a break lands on the night's merges rather than on the PR that
+caused it. Two handles remain — `nightly.yml`'s `ref` dispatch input
+re-measures any commit, and `local-scripts/ci-local.sh` still runs the row
+on every local gate, still scoped by `RUN_TOPO_RELEASE`. That local
+consumer is why the filter key SURVIVES the demotion: `ci.yml`'s `filter`
+job publishes no `run_topo_release` output any more (an output nothing reads
+is how a reader concludes a job still exists), but deleting the key would
+have promoted a scoped local row to unconditional, which is the opposite of
+what this decided.
 
 ### `ready_for_review` is load-bearing
 
