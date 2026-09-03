@@ -10,7 +10,7 @@
 //! # The scenes and the corpus (montage-v3 curation)
 //!
 //! - `lofts` — ONE cell carrying BOTH lofts, side by side, since the
-//!   montage-v3 curation (Evan, 2026-08-30). Two adjacent cells were
+//!   montage-v3 curation (Ev, 2026-08-30). Two adjacent cells were
 //!   not showing a minimal pair: `compose_montage.py` trims and scales
 //!   every cell independently, so the panels arrived at two different
 //!   scales and the silhouette comparison was distorted by the
@@ -35,7 +35,7 @@
 //!   half-width 1.646 at 32.6% of height: silhouette-obvious. Rendered
 //!   `LOFT_PAIR_GAP` along +x of its twin (a rigid placement, applied
 //!   after every assertion; volume is translation-invariant).
-//! - `s_duct` — standalone since montage-v2 (Evan, #218 follow-up:
+//! - `s_duct` — standalone since montage-v2 (Ev, #218 follow-up:
 //!   the S SOLID is two glued partial revolves, shape for shape, so
 //!   as a cell it demonstrated the one-op path, not an unreachable
 //!   shape). Still the fixture candidate for the next corpus fold;
@@ -69,7 +69,7 @@ use pncad::geom_core::Tol;
 /// vocabulary: one loop, the arc as vertex 1's bulge).
 fn chain(s: f64, tol: Tol) -> Section {
     // Lattice-authored since LIB-RETTAIL (raw `ProfileLoop` construction
-    // is no longer presented surface, Evan's ruling on #413). The one
+    // is no longer presented surface, Ev's ruling on #413). The one
     // curved leg was a bulge of 0.25 on the vertex at (2, 0); the same
     // arc, said through the lattice, is `arc_to(Via { .. })` through the
     // apex the bulge implies. INVARIANT (why the point is exactly this):
@@ -424,7 +424,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         pncad::sweep::loft_body::<f64>(&prism_sections(tol), &nonuniform_places, 2, tol)
             .expect("the non-uniform loft builds")
             .body;
-    // ONE CELL, BOTH BODIES (montage-v3 curation, Evan 2026-08-30).
+    // ONE CELL, BOTH BODIES (montage-v3 curation, Ev 2026-08-30).
     // Two adjacent cells were not showing the pair the pair claims to
     // be: `compose_montage.py` trims and scales EVERY cell
     // independently, so the two panels arrived at two different scales
@@ -578,7 +578,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Stop {
             name: "s_duct",
             caption: "s_duct (an S path in ONE sweep op)".to_string(),
-            // Standalone since montage-v2 (Evan, #218 follow-up): the
+            // Standalone since montage-v2 (Ev, #218 follow-up): the
             // S SOLID is glued-revolves-expressible, so the honest
             // not-a-revolve cell is `twisted_duct`; this scene stays
             // alive as the one-op planar-S construction and the

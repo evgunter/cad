@@ -546,7 +546,7 @@ pub fn corpus_text(tol: Tol) -> String {
 /// to fix. Nothing was ever going to make this file draw the die.
 ///
 /// So the file carries the scene's SUBJECT — "the composed die, which
-/// remains the sheet's die" (Evan's montage curation, #218 follow-up,
+/// remains the sheet's die" (Ev's montage curation, #218 follow-up,
 /// which already ruled the two partial dice out of the sheet for
 /// reading as near-duplicates). The blank keeps its stop, its
 /// narration and its render; what it loses is a second root in one
@@ -619,7 +619,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Stop {
             name: "diefillet",
             caption: "the die blank (rolling-ball fillets)".to_string(),
-            // Standalone since the montage-v2 curation (Evan, #218
+            // Standalone since the montage-v2 curation (Ev, #218
             // follow-up): the two PARTIAL dice — the blank and the
             // pipped cube — are interesting for how they work (the
             // battery, the closed-group cut), but without that context

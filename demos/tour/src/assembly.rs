@@ -49,7 +49,7 @@
 //!   silently (`stops`, `update_door`).
 //! - **#945** — mates and patterns do not compose at all, which is
 //!   why this file has two assembly documents rather than one; it
-//!   also records the A11 rule-4 drift, and wants Evan's ruling.
+//!   also records the A11 rule-4 drift, and wants Ev's ruling.
 //! - **#946** — a sub-assembly's mate declarations do not cross the
 //!   instantiation seam.
 //! - **#947** — the pin-mismatch recourse is emitted twice

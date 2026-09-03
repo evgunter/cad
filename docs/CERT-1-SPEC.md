@@ -121,4 +121,4 @@ The `closing_column` debug_assert in `mesh/src/walk.rs` (#723's
 "Related" section) — mesh ground, another stream's; the
 quad-engine consolidation (C3/C-m); #883 and anything behind
 `H-R16`; S82's smell-scan verdict line (this unit's record answers
-it, Evan reads it at plan ratification).
+it, Ev reads it at plan ratification).

@@ -617,8 +617,12 @@ fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
 /// coordinate the cap cannot supply), and a carrier for the moved rim.
 /// For the torus that carrier is a QUARTIC: a plane parallel to a
 /// torus's axis at distance `t` cuts it in a spiric section, not a
-/// circle, so this rim waits on the `plane × torus` section arm the C5
-/// table still declines. `torax_axial` carries that measurement too —
+/// circle. The C5 table now routes `plane × torus` (VERBS-C5ARMS
+/// shipped the two exact-degenerate closed forms), but the shipped arm
+/// REFUSES exactly this configuration — the axis-parallel offset plane
+/// routes to the general rung, named at the arm's own refusal — so the
+/// rim waits on the rim-construction capability plus the SPIRIC
+/// carrier, not on the C5 table. `torax_axial` carries that measurement too —
 /// on this elbow's own numbers the section's half-width and half-height
 /// differ by `2.03e-4` m, a circle's do not.
 ///

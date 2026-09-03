@@ -105,7 +105,7 @@ Two derived figures exist to make the opt-1 row readable at a glance:
 `execution_kept_vs_opt2` (~1.0 means opt-1 runs as fast as opt-2) and
 `build_penalty_kept_vs_opt2` (<1.0 means it pays less to get there).
 
-**The tree was then moved to opt-1 on that evidence** (Evan, 2026-08-25),
+**The tree was then moved to opt-1 on that evidence** (Ev, 2026-08-25),
 before any runner sample existed — deliberately, because the fastest way to
 get runner data on opt-1 is to run the gate on opt-1. Every PR now produces a
 real opt-1 archive step and a real opt-1 test row, and this lane reads exactly

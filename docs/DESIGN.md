@@ -270,7 +270,7 @@ component-aware E–P form found and corrected in M1 PR 4).**
    away from the ends by the derived threshold θ = ε/r; wedge = π is
    the legal smooth-seam case (ratified in PR #15's conversation);
    and the ends carry a **declared second-order arm** (ratified with
-   Evan 2026-08-23, closing #131): wedge = 0 (a cusp — two kissing
+   Ev 2026-08-23, closing #131): wedge = 0 (a cusp — two kissing
    cylinders with one side cut away) and wedge = 2π (a knife slit,
    the cusp's `revert` image — revert is an involution, so the two
    are legal together or not at all) are legal iff the tangency is
@@ -309,7 +309,7 @@ component-aware E–P form found and corrected in M1 PR 4).**
    coincidence census, exactly on the planar inventory and by named
    class elsewhere; M10 interval clearance).
 4. **Tier 3′ "pseudomanifold" (`validate_pseudomanifold`; ratified at
-   the M3 exit sweep per M3-PLAN F1/F2, resolved with Evan #42;
+   the M3 exit sweep per M3-PLAN F1/F2, resolved with Ev #42;
    implemented M3 PR 6a, #75)** — the honest at-rest tier for boolean
    results that *touch*: contacts limited to
    entirely-coincident-but-distinct edges, edge-on-face,
@@ -355,7 +355,7 @@ component-aware E–P form found and corrected in M1 PR 4).**
      census-invisible and certifies** — that is the F8 voids story
      (see the M3 conventions below), not a gap the census must catch.
 
-   **Touching is always backed by explicit intent (Evan's condition,
+   **Touching is always backed by explicit intent (Ev's condition,
    #42, part of the ratified invariant)**: (i) operand coincidences
    are only ever structural (shared key) or declared (recipe data) —
    near-coincidence NEVER silently becomes contact (escalated typed
@@ -390,7 +390,7 @@ component-aware E–P form found and corrected in M1 PR 4).**
 **M2 structural conventions (ratified at the M2 exit sweep, 2026-07-20/21):**
 
 - **Sweeps emit single-shell primary boundaries; every CAVITY is born
-  through the shared void-insertion door (Evan, 2026-07-20; refined
+  through the shared void-insertion door (Ev, 2026-07-20; refined
   2026-08-22, #907).** A cavity's boundary is a disconnected interior
   shell, and its bookkeeping — orientation, census participation,
   containment evidence — has exactly one home: the void-insertion
@@ -455,7 +455,7 @@ component-aware E–P form found and corrected in M1 PR 4).**
   Persistence keys the flags (`tangent_joints` in schema v1, #112).
 
 **M3 structural conventions (ratified at the M3 exit sweep,
-2026-07-23; forks resolved with Evan in #42, 2026-07-20/21):**
+2026-07-23; forks resolved with Ev in #42, 2026-07-20/21):**
 
 - **Curved booleans retire per arm, never wholesale (F5).** A face kind
   with no arm refuses typed `CurvedBooleanUnsupported` /
@@ -779,7 +779,7 @@ translation). Construction obligation on every op that mints an
 `Intersection`: compute the witness as carrier(mid) with the certification
 schedule's own association order.
 
-**Prefer-intrinsic is tier-3-enforced (ratified 2026-07-19 with Evan;
+**Prefer-intrinsic is tier-3-enforced (ratified 2026-07-19 with Ev;
 landed in M2 PR 4's fix pass).** The prefer-intrinsic rule above is not
 advisory: at rest, every *definitely-transverse* edge must carry
 `Intersection` (`TransverseNotIntrinsic` otherwise); a definitely-smooth
@@ -848,7 +848,7 @@ applied to error handling. Five commitments:
    micron-to-kilometer coverage with ~4 orders of f64 headroom at km
    scale. Import does *not* motivate loosening ε — see D7's input
    tolerance ε_in.
-   **The two-tolerance principle (RATIFIED 2026-07-29, Evan's lgtm on
+   **The two-tolerance principle (RATIFIED 2026-07-29, Ev's lgtm on
    #129; born in the #124 thread).** Two roles
    that D7 already separates at the import boundary are adopted as
    kernel-wide vocabulary: **ε_precision** (this section's ε — "the
@@ -858,7 +858,7 @@ applied to error handling. Five commitments:
    interpreting input, and the threshold below which user-facing
    distinctions are noise. ε_input > ε_precision always (differences below ε_precision are
    not even representable claims), and **ε_input IS K·ε — a synonym,
-   not a third dial** (simplified per Evan's #129 review: K stays
+   not a third dial** (simplified per Ev's #129 review: K stays
    the one knob, `Tolerance.k`; the vocabulary contribution is the
    ROLE NAMES, not new machinery). The Q1 escalation band remains
    precision machinery (escalate-never-guess) as ever. Consequences,
@@ -891,7 +891,7 @@ applied to error handling. Five commitments:
    adoption re-runs classification at a different ε_input, exactly
    as CURVED-DESIGN's D7 leave-room obligation already requires.
    (iv) **The rule binds a predicate's DEFINITE arms too, not only
-   its indeterminate one** (RATIFIED at the M5 exit sweep, Evan on
+   its indeterminate one** (RATIFIED at the M5 exit sweep, Ev on
    PR #169 comment 5171303851, 2026-08-03; the S9 lesson — the
    chord_spec azimuth-window repair introduced new definite arms
    that silently missed the two-tolerance shape,
@@ -950,8 +950,8 @@ applied to error handling. Five commitments:
    > against an **undeclared** analytic chart pole. Where the pole is itself
    > declared the two overlap; where it is not, nothing looks.
 
-   **The margin dimensional convention (RATIFIED 2026-08-05, Evan 👍 on PR #205 comment 5195787412; shaped
-   in-chat with Evan — non-generic erased annotations, his call —
+   **The margin dimensional convention (RATIFIED 2026-08-05, Ev 👍 on PR #205 comment 5195787412; shaped
+   in-chat with Ev — non-generic erased annotations, his call —
    from the du_of_rims / F3 / F4 defect family and the
    predicate-dimension audit).** ε is a length: the maximum
    deviation from specified geometry at a single point. Four
@@ -975,7 +975,7 @@ applied to error handling. Five commitments:
    volume over the boundary length / lever / surface area that
    scales it to the point displacement it subtends: 2A/P, V/A, the
    chart-orientation a×b·n̂/r). The CONSISTENCY BACKSTOPS are
-   excluded from the seam entirely (Evan's #213 layering ruling):
+   excluded from the seam entirely (Ev's #213 layering ruling):
    inequalities between integral results — the volume_backstop
    family — decide on bare T through the invariant lane
    (`k_stats::decide_invariant`), no Margin minted, and a certified
@@ -1022,8 +1022,8 @@ applied to error handling. Five commitments:
    casts (there is no raw construction door). K-telemetry byte
    identity over the probe census is the executed acceptance.*
    **The tessellation criterion is DISTANCE-ONLY (ruled in session
-   2026-08-02/03, Evan + orchestrator concur; RATIFIED at the M5 PR
-   14 exit sweep — Evan, PR #169 comment 5171303851,
+   2026-08-02/03, Ev + orchestrator concur; RATIFIED at the M5 PR
+   14 exit sweep — Ev, PR #169 comment 5171303851,
    2026-08-03).** The ruling, scoped verbatim: *"NO
    angular-deflection criterion in the certified tessellator.
    Grounds: every contracted consumer is manufacturing-shaped (STL
@@ -1093,7 +1093,7 @@ dimensional types inside. The public API uses hand-rolled newtypes
 need ~five quantities, not the SI lattice.
 
 **D6 addendum — a stored literal always names its notation (ratified
-2026-09-01, in conversation with Evan).**
+2026-09-01, in conversation with Ev).**
 Units erase at the accessor doors because the kernel wants them gone.
 One consumer wants them kept: a document records what a person *wrote*,
 so it can be read back that way. Every continuous literal therefore
@@ -1267,7 +1267,7 @@ topology change is stated, not emergent.
   `Err` and keeps the body can therefore fire a later operator's
   postcondition from **API misuse rather than a kernel bug**. That
   state class is not among the D2 addendum's five and is open as
-  **S14** in `docs/SMELL-SCAN-2026-08.md`; this footnote records the
+  **S14** (`work/code-quality/S14.md`); this footnote records the
   door, not a disposition. Everywhere else a firing postcondition is a
   kernel bug by definition. What the kernel then DOES about such a state is the D2
   addendum below — which supersedes this footnote's original
@@ -1277,7 +1277,7 @@ topology change is stated, not emergent.
 - Essentially no unsafe Rust outside vetted dependencies.
 
 **D2 addendum — the bug-vs-invalid-state taxonomy (ratified 2026-08-19,
-Evan's sign-off; Wave 0 decision D2 of `SMELL-SCAN-2026-08.md` §D,
+Ev's sign-off; Wave 0 decision D2 of `SMELL-SCAN-2026-08.md` §D,
 raised by S43).**
 
 *Why:* the kernel had **five** answers to "this state can only be a
@@ -1299,7 +1299,7 @@ announced, not swallowed.
 | 4 | **Kernel bug**, observable in a branch | `unreachable!` |
 | 5 | **Kernel bug**, detectable only by re-derivation | `debug_assert` |
 
-**Row 0 (ratified 2026-08-20, Evan's sign-off; raised by D27).
+**Row 0 (ratified 2026-08-20, Ev's sign-off; raised by D27).
 Representability comes before classification.** Rows 1–5 classify a
 state that exists. Row 0 asks whether it should exist at all, and it is
 answered **first**, before the classification begins. **When the answer
@@ -1551,7 +1551,7 @@ self.clone()`, under its own *"Never a partial commit: each sub-stage
 is tier-2-gated before adoption"*) and the shape D27 used. **That
 reframes S14; it does not answer it.** Whether the restructuring is
 affordable is precisely the "if possible" judgement above, and
-**S14 stays open and stays Evan's** — #740 left 46 lookup sites typed
+**S14 stays open and stays Ev's** — #740 left 46 lookup sites typed
 rather than converted because it is open, so anything that moves S14
 moves them.
 
@@ -1597,7 +1597,7 @@ and curve arenas immediately and the loop arena one loop-mint later
 the killed arenas' allocation cursors permanently — arenas the kill
 never touched stay aligned forever, killed arenas never re-align.
 
-**D9 addendum (ratified via PERF-PLAN's Q-P1, Evan's sign-off #49,
+**D9 addendum (ratified via PERF-PLAN's Q-P1, Ev's sign-off #49,
 2026-07-21; folded in at the M3 exit sweep. PERF-PLAN itself stays
 merged-and-advisory; this addendum is the contract.)**
 
@@ -1639,7 +1639,7 @@ grounds (rounding control, f64, portability) are re-checkable facts,
 and the table is revisited only if they change materially.
 
 **Engineering conventions RATIFIED at the M4 exit sweep (the 8c PR,
-#119, merged 2026-07-27 with Evan's sign-off — M4-LOG: "THE M4 EXIT
+#119, merged 2026-07-27 with Ev's sign-off — M4-LOG: "THE M4 EXIT
 SWEEP IS RATIFIED", convention 2 sharpened at ratification to his
 structural-shared-validator form; each earned by a concrete M4
 incident):**
@@ -1651,10 +1651,10 @@ incident):**
    Earned twice in one milestone from the same root (`float_bits`'
    in-band delimiters): #101's `usize::MAX` key alias and PR 6's
    NaN-marker alias + save-door blind spot; ruled structurally at
-   the PR 6 fix pass (Evan: "deserves proper types") and landed as
+   the PR 6 fix pass (Ev: "deserves proper types") and landed as
    the tagged-token key-encoder retype (#112).
 2. **Save/load validation is ONE shared validator, not two mirrored
-   door sets** (sharpened at ratification per Evan: structural
+   door sets** (sharpened at ratification per Ev: structural
    sharing beats a sweep — code that is literally the same cannot
    drift). Every direction-independent document check lives in a
    single validator invoked by BOTH doors: at save on the in-memory
@@ -1678,7 +1678,7 @@ incident):**
    asserts a MINIMUM green-row count equal to the current full CI
    matrix, and the floor is bumped in the same PR that grows the
    matrix — a stale shorter matrix can never gate a merge.
-   *Change-filter rider (2026-07-29, Evan's ask post-Actions-budget;
+   *Change-filter rider (2026-07-29, Ev's ask post-Actions-budget;
    made dependency-aware 2026-07-28):* CI carries a three-tier change
    filter, implemented once in `scripts/ci-filter.py` and called by
    both `ci.yml`'s filter job and `local-scripts/ci-local.sh`, so hosted and
@@ -1705,7 +1705,7 @@ incident):**
    persistence rows showed green on the old matrix); floors then
    tracked the matrix 13 → 14 → 16 through #116/#118.
 
-**Convention RATIFIED at the M5 exit sweep (Evan, PR #169 comment
+**Convention RATIFIED at the M5 exit sweep (Ev, PR #169 comment
 5171303851, 2026-08-03: "the three amendments (two-tolerance
 principle, equivariance, distance-only tesselation) sound good to me
 also"):**
@@ -1724,7 +1724,7 @@ also"):**
    (arc lengths, distances, angles) over enumeration or construction
    order; where a candidate-swapping symmetry makes equivariance
    impossible, fall back deterministically and DOCUMENT the residual.
-   Origin: Evan, 2026-07-30, during the S8 fillet-branch ruling —
+   Origin: Ev, 2026-07-30, during the S8 fillet-branch ruling —
    *"everything is equivariant right now, so maintain that if it's
    free (if that is indeed true)."* **The parenthetical is load-
    bearing and is carried into this convention: the "the kernel is
@@ -1792,7 +1792,7 @@ precursor of the error-propagation feature.
   solid; provenance-based naming; replay. STEP export. *(Complete
   2026-07-27.)* Standing design outcome
   stated here because it still binds: **production bit-identity
-  coincidence checking is RETIRED** (Evan, #53; executed M4 PR 5,
+  coincidence checking is RETIRED** (Ev, #53; executed M4 PR 5,
   #102). The ratified mechanism is NAMING-DESIGN N6 recipe-source
   identity — `GeomSource`: same source ⇒ same bits by D9, converse
   deliberately unclaimed. `geom_core::bit_identity` is debug-only
@@ -1817,7 +1817,7 @@ precursor of the error-propagation feature.
   piecewise at M5 and
   CLOSED at M6 unit 1 (the composed die is one tier-3 body; the M5
   pin flipped with its history). The #89 K-revisit was TAKEN at the
-  M5 exit and the outcome is **#89 CLOSED, K = 10 permanent** (Evan,
+  M5 exit and the outcome is **#89 CLOSED, K = 10 permanent** (Ev,
   PR #169; K-REPORT M5 addendum — and see K-REPORT's M7 addendum for
   the fired-and-retired landing). The in-house
   `interval-transcendentals` crate was adopted as the kernel's
@@ -1868,7 +1868,7 @@ precursor of the error-propagation feature.
   [Beyond the kernel](#beyond-the-kernel-the-usability-gap) below.
   Its library half is designed and RATIFIED as
   `docs/LIBRARY-DESIGN.md` and is RUNNING (`docs/LIB-LOG.md`), at
-  Evan's per-unit discretion. Its GUI half ran as the v1 GUI program
+  Ev's per-unit discretion. Its GUI half ran as the v1 GUI program
   (`docs/GUI-PLAN.md`, RATIFIED 2026-08-27): units GUI-0…GUI-4 are
   merged and `docs/GUI-EXIT-WALK.md` is the proposed exit walk.
   Licensing-hygiene work with
@@ -1889,7 +1889,7 @@ precursor of the error-propagation feature.
 
 ## Beyond the kernel: the usability gap
 
-*(Added 2026-07-19, from the usability-scoping conversation with Evan.
+*(Added 2026-07-19, from the usability-scoping conversation with Ev.
 This is a **scoping section, not a milestone plan** — it names the
 work between "the M0–M10 kernel exists" and "a person can actually use
 this," so that none of it gets invented ad hoc or discovered late.
@@ -2082,7 +2082,7 @@ named.
   no dirty-flag invalidation logic. Finer-grained than (and
   complementary to) feature-DAG memoization.
 - **Coincidence is structural or declared, never inferred from
-  values** *(pre-M3; ratified round 8 — Evan's
+  values** *(pre-M3; ratified round 8 — Ev's
   explicit-intent revision of the round-6 proposal, which had a
   latent defect: treating bit-equal descriptions as semantic
   coincidence makes topology hinge on an UNMARGINED predicate — a
@@ -2118,7 +2118,7 @@ named.
   pins the run's ε to the document's; an assembly whose referenced
   documents disagree on ε is a typed error (D4's per-model-ε
   rejection, enforced at the seam). **Changing ε is a recorded
-  `SetTolerance` document edit** (Evan's addition): apply = replay
+  `SetTolerance` document edit** (Ev's addition): apply = replay
   at the new ε and structurally diff — D9 key identity makes "did
   topology change" a free comparison, and the delta is reported as
   exactly which predicates changed verdict (escalations included);
@@ -2200,7 +2200,7 @@ named.
 - **Recipe schema versioning/migration from the first RELEASED
   file** (D8 is the save format), autosave/crash recovery, and
   embedded derived caches so opening a model isn't a full rebuild.
-  *Ruled 2026-09-01 (Evan, in-chat): pre-release there is NO
+  *Ruled 2026-09-01 (Ev, in-chat): pre-release there is NO
   hand-maintained schema version, no migration chain and no bump
   coordination — schema breaks are not a problem at all because
   nothing is released and no document exists outside this repo;
@@ -2319,7 +2319,7 @@ revision).
 - **K's numeric value: CLOSED — K = 10 is the permanent ratified
   default (#89 closed, PR #169; evidence trail in docs/K-REPORT.md
   and its milestone addenda).** K remains a policy dial, not a
-  correctness parameter, and (Evan, #41, 2026-07-20) is ε-style
+  correctness parameter, and (Ev, #41, 2026-07-20) is ε-style
   per-run configuration (`Tolerance.k`, env-overridable, one value
   per run, never changed mid-run) — expected to join ε under the
   banked change-ε/`SetTolerance` principle (per-model persisted,
@@ -2408,7 +2408,7 @@ shipped state.
   row-5 assert meeting a real part is information nothing else produces.
   **Deleting the stanza is a real reduction in what a release build
   checks, so it is a decision to take at publish rather than a chore to
-  tick off** — `SMELL-SCAN-2026-08.md`'s **S65** is the worked example
+  tick off** — **S65** (`work/code-quality/S65.md`) is the worked example
   (the #678 watertightness backstop, ruled row 5 in **#884**: the
   `debug_assert` is the settled mechanism, and only its release REACH
   was ever in question — which is exactly what this stanza sets).
@@ -2434,7 +2434,7 @@ not the modeling core. Candidates, all verified active unless noted:
 |---|---|---|---|
 | ID arenas | `slotmap` | Zlib | **Adopted** (M0+). typed keys per entity kind, `SecondaryMap` for attributes — exactly the B-rep store shape |
 | Persistent collections | `imbl` (or `rpds` for MIT-only) | MPL-2.0 / MIT | still a candidate — NOT yet a dependency (nothing has needed it through M9, LIB, ASM or GUI v1). `im` is unmaintained with an open soundness advisory — use the `imbl` fork if ever adopted |
-| Interval arithmetic | `interval-transcendentals` (in-house, in-repo) | MIT/Apache | **Adopted as the kernel `T = Interval` backend at M5 PR 1 (#127, 2026-07-28)** — proven per-function libm error pads (4-ulp transcendental, 1-ulp arithmetic with exactness witnesses for sqrt/mul/div), MPFR-differential-certified (~4M cases via the optional `oracle-inari` dev feature), libm-only, D9-clean; the crate keeps its own workspace, kernel crates path-depend on it; its fast suites run gmp-free in the hosted `interval-backend` CI row. **The kernel is copyleft-free in every build configuration**: the M5 PR 1 swap removed `inari` and its gmp/MPFR LGPL-3.0+ stack from the tree entirely (Cargo.lock zero hits, dev-deps included), meeting issue #4's exit condition by removal; inari survives only as the optional differential oracle inside the excluded crate's own workspace. No target-cpu floor: mul_add witnesses are correctly-rounded regardless (Evan's #127 retroactive review, 2026-07-29) |
+| Interval arithmetic | `interval-transcendentals` (in-house, in-repo) | MIT/Apache | **Adopted as the kernel `T = Interval` backend at M5 PR 1 (#127, 2026-07-28)** — proven per-function libm error pads (4-ulp transcendental, 1-ulp arithmetic with exactness witnesses for sqrt/mul/div), MPFR-differential-certified (~4M cases via the optional `oracle-inari` dev feature), libm-only, D9-clean; the crate keeps its own workspace, kernel crates path-depend on it; its fast suites run gmp-free in the hosted `interval-backend` CI row. **The kernel is copyleft-free in every build configuration**: the M5 PR 1 swap removed `inari` and its gmp/MPFR LGPL-3.0+ stack from the tree entirely (Cargo.lock zero hits, dev-deps included), meeting issue #4's exit condition by removal; inari survives only as the optional differential oracle inside the excluded crate's own workspace. No target-cpu floor: mul_add witnesses are correctly-rounded regardless (Ev's #127 retroactive review, 2026-07-29) |
 | Robust predicates | `robust` (georust) | MIT/Apache | not a DIRECT dependency and nothing of ours calls it, though it rides in transitively under `spade`; Shewchuk adaptive predicates, battle-tested via `geo`/`spade` |
 | Dual numbers / forward AD | `num-dual` (dev-only) | MIT/Apache | **Demoted at M0** (PR #10): its transcendentals route through std, not libm, so it cannot satisfy the value-channel bit-identity contract — duals are one in-house generic `Dual<T>` (f64 and Interval from the same code); num-dual serves as a dev-dependency derivative oracle in tests |
 | CDT / mesh refinement | `spade` | MIT/Apache | **Adopted** (M2, `mesh` crate). Delaunay + constrained + Ruppert refinement; meshing happens in UV space (our code). CDT insertion is quadratic for faces bounded by nested near-cocircular loops (a planar face with a hole) and near-linear otherwise; the cost is the legalization cascade, not point location (`mesh` §Performance, PERF-PLAN §2.1); exterior classification is OURS since #116 (even-odd flood fill), spade supplies the CDT only |
@@ -2466,18 +2466,18 @@ dev-dependency oracle rather than reference-only (audited at M5 — NO SSI
 Local copies live in `references/` (git-ignored). Currently on hand:
 `the-nurbs-book.pdf` (full 2nd-edition scan, verified),
 **`mantyla-1988-an-introduction-to-solid-modeling-full.pdf`** (the
-complete book, 424 pp., supplied by Evan 2026-07-16 and TOC-verified:
+complete book, 424 pp., supplied by Ev 2026-07-16 and TOC-verified:
 ch. 9 Euler operators, ch. 10 half-edge data structure, ch. 11
 implementation incl. the low-level Lmev/Lmef/Lkemr set, ch. 12–15
 sweeping/geometric algorithms/splitting/booleans — M1 through M3's
 primary source; supersedes the old ch. 4–6 partial scan),
 `grinspun-schroder-desbrun-GSD06-discrete-differential-geometry.pdf`
-(DDG course notes — Evan-suggested during PR #9's subgradient
+(DDG course notes — Ev-suggested during PR #9's subgradient
 conversation; the discrete-exactness philosophy is the frame for how
 M10's stackup design should treat kinks/subdifferentials),
 `vida-martin-varady-1994-survey-of-blending-methods-parametric-surfaces.pdf`
 (Computer-Aided Design 26(5) — the canonical blending survey, supplied
-by Evan 2026-07-16; primary source for M5's fillet scope-boxing:
+by Ev 2026-07-16; primary source for M5's fillet scope-boxing:
 terminology/classification of blends, rolling-ball and trimline
 methods, the open problems that motivated D2's `TangentIntersection`
 treatment), and `hoffmann/` (Hoffmann,

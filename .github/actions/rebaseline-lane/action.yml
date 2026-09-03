@@ -4,7 +4,7 @@ description: >
   drift from what is committed, and mark the run NEUTRAL so the change
   demands a look without failing the build.
 
-# WHY THIS REPLACED A FAILING GATE (2026-08-17, Evan's ruling).
+# WHY THIS REPLACED A FAILING GATE (2026-08-17, Ev's ruling).
 #
 # The old gate did the right thing for the wrong cost. A drifting lane
 # failed the run and printed a `render-hosted.sh --run <id> --lane <x>`

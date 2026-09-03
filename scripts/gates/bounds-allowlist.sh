@@ -9,13 +9,13 @@
 # `real.rs`, Bounds scope rule): the C10 boolean-sweep driver
 # lane in topo, the evaluation-service seam in editor-core,
 # profile's pre-amendment fillet gate, and topo/props.rs — the
-# M5 PR 11 certified-quadrature plumbing (Evan's lane-split
+# M5 PR 11 certified-quadrature plumbing (Ev's lane-split
 # ruling at that PR: certification is the CERTIFYING lanes'
 # business, statically split from the dual lane through
 # `PropsQuadLane`), and — since M5 PR 12 — the fillet-battery
 # seam in sweep. That last one is an ORCHESTRATOR ruling
 # (2026-08-03) applying the PR 11 precedent, flagged for
-# retroactive Evan review per the self-merge convention: the
+# retroactive Ev review per the self-merge convention: the
 # battery's margins are certified metric quantities (sup-κ
 # curvature hulls, blend setback bounds) reported as `f64`
 # payloads, i.e. enclosure consumers of exactly the quadrature's
@@ -76,7 +76,7 @@
 # (certified) from `Dual` (typed refusal) — and it is what keeps
 # `Bounds` out of `topo`'s signatures.
 # topo/src/chart_region.rs is M9-2 PR-1's chart-region overlap
-# predicate (spec item 1; the PR 11 class, retroactive Evan
+# predicate (spec item 1; the PR 11 class, retroactive Ev
 # review per the self-merge convention): it simultaneously
 # DECIDES (its chart_region_* funnel margins) and reads
 # exact-f64 STRUCTURE through the bracket — the C6 planar-trim
@@ -100,7 +100,7 @@
 # the 2026-09-02 entry of the `Bounds` scope rule. Not restated here;
 # keep this a pointer.
 # editor-core/src/checks.rs is the advisory-check registry, the
-# SECOND production caller of topo::separation (ratified by Evan
+# SECOND production caller of topo::separation (ratified by Ev
 # 2026-08-29). Its bound is `Decide + CertifiedBounds` — TIGHTENED,
 # per the M9-2 entry's discriminator ("nothing generic calls this
 # door"), which is what the real.rs rule actually prescribes here;

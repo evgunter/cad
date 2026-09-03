@@ -1,6 +1,6 @@
 # At-rest census structural identity (#943 + #591 Door-2) — design conversation
 
-STATUS: **RATIFIED (Evan, in-chat + 👍 on PR #965 comment
+STATUS: **RATIFIED (Ev, in-chat + 👍 on PR #965 comment
 5387912750, 2026-08-23).** Answers, as given: **Q1 YES, sure**
 (Door 2 compares planar trims in world space on the verified
 shared carrier — U-R2 adopted with the C3/C4 wording change);
@@ -26,7 +26,7 @@ at-rest face-pair-backed closure) and the F1/Door-2 item on #591's
 thread (cross-instance chart identity), inherited by M9 because
 the at-rest door is M9-2's census machinery. Substrate: dedicated
 exploration 2026-08-23 (file:line evidence below is from it,
-against main @ 76856a8d). Evan's constraint from #943, held
+against main @ 76856a8d). Ev's constraint from #943, held
 throughout: **do not re-implement contact machinery as mates** —
 the mate already said the right thing (one face pair, declared
 once); what is missing is the census consulting it.
@@ -99,7 +99,7 @@ residue.
   boolean/{mod,reduce,vtxfac,recl,rest,zip,ops}.rs and only READS
   the census doors. Parallel dispatch is safe.
 
-## Evan's latitude notes (in-chat, 2026-08-23) — folded as constraints
+## Ev's latitude notes (in-chat, 2026-08-23) — folded as constraints
 
 Two steers given before the questions were answered, held as
 binding latitude by everything below:
@@ -139,7 +139,7 @@ the boolean lane the configuration never survives to records
 face rung — a declared face pair holding the vertex on one
 boundary and the edge on the other — and otherwise remains an
 undeclarable defect.* Nothing outside census.rs + its module
-docs; no CONTACT-DESIGN invariant moves. Evan's #943 constraint
+docs; no CONTACT-DESIGN invariant moves. Ev's #943 constraint
 is satisfied by construction: the rung consults `Declared::faces`
 — the mate's own minted PatchContact (census.rs:220-229) — no new
 machinery, no mate-side vocabulary. The tour's `SEAT_A`/`SEAT_B`
@@ -191,7 +191,7 @@ Three options examined:
   no u_ref/seam ambiguity — C2's chart-divergence caveat
   (:151-155) is specifically about chart PARAMETERS, which a
   plane's world embedding does not have.
-  **CORRECTION (2026-08-27, Evan ratifying after the gap-2
+  **CORRECTION (2026-08-27, Ev ratifying after the gap-2
   substrate; the CONCLUSION stands, this reasoning does not).**
   The sentence above is false about the type it consumes.
   `Surface::Plane` carries `origin`, `normal` AND `u_ref`, and
@@ -247,7 +247,7 @@ census-side and file-disjoint from M9-3; they scheduled as M9
 adjacents without touching the join lane's critical path. Both
 landed in that order — gap 1 as #969, gap 2 as #1063.
 
-## The four questions Evan answered (restated concretely, 2026-08-23, after the latitude notes)
+## The four questions Ev answered (restated concretely, 2026-08-23, after the latitude notes)
 
 1. **May Door 2 test planar overlap in WORLD space?** Today two
    mated faces must live in one chart (shared surface key, or the

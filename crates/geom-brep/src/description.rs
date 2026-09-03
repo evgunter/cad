@@ -18,7 +18,7 @@
 //!   the certification lanes that DO differ survive where they belong
 //!   — as [`Pcurve`]'s exactness variants;
 //! - [`EdgeDescription::Scaffold`] is the fenced scaffolding door
-//!   (D3, Evan 2026-08-27): a [`MappedCurve`] is legal as a
+//!   (D3, Ev 2026-08-27): a [`MappedCurve`] is legal as a
 //!   description only while TRANSIENT. Tier 3 refuses it at rest.
 //!
 //! # The certified statement (D1)

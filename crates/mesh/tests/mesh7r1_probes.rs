@@ -7,14 +7,22 @@
 //! pole mid-edge, so the traversed arc lies on TWO chart meridians
 //! (`u` and `u + π`). Props' sphere parse certifies the CARRIER (a
 //! great circle) and, since CERT-1, folds the pole into the extent, so
-//! the door admits both faces of the body — while the walk's premise
-//! ("every boundary edge is an iso curve of the chart") does not hold
-//! for that edge. The row records what each lane says about it.
+//! the SHAPE door admits both faces of the body — while the walk's
+//! premise ("every boundary edge is an iso curve of the chart,
+//! traversed on one branch of it") does not hold for that edge. The
+//! row records what each lane says about it.
+//!
+//! **Since MESH-11 (issue 1571) a second door decides that half**:
+//! `props::require_one_chart_branch`, cited beside the shape door, so
+//! the body is refused typed before the walk. The half-cap row is
+//! re-aimed onto the SEAM rather than deleted — shape door yes, branch
+//! door no, on one face — because the seam is what this review found
+//! and it is still the thing worth pinning.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
 
-use common::witness_bodies::{keyway, oblique_lens};
+use common::witness_bodies::{keyway, oblique_lens, pole_crossing_half_cap};
 use common::*;
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
@@ -40,82 +48,6 @@ fn door_verdict(body: &Body<f64>, fk: FaceKey) -> Result<(), geom_brep::props::P
 }
 
 // R1-DOOR-ONLY-END
-
-/// The unit sphere split by a rim at latitude `asin(0.5)` (the half
-/// of it from `u = 0` to `u = π`) and a great-circle arc in the plane
-/// `y = 0` that runs from the rim's `u = π` end OVER THE NORTH POLE to
-/// its `u = 0` end. Face A (the seed) is the half-cap
-/// `[0, π] × [asin 0.5, π/2]`; face B is the rest of the sphere, whose
-/// chart domain is NOT a rectangle (an L: the full southern part plus
-/// the other half of the cap).
-fn pole_crossing_half_cap() -> (Body<f64>, FaceKey, FaceKey) {
-    let tol = Tol::witness();
-    let z = 0.5_f64;
-    let r = (1.0 - z * z).sqrt();
-    let a = p3(r, 0.0, z); // u = 0 on the rim
-    let b = p3(-r, 0.0, z); // u = π on the rim
-    let rim = Curve3::Circle {
-        center: p3(0.0, 0.0, z),
-        axis: v3(0.0, 0.0, 1.0),
-        radius: r,
-        u_ref: v3(1.0, 0.0, 0.0),
-    };
-    // The great circle in the plane y = 0, anchored at `b`, oriented so
-    // that the arc from `b` to `a` passes over the north pole
-    // (increasing z first).
-    let great = |axis: Vec3<f64>| Curve3::Circle {
-        center: p3(0.0, 0.0, 0.0),
-        axis,
-        radius: 1.0,
-        u_ref: v3(-r, 0.0, z),
-    };
-    let mut g = great(v3(0.0, 1.0, 0.0));
-    // The point a quarter turn along must have z > 0.5 (over the pole).
-    let quarter = g.eval(core::f64::consts::FRAC_PI_2);
-    if quarter.z < z {
-        g = great(v3(0.0, -1.0, 0.0));
-    }
-    let t_end = g.param_near(a, 0.0).unwrap();
-    assert!(t_end > 0.0, "arc from b to a has increasing parameter");
-    assert!(
-        (t_end - 2.0 * core::f64::consts::FRAC_PI_3).abs() < 1e-9,
-        "the over-the-pole arc spans 120 degrees, got {t_end}"
-    );
-    let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
-    body.set_face_surface(
-        seed.face,
-        FaceSurface::New(Surface::Sphere {
-            center: p3(0.0, 0.0, 0.0),
-            radius: 1.0,
-            axis: v3(0.0, 0.0, 1.0),
-            u_ref: v3(1.0, 0.0, 0.0),
-        }),
-    )
-    .unwrap();
-    let e_rim = body
-        .mev(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            b,
-            EdgeCurveSpec::arc_of_circle(rim, 0.0, core::f64::consts::PI).unwrap(),
-            tol,
-        )
-        .unwrap();
-    let made = body
-        .mef(
-            MefSite::Chords {
-                he1: e_rim.he_minus,
-                he2: e_rim.he_plus,
-            },
-            EdgeCurveSpec::arc_of_circle(g, 0.0, t_end).unwrap(),
-            FaceSurface::Inherit,
-            tol,
-        )
-        .unwrap();
-    (body, seed.face, made.face)
-}
 
 /// **Reviewer's construction — does the door establish the walk's
 /// premise?** Records the door verdict on both faces, the tessellate
@@ -499,49 +431,45 @@ fn report_band_arm_under_the_runs_eps() {
 }
 // R1-DOOR-ONLY-END
 
-/// **Issue 1571's LIMITATION, pinned — not a desired behaviour.** The
-/// half-cap's one meridian edge is a great-circle ARC that crosses the
-/// north pole mid-edge. Props certifies the CARRIER (a great circle,
-/// `props_meridian_great`) and folds the pole into the extent, so the
-/// door admits both faces and `mass_properties` answers (0.0 for this
-/// two-face body — the props-side finding on the issue; 4π/3 for the
-/// three-face split); the walk's premise — each traversed arc on ONE chart meridian
-/// — does not hold for that edge, `mid_azimuth` reads the pole's `u`,
-/// and the closing column disagrees by π. At δ = 0.1 the face refuses
-/// `CertificateExceeded`, which is what this row asserts. At δ = 0.5
-/// the walk produces a NON-watertight mesh, and what says so is the
-/// cross-face identification census (issue 897): in a debug build it
-/// panics there, and with debug assertions off the walk returns that
-/// mesh `Ok`. Recorded, not asserted — a `debug_assert` is not a
-/// contract to pin a `should_panic` on.
+/// **Issue 1571, closed at the door.** The half-cap's one meridian
+/// edge is a great-circle ARC that crosses the north pole mid-edge.
+/// The SHAPE door still admits both faces — props certifies the
+/// CARRIER (`props_meridian_great`) and folds the pole into the
+/// extent, so `mass_properties` still answers, and what it answers is
+/// this body's own defect: 0.0 for a closed unit sphere, because both
+/// faces are bounded by the same two edges traversed opposite ways and
+/// their fluxes cancel (issue 1598; the three-face split measures the
+/// exact 4π/3 — the rows above print both). What has changed is that
+/// the BRANCH door now stands beside the shape door in front of the
+/// walk: `props::require_one_chart_branch` refuses the traversed arc
+/// typed, at every δ, before a mesh is minted, so the walk no longer
+/// reads the pole's `u` through `mid_azimuth` and no
+/// `CertificateExceeded` — a refusal about the chord budget standing
+/// in for a refusal about the premise — is reachable here.
 ///
-/// The π itself is REPORTED rather than asserted on, by
-/// `topo::examine_chart_coherence` (issue 868): the walk stopped being
-/// the place that measures the quality of a body's coordinates, and
+/// The π itself is still REPORTED rather than asserted on, by
+/// `topo::examine_chart_coherence` (issue 868), and
 /// `topo/tests/mesh8_coherence.rs` is where this body's half-turn is
-/// pinned as a value.
-/// The door does not establish the arc premise and this row says so;
-/// the fix (arc-span verification in the walk or in props) flips it.
+/// pinned as a value. The refusal's own rows are
+/// `mesh/tests/mesh11_arc_branch.rs`; this one keeps the SEAM the
+/// review found — shape door yes, branch door no, on one face.
 #[test]
-fn a_pole_crossing_arc_pins_issue_1571s_inherited_premise() {
+fn a_pole_crossing_arc_is_refused_by_the_branch_door_not_the_shape_door() {
     let (body, cap, rest) = pole_crossing_half_cap();
     let tol = Tol::witness();
     assert_eq!(door_verdict(&body, cap), Ok(()));
     assert_eq!(door_verdict(&body, rest), Ok(()));
-    // Props ANSWERS for this body — the point is that nothing on the
-    // props side refuses the pole-crossing arc. What it answers is the
-    // issue's props-side finding: on this two-face body the complement
-    // face is an L in the chart that the door and the closed form both
-    // accept, and the volume comes back 0.0 for a closed unit sphere
-    // (the three-face split measures the exact 4π/3 — the rows above
-    // print both). Recorded on issue 1571, not asserted beyond `Ok`.
     let mp = topo::mass_properties(&body, tol).expect("props answers for the pole-crossing body");
-    println!("PIN 1571 two-face volume: {}", mp.volume);
+    assert_eq!(mp.volume, 0.0, "issue 1598, unmoved by the branch door");
     let got = mesh::tessellate(&body, 0.1, tol).map(|_| ());
     assert!(
-        matches!(got, Err(TessellateError::CertificateExceeded { .. })),
-        "issue 1571: the door admitted a face whose arc leaves its chart meridian, and the \
-         walk that follows cannot certify it; got {got:?}. If this now MESHES watertight, the \
-         arc premise has been verified somewhere — delete this row and close the issue"
+        matches!(
+            got,
+            Err(TessellateError::UnsupportedCurvedShape {
+                source: geom_brep::props::PropsError::NotOneChartBranch { .. },
+                ..
+            })
+        ),
+        "issue 1571: the arc premise is verified at props and refused typed; got {got:?}"
     );
 }

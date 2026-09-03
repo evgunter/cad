@@ -28,14 +28,14 @@ fn p3<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
 }
 fn edge<T: Real>(carrier: Curve3<T>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<T> {
     let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge {
+    LoopEdge::hand_built(
         carrier,
-        t0: T::from_f64(t0),
-        t1: T::from_f64(t1),
+        T::from_f64(t0),
+        T::from_f64(t1),
         forward,
         start,
         end,
-    }
+    )
 }
 
 fn sphere<T: Real>() -> Surface<T> {

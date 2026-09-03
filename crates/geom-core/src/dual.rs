@@ -103,7 +103,7 @@
 //!
 //! # [`crate::Bounds`] yes, [`crate::CertifiedEnclosure`] no
 //!
-//! A dual **carries a bracket** and **may not certify** — ruled by Evan,
+//! A dual **carries a bracket** and **may not certify** — ruled by Ev,
 //! 2026-08-19: *a `Dual` may not certify — at least for now — but it may
 //! have `Bounds`* — separable only because #643 made those two traits
 //! instead of one.
@@ -731,7 +731,7 @@ where
 
 /// **The bracket is the value channel; the tangent is not in it.**
 ///
-/// Ruled by Evan, 2026-08-19: *a `Dual` may not certify — at least for
+/// Ruled by Ev, 2026-08-19: *a `Dual` may not certify — at least for
 /// now — but it may have [`Bounds`].* The two halves are separable only
 /// because #643 split them into two traits; this takes the first and
 /// leaves the second alone. ***At least for now* is part of the ruling**:

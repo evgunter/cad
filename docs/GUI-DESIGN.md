@@ -92,7 +92,7 @@ convention):**
   exactly one *committed* `DocEdit` on release — one undo step, one
   document transition. Same shape either way; commit is the one that
   enters the history (ratified in-conversation 2026-07-19).
-- **Every operation the GUI performs is itself API** (Evan,
+- **Every operation the GUI performs is itself API** (Ev,
   2026-08-27): "select this object", "hide this part", "free-move
   this instance", a camera move — each is a typed operation on
   `editor-core` or layer-3 state values, callable with no renderer
@@ -122,7 +122,7 @@ recipe edit**. Two facts recorded from the ratifying conversation:
   solved assignment — is **not** a GUI question; it is GQ1, and it
   constrains M4's recipe format.
 
-## G3 (Evan, 2026-08-03): The v1 GUI minimum EXCLUDES live editing
+## G3 (Ev, 2026-08-03): The v1 GUI minimum EXCLUDES live editing
 
 Sourced from a conversation with a practicing mechanical engineer:
 the minimum useful GUI needs exactly —
@@ -134,7 +134,7 @@ the minimum useful GUI needs exactly —
   involvement, purely a display transform on unmated parts),
 - hiding parts in an assembly (see behind them).
 
-One addition was ruled onto these four at v1 planning (Evan,
+One addition was ruled onto these four at v1 planning (Ev,
 2026-08-27, `docs/GUI-PLAN.md`): **defining a mate between
 previously-unmated parts**, ruled in because free-move fit-probing
 exists precisely to precede it.
@@ -173,7 +173,7 @@ requirement, not a solver one).
   here makes "preview disagreed with commit" conceptually impossible
   rather than merely tested-against.
 
-### Colour: the theme is a user preference, the document overrides it (Evan, 2026-08-30)
+### Colour: the theme is a user preference, the document overrides it (Ev, 2026-08-30)
 
 Two things set colour, and the precedence between them is one rule.
 
@@ -206,7 +206,7 @@ Because the marks are *mixed over* the body colour rather than
 replacing it, what any such check must measure is the composited
 colour, never the raw tint.
 
-**A palette also states its GROUND** (`Theme::ground`, Evan,
+**A palette also states its GROUND** (`Theme::ground`, Ev,
 2026-09-01) — what fills the viewport where no geometry is drawn. It
 is the palette's and not the toolkit's for the reason every other
 colour here is: the pane is a custom pass that paints only what the
@@ -249,7 +249,7 @@ inside D9's bit-identity boundary and Q1's trilean discipline (solver
 internals branch on convergence tests that are not predicates;
 interval-instantiating a constraint solver is research).
 
-**Why a stored witness at all (clarified with Evan, 2026-07-19 round
+**Why a stored witness at all (clarified with Ev, 2026-07-19 round
 3): the constraints alone do not define the sketch.** A constraint
 system generically has a *finite set* of discrete solutions
 (reflections, elbow-up/elbow-down — 2^k-ish configurations all
@@ -276,7 +276,7 @@ large-parameter-jump witness landing near a basin boundary escalates
 on the same margin. The witness refreshes at every committed sketch
 edit, so it is always the user's most recent explicit choice.
 
-**Ratified (Evan, round 4: "the clear correct choice for us"):**
+**Ratified (Ev, round 4: "the clear correct choice for us"):**
 solver output demoted to witness; kernel certifies; interval replay
 runs interval-Newton **contraction seeded from the f64 witness**
 (existence/uniqueness in a box) instead of interval-solving from
@@ -308,7 +308,7 @@ value), the solid being the final node's success — fail-loud
 preserved (failures typed and mandatory to confront), last-good
 prefix free for the GUI. **A failure poisons only its descendants**
 (typed "upstream failed" status); independent subgraphs — other
-bodies, sketches, datum geometry — complete normally (Evan's
+bodies, sketches, datum geometry — complete normally (Ev's
 addition). Exact API shape is M4 design work; the codomain
 commitment is what is banked here.
 
@@ -355,7 +355,7 @@ extension shape is composition, not modification. Ratified:
   is touched.
 - The naming design doc proceeds assuming locality, with the wrapper
   named as the sanctioned extension point.
-- **The uniformity principle (Evan's synthesis, the ratifying
+- **The uniformity principle (Ev's synthesis, the ratifying
   addition): the document boundary is a namespace/versioning seam,
   NOT a change of formalism.** An assembly document is a recipe DAG
   of the *same shape* as a part document — its nodes are features
@@ -409,7 +409,7 @@ wrapper-plus-pin shape again, held by the part document.
 ### GQ5 (RATIFIED 2026-07-19 round 4, superseding round 3's raw-meters reading): Typed quantities in the expression sublanguage
 
 Round 3 read D6 as "expressions are raw meters, unit strings are
-parse-time sugar." Evan's round-4 revision, ratified: **the
+parse-time sugar." Ev's round-4 revision, ratified: **the
 expression sublanguage carries typed quantities** — once display
 units are stored anywhere (round-tripping `25 mm` requires it), raw
 storage means the type system knows less than the data does;
@@ -449,7 +449,7 @@ unit for an angle that remembers none.*
 `docs/GQ6-RESURVEY.md`**, which supersedes the snapshot below as the
 factual record.
 
-**Toolkit (RATIFIED, Evan, 2026-08-16): egui — and if egui does not
+**Toolkit (RATIFIED, Ev, 2026-08-16): egui — and if egui does not
 work out, iced.** A default with a named fallback, not a tie to be
 broken later by a bake-off. Deciding factors: egui tracks current
 wgpu (30) where iced 0.14 pins 27 and has not released since
@@ -496,7 +496,7 @@ cargo feature is additive for the dependency graph and
 `cfg(not(feature = "interval"))` under `crates/*/src`, so the interval
 build compiles a superset of the library sources. Under `crates/*/tests`
 the gate holds a different rule and the negation is legitimate; that does
-not reach this guard, whose step builds no test targets. **Evan's ruling, 2026-08-21:** *"do add wasm
+not reach this guard, whose step builds no test targets. **Ev's ruling, 2026-08-21:** *"do add wasm
 cross compiling for the interval build only. the lint for having
 interval be purely additive suffices."*
 
@@ -591,7 +591,7 @@ Ideas captured during design conversations — NOT ratified decisions;
 they inform sketcher/editor design when it happens. Each cites the
 contract it builds on.
 
-- **Wall-mode drag (Evan, PR #79 conversation, 2026-07-23)** — on
+- **Wall-mode drag (Ev, PR #79 conversation, 2026-07-23)** — on
   SOLVER-DESIGN W2/W4: the default click-and-drag mode refuses to
   cross the discriminant locus. As the drag approaches it, the
   preview solver's `solver_branch_margin` shrinks; at the wall the
@@ -613,7 +613,7 @@ contract it builds on.
   `solver_branch_margin` value is a live scalar during editing;
   surfacing it (e.g. subtle proximity shading near walls) turns
   "why did it ask?" into something the user saw coming.
-- **Scale-relative sliver lint** — from #89 (Evan, 2026-07-24): any
+- **Scale-relative sliver lint** — from #89 (Ev, 2026-07-24): any
   feature whose margin is so small it renders indistinguishably from
   exact coincidence at GUI scale is *probably* a mistake — but the
   kernel must not refuse it (K guards certification honesty, not
@@ -627,7 +627,7 @@ contract it builds on.
   effect on evaluation or certification. The kernel-side "should K
   itself be larger" question stays separate, gated on the M5 exit
   K-snapshot (#89 remains the tracking handle).
-- **Painted operands through booleans** — from #92 (Evan, 2026-07-25):
+- **Painted operands through booleans** — from #92 (Ev, 2026-07-25):
   joining painted bodies never errors (resolves-anywhere semantics;
   paint keeps resolving on the operand node). The GUI renders the
   displayed node's appearance, so paint-what-you-see always works;
@@ -639,9 +639,9 @@ contract it builds on.
   "carry appearance through this boolean" policy can enter the N5
   menu as its own ratification.
 
-## Undo as a history tree, not a stack (concept — Evan, 2026-07-25)
+## Undo as a history tree, not a stack (concept — Ev, 2026-07-25)
 
-Motivation (Evan's pet peeve, common to most editors): undo N steps,
+Motivation (Ev's pet peeve, common to most editors): undo N steps,
 make one edit, and the redo branch is silently destroyed — real work
 lost. Better design: edit history is a TREE (a DAG of document
 states); undo moves a pointer toward the root, a new edit after undo
@@ -666,7 +666,7 @@ the tree-shaped *state* under linear chrome (`viewer::history`: an
 edit after undo mints a sibling, nothing is destroyed); the branch
 picker and the sidecar are GUI-6.
 
-Visualization sketch (Evan, 2026-08-27; non-binding like the rest
+Visualization sketch (Ev, 2026-08-27; non-binding like the rest
 of this section): render the history as a graph with the linear
 history running top to bottom; an edit made after an undo mints a
 new child node placed to the right of the child that redo would
@@ -674,10 +674,10 @@ have reached. Sized in the same conversation at one-to-two work
 units including the separable sidecar file, sequenced after GUI
 v1 (`docs/GUI-PLAN.md` banks it as GUI-6).
 
-### State/history separation (Evan, 2026-07-27 — the sharpened
+### State/history separation (Ev, 2026-07-27 — the sharpened
 ### form of the git-like instinct)
 
-What the undo-tree concept above still owed a name: Evan wants it
+What the undo-tree concept above still owed a name: Ev wants it
 POSSIBLE to share a document's state without bringing its entire
 history — the state and the edit DAG should be separable artifacts,
 not one inseparable file. Design facts already in place: F3's

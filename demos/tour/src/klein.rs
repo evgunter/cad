@@ -5,7 +5,7 @@
 //!
 //! A Klein bottle is a 2-manifold, and this kernel is manifold-first
 //! and SOLID-first (D1): a zero-thickness sheet is not a body it can
-//! hold. So the model is the honest 3-D stand-in Evan asked for — a
+//! hold. So the model is the honest 3-D stand-in Ev asked for — a
 //! THIN 3-manifold with boundary whose midsurface is the classic
 //! immersed Klein bottle. Every piece is a wall of thickness
 //! [`WALL`] wrapped around a spine, and the spine is the bottle's own
@@ -32,7 +32,7 @@
 //!
 //! # Why the construction has this shape
 //!
-//! Evan's sketch was: torus loop → fillet → cone → tangent → wide
+//! Ev's sketch was: torus loop → fillet → cone → tangent → wide
 //! torus → fillet → straight tube → back to the loop. Two of those
 //! steps do not survive contact with the geometry, and both
 //! substitutions are recorded here rather than hidden:
@@ -60,7 +60,7 @@
 //! trick is what makes the wide rim and its two tangencies exact, and
 //! it generalizes: **any** blend between two COAXIAL surfaces of
 //! revolution is itself one, so it belongs in the meridian rather
-//! than in a rolling ball afterwards (Evan, 2026-08-16 — the
+//! than in a rolling ball afterwards (Ev, 2026-08-16 — the
 //! substitution is an improvement on the sketch, not a workaround for
 //! it). Asking `fillet_edges` for that same torus is walls 1 and 2 —
 //! which now refuse on the ball's SIZE, not on a missing arm.
@@ -98,7 +98,7 @@
 //!    blend the meridian draws has spine radius `RF`, and a ball that
 //!    big does not fit the neck wall's own curvature, on either rim.
 //!    That is not a defect: it is the reason the substitution is an
-//!    improvement rather than a workaround (Evan, 2026-08-16). An arc
+//!    improvement rather than a workaround (Ev, 2026-08-16). An arc
 //!    in the profile is a CONSTRUCTED part of the wall and answers to
 //!    no rolling ball; a post-hoc roll of the same size cannot exist.
 //! 4. **No boolean may touch a Cone or a Torus face THAT CAN REACH
@@ -202,7 +202,7 @@
 //!     (see the `tube` scene's bit-exact `minor_radius`), met from the
 //!     profile side. Pinned in [`stops`].
 //! 11. **What went RIGHT, and is worth stating.** The bottle's hole
-//!     is the tube's diameter — Evan's own constraint — so the neck
+//!     is the tube's diameter — Ev's own constraint — so the neck
 //!     wall and the inner tube wall are literally the same cylinder
 //!     about the same axis, twice, in one profile loop. Everything
 //!     downstream copes: the band validates, the full revolve builds,
@@ -241,7 +241,7 @@ use crate::{SceneBody, Stop, View};
 // approximate (the lily's rule).
 // ---------------------------------------------------------------
 
-/// Spine radius of the tube — half Evan's "tube diameter", the one
+/// Spine radius of the tube — half Ev's "tube diameter", the one
 /// number the whole bottle is keyed to: the top loop's tube, the
 /// neck, the straight inner tube and the wide rim's HOLE are all this
 /// size.
@@ -576,7 +576,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     }
 
     // Findings entry 11, executed: the same cylinder, said four ways.
-    // Evan's constraint — the rim's hole is the tube's diameter —
+    // Ev's constraint — the rim's hole is the tube's diameter —
     // makes the neck wall and the inner tube wall THE SAME cylinder
     // about THE SAME axis. The revolve's cosurface merge is a
     // run-ADJACENCY decision inside one loop, and these two runs are

@@ -543,7 +543,7 @@ pub enum ValidationError {
     },
     /// Tier 3: a **definitely-transverse** edge carries a conventional
     /// (`MappedCurve`) description at rest — the prefer-intrinsic rule
-    /// with teeth (D2; ratified with Evan 2026-07-19, M2 PR 4 fix
+    /// with teeth (D2; ratified with Ev 2026-07-19, M2 PR 4 fix
     /// pass). Enforced only when the dihedral pass classified **every**
     /// interior sample definitely Transverse: definitely-smooth edges
     /// keep their conventional descriptions (the D2 conventional
@@ -560,7 +560,7 @@ pub enum ValidationError {
         /// declared.
         edge: EdgeKey,
     },
-    /// Tier 3, **the transience fence** (U2's Q2 as corrected by Evan
+    /// Tier 3, **the transience fence** (U2's Q2 as corrected by Ev
     /// 2026-08-27): a body at rest carries an edge still described by
     /// the SCAFFOLDING door — a sketch pushforward standing in for a
     /// description while the edge's surfaces do not exist yet.

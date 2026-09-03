@@ -2,7 +2,7 @@
 
 **Status: BINDING at dispatch** (orchestrator-authored; the design
 is `docs/PROFILE-LIFT-DESIGN.md` PP1–PP6, ratified #1151 WITH A
-RECORDED HEDGE — Evan: "not totally sure… but proceed" — which
+RECORDED HEDGE — Ev: "not totally sure… but proceed" — which
 binds posture: additive machinery, cheap reversal, no rework of
 the f64 path). Branch `m10/m10-p-profile-lift`. Sizing **M–L**.
 Read `docs/prompts/implementer-discipline.md` and

@@ -599,8 +599,12 @@ fn the_hollow_now_survives_every_axial_junction() {
         // has a TORUS wall, which the axial reduction now reads as the
         // meridian circle centred `(R, h_c)` that it is. The body no
         // longer falls to the per-chart loop, so it never asks the C5
-        // table about `plane × torus` — and nothing here widened
-        // `intersect::route`, which is what makes that worth a row.
+        // table about `plane × torus`. VERBS-C5ARMS has since widened
+        // `intersect::route` for that pair (the exact-degenerate closed
+        // forms), so the row's evidence is no longer "the table
+        // declines it" — it is that the hollow is FLAG-INDEPENDENT:
+        // the axial door never consults `route`, and this row held
+        // green on both sides of the flip.
         (
             "a belly bulged about a centre OFF the axis: a TORUS wall",
             torus_barrel(tol),

@@ -3,7 +3,7 @@
 **Binding at dispatch** (S-BOOL program, `docs/S-BOOL-PLAN.md`;
 difficulty logged pre-draw: **S/M, recorded numeric M**). Read
 `docs/prompts/implementer-discipline.md` in full before starting.
-The ruling is the primary specification — Evan, in-chat,
+The ruling is the primary specification — Ev, in-chat,
 2026-09-01, option C in its strong form, ratified at PR #1540:
 `docs/DESIGN.md`'s Band-4 roadmap line and the BOOL-13 slate entry
 in `docs/S-BOOL-PLAN.md`. Read both verbatim; they bound the unit.
@@ -31,7 +31,7 @@ goes.
    field is typed and NAME-CARRYING through this crate's error
    plumbing (the variant / field name reaches the message). If it
    is, build on it; if it is not, STOP and report — the fallback is
-   the one-tag-plus-one-generic-row shape, and Evan picks.
+   the one-tag-plus-one-generic-row shape, and Ev picks.
 2. **The demolition**: `SCHEMA_VERSION`, the `schema: N` header line
    and its parser, the version door and `PersistError::SchemaTooOld`,
    `MigrationStep` / `migration_step` / the empty table, the thirteen
@@ -55,7 +55,7 @@ goes.
    newly-grown variant LOADS (additive growth invalidates nothing).
    Red-first each.
 4. **The persist module header rewritten**, saying in as many words
-   (Evan's ask): schema breaks are not at all a problem because this
+   (Ev's ask): schema breaks are not at all a problem because this
    is not released yet; no document exists outside the repo; every
    checked-in document is a regenerable artifact; a format change
    needs no version, no migration and no coordination — regenerate

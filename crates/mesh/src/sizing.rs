@@ -95,12 +95,12 @@ use geom_core::{Band, Tol};
 /// **The bound of that claim.** ε also reaches `mesh` as
 /// [`SizingTols::band`] — props' `Band`, ε AND K, minted from the same
 /// `Tol` — and leaves it unread: `mesh` hands it to
-/// `geom_brep::props::require_iso_rectangle` and decides nothing
-/// against it. The inventory pin counts `eps` identifier carriers and
-/// the four method reads per file; it does not count `band`, `Band`
-/// or K, so a decision written against the band in this crate would
-/// be a bypass the pin cannot see. None exists; the field's doc is the
-/// obligation.
+/// `geom_brep::props::require_iso_rectangle` and
+/// `require_one_chart_branch`, and decides nothing against it. The
+/// inventory pin counts `eps` identifier carriers and the four method
+/// reads per file; it does not count `band`, `Band` or K, so a
+/// decision written against the band in this crate would be a bypass
+/// the pin cannot see. None exists; the field's doc is the obligation.
 ///
 /// **The scalar is not sealed in, and the honest bound is narrower
 /// than "no way back".** [`Display`](core::fmt::Display) emits a
@@ -343,10 +343,11 @@ pub(crate) struct SizingTols {
     /// the same [`Tol`] as `eps` at operation entry (the calling
     /// convention `Band::linear` prescribes). Consumed by exactly one
     /// site — `curved`'s shape door, which hands it to
-    /// `geom_brep::props::require_iso_rectangle` — and by no rule of
-    /// this crate's own: `mesh` decides nothing against it, it carries
-    /// props' band to props' predicate. Not an ε read of this crate,
-    /// and the inventory pin does not count it as one.
+    /// `geom_brep::props::require_iso_rectangle` and then to
+    /// `require_one_chart_branch` — and by no rule of this crate's
+    /// own: `mesh` decides nothing against it, it carries props' band
+    /// to props' predicates. Not an ε read of this crate, and the
+    /// inventory pin does not count it as one.
     pub band: Band,
 }
 

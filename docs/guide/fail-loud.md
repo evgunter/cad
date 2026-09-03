@@ -129,7 +129,7 @@ checks are local, and all four corners are sharp — and then
 self-intersection; that is what the profile-level validator is for.
 The contract is pinned in the kernel's own suite
 (`crates/profile/tests/rejections.rs`), where it moved from the demo
-tour: a broken-on-purpose scene is not a use case (Evan's ruling on
+tour: a broken-on-purpose scene is not a use case (Ev's ruling on
 #413).
 
 ## 3. Contact: the refusal that defines this kernel

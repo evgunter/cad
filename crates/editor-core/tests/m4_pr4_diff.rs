@@ -6,7 +6,7 @@
 //! divergence/status rows; and the report is the `SetTolerance`
 //! audit surface (H4 — PR 6 reuses it untouched).
 //!
-//! SWEEP-STRATEGY NOTE (Evan's 2026-07-29 ruling): this file's pins
+//! SWEEP-STRATEGY NOTE (Ev's 2026-07-29 ruling): this file's pins
 //! are about diff/resolve engine behavior GIVEN verdicts, so its
 //! evaluator deliberately runs the idealized (verdict-rich) sweep;
 //! the production-path degradation is pinned in `m4_pr4_banked`

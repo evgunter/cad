@@ -1,6 +1,6 @@
 # Recipe doors for the shipped surgery verbs — chamfer, tube, shell
 
-**Status: RATIFIED (Evan, in-chat, 2026-08-29): D2, D3, D4, D5
+**Status: RATIFIED (Ev, in-chat, 2026-08-29): D2, D3, D4, D5
 signed off ("sounds good" ×3; D4 "sure", with the one-kind-vs-two
 consideration restated in-conversation). D1 was probed as "design or
 just sequencing?" and is RECLASSIFIED below as orchestrator
@@ -68,7 +68,7 @@ and that ~255-reference rename is explicitly not this unit's; a
 
 ## D4 — the tube vocabulary SPLITS: `Node::Tube` and `Node::HollowTube` (REVISED by the #1205 ruling)
 
-**Ruling (Evan, issue #1205 comment + in-chat sign-off on this
+**Ruling (Ev, issue #1205 comment + in-chat sign-off on this
 revision, 2026-08-29): "i definitely lean 'split the vocabulary'" —
 the issue's outcome 2.** A solid tube and a hollow tube are
 different artifacts (full-disc vs annular section), and the
@@ -109,7 +109,7 @@ vocabulary now says so where callers read:
 
 **History.** The original D4 (one `Node::Tube` carrying
 `wall: Option<Expr>`, tracking the private build's shape) was
-ratified WITH A RECORDED RESERVATION (Evan, in-chat, 2026-08-29:
+ratified WITH A RECORDED RESERVATION (Ev, in-chat, 2026-08-29:
 "i don't love that but it doesn't sound like the issue is new
 here"), the reservation escalated to **issue #1205** (one
 vocabulary item covering two different artifacts via a mode flag),
