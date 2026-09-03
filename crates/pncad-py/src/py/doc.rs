@@ -555,10 +555,13 @@ impl Doc {
     /// The DECLARATIONS come from the document, not from the caller:
     /// a bare identifier is a reference to a parameter this document
     /// declares, and it carries that parameter's dimension. So
-    /// `"width / 2"` parses in a document that declares `width` and
-    /// refuses `unknown_param` in one that does not — which is the
-    /// same table `apply` re-checks a stored expression against, not
-    /// a second one.
+    /// `"width / 2.0"` parses in a document that declares `width`
+    /// and refuses `unknown_param` in one that does not — which is
+    /// the same table `apply` re-checks a stored expression against,
+    /// not a second one. Note the `2.0`: a bare integer literal is an
+    /// exact `Count`, and dividing a length by one needs an explicit
+    /// promotion, so the decimal point is what makes the divisor
+    /// dimensionless.
     ///
     /// Refuses typed on `ParseError`, carrying `variant` and the byte
     /// offset `pos`; a reduction the dimension checker refused

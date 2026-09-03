@@ -2,7 +2,7 @@
 //! doors that make and read one raise.
 //!
 //! The document layer's fourth vocabulary, after nodes, names and
-//! values. A recipe slot is not always a number — `width / 2 -
+//! values. A recipe slot is not always a number — `width / 2.0 -
 //! margin` is a perfectly ordinary thing for a slot to hold — and a
 //! consumer showing that slot needs its VALUE, which it cannot obtain
 //! without the evaluator. That is the whole of this module's reason:
@@ -114,8 +114,8 @@ impl Expr {
     /// (metres, radians), or `None` for anything else.
     ///
     /// Deliberately narrow, and deliberately not a shortcut around
-    /// the evaluator: it answers for `25 * mm` and not for `width /
-    /// 2`, which is exactly the case that made the evaluator's
+    /// the evaluator: it answers for `25 mm` and not for `width /
+    /// 2.0`, which is exactly the case that made the evaluator's
     /// absence bite. A count literal answers `None` here — a count is
     /// an exact integer, and handing it back as an `f64` would be the
     /// implicit promotion spec D4 refuses.
