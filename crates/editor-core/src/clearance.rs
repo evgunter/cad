@@ -30,6 +30,15 @@
 //! recomputation does not confirm is never reported as one: the engine
 //! refuses [`ClearanceRefusal::WitnessUnverified`] instead.
 //!
+//! What a witness IS, precisely: a pair of points, one on each face's
+//! carrier, whose `f64` separation the same funnel site calls a
+//! violation. It is the closest pair the rebuild's station lattice
+//! FOUND, not the infimum over the two cells — on a flat pair the
+//! lattice attains the true closest approach, on a curved one it
+//! returns a near pair. For the strictly-positive question the witness
+//! reports a COINCIDENCE and never a signed penetration depth; that
+//! gap is scoped in `work/m10/signed-penetration-depth.md`.
+//!
 //! [`ClearanceVerdict::Refused`] is typed: a terminal sliver (the
 //! driver's rule shape — the deciding enclosure sits wholly inside the
 //! funnel's band, so refinement provably cannot move it), a named
@@ -53,7 +62,15 @@
 //! footprints: it may refuse a body whose faces do not really face each
 //! other; it cannot miss a pair that does. Tightening a window to the
 //! trimmed region needs the face's boundary in CHART coordinates, which
-//! is the pcurve layer's description work and not this module's.
+//! is the pcurve layer's description work and not this module's; the
+//! size of the looseness is measured, and the fix scoped, in
+//! `work/m10/clearance-window-tightening-needs-chart-boundary.md`.
+//! Two shapes are worth naming here because a consumer will meet them:
+//! a NON-CONVEX planar face (an L-shaped cap's window covers the
+//! notch, so a body parked in the notch is reported at 0 m from a face
+//! it is 0.45 m from) and a COPLANAR pair (two faces on one carrier
+//! have overlapping windows in that carrier's own parameters however
+//! far apart the faces are).
 //!
 //! # No ε here, and two funnelled compares
 //!
@@ -235,6 +252,20 @@ impl Default for ClearanceConfig {
 /// than as machinery this module owns: an accelerator correctness can
 /// never depend on must be REMOVABLE, and a seam is how that is
 /// checked rather than asserted.
+///
+/// **What "the engine cannot check it" costs, stated as a limit.** The
+/// suites contain a deliberately LYING oracle — one that claims
+/// `Negative` on every axis — and on every fixture this unit can build
+/// it is indistinguishable from the truthful [`NoTangents`]: same
+/// verdict, same receipt. That is not the seam working, it is the seam
+/// being untested, and the reason is the same one that keeps the
+/// accelerator from buying anything today: at ε-scale parameter boxes
+/// no parameter-driven width comes near a clearance margin, so
+/// restricting a box to a facet cannot move an answer either way. A
+/// wrong claim here is therefore silent on today's kernel, and will
+/// stop being silent for exactly the fixtures that make the
+/// accelerator worth having. Until then the contract above is a
+/// promise the implementor keeps, not one this module enforces.
 pub trait MonotoneOracle {
     /// The sign of `∂d/∂p` over the whole leaf, or `None`.
     fn monotone_in(&self, param: &ParamName) -> Option<Sign>;
@@ -1099,9 +1130,7 @@ impl ClearanceMass {
         let column = match verdict {
             ClearanceVerdict::Holds => &mut self.holds,
             ClearanceVerdict::Violated(_) => &mut self.violated,
-            ClearanceVerdict::Refused(r) => {
-                self.refused.entry(r.name()).or_insert(Ok(0.0))
-            }
+            ClearanceVerdict::Refused(r) => self.refused.entry(r.name()).or_insert(Ok(0.0)),
         };
         // The FIRST refusal wins the column, exactly as the drive's own
         // accounting does: a column that cannot be priced names the

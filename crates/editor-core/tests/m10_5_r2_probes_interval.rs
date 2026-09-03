@@ -14,15 +14,25 @@
 //! macroscopic question ("is every internal gap at least c?") a user
 //! would actually ask.
 //!
-//! # Rows that pin a FINDING rather than a contract
+//! # Rows that pinned a FINDING rather than a contract
 //!
-//! Three rows below are named `..._r2_finding` and assert the CURRENT
-//! behaviour where R2 believes the contract says otherwise. Each goes
-//! red when the defect it describes is fixed, which is the point: the
-//! finding is a gate, not a note in a review that scrolls away.
+//! Five rows below were named `..._r2_finding` and asserted the CURRENT
+//! behaviour where R2 believed the contract said otherwise. Each went
+//! red when the defect it described was fixed, which was the point: the
+//! finding is a gate, not a note in a review that scrolls away. Four of
+//! the five have since gone red and been FLIPPED — each now pins the
+//! fixed contract, and its doc comment states what the finding was and
+//! what replaced it. One survives as a finding:
+//! `self_intersection_over_a_sound_body_examines_nothing_r2_finding`,
+//! whose subject is the acceptance's own vacuity rather than a defect
+//! in the engine.
 //!
-//! The basename carries `interval` because the engine is gated on that
-//! feature and `scripts/ci-filter.py` reads the name.
+//! The basename carries `interval` because the whole suite is
+//! `#![cfg(feature = "interval")]`, which is what selects it into the
+//! interval legs (`scripts/interval-only-selection.py` derives that set
+//! from the two `nextest list` archives, never from a name); the name
+//! is the ADVISORY half — `_advises_interval` in `scripts/ci-filter.py`
+//! reads every changed basename to suggest the lane pin.
 
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -36,8 +46,7 @@ use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
     CellReceipt, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal,
     ClearanceReport, ClearanceVerdict, FaceScope, MonotoneOracle, NoTangents, Pruning,
-    SELF_INTERSECTION_GAP, Selection, clearance, clearance_over, clearance_with,
-    self_intersection,
+    SELF_INTERSECTION_GAP, Selection, clearance_over, clearance_with, self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
@@ -351,7 +360,14 @@ fn the_leaf_fold_answers_the_same_question_over_a_real_drive() {
     );
     let sel = Selection::body_of(minted);
     for (c, expected) in [(0.3, "Holds"), (0.7, "Violated")] {
-        let fold = clearance_over(&doc, &analyzed, &verdict, &sel, &sel, &at_least(c, cfg(65_536, 40)));
+        let fold = clearance_over(
+            &doc,
+            &analyzed,
+            &verdict,
+            &sel,
+            &sel,
+            &at_least(c, cfg(65_536, 40)),
+        );
         assert_eq!(fold.verdict.label(), expected, "at c = {c}");
         assert!(fold.receipt.holds(), "{:?}", fold.receipt);
         assert_eq!(fold.leaves.len(), verdict.certified().len());
@@ -372,10 +388,7 @@ fn the_leaf_fold_answers_the_same_question_over_a_real_drive() {
 #[test]
 fn the_combs_violation_witness_re_verifies_from_its_own_points() {
     let (doc, minted, _placed) = comb();
-    let sel = named(
-        minted,
-        vec![wall_name(minted, 7), wall_name(minted, 9)],
-    );
+    let sel = named(minted, vec![wall_name(minted, 7), wall_name(minted, 9)]);
     let report = clearance_with(
         &doc,
         &box_of("place"),
@@ -384,7 +397,10 @@ fn the_combs_violation_witness_re_verifies_from_its_own_points() {
         &at_least(0.7, cfg(65_536, 40)),
     );
     let ClearanceVerdict::Violated(v) = report.verdict() else {
-        panic!("slot A is 0.5 wide and the bound is 0.7: {}", report.serialize());
+        panic!(
+            "slot A is 0.5 wide and the bound is 0.7: {}",
+            report.serialize()
+        );
     };
     let mine = witness_distance(&report);
     assert_eq!(
@@ -402,20 +418,24 @@ fn the_combs_violation_witness_re_verifies_from_its_own_points() {
         mine >= 0.5 - 1.0e-9,
         "the witness is a real configuration on this pair: {mine}"
     );
-    // **R2 finding, measured here rather than asserted.** The witness is
-    // NOT a closest-point pair: `verify_witness` evaluates the two
-    // cells' MIDPOINTS and never minimises. `GeometryWitness`'s own
-    // field doc says "the closest-point pair the f64 rebuild found" and
-    // E7 asks for a "closest-point pair"; what ships is a point pair
-    // that is merely inside the bound.
-    println!(
-        "[r2 witness] closest possible on this pair = 0.5, witness reports {mine} \
-         (a cell midpoint, not a minimisation)"
-    );
+    // **FIXED, and this is now the pin.** The witness used to be the two
+    // cells' MIDPOINTS — a point pair merely inside the bound, while
+    // `GeometryWitness`'s own field doc claimed "the closest-point pair
+    // the f64 rebuild found". `verify_witness` now searches a station
+    // lattice across both cells and keeps the closest pair it finds, and
+    // on this pair — two flat walls 0.5 apart — that attains the true
+    // closest approach.
+    //
+    // What is pinned is attainment ON THIS FIXTURE, not a general
+    // minimisation guarantee: the search is a bounded lattice, so on a
+    // curved pair it returns a near pair rather than the infimum. The
+    // field doc and the module door say exactly that; this row is what
+    // keeps them honest about the flat case.
+    println!("[r2 witness] closest possible on this pair = 0.5, witness reports {mine}");
     assert!(
-        mine > 0.5 + 1.0e-3,
-        "R2 finding: the reported pair is a cell midpoint, measurably not the \
-         closest approach the two faces admit: {mine} against 0.5"
+        mine <= 0.5 + 1.0e-9,
+        "the reported pair attains the closest approach these two flat walls \
+         admit: {mine} against 0.5"
     );
     assert!(
         v.geometry.a != v.geometry.b,
@@ -425,30 +445,27 @@ fn the_combs_violation_witness_re_verifies_from_its_own_points() {
 
 // --------------- 2. the BVH prune decides, and disagrees with the funnel
 
-/// **R2's first falsification of claim 2/D4.**
+/// **R2's first falsification of claim 2/D4, FIXED — this row is now
+/// its pin.**
 ///
-/// The engine has two thresholds for "strictly positive", not one. The
-/// funnel's is the band: `SELF_INTERSECTION_GAP` classifies a
+/// The engine used to have two thresholds for "strictly positive", not
+/// one. The funnel's is the band: `SELF_INTERSECTION_GAP` classifies a
 /// separation `d` with `|d| ≤ ε` as `Sign::Zero`, and the site's own
 /// doc says a definite `Zero` *is the violation the check exists to
-/// find*. The BVH's is a raw `separation_lo(query) > pad` with
-/// `pad = c = 0`, so ANY positive box separation prunes the pair before
-/// the funnel sees it.
+/// find*. The BVH's was a raw `separation_lo(query) > pad` with
+/// `pad = c = 0`, so ANY positive box separation pruned the pair before
+/// the funnel saw it — a window of width ε in which the engine answered
+/// `Holds` on a configuration its own funnel calls a violation, and in
+/// which moving two bodies FURTHER APART by less than one tolerance
+/// flipped `Violated` to `Holds`.
 ///
-/// Between those two thresholds sits a window of width ε in which the
-/// engine answers `Holds` on a configuration its own funnel calls a
-/// violation. This row walks it: two blocks `ε/2` apart — coincident at
-/// the run's tolerance, which is precisely what the strictly-positive
-/// question is asked about — certify `Holds` with ZERO candidates,
-/// while `decide` at the same site on the same number returns
-/// `Sign::Zero`.
-///
-/// The control beside it is the same fixture at gap 0, where
-/// `separation_lo` is not positive, the pair survives to the funnel,
-/// and the violation IS reported. So moving two bodies FURTHER APART by
-/// less than one tolerance flips `Violated` to `Holds`.
+/// The admission threshold now carries the funnel's band, so the whole
+/// window is handed over rather than decided by the accelerator. This
+/// row walks it at both ends: gap 0 and gap ε/2 reach the funnel and
+/// get the same answer from it, which is the violation `decide` says it
+/// is.
 #[test]
-fn a_sub_epsilon_gap_is_pruned_past_the_strict_funnel_r2_finding() {
+fn a_sub_epsilon_gap_reaches_the_funnel_that_calls_it_a_violation() {
     let eps = Tol::witness().eps();
     let band = Band::linear(Tol::witness()).expect("a linear band");
     // What the engine's OWN funnel says about a separation of ε/2 at
@@ -461,10 +478,7 @@ fn a_sub_epsilon_gap_is_pruned_past_the_strict_funnel_r2_finding() {
     );
 
     // Gap 0: the boxes touch, `separation_lo` is 0, and the pair
-    // SURVIVES to the funnel — which is the whole difference. The
-    // engine then spends its budget on it and refuses, priced (see
-    // `the_strict_violation_arm_is_unreachable_r2_finding` for why it
-    // can never do better).
+    // reaches the funnel.
     let (doc, a, b) = blocks_apart(0.0);
     let touching = clearance_with(
         &doc,
@@ -478,15 +492,16 @@ fn a_sub_epsilon_gap_is_pruned_past_the_strict_funnel_r2_finding() {
         "the control: a coincidence reaches the funnel: {}",
         touching.serialize()
     );
-    assert_ne!(
-        touching.verdict(),
-        &ClearanceVerdict::Holds,
-        "the control: a coincidence is NOT certified strictly positive: {}",
+    assert_eq!(
+        touching.verdict().label(),
+        "Violated",
+        "the control: a coincidence is reported, not certified strictly positive: {}",
         touching.serialize()
     );
 
-    // Gap ε/2: strictly FURTHER apart, still a coincidence at the run's
-    // tolerance — and now the answer is Holds, on zero candidates.
+    // Gap ε/2: strictly further apart, still a coincidence at the run's
+    // tolerance — and it gets the SAME answer, which is the point. The
+    // ε-wide window between the two thresholds is gone.
     let (doc, a, b) = blocks_apart(eps / 2.0);
     let pruned = clearance_with(
         &doc,
@@ -495,45 +510,49 @@ fn a_sub_epsilon_gap_is_pruned_past_the_strict_funnel_r2_finding() {
         &Selection::body_of(b),
         &strict(cfg(4_096, 24)),
     );
-    assert_eq!(
-        pruned.verdict(),
-        &ClearanceVerdict::Holds,
-        "R2 finding: a sub-ε separation certifies Holds: {}",
+    assert!(
+        pruned.receipt().candidates > 0,
+        "a sub-ε separation is admitted rather than decided by the accelerator: {}",
         pruned.serialize()
     );
     assert_eq!(
-        pruned.receipt(),
-        CellReceipt::default(),
-        "R2 finding: and it does so having examined NOTHING — the whole \
-         certificate is the BVH's raw compare"
+        pruned.verdict().label(),
+        "Violated",
+        "and the funnel calls it what `decide` above calls it: {}",
+        pruned.serialize()
     );
+    // The two ends of the ε-window answer alike: no tolerance-scale
+    // movement flips the verdict.
+    assert_eq!(touching.verdict().label(), pruned.verdict().label());
 }
 
-/// **R2's second falsification: the strictly-positive VIOLATION arm has
-/// no reachable path.**
+/// **R2's second falsification, FIXED — this row is now its pin.**
 ///
+/// The strictly-positive VIOLATION arm used to have no reachable path.
 /// The margin at `SELF_INTERSECTION_GAP` is `d − 0`, and `d` is an
 /// interval NORM, so its enclosure is never negative: `Sign::Negative`
 /// — the arm every other bound reaches a violation through — cannot
-/// occur. The only remaining route is `Sign::Zero`, which at
-/// `Decide for Interval` requires the WHOLE enclosure inside `[-ε, ε]`.
-/// A cell pair's separation enclosure runs from its closest approach to
-/// its furthest, so `hi ≤ ε` demands both domain cells be shrunk below
-/// the run's ε — thirty halvings per axis from a metre-scale window,
-/// four axes, on every pair.
+/// occur. The only remaining route was `Sign::Zero`, which at
+/// `Decide for Interval` requires the WHOLE enclosure inside `[-ε, ε]`,
+/// which in turn demands both domain cells be shrunk below the run's ε:
+/// thirty halvings per axis, four axes, on every pair. Two bodies that
+/// INTERPENETRATE — as gross a self-intersection as geometry admits —
+/// could not be reported `Violated`; the engine spent its budget and
+/// refused.
 ///
-/// The consequence: two bodies that INTERPENETRATE — as gross a
-/// self-intersection as geometry admits — cannot be reported
-/// `Violated`. The engine spends its budget and refuses. That is the
-/// honest direction (never a false certificate), but it means E7 §3's
-/// detection arm is unreachable at any budget a report could hold, and
-/// nothing in the PR body or the module docs says so: the measured-limit
-/// section is about the `AtLeast` question only.
+/// The engine now runs an EXHIBIT arm beside the enclosure arm: it
+/// rebuilds the cell pair at `f64`, searches for a close pair on it, and
+/// decides at the same funnel site. A configuration that really is
+/// coincident produces a witness in one cell, so an interpenetration is
+/// reported rather than refused, at any budget.
 ///
-/// This row pins it at three budgets so it goes red the day a violation
-/// becomes reachable.
+/// **The honest residue, pinned below.** What the witness reports is a
+/// COINCIDENCE — two points within ε of each other on the two surfaces
+/// — not a signed penetration depth: a consumer learns "these faces
+/// touch", not "they overlap by 0.5 m". Filed as
+/// `work/m10/signed-penetration-depth.md`.
 #[test]
-fn the_strict_violation_arm_is_unreachable_r2_finding() {
+fn an_interpenetration_is_reported_violated_not_refused() {
     // Two unit blocks overlapping by half their width.
     let (doc, a, b) = blocks_apart(-1.5);
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
@@ -546,24 +565,40 @@ fn the_strict_violation_arm_is_unreachable_r2_finding() {
             "interpenetrating boxes are never pruned: {r:?}"
         );
         assert_eq!(
-            r.violated, 0,
-            "R2 finding: not one cell pair of an interpenetration classifies as a \
-             definite violation at {pairs} pairs: {}",
+            r.violated,
+            1,
+            "exactly one cell pair of an interpenetration is classified before the \
+             sweep stops at {pairs} pairs: {}",
             report.serialize()
         );
-        assert_eq!(
-            report.verdict().label(),
-            "Refused",
-            "R2 finding: gross interpenetration answers Refused, never Violated: {}",
-            report.serialize()
+        let ClearanceVerdict::Violated(v) = report.verdict() else {
+            panic!(
+                "gross interpenetration answers Violated at {pairs} pairs: {}",
+                report.serialize()
+            );
+        };
+        // The residue: the witness is a coincidence, not a depth. The
+        // two reported points are within the run's ε of each other even
+        // though the bodies overlap by 0.5 m.
+        assert!(
+            v.geometry.distance <= Tol::witness().eps(),
+            "the witness is a coincidence: {}",
+            v.geometry.distance
+        );
+        // Cheap at every budget, because the sweep stops at the witness.
+        assert!(
+            r.discharged + r.violated + r.refused <= 8,
+            "and it costs a handful of cells whatever the budget: {r:?}"
         );
     }
 }
 
-/// The vacuity the row above implies, on the shipped acceptance's own
-/// shape: `self_intersection` over a sound prism examines ZERO pairs,
-/// because the wedge rule removes the adjacent ones and the raw
-/// `separation_lo > 0` prune removes every other one.
+/// A vacuity that SURVIVES the fixes above, on the shipped
+/// acceptance's own shape: `self_intersection` over a sound prism
+/// examines ZERO pairs, because the wedge rule removes the adjacent
+/// pairs and the proximity prune — now `separation_lo > 0 + band`, but
+/// still a prune — removes every other one, the comb's faces being
+/// whole metres apart rather than a band's width.
 ///
 /// So the suite's claim-6 row — "a sound prism certifies strictly
 /// positive between non-adjacent faces" — passes without the funnel
@@ -583,8 +618,8 @@ fn self_intersection_over_a_sound_body_examines_nothing_r2_finding() {
     assert_eq!(
         report.receipt(),
         CellReceipt::default(),
-        "R2 finding: the strictly-positive certificate over a 14-face body \
-         is entirely the BVH's, with no cell pair classified: {}",
+        "the strictly-positive certificate over this body is entirely the \
+         BVH's, with no cell pair classified: {}",
         report.serialize()
     );
 }
@@ -720,9 +755,7 @@ fn the_strict_question_is_total_over_budgets_too() {
                 "receipt broken at pairs = {pairs}, depth = {depth}: {}",
                 report.serialize()
             );
-            assert!(
-                ["Holds", "Violated", "Refused"].contains(&report.verdict().label())
-            );
+            assert!(["Holds", "Violated", "Refused"].contains(&report.verdict().label()));
         }
     }
 }
@@ -904,20 +937,33 @@ fn a_lying_oracle_is_indistinguishable_at_the_seam() {
 /// **D9 on a multi-thousand-cell run of R2's own construction**: the
 /// whole-body comb query at a bound that has to subdivide, repeated,
 /// serialized, compared bit for bit.
+///
+/// The bound is the comb's own frontier. Slot A is 0.5 m wide, so
+/// `AtLeast(0.5)` sits exactly on the closest approach the body admits:
+/// no cell pair's separation enclosure ever clears it, none ever falls
+/// definitely under it, and the sweep spends its whole budget before
+/// refusing, priced. That is the run worth checking for determinism —
+/// a bound the geometry BREAKS now stops at the first verified witness
+/// and settles in a handful of cells, and one the tree can EXCLUDE
+/// never reaches the funnel at all.
 #[test]
 fn the_comb_answer_is_bit_stable_across_repeats() {
     let (doc, minted, _placed) = comb();
     let sel = Selection::body_of(minted);
     let leaf = box_of("place");
-    let first = clearance_with(&doc, &leaf, &sel, &sel, &at_least(0.7, cfg(65_536, 40)));
+    let first = clearance_with(&doc, &leaf, &sel, &sel, &at_least(0.5, cfg(65_536, 40)));
     let r = first.receipt();
     let cells = r.discharged + r.violated + r.refused;
     assert!(
         cells > 2_000,
         "the determinism row runs on a multi-thousand-cell subdivision: {r:?}"
     );
+    assert_eq!(
+        r.abandoned, 0,
+        "and one that ran to the end of its budget rather than exiting early: {r:?}"
+    );
     for _ in 0..3 {
-        let again = clearance_with(&doc, &leaf, &sel, &sel, &at_least(0.7, cfg(65_536, 40)));
+        let again = clearance_with(&doc, &leaf, &sel, &sel, &at_least(0.5, cfg(65_536, 40)));
         assert_eq!(again.serialize(), first.serialize());
     }
     println!("[r2 D9] {cells} cell pairs, stable over 4 runs");
@@ -945,7 +991,14 @@ fn the_fold_is_the_same_over_a_parallel_and_a_sequential_drive() {
             Tol::witness(),
         )
         .expect("the comb builds at its nominal");
-        let fold = clearance_over(&doc, &analyzed, &verdict, &sel, &sel, &at_least(0.7, cfg(4_096, 20)));
+        let fold = clearance_over(
+            &doc,
+            &analyzed,
+            &verdict,
+            &sel,
+            &sel,
+            &at_least(0.7, cfg(4_096, 20)),
+        );
         (
             fold.verdict.label().to_owned(),
             fold.receipt,
@@ -956,20 +1009,21 @@ fn the_fold_is_the_same_over_a_parallel_and_a_sequential_drive() {
     assert_eq!(run(true), run(false));
 }
 
-/// **A fold over a drive that certified NOTHING answers `Holds`.**
+/// **A fold over a drive that certified NOTHING used to answer
+/// `Holds`; FIXED, and this row is now its pin.**
 ///
-/// `LeafFold::verdict` starts at `Holds` and is only ever moved by a
-/// leaf, so a drive whose every leaf refused hands a consumer
-/// `verdict.holds() == Some(true)` over zero examined leaves. The
-/// accounting beside it carries the refused mass, and the door's own
-/// doc calls that "the honest denominator" — but the VERDICT field, the
-/// one `holds()` reads, says the bound is certified.
+/// `LeafFold::verdict` started at `Holds` and was only ever moved by a
+/// leaf, so a drive whose every leaf refused handed a consumer
+/// `verdict.holds() == Some(true)` over zero examined leaves — against
+/// the tree's own convention that nothing collapses a refusal into a
+/// silent pass (`ClearanceVerdict::holds` returns `None` for a refusal
+/// for exactly that reason).
 ///
-/// The tree's own convention elsewhere is that nothing collapses a
-/// refusal into a silent pass (`ClearanceVerdict::holds` returns `None`
-/// for a refusal for exactly that reason). This row pins the gap.
+/// The door now refuses `NothingCertified` over an empty leaf set,
+/// carrying the count of leaves the DRIVE refused so the consumer can
+/// see why there was nothing to answer over.
 #[test]
-fn a_fold_over_zero_certified_leaves_reports_holds_r2_finding() {
+fn a_fold_over_zero_certified_leaves_refuses_by_name() {
     let (doc, minted, _placed) = comb();
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     // A zero-leaf budget: the root leaf is refused and nothing is
@@ -998,15 +1052,28 @@ fn a_fold_over_zero_certified_leaves_reports_holds_r2_finding() {
         &at_least(0.7, cfg(4_096, 20)),
     );
     assert_eq!(fold.leaves.len(), 0);
-    assert_eq!(
-        fold.verdict,
-        ClearanceVerdict::Holds,
-        "R2 finding: a certificate over nothing reads as a pass"
+    let ClearanceVerdict::Refused(ClearanceRefusal::NothingCertified { refused_leaves }) =
+        &fold.verdict
+    else {
+        panic!(
+            "a certificate over nothing is refused by name: {:?}",
+            fold.verdict
+        );
+    };
+    assert!(
+        *refused_leaves > 0,
+        "and it says how many leaves the drive refused: {refused_leaves}"
     );
     assert_eq!(
         fold.verdict.holds(),
-        Some(true),
-        "R2 finding: and `holds()` — the accessor a consumer gates on — says true"
+        None,
+        "`holds()` — the accessor a consumer gates on — is not a pass"
+    );
+    assert_eq!(fold.mass.holds, Ok(0.0), "no mass held: {:?}", fold.mass);
+    assert!(
+        fold.mass.unresolved().expect("the box prices") > 0.99,
+        "and the certificate covers none of the parameter box: {:?}",
+        fold.mass
     );
     println!(
         "[r2] zero-leaf fold: verdict = {}, leaves = {}, accounting = {:?}",
@@ -1026,8 +1093,20 @@ fn the_answer_does_not_depend_on_the_order_names_are_written_in() {
     let forward = named(minted, vec![wall_name(minted, 7), wall_name(minted, 9)]);
     let reverse = named(minted, vec![wall_name(minted, 9), wall_name(minted, 7)]);
     let leaf = box_of("place");
-    let a = clearance_with(&doc, &leaf, &forward, &forward, &at_least(0.7, cfg(4_096, 20)));
-    let b = clearance_with(&doc, &leaf, &reverse, &reverse, &at_least(0.7, cfg(4_096, 20)));
+    let a = clearance_with(
+        &doc,
+        &leaf,
+        &forward,
+        &forward,
+        &at_least(0.7, cfg(4_096, 20)),
+    );
+    let b = clearance_with(
+        &doc,
+        &leaf,
+        &reverse,
+        &reverse,
+        &at_least(0.7, cfg(4_096, 20)),
+    );
     assert_eq!(a.serialize(), b.serialize());
 }
 
@@ -1090,8 +1169,7 @@ fn a_one_pair_budget_refuses_and_still_accounts_for_every_candidate() {
     assert!(
         matches!(
             report.verdict(),
-            ClearanceVerdict::Refused(ClearanceRefusal::Budget(_))
-                | ClearanceVerdict::Violated(_)
+            ClearanceVerdict::Refused(ClearanceRefusal::Budget(_)) | ClearanceVerdict::Violated(_)
         ),
         "a starved budget is priced, never silence: {}",
         report.serialize()
@@ -1127,26 +1205,27 @@ fn a_violation_outranks_a_refusal_and_the_receipt_shows_both() {
 
 // -------------------------------------------- 8. the measured limit
 
-/// **The cost claim, re-measured on the comb**, and it does not have
-/// the shape the PR body states.
+/// **The cost claim, re-measured on the comb.** R2 found the PR body's
+/// "logarithmic depth, exponential cost" sentence — which reads as
+/// monotone, tighter bound more work — false, and it was: the curve was
+/// U-shaped, because a bound above the pair's FURTHEST separation was a
+/// definite violation at the ROOT while a bound just below it spent the
+/// whole 65 536-pair budget.
 ///
-/// The PR says "the depth is logarithmic in the slack and the cost
-/// exponential in it", which reads as monotone: tighter bound, more
-/// work. The real curve is U-SHAPED, and the reason is structural. A
-/// bound above the pair's FURTHEST separation is a definite violation
-/// at the ROOT — one cell pair, zero splits — because the whole
-/// enclosure sits below the bound. Only bounds between the closest and
-/// the furthest separation need subdivision, and those are the
-/// expensive ones. On slot A (0.5 m walls, furthest separation ≈ 1.87 m)
-/// `c = 2.0` costs ONE cell and `c = 1.5` costs the whole 65 536-pair
-/// budget.
+/// **Both the sentence and the middle of the U are now gone**, and this
+/// row is the pin on what replaced them. The sweep stops at the first
+/// VERIFIED witness, and the exhibit arm finds one at the root of any
+/// pair the geometry really does bring within the bound. So the
+/// violated regime is FLAT AND CHEAP: every bound slot A breaks costs
+/// one classified cell pair, whether it is broken by a millimetre or by
+/// a metre and a half.
 ///
-/// Evidence-only on the counts; the asserted shape is that a definite
-/// answer comes back at every bound and that the cheap end is the
-/// generous one, which is the opposite of what a reader of the PR body
-/// would predict.
+/// What a budget still buys is the FRONTIER, measured as the last point
+/// of this row: a bound sitting on the pair's own closest approach
+/// straddles at every depth, and that is the run that exhausts the dial
+/// and refuses, priced.
 #[test]
-fn the_cost_curve_is_u_shaped_not_monotone_r2_finding() {
+fn the_cost_curve_is_flat_where_the_bound_is_broken() {
     let (doc, minted, _placed) = comb();
     let sel = named(minted, vec![wall_name(minted, 7), wall_name(minted, 9)]);
     let leaf = box_of("place");
@@ -1169,15 +1248,36 @@ fn the_cost_curve_is_u_shaped_not_monotone_r2_finding() {
         );
         costs.push((c, cells));
     }
-    let (_, cheapest) = costs[0];
-    assert_eq!(
-        cheapest, 1,
-        "R2: a bound above the pair's furthest separation violates at the ROOT, \
-         so the most generous bound is the CHEAPEST: {costs:?}"
+    assert!(
+        costs.iter().all(|&(_, cells)| cells == 1),
+        "every broken bound costs one classified cell pair, across a slack range \
+         of more than thirty to one: {costs:?}"
+    );
+
+    // The frontier: `c` ON the pair's closest approach. Nothing is ever
+    // definitely under it, nothing ever definitely clears it, and the
+    // run spends the whole dial before refusing, priced.
+    let frontier = clearance_with(&doc, &leaf, &sel, &sel, &at_least(0.5, cfg(65_536, 40)));
+    let fr = frontier.receipt();
+    assert!(fr.holds(), "{fr:?}");
+    let frontier_cells = fr.discharged + fr.violated + fr.refused;
+    println!(
+        "[r2 limit] the frontier at c = 0.5: cells = {frontier_cells}, splits = {}, \
+         widths = {:?}",
+        fr.splits,
+        frontier.widths()
     );
     assert!(
-        costs[1].1 > cheapest * 1_000,
-        "R2: and the next bound down costs orders more, which is the U the PR \
-         body's monotone sentence does not describe: {costs:?}"
+        matches!(
+            frontier.verdict(),
+            ClearanceVerdict::Refused(ClearanceRefusal::Budget(_))
+        ),
+        "the frontier is where a budget is actually spent: {}",
+        frontier.serialize()
+    );
+    assert!(
+        frontier_cells > 1_000,
+        "and it costs orders more than either resolvable end: {frontier_cells} \
+         against {costs:?}"
     );
 }

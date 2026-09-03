@@ -26,8 +26,8 @@ use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
     CellBudget, ClearanceBound, ClearanceConfig, ClearanceQuery, ClearanceRefusal, ClearanceReport,
-    ClearanceVerdict, FaceScope, NoTangents, Selection, clearance, clearance_over,
-    clearance_with, self_intersection,
+    ClearanceVerdict, FaceScope, NoTangents, Selection, clearance, clearance_over, clearance_with,
+    self_intersection,
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
@@ -161,11 +161,13 @@ fn query(bound: ClearanceBound, config: ClearanceConfig) -> ClearanceQuery<'stat
 /// 0 = c`, prunes the only pair, and the engine certifies `Holds` with
 /// zero candidates. The funnel never sees the pair.
 ///
-/// Goes red when the prune is padded by the band (or funnelled). The
-/// second arm is the same shape under `CLEARANCE_MARGIN`: a gap of
-/// `c + 5ε` is a margin wholly inside `(ε, Kε)`, which the driver's
-/// own `sliver` rule (the one this engine says it shares) refuses as a
-/// terminal sliver — pruned, it is a silent `Holds`.
+/// **FIXED — this row is now the pin.** The prune threshold carries the
+/// band: a pair is excluded only when its certified separation clears
+/// `c` by more than the funnel's own escalate threshold, so the ε/2 pair
+/// survives, reaches the funnel, and is reported as the violation the
+/// funnel's own doc calls it. The second arm is the same shape under
+/// `CLEARANCE_MARGIN`: a gap of `c + 5ε` is a margin wholly inside
+/// `(ε, Kε)`, which is no longer pruned away.
 #[test]
 fn the_bvh_prune_decides_inside_the_band_where_the_funnel_would_not() {
     // Arm 1: strictly positive, gap = ε/2 (≤ ε: `Sign::Zero` at the
@@ -178,14 +180,14 @@ fn the_bvh_prune_decides_inside_the_band_where_the_funnel_would_not() {
     let r = report.receipt();
     assert!(r.holds(), "{r:?}");
     assert_eq!(
-        report.verdict(),
-        &ClearanceVerdict::Holds,
-        "the pruned answer today is Holds: {}",
+        report.verdict().label(),
+        "Violated",
+        "a sub-ε separation is the violation the strict funnel calls it: {}",
         report.serialize()
     );
-    assert_eq!(
-        r.candidates, 0,
-        "the only pair was pruned on the raw compare, so the funnel never classified it: {r:?}"
+    assert!(
+        r.candidates >= 1,
+        "the pair reaches the funnel rather than being pruned on a raw compare: {r:?}"
     );
 
     // Arm 2: `≥ c` with the margin wholly inside the ambiguity band —
@@ -196,13 +198,18 @@ fn the_bvh_prune_decides_inside_the_band_where_the_funnel_would_not() {
     let report = clearance(&doc, &box_of("gap"), &sa, &sb, c, Tol::witness());
     let r = report.receipt();
     assert!(r.holds(), "{r:?}");
-    assert_eq!(
+    assert!(
+        r.candidates >= 1,
+        "a margin inside the ambiguity band is handed to the funnel, not pruned: {r:?}"
+    );
+    // What the funnel then says is its own business — a sliver margin
+    // is one it may refuse — but it is no longer a silent pass.
+    assert_ne!(
         report.verdict(),
         &ClearanceVerdict::Holds,
-        "a sliver margin is a Holds once the tree has pruned it: {}",
+        "and it is not answered `Holds` behind the funnel's back: {}",
         report.serialize()
     );
-    assert_eq!(r.candidates, 0, "{r:?}");
 }
 
 /// **EVIDENCE.** The same two questions when the tree CANNOT prune
@@ -225,7 +232,10 @@ fn a_pair_the_tree_hands_over_is_classified_at_the_funnel() {
     let r = report.receipt();
     println!("[r1] handed-over strict pair: {}", report.serialize());
     assert!(r.holds(), "{r:?}");
-    assert!(r.candidates >= 1, "the boxes overlap, so the pair is a candidate: {r:?}");
+    assert!(
+        r.candidates >= 1,
+        "the boxes overlap, so the pair is a candidate: {r:?}"
+    );
     assert_ne!(
         report.verdict(),
         &ClearanceVerdict::Holds,
@@ -293,7 +303,12 @@ fn an_l_shaped_face_is_violated_where_it_has_no_material() {
     };
     let leaf = box_of("lift");
     let sound = clearance(&doc, &leaf, &top, &bottom, 0.45, Tol::witness());
-    assert_eq!(sound.verdict(), &ClearanceVerdict::Holds, "{}", sound.serialize());
+    assert_eq!(
+        sound.verdict(),
+        &ClearanceVerdict::Holds,
+        "{}",
+        sound.serialize()
+    );
     assert!(sound.receipt().holds());
 
     let loose = clearance(&doc, &leaf, &top, &bottom, 0.52, Tol::witness());
@@ -305,7 +320,11 @@ fn an_l_shaped_face_is_violated_where_it_has_no_material() {
         );
     };
     let d = recomputed_distance(&loose);
-    assert!((d - v.geometry.distance).abs() <= 1e-12, "{d} vs {}", v.geometry.distance);
+    assert!(
+        (d - v.geometry.distance).abs() <= 1e-12,
+        "{d} vs {}",
+        v.geometry.distance
+    );
     assert!(d < 0.52 && d >= 0.5 - 1e-9, "the phantom approach: {d}");
     let p = v.geometry.a_point;
     assert!(
@@ -317,7 +336,10 @@ fn an_l_shaped_face_is_violated_where_it_has_no_material() {
         "the plate witness lies in the quadrant the L does not occupy — a point on the \
          carrier window and not on the face: {p:?}"
     );
-    println!("[r1] L-plate witness: {:?} -> {:?} d = {d}", p, v.geometry.b_point);
+    println!(
+        "[r1] L-plate witness: {:?} -> {:?} d = {d}",
+        p, v.geometry.b_point
+    );
 }
 
 /// A block with a semicircular BUMP on its top edge: profile
@@ -379,7 +401,10 @@ fn a_block_with_a_rounded_bump_asks_the_self_intersection_question() {
         oracle: &NoTangents,
     };
     let report = clearance_with(&doc, &box_of("place"), &sel, &sel, &q);
-    println!("[r1] bumped block self-intersection: {}", report.serialize());
+    println!(
+        "[r1] bumped block self-intersection: {}",
+        report.serialize()
+    );
     let r = report.receipt();
     assert!(r.holds(), "{r:?}");
     if let ClearanceVerdict::Refused(ClearanceRefusal::Selection(s)) = report.verdict() {
@@ -432,11 +457,18 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
     );
     let placed = r.insert(translated(
         block,
-        [len(0.0), len(0.0), Expr::add(len(-0.2), param("place")).expect("a length")],
+        [
+            len(0.0),
+            len(0.0),
+            Expr::add(len(-0.2), param("place")).expect("a length"),
+        ],
     ));
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));
     let report = clearance(&r.doc, &box_of("place"), &sq, &sb, 1.0, Tol::witness());
-    println!("[r1] quarter annulus vs block at c = 1.0: {}", report.serialize());
+    println!(
+        "[r1] quarter annulus vs block at c = 1.0: {}",
+        report.serialize()
+    );
     let rc = report.receipt();
     assert!(rc.holds(), "{rc:?}");
     match report.verdict() {
@@ -536,7 +568,13 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
         ..ClearanceConfig::default()
     };
     let run = |c: f64, config: ClearanceConfig| {
-        let report = clearance_with(&doc, &leaf, &sa, &sb, &query(ClearanceBound::AtLeast(c), config));
+        let report = clearance_with(
+            &doc,
+            &leaf,
+            &sa,
+            &sb,
+            &query(ClearanceBound::AtLeast(c), config),
+        );
         assert!(report.receipt().holds(), "c = {c}: {}", report.serialize());
         report
     };
@@ -561,11 +599,17 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
         println!("[r1] pairs = {pairs}: {}", starved.serialize());
     }
 
-    // A negative bound holds vacuously; the tree hands over everything
-    // (a negative pad is the fail-safe direction) and the funnel
-    // discharges every root.
+    // A negative bound is not a distance, and the door says so before
+    // any subdivision.
     let negative = run(-1.0, ClearanceConfig::default());
-    assert_eq!(negative.verdict(), &ClearanceVerdict::Holds, "{}", negative.serialize());
+    assert!(
+        matches!(
+            negative.verdict(),
+            ClearanceVerdict::Refused(ClearanceRefusal::NotADistance { .. })
+        ),
+        "{}",
+        negative.serialize()
+    );
     assert_eq!(negative.receipt().splits, 0);
 
     // An infinite bound (evidence): `d − ∞` is not a certified
@@ -581,14 +625,17 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
     );
     println!("[r1] c = +inf: {}", infinite.serialize());
     assert!(
-        matches!(infinite.verdict(), ClearanceVerdict::Refused(ClearanceRefusal::Budget(_))),
-        "{}",
+        matches!(
+            infinite.verdict(),
+            ClearanceVerdict::Refused(ClearanceRefusal::NotADistance { .. })
+        ),
+        "an infinite bound is refused by name rather than by budget: {}",
         infinite.serialize()
     );
 
-    // An EMPTY named selection: no faces, no candidates — and `Holds`.
-    // Read as a finding: a question about nothing is certified rather
-    // than refused typed.
+    // An EMPTY named selection is refused by name: a question about
+    // nothing used to be certified `Holds`, which is a pass over
+    // nothing.
     let nothing = Selection {
         at: a,
         body: 0,
@@ -596,7 +643,14 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
     };
     let vacuous = clearance(&doc, &leaf, &nothing, &sb, 0.1, Tol::witness());
     println!("[r1] empty selection: {}", vacuous.serialize());
-    assert_eq!(vacuous.verdict(), &ClearanceVerdict::Holds);
+    assert!(
+        matches!(
+            vacuous.verdict(),
+            ClearanceVerdict::Refused(ClearanceRefusal::EmptyScope)
+        ),
+        "{}",
+        vacuous.serialize()
+    );
     assert_eq!(vacuous.receipt().candidates, 0);
 
     // A duplicated name is one face: the same candidates as the name
@@ -616,10 +670,20 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
         max_cell_pairs: 256,
         ..ClearanceConfig::default()
     };
-    let doubled =
-        clearance_with(&doc, &leaf, &twice, &sb, &query(ClearanceBound::AtLeast(0.5), cfg_small));
-    let single =
-        clearance_with(&doc, &leaf, &once, &sb, &query(ClearanceBound::AtLeast(0.5), cfg_small));
+    let doubled = clearance_with(
+        &doc,
+        &leaf,
+        &twice,
+        &sb,
+        &query(ClearanceBound::AtLeast(0.5), cfg_small),
+    );
+    let single = clearance_with(
+        &doc,
+        &leaf,
+        &once,
+        &sb,
+        &query(ClearanceBound::AtLeast(0.5), cfg_small),
+    );
     assert!(doubled.receipt().holds());
     assert!(doubled.receipt().candidates >= 1, "{}", doubled.serialize());
     assert_eq!(doubled.serialize(), single.serialize());
@@ -660,13 +724,23 @@ fn a_nan_bound_is_not_refused_at_the_door() {
 /// schedules answers the same bits, on a subdivision of thousands of
 /// cell pairs. The engine itself has no parallel path (grep: no rayon
 /// in `clearance.rs`); the only schedule that can vary is the driver's.
+///
+/// The question is deliberately the expensive one. A bound the geometry
+/// BREAKS now stops at the first verified witness, so it settles in a
+/// handful of cell pairs and would prove nothing about a large
+/// subdivision; a bound the tree can EXCLUDE never reaches the funnel at
+/// all. What spends a budget is the frontier — a bound sitting exactly
+/// on the pair's own separation, whose cell-pair enclosures straddle it
+/// at every depth. That run refuses, priced, after thousands of cells,
+/// and it is those thousands of decisions that have to agree bit for
+/// bit across the two schedules.
 #[test]
 fn the_fold_is_the_same_under_both_driver_schedules() {
     let (doc, a, b) = blocks(0.4);
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let q = query(
-        ClearanceBound::AtLeast(0.41),
+        ClearanceBound::AtLeast(0.4),
         ClearanceConfig {
             max_cell_pairs: 16_384,
             ..ClearanceConfig::default()
@@ -683,8 +757,17 @@ fn the_fold_is_the_same_under_both_driver_schedules() {
         folds.push(clearance_over(&doc, &analyzed, &verdict, &sa, &sb, &q));
     }
     let cells = folds[0].receipt.discharged + folds[0].receipt.violated + folds[0].receipt.refused;
-    println!("[r1] fold over {} leaves, {cells} cells: {:?}", folds[0].leaves.len(), folds[0].receipt);
+    println!(
+        "[r1] fold over {} leaves, {cells} cells: {:?}",
+        folds[0].leaves.len(),
+        folds[0].receipt
+    );
     assert!(cells > 2_000, "a multi-thousand-cell run: {cells}");
+    assert!(
+        folds[0].receipt.abandoned == 0,
+        "and one that ran to the end of its budget rather than exiting early: {:?}",
+        folds[0].receipt
+    );
     assert_eq!(folds[0], folds[1], "sequential vs rayon");
     assert_eq!(folds[0], folds[2], "repeat");
 }
@@ -785,15 +868,14 @@ fn e2e_channel_slider_over_an_epsilon_box() {
     }
 }
 
-/// **E2E, the real-tolerance arm — PINNED FINDING.** A placement
+/// **E2E, the real-tolerance arm — FIXED, now the pin.** A placement
 /// tolerance of ±0.05 m is the question a user actually has. No node
 /// replays over that box (issue 1191's class), so the drive certifies
-/// NO leaf — and `clearance_over` then answers `Holds` over zero
-/// leaves: the fold's accumulator starts at `Holds` and nothing moves
-/// it. The accounting beside it says 100 % of the mass is refused, but
-/// the verdict field a consumer reads first is a pass. E7's
-/// "trichotomy, never silence" has a fourth state here — a certificate
-/// about nothing — and it is spelled `Holds`.
+/// NO leaf, and `clearance_over` used to answer `Holds` over zero
+/// leaves: a pass over a document about which nothing was proved.
+/// It refuses `NothingCertified` now, carrying the drive's own refused
+/// count, and the mass columns beside it price the whole box as
+/// uncertified.
 #[test]
 fn e2e_a_real_tolerance_gets_a_holds_over_zero_leaves() {
     let (doc, channel, slider) = channel_and_slider(0.05);
@@ -818,32 +900,49 @@ fn e2e_a_real_tolerance_gets_a_holds_over_zero_leaves() {
         &ss,
         &ClearanceQuery::at_least(0.3, Tol::witness()),
     );
-    println!("[r1 e2e] fold: leaves = {}, verdict = {:?}", fold.leaves.len(), fold.verdict);
+    println!(
+        "[r1 e2e] fold: leaves = {}, verdict = {:?}",
+        fold.leaves.len(),
+        fold.verdict
+    );
     if fold.leaves.is_empty() {
-        assert_eq!(
-            fold.verdict,
-            ClearanceVerdict::Holds,
-            "the finding: a fold over no certified leaf is reported as Holds"
+        assert!(
+            matches!(
+                fold.verdict,
+                ClearanceVerdict::Refused(ClearanceRefusal::NothingCertified { .. })
+            ),
+            "a fold over no certified leaf refuses by name: {:?}",
+            fold.verdict
         );
-        assert_eq!(fold.verdict.holds(), Some(true));
+        assert_eq!(fold.verdict.holds(), None, "and it is not a pass");
+        // Every column of the clearance mass is empty, and the whole
+        // measure sits in the drive's uncertified share.
+        assert_eq!(fold.mass.holds, Ok(0.0));
+        assert!(fold.mass.refused.is_empty());
+        let unresolved = fold.mass.unresolved().expect("the box prices");
+        assert!(
+            unresolved > 0.99,
+            "the certificate covers none of the box: {unresolved}"
+        );
     } else {
-        println!("[r1 e2e] the driver certified {} leaves over a ±0.05 box", fold.leaves.len());
+        println!(
+            "[r1 e2e] the driver certified {} leaves over a ±0.05 box",
+            fold.leaves.len()
+        );
     }
 }
 
 // ------------------------------------------------ the fold's accounting
 
-/// **PINNED FINDING (E7 "refuse, typed and PRICED by measure").** The
-/// fold hands back the DRIVE's accounting verbatim, so a leaf whose
-/// clearance query REFUSED still sits in the `certified` mass column.
-/// The fold's own prose says the refused mass "is exactly the share of
-/// the parameter box this certificate says nothing about" — here the
-/// certificate says nothing about the whole box, the verdict is
-/// `Refused`, and the accounting still prices 100 % of the mass as
-/// certified. No per-leaf verdict list survives in the fold either, so
-/// a consumer cannot recover which leaves refused.
+/// **FIXED, now the pin (E7 "refuse, typed and PRICED by measure").**
+/// The fold used to hand back the DRIVE's accounting verbatim, so a
+/// leaf whose clearance query REFUSED still sat in the `certified` mass
+/// column and no per-leaf verdict survived. It now carries a
+/// `ClearanceMass` of its own — the certified mass re-priced by what
+/// THIS question said about each leaf — and a per-leaf verdict list, so
+/// a consumer can recover both the share and the leaves.
 #[test]
-fn a_refused_leaf_is_still_priced_as_certified_mass_by_the_fold() {
+fn a_refused_leaf_is_priced_under_its_own_refusal_by_the_fold() {
     let (doc, a, b) = blocks(0.4);
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
@@ -872,14 +971,36 @@ fn a_refused_leaf_is_still_priced_as_certified_mass_by_the_fold() {
         "a starved budget refuses: {:?}",
         fold.verdict
     );
-    assert_eq!(
-        fold.drive_accounting.certified, certified_mass,
-        "the refused query did not move a gram of mass out of `certified`"
+    // The DRIVE's own accounting is unchanged — it answered a different
+    // question and is kept beside, not merged.
+    assert_eq!(fold.drive_accounting.certified, certified_mass);
+    // What moved is the CLEARANCE mass: nothing held, and every gram of
+    // the certified mass is priced under the refusal's own class.
+    assert_eq!(fold.mass.holds, Ok(0.0), "no leaf held: {:?}", fold.mass);
+    let refused_here: f64 = fold
+        .mass
+        .refused
+        .values()
+        .map(|m| m.clone().expect("the box prices"))
+        .sum();
+    let certified = certified_mass.expect("the drive prices it");
+    assert!(
+        (refused_here - certified).abs() <= 1e-12,
+        "the refused leaves carry the drive's whole certified mass: {refused_here} \
+         against {certified}"
     );
     assert!(
-        !fold.drive_accounting.refused.contains_key(&editor_core::drive::ReasonClass::Budget),
-        "and the clearance budget refusal is not priced under any reason: {:?}",
-        fold.drive_accounting.refused
+        fold.mass.refused.contains_key("budget"),
+        "priced under the class that refused: {:?}",
+        fold.mass.refused
+    );
+    // And the per-leaf verdicts survive.
+    assert_eq!(fold.leaves.len(), verdict.certified().len());
+    assert!(
+        fold.leaves
+            .iter()
+            .all(|l| matches!(l.verdict, ClearanceVerdict::Refused(_))),
+        "a consumer can see WHICH leaves refused"
     );
 }
 
@@ -917,7 +1038,10 @@ fn what_the_sound_prism_rows_hand_to_the_funnel() {
         &Selection::body_of(dumbbell),
         Tol::witness(),
     );
-    println!("[r1] dumbbell self-intersection receipt: {}", report.serialize());
+    println!(
+        "[r1] dumbbell self-intersection receipt: {}",
+        report.serialize()
+    );
     assert!(report.receipt().holds());
     assert_eq!(report.verdict(), &ClearanceVerdict::Holds);
 }
@@ -929,7 +1053,10 @@ fn what_the_sound_prism_rows_hand_to_the_funnel() {
 /// both basis vectors carry a `[-1, 1]` factor.
 #[test]
 fn the_orthonormal_basis_is_sign_hulled_at_interval_when_nz_is_zero() {
-    let (zero, one) = (Interval::from_bounds(0.0, 0.0), Interval::from_bounds(1.0, 1.0));
+    let (zero, one) = (
+        Interval::from_bounds(0.0, 0.0),
+        Interval::from_bounds(1.0, 1.0),
+    );
     let n = Vec3::new(one, zero, zero);
     let (b1, b2) = n.orthonormal_basis();
     println!("[r1] basis of +x at Interval: b1 = {b1:?}, b2 = {b2:?}");
@@ -950,18 +1077,16 @@ fn the_orthonormal_basis_is_sign_hulled_at_interval_when_nz_is_zero() {
 
 // ------------------------------------------------ claim 2: separation_lo
 
-/// **PINNED COUNTEREXAMPLE (claim 2, the huge-magnitude case).**
+/// **FIXED, now the pin (claim 2, the huge-magnitude case).**
 /// `Aabb::separation_lo` is documented as a certified LOWER bound on
-/// the boxes' separation for every configuration. The norm it takes is
-/// the plain `sqrt(x² + y² + z²)` (no scaled hypot, by `geom_core`'s
-/// own rule), so a per-axis gap above ~1.34e154 squares to `+∞`, the
-/// norm is `+∞`, four `next_down`s land near `f64::MAX`, and the
-/// "lower bound" EXCEEDS the true separation by ~1e108. Absurd as a
-/// distance, but the contract is stated universally and the proptest
-/// generator stops at ±20. Goes red when the bound is made scale-safe
-/// (or the contract fenced to a finite range).
+/// the boxes' separation for every configuration. It used to take the
+/// plain `sqrt(x² + y² + z²)`, so a per-axis gap above ~1.34e154
+/// squared to `+∞`, the norm was `+∞`, four `next_down`s landed near
+/// `f64::MAX`, and the "lower bound" EXCEEDED the true separation by
+/// ~1e108. The gaps are rescaled by an exact power of two before
+/// squaring now, and the contract holds at every magnitude.
 #[test]
-fn separation_lo_over_claims_when_a_gap_squares_to_infinity() {
+fn separation_lo_bounds_below_at_a_magnitude_that_used_to_overflow() {
     let unit = Aabb {
         min_x: 0.0,
         min_y: 0.0,
@@ -982,8 +1107,11 @@ fn separation_lo_over_claims_when_a_gap_squares_to_infinity() {
     let truth = 1e200 - 1.0;
     println!("[r1] separation_lo = {lo:e} against a true separation of {truth:e}");
     assert!(
-        lo > truth,
-        "the over-claim is present today (lo = {lo:e}, truth = {truth:e}); if this row is \
-         red the bound has been made scale-safe — delete the row"
+        lo <= truth,
+        "the bound does not exceed the truth (lo = {lo:e}, truth = {truth:e})"
+    );
+    assert!(
+        lo > truth * 0.99,
+        "and it is still tight at 1e200 (lo = {lo:e}, truth = {truth:e})"
     );
 }

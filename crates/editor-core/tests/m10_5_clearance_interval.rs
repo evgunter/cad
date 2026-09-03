@@ -44,22 +44,74 @@
 //!
 //! # The measured limit, and where it comes from
 //!
-//! A `Violated` verdict needs some cell pair whose separation enclosure
-//! is definitely BELOW the bound — every point of one cell within `c`
-//! of every point of the other. For two flat walls a true gap `g`
-//! apart, a cell pair of diameter `w` encloses separations up to about
-//! `√(g² + w²)`, so a violation is only reachable once `w² ≲ c² − g²`.
-//! The subdivision halves `w` per split, so the depth is logarithmic in
-//! the SLACK `c − g` and the cost is exponential in it: a bound
-//! comfortably past the gap is cheap, a bound a hair past it is not
-//! reachable at all. `the_widths_at_which_cells_discharge_are_measured`
-//! reports where the subdivision had to go, and records that at the
-//! SHIPPED pair budget every one of those bounds answers definitely and
-//! still leaves part of its subdivision priced-refused.
+//! The cost of a query is NOT monotone in the bound, and the shape has
+//! three regimes rather than two. `the_cost_curve_is_measured_at_both_ends`
+//! executes all three; what follows is why they are where they are.
 //!
-//! The basename carries `interval` deliberately: the engine is gated on
-//! that feature (there is nothing to exclude WITH at `f64`) and
-//! `scripts/ci-filter.py` reads the name.
+//! A `Violated` verdict has two routes. The ENCLOSURE route needs a
+//! cell pair whose separation enclosure is definitely below the bound —
+//! every point of one cell within `c` of every point of the other. For
+//! two flat walls a true gap `g` apart, a cell pair of diameter `w`
+//! encloses separations up to about `√(g² + w²)`, so that route only
+//! opens once `w² ≲ c² − g²`, and since the subdivision halves `w` per
+//! split its depth is logarithmic in the slack and its cost exponential
+//! in it. The EXHIBIT route needs no narrow enclosure at all: one pair
+//! of points, rebuilt at `f64` and decided at the same funnel site. The
+//! engine probes for one at the root of every indeterminate pair, and
+//! the sweep STOPS at the first verified witness. So:
+//!
+//! - **A bound the geometry breaks is cheap and FLAT.** Whether it is
+//!   broken by a millimetre or by a metre, the answer costs a handful
+//!   of cell pairs, and the frontier the sweep never reached is
+//!   accounted `abandoned` rather than `refused`
+//!   (`early_exit_accounts_for_what_it_did_not_examine`).
+//! - **A bound that holds is cheap when the proximity tree can exclude
+//!   the pair and expensive when it cannot.** The hexagon's slanted
+//!   opposite flats are 2 m apart where their boxes are 1.155 m apart,
+//!   so nothing is excluded and every cell is classified. That is what
+//!   a budget buys.
+//! - **The frontier is what no budget settles.** A bound sitting inside
+//!   a pair's own separation range leaves cell pairs straddling it at
+//!   every depth; the run spends the whole dial and refuses, priced.
+//!
+//! Two consequences a reader should not have to infer. The cost is
+//! ORDER-DEPENDENT in the violated regime — which witness is found
+//! first depends on the level-synchronous frontier's order, which is
+//! fixed (D9) but is a property of the schedule, not of the geometry —
+//! and the numbers printed by that row are facts about these fixtures,
+//! not a baseline anything should be held to.
+//!
+//! # Which refusal arms have a row, and which cannot
+//!
+//! Rows below cover `Budget(Pairs)`, `Budget(Depth)`, `Selection` (two
+//! shapes), `Unsupported`, `NotADistance` and `EmptyScope`;
+//! `NothingCertified` is covered by the adopted probe suites. The
+//! remaining arms have NO row, and the reason is the same for each:
+//! they are not reachable on any document these fixtures can build.
+//!
+//! - `Sliver` needs the deciding enclosure to sit WHOLLY inside the
+//!   band — a margin that is in the band and an enclosure narrower than
+//!   the band around it, at metre-scale geometry.
+//! - `Budget(Resolution)` needs a cell whose midpoint lands on its own
+//!   endpoint: sixty-odd halvings, past the depth dial's 40.
+//! - `PoisonEnclosure` needs a margin that comes back `Invalid`, which
+//!   on a carrier that evaluated means a NaI the substrate does not
+//!   produce here.
+//! - `WitnessUnverified` needs the `f64` rebuild to disagree with the
+//!   interval classification on a pair the interval side called
+//!   definite.
+//!
+//! Absence of a row is not evidence the arm is dead code — each is
+//! constructed at exactly one site in `clearance.rs` and reachable in
+//! principle — but it IS a gap, stated here rather than papered over.
+//!
+//! The basename carries `interval` deliberately: the whole suite is
+//! `#![cfg(feature = "interval")]`, which is what actually selects it
+//! into the interval legs (`scripts/interval-only-selection.py` derives
+//! that set from the two `nextest list` archives, never from a name);
+//! the name is the ADVISORY half — `_advises_interval` in
+//! `scripts/ci-filter.py` reads every changed basename to suggest the
+//! lane pin.
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -786,7 +838,9 @@ fn a_driver_certified_leaf_carries_the_certificate() {
     assert!(fold.receipt.holds(), "{:?}", fold.receipt);
     assert_eq!(fold.leaves.len(), verdict.certified().len());
     assert!(
-        fold.leaves.iter().all(|l| l.verdict == ClearanceVerdict::Holds),
+        fold.leaves
+            .iter()
+            .all(|l| l.verdict == ClearanceVerdict::Holds),
         "every leaf's own answer is kept, and every one of them holds"
     );
     assert_eq!(&fold.drive_accounting, verdict.accounting());
@@ -871,7 +925,12 @@ fn the_cost_curve_is_measured_at_both_ends() {
     let leaf = box_of("place");
     let held = clearance(&hex, &leaf, &sel, &sel, 1.5, Tol::witness());
     let hr = held.receipt();
-    assert_eq!(held.verdict(), &ClearanceVerdict::Holds, "{}", held.serialize());
+    assert_eq!(
+        held.verdict(),
+        &ClearanceVerdict::Holds,
+        "{}",
+        held.serialize()
+    );
     assert!(hr.holds());
     let held_cells = hr.discharged + hr.violated + hr.refused;
     println!(
@@ -925,7 +984,10 @@ fn early_exit_accounts_for_what_it_did_not_examine() {
     let report = clearance(&doc, &box_of("place"), &sel, &sel, 0.6, Tol::witness());
     let r = report.receipt();
     assert_eq!(report.verdict().label(), "Violated");
-    assert!(r.holds(), "the identity holds with the abandoned column: {r:?}");
+    assert!(
+        r.holds(),
+        "the identity holds with the abandoned column: {r:?}"
+    );
     assert!(
         r.abandoned > 0,
         "a whole-body query stops with candidates still unexamined: {r:?}"

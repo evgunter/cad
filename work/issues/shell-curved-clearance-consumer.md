@@ -51,12 +51,19 @@ either option is chosen:
   wider than a small fraction of ε (issue 1191's class), so a
   parametric curved gate answers over ε-scale boxes only. Option 2 does
   not have this problem — it has no parameter box.
-- **Cost.** At the shipped `DEFAULT_MAX_CELL_PAIRS = 65_536`, a
-  whole-body query on a fourteen-face prism exhausts its budget and
-  leaves part of the subdivision priced-refused, while still answering
-  definitely. A gate that must answer for every face pair of a shelled
-  body needs either a bigger dial or a cheaper pair filter than the
-  quadratic adjacency walk the engine does today.
+- **Cost, and WHERE it falls.** Measured on the hexagonal prism of
+  `crates/editor-core/tests/m10_5_clearance_interval.rs` and on the
+  twelve-vertex comb of `m10_5_r2_probes_interval.rs` (R2's fixture):
+  a bound the geometry BREAKS costs a handful of cell pairs, because
+  the sweep stops at the first verified witness; a bound the tree can
+  EXCLUDE costs nothing. What exhausts the shipped
+  `DEFAULT_MAX_CELL_PAIRS = 65_536` is the FRONTIER — a bound sitting
+  on a pair's own separation, where no cell pair ever resolves either
+  way. A shell gate picks its own `c`, so whether it lands in the cheap
+  regime or on a frontier is a property of the wall thickness it is
+  asked about, not of the engine. It also needs a cheaper pair filter
+  than the quadratic adjacency walk the engine does today once the face
+  count of a shelled body is in play.
 
 ## Home
 
