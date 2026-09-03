@@ -554,9 +554,16 @@ and closed at LIB-B-READBACK, and what records that is the four
 read-back verbs sitting in the census's `BOUND_AS` with the unit
 named beside them. The
 
-family id — `B-PICKING`, `B-RESOLVE`, `B-READBACK`, `B-EXPR-READ`,
-`B-CANCEL`, `B-FORMAT`, `B-VALIDATE4`, `B-DISTRIBUTIONS` — each carrying
-a one-line charter saying what a unit closing it would deliver. The
+family id, each carrying a one-line charter saying what a unit
+closing it would deliver. **The ids are NOT listed here** — they are
+`FAMILIES` in `crates/pncad-py/tests/test_binding_census.py`, and a
+copy of them in this paragraph is a second enumeration that goes
+stale the moment a family closes. It had: this sentence still named
+`B-READBACK` after LIB-B-READBACK closed it, and would have named
+`B-EXPR-READ` after LIB-B-EXPR-READ, while never having gained
+`B-NOTATION` or `B-MEASURES`. The census's own guard fails on a
+charter nobody cites and on a citation nothing defines, which is
+what a list in prose cannot do. The
 `B-` is this category's own letter: the census owns the surface-debt
 id space, this register points AT it, and the census's own test fails
 when a pointer stops resolving in either direction (a citation the
@@ -2105,3 +2112,83 @@ reason unrelated to any family, so it waits for a pass with no
 concurrent B-lane rather than riding a family unit. Two of the three
 are LIVE claims about where a reader should go, so the ledger's
 append-only-log dispensation does not cover them.
+
+**B-EXPR-READ IN REVIEW (2026-09-03, #1662; mechanical under the
+08-29 ruling, no A/B row). Census family B-EXPR-READ CLOSED — the
+expression READ side crosses, and the family cost three times the
+names it owned.** `Doc.parse_expr` / `Doc.eval` / `Doc.eval_count`
+plus `Expr` (`dimension`, `text`, `literal_value`, `params`) and two
+typed refusal classes, `ParseError` and `EvalError`. 30 Python rows in
+`tests/test_expressions.py` (352 suite rows to 382), both tag maps pinned arm-by-arm in
+`src/tests.rs` against source strings rather than hand-built values,
+ty fixtures on both sides.
+
+**The measurement worth keeping: the entries an id owns are not the
+entries a unit must move.** B-EXPR-READ chartered three names —
+`eval`, `eval_count`, `EvalError` — and none of them is reachable
+without a value to evaluate. The four that make one (`Expr`,
+`parse_expr`, `unparse`, `ParseError`) were filed under `G1`, because
+the census had split this family on WHICH HALF THE AUDIT REACHED
+rather than on what a unit would have to build. Nine entries moved,
+`ParamEnv` included. The census's own docstring predicted this
+("not that a cited id is the RIGHT owner"); this is the first case
+that executed it, and it is recorded in the closure paragraph rather
+than smoothed.
+
+**G1 is NOT closed by that**, and the re-cut says so twice: the
+residue this unit touched is the AUTHORING half, which is now a
+SIGNATURE rather than a missing name — no door takes an `Expr` INTO a
+document — so the census structurally cannot watch it and
+`tests/test_north_star.py` does, executing an `Expr` against `Radius`
+and `DocParam.length` and watching both refuse. G1 also keeps a
+census citation outright, which the pre-merge draft of this row got
+wrong: B-PICKING's merge brought `ArrivesTangent` in under the same
+id, for a residue of the same row that has nothing to do with
+expressions. `ParamEnv` moved to `INTERIOR` rather than
+anywhere else, correcting an entry that had been a `gap` on the RUST
+door's shape: Python's `select_where` never took one, `Evaluation`
+captures the environment at `evaluate`, and `Doc.eval` now builds one
+from the document it is a method on — two doors, neither handing it
+out.
+
+**One routing decision, made and recorded on all four surfaces.** The
+expression layer's `DimensionError` had two Python routes and neither
+was branchable: `LiteralError` on the literal door, and `load`'s
+`PersistError`/`unreadable` misrouting (#694, untouched here). The
+text door is a third, and it lands as `ParseError` with `variant ==
+"dimension"` and the mismatch's own tag as `kind` — because what
+refused is the PARSE and the byte offset is the recourse, which a
+`LiteralError` has nowhere to put. `test_north_star.py`'s old entry
+asked whoever bound this to decide; that comment now records the
+answer instead of the question.
+
+**Banked, boundary-wide: `args` is unusable as a typed-exception
+attribute.** It is `BaseException`'s own and CPython requires a tuple,
+so the crate's "every field on every arm, `None` where absent" shape
+raises `TypeError: 'NoneType' object is not iterable` from inside the
+raise. Found by 14 red rows, not by reading. `WrongArity`'s count is
+`given`; the constraint is written at `py::typed_err`, the single
+construction site, so the next door does not rediscover it.
+
+Two stale claims corrected in passing, both in files this unit
+touched: `pncad.pyi`'s header still listed the geometry read-back
+doors as deliberately absent (LIB-B-READBACK bound them a week
+earlier) and still paired chamfer with shell (G16 closed); and this
+register's own paragraph carried a second enumeration of the census
+families — which named `B-READBACK` after it closed and never gained
+`B-NOTATION` or `B-MEASURES` — now replaced by the pointer the
+sentence already claimed to be. The census's gap-id counts were
+stale the same way ("two … the other seven" against nine cited
+families). They are now GONE rather than corrected: this unit first
+re-cut them to "one … the other eight", and B-PICKING closing in the
+same window falsified that before either landed. A number two
+concurrent units can invalidate is not a measurement, it is a merge
+conflict with a plausible face, and the guard that IS checked says
+nothing about how many there are.
+
+Measured and not filed: `ParseError::MalformedNumber` is unreachable
+from text. The lexer hands `f64::from_str` only a run of digits with
+at most one dot, so every malformed shape refuses earlier and under
+another arm. Defensive rather than dead — the lexer's rule need not
+stay a subset of `f64`'s — so it keeps its tag and the pin says why
+it has no fixture. Not a kernel change and not an item.

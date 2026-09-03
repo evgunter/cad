@@ -2,8 +2,10 @@
 id: LIB-B-EXPR-READ
 kind: unit
 title: binding census family B-EXPR-READ
-status: dispatched
+status: closed
+pr: 1662
 opened: 2026-09-03
+closed: 2026-09-03
 branch: lib/b-expr-read
 ---
 
