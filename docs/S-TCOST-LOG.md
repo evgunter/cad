@@ -391,3 +391,26 @@ and only the agents' transcripts were lost, so each lane was
 re-created FRESH from its on-disk and pushed state with the fix list
 restated in the brief (the death-recovery rule: fresh over resume when
 the remainder is specifiable from what is pushed).
+
+## Seam: TCOST-7 back and reviewed (2026-09-03)
+
+PR 1635 (green at default/1e-6 drawn; no interval suite touched):
+`crates/geom-brep/tests/shared/` holds one home each for the quarter
+cylinder, the sphere band, the knot vectors, the dense grid and the
+offset-residual loop, and the `Patch` oracle; bit-identity of every
+caller's fixture was checked at the merge base by the finisher and
+again by the reviewer. Review verdict MERGEABLE WITH FIXES: six
+call sites of the very loop the unit consolidated were left
+un-migrated in two files the PR edited, `review_r1_rational_probes`
+keeps a `dense` and a `dbasis` character-identical to the shared
+ones, a minted "cited by" entry cites nothing, and `face_posture`
+carries a parameter both callers pass identically. Fix pass in the
+lane. **TCOST-8 cut**: the helper families the unit deferred —
+`band` (47 spellings), `edge`/`great` (16), `p3`/`v3`/`pt` (38) —
+after TCOST-7 merges.
+
+Operational: a reviewer ran `git checkout` inside the orchestrator's
+own checkout (`/home/user/cad`), moving it onto the reviewed branch;
+restored from the pushed `tcost/orchestrator`. Every brief template
+now carries the rule (read other branches with `git show`, or your
+own worktree; never touch the orchestrator's checkout).
