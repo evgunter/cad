@@ -145,11 +145,14 @@
 //!   the finer way — every pre-existing per-document row unchanged.
 //!
 //! The M10-2, SEAT-5 and LIB-TUBE measurements are the strongest of
-//! the five,
-//! for a reason worth stating: in each, the roster minus the addition
-//! IS the prior tree's roster, so the expected values were not
-//! re-derived for the occasion — they were already committed here by
-//! someone else. A measurement sink denotes no body, so it contributes
+//! the five, for a reason worth stating: in each, the roster minus the
+//! addition IS the prior tree's roster, so the expected values were
+//! not re-derived for the occasion — they were already committed here
+//! by someone else. (LIB-TUBE removes a PAIR rather than one
+//! document, because the two node kinds arrived in one vocabulary
+//! change and neither half was ever a tree's roster alone; the
+//! constants it came back to are still the ones the prior tree had
+//! committed, which is what the ranking turns on.) A measurement sink denotes no body, so it contributes
 //! no geometry to any pre-existing document (the M10-2 prediction);
 //! the removal is what confirms each.
 //!
