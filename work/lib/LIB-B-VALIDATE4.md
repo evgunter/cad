@@ -2,8 +2,9 @@
 id: LIB-B-VALIDATE4
 kind: unit
 title: binding census family B-VALIDATE4
-status: open
+status: review
 opened: 2026-09-03
+pr: 1677
 ---
 
 Queued mechanical census family (the B-READBACK/B-CHECKS shape): sweep the

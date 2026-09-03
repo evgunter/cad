@@ -2357,7 +2357,7 @@ only STEP-fixture #917 false positives remain in crates/). Nothing
 LIB holds; the recipe layer's NodeErrorKind::Blend shape is cited
 in that design as ratified precedent.
 
-**B-VALIDATE4 IN REVIEW (2026-09-03, #PR; mechanical under the 08-29
+**B-VALIDATE4 IN REVIEW (2026-09-03, #1677; mechanical under the 08-29
 ruling, no A/B row). Census family B-VALIDATE4 CLOSED — the ladder's
 fourth rung crosses, and the family's whole content is HOW its second
 argument does.** `validate_pseudomanifold` becomes
