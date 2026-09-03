@@ -3,7 +3,7 @@
 Status: **RATIFIED** (design-conversation PR #124, signed off and
 merged 2026-07-29; the ratified doc was the deliverable of that
 conversation). **IMPLEMENTED** as LIB unit U2 (`crates/profile/`);
-`docs/LIB-U2-SPEC.md` and `docs/LIB-LOG.md` are the implementation
+`docs/LIB-U2-SPEC.md` and `work/lib/log.md` are the implementation
 record. Designed across twelve review rounds with Ev
 (2026-07-27/29, #104 + the #124 threads); the round-by-round trail
 lives in #124 and the M5 log — this document states only the
