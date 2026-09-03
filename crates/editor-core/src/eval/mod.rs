@@ -2508,6 +2508,12 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
     fn target(h: &mut KeyHasher, t: &Target<f64>) {
         match t {
             Target::Start => h.write_tag(4),
+            // Appended, not squeezed in beside 4/5: the tag space is
+            // append-only and 42 was the high-water mark. 44 was the
+            // TANGENT arrival's number and the one surviving declaration
+            // keeps it; 43 held the retired STRAIGHT member and stays
+            // DEAD, never reused (D365).
+            Target::StartArriving => h.write_tag(44),
             Target::Point(p) => {
                 h.write_tag(5);
                 f(h, p.x);
@@ -2659,8 +2665,9 @@ fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
     fn target<T: ContentBits>(h: &mut KeyHasher, t: &Target<T>) {
         match t {
             // The Start/Point distinction is structural and rides the
-            // f64 stream; only a Point's coordinates are lane data.
-            Target::Start => {}
+            // f64 stream; only a Point's coordinates are lane data. A
+            // declared arrival is structural for the same reason.
+            Target::Start | Target::StartArriving => {}
             Target::Point(p) => pt(h, p),
         }
     }
@@ -3131,6 +3138,42 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
 #[allow(clippy::panic)]
 mod verb_tag_tests {
     use super::{RETIRED_VERB_TAGS, verb_tag};
+
+    /// **The seam-arrival target tag is reachable and distinct.** Tag
+    /// 44 is appended past 42, the previous high-water mark, rather
+    /// than squeezed in beside `Start` (4) and `Point` (5), because the
+    /// space is append-only and renumbering re-keys every program using
+    /// the tags in between (D365). 43 held the retired second arrival
+    /// member and stays dead.
+    ///
+    /// This EXECUTES it. Both hashers are otherwise reached only by
+    /// evaluating a document node that carries the new target, which
+    /// nothing in the tree does, so without this row the arms are
+    /// compiled and never run — and a declared seam sharing `Start`'s
+    /// key would alias two different loops into one content key.
+    #[test]
+    fn the_seam_arrival_target_tag_is_distinct_and_executed() {
+        use super::memo::KeyHasher;
+        use super::{feed_lane_step, feed_step};
+        use profile::{Step, Target};
+        let key = |t: Target<f64>| {
+            let mut h = KeyHasher::new();
+            feed_step(&mut h, &Step::LineTo(t));
+            h.finish()
+        };
+        let start = key(Target::Start);
+        let declared = key(Target::StartArriving);
+        assert_ne!(start, declared, "Start and a declared tangent seam joint");
+        // The LANE hasher treats all three as structural — no lane data
+        // rides them — so its keys agree, which is the property that
+        // makes a bisecting lane's memo sound.
+        let lane = |t: Target<f64>| {
+            let mut h = KeyHasher::new();
+            feed_lane_step(&mut h, &Step::LineTo(t));
+            h.finish()
+        };
+        assert_eq!(lane(Target::Start), lane(Target::StartArriving));
+    }
 
     /// [`verb_tag`]'s two properties, computed over the transition
     /// table's own census rather than reviewed: every live verb gets a
