@@ -19,7 +19,7 @@
 //!   azimuth sits an arbitrarily small angle from its endpoints'.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::*;
 use geom::{Curve3, Surface};

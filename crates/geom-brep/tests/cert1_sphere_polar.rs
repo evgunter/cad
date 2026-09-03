@@ -25,71 +25,33 @@
 //! claim about one of the three.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::Curve3;
+use crate::shared::surf;
+use crate::shared::tol::band;
+use crate::shared::topo;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, PropsError, curved_face};
-use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
-
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<f64> {
-    let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge::hand_built(carrier, t0, t1, forward, start, end)
-}
 
 /// The sphere under every row: R = 10 mm about +Z at the origin.
 const RS: f64 = 0.010;
 
 fn sphere() -> Surface<f64> {
-    Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
-        radius: RS,
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
-    }
+    surf::sphere(RS)
 }
 
 /// The rim at latitude `v` (an axis-parallel circle), `u0 → u1`.
 fn rim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
-    edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, RS * v.sin()),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: RS * v.cos(),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
-        u0,
-        u1,
-        a,
-        b,
-    )
+    topo::sphere_rim(RS, v, u0, u1, a, b)
 }
 
 /// The meridian great circle whose plane contains the axis at azimuth
 /// `u`; its parameter IS the latitude on the `u` side, so `t = π/2` is
 /// the north pole and `t ∈ (π/2, 3π/2)` descends the `u + π` side.
 fn great(u: f64, t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<f64> {
-    edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, 0.0),
-            axis: v3(u.sin(), -u.cos(), 0.0),
-            radius: RS,
-            u_ref: v3(u.cos(), u.sin(), 0.0),
-        },
-        t0,
-        t1,
-        a,
-        b,
-    )
+    topo::sphere_great(RS, u, t0, t1, a, b)
 }
 
 fn accepts_exactly(kind: &str, edges: &[LoopEdge<f64>], exact_area: f64) {
-    let band = Band::linear(Tol::witness()).unwrap();
+    let band = band();
     match curved_face(&sphere(), edges, 1.0, band) {
         Ok(fc) => {
             let rel = (fc.area - exact_area).abs() / exact_area;
@@ -168,7 +130,7 @@ fn the_rimless_hemisphere_split_off_its_poles_still_measures() {
 /// the run's own band so the row means the same at every ε.
 #[test]
 fn a_split_vertex_a_hair_off_the_pole_still_certifies() {
-    let band = Band::linear(Tol::witness()).unwrap();
+    let band = band();
     let b: f64 = 0.5;
     let exact = RS * RS * core::f64::consts::PI * (1.0 - b.sin());
     let mid_band = 0.5 * (band.zero() + band.escalate()) / RS;
@@ -240,7 +202,7 @@ fn near_polar_staircase(v0: f64, v1: f64, v2: f64) -> Vec<LoopEdge<f64>> {
 /// one named predicate.
 #[test]
 fn two_distinct_near_polar_rims_are_not_one_level() {
-    let band = Band::linear(Tol::witness()).unwrap();
+    let band = band();
     let d0 = 0.002;
     let dv = 10.0 * band.escalate() / RS;
     let v2 = core::f64::consts::FRAC_PI_2 - d0;
@@ -269,7 +231,7 @@ fn two_distinct_near_polar_rims_are_not_one_level() {
 /// which is what this row exists to redden.
 #[test]
 fn the_near_polar_refusal_floor_is_the_coincidence_threshold() {
-    let band = Band::linear(Tol::witness()).unwrap();
+    let band = band();
     let d0 = 0.002;
     let dv = 3.0 * band.zero() / RS;
     let v2 = core::f64::consts::FRAC_PI_2 - d0;
@@ -294,7 +256,7 @@ fn the_near_polar_refusal_floor_is_the_coincidence_threshold() {
 /// `R²·Δsin ≈ R·(0.5·zero)·δ0 ≲ 1e-8` relative, so the bound is 1e-6.
 #[test]
 fn a_near_polar_step_within_the_band_is_still_one_level() {
-    let band = Band::linear(Tol::witness()).unwrap();
+    let band = band();
     let d0 = 0.002;
     let dv = 0.5 * band.zero() / RS;
     let v0 = 0.2;

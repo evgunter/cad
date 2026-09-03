@@ -86,6 +86,11 @@ pub(crate) struct LaneEnv<'a, T> {
     /// The evaluation's parameter environment — nominals, or nominals
     /// widened by [`crate::analysis::ParamBox`] (E6's leaf replay).
     pub params: &'a crate::expr::ParamEnv<T>,
+    /// The E4 seed this evaluation carries, by name (`None` on the
+    /// build path). Consulted by the one place the lift cannot reach:
+    /// a C6/D9-pinned section refuses a seed it would otherwise embed
+    /// as a constant ([`section_of`]).
+    pub seed: Option<&'a crate::doc::ParamName>,
 }
 
 impl<T> Clone for LaneEnv<'_, T> {
@@ -136,20 +141,33 @@ where
         + Send
         + Sync
         + topo::AtRestPolicy
-        + crate::analysis::AxisScalar,
+        + crate::analysis::AxisScalar
+        + crate::analysis::SeedScalar,
 {
     match node {
-        Node::Datum(d) => Ok(OpOut::plain(wire_datum(d, vals, tol)?, names::empty())),
+        Node::Datum(d) => Ok(OpOut::plain(
+            wire_datum(d, results, vals, tol)?,
+            names::empty(),
+        )),
         Node::Profile(program) => Ok(OpOut::plain(
-            wire_profile(program, profile_pre, env.lane, tol)?,
+            wire_profile(program, results, profile_pre, env.lane, tol)?,
             names::empty(),
         )),
         Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals, tol),
         Node::Revolve { profile, axis, .. } => {
-            wire_revolve(id, *profile, *axis, results, vals, tol)
+            wire_revolve(id, *profile, *axis, doc, results, vals, tol)
         }
-        Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, vals, env.lane, tol),
-        Node::Sweep { profile, path, .. } => wire_sweep(*profile, *path, doc, vals, env.lane, tol),
+        Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, results, vals, env.lane, tol),
+        Node::Sweep { profile, path, .. } => {
+            wire_sweep(*profile, *path, doc, results, vals, env.lane, tol)
+        }
+        // Two arms, two doors, no flag between them: which node kind
+        // this is decides which kernel door runs, and nothing else
+        // does. That is the split vocabulary's whole content.
+        Node::Tube { spine, window, .. } => wire_tube(id, *spine, window, results, vals, tol),
+        Node::HollowTube { spine, window, .. } => {
+            wire_hollow_tube(id, *spine, window, results, vals, tol)
+        }
         Node::Fillet {
             target, selection, ..
         } => wire_blend(
@@ -264,7 +282,8 @@ where
         + Send
         + Sync
         + topo::AtRestPolicy
-        + crate::analysis::AxisScalar,
+        + crate::analysis::AxisScalar
+        + crate::analysis::SeedScalar,
 {
     let part = env
         .parts
@@ -495,6 +514,21 @@ fn need_point3<T: Decide>(
     point3(vals, f).ok_or(NodeErrorKind::MissingSlot { slot: f(Axis3::X) })
 }
 
+fn need_vec2<T: Decide>(
+    vals: &SlotValues<T>,
+    f: fn(Axis3) -> SlotId,
+) -> Result<Vec2<T>, NodeErrorKind> {
+    slots::vec2(vals, f).ok_or(NodeErrorKind::MissingSlot { slot: f(Axis3::X) })
+}
+
+fn need_point2<T: Decide>(
+    vals: &SlotValues<T>,
+    f: fn(Axis3) -> SlotId,
+) -> Result<Point2<T>, NodeErrorKind> {
+    let v = need_vec2(vals, f)?;
+    Ok(Point2::new(v.x, v.y))
+}
+
 /// A slot's vector as a datum direction, through the kernel type's own
 /// constructor: the normalization and the two refusals live there, and
 /// this layer only names the ROLE the refusal is about.
@@ -513,7 +547,177 @@ fn datum_unit<T: Decide>(
     })
 }
 
-fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>, tol: Tol) -> PayloadResult<T> {
+/// **The sketch plane a profile is drawn on, at f64** — the frame node
+/// its payload names, resolved and orthonormalized.
+///
+/// # Why f64 and not the frame's landed value
+///
+/// The placement feeds C6 STRUCTURE selection, which must be
+/// lane-identical: the same document has to select the same structure
+/// at `f64` and at the interval scalar, or the lift's two passes are
+/// deciding different questions. That is the rule the profile's own
+/// program already follows — `eval_node` resolves it "at f64 because
+/// it feeds C6 structure selection" — and the frame is now part of the
+/// same input, so it follows the same rule rather than a new one. The
+/// frame's LANDED value is at the lane scalar and is the right answer
+/// to a different question (what a reader sees, what a measure
+/// measures); reading it here would make structure lane-dependent.
+///
+/// So the frame is read twice, at two scalars, for two purposes —
+/// exactly as the profile's own program is, and not a second opinion
+/// about one question.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::WrongOperand`] when the reference does not name a
+/// frame — the door every operand's kind is checked at — and the
+/// frame's own two direction refusals through [`frame_axes`].
+pub(crate) fn profile_plane_f64(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    plane: RecipeNodeId,
+    tol: Tol,
+) -> Result<profile::SketchPlane<f64>, NodeErrorKind> {
+    let found = match doc.node(plane) {
+        None => {
+            return Err(NodeErrorKind::MissingInput { input: plane });
+        }
+        Some(Node::Datum(Datum::Frame { .. })) => None,
+        Some(_) => Some("not a datum frame"),
+    };
+    if let Some(found) = found {
+        return Err(NodeErrorKind::WrongOperand {
+            input: plane,
+            expected: "datum frame",
+            found,
+        });
+    }
+    let node = doc
+        .node(plane)
+        .ok_or(NodeErrorKind::MissingInput { input: plane })?;
+    let env = doc.param_env::<f64>();
+    let read = |family: fn(Axis3) -> SlotId| -> Result<Vec3<f64>, NodeErrorKind> {
+        let mut out = [0.0_f64; 3];
+        for axis in Axis3::ALL {
+            let slot = family(axis);
+            let expr = node.expr(slot).ok_or(NodeErrorKind::MissingSlot { slot })?;
+            out[axis.index()] = crate::expr::eval(expr, &env)
+                .map_err(|source| NodeErrorKind::Expr { slot, source })?;
+        }
+        Ok(Vec3::new(out[0], out[1], out[2]))
+    };
+    let origin = read(SlotId::Origin)?;
+    let (u, v) = frame_axes(read(SlotId::U)?, read(SlotId::V)?, band(tol)?)?;
+    Ok(profile::SketchPlane::from_frame(
+        Point3::new(origin.x, origin.y, origin.z),
+        u.get(),
+        v.get(),
+    ))
+}
+
+/// **The sketch plane at the LANE scalar** — the frame's landed value,
+/// which is where a parameter driving the frame is still carried.
+///
+/// The f64 read above is for STRUCTURE, and it is the whole answer only
+/// while a frame's components are literals. They are `Expr`s, so a
+/// document parameter can drive a frame's origin — and under an
+/// interval or dual run that parameter has a non-degenerate value.
+/// Embedding the f64 placement into `T` (which is what this pass did
+/// while the plane was inline literal floats, and was exact then)
+/// would drop that parameter's width from the plane while carrying it
+/// correctly through every other slot: an enclosure that does not
+/// enclose.
+///
+/// So the lane pass reads what the frame's own evaluation landed, at
+/// the lane's scalar. Structure stays f64-pinned and lane-identical;
+/// magnitudes stay lane-live. That is the same split the profile's own
+/// program has had since M10-P, applied to the input it just gained.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::WrongOperand`] when the landed value is not a
+/// frame — the kind door, at the lane where the value is read.
+fn frame_plane_lane<T: Decide>(
+    results: &Results<T>,
+    plane: RecipeNodeId,
+) -> Result<profile::SketchPlane<T>, NodeErrorKind> {
+    let v = value_of(results, plane)?;
+    let ValuePayload::Datum(DatumValue::Frame { origin, u, v: y }) = &v.payload else {
+        return Err(NodeErrorKind::WrongOperand {
+            input: plane,
+            expected: "datum frame",
+            found: v.payload.kind_name(),
+        });
+    };
+    // Unit and perpendicular by the datum's own construction, which is
+    // `SketchPlane::from_frame`'s stated obligation on its caller.
+    Ok(profile::SketchPlane::from_frame(*origin, u.get(), y.get()))
+}
+
+/// **A frame's authored pair, made orthonormal** — the one spelling of
+/// it, and the one door its two refusals come out of.
+///
+/// Two callers need this and they must agree: the datum's own
+/// evaluation, which produces the [`DatumValue::Frame`] a reader sees,
+/// and the profile's f64 read of the frame it is drawn on. A second
+/// spelling would be two frames for one node, free to disagree about
+/// where a sketch's +x points.
+///
+/// `u` is normalized and KEPT; `v` yields its component along `u`.
+/// Gram-Schmidt states "these two span no plane" as a length, so a
+/// parallel pair refuses at the same decided door every other
+/// direction does, under the y axis's role, rather than under a
+/// predicate invented here.
+pub(crate) fn frame_axes<T: Decide>(
+    u_raw: Vec3<T>,
+    v_raw: Vec3<T>,
+    band: Band,
+) -> Result<(UnitVec3<T>, UnitVec3<T>), NodeErrorKind> {
+    let u = datum_unit(u_raw, "datum frame x axis", band)?;
+    let v_perp = v_raw - u.get() * v_raw.dot(u.get());
+    Ok((u, datum_unit(v_perp, "datum frame y axis", band)?))
+}
+
+/// Reads the frame an in-plane axis lives in, as the orthonormal pair
+/// its coordinates are written against.
+///
+/// Same door as [`frame_plane_lane`]'s and same refusal: an axis whose
+/// `plane` does not name a frame is a kind mismatch at the input, not
+/// a geometry problem.
+fn axis_frame<T: Decide>(
+    results: &Results<T>,
+    plane: RecipeNodeId,
+) -> Result<AxisFrame<T>, NodeErrorKind> {
+    let v = value_of(results, plane)?;
+    let ValuePayload::Datum(DatumValue::Frame { origin, u, v: y }) = &v.payload else {
+        return Err(NodeErrorKind::WrongOperand {
+            input: plane,
+            expected: "datum frame",
+            found: v.payload.kind_name(),
+        });
+    };
+    Ok(AxisFrame {
+        origin: *origin,
+        u: *u,
+        v: *y,
+    })
+}
+
+/// The frame an in-plane axis is written against, as the three vectors
+/// the lift needs — a name rather than a bare triple, because a caller
+/// that mixed up `u` and `v` would silently turn every such axis by a
+/// right angle.
+struct AxisFrame<T: Decide> {
+    origin: Point3<T>,
+    u: UnitVec3<T>,
+    v: UnitVec3<T>,
+}
+
+fn wire_datum<T: Decide>(
+    d: &Datum,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+    tol: Tol,
+) -> PayloadResult<T> {
     Ok(ValuePayload::Datum(match d {
         Datum::Plane { .. } => DatumValue::Plane {
             origin: need_point3(vals, SlotId::Origin)?,
@@ -547,14 +751,42 @@ fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>, tol: Tol) -> PayloadRe
         // other order would silently rotate every profile drawn on the
         // frame when only v was edited.
         Datum::Frame { .. } => {
-            let band = band(tol)?;
-            let u = datum_unit(need_vec3(vals, SlotId::U)?, "datum frame x axis", band)?;
-            let v_raw = need_vec3(vals, SlotId::V)?;
-            let v_perp = v_raw - u.get() * v_raw.dot(u.get());
+            let (u, v) = frame_axes(
+                need_vec3(vals, SlotId::U)?,
+                need_vec3(vals, SlotId::V)?,
+                band(tol)?,
+            )?;
             DatumValue::Frame {
                 origin: need_point3(vals, SlotId::Origin)?,
                 u,
-                v: datum_unit(v_perp, "datum frame y axis", band)?,
+                v,
+            }
+        }
+        // **The one datum that reads another node.** Its four numbers
+        // are coordinates IN a frame, so the frame is what they mean,
+        // and the lift happens once here rather than at each reader.
+        //
+        // No in-plane check appears anywhere in this arm, and that is
+        // the point of the variant: a 2-D pair lifted through the
+        // frame's own axes lies in that frame by construction, so
+        // there is no residual to decide and no band to decide it
+        // against.
+        Datum::AxisInPlane { plane, .. } => {
+            let f = axis_frame(results, *plane)?;
+            let (frame_origin, u, v) = (f.origin, f.u, f.v);
+            let plane_origin = need_point2(vals, SlotId::Origin)?;
+            let plane_dir = need_vec2(vals, SlotId::Direction)?;
+            let lift = |d: Vec2<T>| u.get() * d.x + v.get() * d.y;
+            DatumValue::AxisInPlane {
+                plane_origin,
+                plane_dir,
+                origin: frame_origin + lift(Vec2::new(plane_origin.x, plane_origin.y)),
+                // The frame's axes are orthonormal, so this lift
+                // preserves length: it is decided-zero exactly when the
+                // authored pair is, which is why the sketch direction
+                // above can go to the kernel unnormalized and still get
+                // the same refusal a 3-D axis would.
+                dir: datum_unit(lift(plane_dir), "datum axis direction", band(tol)?)?,
             }
         }
     }))
@@ -571,7 +803,7 @@ fn wire_datum<T: Decide>(d: &Datum, vals: &SlotValues<T>, tol: Tol) -> PayloadRe
 /// replay-time junction checks and both validations run under the
 /// SAME `Tolerance::get()` the evaluation pins.
 pub(crate) fn prepare_profile(
-    program: &ProfileProgram,
+    plane: profile::SketchPlane<f64>,
     resolved: &[Vec<profile::Step<f64>>],
     tol: Tol,
 ) -> Result<ProfilePre, NodeErrorKind> {
@@ -587,7 +819,7 @@ pub(crate) fn prepare_profile(
         loops.push(lp);
         replay_records.push(record);
     }
-    let profile_f64 = profile::Profile::new(program.plane, loops);
+    let profile_f64 = profile::Profile::new(plane, loops);
     let (validated_f64, canonical) = profile_f64
         .validate_recording(tol)
         .map_err(NodeErrorKind::Profile)?;
@@ -628,6 +860,7 @@ pub(crate) fn prepare_profile(
 /// the record, so `T`-valued geometry changes no name.
 fn lane_profile<T: Decide + geom_core::Bounds>(
     program: &ProfileProgram,
+    plane: profile::SketchPlane<T>,
     lane: LaneEnv<'_, T>,
     pre: &ProfilePre,
     tol: Tol,
@@ -662,7 +895,6 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         })?;
         loops.push(lp);
     }
-    let plane = profile::SketchPlane::new(anchor::embed_affine::<T>(&program.plane.placement));
     profile::Profile::new(plane, loops)
         .validate_guided(tol, &pre.structure.canonical)
         .map_err(NodeErrorKind::Profile)
@@ -670,6 +902,7 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
 
 fn wire_profile<T: Decide + geom_core::Bounds>(
     program: &ProfileProgram,
+    results: &Results<T>,
     pre: Option<&ProfilePre>,
     lane: LaneEnv<'_, T>,
     tol: Tol,
@@ -688,7 +921,13 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
         super::ProfileLift::Pinned => anchor::embed_profile::<T>(&pre.profile_f64)
             .validate(tol)
             .map_err(NodeErrorKind::Profile)?,
-        super::ProfileLift::Guided => lane_profile::<T>(program, lane, pre, tol)?,
+        super::ProfileLift::Guided => lane_profile::<T>(
+            program,
+            frame_plane_lane(results, program.plane)?,
+            lane,
+            pre,
+            tol,
+        )?,
     };
     Ok(ValuePayload::Profile(Arc::new(ProfileValue {
         validated,
@@ -744,10 +983,29 @@ fn wire_extrude<T: Decide>(
     ))
 }
 
+/// The frame a node is written against, read from the RECIPE.
+///
+/// A profile and an in-plane axis both name one; "the same plane"
+/// means the same node, and this is the only reading of it. It is
+/// deliberately not a value: two frames that evaluate to the same
+/// numbers are still two frames, and an evaluated comparison would
+/// make a revolve's legality depend on a float coincidence.
+fn written_against(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    id: RecipeNodeId,
+) -> Option<RecipeNodeId> {
+    match doc.node(id)? {
+        Node::Profile(p) => Some(p.plane),
+        Node::Datum(Datum::AxisInPlane { plane, .. }) => Some(*plane),
+        _ => None,
+    }
+}
+
 fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     axis: RecipeNodeId,
+    doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -761,59 +1019,51 @@ fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
         });
     };
     let av = value_of(results, axis)?;
-    let ValuePayload::Datum(DatumValue::Axis { origin, dir }) = &av.payload else {
+    let ValuePayload::Datum(DatumValue::AxisInPlane {
+        plane_origin,
+        plane_dir,
+        ..
+    }) = &av.payload
+    else {
         return Err(NodeErrorKind::WrongOperand {
             input: axis,
-            expected: "datum axis",
+            // A 3-D `Datum::Axis` lands here, and the sentence has to
+            // say what to author instead: the seat is not "an axis",
+            // it is "an axis written in the sketch the profile is
+            // drawn on".
+            expected: "an axis in a sketch frame (Datum::AxisInPlane)",
             found: av.payload.kind_name(),
         });
     };
-    let dir = dir.get();
-    // The kernel's RevolveAxis lives in SKETCH-PLANE coordinates: the
-    // 3-D datum axis must lie in the profile's plane (decided; a
-    // definite out-of-plane component is a typed refusal, spec D3's
-    // "wire, don't invent" — projecting silently would be invention).
-    let place = vp.validated.plane().placement;
-    let (u, v_axis, n) = (place.linear.c0, place.linear.c1, place.linear.c2);
-    let plane_origin = Point3::new(
-        place.translation.x,
-        place.translation.y,
-        place.translation.z,
-    );
-    let rel = *origin - plane_origin;
-    let b = band(tol)?;
-    // The two in-plane checks share a verdict shape but NOT a
-    // dimension, so they take separate doors (review of the clause-(i)
-    // rollout, MAJ-1): the origin residual is a metre projection onto
-    // the unit normal (`of`); the direction residual `dir·n̂` is a
-    // unit·unit SINE — dimensionless against the metre band, the
-    // audit's class-(c) shape. Ledger row F15: the honest form is the
-    // sine levered at the profile's radial extent, which lives
-    // kernel-side — that fix is F15's own unit; flagged, not cast.
-    let in_plane = |name: &'static str,
-                    verdict: Result<Sign, geom_core::Indeterminate>|
-     -> Result<(), NodeErrorKind> {
-        match verdict {
-            Ok(Sign::Zero) => Ok(()),
-            Ok(_) => Err(NodeErrorKind::AxisNotInSketchPlane { axis }),
-            Err(source) => Err(NodeErrorKind::Escalated {
-                predicate: name,
-                source,
-            }),
-        }
-    };
-    in_plane(
-        "revolve_axis_origin_in_plane",
-        decide("revolve_axis_origin_in_plane", Margin::of(rel.dot(n)), b),
-    )?;
-    in_plane(
-        "revolve_axis_dir_in_plane",
-        geom_core::k_stats::decide_flagged("revolve_axis_dir_in_plane", dir.dot(n), b, "F15"),
-    )?;
+    // **The kernel's `RevolveAxis` lives in SKETCH-PLANE coordinates,
+    // and so does the axis now** — so the wiring is the identity, and
+    // the only question left is whether the two nodes are written
+    // against the SAME frame.
+    //
+    // That is an equality of node ids: no band, no residual, no scale.
+    // What stood here was two decided predicates projecting a 3-D axis
+    // onto the profile's normal, and the second of them was the
+    // dimension audit's F15 — a bare sine `dir·n̂` classified against
+    // the metre band, whose executed consequence (that row's pin, a
+    // review probe) is a tilt that reads in-plane at every model scale
+    // while the deviation it induces crosses the band between a
+    // millimetre profile and a ten-metre one. F15's own note proposed
+    // levering the sine at the profile's radial extent. This deletes
+    // the sine instead: an axis authored in the frame cannot leave it,
+    // so there is nothing to lever.
+    let (axis_plane, profile_plane) = (written_against(doc, axis), written_against(doc, profile));
+    if axis_plane != profile_plane {
+        return Err(NodeErrorKind::AxisInDifferentPlane {
+            axis,
+            axis_plane,
+            profile_plane,
+        });
+    }
     let axis2 = RevolveAxis {
-        origin: Point2::new(rel.dot(u), rel.dot(v_axis)),
-        dir: Vec2::new(dir.dot(u), dir.dot(v_axis)),
+        origin: *plane_origin,
+        dir: *plane_dir,
     };
+    let b = band(tol)?;
     // Full vs partial (kernel contract: exactly-full must SAY Full):
     // |θ| coincident with τ at tolerance classifies Full; anything
     // else wires Partial and the kernel's own angle classification
@@ -843,6 +1093,168 @@ fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
         revolve(&vp.validated, axis2, revolution, tol).map_err(NodeErrorKind::Revolve)?;
     let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
     let table = anchored(table, &vp.naming)?;
+    stamp_minted(&mut built.body, id);
+    Ok(OpOut::plain(
+        ValuePayload::Body(Arc::new(built.body)),
+        table,
+    ))
+}
+
+/// The spine frame and window a tube door takes, resolved from the
+/// node's one datum edge and its slots.
+///
+/// Shared by the two tube arms and by nothing else. It is the
+/// RESOLUTION that is shared, never the door: this returns the
+/// argument list both doors begin with, and each arm then calls its
+/// own public door with it. That is the same division the kernel
+/// draws — two public doors over one private build — read at the
+/// recipe layer.
+///
+/// Nothing here validates. The frame's unit-length and
+/// perpendicularity conditions, the window's span and headroom, and
+/// (for the hollow door) all three wall verdicts are the door's own,
+/// decided against the run's band; a check here would be a second and
+/// weaker opinion about a body this layer is not building.
+struct TubeArgs<T: geom_core::Real> {
+    center: Point3<T>,
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+    major_radius: T,
+    window: sweep::TubeWindow<T>,
+    minor_radius: T,
+}
+
+fn tube_args<T: Decide>(
+    spine: RecipeNodeId,
+    window: &crate::node::TubeWindow,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+) -> Result<TubeArgs<T>, NodeErrorKind> {
+    let sv = value_of(results, spine)?;
+    let ValuePayload::Datum(DatumValue::Axis { origin, dir }) = &sv.payload else {
+        return Err(NodeErrorKind::WrongOperand {
+            input: spine,
+            expected: "datum axis",
+            found: sv.payload.kind_name(),
+        });
+    };
+    // The datum is consumed WHOLE — origin as the spine centre, dir as
+    // the spine axis — which is `Node::Revolve`'s precedent, and both
+    // cross to the door verbatim: no re-origining, and nothing
+    // normalized HERE.
+    //
+    // The axis arrives already unit-length, and that is the datum
+    // node's doing rather than this arm's: `wire_datum` decides
+    // `DATUM_UNIT_NORM` when it evaluates the axis, so a degenerate or
+    // non-finite direction refuses there, one node upstream, and what
+    // reaches the door is a `UnitVec3`. The door's own non-unit-axis
+    // verdict is therefore unreachable along the recipe path — it
+    // still guards the kernel-direct caller, which is who it was
+    // written for. `u_ref` is a bare direction that passes through NO
+    // datum, so its unit-length and perpendicularity verdicts are the
+    // door's and stay reachable from a document.
+    Ok(TubeArgs {
+        center: *origin,
+        axis: dir.get(),
+        u_ref: need_vec3(vals, SlotId::Direction)?,
+        major_radius: need_scalar(vals, SlotId::TubeMajorRadius)?,
+        window: match window {
+            crate::node::TubeWindow::Full => sweep::TubeWindow::Full,
+            crate::node::TubeWindow::Arc { .. } => sweep::TubeWindow::Arc {
+                t0: need_scalar(vals, SlotId::TubeWindowStart)?,
+                t1: need_scalar(vals, SlotId::TubeWindowEnd)?,
+            },
+        },
+        minor_radius: need_scalar(vals, SlotId::TubeMinorRadius)?,
+    })
+}
+
+/// **A solid tube** — `sweep::tube_along_arc` (RECIPE-DOORS D4 as
+/// revised).
+///
+/// # Naming: the revolve template applies WHOLESALE
+///
+/// Measured, not assumed. [`names::name_revolve`] reads only the
+/// `Revolved<T>` maps it is handed — walls, rims, poles and the
+/// partial/full kind — and never the profile that produced them; the
+/// tube doors return a `Revolved<T>` built by the very same
+/// `full`/`partial` machinery. So the revolve emitter names a tube
+/// body with no translation and NO new `RoleSeg` variants: a tube's
+/// bands, rims, meridians, caps and poles are those roles, in the
+/// profile-loop/segment coordinates of the two-arc circle traversal
+/// the door constructs (loop 0 the outer circle, loop 1 a hollow
+/// tube's inner one; segments 0 and 1 its two half-circle arcs).
+///
+/// The one tube-specific step is a step NOT taken: there is no
+/// `anchored` rewrite, because that rewrite maps a profile PROGRAM's
+/// loop and step indices onto validate's canonical ones, and a tube
+/// has no profile node. Its traversal is canonical by construction,
+/// so the canonical indices ARE the final ones.
+fn wire_tube<T: Decide + geom_brep::PcurveFittedLane>(
+    id: RecipeNodeId,
+    spine: RecipeNodeId,
+    window: &crate::node::TubeWindow,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+    tol: Tol,
+) -> OpResult<T> {
+    let a = tube_args(spine, window, results, vals)?;
+    let mut built = sweep::tube_along_arc(
+        a.center,
+        a.axis,
+        a.u_ref,
+        a.major_radius,
+        a.window,
+        a.minor_radius,
+        tol,
+    )
+    .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
+    let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
+    stamp_minted(&mut built.body, id);
+    Ok(OpOut::plain(
+        ValuePayload::Body(Arc::new(built.body)),
+        table,
+    ))
+}
+
+/// **A hollow tube** — `sweep::tube_along_arc_hollow`, the OTHER
+/// public door.
+///
+/// The wall crosses to it untouched and unexamined. Its three
+/// verdicts — the thickness is positive, `minor_radius − wall` is a
+/// bore, and the gap between the two radii the body would STORE is
+/// positive — are decided kernel-side before anything is minted, and
+/// they are what the full ring's cavity insertion carries as its
+/// containment evidence. Re-deriving any of them here would be a
+/// second opinion that cannot see what the third one sees (the
+/// realized gap is a fact about the stored numbers, not the supplied
+/// ones).
+///
+/// Naming is [`wire_tube`]'s, for the reason given there: a hollow
+/// tube's cavity shell is the revolve's own hole-loop vocabulary,
+/// already emitted by `name_revolve`'s holed-full and windowed arms.
+fn wire_hollow_tube<T: Decide + geom_brep::PcurveFittedLane>(
+    id: RecipeNodeId,
+    spine: RecipeNodeId,
+    window: &crate::node::TubeWindow,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+    tol: Tol,
+) -> OpResult<T> {
+    let a = tube_args(spine, window, results, vals)?;
+    let wall = need_scalar(vals, SlotId::TubeWall)?;
+    let mut built = sweep::tube_along_arc_hollow(
+        a.center,
+        a.axis,
+        a.u_ref,
+        a.major_radius,
+        a.window,
+        a.minor_radius,
+        wall,
+        tol,
+    )
+    .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
+    let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
     stamp_minted(&mut built.body, id);
     Ok(OpOut::plain(
         ValuePayload::Body(Arc::new(built.body)),
@@ -2014,6 +2426,7 @@ pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operan
 /// encloses the SAME surface the `f64` lane defines.
 fn section_of<T: Decide + geom_core::Bounds>(
     doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
     id: RecipeNodeId,
     lane: LaneEnv<'_, T>,
     tol: Tol,
@@ -2025,6 +2438,21 @@ fn section_of<T: Decide + geom_core::Bounds>(
             found: "not a profile node",
         });
     };
+    // THE SEED STOPS HERE, TYPED. The section stays `f64` in every lane
+    // (the C6/D9 argument below), so a seed on a parameter this program
+    // reads has no channel to ride and would arrive at the skinned
+    // surface as a constant — a finite, wrong zero. That is the state
+    // the lift exists to end at the profile node, and cannot end here;
+    // the answer is a refusal naming the section and the parameter,
+    // never the zero.
+    if let Some(param) = lane.seed
+        && program.references(param)
+    {
+        return Err(NodeErrorKind::SeedPinnedSection {
+            section: id,
+            param: param.clone(),
+        });
+    }
     // LIB-SWITCH §4b at the loft/sweep seam: the section is the
     // node's program RESOLVED at f64 and REPLAYED — the same C6/D9
     // pipeline the profile node runs. The profile's own validation
@@ -2041,7 +2469,8 @@ fn section_of<T: Decide + geom_core::Bounds>(
     // gate to be added to only one. Sharing the function is what makes
     // "the duplicate ladder did not fork" a fact about the code rather
     // than a claim about two diffs.
-    let pre = prepare_profile(program, &resolved, tol)?;
+    let plane = profile_plane_f64(doc, program.plane, tol)?;
+    let pre = prepare_profile(plane, &resolved, tol)?;
     // The lift's second pass runs HERE TOO, as a GATE. A loft's or a
     // sweep's section stays f64 — the skinned surface's knots, degrees
     // and control bits must be identical in every lane, which is the
@@ -2050,7 +2479,13 @@ fn section_of<T: Decide + geom_core::Bounds>(
     // parameter box the extrude ladder refuses to certify is refused
     // here as well, and by the same predicate.
     if lane.lift == super::ProfileLift::Guided {
-        lane_profile::<T>(program, lane, &pre, tol)?;
+        lane_profile::<T>(
+            program,
+            frame_plane_lane(results, program.plane)?,
+            lane,
+            &pre,
+            tol,
+        )?;
     }
     let place = pre.profile_f64.plane.placement;
     // The sections are the REPLAYED loops (program order — exactly
@@ -2072,6 +2507,7 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
     doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
     vals: &SlotValues<T>,
     lane: LaneEnv<'_, T>,
     tol: Tol,
@@ -2081,7 +2517,7 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds>(
     let mut places = Vec::with_capacity(profiles.len());
     let mut first_naming = ProfileNaming::default();
     for (i, pid) in profiles.iter().enumerate() {
-        let (chain, place, naming) = section_of::<T>(doc, *pid, lane, tol)?;
+        let (chain, place, naming) = section_of::<T>(doc, results, *pid, lane, tol)?;
         sections.push(chain);
         places.push(place);
         if i == 0 {
@@ -2129,14 +2565,15 @@ fn wire_sweep<T: Decide + geom_core::Bounds>(
     profile: RecipeNodeId,
     path: RecipeNodeId,
     doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
     vals: &SlotValues<T>,
     lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     let _stations = need_count(vals, SlotId::Stations)?;
     let _v_degree = need_count(vals, SlotId::VDegree)?;
-    let _ = section_of::<T>(doc, profile, lane, tol)?;
-    let _ = section_of::<T>(doc, path, lane, tol)?;
+    let _ = section_of::<T>(doc, results, profile, lane, tol)?;
+    let _ = section_of::<T>(doc, results, path, lane, tol)?;
     Err(NodeErrorKind::CurvedSolidFrontier {
         what: SWEEP_FRONTIER,
     })

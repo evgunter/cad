@@ -38,7 +38,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod mate2_common;
+use crate::mate2_common;
 
 use geom_core::Tol;
 use mate2_common::*;

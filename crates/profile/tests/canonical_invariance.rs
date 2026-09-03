@@ -3,7 +3,7 @@
 //! rotation and traversal reversal of every input loop.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{annulus, bracket, circle_h, l_profile, lens, profile, rect, rounded_rect, tol};
 use profile::{Profile, ProfileLoop, RawLoop};

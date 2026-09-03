@@ -85,7 +85,6 @@ name = "demo-tour"
 version = "0.1.0"
 dependencies = [
  "pncad",
- "profile",
  "tess-meter",
 ]
 

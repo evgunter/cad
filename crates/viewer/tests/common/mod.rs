@@ -15,7 +15,7 @@
 //! (`memories/review-and-dependency-policy.md`), and pointing it at
 //! the implementation's own constants would spend exactly that.
 
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)] // one instance per binary; no single consumer uses all of it
 #![allow(unreachable_pub)]
 // why: root Cargo.toml, the `unreachable_pub` stanza
 // Panicking is a test's failure mechanism (workspace lint note).
@@ -81,7 +81,6 @@ use pncad::document::{
     RecipeNodeId, apply,
 };
 use pncad::geom_core::Tol;
-use pncad::profile::SketchPlane;
 use viewer::sketch::{Notation, ProfileShape};
 
 /// Apply one edit, answering the new document and any minted id.
@@ -104,15 +103,41 @@ pub fn inserted(
     (doc, minted.expect("an insert mints an id"))
 }
 
-/// A square profile node's payload, `side` metres on a side.
-pub fn square(side: f64) -> Node<ProfileProgram> {
+/// A sketch frame node's payload.
+pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
+    Node::Datum(pncad::document::Datum::Frame {
+        origin: len3(origin),
+        u: scl3(u),
+        v: scl3(v),
+    })
+}
+
+/// The world xy frame's payload — the plane these fixtures sketch on.
+pub fn xy_frame() -> Node<ProfileProgram> {
+    frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
+}
+
+/// A square profile node's payload on `plane`, `side` metres on a side.
+pub fn square(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
     Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (side, 0.0), (side, side), (0.0, side)])
                 .expect("finite corners"),
         ],
     })
+}
+
+/// **A frame and a square drawn on it**, answering the document and the
+/// PROFILE's id — two nodes where a fixture used to insert one, because
+/// a profile names the plane it is drawn on.
+pub fn framed_square(
+    doc: &Doc<ProfileProgram>,
+    side: f64,
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    let (doc, plane) = inserted(doc, xy_frame(), tol);
+    inserted(&doc, square(plane, side), tol)
 }
 
 /// A length literal.
@@ -138,6 +163,16 @@ pub fn len3(v: [f64; 3]) -> [Expr; 3] {
 /// Three dimensionless literals — a normal, a direction, an axis.
 pub fn scl3(v: [f64; 3]) -> [Expr; 3] {
     [scl(v[0]), scl(v[1]), scl(v[2])]
+}
+
+/// Two length literals — a point in a sketch frame's own coordinates.
+pub fn len2(v: [f64; 2]) -> [Expr; 2] {
+    [len(v[0]), len(v[1])]
+}
+
+/// Two dimensionless literals — a direction in a sketch frame.
+pub fn scl2(v: [f64; 2]) -> [Expr; 2] {
+    [scl(v[0]), scl(v[1])]
 }
 
 /// One form template lowered CANONICALLY — what a suite means when it
@@ -170,7 +205,7 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
         },
         tol,
     );
-    let (doc, profile) = inserted(&doc, square(0.04), tol);
+    let (doc, profile) = framed_square(&doc, 0.04, tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
@@ -195,7 +230,7 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
 /// extrude and the poisoned transform.
 pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui3-broken", tol);
-    let (doc, profile) = inserted(&doc, square(0.04), tol);
+    let (doc, profile) = framed_square(&doc, 0.04, tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
@@ -279,6 +314,21 @@ use viewer::session::{DocSession, SessionOp};
 
 /// Perform one op that must commit exactly one insert, answering the
 /// id of the node it minted.
+/// Add the world xy frame through the session, answering its id — the
+/// pick every `SessionOp::AddProfile` below hands over.
+pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {
+    insert(
+        session,
+        SessionOp::AddDatum {
+            datum: viewer::session::DatumSpec::Frame {
+                origin: len3([0.0; 3]),
+                u: scl3([1.0, 0.0, 0.0]),
+                v: scl3([0.0, 1.0, 0.0]),
+            },
+        },
+    )
+}
+
 pub fn insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);

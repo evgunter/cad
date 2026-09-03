@@ -10,10 +10,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
-use mesh::budget::{self, Mode};
+use mesh::budget::{self, FaceMeasure, Mode};
 use profile::{ProfileLoop, RawLoop as _};
 use sweep::loft_body;
-use tess_meter::{Chart, face_rows};
+use tess_meter::{Bound, Chart, Sizing, best_split_cells, divisions, face_rows};
+use test_utils::vacuity::Exposure;
 use topo::Body;
 
 /// The `loft_prism` corpus body (#212): squares at z = 0 and 2, the
@@ -61,18 +62,47 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
             .sum::<usize>(),
         "the rows account for every triangle in the mesh"
     );
+    // THE FIXTURE'S PREMISE, asserted rather than assumed: this loft is
+    // planar caps and spline walls and nothing else. It is what makes
+    // the single assertion below cover both directions at once — on a
+    // body carrying an `approx` face, which the sized lane also takes,
+    // `chart == Nurbs` stops being the right right-hand side, and this
+    // is the line that says so first rather than the one below saying
+    // it as a sizing failure.
+    let mut charts: Vec<&str> = rows.iter().map(|r| r.chart.tag()).collect();
+    charts.sort_unstable();
+    charts.dedup();
+    assert_eq!(
+        charts,
+        ["nurbs", "plane"],
+        "the loft_prism corpus body is planar caps and spline walls"
+    );
     for r in &rows {
+        // ONE proposition, spelled once. `Sizing` has two states and
+        // this body has two charts, so `columns().is_some()`,
+        // `!matches!(r.sizing, Sizing::OffLane)`, `chart == Nurbs` and
+        // `chart != Plane` are all the same claim here; a second
+        // spelling of it would read as a second check and be neither.
         assert_eq!(
-            r.nurbs.is_some(),
+            r.sizing.columns().is_some(),
             r.chart == Chart::Nurbs,
-            "sizing columns belong to the Hessian-sized lane and to no other"
+            "face {}: chart {} took {:?} — sizing columns belong to the \
+             Hessian-sized lane and to no other",
+            r.face,
+            r.chart.tag(),
+            r.sizing
         );
     }
 
-    let walls: Vec<_> = rows.iter().filter_map(|r| r.nurbs).collect();
+    let walls: Vec<_> = rows.iter().filter_map(|r| r.sizing.columns()).collect();
     assert!(!walls.is_empty(), "the loft's walls are NURBS faces");
     for n in &walls {
         assert!(n.grid_cells > 0.0 && n.span_opt_cells > 0.0, "{n:?}");
+        // (Positivity is about the PARTS. The composition they are
+        // parts of — the split derivation at the call's own sizing
+        // target — is asserted in
+        // `the_reported_cells_are_the_split_derivation_at_the_calls_sizing_target`.)
+        //
         // (No ordering assertion between `span_opt_cells` and either
         // cell count. Both candidates are vacuous HERE, for one
         // mechanism: `best_split_cells` seeds its running minimum with
@@ -120,19 +150,247 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
     }
 }
 
-/// A face the meter said nothing about still gets a row, and its row
-/// is the empty-tailed shape — a zero in a sizing column would read as
-/// a measured zero.
+/// An OFF-LANE face still gets a row, and its row is the empty-tailed
+/// shape — a zero in a sizing column would read as a measured zero.
+///
+/// The width check runs over both shapes because both are here: this
+/// fixture's caps are planar and its walls are splines, so one call
+/// produces one of each.
 #[test]
-fn a_face_with_no_measurements_gets_an_empty_tailed_row() {
+fn an_off_lane_face_gets_an_empty_tailed_row() {
     let tol = Tol::witness();
     let body = loft_prism(tol);
+    budget::arm(Mode::Sizing);
     let mesh = mesh::tessellate(&body, 6e-3, tol).expect("tessellates");
-    let rows = face_rows(6e-3, &body, &mesh, &[]);
+    let measures = budget::take();
+    let rows = face_rows(6e-3, &body, &mesh, &measures);
     assert_eq!(rows.len(), body.faces().count());
-    assert!(rows.iter().all(|r| r.nurbs.is_none()));
+
+    let caps: Vec<_> = rows.iter().filter(|r| r.chart == Chart::Plane).collect();
+    assert!(!caps.is_empty(), "the loft's caps are planar faces");
     let cols = tess_meter::CSV_HEADER.split(',').count();
+    for r in &caps {
+        assert!(matches!(r.sizing, Sizing::OffLane), "{:?}", r.sizing);
+        let head = head_columns();
+        assert_eq!(
+            r.csv_row("s/b").split(',').skip(head).collect::<Vec<_>>(),
+            vec![""; cols - head],
+            "an off-lane row's sizing columns are empty, not zero"
+        );
+    }
     for r in &rows {
         assert_eq!(r.csv_row("s/b").split(',').count(), cols);
     }
+}
+
+/// How many columns every row fills whatever its lane: through
+/// `triangles`, the last head column. Derived from the header rather
+/// than counted by hand, so a head column added there cannot silently
+/// shorten the tail this file checks is empty.
+fn head_columns() -> usize {
+    tess_meter::CSV_HEADER
+        .split(',')
+        .take_while(|c| *c != "triangles")
+        .count()
+        + 1
+}
+
+/// **A face measured TWICE is a refusal too** — the other half of the
+/// same discard, one line up: building the lookup `collect`s into a
+/// map, and a map drops a collision, so two readings of one face
+/// become whichever one iteration order handed over last.
+#[test]
+#[should_panic(expected = "distinct faces: a face measured twice")]
+fn a_face_measured_twice_refuses() {
+    let tol = Tol::witness();
+    let body = loft_prism(tol);
+    budget::arm(Mode::Sizing);
+    let mesh = mesh::tessellate(&body, 6e-3, tol).expect("tessellates");
+    let mut measures = budget::take();
+    measures.push(measures[0].clone());
+    let _ = face_rows(6e-3, &body, &mesh, &measures);
+}
+
+/// **A sized-lane face no measurement covers is a REFUSAL, not an
+/// empty-tailed row** — the distinction the empty tail cannot carry.
+///
+/// The same body and the same mesh as the row above, minus the
+/// arming. Every column of the tail would be empty, which is exactly
+/// what a planar cap writes, so the CSV would report the loft's four
+/// spline walls as faces the Hessian-sized lane never touched — the
+/// budget's whole subject, accounted at zero, with nothing anywhere
+/// saying a measurement was missing.
+///
+/// **What makes it reachable is not the build.** `mesh::budget`'s
+/// `arm` and `take` exist only under the `budget` feature — the
+/// featureless half of that module exports neither — so a tree built
+/// without it cannot reach this state through them, and this test
+/// could not compile there. The reachable shape is an ARMED run whose
+/// measurements are not THIS tessellation's: `take` disarms as it
+/// drains, so a slice held across a second `tessellate`, or taken for
+/// another body or another δ, misses faces this mesh has. This fixture
+/// constructs the degenerate end of that — no measurements at all,
+/// which is also what a caller who simply never armed hands over.
+#[test]
+#[should_panic(expected = "the Hessian-sized lane's, and no measurement covers it")]
+fn a_sized_lane_face_with_no_measurement_refuses() {
+    let tol = Tol::witness();
+    let body = loft_prism(tol);
+    let mesh = mesh::tessellate(&body, 6e-3, tol).expect("tessellates");
+    let _ = face_rows(6e-3, &body, &mesh, &[]);
+}
+
+/// The chordal tolerance every row in this file is measured at.
+const ROW_DELTA: f64 = 6e-3;
+
+/// The sizing target a tessellation at chordal tolerance `delta` sizes
+/// against — `mesh::sizing::sizing_target`'s documented halving, which
+/// is a kernel rule and not a meter one.
+///
+/// **This is the independent handle the composition assertion below
+/// rests on.** It restates the kernel's rule rather than reading
+/// `FaceMeasure::delta_s`, so the recomposition's tolerance comes from
+/// the tolerance THIS FILE asked for and not from anything
+/// `columns()` touched.
+fn sizing_target(delta: f64) -> f64 {
+    delta * 0.5
+}
+
+/// `columns()`' two split derivations, spelled here as the composition
+/// they are meant to be: the whole-patch bound over the trim box, and
+/// the per-cell bounds over their clipped sub-boxes, each at
+/// `delta_s`.
+///
+/// The per-cell sum accumulates in `cells` order because the quantity
+/// it reproduces does, and the comparison is bit for bit.
+///
+/// **This is a TRANSCRIPTION of `columns()`' shape, and only `delta_s`
+/// is independent of it.** Every other input — which three second
+/// derivatives make the whole-patch bound, which steps it carries,
+/// which box each cell is clipped to — is copied from the same
+/// `FaceMeasure` fields `columns()` reads, so a change to what
+/// `columns()` composes reds the assertion below whether or not any
+/// sizing target moved. That is the price of pinning a composition
+/// bit for bit and it is not a defect of this row; what the row buys
+/// for it is the one input the recomposition does NOT copy, and the
+/// tally at the end of the assertion is what proves that input is
+/// load-bearing.
+fn recomposed_cells(m: &FaceMeasure, delta_s: f64) -> (f64, f64) {
+    let (du, dv) = (m.u.1 - m.u.0, m.v.1 - m.v.0);
+    let patch = Bound {
+        muu: m.muu,
+        muv: m.muv,
+        mvv: m.mvv,
+        steps: m.patch_steps,
+    };
+    let mut span_opt = 0.0;
+    for c in &m.cells {
+        let cdu = c.u.1.min(m.u.1) - c.u.0.max(m.u.0);
+        let cdv = c.v.1.min(m.v.1) - c.v.0.max(m.v.0);
+        if cdu <= 0.0 || cdv <= 0.0 {
+            continue; // cell outside the trim box
+        }
+        span_opt += best_split_cells(Bound::from(c), cdu, cdv, delta_s);
+    }
+    (best_split_cells(patch, du, dv, delta_s), span_opt)
+}
+
+/// **The reported cell counts ARE the derivation at the call's own
+/// sizing target** — asserted on the COMPOSITION, because the parts
+/// being positive leaves the call site free.
+///
+/// `columns()` hands `FaceMeasure::delta_s` to `best_split_cells` and
+/// to the per-cell sum, and nothing about either of those functions
+/// says which tolerance reaches them. A retune there — a factor on
+/// `δ_s`, a target of its own — leaves every column finite and
+/// positive, so the pre-existing row above stays green while the
+/// reported cell count moves by up to +100%.
+///
+/// So this row spells the intended composition and compares bit for
+/// bit, at a `δ_s` it derives from [`ROW_DELTA`] through
+/// [`sizing_target`] rather than reading off the measurement. The
+/// recomposition supplies the SHAPE — which bound, which box, which
+/// per-cell clip — and the kernel's halving rule supplies the
+/// tolerance, which is the half a call-site retune moves.
+///
+/// The tally is the tightness check the equality needs: an equality
+/// that would hold at any `δ_s` says nothing about the one the call
+/// site passed, so each face is also recomposed at a different target
+/// and the answers are required to separate.
+#[test]
+fn the_reported_cells_are_the_split_derivation_at_the_calls_sizing_target() {
+    let tol = Tol::witness();
+    let body = loft_prism(tol);
+    budget::arm(Mode::Sizing);
+    let mesh = mesh::tessellate(&body, ROW_DELTA, tol).expect("tessellates");
+    let measures = budget::take();
+    let rows = face_rows(ROW_DELTA, &body, &mesh, &measures);
+    let delta_s = sizing_target(ROW_DELTA);
+
+    let mut seen = Exposure::new("δ_s sensitivity");
+    let mut nurbs_rows = 0usize;
+    for (ordinal, patch) in mesh.patches.iter().enumerate() {
+        let Some(n) = rows[ordinal].sizing.columns() else {
+            continue;
+        };
+        nurbs_rows += 1;
+        let m = measures
+            .iter()
+            .find(|m| m.face == patch.face)
+            .expect("a filled sizing column came from a measurement");
+        assert_eq!(
+            m.delta_s.to_bits(),
+            delta_s.to_bits(),
+            "the lane sized face {ordinal} against {} and not against δ/2 = {delta_s}",
+            m.delta_s
+        );
+
+        let (du, dv) = (m.u.1 - m.u.0, m.v.1 - m.v.0);
+        let (opt, span_opt) = recomposed_cells(m, delta_s);
+        // The two SIZED columns — the row's subject, and the only two
+        // a retune of the target `columns()` passes can move.
+        assert_eq!(
+            (n.opt_cells.to_bits(), n.span_opt_cells.to_bits()),
+            (opt.to_bits(), span_opt.to_bits()),
+            "face {ordinal}'s cell counts are no longer the split derivation at \
+             δ_s = {delta_s}: {n:?}"
+        );
+        // The PASS-THROUGH columns, asserted apart because no sizing
+        // target reaches them: `divisions` takes an extent and a step,
+        // and `grid_cells` is the lane's own count widened. They are
+        // pinned here because nothing else pins them, and separating
+        // them is what makes a failure say which kind broke — a
+        // retune, or a change to what `columns()` copies.
+        assert_eq!(
+            (
+                n.grid_cells.to_bits(),
+                n.nu.to_bits(),
+                n.nv.to_bits(),
+                n.patch_cells.to_bits()
+            ),
+            (
+                (m.grid_cells as f64).to_bits(),
+                divisions(du, m.patch_steps.0).to_bits(),
+                divisions(dv, m.patch_steps.1).to_bits(),
+                (divisions(du, m.patch_steps.0) * divisions(dv, m.patch_steps.1)).to_bits()
+            ),
+            "face {ordinal}'s counterfactual columns are no longer the lane's own: {n:?}"
+        );
+
+        let (other_opt, other_span) = recomposed_cells(m, delta_s * 0.5);
+        if other_opt != opt {
+            seen.note("opt_cells moves with δ_s");
+        }
+        if other_span != span_opt {
+            seen.note("span_opt_cells moves with δ_s");
+        }
+    }
+    assert!(nurbs_rows > 0, "the loft's walls are NURBS faces");
+    seen.report();
+    seen.require_each(
+        &["opt_cells moves with δ_s", "span_opt_cells moves with δ_s"],
+        1,
+        "an equality that holds at every sizing target cannot see a retune of the one \
+         `columns()` passes",
+    );
 }

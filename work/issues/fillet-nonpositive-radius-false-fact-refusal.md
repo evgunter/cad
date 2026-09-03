@@ -26,4 +26,4 @@ BLEND-6 adopted a characterization probe pinning the current behavior and cites 
 
 ## Home
 
-The issue names S-BLEND territory (`crates/sweep/src/blend/build.rs`), but `work/blend/` is a closed program and may hold only closed items, and no open program's territory covers the blend module — so it lands in `work/issues/` until a program claims the blend doors.
+The issue names S-BLEND territory (`crates/sweep/src/blend/build.rs`), but S-BLEND is closed (`docs/S-BLEND-EXIT-WALK.md`, its tracker directory deleted) and no open program's territory covers the blend module — so it lands in `work/issues/` until a program claims the blend doors.

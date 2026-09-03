@@ -3341,4 +3341,159 @@ the shared host disclosed; no cross-lane reads). ~240k tokens,
 ~26m harness (~75m self-est). R2 (opus per the draw) dispatched
 sequentially after, brief VERBATIM from the pre-committed store,
 no access to R1's report or probes. Row at merge.
+
+LIB-TUBE R2 DELIVERED (2026-09-03, opus per the draw; frozen
+c0bfba802): **APPROVE-WITH-FIXES 0/2/4, rubric 5/5/3** — no MAJOR;
+all seven claims survived attack. Instruments: the densest
+collision construction the vocabulary permits (three tubes, one
+identical pair, one spine, one document — name tables disjoint and
+reproducible); the stale-build refusal executed AT THE BYTES
+(unknown-variant probe through the one typed door, labeled
+byte-level-equivalent honestly); the non-dyadic storage probe
+(0.3−0.1, bits distinguish where volumes cannot); the audit
+re-derived by SCENE NAME across the 47→43 renumbering (all flips
+landed right; main→head verdict diff exactly three); the seam
+compared as diff-of-diffs (28 dropped files all disclosed v17/log
+machinery, zero undisclosed either direction; escape class: one
+commit, one file, repaired). MINORs: caller-facing docs falsified
+by execution on the non-unit axis (the disclosure never reached
+the two surfaces authors read) and a corpus header asserting a
+mass pin over `pin: None`. NOTE-2 is a DISPATCHER CORRECTION,
+accepted: the brief's claim 5 mislabeled the torus closed form as
+row 25 — it belongs to row 26 and the audit places it correctly.
+
+CORRESPONDENCE PRE-NOTE (ordinal 302): verdicts CONVERGE (A-W-F
+both, no MAJOR either arm) — NO tally candidates; no
+re-verification round; fix pass IMPLEMENTER-INHERITED off the
+adjudicated union. Bilateral: the m4_pr6_golden v17 comment
+fragment (R1-M5 ≡ R2-N1); the dyadic-fixture weakness closed by
+BOTH probe branches independently (R1-M3 ≡ R2 claim-4 probe — the
+same non-dyadic row built twice, convergent evidence). Unilateral
+R1: the renumbering satellite class (M1, four stale citations;
+M2, the self-referential row cite), the PR-body/fence-header
+self-description mismatch (M4), the letter-level canonicalizing-
+doors silence (N1). Unilateral R2: the caller-surface doc falsity
+(MINOR-1) with the spine/u_ref asymmetry note (N3), the mass-pin
+header (MINOR-2).
+
+DISPATCHER CONTAMINATION, recorded for the blinded adjudication:
+the orchestrator's R1 phase-note COMMIT SUBJECT on main carried
+R1's verdict tally ("A-W-F 0/5/2"), and R2's pre-lane `git log`
+orientation surfaced it — R2 disclosed the exposure, states it
+reached its own verdict and findings first, and the finding sets
+are substantially disjoint; the exposure is verdict-shaped only
+(no findings content). The asymmetry is the dispatcher's, not the
+reviewers'. PROTOCOL NOTE going forward: while a dual is open,
+phase-note commit subjects stay verdict-free (tallies in the body
+only). Both reviews' costs: R1 ~240k/~26m harness; R2 ~219k/~18m
+harness (~65m self-est). Fix pass dispatches to the implementer
+lane next; row at merge.
+
+| TUBE | 2026-09-03 | LIB-TUBE (PR #1628; spec docs/LIB-TUBE-SPEC.md as AMENDED 2026-09-03 pre-review, #1623; RECIPE-DOORS D4 as revised by the #1205 split ruling): `Node::Tube` + `Node::HollowTube` over the kernel's two public doors, one emitter each, wall REQUIRED on the hollow kind, `Option` nowhere in the recipe vocabulary, kernel untouched (fence: zero diff files under sweep/topo/geom-core/geom-brep/profile). The revolve emitter template applied WHOLESALE (zero new RoleSegs, emit_sweep.rs unchanged — the spec's measured question answered); storage contract metered at the stored BITS (outer half-walls verbatim, inner one IEEE subtraction — both arms' non-dyadic probes adopted); persistence per the amended deliverable 3 (additive growth; round-trip by roster + explicit row; older-doc loads; stale-build typed refusal probed at the bytes); content tags 28/29 (25–27 taken mid-outage; injectivity gated); audit re-cut on main's renumbered 43-row table: rows 23/25/26 flip, 13/27 keep NO, G2 8→5, 36 = 32+4* of 43; corpus tube_ring + hollow_tube_elbow registered, digest gate + m10-p fence re-blessed by the roster procedure (probe row executed). UNIT HISTORY (all public record): impl lane completed 8 commits then died to a usage limit UNPUSHED; four idle days in which BOOL-13 demolished the schema version mid-unit and the tracker migrated; spec amended pre-review (#1623, environment-forced, symmetric); one resume died to a container restart mid-merge (aborted); adaptation by a fresh lane preserved the unit's shape and removed the void v17 machinery | M-L / STRUCTURAL (pre-draw at spec) | OPUS (block LIB-12 slot 4 — the block's LAST slot; the standing LIB-12 contamination flag applies) | **DUAL (ordinal 302; sample #114 at merge; byte 91 parity 1 ⇒ R1 FABLE + R2 OPUS; SEQUENTIAL same-head on frozen c0bfba802 per the pre-recorded method note, briefs stored with hashes before R1 ran; v5 instrument).** R1: A-W-F 0/5/2, rubric 5/4/4 — seam INTERDIFF clean (escape class: one commit, one file, repaired); stale-build refusal executed from merge-base sources; unilateral: the renumbering satellite class (M1 four stale citations + M2 self-reference), the PR-body/fence-header mismatch (M4), the letter-level canonicalizing-doors silence (N1). R2: A-W-F 0/2/4, rubric 5/5/3 — densest-collision construction held; audit re-derived by scene name across 47→43 (flips landed right); unilateral: caller-facing doc falsity on the non-unit axis (MINOR-1) + the mass-pin header (MINOR-2). BILATERAL: the v17 comment fragment (R1-M5 ≡ R2-N1) and the dyadic-fixture weakness — BOTH arms independently wrote the same non-dyadic probe (convergent evidence, both adopted). CORRESPONDENCE: verdicts CONVERGE, no MAJOR either arm — NO tally candidates; no re-verification round. DISPATCHER NOTES: R2's brief-claim-5 row-label error corrected by R2 (accepted); the R1-phase-note commit-subject tally leak into R2's orientation recorded as dispatcher contamination (verdict-shaped only; R2's verdict pre-dated notice; protocol rule adopted: verdict-free subjects while a dual is open). **v6 tally after this pair: unchanged. Clean-toward-twelve: DEFERRED to the blinded adjudication (contamination flag + the interruption history + sequential method + the subject-leak, all recorded pre-merge).** | 0 substantive silent (R1's N1 letter-level vacuity, recorded and paid in the fix pass); 5 reported, all verified | 5 | R1 4 / R2 5 | R1 4 / R2 3 | full 10-item union taken, none declined; BOTH probe branches merge parents authorship-preserving (+13 permanent rows, both non-dyadic and both axis rows kept as different spellings, cross-referenced); fix-phase incidents: the rustdoc-gate ambiguity and the ε-DEPENDENT WALL-GAP ROW — the fix head's 1e-6 draw (a point no run of the branch had sampled) found a real defect in a unit-written row (hard-coded wall = ε fires the positivity arm first); fixed ε-relative (1000·ε under an ulp-2 radius), verified locally at all six {lane}×{ε} points; work/lib/lib-per-arm-error-tags.md filed | impl CI 33711887192 GREEN (interval trailer-asked, default ε) on c0bfba802; fix CI 33720534346 GREEN (interval trailer-asked, default ε) on 1b17294be — the 1e-6 point that found the wall-gap defect gated 99cfb658c mid-pass; merged #1628 at sample #114 — **RECIPE-DOORS unit 2 of 3 complete; block LIB-12 CONSUMED (opening below)** | impl 8-commit shape (~3–4h, tokens unrecorded — pre-death lane) / adaptation ~385k harness ~66m / fix ~250k ~70m / R1 ~240k ~26m harness / R2 ~219k ~18m harness | ANNOTATED: impl usage-limit death unpushed + 4-day gap + container-restart mid-merge discard + environment-forced spec amendment — the most interrupted unit in the log; the review pair itself ran clean |
+
+## Block LIB-12 CLOSED and OPENED (2026-09-03)
+
+**All four slots' reviews have concluded, so nothing remains to blind
+and the draw is published in full** (the 2026-08-18 draw, redacted
+2026-08-29, read back from git history at each dispatch):
+
+- **Draw: `/dev/urandom` byte 8, mod 4 = 0 ⇒ FABLE at slot 1**, OPUS
+  at slots 2–4.
+- slot 1 — **LIB-PERR** (#622, ordinal 59) — FABLE
+- slot 2 — **LIB-G18a** (#1176, ordinal 300, sample #41) — OPUS
+- slot 3 — **LIB-G16** (#1224, ordinal 301, sample #47) — OPUS
+- slot 4 — **LIB-TUBE** (#1628, ordinal 302, sample #114) — OPUS
+
+Opened at the block's last slot's conclusion per the per-block
+opening rule (the PCURVE-1 shape). **The standing LIB-12
+contamination flags on the consuming rows are NOT retired by this
+opening** — the draw stood on main in plaintext from 2026-08-18
+until the 2026-08-29 redaction, and git history retains it; the
+blinded adjudication weighs the flags as it sees fit. No further
+units draw from this block; the next full-protocol LIB unit requires
+a LIB-13 block draw first.
+
+**Block M10-B2 (recorded branch-side on `m10/orchestrator` at draw,
+2026-08-29, per the branch-side shape — merges to main when this
+block's last slot's reviews conclude).** v3 triple {opus, opus,
+fable}. Slot 1 = M10-2 (Measure nodes + Assertions; difficulty
+pre-logged M before the draw). Draw: /dev/urandom byte 197, no
+rejections ⇒ fable position 2 (0-indexed) ⇒ slot 1 OPUS, slot 2
+OPUS, slot 3 FABLE.
+
+**M10-3 dispatch (branch-side, 2026-08-29).** Block M10-B2 slot 2
+(arm per the block draw above). Difficulty pre-logged L at
+dispatch. Spec docs/M10-3-SPEC.md (merged main fed57094).
+
+**M10-2 dual draw (branch-side, 2026-08-29, at review dispatch).**
+Ordinal 503. Slot byte 199, parity 1 ⇒ R1 FABLE + R2 OPUS,
+concurrent, frozen head e0cc0b20, v5 instrument.
+
+**M10-3 dual draw (branch-side, 2026-08-29, at review dispatch).**
+Ordinal 504. Slot byte 5, parity 1 ⇒ R1 FABLE + R2 OPUS,
+concurrent, frozen head 54a77ad9, v5 instrument.
+
+**M10-4 dispatch (branch-side, 2026-08-30).** Block M10-B2 slot 3
+(arm per the block draw above — the block's last; this record and
+the block record merge to main when this unit's reviews conclude).
+Difficulty pre-logged M at dispatch. Spec docs/M10-4-SPEC.md
+(merged main 114e5ae8).
+
+**M10-4 + M10-5 first dispatches DIED (branch-side, 2026-08-30 →
+2026-09-03).** Both implementer lanes were killed by the account
+session limit (~01:30Z, 2026-08-30) pre-first-commit — nothing
+pushed; the surviving worktrees held early drafts (a 970-line
+`stackup.rs`, a 1790-line `clearance.rs`, plus small substrate
+edits). The orchestrator session was itself away four days; main
+moved 524 merges in the interval, rewriting exactly the files the
+drafts touched (`eval/mod.rs`, `eval/wire.rs`, `bvh`, `props.rs`,
+`dual.rs`). Per the death-recovery rule (fresh over resume when
+stalled over an hour with the remaining work specifiable from
+pushed commits) and the G16A precedent (first dispatch died to a
+usage limit — partial discarded, fresh run recorded pre-delivery):
+FRESH SAME-ARM lanes dispatched 2026-09-03 from current main, the
+same slots (M10-4 = B2 slot 3, M10-5 = B3 slot 1), the drafts
+handed over as UNTRUSTED reference material at lane-private paths.
+The rows at merge annotate the interruption; the arms and slots
+are unchanged, so the pairs count.
+
+**M10-4 dual draw (branch-side, 2026-09-03, at review dispatch).**
+Ordinal 505. Slot byte 124, parity 0 ⇒ R1 OPUS + R2 FABLE,
+concurrent, frozen head fc8de0ac (PR #1627), v5 instrument. The
+implementer lane is the FRESH same-arm redispatch recorded above.
+
+| M10-4 | 2026-09-03 | M10-4 (PR #1627; ERROR-DESIGN E4/E5/E9 + DUAL-DESIGN DL1–DL3, spec M10-4-SPEC): sensitivities and the stackup — the seed door (`EvalOptions::seed`, the `param_box` seam's twin; compile-time `SeedScalar` beside `AxisScalar`; `Dual<T>` seeds exactly `T::one()`, every non-dual scalar refuses `NodeErrorKind::Seed` on every node; seed+box compose exactly at `Dual<Interval>`), the n-pass forward driver (`stackup::sensitivities`, one `Dual64` pass per continuous parameter, rayon idiom 1 pinned bit-identical), DL3's pairing hook as a typed two-half `PairingViolation` gate (f64 anchor content keys handed-vs-rebuilt; every dual pass value-paired per node by a whole-payload value-channel digest) — DISCHARGING M10-DI's adjudication obligation — the E5 `Stackup` verbatim (`worst_case` the hull of `Interval` evaluations over certified leaves, the only gating number; `rss` advisory-or-`UnavailableBecause` naming every Band; `coverage` = M10-3's accounting verbatim), the two-variant chamber mark with no third state, E9 forfeiture live, and the profile-dimension seed through the guided lift (∂gap/∂r = −1 guided, 0 pinned on the bore/pin fit; the plate's −2 turned out to be the measure EXPRESSION's, corrected) | M (pre-logged at dispatch) | FABLE (block M10-B2 slot 3 — the block's last; the FIRST dispatch died at the account session limit 2026-08-30 ~01:30Z pre-first-commit, the orchestrator away four days, main moved 524 merges over the draft's own files — partial discarded, FRESH same-arm lane 2026-09-03, the G16A shape) | **DUAL (ordinal 505; sample #114 at merge; slot byte 124 parity 0 ⇒ R1 OPUS + R2 FABLE, concurrent, frozen fc8de0ac, v5 instrument; briefs symmetric, no relaxations, no interruptions).** R1 REQUEST-CHANGES 1/6/8, rubric 4/3/4 — the MAJ: the chamber verdict is never bound to the build (`ForeignVerdict` compares axis NAMES, `ForeignBox` offsets; `sensitivities` checks no box), two green counterexamples: a stale value edit still marks every entry `ChamberCertified` with the old drive's key, and document A's verdict prices document B end to end; named the raw material (the drive's per-leaf `node_keys`, recomputed and discarded by `worst_case`'s replay). R2 NOT-MERGEABLE 2/5/6, rubric 4/3/3 — the SAME MAJ found independently with its own red probe (bilateral, dedup single) and the trap named (a verdict-vector compare would NOT close it — a value edit keeps the vector); UNILATERAL BY EXECUTION: a LOFT section's dimension seeds to a silent finite ZERO (`section_of` emits the f64 elaboration's loops; true derivative 1) — the exact state the spec's grounding forbids ("the profile gap TYPED, never silent zeros") while the PR body said no valve was needed; R1 had flagged the loft as the unexecuted arm (T1). TALLY CANDIDATE: R2's loft MAJ (coding at the blinded adjudication). Bilateral beyond the headline: deviation 3 unscheduled; the −0.0 unseeded tangent; `NothingCertified` data-free. Both arms confirmed by execution: zero impact bit-identical over 22 corpus documents at three scalars; seed hygiene under DL2 in six threading orders; σ derivations to 1e-9 against quadrature; `worst_case` tangent-free by type and right where the linearization is wrong | R1 counted 3 silent (the RSS fixed-parameter door; the chamber never bound to "a drive over the box asked about"; `worst_case` bare `f64`); R2 counted 4 (the loft/sweep silent zero; the verdict unpaired; D2's no-stringification; the e2e pin claim) — all remedied or disclosed at fix (deviations 6→10) | R1 4 / R2 4 | R1 3 / R2 3 | R1 4 / R2 3 | substantial, IMPLEMENTER-INHERITED: MAJ-1 a CONTENT tie — the leaf about to be cited is replayed with the drive's own options (`Interval`, guided lift, the leaf's box) and its recorded `node_keys` compared node-for-node (`VerdictNotOfThisBuild { leaf, node, recorded, replayed }`), a verdict-vector compare deliberately NOT used, the tie made against a Guided replay so the build-path/Guided key difference does not bite; `worst_case` ties EVERY certified leaf on the replays it runs anyway; MAJ-2 `NodeErrorKind::SeedPinnedSection { section, param }` at `wire::section_of` — loft sections AND the sweep's profile and path through one function — recognised BY KIND into per-entry `Unliftable`, never a zero, never a pairing violation; the per-node value-channel digest (the in-tree `ValueChannelBits` idiom) lifted into `pair_pass` and the check made total; `NothingCertified` now carries the nominal, the `LocalOnly` sensitivities, the coverage and the receipt; `contribution` labeled chamber-exceeding with `chamber_span` beside it (4× smaller on the plate); the containment predicate homed at `BoxAxis::contains_nominal`; padding MEASURED (exactly 2·half on the plate — a dependency problem in the recovered hole axes — 10·half on the slab) and the row's slack removed; issue item `work/m10/contribution-bounds-via-dual-interval.md` filed for deviation 3; deviations 6→10 (fixed-param σ = 0; rendered refusals — `NodeErrorKind` is neither `Clone` nor `PartialEq`; the plate pin is the expression's; one-seed-per-env documented not enforced); both probe suites adopted authorship-preserving (four red-by-design rows green); TWO argued pushbacks ACCEPTED (`sensitivities` takes no analyzed box — a content-tied leaf of this build holding the nominal is a certificate over itself, spreads-vs-leaves pairing stays the report's `ForeignBox`; `WorstCase` stays two `f64` — the type IS the certified bracket) | impl CI 33712082517 GREEN (interval, 1e-12, asked for by trailer) on fc8de0ac; fix CI 33717165975 GREEN (interval, 1e-12, asked for, trailer-only final head) on 08931277 after one intermediate clippy red; MERGED #1627 | impl ~560k / fix ~200k (unit ~760k) / R1 ~270k / R2 ~300k | impl ~60m / fix ~75m / R1 ~55m / R2 ~35m; the first dispatch's death annotated in the arm cell |
+
+| M10-5 | 2026-09-03 | M10-5 (PR #1638; ERROR-DESIGN E7/E8/E9, spec M10-5-SPEC): clearance and self-intersection — the interval BVH lift (`Aabb::separation_lo`, a certified lower bound on box separation, overflow-free at every magnitude after the fix; `Bvh::build_bounded`/`within`/`pairs_within`, the f64 side untouched), the clearance engine (`clearance`/`clearance_with`/`self_intersection`/`clearance_over` in `editor_core::clearance`: candidate pairs from the interval BVH with the admission threshold carrying the funnel's own band, a binary subdivision of carrier windows with every cell pair classified at exactly two `decide` sites — `clearance_margin`, `self_intersection_gap`, ledger row F17 — the E7 trichotomy with an f64-verified station-lattice witness, the receipt identity `discharged + violated + refused + abandoned == splits + candidates` on the shipped report), global self-intersection at `StrictlyPositive` with the wedge rule and typed `Unsupported`, the accelerator behind the `MonotoneOracle` seam (`NoTangents` ships; `Facets` ≡ `Off` bit for bit), the VERBS acceptance on issue 1055's own dumbbell, the 1055 arm NOT landed (the layering valve filed: `topo` cannot see a `Doc`), and two findings filed rather than fixed — `Vec3::orthonormal_basis`'s `copysign` sign-hull at `Interval` (chart refinement impossible on every vertical prism wall; worked around by re-charting) and the box-width ceiling on a third family (issue 1191's class) | M–L (pre-logged before the block draw) | OPUS (block M10-B3 slot 1 — the FIRST dispatch died at the account session limit 2026-08-30 pre-first-commit; FRESH same-arm lane 2026-09-03) | **DUAL (ordinal 506; sample #115 at merge; slot byte 23 parity 1 ⇒ R1 FABLE + R2 OPUS, concurrent, frozen 9f143595 — the head after a one-file conflict round when M10-4 landed under the freshly opened PR (`tests/all.rs` registrations, union), v5 instrument; briefs symmetric, no relaxations, no interruptions).** R1 NOT-MERGEABLE 4/8/4, rubric 4/2/2 — the fold reports `Holds` over ZERO certified leaves (a real ±0.05 tolerance: 0 certified / 100% Budget → `holds() == Some(true)`) and refused leaves stay priced as CERTIFIED mass with no per-leaf verdict surviving; the BVH prunes on a raw `separation_lo > c` while the funnel classifies through the band (two blocks ε/2 apart under `StrictlyPositive` pruned to `Holds` with an empty receipt); UNILATERAL BY EXECUTION: the measured-limit narrative contradicted by its own table — every `Violated` row is a budget exhaustion at exactly 65 536 cells because the sweep never stops at the first definite violation, and whether `Violated` is reached depends on DFS order (the same question `Violated` revolved about ẑ, `Refused(Budget)` about ŷ). R2 REQUEST-CHANGES 3/14/7, rubric 4/3/3 — the SAME band-prune MAJ and the SAME zero-leaf fold MAJ found independently with red probes (both bilateral, dedup single); UNILATERAL BY EXECUTION: the strict violation arm has no reachable path (the margin is a norm minus zero — never negative; a definite `Zero` needs both cells below ε; two unit blocks OVERLAPPING by 1.5 m return `Refused(Budget)` at every budget — gross interpenetration could not be reported and nothing said so). TALLY CANDIDATES: R1's measured-limit MAJ and R2's unreachable-arm MAJ — one unilateral execution finding each way, the program's first symmetric pair (coding at the blinded adjudication). Both arms confirmed by execution: the diff purely additive to `bvh`, exactly two `decide` sites and no ε, the receipt identity on 75 configurations between them (zero budgets, NaN/∞/negative `c`, zero candidates), D9 bit-stable over 65 536 cells, the re-chart the same chart at f64, the 1055 layering argument correct | R1 counted 4 silent (refusals inside a leaf counted never priced; `Holds` over no leaves; §1's traversal lift unused; `self_intersection` unable to produce `Violated`); R2 counted the midpoint witness sold as a closest-point pair, D4's false argument, D2's stringification, the vacuous §3 row — all remedied or disclosed at fix (deviations 6→8) | R1 4 / R2 4 | R1 2 / R2 3 | R1 2 / R2 3 | substantial, IMPLEMENTER-INHERITED, all four MAJ at the root: the fold refuses `NothingCertified { refused_leaves }` and carries its own `ClearanceMass` (each leaf re-priced by what THIS question said about it, refused leaves under their own class, per-leaf verdicts kept, `unresolved()` summing violated + every refused class + the drive's share); admission `reach = c + band.escalate()` (a dropped pair has margin the funnel would have discharged definitely; the bvh crate doc now says the threshold is the consumer's and must carry the consumer's band); the EXHIBIT ARM — an indeterminate cell pair probed at f64 at the root and the depth floor, only ever ADDING verified violations so no `Holds` can rest on it — makes the strict arm reachable (interpenetrating blocks `Violated` in one cell at every budget; the residue, a coincidence witness never a signed depth, disclosed as D7 and filed `work/m10/signed-penetration-depth.md`); early exit at the first VERIFIED witness with the unexamined frontier counted `abandoned` (never `refused`) as its own receipt column; the cost curve re-measured in three regimes (broken bounds flat and cheap — ≤ 8 cells across a 50:1 slack range, exactly 1 on the comb; held-by-refining costs a budget; the FRONTIER — a bound inside a pair's own separation range — the only regime that spends the dial) with the order dependence stated; all eleven MINORs (dead bvh doors removed; scaled-norm `separation_lo`; the station-lattice witness attaining the true closest approach on flat pairs, disclosed as D8 where it is only a near pair; D3 measured with two named shapes and filed `work/m10/clearance-window-tightening-needs-chart-boundary.md`; `NotADistance`/`EmptyScope` query doors; TEN refusal arms named at the door with the five row-less ones argued; the lying-oracle indistinguishability PINNED and disclosed as D5; `serialize` carrying the witness); deviations 6→8; both probe suites adopted authorship-preserving — twelve counterexample rows flipped to pins, one surviving as a finding of the acceptance's own vacuity; the lane's own process note recorded: three extra CI cycles on doc-truth fixes found after the first push — the doc sweep belongs before it | impl CI 33717447254 GREEN (interval, 1e-12, asked for) on 95f6f8d7; conflict-round CI 33718880979 GREEN on 9f143595 (the frozen head); fix CI 33736936934 GREEN (interval, 1e-12, asked for) on f02d2af1 after three iterations of hosted reds (an inherited default-lane clippy in `m10_p_lift.rs` fixed upstream by PR 1573, a rustdoc intra-doc-link resolution difference between local doc-gate and the hosted gate, default-lane shards); MERGED #1638 | impl ~630k / fix ~300k / R1 ~360k / R2 ~300k | impl ~3h / conflict round ~20m / fix ~2h20m / R1 ~30m / R2 ~40m; the first dispatch's death annotated in the arm cell |
+
+## S-TCOST program rows (work/tcost/plan.md; band 1400–1499; blocks named TCOST-KB<n>)
+
+Opened 2026-09-02 (`work/tcost/log.md`, formerly `docs/S-TCOST-LOG.md`);
+single-orchestrator remote box, no away-channel. Test-only and
+CI-infrastructure units in this program record NO row (Ev's review
+split, in-chat 2026-09-02); only kernel-logic units under the v6
+protocol do. Block TCOST-KB1's draw and slot record live branch-side
+(`tcost/kb1-block`) until the block concludes, per the block-draw
+redaction ruling. Pre-draw fields at the spec (`docs/TCOST-K1-SPEC.md`):
+TCOST-K1 difficulty **L**, task-class **NUMERIC**.
+
+TCOST-K1 review ordinal fixed at dispatch (2026-09-03, PR #1652 open
+— frozen head `554f2b0f`): **ordinal 1400** (S-TCOST band; first and
+single claimant). Protocol v6 dual: draw = `/dev/urandom` byte
+**136**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. Method, recorded before
+either review runs: CONCURRENT same-head on frozen `554f2b0f`, both
+briefs authored and STORED with sha256 before either dispatches
+(sha256 5ccb4c029028… r1 / 77b9cca2538a… r2 — identical text modulo
+lane names, verified by diff), neither reviewer sees the other's
+report, v6 item 5 isolation in both briefs; the implementer's unit
+log entry is not written until the dual concludes. Orchestrator's
+ruling on the spec's Phase 1 stop clause, so the reviewers read it as
+settled: the clause named two pictures (the cost sits in the last
+rounds; the remainder quarters) and both held; the third premise (a
+floor under the midpoint sum) did not, and the lane proceeded with a
+bound in the floor's place, arguing it at the exit site — the
+reviewers falsify that argument, they do not re-open whether the
+unit should exist. Disclosed: the PR body carries a `Generated by
+Claude Code` footer the GitHub write path appends on every write;
+it names no model.
 | CS-1 | 2026-09-03 | VERBS-CYLSPH (PR #1604; the exact coaxial cylinder×sphere arm; Evan's declared-only-coaxiality ruling executed; the fitted join window DEFERRED per the shape ruling): cylinder_sphere_section (TwoCircles at ±√((R−r)(R+r)) / TangentCircle-as-classification-data / Empty) behind CoaxialEvidence {Declared, None} — the RadiusEvidence sibling, verified-not-trusted; the (Cylinder,Sphere) pair_section_frame arm via the cs_pair_frame helper (kinds-only invariant preserved; one frame serves both circles by exact identity); #974's tangent-locus arm deferred WITH its residual story measured passing (the blocker restated structural); the opening measurement a TABLE with the implementer's own two guesses refuted by the run and recorded (LINE seam not Circle; the contained ball refuses at the scan); NEITHER STOP fired | M (pre-logged) | OPUS (block VERBS-8 slot 2, per-slot arm line) | **DUAL (ordinal 112; sample #114 at merge — ledger max #113, main's merge order rules; parity byte 197 ⇒ R1 FABLE + R2 OPUS, frozen d49ddd894, v6; suites-via-CI both arms). R1 0 MAJ / 5 MIN, 5/5/4, ACCEPT — payload-level carrier verification, three novel mutations caught by shipped rows, the interval-tightness sentence measured false at its own numbers. R2 3 MAJ / 7 MIN, 4/3/3 — 54 poses re-derived; a 180-pose union sweep proving the germ frame UNREACHABLE for the pair (zero GermFrameUnsupported); MAJ-1 unilateral DOC-CLASS (3b-excluded): the refusal-text sweep CREATED a false sentence (join_germ_pair vs pair_section_frame conflated in CurvedBooleanUnsupported's doc, contradicting the sibling Display in the same file — the C5ARMS lesson inverted); MAJ-2 bilateral with R1's MIN (the spec-mandated factored form invisible to the whole suite — MUT-H 15/15 green — with the rationale false at its own numbers; the ordinal-108 unpinned-lever class); MAJ-3 UNILATERAL TALLY CANDIDATE (test-gap, demonstrated — the asserted strings are static literals in every message of the variant): the opening row's sphere-face half pinned VACUOUSLY, face discarded. Minor union: the stale rim comment (both), 21-vs-20 (both), reduce.rs's second #974 site undispositioned, no diag.predicate pins, CertificateLimb accepted, 33-vs-17, the twin headline, merge-base cites, the MUT-B label | 0 (deviations declared; the created-false-sentence was a defect in an edit, not a silent deviation) | 5 | 4 | 4 (R1 5/5/4; R2 4/3/3) | substantial, IMPLEMENTER-INHERITED: both Displays rewritten to AGREE with the two dispatches named separately (a frame is not a join arm) and a NEW row constructing a real CurvedBooleanUnsupported pinning four clauses + sibling agreement; the near-tangency width row added RED-THEN-GREEN (the squared-form mutation reds exactly it, 45/1 — the only row in the file that can see the form; ratios 239× at 1e-6, 1.8e8× at 1e-12) after ONE honest red of its own (the hardcoded δ inside the band at the 1e-6 draw — the eps-sampling did its job; re-cut band-relative); the sphere-face half now reads SurfaceKind off operand B with non-vacuity guards and one DECLARED limitation (the face-kind mutation cannot red — slotmap keys collide and B's roster is uniformly Sphere; stated at the row); reduce.rs's #974 sentence dispositioned with the grep pattern recorded; diag.predicate pinned on all three escalation rows; TransversalityBand pinned exactly; every count/cite corrected. ALSO SURFACED: the session scratchpad is SHARED across concurrent agents (a peer's pr.md overwrote the lane's mid-task — recovered, filenames namespaced; operational hazard recorded) | impl runs 33698888433 + 33698944484 step-verified green; fix head 70adf73c1: THREE runs green (interval-trailer default-eps 2520/0; interval-dispatch 1e-6 2451/0; default-dispatch 2331+2320/0), all 21 f64 rows by name on all three, 3 interval rows correctly placed; no inherited reds | impl ~307k / fix ~291k / R1 ~155k / R2 ~284k | impl ~7.8h / fix ~6.3h / R1 ~1.8h / R2 ~3.6h |

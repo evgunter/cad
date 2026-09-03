@@ -322,7 +322,9 @@ pub fn reading_edges<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, RecipeNodeId)> {
 /// is the whole content of A9. Mates couple components precisely
 /// because their reading edges count here (A12) even though A10's
 /// invariants never see them.
-pub fn relative_freedom_components<P>(doc: &Doc<P>) -> Vec<Vec<RecipeNodeId>> {
+pub fn relative_freedom_components<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+) -> Vec<Vec<RecipeNodeId>> {
     let mut adjacency: BTreeMap<RecipeNodeId, BTreeSet<RecipeNodeId>> = BTreeMap::new();
     let mut edges: Vec<(RecipeNodeId, RecipeNodeId)> = Vec::new();
     for &id in doc.order() {

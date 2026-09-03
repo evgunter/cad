@@ -27,12 +27,11 @@ use std::collections::BTreeSet;
 
 use bvh::Aabb;
 use pncad::document::{
-    CancelToken, Dimension, Doc, DocEdit, EvalOptions, Expr, Frame, LoopProgram, Node,
+    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, Frame, LoopProgram, Node,
     ProductError, ProfileProgram, RecipeNodeId, apply, evaluate, product,
 };
 use pncad::geom_core::{Affine3, Point3, Tol};
 use pncad::mesh::{Mesh, TessellateError, tessellate};
-use pncad::profile::SketchPlane;
 use pncad::topo::Body;
 
 /// The chordal display tolerance δ: how far the drawn triangles may
@@ -624,11 +623,24 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
         centre: [length(width * 0.5)?, length(depth * 0.5)?],
         radius: length(PLATE_HOLE_RADIUS)?,
     };
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("gui-0-plate", tol);
+    // The frame the plate is drawn on — the world xy frame, spelled as
+    // a node because that is what a profile names now. It is the
+    // document's first node, so the plate reads in the feature tree
+    // the way it was authored: a frame, then a sketch on it.
+    let (doc, frame) = insert(
+        doc,
+        Node::Datum(Datum::Frame {
+            origin: [length(0.0)?, length(0.0)?, length(0.0)?],
+            u: [scalar(1.0)?, scalar(0.0)?, scalar(0.0)?],
+            v: [scalar(0.0)?, scalar(1.0)?, scalar(0.0)?],
+        }),
+        tol,
+    )?;
     let profile = ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: frame,
         loops: vec![outline, hole],
     };
-    let doc: Doc<ProfileProgram> = Doc::empty_derived("gui-0-plate", tol);
     let (doc, profile_node) = insert(doc, Node::Profile(profile), tol)?;
     let (doc, extrude) = insert(
         doc,
@@ -931,6 +943,10 @@ pub fn scene_of(
 
 fn length(metres: f64) -> Result<Expr, SceneDocError> {
     Expr::literal(metres, Dimension::Length).map_err(SceneDocError::Dimension)
+}
+
+fn scalar(v: f64) -> Result<Expr, SceneDocError> {
+    Expr::literal(v, Dimension::Scalar).map_err(SceneDocError::Dimension)
 }
 
 fn insert(

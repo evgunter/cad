@@ -16,6 +16,8 @@
     clippy::unnecessary_cast
 )]
 
+test_utils::gated_to!["crates/geom-core/src/linalg/"];
+
 use geom_core::linalg::svd::{Svd2x3, Svd3x4};
 use test_utils::fuzz;
 
