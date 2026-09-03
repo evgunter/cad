@@ -34,8 +34,8 @@ use editor_core::{
 use geom_core::{Affine3, Vec3};
 use profile::SketchPlane;
 
-use super::super::fixture::len;
 use super::{CorpusDoc, Recorder};
+use crate::fixture::len;
 
 /// The document parameter that drives both holes.
 pub const HOLE_R: &str = "hole_r";

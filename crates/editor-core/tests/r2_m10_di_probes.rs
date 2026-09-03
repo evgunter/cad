@@ -36,8 +36,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
+use crate::fixture;
 
 use corpus::{documents, eval, failures};
 use editor_core::eval::KeyHasher;

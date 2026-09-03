@@ -3,7 +3,7 @@
 //! and Declare pairs resolving against the real tables.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     CancelToken, CapEnd, Datum, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,

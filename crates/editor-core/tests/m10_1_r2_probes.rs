@@ -29,7 +29,7 @@ test_utils::gated_to![
     "crates/geom-core/src/tolerance.rs",
 ];
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     AnalysisPolicy, CancelToken, DEFAULT_QUANTILE_MASS, Dimension, Distribution, DocEdit, DocParam,

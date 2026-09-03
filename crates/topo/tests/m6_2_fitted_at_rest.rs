@@ -35,7 +35,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use geom_brep::{EnvelopeStatement, Pcurve};
 use geom_core::Band;

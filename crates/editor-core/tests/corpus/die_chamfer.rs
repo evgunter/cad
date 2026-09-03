@@ -26,8 +26,8 @@
 use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
 use profile::SketchPlane;
 
-use super::super::fixture::{len, prism_edges};
 use super::{CorpusDoc, Recorder};
+use crate::fixture::{len, prism_edges};
 
 /// The blank's side, meters (dyadic).
 pub const L: f64 = 1.0;

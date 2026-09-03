@@ -25,7 +25,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{Node, PersistError, ProfileDoc, REGENERATE_RECOURSE, load, save};
 use fixture::{desc, insert, len};

@@ -17,7 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(clippy::type_complexity)] // fixture tables read clearer inline
 
-mod common;
+use crate::common;
 
 use common::{flush_declarations, line, plane, prism_z};
 use geom_core::Tol;

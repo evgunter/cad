@@ -13,7 +13,7 @@ use pncad::geom_core::Tol;
 use viewer::camera::Camera;
 use viewer::scene::{self, DisplayTolerance, SceneError};
 
-mod common;
+use crate::common;
 
 /// The plate's nominal dimensions, read from the scene rather than
 /// restated beside it — a copy here is a fixture that keeps testing a
