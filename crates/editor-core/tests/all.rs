@@ -161,6 +161,14 @@ mod m10_5_clearance_interval;
 mod m10_5_r1_probes_interval;
 #[path = "m10_5_r2_probes_interval.rs"]
 mod m10_5_r2_probes_interval;
+#[path = "m10_6_ci_rows_interval.rs"]
+mod m10_6_ci_rows_interval;
+#[path = "m10_6_min_clearance_interval.rs"]
+mod m10_6_min_clearance_interval;
+#[path = "m10_6_r1_probes_interval.rs"]
+mod m10_6_r1_probes_interval;
+#[path = "m10_6_reports_interval.rs"]
+mod m10_6_reports_interval;
 #[path = "m10_di_dual_corpus.rs"]
 mod m10_di_dual_corpus;
 #[path = "m10_p_fence.rs"]
@@ -300,6 +308,8 @@ mod r2_cert3_coord_dump;
 mod r2_keydiff;
 #[path = "r2_m10_2_probes.rs"]
 mod r2_m10_2_probes;
+#[path = "r2_m10_6_probes_interval.rs"]
+mod r2_m10_6_probes_interval;
 #[path = "r2_m10_di_probes.rs"]
 mod r2_m10_di_probes;
 #[path = "review_gui1_r1.rs"]

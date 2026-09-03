@@ -2,8 +2,10 @@
 id: m10-5-e2e-channel-slider-reds-at-eps-1e-6
 kind: issue
 title: m10_5_r1 e2e_channel_slider_over_an_epsilon_box reds on the interval lane at eps = 1e-6
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-03
+pr: 1670
 ---
 
 
@@ -53,3 +55,23 @@ call, not a reviewer's. Do not widen the constant without deciding which.
 Found by TCOST-B2 (PR 1669) as an inherited red: that branch's diff is
 `crates/{step-export,step-import,stl,geom,geom-core,bvh,geom-brep,verbs}/tests/`
 only, and `git diff origin/main...HEAD -- crates/editor-core` is empty.
+
+## Closed (2026-09-03, PR 1670 — fixed before this item was read)
+
+Fixed on main at `3de2e3d9` by the M10-6 lane's k-probe hotfix, which
+hit the same red from the other side: that branch PINNED `eps=1e-6` to
+verify a k-lint row and found this row and its sibling in
+`m10_5_clearance_interval::a_bound_over_the_parameter_band_is_violated`.
+
+The diagnosis this item asks for, filled in: the floor is an absolute
+`1e-9` against a box that is ε-RELATIVE (ε/32 wide, so 3.125e-8 at
+1e-6), and a carrier window is a superset of its face by about the width
+of the parameter box it was enclosed over — so a witness station can sit
+that far outside the face and the recomputed distance undershoots the
+nominal gap by the same order. The window superset is
+`clearance.rs`'s stated looseness, not a defect in the engine; the
+defect was the row's absolute floor.
+
+Both floors are now `4.0 * half()` — the box's own width — with the
+mechanism and the measurement at the site. Verified at 1e-6, 1e-9 and
+1e-12: 287 m10 tests green at 1e-6.

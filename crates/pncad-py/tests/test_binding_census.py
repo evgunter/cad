@@ -692,9 +692,14 @@ FAMILIES = {
     "B-MEASURES": (
         "AUTHORING a measurement (ERROR-DESIGN E3/E10); closing it "
         "binds `MeasureExpr`'s constructors, `MeasurePrimitive`'s "
-        "three verbs and `AssertionDir` onto `Node.measure` / "
+        "four verbs and `AssertionDir` onto `Node.measure` / "
         "`Node.assertion` constructors, with `MeasureNodeFault` as the "
-        "refusal a caller dispatches on. The READ half already ships "
+        "refusal a caller dispatches on, and `MinClearanceRefusal` / "
+        "`MeasureUnavailableAt` as the two the FOURTH verb adds: "
+        "`min_clearance` is answered by an engine rather than a "
+        "closed form (M10-6), so it can refuse for the engine's own "
+        "reasons, and at a point scalar it has no value at all and "
+        "says which scalar and which door could answer. The READ half already ships "
         "and is deliberately not in this gap: `Value.measure` answers "
         "with a `Measurement` (value plus the F1 dimension it rides) "
         "and `Value.assertion` with a `Verdict` (three states kept "
@@ -1444,6 +1449,13 @@ NOT_BOUND = {
     "MeasureRef": f"{GAP}: B-MEASURES measurement authoring",
     "MeasureNodeFault": f"{GAP}: B-MEASURES measurement authoring",
     "MeasurePrimitive": f"{GAP}: B-MEASURES measurement authoring",
+    # The two M10-6 added with the fourth verb. They are READING
+    # names — a caller dispatches on them after an evaluation, not
+    # while authoring — but the read door that would surface them
+    # (`Value.measure` on a `min_clearance`) cannot be reached until
+    # the authoring half exists, so they close with the same family.
+    "MinClearanceRefusal": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasureUnavailableAt": f"{GAP}: B-MEASURES measurement authoring",
     "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     "WrittenAngle": f"{GAP}: B-NOTATION authored notation",
     "WrittenLength": f"{GAP}: B-NOTATION authored notation",

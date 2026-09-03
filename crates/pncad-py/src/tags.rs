@@ -295,6 +295,14 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::MeasureNotParallel { .. } => "measure_not_parallel",
         NodeErrorKind::MeasureNonFinite { .. } => "measure_non_finite",
         NodeErrorKind::MeasureMalformed(_) => "measure_malformed",
+        // Its own tag rather than `measure_unsupported`'s: the
+        // recourse is "select a body or a face", not "this carrier
+        // pair has no closed form".
+        NodeErrorKind::MeasureSelectionKind { .. } => "measure_selection_kind",
+        // And its own again: the clearance engine refused, so the
+        // recourse is the engine's — a wider budget, an admitted
+        // carrier — and not the measurement vocabulary's.
+        NodeErrorKind::MeasureClearanceRefused(_) => "measure_clearance_refused",
         NodeErrorKind::PayloadExpr { .. } => "payload_expr",
         NodeErrorKind::AssertionDimension { .. } => "assertion_dimension",
         NodeErrorKind::ToleranceConflict { .. } => "tolerance_conflict",

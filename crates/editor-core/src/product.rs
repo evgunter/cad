@@ -301,6 +301,7 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         | ValuePayload::Declarations(_)
         | ValuePayload::Mate(_)
         | ValuePayload::Measure { .. }
+        | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,
     }
 }

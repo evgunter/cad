@@ -3502,17 +3502,43 @@ jobs:
       #
       # COST, MEASURED on the run that armed it (32973311618, this
       # row's own draw): release build 2m11, then the bin's unit tests
-      # 0.21 s and the three-ε `eps_regression` tour runs 13.60 s. The
+      # 0.21 s and the three-ε `eps_regression` tour runs 13.60 s.
+      # RE-MEASURED 2026-09-03 with `--features interval` below: the
+      # bin's unit tests go 0.21 s -> ~32 s. **That is NOT the tolerance
+      # cell**, and the first version of this note said it was, which
+      # R2's MINOR-12 caught. Measured on this branch, same machine,
+      # release profile:
+      #
+      #   whole bin suite, --features interval          32.02 s
+      #   the same with `-- --skip tolerance`           32.30 s
+      #   the tolerance cell alone                       1.19 s
+      #
+      # The cell's differential is inside the noise. The ~32 s is what
+      # the OTHER 26 rows cost once the crate is built with the
+      # certified scalar — the feature changes the kernel they link
+      # against, so they all pay for it — and attributing it to the one
+      # new row would have sent the next person optimising the wrong
+      # thing. The
       # bin's unit tests link against the crate this row already builds
-      # in release, so the widening pays a link plus ~14 s of running,
+      # in release, so the widening pays a link plus that running time,
       # not a sixth feature unification. (Those same unit tests cost
       # ~412 s in the DEV profile — the finding-13 rows tessellate the
       # lily at δ = 2e-3 — which is why this row is the release one and
       # why widening the dev-default row instead would not have been
       # free.)
+      # `--features interval` SINCE M10-6, and it buys exactly one
+      # thing: the tolerance cell (`src/tolerance.rs`), whose subject is
+      # the E6 driver's certified leaves and the E5 stackup over them,
+      # is compiled and its row executed. Without the feature the cell
+      # is `cfg`'d out and a tour walk says so at the stop rather than
+      # walking one scene fewer in silence.
+      #
+      # COST: the kernel is built once more with the certified scalar
+      # for this crate's graph. It rides the same `release-default` draw
+      # as the rest of this row, so it is not a per-run price.
       - name: demos tour suite (the #99 ε pin + the tour's own probes)
         if: contains(fromJSON('["release-default", "all"]'), needs.filter.outputs.klint_row)
-        run: cd demos/tour && cargo test --release
+        run: cd demos/tour && cargo test --release --features interval
       # THE COMMITTED DIE CORPUS IS STILL THE SCENE THAT AUTHORED IT.
       # `crates/editor-core/tests/corpus/die_composed_tour.rs` registers
       # the tour's composed die by replaying committed BYTES, because
@@ -3817,6 +3843,78 @@ jobs:
             ../../target/k-fresh/k-eps-1e-6.csv \
             ../../target/k-fresh/k-eps-1e-9.csv \
             ../../target/k-fresh/k-eps-1e-12.csv
+      # **M10-6's THIRD E10 CI ROW: the E6 driver's own K population**
+      # (ERROR-DESIGN E6's T6 obligation; docs/K-REPORT.md's runbook).
+      #
+      # WHICH AXIS IT RIDES, and what a green means. This row is inside
+      # `k-lint (gate)` and gated on the `dev-probe` draw of the
+      # `klint_row` axis, exactly like the sweep that produces its
+      # input — so a green on a run that drew another row means the row
+      # did not run, not that the population is clean. A branch that
+      # wants it says `CI-Config: klint=dev-probe` on its head commit.
+      #
+      # WHY IT IS ADVISORY, stated rather than assumed. The lint's
+      # thresholds were calibrated over the Band 4 corpus and the tour
+      # scenes — a population of AUTHOR-CHOSEN nominals. The driver's
+      # certified-midpoint population is the opposite by construction:
+      # the subdivision refines until every predicate is definite, so
+      # its margins pile up just outside the escalation band, and the
+      # lint fires in bulk (measured 2026-09-03: 15,768 flags over
+      # 257,025 samples at ε = 1e-6). That is exactly the E6 evidence
+      # this row exists to produce, and `tools/k-lint`'s own discipline
+      # text names the disposition: re-derive the thresholds, or demote
+      # the row to advisory with a recorded justification. This is the
+      # recorded justification. Changing geometry to get under a
+      # threshold remains the forbidden move, and nothing here does it.
+      #
+      # WHAT STILL REDS THIS ROW: harness breakage (exit 1) — an
+      # unreadable CSV, a malformed sample row, a sweep that wrote a
+      # file the lint cannot parse. Findings (exit 2) are printed and
+      # summarized. So the row cannot rot into a green over a broken
+      # sweep, which is the failure a plain `|| true` would have.
+      - name: driver K-telemetry lint (E6 evidence — rule 1 GATES, rules 2/3 advisory)
+        if: contains(fromJSON('["dev-probe", "all"]'), needs.filter.outputs.klint_row)
+        run: |
+          set -uo pipefail
+          cd tools/k-lint
+          status=0
+          # `--gate-rule-1-only` is the demotion, and it is NARROW: rule
+          # 1 (indeterminate / invalid margins) still reds this row.
+          # That is the arm ERROR-DESIGN E6 names as the trigger for
+          # re-opening the K question, and a blanket demotion would have
+          # covered it — a future in-band margin would have printed
+          # among tens of thousands of rule-2/3 flags and gone green.
+          # Rules 2 and 3 are the ones this population makes in bulk by
+          # construction, and only they are demoted.
+          cargo run -- --gate-rule-1-only \
+            ../../target/k-fresh/driver/k-eps-1e-6.csv \
+            ../../target/k-fresh/driver/k-eps-1e-9.csv \
+            ../../target/k-fresh/driver/k-eps-1e-12.csv \
+            2>&1 | tee ../../k-lint-driver.out || status=$?
+          status=${PIPESTATUS[0]:-$status}
+          # THE PER-RULE COUNTS ARE THE ROW'S REPORT, at all three eps
+          # rows, not a summary of one. `k-lint` prints a per-file line
+          # and a TOTAL line; both are relayed so a reader gets the
+          # numbers without opening the log.
+          {
+            echo "### driver K-telemetry (E6 evidence)"
+            echo
+            echo '```'
+            grep -E '^k-lint: (TOTAL|.*samples,)' ../../k-lint-driver.out || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "driver K-telemetry lint exit status: $status" >> "$GITHUB_STEP_SUMMARY"
+          case "$status" in
+            0) echo "no rule-1 margin: every margin the driver produced was DECIDED. Rule-2/3 flags, if any, are distribution EVIDENCE — the driver refines margins toward zero by construction, so they crowd the band. Read them per docs/K-REPORT.md; do not change geometry." >> "$GITHUB_STEP_SUMMARY" ;;
+            2) echo "RULE 1 FIRED — a driver margin was indeterminate or invalid. This is the E6 re-open trigger, not a distribution note: read docs/K-REPORT.md's runbook and the flagged rows before anything else." >&2; exit 1 ;;
+            *) echo "harness breakage — the sweep wrote something this lint cannot read" >&2; exit 1 ;;
+          esac
+          # Solver predicates are VACUOUS in v1 (the M10 plan's ruling
+          # Q1: no sketch solver exists, so no `solver_branch_margin`
+          # row can appear in any population this sweep collects). The
+          # row's k-population is the driver's alone, and that is a
+          # scope statement rather than a gap in the sweep.
+          echo "solver predicates are vacuous in v1 (ruling Q1): no solver exists to sample" >> "$GITHUB_STEP_SUMMARY"
 
   # THE RENDER GATE. The committed montages are build products of the
   # kernel that nothing checked: for a while `k-lint` gated the UV sheet

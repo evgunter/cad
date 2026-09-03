@@ -597,3 +597,50 @@ cycles on doc-truth fixes found after the first push and said so —
 the doc sweep belongs before the first push, recorded here for the
 next brief. The spec leaves `docs/` with this merge. M10-6 is next
 and last.
+
+## M10-6 MERGED (2026-09-03)
+
+PR #1685 merged, sample #118 (ordinal 507). The program's last unit.
+E10 and E11 are real: every derived report serializes exact-bits,
+keys on its content and renders for a human, priced and forced mass
+are two types, the three CI rows run on the sampled matrix and were
+read executing by step conclusion (rows 1–2 in the interval shards,
+row 3 on the k-lint axis with rule 1 gating and 65,992 advisory
+flags over the driver population, the tour cell in its own step),
+the MC lane estimates and never gates, and E3's last primitive
+ships with the engine door both M10-5 reviewers asked for — a
+certified bracket of the minimum separation the budget narrows and
+cannot falsify. The review's central finding shaped the door: the
+bracket is over carrier windows, not trimmed faces, so only its
+lower end is a bound on the measure; that is now a type the
+assertion consults, the two arms that would read the upper end
+refuse typed until window tightening lands, and the two gating
+directions survive. R1's second execution finding — the tour
+deciding on a float against its own assertion — is closed by a
+door that did not exist (`assertion_at`), with the measured fact
+that a definite failure and a real RSS divergence cannot coexist at
+this ε stated in the caption rather than faked. R2's key-move
+finding stands as a disclosed, pinned deviation (D10, retracting the
+body's "keys bit-identical"); its demotion finding makes rule 1 the
+one thing no caller can demote. Two tally candidates, both R1's, both
+by execution. Filed, not fixed: `MinClearanceRefusal`'s stringly
+twin (D12); ERROR-DESIGN's unary `min_clearance` arity against the
+shipped binary door (D8) goes to the exit walk as a doc revision for
+Ev.
+
+Process, for the next brief: (1) the lane died five times on API
+529s during the fix pass and was resumed each time from its
+worktree — never redispatched — at 60- then 30-minute backoffs;
+nothing was lost, but the pass took 4h40m for ~1h of work. (2) The
+orchestrator's re-gate of the frozen head (an empty trailer commit
+pushed after the Actions budget outage) reset the unit branch's
+local ref UNDER the lane's live worktree and orphaned its four
+unpushed commits; they were recovered from the reflog and the
+re-gate merged in. Rule: an orchestrator re-gating a branch a lane is
+working on makes the commit in its own checkout and pushes by
+ref, never `branch -f` on the shared local ref. (3) Two red CI cycles
+on one trap: `tools/` and `demos/` are excluded from the root
+workspace, so the root `cargo fmt` reaches neither; the pre-push
+sweep must run CI's own commands in every excluded root. The spec
+leaves `docs/` with this merge. What remains for M10 is the exit
+walk.
