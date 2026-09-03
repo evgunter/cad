@@ -1761,16 +1761,25 @@ jobs:
       CARGO_PROFILE_TEST_STRIP: debuginfo
       CARGO_PROFILE_DEV_OPT_LEVEL: "1"
       CARGO_PROFILE_TEST_OPT_LEVEL: "1"
-      # sccache EXPERIMENT, ON (2026-08-20). The kill switch is the
-      # repo variable SCCACHE set to "0"; unset means enabled, so the
-      # trial runs without a variable needing to exist.
-      # cargo treats an EMPTY RUSTC_WRAPPER as "no wrapper", so the
-      # unset case is a genuine no-op rather than a broken command.
+      # sccache TRIAL WINDOW — UNCONDITIONAL ON THIS BRANCH (TCOST-C4).
+      # The rig landed switchable, and the repo variable SCCACHE is set
+      # to "0" today, so it has been inert on every run since: the
+      # install step and the stats step both report `skipped`. A branch
+      # cannot change a repo variable, so dropping the condition here is
+      # the only way to take the reading the rig was landed for.
+      #
+      # TO REVERT, restore the two step conditions below and
+      #   RUSTC_WRAPPER: ${{ vars.SCCACHE != '0' && 'sccache' || '' }}
+      # here — with the variable at "0" that is inert again, no variable
+      # change needed. (cargo treats an EMPTY RUSTC_WRAPPER as "no
+      # wrapper", which is what makes that spelling a genuine no-op.)
+      #
       # Note this var is RUST*-prefixed, so Swatinem/rust-cache hashes
-      # it: flipping SCCACHE rotates the cache key and buys exactly one
-      # cold rebuild. That run is not the verdict — same trap the OPT
-      # LEVEL note above warns about.
-      RUSTC_WRAPPER: ${{ vars.SCCACHE != '0' && 'sccache' || '' }}
+      # it: turning it on rotates that cache key too, and buys exactly
+      # one cold rebuild PER LANE — the lane a run gates is sampled, so
+      # each of the two build jobs pays its own. Those runs are not the
+      # verdict — the same trap the OPT LEVEL note above warns about.
+      RUSTC_WRAPPER: sccache
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -1788,8 +1797,7 @@ jobs:
       # right for 261 test binaries and is not right for 14.
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: install sccache (experiment; disable with vars.SCCACHE = '0')
-        if: vars.SCCACHE != '0'
+      - name: install sccache (trial window; see the RUSTC_WRAPPER note above)
         uses: ./.github/actions/install-sccache
         with:
           version: ${{ env.SCCACHE_VERSION }}
@@ -1811,7 +1819,7 @@ jobs:
       # adopting this is hits on the WORKSPACE crates, on a warm
       # run, against the archive step's own duration on main.
       - name: sccache stats (experiment)
-        if: vars.SCCACHE != '0' && !cancelled()
+        if: ${{ !cancelled() }}
         run: sccache --show-stats
       # Upload right after the archive (the run legs still wait on the
       # whole job via `needs`): if a later step fails, the archive is
@@ -2297,16 +2305,25 @@ jobs:
       CARGO_PROFILE_TEST_STRIP: debuginfo
       CARGO_PROFILE_DEV_OPT_LEVEL: "1"
       CARGO_PROFILE_TEST_OPT_LEVEL: "1"
-      # sccache EXPERIMENT, ON (2026-08-20). The kill switch is the
-      # repo variable SCCACHE set to "0"; unset means enabled, so the
-      # trial runs without a variable needing to exist.
-      # cargo treats an EMPTY RUSTC_WRAPPER as "no wrapper", so the
-      # unset case is a genuine no-op rather than a broken command.
+      # sccache TRIAL WINDOW — UNCONDITIONAL ON THIS BRANCH (TCOST-C4).
+      # The rig landed switchable, and the repo variable SCCACHE is set
+      # to "0" today, so it has been inert on every run since: the
+      # install step and the stats step both report `skipped`. A branch
+      # cannot change a repo variable, so dropping the condition here is
+      # the only way to take the reading the rig was landed for.
+      #
+      # TO REVERT, restore the two step conditions below and
+      #   RUSTC_WRAPPER: ${{ vars.SCCACHE != '0' && 'sccache' || '' }}
+      # here — with the variable at "0" that is inert again, no variable
+      # change needed. (cargo treats an EMPTY RUSTC_WRAPPER as "no
+      # wrapper", which is what makes that spelling a genuine no-op.)
+      #
       # Note this var is RUST*-prefixed, so Swatinem/rust-cache hashes
-      # it: flipping SCCACHE rotates the cache key and buys exactly one
-      # cold rebuild. That run is not the verdict — same trap the OPT
-      # LEVEL note above warns about.
-      RUSTC_WRAPPER: ${{ vars.SCCACHE != '0' && 'sccache' || '' }}
+      # it: turning it on rotates that cache key too, and buys exactly
+      # one cold rebuild PER LANE — the lane a run gates is sampled, so
+      # each of the two build jobs pays its own. Those runs are not the
+      # verdict — the same trap the OPT LEVEL note above warns about.
+      RUSTC_WRAPPER: sccache
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -2342,8 +2359,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: interval
-      - name: install sccache (experiment; disable with vars.SCCACHE = '0')
-        if: vars.SCCACHE != '0'
+      - name: install sccache (trial window; see the RUSTC_WRAPPER note above)
         uses: ./.github/actions/install-sccache
         with:
           version: ${{ env.SCCACHE_VERSION }}
@@ -2366,7 +2382,7 @@ jobs:
       # adopting this is hits on the WORKSPACE crates, on a warm
       # run, against the archive step's own duration on main.
       - name: sccache stats (experiment)
-        if: vars.SCCACHE != '0' && !cancelled()
+        if: ${{ !cancelled() }}
         run: sccache --show-stats
       - uses: actions/upload-artifact@v4
         with:

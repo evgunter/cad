@@ -1,10 +1,12 @@
 # Install the PINNED sccache prebuilt and restore its object cache.
 #
-# ON TRIAL, NOT A SETTLED ADOPTION. This action RUNS: the kill switch
-# is the repo variable SCCACHE set to "0", so unset means enabled and
-# no variable has to exist for the trial to proceed. Same shape as
-# BUILD_RUNNER in ci.yml, and for the same reason — it keeps the
-# decision a one-setting flip rather than a branch that rots.
+# ON TRIAL, NOT A SETTLED ADOPTION. The switch was landed as the repo
+# variable SCCACHE set to "0" (unset meaning enabled), the same shape
+# as BUILD_RUNNER in ci.yml — and it was then SET to "0", which left
+# this action skipped on every run and the trial unread. ci.yml's two
+# build jobs now call it UNCONDITIONALLY for the trial window; the
+# RUSTC_WRAPPER note on the `build` job carries what that window is and
+# how it is reverted.
 #
 # The FIRST run after this landed is cold and is NOT the verdict:
 # RUSTC_WRAPPER is RUST*-prefixed, so Swatinem/rust-cache hashes it and
