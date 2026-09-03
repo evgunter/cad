@@ -15,7 +15,7 @@ own* — and TCOST-B2 carried it into the rest, so the same ~25 lines (the
 `found.iter().flat_map(…)` read, the `file_module_decls` call, the
 `{rel}: mod {name};` formatting and the message naming the fix) are now
 **byte-identical in fourteen `crates/*/tests/all.rs`**: bvh, editor-core, geom, geom-brep,
-geom-core, editor-core, mesh, profile, step-export, step-import, stl,
+geom-core, mesh, profile, step-export, step-import, stl,
 sweep, topo, verbs, viewer — every aggregated crate that has the guard.
 The first assertion of the same fn is duplicated the same way and predates
 both units.
