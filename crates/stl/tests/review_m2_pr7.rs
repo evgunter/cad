@@ -26,7 +26,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 #[path = "common/mod.rs"]
-mod common;
+use crate::common;
 
 use geom_core::Tol;
 use profile::RawLoop;

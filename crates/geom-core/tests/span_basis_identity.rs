@@ -44,7 +44,7 @@
 
 use geom_core::spline::basis::{basis_funs, ders_basis_funs};
 
-mod span_fixtures;
+use crate::span_fixtures;
 use span_fixtures::vectors;
 
 /// The walk `basis_rows_match_the_pinned_baseline` performs below: per

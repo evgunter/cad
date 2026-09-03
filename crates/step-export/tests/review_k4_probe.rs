@@ -2,7 +2,7 @@
 //! literal round-trips bit-exactly: parse -> fmt_real -> byte-equal,
 //! and the reprint parses to identical bits.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod common;
+use crate::common;
 
 #[test]
 fn k4_sidecar_volume_literals_round_trip_bit_exact() {

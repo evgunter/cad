@@ -7,7 +7,7 @@
 // sqrt(2): it is the EXACT token the committed notched.step prints for
 // the circle radius, quoted so the string replacement can find it.
 #![allow(clippy::approx_constant)]
-mod common;
+use crate::common;
 
 use common::{expect_sidecar, fixture};
 use geom_core::Tol;

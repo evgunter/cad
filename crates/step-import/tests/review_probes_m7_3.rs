@@ -8,7 +8,7 @@
 //! a certified import is an honest rigid frame.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{census, fixture};
 use geom_core::Tol;

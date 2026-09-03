@@ -6,7 +6,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod n1r2_fixtures;
+use crate::curves::n1r2_fixtures;
 
 use std::io::Write;
 

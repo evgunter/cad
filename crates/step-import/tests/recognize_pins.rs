@@ -23,7 +23,7 @@
 //!   the native `KERNEL_*` sidecars).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{SOLID_FIXTURES, fixture};
 use geom_core::Tol;
