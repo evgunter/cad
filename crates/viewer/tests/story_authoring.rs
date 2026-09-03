@@ -12,8 +12,8 @@
 //! `CurvedSectorSideUnsupported`, issue 1455's frontier — while the
 //! curved unions below are the supported boss class. The story stays
 //! on what the kernel ships. Stacked discs stand in for the revolved
-//! silhouette a rook naturally is: `ProfileShape` spells no revolvable
-//! silhouette — issue 1457.) On the way
+//! silhouette a rook naturally is: this scene predates
+//! `ProfileShape`'s `Path` arm, which can now spell one.) On the way
 //! the user mis-picks a boolean (typed refusals), tries to crown the
 //! rook with a circular pattern and learns instances are not a body,
 //! deletes that experiment (the cascade, priced by the affordance
