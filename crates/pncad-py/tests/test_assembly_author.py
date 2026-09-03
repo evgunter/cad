@@ -133,7 +133,7 @@ def prism(label, width, depth, height):
                 (width * m, depth * m),
                 (0 * m, depth * m),
             ],
-            elevation=0 * m,
+            plane=doc.sketch_frame(elevation=0 * m),
         )
     )
     doc.insert(Node.extrude(profile, height * m))
@@ -433,7 +433,7 @@ class TestBenchStand(BenchWorkspace):
             profile = doc.insert(
                 Node.polygon(
                     [(x[0], y[0]), (x[1], y[0]), (x[1], y[1]), (x[0], y[1])],
-                    elevation=z[0],
+                    plane=doc.sketch_frame(elevation=z[0]),
                 )
             )
             return doc.insert(Node.extrude(profile, z[1] - z[0]))
@@ -862,7 +862,7 @@ class TestRefactorings(BenchWorkspace):
 
     def test_inline_of_a_node_that_is_not_an_instance_refuses(self):
         doc = Doc("plain")
-        profile = doc.insert(Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m)]))
+        profile = doc.insert(Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m)], plane=doc.sketch_frame()))
         body = doc.insert(Node.extrude(profile, 1 * m))
         with self.assertRaises(pncad.InlineError) as caught:
             pncad.inline(doc, body, self.ws)

@@ -49,7 +49,8 @@
 
 use editor_core::{Dimension, DocEdit, DocParam, Expr, Node, ParamName, PatternKind, SlotId};
 
-use super::super::fixture::{desc, len, scl};
+use crate::fixture::{len, scl};
+
 use super::{CorpusDoc, MassPin, Recorder};
 
 /// The fin count the document starts at (`heat_sink`'s).
@@ -64,7 +65,7 @@ pub fn document() -> CorpusDoc {
         name: ParamName::new("fins"),
         value: DocParam::Count { value: FINS },
     });
-    let fin_p = r.insert(Node::Profile(desc(
+    let fin_p = r.profile(
         [0.0, 0.0, 0.1875],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
@@ -74,7 +75,7 @@ pub fn document() -> CorpusDoc {
             (0.4375, 0.875),
             (0.25, 0.875),
         ]],
-    )));
+    );
     let fin = r.insert(Node::Extrude {
         profile: fin_p,
         distance: len(0.8125),

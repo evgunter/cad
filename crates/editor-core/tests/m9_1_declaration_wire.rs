@@ -17,7 +17,7 @@
 use editor_core::{CapEnd, ContactClass, DocEdit, Node, ProfileDoc, RoleSeg, load, save};
 use geom_core::Tol;
 
-mod fixture;
+use crate::fixture;
 
 /// A class-bearing document round-trips with its declaration CLASSES
 /// intact.
@@ -100,14 +100,12 @@ fn block(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, editor_core::RecipeNodeId) {
-    let (doc, p) = fixture::insert(
+    let (doc, p) = fixture::on_frame(
         doc,
-        Node::Profile(fixture::desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
     );
     fixture::insert(
         doc,

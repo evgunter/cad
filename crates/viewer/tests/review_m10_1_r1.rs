@@ -12,7 +12,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use pncad::document::{Dimension, Distribution, DocParam, ParamName};
 use pncad::geom_core::Tol;

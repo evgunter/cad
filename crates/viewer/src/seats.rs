@@ -158,7 +158,8 @@ impl Seat {
     pub fn wants(self) -> NodeKindWanted {
         match self {
             Self::RevolveProfile => NodeKindWanted::Profile,
-            Self::RevolveAxis | Self::PatternAxis => NodeKindWanted::Axis,
+            Self::RevolveAxis => NodeKindWanted::SketchAxis,
+            Self::PatternAxis => NodeKindWanted::Axis,
             Self::SplitPlane => NodeKindWanted::Plane,
             Self::OperandA
             | Self::OperandB

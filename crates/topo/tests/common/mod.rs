@@ -11,7 +11,7 @@
 //! `src/test_support_impl.rs` docs give the rule for all three.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)] // one instance per binary; no single consumer uses all of it
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use geom::Surface;

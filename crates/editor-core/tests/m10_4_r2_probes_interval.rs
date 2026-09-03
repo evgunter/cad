@@ -34,8 +34,8 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
+use crate::fixture;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -54,10 +54,9 @@ use editor_core::{
     RecipeNodeId, RoleSeg, ValuePayload, evaluate, seed_env,
 };
 use geom_core::interval::Interval;
-use geom_core::{CertifiedEnclosure, Dual64, Point3, Tol, Vec3};
-use profile::SketchPlane;
+use geom_core::{CertifiedEnclosure, Dual64, Tol};
 
-use fixture::{Recorder, fname, len, wall};
+use fixture::{Recorder, fname, len, scl, wall};
 
 fn eps() -> f64 {
     Tol::witness().eps()
@@ -231,8 +230,11 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
         ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(1.0)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    // One frame, named by every profile below: two sketches meant to
+    // share a plane bind the same id.
+    let frame = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: frame,
         loops: vec![chain],
     }));
     let block = r.insert(Node::Extrude {
@@ -240,7 +242,7 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
         distance: param("d", Dimension::Length),
     });
     let cube_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: frame,
         loops: vec![
             LoopProgram::polygon([(5.0, 5.0), (6.0, 5.0), (6.0, 6.0), (5.0, 6.0)])
                 .expect("finite corners"),
@@ -284,8 +286,11 @@ fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
         name: name("r"),
         value: continuous(Dimension::Length, 0.2, r_dist),
     });
+    // One frame, named by every profile below: two sketches meant to
+    // share a plane bind the same id.
+    let frame = r.insert(fixture::xy_frame());
     let bore_p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: frame,
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: len(0.5),
@@ -296,7 +301,7 @@ fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
         distance: len(1.0),
     });
     let pin_p = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: frame,
         loops: vec![LoopProgram::Circle {
             centre: [len(0.1), len(0.0)],
             radius: param("r", Dimension::Length),
@@ -334,8 +339,11 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId
         name: name("u"),
         value: continuous(Dimension::Length, 1.0, None),
     });
+    // One frame, named by every profile below: two sketches meant to
+    // share a plane bind the same id.
+    let frame = r.insert(fixture::xy_frame());
     let pa = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: frame,
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -346,7 +354,7 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId
         distance: len(1.0),
     });
     let pb = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: frame,
         loops: vec![
             LoopProgram::polygon([(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)])
                 .expect("finite corners"),
@@ -401,17 +409,29 @@ fn loft() -> (ProfileDoc, RecipeNodeId) {
             ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(1.0)])),
             ProgramStep::LineTo(ProgramTarget::Start),
         ]);
-        Node::Profile(ProfileProgram {
-            plane: SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, z),
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-            ),
-            loops: vec![chain],
-        })
+        (chain, z)
     };
-    let p0 = r.insert(section(0.0));
-    let p1 = r.insert(section(1.0));
+    // A frame per section height: the two sections are drawn on
+    // DIFFERENT planes, so they are different nodes.
+    let frame_at = |r: &mut Recorder, z: f64| {
+        r.insert(Node::Datum(editor_core::Datum::Frame {
+            origin: [len(0.0), len(0.0), len(z)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }))
+    };
+    let (c0, z0) = section(0.0);
+    let f0 = frame_at(&mut r, z0);
+    let p0 = r.insert(Node::Profile(ProfileProgram {
+        plane: f0,
+        loops: vec![c0],
+    }));
+    let (c1, z1) = section(1.0);
+    let f1 = frame_at(&mut r, z1);
+    let p1 = r.insert(Node::Profile(ProfileProgram {
+        plane: f1,
+        loops: vec![c1],
+    }));
     let loft = r.insert(Node::Loft {
         profiles: vec![p0, p1],
         v_degree: Expr::count(1),

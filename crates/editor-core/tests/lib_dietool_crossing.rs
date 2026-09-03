@@ -61,8 +61,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
+// No `mod fixture;`: this suite never names the tree. The line existed
+// only so `corpus`'s `super::fixture` path resolved through the
+// including suite; `corpus` is a module of the aggregated root now and
+// reaches `crate::fixture` directly.
 
 use geom_core::Tol;
 

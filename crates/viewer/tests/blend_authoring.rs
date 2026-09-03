@@ -28,7 +28,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{ang, insert, len, len3, scl3, shape};
 use pncad::document::{
@@ -36,7 +36,6 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, ValuePayload};
-use pncad::profile::SketchPlane;
 use viewer::blend::FREEZE_NOTE;
 use viewer::blend::{BlendError, BlendEvent, BlendKindChoice, BlendTarget, BlendTool};
 use viewer::display::DisplayView;
@@ -64,10 +63,11 @@ fn session(tol: Tol) -> DocSession {
 
 /// A cube of `side`, authored through the creation doors.
 fn boxed(session: &mut DocSession, side: f64) -> RecipeNodeId {
+    let plane = common::xy_frame_in(session);
     let profile = insert(
         session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: side,
                 height: side,
@@ -668,10 +668,11 @@ fn the_blend_door_refuses_a_target_that_is_not_a_body() {
     let target = boxed(&mut session, SIDE);
     session.pump();
     let selection = all_edge_names(&session, target);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: SIDE,
                 height: SIDE,

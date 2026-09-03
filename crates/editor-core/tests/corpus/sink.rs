@@ -34,7 +34,8 @@ use editor_core::{
     RoleSeg, SlotId, StableName, WitnessDatum,
 };
 
-use super::super::fixture::{ang, declare_x_offset_flush, desc, len, scl};
+use crate::fixture::{ang, axis_in_plane, declare_x_offset_flush, len, scl};
+
 use super::{CorpusDoc, Recorder};
 
 /// The kitchen-sink corpus document.
@@ -62,7 +63,11 @@ pub fn document() -> CorpusDoc {
     });
 
     // Datums: an inert point (deleted below — the DeleteNode arm),
-    // and an axis for the revolve and the circular pattern.
+    // and an axis for the circular pattern. The REVOLVE's axis is no
+    // longer this one: a pattern turns a body about a world line and a
+    // revolve turns a sketch about a line in its own plane, and those
+    // are two node kinds now. The revolve mints its own, below, in the
+    // frame its profile is drawn on.
     let inert = r.insert(Node::Datum(Datum::Point {
         position: [len(0.5), len(-0.25), len(0.0)],
     }));
@@ -73,12 +78,12 @@ pub fn document() -> CorpusDoc {
 
     // A profile extruded by h · sin(π/2) — param + trig coverage, and
     // the SetExpression target (the `sin` subtree is child 1).
-    let profile = r.insert(Node::Profile(desc(
+    let profile = r.profile(
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-    )));
+    );
     let h = Expr::param(ParamName::new("h"), Dimension::Length);
     let dist =
         Expr::mul(h, Expr::sin(ang(std::f64::consts::FRAC_PI_2)).expect("sin")).expect("mul");
@@ -93,12 +98,12 @@ pub fn document() -> CorpusDoc {
     // shape `declare_x_offset_flush` declares. (A pure face-to-face
     // touch at x = 1 would be a REST contact, which the join stage
     // still refuses — the tracked envelope entry, not corpus fodder.)
-    let profile_b = r.insert(Node::Profile(desc(
+    let profile_b = r.profile(
         [0.5, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-    )));
+    );
     let block_b = r.insert(Node::Extrude {
         profile: profile_b,
         distance: len(1.25),
@@ -155,16 +160,20 @@ pub fn document() -> CorpusDoc {
         },
     });
 
-    // A revolve off the shared axis.
-    let rev_profile = r.insert(Node::Profile(desc(
+    // A revolve about an axis in its own sketch. The frame sits at
+    // (-2, 0, 0) with v = world +Z, so the line the pattern turns about
+    // is this frame's +y through (0, 0) — the same line in space, said
+    // in the coordinates the revolve reads.
+    let (rev_plane, rev_profile) = r.profile_keeping(
         [-2.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 0.0, 1.0],
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
-    )));
+    );
+    let rev_axis = r.insert(axis_in_plane(rev_plane, (0.0, 0.0), (0.0, 1.0)));
     r.insert(Node::Revolve {
         profile: rev_profile,
-        axis,
+        axis: rev_axis,
         angle: ang(std::f64::consts::FRAC_PI_2),
     });
 

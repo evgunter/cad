@@ -43,7 +43,7 @@
 //! (`review_mate4a_r2_probes` carries the measured sweep).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use geom_core::Tol;
 use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, ValidationError};

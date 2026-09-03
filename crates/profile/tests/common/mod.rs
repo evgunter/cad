@@ -7,7 +7,7 @@
 //! per test process, and the crate's suites all run inside the one
 //! aggregated `all` binary, so the geom-core global-state discipline is
 //! satisfied by a single process-wide read.
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)] // one instance per binary; no single consumer uses all of it
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

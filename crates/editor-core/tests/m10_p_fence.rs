@@ -99,7 +99,65 @@
 //! The two claims stay separate because the fence's subject is that
 //! the lift changed nothing where nothing should change.
 //!
-//! RE-BLESSED FOUR TIMES FOR A ROSTER CHANGE (the build-path
+//! RE-BLESSED AGAIN FOR THE IN-PLANE REVOLVE AXIS, and this time the
+//! finer instrument DID separate it. A revolve's axis is written in the
+//! profile's own frame now, so `kitchen_sink` — which shared one
+//! `Datum::Axis` between a circular pattern and a revolve — authors two
+//! axis nodes, and every node after the new one is renumbered. The
+//! three die documents mint their axis one edit later (after the frame
+//! it names) rather than one edit earlier, and a datum mints no names,
+//! so no id any NAME holds moved there.
+//!
+//! `lib_g16_corpus_name_digests` says exactly that: of its
+//! twenty-two rows, `kitchen_sink` moved and the other twenty-one are
+//! byte-identical. The INTERVAL row moved with the other two and for
+//! the same reason — it is the same digest over the same ids at a
+//! different scalar — and it was re-blessed a cycle later than they
+//! were, because it compiles only under the `interval` feature and a
+//! default-lane run never builds it, and the hosted lane is what
+//! said so.
+//!
+//! This scalar moves anyway, because it feeds `id.0` for every node
+//! in every document and two of the die documents' ids swapped. The geometric evidence below is unchanged and was
+//! re-checked: the exact mass pins, the realized-vs-idealized bit
+//! equality, the curved and cert corpora, and the persistence round
+//! trip all hold.
+//!
+//! RE-BLESSED ONCE FOR THE SKETCH FRAME, and this one could NOT be
+//! measured by the removal procedure below — which is why it is written
+//! out here rather than folded in with the roster moves.
+//!
+//! A profile's sketch plane became a document node, so every corpus
+//! document gained frame nodes and every node after the first was
+//! renumbered. This digest feeds `id.0` into the hash, so it moves for
+//! EVERY document by construction, and no subtraction of documents
+//! restores the old number: there is no version of `documents()` that
+//! reproduces it. `lib_g16_corpus_name_digests` — the finer instrument
+//! this header sends a reader to — moved on every row for the same
+//! reason, so it cannot separate the two either.
+//!
+//! What stands behind the new number is the corpus's GEOMETRIC
+//! evidence, which is independent of ids and did not move:
+//! `m4_pr8_corpus::exact_mass_pins_hold` holds every document's exact
+//! volume and area, `m5_pr8_bvh_diff` holds realized-vs-idealized bit
+//! equality, `m5_pr11_corpus_curved` and `cert_m2r1_corpus` hold their
+//! own, and the persistence round trip replays every document. Those
+//! were green across this change without being touched. So the claim
+//! this number carries is unchanged — no outcome flipped and no point
+//! of any body moved — and what moved is the numbering the digest also
+//! hashes.
+//!
+//! RE-BLESSED ONCE MORE ON MERGING LIB-TUBE, all three rows. Nothing
+//! new happened to the corpus here — the tube nodes and the sketch
+//! frame are independent changes that landed in the same tree, and
+//! this whole-corpus scalar cannot say so, because it moves for any
+//! of them. `lib_g16_corpus_name_digests` CAN and does: re-blessed
+//! against the merged code, its twenty-two pre-tube rows come back at
+//! this branch's values and its two tube rows at main's, each side
+//! unmoved by the other. That is the separation this coarse number is
+//! not built to make.
+//!
+//! RE-BLESSED FIVE TIMES FOR A ROSTER CHANGE (the build-path
 //! re-derivation below is a separate move of these numbers and a
 //! different kind): this digest walks `corpus::documents()`, so a new
 //! document moves it by construction. Each re-blessing was MEASURED
@@ -124,6 +182,18 @@
 //!   carried on `main` before the M10-2 merge, and the rows came back
 //!   GREEN against them rather than being compared by hand.
 //!
+//! - LIB-TUBE added `tube_ring` and `hollow_tube_elbow`, the two
+//!   recipe-door documents for the tube pair. Removing the PAIR alone
+//!   returned `f64`/`probe` `8769278b494d64ca, e1060e5d41665d46` and
+//!   `interval` `ebeb77112becf970, dd49270b7798ab34` — the committed
+//!   constants of the tree they landed on, and all three rows came
+//!   back GREEN against them, the probe row EXECUTED rather than
+//!   inferred from the f64 one. The pair is removed together because
+//!   the two kinds arrived together; neither is a prior tree's roster
+//!   on its own. `lib_g16_corpus_name_digests` agrees the finer way —
+//!   every pre-existing per-document row unchanged, with two rows
+//!   added.
+//!
 //! - SEAT-5 added `kiss_carry`, the corner-kiss assembly whose
 //!   boolean values carry non-empty surviving contacts. Removing it
 //!   alone returned `f64`/`probe` `6542ae63e161000c, e9e2cd7e8a6adda0`
@@ -132,11 +202,15 @@
 //!   back GREEN against them. `lib_g16_corpus_name_digests` agrees
 //!   the finer way — every pre-existing per-document row unchanged.
 //!
-//! The M10-2 and SEAT-5 measurements are the strongest of the four,
-//! for a reason worth stating: in each, the roster minus the addition
-//! IS the prior tree's roster, so the expected values were not
-//! re-derived for the occasion — they were already committed here by
-//! someone else. A measurement sink denotes no body, so it contributes
+//! The M10-2, SEAT-5 and LIB-TUBE measurements are the strongest of
+//! the five, for a reason worth stating: in each, the roster minus the
+//! addition IS the prior tree's roster, so the expected values were
+//! not re-derived for the occasion — they were already committed here
+//! by someone else. (LIB-TUBE removes a PAIR rather than one
+//! document, because the two node kinds arrived in one vocabulary
+//! change and neither half was ever a tree's roster alone; the
+//! constants it came back to are still the ones the prior tree had
+//! committed, which is what the ranking turns on.) A measurement sink denotes no body, so it contributes
 //! no geometry to any pre-existing document (the M10-2 prediction);
 //! the removal is what confirms each.
 //!
@@ -253,8 +327,7 @@
 //! rather than on the code tier's.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
 
 use editor_core::{CancelToken, EvalOptions, NodeResult, ValuePayload, evaluate};
 use geom_core::Tol;
@@ -464,7 +537,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x8769_278b_494d_64ca, 0xe106_0e5d_4166_5d46),
+        (0x84d0_1f5a_a8fc_46bb, 0x628f_1718_c78e_ff37),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -491,7 +564,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xebeb_7711_2bec_f970, 0xdd49_270b_7798_ab34),
+        (0x429b_b854_4165_fe04, 0xb1ba_b6fa_d216_5b10),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -515,7 +588,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x8769_278b_494d_64ca, 0xe106_0e5d_4166_5d46),
+        (0x84d0_1f5a_a8fc_46bb, 0x628f_1718_c78e_ff37),
         "the corpus's Probe evaluation moved"
     );
 }
