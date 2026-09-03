@@ -14,15 +14,11 @@
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_3, PI, TAU};
 
+use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
-use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use geom_core::{Point3, Vec3};
 
 // ---------------------------------------------------------------------
 // Independent oracle: Simpson quadrature of area and outward flux over

@@ -23,15 +23,13 @@
 
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
+use geom_core::RingInterval;
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, RingInterval};
 
 use crate::shared::patch::{dbasis_over, dense_over};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use crate::shared::ring::p3 as p;
+use crate::shared::tol::band;
 
 // ---------- independent oracle (no kernel spline code) ----------
 
@@ -150,14 +148,6 @@ impl Oracle {
     fn dense(&self, cells: usize) -> (f64, f64) {
         dense_over(&self.ku, &self.kv, cells, |u, v| self.eval(u, v))
     }
-}
-
-fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
-    [
-        RingInterval::point(x),
-        RingInterval::point(y),
-        RingInterval::point(z),
-    ]
 }
 
 /// Drive the public door; assert SOUNDNESS against the oracle.

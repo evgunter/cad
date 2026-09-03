@@ -4,15 +4,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey};
-use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use geom_core::{Point3, Vec3};
 
 fn arena2(
     s1: Surface<f64>,

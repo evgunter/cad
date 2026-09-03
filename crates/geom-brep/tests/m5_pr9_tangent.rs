@@ -7,6 +7,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::surf;
+use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::SurfaceKey;
@@ -14,22 +16,12 @@ use geom_brep::{
     CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
     PlaneCylinderSection,
 };
-use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use geom_core::{Point3, Vec3};
 
 /// The authored tangent pair: the unit cylinder about z and the plane
 /// x = 1, tangent along the ruling {(1, 0, z)}.
 fn cylinder() -> Surface<f64> {
-    Surface::Cylinder {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    surf::cylinder(1.0)
 }
 
 fn tangent_plane() -> Surface<f64> {

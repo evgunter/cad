@@ -25,67 +25,30 @@
 //! claim about one of the three.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::Curve3;
+use crate::shared::surf;
+use crate::shared::topo;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, PropsError, curved_face};
+use geom_core::Band;
 use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
-
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<f64> {
-    let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge::hand_built(carrier, t0, t1, forward, start, end)
-}
 
 /// The sphere under every row: R = 10 mm about +Z at the origin.
 const RS: f64 = 0.010;
 
 fn sphere() -> Surface<f64> {
-    Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
-        radius: RS,
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
-    }
+    surf::sphere(RS)
 }
 
 /// The rim at latitude `v` (an axis-parallel circle), `u0 → u1`.
 fn rim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
-    edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, RS * v.sin()),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: RS * v.cos(),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
-        u0,
-        u1,
-        a,
-        b,
-    )
+    topo::sphere_rim(RS, v, u0, u1, a, b)
 }
 
 /// The meridian great circle whose plane contains the axis at azimuth
 /// `u`; its parameter IS the latitude on the `u` side, so `t = π/2` is
 /// the north pole and `t ∈ (π/2, 3π/2)` descends the `u + π` side.
 fn great(u: f64, t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<f64> {
-    edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, 0.0),
-            axis: v3(u.sin(), -u.cos(), 0.0),
-            radius: RS,
-            u_ref: v3(u.cos(), u.sin(), 0.0),
-        },
-        t0,
-        t1,
-        a,
-        b,
-    )
+    topo::sphere_great(RS, u, t0, t1, a, b)
 }
 
 fn accepts_exactly(kind: &str, edges: &[LoopEdge<f64>], exact_area: f64) {

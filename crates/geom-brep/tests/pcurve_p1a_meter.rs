@@ -11,6 +11,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::surf::table;
 use geom::{Curve3, Surface};
 use geom_brep::{
     CertCheck, CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
@@ -23,20 +24,10 @@ use geom_core::{Band, Point3, Vec3};
 /// matrix point it ran at.
 const ROW_EPS: f64 = 1.0e-9;
 
+/// Built from `ROW_EPS` above, not from the run's ε, and therefore
+/// deliberately not `shared::tol::band` — see that constant's note.
 fn band() -> Band {
     Band::new(ROW_EPS, 10.0 * ROW_EPS).expect("the rows' own band")
-}
-
-fn table(
-    surfs: Vec<Surface<f64>>,
-) -> (
-    Vec<geom_brep::SurfaceKey>,
-    impl Fn(geom_brep::SurfaceKey) -> Option<Surface<f64>>,
-) {
-    let mut map: slotmap::SlotMap<geom_brep::SurfaceKey, Surface<f64>> =
-        slotmap::SlotMap::with_key();
-    let keys: Vec<geom_brep::SurfaceKey> = surfs.into_iter().map(|s| map.insert(s)).collect();
-    (keys, move |k| map.get(k).cloned())
 }
 
 fn window() -> ChartWindow<f64> {
@@ -314,30 +305,16 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
 /// the other was the bad trade.
 #[cfg(feature = "interval")]
 mod at_intervals {
+    use crate::shared::interval::iv;
+    use crate::shared::surf::table;
     use geom::{Curve3, Surface};
     use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
-    use geom_core::{Band, Bounds, Interval, Point3, Real, Vec3};
-
-    fn iv(x: f64) -> Interval {
-        Interval::from_f64(x)
-    }
+    use geom_core::{Band, Bounds, Point3, Vec3};
 
     /// The rows' own band, fixed rather than the run's — a row about the
     /// meter must not become a row about the matrix point it drew.
     fn band() -> Band {
         Band::new(1.0e-9, 1.0e-8).expect("the row's own band")
-    }
-
-    fn table(
-        surfs: Vec<Surface<Interval>>,
-    ) -> (
-        Vec<geom_brep::SurfaceKey>,
-        impl Fn(geom_brep::SurfaceKey) -> Option<Surface<Interval>>,
-    ) {
-        let mut map: slotmap::SlotMap<geom_brep::SurfaceKey, Surface<Interval>> =
-            slotmap::SlotMap::with_key();
-        let keys: Vec<geom_brep::SurfaceKey> = surfs.into_iter().map(|s| map.insert(s)).collect();
-        (keys, move |k| map.get(k).cloned())
     }
 
     /// A cylinder seam certifies at the interval scalar through the

@@ -29,13 +29,10 @@
 
 use core::f64::consts::{FRAC_PI_6, PI};
 
+use crate::shared::tol::band;
 use geom::Surface;
 use geom_brep::{OffsetError, SurfaceKind, offset_surface};
-use geom_core::{Band, Point3, Tol, Vec3};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use geom_core::{Point3, Tol, Vec3};
 
 // ---------------------------------------------------------------------
 // Fixtures: the exactly orthonormal Pythagorean frame (components in
@@ -462,6 +459,10 @@ fn cone_slide_closed_form_both_signs() {
 // Planted reds: the refusals
 // ---------------------------------------------------------------------
 
+/// **Deliberately not `shared::surf`.** Both this and `torus` below
+/// stand on this suite's own tilted frame (`t_center`/`t_axis`/
+/// `t_uref`), not the canonical one: an offset that is right only in
+/// an axis-aligned frame is the defect these rows exist to catch.
 fn cyl(radius: f64) -> Surface<f64> {
     Surface::Cylinder {
         origin: t_center(),
@@ -619,23 +620,8 @@ fn ambiguity_band_escalates_with_predicate_names() {
 #[cfg(feature = "interval")]
 mod interval {
     use super::*;
+    use crate::shared::interval::{ip, iv3 as iv};
     use geom_core::{Bounds, Interval, Real};
-
-    fn ip(p: Point3<f64>) -> Point3<Interval> {
-        Point3::new(
-            Interval::from_f64(p.x),
-            Interval::from_f64(p.y),
-            Interval::from_f64(p.z),
-        )
-    }
-
-    fn iv(v: Vec3<f64>) -> Vec3<Interval> {
-        Vec3::new(
-            Interval::from_f64(v.x),
-            Interval::from_f64(v.y),
-            Interval::from_f64(v.z),
-        )
-    }
 
     /// The mint runs at `T = Interval` and its enclosures contain the
     /// f64 mint: the stored radius encloses the rounded sum, and the

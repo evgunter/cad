@@ -4,19 +4,14 @@
 //! of revolution about that circle's axis.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
     EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey, tangent_certificate_lane,
 };
-use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
+use geom_core::{Point3, Vec3};
 use slotmap::SlotMap;
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 /// Torus R=1, r=0.2 about z; meridian circle at azimuth 0: center
 /// (1,0,0), axis y, radius 0.2. A sphere of radius 0.2 centred at

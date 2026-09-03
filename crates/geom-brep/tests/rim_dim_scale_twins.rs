@@ -53,24 +53,13 @@
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::point::{p3 as p, v3};
+use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, curved_face};
-use geom_core::Tol;
+use geom_core::Band;
 use geom_core::k_stats::{self, Probe};
-use geom_core::{Band, Point3, Vec3};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-fn p(x: f64, y: f64, z: f64) -> Point3<Probe> {
-    Point3::new(Probe(x), Probe(y), Probe(z))
-}
-
-fn v3(x: f64, y: f64, z: f64) -> Vec3<Probe> {
-    Vec3::new(Probe(x), Probe(y), Probe(z))
-}
 
 /// `cone_trunc`'s proportions at `scale` metres per source-unit:
 /// apex at the origin, axis +z, `tan α = 0.5`; the wall runs between

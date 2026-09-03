@@ -28,22 +28,13 @@
 //! matrix, and an ε-literal states a claim about one of the three.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::point::{p3, v3};
+use crate::shared::topo::edge;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, PropsError, curved_face};
+use geom_core::Band;
 use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
-
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<f64> {
-    let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge::hand_built(carrier, t0, t1, forward, start, end)
-}
 
 /// A gasket: a 1 mm tube on a 1 m ring, so `major / minor = 1000` and
 /// the two candidate levers are three orders apart. Ordinary geometry

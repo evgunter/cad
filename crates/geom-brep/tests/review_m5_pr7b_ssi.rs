@@ -6,21 +6,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::tol::{band, eps};
 use geom::{NurbsSurface, Surface};
 use geom_brep::ssi::{self, SsiDomain, SsiError, SsiOperand, TubeScale};
-use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::ComposeError;
-use geom_core::{Band, Point3, Vec3};
+use geom_core::{Point3, Vec3};
 use test_utils::vacuity;
-
-fn eps() -> f64 {
-    Tol::witness().get().eps
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 // `at_default_eps()` lived here and gated two rows into silence. Both
 // guards are gone (2026-08-13 audit): `deviation2b` handles its budget

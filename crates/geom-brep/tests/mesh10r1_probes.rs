@@ -18,39 +18,21 @@
 //!   Do the other pieces' stored circles enter the answer at all?
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::point::{p3, v3};
+use crate::shared::surf;
+use crate::shared::tol::band;
+use crate::shared::topo::edge;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{CarrierId, LoopEdge, PropsError, curved_face, require_iso_rectangle};
-use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
-
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 const RR: f64 = 0.020;
 const R0: f64 = 0.005;
 
 fn torus() -> Surface<f64> {
-    Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
-        major_radius: RR,
-        minor_radius: R0,
-        u_ref: v3(1.0, 0.0, 0.0),
-    }
+    surf::torus(RR, R0)
 }
 
-fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<f64> {
-    let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge::hand_built(carrier, t0, t1, forward, start, end)
-}
 fn trim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
     edge(
         Curve3::Circle {

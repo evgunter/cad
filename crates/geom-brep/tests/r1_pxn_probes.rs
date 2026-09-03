@@ -22,45 +22,20 @@
 //! hollows it out must not be able to leave the suite green.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::fixture::{quarter_cylinder_wall, transverse_plane};
+use crate::shared::tol::band;
 use geom::NurbsCurve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeNurbsLane, PlaneNurbsRefusal};
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Point3, Vec3};
+use geom_core::{Point3, Vec3};
 use test_utils::tightness::{Anchor, Sup};
 use test_utils::vacuity::{self, Exposure};
-
-fn quarter_cylinder_wall() -> NurbsSurface<f64> {
-    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    let control = vec![
-        Point3::new(1.0, 0.0, 0.0),
-        Point3::new(1.0, 0.0, 1.0),
-        Point3::new(1.0, 1.0, 0.0),
-        Point3::new(1.0, 1.0, 1.0),
-        Point3::new(0.0, 1.0, 0.0),
-        Point3::new(0.0, 1.0, 1.0),
-    ];
-    let w = core::f64::consts::FRAC_1_SQRT_2;
-    NurbsSurface::new(ku, kv, control, vec![1.0, 1.0, w, w, 1.0, 1.0]).unwrap()
-}
-
-fn transverse_plane() -> Surface<f64> {
-    Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
-}
 
 fn segment(a: Point3<f64>, b: Point3<f64>) -> NurbsCurve3<f64> {
     let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     NurbsCurve3::new(k, vec![a, b], vec![1.0, 1.0]).unwrap()
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 /// A spline carrier that interpolates `(1 + a·sin(32πt), 0, t)` at 257

@@ -5,18 +5,18 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::tol::band;
 use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::intersect::{PlaneCylinderSection, plane_cylinder_section};
 use geom_brep::{ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane, implicit_residual};
-use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Point3, Vec3};
+use geom_core::{Point3, Vec3};
 
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
+/// **Deliberately not `shared::surf::cylinder`.** The axis is at
+/// `(1, 2, 3)` and the radius is 2: the conic rows need the surface
+/// away from the origin so a pcurve's chart coordinates cannot agree
+/// with world ones by accident.
 fn cyl() -> Surface<f64> {
     Surface::Cylinder {
         origin: Point3::new(1.0, 2.0, 3.0),

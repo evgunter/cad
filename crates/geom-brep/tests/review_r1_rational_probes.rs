@@ -27,13 +27,11 @@ use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, MarginDiag, RingInterval};
+use geom_core::{MarginDiag, RingInterval};
 
 use crate::shared::patch::{dbasis_over, dense_over};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use crate::shared::ring::p3 as p;
+use crate::shared::tol::band;
 
 /// The engine's convergence target as a multiple of ε
 /// (`QUAD_TARGET_LEN_FACTOR`, crate-private — mirrored here so a
@@ -185,14 +183,6 @@ fn pin_floor(name: &str, posture: Posture, floor: f64) {
 // the engine can return and `posture_of` still classifies it; a
 // carrier that starts reaching it again wants the helper back and, more
 // importantly, wants explaining.
-
-fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
-    [
-        RingInterval::point(x),
-        RingInterval::point(y),
-        RingInterval::point(z),
-    ]
-}
 
 // ---------------------------------------------------------------
 // The independent oracle: plain-f64 B-spline basis + derivatives

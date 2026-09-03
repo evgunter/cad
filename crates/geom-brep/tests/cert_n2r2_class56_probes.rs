@@ -3,11 +3,12 @@
 //! as the DESCRIBED operand. Probe file — not for merge.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
+use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, EdgeNurbsLane};
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Point3, Tol, Vec3};
+use geom_core::{Point3, Vec3};
 use slotmap::SlotMap;
 
 fn wall(f: impl Fn(usize, Point3<f64>) -> Point3<f64>) -> NurbsSurface<f64> {
@@ -38,9 +39,6 @@ fn plane() -> Surface<f64> {
         normal: Vec3::new(0.0, 1.0, 0.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
-}
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 fn poison_x(_: usize, p: Point3<f64>) -> Point3<f64> {
     Point3::new(f64::NAN, p.y, p.z)

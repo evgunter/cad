@@ -17,10 +17,11 @@
     clippy::unnecessary_cast
 )]
 
+use crate::shared::surf;
+use crate::shared::tol::{band, eps};
 use geom_brep::ssi::{self, BranchEnd, SSI_MAX_FIT_SAMPLES, SsiDomain, SsiError};
-use geom_core::Tol;
 use geom_core::tolerance::DEFAULT_EPS;
-use geom_core::{Band, Point3, Vec3};
+use geom_core::{Point3, Vec3};
 use test_utils::vacuity;
 
 /// The accounting floor this file's floor-clamped fixture plants, **in
@@ -28,21 +29,8 @@ use test_utils::vacuity;
 /// width at every ε of the battery.
 const FLOOR_CLAMP_METRES: f64 = 0.1;
 
-fn eps() -> f64 {
-    Tol::witness().get().eps
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
 fn sphere() -> Surface {
-    geom::Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
-        radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    surf::sphere(1.0)
 }
 
 type Surface = geom::Surface<f64>;

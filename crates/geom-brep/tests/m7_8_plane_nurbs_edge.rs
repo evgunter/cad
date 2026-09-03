@@ -23,6 +23,8 @@
 //! here observes, is pinned next door in `r1_pxn_probes.rs`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::fixture::{quarter_cylinder_wall, transverse_plane};
+use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
@@ -31,46 +33,13 @@ use geom_brep::{
 };
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Point3, Vec3};
+use geom_core::{Point3, Vec3};
 use slotmap::SlotMap;
-
-/// The rational quarter cylinder `x² + y² = 1`, `0 ≤ z ≤ 1`: degree 2
-/// in `u` (the classic three-point rational arc, middle weight
-/// `√2/2`), degree 1 in `v` (the extrusion).
-fn quarter_cylinder_wall() -> NurbsSurface<f64> {
-    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("u knots");
-    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("v knots");
-    // Row-major in u: control[iu * nv + iv].
-    let control = vec![
-        Point3::new(1.0, 0.0, 0.0),
-        Point3::new(1.0, 0.0, 1.0),
-        Point3::new(1.0, 1.0, 0.0),
-        Point3::new(1.0, 1.0, 1.0),
-        Point3::new(0.0, 1.0, 0.0),
-        Point3::new(0.0, 1.0, 1.0),
-    ];
-    let w = core::f64::consts::FRAC_1_SQRT_2;
-    NurbsSurface::new(ku, kv, control, vec![1.0, 1.0, w, w, 1.0, 1.0]).expect("the wall builds")
-}
 
 /// A straight degree-1 carrier through two points, on `[0, 1]`.
 fn segment(a: Point3<f64>, b: Point3<f64>) -> NurbsCurve3<f64> {
     let k = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("carrier knots");
     NurbsCurve3::new(k, vec![a, b], vec![1.0, 1.0]).expect("the carrier builds")
-}
-
-/// The `y = 0` plane — it contains the wall's `u = 0` ruling and its
-/// normal is orthogonal to the wall's there (a 90° dihedral).
-fn transverse_plane() -> Surface<f64> {
-    Surface::Plane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).expect("the run's linear band")
 }
 
 /// **The certifying row.** The file's carrier IS the locus, and every

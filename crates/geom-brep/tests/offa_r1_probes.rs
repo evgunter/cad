@@ -39,13 +39,10 @@
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_6};
 
+use crate::shared::tol::band;
 use geom::Surface;
 use geom_brep::{OffsetError, offset_surface};
-use geom_core::{Band, Point3, Tol, Vec3};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use geom_core::{Point3, Tol, Vec3};
 
 fn zcyl(radius: f64) -> Surface<f64> {
     Surface::Cylinder {

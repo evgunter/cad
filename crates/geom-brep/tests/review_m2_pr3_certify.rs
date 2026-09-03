@@ -11,33 +11,15 @@
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_6, PI, TAU};
 
+use crate::shared::surf::table;
+use crate::shared::tol::{band, eps};
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
     CertCheck, CertifyError, DihedralClass, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
-    MappedCurve, NewellError, SketchSegment, SurfaceKey, classify_dihedral, newell_plane,
+    MappedCurve, NewellError, SketchSegment, classify_dihedral, newell_plane,
 };
-use geom_core::Tol;
-use geom_core::{Affine3, Band, Point2, Point3, Vec3};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-fn eps() -> f64 {
-    Tol::witness().get().eps
-}
-
-/// A resolver over a fixed table (keys minted through a local slotmap,
-/// mirroring how a Body resolves) — the same shape as the crate's own
-/// unit-test helper.
-fn table(
-    surfs: Vec<Surface<f64>>,
-) -> (Vec<SurfaceKey>, impl Fn(SurfaceKey) -> Option<Surface<f64>>) {
-    let mut map: slotmap::SlotMap<SurfaceKey, Surface<f64>> = slotmap::SlotMap::with_key();
-    let keys: Vec<SurfaceKey> = surfs.into_iter().map(|s| map.insert(s)).collect();
-    (keys, move |k| map.get(k).cloned())
-}
+use geom_core::{Affine3, Point2, Point3, Vec3};
 
 // =====================================================================
 // Target 1 — certification aliasing: is the 9-sample schedule enough?

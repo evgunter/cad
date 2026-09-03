@@ -12,43 +12,27 @@
 //! premise. That divergence is the door's contract, not a gap in it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::point::{p3, v3};
+use crate::shared::surf;
+use crate::shared::tol::band;
+use crate::shared::topo;
+use crate::shared::topo::edge;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{
     CarrierId, LoopEdge, MaterialSign, PropsError, boundary_material_sign, curved_face,
     require_iso_rectangle,
 };
-use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
-
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-/// One traversed boundary edge `a → b` on the carrier, stored as the
-/// certified forward interval plus the traversal bool, exactly as
-/// `topo`'s half-edge flattening does it.
-fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<f64> {
-    let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge::hand_built(carrier, t0, t1, forward, start, end)
-}
 
 /// The unit cylinder about +Z with its rim (coaxial circle at height
 /// `v`) and meridian (axial line at azimuth `u`) edge factories.
 fn cylinder() -> Surface<f64> {
-    Surface::Cylinder {
-        origin: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
-        radius: 1.0,
-        u_ref: v3(1.0, 0.0, 0.0),
-    }
+    surf::cylinder(1.0)
 }
+/// **Deliberately not `shared::topo::sphere_rim`.** This is a
+/// CYLINDER's rim: `v` is a height along the axis, not a latitude, so
+/// the circle's radius does not fall off as `cos v`. Same word, other
+/// surface.
 fn rim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
     edge(
         Curve3::Circle {
@@ -77,28 +61,12 @@ fn mer(u: f64, v0: f64, v1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 }
 
 fn sphere() -> Surface<f64> {
-    Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
-        radius: 1.0,
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
-    }
+    surf::sphere(1.0)
 }
 /// The great circle whose plane contains the axis at azimuth `u`; its
 /// parameter IS the latitude.
 fn great(u: f64, v0: f64, v1: f64, a: u32, b: u32) -> LoopEdge<f64> {
-    edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, 0.0),
-            axis: v3(u.sin(), -u.cos(), 0.0),
-            radius: 1.0,
-            u_ref: v3(u.cos(), u.sin(), 0.0),
-        },
-        v0,
-        v1,
-        a,
-        b,
-    )
+    topo::sphere_great(1.0, u, v0, v1, a, b)
 }
 
 /// A cylinder rectangle passes the door and measures; the U-shaped
@@ -195,7 +163,7 @@ fn an_oblique_sphere_section_is_refused_on_rim_incidence() {
 /// `curved_face` does.
 #[test]
 fn a_plane_is_refused_typed_not_answered() {
-    let plane = Surface::Plane {
+    let plane: Surface<f64> = Surface::Plane {
         origin: p3(0.0, 0.0, 0.0),
         normal: v3(0.0, 0.0, 1.0),
         u_ref: v3(1.0, 0.0, 0.0),
@@ -217,13 +185,7 @@ const RR: f64 = 0.020;
 const R0: f64 = 0.005;
 
 fn torus() -> Surface<f64> {
-    Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
-        major_radius: RR,
-        minor_radius: R0,
-        u_ref: v3(1.0, 0.0, 0.0),
-    }
+    surf::torus(RR, R0)
 }
 /// A torus rim: the coaxial circle at minor angle `v`.
 fn trim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {

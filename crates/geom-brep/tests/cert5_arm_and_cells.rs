@@ -22,7 +22,8 @@
 use geom_core::RingInterval;
 use geom_core::spline::KnotVector;
 
-use crate::shared::patch::{face_posture, oracle_patch, pt};
+use crate::shared::patch::{face_posture, oracle_patch};
+use crate::shared::ring::pt;
 
 /// Drive the patch door at this file's fixed perimeter and return the
 /// flux bracket, or `None` on any honest typed refusal — which of the

@@ -87,6 +87,8 @@
     clippy::unreachable
 )]
 
+use crate::shared::surf;
+use crate::shared::tol::{band, eps};
 use geom::{Curve3, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::CERT_SAMPLES;
@@ -95,24 +97,15 @@ use geom_brep::ssi::{
     self, SSI_FLOOR, SSI_MAX_CELLS, SSI_MAX_FIT_SAMPLES, SSI_SEED_FLOOR, SSI_TUBE_RADIUS,
     SsiDomain, SsiError, SsiLimb, SsiOperand, TubeScale,
 };
-use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::tolerance::DEFAULT_EPS;
-use geom_core::{Band, Margin, Point3, Vec3};
+use geom_core::{Margin, Point3, Vec3};
 use test_utils::vacuity;
 
 /// The accounting floor the floor-clamped fixture plants, **in metres**
 /// — far wider than any certifiable tube radius on that pair, and the
 /// same width at every ε of the battery.
 const FLOOR_CLAMP_METRES: f64 = 0.1;
-
-fn eps() -> f64 {
-    Tol::witness().get().eps
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 /// A margin the resolved band calls **definitely positive**, at any ε.
 ///
@@ -169,12 +162,7 @@ fn distance_to_carrier(carrier: &NurbsCurve3<f64>, p: Point3<f64>) -> f64 {
 
 /// The unit sphere at the origin.
 fn sphere() -> Surface<f64> {
-    Surface::Sphere {
-        center: Point3::new(0.0, 0.0, 0.0),
-        radius: 1.0,
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
+    surf::sphere(1.0)
 }
 
 /// A thin cylinder threaded through the sphere, offset from the axis so

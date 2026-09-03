@@ -34,18 +34,6 @@ use geom_brep::props::quad::{FaceCutBounds, nurbs_patch_face};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, RingInterval, Tol};
 
-/// The degenerate enclosure of an exactly-known coordinate.
-///
-/// One home for what two suites spelled through two doors:
-/// `RingInterval::point(x)` and `RingInterval::from_bounds(x, x)` agree
-/// on every `f64` — finite `x` gives `[x, x]` from both, and every
-/// non-finite one is poison from both (`from_bounds` poisons a closed
-/// side at infinity, and NaN fails its `!(lo <= hi)` test) — so this is
-/// the same value, not a choice between two.
-pub(crate) fn pt(x: f64) -> RingInterval {
-    RingInterval::point(x)
-}
-
 /// All basis values `N_{i,p}(t)`, seeded by a `t >= knots[n]` branch at
 /// the domain end.
 ///

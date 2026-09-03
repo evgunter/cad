@@ -6,23 +6,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::surf::table;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{CERT_SAMPLES, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Mat3, Point3, Vec3};
-
-fn table(
-    surfs: Vec<Surface<f64>>,
-) -> (
-    Vec<geom_brep::SurfaceKey>,
-    impl Fn(geom_brep::SurfaceKey) -> Option<Surface<f64>>,
-) {
-    let mut map: slotmap::SlotMap<geom_brep::SurfaceKey, Surface<f64>> =
-        slotmap::SlotMap::with_key();
-    let keys: Vec<geom_brep::SurfaceKey> = surfs.into_iter().map(|s| map.insert(s)).collect();
-    (keys, move |k| map.get(k).cloned())
-}
 
 /// Line x-axis = intersection of z=0 and y=0 planes; witness offset
 /// ALONG the line by 0.9ε from the mid point — on both surfaces

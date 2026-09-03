@@ -4,60 +4,24 @@
 //! what it saw so the report can quote execution rather than reading.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::Curve3;
+use crate::shared::surf;
+use crate::shared::topo;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, curved_face};
+use geom_core::Band;
 use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
 
 const RS: f64 = 0.010;
 const PI: f64 = core::f64::consts::PI;
 
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<f64> {
-    let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge::hand_built(carrier, t0, t1, forward, start, end)
-}
 fn sphere() -> Surface<f64> {
-    Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
-        radius: RS,
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
-    }
+    surf::sphere(RS)
 }
 fn rim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
-    edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, RS * v.sin()),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: RS * v.cos(),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
-        u0,
-        u1,
-        a,
-        b,
-    )
+    topo::sphere_rim(RS, v, u0, u1, a, b)
 }
 fn great(u: f64, t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<f64> {
-    edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, 0.0),
-            axis: v3(u.sin(), -u.cos(), 0.0),
-            radius: RS,
-            u_ref: v3(u.cos(), u.sin(), 0.0),
-        },
-        t0,
-        t1,
-        a,
-        b,
-    )
+    topo::sphere_great(RS, u, t0, t1, a, b)
 }
 
 /// Report, never assert: print ACCEPT/REFUSE and the relative error
@@ -322,62 +286,24 @@ fn probe_near_polar_separation_sweep() {
 // decision scalar and compare outcomes.
 #[cfg(feature = "interval")]
 mod interval_lane {
-    use geom::{Curve3, Surface};
+    use crate::shared::surf;
+    use crate::shared::topo;
+    use geom::Surface;
     use geom_brep::props::{LoopEdge, curved_face};
     #[allow(unused_imports)]
     use geom_core::Decide as _;
-    use geom_core::{Band, Interval, Point3, Real, Tol, Vec3};
+    use geom_core::{Band, Interval, Real, Tol};
 
     const RSF: f64 = 0.010;
 
-    fn f<T: Real>(x: f64) -> T {
-        T::from_f64(x)
-    }
-    fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
-        Vec3::new(f(x), f(y), f(z))
-    }
-    fn p3<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
-        Point3::new(f(x), f(y), f(z))
-    }
     fn sphere<T: Real>() -> Surface<T> {
-        Surface::Sphere {
-            center: p3(0.0, 0.0, 0.0),
-            radius: f(RSF),
-            axis: v3(0.0, 0.0, 1.0),
-            u_ref: v3(1.0, 0.0, 0.0),
-        }
-    }
-    fn edge<T: Real>(c: Curve3<T>, a: f64, b: f64, s: u32, e: u32) -> LoopEdge<T> {
-        let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-        LoopEdge::hand_built(c, f(t0), f(t1), forward, s, e)
+        surf::sphere(RSF)
     }
     fn rim<T: Real>(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<T> {
-        edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, RSF * v.sin()),
-                axis: v3(0.0, 0.0, 1.0),
-                radius: f(RSF * v.cos()),
-                u_ref: v3(1.0, 0.0, 0.0),
-            },
-            u0,
-            u1,
-            a,
-            b,
-        )
+        topo::sphere_rim(RSF, v, u0, u1, a, b)
     }
     fn great<T: Real>(u: f64, t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<T> {
-        edge(
-            Curve3::Circle {
-                center: p3(0.0, 0.0, 0.0),
-                axis: v3(u.sin(), -u.cos(), 0.0),
-                radius: f(RSF),
-                u_ref: v3(u.cos(), u.sin(), 0.0),
-            },
-            t0,
-            t1,
-            a,
-            b,
-        )
+        topo::sphere_great(RSF, u, t0, t1, a, b)
     }
 
     const PI: f64 = core::f64::consts::PI;

@@ -28,20 +28,13 @@
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::point::{p3 as p, v3};
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, curved_face};
+use geom_core::Band;
 use geom_core::Tol;
 use geom_core::k_stats::Probe;
-use geom_core::{Band, Point3, Vec3};
-
-fn p(x: f64, y: f64, z: f64) -> Point3<Probe> {
-    Point3::new(Probe(x), Probe(y), Probe(z))
-}
-
-fn v3(x: f64, y: f64, z: f64) -> Vec3<Probe> {
-    Vec3::new(Probe(x), Probe(y), Probe(z))
-}
 
 /// Cylinder wall patch u ∈ [0, π/2], v ∈ [0, h]: bottom rim one arc
 /// at v = 0, TOP rim split into two arcs at v = h and v = h + delta.

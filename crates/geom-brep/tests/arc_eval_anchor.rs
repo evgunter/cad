@@ -20,12 +20,9 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::interval::iv;
 use geom_brep::SketchSegment;
-use geom_core::{Bounds, Interval, Point2, Real};
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
+use geom_core::{Bounds, Interval, Point2};
 
 fn p2(x: f64, y: f64) -> Point2<Interval> {
     Point2::new(iv(x), iv(y))

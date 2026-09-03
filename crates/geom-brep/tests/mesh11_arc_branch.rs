@@ -14,34 +14,17 @@
 //! CI's `eps ∈ {default, 1e-6, 1e-12}` matrix.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::point::{p3, v3};
+use crate::shared::surf;
+use crate::shared::tol::band;
+use crate::shared::topo;
+use crate::shared::topo::edge;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{
     LoopEdge, PropsError, curved_face, require_iso_rectangle, require_one_chart_branch,
 };
-use geom_core::Tol;
-use geom_core::{Band, Point3, Real, Vec3};
-
-fn v3<T: Real>(x: f64, y: f64, z: f64) -> Vec3<T> {
-    Vec3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
-}
-fn p3<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
-    Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z))
-}
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-fn edge<T: Real>(carrier: Curve3<T>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<T> {
-    let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge::hand_built(
-        carrier,
-        T::from_f64(t0),
-        T::from_f64(t1),
-        forward,
-        start,
-        end,
-    )
-}
+use geom_core::Real;
 
 // ---------------------------------------------------------------------
 // Sphere — R = 10 mm about +Z at the origin (cert1_sphere_polar's)
@@ -50,46 +33,19 @@ fn edge<T: Real>(carrier: Curve3<T>, a: f64, b: f64, start: u32, end: u32) -> Lo
 const RS: f64 = 0.010;
 
 fn sphere<T: Real>() -> Surface<T> {
-    Surface::Sphere {
-        center: p3(0.0, 0.0, 0.0),
-        radius: T::from_f64(RS),
-        axis: v3(0.0, 0.0, 1.0),
-        u_ref: v3(1.0, 0.0, 0.0),
-    }
+    surf::sphere(RS)
 }
 
 /// The rim at latitude `v`, `u0 → u1`.
 fn rim<T: Real>(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<T> {
-    edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, RS * v.sin()),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: T::from_f64(RS * v.cos()),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
-        u0,
-        u1,
-        a,
-        b,
-    )
+    topo::sphere_rim(RS, v, u0, u1, a, b)
 }
 
 /// The meridian great circle whose plane contains the axis at azimuth
 /// `u`; its parameter IS the latitude on the `u` side, so `t = π/2` is
 /// the north pole and `t ∈ (π/2, 3π/2)` descends the `u + π` side.
 fn great<T: Real>(u: f64, t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<T> {
-    edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, 0.0),
-            axis: v3(u.sin(), -u.cos(), 0.0),
-            radius: T::from_f64(RS),
-            u_ref: v3(u.cos(), u.sin(), 0.0),
-        },
-        t0,
-        t1,
-        a,
-        b,
-    )
+    topo::sphere_great(RS, u, t0, t1, a, b)
 }
 
 /// **The half-cap, on which the two doors DISAGREE — and both are

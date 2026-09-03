@@ -39,6 +39,7 @@
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::tol::band;
 use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::keys::SurfaceKey;
@@ -48,10 +49,6 @@ use geom_core::k_stats::{self, Probe, SampleOutcome};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, MarginDiag, Point3, Sign, Vec3};
 use slotmap::SlotMap;
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).expect("the run's linear band")
-}
 
 fn p(x: f64, y: f64, z: f64) -> Point3<Probe> {
     Point3::new(Probe(x), Probe(y), Probe(z))

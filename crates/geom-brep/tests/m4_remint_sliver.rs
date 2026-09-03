@@ -8,23 +8,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::surf::table;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{CERT_SAMPLES, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
-
-fn table(
-    surfs: Vec<Surface<f64>>,
-) -> (
-    Vec<geom_brep::SurfaceKey>,
-    impl Fn(geom_brep::SurfaceKey) -> Option<Surface<f64>>,
-) {
-    let mut map: slotmap::SlotMap<geom_brep::SurfaceKey, Surface<f64>> =
-        slotmap::SlotMap::with_key();
-    let keys: Vec<geom_brep::SurfaceKey> = surfs.into_iter().map(|s| map.insert(s)).collect();
-    (keys, move |k| map.get(k).cloned())
-}
 
 /// Certifies the headroom fixture's line-intersection edge with a
 /// witness offset of `offset` along the line from the pinned mid

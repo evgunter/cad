@@ -23,6 +23,8 @@
 use core::f64::consts::FRAC_1_SQRT_2;
 use std::sync::Arc;
 
+use crate::shared::fixture;
+use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
@@ -30,15 +32,10 @@ use geom_brep::{
     CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, PcurveCache,
     PcurveCertifyError, PcurveCheck,
 };
-use geom_core::Tol;
 use geom_core::k_stats::{self, Probe};
 use geom_core::spline::KnotVector;
-use geom_core::{Band, MarginDiag, Point2, Point3, Vec2, Vec3};
+use geom_core::{MarginDiag, Point2, Point3, Vec2, Vec3};
 use slotmap::SlotMap;
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).expect("the run's linear band")
-}
 
 /// Chord-sum arc length of a `Curve3<f64>` over `[d0, d1]` — a LOWER
 /// bound on the true arc length at every sample count, so a metered
@@ -225,20 +222,7 @@ fn certify_backwards_span_stays_interval_not_forward() {
 
 /// The rational quarter-cylinder wall (the m7_8 fixture, verbatim).
 fn quarter_cylinder_wall() -> Surface<f64> {
-    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("u knots");
-    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("v knots");
-    let control = vec![
-        Point3::new(1.0, 0.0, 0.0),
-        Point3::new(1.0, 0.0, 1.0),
-        Point3::new(1.0, 1.0, 0.0),
-        Point3::new(1.0, 1.0, 1.0),
-        Point3::new(0.0, 1.0, 0.0),
-        Point3::new(0.0, 1.0, 1.0),
-    ];
-    let w = FRAC_1_SQRT_2;
-    Surface::Nurbs(Arc::new(
-        NurbsSurface::new(ku, kv, control, vec![1.0, 1.0, w, w, 1.0, 1.0]).expect("wall builds"),
-    ))
+    Surface::Nurbs(Arc::new(fixture::quarter_cylinder_wall()))
 }
 
 fn window() -> ChartWindow<f64> {

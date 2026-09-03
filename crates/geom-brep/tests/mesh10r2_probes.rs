@@ -13,32 +13,23 @@
     clippy::print_stdout
 )]
 
+use crate::shared::point::{p3, v3};
+use crate::shared::surf;
+use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{CarrierId, LoopEdge, PropsError, curved_face, require_iso_rectangle};
-use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
 
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 const RR: f64 = 0.020;
 const R0: f64 = 0.005;
 fn torus() -> Surface<f64> {
-    Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
-        major_radius: RR,
-        minor_radius: R0,
-        u_ref: v3(1.0, 0.0, 0.0),
-    }
+    surf::torus(RR, R0)
 }
+/// **Deliberately not `shared::topo::edge`.** Stamping a carrier id is
+/// this suite's whole subject, and `LoopEdge::hand_built` mints none —
+/// so this one builds the struct itself and takes the id as an
+/// argument. The interval ordering below is the shared builder's, and
+/// deliberately identical to it.
 fn edge(
     carrier: Curve3<f64>,
     a: f64,

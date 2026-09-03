@@ -22,9 +22,9 @@
 
 use core::f64::consts::FRAC_PI_2;
 
-use geom::NurbsSurface;
-use geom_core::Point3;
+use geom::{NurbsSurface, Surface};
 use geom_core::spline::KnotVector;
+use geom_core::{Point3, Vec3};
 
 /// The clamped degree-2 single-Bézier knot vector.
 pub(crate) fn kv2() -> KnotVector {
@@ -95,4 +95,39 @@ pub(crate) fn sphere_band(r: f64, lat0: f64, lat1: f64) -> NurbsSurface<f64> {
         }
     }
     NurbsSurface::new(kv2(), kv2(), control, weights).unwrap()
+}
+
+/// The **quarter cylinder wall**: the exact rational quadratic quarter
+/// arc of the unit circle in `z = 0`, from `(1, 0)` to `(0, 1)`, ruled
+/// straight up one unit in `+z`.
+///
+/// Four suites built this net character for character — the same six
+/// control points in the same row-major order, the same
+/// `[1, 1, √2/2, √2/2, 1, 1]` weights, the same `kv2()`/`kv1()` knots.
+/// Two wanted the `NurbsSurface` and two the `Surface` around it; the
+/// wrapper is one line at the caller, so it stays there.
+pub(crate) fn quarter_cylinder_wall() -> NurbsSurface<f64> {
+    // Row-major in u: control[iu * nv + iv].
+    let control = vec![
+        Point3::new(1.0, 0.0, 0.0),
+        Point3::new(1.0, 0.0, 1.0),
+        Point3::new(1.0, 1.0, 0.0),
+        Point3::new(1.0, 1.0, 1.0),
+        Point3::new(0.0, 1.0, 0.0),
+        Point3::new(0.0, 1.0, 1.0),
+    ];
+    let w = core::f64::consts::FRAC_1_SQRT_2;
+    NurbsSurface::new(kv2(), kv1(), control, vec![1.0, 1.0, w, w, 1.0, 1.0]).unwrap()
+}
+
+/// The `y = 0` plane — it contains [`quarter_cylinder_wall`]'s `u = 0`
+/// ruling and its normal is orthogonal to the wall's there, so the pair
+/// meets at a 90° dihedral. The mate of that wall in the two suites
+/// that drive a plane/NURBS edge through it.
+pub(crate) fn transverse_plane() -> Surface<f64> {
+    Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new(0.0, 1.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    }
 }

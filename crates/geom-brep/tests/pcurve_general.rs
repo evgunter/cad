@@ -11,32 +11,18 @@
 use core::f64::consts::FRAC_1_SQRT_2;
 use std::sync::Arc;
 
-use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
+use crate::shared::fixture;
+use crate::shared::surf;
+use crate::shared::tol::band;
+use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
 use geom_brep::{ChartWindow, Pcurve, PcurveCache, PcurveCertifyError};
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Point2, Point3, Tol};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).expect("the run's linear band")
-}
+use geom_core::{Point2, Point3};
 
 /// A rational quarter-cylinder wall of radius 1 about the z axis: the
 /// `u = 0` boundary column is the ruling `x = 1, y = 0`.
 fn quarter_cylinder_wall() -> Surface<f64> {
-    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("u knots");
-    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("v knots");
-    let control = vec![
-        Point3::new(1.0, 0.0, 0.0),
-        Point3::new(1.0, 0.0, 1.0),
-        Point3::new(1.0, 1.0, 0.0),
-        Point3::new(1.0, 1.0, 1.0),
-        Point3::new(0.0, 1.0, 0.0),
-        Point3::new(0.0, 1.0, 1.0),
-    ];
-    let w = FRAC_1_SQRT_2;
-    Surface::Nurbs(Arc::new(
-        NurbsSurface::new(ku, kv, control, vec![1.0, 1.0, w, w, 1.0, 1.0]).expect("wall builds"),
-    ))
+    Surface::Nurbs(Arc::new(fixture::quarter_cylinder_wall()))
 }
 
 /// The wall's `u = 0` ruling as a rung-3 carrier.
@@ -164,12 +150,7 @@ fn the_closed_form_door_refuses_a_general_image() {
 
 /// The chart sphere: unit radius, polar axis +z.
 fn sphere() -> Surface<f64> {
-    Surface::Sphere {
-        center: Point3::origin(),
-        radius: 1.0,
-        axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
-        u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
-    }
+    surf::sphere(1.0)
 }
 
 const TILT: f64 = 0.6;

@@ -27,26 +27,13 @@
 //! a rule that refused everything could not make this suite green.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::point::{p3, v3};
+use crate::shared::topo::edge;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, MaterialSign, PropsError, boundary_material_sign, curved_face};
 use geom_core::Tol;
-use geom_core::{Band, Point3, Sign, Vec3};
-
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-
-/// One traversed boundary edge: `a → b` on the carrier, stored as the
-/// certified forward interval plus the traversal bool, exactly as
-/// `topo`'s half-edge flattening does it.
-fn edge(carrier: Curve3<f64>, a: f64, b: f64, start: u32, end: u32) -> LoopEdge<f64> {
-    let (t0, t1, forward) = if a < b { (a, b, true) } else { (b, a, false) };
-    LoopEdge::hand_built(carrier, t0, t1, forward, start, end)
-}
+use geom_core::{Band, Sign};
 
 /// Rim/meridian carrier factories for one surface kind.
 type Rim<'a> = &'a dyn Fn(f64, f64, f64, u32, u32) -> LoopEdge<f64>;

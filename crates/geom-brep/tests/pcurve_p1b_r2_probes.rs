@@ -11,41 +11,19 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::point::p3 as p;
+use crate::shared::surf::{self, table};
+use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
     CertCheck, CertifyError, EdgeAuthority, EdgeCurve, EdgeCurveSpec, EdgeDescription,
-    EdgeDescriptionSpec, MappedCurve, SurfaceKey,
+    EdgeDescriptionSpec, MappedCurve,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
-use slotmap::SlotMap;
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
-
-fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-
-/// A surface table and its resolver (the injected lookup the door
-/// takes — keys never resolve inside `geom-brep`).
-fn table(
-    surfs: Vec<Surface<f64>>,
-) -> (Vec<SurfaceKey>, impl Fn(SurfaceKey) -> Option<Surface<f64>>) {
-    let mut map: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
-    let keys: Vec<SurfaceKey> = surfs.into_iter().map(|s| map.insert(s)).collect();
-    (keys, move |k| map.get(k).cloned())
-}
 
 fn unit_cylinder() -> Surface<f64> {
-    Surface::Cylinder {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    }
+    surf::cylinder(1.0)
 }
 
 /// A chord of the unit cylinder subtending `half_angle` either side of
@@ -205,7 +183,7 @@ fn r2_the_secant_refusal_is_metric_not_categorical() {
 #[test]
 fn r2_the_rest_conversion_moves_only_the_description() {
     let (q0, q1) = (p(0.0, 0.0, 0.0), p(1.0, 0.0, 0.0));
-    let (keys, lookup) = table(vec![Surface::Plane {
+    let (keys, lookup) = table(vec![Surface::<f64>::Plane {
         origin: Point3::origin(),
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
@@ -441,7 +419,7 @@ fn r2_a_param_span_refusal_says_it_is_not_a_sampled_check() {
 /// by accident.
 #[test]
 fn r2_the_scaffolding_door_certifies_with_no_surface_at_all() {
-    let (_keys, lookup) = table(vec![]);
+    let (_keys, lookup) = table::<f64>(vec![]);
     let (q0, q1) = (p(0.0, 0.0, 0.0), p(0.0, 0.0, 3.0));
     let edge = EdgeCurve::certify(EdgeCurveSpec::line_between(q0, q1), q0, q1, &lookup, band())
         .expect("scaffolding needs no chart");
@@ -479,7 +457,7 @@ fn r2_a_die_scale_strut_chord_on_a_planar_support_certifies_exactly() {
     // The die: L = 1, r = 0.15 (`m5_pr12_die_body.rs`'s constants).
     let (l, r) = (1.0_f64, 0.15_f64);
     let _ = l;
-    let (keys, lookup) = table(vec![Surface::Plane {
+    let (keys, lookup) = table(vec![Surface::<f64>::Plane {
         origin: Point3::origin(),
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),

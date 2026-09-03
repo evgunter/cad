@@ -6,13 +6,10 @@
 // `-D warnings`. Nothing else in this file is this lane's.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::ring::pt;
 use geom_brep::props::quad::{RVec3, nurbs_patch_face};
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Tol, ring_interval::RingInterval};
-
-fn pt(x: f64) -> RingInterval {
-    RingInterval::point(x)
-}
+use geom_core::{Band, Tol};
 
 #[test]
 fn r2_quad_raw_digit_probe() {
