@@ -128,6 +128,8 @@ mod mate9_crossing_rung;
 mod merge_skip;
 #[path = "mesh8_coherence.rs"]
 mod mesh8_coherence;
+#[path = "quad_lane_is_the_certified_lane.rs"]
+mod quad_lane_is_the_certified_lane;
 #[path = "r1_mate4a_probes.rs"]
 mod r1_mate4a_probes;
 #[path = "r1_mate5_interval_probe.rs"]

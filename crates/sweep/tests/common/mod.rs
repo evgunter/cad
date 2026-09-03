@@ -91,3 +91,37 @@ pub fn chain(s: f64) -> Section {
         v(0.0, 1.0, 0.0),
     ])]
 }
+
+/// **The arc section**: a square of half-width `s` with a
+/// quarter-circle bulge on the `+x` side — the arc-bearing profile
+/// whose lofted wall is RATIONAL (weights `1, cos 22.5°, 1` over two
+/// 45° sub-arcs), and so the cheapest profile in this corpus that puts
+/// a body's enclosure on the QUADRATURE lane rather than a closed
+/// form.
+///
+/// One copy for the crate. It was four — `m8_3_rational_volume`,
+/// `cert5_offgrid_knot_rational` and the certificate suite each held a
+/// byte-identical spelling of it, and each restated the same weights
+/// comment. `step-import`'s copies (`nurbs_import`, `rw2_probes`,
+/// `review_probes_m7_3`, `recognize_pins`) are NOT folded in here:
+/// cross-crate constant deduplication is LIB-U6's territory, which
+/// this module's routing rule says is deliberately not built here.
+pub fn arc_section(s: f64) -> Section {
+    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
+    vec![ProfileLoop::new(vec![
+        v(-s, -s, 0.0),
+        // tan(π/8): a quarter-circle bulge-out.
+        v(s, -s, 0.4142135623730951),
+        v(s, s, 0.0),
+        v(-s, s, 0.0),
+    ])]
+}
+
+/// Loft placements: the given heights, each scaled by `s`, as pure
+/// `+z` translations — the stacking that makes a loft of identical
+/// sections reproduce the EXTRUSION of that section exactly.
+pub fn stacked(z: &[f64], s: f64) -> Vec<Affine3<f64>> {
+    z.iter()
+        .map(|h| Affine3::translation(Vec3::new(0.0, 0.0, h * s)))
+        .collect()
+}

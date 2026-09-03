@@ -307,9 +307,12 @@ fn own_rational_wall_roundtrips_through_the_import_door() {
     let imported = import_step(&text, &ImportOptions::default(), Tol::witness());
     let dt = t0.elapsed();
     match imported {
-        Ok(step_import::StepImport::Solid { body, .. }) => {
-            let m = topo::mass_properties(&body, Tol::witness())
-                .expect("the imported twin certifies too");
+        Ok(step_import::StepImport::Solid { enclosure, .. }) => {
+            // The import gate's own enclosure, handed back rather than
+            // recomputed: a `Solid` exists only because the aggregate
+            // tier-3′ gate certified this body, and `enclosure` is the
+            // object its +V invariant decided on.
+            let m = enclosure;
             eprintln!(
                 "CERT5-R1 roundtrip: import+gate in {dt:?}; native {} +- {}, imported {} +- {}",
                 native.volume, native.volume_pad, m.volume, m.volume_pad

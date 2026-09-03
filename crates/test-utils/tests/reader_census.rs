@@ -223,6 +223,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/topo/tests/quad_lane_is_the_certified_lane.rs",
+        disposition: Shared, // the props.rs lane impls, code view: their bodies ARE the pin
+    },
+    Entry {
         path: "crates/verbs/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },

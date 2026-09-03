@@ -522,3 +522,6 @@ mod cert_m2r1_head;
 mod cert_m2r1_passes;
 #[path = "r1_area_gauge_probes.rs"]
 mod r1_area_gauge_probes;
+
+#[path = "tcost_k3_certificate.rs"]
+mod tcost_k3_certificate;
