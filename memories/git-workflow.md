@@ -33,8 +33,12 @@ remote, cheap).
 IMMEDIATELY. Verify the checks yourself — see [[agent-lane-operations]]
 on what merging destroys.
 
-**Account identifiers stay off GitHub (Ev, #355; the repo may go
-public):** no email addresses or personal identifiers beyond the
-commit-signing identity `evgunter` in issues, PRs, comments, commits or
-committed files. Name accounts by role; concrete addresses live only in
-local cad-work logs.
+**Account identifiers stay off GitHub (Ev, #355):** no email addresses
+or personal identifiers in issues, PRs, comments, commits or committed
+files, except Ev's own — the account `evgunter` and the address
+`evgunter@gmail.com`, which signs every commit anyway and is the contact
+address nightly.yml publishes.
+**The rule itself now lives in CLAUDE.md** — this
+memory is read as relevance dictates and a publication rule cannot
+depend on an agent judging it relevant, so the two are stated together
+there and this entry is the pointer, not the source.
