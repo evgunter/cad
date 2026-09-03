@@ -2039,9 +2039,20 @@ fn witness_point(leaf: &ParamBox) -> ParamWitness {
 }
 
 /// **The witness verification** (E7's witness clause): rebuild the
-/// document at `f64` over the leaf's midpoint, evaluate both carriers
-/// at the violating cells' midpoints, and put the distance through the
-/// SAME funnel site at the `f64` lane.
+/// document at `f64` over the leaf's midpoint, search the two
+/// violating cells' station lattices for the closest pair of points it
+/// can find, and put THAT distance through the SAME funnel site at the
+/// `f64` lane.
+///
+/// The lattice is each cell's three `u` and three `v` stations — the
+/// two ends and the midpoint the split rule cuts at — so nine points a
+/// side and eighty-one pairs, chosen by the smallest `f64` distance
+/// under `total_cmp`. It is a SEARCH, not a solve: every pair on it is
+/// inside the cell the interval pass proved violating, so any of them
+/// verifies, and taking the closest is what makes the REPORT worth
+/// reading. The true closest-point pair on two trimmed patches is a
+/// different unit's problem, and [`GeometryWitness::distance`] says so
+/// at the field.
 ///
 /// Independent of the interval pass in the way that matters: a
 /// different scalar, a different evaluation, its own decision. A
