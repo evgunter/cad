@@ -7,7 +7,7 @@ opened: 2026-08-31
 closed: 2026-09-03
 github: 1434
 track: X
-branch: smell/x-klein-budget
+branch: smell/x-tour-probes
 refs: [1421]
 ---
 
