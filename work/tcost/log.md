@@ -1196,3 +1196,21 @@ already under a minute; the interval rows' boundary case (~1 billed
 minute per row, modelled) is not worth a measured PR. One finding for
 the CI-minutes arithmetic: saturation reads ~3.9× on every leg, so the
 runner presents ~4 vCPUs now, not the 2 the 2026-08 figures assumed.
+
+## Seam: TCOST-10 reported; style batch 5 dispatched (2026-09-03, 21:45 UTC)
+
+TCOST-10 (PR 1715, head `4da8f030`, interval 1e-6 asked, run
+33809383460 green but the inherited row): the blend suite's builders
+and the two oracle families homed in `sweep/tests/common/`
+(`cavity.rs`, `oracles.rs`), builders retired in six suites and
+oracle spellings at seven sites; `nextest list` byte-identical at
+both feature sets; no execution win claimed (constructors). The lane
+applied a narrower rule than the candidate asked for — "a spelling
+that could not disagree comes home; one that could stays and says
+so" — and kept the die/surgery Steiner spelling in five files because
+its association differs at the bit level; reviewer suites gave up
+their BUILDERS on the argument that the audit, not the constructor,
+is their independence. Both calls go to the batch review as
+questions. Filed: the same brick/prism shape outside the blend family
+(`sweep-boolean-suite-brick-and-prism-copies`). Style batch 5
+dispatched on TCOST-10 now; TCOST-11 joins by message when it reports.
