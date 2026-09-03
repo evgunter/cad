@@ -28,7 +28,7 @@ mod common;
 
 use core::f64::consts::TAU;
 
-use common::{ang, body_volume, insert, len, len3, near, scl3, shape};
+use common::{ang, body_volume, insert, len, len2, len3, near, scl2, scl3, shape};
 use pncad::document::{
     Datum, Dimension, DimensionError, Doc, DocumentId, Expr, LoopProgram, Node, ProfileProgram,
     RecipeNodeId, SlotId,
@@ -99,9 +99,12 @@ fn authored_ring(tol: Tol) -> (DocSession, RecipeNodeId) {
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 1.0, 0.0]),
+            // The revolve's axis, in the sketch it turns: the frame's
+            // v is world +Y, so this is its own +y through (0, 0).
+            datum: DatumSpec::AxisInPlane {
+                plane,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
             },
         },
     );
@@ -628,16 +631,20 @@ fn profile_refusals_are_typed_at_the_door() {
 fn a_refusal_at_any_creation_door_leaves_no_history_state() {
     let tol = Tol::witness();
     let mut session = session(tol);
+    // The frame comes FIRST now: the axis is written in it.
+    let plane = common::xy_frame_in(&mut session);
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 1.0, 0.0]),
+            // The revolve's axis, in the sketch it turns: the frame's
+            // v is world +Y, so this is its own +y through (0, 0).
+            datum: DatumSpec::AxisInPlane {
+                plane,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
             },
         },
     );
-    let plane = common::xy_frame_in(&mut session);
     let states = session.history().len();
     for op in [
         SessionOp::NewDocument {
@@ -692,9 +699,12 @@ fn extrude_and_revolve_require_their_node_kinds() {
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 1.0, 0.0]),
+            // The revolve's axis, in the sketch it turns: the frame's
+            // v is world +Y, so this is its own +y through (0, 0).
+            datum: DatumSpec::AxisInPlane {
+                plane,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
             },
         },
     );
@@ -758,7 +768,7 @@ fn extrude_and_revolve_require_their_node_kinds() {
         assert!(
             matches!(
                 refused.refusal,
-                Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Axis })
+                Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::SketchAxis })
                     if node == wrong
             ),
             "{:?}",
@@ -799,9 +809,12 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 1.0, 0.0]),
+            // The revolve's axis, in the sketch it turns: the frame's
+            // v is world +Y, so this is its own +y through (0, 0).
+            datum: DatumSpec::AxisInPlane {
+                plane,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
             },
         },
     );
@@ -864,9 +877,12 @@ fn the_revolve_tool_holds_two_picks_and_survives_a_vanished_one() {
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 1.0, 0.0]),
+            // The revolve's axis, in the sketch it turns: the frame's
+            // v is world +Y, so this is its own +y through (0, 0).
+            datum: DatumSpec::AxisInPlane {
+                plane,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
             },
         },
     );
@@ -897,9 +913,12 @@ fn a_dropped_profile_does_not_promote_the_axis() {
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 1.0, 0.0]),
+            // The revolve's axis, in the sketch it turns: the frame's
+            // v is world +Y, so this is its own +y through (0, 0).
+            datum: DatumSpec::AxisInPlane {
+                plane,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
             },
         },
     );
@@ -978,9 +997,12 @@ fn reconcile_drops_both_picks_across_a_new_document() {
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 1.0, 0.0]),
+            // The revolve's axis, in the sketch it turns: the frame's
+            // v is world +Y, so this is its own +y through (0, 0).
+            datum: DatumSpec::AxisInPlane {
+                plane,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
             },
         },
     );
@@ -1104,9 +1126,12 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
-            datum: DatumSpec::Axis {
-                origin: len3([0.0; 3]),
-                direction: scl3([0.0, 0.0, 1.0]),
+            // The circle is drawn on `plane`, so the revolve's axis is
+            // written there too — its +y through (0, 0).
+            datum: DatumSpec::AxisInPlane {
+                plane,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
             },
         },
     );

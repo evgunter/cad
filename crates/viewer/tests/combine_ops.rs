@@ -22,7 +22,7 @@
 
 mod common;
 
-use common::{ang, body_volume, insert, len, len3, near, scl3, shape};
+use common::{ang, body_volume, insert, len, len2, len3, near, scl2, scl3, shape};
 use pncad::document::SplitSide;
 use pncad::document::{
     Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, Expr, LoopProgram, Node, NodeError,
@@ -1040,12 +1040,23 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
     // A node the seat's own `wants()` says it cannot hold — and one
     // that is a legal node of SOME kind, so what the door refuses is
     // the kind and never the absence.
+    let sketch_axis = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::AxisInPlane {
+                plane: sketch_frame,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
+            },
+        },
+    );
     let right = |wanted: NodeKindWanted| match wanted {
         NodeKindWanted::Body => body,
         NodeKindWanted::Profile => profile,
         NodeKindWanted::Plane => plane,
         NodeKindWanted::Frame => sketch_frame,
         NodeKindWanted::Axis => axis,
+        NodeKindWanted::SketchAxis => sketch_axis,
     };
     let wrong = |wanted: NodeKindWanted| match wanted {
         NodeKindWanted::Body => profile,
@@ -1056,6 +1067,10 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
         // distinction the frame pick exists for.
         NodeKindWanted::Frame => plane,
         NodeKindWanted::Axis => plane,
+        // The near miss a revolve's axis has is the WORLD axis: same
+        // word, different node kind, and the seat that used to take it
+        // is exactly the seat that must not any more.
+        NodeKindWanted::SketchAxis => axis,
     };
 
     let mut seen = vec![false; Seat::ALL.len()];
@@ -1508,6 +1523,20 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         tol,
     );
     doc = next;
+    // The revolve candidate's axis is a DIFFERENT node kind from the
+    // pattern candidate's: one turns a sketch in its own plane, the
+    // other turns a body about a world line. Both are here so this
+    // sweep asks each seat its own question.
+    let (next, sketch_axis) = common::inserted(
+        &doc,
+        Node::Datum(Datum::AxisInPlane {
+            plane: sketch_frame,
+            origin: [common::len(0.0), common::len(0.0)],
+            direction: [common::scl(0.0), common::scl(1.0)],
+        }),
+        tol,
+    );
+    doc = next;
     let (next, plane) = common::inserted(
         &doc,
         Node::Datum(Datum::Plane {
@@ -1577,7 +1606,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             "revolve",
             Node::Revolve {
                 profile: ring,
-                axis,
+                axis: sketch_axis,
                 angle: Expr::literal(core::f64::consts::TAU, Dimension::Angle).expect("finite"),
             },
         ),

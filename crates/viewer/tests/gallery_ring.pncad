@@ -142,15 +142,9 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
       },
       "2": {
         "Datum": {
-          "Axis": {
+          "AxisInPlane": {
+            "plane": 0,
             "origin": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "mm"
-                }
-              },
               {
                 "Literal": {
                   "value": 0.0,
@@ -177,13 +171,6 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
               {
                 "Literal": {
                   "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
                   "dim": "Scalar",
                   "unit": ""
                 }

@@ -165,6 +165,16 @@ pub fn scl3(v: [f64; 3]) -> [Expr; 3] {
     [scl(v[0]), scl(v[1]), scl(v[2])]
 }
 
+/// Two length literals — a point in a sketch frame's own coordinates.
+pub fn len2(v: [f64; 2]) -> [Expr; 2] {
+    [len(v[0]), len(v[1])]
+}
+
+/// Two dimensionless literals — a direction in a sketch frame.
+pub fn scl2(v: [f64; 2]) -> [Expr; 2] {
+    [scl(v[0]), scl(v[1])]
+}
+
 /// One form template lowered CANONICALLY — what a suite means when it
 /// authors a shape without a word about notation.
 ///

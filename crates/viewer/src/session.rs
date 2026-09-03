@@ -884,6 +884,24 @@ pub enum DatumSpec {
         /// Position components (`Length`).
         position: [Expr; 3],
     },
+    /// An axis written in a sketch frame — a revolve's axis of
+    /// revolution.
+    ///
+    /// `plane` is a PICK, not a field: it names the `Datum::Frame` the
+    /// two coordinate pairs are written against, and the pairs are
+    /// that frame's own 2-D coordinates. There is no third component,
+    /// which is the whole of why a revolve about one cannot leave the
+    /// sketch.
+    AxisInPlane {
+        /// The frame node the axis lives in.
+        plane: RecipeNodeId,
+        /// Origin components in the frame's coordinates (`Length`).
+        origin: [Expr; 2],
+        /// Direction components in the frame's coordinates (`Scalar`),
+        /// unnormalized — the kernel's `RevolveAxis` normalizes and
+        /// refuses a sliver at its own door.
+        direction: [Expr; 2],
+    },
     /// A sketch frame through `origin`, spanned by `u` and `v`.
     Frame {
         /// Origin components (`Length`).
@@ -2955,6 +2973,15 @@ fn datum_node(spec: DatumSpec) -> Node<ProfileProgram> {
         DatumSpec::Axis { origin, direction } => Datum::Axis { origin, direction },
         DatumSpec::Point { position } => Datum::Point { position },
         DatumSpec::Frame { origin, u, v } => Datum::Frame { origin, u, v },
+        DatumSpec::AxisInPlane {
+            plane,
+            origin,
+            direction,
+        } => Datum::AxisInPlane {
+            plane,
+            origin,
+            direction,
+        },
     })
 }
 

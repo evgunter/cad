@@ -325,15 +325,20 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         // edit re-runs the fin group AND the union that consumes it —
         // which is what it means for the whole part to live in the
         // document now (#1344). Everything upstream of the edited slot
-        // — both profiles and both extrudes — is still reused by
-        // content key, so this is the same downstream-only-recompute
-        // claim measured over a chain that is one node longer, not a
-        // weaker one. It read 1 while the union lived in demo code.
+        // — both sketch frames, both profiles and both extrudes — is
+        // still reused by content key, so this is the same
+        // downstream-only-recompute claim measured over a chain that is
+        // one node longer, not a weaker one. It read 1 while the union
+        // lived in demo code.
         assert_eq!(
             ev.recomputed, 2,
             "a count edit re-runs exactly the fin group and the union below it"
         );
-        assert_eq!(ev.reused, 4, "everything upstream reuses by content key");
+        // SIX since a profile is drawn on a frame NODE: the two frames
+        // are upstream of the edited slot like the profiles that name
+        // them, so they reuse for the same reason and the number that
+        // counts reuse has to count them.
+        assert_eq!(ev.reused, 6, "everything upstream reuses by content key");
         evs.push((n, ev, caption));
     }
 
