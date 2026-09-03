@@ -35,7 +35,7 @@ use std::collections::BTreeMap;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box, sample_offset};
 use editor_core::clearance::{MinSepSelection, MinSeparationConfig, min_separation};
-use editor_core::drive::{DriveConfig, VerdictVector, drive};
+use editor_core::drive::{DriveConfig, VerdictVector, drive, SymbolicDials};
 use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, report_key};
 use editor_core::{
@@ -47,6 +47,21 @@ use editor_core::{
 use geom_core::{Bounds, Tol};
 
 use fixture::{Recorder, len};
+
+/// The clearance engine has no lane at the symbolic identity tier
+/// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
+/// the deviation is issue 1276), so every drive over a `min_clearance`
+/// document asks for the numeric-only replay BY NAME. It is a disclosed
+/// limitation of the tier, not a property of these fixtures: with the
+/// tier on the driver refuses this document up front rather than
+/// certifying leaves whose clearance measure was never computed.
+fn numeric_lane() -> DriveConfig {
+    DriveConfig {
+        symbolic: SymbolicDials::off(),
+        ..DriveConfig::default()
+    }
+}
+
 
 fn name(n: &str) -> ParamName {
     ParamName::new(n)
@@ -184,7 +199,7 @@ fn the_certifying_filter_changes_a_pre_m10_6_documents_drive() {
     );
 
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
+    let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness())
         .expect("the nominal builds");
     assert!(
         !verdict.certified().is_empty(),
@@ -505,7 +520,7 @@ fn report_key_tells_the_dials_that_move_a_report_apart() {
         "two different dials produce two different reports"
     );
     let box_ = one_axis("place", half());
-    let drive_cfg = DriveConfig::default();
+    let drive_cfg = numeric_lane();
     let mc_a = McConfig {
         samples: 128,
         seed: 1,
@@ -799,7 +814,7 @@ fn guide(bound: f64) -> Guide {
 fn a_tolerance_study_end_to_end_through_the_public_doors() {
     let g = guide(2.0 - 1.0e-11);
     let analyzed = analyzed_box(&g.doc, &AnalysisPolicy::default());
-    let verdict = drive(&g.doc, &analyzed, &DriveConfig::default(), Tol::witness())
+    let verdict = drive(&g.doc, &analyzed, &numeric_lane(), Tol::witness())
         .expect("the nominal builds");
     eprintln!("--- drive ---\n{}", verdict.render(&analyzed));
     assert!(
@@ -885,7 +900,7 @@ fn a_tolerance_study_end_to_end_through_the_public_doors() {
 
     // The cache seam, used the documented way.
     let mut cache = editor_core::report::ReportCache::new();
-    let drive_cfg = DriveConfig::default();
+    let drive_cfg = numeric_lane();
     let key = report_key(
         "stackup",
         verdict.content_key().0,

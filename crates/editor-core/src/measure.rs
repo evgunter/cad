@@ -753,6 +753,25 @@ pub enum AssertionVerdict<T> {
     },
 }
 
+impl<T> AssertionVerdict<T> {
+    /// The same verdict with both numbers taken through `f` — the door
+    /// a lane that evaluated at a WRAPPED scalar reports through, so a
+    /// consumer sees the enclosure and not the wrapper.
+    pub fn map<U>(self, f: impl Fn(T) -> U) -> AssertionVerdict<U> {
+        match self {
+            Self::Holds { measured, bound } => AssertionVerdict::Holds {
+                measured: f(measured),
+                bound: f(bound),
+            },
+            Self::Violated { measured, bound } => AssertionVerdict::Violated {
+                measured: f(measured),
+                bound: f(bound),
+            },
+            Self::Unevaluated { reason } => AssertionVerdict::Unevaluated { reason },
+        }
+    }
+}
+
 /// Why an assertion produced no verdict.
 ///
 /// The upstream-FAILURE lanes are NOT here: a failed or poisoned

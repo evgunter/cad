@@ -117,3 +117,47 @@ fn probe_the_budget_the_slab_needs() {
         }
     }
 }
+
+/// Does a `Sym<Interval>` replay produce the same per-node content keys
+/// as a plain `Interval` replay over the same box?
+#[test]
+#[ignore = "evidence-only probe: key differential across the tier"]
+fn probe_key_differential() {
+    use editor_core::analysis::ParamBox;
+    use editor_core::{CancelToken, EvalOptions, ProfileLift, evaluate};
+    use std::sync::Arc;
+
+    for half in [Tol::witness().eps() / 8.0, 0.05] {
+        let doc = slab(1.0, half);
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let box_ = ParamBox::of(&analyzed);
+        let opts = EvalOptions {
+            param_box: Some(Arc::new(box_)),
+            profile_lift: ProfileLift::Guided,
+            ..EvalOptions::default()
+        };
+        let plain: editor_core::Evaluation<geom_core::Interval> =
+            evaluate(&doc, None, &CancelToken::new(), &opts, Tol::witness());
+        let (symb, _) = geom_core::sym::with_session(
+            geom_core::SymBudget {
+                max_terms: 4096,
+                max_degree: 128,
+            },
+            || {
+                let ev: editor_core::Evaluation<geom_core::Sym<geom_core::Interval>> =
+                    evaluate(&doc, None, &CancelToken::new(), &opts, Tol::witness());
+                ev
+            },
+        );
+        for id in &plain.order {
+            let a = plain.value(*id).map(|v| v.content_key);
+            let b = symb.value(*id).map(|v| v.content_key);
+            println!(
+                "half={half:e} node {id:?} plain={} sym={} same={}",
+                a.is_some(),
+                b.is_some(),
+                a == b
+            );
+        }
+    }
+}

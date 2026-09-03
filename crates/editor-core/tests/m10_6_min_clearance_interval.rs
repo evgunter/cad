@@ -43,7 +43,7 @@ use std::collections::BTreeMap;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{MinSepSelection, MinSeparationConfig, min_separation};
-use editor_core::drive::{DriveConfig, drive};
+use editor_core::drive::{DriveConfig, drive, SymbolicDials};
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, DocParam,
@@ -54,6 +54,21 @@ use editor_core::{
 use geom_core::{Bounds, Tol};
 
 use fixture::{Recorder, len};
+
+/// The clearance engine has no lane at the symbolic identity tier
+/// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
+/// the deviation is issue 1276), so every drive over a `min_clearance`
+/// document asks for the numeric-only replay BY NAME. It is a disclosed
+/// limitation of the tier, not a property of these fixtures: with the
+/// tier on the driver refuses this document up front rather than
+/// certifying leaves whose clearance measure was never computed.
+fn numeric_lane() -> DriveConfig {
+    DriveConfig {
+        symbolic: SymbolicDials::off(),
+        ..DriveConfig::default()
+    }
+}
+
 
 /// The true minimum separation between the neck walls, by construction.
 const NECK_GAP: f64 = 0.4;
@@ -410,7 +425,7 @@ fn the_drive_certifies_and_the_assertion_holds_over_the_certified_leaves() {
     let f = dumbbell();
     let (doc, assertion) = (f.doc, f.assertion);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
+    let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness())
         .expect("the witness build succeeds");
     assert!(
         !verdict.certified().is_empty(),
@@ -513,7 +528,7 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
 fn a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates() {
     let f = dumbbell();
     let analyzed = analyzed_box(&f.doc, &AnalysisPolicy::default());
-    let verdict = drive(&f.doc, &analyzed, &DriveConfig::default(), Tol::witness())
+    let verdict = drive(&f.doc, &analyzed, &numeric_lane(), Tol::witness())
         .expect("the nominal builds");
     assert!(!verdict.certified().is_empty(), "the box certifies");
     let report = stackup(

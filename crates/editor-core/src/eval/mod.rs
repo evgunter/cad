@@ -1347,6 +1347,174 @@ impl<T> EvalScalar for T where
 {
 }
 
+// ------------------------------------------- the certified-leaf replay
+
+/// **Which lane a certified leaf is replayed on** (ERROR-DESIGN E12).
+///
+/// A leaf certified with the symbolic tier on can carry a node a
+/// numeric-only replay refuses — that is the whole point of the tier —
+/// so every consumer that replays a leaf has to replay it the way the
+/// driver certified it. The lane rides `ParamBoxVerdict::symbolic` from
+/// the drive to the consumer; this is the type it arrives as.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LeafLane {
+    /// Plain `Interval`, the pre-E12 replay.
+    Numeric,
+    /// `Sym<Interval>` inside a fresh session at this budget.
+    Symbolic(geom_core::SymBudget),
+}
+
+/// A shared memo prior over the nominal box, for the numeric lane.
+///
+/// **The symbolic lane has none, deliberately.** A `Sym` value carries
+/// a DAG node id, its hash-consing table is per session and thread-local
+/// (`geom_core::sym::with_session`), and a memo built in one session and
+/// served into another hands the second session ids it has no nodes for.
+/// The forms would freeze rather than cancel — sound, but it would
+/// silently switch the tier off for exactly the subgraph the prior was
+/// built to save. A per-leaf session with no prior costs evaluation time
+/// and claims nothing false.
+pub(crate) enum LeafPrior {
+    /// No prior — every leaf evaluates standalone.
+    None,
+    /// The numeric lane's shared prior.
+    Numeric(Box<Evaluation<geom_core::Interval>>),
+}
+
+impl LeafPrior {
+    /// The prior for `lane` over `nominal_box`.
+    pub(crate) fn of(
+        doc: &crate::doc::Doc<crate::program::ProfileProgram>,
+        opts: &EvalOptions,
+        lane: LeafLane,
+        tol: geom_core::Tol,
+    ) -> Self {
+        match lane {
+            LeafLane::Numeric => Self::Numeric(Box::new(evaluate(
+                doc,
+                None,
+                &CancelToken::new(),
+                opts,
+                tol,
+            ))),
+            LeafLane::Symbolic(_) => Self::None,
+        }
+    }
+}
+
+/// What a consumer wants read off a leaf's replay.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct LeafRequest {
+    /// Read the per-node content keys (the content tie's currency).
+    pub keys: bool,
+    /// Read this measure node's value.
+    pub measure: Option<crate::node::RecipeNodeId>,
+    /// Read this assertion node's verdict.
+    pub assertion: Option<crate::node::RecipeNodeId>,
+}
+
+/// What came back.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct LeafReadback {
+    /// Per-node content keys, in evaluation order (empty unless asked).
+    pub keys: Vec<(crate::node::RecipeNodeId, ContentKey)>,
+    /// The measure node's CERTIFIED bracket — `Ok(None)` when the value
+    /// carries a domain violation, `Err` when the node has no measured
+    /// value at all (with the node and its reason).
+    pub measure: Option<Result<Option<(f64, f64)>, (crate::node::RecipeNodeId, String)>>,
+    /// The measure node's STORED bracket, for a report that tabulates
+    /// enclosures rather than certifying them.
+    pub measure_bracket: Option<(f64, f64)>,
+    /// The assertion node's verdict, projected onto the numeric channel.
+    pub assertion: Option<crate::measure::AssertionVerdict<geom_core::Interval>>,
+}
+
+/// **Replays one leaf on `lane` and reads back what `want` asks for** —
+/// the ONE door every certified-leaf consumer goes through
+/// ([`LeafLane`]).
+///
+/// It lives here rather than at each consumer because the lane is the
+/// evaluation service's own fact and because the two arms below are the
+/// only place in the tree that names both leaf scalars. A consumer that
+/// picked its own scalar would be deciding, per file, which build it is
+/// reading — which is exactly the drift that made a perfectly good
+/// verdict report as "not of this build".
+pub(crate) fn replay_leaf(
+    doc: &crate::doc::Doc<crate::program::ProfileProgram>,
+    opts: &EvalOptions,
+    lane: LeafLane,
+    prior: &LeafPrior,
+    want: LeafRequest,
+    tol: geom_core::Tol,
+) -> LeafReadback {
+    match lane {
+        LeafLane::Numeric => {
+            let prior = match prior {
+                LeafPrior::Numeric(p) => Some(&**p),
+                LeafPrior::None => None,
+            };
+            let ev: Evaluation<geom_core::Interval> =
+                evaluate(doc, prior, &CancelToken::new(), opts, tol);
+            read_leaf(&ev, want, |v| v)
+        }
+        LeafLane::Symbolic(budget) => {
+            let (out, _) = geom_core::sym::with_session(budget, || {
+                let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
+                    evaluate(doc, None, &CancelToken::new(), opts, tol);
+                read_leaf(&ev, want, |v: geom_core::Sym<geom_core::Interval>| v.value)
+            });
+            out
+        }
+    }
+}
+
+/// The reads themselves, at whatever scalar the lane ran — `project`
+/// takes the lane scalar down to the numeric channel, which is where
+/// every number a consumer sees is quoted from.
+fn read_leaf<T: EvalScalar + geom_core::CertifiedEnclosure>(
+    ev: &Evaluation<T>,
+    want: LeafRequest,
+    project: impl Fn(T) -> geom_core::Interval,
+) -> LeafReadback {
+    let mut out = LeafReadback::default();
+    if want.keys {
+        out.keys = ev
+            .order
+            .iter()
+            .filter_map(|&id| ev.value(id).map(|v| (id, v.content_key)))
+            .collect();
+    }
+    if let Some(id) = want.measure {
+        out.measure = Some(match ev.result(id) {
+            Some(NodeResult::Ok(v)) => match &v.payload {
+                ValuePayload::Measure { value, .. } => {
+                    out.measure_bracket = Some((value.lo(), value.hi()));
+                    Ok(geom_core::CertifiedEnclosure::certified_bracket(*value))
+                }
+                ValuePayload::MeasureUnavailable { reason, .. } => Err((id, format!("{reason}"))),
+                other => Err((
+                    id,
+                    format!("node evaluated to a {}, not a measure", other.kind_name()),
+                )),
+            },
+            _ => Err(ev.node_error(id).map_or_else(
+                || (id, "not evaluated".to_owned()),
+                |e| (e.node, e.kind.to_string()),
+            )),
+        });
+    }
+    if let Some(id) = want.assertion {
+        out.assertion = match ev.result(id) {
+            Some(NodeResult::Ok(v)) => match &v.payload {
+                ValuePayload::Assertion(a) => Some(a.clone().map(&project)),
+                _ => None,
+            },
+            _ => None,
+        };
+    }
+    out
+}
+
 /// Evaluation options (spec D5/D6).
 #[derive(Debug, Clone)]
 pub struct EvalOptions {

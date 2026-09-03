@@ -198,6 +198,16 @@ impl SymbolicDials {
             max_degree: self.max_degree,
         }
     }
+
+    /// The replay lane these dials name — the currency every
+    /// certified-leaf consumer takes ([`crate::eval::LeafLane`]).
+    pub(crate) fn lane(self) -> crate::eval::LeafLane {
+        if self.enabled {
+            crate::eval::LeafLane::Symbolic(self.budget())
+        } else {
+            crate::eval::LeafLane::Numeric
+        }
+    }
 }
 
 impl Default for SymbolicDials {
@@ -695,6 +705,7 @@ pub struct ParamBoxVerdict {
     accounting: MeasureAccounting,
     receipt: Receipt,
     decisions: SymCounts,
+    symbolic: SymbolicDials,
     witness_vector: Arc<VerdictVector>,
     root: ParamBox,
 }
@@ -746,6 +757,25 @@ impl ParamBoxVerdict {
     /// The box that was driven.
     pub fn root(&self) -> &ParamBox {
         &self.root
+    }
+
+    /// **The tier this drive ran at** ([`SymbolicDials`]).
+    ///
+    /// Shipped on the verdict because every consumer that REPLAYS a
+    /// certified leaf — a stackup's content tie, a measure hull, a
+    /// histogram row, an assertion read-back — has to replay it the way
+    /// the driver certified it. A leaf certified with the symbolic tier
+    /// on can carry a node that a numeric-only replay refuses, and a
+    /// consumer that replayed at the wrong tier would report the
+    /// verdict as "not of this build" rather than reading it.
+    pub fn symbolic(&self) -> SymbolicDials {
+        self.symbolic
+    }
+
+    /// The replay lane [`Self::symbolic`] names — the currency
+    /// `crate::eval::replay_leaf` takes.
+    pub(crate) fn lane(&self) -> crate::eval::LeafLane {
+        self.symbolic.lane()
     }
 
     /// The verdict's goldening form: a deterministic, float-exact text
@@ -984,6 +1014,28 @@ pub enum DriveRefusal {
     /// answers this document completely, and saying so is more useful
     /// than returning a one-leaf verdict that looks like an analysis.
     NothingVaries,
+    /// **The symbolic tier and the clearance engine do not compose**
+    /// (E12's unit, deviation D3; issue 1276).
+    ///
+    /// `min_clearance` answers with an enclosure computed by
+    /// [`crate::clearance`]'s engine, which is written at
+    /// [`geom_core::Interval`] concretely — it borrows a
+    /// `&Body<Interval>` — so it cannot be handed the leaf replay's
+    /// `Body<Sym<Interval>>`, and no scalar remap of a body exists to
+    /// strip one. The lane therefore has no clearance answer at all.
+    ///
+    /// Refused up front rather than degraded: the trait's honest `None`
+    /// reads downstream as the typed absence
+    /// [`crate::eval::ValuePayload::MeasureUnavailable`], which is a
+    /// VALUE, so the leaf would certify with the clearance measure
+    /// silently missing from it. That is precisely the quiet degradation
+    /// this kernel refuses, so the drive says so instead. The recourse
+    /// is in the message: drive this document with
+    /// [`SymbolicDials::off`].
+    SymbolicClearanceUnsupported {
+        /// The measure node whose primitive has no lane.
+        node: RecipeNodeId,
+    },
 }
 
 impl core::fmt::Display for DriveRefusal {
@@ -998,6 +1050,13 @@ impl core::fmt::Display for DriveRefusal {
             Self::NothingVaries => f.write_str(
                 "no parameter of this document declares a distribution, so the analyzed box has \
                  no varying axis — the nominal build is the whole answer",
+            ),
+            Self::SymbolicClearanceUnsupported { node } => write!(
+                f,
+                "node {} measures a `min_clearance`, whose engine has no lane at the symbolic \
+                 identity tier — drive with `DriveConfig {{ symbolic: SymbolicDials::off(), .. }}` \
+                 to get the numeric-only answer, or measure a closed form",
+                node.0
             ),
         }
     }
@@ -1027,6 +1086,11 @@ pub fn drive(
     let root = ParamBox::of(analyzed);
     if root.varying().next().is_none() {
         return Err(DriveRefusal::NothingVaries);
+    }
+    if config.symbolic.enabled {
+        if let Some(node) = clearance_measure(doc) {
+            return Err(DriveRefusal::SymbolicClearanceUnsupported { node });
+        }
     }
 
     // The WITNESS build: the document at its nominals, at f64, with the
@@ -1196,8 +1260,24 @@ pub fn drive(
         accounting,
         receipt,
         decisions,
+        symbolic: config.symbolic,
         witness_vector,
         root,
+    })
+}
+
+/// The first `Measure` node reading a `min_clearance` primitive, if
+/// the document has one ([`DriveRefusal::SymbolicClearanceUnsupported`]).
+fn clearance_measure(doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
+    doc.order().iter().copied().find(|&id| {
+        let Some(Node::Measure { expr, .. }) = doc.node(id) else {
+            return false;
+        };
+        let mut prims = Vec::new();
+        expr.primitives(&mut prims);
+        prims
+            .iter()
+            .any(|p| matches!(p, crate::measure::MeasurePrimitive::MinClearance { .. }))
     })
 }
 
@@ -1297,9 +1377,10 @@ fn classify(
 }
 
 /// The classification itself, over an already-replayed leaf — generic
-/// in the lane scalar, because the two lanes above differ only in which
-/// scalar produced the evaluation and in nothing this function reads.
-fn classify_replay<T: crate::eval::EvalScalar>(
+/// in the lane scalar at `Decide`, the weakest bound its reads need,
+/// because the two lanes above differ only in which scalar produced the
+/// evaluation and in nothing this function looks at.
+fn classify_replay<T: geom_core::Decide>(
     doc: &Doc<ProfileProgram>,
     box_: &ParamBox,
     leaf: &Evaluation<T>,
@@ -1755,23 +1836,28 @@ pub fn assertion_at(
     doc: &Doc<ProfileProgram>,
     assertion: RecipeNodeId,
     box_: &ParamBox,
+    symbolic: SymbolicDials,
     tol: Tol,
 ) -> Option<crate::measure::AssertionVerdict<geom_core::Interval>> {
     if !matches!(doc.node(assertion), Some(Node::Assertion { .. })) {
         return None;
     }
-    let opts = EvalOptions {
-        param_box: Some(Arc::new(box_.clone())),
-        ..lane_opts()
-    };
-    let ev: Evaluation<geom_core::Interval> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
-    match ev.result(assertion) {
-        Some(crate::eval::NodeResult::Ok(v)) => match &v.payload {
-            crate::eval::ValuePayload::Assertion(a) => Some(a.clone()),
-            _ => None,
+    // The SAME LANE the leaf was certified on ([`ParamBoxVerdict::symbolic`]).
+    crate::eval::replay_leaf(
+        doc,
+        &EvalOptions {
+            param_box: Some(Arc::new(box_.clone())),
+            ..lane_opts()
         },
-        _ => None,
-    }
+        symbolic.lane(),
+        &crate::eval::LeafPrior::None,
+        crate::eval::LeafRequest {
+            assertion: Some(assertion),
+            ..crate::eval::LeafRequest::default()
+        },
+        tol,
+    )
+    .assertion
 }
 
 /// The measure-refusal classes a smaller box cannot change

@@ -331,6 +331,7 @@ fn outcome_str(o: SampleOutcome) -> &'static str {
         SampleOutcome::Definite(Sign::Positive) => "positive",
         SampleOutcome::Indeterminate => "indeterminate",
         SampleOutcome::Invalid => "invalid",
+        SampleOutcome::SymbolicZero => "symbolic_zero",
     }
 }
 

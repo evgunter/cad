@@ -131,8 +131,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use geom_core::interval::Interval;
-use geom_core::{CertifiedEnclosure, Dual64, Tol};
+use geom_core::{Dual64, Tol};
 use topo::Body;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
@@ -985,14 +984,22 @@ fn bind_verdict(
     let Some(tied) = chamber.or_else(|| verdict.certified().first()) else {
         return Ok(Chamber::LocalOnly);
     };
-    let replay: Evaluation<Interval> = evaluate(
+    // At the tier the drive ran (`ParamBoxVerdict::symbolic`): a leaf
+    // certified with the symbolic tier on can carry a node a
+    // numeric-only replay refuses, and the tie would then report a
+    // perfectly good build as "not of this build".
+    let readback = crate::eval::replay_leaf(
         doc,
-        None,
-        &CancelToken::new(),
         &leaf_opts(tied.box_.clone()),
+        verdict.lane(),
+        &crate::eval::LeafPrior::None,
+        crate::eval::LeafRequest {
+            keys: true,
+            ..crate::eval::LeafRequest::default()
+        },
         tol,
     );
-    tie(tied, &replay)?;
+    tie(tied, &readback.keys)?;
     Ok(
         chamber.map_or(Chamber::LocalOnly, |leaf| Chamber::ChamberCertified {
             leaf: leaf.box_.clone(),
@@ -1003,12 +1010,10 @@ fn bind_verdict(
 
 /// The tie itself: the leaf's recorded per-node keys against its
 /// replay's, in evaluation order, the first difference named.
-fn tie(leaf: &CertifiedLeaf, replay: &Evaluation<Interval>) -> Result<(), SensitivityRefusal> {
-    let replayed: Vec<(RecipeNodeId, ContentKey)> = replay
-        .order
-        .iter()
-        .filter_map(|&id| replay.value(id).map(|v| (id, v.content_key)))
-        .collect();
+fn tie(
+    leaf: &CertifiedLeaf,
+    replayed: &[(RecipeNodeId, ContentKey)],
+) -> Result<(), SensitivityRefusal> {
     let recorded = &leaf.results.node_keys;
     let n = recorded.len().max(replayed.len());
     for i in 0..n {
@@ -1750,6 +1755,7 @@ fn worst_case(
     tol: Tol,
 ) -> Result<WorstCase, StackupRefusal> {
     let leaves = verdict.certified();
+    let lane = verdict.lane();
     // One shared memo prior over the DEGENERATE box — every axis fixed
     // at the nominal, bound through the same door and the same
     // arithmetic a leaf's fixed axes bind through — so the
@@ -1766,28 +1772,39 @@ fn worst_case(
             .map(|n| (n.clone(), BoxAxis::Fixed))
             .collect(),
     );
-    let prior: Evaluation<Interval> =
-        evaluate(doc, None, &CancelToken::new(), &leaf_opts(nominal_box), tol);
+    // The hull runs on the lane the drive ran on
+    // (`ParamBoxVerdict::symbolic`), for the tie's reason: a leaf the
+    // symbolic tier certified may carry a node a numeric-only replay
+    // refuses. The numeric channel of the wrapped scalar is the plain
+    // one's, verbatim, so the BRACKETS are the same bits either way —
+    // only which leaves have one changes. The prior is the numeric
+    // lane's alone; `LeafPrior` states why the symbolic lane has none.
+    let prior = crate::eval::LeafPrior::of(doc, &leaf_opts(nominal_box), lane, tol);
     let one = |leaf: &CertifiedLeaf| -> Result<(f64, f64), StackupRefusal> {
-        let ev: Evaluation<Interval> = evaluate(
+        let readback = crate::eval::replay_leaf(
             doc,
-            Some(&prior),
-            &CancelToken::new(),
             &leaf_opts(leaf.box_.clone()),
+            lane,
+            &prior,
+            crate::eval::LeafRequest {
+                keys: true,
+                measure: Some(measure),
+                ..crate::eval::LeafRequest::default()
+            },
             tol,
         );
-        tie(leaf, &ev).map_err(StackupRefusal::Sensitivity)?;
-        let value =
-            measure_of(&ev, measure).map_err(|(node, cause)| StackupRefusal::LeafDiverged {
+        tie(leaf, &readback.keys).map_err(StackupRefusal::Sensitivity)?;
+        readback
+            .measure
+            .unwrap_or_else(|| Ok(None))
+            .map_err(|(node, cause)| StackupRefusal::LeafDiverged {
                 leaf: leaf.box_.clone(),
                 node,
                 cause,
-            })?;
-        CertifiedEnclosure::certified_bracket(value).ok_or_else(|| {
-            StackupRefusal::WorstCaseUncertified {
+            })?
+            .ok_or_else(|| StackupRefusal::WorstCaseUncertified {
                 leaf: leaf.box_.clone(),
-            }
-        })
+            })
     };
     // D9 idiom 1 again: an indexed map, then one sequential fold over
     // the collected brackets, so the hull is the same bits in either
