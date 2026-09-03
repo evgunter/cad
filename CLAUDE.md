@@ -49,7 +49,11 @@ titled `[ev] ...`.
 - **Account identifiers stay off GitHub** (Ev, #355): no email addresses or
   personal identifiers beyond the commit-signing identity `evgunter` in
   issues, PRs, comments, commits or committed files. Name accounts by role;
-  concrete addresses live only in local `cad-work` logs. Hazards around the
+  concrete addresses live only in local `cad-work` logs. **One deliberate
+  exception**, and it is the reason the rule survives contact with a public
+  repo: `.github/workflows/nightly.yml` publishes Ev's contact address,
+  because the comment channels are closed on purpose and closing them
+  without leaving a way to reach him would be worse. Hazards around the
   rest of the merge-only workflow: `memories/git-workflow.md`.
 
 ## Working style

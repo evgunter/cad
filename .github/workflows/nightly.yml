@@ -1902,54 +1902,21 @@ jobs:
           git push origin "refs/tags/$tag"
           echo "recorded $tag" >> "$GITHUB_STEP_SUMMARY"
 
-  # THE MODERATION LOCK, RE-ARMED. Nothing here measures the tree. It is a
-  # calendar chore, and this workflow is the only calendar the repo has.
+  # Since agents edit this repo fairly autonomously, I've restricted the
+  # ability to add comments. If you want to contact me about this repo,
+  # email me at evgunter@gmail.com.
   #
-  # WHAT IT CLOSES. Publishing opens exactly one text channel that the
-  # repository's own feature switches cannot shut. Issues, wiki, projects,
-  # discussions and downloads are all off and stay off; pull request
-  # CREATION is already `collaborators_only`. But that policy gates who may
-  # OPEN a pull request and says nothing about who may COMMENT on one, and
-  # the switch that would close commenting — turning pull requests off
-  # outright — would take the workflow this repo is built on with it, since
-  # agents open and merge their own. The one remaining lever is an
-  # INTERACTION LIMIT at `collaborators_only`, which also covers reactions,
-  # comment edits and title edits.
+  # GitHub caps an interaction limit at six months and then lets it lapse
+  # silently, so it is re-armed nightly rather than set once. Not behind
+  # `gate`: it tracks the calendar, not the tree.
   #
-  # WHY IT CANNOT BE SET ONCE. GitHub caps an interaction limit at SIX
-  # MONTHS and then lets it lapse SILENTLY: no check goes red, no mail is
-  # sent, and the first evidence is a stranger's comment already sitting in
-  # some agent's context. A control whose failure mode is silence is one
-  # that has to be re-asserted rather than configured, so each run PUTs it
-  # again and each PUT restarts the six-month clock. The margin is the point
-  # — this workflow could fail every night for five months and the limit
-  # would still be armed.
+  # Needs INTERACTION_LIMITS_TOKEN — a fine-grained PAT on this repository
+  # alone with Administration: write. The Actions GITHUB_TOKEN cannot reach
+  # this endpoint at any `permissions:` setting. A missing secret fails the
+  # job rather than skipping it: a moderation guard that quietly does
+  # nothing is the failure this job exists to prevent.
   #
-  # NOT BEHIND `gate`. Every other job here asks "has main moved", because
-  # every other job measures the tree. This one measures the calendar, and
-  # the calendar moves whether or not anyone committed.
-  #
-  # IT WRITES ON A REF-DISPATCH, by exception to this file's rule that a
-  # dispatch with a ref runs the rows and writes nothing. That rule protects
-  # the two RECORDS — the nightly tag and the measurement histories — from
-  # being poisoned by numbers taken off an old tree. This write is not a
-  # record of a tree: it carries no measurement, it reads nothing from the
-  # checkout (there is no checkout), and it is idempotent. A bisection run
-  # that also re-arms the limit has corrupted nothing.
-  #
-  # IT NEEDS A PAT, and this is not a `permissions:` block that was
-  # forgotten. Interaction limits are an ADMIN endpoint that the Actions
-  # GITHUB_TOKEN cannot reach at any workflow permission setting — the scope
-  # is not grantable to a workflow token at all. `INTERACTION_LIMITS_TOKEN`
-  # is a fine-grained PAT scoped to this repository alone with
-  # Administration: write, and nothing else.
-  #
-  # A MISSING SECRET FAILS THE JOB rather than skipping it. A moderation
-  # guard that quietly does nothing is the exact failure this job exists to
-  # prevent, and it is the only one here whose absence nothing else reports.
-  #
-  # NO LOCAL MIRROR: it writes a GitHub repository setting. A developer box
-  # has nothing to write it to and no business writing it.
+  # NO LOCAL MIRROR: it writes a GitHub repository setting.
   interaction-limit:
     name: re-arm the collaborators-only interaction limit
     runs-on: ubuntu-latest
@@ -1966,8 +1933,8 @@ jobs:
             exit 1
           fi
 
-          # Body and status come back together; every call splits them, so a
-          # non-200 is read as a failure rather than parsed as JSON.
+          # Body and status come back together so a non-200 is caught
+          # rather than parsed as JSON.
           api() {
             local method="$1" path="$2"; shift 2
             curl -sS -X "$method" \
@@ -1986,9 +1953,8 @@ jobs:
             exit 1
           fi
 
-          # THE READ-BACK IS THE ASSERTION. A 200 on the PUT says the request
-          # was accepted; only the GET says the limit is what this job claims
-          # it is, and this job's whole product is that claim.
+          # A 200 on the PUT says the request was accepted; only the GET
+          # says the limit is actually what this job claims it is.
           split "$(api GET /interaction-limits)"
           if [ "$code" != "200" ]; then
             echo "::error::GET /interaction-limits answered $code: $body"
@@ -2001,10 +1967,8 @@ jobs:
             exit 1
           fi
 
-          # Reported, not asserted. The limit is armed either way; while the
-          # repository is private it simply has nobody to exclude, and the
-          # day it goes public the guard is already six months deep rather
-          # than being remembered on the day it starts to matter.
+          # Reported, not asserted: the limit is armed either way, and is
+          # simply inert until the repository is public.
           split "$(api GET '')"
           vis="$(jq -r '.visibility // "unknown"' <<<"$body")"
 
