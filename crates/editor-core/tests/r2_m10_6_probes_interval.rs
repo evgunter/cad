@@ -595,6 +595,40 @@ fn the_mc_stream_is_re_derived_bit_for_bit() {
     assert_ne!(run(3, false), run(4, false), "the seed rides the report");
 }
 
+/// **The typed absence loses its whole payload at the Python read
+/// door, and says something self-contradictory on the way out.**
+///
+/// `ValuePayload::MeasureUnavailable::kind_name()` returns `"measure"`
+/// on purpose (`eval/mod.rs`, "The SAME family name as a measure that
+/// has a value"). The one consumer that formats `kind_name()` into a
+/// mismatch sentence is `pncad-py`'s `Value.measure`
+/// (`crates/pncad-py/src/py/value.rs:685`), whose fallthrough builds
+/// ``a `{kind_name}` value is not a measure`` — so a Python consumer
+/// who loads a document carrying a `min_clearance` measure and reads it
+/// at `f64` gets ``a `measure` value is not a measure``, with the verb,
+/// the scalar and the door that CAN answer all dropped. The sibling
+/// door `Value.assertion` does carry the reason through, so this is one
+/// door, not the design.
+///
+/// The row pins the sentence rather than the binding, which is not in
+/// this crate: it goes red when either half is fixed.
+#[test]
+fn the_python_read_door_will_say_a_measure_value_is_not_a_measure() {
+    let payload: editor_core::ValuePayload<f64> = editor_core::ValuePayload::MeasureUnavailable {
+        reason: editor_core::MeasureUnavailableAt::NeedsEnclosure {
+            verb: "min_clearance",
+            scalar: "f64",
+            door: "clearance::min_separation",
+        },
+        dim: Dimension::Length,
+    };
+    assert_eq!(
+        format!("a `{}` value is not a measure", payload.kind_name()),
+        "a `measure` value is not a measure",
+        "the sentence `pncad-py`'s `Value.measure` fallthrough builds for this payload"
+    );
+}
+
 // ------------------------------------------------------------------
 // 6. The end-to-end consumer walk: my own distributed, measured
 //    document, driven and reported through the public doors.
