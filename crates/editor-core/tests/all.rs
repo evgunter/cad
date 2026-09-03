@@ -306,6 +306,8 @@ mod r2_cert3_coord_dump;
 mod r2_keydiff;
 #[path = "r2_m10_2_probes.rs"]
 mod r2_m10_2_probes;
+#[path = "r2_m10_6_probes_interval.rs"]
+mod r2_m10_6_probes_interval;
 #[path = "r2_m10_di_probes.rs"]
 mod r2_m10_di_probes;
 #[path = "review_gui1_r1.rs"]
