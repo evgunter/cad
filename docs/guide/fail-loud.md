@@ -201,12 +201,23 @@ use pncad::document::EditError;
 
 let tol = Tol::witness();
 let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
 let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
     .expect("finite corners");
 
 let doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
+// The frame the square is drawn on — a dependency of the profile
+// exactly as the profile is a dependency of the extrude.
 let applied = apply(&doc, &DocEdit::InsertNode {
-    node: Node::Profile(ProfileProgram { plane: SketchPlane::xy(), loops: vec![square] }),
+    node: Node::Datum(Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    }),
+}, tol)?;
+let (doc, frame) = (applied.doc, applied.record.minted.expect("minted"));
+let applied = apply(&doc, &DocEdit::InsertNode {
+    node: Node::Profile(ProfileProgram { plane: frame, loops: vec![square] }),
 }, tol)?;
 let (doc, profile) = (applied.doc, applied.record.minted.expect("minted"));
 let doc = apply(&doc, &DocEdit::InsertNode {
@@ -215,7 +226,7 @@ let doc = apply(&doc, &DocEdit::InsertNode {
 
 let refused = apply(&doc, &DocEdit::DeleteNode { id: profile }, tol);
 assert!(matches!(refused, Err(EditError::DeleteWouldDangle { .. })));
-assert_eq!(doc.len(), 2, "the refused edit changed nothing");
+assert_eq!(doc.len(), 3, "the refused edit changed nothing");
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 

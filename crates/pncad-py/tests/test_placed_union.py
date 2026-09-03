@@ -234,7 +234,8 @@ def die_tool_document():
                 (DIE_L * m, 0 * m),
                 (DIE_L * m, DIE_L * m),
                 (0 * m, DIE_L * m),
-            ]
+            ],
+            plane=doc.sketch_frame(elevation=0 * m),
         )
     )
     cube = doc.insert(Node.extrude(square, DIE_L * m))
@@ -245,10 +246,16 @@ def die_tool_document():
     # on the revolve axis — the chart the retired equator workaround
     # existed to dodge, and the whole Revolve/datum half of this
     # document.
-    axis = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
-    plane = SketchPlane.from_frame(
-        (0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0)
+    plane = doc.sketch_frame(
+        plane=SketchPlane.from_frame(
+            (0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0)
+        )
     )
+    # The revolve axis is written IN that frame: world +Z is the
+    # frame's own v direction, so the meridian's pole-to-pole line is
+    # (0, 1) through the origin. Being in the plane is no longer a
+    # tolerance question — it is what the four numbers mean.
+    axis = doc.insert(Node.datum_axis_in_plane(plane, (0 * m, 0 * m), (0.0, 1.0)))
     half_disc = (
         Open.at((0 * m, -PIP_R * m))
         .arc_to(Bulge((0 * m, PIP_R * m), 1.0))
@@ -295,14 +302,19 @@ class TestTheDieTool(unittest.TestCase):
         doc, _ball, tool, pipped = die_tool_document()
         ev = evaluate(doc)
 
-        # SEVEN nodes: profile, extrude, datum, profile, revolve,
-        # group, subtract. The pairwise tool this replaces spends
-        # eighteen — the same five upstream, then six transforms, five
-        # unions and the subtract. Which of the seven is the group is
-        # not asserted by counting kinds here (the document layer
-        # exposes no node-kind read door); it is settled outright by
-        # the byte pin below, whose text names every node's kind.
-        self.assertEqual(len(doc), 7)
+        # NINE nodes: frame, profile, extrude, frame, profile, datum,
+        # revolve, group, subtract. Two of the nine are the sketch
+        # frames the cube and the meridian are drawn on — the cube's
+        # is the xy plane, the meridian's is the xz plane, and they
+        # are different planes, so they are different nodes. The
+        # pairwise tool this replaces spends the same seven upstream
+        # and then six transforms, five unions and the subtract, so
+        # the group's saving is the eleven it collapses into one.
+        # Which of the nine is the group is not asserted by counting
+        # kinds here (the document layer exposes no node-kind read
+        # door); it is settled outright by the byte pin below, whose
+        # text names every node's kind.
+        self.assertEqual(len(doc), 9)
 
         # An ordinary BODY out of the group — the property that lets a
         # boolean consume it at all.

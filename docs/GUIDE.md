@@ -1225,6 +1225,7 @@ let tol = Tol::witness();
 // Author a plate with a round hole. Both the outline and the hole
 // are programs; every coordinate is an expression.
 let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
 let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)])
     .expect("finite corners");
 let hole = LoopProgram::Circle {
@@ -1238,10 +1239,22 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
+// The frame the plate is drawn on. A profile names a frame NODE:
+// the plane is an authoring step, a row in the tree, and something
+// you can edit after drawing on it.
+let (next, frame) = insert(
+    &doc,
+    Node::Datum(Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    }),
+);
+doc = next;
 let (next, profile) = insert(
     &doc,
     Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: frame,
         loops: vec![outline, hole],
     }),
 );
@@ -1250,7 +1263,7 @@ let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5) });
 doc = next;
 
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
-assert_eq!(ev.recomputed, 2);
+assert_eq!(ev.recomputed, 3); // the frame, the profile, the plate
 assert_eq!(ev.reused, 0);
 
 // Reach the body the same way the export door does.
@@ -1282,7 +1295,10 @@ use pncad::prelude::*;
 #     let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
 # };
-# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { plane: SketchPlane::xy(), loops: vec![outline, hole] }));
+# let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+# let (next, frame) = insert(&doc, Node::Datum(Datum::Frame { origin: [len(0.0), len(0.0), len(0.0)], u: [scl(1.0), scl(0.0), scl(0.0)], v: [scl(0.0), scl(1.0), scl(0.0)] }));
+# doc = next;
+# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { plane: frame, loops: vec![outline, hole] }));
 # doc = next;
 # let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5) });
 # doc = next;
@@ -1294,11 +1310,12 @@ let thicker = apply(&doc, &DocEdit::SetParam {
     expr: len(1.0),
 }, tol)?.doc;
 
-// Pass the PRIOR evaluation: the profile is untouched, so its value
-// is reused by content key and only the extrude re-runs.
+// Pass the PRIOR evaluation: the frame and the profile are
+// untouched, so their values are reused by content key and only the
+// extrude re-runs.
 let ev2 = evaluate::<f64>(&thicker, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 1);
-assert_eq!(ev2.reused, 1);
+assert_eq!(ev2.reused, 2);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
@@ -1381,8 +1398,18 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
 // The plate: outline plus both parametric holes, one profile.
 let outline = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)])
     .expect("finite corners");
+let sc = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+// The plate's frame. The tab below is sketched at a different
+// height, so it gets its OWN frame — two planes, visible as two
+// rows, rather than two poses frozen inside two sketches.
+let (next, base_frame) = insert(&doc, Node::Datum(Datum::Frame {
+    origin: [lit(0.0), lit(0.0), lit(0.0)],
+    u: [sc(1.0), sc(0.0), sc(0.0)],
+    v: [sc(0.0), sc(1.0), sc(0.0)],
+}));
+doc = next;
 let (next, profile) = insert(&doc, Node::Profile(ProfileProgram {
-    plane: SketchPlane::xy(),
+    plane: base_frame,
     loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
 }));
 doc = next;
@@ -1391,8 +1418,14 @@ doc = next;
 
 // A plain tab on its own branch — parametrically inert, there so the
 // re-evaluation below has a sibling to REUSE.
+let (next, tab_frame) = insert(&doc, Node::Datum(Datum::Frame {
+    origin: [lit(0.0), lit(0.0), lit(0.125)],
+    u: [sc(1.0), sc(0.0), sc(0.0)],
+    v: [sc(0.0), sc(1.0), sc(0.0)],
+}));
+doc = next;
 let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
-    plane: SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.125))),
+    plane: tab_frame,
     loops: vec![
         LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
             .expect("finite corners"),
@@ -1437,7 +1470,8 @@ let bigger = apply(&doc, &DocEdit::SetDocParam {
 }, tol)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
-assert_eq!(ev2.reused, 2);     // the tab's whole branch, by content key
+assert_eq!(ev2.reused, 4);     // both frames and the tab's whole
+                               // branch, by content key
 assert!((volume(&ev2, solid) - v(0.4)).abs() < 1e-6);
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
