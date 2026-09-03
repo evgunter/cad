@@ -1282,3 +1282,21 @@ guard doc paragraphs arrived with the unit that kills fourteen
 byte-identical guard bodies; the quoted binary-size figure is a local
 build unlabelled; check 2's message lost `assert_eq!`'s left/right
 lines and the body calls it unchanged. Six fixes sent to the lane.
+
+## Unit: TCOST-11 merged (2026-09-03)
+
+PR 1716 at `52ab13d1d` (default lane, ε 1e-6 drawn, run 33814096354;
+earlier heads on the interval lane at 1e-6 and 1e-12; every job green
+but the inherited row on each). The one-declaration guard's fourteen
+byte-identical bodies are one `test_utils::source::aggregation_violations`
+call each (−891 lines across the fourteen `all.rs`, +204 in the
+library compiled once), with a selftest that plants four violations
+and reports every one rather than the first; `pncad` gets no guard
+for a stated reason and a `bvh` row keyed on `autotests = false` that
+reds if a non-aggregating crate's `tests/` grows a second file — the
+review's receipt showed the first spelling of that row passing green
+over a renamed aggregator, and the fix closed it. Batch 5's other
+fixes landed: the census's detection margin (now one tell per
+`all.rs`) stated at the helper, the fourteen doc paragraphs cut to
+pointers, the size figure labelled LOCAL. Binary size at CI's profile
++0.02 %: the unit buys one home, not bytes, and says so.
