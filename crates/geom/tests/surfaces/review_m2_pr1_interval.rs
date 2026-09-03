@@ -35,6 +35,7 @@ test_utils::gated_to![
     "crates/geom/src/curves.rs",
     "crates/geom-core/src/interval.rs",
     "crates/geom-core/src/dual.rs",
+    "interval-transcendentals/src/",
 ];
 
 use core::f64::consts::{FRAC_PI_6, TAU};

@@ -57,6 +57,10 @@ test_utils::gated_to![
     "crates/sweep/src/blend/",
     "crates/sweep/src/revolve/",
     "crates/topo/src/boolean/",
+    "crates/sweep/src/test_support.rs",
+    "crates/topo/src/query.rs",
+    "crates/topo/src/instance.rs",
+    "crates/geom-core/src/predicate.rs",
 ];
 
 use core::f64::consts::PI;

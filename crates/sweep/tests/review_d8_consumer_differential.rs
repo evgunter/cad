@@ -54,6 +54,7 @@ test_utils::gated_to![
     "crates/geom/src/curves.rs",
     "crates/sweep/src/skin.rs",
     "crates/sweep/src/loft.rs",
+    "crates/geom-core/src/ring_interval.rs",
 ];
 
 use geom::NurbsCurve3;

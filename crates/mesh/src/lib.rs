@@ -251,6 +251,10 @@ pub mod cert;
 mod chords;
 mod curved;
 mod nurbs_cert;
+// `nurbs_cert`'s randomized sweeps, in a module of their own so the per-file
+// test gate can skip them without skipping that file's deterministic pins.
+#[cfg(test)]
+mod nurbs_cert_fuzz;
 mod planar;
 // The sizing vocabulary is this crate's own: nothing in the module is
 // `pub`, and its shared names are `pub(crate)`. The module itself is

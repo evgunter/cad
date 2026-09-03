@@ -14,7 +14,12 @@
 //!    than only the exact `[0, 0]` the unit pins.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-test_utils::gated_to!["crates/geom-core/src/linalg/"];
+test_utils::gated_to![
+    "crates/geom-core/src/linalg/",
+    "crates/geom-core/src/interval.rs",
+    "crates/geom-core/src/ring_interval.rs",
+    "interval-transcendentals/src/",
+];
 
 use geom_core::{Real, Vec3};
 

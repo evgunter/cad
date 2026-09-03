@@ -25,6 +25,8 @@ test_utils::gated_to![
     "crates/geom/src/curves.rs",
     "crates/geom-core/src/spline/",
     "crates/geom-core/src/ring_interval.rs",
+    "crates/geom-core/src/linalg/",
+    "crates/geom-core/src/predicate.rs",
 ];
 
 use geom::{NurbsCurve2, NurbsCurve3};

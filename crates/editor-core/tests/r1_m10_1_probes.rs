@@ -15,6 +15,7 @@ test_utils::gated_to![
     "crates/editor-core/src/analysis.rs",
     "crates/editor-core/src/measure.rs",
     "crates/geom-core/src/tolerance.rs",
+    "crates/topo/src/props.rs",
 ];
 
 mod corpus;

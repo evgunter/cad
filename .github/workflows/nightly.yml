@@ -1155,6 +1155,32 @@ jobs:
   # selection that matches no test at all reds this row through nextest's own
   # zero-test exit rather than being passed `--no-tests=pass`.
   #
+  # WHAT THIS ROW COSTS, AND THE FIGURE IS UNMEASURED — said plainly rather
+  # than estimated, because this repo's convention is that a committed number
+  # comes from a hosted run and this job has never had one. Its SHAPE is
+  # knowable and is the whole of what can be claimed today:
+  #
+  #   * one `--workspace --features interval` TEST BUILD at the gate's opt-1
+  #     environment, which is the job's dominant term. It is the same compile
+  #     ci.yml's `build + archive (interval)` step pays, so that step is the
+  #     bound: 11.1 min at the 2026-09-02 reading in docs/S-TCOST-PLAN.md, and
+  #     11-15 min is the band those readings have moved in. This job pays no
+  #     artifact upload, so it should sit at or under that;
+  #   * plus the gated set's own EXECUTION, which is small against the build:
+  #     the set is 299 tests of the ~5 600 the workspace lists;
+  #   * plus nothing at all on a tree carrying no marker — the `derive the
+  #     gated set` step below is a text scan that emits `none()`, and the row
+  #     is skipped entirely rather than building.
+  #
+  # THE READING WILL COME FROM THIS JOB'S OWN DURATION on the row's first
+  # firing, and NOT BEFORE: the shape above is a bound derived from a different
+  # job's step, not a measurement of this one. The implementing lane could not
+  # take the measurement itself — a `workflow_dispatch` of nightly.yml answers
+  # `403 Resource not accessible by integration` for the lane's token and for
+  # the orchestrator's alike — so the first scheduled nightly after this lands
+  # is the first execution this row has ever had. Whoever reads that run should
+  # replace this paragraph with what it cost.
+  #
   # NO LOCAL MIRROR: the local half applies the identical TEST_FILTER to its
   # own test rows and undoes it with `--full`, so a developer who wants the
   # gated set runs the whole suite in one command; what has no local analogue

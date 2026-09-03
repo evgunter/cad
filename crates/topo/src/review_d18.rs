@@ -72,6 +72,7 @@ test_utils::gated_to![
     "crates/topo/src/euler_kill.rs",
     "crates/topo/src/body.rs",
     "crates/topo/src/entity.rs",
+    "crates/topo/src/fixtures.rs",
 ];
 
 use geom_core::Point3;

@@ -31,6 +31,8 @@
 test_utils::gated_to![
     "crates/geom-core/src/spline/",
     "crates/geom-core/src/ring_interval.rs",
+    "crates/geom-core/src/interval.rs",
+    "crates/geom-core/src/real.rs",
 ];
 
 use geom_core::spline::{KnotVector, basis, hull};

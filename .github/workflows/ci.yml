@@ -2554,6 +2554,17 @@ jobs:
       # (default eps, shard 1), mirroring the pre-archive job, which ran
       # it once with no eps env.
       #
+      # THESE TWO ROWS CARRY NO GATED-SUITE FILTER, AND MUST NEVER GAIN ONE AS
+      # A SECOND `-E`. nextest ORs its `-E` expressions, so appending
+      # `-E "$TEST_FILTER"` beside the `-E` below would not subtract the gated
+      # suites from this selection — it would ADD every test the filter
+      # excludes back into the row, which is the one way this mechanism can
+      # silently un-gate what it exists to gate. A row that needs both writes
+      # ONE expression, `(selection) & (filter)`, the way
+      # local-scripts/ci-local.sh's `gated_expr` builds it. Nothing is lost by
+      # their absence here: the archive run above already applies the filter,
+      # and these two select one module each from inside it.
+      #
       # `--no-fail-fast` HERE AND ON THE ROW BELOW, unconditionally, and the
       # reason is that the alternative needs an invariant nothing enforces.
       # Each row selects one test MODULE by filterset. Today each module holds

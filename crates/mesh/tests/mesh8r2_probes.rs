@@ -12,7 +12,11 @@
     clippy::print_stdout
 )]
 
-test_utils::gated_to!["crates/mesh/src/"];
+test_utils::gated_to![
+    "crates/mesh/src/",
+    "crates/topo/src/coherence.rs",
+    "crates/topo/src/splitting/",
+];
 
 mod common;
 use common::witness_bodies::{keyway, oblique_lens, slit};

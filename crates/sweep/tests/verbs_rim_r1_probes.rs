@@ -42,6 +42,8 @@ test_utils::gated_to![
     "crates/sweep/src/blend/",
     "crates/sweep/src/revolve/",
     "crates/sweep/src/extrude.rs",
+    "crates/sweep/src/test_support.rs",
+    "crates/geom-core/src/predicate.rs",
 ];
 
 use geom::Surface;

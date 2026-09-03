@@ -27,6 +27,7 @@ test_utils::gated_to![
     "crates/geom-core/src/ring_interval.rs",
     "crates/geom/src/surfaces/",
     "crates/geom/src/surfaces.rs",
+    "crates/geom-brep/src/ssi/enclose.rs",
 ];
 
 use geom::Surface;
