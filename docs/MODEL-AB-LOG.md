@@ -3153,6 +3153,38 @@ The PR is HELD for Ev's sign-off (PATHS §6 PQ4 / §4 / verb table —
 design surface); merge follows the dual + sign-off. Sample number at
 merge; row in the docs PR after the merge.
 
+MESH-12 (PR #1617) ordinal FIXED AT DISPATCH (2026-09-03):
+**ordinal 1210** (S-MESH band 1200–1299). v6 dual: parity byte **40**,
+parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `0e053a727`
+(run 33705079950 verified at dispatch: head SHA matches, 21 checks —
+16 success + 5 skipped; gate point lane=interval × eps default, both
+ASKED by trailer, CONFIG_SOURCE lane:commit-trailer eps:commit-trailer),
+R2 isolated from R1, briefs symmetric (HARD RULES written fresh for
+this unit — the MESH-10/11 briefs had inherited MESH-8's), no
+relaxations granted. Implementer difficulty S (pre-logged at the spec,
+pre-draw). Sample number at merge; the row rides the unit branch as
+its last commit. Two forward findings filed at dispatch: issue 1615
+(a rim-only sphere cap the shape door admits panics at the issue-897
+census — pre-existing, Euler-door reach only) and issue 1618 (the
+torus single-edge meridian span and the rim Δu sum read raw past the
+winding bound — hand-built reach only); both parked on the S-MESH
+slate. S-CERT notified on the PR of the CERT-1 3π row's re-aim.
+
+DRAW-VIOLATION DISCLOSURE (2026-09-03, orchestrator): block MESH-B3
+(byte 198 ⇒ slot 0 fable, slot 1 opus, slot 2 opus) was NOT honoured
+at slot 2. MESH-10 (ordinal 1208, sample #112) was dispatched to FABLE
+and its row's arm cell says "FABLE (block MESH-B3 slot 2)" — the arm
+named is the arm that ran, so the row is truthful about the sample,
+but the draw said OPUS. The error was the orchestrator's at dispatch
+(the block's slots were recalled from memory, not re-read from the
+private draw file). Consequence for the ledger: the S-MESH implementer
+arm balance is one fable heavier than the draws prescribe; the MESH-10
+sample stands as a fable sample (v6 records what ran) and no re-run is
+owed. Going forward: MESH-B4 (byte 112 ⇒ 0 opus, 1 fable, 2 opus) was
+dispatched from the file (MESH-11 opus at slot 0, MESH-12 fable at
+slot 1, both verified against the file at dispatch), and every future
+dispatch record quotes the private file's line before the arm is named.
+
 MESH-11 (PR #1599) ordinal FIXED AT DISPATCH (2026-09-02):
 **ordinal 1209** (S-MESH band 1200–1299). v6 dual: parity byte **188**,
 parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `d8b4e6c67`

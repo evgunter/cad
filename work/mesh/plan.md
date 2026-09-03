@@ -232,6 +232,14 @@ logged pre-draw per the protocol.
   door and recorded as such. Issue 1598 (the L-shaped complement's
   volume 0.0) is HANDED TO S-CERT — the closed form's extent premise,
   issue 723's class. Spec `docs/MESH-12-SPEC.md`. After MESH-11.
+- **Parked behind MESH-12 (filed at its dispatch, 2026-09-03):**
+  issue 1615 — a rim-only sphere cap through the Euler doors passes the
+  shape door and the branch door and `mesh::tessellate` panics at the
+  issue-897 census (pre-existing; admit-with-emission or refuse-typed is
+  the design question; fixture in MESH-12's topo rows); issue 1618 — the
+  torus single-edge meridian span and the rim Δu sum read raw past the
+  winding bound (hand-built reach only; two named decides, S; a MESH-R
+  track candidate). Neither is scheduled.
 - **MESH-R — the remaining Track R rows as track lanes** after the
   defect cluster clears, sequenced by the track's own table: S28,
   S236 (its `tools/` half is Track K's row, per the cell), S237,

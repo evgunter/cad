@@ -5,7 +5,7 @@ enforces; this header says only what the contract does not.
     work.py lint                         every rule in work/README.md
     work.py status [--program P]         the render, to stdout
     work.py render [--out PATH]          the render, to work/STATUS.md
-    work.py new ID --kind K --title T [--program P] [key=value ...]
+    work.py new ID --kind K --title T [--program P] [--set key=value ...]
     work.py set ID key=value [key=value ...]
     work.py territory (--base REF | --files LIST) [--branch NAME] [--strict]
     work.py --selftest
@@ -593,7 +593,8 @@ def cmd_new(root: str, item_id: str, kind: str, title: str, program: str | None,
     for a in extra:
         k, v = _parse_assignment(a)
         fields[k] = v
-        order.append(k)
+        if k not in order:
+            order.append(k)
     with open(path, "w", encoding="utf-8") as f:
         f.write(format_front_matter(fields, order))
         f.write("\n")
@@ -716,7 +717,12 @@ def selftest() -> int:
         if "## Waiting on Ev" in p or "`topo`" in p:
             failures.append("--program render leaked whole-board sections")
 
-        # new / set round-trip
+        # new / set round-trip, the CLI spelling included
+        if main(["--root", root, "new", "MESH-4", "--kind", "issue", "--title", "fourth", "--program", "mesh", "--set", "track=R", "--set", "opened=2026-09-03"]) != 0:
+            failures.append("CLI `new` with --set fields failed")
+        elif _find(root, "MESH-4").get("track") != "R":
+            failures.append("CLI `new` dropped its trailing assignments")
+        os.remove(os.path.join(root, "work/mesh/MESH-4.md"))
         rel = cmd_new(root, "MESH-3", "unit", "third", "mesh", ["track=R"])
         expect("after new", lint(root))
         cmd_set(root, "MESH-3", ["status=parked", "blocked_on=[MESH-1, 42]", "track="])
@@ -823,7 +829,8 @@ def main(argv: list[str]) -> int:
     s.add_argument("--kind", required=True, choices=[k for k in KINDS if k != "program"])
     s.add_argument("--title", required=True)
     s.add_argument("--program")
-    s.add_argument("assignments", nargs="*")
+    s.add_argument("--set", dest="assignments", action="append", default=[], metavar="KEY=VALUE",
+                   help="extra header fields, one per --set")
     s = sub.add_parser("set")
     s.add_argument("id")
     s.add_argument("assignments", nargs="+")

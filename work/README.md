@@ -133,7 +133,7 @@ entries); conversations for Ev get their own `[ev]` PR.
 python3 scripts/work.py lint                  every rule above; CI runs it
 python3 scripts/work.py status [--program P]  the render, to stdout
 python3 scripts/work.py render                the render, to work/STATUS.md
-python3 scripts/work.py new <id> --kind K --title T [--program P]
+python3 scripts/work.py new <id> --kind K --title T [--program P] [--set k=v]
 python3 scripts/work.py set <id> key=value [key=value ...]
 python3 scripts/work.py territory --base <ref> [--branch <name>]
 python3 scripts/work.py --selftest

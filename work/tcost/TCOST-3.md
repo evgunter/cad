@@ -2,10 +2,11 @@
 id: TCOST-3
 kind: unit
 title: retire the assertion-free cert7 probes and trim three offset fixtures
-status: dispatched
+status: closed
 pr: 1614
 branch: tcost/3-geom-brep-cert7-rational-probes
 opened: 2026-09-03
+closed: 2026-09-03
 ---
 
 Content unit (levers 5–6) over the geom-brep CERT-7 rational probe family:

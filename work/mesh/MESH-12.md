@@ -2,7 +2,7 @@
 id: MESH-12
 kind: unit
 title: the saturated sphere span refuses at the parse; the rim-continuation condition's reach measured
-status: dispatched
+status: review
 pr: 1617
 branch: mesh/12-saturated-span
 opened: 2026-09-02

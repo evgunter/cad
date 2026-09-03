@@ -2,10 +2,11 @@
 id: TCOST-4
 kind: unit
 title: the topo boolean torus-oracle probe, and the cross-profile dump rows
-status: dispatched
+status: closed
 pr: 1608
 branch: tcost/4-topo-boolean-probes
 opened: 2026-09-03
+closed: 2026-09-03
 ---
 
 Content unit over `topo`'s in-`src` `boolean::` probe rows: the torus-oracle

@@ -1,13 +1,23 @@
-//! R1 review probes for BOOL-3 (issue 1011, torus half). NOT part of
-//! the shipped tree: these exist to falsify the PR's claims by
-//! execution, against oracles independent of the code under test.
+//! Ray-torus root certification held against oracles that share no
+//! code with it.
 //!
-//! * the CERTIFIED ROOT COUNT, against a geometric root counter that
-//!   never touches the quartic's coefficients (it samples the torus's
-//!   own implicit `F` along the ray and bisects every sign change);
-//! * the `sqrt`-chain CUBE ROOT, against `f64::cbrt`;
-//! * the BIQUADRATIC SIGN, through the same geometric oracle on the
+//! * The CERTIFIED ROOT COUNT and the roots themselves answer to a
+//!   geometric counter that never touches the quartic's coefficients:
+//!   it samples the torus's own implicit `F` along the ray and bisects
+//!   every sign change. Where the two disagree in count, in a root's
+//!   value, or over a miss the oracle can see through, the rows say so
+//!   by pose regime.
+//! * The `sqrt`-chain CUBE ROOT answers to `f64::cbrt` across twelve
+//!   decades either side of 1 and both signs, and its truncation is
+//!   registered as a systematic bias rather than an enclosure — the
+//!   magnitude argument `solid_contain`'s `cbrt` docs rest on.
+//! * The BIQUADRATIC SIGN answers to the same geometric oracle, on the
 //!   rays that reach that arm.
+//!
+//! The independence is the content: an oracle built from the quartic's
+//! own algebra would agree with a wrong certifier. Two rows carry the
+//! count claim between them — a deterministic enumeration of the pose
+//! regimes the geometry names, and a sweep over poses nobody chose.
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
@@ -127,127 +137,306 @@ fn r1_cbrt_truncation_is_a_bias_not_a_containment() {
     }
 }
 
+/// The torus centre and axis every probe below sweeps about.
+fn centre_and_axis() -> (Point3<f64>, Vec3<f64>) {
+    (Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0))
+}
+
+/// The five `(R, r)` shapes the probes sweep — one per conditioning
+/// regime of the quartic: generic; a fat ring; a thin ring; a large-`R`
+/// thin ring; and a ring whose inner equator all but closes
+/// (`R - r = 0.01`, so the near-tangency is built into the shape rather
+/// than into the pose).
+const SHAPES: [(f64, f64); 5] = [(1.0, 0.3), (1.0, 0.9), (1.0, 0.02), (5.0, 0.1), (0.2, 0.19)];
+
+/// The running census of one sweep: how the certifier answered, and
+/// every disagreement with the geometric oracle.
+///
+/// `undecided` carries the LABEL of every ray the certifier escalated
+/// or refused rather than a bare count, because the count alone cannot
+/// say which pose class stopped deciding — and that is the question a
+/// shrinking decided-ray floor asks.
+struct Tally {
+    checked: usize,
+    certified: usize,
+    misses: usize,
+    undecided: Vec<String>,
+    bad: Vec<String>,
+}
+
+impl Tally {
+    fn new() -> Self {
+        Self {
+            checked: 0,
+            certified: 0,
+            misses: 0,
+            undecided: Vec::new(),
+            bad: Vec::new(),
+        }
+    }
+
+    /// Rays the certifier answered outright — a certified root set or a
+    /// miss. Read together with `bad`, which holds every answer the
+    /// oracle contradicted: `bad` empty and `decided` at its floor is
+    /// the pair that says the rows tested something.
+    fn decided(&self) -> usize {
+        self.certified + self.misses
+    }
+
+    /// One pose against both counters. Every line `bad` collects opens
+    /// with the REGIME that produced it, so a red names the pose class
+    /// and not only its coordinates.
+    fn compare(&mut self, regime: &str, rr: f64, r: f64, o: Point3<f64>, dir: Vec3<f64>) {
+        let (c, a) = centre_and_axis();
+        let d = dir.normalize();
+        self.checked += 1;
+        let got = line_torus_roots(o, d, c, a, rr, r, band());
+        let (oracle, gap) = oracle_roots(o, d, c, a, rr, r);
+        match got {
+            Ok(TorusRoots::Certified { count, ts }) => {
+                self.certified += 1;
+                if count != oracle.len() {
+                    self.bad.push(format!(
+                        "COUNT [{regime}] R={rr} r={r} o={o:?} d={d:?}: certified {count}, \
+                         oracle {} (gap {gap:e}) oracle roots {oracle:?} code roots {:?}",
+                        oracle.len(),
+                        &ts[..count]
+                    ));
+                    return;
+                }
+                let mut mine: Vec<f64> = ts[..count].to_vec();
+                mine.sort_by(|x, y| x.partial_cmp(y).unwrap());
+                for (m, ok) in mine.iter().zip(oracle.iter()) {
+                    if (m - ok).abs() > 1e-6 {
+                        self.bad.push(format!(
+                            "ROOT [{regime}] R={rr} r={r} o={o:?} d={d:?}: code {m:e} vs \
+                             oracle {ok:e} (gap {gap:e})"
+                        ));
+                    }
+                }
+            }
+            Ok(TorusRoots::Miss) => {
+                self.misses += 1;
+                if !oracle.is_empty() && gap > 1e-3 {
+                    self.bad.push(format!(
+                        "MISS [{regime}] R={rr} r={r} o={o:?} d={d:?}: code says miss, oracle \
+                         found {oracle:?} (gap {gap:e})"
+                    ));
+                }
+            }
+            Ok(TorusRoots::Uncertain) | Err(_) => {
+                self.undecided.push(format!("[{regime}] R={rr} r={r}"));
+            }
+        }
+    }
+
+    fn report(&self, label: &str) {
+        println!(
+            "R1 root-count probe ({label}): {} rays, {} certified, {} miss, {} \
+             uncertain/escalated, {} disagreements",
+            self.checked,
+            self.certified,
+            self.misses,
+            self.undecided.len(),
+            self.bad.len()
+        );
+        for line in self.undecided.iter().take(25) {
+            println!("  UNDECIDED {line}");
+        }
+        for line in self.bad.iter().take(25) {
+            println!("  {line}");
+        }
+    }
+}
+
+/// The pose REGIMES of a `(R, r)` torus: the rays whose root structure
+/// the geometry names, rather than rays drawn at large. Every entry is
+/// a distinct configuration of the quartic — a ray through the hole, a
+/// ray tangent to one of the two equators, a ray down the tube's
+/// centre, a ray that clears the shape — in each of the two symmetry
+/// planes plus two obliques through the centre.
+fn regime_poses(rr: f64, r: f64) -> Vec<(&'static str, Point3<f64>, Vec3<f64>)> {
+    vec![
+        // Through the centre: the four-root rays.
+        (
+            "centre, midplane, axis-aligned",
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        (
+            "centre, midplane, oblique",
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.3, 0.0, 0.954),
+        ),
+        (
+            "centre, out of the midplane",
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.3, 0.5, 0.812),
+        ),
+        // Parallel to the axis: the offset walks the hole, the inner
+        // equator, the tube's centre, the outer equator, and clear.
+        (
+            "axis-parallel, through the hole",
+            Point3::new(0.0, -9.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
+        (
+            "axis-parallel, inner-equator tangent",
+            Point3::new(rr - r, -9.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
+        (
+            "axis-parallel, through the tube centre",
+            Point3::new(rr, -9.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
+        (
+            "axis-parallel, outer-equator tangent",
+            Point3::new(rr + r, -9.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
+        (
+            "axis-parallel, clear of the shape",
+            Point3::new(rr + r + 0.4, -9.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ),
+        // In the midplane, offset from the centre: the same walk with
+        // the ray in the plane of the ring instead of along its axis.
+        (
+            "midplane, through the hole",
+            Point3::new(-9.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        (
+            "midplane, inner-equator tangent",
+            Point3::new(-9.0, 0.0, rr - r),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        (
+            "midplane, through the tube centre",
+            Point3::new(-9.0, 0.0, rr),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        (
+            "midplane, outer-equator tangent",
+            Point3::new(-9.0, 0.0, rr + r),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+        (
+            "midplane, beyond the outer equator",
+            Point3::new(-9.0, 0.0, 2.0 * rr),
+            Vec3::new(1.0, 0.0, 0.0),
+        ),
+    ]
+}
+
+/// How many of the enumeration's 65 rays the certifier must answer
+/// outright. The table is static, so this is a WITNESS, not a budget,
+/// and it exists because agreement with the oracle is vacuous over rays
+/// that never decided: a certifier that escalated on everything would
+/// satisfy the disagreement assertion perfectly.
+///
+/// The rays that legitimately do not decide are the ones carrying a
+/// double root inside the band — the two equator tangents in each of
+/// the two symmetry planes, and the axis-parallel ray up the hole,
+/// which grazes the inner equator — where escalating is the right
+/// answer. Which of them escalate MOVES WITH ε, and so does the count:
+/// 40 rays decided at the default ε, 41 at 1e-12, 38 at 1e-6. The
+/// membership moves too, not just the total — at 1e-6 the two midplane
+/// tangents on the `(0.2, 0.19)` torus decide while the tube-centre ray
+/// through the two thinnest tubes does not — so this is a FLOOR over
+/// the three ε rows and not a per-regime pin. Lower it only with the
+/// regime that stopped deciding named, and only once escalating there
+/// is the right answer for it.
+const DECIDED_FLOOR: usize = 38;
+
 /// CLAIM 1 + 5 — the certified count and the biquadratic sign, against
-/// the geometric oracle, over a lattice of rays including every
-/// adversarial pose the brief names.
+/// the geometric oracle, over the ENUMERATION of pose regimes: for each
+/// of the five torus shapes, every ray configuration the geometry names
+/// (`regime_poses`). Deterministic and exhaustive over that table;
+/// generic poses are the sibling sweep's, not this row's.
+///
+/// Two assertions, labelled: **AGREEMENT**, that no answer contradicts
+/// the oracle, and **DECIDEDNESS**, that the table still drives the
+/// certifier to an answer on at least [`DECIDED_FLOOR`] of its rays.
+/// Neither carries the claim alone.
 #[test]
 fn r1_certified_counts_agree_with_a_geometric_oracle() {
-    let c = Point3::new(0.0, 0.0, 0.0);
-    let a = Vec3::new(0.0, 1.0, 0.0);
-    let b = band();
-    let mut checked = 0usize;
-    let mut certified = 0usize;
-    let mut uncertain = 0usize;
-    let mut misses = 0usize;
-    let mut bad: Vec<String> = Vec::new();
-
-    for (rr, r) in [
-        (1.0f64, 0.3f64),
-        (1.0, 0.9),
-        (1.0, 0.02),
-        (5.0, 0.1),
-        (0.2, 0.19),
-    ] {
-        // a lattice of origins and directions, plus the named adversarial poses
-        let mut poses: Vec<(Point3<f64>, Vec3<f64>)> = Vec::new();
-        // through the centre, in the midplane -> four roots
-        poses.push((Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)));
-        poses.push((
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(0.3, 0.0, 0.954).normalize(),
-        ));
-        // axis-parallel
-        for x in [0.0, 0.5, rr - r, rr, rr + r, rr + r + 0.4] {
-            poses.push((Point3::new(x, -9.0, 0.0), Vec3::new(0.0, 1.0, 0.0)));
-        }
-        // midplane rays that do not pass through the centre
-        for y in [0.0] {
-            for off in [0.0, 0.4, rr - r, rr, rr + r, 2.0 * rr] {
-                poses.push((Point3::new(-9.0, y, off), Vec3::new(1.0, 0.0, 0.0)));
-            }
-        }
-        // tangent to the inner / outer equator (in the midplane)
-        for off in [rr - r, rr + r] {
-            poses.push((Point3::new(-9.0, 0.0, off), Vec3::new(1.0, 0.0, 0.0)));
-        }
-        // through the centre along the axis
-        poses.push((Point3::new(0.0, -9.0, 0.0), Vec3::new(0.0, 1.0, 0.0)));
-        // a generic lattice
-        for i in 0..7 {
-            for j in 0..7 {
-                for k in 0..5 {
-                    let o = Point3::new(
-                        -3.0 + i as f64 * 1.1,
-                        -2.0 + j as f64 * 0.7,
-                        -3.0 + k as f64 * 1.3,
-                    );
-                    let dir = Vec3::new(
-                        0.3 + 0.21 * i as f64,
-                        -0.7 + 0.31 * j as f64,
-                        0.45 - 0.17 * k as f64,
-                    );
-                    if dir.norm() < 1e-6 {
-                        continue;
-                    }
-                    poses.push((o, dir.normalize()));
-                }
-            }
-        }
-
-        for (o, dir) in poses {
-            let d = dir.normalize();
-            checked += 1;
-            let got = line_torus_roots(o, d, c, a, rr, r, b);
-            let (oracle, gap) = oracle_roots(o, d, c, a, rr, r);
-            match got {
-                Ok(TorusRoots::Certified { count, ts }) => {
-                    certified += 1;
-                    if count != oracle.len() {
-                        bad.push(format!(
-                            "COUNT R={rr} r={r} o={o:?} d={d:?}: certified {count}, oracle {} \
-                             (gap {gap:e}) oracle roots {oracle:?} code roots {:?}",
-                            oracle.len(),
-                            &ts[..count]
-                        ));
-                        continue;
-                    }
-                    let mut mine: Vec<f64> = ts[..count].to_vec();
-                    mine.sort_by(|x, y| x.partial_cmp(y).unwrap());
-                    for (m, ok) in mine.iter().zip(oracle.iter()) {
-                        if (m - ok).abs() > 1e-6 {
-                            bad.push(format!(
-                                "ROOT R={rr} r={r} o={o:?} d={d:?}: code {m:e} vs oracle {ok:e} \
-                                 (gap {gap:e})"
-                            ));
-                        }
-                    }
-                }
-                Ok(TorusRoots::Miss) => {
-                    misses += 1;
-                    if !oracle.is_empty() && gap > 1e-3 {
-                        bad.push(format!(
-                            "MISS R={rr} r={r} o={o:?} d={d:?}: code says miss, oracle found \
-                             {oracle:?} (gap {gap:e})"
-                        ));
-                    }
-                }
-                Ok(TorusRoots::Uncertain) => uncertain += 1,
-                Err(_) => uncertain += 1,
-            }
+    let mut tally = Tally::new();
+    for (rr, r) in SHAPES {
+        for (regime, o, dir) in regime_poses(rr, r) {
+            tally.compare(regime, rr, r, o, dir);
         }
     }
-    println!(
-        "R1 root-count probe: {checked} rays, {certified} certified, {misses} miss, \
-         {uncertain} uncertain/escalated, {} disagreements",
-        bad.len()
-    );
-    for line in bad.iter().take(25) {
-        println!("  {line}");
-    }
+    tally.report("pose regimes");
     assert!(
-        bad.is_empty(),
-        "{} disagreements with the oracle",
-        bad.len()
+        tally.bad.is_empty(),
+        "AGREEMENT: {} disagreements with the oracle over the pose-regime enumeration",
+        tally.bad.len()
+    );
+    assert!(
+        tally.decided() >= DECIDED_FLOOR,
+        "DECIDEDNESS: only {} of {} enumerated rays were decided (floor {DECIDED_FLOOR}); \
+         the regimes that escalated or refused are {:?}",
+        tally.decided(),
+        tally.checked,
+        tally.undecided
+    );
+}
+
+/// CLAIM 1 + 5 at poses nobody chose — a counterexample search over
+/// rays drawn uniformly through the box the shapes occupy, with a
+/// direction uniform on the sphere.
+///
+/// A varying seed, because this is the search shape: successive runs
+/// explore new poses instead of replaying one lattice forever. The
+/// count is on the workspace `CAD_FUZZ_EFFORT` dial, shipped at the
+/// smoke level a gated run should cost; `CAD_FUZZ_EFFORT=60` restores
+/// roughly the ray count the fixed lattice used to run.
+#[test]
+fn r1_generic_poses_agree_with_the_geometric_oracle() {
+    use test_utils::fuzz;
+    let mut rng = fuzz::start("boolean::r1_probes::generic_poses");
+    // This sweep is specific to `crates/topo/src/boolean/solid_contain.rs`
+    // — `line_torus_roots` and the `cbrt` chain it calls live there —
+    // and to this file. It runs UNGATED on every leg: the per-file gate
+    // that would restrict it to diffs touching those paths is specified
+    // in `docs/TCOST-1-SPEC.md` and its marker is not in the tree yet,
+    // so the shipped count is the smoke level that costs a full matrix
+    // acceptably rather than the depth a gated run would buy.
+    let per_shape = fuzz::scaled(4);
+    let mut tally = Tally::new();
+    for (rr, r) in SHAPES {
+        for _ in 0..per_shape {
+            let o = Point3::new(
+                rng.range(-3.0, 3.6),
+                rng.range(-2.0, 2.2),
+                rng.range(-3.0, 2.2),
+            );
+            // Uniform on the sphere by rejection from the ball: a
+            // direction drawn per-component and normalized would
+            // over-weight the cube's diagonals, which is the bias the
+            // retired lattice's arithmetic directions already had.
+            let dir = loop {
+                let v = Vec3::new(
+                    rng.range(-1.0, 1.0),
+                    rng.range(-1.0, 1.0),
+                    rng.range(-1.0, 1.0),
+                );
+                let n = v.norm();
+                if (1e-3..=1.0).contains(&n) {
+                    break v / n;
+                }
+            };
+            tally.compare("generic", rr, r, o, dir);
+        }
+    }
+    tally.report("generic poses");
+    assert!(
+        tally.bad.is_empty(),
+        "{} disagreements with the oracle at generic poses — {}",
+        tally.bad.len(),
+        fuzz::replay()
     );
 }
 

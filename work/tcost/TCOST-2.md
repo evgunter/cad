@@ -2,10 +2,11 @@
 id: TCOST-2
 kind: unit
 title: geom-brep CERT-5/CERT-6 patch probes — retire the cost probes, cut the gap ladder, make the oracles lazy
-status: dispatched
+status: closed
 pr: 1609
 branch: tcost/2-geom-brep-cert5-probes
 opened: 2026-09-03
+closed: 2026-09-03
 ---
 
 Content unit (levers 4–6) over the geom-brep patch-probe family the timing
