@@ -30,8 +30,8 @@
 //! refusal class) is bought by SIZE instead — `exhausting_prism`
 //! below — which is ε-independent.
 
-use geom_core::{Affine3, Point2, Tol, Vec3};
 use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Section, loft_body};
@@ -378,9 +378,9 @@ fn a_refusing_arm_returns_no_properties_through_either_door() {
             "REFUSAL {label}: a refusing arm returns no properties — a refusal carries \
              no blessed number"
         );
-        let found = errors.iter().any(|e| {
-            std::mem::discriminant(e) == std::mem::discriminant(&wanted)
-        });
+        let found = errors
+            .iter()
+            .any(|e| std::mem::discriminant(e) == std::mem::discriminant(&wanted));
         assert!(
             found,
             "PLANTED {label}: the planted class must be the one that refuses, got {errors:?}"
