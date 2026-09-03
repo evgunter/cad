@@ -3246,6 +3246,55 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: python
+      # THE `python` FEATURE'S CLIPPY ROW, AND IT IS SITED IN THIS JOB ON
+      # PURPOSE. `crates/pncad-py/src/py/` — the whole PyO3 surface —
+      # compiles only under the crate's non-default `python` feature
+      # (`src/lib.rs`, `#[cfg(feature = "python")] mod py;`), so the
+      # `clippy` job's `cargo clippy $cargo_scope --all-targets`, which
+      # runs at DEFAULT features, has every one of those lines `#[cfg]`-ed
+      # away before clippy sees them. Until this row that half was linted
+      # by NO row: the `clippy` job cannot see it, and the wheel build
+      # below compiles it without linting it.
+      #
+      # WHY NOT IN THE `clippy` JOB. That job is on the Rust critical
+      # path, and a `--features python` row there is a SECOND compile of
+      # the façade stack under a second feature set — the same second
+      # compile the seed-key argument in this job's header was written to
+      # stop buying on every code-tier run — plus an interpreter the Rust
+      # jobs are STRUCTURALLY free of (the U9S gating property; see
+      # crates/pncad-py/Cargo.toml's header). Here it costs neither: this
+      # job already installs Python 3.12, already restores the `python`
+      # feature graph's own cache, and nothing `needs` it, so the row adds
+      # work to no job the gate waits on and opens no new job or cache lane.
+      #
+      # FIRST AMONG THIS JOB'S CARGO WORK, before maturin is even
+      # installed, because it needs none of the wheel machinery and it is
+      # the step that says "the `python` half compiles" in clippy's words
+      # rather than in a maturin log a minute later. The order is free
+      # either way: maturin builds `extension-module` (a different feature
+      # set, hence different unit fingerprints) and codegens where clippy
+      # emits metadata, so neither warms the other's units.
+      #
+      # NO libpython IS LINKED, even though `python` alone does not imply
+      # `extension-module`: clippy is check-only, so the `cdylib` is never
+      # linked (a cold `cargo clippy -p pncad-py --features python
+      # --all-targets` leaves no `libpncad_py.so` in target/debug/deps —
+      # only the proc-macro dylibs every clippy run builds). pyo3's BUILD
+      # SCRIPT does need an interpreter — with none on PATH it fails
+      # `error: no Python 3.x interpreter found` — and setup-python above
+      # is it.
+      #
+      # WHAT THE SITING GIVES UP is this job's seed key and its `push`
+      # skip: on a PR whose seeds miss {pncad-py, pncad, editor-core} the
+      # row does not run. A lint introduced BY the binding code, or by
+      # `pncad`/`editor-core`, seeds the axis and is caught on its own PR;
+      # one reaching `src/py/` from further down (`quantity`, the kernel
+      # through `pncad`'s re-exports) or from a `stable` toolchain bump
+      # shipping a new lint seeds nothing, and waits for nightly.yml's
+      # `python suite (ungated re-take)`, which carries this same step
+      # ungated once a day.
+      - name: clippy (pncad-py, python feature)
+        run: cargo clippy -p pncad-py --features python --all-targets -- -D warnings
       - name: install maturin (pinned, official prebuilt)
         run: curl -LsSf "https://github.com/PyO3/maturin/releases/download/v$MATURIN_VERSION/maturin-x86_64-unknown-linux-musl.tar.gz" | tar zxf - -C "$HOME/.cargo/bin" maturin
       # Debug profile on purpose (no --release): fastest honest build.
