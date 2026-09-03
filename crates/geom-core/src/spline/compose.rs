@@ -1237,3 +1237,4 @@ mod tests {
 // TCOST-K2 base probe: a comment, so the change filter classifies this
 // branch at the code tier and CI measures the merge base under the
 // same (lane, eps) point the unit is gated at. No code changes.
+// (second head: the default lane at the same eps row.)
