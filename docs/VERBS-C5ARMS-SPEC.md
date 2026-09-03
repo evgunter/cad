@@ -1,5 +1,11 @@
 # VERBS-C5ARMS — the two C5 section arms (#1057)
 
+**HOLD RESOLVED (2026-09-03).** PR-1 merged as #1577 (ordinal 111,
+sample #111) after TORAX (#1494) landed; rows 12/13 delivered, and
+the elbow rows 3/4/8 now wait on **`docs/VERBS-RIMCAP-SPEC.md`**'s
+torus half (design-gated), not on TORAX. Original note kept below
+for the record.
+
 **HOLD (2026-09-01).** PR-1 is held behind **`docs/VERBS-TORAX-SPEC.md`**
 (the offset-axial torus arm). PR-1's own item-1 STOP fired at
 dispatch: with the flag scratch-flipped, ALL FOUR named consumers

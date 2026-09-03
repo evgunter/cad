@@ -3075,3 +3075,20 @@ item files and in `work/STATUS.md` (generated); this log stays the
 narrative. Items created at migration: VERBS-CYLSPH (dispatched, PR
 #1604), VERBS-C5ARMS (open — PR-1 merged #1577, PR-2 remains),
 VERBS-CONE (open).
+## RIMCAP ratified; the queue moves into the tracker (2026-09-03)
+
+docs/VERBS-RIMCAP-SPEC.md ratified against main a6072d812 from the
+staged draft — sphere half only (the carried-datum corner rule +
+mint_carrier's off-axis-circle arm; two pre-registered STOPs; the
+reading-derived lune mechanism demoted to opening-measurement item
+4 with its own STOP), torus half kept as a design conversation
+inside the spec. Cites refreshed at ratification (verbs_shell
+klein row :633→:637; torax rim-constraint row :493→:497; the lune
+row's home at :581; the sphere-seam arm :1369-1391) and one
+corroboration recorded: torax_axial's own module doc already
+states the off-axis-centre mechanism — reading, not execution, so
+the measurement still runs. C5ARMS' hold note updated to RESOLVED
+pointing here for the elbow rows. New tracker items:
+VERBS-RIMCAP (spec) and VERBS-1031B (open; the fork-or-dissolve
+opening measurement is the unit's first act). RIMCAP dispatches
+after CYLSPH's cycle clears a lane.
