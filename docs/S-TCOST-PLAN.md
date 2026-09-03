@@ -13,8 +13,9 @@ harness-designated session branch carries the opening PR and is
 otherwise unused, per the S-CERT/S-QA/S-MESH precedent). Away-channel
 tag `(S-TCOST orchestrator)`. A/B ordinal band **S-TCOST =
 1400–1499**, claimed in `docs/MODEL-AB-LOG.md`'s banding entry in this
-same PR, per that entry's rule; implementer blocks are named
-`TCOST-B<n>` (unit names occupy `TCOST-<n>`).
+same PR, per that entry's rule; A/B implementer blocks are named
+`TCOST-KB<n>` (unit names occupy `TCOST-<n>`, kernel units
+`TCOST-K<n>`, build-side units `TCOST-B<n>`).
 
 ## Charter (Evan, in-chat, 2026-09-02 — in substance)
 
