@@ -3488,3 +3488,13 @@ dispatch (six sections, the persisted primitive a schema step, the
 three CI rows on the sampled matrix). Spec docs/M10-6-SPEC.md (to
 main at dispatch). The program's LAST unit; the block's slot 3 stays
 unclaimed unless a follow-up unit is opened before the exit walk.
+
+**M10-6 dual draw (branch-side, 2026-09-03, at review dispatch).**
+Ordinal 507. Slot byte 109, parity 1 ⇒ R1 FABLE + R2 OPUS,
+concurrent, frozen head bf67a734 (PR #1685), v5 instrument. Hosted
+CI was budget-blocked account-wide at dispatch (every run failing at
+the change filter from ~11:52Z); the frozen head carries one partial
+default-lane run (33751572289, green except a binding-census catch
+fixed before the head) and NO run on its asked-for point — the
+reviews proceed conditional on the gate, as the instrument always
+was, and the CI point is re-taken when the budget lifts.
