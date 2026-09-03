@@ -17,7 +17,7 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use std::collections::BTreeMap;
 
@@ -325,7 +325,7 @@ fn an_l_shaped_face_is_violated_where_it_has_no_material() {
         "{d} vs {}",
         v.geometry.distance
     );
-    assert!(d < 0.52 && d >= 0.5 - 1e-9, "the phantom approach: {d}");
+    assert!((0.5 - 1e-9..0.52).contains(&d), "the phantom approach: {d}");
     let p = v.geometry.a_point;
     assert!(
         (p.z - 1.0).abs() <= 1e-9,

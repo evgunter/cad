@@ -2113,7 +2113,7 @@ fn verify_witness(
     // field docs on [`GeometryWitness`] say so, and the true closest
     // point pair on two trimmed patches is a different unit's problem.
     let stations = |span: (f64, f64)| [span.0, mid_of(span), span.1];
-    let mut best: Option<(f64, (f64, f64), (f64, f64), Point3<f64>, Point3<f64>)> = None;
+    let mut best: Option<Station> = None;
     for au in stations(ca.u) {
         for av in stations(ca.v) {
             let pa = sa.eval(au, av);
@@ -2123,15 +2123,28 @@ fn verify_witness(
                     let d = separation_f64(&pa, &pb);
                     if best
                         .as_ref()
-                        .is_none_or(|(b, ..)| d.total_cmp(b) == core::cmp::Ordering::Less)
+                        .is_none_or(|b| d.total_cmp(&b.d) == core::cmp::Ordering::Less)
                     {
-                        best = Some((d, (au, av), (bu, bv), pa, pb));
+                        best = Some(Station {
+                            d,
+                            a_uv: (au, av),
+                            b_uv: (bu, bv),
+                            a_point: pa,
+                            b_point: pb,
+                        });
                     }
                 }
             }
         }
     }
-    let Some((d, (au, av), (bu, bv), pa, pb)) = best else {
+    let Some(Station {
+        d,
+        a_uv,
+        b_uv,
+        a_point: pa,
+        b_point: pb,
+    }) = best
+    else {
         return Err("the violating cells carry no lattice point to verify at".to_owned());
     };
     let definite = match decide(bound.predicate(), Margin::of(d - bound.c()), band) {
@@ -2148,15 +2161,33 @@ fn verify_witness(
     }
     Ok(GeometryWitness {
         a: x.face,
-        a_uv: (au, av),
+        a_uv,
         a_chart_axis: x.chart_axis,
         a_point: pa,
         b: y.face,
-        b_uv: (bu, bv),
+        b_uv,
         b_chart_axis: y.chart_axis,
         b_point: pb,
         distance: d,
     })
+}
+
+/// One candidate of [`verify_witness`]'s lattice search: a pair of
+/// stations, one on each cell, and the `f64` distance between them.
+///
+/// Named rather than left a five-tuple so the comparison that picks the
+/// smallest reads as the field it compares.
+struct Station {
+    /// The `f64` distance between the two points.
+    d: f64,
+    /// The first face's carrier parameters.
+    a_uv: (f64, f64),
+    /// The second face's.
+    b_uv: (f64, f64),
+    /// The point at `a_uv`.
+    a_point: Point3<f64>,
+    /// The point at `b_uv`.
+    b_point: Point3<f64>,
 }
 
 /// A span's midpoint, through the analysis lane's one door so a witness
