@@ -622,3 +622,16 @@ running; a false "no path-relative read" sentence (step-import's
 Candidates filed by the lanes: the rename-only blind spot of the
 body-hash census; the one-declaration assertion's nine verbatim copies
 wanting one home in `test_utils`, with `pncad/tests/all.rs` outside it.
+
+## Seam: TCOST-K1 review dual dispatched (2026-09-03, ~10:20 UTC)
+
+PR 1652 green on its final head `554f2b0f` (interval 1e-12 asked;
+the default-lane head's own clippy red was main's m10_p_lift, since
+fixed). Ordinal 1400 claimed on main (PR 1672) with the v6 draw and
+the brief hashes; both reviewers dispatched concurrently on the
+frozen head, briefs identical modulo lane name, neither sees the
+other's report. The unit's own log entry waits for the dual to
+conclude. Hosted reading of record for the program: default-lane
+shard totals 219.7 + 300.1 → 135.0 + 127.6 cpu-s at 1e-12; the
+digest instrument found every certified bound byte-identical across
+six lane×ε rows.
