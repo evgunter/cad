@@ -289,3 +289,49 @@ fn r1_the_ladder_holds_at_the_interval_scalar() {
         assert_eq!(got, want, "k = {k}");
     }
 }
+
+/// **Every admitted span's answer, as one digest.** The clamp's
+/// deletion changed the arithmetic on the window `τ < dt ≤ τ + zero/R`
+/// and nowhere else; this row sweeps a grid of span starts and span
+/// lengths across and around that window — including the pole
+/// positions the review's 400-δ sweep varied — and prints an FNV-1a
+/// digest over every answered flux and area. Run the identical file
+/// on the merge base and diff the one line: a moved answer on ANY
+/// admitted span shows as a changed digest, and a printed count says
+/// how many spans were answered at all.
+#[test]
+fn r1_the_admitted_spans_answers_digest_to_one_line() {
+    let bd = band();
+    let z = bd.zero() / RS;
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut fnv = |bytes: [u8; 8]| {
+        for b in bytes {
+            h ^= u64::from(b);
+            h = h.wrapping_mul(0x100_0000_01b3);
+        }
+    };
+    // The admitted set, stated arithmetically rather than read off
+    // the result, so the same spans are digested on a tree that has
+    // no refusal to read: definite-positive or in-band headroom.
+    let admits = |span: f64| {
+        let headroom = (TAU - span) * RS;
+        headroom.abs() <= bd.zero() || headroom >= bd.escalate()
+    };
+    let mut answered = 0u32;
+    for i in 0..40 {
+        let t0 = -PI + 0.157 * f64::from(i);
+        for j in -60..=60 {
+            let dt = TAU + 0.02 * f64::from(j) * z;
+            if !admits(dt) || !admits(4.0 * PI - dt) {
+                continue;
+            }
+            let fc = curved_face(&sphere::<f64>(), &pair::<f64>(t0, dt), 1.0, bd)
+                .unwrap_or_else(|e| panic!("t0 = {t0}, dt − τ = {:e}: {e:?}", dt - TAU));
+            answered += 1;
+            fnv(fc.flux.to_bits().to_le_bytes());
+            fnv(fc.area.to_bits().to_le_bytes());
+        }
+    }
+    println!("R1-DIGEST answered={answered} h={h:016x}");
+    assert!(answered >= 1000, "the sweep answered only {answered} spans");
+}
