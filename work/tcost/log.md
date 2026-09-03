@@ -571,3 +571,28 @@ its last commit pushed (TCOST-6's two local commits excepted, still on
 disk). Resumed from their transcripts at 09:22 with the cwd-reset rule
 and the state each needed (the m10_p_lift hotfix on main; K1's
 incremental cache dropped). TCOST-8 reported before the cut (PR 1659).
+
+## Seam: CI-posture batch review adjudicated (2026-09-03)
+
+C1 (PR 1650), C2 (PR 1654), C3 (PR 1655): all MERGEABLE WITH FIXES;
+C4 (PR 1648) not yet delivered, joins the same reviewer by message.
+Verified by the reviewer against the jobs API: the corrupt-input job
+is absent from C1's head run; C2's warm-vs-warm reading (179 s / 110 s
+gate step / 69 s non-gate) is the batch's strongest measurement; C3's
+seed axis has the planted failure a closure-keyed implementation
+would fail. Fixes owed: C2's widened `OUTLIER_GATES` matcher admits a
+bare `--print-roots` invocation as a real run (reproduced; the tree
+is saved only by the `$(` spelling of the roots step) — drop it in
+the same pass as `--selftest` and plant the failure; the scoping of
+pass 1 is a second demotion that gets its own sentence; `--scope ""`
+silently means `--workspace`; the nightly side of C2's ledger is
+unpriced. C3's re-take can report green having run nothing
+(`unittest discover` on an empty match exits 0) — a nonzero-count
+guard, as a class across the three call sites. C1: two prose sites
+the sweep missed, an honest rationale for the dropped output. All
+three owe a row in the nightly budget table (~8 → roughly double).
+Landing order C2 → C1 → C3 (C2 is the only one not touching
+`ci-filter.py`; C1's delta there is the smaller), main merged and one
+green run each before landing. Two candidate `work/issues/` items
+filed by the lane: D107's prose now points at the wrong workflow;
+the pin-reading `sed | head -1` idiom's fourth copy in nightly.yml.
