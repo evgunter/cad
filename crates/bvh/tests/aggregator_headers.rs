@@ -2,6 +2,9 @@
 //! rule in ONE spelling, and none of them carries the retired one.
 //! (The count of them is not written here either — this file's own
 //! subject is what a hand-written count of a compiler-known set is.)
+//! The last row below is about the OTHER shape: a `tests/all.rs` that
+//! mounts nothing, which is legitimate only for a directory holding one
+//! file and has no in-crate row of its own to say so.
 //!
 //! WHY THIS EXISTS. A count of a set the compiler already knows is a
 //! second, unchecked copy — and what is left to protect is not the
@@ -43,7 +46,7 @@
 
 use std::path::{Path, PathBuf};
 
-use test_utils::source::{code_and_literals, comments_only};
+use test_utils::source::{code_and_literals, comments_only, rust_sources};
 
 /// The rule, verbatim. Every aggregating `tests/all.rs` carries exactly
 /// this, so there is one spelling to change if it ever changes.
@@ -163,5 +166,68 @@ fn no_aggregator_header_restates_the_build_cost_measurement() {
          {offenders:?}. State the mechanism and point at the LINK/DEBUGINFO \
          note in .github/workflows/ci.yml, which owns the numbers; copy the \
          paragraph from crates/bvh/tests/all.rs."
+    );
+}
+
+/// Every `crates/*/tests/all.rs` that mounts NO suite — the other shape
+/// the walk above finds, paired with the `tests/` directory it heads.
+fn non_aggregators() -> Vec<(String, PathBuf)> {
+    let mut found = Vec::new();
+    let dir = crates_dir();
+    let entries = std::fs::read_dir(&dir).expect("crates/ is readable");
+    for entry in entries {
+        let krate = entry.expect("readable dir entry").path();
+        let tests = krate.join("tests");
+        let Ok(src) = std::fs::read_to_string(tests.join("all.rs")) else {
+            continue;
+        };
+        if code_and_literals(&src).contains("#[path = \"") {
+            continue;
+        }
+        let name = krate
+            .file_name()
+            .expect("crate dir has a name")
+            .to_string_lossy()
+            .to_string();
+        found.push((name, tests));
+    }
+    found.sort();
+    found
+}
+
+/// **A `tests/all.rs` that mounts nothing is the SINGLE-FILE form, and
+/// this is what holds it to that.**
+///
+/// `autotests = false` plus one `[[test]]` target means a `tests/*.rs`
+/// file that nothing mounts is not compiled and does not run — from
+/// outside, indistinguishable from a suite that passes. An aggregating
+/// crate catches that itself, with `every_suite_file_is_aggregated`. A
+/// crate whose `all.rs` mounts nothing carries no such row: `pncad` is
+/// the population, and it cannot carry one, because the row reads
+/// `test_utils::source` and that file's own closure guard admits no
+/// `use` root but the façade. So the claim that it does not need one is
+/// exactly the claim that its `tests/` holds a single file — a sentence
+/// in a header until this row, which is why it is here and not there.
+///
+/// **An empty population passes, deliberately**: it means every crate
+/// aggregates and every one of them carries its own guard, which is
+/// the stronger state, not an unchecked one.
+#[test]
+fn a_non_aggregating_tests_directory_holds_one_suite_file() {
+    let offenders: Vec<String> = non_aggregators()
+        .into_iter()
+        .filter_map(|(krate, tests)| {
+            let files = rust_sources(&tests);
+            (files.len() > 1).then(|| format!("{krate}: {} .rs files under tests/", files.len()))
+        })
+        .collect();
+    assert!(
+        offenders.is_empty(),
+        "a crate whose tests/all.rs mounts no suite has no \
+         `every_suite_file_is_aggregated` row, so nothing forces a second file in its \
+         tests/ into the binary — and under `autotests = false` that file is not \
+         compiled and does not run: {offenders:?}. Either mount every suite with \
+         `#[path]` and take the guard with it (crates/topo/tests/all.rs is the \
+         pattern), or keep the directory to one file."
     );
 }
