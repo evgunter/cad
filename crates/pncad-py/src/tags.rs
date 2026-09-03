@@ -281,6 +281,10 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         // — one is "replay in a process whose ε matches", the other is
         // "ask for the box at a scalar that can carry it".
         NodeErrorKind::ParamBox { .. } => "param_box",
+        // The box arm's twin, and its own tag for the same reason: the
+        // recourse is "seed at a scalar with a tangent channel" (or
+        // name a continuous parameter), not the box's.
+        NodeErrorKind::Seed { .. } => "seed",
         NodeErrorKind::WrongOperand { .. } => "wrong_operand",
         NodeErrorKind::EmptyOperand { .. } => "empty_operand",
         NodeErrorKind::DegenerateDirection { .. } => "degenerate_direction",
