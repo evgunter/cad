@@ -118,10 +118,7 @@ fn doc_param_edit_recomputes_the_param_cone() {
         .apply(
             &editor_core::DocEdit::SetDocParam {
                 name: editor_core::ParamName::new("pip_depth"),
-                value: editor_core::DocParam::Continuous {
-                    dim: editor_core::Dimension::Length,
-                    value: 0.0625,
-                },
+                value: editor_core::DocParam::continuous(editor_core::Dimension::Length, 0.0625),
             },
             Tol::witness(),
         )
@@ -342,6 +339,7 @@ fn split_evaluates_both_parts_role_tagged() {
     // The datum evaluated with a NORMALIZED normal.
     match &ev.value(plane).unwrap().payload {
         ValuePayload::Datum(DatumValue::Plane { normal, .. }) => {
+            let normal = normal.get();
             assert_eq!((normal.x, normal.y, normal.z), (0.0, 0.0, 1.0));
         }
         other => panic!("expected datum, got {}", other.kind_name()),

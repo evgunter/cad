@@ -91,7 +91,7 @@ A real reduction here has to change **both halves together**: gate the
 lanes off PR runs *and* make `render-hosted.sh`'s default dispatch on
 demand (~5 runner-minutes, only when someone actually wants frames,
 versus 12 on every code-tier run). That is a change to a documented
-agent tool, not a CI tuning knob, and belongs to Evan.
+agent tool, not a CI tuning knob, and belongs to Ev.
 
 ### F2 — the round-up, where it is collectable
 
@@ -126,7 +126,7 @@ branch becomes the PR's head, triggers no run of its own, and strands
 every green check on the parent — observed on #598 as "30 green jobs
 on 048edc9, and a head commit carrying a single check".
 
-**Landed** (Evan authorised, 2026-08-20; commit `0768882`): keep the `push: main` trigger but
+**Landed** (Ev authorised, 2026-08-20; commit `0768882`): keep the `push: main` trigger but
 reduce it to `filter` + `rebuild-latency` + `renders`, skipping build,
 test, clippy and k-lint. Preserves both write paths; drops ~65 of the
 87 minutes per merged code PR.
@@ -137,7 +137,7 @@ last run and its merge — frequent at this repo's merge rate — that
 exact combination went untested.
 
 **The scheduled full run on main that would have paired with this is
-DECLINED** (Evan, 2026-08-22). The next PR's merge-ref is main plus
+DECLINED** (Ev, 2026-08-22). The next PR's merge-ref is main plus
 that branch, so it tests the landed tree anyway; a scheduled run buys
 a second discovery of the same fact and costs a full gate per period
 whether or not anything landed. The residue is accepted, not
@@ -337,6 +337,95 @@ landed here: this finding measured the `fmt` job, and a claim about a
 > runs — so those two sentences are simply false in that one phrase and
 > are owed a correction. Said out loud here and at the job, which is what
 > ci.yml's own step comment asks for.
+>
+> **The correction is written (2026-08-30), at all three sites.**
+> `crates/sweep/tests/k_report.rs` says *"1 in 5"* and names the
+> `dev-probe` row it rides. `docs/K-REPORT.md` names the row and its
+> schedule at each of the four sentences that carried a frequency claim,
+> and marks the one that is genuinely unconditional
+> (`probe-suite-census.sh`'s default mode, sited in `discipline`) as such
+> rather than demoting it with the rest. And MIN-1's falsifier: its own
+> step comment in `ci.yml` asserted *"THE INTENT SURVIVES ONLY WHILE THIS
+> ROW STAYS UNCONDITIONAL … the falsifier still runs on every
+> build-triggering change"* — three lines above its own
+> `if: contains(fromJSON('["dev-budget", "all"]'))`. It now states the
+> 1-in-5 schedule and says that no path pin restores it, since
+> `crates/mesh` is not a pinned root. **The first pass of this very
+> correction missed that site**, having taken the debt's two K-REPORT line
+> numbers as the work; that is the discharge-by-line-number class the
+> correction is about, recurring inside it. **The debt line stays here** —
+> a minutes entry is a record of what a decision cost, and deleting the
+> cost once it is paid leaves the decision looking free.
+>
+> **And the schedule improved under it rather than only being described.**
+> A change under `tools/` now PINS the k-lint row that compiles it instead
+> of drawing one (`KLINT_PATH_ROWS` in `scripts/ci-filter.py`, Ev's
+> ruling of 2026-08-29). That is *unconditional-when-`tools/`-changes*,
+> which is a real schedule and is what the corrected sentences point at.
+> It does not restore any of the three claims above to *unconditional*:
+> `k_report.rs` and the falsifier live under `crates/`, which the pin does
+> not reach.
+
+**ADDENDUM, 2026-08-31 — F6's result may have been spent, and this
+entry says so rather than leaving the −1 standing unqualified.** This
+document maintains its billed-minute figures BY HAND, deliberately and
+for the reason given under *Method*: they are not guardable, so the only
+thing that keeps them honest is a change that moves one saying so at the
+entry it moves. The D180/D301 widening (the rustdoc gate's `not(feature)`
+blind spot) has added a **third pass** to `scripts/doc-gate.sh` — one
+`--no-default-features` pass per cargo root that carries a paired
+module, five of the eight roots today.
+
+What is measured:
+
+* **It is a distinct feature unification**, so it is the shape this
+  entry's own superseding note is about: it shares almost no artifacts
+  with the `--all-features` passes and no cache configuration collapses
+  the two. It is not a caching problem and will not be fixed as one.
+* **Warm, gate plus self-test, base against head on one tree**: +33.4 s
+  (4 vCPU, 2026-08-30, with three pass-3 self-test arms), +47.9 s (a
+  second box, 2026-08-31, same arms), and **+58.2 s** (4 vCPU,
+  2026-08-31, after two further arms and a merge of main: 86.9 s →
+  145.1 s, of which +35.7 s is the gate and +22.5 s the mktemp
+  fixtures). **The figure grew on every re-read**, which is the honest
+  headline here: plan against the largest, and re-read rather than
+  quoting the first.
+* **Hosted, COLD**: `rustdoc (gate)` ran 331 s on run `33342678074`
+  against 219/288/299 s on three contemporaneous PR runs whose cache
+  also missed (restore ≤ 2 s in all four). Roughly +20–30%.
+* **Hosted, WARM against WARM — the number this entry turns on, and it
+  is measured rather than owed.** Two PR runs a cache-hit apart, same
+  job shape (the non-gate steps are 69 s in both):
+
+  | | run | cache restore | `rustdoc (gate)` | whole job | billed |
+  |---|---|---|---|---|---|
+  | merge base | `33342571322` | 14 s | 110 s | 179 s | **3** |
+  | with pass 3 | `33346546955` | 13 s | 153 s | 222 s | **4** |
+
+  **+43 s, and +1 billed minute.** The widening costs a minute on every
+  code-tier PR run that reaches this job.
+
+**And the thing that measurement turned up, which matters more than the
+minute.** F6's headline — *"the gate is back inside 2 billed minutes"* —
+had **already lapsed before this change**, for reasons that have nothing
+to do with it: the merge-base job bills **3**, not 2, because the `fmt`
+job has since grown a viewer-toolkit clippy pass (~41 s) and a wasm32
+check (~19 s). F6 measured a 99 s job; the same job at the same warmth
+is 179 s today. So the −1 this entry claims was spent by job growth
+first and by pass 3 second, and the honest reading is that **a
+billed-minute figure in this document is only true as of its own
+measurement** — which is the argument under *Method* for keeping them by
+hand, arriving as a worked example.
+
+Still NOT measured: **the cache entry's size.** F6's +90 MB bought the
+seven roots at ONE selection. Pass 3 adds a second fingerprint set to
+five of them, in the same cached target directories. Nobody has read the
+new figure.
+
+If the minute is worth reclaiming, the lever is pass 3's root set — five
+roots, of which `demos/tour` compiles the whole kernel — and not its
+lint set, which is what makes the pass worth anything. The two job
+growths above are the larger target and are nobody's row yet.
 
 ## What landed
 
@@ -365,7 +454,10 @@ landed here: this finding measured the `fmt` job, and a claim about a
   defaults to (F6). The list is not written into `ci.yml`: a step asks
   `scripts/doc-gate.sh --print-roots`, which runs the gate's own
   derivation, so the cache's scope cannot drift from the gate's coverage.
-  **−1 billed min.**
+  **−1 billed min** — *spent, and then some: measured 2026-08-31 the job
+  bills 3 at that state and 4 with the D180/D301 widening. Job growth
+  unrelated to the gate took the first minute; pass 3 took the second.
+  See F6's addendum.*
 
 ### 2026-08-22, the second pass — and it is a different KIND of change
 
@@ -383,7 +475,7 @@ sound rather than a cut. They land together on one branch.
   already runs at the ε THIS RUN DREW. The two jobs re-ran them at 1e-6
   AND 1e-12 unconditionally, which is not extra coverage: it is the ε
   sampling defeated for exactly those modules. **No replacement
-  mechanism** (Evan: *"no need to make any special attempt to keep
+  mechanism** (Ev: *"no need to make any special attempt to keep
   m4_pr8_corpus visible. just make it a normal test"*) — no filter
   expression, no named row, no doc pointer. `m4_pr6_eps_diff::` never
   needed the loop at all: it re-execs itself per ε, which is the only way
@@ -393,7 +485,7 @@ sound rather than a cut. They land together on one branch.
   F6 above for why this and not a cache, and for the per-row
   absence-detector audit that had to come first. **−7 to −8 billed min**,
   the largest single item in this pass.
-* **`watertight` → the nightly** (Evan, explicit). A persistence-detector
+* **`watertight` → the nightly** (Ev, explicit). A persistence-detector
   with one solo red in 37 days, and that one was a rustup outage.
   **−1 to −2 billed min.**
 * **`rebuild latency (reporting)` SPLIT.** The wall-clock table moved to
@@ -423,7 +515,7 @@ sound rather than a cut. They land together on one branch.
   since it last ran — an append-only `nightly/<epoch>-<sha>` tag, with
   the tier question handed to `scripts/ci-filter.py` rather than to a
   second classifier. **This is not the scheduled full run on main that
-  F3 left owed and Evan declined**; see *What did not land* below, where
+  F3 left owed and Ev declined**; see *What did not land* below, where
   that entry now says why the two are different questions.
 
 **Two things in that list are coverage ADDITIONS, and it is worth saying
@@ -592,7 +684,7 @@ F-numbers).
 A demoted test is one the gate would otherwise run, so what this job has
 to answer is whether it still passes, and what it costs, *in the
 configuration we actually use*. Pinning it to a level the gate has
-stopped running would answer a question nobody has (Evan, 2026-08-25): a
+stopped running would answer a question nobody has (Ev, 2026-08-25): a
 cost measured in a configuration we do not use is not a cost anyone can
 act on. That also shrinks the gate-side listing's saving rather than
 removing it — against opt-1 the gap is ~164 s on a 4-core sweep (143 s →
@@ -621,7 +713,7 @@ demotion argument rests on — stated with a number rather than assumed.
   different feature unifications and share no artifacts, so the merge
   buys only one runner setup (~1 billed min) while serialising ~4
   minutes into a single job. Not worth it.
-* **a scheduled full run on main** — DECLINED (Evan, 2026-08-22), not
+* **a scheduled full run on main** — DECLINED (Ev, 2026-08-22), not
   owed. The next PR's merge-ref is main plus that branch and tests the
   landed tree anyway. See F3 for the residue that is accepted with it.
 
@@ -649,7 +741,7 @@ demotion argument rests on — stated with a number rather than assumed.
 
 ## 2026-08-22 — configuration sampling, and the draft skip (F5)
 
-Evan's proposal, and the reason it is a separate section rather than a
+Ev's proposal, and the reason it is a separate section rather than a
 finding: the audit above tuned what each job costs, and this changes
 **what a run gates**. A code-tier run used to execute every point of
 {default features, `interval`} x {default eps, 1e-6, 1e-12}. It now
@@ -833,7 +925,7 @@ and the nightly builds with `RUSTFLAGS="--cfg nightly_suite"`. At the
 gate the attribute is present and the test is skipped; in the nightly it
 vanishes and the test is ordinary.
 
-**Evan's constraint, and it holds by construction rather than by a
+**Ev's constraint, and it holds by construction rather than by a
 list**: tests that are ALREADY plain `#[ignore]` — reporting rows,
 instruments, tests only valid as the sole test in a process — must stay
 unexecuted in the nightly too. So the nightly must never pass
@@ -893,16 +985,24 @@ not a saving, it is a hole.
    > there.
 
    Sampling the rustdoc gate — the entry this replaces — is off the
-   table for now, and F6 is why: the gate is back inside 2 billed
-   minutes without giving up a root. Sampling it *would* be sound (a
-   broken intra-doc link persists in the tree, so a later draw finds it)
-   but it is the wrong tool — the six roots are independent, so sampling
-   them buys latency proportionally rather than exploiting near-certain
-   agreement the way eps does.
+   table for now, and F6 was why: the gate was back inside 2 billed
+   minutes without giving up a root. **That premise is false as of
+   2026-08-31, and the sentence is left standing as the reasoning of its
+   date rather than quietly rewritten**: measured warm against warm, the
+   job bills 3 at the merge base (job growth unrelated to the gate) and
+   4 with the D180/D301 widening's third pass. F6's addendum above
+   carries both readings. What needs re-reading is the conclusion, not
+   the argument.
+   Sampling it *would* be sound (a broken intra-doc link persists in the
+   tree, so a later draw finds it) but it is the wrong tool — the roots
+   are independent, so sampling them buys latency proportionally rather
+   than exploiting near-certain agreement the way eps does. If the
+   widening does cost the minute back, this is the trade to re-open
+   first.
 3. **A scheduled full run on main** — still owed from F3, and now owed
    more: with the push run trimmed and the PR run sampled, no single
    tree is gated at every point by hosted CI. Deliberately not bundled
-   here (Evan: "the PRs will get it"). **Unchanged by the nightly lane**,
+   here (Ev: "the PRs will get it"). **Unchanged by the nightly lane**,
    which is a different proposal — see *What did not land* above.
 
 **New, and ranked from here (2026-08-22).**
@@ -948,7 +1048,7 @@ not a saving, it is a hole.
    > `n/a` — the jobs API gives durations, not test counts — so what the
    > check compares is the measured arms against each other.
    >
-   > **AND THEN THE TREE MOVED (Evan, 2026-08-25): `ci.yml`'s two archive
+   > **AND THEN THE TREE MOVED (Ev, 2026-08-25): `ci.yml`'s two archive
    > jobs are at `opt-level = 1`.** Made on the sweep above, i.e. on
    > evidence from a box this lane explicitly distrusts, before a single
    > runner sample of opt-1 existed — deliberately, because *the fastest
@@ -1063,3 +1163,45 @@ rows the sampling removed. This is the escape hatch, not the new normal.
 The render lanes are the one thing a dispatch skips — no lane reads any
 sampled dimension, they re-baseline against a branch, and `render.yml` has
 its own dispatch for when frames are what is wanted.
+
+## Observed flake: the probe-suite census's own SELFTEST (2026-08-29)
+
+Recorded because it cost a lane a red run over content that was green,
+and because the gate's own comments say this failure mode was already
+seen once and believed structurally fixed.
+
+**What happened.** `probe-suite-census.sh --selftest` failed on the
+hosted runner inside the "CI half parity + gate wiring" job, reporting
+`SELFTEST FAILED: the gate FAILED on a clean fixture with a long
+ci.yml` together with `printf: write error: Broken pipe` and a
+downstream complaint that `span_meter_dim_twins` is rostered with no
+censused file — a suite the failing branch never touched.
+
+**Why it is a flake and not a finding about the tree.** Three
+independent pieces:
+
+- the SAME census inputs passed on the immediately preceding run
+  (33245525736 → 33265515891 green on the gate-wiring job; 33266619334
+  red), and the only tree delta between them was the body of one
+  unrelated test file;
+- in the very run that went red, the REAL gate — the "probe-suite
+  census (crates + floor)" step in `discipline (evaluation-code)`,
+  which runs against the actual tree rather than a synthetic fixture —
+  **passed**;
+- the selftest passes locally on the same tree.
+
+**Where the race is.** `selftest_hosted_half_is_large` exists precisely
+because a `grep -q` that matches near the top of a long `ci.yml` leaves
+the upstream filter writing into a closed pipe, which `pipefail` then
+reports as a failed pipeline. The function pads a fixture past the
+match to make that deterministic. The evidence above says the
+structural fix does not cover every path: the broken-pipe message in
+this failure comes from the census's own `printf` at the roster-listing
+site, not from the padded `grep`.
+
+**What is owed.** Not this note's author's to fix — the gate is the
+disciplines lane's. What a fix needs is for every producer in that
+script's pipelines to tolerate a closed reader (or for the readers to
+drain), rather than one more `grep` being padded around. Until then a
+red on this step alone, with the real census step green in the same
+run, is a re-run and not a diagnosis.

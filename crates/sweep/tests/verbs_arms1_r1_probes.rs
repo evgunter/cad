@@ -15,11 +15,11 @@
 //!   whose sphere wall already carries a band — red if the wall-shape
 //!   gates or the `h = depth + r` arm only hold at the equator, or if
 //!   a filleted body stops being fillet-able.
-//! - **The one-call pair on a shared wall REFUSES**: both zone rims in
-//!   one request refuse at the UPFRONT shared-support gate, naming the
-//!   sharing and the sequential-call recourse — red if it builds, or if
-//!   it goes back to dying mid-carve on a stale seam key (the
-//!   reviewer's finding; AMENDED in the fix pass to pin the fix).
+//! - **The one-call pair on a shared wall BUILDS and IS the sequential
+//!   composition** to the bit (#935's seam refresh; AMENDED twice —
+//!   the reviewer's stale-seam finding, then the upfront gate, now the
+//!   served door) — red if it refuses again, dies mid-carve, or drifts
+//!   from the sequential result.
 //! - **The unbored hemisphere refuses typed**: a profile touching the
 //!   axis mints half-walls (two seam azimuths), so its equator is a
 //!   two-arc chain over two half-disc supports — outside the annulus
@@ -39,20 +39,16 @@
 use core::f64::consts::PI;
 
 use geom::Surface;
-use geom_core::{Band, Point2, Tol};
+use geom_core::{Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::FilletError;
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::BlendError;
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::revolved_about_y;
 use topo::{Body, EdgeKey, FaceSurface, ValidationError, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -97,26 +93,12 @@ fn hemisphere() -> Body<f64> {
     )
 }
 
-/// A sphere zone off the equator: sphere `R = 2` about the origin,
-/// sliced at `y = −0.5` and `y = 1`, bored at `x = bore`. Both rims
-/// are plane–sphere circles at NONZERO plane depth, of opposite signs.
+/// A sphere zone off the equator — `test_support::sphere_zone` (homed
+/// in the #935 fix pass): sphere `R = 2` about the origin, sliced at
+/// `y = −0.5` and `y = 1`, bored at `x = bore`. Both rims are
+/// plane–sphere circles at NONZERO plane depth, of opposite signs.
 fn zone(bore: f64, rev: Revolution<f64>) -> Body<f64> {
-    let big_r = 2.0f64;
-    let (y_lo, y_hi) = (-0.5f64, 1.0f64);
-    let x_lo = (big_r * big_r - y_lo * y_lo).sqrt();
-    let x_hi = (big_r * big_r - y_hi * y_hi).sqrt();
-    let th_lo = (y_lo / big_r).asin();
-    let th_hi = (y_hi / big_r).asin();
-    let bulge = ((th_hi - th_lo) / 4.0).tan();
-    revolved(
-        vec![
-            ProfileVertex::new(p2(bore, y_lo), 0.0),
-            ProfileVertex::new(p2(x_lo, y_lo), bulge),
-            ProfileVertex::new(p2(x_hi, y_hi), 0.0),
-            ProfileVertex::new(p2(bore, y_hi), 0.0),
-        ],
-        rev,
-    )
+    sweep::test_support::sphere_zone(bore, rev, tol())
 }
 
 /// Every closed plane–sphere rim of a body, with its circle center
@@ -213,7 +195,7 @@ fn the_bored_dome_equator_fillets_at_three_radii() {
             );
         }
         let rim = rim_at(&body, 0.0);
-        let out = fillet_edges(&body, &[rim], r, band(), tol())
+        let out = fillet_edges(&body, &[rim], r, tol())
             .unwrap_or_else(|e| panic!("the bored dome fillets at r = {r}, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("tier 3 at r = {r}, got {e:?}"));
@@ -246,9 +228,9 @@ fn both_zone_rims_fillet_sequentially_and_match_the_closed_form() {
         (4, 8, 4),
         "the zone is four revolution walls"
     );
-    let first = fillet_edges(&body, &[rim_at(&body, -0.5)], r, band(), tol())
+    let first = fillet_edges(&body, &[rim_at(&body, -0.5)], r, tol())
         .unwrap_or_else(|e| panic!("the bottom rim fillets, got {e:?}"));
-    let second = fillet_edges(&first.body, &[rim_at(&first.body, 1.0)], r, band(), tol())
+    let second = fillet_edges(&first.body, &[rim_at(&first.body, 1.0)], r, tol())
         .unwrap_or_else(|e| panic!("the top rim fillets on the filleted body, got {e:?}"));
     validate_geometric(&second.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
     assert_eq!(
@@ -271,53 +253,72 @@ fn both_zone_rims_fillet_sequentially_and_match_the_closed_form() {
     );
 }
 
-/// **Both zone rims in ONE call refuse, on the shared support.**
+/// **Both zone rims in ONE call BUILD, and the result IS the
+/// sequential composition** — to the bit, in both sequential orders —
+/// and therefore the closed form the sequential row verifies.
 ///
-/// AMENDED (fix pass, disclosed): the reviewer wrote this row against
-/// the observed behaviour — each rim's plan resolves against the SOURCE
-/// body, the first band's surgery splits the shared sphere wall's seam,
-/// and the second plan's stale seam key made `rim_phase_annulus` refuse
-/// `UnsupportedChain` with a detail about geometry ("a trimline does not
-/// cross its support's seam meridian inside its span") that the geometry
-/// did not have, order-dependently. The finding is upheld and the fix is
-/// an UPFRONT gate: `shared_support_gate` refuses before any mutation,
-/// naming the sharing and the true recourse. The row now pins the honest
-/// refusal and the recourse's own correctness is pinned by
-/// `both_zone_rims_fillet_sequentially_and_match_the_closed_form`.
+/// AMENDED TWICE, each time deliberately. The reviewer wrote this row
+/// against the mid-carve stale-seam death (`UnsupportedChain`, "a
+/// trimline does not cross its support's seam meridian inside its
+/// span" — a statement about geometry raised by staleness the geometry
+/// did not have); the #932 fix pass re-pointed it at the upfront
+/// `shared_support_gate` refusal. #935 (BLEND-2) now serves the
+/// request: the carve re-reads each later rim's crossing seam KEYS
+/// against the partially-carved body immediately before that rim's own
+/// phase — identity only; every decision stays in the plan, resolved
+/// against the source — so the one-call pair carves both bands.
+/// `blend_tworims.rs` carries the widened door's own rows (seam-split
+/// pairs, chained sharing, naming totality, the colliding-band
+/// boundary).
 ///
-/// Red if the one-call pair starts building (re-examine soundness), or
-/// if it goes back to dying on a stale key mid-carve.
+/// Red if the one-call pair goes back to refusing, dies mid-carve, or
+/// drifts from the sequential composition by even one bit.
 #[test]
-fn both_zone_rims_in_one_call_refuse_on_the_shared_support() {
+fn both_zone_rims_in_one_call_match_the_sequential_composition() {
+    let r = 0.08;
     let body = zone(0.6, Revolution::Full);
     let rims = [rim_at(&body, -0.5), rim_at(&body, 1.0)];
-    match fillet_edges(&body, &rims, 0.08, band(), tol()) {
-        Err(FilletError::UnsupportedChain { detail, .. }) => {
-            assert!(
-                detail.contains("share a support face") && detail.contains("SEQUENTIAL"),
-                "the gate names the sharing and the recourse, got {detail:?}"
-            );
-            assert!(
-                !detail.contains("trimline does not cross"),
-                "the refusal must not be the stale-key one, got {detail:?}"
-            );
-        }
-        Ok(_) => panic!(
-            "one-call shared-support pair BUILT — the gate is gone; re-examine whether \
-             the build is sound and update the register"
-        ),
-        Err(other) => panic!("expected the shared-support refusal, got {other:?}"),
-    }
+    let one = fillet_edges(&body, &rims, r, tol())
+        .unwrap_or_else(|e| panic!("the one-call shared-wall pair builds (#935), got {e:?}"));
+    validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
+    assert_eq!(one.band_faces.len(), 2, "one band per rim");
+    let props = mass_properties(&one.body, tol()).expect("mass properties");
+    assert_eq!(props.volume_pad, 0.0);
+
+    let seq = |first: f64, second: f64| {
+        let a = fillet_edges(&body, &[rim_at(&body, first)], r, tol())
+            .expect("the first sequential call");
+        let b = fillet_edges(&a.body, &[rim_at(&a.body, second)], r, tol())
+            .expect("the second sequential call");
+        mass_properties(&b.body, tol())
+            .expect("mass properties")
+            .volume
+    };
+    let (v_lo_hi, v_hi_lo) = (seq(-0.5, 1.0), seq(1.0, -0.5));
+    assert!(
+        props.volume == v_lo_hi && props.volume == v_hi_lo,
+        "one call is the sequential composition to the bit, both orders: \
+         {:.17e} vs {v_lo_hi:.17e} / {v_hi_lo:.17e}",
+        props.volume
+    );
+    let expect =
+        washer(2.0, 0.6, -0.5, 1.0) - corner_cut(2.0, r, -0.5, 1.0) - corner_cut(2.0, r, 1.0, -1.0);
+    assert!(
+        (props.volume - expect).abs() <= 1e-12 * expect,
+        "one call matches the closed form: got {}, expect {expect}",
+        props.volume
+    );
 }
 
-/// **The unbored hemisphere refuses typed.** A profile touching the
-/// axis mints HALF-walls (two seam azimuths): the equator is two open
-/// arcs over two half-disc plane supports, outside both closed-rim
-/// doors. The PR's "full solids of revolution" are the annular-profile
-/// ones; this row pins that the boundary is a typed refusal, not a
-/// panic and not silent geometry.
+/// **The unbored hemisphere's equator carves as ONE band.** A profile
+/// touching the axis mints HALF-walls (two seam azimuths): the equator
+/// is two arcs over two half-disc plane supports, which is a rim a
+/// chart seam has split rather than a rim of one edge. The annulus door
+/// takes it whole — one torus band over both arcs, the walk carrying
+/// through the two seam vertices — so an on-axis profile is no longer
+/// the boundary of the closed-rim doors.
 #[test]
-fn the_unbored_hemisphere_equator_refuses_typed() {
+fn the_unbored_hemisphere_equator_carves_as_one_band() {
     let body = hemisphere();
     assert!(
         closed_rims(&body).is_empty(),
@@ -340,14 +341,11 @@ fn the_unbored_hemisphere_equator_refuses_typed() {
         })
         .collect();
     assert_eq!(arcs.len(), 2, "the equator is two half-circle arcs");
-    match fillet_edges(&body, &arcs, 0.1, band(), tol()) {
-        Err(
-            FilletError::UnsupportedChain { .. }
-            | FilletError::FilletCornerUnsupported { .. }
-            | FilletError::UnsupportedRunOut { .. },
-        ) => {}
-        other => panic!("the hemisphere equator must refuse typed, got {other:?}"),
-    }
+    let out = fillet_edges(&body, &arcs, 0.1, tol())
+        .unwrap_or_else(|e| panic!("the hemisphere equator carves whole, got {e:?}"));
+    validate_geometric(&out.body, tol())
+        .unwrap_or_else(|e| panic!("the filleted hemisphere must be tier-3 valid, got {e:?}"));
+    assert_eq!(out.band_faces.len(), 1, "one band over both arcs");
 }
 
 /// **Near-limit radii refuse typed.** `s ≤ r` is predicate 3's
@@ -365,18 +363,18 @@ fn near_limit_radii_refuse_typed() {
     // typed refusal.
     let body = bored_dome();
     let rim = rim_at(&body, 0.0);
-    match fillet_edges(&body, &[rim], 0.45, band(), tol()) {
-        Err(FilletError::SpineIrregular { .. } | FilletError::FaceClearanceUncertified { .. }) => {}
+    match fillet_edges(&body, &[rim], 0.45, tol()).map_err(|r| r.error) {
+        Err(BlendError::SpineIrregular { .. } | BlendError::FaceClearanceUncertified { .. }) => {}
         other => panic!("s < r must refuse typed, got {other:?}"),
     }
     // r = 0.51 > (R − depth)/2: no spine circle exists; the poisoned
     // margin escalates (or refuses through an earlier predicate) —
     // loudly either way.
-    match fillet_edges(&body, &[rim], 0.51, band(), tol()) {
+    match fillet_edges(&body, &[rim], 0.51, tol()).map_err(|r| r.error) {
         Err(
-            FilletError::Escalated { .. }
-            | FilletError::SpineIrregular { .. }
-            | FilletError::FaceClearanceUncertified { .. },
+            BlendError::Escalated { .. }
+            | BlendError::SpineIrregular { .. }
+            | BlendError::FaceClearanceUncertified { .. },
         ) => {}
         other => panic!("an infeasible ball must refuse loudly, got {other:?}"),
     }
@@ -384,12 +382,12 @@ fn near_limit_radii_refuse_typed() {
     // setback (≈ 0.29) exceeds the ≈ 0.24 gap to the bore rim.
     let narrow = zone(1.7, Revolution::Full);
     let bottom = rim_at(&narrow, -0.5);
-    match fillet_edges(&narrow, &[bottom], 0.35, band(), tol()) {
-        Err(FilletError::FaceClearanceUncertified { .. }) => {}
+    match fillet_edges(&narrow, &[bottom], 0.35, tol()).map_err(|r| r.error) {
+        Err(BlendError::FaceClearanceUncertified { .. }) => {}
         other => panic!("a trim circle at the bore must refuse clearance, got {other:?}"),
     }
     // And well inside the same gap it builds and validates.
-    let out = fillet_edges(&narrow, &[bottom], 0.15, band(), tol())
+    let out = fillet_edges(&narrow, &[bottom], 0.15, tol())
         .unwrap_or_else(|e| panic!("r = 0.15 clears the bore, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
 }
@@ -423,9 +421,8 @@ fn the_partial_zone_refuses_through_its_own_gates() {
             ps(&a, &b) || ps(&b, &a)
         })
         .expect("an open plane–sphere arc");
-    match fillet_edges(&body, &[open_arc], 0.08, band(), tol()) {
-        Err(FilletError::UnsupportedChain { .. } | FilletError::FilletCornerUnsupported { .. }) => {
-        }
+    match fillet_edges(&body, &[open_arc], 0.08, tol()).map_err(|r| r.error) {
+        Err(BlendError::UnsupportedChain { .. } | BlendError::UnsupportedCorner { .. }) => {}
         other => panic!("the open arc refuses through its own gates, got {other:?}"),
     }
 }
@@ -438,7 +435,7 @@ fn the_partial_zone_refuses_through_its_own_gates() {
 fn a_torus_on_the_ring_convention_boundary_escalates_at_tier_3() {
     let body = bored_dome();
     let rim = rim_at(&body, 0.0);
-    let mut out = fillet_edges(&body, &[rim], 0.1, band(), tol()).unwrap();
+    let mut out = fillet_edges(&body, &[rim], 0.1, tol()).unwrap();
     validate_geometric(&out.body, tol()).expect("tier-3 valid before the plant");
     let band_face = out.band_faces[0];
     let surface = out

@@ -42,6 +42,12 @@
 mod ambiguity_k_env;
 #[path = "band_tolerance.rs"]
 mod band_tolerance;
+#[path = "bounds_census.rs"]
+mod bounds_census;
+#[path = "cert3r1_poison_detail.rs"]
+mod cert3r1_poison_detail;
+#[path = "cert3r1_probes.rs"]
+mod cert3r1_probes;
 #[path = "certified_door.rs"]
 mod certified_door;
 #[path = "d8_knot_queries_adversarial.rs"]
@@ -101,37 +107,59 @@ mod spline_hull;
 #[path = "tolerance_init.rs"]
 mod tolerance_init;
 
-/// Guards the `autotests = false` hazard: a suite file added to `tests/`
-/// but not declared above would silently stop being compiled and run.
+/// Guards the `autotests = false` hazard: a suite file added under
+/// `tests/` but not declared above would silently stop being compiled
+/// and run. Both directions are asserted — every file on disk is
+/// declared, and every declaration answers to a file, so no number
+/// about this file is stated in prose without being computed.
+///
+/// The walk is `test_utils::source::suite_files`, which recurses into
+/// group directories and tells a suite from a shared helper by Rust's
+/// own module rule; read it before adding either.
 #[test]
 // Scoped to this fn on purpose: a crate-root `#![allow]` in this file would
 // weaken the lint gate for every suite module included above.
 #[allow(clippy::expect_used)]
 fn every_suite_file_is_aggregated() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let src = include_str!("all.rs");
-    let mut missing: Vec<String> = Vec::new();
-    for entry in std::fs::read_dir(&dir).expect("tests/ is readable") {
-        let path = entry.expect("readable dir entry").path();
-        if path.extension().and_then(|e| e.to_str()) != Some("rs") {
-            continue;
-        }
-        let name = path
-            .file_name()
-            .expect("file has a name")
-            .to_string_lossy()
-            .to_string();
-        if name == "all.rs" {
-            continue;
-        }
-        if !src.contains(&format!("#[path = \"{name}\"]")) {
-            missing.push(name);
-        }
-    }
-    missing.sort();
+    let root = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
+    // Comments blanked, string literals KEPT — see
+    // `test_utils::source::code_and_literals`, which states why.
+    let src = test_utils::source::code_and_literals(include_str!("all.rs"));
+    let found = test_utils::source::suite_files(&root);
+    let missing: Vec<&String> = found
+        .iter()
+        .filter(|rel| !src.contains(&format!("#[path = \"{rel}\"]")))
+        .collect();
     assert!(
         missing.is_empty(),
-        "tests/*.rs suites are not declared in tests/all.rs, so `autotests = false` \
+        "suites under tests/ are not declared in tests/all.rs, so `autotests = false` \
          is silently dropping them: {missing:?}. Add a `#[path]` line for each."
     );
+    // The converse, computed rather than restated: one `#[path]` line
+    // per suite file, no orphan declaration. The `format!` above spells
+    // its quote ESCAPED, so it is not one of these matches.
+    let declared = src.matches("#[path = \"").count();
+    assert_eq!(
+        declared,
+        found.len(),
+        "tests/all.rs declares {declared} suites but {} suite files exist under tests/",
+        found.len()
+    );
 }
+
+#[path = "cert4r2_probes.rs"]
+mod cert4r2_probes;
+
+#[path = "period_fold_centred.rs"]
+mod period_fold_centred;
+
+#[path = "cert4r1_probe_period.rs"]
+mod cert4r1_probe_period;
+
+#[path = "r1_p2_onb_probes.rs"]
+mod r1_p2_onb_probes;
+#[path = "r2_cert3_probes.rs"]
+mod r2_cert3_probes;
+
+#[path = "cert3_evidence.rs"]
+mod cert3_evidence;

@@ -36,18 +36,32 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "cert1_r1_import_probes.rs"]
+mod cert1_r1_import_probes;
+#[path = "cert5_r1_import_probes.rs"]
+mod cert5_r1_import_probes;
+#[path = "cert_n2r2_consumer_probes.rs"]
+mod cert_n2r2_consumer_probes;
 #[path = "corpus_fold.rs"]
 mod corpus_fold;
 #[path = "curve_promotion_report.rs"]
 mod curve_promotion_report;
 #[path = "freecad.rs"]
 mod freecad;
+#[path = "halfcap_pole.rs"]
+mod halfcap_pole;
 #[path = "inst_review_probes.rs"]
 mod inst_review_probes;
+#[path = "mesh8r2_probes.rs"]
+mod mesh8r2_probes;
 #[path = "nurbs_import.rs"]
 mod nurbs_import;
+#[path = "p1b_r1_import_scan.rs"]
+mod p1b_r1_import_scan;
 #[path = "parser.rs"]
 mod parser;
+#[path = "poleguard.rs"]
+mod poleguard;
 #[path = "probe_dup.rs"]
 mod probe_dup;
 #[path = "probe_eps.rs"]
@@ -70,6 +84,8 @@ mod probe_sense;
 mod probe_vol;
 #[path = "r1_dm1_probe.rs"]
 mod r1_dm1_probe;
+#[path = "r2_import_door.rs"]
+mod r2_import_door;
 #[path = "recognize_pins.rs"]
 mod recognize_pins;
 #[path = "rev_import_probe.rs"]
@@ -99,35 +115,42 @@ mod verbs_chamfer_roundtrip;
 #[path = "wild.rs"]
 mod wild;
 
+/// Guards the `autotests = false` hazard: a suite file added under
+/// `tests/` but not declared above would silently stop being compiled
+/// and run. Both directions are asserted — every file on disk is
+/// declared, and every declaration answers to a file, so no number
+/// about this file is stated in prose without being computed.
+///
+/// The walk is `test_utils::source::suite_files`, which recurses into
+/// group directories and tells a suite from a shared helper by Rust's
+/// own module rule; read it before adding either.
 #[test]
 // Scoped to this fn on purpose: a crate-root `#![allow]` in this file would
 // weaken the lint gate for every suite module included above.
 #[allow(clippy::expect_used)]
 fn every_suite_file_is_aggregated() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let src = include_str!("all.rs");
-    let mut missing: Vec<String> = Vec::new();
-    for entry in std::fs::read_dir(&dir).expect("tests/ is readable") {
-        let path = entry.expect("readable dir entry").path();
-        if path.extension().and_then(|e| e.to_str()) != Some("rs") {
-            continue;
-        }
-        let name = path
-            .file_name()
-            .expect("file has a name")
-            .to_string_lossy()
-            .to_string();
-        if name == "all.rs" {
-            continue;
-        }
-        if !src.contains(&format!("#[path = \"{name}\"]")) {
-            missing.push(name);
-        }
-    }
-    missing.sort();
+    let root = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
+    // Comments blanked, string literals KEPT — see
+    // `test_utils::source::code_and_literals`, which states why.
+    let src = test_utils::source::code_and_literals(include_str!("all.rs"));
+    let found = test_utils::source::suite_files(&root);
+    let missing: Vec<&String> = found
+        .iter()
+        .filter(|rel| !src.contains(&format!("#[path = \"{rel}\"]")))
+        .collect();
     assert!(
         missing.is_empty(),
-        "tests/*.rs suites are not declared in tests/all.rs, so `autotests = false` \
+        "suites under tests/ are not declared in tests/all.rs, so `autotests = false` \
          is silently dropping them: {missing:?}. Add a `#[path]` line for each."
+    );
+    // The converse, computed rather than restated: one `#[path]` line
+    // per suite file, no orphan declaration. The `format!` above spells
+    // its quote ESCAPED, so it is not one of these matches.
+    let declared = src.matches("#[path = \"").count();
+    assert_eq!(
+        declared,
+        found.len(),
+        "tests/all.rs declares {declared} suites but {} suite files exist under tests/",
+        found.len()
     );
 }

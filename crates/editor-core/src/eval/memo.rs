@@ -131,32 +131,33 @@ impl Default for KeyHasher {
 
 /// The bit representation of an evaluated scalar, fed to content keys
 /// (spec D4: "evaluated expression values AS BITS"). Implemented for
-/// the scalars evaluation instantiates at (f64, Interval, and the
-/// K-telemetry `Probe`); a new scalar joins by stating its exact
-/// representation here.
+/// the scalars evaluation instantiates at (f64, Interval, the
+/// K-telemetry `Probe`, and `Dual` over any of them); a new scalar
+/// joins by stating its exact representation here.
 ///
-/// # `Dual` is not one of them — the negative row for E4's door
+/// # `Dual` feeds BOTH channels — the memo's seed-soundness law
 ///
-/// Wave 0 decision **D1** (2026-08-19) gave `Dual` `geom_core::Bounds`,
-/// which was the blocker `SMELL-SCAN`'s S2 named for
-/// [`crate::eval::evaluate`]`::<Dual64>` — E4's stated sensitivity
-/// mechanism. It was not the only one: **this** trait has no `Dual`
-/// impl, and closing that is issue **#687**, a decision about whether the
-/// seed enters the memo's content key rather than a formality.
+/// A dual's exact representation is its two channels, and both feed
+/// (`docs/DUAL-DESIGN.md` DL2): the value channel's representation,
+/// then the tangent channel's, each through the base scalar's own
+/// `feed`, separated by position exactly as every other multi-field
+/// feed. No explicit seed identifier enters the key because none is
+/// needed — the memo principle is *same key ⇒ same input bits ⇒ (D9)
+/// same output* (module docs), and feeding both channels extends it
+/// verbatim: under two different seeded parameters, a node downstream
+/// of a seed differs in tangent bits (distinct keys, no cross-pass
+/// contamination), while a node downstream of neither carries
+/// identical value+tangent bits in both passes (same key, and the
+/// reuse is sound — bit-equal inputs, deterministic dual ops). A
+/// value-channel-only feed would collide two seeds' passes on every
+/// node the moment a prior is threaded.
 ///
-/// Pinned as a compiler fact rather than as prose, so it goes red the day
-/// `#687` lands — which is the day `crates/editor-core/tests/e4_dual_door.rs`
-/// and S44's D1 record stop being true:
+/// The impl is a compiler fact a doctest keeps honest, beside the
+/// base-scalar companion, so the pair measures a real bound:
 ///
-/// ```compile_fail,E0277
+/// ```
 /// fn feeds_content_bits<T: editor_core::eval::ContentBits>(_t: T) {}
 /// feeds_content_bits(geom_core::Dual64::constant(1.0));
-/// ```
-///
-/// beside the passing companion, so the row is measuring a real bound:
-///
-/// ```
-/// fn feeds_content_bits<T: editor_core::eval::ContentBits>(_t: T) {}
 /// feeds_content_bits(1.0_f64);
 /// ```
 pub trait ContentBits: Real {
@@ -167,6 +168,21 @@ pub trait ContentBits: Real {
 impl ContentBits for f64 {
     fn feed(&self, h: &mut KeyHasher) {
         h.write_f64_bits(*self);
+    }
+}
+
+/// Both channels, value first (trait docs): a dual's exact
+/// representation IS the pair, and the tangent bits are what keep two
+/// seeds' passes out of each other's memo entries. The `Real` bound on
+/// the where-clause is the trait's own (`ContentBits: Real`), stated
+/// on `Dual<T>` because the base scalar alone does not imply it.
+impl<T: ContentBits> ContentBits for geom_core::Dual<T>
+where
+    geom_core::Dual<T>: Real,
+{
+    fn feed(&self, h: &mut KeyHasher) {
+        self.value.feed(h);
+        self.deriv.feed(h);
     }
 }
 

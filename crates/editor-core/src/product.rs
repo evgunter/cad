@@ -42,19 +42,46 @@
 //! body is gated on its own when the product holds more than one solid
 //! (with one, the per-solid and aggregate subjects are the same body
 //! and the call is skipped as an identity, never as an exemption), then the
-//! aggregate is gated. Disjoint multi-solid bodies are tier-3 legal.
+//! aggregate is gated. Both gates go through the SCALAR'S at-rest
+//! policy ([`topo::AtRestPolicy`], `docs/DUAL-DESIGN.md` DL3):
+//! certifying scalars run [`topo::validate_geometric`] verbatim; at a
+//! dual the gates are structurally absent, and their success arm SAYS
+//! so ([`topo::AtRestOutcome::NotRunAtThisScalar`]). The PAIRING
+//! OBLIGATION rides with that: at a non-certifying scalar a gathered
+//! product is NOT a validated product — the base-scalar evaluation
+//! beside it, whose value channel is bit-identical, is the validation
+//! of record. Disjoint multi-solid bodies are tier-3 legal.
 //! Know what the aggregate gate proves: tier 3 is a LOCAL battery
 //! (per-face, per-edge, per-edge–face-pair, plus one whole-body signed
-//! volume that SUMS), so solids that OVERLAP pass it undetected —
-//! inter-solid interference is not among its checks. Undeclared
-//! cross-instance contact is A5's hard error, interference fits are
-//! C6's recorded-gate-skips territory, and detection is planned as
-//! tier-3′ census growth (issue #382).
+//! volume that SUMS), so solids that OVERLAP pass THIS call undetected
+//! — inter-solid interference is not among its checks. Undeclared
+//! cross-instance contact is A5's hard error and interference fits are
+//! C6's recorded-gate-skips territory; both are decided by the tier-3′
+//! door ([`topo::validate_pseudomanifold`]), which the ASSEMBLY gate
+//! runs over this gather's output ([`crate::assemble`]) and which this
+//! function does not.
+//!
+//! **That is a division of labour, not a gap** (#382 closed at M9-2 —
+//! the census reaches the touching/overlap space and nothing in it
+//! validates silently). The gather stays on the local battery because
+//! tier 3′ is quadratic in the aggregate's entities, which a caller
+//! gathering on every edit cannot afford: the heatsink at 160 fins
+//! (966 faces) costs ~1.1 s there, against ~28 ms for the whole check
+//! registry over the same product (gather included). The per-call
+//! split between this gather and the resident above it was never
+//! measured separately and no number for it is stated here. What the
+//! gather
+//! DOES owe — [`topo::graft_disjoint_all_keyed`] asserts nothing about
+//! its operands, so every caller of it must establish disjointness —
+//! is discharged by [`crate::checks`]'s separation resident, which
+//! reads this gather's `solid_roots` and holds every cross-root solid
+//! pair to the box-level certificate. It reports rather than refuses,
+//! because a viewer must keep drawing a document it can diagnose.
 
 use std::sync::Arc;
 
 use geom_core::Decide;
-use topo::{Body, ContactRecords, PropsQuadLane, ValidationError};
+use topo::{AtRestPolicy, Body, ContactRecords, ValidationError};
 
 use crate::doc::Doc;
 use crate::eval::{BooleanValue, Evaluation, NodeResult, NodeValue, SplitSide, ValuePayload};
@@ -87,7 +114,7 @@ pub enum ProductError {
         /// The failed root.
         node: RecipeNodeId,
     },
-    /// A root never ran: an ancestor failed.
+    /// A root never ran: ancestor failed.
     RootPoisoned {
         /// The poisoned root.
         node: RecipeNodeId,
@@ -264,11 +291,17 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
                 .collect(),
         ),
         // A12: the gather IGNORES a mate — it is a non-body root, and
-        // "ignored by the gather" is exactly this arm.
+        // "ignored by the gather" is exactly this arm. E3/E10's two
+        // sinks join it for the same reason: a measured quantity and an
+        // an assertion's verdict denote no material, so a document
+        // whose only addition is an assertion has the same product it
+        // had without one.
         ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
         | ValuePayload::Declarations(_)
-        | ValuePayload::Mate(_) => None,
+        | ValuePayload::Mate(_)
+        | ValuePayload::Measure { .. }
+        | ValuePayload::Assertion(_) => None,
     }
 }
 
@@ -285,7 +318,7 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
 /// is absent from this evaluation; a document whose roots denote no
 /// body ([`ProductError::NoBodyRoots`]); the kernel's graft and
 /// at-rest validity refusals.
-pub fn product<P, T: Decide + PropsQuadLane>(
+pub fn product<P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
@@ -310,6 +343,45 @@ pub struct Product<T: Decide> {
     /// Its declared contacts, re-keyed onto the aggregate through the
     /// graft's own descendant map.
     pub contacts: ContactRecords,
+    /// Which product ROOT contributed each of the aggregate's solids,
+    /// in gather order (`crate::checks`'s separation resident is the
+    /// consumer: it turns a kernel finding about two solid keys into a
+    /// sentence about two roots).
+    ///
+    /// Read off the GRAFT's own minted-key list, exactly as the name
+    /// and contact carries are — never re-derived by looking at the
+    /// gathered geometry.
+    pub solid_roots: Vec<SolidOrigin>,
+    /// One row per mate of THIS document whose declaration the gather
+    /// minted into `contacts`, in document order.
+    ///
+    /// The rows are the attribution channel and nothing else: the
+    /// records themselves carry arena keys, so a finding against one
+    /// needs this list to say which mate authored it. A declaration
+    /// that arrived from a sub-assembly has no row here — its mate
+    /// belongs to another document, whose bookkeeping does not cross
+    /// the seam even though its record does.
+    pub minted: Vec<crate::assembly::MintedDeclaration>,
+    /// One row per live mate the gather could NOT mint, in document
+    /// order ([`crate::MintRefusal`]).
+    ///
+    /// Recorded rather than refused: neither refusal changes what
+    /// material the document denotes, so the product stands and
+    /// [`crate::assemble`] is the door that turns the first row into
+    /// its typed refusal.
+    pub unminted: Vec<crate::assembly::MintRefusal>,
+}
+
+/// One gathered solid's origin: the root that contributed it, that
+/// root's output-body index, and the solid's key in the aggregate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SolidOrigin {
+    /// The product root the solid came from.
+    pub node: RecipeNodeId,
+    /// The output-body index within that root's value.
+    pub output: u32,
+    /// The solid's key in the gathered aggregate.
+    pub solid: topo::SolidKey,
 }
 
 /// The document's product, with the product's own NAME TABLE: every
@@ -330,7 +402,7 @@ pub struct Product<T: Decide> {
 /// Every arm of [`ProductError`], including [`ProductError::Naming`]
 /// when two roots' rows would name one aggregate entity or collide on
 /// one name — an aliasing bug surfaced, never resolved silently.
-pub fn product_named<P, T: Decide + PropsQuadLane>(
+pub fn product_named<P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
@@ -357,7 +429,7 @@ pub fn product_named<P, T: Decide + PropsQuadLane>(
 /// Every arm of [`ProductError`], including
 /// [`ProductError::ContactLineage`] when the graft's bridge has no
 /// image for a record's entity.
-pub fn product_recorded<P, T: Decide + PropsQuadLane>(
+pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
@@ -407,11 +479,9 @@ pub fn product_recorded<P, T: Decide + PropsQuadLane>(
         .sum();
     if total_solids > 1 {
         for (node, _, body, _, _) in &sources {
-            topo::validate_geometric(body.as_ref(), tol).map_err(|errors| {
-                ProductError::SolidInvalid {
-                    node: *node,
-                    errors,
-                }
+            T::gate_at_rest(body.as_ref(), tol).map_err(|errors| ProductError::SolidInvalid {
+                node: *node,
+                errors,
             })?;
         }
     }
@@ -425,6 +495,7 @@ pub fn product_recorded<P, T: Decide + PropsQuadLane>(
     let mut aggregate = Body::new();
     let mut names = NameTable::new();
     let mut contacts = ContactRecords::default();
+    let mut solid_roots: Vec<SolidOrigin> = Vec::new();
     for (node, ix, body, table, records) in &sources {
         // An empty source contributes nothing; the graft door refuses a
         // solidless body, so the skip is here rather than there.
@@ -437,17 +508,37 @@ pub fn product_recorded<P, T: Decide + PropsQuadLane>(
                 source: Box::new(source),
             },
         )?;
+        solid_roots.extend(keys.solids().iter().map(|&solid| SolidOrigin {
+            node: *node,
+            output: *ix,
+            solid,
+        }));
         carry_names(&mut names, table, *ix, &keys)
             .map_err(|name| ProductError::Naming { node: *node, name })?;
         carry_contacts(&mut contacts, records, &keys)
             .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
     }
-    topo::validate_geometric(&aggregate, tol)
-        .map_err(|errors| ProductError::ProductInvalid { errors })?;
+    T::gate_at_rest(&aggregate, tol).map_err(|errors| ProductError::ProductInvalid { errors })?;
+    // Pass 4: MINTING (A3's "Declaration minting"). Every evaluated
+    // product carries its own mates' declarations, so what a document
+    // MEANS includes what its mates say about the material — which is
+    // what lets the instantiation seam compose: a sub-assembly's
+    // declarations ride up on the contacts channel above, keyed by the
+    // graft, rather than being lost because the consuming document
+    // never ran the mate loop.
+    //
+    // Last, and after the gate: minting resolves references against
+    // the FINISHED name table, and the aggregate's own at-rest verdict
+    // is about geometry, so a product that is not a body at all
+    // refuses before any mate is read.
+    let (minted, unminted) = crate::assembly::mint(doc, evaluation, &names, &mut contacts);
     Ok(Product {
         body: aggregate,
         names,
         contacts,
+        solid_roots,
+        minted,
+        unminted,
     })
 }
 

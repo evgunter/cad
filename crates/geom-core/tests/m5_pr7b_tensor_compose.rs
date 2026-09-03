@@ -5,6 +5,12 @@
 //!    probe, ≥1e5 samples against an independent `f64` rational
 //!    oracle, ratio ≥ 1.0 — on an aligned pair, on a knot-mismatched
 //!    pair (the merged-break path), and on a cell-straddling pcurve.
+//!    Three of those rows also state a CEILING, each measured on its
+//!    own geometry against the enclosure the composition exists to
+//!    beat; the bicubic budget row states in place why it can carry
+//!    no honest one. The remaining `falsify` callers — refinement and
+//!    the far-origin shift — bound their result against ANOTHER BOUND
+//!    rather than against the truth, which is a different claim.
 //! 2. The cancellation row: a constructed `S`, `P`, `C` with
 //!    `S(P(t)) ≡ C(t)` exactly — the composite bound lands at ring
 //!    rounding (~1e-15), where any hull-then-difference enclosure is
@@ -20,7 +26,14 @@
 //! 6. Typed refusals at the entry points (closed `ComposeError`).
 //!
 //! These rows are ε-independent (pure ring arithmetic; no `Tolerance`
-//! read), so the battery's ε sweep changes nothing here by design.
+//! read), so the battery's ε sweep changes nothing here by design —
+//! and every ratio below was confirmed BIT-IDENTICAL across the
+//! battery's three ε legs (`ci-filter.py`'s `EPS_ROWS`: default,
+//! 1e-6, 1e-12, where default is the compiled `DEFAULT_EPS = 1e-9`).
+//! A multi-ε measurement of these ceilings is therefore degenerate:
+//! the legs are the same run. What varies them is the geometry and
+//! the mechanism, which is why each ceiling below is measured per row
+//! against a DEGRADED reading of its own fixture.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -28,6 +41,7 @@ use geom_core::RingInterval;
 use geom_core::spline::compose::tensor::{SurfaceRingData, surface_curve_residual};
 use geom_core::spline::compose::{ComposeError, CurveRingData};
 use geom_core::spline::{KnotVector, basis};
+use test_utils::tightness::{Anchor, Sup, control_net_box_diagonal};
 
 // ---------------------------------------------------------------------
 // Independent f64 rational oracles (basis functions only — no ring, no
@@ -193,18 +207,31 @@ fn the_bound_dominates_a_dense_scan_on_the_aligned_pair() {
     let (w, p, c) = (wall(), pcurve_data(), carrier_data());
     let (sup, max) = falsify(&w, &p, &c, &[], 100_000);
     assert!(sup.is_finite(), "bound must be finite here, got {sup}");
-    assert!(max > 1e-3, "the fixture's residual must be genuine: {max}");
-    assert!(
-        sup >= max,
-        "falsified: composite bound {sup:e} < scanned max {max:e}"
-    );
     // And the bound is TIGHT — the whole point of the composition. The
-    // first-order enclosure on this geometry is span-width-scaled
-    // (~1e-1 here); the composite must track the residual's own scale.
-    assert!(
-        sup <= 10.0 * max,
-        "the composite bound lost the cancellation: {sup:e} vs true {max:e}"
-    );
+    // ceiling is set against the enclosure the composition exists to
+    // beat: replacing `cell_residual`'s coefficient subtraction with a
+    // hull-then-difference of the two hulls — still sound, a pure
+    // tightness loss — takes this row from 1.491x the sampled truth to
+    // 20.843x. 3.0 is twice the healthy ratio and seven times under the
+    // degraded one. The whole-object box would admit 45.707x, which is
+    // a necessary check on the ceiling and NOT what makes it a guard —
+    // the degraded reading is what does, and it sits well under the
+    // box (`test_utils::tightness`).
+    Sup::new("aligned pair", sup, max)
+        .truth_at_least(
+            1e-3,
+            "`carrier_data` is authored ~1e-2 m off the wall's image of the pcurve, \
+             so a residual under this means the two curves have converged and the \
+             falsification probe is scanning zero",
+        )
+        .dominates()
+        .within(
+            3.0,
+            0.0,
+            Anchor::ObjectBox(control_net_box_diagonal(&[&w.3, &c.2])),
+            "the composite bound lost the cancellation — the degraded reading here \
+             is 20.843x",
+        );
 }
 
 #[test]
@@ -219,7 +246,31 @@ fn the_bound_dominates_when_the_two_curves_disagree_on_knots() {
     let z = vec![0.08, 0.25, 0.45, 0.5, 0.6, 0.72];
     let ca = (kv, vec![1.0; 6], vec![x, y, z]);
     let (sup, max) = falsify(&w, &p, &ca, &[], 100_000);
-    assert!(sup.is_finite() && sup >= max, "sup {sup:e}, max {max:e}");
+    assert!(sup.is_finite(), "bound must be finite here, got {sup}");
+    // Exact insertion costs no tightness: the merged-break bound tracks
+    // the residual's own scale (1.520x) as closely as the aligned
+    // pair's does (1.491x). Under the hull-then-difference enclosure
+    // this row reads 6.730x, so 3.0 sits 2.2x under the degraded state
+    // and 2.0x over the healthy one. The whole-object box would admit
+    // 16.000x — a ceiling anywhere under that passes the anchor while
+    // saying nothing, which is why the degraded reading is the
+    // evidence and the box is only a floor under the argument.
+    Sup::new("merged-break carrier", sup, max)
+        .truth_at_least(
+            1e-2,
+            "this row's own six-point carrier sits ~1e-2 m off the composite on a \
+             DIFFERENT interior knot set; a residual under this means the exact \
+             insertion collapsed it onto the pcurve's breaks and the merged-break \
+             path is no longer being exercised",
+        )
+        .dominates()
+        .within(
+            3.0,
+            0.0,
+            Anchor::ObjectBox(control_net_box_diagonal(&[&w.3, &ca.2])),
+            "the merged-break path lost the cancellation — the degraded reading \
+             here is 6.730x",
+        );
 }
 
 #[test]
@@ -241,7 +292,48 @@ fn the_bound_dominates_when_the_pcurve_straddles_surface_cells() {
     let w = (ku, kvv, vec![1.0; 8], vec![x, y, z]);
     let (p, c) = (pcurve_data(), carrier_data());
     let (sup, max) = falsify(&w, &p, &c, &[], 100_000);
-    assert!(sup.is_finite() && sup >= max, "sup {sup:e}, max {max:e}");
+    assert!(sup.is_finite(), "bound must be finite here, got {sup}");
+    // The fixture must actually straddle. A pcurve confined to one cell
+    // measures the same residual, so the floor below cannot detect this
+    // and nothing else in the row would: assert the crossing itself.
+    let (u_lo, u_hi) = p.2[0]
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), v| {
+            (l.min(*v), h.max(*v))
+        });
+    assert!(
+        u_lo < 0.5 && u_hi > 0.5,
+        "this row is about the CROSS-CELL hull, but the pcurve's u range \
+         [{u_lo}, {u_hi}] does not cross the wall's interior knot at 0.5"
+    );
+    // Straddling costs tightness and this states how much: the window is
+    // hulled across BOTH cells, so the enclosure is a union of two
+    // cells' boxes — 3.264x the true residual against the aligned pair's
+    // 1.491x. Under the hull-then-difference enclosure it reads 5.108x,
+    // so 4.0 is the value that separates the two, with 22% over the
+    // healthy ratio and 28% under the degraded one. That narrowness is
+    // the finding: on this fixture the cross-cell union and a lost
+    // cancellation are nearly the same size, and the file's actual
+    // cancellation witness is
+    // `an_exact_composite_bounds_at_ring_rounding_not_at_the_variation`,
+    // which dies outright under that enclosure.
+    Sup::new("cell-straddling pcurve", sup, max)
+        .truth_at_least(
+            1e-2,
+            "the residual across the two-cell wall is an order larger than the \
+             single-cell one; a value under this means the cross-cell image and \
+             the carrier have converged and the union hull below has nothing to \
+             enclose",
+        )
+        .dominates()
+        .within(
+            4.0,
+            0.0,
+            Anchor::ObjectBox(control_net_box_diagonal(&[&w.3, &c.2])),
+            "the cross-cell hull is no longer residual-scaled — the degraded \
+             reading here is 5.108x, and the whole-object box would admit 7.744x, \
+             which the OLD 6.0 ceiling passed while missing the degradation",
+        );
 }
 
 #[test]
@@ -419,11 +511,41 @@ fn a_bicubic_bicubic_composition_completes_within_the_budget() {
     // The largest SSI-realistic shape: bicubic × bicubic wall, cubic
     // pcurve and carrier — composite degree 3·(3+3)+3 = 21 of the 54
     // budget. It must complete with a finite, sound bound.
+    //
+    //
+    // **The tightest ceiling in this file, and it is tight because the
+    // fixture leaves little room.** The healthy ratio is 1.443x the
+    // sampled truth; a TOTAL loss of the cancellation — `cell_residual`
+    // hulling each product and then subtracting — reads 1.809x. That is
+    // a quarter of a factor of separation, against the aligned row's
+    // fourteen-fold. The cause is the fixture: the paraboloid patch and
+    // the carrier are nearly as far apart as the object is big (a
+    // residual of 0.910 m inside a box of 1.600 m), so the enclosure
+    // has almost nothing to be tight about and the whole-object box
+    // admits only 1.757x. 1.6 sits 11% over the healthy reading and 12%
+    // under the degraded one — narrow, but the whole computation is
+    // pure ring arithmetic and bit-identical across the battery, so the
+    // margin is real rather than noise budget. If a legitimate change
+    // moves it, this row reds with both numbers in the message and the
+    // literal is re-measured rather than widened.
     let w = elevated_patch(3, 3);
     let (p, c) = (pcurve_data(), carrier_data());
     let (sup, max) = falsify(&w, &p, &c, &[], 100_000);
     assert!(sup.is_finite(), "in-budget composition poisoned: {sup:e}");
-    assert!(sup >= max, "sup {sup:e} < max {max:e}");
+    Sup::new("bicubic x bicubic at degree 21", sup, max)
+        .truth_at_least(
+            1e-1,
+            "the paraboloid patch and the carrier are genuinely apart, so the \
+             domination is a statement about a real function",
+        )
+        .dominates()
+        .within(
+            1.6,
+            0.0,
+            Anchor::ObjectBox(control_net_box_diagonal(&[&w.3, &c.2])),
+            "the in-budget composition lost the cancellation — the degraded \
+             reading here is 1.809x, the narrowest separation in this file",
+        );
 }
 
 #[test]

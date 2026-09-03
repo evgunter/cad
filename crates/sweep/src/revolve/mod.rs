@@ -33,7 +33,7 @@
 //!   every wall is the **angle-0 meridian half-plane**, which is where
 //!   the profile sits. A full revolve's surviving meridian edges are
 //!   therefore exactly the `u = 0` iso-curves: they re-describe as
-//!   [`geom_brep::EdgeGeometry::Seam`] `{ surface }` — except meridians
+//!   the seam image `{ surface }` — except meridians
 //!   of **plane** walls (a segment ⊥ axis sweeps a plane annulus; a
 //!   plane chart is not periodic, so `Seam` is malformed on it and the
 //!   edge honestly keeps its conventional `MappedCurve` description —
@@ -671,7 +671,7 @@ pub(super) use crate::swept::{SweptSeg, swept_segments};
 /// angle, half-plane violations, sliver radii, unsupported toroids,
 /// non-manifold axis contact, sliver dihedrals, Newell failures, and
 /// every operator/certification refusal.
-pub fn revolve<T: Decide>(
+pub fn revolve<T: Decide + geom_brep::PcurveFittedLane>(
     profile: &ValidatedProfile<T>,
     axis: RevolveAxis<T>,
     revolution: Revolution<T>,

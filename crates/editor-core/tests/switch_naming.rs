@@ -30,10 +30,7 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
         .apply(
             &DocEdit::SetDocParam {
                 name: ParamName::new("x0"),
-                value: DocParam::Continuous {
-                    dim: Dimension::Length,
-                    value: x0,
-                },
+                value: DocParam::continuous(Dimension::Length, x0),
             },
             Tol::witness(),
         )

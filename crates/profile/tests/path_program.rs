@@ -25,12 +25,12 @@
 
 mod common;
 
-use common::pinned;
+use common::{coverage_corpus, pinned};
 use geom_core::Point2;
 use geom_core::Tol;
 use profile::{
-    ArcSweep, ClosedLoop, Open, PathError, ProfileLoop, ReplayError, ReplayErrorKind, Start, Step,
-    Target, TipState, Verb, replay,
+    ArcMode, ArcSweep, ClosedLoop, Open, PathError, ProfileLoop, ReplayError, ReplayErrorKind,
+    Start, Step, Target, TipState, Verb, replay,
 };
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -46,6 +46,45 @@ fn program_of(closed: &ClosedLoop<f64>) -> Vec<Step<f64>> {
 /// inventory assertion.
 fn verbs(program: &[Step<f64>]) -> Vec<Verb> {
     program.iter().map(Step::verb).collect()
+}
+
+/// Every arc mode a program names, in step order — the two fused
+/// verbs' incoming and arrival specs counted separately.
+///
+/// Exhaustive on [`Step`], with the spec-free verbs named rather than
+/// swept into a trailing arm: which verbs carry an arc spec is the one
+/// thing this helper assumes, and a verb that GAINS one has to be
+/// adjudicated here rather than silently falling out of reach.
+fn arc_modes(program: &[Step<f64>]) -> Vec<ArcMode> {
+    let mut out = Vec::new();
+    for step in program {
+        match step {
+            Step::ArcTo(spec) | Step::FilletArc { spec, .. } | Step::ArcFillet { spec, .. } => {
+                out.push(spec.mode());
+            }
+            Step::ArcFilletArc { spec, spec2, .. } => {
+                out.push(spec.mode());
+                out.push(spec2.mode());
+            }
+            Step::At(_)
+            | Step::Angle(_)
+            | Step::Toward { .. }
+            | Step::Tangent
+            | Step::Cusp
+            | Step::Turn(_)
+            | Step::Line(_)
+            | Step::LineTo(_)
+            | Step::ContinueTo(_)
+            | Step::TangentArcTo(_)
+            | Step::ArcContinue(_)
+            | Step::Fillet { .. }
+            | Step::FarEndTo(_)
+            | Step::CloseTo
+            | Step::Circle { .. }
+            | Step::CircleSplit { .. } => {}
+        }
+    }
+    out
 }
 
 // ------------------------------------------------------------------
@@ -500,216 +539,35 @@ fn every_table_verb_is_replayed_by_the_corpus() {
     );
 }
 
-/// The census corpus: closed chains whose union covers every declared
-/// verb. Each is authored through the typed surface, so its recorded
-/// program is the table's own output.
-fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
-    use profile::{ArcSide, Bulge, Center, Radius, Sweep};
-    use std::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI};
-
-    // 1. The fused entry verb, the plain binders and the straight legs.
-    let fused = Open
-        .arc_fillet(
-            Center {
-                c: p2(0.0, 0.0),
-                winding: ArcSweep::Ccw,
-                p: p2(5.0, 0.0),
-            },
-            0.5,
-            Tol::witness(),
-        )
-        .unwrap()
-        .at(p2(0.0, 3.0), Tol::witness())
-        .unwrap()
-        .toward(-1.0, 0.0, Tol::witness())
-        .unwrap()
-        .line(3.0, Tol::witness())
-        .unwrap()
-        .line_to(Start, Tol::witness())
-        .unwrap();
-
-    // 2. An endpoint-free sharp leg, ray extension, an arc arrival and
-    //    the mid-chain Radius arc extension.
-    let walk = Open
-        .at(p2(0.0, 0.0))
-        .angle(0.0, Tol::witness())
-        .unwrap()
-        .arc_to(
-            Sweep {
-                r: 2.0,
-                side: ArcSide::Left,
-                angle: 0.6,
-            },
-            Tol::witness(),
-        )
-        .unwrap()
-        .fillet(0.2, Tol::witness())
-        .unwrap()
-        .at(p2(4.0, 3.0), Tol::witness())
-        .unwrap()
-        .toward(0.0, 1.0, Tol::witness())
-        .unwrap()
-        .fillet_arc(
-            0.25,
-            Center {
-                c: p2(2.0, 6.0),
-                winding: ArcSweep::Ccw,
-                p: p2(2.0, 9.0),
-            },
-            Tol::witness(),
-        )
-        .unwrap()
-        .arc_fillet(
-            Radius {
-                r: 3.0,
-                side: ArcSide::Left,
-            },
-            0.25,
-            Tol::witness(),
-        )
-        .unwrap()
-        .at(p2(1.0, 4.0), Tol::witness())
-        .unwrap()
-        .toward(0.0, -1.0, Tol::witness())
-        .unwrap()
-        .line(3.0, Tol::witness())
-        .unwrap()
-        .line_to(Start, Tol::witness())
-        .unwrap();
-
-    // 3. `.turn(δ)` at the corners. Each δ is far from both 0 (which
-    //    refuses — `.tangent()` is its recourse) and ±π (the reverse
-    //    class), so substituting any other director moves real geometry
-    //    and the round-trip reddens on the first vertex it reaches.
-    let turned = Open
-        .at(p2(0.0, 0.0))
-        .angle(0.0, Tol::witness())
-        .unwrap()
-        .line(3.0, Tol::witness())
-        .unwrap()
-        .turn(FRAC_PI_2, Tol::witness())
-        .unwrap()
-        .line(3.0, Tol::witness())
-        .unwrap()
-        .turn(FRAC_PI_2, Tol::witness())
-        .unwrap()
-        .line(3.0, Tol::witness())
-        .unwrap()
-        .line_to(Start, Tol::witness())
-        .unwrap();
-
-    // 4. The seam-fillet close: mid-side anchors, every corner filleted
-    //    including the one under the entry vertex, which `.to(Start)`
-    //    retrims.
-    let seam = Open
-        .at(p2(1.5, 0.0))
-        .angle(0.0, Tol::witness())
-        .unwrap()
-        .fillet(0.5, Tol::witness())
-        .unwrap()
-        .at(p2(3.0, 1.5), Tol::witness())
-        .unwrap()
-        .angle(FRAC_PI_2, Tol::witness())
-        .unwrap()
-        .fillet(0.5, Tol::witness())
-        .unwrap()
-        .at(p2(1.5, 3.0), Tol::witness())
-        .unwrap()
-        .angle(PI, Tol::witness())
-        .unwrap()
-        .fillet(0.5, Tol::witness())
-        .unwrap()
-        .at(p2(0.0, 1.5), Tol::witness())
-        .unwrap()
-        .angle(-FRAC_PI_2, Tol::witness())
-        .unwrap()
-        .fillet(0.5, Tol::witness())
-        .unwrap()
-        .to(Start, Tol::witness())
-        .unwrap();
-
-    // 5. The declared tangent joint and the unique tangent arc.
-    let tangent_arc = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(2.0, 0.0), Tol::witness())
-        .unwrap()
-        .tangent()
-        .tangent_arc_to(p2(3.0, 1.0), Tol::witness())
-        .unwrap()
-        .line_to(Start, Tol::witness())
-        .unwrap();
-
-    // 6. The declared-subdivision step on an arc carrier.
-    let subdivided = Open
-        .at(p2(0.0, -0.5))
-        .arc_to(
-            Bulge {
-                p: p2(0.5, 0.0),
-                b: FRAC_PI_8.tan(),
-            },
-            Tol::witness(),
-        )
-        .unwrap()
-        .arc_continue(p2(0.0, 0.5), Tol::witness())
-        .unwrap()
-        .line_to(Start, Tol::witness())
-        .unwrap();
-
-    // 7. The far-end anchor: the arrival side ENDS at its authored point.
-    let far_end = Open
-        .at(p2(0.0, 0.0))
-        .line_to(p2(3.0, 0.0), Tol::witness())
-        .unwrap()
-        .line_to(p2(3.0, 1.0), Tol::witness())
-        .unwrap()
-        .toward(-1.0, 0.0, Tol::witness())
-        .unwrap()
-        .fillet(0.5, Tol::witness())
-        .unwrap()
-        .toward(0.0, 1.0, Tol::witness())
-        .unwrap()
-        .to(p2(1.0, 3.0), Tol::witness())
-        .unwrap()
-        .line_to(p2(0.0, 3.0), Tol::witness())
-        .unwrap()
-        .line_to(Start, Tol::witness())
-        .unwrap();
-
-    // 8. The fused verb with an ARC arrival, closing on the far lobe.
-    let tip = 0.75f64.sqrt();
-    let eye = Open
-        .arc_fillet_arc(
-            Center {
-                c: p2(-0.5, 0.0),
-                winding: ArcSweep::Ccw,
-                p: p2(0.0, -tip),
-            },
-            0.25,
-            Center {
-                c: p2(0.5, 0.0),
-                winding: ArcSweep::Ccw,
-                p: Start,
-            },
-            Tol::witness(),
-        )
-        .unwrap();
-
-    // 9/10. The complete-loop program forms.
-    let circle = profile::circle(p2(1.0, 2.0), 0.75, Tol::witness()).unwrap();
-    let split = profile::circle_split(p2(0.0, 0.0), 1.0, 5, 0.3, Tol::witness()).unwrap();
-
-    vec![
-        fused,
-        walk,
-        turned,
-        seam,
-        tangent_arc,
-        subdivided,
-        far_end,
-        eye,
-        circle,
-        split,
-    ]
+/// **Every arc mode the vocabulary declares is exercised by a
+/// record→replay round-trip.**
+///
+/// The mode travels INSIDE a verb, so the verb census above cannot see
+/// it: `ArcTo` is replayed by one chain whatever the other five modes
+/// do, and a mode whose dispatcher arm goes missing or over-strict
+/// takes nothing red with it. This row is that arm's only standing
+/// pressure, anchored on [`ArcMode::ALL`] and therefore unable to fall
+/// behind a mode the vocabulary gains.
+///
+/// Granularity is honest for the same reason the verb census's is:
+/// this is mode coverage, not (state, mode) coverage — the pairs the
+/// §2c matrix admits at more than one state are covered here only
+/// where the corpus reaches them.
+#[test]
+fn every_arc_mode_is_replayed_by_the_corpus() {
+    let mut seen: Vec<ArcMode> = Vec::new();
+    for closed in coverage_corpus() {
+        seen.extend(arc_modes(&closed.program));
+        // The round-trip itself: replay the recording, bit-identical.
+        pinned(closed);
+    }
+    let missing: Vec<&ArcMode> = ArcMode::ALL.iter().filter(|m| !seen.contains(m)).collect();
+    assert!(
+        missing.is_empty(),
+        "these arc modes are declared but never replayed by the corpus: {missing:?} \
+         — every mode's dispatcher arm must be exercised by a record->replay chain, \
+         so add one to `coverage_corpus` (see this test's rustdoc)"
+    );
 }
 
 fn assert_transition(program: &[Step<f64>], step: usize, state: TipState, verb: Option<Verb>) {
@@ -865,6 +723,37 @@ fn unclosed_trailing_and_empty_programs_are_the_transition_class() {
         1,
         TipState::Closed,
         Some(Verb::At),
+    );
+}
+
+/// A lattice refusal renders the (tip state, verb) pair as the
+/// transition table's own spellings, each introduced by the noun it
+/// is. The pair is a COORDINATE — the row a reader looks up next — so
+/// a prose paraphrase of either half would name nothing findable; this
+/// pin is what makes the `Debug` spelling a decision rather than an
+/// oversight, and it fails if either half is worded away.
+#[test]
+fn a_lattice_refusal_names_the_table_coordinate_it_could_not_walk() {
+    let unwalkable = replay(&[Step::Fillet { radius: 0.5 }], Tol::witness())
+        .expect_err("a leading fillet binds nothing, so it is off the lattice");
+    assert_eq!(
+        unwalkable.to_string(),
+        "step 0: the Fillet verb is not a legal continuation of tip state Entry \
+         (lattice violation — no authoring surface can produce this program)"
+    );
+
+    let unclosed = replay(
+        &[
+            Step::At(p2(0.0, 0.0)),
+            Step::LineTo(Target::Point(p2(1.0, 0.0))),
+        ],
+        Tol::witness(),
+    )
+    .expect_err("a chain that never returns to Start does not close");
+    assert_eq!(
+        unclosed.to_string(),
+        "step 2: the program ends at tip state DirectedPoint without closing the loop \
+         (lattice violation — a chain must end at Start)"
     );
 }
 

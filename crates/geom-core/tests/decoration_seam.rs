@@ -23,9 +23,25 @@
 //! at `f64` and at `RingInterval` is read off the value rather than off a
 //! decoration. `certified_door.rs` sweeps all four implementors against
 //! that one postcondition; these rows pin both halves here, and pin that
-//! the three C9-ring crossings follow the second door rather than the
-//! first — which is the actual defect S41 found: they read the bracket,
-//! so a `Trv` enclosure crossed into `RingInterval` as a healthy bound.
+//! the C9-ring crossing this crate can reach — `spline::hull`'s, through
+//! [`hull::domain_hull`] — follows the second door rather than the first,
+//! which is the actual defect S41 found: it read the bracket, so a `Trv`
+//! enclosure crossed into `RingInterval` as a healthy bound.
+//!
+//! **What these rows do NOT pin, named exactly, because a roster with a
+//! count in it is what the finding was about.**
+//! `RingInterval::from_certified` is reached from four other places in
+//! `crates/*/src`, every one of them inside a crate that depends on this
+//! one, so no test here can call them:
+//!
+//! - `geom`'s `ring_coords`, which lifts a control net channel by channel
+//!   — pinned by `geom/tests/{curves,surfaces}/decoration_ring_coords.rs`;
+//! - `geom_brep::ssi::certify`'s three direct reads of a plane normal —
+//!   pinned by that file's `normal_crossing_tests`, which drives
+//!   `probe_tube_chart` and therefore runs `ring_coords` as well;
+//! - `topo::props`'s bracket helper — pinned by that file's
+//!   `bracket_seam_tests`;
+//! - `geom_brep::ssi::enclose`'s, which **no row named here pins**.
 //!
 //! The sweeps are **paired**: each walks an operand across the domain
 //! boundary and requires refusal *iff* the decoration degraded, with
@@ -147,8 +163,8 @@ fn the_certified_door_refuses_a_violated_decoration() {
 }
 
 /// The C9 hull bound over a two-coefficient degree-1 spline whose first
-/// coefficient is `c` — the shortest path from an evaluation scalar to
-/// `RingInterval` through `hull::bracket`.
+/// coefficient is `c` — the shortest path from an evaluation scalar into
+/// `RingInterval` through a public door.
 fn hull_bound(c: Interval) -> RingInterval {
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     hull::domain_hull(&kv, &[c, Interval::from_f64(1.0)])

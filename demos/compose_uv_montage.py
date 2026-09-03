@@ -37,7 +37,9 @@ COLS = 4
 CELL_W = 380
 CELL_H = 334
 MARGIN = 18
-HEADER = 130
+# Title block + the legend, which is `len(LEGEND)` two-per-row entries
+# ending at `MARGIN + 78 + (rows - 1) * 15`; the cells start below that.
+HEADER = 145
 
 # The exact opening tag `uvdump.rs` writes. Matched rather than parsed:
 # the emitter and this composer are one format, and a cell that does not
@@ -63,8 +65,10 @@ LEGEND = [
     ("#b03060", True, "the chart’s periodic seam (u = k·2π)"),
     ("#1b7a3d", False, "isoline — the exact u/v-const image (NURBS walls)"),
     ("#1f4e79", True, "dashed, in the form’s own color — pcurve DERIVED, not cached"),
-    ("#c1590a", False, "fitted — the rung-3 SSI-trace chart projection"),
+    ("#6b2fa0", False, "isoarc — the rational cap rim, uneven in u"),
     ("#333", False, "dot — a loop junction;  arrow — traversal direction"),
+    ("#c1590a", False, "fitted — the rung-3 SSI-trace chart projection"),
+    ("#a01c3c", False, "general — a curve-in-UV with no construction provenance"),
 ]
 
 
@@ -92,9 +96,9 @@ def legend_agrees_with_emitter(emitter=None):
     """Both directions of the legend/emitter mirror. Returns (unused, unlisted).
 
     Read rather than asked for in a comment: this legend mirrors literals
-    in another language in another file, and smell-scan S114(c) named it
-    as the one mirror here that nothing verified while the cell SIZE was
-    verified hard (`ROOT_RE` and the CELL_W/CELL_H refusal below).
+    in another language in another file, and it was the one mirror here
+    that nothing verified while the cell SIZE was verified hard
+    (`ROOT_RE` and the CELL_W/CELL_H refusal below).
 
     - `unused` — legend swatches the emitter never strokes. That is the
       one that had already drifted: a grey `#777777` swatch for "derived",

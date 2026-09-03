@@ -40,9 +40,9 @@ use geom::Surface;
 use geom_core::{Band, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::FilletError;
-use sweep::fillet::battery::chain_g1;
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::BlendError;
+use sweep::blend::battery::chain_g1;
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::revolved_about_y;
 use topo::{Body, EdgeKey, FaceSurface, ValidationError, mass_properties, validate_geometric};
 
@@ -95,7 +95,7 @@ fn the_dome_equator_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
         "the dome is four walls, four latitude rims and four seams"
     );
     let rim = closed_rim_of_radius(&source, 1.0);
-    let out = fillet_edges(&source, &[rim], 0.05, band(), tol())
+    let out = fillet_edges(&source, &[rim], 0.05, tol())
         .unwrap_or_else(|e| panic!("the dome's one-edge rim fillets, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("the filleted dome must be tier-3 valid, got {e:?}"));
@@ -145,7 +145,7 @@ fn the_dome_equator_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
 fn every_annulus_output_entity_is_a_recorded_mint_or_a_survivor() {
     let source = dome(1.0);
     let rim = closed_rim_of_radius(&source, 1.0);
-    let out = fillet_edges(&source, &[rim], 0.05, band(), tol()).unwrap();
+    let out = fillet_edges(&source, &[rim], 0.05, tol()).unwrap();
     let rec = out.naming.as_ref().expect("the surgery keeps its records");
 
     // The annulus's own shape, pinned: one band over one source edge,
@@ -309,7 +309,7 @@ fn the_wrap_around_g1_is_vacuous_on_a_circle_and_live_on_a_kink() {
         .normalize();
     let kinked = tau_in + off * (0.02 * tau_in.norm());
     match chain_g1(tau_in, kinked, arm, vertex, band()) {
-        Err(FilletError::ChainNotG1 { .. }) => {}
+        Err(BlendError::ChainNotG1 { .. }) => {}
         other => panic!("a kinked wrap-around must refuse, got {other:?}"),
     }
 }
@@ -321,7 +321,7 @@ fn the_wrap_around_g1_is_vacuous_on_a_circle_and_live_on_a_kink() {
 fn the_annulus_band_carries_two_closed_circles_and_a_doubly_traversed_slit() {
     let source = dome(1.0);
     let rim = closed_rim_of_radius(&source, 1.0);
-    let out = fillet_edges(&source, &[rim], 0.05, band(), tol()).unwrap();
+    let out = fillet_edges(&source, &[rim], 0.05, tol()).unwrap();
     let band_face = out.band_faces[0];
     let fd = out.body.get_face(band_face).unwrap();
     assert!(fd.rings.is_empty(), "a curved face carries no ring");
@@ -360,7 +360,7 @@ fn the_filleted_dome_matches_its_closed_form_volume_with_no_quadrature_pad() {
     let r = 0.05f64;
     let source = dome(1.0);
     let rim = closed_rim_of_radius(&source, 1.0);
-    let out = fillet_edges(&source, &[rim], r, band(), tol()).unwrap();
+    let out = fillet_edges(&source, &[rim], r, tol()).unwrap();
     let props = mass_properties(&out.body, tol()).expect("mass properties must compute");
     assert_eq!(
         props.volume_pad, 0.0,
@@ -427,9 +427,8 @@ fn the_partial_revolve_of_the_same_profile_still_refuses() {
         !arcs.is_empty(),
         "the partial revolve leaves open plane–sphere arcs"
     );
-    match fillet_edges(&body, &arcs[..1], 0.05, band(), tol()) {
-        Err(FilletError::UnsupportedChain { .. } | FilletError::FilletCornerUnsupported { .. }) => {
-        }
+    match fillet_edges(&body, &arcs[..1], 0.05, tol()).map_err(|r| r.error) {
+        Err(BlendError::UnsupportedChain { .. } | BlendError::UnsupportedCorner { .. }) => {}
         other => panic!("expected the open plane–sphere arc's own refusal, got {other:?}"),
     }
 }
@@ -443,7 +442,7 @@ fn the_partial_revolve_of_the_same_profile_still_refuses() {
 fn a_planted_horn_torus_is_reported_by_tier_3() {
     let source = dome(1.0);
     let rim = closed_rim_of_radius(&source, 1.0);
-    let mut out = fillet_edges(&source, &[rim], 0.05, band(), tol()).unwrap();
+    let mut out = fillet_edges(&source, &[rim], 0.05, tol()).unwrap();
     validate_geometric(&out.body, tol()).expect("the filleted dome is tier-3 valid");
     let band_face = out.band_faces[0];
     let surface = out

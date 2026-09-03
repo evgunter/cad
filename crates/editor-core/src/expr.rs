@@ -43,6 +43,53 @@ pub enum Dimension {
     Scalar,
 }
 
+// The one home of the dimension-in-prose rule for the crate. A
+// dimension is a quantity KIND, not an address: it names what a value
+// measures, so refusal prose renders it as the common noun a person
+// would say ("slot needs a length expression, got an angle") and never
+// as the variant identifier. That holds wherever a dimension reaches a
+// user — `EditError`, `DimensionError`, `EvalError`, the persist
+// checker's faults, the select refusals — and it holds for a dimension
+// NAMED in a sentence as much as for one interpolated, so the words are
+// lowercase on both sides. Two channels are outside it: a panic or
+// assertion addressed to whoever debugs the kernel names the variant
+// (the identifier is the thing to grep), and the wire/key encodings
+// carry tags, not words.
+//
+// Two further spellings of this word list exist downstream and are
+// deliberate: `pncad-py`'s `errors::dimension_tag` (the FFI tag —
+// identical words, pinned equal to this rendering by that crate's
+// `dimension_tags_match_the_kernel_prose`) and its `py::value::
+// dimension_name` (capitalized, the Python `Measurement` repr). Each
+// says so at its own site.
+impl core::fmt::Display for Dimension {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Length => "length",
+            Self::Angle => "angle",
+            Self::Count => "count",
+            Self::Scalar => "scalar",
+        })
+    }
+}
+
+impl Dimension {
+    /// The indefinite article agreeing with the `Display` noun, for
+    /// the sentence positions that need one. **The value decides it**
+    /// — a sentence that hard-codes "a" is wrong for every value whose
+    /// noun begins with a vowel, which is how "a angle" and "a edge"
+    /// both reached refusal prose. So the sentence writes `"{} {dim}"`
+    /// and the value supplies both halves. This is the crate's one
+    /// idiom for a rendered kind's article; `EntityKind::article` is
+    /// its twin, and covers a whole `StableName` phrase as well.
+    pub(crate) fn article(self) -> &'static str {
+        match self {
+            Self::Length | Self::Count | Self::Scalar => "a",
+            Self::Angle => "an",
+        }
+    }
+}
+
 /// Typed refusal from the construction-time dimension checker (spec D4).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DimensionError {
@@ -133,25 +180,33 @@ impl core::fmt::Display for DimensionError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Mismatch { op, left, right } => {
-                write!(f, "cannot apply `{op}` to {left:?} and {right:?}")
+                write!(f, "cannot apply `{op}` to {left} and {right}")
             }
             Self::MulNeedsScalar { left, right } => write!(
                 f,
-                "multiplication needs a Scalar operand ({left:?} x {right:?} would change dimension)"
+                "multiplication needs a scalar operand ({left} x {right} would change dimension)"
             ),
             Self::DivNeedsScalarDivisor { left, right } => write!(
                 f,
-                "division needs a Scalar divisor ({left:?} / {right:?} is refused in v1)"
+                "division needs a scalar divisor ({left} / {right} is refused in v1)"
             ),
             Self::TrigNeedsAngle { op, found } => {
-                write!(f, "`{op}` needs an Angle operand, got {found:?}")
+                write!(
+                    f,
+                    "`{op}` needs an angle operand, got {} {found}",
+                    found.article()
+                )
             }
             Self::CountNeedsExplicitPromotion { op } => write!(
                 f,
-                "`{op}` on a Count needs an explicit promotion (use count_to_scalar)"
+                "`{op}` on a count needs an explicit promotion (use count_to_scalar)"
             ),
             Self::NotCount { found } => {
-                write!(f, "a Count operand is required, got {found:?}")
+                write!(
+                    f,
+                    "a count operand is required, got {} {found}",
+                    found.article()
+                )
             }
             Self::LiteralCountIsInteger => {
                 f.write_str("a count literal must be an integer (use Expr::count)")
@@ -159,7 +214,7 @@ impl core::fmt::Display for DimensionError {
             Self::NonFiniteLiteral => f.write_str("a literal value must be finite"),
             Self::DisplayUnitMismatch { unit, literal } => write!(
                 f,
-                "the display unit measures {unit:?} but the literal is {literal:?}"
+                "the display unit measures {unit} but the literal is {literal}"
             ),
             Self::UnknownDisplayUnit { symbol } => {
                 write!(f, "unknown display unit {symbol:?}")
@@ -192,7 +247,7 @@ pub struct Expr {
 /// `size_of::<Lit>()` assertion below.)
 ///
 /// The identity is the row's POSITION in [`quantity::UNITS`], not a
-/// second spelling of the six units: no unit symbol is written as CODE
+/// second spelling of the table's units: no unit symbol is written as CODE
 /// anywhere in this crate's `src`, and both directions here go
 /// through the table, so there is no mirror to hand-sync.
 ///
@@ -204,12 +259,12 @@ pub struct Expr {
 ///   suites. Nothing here holds an opinion about the order —
 ///   `switch_display_units.rs`'s wire golden deliberately compares
 ///   membership as a SET so that stays true. (It is not silent either:
-///   `quantity`'s own suite pins the six symbols IN ORDER, so a reorder
+///   `quantity`'s own suite pins every symbol IN ORDER, so a reorder
 ///   is a decision taken there rather than a surprise here.)
 /// * **Added**: no edit to `src`. In the suites,
 ///   `switch_display_units.rs`'s wire golden goes red — deliberately,
 ///   so a new unit cannot land unpinned. `tests/u8a_parse.rs`'s two
-///   proptest generators enumerate the six symbols by hand and do NOT
+///   proptest generators enumerate the symbols by hand and do NOT
 ///   go red; they silently under-cover, so they want an edit that
 ///   nothing announces.
 /// * **Renamed**: no edit to `src`. `u8a_parse.rs`'s generators go red
@@ -217,11 +272,55 @@ pub struct Expr {
 ///   `switch_display_units.rs`'s golden and its `table_row` fixtures.
 ///
 /// The index carries **no compatibility contract**: it is never
-/// persisted (the wire stores the SYMBOL — `persist::wire`), never
-/// enters expression identity, keys or [`Expr::literal_bits`] (D7),
-/// and is minted afresh at every construction and load.
+/// persisted, never enters expression identity, keys or
+/// [`Expr::literal_bits`] (D7), and is minted afresh at every
+/// construction and load.
+///
+/// **Serialization goes through the SYMBOL, never the index**, and the
+/// impls below are what keep that true now that the type is public and
+/// two carriers store it: `persist::wire`'s `WireExpr::Literal` writes
+/// the symbol as its own field, and [`crate::DocParam::Continuous`]
+/// writes one through this type's `Serialize`. Both read back through
+/// [`quantity::unit_by_symbol`], so a table REORDER still moves no
+/// byte of any file.
+///
+/// Public because a document parameter's declaration carries one
+/// ([`crate::DocParam::Continuous`]'s `display_unit`) and an enum
+/// variant's fields are public with it. The FIELD stays private to
+/// this module, which is what every totality argument above rests on —
+/// nothing about the seal depended on the type's visibility.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct UnitSym(u8);
+pub struct UnitSym(u8);
+
+impl serde::Serialize for UnitSym {
+    /// As the row's surface SYMBOL — the wire spelling, for the reason
+    /// the rustdoc above gives.
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(self.def().symbol())
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for UnitSym {
+    /// Back through [`quantity::unit_by_symbol`], the same closed-table
+    /// lookup `persist::wire`'s rebuild runs.
+    ///
+    /// An off-table symbol refuses HERE, at the token, because that is
+    /// the only fact this layer can see; whether the unit agrees with
+    /// the DIMENSION it was stored beside is a document invariant, and
+    /// it is checked where document invariants are, in the shared
+    /// save/load validator (`persist::check::first_display_unit_fault`)
+    /// — typed, and symmetric across both doors rather than load-only.
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let symbol = <String as serde::Deserialize>::deserialize(deserializer)?;
+        match quantity::unit_by_symbol(&symbol) {
+            Some(row) => Ok(Self::from_def(&row)),
+            None => Err(serde::de::Error::custom(format!(
+                "display unit {symbol:?} is not one of the {} rows quantity::UNITS carries",
+                quantity::UNITS.len()
+            ))),
+        }
+    }
+}
 
 // The code is one byte, so the table it indexes must fit in one. Six
 // rows today; a table that grew past 255 rows fails the BUILD here.
@@ -236,7 +335,7 @@ const _: () = assert!(
 
 impl UnitSym {
     /// The table row this code names.
-    fn def(self) -> quantity::UnitDef {
+    pub fn def(self) -> quantity::UnitDef {
         // Total: the index is minted only by `from_def`, as a position
         // in the very table indexed here, and the field is private to
         // this module, so out of range is unconstructable — this is
@@ -255,6 +354,32 @@ impl UnitSym {
             )
         };
         *row
+    }
+
+    /// The unit a value of `dim` is written in when nothing else was
+    /// authored: metres, radians, or the dimensionless row.
+    ///
+    /// This is where "canonical" stops being a reader's guess and
+    /// becomes a stored fact.
+    ///
+    /// **Total, including `Count`** — deliberately, though a count has
+    /// no notation and the table no row for one. [`Expr::literal`]
+    /// refuses `Count` before ever reaching here, so no LITERAL takes
+    /// that arm; what can is [`crate::DocParam::continuous`], whose
+    /// `dim` is a caller's argument and whose `Count` spelling is a
+    /// corrupt parameter the edit door refuses typed
+    /// (`EditError::ContinuousParamCannotBeCount`). Panicking here
+    /// would replace that typed refusal with a crash on the way to it,
+    /// which is the wrong trade: the answer is the dimensionless row,
+    /// nothing ever renders it (a count is an integer), and the
+    /// refusal still happens where it always did.
+    pub fn canonical_for(dim: Dimension) -> Self {
+        let row = match dim {
+            Dimension::Length => quantity::M.def(),
+            Dimension::Angle => quantity::RAD.def(),
+            Dimension::Scalar | Dimension::Count => quantity::ONE.def(),
+        };
+        Self::from_def(&row)
     }
 
     /// The code for a table row, by symbol — TOTAL, exactly as
@@ -280,7 +405,7 @@ impl UnitSym {
     /// case, and it keeps its typed refusal (D2 addendum row 1). What
     /// went away is the CONSTRUCTION site of that variant, which could
     /// only fire for a `UnitDef` no caller can build.
-    fn from_def(u: &quantity::UnitDef) -> Self {
+    pub fn from_def(u: &quantity::UnitDef) -> Self {
         let Some(i) = quantity::UNITS
             .iter()
             .position(|row| row.symbol() == u.symbol())
@@ -310,13 +435,19 @@ impl UnitSym {
 /// keys, and naming keys are all display-unit-blind by construction),
 /// excluded from [`Expr::literal_bits`], and ignored by evaluation;
 /// the value stays canonical meters/radians regardless.
+///
+/// **The unit is not optional.** Every literal names the notation it
+/// was written in, dimensionless ones included ([`quantity::ONE`], the
+/// empty symbol), so there is no absence for two readers to resolve
+/// differently — which is what the dimensionless row exists for. The
+/// break that introduced it (schema v20) carries the incident.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Lit {
     /// The exact canonical-units value (bit-exact per D7).
     pub(crate) value: f64,
-    /// The display unit the literal was authored in, if any (a code
-    /// into quantity's closed table; `None` renders canonically).
-    pub(crate) display_unit: Option<UnitSym>,
+    /// The display unit the literal was authored in (a code into
+    /// quantity's closed table).
+    pub(crate) display_unit: UnitSym,
 }
 
 // PR #291 MAJOR-2, as a compile-time row rather than a remembered
@@ -349,9 +480,9 @@ const _: () = assert!(
 );
 
 impl Lit {
-    /// The stored unit's table row, if any.
-    pub(crate) fn unit_def(&self) -> Option<quantity::UnitDef> {
-        self.display_unit.map(UnitSym::def)
+    /// The stored unit's table row.
+    pub(crate) fn unit_def(&self) -> quantity::UnitDef {
+        self.display_unit.def()
     }
 }
 
@@ -482,7 +613,7 @@ impl Expr {
             dim,
             kind: ExprKind::Literal(Lit {
                 value,
-                display_unit: None,
+                display_unit: UnitSym::canonical_for(dim),
             }),
         })
     }
@@ -506,6 +637,7 @@ impl Expr {
         let unit_dim = match unit.quantity() {
             quantity::UnitQuantity::Length => Dimension::Length,
             quantity::UnitQuantity::Angle => Dimension::Angle,
+            quantity::UnitQuantity::Scalar => Dimension::Scalar,
         };
         if unit_dim != dim {
             return Err(DimensionError::DisplayUnitMismatch {
@@ -519,17 +651,58 @@ impl Expr {
         // Run literal()'s refusal doors, then attach the unit.
         let mut e = Self::literal(value, dim)?;
         if let ExprKind::Literal(ref mut lit) = e.kind {
-            lit.display_unit = Some(sym);
+            lit.display_unit = sym;
         }
         Ok(e)
     }
 
-    /// The display unit of a LITERAL expression, if one is stored
-    /// (`None` for every other kind and for canonically-authored
-    /// literals). The formatter's read side (§4g).
+    /// A continuous literal from an AUTHORED length — the value and
+    /// the notation it was written in, together
+    /// ([`quantity::WrittenLength`]).
+    ///
+    /// The door library and GUI authoring should reach for. A caller
+    /// never spells the dimension — a `WrittenLength` is a length, so
+    /// there is no second fact to keep in step — and the literal
+    /// ALWAYS remembers a unit, because an authored quantity always
+    /// names the one it is written in (`quantity::written`'s module
+    /// docs). [`Expr::literal`] remains the door for a value whose
+    /// notation is not a CHOICE — it stores the canonical row for the
+    /// dimension, `quantity::ONE` for a `Scalar`.
+    ///
+    /// **`DisplayUnitMismatch` cannot fire here.** A
+    /// [`quantity::WrittenLength`] holds a `LengthUnit`, which is an
+    /// index into a Length row of the table (#669), so the unit's
+    /// quantity agrees with `Dimension::Length` by construction rather
+    /// than by a check. The refusal that remains is
+    /// [`Expr::literal`]'s: a non-finite value (ruled door 1). The
+    /// claim is executed by
+    /// `switch_display_units::every_authored_unit_reaches_a_literal_without_a_mismatch`,
+    /// not merely stated here.
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
+    pub fn written_length(written: quantity::WrittenLength) -> Result<Self, DimensionError> {
+        Self::literal_with_unit(written.meters(), Dimension::Length, written.unit().def())
+    }
+
+    /// A continuous literal from an AUTHORED angle —
+    /// [`Expr::written_length`]'s mirror, and everything that door's
+    /// docs say holds here with `AngleUnit` and `Dimension::Angle`.
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::NonFiniteLiteral`] for a non-finite value.
+    pub fn written_angle(written: quantity::WrittenAngle) -> Result<Self, DimensionError> {
+        Self::literal_with_unit(written.radians(), Dimension::Angle, written.unit().def())
+    }
+
+    /// The display unit of a LITERAL expression — `None` for every
+    /// other kind, because only a literal is WRITTEN. A literal always
+    /// has one ([`Lit`]). The formatter's read side (§4g).
     pub fn display_unit(&self) -> Option<quantity::UnitDef> {
         match &self.kind {
-            ExprKind::Literal(lit) => lit.unit_def(),
+            ExprKind::Literal(lit) => Some(lit.unit_def()),
             _ => None,
         }
     }
@@ -973,20 +1146,21 @@ impl core::fmt::Display for EvalError {
                 found,
             } => write!(
                 f,
-                "parameter {:?} is referenced as {expected:?} but bound as {found:?}",
+                "parameter {:?} is referenced as {expected} but bound as {found}",
                 name.0
             ),
             Self::CountExprInContinuousEval => f.write_str(
-                "a Count expression does not evaluate continuously — promote it \
+                "a count expression does not evaluate continuously — promote it \
                  explicitly through count_to_scalar",
             ),
             Self::ContinuousExprInCountEval { found } => write!(
                 f,
-                "a {found:?} expression does not evaluate as a Count — counts are exact \
-                 and never inferred from a continuous value"
+                "{} {found} expression does not evaluate as a count — counts are exact \
+                 and never inferred from a continuous value",
+                found.article()
             ),
             Self::CountOverflow => {
-                f.write_str("exact Count arithmetic overflowed (a count never wraps)")
+                f.write_str("exact count arithmetic overflowed (a count never wraps)")
             }
             Self::CountToScalarOutOfRange(count) => write!(
                 f,
@@ -1014,13 +1188,26 @@ impl core::error::Error for EvalError {}
 /// so it goes through `sign_within`, never a raw comparison. The
 /// recursive evaluation itself needs only `Real` (see `eval_inner`).
 pub fn eval<T: Decide>(expr: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError> {
-    let value = eval_inner(expr, params)?;
-    // Door 2: probe = value * 0 is EXACTLY zero for every finite
-    // value and poison (NaN / empty / Trv) otherwise, so any valid
-    // band classifies it identically — Zero passes, everything else
-    // is a non-finite result. Band construction with these constants
-    // cannot fail; the `else` arm is unreachable but typed (no
-    // panic paths in this crate).
+    refuse_non_finite(eval_inner(expr, params)?)
+}
+
+/// **Door 2, as a shared door.** The ruled non-finite check on a
+/// FINAL evaluated value: `value * 0` is EXACTLY zero for every finite
+/// value and poison (NaN / empty / Trv) otherwise, so any valid band
+/// classifies it identically — Zero passes, everything else is a
+/// non-finite result.
+///
+/// It lives apart from [`eval`] because [`eval`] is not the only
+/// evaluator of this crate's expression arithmetic: the measurement
+/// sublanguage ([`crate::measure`]) evaluates its own tree, and a
+/// second copy of this door would be a second chance to forget it —
+/// which is exactly what happened, and what shipped a
+/// `Holds { measured: inf }` verdict. Any evaluator that produces a
+/// value a caller will believe passes it through here.
+///
+/// Band construction with these constants cannot fail; the `else` arm
+/// is unreachable but typed (no panic paths in this crate).
+pub(crate) fn refuse_non_finite<T: Decide>(value: T) -> Result<T, EvalError> {
     let Ok(band) = Band::new(1e-100, 1e-50) else {
         return Err(EvalError::NonFiniteResult);
     };
@@ -1106,5 +1293,208 @@ pub fn eval_count<T>(expr: &Expr, params: &ParamEnv<T>) -> Result<i64, EvalError
         | K::Tan(_)
         | K::Atan2(..)
         | K::CountToScalar(_) => Err(EvalError::ContinuousExprInCountEval { found: expr.dim }),
+    }
+}
+
+/// Binding level of a rendered expression, in the text grammar's own
+/// terms (`parse`'s module docs): sums bind loosest, then products,
+/// then unary minus, and a leaf or a call is an atom that no
+/// surrounding operator can split.
+///
+/// Used only to decide parentheses, so the numbers matter only in
+/// their order.
+const PREC_SUM: u8 = 1;
+/// See [`PREC_SUM`].
+const PREC_PRODUCT: u8 = 2;
+/// See [`PREC_SUM`].
+const PREC_UNARY: u8 = 3;
+/// See [`PREC_SUM`].
+const PREC_ATOM: u8 = 4;
+
+/// The binding level [`unparse`] renders `expr` at.
+///
+/// A literal whose value is NEGATIVE renders with a leading `-` and
+/// therefore binds as a negation does, not as an atom — the sign is
+/// part of the emitted text, and whoever is deciding parentheses has
+/// to see it.
+fn precedence(expr: &Expr) -> u8 {
+    match &expr.kind {
+        ExprKind::Literal(lit) if lit.value.is_sign_negative() => PREC_UNARY,
+        ExprKind::CountLiteral(n) if *n < 0 => PREC_UNARY,
+        ExprKind::Add(..) | ExprKind::Sub(..) => PREC_SUM,
+        ExprKind::Mul(..) | ExprKind::Div(..) => PREC_PRODUCT,
+        ExprKind::Neg(_) => PREC_UNARY,
+        ExprKind::Literal(_)
+        | ExprKind::CountLiteral(_)
+        | ExprKind::Param(_)
+        | ExprKind::Sin(_)
+        | ExprKind::Cos(_)
+        | ExprKind::Tan(_)
+        | ExprKind::Atan2(..)
+        | ExprKind::Min(..)
+        | ExprKind::Max(..)
+        | ExprKind::CountToScalar(_) => PREC_ATOM,
+    }
+}
+
+/// The expression TEXT door OUTWARD (issue #1103): source text that
+/// [`crate::parse_expr`] reads back as this very expression.
+///
+/// **The contract is the round trip, structurally**: for every `e`
+/// this crate's text door can build,
+/// `parse_expr(&unparse(&e), params)` is [`Expr::bit_eq`] to `e` —
+/// same tree, same literal BITS — and its literals remember the same
+/// display units (which `bit_eq` deliberately does not compare, being
+/// presentation metadata). Parentheses are emitted where and only
+/// where the grammar needs them to reproduce the same tree, which is
+/// stricter than "the same value": the parser is left-associative, so
+/// `Add(a, Add(b, c))` is parenthesised even though `a + b + c`
+/// evaluates identically.
+///
+/// A literal is written in the display unit it REMEMBERS
+/// ([`Expr::display_unit`]), and in the canonical unit (`m`/`rad`)
+/// when it remembers none — through [`quantity::fmt_length`]/
+/// [`quantity::fmt_angle`], whose own pin is that the digits multiply
+/// back to the exact bits, and which fall back to the canonical unit
+/// for the values that have no preimage in the asked-for one. A
+/// `Scalar` literal takes no unit and is written with a decimal point
+/// or an exponent, because a BARE integer is this grammar's spelling
+/// of a `Count`.
+///
+/// **Two constructible expressions the grammar cannot spell**, stated
+/// rather than approximated:
+///
+/// * A literal with a NEGATIVE value. The grammar has no negative
+///   number token — `-` is always an operator — so the emitted
+///   `-25 mm` reads back as `Neg(25 mm)`: the same value written the
+///   only way this text has of writing it, one node deeper.
+/// * `Expr::count(i64::MIN)`, whose magnitude is one past `i64::MAX`
+///   and refuses as [`crate::ParseError::IntegerOverflow`] — the
+///   corner that refusal's own docs already record.
+pub fn unparse(expr: &Expr) -> String {
+    let mut out = String::new();
+    write_expr(expr, &mut out);
+    out
+}
+
+/// `expr`, wrapped in parentheses unless it already binds at least as
+/// tightly as `needs`.
+fn write_nested(expr: &Expr, needs: u8, out: &mut String) {
+    if precedence(expr) < needs {
+        out.push('(');
+        write_expr(expr, out);
+        out.push(')');
+    } else {
+        write_expr(expr, out);
+    }
+}
+
+/// A binary infix rendering at binding level `level`.
+///
+/// The RIGHT operand is parenthesised one level tighter than the left.
+/// That asymmetry is the parser's left-associativity: `a - (b - c)`
+/// and `a - b - c` are different trees, so a right operand binding at
+/// its parent's own level has to be bracketed even where arithmetic
+/// would not care.
+fn write_infix(left: &Expr, op: &str, right: &Expr, level: u8, out: &mut String) {
+    write_nested(left, level, out);
+    out.push(' ');
+    out.push_str(op);
+    out.push(' ');
+    write_nested(right, level + 1, out);
+}
+
+/// A call in the parser's own spelling — the arguments are delimited,
+/// so no argument is ever parenthesised.
+fn write_call(name: &str, args: &[&Expr], out: &mut String) {
+    out.push_str(name);
+    out.push('(');
+    for (i, arg) in args.iter().enumerate() {
+        if i > 0 {
+            out.push_str(", ");
+        }
+        write_expr(arg, out);
+    }
+    out.push(')');
+}
+
+/// The rendering proper (see [`unparse`] for the contract).
+fn write_expr(expr: &Expr, out: &mut String) {
+    use ExprKind as K;
+    match &expr.kind {
+        K::Literal(lit) => out.push_str(&write_literal(lit, expr.dim)),
+        K::CountLiteral(n) => out.push_str(&n.to_string()),
+        K::Param(name) => out.push_str(&name.0),
+        K::Add(a, b) => write_infix(a, "+", b, PREC_SUM, out),
+        K::Sub(a, b) => write_infix(a, "-", b, PREC_SUM, out),
+        K::Mul(a, b) => write_infix(a, "*", b, PREC_PRODUCT, out),
+        K::Div(a, b) => write_infix(a, "/", b, PREC_PRODUCT, out),
+        K::Neg(a) => {
+            out.push('-');
+            write_nested(a, PREC_UNARY, out);
+        }
+        K::Sin(a) => write_call("sin", &[a], out),
+        K::Cos(a) => write_call("cos", &[a], out),
+        K::Tan(a) => write_call("tan", &[a], out),
+        K::CountToScalar(a) => write_call("scalar", &[a], out),
+        K::Atan2(y, x) => write_call("atan2", &[y, x], out),
+        K::Min(a, b) => write_call("min", &[a, b], out),
+        K::Max(a, b) => write_call("max", &[a, b], out),
+    }
+}
+
+/// One continuous literal, in the unit it remembers.
+fn write_literal(lit: &Lit, dim: Dimension) -> String {
+    let remembered = lit.unit_def();
+    let formatted = match dim {
+        // The stored unit and the dimension agree by construction —
+        // `Expr::literal_with_unit` checks the pairing and `literal`
+        // supplies the canonical row — so the typed view is there, and
+        // its absence is D2 addendum row 4 rather than a default: a
+        // quiet fallback here would render a corrupt literal as if it
+        // were fine.
+        Dimension::Length => {
+            let Some(unit) = remembered.as_length() else {
+                unreachable!(
+                    "a Length literal remembers {:?}, which measures {:?}",
+                    remembered.symbol(),
+                    remembered.quantity()
+                )
+            };
+            quantity::fmt_length(lit.value, unit)
+        }
+        Dimension::Angle => {
+            let Some(unit) = remembered.as_angle() else {
+                unreachable!(
+                    "an Angle literal remembers {:?}, which measures {:?}",
+                    remembered.symbol(),
+                    remembered.quantity()
+                )
+            };
+            quantity::fmt_angle(lit.value, unit)
+        }
+        // The dimensionless row's symbol is empty, so there is no
+        // suffix to append and no formatter to route through: a
+        // dimensionless real is its own text. It must not render bare
+        // DIGITS, though — `2` is a `Count` in this grammar and `2.0`
+        // is a `Scalar`. `{:?}` is the shortest form that reads back to
+        // the same bits and always carries a `.` or an `e`, so it
+        // settles the round trip and the dimension together.
+        Dimension::Scalar => return format!("{:?}", lit.value),
+        // Unconstructable (D2 addendum row 4): `Expr::literal` refuses
+        // `Count`, and `ExprKind::Literal` is minted nowhere else.
+        Dimension::Count => {
+            unreachable!("a Count literal is an integer (ExprKind::CountLiteral), never a Lit")
+        }
+    };
+    match formatted {
+        Ok(text) => text,
+        // Same row: door 1 refuses a non-finite literal at
+        // construction, and non-finiteness is the formatter's only
+        // refusal.
+        Err(error) => unreachable!(
+            "a stored literal is finite by construction, yet the display formatter refused: \
+             {error}"
+        ),
     }
 }

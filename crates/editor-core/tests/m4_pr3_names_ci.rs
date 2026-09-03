@@ -120,10 +120,8 @@ fn pip_depth_motion_without_flips_leaves_every_table_identical() {
         d.doc,
         editor_core::DocEdit::SetDocParam {
             name: ParamName::new("pip_depth"),
-            value: DocParam::Continuous {
-                dim: editor_core::Dimension::Length,
-                value: DEPTH * 1.5, // 0.1875, dyadic
-            },
+            // 0.1875, dyadic.
+            value: DocParam::continuous(editor_core::Dimension::Length, DEPTH * 1.5),
         },
     );
     let ev2 = evaluate::<f64>(

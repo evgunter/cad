@@ -37,8 +37,8 @@
 //!
 //! # Why the code is here and not in either lane
 //!
-//! Until S5's first fix these three rungs existed **twice**, once per
-//! lane, dimensionally identical line-for-line under the correspondence
+//! These three rungs used to exist **twice**, once per lane,
+//! dimensionally identical line-for-line under the correspondence
 //! `dir_a ↔ dir_end`, `dir_b ↔ dir_start` — the same `min` of the same
 //! two chord norms, the same `Margin::levered(sin, arm)`, the same
 //! `.dot()` fallback, the same bisectors, the same spike guard. This
@@ -61,8 +61,8 @@
 //!   in a crate re-exported into four others, for no consumer outside
 //!   `topo`.
 //! - **Expired, and recorded as having expired:** `crates/geom-brep/src/`
-//!   was held by an in-flight lane (#639) that the S5 sector unit was
-//!   told not to collide with. #639 has since landed, so that reason is
+//!   was held by an in-flight lane (#639) this module's unit was told
+//!   not to collide with. #639 has since landed, so that reason is
 //!   spent and carries no weight here any more.
 //!
 //! **Re-open trigger — FIRED, and it resolves the other way.** The
@@ -121,7 +121,7 @@
 //! `sector_straight` — **one name each, spelled here, for both
 //! lanes**. Until #652 they were six, `bool_sector_*` and
 //! `split_sector_*`, handed in as a `SectorPredicates` parameter so
-//! that #647's merge of the two bodies could be K-neutral; Evan ruled
+//! that #647's merge of the two bodies could be K-neutral; Ev ruled
 //! the two populations one (2026-08-19, #652), so the parameter is
 //! gone — there is nothing left for it to vary. **The evidence for
 //! that ruling, and the two-way precedent it weighed, live in
@@ -277,8 +277,8 @@ pub(crate) fn sector_shape<T: Decide>(
 /// The home is `impl Indeterminate` in
 /// `geom-core/src/predicate.rs:724`. Unifying it is a public-API
 /// addition plus a four-crate sweep — deliberately not folded into the
-/// S5 sector unit, and recorded here so the next pass finds the home
-/// rather than the method (smell scan C12).
+/// unit that shared these rungs, and recorded here so the next pass
+/// finds the home rather than the method.
 fn invalid(band: Band, predicate: &'static str) -> Indeterminate {
     Indeterminate {
         margin: MarginDiag::Invalid,
@@ -420,9 +420,8 @@ mod tests {
     /// stop being guarded — silently, with nothing going red. #652 is
     /// itself the proof that renames happen. **Nothing in the tree
     /// protects the retired set across one.** Those six spellings
-    /// survive only in prose (`docs/K-REPORT.md`'s census note, S5 of
-    /// `docs/SMELL-SCAN-2026-08.md`) and in the committed CSVs they
-    /// date. Whoever renames a rung next has to carry the old
+    /// survive only in prose (`docs/K-REPORT.md`'s census note) and in
+    /// the committed CSVs they date. Whoever renames a rung next has to carry the old
     /// spellings forward by hand — and has to assemble them from parts
     /// the way this does, or this file becomes the counter-example
     /// again.
@@ -521,8 +520,8 @@ mod tests {
                 assert!(
                     !text.contains(&format!("\"{name}\"")),
                     "{} names the sector-shape predicate `{name}` again — the rungs \
-                     have been re-forked out of sector_shape.rs (smell scan S5). Call \
-                     `sector_shape` instead.",
+                     have been re-forked out of sector_shape.rs, which must hold the \
+                     only implementation. Call `sector_shape` instead.",
                     path.display()
                 );
             }

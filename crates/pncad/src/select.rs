@@ -38,6 +38,12 @@
 //!    face has no canonical frame, so `face_frame` refuses it rather
 //!    than nominating one.
 //!
+//! **A name also says which node MADE the entity.** [`attribute`]
+//! walks a name's carry-through segments — `FromTarget`, `FromA`,
+//! `Instance` and their siblings — down to the role that minted it,
+//! so "which feature is this face's" is answered by the name rather
+//! than by whichever node happens to draw the body.
+//!
 //! Detection and declaration of flush contact are separate doors on
 //! purpose (the ruled no-fusion boundary): [`find_flush_candidates`]
 //! REPORTS [`FlushFinding`]s — the contact verifier in
@@ -49,16 +55,29 @@ pub use editor_core::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKind,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
-    NamePat, NameTable, OpGroup, ProfileEdgeRef, ProfileVertexRef, RimSupport, RolePath, RoleSeg,
-    SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf, SurfaceKindSet,
-    TagPat, all_bodies, all_edges, all_faces, all_vertices, declare, declare_all, declare_node,
-    denotation, edge_frame, edge_name, face_frame, face_name, find_flush_candidates, select,
-    select_where, vertex_position,
+    NameOrigin, NamePat, NameTable, OpGroup, ProfileEdgeRef, ProfileVertexRef, RimSupport,
+    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side,
+    SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
+    declare, declare_all, declare_node, denotation, edge_frame, edge_name, face_frame, face_name,
+    find_flush_candidates, select, select_where, vertex_position,
 };
-/// The frame type the geometry doors answer with, and its refusal —
-/// re-exported from the kernel's read-back module so a façade user
-/// names one crate, not two.
-pub use topo::readback::{Pose, ReadbackError};
+/// The frame type the geometry doors answer with, its refusal, and
+/// the refusal's own payload — re-exported from the kernel's
+/// read-back module so a façade user names one crate, not two.
+///
+/// [`DanglingRef`] rides beside [`ReadbackError`] because it is that
+/// refusal's MATCHABLE payload — the same convention the prelude's
+/// `SurfaceKind` follows for `BooleanError`, and the curated half of
+/// the crate contract's closure over error payloads. The contract's
+/// crate-level half is already met by the whole re-export of `topo`;
+/// what a curated list owes on top of it is that a refusal it names
+/// is matchable THROUGH it, and `Dangling`'s two arms are different
+/// facts about the model: a topological key that does not resolve is
+/// a stale or foreign handle, while a geometry key reached from a
+/// live entity that does not resolve is a dangling reference inside
+/// the body. Carrying the carrier alone leaves that distinction
+/// readable only out of the message prose.
+pub use topo::readback::{DanglingRef, Pose, ReadbackError};
 
 // **Picking: the fourth door onto a name.** The three above answer
 // "which entities match this shape" (`select`), "where is this named

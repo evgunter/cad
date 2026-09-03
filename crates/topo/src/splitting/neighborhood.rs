@@ -37,9 +37,9 @@
 //!
 //! The arm / wideness / subdivision-direction rungs this section
 //! derives are implemented ONCE, in [`crate::sector_shape`], and
-//! called from here and from the boolean lane's sector walk under each
-//! lane's own K names (smell scan S5). The derivation stays here; the
-//! code lives there.
+//! called from here and from the boolean lane's sector walk under one
+//! pooled set of K names. The derivation stays here; the code lives
+//! there.
 //!
 //! The subdivision direction need not be the exact bisector — ANY
 //! interior direction with both sub-angles < 180° is valid. We use:
@@ -70,7 +70,7 @@ use crate::validate::decide;
 ///
 /// The walk and the normals are [`crate::sector_face`] — ONE
 /// implementation, called from here and from the boolean lane's sector
-/// walk (smell scan S5). What stays here is this lane's adaptation of
+/// walk. What stays here is this lane's adaptation of
 /// it, and only that: the split lane's error type, the planar flag
 /// `rules::apply_rule_a` branches on, and the `Sphere` refusal.
 ///
@@ -289,8 +289,8 @@ pub fn classify_neighborhood<T: Decide>(
         // next orbit edge), and the subdivision direction it implies:
         // the three rungs are [`crate::sector_shape`] — ONE
         // implementation, called from here and from the boolean lane's
-        // sector walk, under the one pooled set of K names (smell scan
-        // S5; #652 pooled them). This is a call, not a copy. The derivation the
+        // sector walk, under the one pooled set of K names (pooled in
+        // #652). This is a call, not a copy. The derivation the
         // module docs above carry — why convex subdivision, why the
         // wideness trilean has no escalation cliff — is what that
         // shared body implements.
@@ -333,8 +333,8 @@ mod tests {
 
     /// The split lane has no sphere arm and says so BY NAME, on the
     /// shared walk's report rather than by re-matching the surface —
-    /// the arm the S5 unification created, which had no row until the
-    /// fix pass.
+    /// an arm the shared walk created and nothing covered until this
+    /// row.
     #[test]
     fn a_sphere_carried_sector_refuses_by_name() {
         let p = prism(3, Tol::witness());

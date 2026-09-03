@@ -156,8 +156,8 @@
 
 use std::sync::Arc;
 
-use geom::Surface;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
+use geom::{NurbsSurface, Surface};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
 use geom_core::spline::{KnotVector, SpanLocate};
@@ -721,11 +721,12 @@ pub enum PcurveCertifyError {
     /// whose weights are not positive (the convex-hull hypothesis
     /// itself); a seam-class image over a non-spline carrier; a LINE
     /// cap rim on a RATIONAL column (the Greville hull is a
-    /// linear-precision fact the rational basis does not have); and,
-    /// at the mint, an intersection locus that is not a boundary
-    /// column. A rational CHART and an ARC-parameterized cap rim are
-    /// not in that set — both certify, through the seam and arc-rim
-    /// classes. Typed and permanent until a unit moves it — never a
+    /// linear-precision fact the rational basis does not have). A
+    /// rational CHART and an ARC-parameterized cap rim are not in that
+    /// set — both certify, through the seam and arc-rim classes. Nor is
+    /// an intersection locus that is not a boundary column: since
+    /// PCURVE P-2 (#498) the mint derives its image and stores it as
+    /// [`Pcurve::General`] instead of refusing. Typed and permanent until a unit moves it — never a
     /// runtime fallback (C5).
     IsoUnsupported {
         /// The refused class, named.
@@ -1032,7 +1033,7 @@ pub struct PcurveCertificate<T: Real> {
 /// A [`Pcurve::Fitted`] cache's between-samples obligation is a C9-ring
 /// hull bound, and building it is **certification**. `f64`, the
 /// telemetry probe and the interval scalar may certify;
-/// [`geom_core::Dual`] may not — Evan's D1 ruling, 2026-08-19: a dual
+/// [`geom_core::Dual`] may not — Ev's D1 ruling, 2026-08-19: a dual
 /// carries a bracket (the value channel's) and may still not certify,
 /// which is why `geom_core::CertifiedEnclosure` has no dual impl and
 /// `geom_core::Bounds` now does. So the fitted lane exists
@@ -1073,8 +1074,123 @@ pub trait PcurveFittedLane: Decide {
         band: Band,
     ) -> Result<Option<SsiCertificate<Self>>, PcurveCertifyError>;
 
+    /// **The chart image of a spline carrier on a NURBS wall**, or
+    /// `None` when this scalar has no certified lane.
+    ///
+    /// The producer is `edge_nurbs`'s — the one derivation of this
+    /// object in the tree (`edge_nurbs::chart_image`): foot points at
+    /// the D9-fixed schedule, interpolated on the carrier's own
+    /// parameter. It is EVIDENCE and certifies nothing by itself; the
+    /// caller's next move is [`PcurveCache::certify_general`], which
+    /// bounds `sup_t |S(P(t)) − C(t)|` over the whole span against the
+    /// operand pair.
+    ///
+    /// It sits on THIS trait rather than beside its producer because
+    /// the derivation and the certificate are the same static split —
+    /// both need the C9 ring, both are absent at [`geom_core::Dual`] —
+    /// and a mint that had to name two lane traits for one image would
+    /// carry the split twice. `edge_nurbs::EdgeNurbsLane` keeps its own
+    /// door for the ADOPT path, which certifies the same image with the
+    /// plane operand's limbs beside it.
+    ///
+    /// # Errors
+    ///
+    /// [`PcurveCertifyError::FittedCertificate`] when a foot point of
+    /// the schedule will not converge or the interpolation is
+    /// degenerate. Never from the "no lane" arm, which returns
+    /// `Ok(None)`.
+    fn general_image(
+        carrier: &NurbsCurve3<Self>,
+        wall: &NurbsSurface<Self>,
+    ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError>;
+    /// **The chart foot of one point** on a NURBS wall, or `None` when
+    /// this scalar has no certified lane.
+    ///
+    /// [`Self::general_image`]'s single-sample sibling, same producer
+    /// (`edge_nurbs::chart_foot`). Its consumer is the pcurve mint's
+    /// rim arms: they know the SHAPE of their image and are only
+    /// missing its position, which on a chart wider than the face it
+    /// trims is not a knot-domain end. Evidence, not a certificate —
+    /// the caller offers it to its own metre-valued check.
+    ///
+    /// # Errors
+    ///
+    /// [`PcurveCertifyError::FittedCertificate`] when the projection
+    /// will not converge. Never from the "no lane" arm, which returns
+    /// `Ok(None)`.
+    fn chart_foot(
+        point: Point3<Self>,
+        wall: &NurbsSurface<Self>,
+    ) -> Result<Option<Point2<f64>>, PcurveCertifyError>;
+
     /// The lane's name, for the typed refusal's text.
     fn lane_name() -> &'static str;
+}
+
+/// The image producer's body, shared by every bracket-carrying scalar
+/// ([`PcurveFittedLane::general_image`]).
+///
+/// The `edge_nurbs` schedule with no per-sample hook: the transversality
+/// sweep the adopt path runs there is a statement about the PLANE
+/// operand, which the mint does not have in hand and does not need —
+/// the mint's next step re-derives the whole C2 certificate against the
+/// operand pair anyway.
+fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+    wall: &NurbsSurface<T>,
+) -> Result<Option<NurbsCurve2<T>>, PcurveCertifyError> {
+    let (t0, t1) = carrier.domain();
+    match crate::edge_nurbs::chart_image(carrier, wall, |_, _| Ok(())) {
+        Ok(image) => Ok(Some(image)),
+        Err(crate::edge_nurbs::PlaneNurbsRefusal::FootPointInconclusive {
+            sample,
+            last_distance,
+        }) => Err(PcurveCertifyError::FittedCertificate {
+            limb: Some(SsiLimb::OnLocus),
+            what: "a foot point of the chart-image schedule would not converge, so this \
+                   locus has no derived image to certify",
+            // The schedule's own parameter at that sample, computed the
+            // way the schedule computes it — not the sample index dressed
+            // up as one.
+            magnitude: Some(FittedMagnitude::LastFootDistance {
+                t: t0
+                    + (t1 - t0) * f64::from(sample)
+                        / f64::from(crate::edge_nurbs::PXN_FIT_SAMPLES - 1),
+                last_distance,
+            }),
+        }),
+        Err(_) => Err(PcurveCertifyError::FittedCertificate {
+            limb: None,
+            what: "the chart image could not be interpolated through the schedule's foot \
+                   points (a degenerate parameterization)",
+            magnitude: None,
+        }),
+    }
+}
+
+/// The foot producer's body, shared by every bracket-carrying scalar
+/// ([`PcurveFittedLane::chart_foot`]).
+fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
+    point: Point3<T>,
+    wall: &NurbsSurface<T>,
+) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
+    match crate::edge_nurbs::chart_foot(point, wall) {
+        Ok(foot) => Ok(Some(foot)),
+        Err(crate::edge_nurbs::PlaneNurbsRefusal::FootPointInconclusive {
+            last_distance, ..
+        }) => Err(PcurveCertifyError::FittedCertificate {
+            limb: Some(SsiLimb::OnLocus),
+            what: "an edge endpoint has no certified foot on this chart, so where its \
+                   image sits cannot be measured",
+            magnitude: Some(FittedMagnitude::LastFootDistance {
+                t: f64::NAN,
+                last_distance,
+            }),
+        }),
+        Err(_) => Err(PcurveCertifyError::UnsupportedChart {
+            chart: "the mvfs placeholder is not a surface to derive a chart image on",
+        }),
+    }
 }
 
 /// The certified lane's body, shared by every bracket-carrying scalar.
@@ -1356,6 +1472,20 @@ impl PcurveFittedLane for f64 {
         fitted_lane(carrier, t0, t1, image, surface, mate, band)
     }
 
+    fn general_image(
+        carrier: &NurbsCurve3<Self>,
+        wall: &NurbsSurface<Self>,
+    ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError> {
+        general_image_lane(carrier, wall)
+    }
+
+    fn chart_foot(
+        point: Point3<Self>,
+        wall: &NurbsSurface<Self>,
+    ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
+        chart_foot_lane(point, wall)
+    }
+
     fn lane_name() -> &'static str {
         "f64"
     }
@@ -1375,6 +1505,20 @@ impl PcurveFittedLane for geom_core::Probe {
         fitted_lane(carrier, t0, t1, image, surface, mate, band)
     }
 
+    fn general_image(
+        carrier: &NurbsCurve3<Self>,
+        wall: &NurbsSurface<Self>,
+    ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError> {
+        general_image_lane(carrier, wall)
+    }
+
+    fn chart_foot(
+        point: Point3<Self>,
+        wall: &NurbsSurface<Self>,
+    ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
+        chart_foot_lane(point, wall)
+    }
+
     fn lane_name() -> &'static str {
         "telemetry probe"
     }
@@ -1392,6 +1536,20 @@ impl PcurveFittedLane for geom_core::interval::Interval {
         band: Band,
     ) -> Result<Option<SsiCertificate<Self>>, PcurveCertifyError> {
         fitted_lane(carrier, t0, t1, image, surface, mate, band)
+    }
+
+    fn general_image(
+        carrier: &NurbsCurve3<Self>,
+        wall: &NurbsSurface<Self>,
+    ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError> {
+        general_image_lane(carrier, wall)
+    }
+
+    fn chart_foot(
+        point: Point3<Self>,
+        wall: &NurbsSurface<Self>,
+    ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
+        chart_foot_lane(point, wall)
     }
 
     fn lane_name() -> &'static str {
@@ -1417,6 +1575,20 @@ where
         _mate: &Surface<Self>,
         _band: Band,
     ) -> Result<Option<SsiCertificate<Self>>, PcurveCertifyError> {
+        Ok(None)
+    }
+
+    fn general_image(
+        _carrier: &NurbsCurve3<Self>,
+        _wall: &NurbsSurface<Self>,
+    ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError> {
+        Ok(None)
+    }
+
+    fn chart_foot(
+        _point: Point3<Self>,
+        _wall: &NurbsSurface<Self>,
+    ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
         Ok(None)
     }
 
@@ -1566,16 +1738,20 @@ impl<T: PcurveFittedLane> PcurveCache<T> {
     ///
     /// 1. **Mint-side wiring of the general-circle route** — the
     ///    oblique-trihedron octant faces whose boundary circles are
-    ///    GENERAL sphere circles stay legally uncached because
-    ///    `topo::mint_pcurves` cannot reach this door without the
-    ///    [`PcurveFittedLane`] bound on every constructor. Named as an
-    ///    open frontier in `docs/DESIGN.md`, and currently in **no**
-    ///    milestone plan and no carried-items register.
-    /// 2. The `General` curve-in-UV arm of the ratified pcurve
-    ///    unification (`docs/PCURVE-UNIFY-DESIGN.md` U2), which
-    ///    defines that arm as certifying at this lane's grade.
-    /// 3. The cyl×sphere germ-chord lane, banked with the join-lane
+    ///    GENERAL sphere circles stay legally uncached. The BOUND is no
+    ///    longer what blocks it: `topo::mint_pcurves` carries
+    ///    [`PcurveFittedLane`] since PCURVE P-2 (#498), which wired
+    ///    [`PcurveCache::certify_general`] through it. What is left is
+    ///    this door's own wiring for a Circle carrier, which no mint
+    ///    site reaches. Named as an open frontier in `docs/DESIGN.md`,
+    ///    and in **no** milestone plan and no carried-items register.
+    /// 2. The cyl×sphere germ-chord lane, banked with the join-lane
     ///    analog.
+    ///
+    /// The `General` curve-in-UV arm of the ratified pcurve unification
+    /// (`docs/PCURVE-UNIFY-DESIGN.md` U2) is no longer among them: it
+    /// certifies through [`PcurveCache::certify_general`] beside this
+    /// door, and `topo::mint_pcurves` mints it.
     ///
     /// Same five checks in the same fixed order as
     /// [`PcurveCache::certify`], with two differences that are the
@@ -2389,14 +2565,50 @@ pub(crate) fn chart_name<T: Real>(surface: &Surface<T>) -> &'static str {
     }
 }
 
-/// The lever arms that turn a chart-space overshoot into metres: the
-/// azimuth arm of a periodic chart, and the second parameter's.
+/// **`(sup |S_u|, sup |S_v|)`** — the chart's UPPER stretch bounds:
+/// the lever arms that turn a chart-space overshoot into metres, one
+/// per chart parameter, valid over the WHOLE chart.
+///
+/// # What this bounds, and what it must not be used for
+///
+/// On every chart kind **except the cone**, each component
+/// **dominates** the true local stretch everywhere on the chart:
+/// `|S_u(u, v)| ≤ arm_u` and `|S_v(u, v)| ≤ arm_v` at every `(u, v)`
+/// of the chart's domain.
+///
+/// **The CONE is the carve-out and it is stated here, not buried in
+/// an arm.** A cone's true azimuth stretch is `|v·sin α|`, which no
+/// surface-level constant dominates — it grows without bound down the
+/// ruling — so this function answers unit arms for it, and those are
+/// **not** an upper bound on anything. A cone caller must go through
+/// [`chart_arms_at`], which supplies `v_sup·sin α` from the check's
+/// own boxes. Reading this function's cone arms as a sup is the one
+/// way to misuse it, which is why it is the second paragraph.
+///
+/// Subject to that, the pair is **sup-side by construction and is NOT
+/// a lower bound**. Quoting it where an `inf` is wanted is unsound,
+/// and the two uses split like this:
+///
+/// - **ESCAPE metering (sound).** A claim of the form *"this
+///   chart-space displacement does not move the point out of the
+///   band"* — trim containment, loop continuity, an azimuth-period
+///   headroom. Over-stating the arm inflates the metred displacement,
+///   which can only make the in-band verdict HARDER to obtain: the
+///   error direction refuses, it never falsely certifies.
+/// - **POSITIVE-extent claims (UNSOUND).** A claim of the form *"this
+///   chart-space region has definitely-positive model-space extent"*.
+///   An over-stated arm inflates the extent and would certify a
+///   model-space sliver as definitely positive. That direction needs
+///   certified LOWER bounds — [`chart_stretch_inf`] — which are a
+///   different derivation behind a different name; nothing here may
+///   be read as one.
 ///
 /// A sphere's true azimuth arm is `r·cos v ≤ r`, so quoting `r`
 /// **over**-states the escape and can only make containment harder —
 /// the safe direction, and the same posture the cylinder arm takes
-/// exactly. A plane chart's parameters are already metres.
-fn chart_arms<T: Real>(surface: &Surface<T>) -> (T, T) {
+/// exactly. A plane chart's parameters are already metres, so its
+/// arms are exactly `(1, 1)` by construction rather than by default.
+pub fn chart_stretch_sup<T: Real>(surface: &Surface<T>) -> (T, T) {
     match *surface {
         Surface::Cylinder { radius, .. } => (radius, T::one()),
         // The sphere/torus second parameter IS an angle (M6-3): its
@@ -2443,11 +2655,11 @@ fn chart_arms<T: Real>(surface: &Surface<T>) -> (T, T) {
     }
 }
 
-/// [`chart_arms`] with the containment check's own boxes in hand: the
-/// cone's azimuth arm becomes `v_sup·sin α` with `v_sup` the larger
-/// `|v|` reach of the pcurve's box and the window (dominating the
+/// [`chart_stretch_sup`] with the containment check's own boxes in
+/// hand: the cone's azimuth arm becomes `v_sup·sin α`, with `v_sup`
+/// the larger `|v|` reach of the pcurve's box and the window (dominating the
 /// local arm everywhere either object lives — the safe direction);
-/// every other kind answers as [`chart_arms`].
+/// every other kind answers as [`chart_stretch_sup`].
 fn chart_arms_at<T: Real>(
     surface: &Surface<T>,
     boxed: &ChartWindow<T>,
@@ -2463,21 +2675,27 @@ fn chart_arms_at<T: Real>(
                 .max(window.v_max.abs());
             (azimuth_lever(surface, v_sup), T::one())
         }
-        _ => chart_arms(surface),
+        _ => chart_stretch_sup(surface),
     }
 }
 
-/// `(sup |S_u|, sup |S_v|)` bounds for a **non-rational** NURBS chart,
-/// from the derivative control net (the B-spline derivative formula
-/// `Qᵢ = p·(Pᵢ₊₁ − Pᵢ)/(kᵢ₊ₚ₊₁ − kᵢ₊₁)` per row/column, then the
-/// partition-of-unity hull `max |Qᵢⱼ|`). Knot arithmetic is `f64`
-/// structure; a zero divisor (a fully collapsed support) contributes
-/// nothing, per the standard convention. Callers gate rationality —
-/// with weights ≠ 1 this formula does not bound the true derivative.
+/// `(sup |S_u|, sup |S_v|)` bounds for a NURBS chart — **rational
+/// nets included** — from the derivative control net (the B-spline
+/// derivative formula `Qᵢ = p·(Pᵢ₊₁ − Pᵢ)/(kᵢ₊ₚ₊₁ − kᵢ₊₁)` per
+/// row/column, then the partition-of-unity hull `max |Qᵢⱼ|`), carried
+/// to the rational case by the weight-ratio factor the body applies
+/// (see the note at `ratio`). Knot arithmetic is `f64` structure; a
+/// zero divisor (a fully collapsed support) contributes nothing, per
+/// the standard convention.
+///
+/// The "callers gate rationality" contract this header used to carry
+/// was retired by M8-3, when the factor went in and the iso lane's
+/// rational gate came out; it is spelled out here because
+/// [`chart_stretch_inf`] cites this function three times and a stale
+/// precondition on a cited derivation is a trap for the next reader.
 fn nurbs_stretch_bounds<T: Real>(s: &geom::NurbsSurface<T>) -> (T, T) {
-    let (nu, nv) = s.control_counts();
     // **The rational factor** (M8-3). The control-difference bounds
-    // below are POLYNOMIAL convexity facts. For a rational patch the
+    // are POLYNOMIAL convexity facts. For a rational patch the
     // standard extension (Floater 1992, derivatives of rational
     // Bézier/B-spline forms) multiplies them by the weight ratio;
     // squaring it is the conservative reading, and conservative is the
@@ -2486,34 +2704,272 @@ fn nurbs_stretch_bounds<T: Real>(s: &geom::NurbsSurface<T>) -> (T, T) {
     // larger, never the reverse. Exactly 1 for a weight-1 net, so no
     // integral-lane number moves.
     let ratio = weight_ratio_factor::<T>(s.weights());
+    // ONE spelling of the derivative net for the whole file: this
+    // function's two loops were the same walk as `derivative_net`'s,
+    // down to the `denom == 0.0` skip, and a second copy of a
+    // convexity fact is a second place for it to drift. The `inf`
+    // door reads the same nets, so `chart_stretch_sup(s).0` and
+    // `chart_stretch_inf(s).sup_u` are now one computation rather
+    // than two that happen to agree — an equality the `ρ` assembly
+    // ASSUMES, and which is pinned by
+    // `the_two_doors_report_one_sup`.
+    let sup_of = |q: &[Vec3<T>]| q.iter().fold(T::zero(), |m, v| m.max(v.norm()));
+    (
+        sup_of(&derivative_net(s, false)) * ratio,
+        sup_of(&derivative_net(s, true)) * ratio,
+    )
+}
+
+/// The INF-side reading of a spline chart's derivative nets — the
+/// certified quantities a positive-extent claim needs, where
+/// [`chart_stretch_sup`] is the escape side's single sup pair.
+///
+/// See [`chart_stretch_inf`] for what each field bounds and for the
+/// assembly a caller owes before using them as lever arms.
+#[derive(Clone, Copy, Debug)]
+pub struct ChartStretchInf<T> {
+    /// A certified lower bound on `|S_u|` over the WHOLE chart, or
+    /// exactly zero when none is certified (the derivative net
+    /// crosses zero — a fold, a collapsed row, a stationary column).
+    pub inf_u: T,
+    /// The same for `|S_v|`.
+    pub inf_v: T,
+    /// `sup |S_u|` — [`chart_stretch_sup`]'s first component, carried
+    /// here so the assembly reads one consistent pair of brackets.
+    pub sup_u: T,
+    /// The same for `|S_v|`.
+    pub sup_v: T,
+    /// A certified lower bound on the AREA element `|S_u × S_v|`, or
+    /// exactly zero when none is certified. This is the term that
+    /// knows about skew: two nearly-parallel derivative columns have
+    /// large norms and a vanishing cross product.
+    pub area_inf: T,
+}
+
+/// **The certified LOWER stretch reading of a chart** — the direction
+/// [`chart_stretch_sup`] is explicitly not, for the claims it is
+/// explicitly unsafe for.
+///
+/// # The nets, and the inf read along a direction
+///
+/// The polynomial derivative nets are the same ones
+/// [`nurbs_stretch_bounds`] takes the max over: per direction,
+/// `Qᵢⱼ = p·(Pᵢ₊₁ⱼ − Pᵢⱼ)/(kᵢ₊ₚ₊₁ − kᵢ₊₁)`, and `S_u(u, v)` is a
+/// **convex combination** of them (partition of unity over the
+/// degree-reduced basis; a zero divisor is a support the basis
+/// function vanishes on identically, so dropping it is exact on both
+/// sides rather than safe on one).
+///
+/// A convex combination's norm is NOT bounded below by the smallest
+/// `|Qᵢⱼ|` — a net whose columns cancel has combinations of every
+/// norm down to zero — so the inf is read **along a direction**: for
+/// the net's own summed direction `d`, every combination projects to
+/// at least `minᵢⱼ (Qᵢⱼ·d)` ([`net_inf`]). A **zero-crossing net** —
+/// a wall with a fold — has some entry on the far side of `d`, or no
+/// direction at all, and gets exactly zero. That zero is the honest
+/// answer and the caller must refuse on it: no positive bound is
+/// invented for a net whose derivative genuinely vanishes.
+///
+/// `area_inf` is the same read on the **pairwise cross products**:
+/// `S_u × S_v = Σₐ_b λₐ μ_b (Qᵘₐ × Qᵛ_b)` is a convex combination of
+/// them (a product of two convex combinations), so [`net_inf`] over
+/// that set lower-bounds the area element. A chart whose two
+/// derivative directions can align somewhere gets zero here even
+/// though both per-axis infs are healthy — which is exactly the case
+/// the per-axis pair alone cannot see.
+///
+/// **The rational factor, taken OPPOSITE to the sup side.** The
+/// rational derivative identity (Floater 1992) writes `S_u` as
+/// `Σᵢ γᵢ ΔPᵢ` with non-negative `γ` whose sum lies in
+/// `[1/ratio, ratio]` for `ratio = (w_max/w_min)²` — the same factor
+/// [`weight_ratio_factor`] computes and [`nurbs_stretch_bounds`]
+/// MULTIPLIES by. The two ends of that one bracket are the two sides:
+/// the sup multiplies, the inf **divides**, and the area element — a
+/// product of two such factors — divides by `ratio²`.
+///
+/// *Provenance, stated because the citation does not cover all of
+/// it.* Floater's result is a CURVE statement, and the tensor-product
+/// reading — apply it per direction with the patch's own weight
+/// bracket — is the same extension `nurbs_stretch_bounds` already
+/// makes on the sup side and has shipped under since M8-3; the
+/// in-tree evidence is that function's consumers, not a citation.
+/// What is quoted from Floater is the two-sidedness of the bracket:
+/// that the same `(w_max/w_min)²` bounds the coefficient sum from
+/// both ends. Sharpening either end is a separate unit. A rational
+/// chart therefore earns a weaker inf reading than a unit-weight one.
+/// That is the conservative direction, and on a unit-weight net every
+/// factor is exactly 1, so nothing here moves for the polynomial
+/// charts.
+///
+/// # The assembly a caller owes: per-axis infs are not lever arms
+///
+/// A chart is not required to be orthogonal, and on a skew chart the
+/// two per-axis infs do **not** lower-bound the metric: `S_u du` and
+/// `S_v dv` can partially cancel, so a chart displacement can be
+/// shorter in metres than either axis' inf suggests. What lower-bounds
+/// the metric is the Jacobian's **smallest singular value**, and these
+/// five numbers bound it. Normalize the chart by the per-axis infs
+/// (`ũ = u·inf_u`, `ṽ = v·inf_v`) so the question is scale-free, and
+/// for the normalized Gram matrix write
+///
+/// ```text
+/// T = (sup_u/inf_u)² + (sup_v/inf_v)²      ≥ trace
+/// D = (area_inf/(inf_u·inf_v))²            ≤ det
+/// λ_min ≥ 2D / (T + √(T² − 4D))            (the stable form of
+///                                           (T − √(T²−4D))/2)
+/// ```
+///
+/// — valid because `λ_min` of a 2×2 SPD matrix decreases in the trace
+/// and increases in the determinant, so a sup trace with an inf
+/// determinant is the conservative corner. The lever arms are then
+/// `(inf_u·ρ, inf_v·ρ)` with `ρ = √λ_min ≤ 1`, and on an ORTHOGONAL
+/// chart of constant stretch `ρ` is exactly 1, so the arms are the
+/// per-axis infs verbatim — anisotropy included.
+///
+/// The assembly is left to the caller deliberately: its divisions are
+/// only well-conditioned once `inf_u` and `inf_v` are **definitely**
+/// positive, which is a band question this function has no band to
+/// ask.
+///
+/// # Which scalar makes this rigorous
+///
+/// Every step above is floating point, and at `f64` every step rounds
+/// to **nearest**: the answer is a lower bound *up to a few ulps*,
+/// not a below-rounded one, so a value that is a bound in exact
+/// arithmetic can come back a fraction of an ulp high. That is
+/// immaterial against a band whose tightest setting is 1e-12 against
+/// arms of order 1, and it is not an argument. Under the **interval
+/// scalar** every step rounds outward and the returned bracket's
+/// floor is a genuine certified lower bound — which is the lane a
+/// caller leaning on these numbers should ask for, and the reason
+/// the caller reads the FLOOR rather than the bracket.
+///
+/// Analytic charts do not come through here: every one of them is
+/// orthogonal by construction with a closed-form inf, and their arms
+/// are window-dependent besides. The tree's other inf-side surface
+/// bound, `offset_meters`' `‖S_u × S_v‖` floor, is `f64`-only and
+/// reads `patch_bound`'s per-cell hulls, so it is a sharper answer to
+/// a narrower question and not reusable here.
+pub fn chart_stretch_inf<T: Real>(surface: &Surface<T>) -> ChartStretchInf<T> {
+    let zero = ChartStretchInf {
+        inf_u: T::zero(),
+        inf_v: T::zero(),
+        sup_u: T::zero(),
+        sup_v: T::zero(),
+        area_inf: T::zero(),
+    };
+    match *surface {
+        Surface::Nurbs(ref payload) => {
+            if payload.is_placeholder() {
+                // No net to bound: the placeholder certifies nothing.
+                zero
+            } else {
+                nurbs_stretch_inf(payload)
+            }
+        }
+        Surface::Approx(ref a) => nurbs_stretch_inf(a.fit()),
+        // The analytic charts' infs are closed-form and window-
+        // dependent; this door answers about derivative NETS only, and
+        // an all-zero reading is the refusing answer, never a claim.
+        Surface::Plane { .. }
+        | Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. } => zero,
+    }
+}
+
+/// A certified lower bound on `|Σ λₐ Qₐ|` over every convex
+/// combination of a derivative net, and the direction it is read
+/// along.
+///
+/// The net's own **sum** `c = Σ Qₐ` names the direction: for the unit
+/// `d = c/|c|`, every convex combination satisfies
+/// `|Σ λₐ Qₐ| ≥ (Σ λₐ Qₐ)·d ≥ minₐ (Qₐ·d)`, which is
+/// `minₐ (Qₐ·c) / |c|`. A net that CROSSES ZERO fails this at one of
+/// two places and gets exactly zero either way: a net straddling the
+/// origin has some `Qₐ·d` negative, and a net whose entries cancel
+/// outright has `|c| = 0`, whose quotient is poison. The answer is
+/// capped at the net's own `sup`, which is finite by construction, so
+/// an ill-conditioned quotient can never leak an inflated arm.
+fn net_inf<T: Real>(q: &[Vec3<T>], sup: T) -> T {
+    if q.is_empty() {
+        return T::zero();
+    }
+    let mut c = Vec3::zero();
+    for &v in q {
+        c = c + v;
+    }
+    let mut min_dot = q[0].dot(c);
+    for &v in &q[1..] {
+        min_dot = min_dot.min(v.dot(c));
+    }
+    let raw = min_dot / c.norm();
+    if raw.is_poison() {
+        T::zero()
+    } else {
+        raw.max(T::zero()).min(sup)
+    }
+}
+
+/// The `u`-direction derivative control net of a spline patch:
+/// `Qᵢⱼ = p·(Pᵢ₊₁ⱼ − Pᵢⱼ)/(kᵢ₊ₚ₊₁ − kᵢ₊₁)`, degenerate supports
+/// dropped (their basis function is identically zero, so the drop is
+/// exact on both sides rather than safe on one). Pass `along_v` to
+/// read the `v` direction through the same code.
+fn derivative_net<T: Real>(s: &geom::NurbsSurface<T>, along_v: bool) -> Vec<Vec3<T>> {
+    let (nu, nv) = s.control_counts();
     let ctl = s.control();
-    let mut sup_u = T::zero();
-    let (pu, ku) = (s.knots_u().degree(), s.knots_u().knots());
+    let (n_out, n_in) = if along_v { (nv, nu) } else { (nu, nv) };
+    let knots = if along_v { s.knots_v() } else { s.knots_u() };
+    let (p, k) = (knots.degree(), knots.knots());
+    let at = |i: usize, j: usize| -> geom_core::Point3<T> {
+        if along_v {
+            ctl[j * nv + i]
+        } else {
+            ctl[i * nv + j]
+        }
+    };
+    let mut out = Vec::with_capacity(n_out.saturating_sub(1) * n_in);
     #[allow(clippy::cast_precision_loss)]
-    for i in 0..nu.saturating_sub(1) {
-        let denom = ku[i + pu + 1] - ku[i + 1];
+    for i in 0..n_out.saturating_sub(1) {
+        let denom = k[i + p + 1] - k[i + 1];
         if denom == 0.0 {
             continue;
         }
-        let factor = T::from_f64(pu as f64 / denom);
-        for j in 0..nv {
-            sup_u = sup_u.max((ctl[(i + 1) * nv + j] - ctl[i * nv + j]).norm() * factor);
+        let factor = T::from_f64(p as f64 / denom);
+        for j in 0..n_in {
+            out.push((at(i + 1, j) - at(i, j)) * factor);
         }
     }
-    let mut sup_v = T::zero();
-    let (pv, kv) = (s.knots_v().degree(), s.knots_v().knots());
-    #[allow(clippy::cast_precision_loss)]
-    for j in 0..nv.saturating_sub(1) {
-        let denom = kv[j + pv + 1] - kv[j + 1];
-        if denom == 0.0 {
-            continue;
-        }
-        let factor = T::from_f64(pv as f64 / denom);
-        for i in 0..nu {
-            sup_v = sup_v.max((ctl[i * nv + j + 1] - ctl[i * nv + j]).norm() * factor);
+    out
+}
+
+/// [`chart_stretch_inf`]'s spline arm — the derivation lives there.
+fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
+    let ratio = weight_ratio_factor::<T>(s.weights());
+    // The same two nets [`nurbs_stretch_bounds`] reads, from the same
+    // door, so `sup_u`/`sup_v` below ARE that function's components.
+    let (q_u, q_v) = (derivative_net(s, false), derivative_net(s, true));
+    let sup_of = |q: &[Vec3<T>]| q.iter().fold(T::zero(), |m, v| m.max(v.norm()));
+    let (poly_sup_u, poly_sup_v) = (sup_of(&q_u), sup_of(&q_v));
+    let mut crosses = Vec::with_capacity(q_u.len() * q_v.len());
+    for &a in &q_u {
+        for &b in &q_v {
+            crosses.push(a.cross(b));
         }
     }
-    (sup_u * ratio, sup_v * ratio)
+    let cross_sup = sup_of(&crosses);
+    // Each bracket taken at the end the direction needs: the sups
+    // multiply (as `nurbs_stretch_bounds` does), the infs divide, and
+    // the area element carries one factor per net.
+    ChartStretchInf {
+        inf_u: net_inf(&q_u, poly_sup_u) / ratio,
+        inf_v: net_inf(&q_v, poly_sup_v) / ratio,
+        sup_u: poly_sup_u * ratio,
+        sup_v: poly_sup_v * ratio,
+        area_inf: net_inf(&crosses, cross_sup) / ratio.powi(2),
+    }
 }
 
 /// `sup |C′|` bound for a **non-rational** spline curve — the curve
@@ -4626,5 +5082,78 @@ mod tests {
         .unwrap();
         let rate = param_rate_gate(&Curve3::Nurbs(Arc::new(ok)), band()).unwrap();
         assert!((rate - 1.0).abs() < 1e-15, "the unit-chord net meters at 1");
+    }
+}
+
+/// The two stretch doors' agreement — cheap, and load-bearing.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod stretch_door_agreement {
+    use geom::{NurbsSurface, Surface};
+    use geom_core::Point3;
+    use geom_core::spline::KnotVector;
+    use std::sync::Arc;
+
+    /// `chart_stretch_sup(s).0` and `chart_stretch_inf(s).sup_u` are
+    /// the same number, and the `ρ` assembly ASSUMES they are: it
+    /// divides the second by the inf to form the normalized trace
+    /// while the escape lane meters with the first. They now share one
+    /// derivative-net door, so this pin costs nothing and would red
+    /// the moment either grows a factor the other does not.
+    #[test]
+    fn the_two_doors_report_one_sup() {
+        /// `(knots_u, degree_u, knots_v, degree_v, flat xyz, weights)`
+        type Case = (Vec<f64>, usize, Vec<f64>, usize, Vec<f64>, Vec<f64>);
+        let cases: Vec<Case> = vec![
+            // bilinear, unit weights
+            (
+                vec![0.0, 0.0, 1.0, 1.0],
+                1,
+                vec![0.0, 0.0, 1.0, 1.0],
+                1,
+                vec![0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 4.0, 0.0, 0.0, 4.0, 1.0, 0.0],
+                vec![1.0; 4],
+            ),
+            // bilinear, RATIONAL: the factor must land on both doors
+            (
+                vec![0.0, 0.0, 1.0, 1.0],
+                1,
+                vec![0.0, 0.0, 1.0, 1.0],
+                1,
+                vec![0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 4.0, 0.0, 0.0, 4.0, 1.0, 0.0],
+                vec![1.0, 0.5, 2.0, 1.0],
+            ),
+            // degree 2 in u, a varying stretch and a repeated knot
+            (
+                vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+                2,
+                vec![0.0, 0.0, 1.0, 1.0],
+                1,
+                vec![
+                    0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.25, 0.0, 0.0, 0.25, 1.0, 0.0, 4.25, 0.0, 0.0,
+                    4.25, 1.0, 0.0,
+                ],
+                vec![1.0; 6],
+            ),
+        ];
+        for (ku, pu, kv, pv, coords, weights) in cases {
+            let control: Vec<Point3<f64>> = coords
+                .chunks_exact(3)
+                .map(|c| Point3::new(c[0], c[1], c[2]))
+                .collect();
+            let s: Surface<f64> = Surface::Nurbs(Arc::new(
+                NurbsSurface::new(
+                    KnotVector::clamped(ku, pu).unwrap(),
+                    KnotVector::clamped(kv, pv).unwrap(),
+                    control,
+                    weights,
+                )
+                .unwrap(),
+            ));
+            let (sup_u, sup_v) = super::chart_stretch_sup(&s);
+            let inf = super::chart_stretch_inf(&s);
+            assert_eq!(sup_u, inf.sup_u, "the u sup must be ONE number");
+            assert_eq!(sup_v, inf.sup_v, "the v sup must be ONE number");
+        }
     }
 }

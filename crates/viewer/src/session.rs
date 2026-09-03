@@ -34,18 +34,27 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    Alignment, Dimension, DimensionError, Doc, DocEdit, DocParam, EditError, Evaluation, Frame,
-    Node, ParamName, ParseError, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId,
-    apply, assemble, parse_expr, product,
+    Alignment, BooleanOp, CancelToken, ChecksConfig, ChecksReport, Datum, Dimension,
+    DimensionError, Doc, DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Evaluation,
+    Expr, Frame, LoopProgram, Node, ParamName, ParseError, PartResolver, ProductError,
+    ProfileProgram, RecipeNodeId, SlotId, apply, assemble, cascade_delete_order, evaluate,
+    parse_expr, product, run_checks,
 };
 use pncad::geom_core::Tol;
-use pncad::prelude::StableName;
+use pncad::prelude::{StableName, attribute};
+use pncad::profile::SketchPlane;
+use pncad::quantity::UnitDef;
 use pncad::select::{ContactClass, Resolution, RunCtx, resolve};
+use pncad::workspace::WorkspaceError;
 
+use crate::blend::BlendKindChoice;
+use crate::bounds;
+use crate::combine;
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, DocIoError};
 use crate::evalseam::{EvalRequest, EvalService, Generation, InlineEvaluator};
 use crate::history::History;
+use crate::parts;
 use crate::props::{self, SlotDriver, SlotValue};
 use crate::tree::{self, TreeRow};
 
@@ -58,12 +67,15 @@ use crate::tree::{self, TreeRow};
 /// for a question the pick already answered. G1's rule is satisfied
 /// exactly: a `StableName` and a `RecipeNodeId`, no arena key.
 ///
-/// The node is the one whose evaluated body was hit, which is not
-/// necessarily `name.node` (the node whose operation MINTED the
-/// entity): a face minted by a profile's extrude and passed through a
-/// later transform is hit on the transform's body and named after the
-/// extrude. Both are true and they answer different questions; this
-/// field answers "whose body did the ray meet".
+/// The node is the one whose evaluated body was hit, which is not the
+/// node that MADE the face: a face swept by an extrude, cut by a
+/// boolean and carried through a fillet is hit on the fillet's body
+/// and made by the extrude. Both are true and they answer different
+/// questions — this field answers "whose body did the ray meet", and
+/// [`FaceSelection::feature`] answers "which feature is this face's".
+/// Every consumer that means the second must call it: on a model whose
+/// history ends in one outer feature, this field is that feature for
+/// every face of the body.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FaceSelection {
     /// The picked face's stable name — what survives re-evaluation.
@@ -72,6 +84,125 @@ pub struct FaceSelection {
     pub node: RecipeNodeId,
     /// The output body index within that node's value.
     pub body: u32,
+}
+
+impl FaceSelection {
+    /// **The feature this face is**: the node whose operation minted
+    /// the entity the name denotes, read off the name's own
+    /// carry-through segments (`pncad::select::attribute`).
+    ///
+    /// A fillet's `FromTarget(f)` face is still the target's face `f`,
+    /// so clicking a flat on a filleted body reaches the feature that
+    /// swept the flat and not the fillet that shrank it. That is the
+    /// question the feature tree's highlight, the property panel's
+    /// rows and the picture's focus all ask; [`FaceSelection::node`] —
+    /// whose body the ray met — is a different one, and the only
+    /// consumers that want it are the ones addressing the DRAWN body
+    /// (`PickIndex::ids_of_target`, and the resolution check, which
+    /// looks the name up in that body's own table).
+    ///
+    /// Falls back to [`FaceSelection::node`] for a name the vocabulary
+    /// walk cannot classify, so an unclassified role degrades to the
+    /// drawn root rather than to no feature at all.
+    pub fn feature(&self) -> RecipeNodeId {
+        attribute(&self.name).minted_by().unwrap_or(self.node)
+    }
+}
+
+/// A picked edge: the stable name it is, and the node whose body
+/// carried it when it was picked.
+///
+/// The face selection's twin, field for field, and deliberately a
+/// DISTINCT type rather than a kind tag on one struct: the consumers
+/// differ in what they accept — a blend selects edges, a mate selects
+/// faces — so a value that could be either defers a refusal to run
+/// time for no gain. The name is still the selection and no arena key
+/// appears, which is all G1 asks.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EdgeSelection {
+    /// The picked edge's stable name — what survives re-evaluation.
+    pub name: StableName,
+    /// The node whose body was hit.
+    pub node: RecipeNodeId,
+    /// The output body index within that node's value.
+    pub body: u32,
+}
+
+impl EdgeSelection {
+    /// **The feature this edge is**: the node whose operation minted
+    /// the entity the name denotes — [`FaceSelection::feature`]'s
+    /// argument, unchanged. An edge carried through a later boolean is
+    /// still the edge the earlier feature made.
+    pub fn feature(&self) -> RecipeNodeId {
+        attribute(&self.name).minted_by().unwrap_or(self.node)
+    }
+}
+
+/// What the cursor is over — the one transient pick, whichever kind of
+/// entity it landed on.
+///
+/// One value rather than a field per kind, because the cursor is over
+/// AT MOST ONE thing: two fields could both be set, and then the
+/// picture and the status line would disagree about what the pointer
+/// means.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Hovered {
+    /// A face under the cursor.
+    Face(FaceSelection),
+    /// An edge under the cursor — within
+    /// [`crate::pick::EDGE_PICK_RADIUS_PX`] of it, which is what makes
+    /// an edge reachable at all where its own face fills the pixel.
+    Edge(EdgeSelection),
+}
+
+impl Hovered {
+    /// The hovered entity's stable name.
+    pub fn name(&self) -> &StableName {
+        match self {
+            Self::Face(face) => &face.name,
+            Self::Edge(edge) => &edge.name,
+        }
+    }
+
+    /// The node whose drawn body the cursor is over.
+    pub fn node(&self) -> RecipeNodeId {
+        match self {
+            Self::Face(face) => face.node,
+            Self::Edge(edge) => edge.node,
+        }
+    }
+
+    /// The feature the hovered entity belongs to.
+    pub fn feature(&self) -> RecipeNodeId {
+        match self {
+            Self::Face(face) => face.feature(),
+            Self::Edge(edge) => edge.feature(),
+        }
+    }
+
+    /// The hovered face, when the cursor is over one.
+    pub fn face(&self) -> Option<&FaceSelection> {
+        match self {
+            Self::Face(face) => Some(face),
+            Self::Edge(_) => None,
+        }
+    }
+
+    /// The hovered edge, when the cursor is over one.
+    pub fn edge(&self) -> Option<&EdgeSelection> {
+        match self {
+            Self::Edge(edge) => Some(edge),
+            Self::Face(_) => None,
+        }
+    }
+
+    /// This hover as the selection a click on it would make.
+    pub fn selection(&self) -> Selection {
+        match self {
+            Self::Face(face) => Selection::Face(face.clone()),
+            Self::Edge(edge) => Selection::Edge(edge.clone()),
+        }
+    }
 }
 
 /// What the session has selected. A typed layer-3 value: stable
@@ -98,11 +229,16 @@ pub enum Selection {
     Param(ParamName),
     /// A face, picked in the viewport.
     Face(FaceSelection),
+    /// An edge, picked in the viewport — what a blend is authored
+    /// against.
+    Edge(EdgeSelection),
 }
 
 impl Selection {
     /// The recipe node this selection is about, when it is about one:
-    /// the node itself, or a picked face's owning node.
+    /// the node itself, or the feature a picked face belongs to
+    /// ([`FaceSelection::feature`] — the node that MADE the face, not
+    /// the root that drew it).
     ///
     /// **The one home for the viewport→tree inversion.** The feature
     /// tree's highlight and the property panel's slot rows both read
@@ -111,7 +247,8 @@ impl Selection {
     pub fn node(&self) -> Option<RecipeNodeId> {
         match self {
             Self::Node(id) => Some(*id),
-            Self::Face(face) => Some(face.node),
+            Self::Face(face) => Some(face.feature()),
+            Self::Edge(edge) => Some(edge.feature()),
             Self::None | Self::Param(_) => None,
         }
     }
@@ -120,6 +257,25 @@ impl Selection {
     pub fn face(&self) -> Option<&FaceSelection> {
         match self {
             Self::Face(face) => Some(face),
+            Self::None | Self::Node(_) | Self::Param(_) | Self::Edge(_) => None,
+        }
+    }
+
+    /// The picked edge, when the selection is one.
+    pub fn edge(&self) -> Option<&EdgeSelection> {
+        match self {
+            Self::Edge(edge) => Some(edge),
+            Self::None | Self::Node(_) | Self::Param(_) | Self::Face(_) => None,
+        }
+    }
+
+    /// The selected entity's stable name, when the selection is a
+    /// picked entity — the one question the resolution check asks that
+    /// does not care which kind was picked.
+    pub fn entity_name(&self) -> Option<&StableName> {
+        match self {
+            Self::Face(face) => Some(&face.name),
+            Self::Edge(edge) => Some(&edge.name),
             Self::None | Self::Node(_) | Self::Param(_) => None,
         }
     }
@@ -169,6 +325,20 @@ pub enum Standing {
         /// returned by value on every frame.
         resolution: Option<Box<Resolution>>,
     },
+    /// An edge selection, and the resolution verdict its name got.
+    ///
+    /// The same shape as [`Standing::Face`] because it is the same
+    /// question asked of the same machinery: `resolve` takes a stable
+    /// name and does not care which kind of entity minted it, so an
+    /// edge selection survives its referent vanishing by exactly the
+    /// face arm's rule rather than by a second implementation of it.
+    Edge {
+        /// The selection.
+        edge: EdgeSelection,
+        /// What the shipped resolution machinery answered — `None`
+        /// when there is no evaluation to answer against yet.
+        resolution: Option<Box<Resolution>>,
+    },
 }
 
 impl Standing {
@@ -183,7 +353,7 @@ impl Standing {
         match self {
             Self::Empty => false,
             Self::Node { present, .. } | Self::Param { present, .. } => *present,
-            Self::Face { resolution, .. } => {
+            Self::Face { resolution, .. } | Self::Edge { resolution, .. } => {
                 matches!(resolution.as_deref(), Some(Resolution::Resolved(_)))
             }
         }
@@ -191,16 +361,69 @@ impl Standing {
 
     /// The typed unresolved verdict, when the selection has one.
     ///
-    /// `Some` exactly when a face selection's name failed to resolve
-    /// or the evaluation could not answer for it — the two arms that
-    /// render distinctly.
+    /// `Some` exactly when a picked entity's name failed to resolve or
+    /// the evaluation could not answer for it — the two arms that
+    /// render distinctly, for a face and for an edge alike.
     pub fn unresolved(&self) -> Option<&Resolution> {
         match self {
             Self::Face {
                 resolution: Some(resolution),
                 ..
+            }
+            | Self::Edge {
+                resolution: Some(resolution),
+                ..
             } if !matches!(**resolution, Resolution::Resolved(_)) => Some(resolution),
             _ => None,
+        }
+    }
+}
+
+/// The node kind a creation op's seat requires — the payload of
+/// [`Refusal::WrongNodeKind`], so the refusal names what was wanted
+/// in the vocabulary's own words.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NodeKindWanted {
+    /// A `Node::Profile`.
+    Profile,
+    /// A `Node::Datum(Datum::Axis)`.
+    Axis,
+    /// A `Node::Datum(Datum::Plane)`.
+    Plane,
+    /// A node whose value is ONE body — the combining seats' kind
+    /// ([`combine::denotes_body`] carries the admissible set and why a
+    /// split's sides and a pattern's instances are not in it).
+    Body,
+}
+
+/// **Whether `held` is the wanted kind** — the one classification
+/// behind every creation seat's gate, `None` (an absent node) reading
+/// as "no", because a seat naming nothing and a seat naming the wrong
+/// thing both mean there is nothing of that kind there to consume.
+///
+/// A free function rather than a `DocSession` method because the
+/// question is asked in two places for two purposes: the commit door
+/// asks it to REFUSE ([`DocSession::require_kind`]), and a tool's
+/// seats ask it to ROUTE a pick ([`crate::seats::Seats::pick`]). One
+/// answer for both is what keeps a seat from steering a pick the door
+/// would then reject.
+pub fn admits(held: Option<&Node<ProfileProgram>>, wanted: NodeKindWanted) -> bool {
+    match wanted {
+        NodeKindWanted::Profile => matches!(held, Some(Node::Profile(_))),
+        NodeKindWanted::Axis => matches!(held, Some(Node::Datum(Datum::Axis { .. }))),
+        NodeKindWanted::Plane => matches!(held, Some(Node::Datum(Datum::Plane { .. }))),
+        NodeKindWanted::Body => held.is_some_and(combine::denotes_body),
+    }
+}
+
+impl NodeKindWanted {
+    /// The kind's name, for sentences.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Profile => "a profile",
+            Self::Axis => "an axis datum",
+            Self::Plane => "a plane datum",
+            Self::Body => "a body",
         }
     }
 }
@@ -246,6 +469,38 @@ pub enum Refusal {
         /// The dimension the existing declaration carries.
         dimension: Dimension,
     },
+    /// The New door was asked for a blank name. The document id is
+    /// derived from the name (`DocumentId::derive` — the identity
+    /// ruling logged in `docs/GAUTH-LOG.md`), so a nameless document
+    /// would carry an identity nobody could ever re-derive.
+    EmptyName,
+    /// A creation op named a node that is not the kind its seat
+    /// requires — absent, or of another kind. Refusing here keeps
+    /// "that is not a profile/axis" a fact stated at the door rather
+    /// than a failed node discovered after the edit lands; one arm
+    /// for every seat, so the sentence is spelled once (GAUTH-4/5 add
+    /// more seats to the same rule).
+    WrongNodeKind {
+        /// The node named.
+        node: RecipeNodeId,
+        /// The kind the seat requires.
+        wanted: NodeKindWanted,
+    },
+    /// A boolean was authored with one node in both operand seats.
+    ///
+    /// The DAG admits it — an id in two input positions is neither a
+    /// cycle nor a dangling reference — and the kernel would be asked
+    /// to regularize a body against itself, whose answer is the body
+    /// (or, for a subtraction, ∅) and whose faces are all coincident.
+    /// It is a mis-pick every time, so the door says so rather than
+    /// letting a degenerate operand pair reach the classifier. Two
+    /// DIFFERENT nodes denoting the same geometry are not this
+    /// refusal: it is a fact about the authored references, which is
+    /// the only thing a door can be sure of.
+    SelfBoolean {
+        /// The node picked into both seats.
+        node: RecipeNodeId,
+    },
     /// `apply` refused the edit.
     ///
     /// Boxed, as `Io` is below: these two payloads are an order of
@@ -270,6 +525,41 @@ pub enum Refusal {
     /// free-move on a mate-constrained instance, a gesture out of
     /// order) — the fault's own typed vocabulary, unaltered.
     Display(DisplayFault),
+    /// A written-unit change refused — the panel model's own typed
+    /// vocabulary, unaltered.
+    SlotUnit(props::SlotUnitFault),
+    /// The session has no backing file, so there is no directory for a
+    /// part reference to be picked from or to resolve against — the
+    /// directory rule's consequence at authoring time. Its recourse
+    /// rides the sentence, composed in `Display` like every other arm
+    /// here.
+    NoDocumentDirectory,
+    /// The workspace refused — the scan (duplicate id, unreadable
+    /// sibling) or the read of the part being referenced — in the
+    /// store's own words.
+    ///
+    /// Boxed for [`Refusal::Edit`]'s reason: its widest arms carry two
+    /// paths (a duplicate id names both claimants) or a path with two
+    /// pins (a mismatch names what was wanted and what was found).
+    Workspace(Box<WorkspaceError>),
+    /// The open document was asked to instantiate ITSELF.
+    ///
+    /// Refused at the door rather than left to fail later. A
+    /// self-reference pins the file's content as it stands, and what
+    /// happens next depends on what that file then does: a save moves
+    /// the content and the pin stops holding, while a pin that still
+    /// holds sends the evaluation back into the document it started
+    /// in, where the descent refuses the cycle by name. Neither
+    /// outcome is one anybody asked for. `refactor`'s split door
+    /// refuses a self-referencing identity in the same spirit, though
+    /// for its own first reason — the produced pair could not both
+    /// live in one store — with the evaluation cycle recorded beside
+    /// it.
+    SelfInstance {
+        /// The identity that is both the open document and the part
+        /// asked for.
+        id: DocumentId,
+    },
 }
 
 impl Refusal {
@@ -294,9 +584,16 @@ impl Refusal {
             Self::NoSuchSlot { .. }
             | Self::NoSuchParam(_)
             | Self::ParamExists { .. }
+            | Self::EmptyName
+            | Self::WrongNodeKind { .. }
+            | Self::SelfBoolean { .. }
             | Self::Edit(_)
             | Self::Dimension(_)
             | Self::Parse(_)
+            | Self::SlotUnit(_)
+            | Self::NoDocumentDirectory
+            | Self::Workspace(_)
+            | Self::SelfInstance { .. }
             | Self::Io(_) => 1,
             // The two gesture-order arms rank with their document
             // twins; the substantive display refusals rank with the
@@ -329,33 +626,62 @@ impl core::fmt::Display for Refusal {
     /// the same rule the feature tree's badges follow: the layer that
     /// raised the failure names it.
     ///
-    /// Two exceptions, both stated rather than hidden. The affordance
-    /// arm's wording is a RATIFIED decision of this layer's, so it is
+    /// One exception, stated rather than hidden: the affordance arm's
+    /// wording is a RATIFIED decision of this layer's, so it is
     /// composed here (and here only — [`Refusal::affordance`] is its
-    /// single home). And `ParseError` has no `Display` in
-    /// `editor-core`, so that one arm still shows a debug rendering;
-    /// the gap is recorded in issue #1103 alongside the unparser, which
-    /// is the same missing surface.
+    /// single home).
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::DrivenByExpression {
                 params, current, ..
             } => write!(f, "{}", Self::affordance(params, *current)),
             Self::NoSuchSlot { node, slot } => {
-                write!(f, "node {} has no {slot:?} slot", node.0)
+                write!(f, "node {} has no {} slot", node.0, slot.label())
             }
             Self::NoSuchParam(name) => write!(f, "no document parameter named {}", name.0),
             Self::ParamExists { name, dimension } => {
                 write!(f, "{}", Self::exists_wording(name, *dimension))
             }
+            Self::EmptyName => {
+                write!(
+                    f,
+                    "a new document needs a name; its identity is derived from it"
+                )
+            }
+            Self::WrongNodeKind { node, wanted } => {
+                write!(
+                    f,
+                    "node {} is not {} in this document",
+                    node.0,
+                    wanted.name()
+                )
+            }
+            Self::SelfBoolean { node } => {
+                write!(
+                    f,
+                    "a boolean needs two different bodies; node {} is in both operand seats",
+                    node.0
+                )
+            }
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
             Self::Dimension(error) => write!(f, "{error}"),
-            Self::Parse(error) => write!(f, "the expression did not parse: {error:?}"),
+            Self::Parse(error) => write!(f, "the expression did not parse: {error}"),
             Self::NoGesture => write!(f, "no drag is in progress"),
             Self::GestureInFlight => write!(f, "finish the drag first"),
             Self::Io(error) => write!(f, "{error}"),
             Self::NothingToDo => write!(f, "nothing to undo or redo"),
             Self::Display(fault) => write!(f, "{fault}"),
+            Self::SlotUnit(fault) => write!(f, "{fault}"),
+            Self::NoDocumentDirectory => write!(
+                f,
+                "save the document first — references resolve against the file's directory"
+            ),
+            Self::Workspace(error) => write!(f, "{error}"),
+            Self::SelfInstance { id } => write!(
+                f,
+                "document {id} is the open document — a document cannot be an instance of \
+                 itself; pick another part"
+            ),
         }
     }
 }
@@ -363,6 +689,17 @@ impl core::fmt::Display for Refusal {
 impl core::error::Error for Refusal {}
 
 impl Refusal {
+    /// **The self-instance rule and its refusal, in one place**:
+    /// `Some` exactly when `id` is the open document `open`.
+    ///
+    /// Both consumers of the rule call this — the op, which refuses,
+    /// and the catalogue, which marks the entry it cannot offer — so
+    /// the predicate has one home and the chrome's disabled reason is
+    /// the same value the click would have been answered with.
+    pub fn self_instance(open: DocumentId, id: DocumentId) -> Option<Self> {
+        (open == id).then_some(Self::SelfInstance { id })
+    }
+
     /// **The ratified affordance sentence, and its one home.**
     ///
     /// "Dragging an expression-driven dimension → refuse, with an
@@ -406,6 +743,181 @@ impl Refusal {
     }
 }
 
+/// **What the delete button says, and the list it says it about.**
+///
+/// A destructive action that understates itself is worse than one that
+/// refuses: [`SessionOp::DeleteNode`] takes the target's whole
+/// downstream cone, which in a chain-shaped model (a boolean per
+/// feature) is most of the document, so the count belongs on the
+/// button and not only in a tooltip.
+///
+/// The wording lives here rather than in the chrome for the reason
+/// [`Refusal::exists_wording`] does: one composition, read by whatever
+/// renders it, and testable without a window.
+#[derive(Clone, Debug)]
+pub struct DeleteAffordance {
+    /// The button's label.
+    pub label: String,
+    /// The hover text; `None` when the label already says everything,
+    /// which is exactly when nothing depends on the target.
+    pub hover: Option<String>,
+    /// The nodes the delete would remove, consumers first and the
+    /// target last — the operation's own order.
+    pub cascade: Vec<RecipeNodeId>,
+}
+
+impl DeleteAffordance {
+    /// Compose the sentences for deleting `node` out of `doc`.
+    ///
+    /// The kind name is the node vocabulary's own (first-light finding
+    /// #1097: reached from a face selection, a bare "Delete feature"
+    /// read as deleting the *face* — an entity this vocabulary can
+    /// never delete). The id-only arm is for a node the document does
+    /// not hold: no button renders for one today, and if that changes
+    /// the label stays honest rather than panicking.
+    ///
+    /// Neither sentence mentions the features that merely FED the
+    /// target and survive as roots of their own, because this delete
+    /// does not touch them. A delete that reconnected a target's
+    /// consumers to its input instead — splice — is open as issue
+    /// #1324.
+    fn of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Self {
+        let cascade = cascade_delete_order(doc, node);
+        let Some(target) = doc.node(node) else {
+            return Self {
+                label: format!("Delete feature {}", node.0),
+                hover: None,
+                cascade,
+            };
+        };
+        let kind = tree::node_kind(target);
+        // The cascade's last entry is the target itself; everything
+        // before it is a dependent.
+        let dependents = cascade.len().saturating_sub(1);
+        if dependents == 0 {
+            return Self {
+                label: format!("Delete feature '{kind}'"),
+                hover: None,
+                cascade,
+            };
+        }
+        let (plural, depend) = if dependents == 1 {
+            ("", "depends")
+        } else {
+            ("s", "depend")
+        };
+        let census = kind_census(doc, &cascade[..dependents]);
+        Self {
+            label: format!("Delete feature '{kind}' and {dependents} dependent feature{plural}"),
+            hover: Some(format!(
+                "Also deletes {dependents} feature{plural} that {depend} on it: {census}"
+            )),
+            cascade,
+        }
+    }
+}
+
+/// A census of node kinds, most numerous first and ties broken by
+/// name, as `20 × Boolean, 1 × Fillet` — the readable form of a list
+/// whose LENGTH is the thing being warned about.
+fn kind_census(doc: &Doc<ProfileProgram>, nodes: &[RecipeNodeId]) -> String {
+    let mut counts: std::collections::BTreeMap<&'static str, usize> =
+        std::collections::BTreeMap::new();
+    for &id in nodes {
+        if let Some(node) = doc.node(id) {
+            *counts.entry(tree::node_kind(node)).or_default() += 1;
+        }
+    }
+    let mut census: Vec<(&'static str, usize)> = counts.into_iter().collect();
+    census.sort_by_key(|&(kind, count)| (core::cmp::Reverse(count), kind));
+    census
+        .into_iter()
+        .map(|(kind, count)| format!("{count} × {kind}"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// The literal payload of one add-datum form (GAUTH-1): plain numbers
+/// in canonical units. The SESSION mints the `Expr` literals and
+/// refuses a non-finite component typed
+/// ([`Refusal::Dimension`]), so no form ever constructs an
+/// expression — chrome deals in numbers, the vocabulary in values.
+///
+/// Component dimensions follow the [`Datum`] slots they land in:
+/// origins and positions are Lengths, normals and directions are
+/// Scalars (an unnormalized direction; evaluation normalizes or
+/// refuses degenerate loudly).
+#[derive(Clone, Debug)]
+pub enum DatumSpec {
+    /// A plane through `origin` with normal `normal`.
+    Plane {
+        /// Origin components (`Length`).
+        origin: [Expr; 3],
+        /// Normal components (`Scalar`).
+        normal: [Expr; 3],
+    },
+    /// An axis through `origin` along `direction`.
+    Axis {
+        /// Origin components (`Length`).
+        origin: [Expr; 3],
+        /// Direction components (`Scalar`).
+        direction: [Expr; 3],
+    },
+    /// A point at `position`.
+    Point {
+        /// Position components (`Length`).
+        position: [Expr; 3],
+    },
+    /// A sketch frame through `origin`, spanned by `u` and `v`.
+    Frame {
+        /// Origin components (`Length`).
+        origin: [Expr; 3],
+        /// Sketch +x components (`Scalar`).
+        u: [Expr; 3],
+        /// Sketch +y components (`Scalar`), orthogonalized against
+        /// `u` at evaluation.
+        v: [Expr; 3],
+    },
+}
+
+/// **The add-profile door's loop vocabulary**, re-exported from the
+/// module that owns it.
+///
+/// It is named by [`SessionOp::AddProfile`], so it has to be
+/// reachable beside the op; it is DEFINED in [`crate::sketch`],
+/// because the PATHS verb set and its lowering are a vocabulary of
+/// their own and this file is the crate's accretion case (#1386).
+pub use crate::sketch::ProfileShape;
+
+/// The payload of one pattern form (GAUTH-4), beside the other
+/// authoring spec for the reason it is here at all: it names what a
+/// form authors, plus the node references that are PICKS rather than
+/// fields.
+///
+/// `Explicit` has no arm by the plan's ruling: a list of absolute
+/// frames is not a form's job.
+///
+/// **The fields are `Expr`, not numbers** — see [`SessionOp`]'s note on
+/// the authoring vocabulary. Not `Copy` in consequence, which an
+/// `Expr` cannot be.
+#[derive(Clone, Debug, PartialEq)]
+pub enum PatternRuleSpec {
+    /// Stepped along a direction (`PatternKind::Linear`).
+    Linear {
+        /// Step direction components (`Scalar`).
+        direction: [Expr; 3],
+        /// Distance between instances (`Length`).
+        spacing: Expr,
+    },
+    /// Stepped around a datum axis (`PatternKind::Circular`).
+    Circular {
+        /// The datum-axis node stepped around.
+        axis: RecipeNodeId,
+        /// Angular step between instances (`Angle`).
+        step: Expr,
+    },
+}
+
 /// One typed operation on the session.
 #[derive(Clone, Debug)]
 pub enum SessionOp {
@@ -419,15 +931,22 @@ pub enum SessionOp {
     /// the same reason every other move here is one (G1's
     /// operations-are-API rule) — a headless test hovers by naming
     /// this op.
-    Hover(Option<FaceSelection>),
-    /// Delete a recipe node.
+    Hover(Option<Hovered>),
+    /// Delete a recipe node **and every node downstream of it**, as
+    /// one action and one undo.
     ///
     /// The panel's own door to `DocEdit::DeleteNode`, and the edit the
     /// survival semantics are exercised through: deleting the feature
     /// a selected face belongs to is the first of the three ways a
     /// selection's referent goes away.
+    ///
+    /// The cost is knowable before the click:
+    /// [`DocSession::delete_affordance`] carries the same list the
+    /// operation deletes. What it removes is the dependent CONE — a delete that
+    /// reconnected consumers to the target's input instead (splice) is
+    /// open as issue #1324.
     DeleteNode {
-        /// The node to delete.
+        /// The node to delete, with its dependents.
         node: RecipeNodeId,
     },
     /// Write a value into a node's slot. Refused if the slot is
@@ -439,6 +958,47 @@ pub enum SessionOp {
         slot: SlotId,
         /// The new value.
         value: SlotValue,
+    },
+    /// Take a locally-valid-range probe for one field: how far it can
+    /// move, in each direction, before the document acquires a failure
+    /// it does not have now.
+    ///
+    /// **Explicitly asked for, never automatic.** The probe costs tens
+    /// of evaluations (`bounds`'s cost note), which is a price worth
+    /// paying when a user is about to change a number and not worth
+    /// paying on every selection. The answer lands in the session
+    /// ([`DocSession::bounds`]) and is discarded on the next document
+    /// change.
+    ///
+    /// It changes no document, commits nothing and enters no history:
+    /// every candidate is applied to a scratch copy that is dropped.
+    ProbeBounds {
+        /// The field to probe.
+        target: BoundsTarget,
+    },
+    /// Change how a slot's literal is WRITTEN — its display unit —
+    /// leaving the canonical value bit-identical.
+    ///
+    /// A separate door from [`SessionOp::SetSlot`] because the value
+    /// and its notation are independent facts about a literal (D7 keeps
+    /// the display unit out of expression identity entirely), and an
+    /// operation that moved both could not move either alone.
+    ///
+    /// There is no "remember no unit" spelling, because there is no
+    /// such state: every literal names its notation, and the canonical
+    /// one is named by naming it (`m`, `rad`, or the dimensionless
+    /// row).
+    ///
+    /// It is a document edit and enters the history like any other:
+    /// the unit is stored in the document and persists, so changing it
+    /// is a change to the document, not to the picture.
+    SetSlotUnit {
+        /// The node.
+        node: RecipeNodeId,
+        /// The slot.
+        slot: SlotId,
+        /// The unit to write it in.
+        unit: UnitDef,
     },
     /// Replace a slot's expression from source text, through the
     /// shipped `parse_expr` door. This is the affordance's editing
@@ -535,6 +1095,14 @@ pub enum SessionOp {
     /// the file's, so a cheap rename-on-save cannot fix it without
     /// forking the document; the issue carries the design question.
     /// Save over the original, or save into a different directory.
+    ///
+    /// **A save-as MOVES the document seam**: the directory rule
+    /// follows the file, so an assembly saved into a directory that
+    /// does not hold its parts silently rebinds to that directory and
+    /// its instances refuse at the next evaluation — typed on the tree
+    /// badges, and recoverable by saving back, but nothing warns
+    /// first. Recorded with the rest of the seam's newly-reachable
+    /// edges in issue #1387.
     Save(PathBuf),
     /// Hide or show one instance (G3): a DISPLAY operation — the
     /// scene and the pick index drop a hidden instance; the document
@@ -583,6 +1151,229 @@ pub enum SessionOp {
         /// coordinates).
         alignment: Alignment,
     },
+    /// Replace the session's document with a fresh empty one (GAUTH-1's
+    /// creation door zero) — the ONE creation op that is a
+    /// session-state replacement rather than an `InsertNode`, because
+    /// before it runs there is no document to insert into.
+    ///
+    /// The identity ruling (logged in `docs/GAUTH-LOG.md`): the id is
+    /// authored at creation from the typed name —
+    /// `DocumentId::derive(&name)`, the deterministic spelling the
+    /// demo corpus uses — and never re-minted at save. Two documents
+    /// derived from one name collide at WORKSPACE resolution, where
+    /// the store's duplicate-id refusal is the fail-loud recourse.
+    ///
+    /// Everything session-scoped is cleared: path, history, selection,
+    /// hover, display state and the resolver (a fresh document has no
+    /// backing file, so its instantiate nodes refuse with the shipped
+    /// no-resolver semantics until it is saved). Refused mid-gesture;
+    /// a blank name refuses [`Refusal::EmptyName`].
+    ///
+    /// The name is TRIMMED before the id is derived, so `" ring "` and
+    /// `"ring"` are one document by design — surrounding whitespace is
+    /// a typing accident, not an identity a user could re-derive on
+    /// purpose.
+    NewDocument {
+        /// The document's name; the id is derived from its trim.
+        name: String,
+    },
+    /// Insert one datum node with literal slots — the add-datum forms'
+    /// one committed edit each.
+    AddDatum {
+        /// The datum's literal payload.
+        datum: DatumSpec,
+    },
+    /// Insert one profile node from template loops on a plane — the
+    /// add-profile tool's one committed edit.
+    ///
+    /// `loops` is DESCRIPTION order, nothing more: which loop is the
+    /// outer boundary and which are holes is decided by the profile
+    /// layer's containment forest at replay
+    /// (`profile::structure`), never by list position — a list
+    /// written holes-first describes the same profile. Every refusal
+    /// is the edit door's own: an empty list, a degenerate loop and a
+    /// non-nested pair all refuse through the authoring-time check
+    /// ([`Refusal::Edit`]), one rule for authored and hand-written
+    /// programs alike (only a non-finite field refuses earlier, at
+    /// the literal door). The plane is frozen `f64` placement data
+    /// (the program's own placement struct — a snapshot, never a
+    /// reference to the geometry it may have been derived from).
+    AddProfile {
+        /// The sketch-plane placement the profile is authored on.
+        plane: SketchPlane<f64>,
+        /// The loop programs, in description order.
+        loops: Vec<LoopProgram>,
+    },
+    /// Insert one extrude of an existing profile node — the extrude
+    /// tool's one committed edit. A `profile` that is not a
+    /// `Node::Profile` in this document refuses
+    /// [`Refusal::WrongNodeKind`] at the door.
+    ///
+    /// A NEGATIVE distance is admitted deliberately and builds: it is
+    /// an extrusion along the negative sketch normal, the same value
+    /// the property panel can author into the slot afterwards, and
+    /// the door does not narrow what the vocabulary means.
+    AddExtrude {
+        /// The profile node extruded.
+        profile: RecipeNodeId,
+        /// The extrusion distance (`Length`).
+        distance: Expr,
+    },
+    /// Insert one revolve of an existing profile node about an
+    /// existing axis datum — the revolve tool's one committed edit.
+    /// Either seat's wrong-kind pick refuses
+    /// [`Refusal::WrongNodeKind`] at the door.
+    AddRevolve {
+        /// The profile node revolved.
+        profile: RecipeNodeId,
+        /// The `Datum::Axis` node revolved about.
+        axis: RecipeNodeId,
+        /// The sweep angle (`Angle`); the chrome's default is a full
+        /// turn.
+        angle: Expr,
+    },
+    /// Insert one regularized boolean of two existing bodies — the
+    /// boolean tool's one committed edit (GAUTH-4).
+    ///
+    /// **The operand order is data**: `Subtract` keeps `a` and removes
+    /// `b`, so the two seats are not interchangeable and the form says
+    /// which pick is which. Either seat's non-body pick refuses
+    /// [`Refusal::WrongNodeKind`]; one node in both seats refuses
+    /// [`Refusal::SelfBoolean`].
+    ///
+    /// `declare` is authored `None`: coincidence intent is a
+    /// `Node::Declare` input, and authoring one needs the entity picks
+    /// (a face pair) that this tool does not take. A declaration is
+    /// added afterwards through the vocabulary that owns it, never
+    /// guessed at here.
+    AddBoolean {
+        /// The operation — the KERNEL's enum, which the recipe node
+        /// carries unconverted.
+        op: BooleanOp,
+        /// The first operand: the body a subtraction keeps.
+        a: RecipeNodeId,
+        /// The second operand: the body a subtraction removes.
+        b: RecipeNodeId,
+    },
+    /// Insert one split of an existing body by an existing datum
+    /// plane — the split tool's one committed edit.
+    ///
+    /// The tool seat is a PLANE and not a body: `Node::Split`'s tool
+    /// operand is the plane the cut is taken on. Both seats refuse
+    /// [`Refusal::WrongNodeKind`] for the wrong kind.
+    AddSplit {
+        /// The body split.
+        target: RecipeNodeId,
+        /// The `Datum::Plane` node it is cut by.
+        tool: RecipeNodeId,
+    },
+    /// Insert one rigid placement of an existing body — the transform
+    /// tool's one committed edit. The property panel is the editor for
+    /// every slot afterwards.
+    AddTransform {
+        /// The body placed.
+        input: RecipeNodeId,
+        /// Translation components (`Length`).
+        translation: [Expr; 3],
+        /// Rotation-axis components (`Scalar`).
+        rotation_axis: [Expr; 3],
+        /// Rotation angle (`Angle`).
+        rotation_angle: Expr,
+    },
+    /// Insert one pattern of an existing body — the pattern tool's one
+    /// committed edit.
+    ///
+    /// The count is an `i64` and lands as an exact Count literal: it
+    /// is the node's STRUCTURAL slot (spec D3), edited afterwards
+    /// through `SetStructuralParam` and never through the continuous
+    /// door. A count of zero or less is admitted here and refuses at
+    /// evaluation on the node's own badge — the same division of
+    /// labour a degenerate profile takes, one rule for authored and
+    /// hand-written documents.
+    AddPattern {
+        /// The body replicated.
+        input: RecipeNodeId,
+        /// Instance count.
+        count: i64,
+        /// The replication rule, with the axis a circular rule was
+        /// picked with.
+        rule: PatternRuleSpec,
+    },
+    /// Insert one constant-radius fillet on a SET of an existing
+    /// body's edges — the blend tool's one committed edit, as a
+    /// fillet.
+    ///
+    /// **The selection is a frozen commitment** (`Node::Fillet`'s
+    /// ratified #217 semantics): what is authored here is what the
+    /// node keeps, and `Node::fillet` canonicalizes it (sorted,
+    /// deduplicated) so two recipes selecting the same edges are
+    /// bit-identical.
+    ///
+    /// **The names are NOT checked against the evaluation here**, and
+    /// that is the freeze rule rather than an omission. Whether a name
+    /// still resolves through the target's table is evaluation's
+    /// question, answered typed on the node's own badge
+    /// (`NodeErrorKind::BlendSelectionResolve`, and
+    /// `BlendSelectionEmpty` for an empty set) — a door that
+    /// pre-screened it would be a second authority on the same fact,
+    /// and would refuse to author the node whose refusal is the honest
+    /// thing to show. The target's KIND is a fact about the committed
+    /// document alone, so that one does refuse here
+    /// ([`Refusal::WrongNodeKind`]).
+    AddFillet {
+        /// The body whose edges are blended.
+        target: RecipeNodeId,
+        /// The blend radius (`Length`).
+        radius: Expr,
+        /// The edges to blend, by stable name.
+        selection: Vec<StableName>,
+    },
+    /// Insert one equal-setback chamfer on a SET of an existing body's
+    /// edges — [`SessionOp::AddFillet`]'s twin, and the blend tool's
+    /// other committed edit.
+    ///
+    /// A separate op for the reason `Node::Chamfer` is a separate
+    /// variant: the size means a SETBACK along both supports rather
+    /// than a rolling ball's radius, it lands in a different slot
+    /// (`SlotId::ChamferDistance`), and a recipe whose size changed
+    /// meaning on a boolean's value would be a document a reader can
+    /// misread. Everything [`SessionOp::AddFillet`] says about the
+    /// selection holds here unaltered.
+    AddChamfer {
+        /// The body whose edges are chamfered.
+        target: RecipeNodeId,
+        /// The setback along both supports (`Length`).
+        distance: Expr,
+        /// The edges to chamfer, by stable name.
+        selection: Vec<StableName>,
+    },
+    /// Commit **exactly one** `DocEdit` inserting an instance of
+    /// another document — the assembly-authoring door, and the second
+    /// insert door after the mate tool's.
+    ///
+    /// **The pin is minted HERE, not carried in.** The op names only
+    /// which part (`id`); the version it pins is the store's content
+    /// at the moment of the commit
+    /// (`Workspace::current_pin`), so an authored reference always
+    /// starts life resolving. From then on A4's Cargo.lock semantics
+    /// hold: the pin moves by its own recorded edit and by nothing
+    /// else.
+    ///
+    /// **The directory is the open file's own** — the same one every
+    /// reference resolves against ([`crate::docio::DirResolver`]), so
+    /// a session with no backing file refuses
+    /// ([`Refusal::NoDocumentDirectory`]) rather than authoring a
+    /// reference into a store it has not got.
+    ///
+    /// No placement is authored: A11 puts placement on the cluster and
+    /// an instance carries no frame of its own, so the inserted node
+    /// is complete with its reference and an empty interface record
+    /// (an authored instance crosses no split seam). Hiding, the
+    /// free-move probe and the mate tool take it from there.
+    AddInstance {
+        /// Which document in the open document's own directory.
+        id: DocumentId,
+    },
 }
 
 /// What an operation did.
@@ -615,8 +1406,19 @@ impl OpOutcome {
 /// What a gesture is dragging.
 #[derive(Clone, Debug)]
 enum GestureTarget {
-    /// A node's named slot.
-    Slot { node: RecipeNodeId, slot: SlotId },
+    /// A node's named slot, with the display unit that slot's literal
+    /// remembered when the gesture opened.
+    ///
+    /// Captured at `begin_gesture` rather than re-read per preview
+    /// because a gesture is defined against its BASE document (the one
+    /// every preview is applied to), and the notation is a fact about
+    /// that base. Re-reading it would read the scratch document the
+    /// previews are writing — the gesture's own output.
+    Slot {
+        node: RecipeNodeId,
+        slot: SlotId,
+        unit: Option<UnitDef>,
+    },
     /// A document parameter, with the dimension it is declared at.
     Param {
         name: ParamName,
@@ -641,12 +1443,14 @@ impl GestureTarget {
     }
 
     /// The edit that writes `value` into this target.
+    ///
+    /// A parameter's edit is the VALUE door, so the parameter's
+    /// declaration — its dimension and any distribution — is read off
+    /// the document by the edit itself rather than reassembled here.
     fn edit(&self, value: SlotValue) -> Result<DocEdit<ProfileProgram>, DimensionError> {
         match self {
-            Self::Slot { node, slot } => props::slot_edit(*node, *slot, value),
-            Self::Param { name, dimension } => {
-                Ok(props::param_edit(name.clone(), *dimension, value))
-            }
+            Self::Slot { node, slot, unit } => props::slot_edit(*node, *slot, value, *unit),
+            Self::Param { name, .. } => Ok(props::param_edit(name.clone(), value)),
         }
     }
 }
@@ -671,7 +1475,7 @@ pub struct DocSession {
     /// What the cursor is over: transient, never persisted, and its
     /// ONE home. A widget that kept its own copy would be the
     /// per-widget shadow the panels' inventory discipline forbids.
-    hover: Option<FaceSelection>,
+    hover: Option<Hovered>,
     gesture: Option<Gesture>,
     scratch: Option<Doc<ProfileProgram>>,
     eval: Box<dyn EvalService>,
@@ -704,6 +1508,10 @@ pub struct DocSession {
     /// it lands ([`DocSession::at_rest`]); `None` for a document that
     /// is not assembly-shaped, or before anything lands.
     landed_at_rest: Option<AtRestBadge>,
+    /// The advisory-check report for the landed pair, computed once
+    /// when it lands ([`DocSession::checks`]); `None` before anything
+    /// lands, or when the registry itself refused.
+    landed_checks: Option<ChecksReport>,
     path: Option<PathBuf>,
     /// Layer-3 display state — hide and free-move — with its one home
     /// here (the seam-friction inventory rule). Never persisted; reset
@@ -717,6 +1525,39 @@ pub struct DocSession {
     /// document can never silently resolve against the previous
     /// document's directory.
     resolver: Option<Arc<DirResolver>>,
+    /// The last locally-valid-range probe, and the field it was taken
+    /// for — layer-3 state, never persisted, and its one home.
+    ///
+    /// Kept rather than recomputed per frame because a probe costs tens
+    /// of evaluations: it is taken when asked for
+    /// ([`SessionOp::ProbeBounds`]) and DISCARDED, never repaired, the
+    /// moment the document changes. A range is a statement about one
+    /// document, and showing yesterday's range beside today's number is
+    /// the class of stale-confident answer this crate's staleness rules
+    /// exist to prevent.
+    bounds: Option<(BoundsTarget, bounds::Bounds)>,
+}
+
+/// The field a locally-valid-range probe was taken for.
+///
+/// Two arms rather than one with an `Option`, for the reason
+/// `BeginGesture` and `BeginParamGesture` are two doors: a slot and a
+/// document parameter are addressed differently, and collapsing them
+/// puts an `Option` in every arm that reads one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BoundsTarget {
+    /// A node's named slot.
+    Slot {
+        /// The node.
+        node: RecipeNodeId,
+        /// The slot.
+        slot: SlotId,
+    },
+    /// A document parameter.
+    Param {
+        /// The parameter.
+        name: ParamName,
+    },
 }
 
 /// The A5 at-rest verdict for the landed pair — a mated document's
@@ -786,10 +1627,12 @@ impl DocSession {
             landed_doc: None,
             landed_fault: None,
             landed_at_rest: None,
+            landed_checks: None,
             landed_generation: None,
             path: None,
             display: DisplayState::new(),
             resolver: None,
+            bounds: None,
         };
         session.request_eval();
         session
@@ -817,6 +1660,19 @@ impl DocSession {
         &self.history
     }
 
+    /// **What a delete of `node` would cost, said before it is paid.**
+    ///
+    /// The `cascade` field is the deletion order itself — exactly what
+    /// [`SessionOp::DeleteNode`] applies — so the number on the button
+    /// and the number of features that vanish are one list read twice.
+    ///
+    /// Read off the COMMITTED document, which is the one the edits
+    /// apply to; the delete op refuses outright while a gesture holds
+    /// a scratch value, so the two never disagree at a live button.
+    pub fn delete_affordance(&self, node: RecipeNodeId) -> DeleteAffordance {
+        DeleteAffordance::of(self.committed_doc(), node)
+    }
+
     /// The ε this session decides at.
     pub fn tol(&self) -> Tol {
         self.tol
@@ -828,7 +1684,7 @@ impl DocSession {
     }
 
     /// What the cursor is over, if anything.
-    pub fn hover(&self) -> Option<&FaceSelection> {
+    pub fn hover(&self) -> Option<&Hovered> {
         self.hover.as_ref()
     }
 
@@ -854,11 +1710,21 @@ impl DocSession {
             },
             Selection::Face(face) => Standing::Face {
                 face: face.clone(),
-                resolution: self
-                    .landed_pair()
-                    .map(|(doc, eval)| Box::new(resolve(RunCtx { doc, eval }, &face.name))),
+                resolution: self.entity_resolution(&face.name),
+            },
+            Selection::Edge(edge) => Standing::Edge {
+                edge: edge.clone(),
+                resolution: self.entity_resolution(&edge.name),
             },
         }
+    }
+
+    /// One picked name's verdict against the landed run — the shipped
+    /// `resolve` door, asked once and spelled once for both entity
+    /// kinds.
+    fn entity_resolution(&self, name: &StableName) -> Option<Box<Resolution>> {
+        self.landed_pair()
+            .map(|(doc, eval)| Box::new(resolve(RunCtx { doc, eval }, name)))
     }
 
     /// The most recent evaluation that answered the current document.
@@ -894,6 +1760,22 @@ impl DocSession {
     /// document, and before anything lands.
     pub fn at_rest(&self) -> Option<&AtRestBadge> {
         self.landed_at_rest.as_ref()
+    }
+
+    /// The last locally-valid-range probe, with the field it was taken
+    /// for. `None` before any probe, and after every document change
+    /// (`request_eval`'s discard).
+    pub fn bounds(&self) -> Option<&(BoundsTarget, bounds::Bounds)> {
+        self.bounds.as_ref()
+    }
+
+    /// The advisory-check report for the landed pair — findings in
+    /// deterministic order, and the residents that were configured
+    /// `Off`. `None` before anything lands, or when the registry
+    /// refused (which is distinct from an empty report: "not checked"
+    /// and "checked and fine" are different answers).
+    pub fn checks(&self) -> Option<&ChecksReport> {
+        self.landed_checks.as_ref()
     }
 
     /// The file this session is backed by, if any.
@@ -994,6 +1876,18 @@ impl DocSession {
         }
     }
 
+    /// The property rows as the panel LAYS THEM OUT — [`Self::slot_rows`]
+    /// folded so that the three components of a 3-vector arrive as one
+    /// group (`props::group_rows`).
+    ///
+    /// A second door rather than a replacement because the two answer
+    /// different questions: a test asserting what a node's slots are
+    /// wants the flat list, and a panel deciding how many lines to draw
+    /// wants this. Both are the same rows — the grouping only bundles.
+    pub fn slot_groups(&self) -> Vec<props::SlotGroup> {
+        props::group_rows(self.slot_rows())
+    }
+
     /// Take whatever the seam has finished, discarding results for
     /// documents the session has moved past.
     ///
@@ -1040,6 +1934,20 @@ impl DocSession {
         // the same reason: nowhere else can it run exactly once per
         // result that becomes the session's.
         self.landed_at_rest = at_rest_of(self.requested_doc.as_ref(), &done.evaluation, self.tol);
+        // The advisory registry, same spot and same reason. It REPORTS
+        // — a document with findings still draws, which is the whole
+        // point of running it on the draw path: a product whose roots
+        // interpenetrate renders a picture that looks almost right,
+        // and the finding is the only thing that says otherwise.
+        // A refusal of the registry itself leaves no report rather
+        // than a clean one: "not checked" is not "checked and fine".
+        self.landed_checks = run_checks(
+            self.requested_doc.as_ref(),
+            &done.evaluation,
+            &ChecksConfig::default(),
+            self.tol,
+        )
+        .ok();
         self.landed = Some(done.evaluation);
         self.landed_doc = Some(Arc::clone(&self.requested_doc));
         Landing::Landed
@@ -1060,9 +1968,11 @@ impl DocSession {
                 if self.gesture.is_some() {
                     return OpOutcome::refused(Refusal::GestureInFlight);
                 }
-                self.commit(DocEdit::DeleteNode { id: node })
+                self.delete_node(node)
             }
             SessionOp::SetSlot { node, slot, value } => self.set_slot(node, slot, value),
+            SessionOp::ProbeBounds { target } => self.probe_bounds(target),
+            SessionOp::SetSlotUnit { node, slot, unit } => self.set_slot_unit(node, slot, unit),
             SessionOp::SetSlotExpression { node, slot, text } => {
                 self.set_slot_expression(node, slot, &text)
             }
@@ -1144,7 +2054,99 @@ impl DocSession {
                     },
                 })
             }
+            SessionOp::NewDocument { name } => self.new_document(&name),
+            SessionOp::AddDatum { datum } => self.add_datum(datum),
+            SessionOp::AddProfile { plane, loops } => self.add_profile(plane, loops),
+            SessionOp::AddExtrude { profile, distance } => self.add_extrude(profile, distance),
+            SessionOp::AddRevolve {
+                profile,
+                axis,
+                angle,
+            } => self.add_revolve(profile, axis, angle),
+            SessionOp::AddBoolean { op, a, b } => self.add_boolean(op, a, b),
+            SessionOp::AddSplit { target, tool } => self.add_split(target, tool),
+            SessionOp::AddTransform {
+                input,
+                translation,
+                rotation_axis,
+                rotation_angle,
+            } => self.add_transform(input, translation, rotation_axis, rotation_angle),
+            SessionOp::AddPattern { input, count, rule } => self.add_pattern(input, count, rule),
+            SessionOp::AddFillet {
+                target,
+                radius,
+                selection,
+            } => self.add_blend(target, radius, selection, BlendKindChoice::Fillet),
+            SessionOp::AddChamfer {
+                target,
+                distance,
+                selection,
+            } => self.add_blend(target, distance, selection, BlendKindChoice::Chamfer),
+            SessionOp::AddInstance { id } => {
+                if self.gesture.is_some() {
+                    return OpOutcome::refused(Refusal::GestureInFlight);
+                }
+                self.add_instance(id)
+            }
         }
+    }
+
+    /// The documents the open document's own directory offers as
+    /// parts — the `Add part…` chooser's listing, as a value.
+    ///
+    /// # Errors
+    ///
+    /// [`Refusal::NoDocumentDirectory`] for a session with no backing
+    /// file (there is no store to list), and [`Refusal::Workspace`]
+    /// carrying the scan's own refusal — which is where a duplicate id
+    /// or an unreadable sibling surfaces, at the chooser rather than
+    /// at a tree badge, since no node exists yet to badge.
+    pub fn part_catalogue(&self) -> Result<Vec<parts::PartEntry>, Refusal> {
+        let resolver = self
+            .resolver
+            .as_deref()
+            .ok_or(Refusal::NoDocumentDirectory)?;
+        parts::catalogue(resolver, self.committed_doc().id())
+            .map_err(|error| Refusal::Workspace(Box::new(error)))
+    }
+
+    /// Insert an instance of the part `id` names, minting its
+    /// reference through the store: identity as asked for, version
+    /// from the directory's content NOW.
+    ///
+    /// The store is reached through the resolver, which is the
+    /// directory rule's home ([`DirResolver::workspace`]) — the same
+    /// object every resolution consults, so the door a reference is
+    /// authored through and the door it is later resolved through
+    /// cannot come apart.
+    ///
+    /// The pin read is a full load of the referenced file (the store's
+    /// own door), so a part that does not load refuses HERE — before a
+    /// node exists — rather than as an unresolvable instance the user
+    /// then has to delete.
+    ///
+    /// **Identity is checked before the directory**, deliberately: a
+    /// document is its own document wherever its file lives, so the
+    /// self-instance refusal is the one that survives saving, and
+    /// naming the recoverable problem first would send a user off to
+    /// save for nothing.
+    fn add_instance(&mut self, id: DocumentId) -> OpOutcome {
+        if let Some(refusal) = Refusal::self_instance(self.committed_doc().id(), id) {
+            return OpOutcome::refused(refusal);
+        }
+        let Some(resolver) = self.resolver.as_deref() else {
+            return OpOutcome::refused(Refusal::NoDocumentDirectory);
+        };
+        let pin = match resolver
+            .workspace()
+            .and_then(|ws| ws.current_pin(id, self.tol))
+        {
+            Ok(pin) => pin,
+            Err(error) => return OpOutcome::refused(Refusal::Workspace(Box::new(error))),
+        };
+        self.commit(DocEdit::InsertNode {
+            node: Node::instantiate_part(DocRef { id, pin }),
+        })
     }
 
     /// The slot's driver and current value, or the refusal that says
@@ -1182,9 +2184,164 @@ impl DocSession {
         if let Err(refusal) = self.guard_driven(node, slot) {
             return OpOutcome::refused(refusal);
         }
-        match props::slot_edit(node, slot, value) {
+        let unit = props::slot_unit(self.committed_doc(), node, slot);
+        match props::slot_edit(node, slot, value, unit) {
             Ok(edit) => self.commit(edit),
             Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
+        }
+    }
+
+    /// Run one locally-valid-range probe, inline.
+    ///
+    /// The oracle is the whole of what "valid" means here: apply the
+    /// candidate value to the shown document, evaluate, and ask whether
+    /// the failing set grew ([`bounds::Verdict::no_worse_than`]). An
+    /// edit the door itself REFUSES — a profile program that stops
+    /// being a legal walk, a non-finite literal — counts as invalid
+    /// without an evaluation, which is the same answer for the same
+    /// reason: at that value the document does not stand.
+    ///
+    /// Every sample runs against the landed evaluation as its memo, so
+    /// it re-runs the edited node's downstream cone rather than the
+    /// whole recipe.
+    fn probe_bounds(&mut self, target: BoundsTarget) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        let base = self.doc().clone();
+        let (origin, seed, integral) = match self.probe_scale(&target) {
+            Ok(scale) => scale,
+            Err(refusal) => return OpOutcome::refused(refusal),
+        };
+        let tol = self.tol;
+        let prior = self.landed.clone();
+        let resolver = self
+            .resolver
+            .as_ref()
+            .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>);
+        // The baseline is taken at the value the field HAS, from the
+        // same oracle every sample goes through — so "no worse than the
+        // baseline" compares two runs of one function rather than a run
+        // against the landed evaluation, which may have been taken at a
+        // different memo state.
+        let baseline = bounds::Verdict::of(&evaluate_with(&base, prior.as_deref(), &resolver, tol));
+        let result = bounds::probe(
+            bounds::BoundsProbe::new(origin, seed, integral),
+            |candidate| {
+                let Some(edit) = Self::probe_edit(&base, &target, candidate) else {
+                    return false;
+                };
+                match apply(&base, &edit, tol) {
+                    Ok(applied) => {
+                        let eval = evaluate_with(&applied.doc, prior.as_deref(), &resolver, tol);
+                        bounds::Verdict::of(&eval).no_worse_than(&baseline)
+                    }
+                    // The edit door refused: at this value there is no
+                    // document to evaluate, which is as invalid as a
+                    // value gets.
+                    Err(_) => false,
+                }
+            },
+        );
+        self.bounds = Some((target, result));
+        OpOutcome::default()
+    }
+
+    /// The probe's three inputs, read off the field: where it is now,
+    /// the step to search by, and whether its answer is an integer.
+    ///
+    /// The seed is ONE of whatever unit the field is written in — one
+    /// millimetre for a slot written in millimetres, one radian for one
+    /// written canonically, 1 for a count or a bare scalar. That is the
+    /// scale a user thinks in, which is the scale a range should be
+    /// searched and reported at.
+    fn probe_scale(&self, target: &BoundsTarget) -> Result<(f64, f64, bool), Refusal> {
+        match target {
+            BoundsTarget::Slot { node, slot } => {
+                let rows = props::slot_rows(self.doc(), *node);
+                // One refusal for both misses — the node does not carry
+                // the slot, and the slot carries no readable value —
+                // because a probe needs a place to search FROM and
+                // neither case gives it one.
+                let found = rows
+                    .into_iter()
+                    .find(|row| row.slot == *slot)
+                    .and_then(|row| Some((row.value.ok()?, row.dimension, row.unit)));
+                let Some((value, dimension, remembered)) = found else {
+                    return Err(Refusal::NoSuchSlot {
+                        node: *node,
+                        slot: *slot,
+                    });
+                };
+                let value = value.as_f64();
+                // One of whatever unit the field is written in —
+                // through `rendering_unit`, so a computed slot's step
+                // is the same unit the panel shows it in rather than a
+                // second answer to the same question.
+                let step = props::rendering_unit(dimension, remembered)
+                    .map_or(1.0, |unit| props::from_written(1.0, unit));
+                Ok((value, step, dimension == Dimension::Count))
+            }
+            BoundsTarget::Param { name } => {
+                let Some(param) = self.committed_doc().params().get(name) else {
+                    return Err(Refusal::NoSuchParam(name.clone()));
+                };
+                let value = match param {
+                    DocParam::Continuous { value, .. } => *value,
+                    DocParam::Count { value } => *value as f64,
+                };
+                // A parameter stores no display unit (`props`' module
+                // docs name the asymmetry), so its seed is one CANONICAL
+                // unit.
+                Ok((value, 1.0, param.dim() == Dimension::Count))
+            }
+        }
+    }
+
+    /// The edit that puts `value` into the probed field, or `None` when
+    /// the value cannot be expressed there at all.
+    fn probe_edit(
+        doc: &Doc<ProfileProgram>,
+        target: &BoundsTarget,
+        value: f64,
+    ) -> Option<DocEdit<ProfileProgram>> {
+        match target {
+            BoundsTarget::Slot { node, slot } => props::slot_edit(
+                *node,
+                *slot,
+                SlotValue::of(slot.dimension(), value),
+                props::slot_unit(doc, *node, *slot),
+            )
+            .ok(),
+            BoundsTarget::Param { name } => {
+                // The dimension is read off the DECLARATION only to
+                // decide which `SlotValue` arm the sample becomes; the
+                // edit itself carries a value and nothing else, so a
+                // probe cannot disturb the parameter's declaration
+                // (`props::param_edit`'s door).
+                let dimension = doc.params().get(name)?.dim();
+                Some(props::param_edit(
+                    name.clone(),
+                    SlotValue::of(dimension, value),
+                ))
+            }
+        }
+    }
+
+    /// Rewrite a slot literal's display unit — the value stays put.
+    ///
+    /// No `guard_driven` here, and deliberately: the driven refusal
+    /// protects a computed slot from being overwritten with a NUMBER,
+    /// and this op writes no number. What a driven slot refuses is the
+    /// narrower `SlotUnitFault::NotALiteral` the panel model raises —
+    /// an expression has no authored notation to change.
+    fn set_slot_unit(&mut self, node: RecipeNodeId, slot: SlotId, unit: UnitDef) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        match props::slot_unit_edit(self.committed_doc(), node, slot, unit) {
+            Ok(edit) => self.commit(edit),
+            Err(fault) => OpOutcome::refused(Refusal::SlotUnit(fault)),
         }
     }
 
@@ -1220,10 +2377,10 @@ impl DocSession {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
-        let Some(dimension) = self.committed_doc().params().get(name).map(|p| p.dim()) else {
+        if !self.committed_doc().params().contains_key(name) {
             return OpOutcome::refused(Refusal::NoSuchParam(name.clone()));
-        };
-        self.commit(props::param_edit(name.clone(), dimension, value))
+        }
+        self.commit(props::param_edit(name.clone(), value))
     }
 
     /// The create door: refuse an already-declared name typed, commit
@@ -1249,7 +2406,8 @@ impl DocSession {
         if let Err(refusal) = self.guard_driven(node, slot) {
             return OpOutcome::refused(refusal);
         }
-        self.start(GestureTarget::Slot { node, slot })
+        let unit = props::slot_unit(self.committed_doc(), node, slot);
+        self.start(GestureTarget::Slot { node, slot, unit })
     }
 
     fn begin_param_gesture(&mut self, name: &ParamName) -> OpOutcome {
@@ -1351,7 +2509,14 @@ impl DocSession {
         }
     }
 
+    /// Refused mid-gesture, the same policy as [`SessionOp::NewDocument`]:
+    /// both replace the document a drag is previewing against, and a
+    /// gesture silently dissolved under the pointer is the kind of
+    /// half-acted state the gesture guard exists to refuse.
     fn open(&mut self, path: &Path) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
         match docio::open(path, self.tol) {
             Ok(history) => {
                 // The directory rule: the resolver is the opened
@@ -1361,7 +2526,6 @@ impl DocSession {
                 self.history = history;
                 self.selection = Selection::None;
                 self.hover = None;
-                self.gesture = None;
                 // The landed run answered the PREVIOUS document. Left
                 // in place it would render the old model's tree and
                 // resolve the new document's names against it until
@@ -1370,6 +2534,7 @@ impl DocSession {
                 self.landed_doc = None;
                 self.landed_fault = None;
                 self.landed_at_rest = None;
+                self.landed_checks = None;
                 self.landed_generation = None;
                 self.scratch = None;
                 self.path = Some(path.to_path_buf());
@@ -1405,30 +2570,325 @@ impl DocSession {
         }
     }
 
+    /// Replace the session with a fresh empty document — the
+    /// [`SessionOp::NewDocument`] semantics (see that arm's docs for
+    /// the identity ruling and what is cleared).
+    ///
+    /// The same clearing walk as [`DocSession::open`], with the two
+    /// file-shaped fields going the other way: no path and no
+    /// resolver, because nothing backs this document until it is
+    /// saved.
+    fn new_document(&mut self, name: &str) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        let name = name.trim();
+        if name.is_empty() {
+            return OpOutcome::refused(Refusal::EmptyName);
+        }
+        self.history = History::new(Doc::empty_derived(name, self.tol));
+        self.selection = Selection::None;
+        self.hover = None;
+        self.landed = None;
+        self.landed_doc = None;
+        self.landed_fault = None;
+        self.landed_at_rest = None;
+        self.landed_checks = None;
+        self.landed_generation = None;
+        self.scratch = None;
+        self.path = None;
+        self.resolver = None;
+        self.display.clear();
+        self.request_eval();
+        OpOutcome::default()
+    }
+
+    /// Insert one datum node with literal slots
+    /// ([`SessionOp::AddDatum`]).
+    fn add_datum(&mut self, datum: DatumSpec) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        self.commit(DocEdit::InsertNode {
+            node: datum_node(datum),
+        })
+    }
+
+    /// Insert one profile node ([`SessionOp::AddProfile`]).
+    ///
+    /// No loop-count or nesting judgment here: an empty list, a
+    /// degenerate loop and a non-nested pair all go to `commit`, where
+    /// the edit door's authoring-time check refuses them typed in the
+    /// profile layer's own words — the one rule authored and
+    /// hand-written programs share.
+    fn add_profile(&mut self, plane: SketchPlane<f64>, loops: Vec<LoopProgram>) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        self.commit(DocEdit::InsertNode {
+            node: Node::Profile(ProfileProgram { plane, loops }),
+        })
+    }
+
+    /// Insert one extrude of an existing profile
+    /// ([`SessionOp::AddExtrude`]).
+    fn add_extrude(&mut self, profile: RecipeNodeId, distance: Expr) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
+            return OpOutcome::refused(refusal);
+        }
+        self.commit(DocEdit::InsertNode {
+            node: Node::Extrude { profile, distance },
+        })
+    }
+
+    /// Insert one revolve of an existing profile about an existing
+    /// axis datum ([`SessionOp::AddRevolve`]).
+    fn add_revolve(&mut self, profile: RecipeNodeId, axis: RecipeNodeId, angle: Expr) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
+            return OpOutcome::refused(refusal);
+        }
+        if let Err(refusal) = self.require_kind(axis, NodeKindWanted::Axis) {
+            return OpOutcome::refused(refusal);
+        }
+        self.commit(DocEdit::InsertNode {
+            node: Node::Revolve {
+                profile,
+                axis,
+                angle,
+            },
+        })
+    }
+
+    /// Insert one regularized boolean of two existing bodies
+    /// ([`SessionOp::AddBoolean`]).
+    fn add_boolean(&mut self, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        for seat in [a, b] {
+            if let Err(refusal) = self.require_kind(seat, NodeKindWanted::Body) {
+                return OpOutcome::refused(refusal);
+            }
+        }
+        // AFTER the kind gate, so a self-boolean of two profiles is
+        // reported as "that is not a body" — the fact the user can act
+        // on — rather than as the narrower complaint about the pair.
+        if a == b {
+            return OpOutcome::refused(Refusal::SelfBoolean { node: a });
+        }
+        self.commit(DocEdit::InsertNode {
+            node: Node::Boolean {
+                op,
+                a,
+                b,
+                declare: None,
+            },
+        })
+    }
+
+    /// Insert one split of an existing body by an existing datum plane
+    /// ([`SessionOp::AddSplit`]).
+    fn add_split(&mut self, target: RecipeNodeId, tool: RecipeNodeId) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        if let Err(refusal) = self.require_kind(target, NodeKindWanted::Body) {
+            return OpOutcome::refused(refusal);
+        }
+        if let Err(refusal) = self.require_kind(tool, NodeKindWanted::Plane) {
+            return OpOutcome::refused(refusal);
+        }
+        self.commit(DocEdit::InsertNode {
+            node: Node::Split { target, tool },
+        })
+    }
+
+    /// Insert one rigid placement of an existing body
+    /// ([`SessionOp::AddTransform`]).
+    fn add_transform(
+        &mut self,
+        input: RecipeNodeId,
+        translation: [Expr; 3],
+        rotation_axis: [Expr; 3],
+        rotation_angle: Expr,
+    ) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
+            return OpOutcome::refused(refusal);
+        }
+        self.commit(DocEdit::InsertNode {
+            node: combine::transform_node(input, translation, rotation_axis, rotation_angle),
+        })
+    }
+
+    /// Insert one pattern of an existing body
+    /// ([`SessionOp::AddPattern`]).
+    fn add_pattern(&mut self, input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
+            return OpOutcome::refused(refusal);
+        }
+        if let PatternRuleSpec::Circular { axis, .. } = rule
+            && let Err(refusal) = self.require_kind(axis, NodeKindWanted::Axis)
+        {
+            return OpOutcome::refused(refusal);
+        }
+        self.commit(DocEdit::InsertNode {
+            node: combine::pattern_node(input, count, rule),
+        })
+    }
+
+    /// Insert one blend — fillet or chamfer — on a set of an existing
+    /// body's edges ([`SessionOp::AddFillet`],
+    /// [`SessionOp::AddChamfer`]).
+    ///
+    /// **One function for the two ops**, because everything a door
+    /// does is the same for both: the same gesture guard, the same
+    /// body seat, the same Length literal, the same commit. What
+    /// differs is which node is minted and which slot the size lands
+    /// in, and that difference is `kind`'s alone — spelled once in the
+    /// match below, where a reader can see the two side by side
+    /// instead of comparing two near-identical functions for the line
+    /// that is not the same.
+    fn add_blend(
+        &mut self,
+        target: RecipeNodeId,
+        size: Expr,
+        selection: Vec<StableName>,
+        kind: BlendKindChoice,
+    ) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        if let Err(refusal) = self.require_kind(target, NodeKindWanted::Body) {
+            return OpOutcome::refused(refusal);
+        }
+        // The CANONICALIZING constructors, never the struct literals:
+        // canonical form is what makes two recipes over the same edges
+        // bit-identical, and `persist`'s strict door treats a
+        // non-canonical set on the wire as a corrupt file.
+        let node = match kind {
+            BlendKindChoice::Fillet => Node::fillet(target, size, selection),
+            BlendKindChoice::Chamfer => Node::chamfer(target, size, selection),
+        };
+        self.commit(DocEdit::InsertNode { node })
+    }
+
+    /// The node-kind gate every creation seat shares: the named node
+    /// must be the wanted kind in the committed document — absent and
+    /// wrong-kind refuse the same arm, because both mean "there is
+    /// nothing of that kind there to consume".
+    fn require_kind(&self, node: RecipeNodeId, wanted: NodeKindWanted) -> Result<(), Refusal> {
+        if admits(self.committed_doc().node(node), wanted) {
+            Ok(())
+        } else {
+            Err(Refusal::WrongNodeKind { node, wanted })
+        }
+    }
+
     /// **The one door an edit enters the document through**: apply,
     /// record, re-evaluate — and reconcile the display state, which is
     /// where a free-move probe is superseded by the mate that
     /// constrains its instance (the prune DISCARDS the value; see
     /// `display`'s module docs for why discard and not zero).
     fn commit(&mut self, edit: DocEdit<ProfileProgram>) -> OpOutcome {
-        match apply(self.history.doc(), &edit, self.tol) {
-            Ok(applied) => {
-                self.history.commit(edit.clone(), applied.doc);
-                let superseded = self.display.prune(self.history.doc());
-                self.request_eval();
-                OpOutcome {
-                    committed: vec![edit],
-                    superseded,
-                    ..OpOutcome::default()
-                }
+        self.commit_action(vec![edit])
+    }
+
+    /// **Delete a feature and everything downstream of it**, as one
+    /// action and therefore one undo.
+    ///
+    /// A recipe node that anything consumes cannot leave the document
+    /// alone — `DocEdit::DeleteNode` refuses a delete that would
+    /// dangle a live reference, and in a chain-shaped model (a boolean
+    /// per feature) that is every node but the last. The whole
+    /// dependent cone therefore goes, consumers first, which is the
+    /// order [`cascade_delete_order`] hands back and the order the
+    /// door accepts.
+    ///
+    /// **The cone, not the chain's remainder**: nodes whose only tie
+    /// to the target is that they fed it survive as roots of their own,
+    /// so deleting one pip's boolean out of a die leaves that pip's
+    /// body in the document, unconsumed. Reconnecting a deleted node's
+    /// consumers to its input instead — splice, the CAD-conventional
+    /// delete — needs an edit that rewires a live node's inputs, which
+    /// this vocabulary does not have; it is open as issue #1324.
+    ///
+    /// An id the document does not hold takes the single-edit path so
+    /// the typed refusal comes from the door rather than from here.
+    fn delete_node(&mut self, node: RecipeNodeId) -> OpOutcome {
+        let doomed = cascade_delete_order(self.committed_doc(), node);
+        if doomed.is_empty() {
+            return self.commit(DocEdit::DeleteNode { id: node });
+        }
+        self.commit_action(
+            doomed
+                .into_iter()
+                .map(|id| DocEdit::DeleteNode { id })
+                .collect(),
+        )
+    }
+
+    /// The same door for an action that takes SEVERAL edits: apply
+    /// them in order, and record the whole run as one history state,
+    /// so one user action is one undo.
+    ///
+    /// **All or nothing**: each edit is applied to the value the last
+    /// one produced and nothing is recorded until every one has
+    /// succeeded, so a refusal anywhere leaves the session on the
+    /// document it started from. That is purity doing the work — no
+    /// rollback exists to be got wrong.
+    fn commit_action(&mut self, edits: Vec<DocEdit<ProfileProgram>>) -> OpOutcome {
+        // Threaded rather than cloned up front: the first `apply`
+        // reads the history's value in place, and each later one reads
+        // its predecessor's output, so a group of one costs exactly
+        // what a single commit always cost.
+        assert!(!edits.is_empty(), "an action commits at least one edit");
+        let mut produced: Option<Doc<ProfileProgram>> = None;
+        for edit in &edits {
+            let attempt = {
+                let base = produced.as_ref().unwrap_or_else(|| self.history.doc());
+                apply(base, edit, self.tol)
+            };
+            match attempt {
+                Ok(applied) => produced = Some(applied.doc),
+                Err(error) => return OpOutcome::refused(Refusal::Edit(Box::new(error))),
             }
-            Err(error) => OpOutcome::refused(Refusal::Edit(Box::new(error))),
+        }
+        let Some(doc) = produced else {
+            unreachable!("the loop applied at least one edit and kept its output")
+        };
+        self.history.commit_group(edits.clone(), doc);
+        let superseded = self.display.prune(self.history.doc());
+        self.request_eval();
+        OpOutcome {
+            committed: edits,
+            superseded,
+            ..OpOutcome::default()
         }
     }
 
     /// **The one submit**: mint the next generation and hand the shown
     /// document to the seam.
     fn request_eval(&mut self) {
+        // **Every route that changes the shown document passes here**,
+        // which is why the range probe is discarded here and nowhere
+        // else: a commit, a gesture preview, an undo, an open. The one
+        // caller that does not change the document is `Reevaluate`, and
+        // discarding for it too is the conservative direction — a range
+        // recomputed on request costs a button press, a stale one costs
+        // a wrong decision.
+        self.bounds = None;
         self.generation = self.generation.next();
         // ONE clone of the shown document per request: into the
         // `Arc` the session keeps, then out of it into the request the
@@ -1446,6 +2906,49 @@ impl DocSession {
                 .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>),
         });
     }
+}
+
+/// Lower one datum spec to its node.
+///
+/// Total, for [`combine::pattern_node`]'s reason: the components arrive
+/// as `Expr`s that were checked at their own construction, and whether
+/// each suits the slot it lands in is the edit door's question.
+fn datum_node(spec: DatumSpec) -> Node<ProfileProgram> {
+    Node::Datum(match spec {
+        DatumSpec::Plane { origin, normal } => Datum::Plane { origin, normal },
+        DatumSpec::Axis { origin, direction } => Datum::Axis { origin, direction },
+        DatumSpec::Point { position } => Datum::Point { position },
+        DatumSpec::Frame { origin, u, v } => Datum::Frame { origin, u, v },
+    })
+}
+
+/// One evaluation of one document, outside the seam.
+///
+/// **The seam is for the PICTURE**; this is for a question asked about
+/// a document nobody is going to look at (a range probe's candidate).
+/// Routing it through the seam would cancel the run the viewport is
+/// waiting for — the seam's ruled cancel-and-restart policy — which is
+/// exactly the wrong trade for a query the user asked for BESIDE the
+/// picture rather than instead of it.
+///
+/// A fresh `CancelToken` per call, never set: these runs are bounded by
+/// the probe's sample cap, and nothing exists to cancel them from.
+fn evaluate_with(
+    doc: &Doc<ProfileProgram>,
+    prior: Option<&Evaluation<f64>>,
+    resolver: &Option<Arc<dyn PartResolver>>,
+    tol: Tol,
+) -> Evaluation<f64> {
+    evaluate(
+        doc,
+        prior,
+        &CancelToken::new(),
+        &EvalOptions {
+            resolver: resolver.clone(),
+            ..EvalOptions::default()
+        },
+        tol,
+    )
 }
 
 /// The at-rest verdict for one landed pair, taken only for

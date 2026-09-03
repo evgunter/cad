@@ -86,9 +86,11 @@
 //! **Every blade section here is straight lines, and that is
 //! OUTSTANDING WORK rather than a constraint.** Giving the blades
 //! their lanceolate arcs back is a real follow-up, not a settled
-//! choice — and it wants checking against the QUADRATURE half of the
-//! rational bank, which is not retired (`QuadratureUnsupported` keeps
-//! its own pins, and this stop prints an exact volume for every body).
+//! choice, and nothing in the kernel stands in its way any more: the
+//! rational wall an arc-margined blade skins converges through the
+//! interior knots its swept spine puts there, and a blade of this
+//! stop's proportions prints an exact volume like every other body
+//! here.
 //!
 //! Proportions are chosen, not measured: a stylized lily that the
 //! kernel can state exactly beats a literal one it must approximate.
@@ -126,7 +128,7 @@ use pncad::profile::{ArcSweep, Center, ProfileLoop, ProfileVertex, SketchPlane, 
 // The named gap below (`section_loops`): the raw loop door is kernel
 // vocabulary, off the façade, so the one scene that needs it names the
 // kernel crate directly.
-use pncad::sweep::fillet::FilletError;
+use pncad::sweep::blend::BlendError;
 use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
     revolve, revolved_caps, sweep_body, tube_along_arc,
@@ -411,10 +413,13 @@ fn lantern<S: Scalar>(
 /// stem's diameter, threaded on the stem's foot. Its two planar caps
 /// are ANNULI, which is load-bearing and not a styling choice: a full
 /// revolve whose planar cap TOUCHES THE AXIS arrives as two half-faces
-/// on one plane key, and that is the F7 maximal-faces defect — such a
-/// body can never be a boolean operand, and `merge_coplanar_faces`
-/// cannot repair it either (probe 13). An annular cap revolves to ONE
-/// whole face and has no such defect.
+/// on one plane key, and that used to be the F7 maximal-faces defect
+/// with no way out. It is repairable now: the cap's two seam edges are
+/// the halves of the disc's diameter, so the pole is a vertex interior
+/// to one straight carrier, and `merge_coplanar_faces` removes the
+/// seam (`kef` then `kev`) leaving ONE face. An annular cap still
+/// sidesteps the question rather than answering it — it revolves to
+/// one whole face and has no such pair to repair.
 ///
 /// Sketch frame: origin on the corm's top plane, `v` pointing DOWN
 /// into the corm, so `t` is depth. Same axis convention as
@@ -749,11 +754,13 @@ const SEPAL_STATIONS: usize = 13;
 ///
 /// **Restoring the lanceolate arcs is outstanding work on this
 /// stop** — the kite is what the blade was given, not a limit of the
-/// vocabulary — with one thing to check first: the span meter's half
-/// of the rational bank is retired and the QUADRATURE half is not,
-/// and every body in this stop prints an exact volume, so an
-/// arc-walled blade may meet `QuadratureUnsupported` where the kite
-/// does not.
+/// vocabulary — and the quadrature that used to stand in its way no
+/// longer does. The blade this stop would draw has been built and
+/// measured: a crescent section on this spine, at [`LEAF_STATIONS`]
+/// stations and [`LEAF_V_DEGREE`], certifies an exact volume like
+/// every other body here. That measurement is a standing row, not a
+/// claim — `sweep`'s `cert5_offgrid_knot_rational::the_lily_crescent_
+/// blade_certifies` rebuilds exactly this geometry and re-takes it.
 ///
 /// Nothing here approximates a curve with a chord, meanwhile: a kite
 /// is exactly a kite.
@@ -864,29 +871,56 @@ impl Section {
         let ridge = (0.0, self.ridge);
         let left = (-0.5 * self.width, 0.0);
         let keel = (0.0, -self.keel);
-        // NAMED GAP (LIB-RETTAIL, 2026-08-12) — the one place in the tour
-        // the presented surface cannot say what the demo means, recorded
-        // rather than worked around (main.rs's purpose block).
+        // NAMED GAP — the one place in the tour the presented surface
+        // cannot say what the demo means, recorded rather than worked
+        // around (main.rs's purpose block). Both halves the ruling
+        // named are closed; what is left is a third thing, and it is
+        // about THIS SECTION FAMILY rather than about the lattice.
         //
-        // At `shoulder = 0` the shoulder IS the midpoint of two tips, so
-        // three consecutive vertices are EXACTLY collinear — deliberately,
-        // because a loft matches segment j to segment j and the 4-tip and
-        // 8-corner sections must be spelled on one vertex budget. The PATHS
-        // lattice refuses that junction at authoring
-        // (`JunctionTangent { margin: 0.0 }`), while `Profile::validate`
-        // ACCEPTS it: collinear line/line is carrier IDENTITY, legal
-        // undeclared (`ProfileLoop::tangent_joints`' normative semantics).
-        // So the two junction rules disagree on same-carrier continuation,
-        // and the lattice is the stricter one — a library finding, not a
-        // demo defect. Until the lattice gains a same-carrier continuation
-        // verb (vocabulary, out of this unit's fence), the PRESENTED
-        // surface has no spelling for this loop at all: `ProfileLoop`'s
-        // fields are sealed, so the only route left is the kernel's raw
-        // door, `profile::RawLoop`, which `pncad::profile` deliberately
+        // This outline is FOUR corners said on EIGHT vertices, because a
+        // loft matches segment j to segment j and the tip and attachment
+        // sections must be spelled on one vertex budget. So one junction
+        // per side is a straight run subdivided, at both ends of the
+        // shoulder parameter: at `shoulder = 0` each shoulder is the
+        // midpoint of two tips (the kite), and at `shoulder = 1` each tip
+        // lies ON the rectangle edge its two neighbouring corners span —
+        // collinear with them, though only the ridge and keel tips are
+        // that edge's midpoint (the margins sit at y = 0 on an edge
+        // spanning [-keel, ridge], and no section here has keel = ridge).
+        // Only the eased sections in between turn at every vertex.
+        //
+        // CLOSED: those junctions are carrier IDENTITY, legal
+        // undeclared, and the lattice spells them — `line(len)` off a
+        // directed point for an interior subdivision, `continue_to(p)`
+        // where the subdivision lands on a named point, and
+        // `continue_to(Start)` for a run that crosses the seam. A
+        // single section of this family authors end to end today.
+        //
+        // OPEN, and measured (`bool8_r1_probes`): the closer needs the
+        // seam cut at a CORNER, and this family's corners MOVE. In the
+        // kite the corners are the tips, so the sections whose seam is
+        // a tip author — starts 0, 2, 4, 6 of the ring below. In the
+        // rectangle the corners are the shoulders, so those sections
+        // want starts 1, 3, 5, 7. The two sets are disjoint, and not by
+        // accident: the kite's corner set IS its tips and the
+        // rectangle's IS its shoulders, which are disjoint points of
+        // the outline whatever budget is spent on it. A loft matches
+        // segment j of every section to segment j of every other, so
+        // every section here must be authored at ONE rotation — and
+        // `leaf_a_plan` carries a `shoulder = 1` base AND a
+        // `shoulder = 0` belly, so no rotation gives all of them a
+        // corner at the seam. The section that misses out closes on a
+        // subdivision vertex, which is a mid-carrier seam: PATHS §6
+        // PQ4, deliberately left standing by the ruling.
+        //
+        // So this loop is still raw-authored: `ProfileLoop`'s fields
+        // are sealed, and the only route left is the kernel's raw door,
+        // `profile::RawLoop`, which `pncad::profile` deliberately
         // omits. That is why this crate carries a second kernel
-        // dependency — the tour reaches around its own façade here, and
-        // the gap is loud in the dependency graph instead of hidden in a
-        // struct literal.
+        // dependency — the gap stays loud in the dependency graph
+        // instead of hidden in a struct literal. What would close it is
+        // a ruling on whether a DECLARED subdivision vertex is an
+        // admissible seam; the question is put in PATHS §4.
         let v = |(x, y): (f64, f64)| ProfileVertex::new(Point2::new(x, y), 0.0);
         vec![RawLoop::new(vec![
             v(right),
@@ -1920,6 +1954,18 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             .body
     };
     let (stem, arch, lant) = (by("lily_stem"), by("lily_arch"), by("lily_lantern"));
+    // **The authored repair.** #1031's pole half made a full revolve's
+    // axis-touching caps mergeable, so the scene now asks for that
+    // repair rather than working around it: probe 7 subtracts from the
+    // REPAIRED lantern, which is what a user would do the day the door
+    // opened. The un-repaired body stays available above, and probe 13
+    // is the row that pins the door open.
+    let repaired_lantern = {
+        let mut b = lant.clone();
+        b.merge_coplanar_faces(tol)
+            .expect("the lantern's pole-split caps repair (#1031's pole half)");
+        b
+    };
     let arch_caps = pieces
         .iter()
         .find(|p| p.name == "lily_arch")
@@ -1997,15 +2043,17 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    decide only whether the pair can matter. It reads kinds,
     //    never loci — so it cannot see the coincidence.
     //
-    //    **What BINDS is one door further down, and it is not this
-    //    pair's business at all.** The whole sequence is measured by
+    //    **What BINDS is further down, and it is not this pair's
+    //    business at all.** The whole sequence is measured by
     //    `review_probes::the_declared_weld_refuses_exactly_as_the_
-    //    undeclared_one_does` and its sibling: widen the gate and the
-    //    next refusal is `NonMaximalFaces` on this very body — the
-    //    lantern's two axis-touching planar caps, the F7 defect, which
-    //    `merge_coplanar_faces` will not repair. No boolean can take
-    //    the lantern as an operand until **#1031** lands, whatever the
-    //    gate learns about cone x torus. After that comes the curved
+    //    undeclared_one_does` and its sibling. Widen the gate and the
+    //    next refusal is `NonMaximalFaces` on this very body — and it
+    //    still is, because THIS probe passes the UNREPAIRED lantern
+    //    (probe 7 is the one that repairs first). That door is no
+    //    longer a dead end for such a body: `merge_coplanar_faces`
+    //    repairs the pole-split caps. A gate exemption was tried for
+    //    this and WITHDRAWN — the fix is the repair op, not a
+    //    narrowing of `gate_maximal_faces`. After F7 comes the curved
     //    PIERCE arm (wall 12's door), and only after that could a
     //    germ-pair question arise.
     //
@@ -2035,8 +2083,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                 }
             )
         },
-        "join flower to stem — #1031 (the F7 caps) is what unblocks it, \
-         measured, not guessed",
+        "join flower to stem — #1031's pole half is NECESSARY BUT NOT \
+         SUFFICIENT: the measured chain runs gate -> F7 -> the curved \
+         pierce arm, and only the first two are anyone's current unit",
     );
 
     // 3. The lily's leaves DO leave their own plane now — each blade
@@ -2125,16 +2174,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     wall(
         6,
         "roll a ball along the lantern's mouth rim (fillet a curved body)",
-        pncad::sweep::fillet::fillet_edges(
-            lant,
-            &rim,
-            S::from_f64(0.02),
-            pncad::geom_core::Band::linear(tol).expect("band"),
-            tol,
-        ),
+        pncad::sweep::blend::fillet_edges(lant, &rim, S::from_f64(0.02), tol),
         // margin EXACTLY zero is the finding: a co-surface seam
         // meridian, not a near-tangency that a tolerance could split.
-        |e| matches!(e, FilletError::TangentialEdge { margin, .. } if *margin == 0.0),
+        |e| matches!(&e.error, BlendError::TangentialEdge { margin, .. } if *margin == 0.0),
         "soften the tepal-tip rim",
     );
 
@@ -2148,33 +2191,31 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //
     //    The pair-scoped gate ADMITS this cut: the pucker's box
     //    clears the ball's, so no unsupported KIND can enter the
-    //    operation. What refuses is one door later, and it is not a
-    //    germ class: the operand is not maximal-faced
-    //    (`NonMaximalFaces`, the F7 door).
+    //    operation. The F7 door used to answer next; it no longer
+    //    does, because the scene REPAIRS the operand first (below) and
+    //    a repaired lantern is maximal-faced. What answers now is the
+    //    reduction's curved PIERCE arm — wall 12's door — and the
+    //    payload is quoted rather than described, the wall-7 lesson
+    //    about reading a locus off a comment instead of a dump.
     //
-    //    WHICH faces, corrected at M9-5 — this sentence used to name
-    //    the spherical zone's two half-bands on one surface key, and
-    //    that is not the defect. `boolean::reduce`'s
-    //    `gate_maximal_faces` says so in terms: same-key CURVED
-    //    adjacency is the CANONICAL maximal form (a periodic wall
-    //    cannot be one face without its parameterization cut), and
-    //    only the PLANAR same-key pair is the F7 defect. The lantern's
-    //    real defect is its AXIS-TOUCHING PLANAR CAPS: a full revolve
-    //    of a profile that touches the axis emits each such cap as two
-    //    half-faces on one plane key, and that pair is the refusal.
+    //    **#1031's POLE HALF has landed, and this is what it bought.**
+    //    The lantern's two axis-touching caps were each two half-faces
+    //    on one plane key; `merge_coplanar_faces` now repairs both —
+    //    faces 10 to 8, vertices 10 to 8, edges 18 to 14, tier 3
+    //    clean — because each cap's seam is the two halves of the
+    //    disc's DIAMETER, so the pole is a vertex interior to one
+    //    straight carrier and removing it changes no locus. The
+    //    licence is collinearity, not poleness
+    //    (`merge_faces::redundant_subdivision_vertex`). The teapot
+    //    cup's coplanar pair is NOT repaired, and what the dump
+    //    actually shows about it is its VALENCE — endpoints of
+    //    valence 4, so there is no valence-2 junction to license
+    //    anything. Its seam's straightness was never measured and no
+    //    claim is made about it here.
     //
-    //    That makes this wall's blocker a PRECONDITION rather than a
-    //    breadth gap — and the obvious repair does not work either,
-    //    which probe 13 measures: `merge_coplanar_faces` REFUSES on
-    //    those caps (`MergedFaceRoleAmbiguous`), because killing both
-    //    seam struts leaves a loop the winding resolution cannot
-    //    assign a role to. So the precondition is a door-widening or
-    //    an authoring change (the corm avoids the class entirely by
-    //    having ANNULAR caps), not a call the scene forgot to make.
-    //    The open REPAIR question — teach `merge_coplanar_faces` the
-    //    cap pair, or have `revolve` mint maximal caps — is **#1031**;
-    //    the mechanism is `gate_maximal_faces` in
-    //    `crates/topo/src/boolean/reduce.rs`.
+    //    #1031 stays open for its OTHER defect: an ordinary coplanar
+    //    pair at a full-valence edge, measured on that cup's meridian
+    //    plane (endpoints valence 4, no pole).
     //
     //    What is left after that is the breadth half, DEPENDENCY-STATED
     //    like probe 8's: it waits on the verbs/breadth slate,
@@ -2189,11 +2230,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         7,
         "carve a tepal seam into the lantern (sphere x sphere by geometry; the \
          operand's own shape answers first)",
-        pncad::topo::subtract(lant, &ball::<S>((-2.80, 0.90), 0.16, tol), tol),
+        pncad::topo::subtract(&repaired_lantern, &ball::<S>((-2.80, 0.90), 0.16, tol), tol),
         |e| {
             matches!(
                 e,
-                BooleanError::NonMaximalFaces {
+                BooleanError::CurvedPierceUnsupported {
                     operand: Operand::A,
                     ..
                 }
@@ -2269,11 +2310,39 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //     here, face pair by face pair, because the author knows which
     //     wall meets which.
     //
+    //     Face pair by face pair is what the SCOPE of the flush
+    //     detector leaves: `topo::flush::find_flush_candidates` (which
+    //     `crate::booleans::flush_declarations` now runs for every
+    //     planar mate in this file) enumerates over the planar door,
+    //     and this mate has no planar contact anywhere on it. That is
+    //     a limit of the detector, not of the verification the
+    //     declarations below get — `twopeg::seat3_measurements`
+    //     measures the carrier ladder verifying a cylindrical
+    //     cosurface pair, and reporting one as would-verify in its
+    //     detector posture.
+    //
     //     It refuses one door short of the zip, and the door is the
     //     reduction's curved-face arm rather than the declaration
-    //     gate: the corm's own annulus rim circle lies ON the shared
-    //     carrier, decides zero clearance, and takes
-    //     `CurvedPierceUnsupported` before any patch is discovered.
+    //     gate: an edge lying ON the shared carrier decides zero
+    //     clearance and takes `CurvedPierceUnsupported` before any
+    //     patch is discovered.
+    //
+    //     **Which edge is not the claim, and it has moved once.** The
+    //     first measurement here was the corm's own annulus rim
+    //     CIRCLE, on operand A. Since the curved pierce RING lane
+    //     landed, the A-side pairs that used to raise first are
+    //     resolved, and the sweep gets one pair further before the same
+    //     wall stops it: the refusal is now operand B's seam RULING —
+    //     `EdgeKey(4v1)`, a straight chart curve at azimuth 0 on the
+    //     foot's own bore wall — against the corm's bore face
+    //     `FaceKey(3v1)` (`r = 0.06`), both of its endpoints exactly on
+    //     the shared carrier. It reaches the declared-cover rung's
+    //     on-carrier `(Zero, Zero)` arm and refuses there because the
+    //     curved containment door does not place both endpoints. So the
+    //     operand below records which SIDE the sweep reaches first, not
+    //     what the wall is about; a later crossing lane may move it
+    //     again, and that is a measurement to re-take rather than a
+    //     regression. What has not moved is the wall itself.
     //     M9-3 PR-A's rung teaches that arm to consult declarations —
     //     but the two-peg path it was measured on carries a PLANAR
     //     `Rest` at the rim plane as well, and the plant has none to
@@ -2304,14 +2373,16 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "thread the corm onto the stem's foot at their shared cylinder wall \
          (declared cylindrical Rest, no planar contact anywhere on the mate)",
         pncad::topo::union_with(corm_body, foot_body, &bore_decls, tol),
-        // The KIND is the claim: the reduction's curved-face arm, on
-        // operand A, at an edge — NOT the declaration gate, which
-        // admitted the pair, and not a carrier refusal.
+        // The KIND is the claim: the reduction's curved-face arm, at
+        // an edge — NOT the declaration gate, which admitted the pair,
+        // and not a carrier refusal. The operand is pinned too, as the
+        // measurement of which side the sweep reaches first (see the
+        // note above: it moved from A to B when the ring lane landed).
         |e| {
             matches!(
                 e,
                 BooleanError::CurvedPierceUnsupported {
-                    operand: Operand::A,
+                    operand: Operand::B,
                     ..
                 }
             )
@@ -2320,37 +2391,53 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
          claim about what a cylindrical mate needs beside it",
     );
 
-    // 13. The door UNDER probe 7, said out loud and probed on its own.
-    //     A full revolve whose planar cap TOUCHES THE AXIS arrives as
-    //     two half-faces on one plane key — the F7 maximal-faces
-    //     defect (`reduce.rs`'s `gate_maximal_faces`, which says in
-    //     terms that same-key CURVED adjacency is the canonical
-    //     maximal form and only the PLANAR same-key pair is the
-    //     defect) — so no such body can ever be a boolean operand. The
-    //     obvious repair is the merge door, and the merge door refuses
-    //     too: killing both seam struts leaves a loop the winding
-    //     resolution cannot assign a role to, and the op declines to
-    //     guess. The corm avoids the whole class by being authored
-    //     with ANNULAR caps, which is why it is a legal operand at all
-    //     (probe 12 gets one door further than probe 7 does).
+    // 13 — RETIRED, and this is its retirement. It pinned the merge
+    //      door SHUT on a full revolve's axis-touching caps: two
+    //      half-faces on one plane key, which `merge_coplanar_faces`
+    //      refused as `MergedFaceRoleAmbiguous` because its intra-face
+    //      arm minted a ring from the surviving seam strut and the
+    //      winding pass could then find no unique outline.
     //
-    //     The open REPAIR question is **#1031** — whether
-    //     `merge_coplanar_faces` learns the cap pair, or `revolve`
-    //     mints maximal caps. This probe holds the mechanism; the
-    //     issue holds the choice.
-    wall(
-        13,
-        "merge the lantern's seam-split caps so it can be a boolean operand at all",
-        lant.clone().merge_coplanar_faces(tol),
-        |e| {
-            matches!(
-                e,
-                pncad::topo::MergeCoplanarError::MergedFaceRoleAmbiguous { .. }
-            )
-        },
-        "make a revolve with an axis-touching flat cap usable as a boolean \
-         operand, and re-derive probe 7's blocker sentence",
-    );
+    //      #1031's pole half opened it. The strut is not a ring: the
+    //      cap's two seam edges are the two halves of the disc's
+    //      DIAMETER, so the pole is interior to one straight carrier,
+    //      `kev` removes it without changing any locus, and the cap
+    //      comes back as ONE face. The wall's own retire note asked
+    //      for exactly this — "make a revolve with an axis-touching
+    //      flat cap usable as a boolean operand, and re-derive probe
+    //      7's blocker sentence" — and both halves are done: probe 7
+    //      now runs on the repaired body and names the door after.
+    //
+    //      What replaces the wall is the measurement it becomes: the
+    //      repair, asserted on this scene's own lantern.
+    {
+        let mut before = lant.clone();
+        let (f0, v0, e0) = (
+            before.faces().count(),
+            before.vertices().count(),
+            before.edges().count(),
+        );
+        let outcome = before
+            .merge_coplanar_faces(tol)
+            .expect("probe 13 RETIRED: the lantern's caps now merge");
+        println!(
+            "   wall 13 — RETIRED: the lantern's two axis-touching caps MERGE \
+             ({} group(s), {} skipped); faces {f0} -> {}, vertices {v0} -> {}, \
+             edges {e0} -> {}",
+            outcome.groups.len(),
+            outcome.skipped.len(),
+            before.faces().count(),
+            before.vertices().count(),
+            before.edges().count()
+        );
+        assert_eq!(outcome.groups.len(), 2, "both caps repair");
+        assert_eq!(before.faces().count(), f0 - 2, "each cap became ONE face");
+        assert_eq!(
+            before.vertices().count(),
+            v0 - 2,
+            "each pole went with its seam"
+        );
+    }
 
     println!(
         "   (wall 9 — a TAPERING SWEEP — is still an ABSENCE rather than a \
@@ -2682,27 +2769,25 @@ mod review_probes {
         );
     }
 
-    /// **The lantern's F7 defect, named face by face** — the door
-    /// UNDER the operand gate, and the reason the weld's acceptance is
-    /// not this unit's to give.
+    /// **The lantern's two pole-split caps, named face by face** —
+    /// the shape the F7 rule used to call a defect and no longer does.
     ///
-    /// `gate_maximal_faces` refuses an operand carrying a PLANAR
-    /// same-key adjacency. The lantern has two, and this row says
-    /// which: the LIP disk and the THROAT disk, each a full revolve's
-    /// cap that touches the axis and therefore arrives as two
-    /// half-faces on one plane key. The body's curved same-key
-    /// adjacencies (the two cones and the sphere zone) are the
-    /// CANONICAL maximal form and are not defects — this row asserts
-    /// that split, so a change that started treating curved same-key
-    /// pairs as defects would fail here rather than silently.
+    /// The lantern carries two PLANAR same-key adjacencies, the LIP
+    /// disk and the THROAT disk, each a full revolve's cap that
+    /// touches the axis and therefore arrives as two half-faces on one
+    /// plane key. Its CURVED same-key adjacencies (two cones, one
+    /// sphere zone) are the same structure with a different carrier.
+    /// This row asserts the split — four planar half-faces, six curved
+    /// — so a change that stopped telling the two apart fails here
+    /// rather than silently.
     ///
-    /// The repair door is still shut: `merge_coplanar_faces` refuses
-    /// on the re-authored lantern exactly as probe 13 pins it. **#1031
-    /// holds the choice**, and until it lands no boolean can take this
-    /// body as an operand, whatever the operand gate learns about
-    /// cone×torus.
+    /// The MERGE door is now OPEN on exactly this shape: each cap's
+    /// two seam edges are the halves of the disc's diameter, so the
+    /// pole is interior to one straight carrier and
+    /// `merge_coplanar_faces` repairs the pair to ONE face. This row
+    /// pins both halves — the split as it arrives, and the repair.
     #[test]
-    fn the_lanterns_two_axis_touching_caps_are_the_f7_defect() {
+    fn the_lanterns_two_pole_split_caps() {
         let tol = Tol::witness();
         let ps = pieces();
         let lant = body(&ps, "lily_lantern");
@@ -2739,12 +2824,55 @@ mod review_probes {
             "two planar caps (the lip disk and the throat disk) and three curved \
              walls (two cones, one sphere zone), each split at its seam"
         );
-        assert!(
-            matches!(
-                lant.clone().merge_coplanar_faces(tol),
-                Err(pncad::topo::MergeCoplanarError::MergedFaceRoleAmbiguous { .. })
-            ),
-            "the merge door is still shut on the re-authored lantern (#1031)"
+        let mut repaired = lant.clone();
+        let outcome = repaired
+            .merge_coplanar_faces(tol)
+            .expect("the pole-split caps repair (#1031's pole half)");
+        assert_eq!(outcome.groups.len(), 2, "both caps merged");
+        assert_eq!(
+            (repaired.faces().count(), repaired.vertices().count()),
+            (8, 8),
+            "each cap became one face and each pole went with its seam"
+        );
+        // `topo::validate` is the TIER 1 validator; the claim here is
+        // about the repaired body's tier 2 and tier 3 standing, so it
+        // runs those (delta review MIN-1: the check and the message
+        // disagreed, and the message is what people read).
+        assert_eq!(
+            pncad::topo::validate_closed(&repaired),
+            Ok(()),
+            "tier 2 after repair"
+        );
+        assert_eq!(
+            pncad::topo::validate_geometric(&repaired, tol),
+            Ok(()),
+            "tier 3 after repair"
+        );
+    }
+
+    /// DELTA probe (ordinal-104 verification, `verbs/f7d-probes`),
+    /// ADOPTED: the row above used to label a TIER 1 check "tier 3".
+    /// That row is fixed, and this one stands beside it running both
+    /// real validators, so the PR body's "tier 3 clean" claim is
+    /// measured in-tree rather than inherited from a dev-run log.
+    #[test]
+    fn f7d_delta_repaired_lantern_actual_tiers() {
+        let tol = Tol::witness();
+        let ps = pieces();
+        let lant = body(&ps, "lily_lantern");
+        let mut repaired = lant.clone();
+        repaired
+            .merge_coplanar_faces(tol)
+            .expect("the pole-split caps repair");
+        assert_eq!(
+            pncad::topo::validate_closed(&repaired),
+            Ok(()),
+            "tier 2 after repair (actual)"
+        );
+        assert_eq!(
+            pncad::topo::validate_geometric(&repaired, tol),
+            Ok(()),
+            "tier 3 after repair (actual)"
         );
     }
 
@@ -2917,8 +3045,21 @@ mod review_probes {
             ("lily_arch", 2e-3, 136_076),
             ("lily_lantern", 5e-3, 1_084),
             ("lily_lantern", 2e-3, 2_560),
-            ("lily_leaf_b", 2e-3, 468),
-            ("lily_leaf_c", 2e-3, 414),
+            // RE-DERIVED, not preserved (issue 1006's Q2 ruling): the
+            // patch-hull consolidation folded the whole-face bound
+            // over `patch_bound`'s cells, which tightens or holds, and
+            // these two leaves are where it bites hardest in the tour.
+            // Per face, merge base -> now: leaf_b `mvv` 0.548115 ->
+            // 0.518406 (0.9458x) and `mv1` 1.367961 -> 1.305420
+            // (0.9543x); leaf_c `mvv` 0.385360 -> 0.346893 (0.9002x)
+            // and `mv1` 1.099628 -> 1.001095 (0.9104x). A tighter
+            // Hessian buys a longer step, so the whole-patch chord
+            // schedule coarsens (leaf_b's `nv` 46 -> 45, leaf_c's 40 ->
+            // 37) and the counts fall with it: 468 -> 454, 414 -> 384.
+            // Nothing about the leaves moved — same charts, same trim
+            // boxes, same delta; the bound got honester.
+            ("lily_leaf_b", 2e-3, 454),
+            ("lily_leaf_c", 2e-3, 384),
         ];
         // Measured first, compared once: a row-at-a-time assert stops
         // at the first move and hides the rest, and this table is read
@@ -3684,7 +3825,11 @@ mod verbs_gate_r1_probes {
              frustum, not contact"
         );
         let ball_body = ball::<f64>((-2.80, 0.90), 0.16, tol);
-        let refusal = pncad::topo::subtract(lant, &ball_body, tol)
+        let mut repaired = lant.clone();
+        repaired
+            .merge_coplanar_faces(tol)
+            .expect("the lantern's caps repair (#1031's pole half)");
+        let refusal = pncad::topo::subtract(&repaired, &ball_body, tol)
             .expect_err("the tepal seam is still refused, somewhere");
         println!("wall-7 probe: the kernel answers {refusal:?}");
         // **The measured outcome, and it is neither branch the review
@@ -3692,22 +3837,23 @@ mod verbs_gate_r1_probes {
         // boundary's own locus, the pucker's box clears the ball by
         // {tightest} on its tightest axis, so the pair-scoped gate
         // ADMITS — and what answers is not a germ class at all but
-        // the operand-shape precondition: the lantern is a full
-        // revolve, so its zone is two half-bands on one surface key
-        // and it is not maximal-faced.
+        // the operand-shape precondition. WHICH faces, corrected at
+        // M9-5 and re-measured here: NOT the zone's two half-bands —
+        // same-key CURVED adjacency is the canonical maximal form —
+        // but the lantern's two AXIS-TOUCHING PLANAR CAPS.
         //
         // So the sphere×sphere germ arm is not even reached. This
-        // wall's dependency is now `merge_coplanar_faces` on the
-        // operand (or the F7 door widening), and only THEN row 9.
+        // wall's dependency is #1031's pole half (the repair op), and
+        // only THEN row 9.
         assert!(
             tightest < 0.0,
             "the pucker's box must clear the ball's for the gate to admit; it does \
              not, so this row's reading of the refusal below is wrong"
         );
         assert!(
-            matches!(refusal, BooleanError::NonMaximalFaces { .. }),
-            "the operand gate admits now, so what refuses is the maximal-faces \
-             precondition — got {refusal:?}"
+            matches!(refusal, BooleanError::CurvedPierceUnsupported { .. }),
+            "the gate admits and the REPAIRED lantern is maximal-faced, so what \
+             refuses is the curved pierce arm — got {refusal:?}"
         );
     }
 
@@ -3742,7 +3888,48 @@ mod verbs_gate_r1_probes {
                     ..
                 }
             ),
-            "wall 1 must name the tangent tube walls against a planar disc: {glued:?}"
+            "wall 1 must name the stem's tube wall against a planar disc of the arch: \
+             {glued:?}"
+        );
+        // **What this pair actually is, measured.** The gate names the
+        // stem's tube wall against the arch's FAR cap — the disc at the
+        // top of the arch, metres from anything the stem occupies. The
+        // two exact loci never come near each other; what overlaps is
+        // the stem wall's BOX, which for a torus is the whole tube
+        // about the ring centre and reads nothing from the face's
+        // boundary, so a 22° arc of a 5 m ring is boxed as the entire
+        // 10 m ring.
+        //
+        // So wall 1 is not a germ-class wall and never was: no arm is
+        // missing for a pair that does not meet. It is the box
+        // artifact the cone arm already had fixed (its slab became the
+        // frustum its window cuts) and the torus arm has not.
+        //
+        // The weld's own contact — the stem's end disc against the
+        // arch's start disc — is plane×plane, declared and verified;
+        // the tube walls take no part in it, because the arch's tube
+        // is thinner than the stem's and the two walls share nothing
+        // but the plane they both end on.
+        let arch_far_cap = arch
+            .faces()
+            .filter_map(|(k, f)| match arch.get_surface(f.surface) {
+                Some(&Surface::Plane { origin, .. }) => Some((k, origin)),
+                _ => None,
+            })
+            .find(|&(_, o)| (o - pncad::geom_core::Point3::new(0.0, 0.0, 0.0)).norm() > 2.0)
+            .expect("the arch carries a cap plane clear of the weld");
+        // Unconditional on both halves. Under an `if let` this row
+        // SELF-DISABLES the moment the refusal's shape changes — which
+        // is exactly when the claim it makes needs re-reading, so the
+        // one arrangement that must not be used is the one that goes
+        // quiet then.
+        let BooleanError::CurvedPairUnsupported { other_face, .. } = &glued else {
+            panic!("wall 1's refusal is the operand gate's, or this reading is stale: {glued:?}");
+        };
+        assert_eq!(
+            *other_face, arch_far_cap.0,
+            "the pair the gate names is the stem's wall against the arch's FAR cap — \
+             a box overlap, not a contact"
         );
 
         let welded = pncad::topo::union(lant, arch, tol)

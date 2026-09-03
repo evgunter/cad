@@ -84,15 +84,21 @@
 //! `sign(E·n) = sign(E·m)` and `E·m` is one of the polynomials below).
 //!
 //! Both ingredients are quotients of **polynomials whose coefficients
-//! cancel**. With the base written homogeneously as `S = A/w`:
+//! cancel**. With the base written homogeneously as `S = A/w` and the
+//! fit as `S_fit = F̃/w_fit`, everything is homogeneous in the PRODUCT
+//! `w̃ = w·w_fit` — so a rational fit is bounded as the surface it is,
+//! not as its control net read flat:
 //!
 //! ```text
-//! Ẽ = F·w − A                (F the fitted net; Ẽ = w·E)
+//! Ẽ = F̃·w − A·w_fit         (Ẽ = w̃·E)
 //! M̃ = w·(A_u × A_v) − w_v·(A_u × A) − w_u·(A × A_v)      (M̃ = w³·m)
-//! X = Ẽ·Ẽ − d²·w²           ( = w²·(‖E‖² − d²) )
-//! Y = Ẽ × M̃                 ( = w⁴·(E × m) )
-//! D = Ẽ · M̃                 ( = w⁴·(E · m) )
+//! X = Ẽ·Ẽ − d²·w̃²           ( = w̃²·(‖E‖² − d²) )
+//! Y = Ẽ × M̃                 ( = w̃·w³·(E × m) )
+//! D = Ẽ · M̃                 ( = w̃·w³·(E · m) )
 //! ```
+//!
+//! `M̃` carries the base's weight alone: `m = S_u × S_v` is the base's
+//! own, and the fit's weights do not enter it.
 //!
 //! `X` and `Y` are the cancellation: `‖E‖ ≈ |d|` and `E ∥ m` are what
 //! a good fit MEANS, so both polynomials are small — and a Bernstein
@@ -109,7 +115,7 @@
 //! [`geom_core::spline::compose::patch`].
 //!
 //! **The small-`|d|` denominator, and the limit that remains.** The
-//! normal component divides `|X|` by `w²·(‖E‖ + |d|)`. Bounding that
+//! normal component divides `|X|` by `w̃²·(‖E‖ + |d|)`. Bounding that
 //! below by `2|d|` alone is both loose and brittle: once `dist`
 //! reaches `|d|` the cell collapses to `+∞`, so a micron-scale offset
 //! on a metre-scale patch certified as `inf`. The composite therefore
@@ -117,16 +123,30 @@
 //! the same inf-side shape meter 1 uses on the cross product — which
 //! makes the small-`|d|` case finite and tightens every other row.
 //!
-//! It does not make the bound SCALE with `|d|`: the fit's absolute
-//! accuracy comes from the base's coordinate magnitudes, so at
-//! `d = 1e-6` the certified sup sits near `3e-4`. Sound and finite,
-//! weak in relative terms, and refused typed below what the fit can
-//! reach. The restructure that would fix it (recentring the
-//! composite's nets, as `patch_bound`'s rational arm already does per
-//! cell) is #1008.
+//! **Recentring, and what it did and did not buy.** Every net above
+//! is built against one origin — the base control net's bbox midpoint
+//! ([`recentre_origin`]) — so the composite's intermediates are the
+//! size of the PATCH rather than of its coordinates. The identity is
+//! exact in ℝ (`Ẽ` and `M̃` are both invariant under shifting base and
+//! fit together), so nothing about the claim moves; only the rounding
+//! does. What that bought is translation invariance, which the
+//! residual always had and the bound did not: a micron offset on a
+//! metre patch a kilometre from the origin certified as `inf` and now
+//! certifies at the same `3.2e-4` the patch gives at the origin.
+//!
+//! It did NOT make the bound scale with `|d|`, and the reason is not
+//! the one that motivated the recentring. At the origin the small-`d`
+//! sup is 96% its `τ²/‖E‖` term, and that term is large because the
+//! lower bound on `‖E‖` is assembled from the componentwise
+//! mignitudes of `Ẽ`'s cell hulls: on a patch whose normal rotates
+//! across the cell each component straddles zero, so the assembly
+//! reads `1.6e-8` where `‖E‖ ≈ |d| = 1e-6`. A lower bound that saw
+//! the components together rather than one at a time is what would
+//! move this row; it is not a rounding problem and recentring cannot
+//! reach it.
 //!
 //! **Where the regularity floor enters.** `τ` and `D` both divide by
-//! `‖m‖`, and `X`'s reading divides by `w²`. The weight hull is
+//! `‖m‖`, and `X`'s reading divides by `w̃²`. Both weight hulls are
 //! positive by the rational licence; `‖m‖` is positive only because
 //! [`crate::offset_meters`]' floor says so — `‖M̃‖ ≥ floor·w³`. That
 //! is the sense in which meter 1 "makes `1/‖S_u × S_v‖` boundable",
@@ -148,7 +168,7 @@ use geom_core::spline::{KnotVector, SplineError};
 use geom_core::{Band, Point3, ring_interval::RingInterval};
 
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig, sqrt_down, sqrt_up};
-use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational, net_d_u, net_d_v};
+use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational};
 
 /// The fitted surface's degree in both directions. A CONSTANT (D9:
 /// structure, never data-dependent tuning). Bicubic is the kernel's
@@ -168,13 +188,23 @@ pub const OFFSET_FIT_SEED_PER_SPAN: usize = 3;
 /// must be dealt with" honesty, as a type.
 pub const OFFSET_FIT_BUDGET: usize = 6;
 
-/// The per-direction cap on sample parameters. A refinement round
-/// bisects every sample interval a worst-carrying cell touches, so an
-/// unreachable tolerance would otherwise double the grid every round
-/// — the cap is the second stopping condition, and it produces the
-/// same typed [`OffsetFitError::BudgetExhausted`] refusal as the
-/// round budget: never an uncertified return, and never an unbounded
-/// amount of work.
+/// The per-direction cap on sample parameters.
+///
+/// A refinement round bisects, in each worst-carrying cell, the
+/// sample intervals of the ONE direction that cell's model-space
+/// extent names — so a direction grows only while the residual keeps
+/// asking for it, and the growth is per direction rather than
+/// uniform. That is why the cap is per direction too: the binding
+/// case is a patch whose error lives wholly in one direction, where
+/// an unreachable tolerance would drive that direction alone toward
+/// an unbounded grid while its partner stands still. The
+/// both-directions fallback the stall guard falls back to can double
+/// both at once, which the same cap bounds.
+///
+/// It is the second stopping condition, and it produces the same
+/// typed [`OffsetFitError::BudgetExhausted`] refusal as the round
+/// budget: never an uncertified return, and never an unbounded amount
+/// of work.
 pub const OFFSET_FIT_SAMPLE_CAP: usize = 48;
 
 /// The per-direction on-locus sample count inside each certificate
@@ -243,24 +273,47 @@ pub enum OffsetFitError {
         /// The tolerance it had to reach.
         tolerance: f64,
     },
-    /// The fit handed in is RATIONAL, and limb 2 cannot certify it.
+    /// The refinement loop stopped IMPROVING before the budget ran
+    /// out: a round that bisected every failing cell in both
+    /// directions did not lower the bound its predecessor reached.
     ///
-    /// The hull limb's composite reads the fitted net as a
-    /// polynomial (`Ẽ = F·w_base − A`, with `F` the fitted control
-    /// net): it never consults `fit.weights()`, so on a rational fit
-    /// it would bound a DIFFERENT surface than the one handed in —
-    /// and measurably so, by two to three orders on the reviewers'
-    /// rows. [`fit_offset`] never mints a rational fit (every fit it
-    /// returns carries unit weights), so this refusal is reachable
-    /// only through [`certify_offset`]'s public door.
+    /// A different finding from [`Self::BudgetExhausted`], and the
+    /// distinction is what the caller does next. Exhaustion says the
+    /// loop was still converging and ran out of rounds — more budget
+    /// is the answer. This says the loop stopped converging while it
+    /// still had rounds in hand, so more of them will not help: the
+    /// tolerance is below what this fit's structure can reach on this
+    /// patch.
     ///
-    /// The weighted composite is SCHEDULED, not built (#1005): `Ẽ`
-    /// would become `F̃·w_base − A·w_fit` with `F̃` the fitted
-    /// homogeneous net, raising every downstream degree by the fit's
-    /// own.
-    RationalFitUnsupported {
-        /// How many of the fit's weights are not bitwise `1.0`.
-        non_unit_weights: usize,
+    /// **D2 classification: row 1** — reachable by input, and invalid
+    /// as a request to this door. Row 0 was answered first and
+    /// answered no: "the bound stopped falling" is a measured numeric
+    /// outcome on admissible input, so no type change can exclude it
+    /// without making convergence a type-level property of
+    /// caller-supplied geometry.
+    ///
+    /// *The minority reading, recorded because it becomes correct.*
+    /// Row 2 (`Unsupported*`, valid-but-unbuilt) was argued on the
+    /// strength of this variant's own wording — the tolerance is
+    /// below what "this fit's structure" can reach, which sounds like
+    /// a capability the kernel has not built. It is not one TODAY:
+    /// the structure is fixed at [`OFFSET_FIT_DEGREE`] with schedule
+    /// refinement as the only lever, so there is nothing unbuilt to
+    /// reach for and the refusal is about the request. The day the
+    /// banked compression half of A9.10 lands (knot removal under
+    /// Eqs. 9.86–9.89, module docs), the door gains a second lever
+    /// over the fitted structure, this refusal starts meaning "the
+    /// structure this door is willing to build cannot reach it", and
+    /// it should be RECLASSIFIED to row 2 then.
+    RefinementStalled {
+        /// How many refinement rounds ran before the stall.
+        rounds: u32,
+        /// The sample grid the loop stalled on, per direction.
+        grid: (usize, usize),
+        /// The certified sup bound at the stall, in metres.
+        achieved: f64,
+        /// The tolerance it had to reach.
+        tolerance: f64,
     },
     /// The storage door was asked to certify over a window that is not
     /// the base's own chart rectangle. The certificate this module
@@ -340,13 +393,19 @@ impl core::fmt::Display for OffsetFitError {
                  uncertified is returned",
                 grid.0, grid.1, OFFSET_FIT_SAMPLE_CAP
             ),
-            Self::RationalFitUnsupported { non_unit_weights } => write!(
+            Self::RefinementStalled {
+                rounds,
+                grid,
+                achieved,
+                tolerance,
+            } => write!(
                 f,
-                "fit_offset: the fitted surface handed in is rational ({non_unit_weights} \
-                 non-unit weights), and the certificate's hull limb reads a fitted net as \
-                 a POLYNOMIAL — certifying it would bound a different surface than the one \
-                 supplied. The weighted composite is scheduled, not built; fit_offset's own \
-                 fits are always non-rational, so this door refuses rather than under-report"
+                "fit_offset: the refinement loop STALLED on a {}x{} sample grid after \
+                 {rounds} rounds — bisecting every failing cell in both directions did \
+                 not lower the achieved sup bound of {achieved} m, against a tolerance \
+                 of {tolerance} m, so the remaining round budget cannot reach it; \
+                 nothing uncertified is returned",
+                grid.0, grid.1
             ),
             Self::WindowUnsupported { window } => write!(
                 f,
@@ -380,18 +439,43 @@ pub use geom::OffsetCertificate;
 ///
 /// Refuses — never degrades — on a patch whose chart normal is not
 /// certifiably non-degenerate, on an offset distance that reaches the
-/// patch's curvature reach, and on budget exhaustion.
+/// patch's curvature reach, on budget exhaustion, and on a refinement
+/// loop that stops converging while it still has rounds in hand.
 ///
 /// Geometry only: no `Surface` variant, no storage, no topology. The
 /// base and `d` travel as arguments; the intensional
 /// `Offset { base, d }` description is the integration unit's.
 ///
+/// # How much slack the certificate carries
+///
+/// `hull_sup` is an upper bound, and a consumer sizing a budget from
+/// it will want to know by how much it exceeds the residual actually
+/// achieved. Measured against a dense sample on the shipped fixtures:
+/// **2.1x to 7.3x** (non-analytic bicubic 2.1x, quarter cylinder 2.8x
+/// at both signs, sphere band 4.4x outward and 7.3x inward), and 3.3x
+/// on coarse single-cell schedules. Chart aspect does NOT drive it —
+/// 5:1 and 1:5 quarter cylinders both measure 3.3x, the same as 1:1.
+///
+/// The one regime that departs is small `|d|`: at `d = 1e-6` on a
+/// metre patch the ratio is ~1.6e3, for the reason the module docs
+/// give under recentring — the bound is then dominated by its
+/// `τ²/‖E‖` term through a componentwise lower bound on `‖E‖`, and
+/// that is a property of the bound rather than of the fit, which is
+/// accurate to ~2e-7 there.
+///
+/// No row pins these ratios and none is owed: they are a measurement
+/// of the enclosure's tightness, not a claim the door makes. They are
+/// recorded because a consumer reading `hull_sup` as "the error"
+/// would otherwise over-provision by roughly half an order, and by
+/// three orders at micron offsets.
+///
 /// # Errors
 ///
 /// [`OffsetFitError`] — the two door meters and their escalations,
 /// the patch-bound refusals, the interpolation stack's refusals,
-/// non-finite samples, and [`OffsetFitError::BudgetExhausted`]
-/// carrying the achieved bound.
+/// non-finite samples, [`OffsetFitError::BudgetExhausted`] carrying
+/// the achieved bound, and [`OffsetFitError::RefinementStalled`]
+/// carrying the bound the loop stopped improving on.
 pub fn fit_offset(
     base: &NurbsSurface<f64>,
     d: f64,
@@ -409,6 +493,11 @@ pub fn fit_offset(
 
     let (mut us, mut vs) = seed_params(base);
     let mut achieved = f64::INFINITY;
+    // The stall guard's state: the previous round's bound, and
+    // whether the marking that produced this grid was the
+    // both-directions fallback.
+    let mut prev_sup = f64::INFINITY;
+    let mut marked_both = false;
     for round in 0..=OFFSET_FIT_BUDGET {
         let fit = interpolate_offset_grid(base, d, &us, &vs)?;
         let report = measure(base, &fit, d, reg.floor)?;
@@ -435,26 +524,69 @@ pub fn fit_offset(
         // insertion on the worst spans" step (module docs), which
         // reaches the fitted knot vector through Eq. 9.8.
         //
-        // **Both directions are bisected, always.** A failing cell
-        // marks its `u` interval AND its `v` interval, so a patch
-        // whose error lives in one direction still pays a quadratic
-        // grid — on the quarter cylinder, whose `v` is an exact
-        // ruling the first fit already reproduces, that is most of
-        // the cells. This is a SIMPLIFICATION, not a deferral: the
-        // directional rule (mark the direction whose model-space cell
-        // extent `h·sup‖S_d‖` is larger — the tessellation split
-        // selection's own principle) is a small change to this block,
-        // filed as perf work (#1007), not a design question.
-        let next_u = bisect(&us, &mark(&us, report.failing.iter().map(|c| c.0)));
-        let next_v = bisect(&vs, &mark(&vs, report.failing.iter().map(|c| c.1)));
-        if (next_u.len() == us.len() && next_v.len() == vs.len())
-            || next_u.len() > OFFSET_FIT_SAMPLE_CAP
-            || next_v.len() > OFFSET_FIT_SAMPLE_CAP
-        {
+        // **The direction is chosen, not both taken.** A failing cell
+        // bisects the direction whose model-space extent
+        // `h_d · sup‖S_d‖` is larger — the tessellation split
+        // selection's own rule. A patch whose error is anisotropic
+        // then pays a linear grid for a linear need instead of a
+        // quadratic one.
+        //
+        // **The stall guard is what makes that safe.** The speed
+        // ratio is a prediction, and a residual it mispredicts would
+        // otherwise refine the useless direction until the budget
+        // ran out. A round that did not improve on its predecessor
+        // falls back to marking BOTH directions; a both-directions
+        // round that still does not improve is not a budget problem
+        // and does not become one — it refuses, named.
+        #[allow(clippy::cast_possible_truncation)]
+        let stalled = |grid: (usize, usize)| OffsetFitError::RefinementStalled {
+            rounds: round as u32,
+            grid,
+            achieved,
+            tolerance,
+        };
+        let verdict = stall_verdict(prev_sup, report.hull_sup, marked_both);
+        if verdict == Refine::Refuse {
+            return Err(stalled((us.len(), vs.len())));
+        }
+        prev_sup = report.hull_sup;
+        // The mode is CARRIED out of the step that used it, not
+        // inferred from a local set beside it: the refusal's admission
+        // set is "the round whose schedule came from a both-directions
+        // marking", and that is a fact about `next`, not about the
+        // order of two statements.
+        let mut next = refine_schedule(&us, &vs, &report, reg.speed_u, reg.speed_v, verdict);
+        // A directional marking can fail to grow the schedule even
+        // though it marked intervals: `bisect` drops a midpoint that
+        // is not strictly between its endpoints, which is what an
+        // interval narrowed to consecutive floats gives. That is the
+        // same evidence as a round that gained nothing, so it takes
+        // the same fallback rather than escaping to the budget.
+        if !next.grew(&us, &vs) && next.mode == Refine::Directional {
+            next = refine_schedule(
+                &us,
+                &vs,
+                &report,
+                reg.speed_u,
+                reg.speed_v,
+                Refine::BothDirections,
+            );
+        }
+        if next.us.len() > OFFSET_FIT_SAMPLE_CAP || next.vs.len() > OFFSET_FIT_SAMPLE_CAP {
+            // The per-direction cap: a REFINEMENT limit, not a
+            // convergence one, and it keeps its own refusal.
             break;
         }
-        us = next_u;
-        vs = next_v;
+        if !next.grew(&us, &vs) {
+            // Bisecting every failing cell in both directions moved
+            // nothing. No later round can move it either — the
+            // intervals only narrow — so this is the stall, reached
+            // by exhaustion of the schedule rather than of the bound.
+            return Err(stalled((us.len(), vs.len())));
+        }
+        marked_both = next.mode == Refine::BothDirections;
+        us = next.us;
+        vs = next.vs;
     }
     Err(OffsetFitError::BudgetExhausted {
         budget: OFFSET_FIT_BUDGET,
@@ -561,9 +693,9 @@ pub fn offset_point(base: &NurbsSurface<f64>, d: f64, u: f64, v: f64) -> Option<
 /// # Errors
 ///
 /// [`OffsetFitError`]: everything [`fit_offset`] refuses, plus
-/// [`certify_offset`]'s limb classifications. A rational fit refuses
-/// [`OffsetFitError::RationalFitUnsupported`] and the refusal
-/// propagates — nothing here bypasses it.
+/// [`certify_offset`]'s limb classifications. A rational fit takes
+/// the same path as a polynomial one — the composite is weighted, so
+/// rationality is not a refusal cause.
 pub fn approx_offset_surface(
     base: std::sync::Arc<NurbsSurface<f64>>,
     d: f64,
@@ -789,6 +921,15 @@ fn interpolate_offset_grid(
 // The certificate's two limbs
 // ---------------------------------------------------------------------
 
+/// One cell's `(u, v)` rectangle, as `((u_lo, u_hi), (v_lo, v_hi))`.
+///
+/// Homed here, in the one module that reads it. `patch_bound` names
+/// the same shape for its own cells and the two are not unified: the
+/// consolidation that would give the patch-cell vocabulary a shared
+/// home is #1006's, sequenced after this unit precisely so its seam
+/// stays clean.
+type CellBox = ((f64, f64), (f64, f64));
+
 /// What one measurement pass proved, plus which sample intervals the
 /// next refinement round must bisect.
 struct Report {
@@ -797,7 +938,7 @@ struct Report {
     hull_sup: f64,
     /// The `(u, v)` rectangles of the cells that carry the sup — what
     /// the next refinement round attacks.
-    failing: Vec<((f64, f64), (f64, f64))>,
+    failing: Vec<CellBox>,
 }
 
 /// Both limbs, over the merged Bézier cell schedule.
@@ -838,7 +979,7 @@ fn measure(
     // cell always qualifies).
     let cut = hull_sup * 0.5;
     #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    let failing: Vec<((f64, f64), (f64, f64))> = bounds
+    let failing: Vec<CellBox> = bounds
         .iter()
         .filter(|(_, _, b)| !(*b < cut))
         .map(|(u, v, _)| (*u, *v))
@@ -850,6 +991,165 @@ fn measure(
         hull_sup,
         failing,
     })
+}
+
+/// What the stall guard says about a round that did not certify.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Refine {
+    /// Bisect each failing cell in the one direction its model-space
+    /// extent names.
+    Directional,
+    /// Bisect every failing cell in BOTH directions: the last round
+    /// did not lower the bound, so the direction rule's prediction is
+    /// not to be trusted on this patch.
+    BothDirections,
+    /// Refuse: a both-directions round did not lower the bound
+    /// either.
+    Refuse,
+}
+
+/// **The stall guard.** `prev_sup` is the bound the previous round
+/// reached, `hull_sup` this round's, and `marked_both` whether the
+/// marking that produced this round's grid was the both-directions
+/// fallback.
+///
+/// The admission set of [`Refine::Refuse`] — what
+/// [`OffsetFitError::RefinementStalled`] refuses — is exactly this: a
+/// round whose grid came from bisecting every failing cell in both
+/// directions, reporting a bound that did not fall below a finite
+/// predecessor. Bisecting everything is the strongest step the loop
+/// has, so a round that takes it and gains nothing is telling the
+/// caller that the remaining rounds cannot reach the tolerance
+/// either. That is a different finding from running out of rounds
+/// while still converging, and the two are not merged.
+///
+/// **`+∞` is not a failure to improve.** A cell whose sign witness or
+/// weight hull is not yet proved bounds at `+∞`, which early rounds
+/// routinely report; a loop on its way from `+∞` to a finite bound is
+/// converging. So the comparison is made only against a FINITE
+/// predecessor, and the guard stays silent until there is one.
+///
+/// # Reachability — a recorded verdict, not an open question
+///
+/// [`Refine::Refuse`] has not been reached through [`fit_offset`]'s
+/// door by any fixture tried: roughly a hundred adversarial requests
+/// across two independent review lanes plus this unit's own seven
+/// fixtures (bumpy, cylinder both signs, sphere both signs, near-reach
+/// sphere, a 1000:1 thin patch, extreme weights at 0.05 and 8.0), over
+/// tolerances from 1e-6 to 1e-15. None stalled.
+///
+/// **That is a property of the predicate's shape, not of the fixtures.**
+/// The test is `hull_sup < prev_sup` with no epsilon, so ANY decrease
+/// counts as improvement — including one in the last bit. Reaching
+/// the refusal therefore needs a bound that fails to fall AT ALL
+/// twice running, on a loop that re-interpolates at a strictly finer
+/// schedule each round. Every round changes the fit, and a changed
+/// fit on a finer schedule essentially always moves the bound
+/// somewhere. So the refusal is close to unreachable BY CONSTRUCTION,
+/// and the guard's practical work is done by its other two arms: the
+/// both-directions fallback (which fires on the shipped cylinder
+/// oracle every run) and the schedule-cannot-grow arm in
+/// [`fit_offset`].
+///
+/// The verdict is recorded rather than resolved because the honest
+/// options are both worse. Widening the test with a relative epsilon
+/// ("improved by less than 1%") would make the refusal reachable, but
+/// it would also refuse loops that are converging slowly and would
+/// certify at a coarser schedule than the caller asked for — a
+/// tolerance the fit CAN reach, refused. Deleting the arm would leave
+/// the non-converging case spending budget silently, which is what
+/// issue 1007 asked to end. So it stays: cheap, total, and pinned by
+/// [`OffsetFitError::RefinementStalled`]'s own row rather than by a
+/// fixture that does not exist.
+fn stall_verdict(prev_sup: f64, hull_sup: f64, marked_both: bool) -> Refine {
+    if !prev_sup.is_finite() || hull_sup < prev_sup {
+        Refine::Directional
+    } else if marked_both {
+        Refine::Refuse
+    } else {
+        Refine::BothDirections
+    }
+}
+
+/// One refinement round's next sample schedule, together with the
+/// marking mode that produced it.
+///
+/// The mode travels WITH the schedule because it is what the stall
+/// guard's admission set is stated in terms of. Held instead as a
+/// local beside the marking, it records the mode that was *intended*;
+/// held here, it records the mode that actually ran.
+struct Marking {
+    us: Vec<f64>,
+    vs: Vec<f64>,
+    mode: Refine,
+}
+
+impl Marking {
+    /// Whether this schedule is strictly larger than the one it came
+    /// from. A marking that marked intervals can still fail to grow —
+    /// [`bisect`] drops a midpoint that is not strictly inside its
+    /// interval — and "grew" is the property the loop actually needs.
+    fn grew(&self, us: &[f64], vs: &[f64]) -> bool {
+        self.us.len() != us.len() || self.vs.len() != vs.len()
+    }
+}
+
+/// Marks and bisects one refinement round under `mode`.
+///
+/// [`Refine::Refuse`] never reaches here: it is the loop's exit, not a
+/// marking. It is treated as the both-directions marking so that this
+/// function is total, and the loop's own `verdict == Refuse` test is
+/// what makes that arm unreachable.
+fn refine_schedule(
+    us: &[f64],
+    vs: &[f64],
+    report: &Report,
+    speed_u: f64,
+    speed_v: f64,
+    mode: Refine,
+) -> Marking {
+    let (mu, mv) = if mode == Refine::Directional {
+        directional_mark(us, vs, &report.failing, speed_u, speed_v)
+    } else {
+        (
+            mark(us, report.failing.iter().map(|c| c.0)),
+            mark(vs, report.failing.iter().map(|c| c.1)),
+        )
+    };
+    Marking {
+        us: bisect(us, &mu),
+        vs: bisect(vs, &mv),
+        mode,
+    }
+}
+
+/// Marks each failing cell in ONE direction: the one whose
+/// model-space extent `h_d · sup‖S_d‖` is larger.
+///
+/// The rule is the tessellation split selection's. `speed_u` and
+/// `speed_v` are the whole-patch chart speeds
+/// ([`crate::offset_meters::PatchRegularity`]), so the comparison is
+/// between cell extents measured in metres rather than in chart
+/// parameters — which is what makes it invariant to how the two
+/// directions happen to be parameterized. Ties go to `u`, on
+/// structure (D9: deterministic, never data-dependent tuning).
+fn directional_mark(
+    us: &[f64],
+    vs: &[f64],
+    failing: &[CellBox],
+    speed_u: f64,
+    speed_v: f64,
+) -> (Vec<bool>, Vec<bool>) {
+    let mut fu: Vec<(f64, f64)> = Vec::new();
+    let mut fv: Vec<(f64, f64)> = Vec::new();
+    for (ub, vb) in failing {
+        if (ub.1 - ub.0) * speed_u >= (vb.1 - vb.0) * speed_v {
+            fu.push(*ub);
+        } else {
+            fv.push(*vb);
+        }
+    }
+    (mark(us, fu.into_iter()), mark(vs, fv.into_iter()))
 }
 
 /// Marks every interval of `params` that overlaps one of the ranges.
@@ -898,16 +1198,20 @@ fn on_locus_cell(
 /// The polynomial parts of the residual, in per-cell Bernstein form
 /// on one merged break structure (module docs).
 struct Composite {
-    /// `X = Ẽ·Ẽ − d²·w²`.
+    /// `X = Ẽ·Ẽ − d²·w̃²`.
     x: PatchSpans,
     /// `Y = Ẽ × M̃`.
     y: [PatchSpans; 3],
     /// `D = Ẽ · M̃`, the sign witness of `E·n`.
     dd: PatchSpans,
-    /// The weight channel `w` (a positive constant `1` patch when the
-    /// base is non-rational).
+    /// The BASE's weight channel `w` (a positive constant `1` patch
+    /// when the base is non-rational). `M̃ = w³·m` is scaled by this
+    /// one alone, because `m` is the base's own.
     w: PatchSpans,
-    /// `Ẽ = w·E` itself, kept so the residual's normal component can
+    /// `w̃ = w·w_fit`, the weight `Ẽ` is homogeneous in. Equal to `w`
+    /// exactly when the fit carries unit weights.
+    wt: PatchSpans,
+    /// `Ẽ = w̃·E` itself, kept so the residual's normal component can
     /// divide by a DIRECT lower bound on `‖E‖` (module docs, "the
     /// small-`|d|` denominator") instead of by `2|d|`.
     e: [PatchSpans; 3],
@@ -918,16 +1222,29 @@ struct Composite {
 /// A row-major ring net of one spatial channel of a control net,
 /// optionally weighted (the homogeneous `A^c = w·P^c`).
 ///
-/// `patch_bound::comp_nets` is the same extraction in the nested
-/// `Net` shape that module's windowed hulls index, and [`flat`] /
-/// [`nest`] exist only to bridge the two. They are NOT unified,
-/// deliberately and narrowly: the row-major slice is what
-/// `PatchSpans::decompose` consumes and the nested form is what
-/// `window_hull` indexes, so a single home would still hand one
-/// caller the wrong shape. What is shared is the arithmetic —
-/// `weight · coordinate`, in that order — and the two sites are
-/// cross-referenced so a change to it is a change to both.
-fn channel(n: &NurbsSurface<f64>, c: usize, weighted: bool) -> Vec<RingInterval> {
+/// `patch_bound::comp_nets` is the same extraction, and the two now
+/// share one storage shape: `geom_core::spline::net::TensorNet` is
+/// row-major and hands out both a flat slice (what
+/// `PatchSpans::decompose` consumes) and indexed windows (what
+/// `window_hull` reads), so the flat/nested bridge the two used to
+/// need is gone. What is shared is also the arithmetic — `weight ·
+/// coordinate`, in that order — and a change to it is a change to
+/// both. Where they still differ is WHEN the recentring happens: this
+/// one folds the centre into the net, because the net feeds
+/// polynomial products formed once for the whole patch; `patch_bound`
+/// applies it at the hull read, because it reads a cell-local centre
+/// off the cell's own control window.
+///
+/// **Recentred**, on the shared `centre` all of the composite's nets
+/// are built against: the entry is `w·(P − centre)`, so the net
+/// describes `S − centre` rather than `S`. The subtraction is the
+/// RING's, not `f64`'s, which is what makes this sound — an `f64`
+/// difference would round to a control point the base does not have,
+/// and the certificate would then be about a surface nobody supplied.
+/// The ring's outward rounding of `P − centre` is one ulp of the
+/// DIFFERENCE, i.e. of the patch's extent, where the unrecentred net
+/// carried one ulp of the coordinate.
+fn channel(n: &NurbsSurface<f64>, c: usize, form: NetForm, origin: &Origin) -> Vec<RingInterval> {
     n.control()
         .iter()
         .zip(n.weights().iter())
@@ -936,26 +1253,84 @@ fn channel(n: &NurbsSurface<f64>, c: usize, weighted: bool) -> Vec<RingInterval>
                 0 => p.x,
                 1 => p.y,
                 _ => p.z,
-            });
-            if weighted {
-                RingInterval::point(*w) * x
-            } else {
-                x
+            }) - RingInterval::point(origin.0[c]);
+            match form {
+                NetForm::Homogeneous => RingInterval::point(*w) * x,
+                NetForm::Spatial => x,
             }
         })
         .collect()
 }
 
-/// A row-major flat net from the `Net` (u-major nested) shape.
-fn flat(net: &Net) -> Vec<RingInterval> {
-    net.iter().flat_map(|row| row.iter().copied()).collect()
+/// Which net a [`channel`] extraction produces.
+///
+/// A named form rather than a `bool`: the two differ by whether the
+/// weight multiplies, which is the difference between `A` and `P`, and
+/// a bare `true` at a call site does not say which was meant.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum NetForm {
+    /// `P − c`. Correct only where every weight is `1`, so that the
+    /// spatial net IS the homogeneous one.
+    Spatial,
+    /// `w·(P − c)`, the homogeneous net.
+    Homogeneous,
 }
 
-/// The `Net` (u-major nested) shape from a row-major flat net.
-fn nest(grid: &[RingInterval], nu: usize, nv: usize) -> Net {
-    (0..nu)
-        .map(|i| grid[i * nv..(i + 1) * nv].to_vec())
-        .collect()
+impl NetForm {
+    /// The form a surface's own weights call for.
+    fn of(n: &NurbsSurface<f64>) -> Self {
+        if is_rational(n) {
+            Self::Homogeneous
+        } else {
+            Self::Spatial
+        }
+    }
+}
+
+/// The composite's recentring origin, carried whole.
+///
+/// It travels as one value and [`channel`] selects the coordinate with
+/// the SAME index it reads the control point by, so a centre cannot be
+/// paired with the wrong channel. Passed as three loose `f64`s that
+/// pairing is a caller obligation, and getting it wrong certifies a
+/// different surface silently: the net still looks like a net, just of
+/// a sheared patch.
+#[derive(Clone, Copy)]
+struct Origin([f64; 3]);
+
+/// The composite's recentring origin: the midpoint of the BASE's
+/// control-net bounding box, per coordinate.
+///
+/// Every net in the composite is built against this one point, which
+/// is what keeps the recentring exact in ℝ: `Ẽ = F̃·w − A·w_fit` and
+/// `M̃` are both invariant under `P ↦ P − c` applied to base and fit
+/// together (`Ã = A − c·w`, and knot differencing is linear, so
+/// `Ã_u = A_u − c·w_u`). Only the rounding moves.
+///
+/// A whole-patch centre, not a per-cell one: the composite's products
+/// are formed once over the merged break structure and read per cell,
+/// so a per-cell centre would mean rebuilding the cost centre per
+/// cell. What that would buy over this is the patch extent against
+/// the cell extent, and the measurement that would justify it has not
+/// been taken.
+fn recentre_origin(base: &NurbsSurface<f64>) -> Origin {
+    let mut lo = [f64::INFINITY; 3];
+    let mut hi = [f64::NEG_INFINITY; 3];
+    for p in base.control() {
+        for (c, v) in [p.x, p.y, p.z].into_iter().enumerate() {
+            lo[c] = lo[c].min(v);
+            hi[c] = hi[c].max(v);
+        }
+    }
+    let mut out = [0.0; 3];
+    for c in 0..3 {
+        // A non-finite or empty net recentres on the origin: the
+        // composite's own poison handling is what reports it, and a
+        // NaN centre would silently poison every cell instead.
+        let m = (lo[c] + hi[c]) * 0.5;
+        out[c] = if m.is_finite() { m } else { 0.0 };
+    }
+    Origin(out)
 }
 
 /// Componentwise cross product of two triples of channels.
@@ -979,17 +1354,6 @@ impl Composite {
         fit: &NurbsSurface<f64>,
         d: f64,
     ) -> Result<Self, OffsetFitError> {
-        // The composite polynomializes the FITTED net (`channel(fit,
-        // c, false)`), so a rational fit would be bounded as a
-        // different surface. Refused here, at the site that cannot
-        // read the weights, rather than at the door — every path to
-        // limb 2 runs through this constructor.
-        let non_unit = fit.weights().iter().filter(|w| **w != 1.0).count();
-        if non_unit > 0 {
-            return Err(OffsetFitError::RationalFitUnsupported {
-                non_unit_weights: non_unit,
-            });
-        }
         // A degree-1 direction has no derived KNOT VECTOR (degree 0
         // is not a clamped vector), and the composite needs one to
         // decompose the derivative nets. Degree elevation is exact in
@@ -1026,19 +1390,45 @@ impl Composite {
         let dec = |kku: &KnotVector, kkv: &KnotVector, grid: &[RingInterval]| {
             PatchSpans::decompose(kku, kkv, grid, &extra_u, &extra_v)
         };
-        // The fitted net (unit weights, so its spatial net IS its
-        // homogeneous net).
+        // The FIT's homogeneous net `F̃ = w_fit·P_fit` and its weight
+        // channel. On a unit-weight fit `w_fit ≡ 1`, the spatial net
+        // IS the homogeneous one and `wf` is not formed: the identity
+        // product would widen the ring for nothing.
+        // The one recentring origin every net below is built against.
+        let ctr = recentre_origin(base);
+        let fit_form = NetForm::of(fit);
+        let fc = |c: usize| channel(fit, c, fit_form, &ctr);
         let f: [PatchSpans; 3] = [
-            dec(fit.knots_u(), fit.knots_v(), &channel(fit, 0, false)),
-            dec(fit.knots_u(), fit.knots_v(), &channel(fit, 1, false)),
-            dec(fit.knots_u(), fit.knots_v(), &channel(fit, 2, false)),
+            dec(fit.knots_u(), fit.knots_v(), &fc(0)),
+            dec(fit.knots_u(), fit.knots_v(), &fc(1)),
+            dec(fit.knots_u(), fit.knots_v(), &fc(2)),
         ];
+        let wf = (fit_form == NetForm::Homogeneous).then(|| {
+            let g: Vec<RingInterval> = fit
+                .weights()
+                .iter()
+                .map(|x| RingInterval::point(*x))
+                .collect();
+            dec(fit.knots_u(), fit.knots_v(), &g)
+        });
         // The base's homogeneous nets and their first derivatives.
-        let a_grid: Vec<Vec<RingInterval>> = (0..3).map(|c| channel(base, c, rational)).collect();
+        let a_grid: Vec<Vec<RingInterval>> = (0..3)
+            .map(|c| channel(base, c, NetForm::of(base), &ctr))
+            .collect();
         let ku1 = derived_knots(ku)?;
         let kv1 = derived_knots(kv)?;
-        let du = |g: &[RingInterval]| flat(&net_d_u(ku, &nest(g, nu, nv)));
-        let dv = |g: &[RingInterval]| flat(&net_d_v(kv, &nest(g, nu, nv)));
+        let du = |g: &[RingInterval]| {
+            Net::from_flat(nu, nv, g.to_vec())
+                .diff_u_knots(ku)
+                .as_flat()
+                .to_vec()
+        };
+        let dv = |g: &[RingInterval]| {
+            Net::from_flat(nu, nv, g.to_vec())
+                .diff_v_knots(kv)
+                .as_flat()
+                .to_vec()
+        };
         let a: [PatchSpans; 3] = [
             dec(ku, kv, &a_grid[0]),
             dec(ku, kv, &a_grid[1]),
@@ -1064,12 +1454,24 @@ impl Composite {
         } else {
             a[0].constant(RingInterval::one())
         };
-        // Ẽ = F·w − A.
+        // Ẽ = F̃·w − A·w_fit = w·w_fit·(S_fit − S). The composite is
+        // homogeneous in the PRODUCT of the two weights, which is
+        // what `wt` carries: reading a rational fit's net as a
+        // polynomial would bound a different surface than the one
+        // supplied.
+        let scaled_a = |c: usize| match &wf {
+            Some(wf) => a[c].mul(wf),
+            None => a[c].clone(),
+        };
         let e: [PatchSpans; 3] = [
-            f[0].mul(&w).sub(&a[0]),
-            f[1].mul(&w).sub(&a[1]),
-            f[2].mul(&w).sub(&a[2]),
+            f[0].mul(&w).sub(&scaled_a(0)),
+            f[1].mul(&w).sub(&scaled_a(1)),
+            f[2].mul(&w).sub(&scaled_a(2)),
         ];
+        let wt = match &wf {
+            Some(wf) => w.mul(wf),
+            None => w.clone(),
+        };
         // M̃ = w·(A_u × A_v) − w_v·(A_u × A) − w_u·(A × A_v). The last
         // two terms vanish identically for a non-rational base
         // (`w ≡ 1`), and are not formed there.
@@ -1093,7 +1495,7 @@ impl Composite {
         } else {
             auav
         };
-        let x = dot_spans(&e, &e).sub(&w.mul(&w).scale(RingInterval::point(d).sqr()));
+        let x = dot_spans(&e, &e).sub(&wt.mul(&wt).scale(RingInterval::point(d).sqr()));
         let y = cross_spans(&e, &m_tilde);
         let dd = dot_spans(&e, &m_tilde);
         let (bu, bv) = x.breaks();
@@ -1103,6 +1505,7 @@ impl Composite {
             y,
             dd,
             w,
+            wt,
             e,
             breaks_u,
             breaks_v,
@@ -1134,6 +1537,14 @@ impl Composite {
         if !(w_lo > 0.0) || !w_lo.is_finite() {
             return f64::INFINITY;
         }
+        // `w̃ = w·w_fit`, the weight `Ẽ`, `X` and the sign witness are
+        // homogeneous in. Its positivity is the rational licence's on
+        // both factors, and it is proved here rather than assumed.
+        let wt = self.wt.cell_hull(su, sv);
+        let wt_lo = wt.lo();
+        if !(wt_lo > 0.0) || !wt_lo.is_finite() {
+            return f64::INFINITY;
+        }
         // The sign witness: `sign(E·n) = sign(D)` (the denominator
         // `w·‖M̃‖` is positive), and the normal-component bound below
         // needs `E·n` to carry `d`'s sign.
@@ -1157,17 +1568,17 @@ impl Composite {
         let e_mig_sq = RingInterval::point(mig(self.e[0].cell_hull(su, sv))).sqr()
             + RingInterval::point(mig(self.e[1].cell_hull(su, sv))).sqr()
             + RingInterval::point(mig(self.e[2].cell_hull(su, sv))).sqr();
-        let e_lo_iv = RingInterval::point(sqrt_down(e_mig_sq.lo())) / w;
-        // | ‖E‖ − |d| | = |X| / (w²·(‖E‖ + |d|)).
+        let e_lo_iv = RingInterval::point(sqrt_down(e_mig_sq.lo())) / wt;
+        // | ‖E‖ − |d| | = |X| / (w̃²·(‖E‖ + |d|)).
         let x_mag = RingInterval::from_bounds(0.0, self.x.cell_hull(su, sv).mag());
-        let dist_iv = x_mag / (w.sqr() * (e_lo_iv + abs_d));
-        // τ = ‖Y‖ / (w·‖M̃‖) ≤ sup‖Y‖ / (floor·w⁴), using
+        let dist_iv = x_mag / (wt.sqr() * (e_lo_iv + abs_d));
+        // τ = ‖Y‖ / (w̃·‖M̃‖) ≤ sup‖Y‖ / (floor·w̃·w³), using
         // ‖M̃‖ = w³·‖m‖ ≥ w³·floor.
         let y_sq = self.y[0].cell_hull(su, sv).mag().powi(2)
             + self.y[1].cell_hull(su, sv).mag().powi(2)
             + self.y[2].cell_hull(su, sv).mag().powi(2);
         let y_mag = RingInterval::from_bounds(0.0, sqrt_up(y_sq));
-        let tau_iv = y_mag / (RingInterval::point(floor) * w.powi(4));
+        let tau_iv = y_mag / (RingInterval::point(floor) * wt * w.powi(3));
         // `‖E‖` from below once more, for the `τ²/‖E‖` term: the
         // direct bound, or `|d| − dist` when that is larger.
         let e_floor = e_lo_iv.lo().max(d.abs() - dist_iv.hi());
@@ -1177,5 +1588,153 @@ impl Composite {
         let bound = dist_iv + tau_iv + tau_iv.sqr() / RingInterval::point(e_floor);
         let hi = bound.hi();
         if hi.is_finite() { hi } else { f64::INFINITY }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::{Refine, directional_mark, stall_verdict};
+
+    /// CERT-7 R2 probe (local only): reproduce the PR body's per-cell
+    /// decomposition of the micron row's sup cell — dist, tau,
+    /// tau^2/||E||, and the mignitude floor on ||E|| (issue 1320's
+    /// digits).
+    #[test]
+    fn r2_probe_micron_sup_cell_decomposition() {
+        use geom_core::spline::KnotVector;
+        use geom_core::{Band, Point3, Tol};
+        let s = (core::f64::consts::FRAC_PI_2 * 0.5).cos();
+        let kv2 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv1 = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 1.0),
+        ];
+        let base =
+            geom::NurbsSurface::new(kv2, kv1, control, vec![1.0, 1.0, s, s, 1.0, 1.0]).unwrap();
+        let d = 1e-6;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (fit, cert) = super::fit_offset(&base, d, 1e-3, band).unwrap();
+        let (reg, _) = crate::offset_meters::meter_patch(&base, d, band).unwrap();
+        let comp = super::Composite::build(&base, &fit, d).unwrap();
+        let (nu, nv) = comp.x.cell_counts();
+        let mut sup = (0usize, 0usize, 0.0f64);
+        for su in 0..nu {
+            for sv in 0..nv {
+                let b = comp.cell_bound(su, sv, reg.floor, d);
+                if b > sup.2 {
+                    sup = (su, sv, b);
+                }
+            }
+        }
+        let (su, sv) = (sup.0, sup.1);
+        // Re-run the assembly with the parts split (mirrors cell_bound).
+        use geom_core::ring_interval::RingInterval;
+        let w = comp.w.cell_hull(su, sv);
+        let wt = comp.wt.cell_hull(su, sv);
+        let abs_d = RingInterval::point(d.abs());
+        let e_mig_sq = RingInterval::point(crate::offset_meters::mig(comp.e[0].cell_hull(su, sv)))
+            .sqr()
+            + RingInterval::point(crate::offset_meters::mig(comp.e[1].cell_hull(su, sv))).sqr()
+            + RingInterval::point(crate::offset_meters::mig(comp.e[2].cell_hull(su, sv))).sqr();
+        let e_lo_iv = RingInterval::point(crate::offset_meters::sqrt_down(e_mig_sq.lo())) / wt;
+        let x_mag = RingInterval::from_bounds(0.0, comp.x.cell_hull(su, sv).mag());
+        let dist_iv = x_mag / (wt.sqr() * (e_lo_iv + abs_d));
+        let y_sq = comp.y[0].cell_hull(su, sv).mag().powi(2)
+            + comp.y[1].cell_hull(su, sv).mag().powi(2)
+            + comp.y[2].cell_hull(su, sv).mag().powi(2);
+        let y_mag = RingInterval::from_bounds(0.0, crate::offset_meters::sqrt_up(y_sq));
+        let tau_iv = y_mag / (RingInterval::point(reg.floor) * wt * w.powi(3));
+        let e_floor = e_lo_iv.lo().max(d.abs() - dist_iv.hi());
+        let t3 = (tau_iv.sqr() / RingInterval::point(e_floor)).hi();
+        eprintln!(
+            "R2 decomposition: hull_sup={:.4e} sup_cell=({su},{sv}) bound={:.4e} \
+             dist={:.4e} tau={:.4e} tau2/E={:.4e} e_lo={:.4e} share={:.1}%",
+            cert.hull_sup,
+            sup.2,
+            dist_iv.hi(),
+            tau_iv.hi(),
+            t3,
+            e_lo_iv.lo(),
+            100.0 * t3 / sup.2
+        );
+    }
+
+    /// The guard is silent while the bound is still `+∞`: an
+    /// unbounded round is unproved, not unimproved, and a loop on its
+    /// way from `+∞` to a finite bound is converging.
+    #[test]
+    fn an_infinite_predecessor_is_never_a_stall() {
+        for marked_both in [false, true] {
+            assert_eq!(
+                stall_verdict(f64::INFINITY, f64::INFINITY, marked_both),
+                Refine::Directional
+            );
+            assert_eq!(
+                stall_verdict(f64::INFINITY, 1e-3, marked_both),
+                Refine::Directional
+            );
+        }
+    }
+
+    /// A round that lowered the bound keeps refining directionally,
+    /// whichever marking produced it.
+    #[test]
+    fn an_improving_round_stays_directional() {
+        assert_eq!(stall_verdict(1e-3, 1e-4, false), Refine::Directional);
+        assert_eq!(stall_verdict(1e-3, 1e-4, true), Refine::Directional);
+    }
+
+    /// A directional round that gained nothing does not refuse — it
+    /// falls back to bisecting both directions, which is the answer
+    /// when the speed ratio mispredicted where the error lives.
+    /// Equality counts as no gain: a bound that held still is a bound
+    /// that did not fall.
+    #[test]
+    fn a_directional_round_that_gains_nothing_falls_back_to_both() {
+        assert_eq!(stall_verdict(1e-3, 1e-3, false), Refine::BothDirections);
+        assert_eq!(stall_verdict(1e-3, 2e-3, false), Refine::BothDirections);
+        assert_eq!(
+            stall_verdict(1e-3, f64::INFINITY, false),
+            Refine::BothDirections
+        );
+    }
+
+    /// **The refusal's admission set.** Only a BOTH-directions round
+    /// that still gains nothing refuses: the loop took the strongest
+    /// step it has and got nothing, so the rounds it has left cannot
+    /// reach the tolerance either.
+    #[test]
+    fn only_a_both_directions_round_that_gains_nothing_refuses() {
+        assert_eq!(stall_verdict(1e-3, 1e-3, true), Refine::Refuse);
+        assert_eq!(stall_verdict(1e-3, 2e-3, true), Refine::Refuse);
+        assert_eq!(stall_verdict(1e-3, f64::INFINITY, true), Refine::Refuse);
+    }
+
+    /// The direction rule reads model-space extent, not chart extent:
+    /// the same cell box marks `u` or `v` depending only on which
+    /// chart speed makes its side longer in metres.
+    #[test]
+    fn the_direction_rule_compares_metres_not_parameters() {
+        let us = vec![0.0, 0.5, 1.0];
+        let vs = vec![0.0, 0.5, 1.0];
+        let failing = [((0.0, 0.5), (0.0, 0.5))];
+        // Equal chart extents, u ten times faster: u is marked.
+        let (mu, mv) = directional_mark(&us, &vs, &failing, 10.0, 1.0);
+        assert_eq!(mu, vec![true, false]);
+        assert_eq!(mv, vec![false, false]);
+        // The same cell, v ten times faster: v is marked instead.
+        let (mu, mv) = directional_mark(&us, &vs, &failing, 1.0, 10.0);
+        assert_eq!(mu, vec![false, false]);
+        assert_eq!(mv, vec![true, false]);
+        // A tie goes to u, on structure (D9).
+        let (mu, mv) = directional_mark(&us, &vs, &failing, 3.0, 3.0);
+        assert_eq!(mu, vec![true, false]);
+        assert_eq!(mv, vec![false, false]);
     }
 }

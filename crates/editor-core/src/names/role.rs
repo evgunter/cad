@@ -61,6 +61,19 @@ impl EntityKind {
             Self::Vertex => "vertex",
         }
     }
+
+    /// The indefinite article agreeing with [`EntityKind::noun`] — the
+    /// value decides it ("an edge", "a face"), so a sentence that
+    /// hard-codes one is wrong for some kind it can reach. Rendered as
+    /// `"{} {}"` beside the noun, or beside a whole [`StableName`]
+    /// whose kind this is. `Dimension`'s `article` is the same idiom
+    /// and states the rule.
+    pub(crate) fn article(self) -> &'static str {
+        match self {
+            Self::Body | Self::Face | Self::Vertex => "a",
+            Self::Edge => "an",
+        }
+    }
 }
 
 /// N1's stable name: a derivation path — the minting node plus an
@@ -80,6 +93,25 @@ pub struct StableName {
     pub node: RecipeNodeId,
     /// The role path within that operation.
     pub path: RolePath,
+}
+
+// The human-readable rendering: the kind (through [`EntityKind::noun`],
+// never `Debug`) plus the minting node — the half of a name a user can
+// act on. The role path is a derivation, not something a person reads
+// mid-sentence, so prose never renders it; the typed value remains the
+// machine channel for anything that needs the path. Article-free
+// ("face name minted by node 3") so a sentence supplies its own
+// article. Refusal prose that names a name forwards this rather than
+// re-spelling it.
+impl core::fmt::Display for StableName {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{} name minted by node {}",
+            self.kind.noun(),
+            self.node.0
+        )
+    }
 }
 
 /// A sequence of role segments (N1). Usually length 1; composition
@@ -217,24 +249,63 @@ pub enum Qualifier {
 }
 
 /// Which support of a rim blend an entity lies on (M6-5). A pair of
-/// structural roles, not a geometric classification: the surgery
-/// knows which support is which from the chain it resolved.
+/// structural ROLES, not a geometric classification: the surgery knows
+/// which support is which from the chain it resolved, and a rim
+/// between two supports of the SAME kind — two cones meeting at a
+/// latitude circle — has no kind that tells them apart.
+///
+/// [`RimSupport::Host`] is the PLANAR support wherever the rim has
+/// one, so a caller selecting the flat side of a plane–sphere rim
+/// selects the host; a rim whose supports both curve takes the
+/// resolved link's own first side.
+///
+/// **The planarity boundary is where this vocabulary is NOT
+/// covariant, and it is load-bearing enough to state here.** Because
+/// the host is defined by planarity, an edit that carries a support
+/// ACROSS planarity re-decides which arc each role addresses, while
+/// the rim's own name and the selection naming it stay word for word
+/// the same. Every edit that does not cross that boundary leaves both
+/// roles fixed. The instability is INHERITED, not introduced — the
+/// retired kind vocabulary moved on exactly the same edits — but it is
+/// worse in one respect and the record should say so: a renamed KIND
+/// makes a stored selection stop resolving, loudly, where a swapped
+/// ROLE silently retargets it to the other arc of the same rim.
+/// Pinned by `blend5_r1_probes` and `blend5_r2_probes`.
+///
+/// # The kernel twin, and why this is not it
+///
+/// `sweep::blend::naming::RimSide` is the same two roles, recorded by
+/// the surgery as it carves; `names::emit_blend` maps one onto the
+/// other by an identity match. The duplication is deliberate and the
+/// emitter's match is the SEAM.
+///
+/// This side is what a file remembers: persisted, so its spelling is
+/// file data and cannot move without every saved document moving with
+/// it. The kernel side is a birth record of arena keys with no serde,
+/// free to be re-spelled with the surgery. Collapsing them would
+/// either drag serde down into the kernel — which G1 layering forbids
+/// the other way round too, since the kernel must not depend on
+/// `editor-core` — or let a surgery refactor silently re-spell every
+/// saved document. With the seam, a rename on the kernel side that
+/// the emitter still maps touches no file. The fuller statement lives
+/// at `RimSide`'s own declaration.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
+// INERT as it stands, and kept deliberately: an externally-tagged enum
+// of unit-only variants already rejects an unknown variant name
+// unconditionally, so this attribute guards only a FUTURE variant that
+// carries fields. Its siblings above carry it for the same reason;
+// issue #1308 owns the workspace-wide disposition.
 #[serde(deny_unknown_fields)]
 pub enum RimSupport {
-    /// The HOST support — the planar one wherever the rim has one (on a
-    /// ladder rim, the face carrying the rim as a ring).
-    Plane,
-    /// The MATE support — the cap the rim bounds on a ladder rim.
-    ///
-    /// A rim between two CURVED walls has no planar side, and this
-    /// two-value alphabet cannot say so: the two trim arcs still take
-    /// DIFFERENT variants, so names stay unique, but one of them reads
-    /// `Plane` for a curved support. Widening the alphabet is a change
-    /// to a persisted, versioned vocabulary — tracked as #961.
-    Curved,
+    /// The HOST support: the planar one wherever the rim has one (on a
+    /// ladder rim, the face carrying the rim as a ring), otherwise the
+    /// resolved link's own first side.
+    Host,
+    /// The MATE support: the other side of the same rim (on a ladder
+    /// rim, the cap the rim bounds).
+    Mate,
 }
 
 /// One op-typed role segment (N1; closed enum, spec D2). Grouped by
@@ -421,17 +492,19 @@ pub enum RoleSeg {
         /// Which support the arc lies on.
         support: RimSupport,
     },
-    /// A band foot: the planar-support vertex retracted from a source
-    /// rim vertex.
+    /// A band foot: the HOST-support vertex retracted from a source
+    /// rim vertex. (Named by role, not kind: a rim between two curved
+    /// walls has no planar support and still mints one — pinned by
+    /// `blend5_r1_probes`.)
     BandFoot(Box<StableName>),
-    /// The vertex where the band's curved-side trimline crossed a
-    /// source edge running off the rim (a cap meridian).
+    /// The vertex where the band's MATE-side trimline crossed a source
+    /// edge running off the rim (on a ladder rim, a cap meridian).
     BandCross(Box<StableName>),
     /// The surviving piece of a source edge the band's trimline cut
     /// (the shortened meridian).
     BandCut(Box<StableName>),
     /// A band's SLIT: the double-traversed torus meridian that keeps
-    /// the annular band RING-FREE (`sweep::fillet::surgery`'s donut
+    /// the annular band RING-FREE (`sweep::blend::surgery`'s donut
     /// representation). Argument: the source edge whose severed piece
     /// became it.
     BandSlit(Box<StableName>),
@@ -465,16 +538,16 @@ pub enum RoleSeg {
 /// The [`RoleSeg`] variants that embed no [`StableName`], as a
 /// PATTERN rather than a predicate.
 ///
-/// Three matches classify segments by this partition and each does
+/// Four matches classify segments by this partition and each does
 /// something different with the other half — the name walk visits,
-/// the rewrite rebuilds, the selector collects. Only the negative
-/// answer is common, so only the negative answer is shared, and it is
-/// shared as an or-pattern so that none of the three loses its
-/// exhaustiveness: a variant added to [`RoleSeg`] and not added here
-/// breaks all three builds, exactly as spelling the list out three
-/// times did. What changes is that classifying it name-free is now
-/// ONE decision at one site instead of three that can be made
-/// differently.
+/// the rewrite rebuilds, the selector collects, and the attribution
+/// walk ([`fn@super::attribute`]) stops. Only the negative answer is
+/// common, so only the negative answer is shared, and it is shared as
+/// an or-pattern so that none of them loses its exhaustiveness: a
+/// variant added to [`RoleSeg`] and not added here breaks every one of
+/// those builds, exactly as spelling the list out at each site did.
+/// What changes is that classifying it name-free is ONE decision at
+/// one site instead of four that can be made differently.
 ///
 /// A `fn` returning `bool` would not do: a caller may forget to call
 /// a predicate, and the property this list carries is the one the

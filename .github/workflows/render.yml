@@ -1,7 +1,10 @@
 # Hosted demo render lanes — ON DEMAND, ARTIFACT-ONLY.
 #
 # WHY THIS EXISTS. `demos/render.sh` is the heaviest thing the repo asks
-# of a developer box: ~20 scenes per lane, one fresh `freecadcmd`
+# of a developer box: ~20 scenes per lane (a count of the committed scene
+# manifest, re-derivable from it at any time and re-taken by nothing here;
+# every lane's own run prints what it actually rendered), one fresh
+# `freecadcmd`
 # process each, and on a loaded host a single scene has been measured at
 # 106 s (render.sh's budget note). It is also what this host is worst at
 # — `memories/freecad-render-lane.md` records freecadcmd stalling AFTER
@@ -56,7 +59,7 @@
 #
 # WHY THIS IS POSSIBLE AT ALL. It was not, when the committed cells came
 # from a developer's GL stack and these came from llvmpipe. Hosted is
-# the canonical producer since Evan's #338 ruling, and a repeat hosted
+# the canonical producer since Ev's #338 ruling, and a repeat hosted
 # render of one commit is byte-identical — measured across all 55 cells
 # of both PNG lanes — so a diff is a real finding, and an ungated
 # committed artifact rots silently. What a diff MEANS still differs by
@@ -79,7 +82,7 @@
 #     `uv sheet drift (demos)` row was retired when that started; this
 #     workflow owns the obligation outright.
 #
-# THE LANES COMMIT THEIR OWN RE-BASELINES (2026-08-17, Evan's ruling —
+# THE LANES COMMIT THEIR OWN RE-BASELINES (2026-08-17, Ev's ruling —
 # this REVISES the "NO JOB COMMITS OR PUSHES, in either mode" rule that
 # stood here from the commit that first gated the lanes).
 #
@@ -152,6 +155,17 @@ on:
       # rather than quietly rendering under a different regime.
       # render.sh's OWN default stays 1: it cannot know a developer
       # box's core count, and this workflow can.
+      #
+      # THE TWO CLAIMS IN THAT SENTENCE HAVE DIFFERENT BUCKETS, which is
+      # worth splitting because only one of them is watched. BYTE-IDENTITY
+      # IS GUARDED, and by this workflow itself: every lane compares its
+      # render against the committed cells on every run and re-baselines
+      # loudly when they part, so a concurrency setting that stopped
+      # producing the same bytes would show up as a neutral check on the
+      # next run rather than in this comment. THE ~20% IS NOT: it is one
+      # undated reading, nothing re-takes it, and nothing would go red if
+      # it were wrong — the setting is chosen by the runner's core count
+      # and would not change if the saving turned out to be 10%.
       render_jobs:
         description: "Scenes rendered concurrently per FreeCAD lane (1 = sequential)"
         required: false
@@ -276,6 +290,23 @@ jobs:
   #     ONE `CARGO_TARGET_DIR` (below) makes the second build reuse the
   #     first's dependency artifacts instead of compiling the whole kernel a
   #     second time.
+  #
+  # THE PACKAGE COUNTS ARE A ONE-SHOT READING AND ARE RE-DERIVABLE, WHICH IS
+  # WHY THEY CARRY NO GUARD: `cargo tree`/`cargo metadata` over the two roots
+  # answers this in seconds at any time, so a stale pair here costs a reader
+  # one command rather than a wrong decision. What the fold actually rests on
+  # is the QUALITATIVE half — the two graphs differ only in each root's own
+  # leaf crate, so the fingerprints match. NOTHING WATCHES THAT HALF EITHER,
+  # and the honest version of the sentence that used to stand here is: if the
+  # selections part, the second build silently stops reusing and this job
+  # simply takes longer, which no step reads and no check reds on. Wall clock
+  # is not a watcher. What makes the residue small is that the failure is
+  # PURE COST — the artifacts are correct either way, every lane still
+  # produces every artifact under the same name and still re-baselines its
+  # own cells — and that the one command above re-derives the premise in
+  # seconds. Nothing re-takes the ~10 s either, and nothing needs to: it is
+  # an argument that the folded job's own work was smaller than the setup
+  # around it, which is a statement about shape, not a budget.
   #
   # WHY THAT IS NOT THE `CARGO_TARGET_DIR` LEVER docs/CI-MINUTES-2026-08.md's
   # F6 REJECTED. That one pointed the rustdoc gate's seven roots at one
@@ -692,11 +723,20 @@ jobs:
       # a developer box runs; the hosted lanes run 5, and the number is a
       # judgement against ONE unmeasured quantity, so here is the reasoning.
       #
-      # WHAT IS MEASURED AND SETTLED:
+      # WHAT IS MEASURED AND SETTLED — and "settled" means different things
+      # for the three, so each says which. Only the first is re-taken by
+      # anything; the other two are one-shot readings on this runner class
+      # that nothing revisits, kept because the DIRECTION they establish is
+      # what the choice rests on and neither would be worth a guard: a
+      # failure-mode census and a per-scene failure rate are properties of
+      # FreeCAD and of the image, not of this repository, so there is
+      # nothing here that could assert them.
       #   * BYTE-IDENTICAL. Verified B=1 vs B=5 vs B=35, both lanes, with a
       #     control arm passing. That is this knob's acceptance test
       #     (render.sh states it) and it is the only property a render lane
-      #     may not trade.
+      #     may not trade — and it is the one row here with a live guard,
+      #     because every lane re-compares its render against the committed
+      #     cells on every run at the B this file sets.
       #   * FAILURES ARE CRASHES, NOT HANGS. 10 of 10 observed failures were
       #     `freecadcmd rc=1`, dead in 3-5 s against a 300 s budget; 0 of 10
       #     took any timeout path. So the thing batching would amplify — a
@@ -841,10 +881,14 @@ jobs:
       # A TIMEOUT OF ITS OWN (2026-08-22), which this step had never had —
       # it sat on the job's whole budget, which is the gap the apt step four
       # comments up argues against in its own case. Sized with real headroom
-      # rather than tightly: the measured scene work is 81-101 s for the
-      # freecad lane and ~105 s for the kernel lane, and the legitimate worst
-      # case is set by machine contention rather than by any scene (render.sh
-      # records 106 s for a single scene at load average 13). Two lanes, each
+      # rather than tightly. THE SCENE-WORK FIGURES ARE NOT RESTATED HERE:
+      # they are the batch-size note's, at `scenes_per_process` above, which
+      # is where they were taken and where their disposition is written —
+      # one-shot readings on this runner class that nothing re-takes. This
+      # timeout is sized against the contended worst case rather than
+      # against them (render.sh records a single scene at 106 s under load,
+      # ~20x its idle time), so it survives any drift in the idle figures
+      # that would matter. Two lanes, each
       # bounded by render.sh at two attempts x a flat 300 s budget per batch,
       # with room for a contended box on top.
       - name: render both lanes (demos/render.sh)

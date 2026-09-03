@@ -15,15 +15,13 @@
 //!    that whole class rather than one case, at the cost of a longer
 //!    path for the few payloads that sit below their owner's root
 //!    (`geom_core::spline::KnotAlgebraError`,
-//!    `sweep::fillet::FilletError`, `topo::boolean::ContainError`,
+//!    `sweep::blend::BlendError`, `topo::boolean::ContainError`,
 //!    `mesh::validate::MeshError`) — a longer path, never a second
 //!    crate — and it required **zero kernel edits**, which is the
 //!    ruling other crates cite when they need a payload type and find
 //!    its owner does not re-export it: the answer is a direct edge on
 //!    the owning crate, never a new re-export added to somebody
-//!    else's root. The one stated exception is `MigrationStep`, whose
-//!    signature speaks `serde_json::Value`; [`document`] records why
-//!    it stays out. `tests/all.rs` is the pin: it matches on the
+//!    else's root. `tests/all.rs` is the pin: it matches on the
 //!    cross-crate payloads using only `pncad::` paths, and a guard
 //!    test there reads its own source and fails if any kernel crate
 //!    is named outside one.
@@ -103,6 +101,13 @@
 //!   materializers, the pattern language, the geometric filters, and
 //!   the detect/declare protocol. The worked examples for
 //!   [`select`].
+//! - [`guide::meshing`] — the ladder's tessellate and cross-check
+//!   rungs from the bindings' side: what a mesh carries across, and
+//!   how a caller re-derives closure and volume from it.
+//! - [`guide::assembly`] — parts, instances and mates: the workspace
+//!   store, the identity/pin/reference split, `evaluate`'s resolver
+//!   and memo, the solve and the at-rest gate, split/inline and the
+//!   pin-update door.
 //! - [`guide::north_star_audit`] — what the Python bindings can
 //!   author today, and the named gaps.
 //!
@@ -186,6 +191,7 @@ pub use topo;
 // document-layer path names it, and that measurement is what decides
 // the re-export. Re-export it the day a consumer needs it.
 
+pub mod analysis;
 pub mod authoring;
 pub mod document;
 pub mod export;

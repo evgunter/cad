@@ -1,14 +1,16 @@
-//! M4 PR 6 review MINOR-3 — the committed GOLDEN v1 fixture.
+//! M4 PR 6 review MINOR-3 — the committed GOLDEN fixture.
 //!
 //! D6.1's round-trip row proves save∘load is a fixpoint, but a
 //! fixpoint is BLIND to format drift: rename a field and save/load
-//! stay self-consistent while every existing v1 file breaks. This row
+//! stay self-consistent while every existing file breaks. This row
 //! pins the frozen wire shape to CHECKED-IN BYTES
-//! (`tests/golden/v14_golden.cad`): the fixture document must save to
-//! exactly those bytes, and the bytes must load. Any change to either
-//! is a format change and demands a ratified schema bump + migration
-//! step — re-bless ONLY then (run with `M4_PR6_BLESS_GOLDEN=1` to
-//! regenerate, and say so loudly in the PR).
+//! (`tests/golden/golden.cad`): the fixture document must save to
+//! exactly those bytes, and the bytes must load. A change to either is
+//! a FORMAT CHANGE — deliberate, never in passing: re-bless (run with
+//! `M4_PR6_BLESS_GOLDEN=1`), regenerate the rest of the checked-in
+//! corpus the same way, and say so in the PR. The format carries no
+//! schema version (the persist module docs say why), so the re-bless
+//! IS the whole procedure.
 //!
 //! ε note: the golden snapshot PINS ε = 1e-9 via `SetTolerance` (a
 //! committed byte stream cannot record the ambient ε — it varies by
@@ -22,17 +24,18 @@
 
 mod fixture;
 
+use editor_core::UnitSym;
 use editor_core::{
-    Attr, CancelToken, Dimension, DocEdit, DocParam, EntityKind, EvalOptions, Expr, LoopProgram,
-    MetaValue, Node, NodeResult, ParamName, PersistError, ProfileDoc, ProfileProgram,
+    Attr, CancelToken, Dimension, Distribution, DocEdit, DocParam, EntityKind, EvalOptions, Expr,
+    LoopProgram, MetaValue, Node, NodeResult, ParamName, PersistError, ProfileDoc, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, Rgba8, RoleSeg, StableName, WitnessDatum, apply,
     evaluate, load, save,
 };
 use fixture::desc;
 use geom_core::Tol;
 
-const GOLDEN: &str = include_str!("golden/v14_golden.cad");
-const GOLDEN_PATH: &str = "tests/golden/v14_golden.cad";
+const GOLDEN: &str = include_str!("golden/golden.cad");
+const GOLDEN_PATH: &str = "tests/golden/golden.cad";
 
 /// The golden document: deterministic (no ambient reads — ε pinned by
 /// the SetTolerance edit) and shape-covering: params, an arc-bearing
@@ -61,6 +64,8 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         ]
     };
     doc = push(&doc, &DocEdit::SetTolerance { eps: 1e-9 });
+    // v15: `depth` carries a distribution, so the frozen bytes pin the
+    // populated `distribution` key rather than only its absence.
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
@@ -68,7 +73,22 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.75,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
+                distribution: Some(Distribution::TruncatedNormal {
+                    sigma: 0.002,
+                    lo: -0.005,
+                    hi: 0.004,
+                }),
             },
+        },
+    );
+    // A second parameter with NO distribution, so the same bytes also
+    // pin the degenerate carry: an unannotated param writes no key.
+    doc = push(
+        &doc,
+        &DocEdit::SetDocParam {
+            name: ParamName::new("clearance"),
+            value: DocParam::continuous(Dimension::Length, 0.001),
         },
     );
     // v4 re-authoring (content-preserving): the quad with one arc
@@ -166,6 +186,58 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             }),
         },
     );
+    // v16's own wire shape, in the frozen bytes: a `Node::Chamfer`
+    // with its `distance` slot and its canonical frozen selection.
+    // Without this, the one variant the v16 break EXISTS for would be
+    // pinned by no golden, against this fixture's shape-covering
+    // charter.
+    //
+    // It gets its OWN square prism (nodes 4 and 5) rather than reusing
+    // node 1, and the reason is the door rather than tidiness: node 1's
+    // profile carries an ARC, so its barrel is a cylinder; the
+    // chamfer's v1 door is plane-plane, and every closed edge chain on
+    // that body runs into the curved lateral and refuses
+    // `ChamferArmUnsupported`. A single edge does not work either — the
+    // assembly admits only a FULLY-REQUESTED chain set, so one lateral
+    // edge terminating at a trivalent corner refuses
+    // `UnsupportedRunOut`. A four-sided prism with all twelve edges
+    // requested is the smallest thing the door actually accepts, and a
+    // golden that froze a refusing node would be the sick-bytes failure
+    // #117/#120 named.
+    //
+    // Appended, so every existing node id — and every name the
+    // appearance rows above address — is untouched.
+    let square = desc(
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Profile(square),
+        },
+    );
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Extrude {
+                profile: editor_core::RecipeNodeId(4),
+                distance: Expr::literal(0.5, Dimension::Length).expect("finite"),
+            },
+        },
+    );
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::chamfer(
+                editor_core::RecipeNodeId(5),
+                Expr::literal(0.1, Dimension::Length).expect("finite"),
+                fixture::prism_edges(editor_core::RecipeNodeId(5), 4),
+            ),
+        },
+    );
     doc = push(
         &doc,
         &DocEdit::ReWitness {
@@ -199,9 +271,58 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::SetAppearanceMeta {
-            name: body,
+            name: body.clone(),
             key: "tool.example/pin".into(),
             value: MetaValue::Map(m),
+        },
+    );
+    // v17: the measurement vocabulary on the wire (E3/E10) — a
+    // `Measure` carrying a reference list and a measured expression,
+    // and an `Assertion` bounding it. The measured expression is
+    // arithmetic over a parameter and a literal rather than a
+    // primitive: the golden must evaluate GREEN, and a primitive over
+    // this document's only well-known name (a whole BODY) has no
+    // closed form. The primitive leaves' wire forms are pinned by
+    // round-trip in `m10_2_measure_wire.rs`, where a document with real
+    // carriers can be built.
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::measure(
+                editor_core::MeasureExpr::sub(
+                    editor_core::MeasureExpr::value(Expr::param(
+                        ParamName::new("depth"),
+                        Dimension::Length,
+                    )),
+                    editor_core::MeasureExpr::value(
+                        Expr::literal(0.25, Dimension::Length).expect("finite"),
+                    ),
+                )
+                .expect("same-dimension subtraction"),
+                // Read at node 1, the extrude that owns the body: the
+                // reference is unindexed by this expression, so it is
+                // carried data the measure never reads.
+                vec![editor_core::MeasureRef::new(
+                    editor_core::RecipeNodeId(1),
+                    body.clone(),
+                )],
+            )
+            .expect("every index addresses a reference"),
+        },
+    );
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Assertion {
+                // The `Measure` pushed immediately above. Ids in this
+                // document are positional, so a node inserted EARLIER
+                // shifts this one — the insert door catches that
+                // typed (`AssertionTarget`) rather than letting a
+                // golden freeze an assertion over the wrong node.
+                measure: editor_core::RecipeNodeId(7),
+                bound: Expr::literal(0.1, Dimension::Length).expect("finite"),
+                dir: editor_core::AssertionDir::AtLeast,
+            },
         },
     );
     // The committed EDIT LOG half: one trailing continuous edit —
@@ -228,13 +349,13 @@ fn golden_bytes_are_frozen() {
         )
         .expect("bless writes");
         panic!(
-            "golden re-blessed — commit the file WITH its ratified schema change, then rerun without the env var"
+            "golden re-blessed — commit the file WITH the format change it records, then rerun without the env var"
         );
     }
     assert_eq!(
         text, GOLDEN,
-        "schema-v11 wire bytes drifted from the committed golden — this is a FORMAT \
-         CHANGE: it needs a ratified schema bump + migration step, never a re-bless in passing"
+        "wire bytes drifted from the committed golden — this is a FORMAT \
+         CHANGE: re-bless deliberately and regenerate the corpus with it, never in passing"
     );
 }
 

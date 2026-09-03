@@ -118,6 +118,75 @@ pub enum InterrogateError {
     ),
 }
 
+// The human-readable rendering (LIB-DOORS F6 shape): each arm states
+// the PROBLEM in the name-door's own vocabulary — the node, the name,
+// the kind — plus the recourse where a caller has one. The three
+// node-state arms say what the hit-test door's identical arms say,
+// because it is the same fact about the same evaluation reached
+// through a different door. Kinds render through `EntityKind::noun`,
+// never `Debug`, and the `Readback` arm forwards the kernel's own
+// words rather than paraphrasing a layer it does not own.
+impl core::fmt::Display for InterrogateError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NodeNotEvaluated { node } => write!(
+                f,
+                "interrogate: node {} has no result in this evaluation — the name is against a \
+                 node this run did not produce (a canceled suffix, or an id from another \
+                 document)",
+                node.0
+            ),
+            Self::NodeFailed { node } => write!(
+                f,
+                "interrogate: node {} failed, so it has no name table to read — fix the node's \
+                 own failure before asking about its names",
+                node.0
+            ),
+            Self::NodePoisoned { node, through } => write!(
+                f,
+                "interrogate: node {} is poisoned by the failure at node {}, so it has no name \
+                 table to read — the repair is upstream, at node {}",
+                node.0, through.0, through.0
+            ),
+            Self::NoSuchName => f.write_str(
+                "interrogate: nothing in this node answers to that name — the selection is \
+                 stale (an upstream edit removed what it named) or the name belongs to another \
+                 node",
+            ),
+            Self::Ambiguous { candidates } => write!(
+                f,
+                "interrogate: {candidates} entities answer to that name equally well, so there \
+                 is no single geometry to report — a tie is recorded, never broken silently"
+            ),
+            Self::WrongKind { wanted, found } => write!(
+                f,
+                "interrogate: kind mismatch — this door reads {}, and the name denotes {}; \
+                 ask the door for the kind the name actually names",
+                wanted.noun(),
+                found.noun()
+            ),
+            Self::WholeBody => f.write_str(
+                "interrogate: the name denotes a whole body, which has no single frame — ask \
+                 about one of its faces, edges, or vertices instead",
+            ),
+            Self::NoBodies { payload } => write!(
+                f,
+                "interrogate: this node's value is a {payload} and carries no bodies at all, so \
+                 there is no geometry to read"
+            ),
+            Self::NoSuchBody { index } => write!(
+                f,
+                "interrogate: the name carries output-body index {index}, which this node's \
+                 value does not have — the emission and the value disagree, so this is a kernel \
+                 bug"
+            ),
+            Self::Readback(error) => write!(f, "interrogate: {error}"),
+        }
+    }
+}
+
+impl core::error::Error for InterrogateError {}
+
 impl From<ReadbackError> for InterrogateError {
     fn from(e: ReadbackError) -> Self {
         Self::Readback(e)
@@ -327,7 +396,10 @@ pub(crate) fn output_body<T: Decide>(
         ValuePayload::Profile(_) => none("profile"),
         ValuePayload::Declarations(_) => none("declarations"),
         // A12: a mate denotes no body. Interrogating one for geometry
-        // is the same category error as interrogating a declaration.
+        // is the same category error as interrogating a declaration —
+        // and so is interrogating a measurement or its verdict.
         ValuePayload::Mate(_) => none("mate"),
+        ValuePayload::Measure { .. } => none("measure"),
+        ValuePayload::Assertion(_) => none("assertion"),
     }
 }

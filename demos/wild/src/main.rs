@@ -3,7 +3,7 @@
 //! `step-import`, tessellates each body with the kernel's own
 //! tessellator, and exports STL + a `scenes.json` manifest for
 //! `demos/render-wild.sh` — the KERNEL-TESSELLATION lane only, by
-//! Evan-approved scope (no FreeCAD import, no OCC comparison lane).
+//! Ev-approved scope (no FreeCAD import, no OCC comparison lane).
 //!
 //! **The cell set is LAW, not discovery** — `docs/WILD-CORPUS-LICENSES.md`
 //! is the license audit that governs it:

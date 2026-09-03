@@ -410,9 +410,9 @@ fn probe_subunit_x_direction_rim_frame_rigidity() {
             let mut bad = Vec::new();
             for (ek, e) in body.edges() {
                 if let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve)
-                    && let geom_brep::EdgeGeometry::MappedCurve(
+                    && let geom_brep::EdgeAuthority::Declared(
                         geom_brep::MappedCurve::PlacedSegment { place, .. },
-                    ) = c.description()
+                    ) = c.authority()
                 {
                     let l = place.linear;
                     let det = l.determinant();
@@ -548,8 +548,8 @@ fn probe_iso_adoption_deterministic() {
             .edges()
             .filter_map(|(_, e)| match body.get_curve_geom(e.curve) {
                 Some(topo::CurveGeom::Certified(c)) => match c.description() {
-                    geom_brep::EdgeGeometry::IsoCurve { surface, u, v0, v1 } => {
-                        Some(format!("{surface:?} u={u} v0={v0} v1={v1}"))
+                    geom_brep::EdgeDescription::Chart(cc) => {
+                        Some(format!("{:?} image={:?}", cc.surface, cc.pcurve))
                     }
                     _ => None,
                 },

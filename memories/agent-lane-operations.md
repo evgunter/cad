@@ -31,7 +31,15 @@ carries its own thresholds — read them there. Under pressure,
 stash before each rm and refuses loudly, so it is safe in bulk — but it
 needs **absolute paths** (a bare lane name is refused with a message
 that reads like a missing directory). Never touch a running gate's
-target, and confirm the OWNING agent has terminated first. After a
+target, and confirm the OWNING agent has terminated first. Before
+deleting ANY lane's repo, check for reference-clone borrowers:
+`grep -l <path> ~/.local/share/cad-work/*/cad/.git/objects/info/alternates`
+— deleting a repo that others' clones `--reference` corrupts their
+object stores mid-run (instance: verbs-azimuth deleted under
+verbs-ga2, 2026-08-31; repaired in place by removing the alternates
+file, dropping stale remote refs/tags pointing at server-deleted
+objects, and `git fetch --refetch`). A reference clone is a disk
+loan, and the loan outlives the lender's merge. After a
 disk-full crash, purge torn binaries (ELF-magic scan) and treat
 pressure-window test results as suspect. Sweep merged worktrees at
 every pipeline seam, one `git worktree remove` per Bash call — the
@@ -68,6 +76,77 @@ raw `cargo` invocations yourself.
   kill children first so none inherits the lock fd, then VERIFY the
   release (`fuser -v` on the lock): "parent dead, lock still held"
   looks identical to success from outside.
+- **Express lane** (`--express [SECS]`): short jobs (≤10 min declared
+  budget) get their own slot with a self-enforcing timeout so they never
+  starve behind a battery. Batteries and default jobs keep the main
+  mutex. Its cost model is unverified — the leading suspect for
+  pathological build waits is express-lane overlap with a main-slot
+  build on a memory-tight box, ahead of any compiler flag.
+- Choose `-n` (grab-or-exit-75, then retry) over the default blocking
+  wait for long queues — a blocking wait can eat a Bash call's 10-min
+  cap. Long rows that must survive the harness 590s timeout: launch
+  under `setsid`, then poll the output file in the foreground.
+- **A green job NAME can sit over a SKIPPED step — k-lint's demos rows
+  are their own sampled axis (`klint_row`).** Third face of the
+  silent-coverage class (after CONFLICTING-no-run and
+  queued-with-zero-jobs): the TEAPOT dual found the PR's junction
+  tables had never executed hosted — both runs' k-lint jobs were green
+  while `demos tour suite` recorded `skipped` (the drawn klint_row
+  didn't carry it). One reviewer read ci.yml and concluded the steps
+  ran; the other read the RUN's jobs API and saw `skipped` — the run
+  record is the instrument, the workflow source is not. Verify
+  coverage at the STEP level (`gh api .../jobs`, step conclusions),
+  never by job-name green. (Ordinal 100, 2026-08-27.)
+- **A detached job whose evidence is SUPERSEDED still takes the mutex
+  (2026-08-27, PCURVE P-1a).** The `setsid` rule keeps a long job alive
+  through a harness reap — but alive is not the same as useful. A P-1a
+  local workspace battery held `slot-1` for **2h18m** AFTER hosted CI
+  had drawn both compile modes on the same code, i.e. after its own
+  author had written that it was "a footnote, not the gate". Three
+  review lanes queued behind it, including the delta round gating that
+  unit's own merge. **Kill a detached job at the moment its evidence is
+  superseded, not at its natural end** — running is not a reason to
+  keep running. Corollary that makes the kill cheap: RECORD THE PID AT
+  LAUNCH, so stopping it is a one-liner rather than a hunt (and never
+  pattern-match a lane name — see the kill-targets rule above). Kill
+  children first so none inherits the lock fd, then VERIFY the release
+  (`fuser -v` on the lock, or watch the holder file get rewritten by
+  the next lane): "parent dead, lock still held" is the failure mode
+  that looks identical to success from outside.
+- **A `CI-Config:` trailer is read from the PR-HEAD commit only — any
+  subsequent commit or merge VOIDS it silently back to sampling**
+  (met twice in one fix pass, ordinal 104). The filter reports
+  `CONFIG_SOURCE=...sampled` instead of `commit-trailer` — check that
+  field, and put the trailer on the FINAL head (an empty trailer-only
+  commit that says so in its message is the clean spelling).
+- **A CONFLICTING PR gets NO CI run — silently, and none retroactively
+  once resolved.** GitHub skips the pull_request trigger while a PR is
+  CONFLICTING; pushes during that window produce nothing, and merging
+  main afterwards doesn't fire one either. After resolving, force a
+  run: push a new commit or close/reopen the PR (the `reopened`
+  trigger). Always CONFIRM a run started after any push that followed
+  a main-moved conflict. (TESSFOLD fix pass, 2026-08-26.) Second face
+  of the class (OFF-D PR-2, 2026-08-27): a run can queue with ZERO
+  jobs behind a superseded run — `mergeable: CLEAN`, never starts,
+  and cancelling the superseded run does not release it; an
+  EMPTY-commit re-roll classifies docs-only and skips the code tier.
+  The reliable re-roll is a real code commit. The rule both times:
+  confirm jobs actually RUNNING, not that a run object exists.
+- **A finished agent with orphaned detached timers re-wakes forever** —
+  each expiry resumes it for a no-op "stale timer" turn, burning tokens
+  and notification spam. Once its report is final, the orchestrator
+  TaskStops the agent; a lane about to finish should cancel its own
+  detached waits before writing the final report. (OFF-D reviewer,
+  2026-08-26: a dozen no-op wakes post-report.)
+- **Never pipe a slot-wrapped command through `| tail`/`| head`** — the
+  pipe buffers the wrapper's output away, so queue/acquire progress
+  lines vanish and a live wait is indistinguishable from a hang; you
+  then kill and re-queue a healthy waiter. Let the wrapper write to the
+  terminal or a file and filter afterwards. (CYLCYL PR-B lane, 2026-08-26.)
+- **Re-issuing a timed-out call means killing your own previous waiter
+  first.** A harness-timed-out Bash call does NOT kill its flock waiter;
+  the orphan stays queued and burns a slot turn when the mutex frees.
+  Orchestrator sweeps cull same-command duplicate waiters per lane.
 - **Kill by YOUR OWN recorded PIDs, never by pgrep pattern-matching a
   lane name** — it both over- and under-kills and trips the harness
   security policy.
@@ -87,15 +166,41 @@ raw `cargo` invocations yourself.
 - **Never pipe a slot-wrapped command through `| tail`/`| head`** — the
   pipe buffers the wrapper's progress lines away, so a live wait is
   indistinguishable from a hang and you kill a healthy waiter.
+- **The ORCHESTRATOR's own worktree grows a stale `target/` too**, and a
+  lane sweep cannot see it because it is not a lane. Mine held 3.0G
+  untouched for two weeks (the orchestrator builds in lanes, never at
+  home) — more than every idle lane combined. Check
+  `~/.mngr/worktrees/<yours>/target` BEFORE sweeping another program's
+  live lane, which costs them a rebuild mid-unit.
+- **A red CI run's failure COUNT is not the failure surface** (#1128).
+  Hosted CI passes neither fail-fast flag to `cargo nextest run` and
+  nextest stops at the first failure, so a run reports ~1 failure per
+  shard however many exist — measured, hosted 1-2 against local
+  `--no-fail-fast` 22, nineteen of them one family. The workflow's
+  `fail-fast: false` is the MATRIX setting (one shard not cancelling
+  the other), which makes this read as handled. A systematic breakage
+  and a lone stale assertion look identical; before concluding a red is
+  small, run it locally with `--no-fail-fast`.
 - An OOM-killed test shows as a bare "Terminated" single-row FAIL —
   check what else was running and rerun quiet before diagnosing a bug.
 
-**The ways CI silently does not run.** A PR that is CONFLICTING against
+**The ways CI silently does not run.** An exhausted Actions SPENDING
+LIMIT kills every job seconds after creation — no steps, no logs,
+`failure` — which reads as runner loss; the tell is unrelated PRs'
+runs dying in the same minutes. No push, empty commit, or re-run
+helps until Ev raises the limit: hold, then re-run the dead head's
+failed jobs once (they died pre-step, so the re-run is legitimate).
+A PR that is CONFLICTING against
 main gets NO check runs at all — pushes during that window produce
 nothing and merging main afterwards fires nothing retroactively. A run
 can also queue with ZERO jobs behind a superseded run, `mergeable:
 CLEAN`, and never start. And a green job NAME can sit over a SKIPPED
-step (k-lint's demos rows are their own sampled axis). So: merge
+step (k-lint's demos rows are their own sampled axis). A step can also
+be green having EXECUTED nothing: `cargo clippy --all-targets` and
+`cargo check --all-targets` compile the test targets and run none of
+them, so a root whose only gate row is one of those has its assertions
+type-checked and never evaluated — read a row for what it *runs*, not
+for what it names. So: merge
 origin/main immediately before opening a PR and whenever main moves;
 after any push, confirm jobs are actually RUNNING by reading the
 workflow **runs** list, not the PR's checks list; re-roll with a real
@@ -110,7 +215,12 @@ workflow source is not.**
 **Merging is destructive to checks — four rules, each guarding a silent
 or permanent failure rather than a red build.** Before merging, filter
 the check runs (`gh api .../check-runs`): reject any `conclusion` that
-is not `success`, **and separately confirm none is still in flight** —
+is not `success` — except a red INHERITED from main (reproduced on
+main's own tree, not the PR's): that red does not block the merge
+(Ev, in-chat, 2026-08-31), but it must be annotated on the PR with
+its issue, and the LANE THAT CAUSED IT owes the fix — record the debt
+on the issue and summon that lane; never absorb it in passing.
+**Separately confirm none is still in flight** —
 a check still running when you merge dies at checkout and can never be
 re-run, so its failure reads as a defect forever. Confirm a *skip* is
 habitual by checking earlier green runs of the same branch. Resolving a

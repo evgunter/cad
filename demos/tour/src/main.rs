@@ -11,7 +11,7 @@
 //!
 //! Usage: `cargo run --release -- <outdir>` (from `demos/tour/`).
 //!
-//! # The demos' purpose (Evan, 2026-08-09 — binding for every edit here)
+//! # The demos' purpose (Ev, 2026-08-09 — binding for every edit here)
 //!
 //! These scenes exist to demonstrate REAL, NATURAL library usage —
 //! the way a user would actually write the model. Consequences:
@@ -49,6 +49,7 @@ mod heatsink;
 mod klein;
 mod letterforms;
 mod lily;
+mod mate7a_r2_probes;
 mod paths;
 #[cfg(feature = "probe")]
 mod probe;
@@ -588,8 +589,7 @@ fn scene_json(stop: &Stop, bodies: &[ManifestBody]) -> String {
 /// coincidence ladder, the mated-union doors, the stable-name count),
 /// and returning a fully built list would print all of that up front,
 /// detached from the stops it belongs to. Building each group as it is
-/// reached also keeps one group's bodies alive at a time, and lets the
-/// project box hand its body to the cutaway exactly as it always has.
+/// reached also keeps one group's bodies alive at a time.
 /// `work` is a directory the assembly stop uses as its document STORE.
 /// It is the one thing a tour scene had never needed: every other
 /// scene is one document built in memory, so `stops(tol)` was the
@@ -702,21 +702,15 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
     }
 
     println!(
-        "\n-- the two-peg plate (M9-3: a declared CYLINDRICAL Rest, and the join \
-         demos/README.md said could not be built) --"
+        "\n-- the two-peg plate (a declared CYLINDRICAL Rest: plate ∪ pegs \
+         mated to plate ∖ bores) --"
     );
     for stop in twopeg::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- the project box (the longest boolean-of-boolean chain) --");
-    let (box_stop, box_body) = projectbox::stop(tol);
-    visit(&box_stop);
-
-    println!("\n-- the cutaway (the first `topo::split` in the tour) --");
-    for stop in cutaway::stops(&box_body, tol) {
-        visit(&stop);
-    }
+    visit(&projectbox::stop(tol));
 
     println!("\n-- the heat sink (the M4 recipe layer: edit, recompute, stable names) --");
     for stop in heatsink::stops(tol) {
@@ -744,6 +738,8 @@ fn main() {
     let tol = Tol::witness();
     let outdir = std::env::args().nth(1).expect(
         "usage: demo-tour <outdir> | demo-tour gallery [dir] | \
+                 demo-tour asm-corpus <dir> | \
+                 demo-tour die-corpus <file> | \
                  demo-tour k-probe [out.csv] | \
                  demo-tour tess-budget [out.csv] [--deviation]",
     );
@@ -753,6 +749,40 @@ fn main() {
     // run does and links nothing extra.
     if outdir == "gallery" {
         gallery::run(std::env::args().nth(2), tol);
+        return;
+    }
+    // The assembly scene's four AUTHORED documents and nothing else —
+    // what `crates/pncad-py/tests/corpus/bench/` is regenerated from.
+    // Separate from `gallery`, which runs the assembly WALK: that
+    // walk's update door deliberately resaves a part and leaves every
+    // assembly pinning a version the store no longer holds — the right
+    // end state for a demo about the pin gate, the wrong one for a
+    // corpus whose job is to evaluate.
+    if outdir == "asm-corpus" {
+        let dir = std::env::args()
+            .nth(2)
+            .expect("usage: demo-tour asm-corpus <dir>");
+        assembly::corpus(std::path::Path::new(&dir), tol);
+        return;
+    }
+    // The composed die's own document and nothing else — what
+    // `crates/editor-core/tests/corpus/tour/die_composed_tour.pncad` is
+    // regenerated from, and the reason the kernel's model corpus can
+    // register this scene's die without a second transcription of it
+    // (`diefillet::corpus_text`). The DOCUMENT is `gallery`'s — blank
+    // fillet deleted, per the #1162 ruling, which holds for a corpus
+    // too — but the FILE differs: the gallery saves a snapshot, which
+    // records its ε and refuses to load at any other, while the corpus
+    // replays at every CI ε row, so this door writes the empty
+    // document plus the whole model as an edit log (the derivation and
+    // its exactness assert live at `corpus_text`).
+    if outdir == "die-corpus" {
+        let path = std::env::args()
+            .nth(2)
+            .expect("usage: demo-tour die-corpus <file>");
+        let text = diefillet::corpus_text(tol);
+        std::fs::write(&path, &text).expect("the die corpus document writes");
+        println!("die corpus → {path} ({} byte(s))", text.len());
         return;
     }
     // The K-telemetry mode (M4 PR 8b): rebuild every scene at the

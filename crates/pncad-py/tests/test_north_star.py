@@ -11,6 +11,7 @@ A row that stops being true fails this file. A gap that CLOSES makes
 prompt to move a NO row to YES.
 """
 
+import inspect
 import math
 import unittest
 from pathlib import Path
@@ -28,6 +29,7 @@ from pncad import (
     Doc,
     DocEdit,
     DocParam,
+    DocParamValue,
     EditError,
     EntityKind,
     EvaluationError,
@@ -53,6 +55,7 @@ from pncad import (
     evaluate,
     load,
     m,
+    mm,
     rad,
 )
 
@@ -313,12 +316,20 @@ class TestPlateParam(unittest.TestCase):
 
     FIXTURE = (
         Path(__file__).resolve().parents[3]
-        / "crates" / "pncad" / "tests" / "plate_param.v14.pncad"
+        / "crates" / "pncad" / "tests" / "plate_param.pncad"
     )
+
+    # Insert order: profile, plate, tab profile, tab, union, measure,
+    # assertion. The union is index 4 and no longer the last insert —
+    # the fixture gained the measurement pair so the READ doors below
+    # have a document to read.
+    UNION = 4
+    MEASURE = 5
+    ASSERTION = 6
 
     def plate(self):
         doc = load(self.FIXTURE.read_text(encoding="utf-8")).doc
-        return doc, doc.order()[-1]  # the union is the last insert
+        return doc, doc.order()[self.UNION]
 
     # Plate + tab − their overlap − two cylinders of radius r: the
     # closed form the Rust rows assert, tab included.
@@ -340,6 +351,51 @@ class TestPlateParam(unittest.TestCase):
                     volume_of(doc, solid), self.oracle(r), delta=1e-6
                 )
 
+    def test_the_value_door_moves_the_holes_and_keeps_the_declaration(self):
+        """`set_doc_param_value` is the SAFE spelling of a value change.
+
+        `set_doc_param` is create-or-replace: passing it a `DocParam`
+        rebuilt from a dimension and a number replaces the declaration,
+        and any distribution the parameter carried (ERROR-DESIGN E1/E2 —
+        which Python cannot spell) is deleted with no refusal. The value
+        door carries the declaration forward instead. Here it is doing
+        the ordinary job as well: the same oracle, through the other
+        door."""
+        for r in (0.25, 0.4):
+            with self.subTest(hole_r=r):
+                doc, solid = self.plate()
+                doc.apply(
+                    DocEdit.set_doc_param_value(
+                        ParamName("hole_r"), DocParamValue.length(r * m)
+                    )
+                )
+                self.assertAlmostEqual(
+                    volume_of(doc, solid), self.oracle(r), delta=1e-6
+                )
+
+    def test_the_value_door_refuses_typed(self):
+        """Its two refusals, both typed: there is no declaration to
+        carry forward, and a kind change is a redeclaration."""
+        import pncad
+
+        doc, _solid = self.plate()
+        with self.assertRaises(pncad.EditError) as ctx:
+            doc.apply(
+                DocEdit.set_doc_param_value(
+                    ParamName("never_declared"), DocParamValue.length(1 * m)
+                )
+            )
+        self.assertEqual(ctx.exception.variant, "doc_param_not_declared")
+        with self.assertRaises(pncad.EditError) as ctx:
+            doc.apply(
+                DocEdit.set_doc_param_value(
+                    ParamName("hole_r"), DocParamValue.count(3)
+                )
+            )
+        self.assertEqual(
+            ctx.exception.variant, "doc_param_value_kind_mismatch"
+        )
+
     def test_the_edit_is_legal_at_rest_and_replay_refuses_r_zero(self):
         """The acceptance suite's deliberate asymmetry: `set_doc_param`
         itself applies cleanly even for a refusing value — the refusal
@@ -357,6 +413,87 @@ class TestPlateParam(unittest.TestCase):
             ev.value(profile)
         self.assertEqual(ctx.exception.reason, "node_failed")
         self.assertEqual(ctx.exception.kind, "profile_replay")
+
+    # The holes sit at x = 1.0 and x = 2.2 (see `plate_profile` in
+    # crates/pncad/tests/all.rs), so the axis separation the fixture's
+    # measure reports is exactly 1.2 — the number the SCENE was
+    # authored with, not one read off a previous run.
+    WEB_ORACLE = 2.2 - 1.0
+
+    def test_a_measure_and_its_verdict_read_back_from_python(self):
+        """The READ half of the measurement vocabulary (ERROR-DESIGN
+        E3/E10), which is what the binding census says SHOULD ship:
+        Python cannot author a measure (`B-MEASURES`), but it can read
+        one — and its assertion's verdict — off any evaluation,
+        including this document, which was authored elsewhere and
+        crossed through the persistence door."""
+        doc, _ = self.plate()
+        ev = evaluate(doc)
+
+        measurement = ev.value(doc.order()[self.MEASURE]).measure()
+        self.assertEqual(measurement.dimension, "Length")
+        # The scene's own oracle. The row this replaces asserted only
+        # `value >= 0.0`, which the fixture satisfied VACUOUSLY: it was
+        # measuring one hole's two wall halves against each other and
+        # reporting 0.0. Pinning the number caught that.
+        self.assertAlmostEqual(measurement.value, self.WEB_ORACLE, places=9)
+        self.assertIsNotNone(measurement.length)
+        self.assertAlmostEqual(
+            measurement.length.in_unit(m), measurement.value, places=12
+        )
+
+        verdict = ev.value(doc.order()[self.ASSERTION]).assertion()
+        self.assertEqual(verdict.status, "Holds")
+        self.assertIs(verdict.holds, True)
+        # The verdict reports the measure's OWN number, and its flag
+        # agrees with the relation it claims to have decided.
+        self.assertAlmostEqual(verdict.measured, measurement.value, places=12)
+        self.assertIsNotNone(verdict.bound)
+        self.assertGreaterEqual(verdict.measured, verdict.bound)
+        self.assertIsNone(verdict.reason)
+
+    def test_reading_a_verdict_changes_nothing(self):
+        """E10's report-only rule, from the consumer's seat.
+
+        The claim is not "reading is a pure getter" — that is true of
+        every property and cannot fail. It is that the ASSERTION'S
+        PRESENCE changes no outcome: delete it, and the document's
+        product and its measured value are bit-identical. That is what
+        a gating assertion would break, so this is the row that would
+        go red if one ever appeared."""
+        import pncad
+
+        doc, solid = self.plate()
+        ev = evaluate(doc)
+        with_volume = ev.value(solid).body().mass_properties().volume
+        with_web = ev.value(doc.order()[self.MEASURE]).measure().value
+        verdict = ev.value(doc.order()[self.ASSERTION]).assertion()
+        self.assertEqual(verdict.status, "Holds")
+
+        # The SAME document with the assertion deleted. `Doc.apply`
+        # edits in place, so this is a second load of the fixture.
+        without, _ = self.plate()
+        without.apply(DocEdit.delete_node(without.order()[self.ASSERTION]))
+        ev2 = evaluate(without)
+        self.assertEqual(
+            ev2.value(solid).body().mass_properties().volume,
+            with_volume,
+            "an assertion is report-only: the product cannot see it",
+        )
+        self.assertEqual(
+            ev2.value(without.order()[self.MEASURE]).measure().value,
+            with_web,
+            "an assertion is report-only: the measure cannot see it either",
+        )
+
+        # And asking a non-assertion for a verdict is a typed refusal,
+        # not a guess.
+        with self.assertRaises(pncad.EvaluationError) as ctx:
+            ev.value(solid).assertion()
+        self.assertEqual(ctx.exception.reason, "wrong_kind")
+        with self.assertRaises(pncad.EvaluationError) as ctx:
+            ev.value(solid).measure()
+        self.assertEqual(ctx.exception.reason, "wrong_kind")
 
 
 # ------------------------------------------------------------------
@@ -442,9 +579,12 @@ class TestSheave(unittest.TestCase):
     own closed form is asserted verbatim.
 
     Its STRUCTURAL oracle is not: the scene also names its surface
-    census (one torus, two cones), and counting surface kinds from
-    Python needs tessellation or a selector, both still gaps (G11 and
-    the selector surface). The volume is what this row can check."""
+    census (one torus, two cones), and this row does not count them.
+    The volume is what it checks. (Both doors that would — the
+    selector's `surface_kind` filter and the mesh's per-face patches —
+    have since been bound, by LIB-PYSEL and LIB-G11; asserting a
+    surface census here is work this row has not done, not work the
+    surface cannot express.)"""
 
     def test_sheave_matches_the_scene_oracle(self):
         tip = Open.at((0.4 * m, 0 * m))
@@ -474,8 +614,9 @@ class TestBossplate(unittest.TestCase):
     not two), and it is `circle_split` — the declared-subdivision
     carrier — not the `circle` primitive, whose private lowering is
     two semicircles. The Rust scene's closed form is asserted
-    verbatim; its three-seam-arc census needs tessellation, which is
-    still a gap here (G11)."""
+    verbatim, and its three-seam-arc census is not: the vertex count
+    of the authored loop is checked instead, which is where the claim
+    is actually made."""
 
     def test_bossplate_matches_the_scene_oracle(self):
         doc = Doc()
@@ -975,6 +1116,116 @@ class TestDiefillet(unittest.TestCase):
         self.assertTrue(forward.bit_eq(backward))
 
 
+class TestDiechamfer(unittest.TestCase):
+    """Tour scenes `spacer` (row 2) and `diechamfer` (rows 11, 12),
+    through the recipe door LIB-G16 opened: a unit cube with all
+    twelve edges CHAMFERED at an equal setback.
+
+    What this row is evidence of is the audit's own complaint. Before
+    `Node.chamfer` the scenes had to take the body out of the
+    document, call `chamfer_edges` beside it with ARENA keys, and hand
+    back something the document could not name. Here the selection is
+    the twelve names `all_edges` materialized off this evaluation —
+    the same text `Node.fillet` takes — and the result is a node with
+    a stable name of its own.
+
+    The oracle is derived, not measured: a cube of side L chamfered at
+    setback d is the cube cut by twelve edge planes and eight corner
+    patches, which integrates to
+
+        V = L**3 - 6*L*d**2 + (16/3)*d**3
+
+    (`crates/editor-core/tests/lib_g16_chamfer_node.rs` carries the
+    derivation and meters the surface area too)."""
+
+    # `demos/tour/src/diefillet.rs`: L and the blend size the
+    # chamfered pair sets as its SETBACK, so this IS the scene.
+    L, D = 1.0, 0.12
+
+    def build(self):
+        doc = Doc()
+        sq = doc.insert(
+            Node.polygon(
+                [
+                    (0 * m, 0 * m), (self.L * m, 0 * m),
+                    (self.L * m, self.L * m), (0 * m, self.L * m),
+                ]
+            )
+        )
+        cube = doc.insert(Node.extrude(sq, self.L * m))
+        return doc, cube
+
+    def test_the_chamfered_cube_matches_the_derived_closed_form(self):
+        doc, cube = self.build()
+        edges = evaluate(doc).all_edges(cube)
+        self.assertEqual(len(edges), 12)
+        blank = doc.insert(Node.chamfer(cube, self.D * m, edges))
+        want = self.L ** 3 - 6.0 * self.L * self.D ** 2 + (16.0 / 3.0) * self.D ** 3
+        self.assertAlmostEqual(volume_of(doc, blank), want, delta=1e-9 * want)
+
+    def test_the_chamfer_removes_more_than_the_fillet_of_the_same_size(self):
+        """The twin recipes differ in one node kind, and the geometry
+        says so: the flat strip cuts the corner the rolling ball rides
+        around."""
+        doc, cube = self.build()
+        edges = evaluate(doc).all_edges(cube)
+        ch = doc.insert(Node.chamfer(cube, self.D * m, edges))
+        fi = doc.insert(Node.fillet(cube, self.D * m, edges))
+        self.assertLess(volume_of(doc, ch), volume_of(doc, fi))
+
+    def test_the_chamfered_body_carries_names_of_its_own(self):
+        """The half `chamfer_edges` beside a document could never
+        give: the result is a NODE, so its faces have stable names and
+        a downstream selection can reach them."""
+        doc, cube = self.build()
+        edges = evaluate(doc).all_edges(cube)
+        blank = doc.insert(Node.chamfer(cube, self.D * m, edges))
+        ev = evaluate(doc)
+        faces = ev.all_faces(blank)
+        # 6 supports + 12 strips + 8 corner patches.
+        self.assertEqual(len(faces), 26)
+        self.assertEqual(len(set(faces)), 26, "every face is named once")
+        # Euler on the same body: 8 triangular corner patches give 24
+        # vertices, so V - E + F = 2 puts E at 48. Every one of them
+        # is named and distinct, which is what makes a downstream
+        # selection possible at all.
+        edges_out = ev.all_edges(blank)
+        self.assertEqual(len(edges_out), 48)
+        self.assertEqual(len(set(edges_out)), 48, "every edge is named once")
+
+    def test_an_empty_selection_is_the_kernels_refusal_naming_the_chamfer(self):
+        """The refusal is the chamfer's, not the fillet's — one shared
+        ladder, but the tag says which verb asked."""
+        doc, cube = self.build()
+        nothing = doc.insert(Node.chamfer(cube, self.D * m, []))
+        with self.assertRaises(EvaluationError) as caught:
+            evaluate(doc).value(nothing)
+        self.assertEqual(caught.exception.kind, "chamfer_selection_empty")
+
+    def test_a_name_is_carried_not_composed(self):
+        _doc, cube = self.build()
+        with self.assertRaises(ValueError):
+            Node.chamfer(cube, self.D * m, ["the top edge"])
+
+    def test_the_selection_is_canonical_whatever_order_it_arrives_in(self):
+        doc, cube = self.build()
+        edges = evaluate(doc).all_edges(cube)
+        forward = Doc(label="canonical-chamfer-selection")
+        backward = Doc(label="canonical-chamfer-selection")
+        for target, order in ((forward, edges), (backward, list(reversed(edges)))):
+            sq = target.insert(
+                Node.polygon(
+                    [
+                        (0 * m, 0 * m), (self.L * m, 0 * m),
+                        (self.L * m, self.L * m), (0 * m, self.L * m),
+                    ]
+                )
+            )
+            solid = target.insert(Node.extrude(sq, self.L * m))
+            target.insert(Node.chamfer(solid, self.D * m, order))
+        self.assertTrue(forward.bit_eq(backward))
+
+
 class DieScene:
     """The 21-pip die construction rows 9 and 10 share (a mixin, not a
     TestCase): one re-charted ball, twenty-one `Node.transform`
@@ -1208,6 +1459,48 @@ class TestDiecomposed(DieScene, unittest.TestCase):
         # land on the same number, or it is not the scene's oracle.
         self.assertEqual(round(want, 6), 0.952915)
         self.assertAlmostEqual(volume_of(doc, composed), want, delta=1e-9 * want)
+
+
+class TestDiechamferDie(DieScene, unittest.TestCase):
+    """Tour scene `diechamfer`, the die stop (row 12): the pipped cube's
+    twelve box edges CHAMFERED in place, the 21 pip cavities carried
+    through as sharp rings.
+
+    This row is what the scene's finding 2 asked for. The Rust scene
+    has to say "the twelve box edges" as a hand-rolled carrier-kind
+    loop over the kernel body, because `select_where` answers stable
+    NAMES and `chamfer_edges` takes arena KEYS. Here the same
+    `select_where` call feeds `Node.chamfer` directly — the identical
+    line `TestDiecomposed` feeds `Node.fillet`, one verb over.
+
+    The pip rims stay sharp on purpose: the chamfer's v1 door is
+    plane-plane only, so a plane-sphere rim would refuse
+    `ChamferArmUnsupported`. That is the door's scope, not an
+    omission, and the scene says so."""
+
+    DIE_D = 0.12  # the box-edge SETBACK, the filleted die's radius
+
+    def test_the_box_edges_chamfer_through_select_where(self):
+        doc = Doc()
+        die = self.pipped_die(doc)
+        edges = Selector.of(NamePat.of_kind(EntityKind.Edge))
+        straight = evaluate(doc).select_where(
+            die, edges, [GeomPred.curve_kind(CurveKind.Line)]
+        )
+        self.assertEqual(len(straight), 12)
+        chamfered = doc.insert(Node.chamfer(die, self.DIE_D * m, straight))
+
+        # It evaluates, and it is not the fillet: at the same size the
+        # flat strip cuts the corner the ball rides around.
+        filleted = doc.insert(Node.fillet(die, self.DIE_D * m, straight))
+        self.assertLess(volume_of(doc, chamfered), volume_of(doc, filleted))
+
+        # The scene's own census for the chamfered BOX, plus the 21
+        # pip cavities carried through: the box contributes 26 faces
+        # (6 shrunk supports + 12 strips + 8 corner patches) and each
+        # pip cavity is a sphere in two half-faces.
+        faces = evaluate(doc).all_faces(chamfered)
+        self.assertEqual(len(faces), 26 + 21 * 2)
 
 
 class TestTiltedcut(unittest.TestCase):
@@ -2054,6 +2347,105 @@ class TestTwopeg(unittest.TestCase):
             pncad.FlushFinding()
 
 
+# ------------------------------------------------------------------
+# The gap LIB-G11 closed: G11, the ladder's steps 4 and 5.
+#
+# G11 was never a STOP's blocker — it is the one gap this page
+# anchors to the generic ladder every scene is held to (*author →
+# validate → measure → tessellate → cross-check → export*), which is
+# why closing it moves no mark. What it buys is that the ladder now
+# runs whole from Python, so this class runs it whole on two scenes
+# the page already grades YES, and cross-checks each against the
+# oracle its row asserts.
+#
+# The mesh measure is the CALLER's own divergence-theorem sum over
+# the bound triangles (`test_mesh.mesh_signed_volume`), and closure
+# is decided on shared position INDICES
+# (`test_mesh.unmatched_half_edges`) — two computations that touch no
+# kernel measure, which is what makes agreeing with one evidence.
+# ------------------------------------------------------------------
+
+from test_mesh import mesh_signed_volume, unmatched_half_edges  # noqa: E402
+
+
+class TestMeshCrossCheck(unittest.TestCase):
+    def test_chute_meshes_to_its_own_exact_volume(self):
+        """Row 6's scene, all six rungs. `chute` is the page's own
+        cleanest YES — one profile, one revolve, no booleans — and it
+        is CURVED, so the mesh measure approaches the exact one from
+        inside rather than reproducing it."""
+        poly = [
+            (1.0, 0.0), (1.75, 0.0), (1.75, 0.625), (1.5625, 0.625),
+            (1.5625, 0.1875), (1.1875, 0.1875), (1.1875, 0.625), (1.0, 0.625),
+        ]
+        doc = Doc()
+        profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in poly]))
+        axis = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0)))
+        chute = doc.insert(Node.revolve(profile, axis, 270 * deg))
+
+        body = evaluate(doc).value(chute).body()
+        body.validate()
+        exact = body.mass_properties().volume
+        self.assertAlmostEqual(exact, (1287 / 2048) * math.pi, delta=1e-12)
+
+        # Measured: 1.2e-4 relative at 0.5 mm, 2.4e-5 at 0.1 mm —
+        # first order in δ, as the chordal certificate says. The pin
+        # is one significant figure clear of the measurement.
+        mesh = body.tessellate(0.1 * mm)
+        self.assertEqual(unmatched_half_edges(mesh), [])
+        measured = mesh_signed_volume(mesh)
+        self.assertGreater(measured, 0.0, "the winding is outward")
+        self.assertLess(abs(measured - exact) / exact, 1e-4)
+
+    def test_the_letterform_prism_meshes_exactly(self):
+        """Row 32's `T`: every face is planar, so the triangulation is
+        EXACT and the two measures agree at rounding level. The scene's
+        dyadic oracle is asserted of both."""
+        t_plane = SketchPlane.from_frame(
+            (-0.25 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)
+        )
+        letter = [
+            (1.1875, 0.125), (1.8125, 0.125), (1.8125, 2.625), (3.25, 2.625),
+            (3.25, 3.125), (-0.25, 3.125), (-0.25, 2.5625), (1.1875, 2.5625),
+        ]
+        doc = Doc()
+        sketch = doc.insert(
+            Node.polygon([(a * m, b * m) for a, b in letter], plane=t_plane)
+        )
+        prism = doc.insert(Node.extrude(sketch, 2.5 * m))
+
+        body = evaluate(doc).value(prism).body()
+        body.validate()
+        self.assertAlmostEqual(
+            body.mass_properties().volume, 8.505859375, delta=1e-12
+        )
+
+        mesh = body.tessellate(1 * mm)
+        self.assertEqual(unmatched_half_edges(mesh), [])
+        self.assertLess(abs(mesh_signed_volume(mesh) - 8.505859375), 1e-12)
+
+    def test_the_mesh_and_the_stl_agree_facet_for_facet(self):
+        """Step 6 for the mesh half: the binary file's declared facet
+        count is the mesh's own, so what was exported is what was
+        cross-checked."""
+        doc = Doc()
+        profile = doc.insert(
+            Node.polygon(
+                [(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)]
+            )
+        )
+        cube = doc.insert(Node.extrude(profile, 1 * m))
+        mesh = evaluate(doc).value(cube).body().tessellate(1 * mm)
+        data = mesh.to_stl_binary(header="pncad north-star audit")
+        self.assertEqual(
+            int.from_bytes(data[80:84], "little"), mesh.triangle_count
+        )
+        self.assertEqual(
+            mesh.to_stl_ascii(solid_name="cube").count("facet normal"),
+            mesh.triangle_count,
+        )
+
+
 class TestNamedGapsAreStillGaps(unittest.TestCase):
     """The NO rows' gaps, asserted as absences.
 
@@ -2065,16 +2457,19 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
-                "boolean", "datum_axis", "datum_plane", "declare", "extrude",
-                "fillet", "loft", "placed_union", "placed_union_at", "polygon",
-                "profile", "revolve", "split", "transform",
+                "boolean", "chamfer", "datum_axis", "datum_plane", "declare",
+                "extrude", "fillet", "instantiate_part", "loft", "mate",
+                "placed_union",
+                "placed_union_at", "polygon", "profile", "revolve", "split",
+                "transform",
             ],
         )
         self.assertEqual(
             sorted(n for n in dir(DocEdit) if not n.startswith("_")),
             [
                 "bind_count_param", "delete_node", "insert_node",
-                "set_doc_param", "set_tolerance",
+                "set_doc_param", "set_doc_param_value", "set_placement",
+                "set_roots", "set_tolerance", "update_reference",
             ],
         )
 
@@ -2096,16 +2491,26 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # composed, so there is no name type and no name grammar —
         # a `FlushFinding`'s pair crosses as the same opaque texts.
         for door in [
-            "tessellate", "Mesh", "write_stl",        # mesh + STL
+            # `Mesh`/`TessellateError` left this list when G11 closed
+            # (LIB-G11) — `TestMeshCrossCheck` below is the positive
+            # form, and `tests/test_mesh.py` is the door's own suite.
+            # `tessellate` and the two STL writers stay, as `select`
+            # and `find_flush_candidates` do: they are METHODS on the
+            # value they take (`Body.tessellate`, `Mesh.to_stl_ascii`,
+            # `Mesh.to_stl_binary`), so the module-level absence below
+            # is shape, not gap.
+            "tessellate", "write_ascii", "write_binary",
             "select", "select_where",                 # methods, not module doors
             "find_flush_candidates",                  # method, not a module door
             "StableName",                             # names stay text
-            # G15: identity is bound (`Doc()` mints a distinct id,
-            # `Doc.id` reads it), the surface it exists FOR is not.
-            # These four are the doors that would close it, and this
-            # row is the register the gap is deferred INTO: it fails
-            # the day one lands.
-            "Workspace", "ContentPin", "DocRef", "random_document_id",
+            # `Workspace`, `ContentPin`, `DocRef` and
+            # `random_document_id` LEFT this list when G15 closed
+            # (LIB-G15) — the positive form is `tests/test_workspace.py`,
+            # which opens a directory of documents, resolves a
+            # reference, and watches a moved pin refuse. What the row's
+            # sentence still cannot say is the half below: two
+            # documents a workspace accepts side by side, and no way to
+            # assemble them.
             # G1's residue: no Expr door, so a profile step's argument
             # cannot be a named parameter. It is ALSO a naming
             # decision — the expression layer's genuine
@@ -2116,27 +2521,43 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # `DimensionError` means the quantity boundary. Whoever
             # binds it decides which class those arms raise.
             "Expr",
-            # G18: the whole assembly surface. `evaluate(doc)` taking
-            # no resolver is the STRUCTURAL first door and cannot be
-            # spelled as an absent name, so it is pinned separately
-            # below; these are the vocabulary the series would bring.
-            "Alignment", "MateFrame", "MatePrimitive", "AxisSense",
-            "assemble", "Assembly", "AssemblyError", "solve_document",
-            "update_to_store",
-            # G16 / G17: the two shipped kernel verbs with no node.
-            # Absent as MODULE doors too — the tour reaches them as
-            # `pncad::sweep::chamfer_edges` and `pncad::topo::shell`,
-            # and neither crosses.
+            # G18 LEFT this list at LIB-G18b, the series' second half:
+            # `Alignment`, `MateFrame`, `MatePrimitive`, `AxisSense`,
+            # `assemble`, `Assembly`, `AssemblyError`,
+            # `solve_document`, `update_references`, `mixed_pins` and
+            # `Workspace.update_to_store` are all bound, and the
+            # positive form is `tests/test_assembly_author.py`, which
+            # authors the tour's two bench documents from nothing —
+            # two part documents into a store, instances of them, the
+            # mates that seat one on the other, the solve, the gather
+            # and the A5 gate. `update_to_store` is a Workspace METHOD
+            # rather than a module door, which is why it is not tested
+            # for here.
+            # G17: the shipped kernel verb with no node. Absent as a
+            # MODULE door too — the tour reaches it as
+            # `pncad::topo::shell`, and it does not cross.
+            #
+            # `chamfer_edges` stays here for a DIFFERENT reason now
+            # (LIB-G16): the recipe door crossed as `Node.chamfer`, the
+            # plain-body kernel verb did not, exactly as `fillet_edges`
+            # has never crossed beside `Node.fillet`. That is the
+            # binding shape, not a gap.
             "chamfer_edges", "shell", "shell_open",
         ]:
             with self.subTest(door=door):
                 self.assertFalse(hasattr(pncad, door), f"{door} is now bound")
 
-        # G18's structural door, which is a SIGNATURE and not a name:
-        # `evaluate` takes the document and nothing else, so an
-        # `InstantiatePart` node has nothing to resolve its reference
-        # against. Pinned by arity, since a resolver would arrive as a
-        # second argument.
+        # G18's structural door was a SIGNATURE and not a name, and
+        # it is the half that CLOSED: `evaluate` takes the seam and
+        # the memo, both keyword-only, so an `InstantiatePart` node
+        # has a store to resolve its reference against. Pinned here as
+        # the shape — `tests/test_assembly_eval.py` is what evaluates
+        # the tour's own assembly documents through it — and by the
+        # arity that stays refused, since a door named at the call
+        # cannot be passed by position.
+        self.assertEqual(
+            list(inspect.signature(evaluate).parameters), ["doc", "resolver", "prior"]
+        )
         with self.assertRaises(TypeError):
             evaluate(Doc(), None)
 
@@ -2157,17 +2578,20 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `placed_union`/`placed_union_at` left it when LIB-PYPU bound
         # the group boolean, whose value is an ordinary body.
         #
-        # `chamfer` (G16), `shell`/`shell_open` (G17) and
-        # `instantiate_part`/`mate` (G18) are the roster re-cut's
-        # additions, and all five are the SAME shape as `sweep`/`tube`
-        # from the other side: the kernel verb ships and `Node` has no
+        # `chamfer` LEFT this list at LIB-G16: `Node::Chamfer` is a
+        # recipe node now (schema v16), so `Node.chamfer` binds it —
+        # `Node.fillet`'s twin, same frozen text selection. `shell`
+        # and `shell_open` (G17) stay, and stay for the reason G16 no
+        # longer has: the kernel verb ships (#1048) and `Node` has no
         # variant for it, so the scene that uses it has no document.
-        # `chamfer_edges` landed at VERBS-CHAMFER (#920, its recipe
-        # door scheduled as #918); `shell`/`shell_open` at #1048.
+        #
+        # `instantiate_part` and `mate` LEFT this list at LIB-G18b,
+        # and `set_placement` with them — it was never a `Node` at
+        # all, it is `DocEdit.set_placement`, which is where the A11
+        # rule that placement is the CLUSTER's puts it.
         for node_kind in [
             "sweep", "tube", "pattern",
-            "chamfer", "shell", "shell_open",
-            "instantiate_part", "mate", "set_placement",
+            "shell", "shell_open",
         ]:
             with self.subTest(node=node_kind):
                 self.assertFalse(hasattr(Node, node_kind), f"Node.{node_kind} exists")

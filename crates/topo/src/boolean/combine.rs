@@ -376,32 +376,33 @@ pub(crate) fn graft_solids_with<T: geom_core::Decide>(
             continue;
         }
         let description = match *curve.description() {
-            geom_brep::EdgeGeometry::Intersection { s1, s2, witness } => {
-                geom_brep::EdgeGeometry::Intersection {
+            geom_brep::EdgeDescription::Intersection { s1, s2, witness } => {
+                geom_brep::EdgeDescriptionSpec::Intersection {
                     s1: *surfaces.get(s1).ok_or_else(corrupt)?,
                     s2: *surfaces.get(s2).ok_or_else(corrupt)?,
                     witness,
                 }
             }
-            geom_brep::EdgeGeometry::TangentIntersection { s1, s2, witness } => {
-                geom_brep::EdgeGeometry::TangentIntersection {
+            geom_brep::EdgeDescription::TangentIntersection { s1, s2, witness } => {
+                geom_brep::EdgeDescriptionSpec::TangentIntersection {
                     s1: *surfaces.get(s1).ok_or_else(corrupt)?,
                     s2: *surfaces.get(s2).ok_or_else(corrupt)?,
                     witness,
                 }
             }
-            geom_brep::EdgeGeometry::Seam { surface } => geom_brep::EdgeGeometry::Seam {
-                surface: *surfaces.get(surface).ok_or_else(corrupt)?,
+            // The image travels verbatim (chart COORDINATES); only
+            // the handle moves. The authority record travels beside
+            // it, unchanged — a declaration is not a surface key.
+            geom_brep::EdgeDescription::Chart(ref c) => geom_brep::EdgeDescriptionSpec::Chart {
+                surface: *surfaces.get(c.surface).ok_or_else(corrupt)?,
+                image: Some(c.pcurve.clone()),
+                seam: c.seam,
+                declared: match curve.authority() {
+                    geom_brep::EdgeAuthority::Declared(mc) => Some(mc),
+                    geom_brep::EdgeAuthority::Derived => None,
+                },
             },
-            geom_brep::EdgeGeometry::IsoCurve { surface, u, v0, v1 } => {
-                geom_brep::EdgeGeometry::IsoCurve {
-                    surface: *surfaces.get(surface).ok_or_else(corrupt)?,
-                    u,
-                    v0,
-                    v1,
-                }
-            }
-            geom_brep::EdgeGeometry::MappedCurve(_) => continue, // no surface keys
+            geom_brep::EdgeDescription::Scaffold(_) => continue, // no surface keys
         };
         // Endpoints from the (already grafted) owning edge: he_plus
         // runs start → end on the forward carrier.

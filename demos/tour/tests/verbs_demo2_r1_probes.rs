@@ -11,8 +11,8 @@
 use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
-use pncad::prelude::{FilletError, Open, Start, fillet_edges};
+use pncad::geom_core::{Point2, Point3, Tol, Vec2, Vec3};
+use pncad::prelude::{Open, Start, SurfaceKindSet, fillet_edges, query};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{
     Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow,
@@ -176,18 +176,11 @@ fn bud(tol: Tol) -> Body<f64> {
 }
 
 fn rims_between(body: &Body<f64>, a: SurfaceKind, b: SurfaceKind) -> Vec<EdgeKey> {
-    let kind_at = |he| {
-        let l = body.get_half_edge(he)?.parent_loop;
-        let f = body.get_loop(l)?.face;
-        body.get_surface(body.get_face(f)?.surface)
-            .map(SurfaceKind::of)
-    };
-    body.edges()
-        .filter(|(_, e)| {
-            let (ka, kb) = (kind_at(e.he_plus), kind_at(e.he_minus));
-            (ka, kb) == (Some(a), Some(b)) || (ka, kb) == (Some(b), Some(a))
+    query::all_edges(body)
+        .into_iter()
+        .filter(|&e| {
+            query::edge_adjacent_matches(body, e, SurfaceKindSet::just(a), SurfaceKindSet::just(b))
         })
-        .map(|(k, _)| k)
         .collect()
 }
 
@@ -212,17 +205,17 @@ fn bore_base(body: &Body<f64>) -> EdgeKey {
         .unwrap()
 }
 
-/// P3 — ATTRIBUTION of the UnsupportedChain refusal. The PR claims the
-/// three-rim call refuses BECAUSE mouth and lip share the pucker cone
-/// (not, say, because three rims is too many). Two forks:
-/// [mouth, lip] alone — the shared pair, no third rim — must refuse
-/// with the same detail; [mouth, bore base] — two rims, fully disjoint
-/// supports — must roll together in one call. Together these pin the
-/// grain to "per disjoint-support set" by execution.
+/// P3 — the grain of the one-call door, RE-CUT at #935 (BLEND-2). The
+/// probe originally pinned the ATTRIBUTION of the shared-support
+/// refusal ([mouth, lip] refused on the sharing, not the rim count);
+/// the door now SERVES shared-wall annulus pairs by re-reading the
+/// later rim's seam keys between carves, so the probe pins the two
+/// facts that replace it: the shared pair builds in one call, and it
+/// builds the SAME body the sequential composition builds (volume
+/// equal to the bit). The disjoint-support fork is unchanged.
 #[test]
-fn p3_refusal_is_the_shared_support_not_the_rim_count() {
+fn p3_the_shared_pair_builds_and_matches_the_sequential_composition() {
     let tol = Tol::witness();
-    let band = Band::linear(tol).expect("band");
     let sharp = bud(tol);
     let mouth = {
         let hits = rims_between(&sharp, SurfaceKind::Sphere, SurfaceKind::Cone);
@@ -236,22 +229,31 @@ fn p3_refusal_is_the_shared_support_not_the_rim_count() {
     };
     let base = bore_base(&sharp);
 
-    // The shared pair alone refuses — same variant, same reason.
-    match fillet_edges(&sharp, &[mouth, lip], ROLL, band, tol) {
-        Err(FilletError::UnsupportedChain { detail, .. }) => {
-            assert!(
-                detail.contains("share a support face"),
-                "the two-rim shared pair refused for a different reason: {detail}"
-            );
-        }
-        other => panic!(
-            "mouth+lip (sharing the pucker cone) should refuse UnsupportedChain \
-             without any third rim in the request; got {other:?}"
-        ),
-    }
+    // The shared pair BUILDS in one call — and is the sequential
+    // composition to the bit.
+    let one = fillet_edges(&sharp, &[mouth, lip], ROLL, tol)
+        .expect("mouth + lip share the pucker cone; one call serves the pair (#935)");
+    assert_eq!(one.band_faces.len(), 2, "two bands from the shared pair");
+    let first = fillet_edges(&sharp, &[mouth], ROLL, tol).expect("the mouth alone");
+    let lip2 = {
+        let hits = rims_between(&first.body, SurfaceKind::Cone, SurfaceKind::Plane);
+        assert_eq!(hits.len(), 1);
+        hits[0]
+    };
+    let second = fillet_edges(&first.body, &[lip2], ROLL, tol).expect("the lip on the result");
+    let volume = |b: &pncad::topo::Body<f64>| {
+        pncad::topo::mass_properties(b, tol)
+            .expect("mass properties")
+            .volume
+    };
+    let (v1, v2) = (volume(&one.body), volume(&second.body));
+    assert!(
+        v1 == v2,
+        "one call == sequential composition to the bit: {v1:.17e} vs {v2:.17e}"
+    );
 
     // Two rims with disjoint supports roll together in ONE call.
-    let rolled = fillet_edges(&sharp, &[mouth, base], ROLL, band, tol)
+    let rolled = fillet_edges(&sharp, &[mouth, base], ROLL, tol)
         .expect("mouth + bore base share no support face, so one call composes");
     assert_eq!(rolled.band_faces.len(), 2, "two bands from the one call");
 }

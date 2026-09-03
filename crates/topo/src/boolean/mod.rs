@@ -72,11 +72,15 @@ pub(crate) mod insert;
 mod join;
 mod ops;
 pub mod plane_eq;
+#[cfg(test)]
+mod r2_probes;
 pub(crate) mod recl;
 pub(crate) mod reduce;
 mod rest;
+mod rim_wedge;
 pub(crate) mod sectors;
 pub mod solid_contain;
+mod surface_group;
 pub mod tables;
 pub mod voids;
 pub(crate) mod vtxfac;
@@ -561,13 +565,40 @@ pub enum BooleanError {
         /// Its surface kind — the C5 table row the refusal cites.
         kind: geom_brep::SurfaceKind,
     },
+    /// A pierce sector's FIRST-ORDER material verdict could not be
+    /// certified against the pierced face's curvature: the sagitta
+    /// bound at the sector's own lever arm is not definitely below the
+    /// first-order displacement, so the tangent-plane verdict may have
+    /// the material side backwards (`boolean::sectors::side_code`
+    /// carries the argument and the witness). The **definite** half of
+    /// a two-tolerance pair on `bool_pierce_sector_side_curved`; an
+    /// in-band charge escalates as [`BooleanError::Escalated`] on the
+    /// same predicate instead.
+    ///
+    /// A refusal, never a guess: a first-order answer here would be a
+    /// wrong TOPOLOGY rather than a conservative one. The recourse is
+    /// the second-order sector trilean
+    /// (`geom_brep::enters_material_order2`), which the declared-
+    /// `Tangent` lump already consumes and which no lane wires into
+    /// this verdict yet.
+    CurvedSectorSideUnsupported {
+        /// The band the curvature charge was classified against.
+        band: Band,
+    },
     /// A sweep event definitely lands on a CURVED face away from its
     /// boundary, a vertex sits ON a curved surface, or a curved-carrier
-    /// edge cannot be cleared against a curved face: the curved PIERCE
-    /// door — point-in-face trim containment on a curved chart at
-    /// boolean classification, and the v-on-curved-face ring insertion
-    /// behind it — does not exist yet (the M5 envelope's frontier; the
-    /// C5 table routes the SECTIONS, this is the crossing layer). The
+    /// edge cannot be cleared against a curved face, and the curved
+    /// PIERCE door cannot take it. **That door now exists for one
+    /// family** — a LINE carrier definitely crossing a CYLINDER wall,
+    /// whose crossing parameters come from the certified line × wall
+    /// quadratic and whose landing point the chart trim places — so
+    /// what this variant reports is the REST of the family: a tangency
+    /// (not a crossing at any order the lane sees), a CIRCLE carrier
+    /// against a wall (a degree-2 trigonometric residual with no root
+    /// lane in this tree), a SPHERE face, an undeclared on-carrier
+    /// edge, or a trim the chart door declines to express (the M5
+    /// envelope's frontier; the C5 table routes the SECTIONS, this is
+    /// the crossing layer). The
     /// **definite** half of a two-tolerance pair: the very same
     /// clearance margin one band-width away escalates as
     /// [`BooleanError::Escalated`] on `bool_line_cylinder_clearance`
@@ -708,6 +739,40 @@ pub enum BooleanError {
         /// The class that was declared.
         class: ContactClass,
     },
+    /// **A declared shared rim the routing classified as the wedge-π
+    /// SEAM** (`docs/MATE-7-TANGENCY-DESIGN.md`, RATIFIED).
+    ///
+    /// The π arm IS built — this refusal is not a gap in the design and
+    /// not a gap in the classification, which ran and answered. Two
+    /// things are true at once and the message says both: a wedge-π rim
+    /// is a seam of one composite wall and takes NO declaration, so a
+    /// `Tangent` claim on it is the wrong instrument; and the join
+    /// wiring that would consume this verdict while zipping is not
+    /// built, so the op cannot proceed on it either.
+    ///
+    /// Kept distinct from [`BooleanError::RimCuspArmUnbuilt`] because
+    /// the two are different facts. One variant covering both would
+    /// have to call the π arm unbuilt, which is false.
+    RimSeamNotDeclarable {
+        /// The declaration whose face pair carries the rim.
+        declaration: crate::contact::DeclaredContact,
+    },
+    /// **A declared shared rim routed to the cusp family, which is
+    /// DEFINED but not BUILT** (the same ruling).
+    ///
+    /// Wedge 0 or 2π: the material pinches to a knife edge or opens to
+    /// a circular slit. This is the declared-cusp family, and it is the
+    /// arm the ruling deliberately left unbuilt — its verification
+    /// consumes a certified witness along the rim that the witness lane
+    /// does not yet mint. The A11-rider shape: the design is settled and
+    /// the refusal points at the ruling that settles it.
+    RimCuspArmUnbuilt {
+        /// The declaration whose face pair carries the rim.
+        declaration: crate::contact::DeclaredContact,
+        /// Which end of the wedge range the rim's material subtends —
+        /// the routing's own verdict, taken on the geometry.
+        wedge: geom_brep::MaterialWedge,
+    },
     /// A [`BooleanDeclarations`] payload references an entity that
     /// does not resolve in its operand (stale/foreign key, or a
     /// non-planar declared face) — a caller bug, refused before any
@@ -755,14 +820,24 @@ pub enum BooleanError {
     /// **A germ PAIR with no boolean seam lane**, refused at the
     /// operand gate.
     ///
-    /// The gate asks two questions and both have to answer yes: does
-    /// this face's KIND have a wired arm, and can this face REACH the
-    /// other operand at all. The second is decided at box-level
-    /// conservatism (`reduce::first_unsupported_pair`), which is why
-    /// the payload names a pair rather than a body: a cone or a torus
-    /// whose box clears every face of the other operand cannot enter
-    /// a crossing, a section or a germ pair, so the operation does
-    /// not depend on its kind and the gate says nothing about it.
+    /// The gate asks THREE questions, and this refusal is what a pair
+    /// that answered wrong on all three earns: does this face's KIND
+    /// have a wired arm; can this face REACH the other operand at all;
+    /// and, failing both, do the caller's DECLARATIONS speak for this
+    /// particular pair. Reach is decided at box-level conservatism
+    /// (`reduce::first_unsupported_pair`), which is why the payload
+    /// names a pair rather than a body: a cone or a torus whose box
+    /// clears every face of the other operand cannot enter a crossing,
+    /// a section or a germ pair, so the operation does not depend on
+    /// its kind and the gate says nothing about it.
+    ///
+    /// The third question is the newest and the narrowest. A
+    /// declaration is the author supplying the verdict a germ arm would
+    /// have supplied, verified at the front door before this gate runs;
+    /// a pair it covers is one the pipeline has an answer for. What may
+    /// be declared is bounded by the certified carrier inventory, so a
+    /// kind with no rung there can never be covered here — which is why
+    /// this refusal still names cones and NURBS unconditionally.
     ///
     /// **The overlap that DID fire is a may, not a does.** Boxes are
     /// supersets, so the two faces named here may in exact geometry
@@ -880,6 +955,44 @@ pub enum BooleanError {
         /// Its kind — the B half of the germ pair.
         b_kind: geom_brep::SurfaceKind,
     },
+    /// **A germ pair of two cylinder walls whose axes definitely
+    /// INTERSECT** — the frame dispatch's named sub-case of "no
+    /// frame", and the door the intersecting equal-radius family
+    /// (Steinmetz and every re-posed copy of it) stops at.
+    ///
+    /// Two shapes live behind these axes, and the dispatch is allowed
+    /// to name neither:
+    ///
+    /// - **Equal radii.** The section is the two bisector-plane
+    ///   ellipses. They are not two disjoint loci: the bisector
+    ///   planes' common line runs through the axes' meeting point `p`
+    ///   along `â₁ × â₂`, is perpendicular to both axes, and therefore
+    ///   meets BOTH walls at `p ± r·n̂`, where `n̂ = unit(â₁ × â₂)`.
+    ///   The UNIT is load-bearing off 90°: `‖â₁ × â₂‖ = sin θ`, so the
+    ///   raw cross product understates the offset by that factor and
+    ///   only coincides with the pinch points on the perpendicular
+    ///   pose. So the two ellipses
+    ///   CROSS at those two points, for every member of the family and
+    ///   at every pose — four arcs meeting at two valence-4 PINCH
+    ///   vertices. A pinch is not a conic frame, and a frame dispatch
+    ///   keyed on surface kinds alone has no point with which to
+    ///   select which branch a germ rides.
+    /// - **Unequal radii.** The locus is a space quartic — canal
+    ///   territory, the general rung — and has no conic frame at all.
+    ///
+    /// Which of the two holds is a RADIUS-equality question, and
+    /// radius equality is structural or declared and never inferred
+    /// from values (`geom_brep::RadiusEvidence`, the coincidence
+    /// ladder). No declaration channel reaches this dispatch, so it
+    /// refuses on the axis relation alone rather than reading the
+    /// radii. Recourse: a chord lane that can walk a self-intersecting
+    /// section, or geometry whose germ pairs are wired.
+    GermFrameCylinderPinch {
+        /// The A-side germ face.
+        a_face: FaceKey,
+        /// The B-side germ face.
+        b_face: FaceKey,
+    },
     /// An underlying Euler operation refused.
     Euler(EulerOpError),
     /// The result body's pcurve mint pass refused (M5 PR 9: curved
@@ -948,7 +1061,7 @@ pub enum BooleanError {
     /// vol(∖) ≤ vol A — checked at the op gate with the exact planar
     /// `mass_properties` (the review's volume-inequality backstop,
     /// decided on the INVARIANT LANE — outside the length seam,
-    /// Evan's #213 layering ruling). A certified violation is a
+    /// Ev's #213 layering ruling). A certified violation is a
     /// **kernel invariant** failure — the Corrupt class: a bug in the
     /// kernel, never in the caller's geometry — surfaced as this typed
     /// error, never a panic and never a validity refusal.
@@ -1016,11 +1129,27 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "boolean_reduce: edge {edge:?} of operand {operand:?} definitely meets \
                  curved face {face:?} away from a shared boundary (clearance classified \
-                 against band [zero {:e}, escalate {:e}]) — the curved pierce door \
-                 (point-in-face trim containment on a curved chart, and the ring \
-                 insertion behind it) does not exist yet — this is the typed \
-                 frontier of the supported envelope. The same margin one band-width \
-                 away escalates as a sliver instead; {}",
+                 against band [zero {:e}, escalate {:e}]) — and the curved pierce \
+                 door cannot take this one. The door exists for a LINE carrier \
+                 definitely crossing a CYLINDER wall; a tangency, a Circle carrier, \
+                 a sphere face, an undeclared on-carrier edge, or a trim the chart \
+                 door will not express stay at this typed frontier. The same margin \
+                 one band-width away escalates as a sliver instead; {}",
+                band.zero(),
+                band.escalate(),
+                COINCIDENCE_RECOURSE
+            ),
+            Self::CurvedSectorSideUnsupported { band } => write!(
+                f,
+                "boolean_reduce: a pierce sector's first-order material verdict cannot \
+                 be certified against the pierced face's curvature — the sagitta at \
+                 the sector's own lever arm is not definitely smaller than the \
+                 first-order displacement (classified against band \
+                 [zero {:e}, escalate {:e}]), so the tangent-plane verdict may have \
+                 the material side backwards. Answering it at first order would be a \
+                 wrong topology, not a conservative one. The recourse is the \
+                 second-order sector trilean, which no lane wires into this verdict \
+                 yet; {}",
                 band.zero(),
                 band.escalate(),
                 COINCIDENCE_RECOURSE
@@ -1136,6 +1265,21 @@ impl core::fmt::Display for BooleanError {
                 a_kind.name(),
                 b_kind.name(),
             ),
+            Self::GermFrameCylinderPinch { a_face, b_face } => write!(
+                f,
+                "boolean join: the germ pair (face {a_face:?} of A, face {b_face:?} of B) \
+                 is two cylinder walls whose axes definitely intersect, and that pair has \
+                 no section frame to name. With equal radii the section is the two \
+                 bisector-plane ellipses, which CROSS at the two points p ± r·n̂ where \
+                 n̂ = unit(a1 x a2) — the walls are mutually tangent there — four arcs at \
+                 two valence-4 pinch \
+                 vertices, not one conic — and this dispatch is keyed on surface kinds \
+                 alone, so it has no point with which to select a branch. With unequal \
+                 radii the locus is a space quartic and has no conic frame at all. Which \
+                 holds is a radius-equality question, and radius equality is structural or \
+                 declared and never inferred from values. Recourse: a chord lane that walks \
+                 a self-intersecting section, or geometry whose germ pairs are wired",
+            ),
             Self::Pcurves { source } => write!(
                 f,
                 "boolean: the result's pcurve mint pass refused (curved results carry \
@@ -1207,6 +1351,31 @@ impl core::fmt::Display for BooleanError {
                  plane×cylinder along a ruling, parallel cylinders) — the declaration is \
                  refused at the door rather than ignored inside",
                 class.name()
+            ),
+            Self::RimSeamNotDeclarable { declaration } => write!(
+                f,
+                "boolean op: faces {:?}/{:?} share a rim circle the ratified routing \
+                 (docs/MATE-7-TANGENCY-DESIGN.md) classified as the SEAM (wedge π) — the two \
+                 walls continue one another smoothly through it. That arm is BUILT and it \
+                 answered; what is refused is the DECLARATION. A seam is structural and takes \
+                 no contact declaration at all, so a {} claim on it names the wrong class — \
+                 and separately, the join wiring that would consume this verdict while \
+                 zipping is not built, so the op cannot proceed on the pair either",
+                declaration.a,
+                declaration.b,
+                declaration.class.name()
+            ),
+            Self::RimCuspArmUnbuilt { declaration, wedge } => write!(
+                f,
+                "boolean op: faces {:?}/{:?} share a rim circle whose material wedge is {} — \
+                 the ratified routing (docs/MATE-7-TANGENCY-DESIGN.md) sends a wedge-0/2π rim \
+                 to the declared-{} cusp family, whose certified rim witness is DEFINED BUT \
+                 UNBUILT: the declaration is the right instrument and there is nothing yet to \
+                 verify it against",
+                declaration.a,
+                declaration.b,
+                wedge.name(),
+                declaration.class.name()
             ),
             Self::InvalidDeclaration { operand, what } => write!(
                 f,
@@ -1393,16 +1562,17 @@ pub fn sweep_traces_with_pad<T: Decide + Bounds>(
     tol: Tol,
 ) -> Result<(SweepTrace, SweepTrace), BooleanError> {
     let band = Band::linear(tol)?;
-    reduce::gate_operand_pairs(a_operand, b_operand, band)?;
+    // The suite's door takes no declarations: the traced sweep runs
+    // the undeclared posture, where the frontier doors are verbatim —
+    // and so, therefore, is the operand gate's covered-pair rung.
+    let declared = DeclaredPairs::default();
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
 
     let mut a = a_operand.clone();
     let mut b = b_operand.clone();
     let mut acc = reduce::ContactAcc::default();
-    // The suite's door takes no declarations: the traced sweep runs
-    // the undeclared posture, where the frontier doors are verbatim.
-    let declared = DeclaredPairs::default();
     let mut ab = SweepTrace::default();
     let mut ba = SweepTrace::default();
     let ab_knobs = reduce::SweepKnobs {
@@ -1458,7 +1628,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
     validate_declarations(a_operand, b_operand, decls)?;
     verify_declared_contacts(a_operand, b_operand, decls, band)?;
     let declared = DeclaredPairs::build(decls);
-    reduce::gate_operand_pairs(a_operand, b_operand, band)?;
+    reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
 
@@ -1762,6 +1932,95 @@ fn verify_tangent_declaration<T: Decide>(
             });
         }
         Err(rest::TangentLocusError::Unsupported { .. }) => {
+            // **The ratified routing, before the class refusal.** A
+            // pair the witness lane cannot serve may still be a
+            // configuration the design has already ruled on: two faces
+            // meeting along ONE circle. Where they do, the material
+            // wedge decides which arm the rim earns and the refusal
+            // names it, so an author reading it learns what the
+            // geometry IS rather than only that a witness is missing.
+            // Where there is no shared rim — or the samples cannot
+            // settle one — the bare class refusal stands, verbatim.
+            // An UNDECIDABLE rim identity escalates typed rather than
+            // reading as "no rim here": the two are different findings
+            // and only one of them means the geometry was examined and
+            // cleared.
+            let rim = rim_wedge::shared_rim(a, fa, b, fb, band)
+                .map_err(|diag| BooleanError::Escalated { diag })?;
+            if let Some(rim) = rim {
+                let (sa, sb) = (
+                    surface_of(a, fa, Operand::A)?,
+                    surface_of(b, fb, Operand::B)?,
+                );
+                let senses = |body: &Body<T>, f: FaceKey| {
+                    body.get_face(f)
+                        .map_or_else(T::one, |face| face.sense_sign::<T>())
+                };
+                // The rim's own diameter is the extent every angular
+                // margin here is metered at — the screen's, the
+                // material arm's and the rim identification's alike:
+                // it is the reach over which this contact's verdict is
+                // consumed, and three stages levering against three
+                // different arms would not be comparable.
+                let extent = rim.radius + rim.radius;
+                match rim_wedge::classify_shared_rim(
+                    &sa,
+                    senses(a, fa),
+                    &sb,
+                    senses(b, fb),
+                    rim,
+                    extent,
+                    band,
+                ) {
+                    // Wedge π: the arm is built and it answered; the
+                    // declaration is what is wrong.
+                    Ok(rim_wedge::RimRouting::Seam) => {
+                        return Err(BooleanError::RimSeamNotDeclarable { declaration });
+                    }
+                    // Wedge 0/2π: the ruling's unbuilt arm.
+                    Ok(rim_wedge::RimRouting::Cusp(wedge)) => {
+                        return Err(BooleanError::RimCuspArmUnbuilt { declaration, wedge });
+                    }
+                    // **Definite counter-evidence CONTRADICTS**, and
+                    // this is C4's invariant rather than a new rule:
+                    // every definite verdict wins over every
+                    // declaration. A rim whose tangent planes are
+                    // definitely distinct at every station is a
+                    // crossing, and a rim whose opposed sheets osculate
+                    // is conformal contact — a `Rest` claim wearing a
+                    // rim's clothes. Neither is a tangency, and saying
+                    // so is strictly better than reporting the CLASS as
+                    // unsupported: the geometry, not the kernel's
+                    // coverage, is what refuses.
+                    Ok(
+                        routing @ (rim_wedge::RimRouting::Transverse
+                        | rim_wedge::RimRouting::Lamina),
+                    ) => {
+                        return Err(BooleanError::ContactContradicted {
+                            declaration,
+                            steer: None,
+                            margin: Indeterminate {
+                                margin: MarginDiag::Invalid,
+                                band,
+                                // Display-only, the `contact_tangent_
+                                // conformal` precedent: the deciding
+                                // `decide` calls ran inside the routing
+                                // and are already in the funnel under
+                                // their own names, so this labels the
+                                // FINDING for the reader rather than
+                                // claiming a second measurement.
+                                predicate: Some(match routing {
+                                    rim_wedge::RimRouting::Lamina => "contact_tangent_rim_lamina",
+                                    _ => "contact_tangent_rim_transverse",
+                                }),
+                            },
+                        });
+                    }
+                    // The samples could not settle the rim: the bare
+                    // class refusal below stands, verbatim.
+                    Err(_) => {}
+                }
+            }
             return Err(BooleanError::UnsupportedDeclarationClass {
                 class: ContactClass::Tangent,
             });
@@ -1855,13 +2114,19 @@ fn validate_declarations<T: Decide>(
 ) -> Result<(), BooleanError> {
     let bad = |operand, what| BooleanError::InvalidDeclaration { operand, what };
     // THE C8 boundary, stated once: a declared face must sit on a
-    // carrier the classification's certified ladder describes —
-    // plane, sphere or cylinder (`carrier_eq`'s inventory). Kinds
-    // outside it (cone, torus, NURBS) refuse typed at this door;
-    // undeclared touching refuses forever at the classification
-    // frontiers — the door only widens what a VERIFIED declaration
-    // can unlock. Per-class geometric admission (the `Tangent`
-    // witness lane) is `verify_declared_contacts`' half of the door.
+    // carrier the classification's certified ladder describes — the
+    // kinds `carrier_eq` carries a rung for. Kinds outside it (cone,
+    // NURBS, `Approx`) refuse typed at this door; undeclared touching
+    // refuses forever at the classification frontiers — the door only
+    // widens what a VERIFIED declaration can unlock. Per-class
+    // geometric admission (the `Tangent` witness lane) is
+    // `verify_declared_contacts`' half of the door.
+    //
+    // This inventory is the ONE place a kind becomes declarable, and
+    // that is what makes the operand gate's covered-pair admission
+    // kind-generic without being kind-blind: a face whose carrier has
+    // no rung here can never appear in a surviving declaration, so it
+    // can never be covered there either.
     let inventory_face = |body: &Body<T>, f: FaceKey, operand| -> Result<(), BooleanError> {
         let face = body
             .get_face(f)
@@ -1870,12 +2135,13 @@ fn validate_declarations<T: Decide>(
             Some(
                 geom::Surface::Plane { .. }
                 | geom::Surface::Sphere { .. }
-                | geom::Surface::Cylinder { .. },
+                | geom::Surface::Cylinder { .. }
+                | geom::Surface::Torus { .. },
             ) => Ok(()),
             Some(_) => Err(bad(
                 operand,
                 "declared face's carrier is outside the certified inventory \
-                 (plane, sphere, cylinder)",
+                 (plane, sphere, cylinder, torus)",
             )),
             None => Err(bad(operand, "declared face lost its surface")),
         }

@@ -10,16 +10,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Point2, Tol, Vec2};
+use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, ShellError};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 const FIT_TOL: f64 = 1e-6;
 
@@ -118,7 +115,7 @@ fn r2b_squared_stepped_vase_mints_one_annular_rim() {
     ])]);
     let chart = plane_chart_at_y(&body, h);
     println!("[r2b] vase mouth chart: {} face(s)", chart.len());
-    let cup = topo::shell_open(&body, t, &chart, FIT_TOL, band(), tol)
+    let cup = topo::shell_open(&body, t, &chart, FIT_TOL, tol)
         .unwrap_or_else(|e| panic!("the squared vase must open: {e}"));
     assert_eq!(topo::validate_geometric(&cup, tol), Ok(()), "tier 3");
     assert_eq!(cup.shells().count(), 1);
@@ -177,7 +174,7 @@ fn r2b_two_holed_designation_refuses_typed() {
     let body = extruded(vec![outer, h1, h2], 0.6);
     let top = plane_chart_at_z(&body, 0.6);
     println!("[r2b] two-holed top chart: {} face(s)", top.len());
-    let opened = topo::shell_open(&body, 0.05, &top, FIT_TOL, band(), tol);
+    let opened = topo::shell_open(&body, 0.05, &top, FIT_TOL, tol);
     match &opened {
         Err(ShellError::OpenFaceRimNotExpressible { what, .. }) => {
             println!("[r2b] typed refusal: {what}");
@@ -199,7 +196,7 @@ fn r2b_one_holed_extrusion() {
     let hole = poly(&[(0.35, 0.35), (0.35, 0.65), (0.65, 0.65), (0.65, 0.35)]);
     let body = extruded(vec![outer, hole], 0.6);
     let top = plane_chart_at_z(&body, 0.6);
-    let opened = topo::shell_open(&body, 0.05, &top, FIT_TOL, band(), tol);
+    let opened = topo::shell_open(&body, 0.05, &top, FIT_TOL, tol);
     match &opened {
         Ok(cup) => {
             println!(
@@ -223,12 +220,21 @@ fn r2b_one_holed_extrusion() {
     }
 }
 
-/// **A PARTIAL revolve** — round 1 measured that it never reaches the
-/// rim surgery: the sealed offset refuses first (`ReanchorOffCarrier`,
-/// #1081 / PR-2). Kept as an instrument that the refusal is TYPED and
-/// no body comes back.
+/// **A PARTIAL revolve, through the rim surgery it used to be stopped
+/// short of.** Round 1 measured that the sealed offset refused first
+/// (`ReanchorOffCarrier`, #1081), so this row could only instrument
+/// that the refusal was typed and no body came back. #1081's PR-2b
+/// solves those corners — a wedge's meridian caps are planes CONTAINING
+/// the axis, which is the door's azimuth arm — so the sealed offset
+/// succeeds and the reachable outcomes are now the RIM's.
+///
+/// The row stays print-shaped on purpose: what it reports per θ is the
+/// operand door's own verdict as well as the rim's, because the
+/// axis-touching partial revolve's `NonManifoldAxisContact` is decided
+/// against the RUN's epsilon and a meridian the sweep will not build
+/// never reaches the verb at all.
 #[test]
-fn r2b_partial_revolve_refuses_before_the_rim() {
+fn r2b_partial_revolve_reaches_the_rim() {
     let tol = Tol::witness();
     let (r, h, t) = (0.5, 0.4, 0.05);
     for theta in [core::f64::consts::FRAC_PI_2, 2.4] {
@@ -259,7 +265,7 @@ fn r2b_partial_revolve_refuses_before_the_rim() {
         };
         let body = swept.body;
         let chart = plane_chart_at_y(&body, h);
-        let opened = topo::shell_open(&body, t, &chart, FIT_TOL, band(), tol);
+        let opened = topo::shell_open(&body, t, &chart, FIT_TOL, tol);
         match &opened {
             Ok(cup) => {
                 println!(

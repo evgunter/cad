@@ -657,6 +657,10 @@ fn germ_section_frame<T: Decide>(
             b_face: germ.b_face,
             b_kind: geom_brep::SurfaceKind::of(&sb),
         },
+        FrameError::IntersectingCylinderAxes => BooleanError::GermFrameCylinderPinch {
+            a_face: germ.a_face,
+            b_face: germ.b_face,
+        },
     })
 }
 
@@ -671,6 +675,12 @@ pub(super) enum FrameError {
     Desync(&'static str),
     /// The kind pair has no section arm at all.
     NoArm,
+    /// **A cylinder pair whose axes definitely INTERSECT.** Its locus
+    /// is never straight and is never one conic either, so it is
+    /// neither `Ok(None)` nor an arm — see
+    /// [`BooleanError::GermFrameCylinderPinch`] for the two shapes it
+    /// takes and why this dispatch can name neither.
+    IntersectingCylinderAxes,
 }
 
 /// **The pair-general section-frame dispatch**, keyed on the germ
@@ -728,39 +738,126 @@ pub(super) fn pair_section_frame<T: Decide>(
                 )),
             };
         }
+        // The sphere PAIR: the C5 radical-plane Circle's frame, through
+        // THE table — same escalation plumbing as the plane×sphere arm
+        // above.
+        //
+        // **No polar gate lives here, deliberately.** The frame this
+        // dispatch names is the LOCUS's — the centre and axis the
+        // rotational-sense facing test turns about — and a sphere pair's
+        // locus is that circle whatever either chart's polar axis does.
+        // The polar premise belongs to the ARC-SIDE rule, which is a
+        // different consumer with a different question; putting it here
+        // would refuse a frame the facing test can use.
+        //
+        // **And no polar gate lives at that consumer either — said out
+        // loud so the absence reads as a decision, not an omission.**
+        // `chord_join::section_case` refuses EVERY curved×curved pair by
+        // KIND, before any germ-pair section is consulted, so a sphere
+        // section never reaches the azimuth-anchored rule at all. That
+        // blanket refusal is strictly stronger than a polar gate (which
+        // would admit the aligned pairs), and it is what makes a gate
+        // here or there dead code today; its text NAMES the sphere pair
+        // and the polar premise so a reader who arrives at it lands on
+        // the right fact. When the ring lane narrows that refusal, the
+        // premise becomes live and the gate is owed then.
+        (Sf::Sphere { .. }, Sf::Sphere { .. }) => {
+            return match geom_brep::sphere_sphere_section(sa, sb, band) {
+                Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle {
+                    center,
+                    axis,
+                    ..
+                })) => Ok(Some((center, axis))),
+                Ok(geom_brep::SphereSphereSection::Circle(_)) => Err(FrameError::Desync(
+                    "sphere×sphere classification carried a non-circle",
+                )),
+                // A tangent POINT / empty gap under a minted germ is a
+                // touching configuration the reduction should not have
+                // paired — loud, typed.
+                Ok(
+                    geom_brep::SphereSphereSection::TangentPoint(_)
+                    | geom_brep::SphereSphereSection::Empty,
+                ) => Err(FrameError::Desync(
+                    "germ pair's sphere×sphere section is not a locus",
+                )),
+                Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::Escalated(diag)),
+                Err(_) => Err(FrameError::Desync(
+                    "germ pair's section refused at match time",
+                )),
+            };
+        }
         // The ONE structurally straight pair: a plane×plane section is
         // a line, so "no frame" is a proof here rather than a default.
         (Sf::Plane { .. }, Sf::Plane { .. }) => return Ok(None),
-        // **Cylinder×cylinder, and only its straight half.** Two walls
-        // with PARALLEL axes meet in rulings — lines — whatever their
-        // radii, so `None` here is proven by the axes alone and needs
-        // neither radius evidence nor a constructed section: the
-        // declared tangent-ruling pair the zip lane rests on is exactly
-        // this case. A non-parallel pair's locus is a space quartic (or
-        // the equal-radius bisector ellipses), never straight, so it
-        // has no frame this dispatch can name and takes the refusal.
+        // **Cylinder×cylinder.** Two walls with PARALLEL axes meet in
+        // rulings — lines — whatever their radii, so `None` here is
+        // proven by the axes alone and needs neither radius evidence
+        // nor a constructed section: the declared tangent-ruling pair
+        // the zip lane rests on is exactly this case. The non-parallel
+        // half is never straight, and it splits again on coplanarity
+        // (below): skew keeps the general rung's `NoArm`, intersecting
+        // axes take their own named door.
         //
         // Metered at the larger radius: a bigger lever makes the
         // parallelism margin harder to call Zero, so the error runs
         // toward the refusal, never toward a wrong straight chord.
         (
             Sf::Cylinder {
+                origin: o1,
                 axis: a1,
                 radius: r1,
                 ..
             },
             Sf::Cylinder {
+                origin: o2,
                 axis: a2,
                 radius: r2,
                 ..
             },
         ) => {
-            return match decide(
+            match decide(
                 "bool_germ_frame_axes_parallel",
                 Margin::levered(a1.cross(*a2).norm(), r1.max(*r2)),
                 band,
             ) {
-                Ok(Sign::Zero) => Ok(None),
+                Ok(Sign::Zero) => return Ok(None),
+                Ok(Sign::Positive | Sign::Negative) => {}
+                Err(diag) => return Err(FrameError::Escalated(diag)),
+            }
+            // **The non-parallel half, split on COPLANARITY.** The
+            // signed axis-to-axis gap along `a1×a2` is the section
+            // table's own `cc_axes_coplanar` margin
+            // (`geom_brep::cylinder_cylinder_section` step 5) and it
+            // reads NO radius, so asking it here infers nothing: a
+            // definite gap is SKEW, whose locus is a space quartic —
+            // canal territory, the general rung — and keeps `NoArm`
+            // verbatim. A Zero gap means the axes meet, and that half
+            // gets its own named door because its locus is not one
+            // conic even when it is a conic pair.
+            //
+            // **The `/ cross.norm()` is a UNITS correction, and no test
+            // can red on it away from the band — said out loud so its
+            // absence from the suite reads as a measurement rather than
+            // a gap.** `‖a1×a2‖ = sin θ` for unit axes, so dividing is
+            // what makes the margin the true axis-to-axis LENGTH the
+            // band is denominated in; dropping it scales a definite
+            // margin by `sin θ` and can only change a verdict within a
+            // factor `sin θ` of the band itself. Reaching that needs an
+            // almost-parallel pair, which the gate above answers `Zero`
+            // first. Measured: with the division dropped, every row of
+            // `frame_dispatch_tests` and its interval twin still
+            // greens. What the rows DO pin is the direction — see
+            // `skew_axes_keep_the_general_rung_at_the_certified_scalar`,
+            // which reds the moment the gap is measured along an axis
+            // instead of along `a1×a2`.
+            let w0 = *o2 - *o1;
+            let cross = a1.cross(*a2);
+            return match decide(
+                "bool_germ_frame_axes_coplanar",
+                Margin::of(w0.dot(cross) / cross.norm()),
+                band,
+            ) {
+                Ok(Sign::Zero) => Err(FrameError::IntersectingCylinderAxes),
                 Ok(Sign::Positive | Sign::Negative) => Err(FrameError::NoArm),
                 Err(diag) => Err(FrameError::Escalated(diag)),
             };
@@ -1668,32 +1765,212 @@ mod frame_dispatch_tests {
         }
     }
 
+    /// A cylinder about `axis` through `origin`. The chart's `u_ref` is
+    /// any unit vector across the axis — this dispatch never reads it,
+    /// and picking the less-aligned coordinate direction keeps it from
+    /// being poison on an axis-aligned pose.
+    fn cylinder_at(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> geom::Surface<f64> {
+        let seed = if axis.x.abs() < 0.5 {
+            Vec3::new(1.0, 0.0, 0.0)
+        } else {
+            Vec3::new(0.0, 1.0, 0.0)
+        };
+        geom::Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref: axis.cross(seed).normalize(),
+        }
+    }
+
     /// The trap, closed: a germ pair with no section arm must refuse,
     /// never answer `None`. `None` is the straight-chord verdict, and
     /// handing it to a curved pair mints a chord along a locus that is
     /// not a line.
+    ///
+    /// Both refusal variants are the trap being closed, but they are
+    /// NOT interchangeable per row, and the matcher is split so that
+    /// the loosening is confined to where it is earned. Only a
+    /// CYLINDER PAIR can reach `IntersectingCylinderAxes` — the split
+    /// on coplanarity is the only producer of that variant — so those
+    /// rows admit either refusal here and the row below pins which one
+    /// each gets. Every other kind pair falls through to the
+    /// dispatch's final arm, where `NoArm` is the only reachable
+    /// answer, and a row that accepted the pinch variant there would
+    /// green through a mis-routed dispatch.
     #[test]
     fn a_pair_without_an_arm_refuses_and_never_answers_straight() {
+        // `cylinder_pair` marks the rows whose kinds can reach the
+        // coplanarity split at all.
         let curved_pairs = [
             // Crossing axes: the locus is a space quartic (or, at equal
             // radii, the bisector ellipses) — never a line.
             (
                 cylinder(Vec3::new(0.0, 0.0, 1.0)),
                 cylinder(Vec3::new(1.0, 0.0, 0.0)),
+                true,
             ),
             (
                 cylinder(Vec3::new(0.0, 0.0, 1.0)),
                 cylinder(Vec3::new(0.0, 1.0, 1.0).normalize()),
+                true,
             ),
-            (cylinder(Vec3::new(0.0, 0.0, 1.0)), sphere()),
-            (sphere(), sphere()),
+            // Skew axes, equal and unequal radii. The displacement is
+            // along the common perpendicular `a1 x a2`: displacing
+            // along either AXIS leaves the two lines meeting.
+            (
+                cylinder(Vec3::new(0.0, 0.0, 1.0)),
+                cylinder_at(Point3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0), 1.0),
+                true,
+            ),
+            (
+                cylinder(Vec3::new(0.0, 0.0, 1.0)),
+                cylinder_at(Point3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0), 0.4),
+                true,
+            ),
+            // Cylinder × sphere, both orders: no arm at all, and the
+            // pinch variant is unreachable — pinned exactly.
+            (cylinder(Vec3::new(0.0, 0.0, 1.0)), sphere(), false),
+            (sphere(), cylinder(Vec3::new(0.0, 0.0, 1.0)), false),
         ];
-        for (a, b) in curved_pairs {
+        for (a, b, cylinder_pair) in curved_pairs {
             let got = pair_section_frame(&a, &b, band());
-            assert!(
-                matches!(got, Err(FrameError::NoArm)),
-                "a pair with no arm must refuse rather than default to the straight chord"
+            if cylinder_pair {
+                assert!(
+                    matches!(
+                        got,
+                        Err(FrameError::NoArm | FrameError::IntersectingCylinderAxes)
+                    ),
+                    "a cylinder pair with no arm must refuse rather than default to the \
+                     straight chord"
+                );
+            } else {
+                assert!(
+                    matches!(got, Err(FrameError::NoArm)),
+                    "a non-cylinder pair with no arm must refuse with NoArm exactly — \
+                     the pinch variant is not reachable for these kinds"
+                );
+            }
+        }
+    }
+
+    /// **The non-parallel cylinder pair splits on COPLANARITY, and on
+    /// nothing else.** Intersecting axes take the pinch door; skew
+    /// axes keep the general rung's `NoArm` verbatim. The split reads
+    /// no radius, so both rows run at equal AND unequal radii and get
+    /// the same answer — which is the never-infer rule made visible:
+    /// this dispatch cannot tell the two apart and does not try.
+    #[test]
+    fn the_non_parallel_cylinder_pair_splits_on_coplanarity_alone() {
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        for r in [1.0_f64, 0.4] {
+            // Axes meeting at the origin.
+            let meeting = pair_section_frame(
+                &cylinder(z),
+                &cylinder_at(Point3::new(0.0, 0.0, 0.0), x, r),
+                band(),
             );
+            assert!(
+                matches!(meeting, Err(FrameError::IntersectingCylinderAxes)),
+                "r = {r}: intersecting axes take the pinch door"
+            );
+            // The same pair lifted along the common perpendicular
+            // `a1 x a2` — the ONE direction that separates the axes. A
+            // lift along either axis leaves them meeting, which is what
+            // the margin measures and why it is the gap along `a1 x a2`
+            // rather than any distance between the origins.
+            let skew = pair_section_frame(
+                &cylinder(z),
+                &cylinder_at(Point3::new(0.0, 0.5, 0.0), x, r),
+                band(),
+            );
+            assert!(
+                matches!(skew, Err(FrameError::NoArm)),
+                "r = {r}: skew axes keep the general rung"
+            );
+        }
+        // Parallel axes are untouched by the split: still the proven
+        // straight locus, at any radii and any gap.
+        assert!(
+            matches!(
+                pair_section_frame(
+                    &cylinder(z),
+                    &cylinder_at(Point3::new(1.3, 0.0, 0.0), z, 0.4),
+                    band()
+                ),
+                Ok(None)
+            ),
+            "parallel cylinder axes meet in rulings"
+        );
+    }
+
+    /// **The pinch is a property of the whole intersecting
+    /// equal-radius family, not of the perpendicular pose.** The two
+    /// bisector planes' common line runs through the axes' meeting
+    /// point along `â₁ × â₂` and is perpendicular to both axes, so it
+    /// meets both walls at `p ± r·n̂`, where `n̂ = unit(â₁ × â₂)` — the
+    /// unit matters, since `‖â₁ × â₂‖ = sin θ` puts the raw product
+    /// strictly inside the walls at every pose but 90°, which is why
+    /// the row below normalizes — and those two points
+    /// therefore lie on BOTH section ellipses, at every angle between
+    /// the axes. This row reads them straight out of the section
+    /// table, which is where the claim in
+    /// [`BooleanError::GermFrameCylinderPinch`]'s doc is checkable.
+    #[test]
+    fn the_equal_radius_section_always_crosses_at_two_pinch_points() {
+        use geom_brep::{EqualCylinderSection, RadiusEvidence, cylinder_cylinder_section};
+        let p = Point3::new(0.3, -0.2, 0.7);
+        let a1 = Vec3::new(0.0, 0.0, 1.0);
+        for deg in [20.0_f64, 45.0, 90.0, 130.0] {
+            let t = deg.to_radians();
+            let a2 = Vec3::new(t.sin(), 0.0, t.cos());
+            let r = 0.9;
+            let c1 = geom::Surface::Cylinder {
+                origin: p,
+                axis: a1,
+                radius: r,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            };
+            let c2 = geom::Surface::Cylinder {
+                origin: p,
+                axis: a2,
+                radius: r,
+                u_ref: a2.cross(Vec3::new(0.0, 1.0, 0.0)).normalize(),
+            };
+            let sec = cylinder_cylinder_section(&c1, &c2, RadiusEvidence::Declared, 1.0, band())
+                .expect("intersecting equal-radius axes have a section");
+            let EqualCylinderSection::TwoEllipses { e1, e2 } = sec else {
+                panic!("{deg}°: the intersecting equal-radius section is the ellipse pair");
+            };
+            let n = a1.cross(a2).normalize();
+            for sign in [1.0_f64, -1.0] {
+                let pinch = p + n * (sign * r);
+                for (name, e) in [("e1", &e1), ("e2", &e2)] {
+                    let geom::Curve3::Ellipse {
+                        center,
+                        axis,
+                        major,
+                        minor,
+                        u_ref,
+                    } = *e
+                    else {
+                        panic!("{deg}°, {name}: the section carried a non-ellipse");
+                    };
+                    // The eccentric anomaly of the pinch point, read
+                    // off the ellipse's own frame, then evaluated back:
+                    // an exact round trip iff the point is ON the
+                    // curve, and no projection lane is involved.
+                    let v_ref = axis.cross(u_ref);
+                    let w = pinch - center;
+                    let t = (w.dot(v_ref) / minor).atan2(w.dot(u_ref) / major);
+                    let d = (e.eval(t) - pinch).norm();
+                    assert!(
+                        d < 1e-12,
+                        "{deg}°, {name}, sign {sign}: the pinch point is {d} off the ellipse"
+                    );
+                }
+            }
         }
     }
 
@@ -1742,6 +2019,210 @@ mod frame_dispatch_tests {
                 Ok(None)
             ),
             "a parallel-axis cylinder pair is a PROVEN straight locus"
+        );
+    }
+
+    /// The SPHERE pair names its section circle's frame, and it does so
+    /// with the charts left alone: the frame is the LOCUS's, and a
+    /// sphere pair's locus is the radical-plane circle whatever either
+    /// polar axis does. The three non-loci are `Desync` rather than a
+    /// frame — a germ was minted from a pair that has no curve.
+    #[test]
+    fn the_sphere_pair_names_its_circle_frame_at_any_chart_tilt() {
+        let ball = |c: Point3<f64>, r: f64, axis: Vec3<f64>| geom::Surface::Sphere {
+            center: c,
+            radius: r,
+            axis,
+            u_ref: axis.cross(Vec3::new(0.37, -0.91, 0.18)).normalize(),
+        };
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let tilted = Vec3::new(0.3, -0.5, 0.81).normalize();
+        // Crossing, and the two charts aim nowhere near the centre
+        // line: the frame is named regardless.
+        for (a_axis, b_axis) in [(z, z), (z, tilted), (tilted, z)] {
+            let got = pair_section_frame(
+                &ball(Point3::new(0.0, 0.0, 0.0), 2.0, a_axis),
+                &ball(Point3::new(2.5, 0.0, 0.0), 2.0, b_axis),
+                band(),
+            );
+            let Ok(Some((center, axis))) = got else {
+                panic!("a crossing sphere pair names its circle frame");
+            };
+            // a = (d² + r₁² − r₂²)/2d = d/2 at equal radii.
+            assert!((center - Point3::new(1.25, 0.0, 0.0)).norm() < 1e-12);
+            assert!(axis.dot(Vec3::new(1.0, 0.0, 0.0)) > 0.999_999_999);
+        }
+        // Separated, tangent, and one sphere given twice: no locus, so
+        // no frame — and never the straight-chord `None`.
+        for (b, what) in [
+            (ball(Point3::new(9.0, 0.0, 0.0), 2.0, z), "separated"),
+            (ball(Point3::new(4.0, 0.0, 0.0), 2.0, z), "tangent"),
+            (ball(Point3::new(0.0, 0.0, 0.0), 2.0, z), "coincident"),
+        ] {
+            let got = pair_section_frame(&ball(Point3::new(0.0, 0.0, 0.0), 2.0, z), &b, band());
+            assert!(
+                matches!(got, Err(FrameError::Desync(_))),
+                "{what}: a non-locus sphere pair is a desync, not a frame and not straight"
+            );
+        }
+    }
+}
+
+/// **The cylinder×cylinder coplanarity split at the CERTIFIED scalar**
+/// (feature `interval`) — the two-arm pin for this unit's new decide
+/// site, `bool_germ_frame_axes_coplanar`.
+///
+/// **Why it lives HERE and not in a body-level suite.** The predicate
+/// sits in a dispatch that a body-level fixture only reaches after the
+/// crossing layer has admitted the pair, and the skew fixture never
+/// gets there: skew walls have no declared cover, so the certified lane
+/// stops at a crossing-layer door with the germ pair never minted. A
+/// suite that drives bodies can therefore pin ONE arm at this scalar,
+/// which is not a two-arm pin at all — a mutation that broke the skew
+/// half would be invisible to it. Calling
+/// [`pair_section_frame`] directly is what makes both arms reachable at
+/// `Interval`, and it is the same function the join calls, on the same
+/// band.
+///
+/// Every coordinate here is DYADIC, so each surface's enclosure is a
+/// point interval and the margin's width is the arithmetic's alone: the
+/// axes are coordinate directions, the radii are 1 and 0.5, and the
+/// skew displacement is `0.375 = 3/8`. That is what lets both arms be
+/// EQUALITIES rather than "answers or escalates" — a widened enclosure
+/// here would be the arithmetic's doing and is exactly what this row is
+/// for.
+#[cfg(test)]
+#[cfg(feature = "interval")]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod frame_dispatch_interval_tests {
+    use geom_core::{Interval, Point3, Real, Tol, Vec3};
+
+    use super::{FrameError, pair_section_frame};
+
+    fn iv(x: f64) -> Interval {
+        Interval::from_f64(x)
+    }
+
+    fn band() -> geom_core::Band {
+        geom_core::Band::linear(Tol::witness()).expect("a linear band")
+    }
+
+    fn p3(x: f64, y: f64, z: f64) -> Point3<Interval> {
+        Point3::new(iv(x), iv(y), iv(z))
+    }
+
+    fn v3(x: f64, y: f64, z: f64) -> Vec3<Interval> {
+        Vec3::new(iv(x), iv(y), iv(z))
+    }
+
+    /// A wall with every datum given explicitly — no `normalize`, no
+    /// `cross`, so nothing here widens before the dispatch runs. The
+    /// caller passes a `u_ref` already across the axis; this dispatch
+    /// never reads it, and handing it a dyadic one keeps that true at
+    /// the certified scalar as well.
+    fn wall(
+        origin: Point3<Interval>,
+        axis: Vec3<Interval>,
+        u_ref: Vec3<Interval>,
+        radius: f64,
+    ) -> geom::Surface<Interval> {
+        geom::Surface::Cylinder {
+            origin,
+            axis,
+            radius: iv(radius),
+            u_ref,
+        }
+    }
+
+    fn about_z(origin: Point3<Interval>, radius: f64) -> geom::Surface<Interval> {
+        wall(origin, v3(0.0, 0.0, 1.0), v3(1.0, 0.0, 0.0), radius)
+    }
+
+    fn about_x(origin: Point3<Interval>, radius: f64) -> geom::Surface<Interval> {
+        wall(origin, v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), radius)
+    }
+
+    /// **The MEETING arm.** Both axes run through the origin, so the
+    /// signed gap along `a₁ × a₂` is the exact zero of a point
+    /// interval and the split answers `Zero` — the pinch door. Read as
+    /// an equality, not "pinch or escalates": an escalation here would
+    /// say the enclosure decided the lane rather than the geometry.
+    ///
+    /// Run at equal AND unequal radii, because the margin reads no
+    /// radius and the certified lane must not start inferring one.
+    #[test]
+    fn meeting_axes_take_the_pinch_door_at_the_certified_scalar() {
+        for r in [1.0_f64, 0.5] {
+            let got = pair_section_frame(
+                &about_z(p3(0.0, 0.0, 0.0), 1.0),
+                &about_x(p3(0.0, 0.0, 0.0), r),
+                band(),
+            );
+            assert!(
+                matches!(got, Err(FrameError::IntersectingCylinderAxes)),
+                "r = {r}: meeting axes take the pinch door at the certified scalar"
+            );
+        }
+    }
+
+    /// **The SKEW arm** — the half a body-level fixture cannot reach at
+    /// this scalar. Lift the partner along the common perpendicular
+    /// `a₁ × a₂ = ŷ` by the dyadic `0.375`: the gap is exactly `3/8`,
+    /// its enclosure is a point, and the split answers a DEFINITE sign,
+    /// which keeps the general rung's `NoArm`.
+    ///
+    /// `0.375` is not an arbitrary number. It is exactly representable,
+    /// it is far above every ε row this suite is sampled at, and it is
+    /// small enough that the two walls of radius 1 still overlap — a
+    /// separation that also cleared the walls would be pinning the
+    /// dispatch on a pair no reduction would ever hand it.
+    #[test]
+    fn skew_axes_keep_the_general_rung_at_the_certified_scalar() {
+        for r in [1.0_f64, 0.5] {
+            let got = pair_section_frame(
+                &about_z(p3(0.0, 0.0, 0.0), 1.0),
+                &about_x(p3(0.0, 0.375, 0.0), r),
+                band(),
+            );
+            assert!(
+                matches!(got, Err(FrameError::NoArm)),
+                "r = {r}: skew axes keep the general rung at the certified scalar"
+            );
+        }
+        // The displacement direction is the ASSERTION, not a detail:
+        // sliding along either AXIS leaves the two lines meeting, so
+        // those poses must still answer the pinch door. A gap measured
+        // as any distance between the origins would flip these to
+        // `NoArm`.
+        for along in [p3(0.0, 0.0, 0.75), p3(0.75, 0.0, 0.0)] {
+            let got = pair_section_frame(
+                &about_z(p3(0.0, 0.0, 0.0), 1.0),
+                &about_x(along, 1.0),
+                band(),
+            );
+            assert!(
+                matches!(got, Err(FrameError::IntersectingCylinderAxes)),
+                "{along:?}: a lift along an AXIS leaves the axes meeting"
+            );
+        }
+    }
+
+    /// The parallel gate ahead of the split answers `Ok(None)` at the
+    /// certified scalar too, so the two arms above are reached rather
+    /// than short-circuited — without this row a mutation that made the
+    /// parallel test always-`Zero` would green both of them vacuously.
+    #[test]
+    fn parallel_axes_stay_the_proven_straight_locus_at_the_certified_scalar() {
+        assert!(
+            matches!(
+                pair_section_frame(
+                    &about_z(p3(0.0, 0.0, 0.0), 1.0),
+                    &about_z(p3(1.25, 0.0, 0.0), 0.5),
+                    band()
+                ),
+                Ok(None)
+            ),
+            "parallel cylinder axes meet in rulings at the certified scalar"
         );
     }
 }

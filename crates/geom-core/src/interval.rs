@@ -41,6 +41,11 @@
 //! endpoints is right, and containment properties written against
 //! `Bounds` depend on it.
 //!
+//! Both doors refuse below `Def`, so the backend's one operation whose
+//! result always carries `Trv` — `DInterval::intersection` — would be
+//! refused on every result if this scalar ever exposed it. It does not,
+//! and nothing here calls one.
+//!
 //! # Certification semantics: truth containment, not f64 containment
 //!
 //! An enclosure brackets the TRUE value — never, by contract, the `f64`
@@ -97,7 +102,7 @@
 //! same build on the same inputs yields bit-identical endpoints, and the
 //! `interval` feature imposes no instruction-set floor. (The historical
 //! repo-wide `-C target-cpu=x86-64-v3` rustflag was dropped after the
-//! swap — 2026-07-29, Evan's #127 review; `f64::mul_add` in the
+//! swap — 2026-07-29, Ev's #127 review; `f64::mul_add` in the
 //! backend's witness paths is correctly-rounded with or without
 //! hardware FMA, so results are unchanged.) This crate's
 //! `forbid(unsafe_code)` is untouched, and so is
@@ -466,8 +471,10 @@ impl Real for Interval {
     }
 }
 
-/// Bound extraction (certification/driver scope — see [`Bounds`]):
-/// the enclosure's exact endpoints. Poison surfaces honestly: NaI **and**
+/// The enclosure's exact endpoints — a bracket read, never a
+/// certification: that door is [`crate::real::CertifiedEnclosure`],
+/// implemented just below, and where a `Bounds` bound may be written is
+/// [`Bounds`]'s scope rule. Poison surfaces honestly: NaI **and**
 /// the empty enclosure both yield NaN from both accessors, so either
 /// bracket fails every downstream `residual ≤ ε` certification loudly
 /// (D4 ¶2) — `NaN ≤ ε` is false under every comparison direction.
@@ -651,10 +658,9 @@ fn tangent_hull(x: DInterval, y: DInterval) -> DInterval {
 /// (`Trv`) value is itself only `Trv`-trustworthy, and a tangent chosen
 /// by comparing `Trv` values likewise. In the clean (`Com`) case this is
 /// a no-op. Nothing in M0 branches on derivative decorations ([`Decide`]
-/// for duals classifies values only; `Bounds` for duals — implemented
-/// since the D1 ruling of 2026-08-19, where this sentence used to say it
-/// was not — is the **value channel's** bracket with the tangent
-/// discarded, so it does not read a derivative decoration either). The
+/// for duals classifies values only; `Bounds` for duals is the **value
+/// channel's** bracket with the tangent discarded, so it does not read a
+/// derivative decoration either). The
 /// conclusion is unchanged: this convention is about honest bookkeeping,
 /// not behavior.
 impl KinkJacobian for Interval {

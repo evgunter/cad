@@ -31,12 +31,12 @@
 //!   direction frames (`axis`, `u_ref`, `normal`) by the linear part,
 //!   radii/angles untouched (rigid invariants);
 //! - curve carriers: same treatment per [`Curve3`] variant;
-//! - edge descriptions: [`EdgeGeometry::Intersection`] keeps its
+//! - edge descriptions: [`EdgeDescription::Intersection`] keeps its
 //!   surface keys (the arenas are key-stable) and **RE-MINTS its
 //!   witness construction-fresh** — `witness′ = carrier′(mid)`, the
 //!   mapped carrier evaluated at the pinned mid parameter (the S2
 //!   formula the `WitnessMidpoint` check verifies) — never the mapped
-//!   stored witness. Ruled with Evan on PR #83: mapping stored
+//!   stored witness. Ruled with Ev on PR #83: mapping stored
 //!   witnesses consumes inherited residual slack (a body certified
 //!   near ε could refuse after an exact-in-principle isometry, and
 //!   transform chains would ratchet); re-minting is per-entity local,
@@ -54,7 +54,9 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry, MappedCurve};
+use geom_brep::{
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve,
+};
 use geom_core::Tol;
 use geom_core::predicate::{Band, BandError};
 use geom_core::{Affine3, Decide, Margin, Point3, Real, Vec3};
@@ -369,7 +371,7 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
 /// # Errors
 ///
 /// [`TransformError`] — closed and typed.
-pub fn transform_rigid<T: Decide>(
+pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane>(
     body: &Body<T>,
     map: &Affine3<T>,
     tol: Tol,
@@ -433,31 +435,43 @@ pub fn transform_rigid<T: Decide>(
             // from the MAPPED carrier at the pinned mid parameter.
             // Params are transform-invariant, so the pre-transform
             // schedule parameter is the post-transform one.
-            EdgeGeometry::Intersection { s1, s2, .. } => EdgeGeometry::Intersection {
+            EdgeDescription::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
                 s1: *s1,
                 s2: *s2,
                 witness: carrier.eval(old.sample_param((geom_brep::CERT_SAMPLES - 1) / 2)),
             },
             // TangentIntersection maps as Intersection does: keys are
             // stable, the witness re-mints from the mapped carrier.
-            EdgeGeometry::TangentIntersection { s1, s2, .. } => EdgeGeometry::TangentIntersection {
-                s1: *s1,
-                s2: *s2,
-                witness: carrier.eval(old.sample_param((geom_brep::CERT_SAMPLES - 1) / 2)),
-            },
-            // A seam is defined intrinsically by its (key-stable)
-            // surface; the mapped surface carries the whole map.
-            EdgeGeometry::Seam { surface } => EdgeGeometry::Seam { surface: *surface },
-            // An iso-curve likewise: the chart data (u, v-window) is a
-            // parameter-space fact, invariant under a rigid map — the
-            // mapped SURFACE carries the whole map (M6-3).
-            EdgeGeometry::IsoCurve { surface, u, v0, v1 } => EdgeGeometry::IsoCurve {
-                surface: *surface,
-                u: *u,
-                v0: *v0,
-                v1: *v1,
-            },
-            EdgeGeometry::MappedCurve(mc) => EdgeGeometry::MappedCurve(map_mapped_curve(map, mc)),
+            EdgeDescription::TangentIntersection { s1, s2, .. } => {
+                EdgeDescriptionSpec::TangentIntersection {
+                    s1: *s1,
+                    s2: *s2,
+                    witness: carrier.eval(old.sample_param((geom_brep::CERT_SAMPLES - 1) / 2)),
+                }
+            }
+            // A chart image is a PARAMETER-SPACE fact, invariant under
+            // a rigid map: the mapped SURFACE carries the whole map,
+            // and the image on it is the image it always was (M6-3;
+            // a seam is likewise defined by its key-stable surface).
+            // The authority record travels with the map, because a
+            // sketch pushforward is stated in 3-space.
+            EdgeDescription::Chart(c) => {
+                let chart = EdgeDescriptionSpec::Chart {
+                    surface: c.surface,
+                    image: Some(c.pcurve.clone()),
+                    seam: c.seam,
+                    declared: None,
+                };
+                match old.authority() {
+                    geom_brep::EdgeAuthority::Declared(mc) => {
+                        chart.declared_by(map_mapped_curve(map, &mc))
+                    }
+                    geom_brep::EdgeAuthority::Derived => chart,
+                }
+            }
+            EdgeDescription::Scaffold(mc) => {
+                EdgeDescriptionSpec::Scaffold(map_mapped_curve(map, mc))
+            }
         };
         let spec = EdgeCurveSpec {
             description,

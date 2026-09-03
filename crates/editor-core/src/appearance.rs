@@ -79,7 +79,12 @@ pub struct Rgba8 {
 
 impl Rgba8 {
     /// An opaque color.
-    pub fn opaque(r: u8, g: u8, b: u8) -> Self {
+    ///
+    /// `const` so a palette can be stated as one: `viewer`'s themes
+    /// (`crates/viewer/src/theme.rs`) are `const` values, and a
+    /// constructor that could not be called in one would have forced
+    /// them to spell the struct literal and bypass this door.
+    pub const fn opaque(r: u8, g: u8, b: u8) -> Self {
         Self { r, g, b, a: 255 }
     }
 }
@@ -99,6 +104,18 @@ pub enum AttrKind {
     Label,
     /// Display visibility.
     Visibility,
+}
+
+impl AttrKind {
+    /// The kind as a prose noun — the one spelling every user-facing
+    /// message uses, so a rendered kind never leans on `Debug`.
+    pub(crate) fn noun(self) -> &'static str {
+        match self {
+            Self::Color => "color",
+            Self::Label => "label",
+            Self::Visibility => "visibility",
+        }
+    }
 }
 
 /// One appearance attribute value (closed enum, one variant per

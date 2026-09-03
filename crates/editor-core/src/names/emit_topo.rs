@@ -13,6 +13,7 @@ use geom_core::{Decide, Point3, Vec3};
 use topo::splitting::{PlaneSide, SplitNaming};
 use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 
+use super::defer::{TieRows, Upstream, put, upstream_name};
 use super::discriminate::{Extent, band, order_along, side_of_face};
 use super::emit::{
     Incidence, NamingError, edge_ends, ent, face_half_edges, name1, unique_shared_edge,
@@ -95,115 +96,6 @@ fn face_extent<T: Decide>(
     }
 }
 
-/// An entity's upstream name, plus whether the upstream entry is an N2
-/// TIE.
-///
-/// B1 (ratified, #512): a tie PROPAGATES — naming a tie is fine (N2);
-/// only *referencing* one is `Ambiguous`. This mirrors the three
-/// emitters that already do it (`name_pattern`, `name_in_part`,
-/// `graft_names`), so a tie anywhere in an operand table no longer
-/// refuses the whole downstream op.
-#[derive(Clone)]
-struct Upstream {
-    /// The operand-table name (identical for every tied candidate).
-    name: StableName,
-    /// True iff that name's entry is `Entry::Tied`.
-    tied: bool,
-}
-
-/// The upstream name of an entity. A MISSING row is still loud (the
-/// upstream tables are total by this same machinery), and so is a
-/// table whose two directions disagree — after B1, that is the ONE
-/// remaining condition genuinely needing a unique upstream, because no
-/// candidate list exists to propagate.
-///
-/// It has no executable test row ON PURPOSE, and the reason is a
-/// property rather than an omission: the condition is unconstructible
-/// through `NameTable`'s public API — `insert`/`insert_tied` write both
-/// directions together and there is no removal door, so no caller can
-/// reach a state where `name_of` answers and `lookup` does not. The
-/// LIB-G14 review confirmed this independently (MINOR-1) and recorded
-/// the prose as the faithful reading. The arm stays because the
-/// invariant is the emitter's to assert, not to assume.
-fn upstream_name(
-    table: &NameTable,
-    node: RecipeNodeId,
-    e: super::table::EntityRef,
-) -> Result<Upstream, NamingError> {
-    let name = table
-        .name_of(&e)
-        .ok_or(NamingError::MissingUpstream { node })?;
-    let tied = match table.lookup(name) {
-        Some(Entry::Unique(_)) => false,
-        Some(Entry::Tied(_)) => true,
-        None => {
-            return Err(NamingError::Emission {
-                what: "an operand name table's forward and reverse directions disagree",
-            });
-        }
-    };
-    Ok(Upstream {
-        name: name.clone(),
-        tied,
-    })
-}
-
-/// Rows deferred because their name descends from an N2 tie (B1) — or,
-/// for `SectionEdge`, because the op itself mints one (A2).
-///
-/// Upstream candidates that were equally admissible stay equally
-/// admissible downstream, so their same-named descendants MERGE into
-/// one entry at flush: `Tied` when ≥ 2 survive, narrowed back to
-/// `Unique` when exactly one does (the `graft_names` shape). Rows that
-/// do NOT descend from a tie keep going through `NameTable::insert`
-/// directly, so a genuine aliasing bug is still a typed `Duplicate` —
-/// and so is a tie-descended name colliding with a strict one, since
-/// the flush inserts into the same table.
-///
-/// Narrowing means a WRAPPED name can come out `Unique` here while the
-/// upstream name it wraps stays `Tied` (review NOTE-2). That is the
-/// ratified `graft_names` semantics, not laundering: the op genuinely
-/// separated the candidates, and the upstream table is untouched.
-#[derive(Default)]
-struct TieRows(BTreeMap<StableName, Vec<super::table::EntityRef>>);
-
-impl TieRows {
-    /// Defers one row.
-    fn push(&mut self, name: StableName, e: super::table::EntityRef) {
-        self.0.entry(name).or_default().push(e);
-    }
-
-    /// Drains the deferred rows into the table. Called at each stage
-    /// boundary, because later stages read the names earlier stages
-    /// wrote (the boolean vertex pass reads its incident EDGE names).
-    fn flush(&mut self, t: &mut NameTable) -> Result<(), NamingError> {
-        for (name, ents) in core::mem::take(&mut self.0) {
-            match ents.as_slice() {
-                [one] => t.insert(name, *one)?,
-                _ => t.insert_tied(name, ents)?,
-            }
-        }
-        Ok(())
-    }
-}
-
-/// Inserts a downstream row: strict when its upstream name was unique,
-/// deferred into the tie lane when it descends from a tie (B1).
-fn put(
-    t: &mut NameTable,
-    tie: &mut TieRows,
-    from_tie: bool,
-    name: StableName,
-    e: super::table::EntityRef,
-) -> Result<(), NamingError> {
-    if from_tie {
-        tie.push(name, e);
-        Ok(())
-    } else {
-        Ok(t.insert(name, e)?)
-    }
-}
-
 /// Chases a face key through fragment rows to its root (the key that
 /// is not itself a minted fragment). Bounded by the row count.
 fn chase(rows: &BTreeMap<FaceKey, FaceKey>, mut f: FaceKey) -> FaceKey {
@@ -216,27 +108,24 @@ fn chase(rows: &BTreeMap<FaceKey, FaceKey>, mut f: FaceKey) -> FaceKey {
     f
 }
 
-/// Chases an edge through `SplitEdge` birth records, STOPPING at the
-/// first key the operand's table names: the table is the identity
-/// boundary — records deeper than the operand's own entities belong
-/// to earlier ops (a union's rim fragment must not chase past its
-/// own union-level name into its grand-parent).
+/// Chases an edge through `SplitEdge` birth records
+/// (`Body::split_root`), STOPPING at the first key the operand's table
+/// names: the table is the identity boundary — records deeper than the
+/// operand's own entities belong to earlier ops (a union's rim fragment
+/// must not chase past its own union-level name into its grand-parent).
+///
+/// # Errors
+///
+/// A cycling lineage is a corrupt record, surfaced as an emission bug.
 fn chase_edge_to_table<T: Decide>(
     body: &Body<T>,
     table: &NameTable,
-    mut e: EdgeKey,
-    limit: usize,
-) -> EdgeKey {
-    for _ in 0..=limit {
-        if table.name_of(&ent(0, EntityKey::Edge(e))).is_some() {
-            return e;
-        }
-        match body.edge_provenance_of(e) {
-            Some(Provenance::SplitEdge { edge }) => e = *edge,
-            _ => return e,
-        }
-    }
-    e
+    e: EdgeKey,
+) -> Result<EdgeKey, NamingError> {
+    body.split_root(e, |k| table.name_of(&ent(0, EntityKey::Edge(k))).is_some())
+        .map_err(|_| NamingError::Emission {
+            what: "an edge's split lineage cycles",
+        })
 }
 
 /// Names both sides of a split (spec D2's split vocabulary + N2).
@@ -439,12 +328,7 @@ fn name_split_edges_vertices<T: Decide>(
                         Some(Provenance::SplitEdge { .. })
                     )
                 {
-                    divided_edges.insert(chase_edge_to_table(
-                        sb.body,
-                        target_table,
-                        e,
-                        sb.body.edges().count(),
-                    ));
+                    divided_edges.insert(chase_edge_to_table(sb.body, target_table, e)?);
                 }
             }
         }
@@ -452,7 +336,7 @@ fn name_split_edges_vertices<T: Decide>(
             if chord_faces.contains_key(&e) {
                 continue;
             }
-            let root = chase_edge_to_table(body, target_table, e, body.edges().count());
+            let root = chase_edge_to_table(body, target_table, e)?;
             if target_table.name_of(&ent(0, EntityKey::Edge(e))).is_some()
                 && !divided_edges.contains(&root)
             {
@@ -508,14 +392,12 @@ fn name_split_edges_vertices<T: Decide>(
             let parent_edge = sides
                 .iter()
                 .find_map(|sb| match sb.body.vertex_provenance_of(src) {
-                    Some(Provenance::SplitEdge { edge }) => Some(chase_edge_to_table(
-                        sb.body,
-                        target_table,
-                        *edge,
-                        sb.body.edges().count(),
-                    )),
+                    Some(Provenance::SplitEdge { edge }) => {
+                        Some(chase_edge_to_table(sb.body, target_table, *edge))
+                    }
                     _ => None,
-                });
+                })
+                .transpose()?;
             let (seg, from_tie) = if let Some(parent_edge) = parent_edge {
                 // Crossing vertex: minted where the plane crossed an
                 // operand edge's interior.
@@ -978,6 +860,16 @@ fn name_boolean_edges<T: Decide>(
     // `resolves == false` route below hands such edges to
     // `chord_kind`, the same rescue the A lane gets (review R1: lane
     // parity; the kernel completed the body, naming must too).
+    //
+    // This is NOT `Body::split_root`, deliberately: the result body's
+    // records for grafted edges carry B-space keys verbatim (the graft
+    // copies provenance without forwarding — issue 1597), and this
+    // lane depends on that: B's table names ancestors that died in B
+    // before the graft, and the verbatim key is the only way back to
+    // them. B's operand body cannot be chased instead — it is not the
+    // body that was grafted (a placed copy is). Forwarding `SplitEdge`
+    // at the graft therefore needs a dead-ancestor bridge on the
+    // `GraftMap` before this descent can become the shared chase.
     let chase_b = |mut e_b: EdgeKey| -> EdgeKey {
         for _ in 0..=fwd_edges.len() {
             if b.table.name_of(&ent(0, EntityKey::Edge(e_b))).is_some() {
@@ -1001,10 +893,10 @@ fn name_boolean_edges<T: Decide>(
         let root = match (naming.a_keys, naming.b_keys) {
             (OperandKeys::Direct, OperandKeys::Grafted) => match inv_edges.get(&e) {
                 Some(&eb) => ERoot::B(chase_b(eb)),
-                None => ERoot::A(chase_edge_to_table(body, a.table, e, body.edges().count())),
+                None => ERoot::A(chase_edge_to_table(body, a.table, e)?),
             },
             (OperandKeys::Direct, OperandKeys::Absent) => {
-                ERoot::A(chase_edge_to_table(body, a.table, e, body.edges().count()))
+                ERoot::A(chase_edge_to_table(body, a.table, e)?)
             }
             (OperandKeys::Absent, OperandKeys::Direct) => ERoot::B(chase_b(e)),
             _ => return Err(bug("unsupported operand-key layout")),

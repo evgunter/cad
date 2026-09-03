@@ -1,11 +1,18 @@
 //! The PyO3 surface. Compiled only under the `python` feature.
 
+mod assembly;
+mod checks;
 mod doc;
 mod flush;
+mod mate;
+mod mesh;
 mod path;
 mod place;
 mod quantity;
+mod readback;
+mod refactor;
 mod select;
+mod store;
 mod value;
 
 use pyo3::prelude::*;
@@ -96,6 +103,34 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     pncad,
+    TessellateError,
+    PncadError,
+    "The tessellator refused a body. Carries `variant`, the stable tag \
+     of the refusing arm, plus the arm's numbers as attributes \
+     (`value`, `bound`, `requested`, `note`; `None` where \
+     inapplicable).\n\n\
+     The offending face or edge is an arena KEY and does not cross — \
+     the curation exists to keep those unnameable — so a refusal names \
+     WHICH arm fired and, where the arm carries one, the number that \
+     makes it actionable. The message is the tessellator's own prose; \
+     the tag is the branchable part."
+);
+pyo3::create_exception!(
+    pncad,
+    StlError,
+    PncadError,
+    "An STL export refused. Carries `variant`, the stable tag of the \
+     refusing arm.\n\n\
+     Three Rust refusals share this class because they refuse the same \
+     CALL: the writers' own `StlError` (`degenerate_triangle`, \
+     `index_out_of_range`, `too_many_triangles`, `io`), and the two \
+     validated option newtypes, which are keyword arguments here — \
+     `solid_name_unrepresentable`, `binary_header_too_long`, \
+     `binary_header_sniffs_ascii`. The tags share one namespace, so \
+     which of the three refused is readable off `variant`."
+);
+pyo3::create_exception!(
+    pncad,
     StepImportError,
     PncadError,
     "A STEP text the importer refused, or one that parsed to a \
@@ -134,6 +169,149 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     pncad,
+    WorkspaceError,
+    PncadError,
+    "The workspace store refused. Carries `variant`, the stable tag \
+     of the refusing arm, and the arm's payload as attributes — \
+     `path`, `id`, `first`, `second`, `wanted`, `found` — each \
+     present on every arm and `None` where that arm does not carry \
+     it.\n\n\
+     The arm the store exists to make loud is `pin_mismatch`: a \
+     reference names a VERSION, so a document that changed under one \
+     refuses with `wanted` and `found` rather than resolving to the \
+     new content. `pncad.PIN_MISMATCH_RECOURSE` is the recourse \
+     sentence its message ends on."
+);
+pyo3::create_exception!(
+    pncad,
+    MateError,
+    PncadError,
+    "The mate solve could not place an instance. Carries `variant`, \
+     the stable tag of the refusing arm, and `fault` — the \
+     `MateFault` VALUE, which carries the arm's payload.\n\n\
+     The solve itself is TOTAL and never raises: a refusing cluster \
+     must not fail an unrelated one, so `solve_document` records the \
+     fault per node and `SolvedPoses.fault` hands back the same value \
+     this exception carries. This class is raised only where an \
+     answer is a pose or nothing — `SolvedPoses.placement`. One \
+     payload vocabulary, so the value and the exception cannot \
+     disagree."
+);
+pyo3::create_exception!(
+    pncad,
+    AssemblyError,
+    PncadError,
+    "The at-rest assembly gate refused. Carries `variant`, the stable \
+     tag of the refusing arm, plus the arm's payload as attributes \
+     (`mate`, `side`, `name`, `why`, `class_`, `findings`), each \
+     present on every arm and `None` where that arm does not carry \
+     it.\n\n\
+     **The two verdict arms are NOT interchangeable.** `at_rest` is a \
+     finding AGAINST the document — a refuted declaration or an \
+     undeclared contact. `uncertified` is the declared direction's \
+     FRONTIER: nothing was refuted and nothing was undeclared, the \
+     census simply has no certifier lane for the faces a declaration \
+     names, so nothing was decided about the geometry either way. A \
+     caller who catches this class must say which of the two they \
+     mean.\n\n\
+     A gather refusal arrives here under the gather's OWN tag \
+     (`no_body_roots`, `root_failed`, ...), not a wrapper tag: which \
+     invariant broke is what a caller branches on."
+);
+pyo3::create_exception!(
+    pncad,
+    ProductError,
+    PncadError,
+    "The whole-document gather refused. Carries `variant`, the stable \
+     tag of the refusing arm, plus `node`, `through` and `name` \
+     (`None` where the arm does not carry them).\n\n\
+     A product is all of the roots or none of them — there are no \
+     partial products."
+);
+pyo3::create_exception!(
+    pncad,
+    SplitError,
+    PncadError,
+    "The `split` refactoring refused. Carries `variant`, the stable \
+     tag of the refusing arm, plus its payload as attributes \
+     (`node`, `consumer`, `input`, `gauge`, `instance`, `param`, \
+     `name`, `id`), `None` where inapplicable."
+);
+pyo3::create_exception!(
+    pncad,
+    InlineError,
+    PncadError,
+    "The `inline` refactoring refused. Carries `variant`, the stable \
+     tag of the refusing arm, plus its payload as attributes \
+     (`node`, `by`, `name`, `param`, `key`, `root`, `host_epsilon`, \
+     `part_epsilon`), `None` where inapplicable.\n\n\
+     Inline crosses the SAME document seam evaluation does, so a \
+     reference that will not resolve refuses under the seam's own \
+     tags — `part_pin_mismatch`, `part_epsilon_seam`, \
+     `part_unresolved` — the ones `EvaluationError.kind` already \
+     speaks. A stale pin is refused here, never silently retargeted."
+);
+pyo3::create_exception!(
+    pncad,
+    UpdateError,
+    PncadError,
+    "A whole-document pin update produced no edit list. Carries \
+     `variant` (`no_such_reference` or `already_pinned`), `id` — the \
+     document id, which both arms name because \"which part did you \
+     mean\" is the only question an author can act on here — and \
+     `pin`, the pin every site already names, on `already_pinned` \
+     alone."
+);
+pyo3::create_exception!(
+    pncad,
+    ReadbackError,
+    PncadError,
+    "A read-back door could not say what a name denotes or where it \
+     sits. Carries `variant`, the stable tag of the refusing arm, \
+     plus the arm's payload as attributes (`node`, `through`, \
+     `candidates`, `wanted`, `found`, `index`, `payload`, \
+     `carrier`), each present on every arm and `None` where that arm \
+     does not carry it.\n\n\
+     Two refusals share this class because they refuse the same \
+     CALL — \"where is the entity this name denotes\". The name \
+     half resolves the name against the evaluation \
+     (`no_such_name`, `ambiguous`, `wrong_kind`, `whole_body`, the \
+     node ladder); the GEOMETRY half reads the carrier and arrives \
+     under its own tags, not a wrapper tag (`dangling_entity`, \
+     `dangling_geometry`, `no_canonical_frame`, `no_carrier`).\n\n\
+     The two dangling tags stay apart because they are different \
+     facts about the model: `dangling_entity` is a stale or foreign \
+     handle, `dangling_geometry` is a live entity naming geometry \
+     the body itself no longer has.\n\n\
+     `ambiguous` is the one to read twice: a tie is a naming success \
+     and a referencing failure, and the door refuses rather than \
+     picking a candidate. `Evaluation.denotation` is how a caller \
+     asks BEFORE reading a frame."
+);
+pyo3::create_exception!(
+    pncad,
+    ChecksError,
+    PncadError,
+    "The advisory-check registry could not RUN. Carries `variant`, the \
+     stable tag of the refusing arm (`root_without_value`, `band`, \
+     `product_unavailable`), and `node` — the root without a value, \
+     `None` on the other arms.\n\n\
+     NOT a finding. A check that ran and disagreed is a value in the \
+     report; this class means nothing was checked."
+);
+pyo3::create_exception!(
+    pncad,
+    CheckRefusal,
+    PncadError,
+    "`enforce_checks` refused: the report carries findings whose check \
+     the CALLER configured at `Severity.Error`. Carries `findings`, \
+     every refusing `CheckFinding` in report order.\n\n\
+     The registry's one refusing path, and it refuses on nothing the \
+     caller did not ask to be refused on — no default severity is \
+     `Error`, and the separation resident cannot be set to it at all."
+);
+pyo3::create_exception!(
+    pncad,
     FrameError,
     PncadError,
     "A frame constructor refused its inputs — the same typed refusal \
@@ -148,7 +326,18 @@ pyo3::create_exception!(
 ///
 /// This is the single construction site for every typed refusal, so
 /// "the payload is attributes, not prose" is enforced in one place
-/// rather than repeated at each raise.
+/// rather than repeated at each raise — and so is its twin, "the
+/// message is the kernel's own `Display`, never a `Debug` dump":
+/// [`crate::errors::reads_as_prose`] runs here on every raise, which
+/// makes the rule hold for doors written after it rather than only
+/// for the ones it was written for.
+///
+/// It is a `debug_assert`, which in this workspace is live in every
+/// profile — the root manifest keeps them on under release too — so it
+/// runs over every door the Python suite exercises and stays on in a
+/// built wheel. A Debug dump reaching a user is a binding bug, and
+/// D9's converse says a detectable bug state panics; what the check
+/// cannot see is a door no test reaches.
 pub(crate) fn typed_err(
     py: Python<'_>,
     class: ErrorClass,
@@ -156,6 +345,12 @@ pub(crate) fn typed_err(
     fields: &[(&str, Py<PyAny>)],
 ) -> PyErr {
     let message: String = message.into();
+    debug_assert!(
+        crate::errors::reads_as_prose(&message),
+        "{} was raised with a `Debug` rendering where its human \
+         message belongs: {message}",
+        class.class_name()
+    );
     let err = match class {
         ErrorClass::Edit => EditError::new_err(message),
         ErrorClass::Evaluation => EvaluationError::new_err(message),
@@ -164,11 +359,23 @@ pub(crate) fn typed_err(
         ErrorClass::Literal => LiteralError::new_err(message),
         ErrorClass::Persist => PersistError::new_err(message),
         ErrorClass::Export => ExportError::new_err(message),
+        ErrorClass::Tessellate => TessellateError::new_err(message),
+        ErrorClass::StlExport => StlError::new_err(message),
         ErrorClass::StepImport => StepImportError::new_err(message),
         ErrorClass::Path => PathError::new_err(message),
         ErrorClass::Select => SelectRefusal::new_err(message),
         ErrorClass::Frame => FrameError::new_err(message),
         ErrorClass::Identity => IdentityError::new_err(message),
+        ErrorClass::Workspace => WorkspaceError::new_err(message),
+        ErrorClass::Mate => MateError::new_err(message),
+        ErrorClass::Assembly => AssemblyError::new_err(message),
+        ErrorClass::Product => ProductError::new_err(message),
+        ErrorClass::Split => SplitError::new_err(message),
+        ErrorClass::Inline => InlineError::new_err(message),
+        ErrorClass::Update => UpdateError::new_err(message),
+        ErrorClass::Readback => ReadbackError::new_err(message),
+        ErrorClass::Checks => ChecksError::new_err(message),
+        ErrorClass::Enforce => CheckRefusal::new_err(message),
     };
     // Attaching attributes needs the instance, which materialises the
     // exception value; a failure here would itself be a Python error,
@@ -204,26 +411,45 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("LiteralError", py.get_type::<LiteralError>())?;
     m.add("PersistError", py.get_type::<PersistError>())?;
     m.add("ExportError", py.get_type::<ExportError>())?;
+    m.add("TessellateError", py.get_type::<TessellateError>())?;
+    m.add("StlError", py.get_type::<StlError>())?;
     m.add("StepImportError", py.get_type::<StepImportError>())?;
     m.add("PathError", py.get_type::<PathError>())?;
     m.add("SelectRefusal", py.get_type::<SelectRefusal>())?;
     m.add("FrameError", py.get_type::<FrameError>())?;
     m.add("IdentityError", py.get_type::<IdentityError>())?;
+    m.add("WorkspaceError", py.get_type::<WorkspaceError>())?;
+    m.add("MateError", py.get_type::<MateError>())?;
+    m.add("AssemblyError", py.get_type::<AssemblyError>())?;
+    m.add("ProductError", py.get_type::<ProductError>())?;
+    m.add("SplitError", py.get_type::<SplitError>())?;
+    m.add("InlineError", py.get_type::<InlineError>())?;
+    m.add("UpdateError", py.get_type::<UpdateError>())?;
+    m.add("ReadbackError", py.get_type::<ReadbackError>())?;
+    m.add("ChecksError", py.get_type::<ChecksError>())?;
+    m.add("CheckRefusal", py.get_type::<CheckRefusal>())?;
 
     quantity::register(m)?;
     path::register(m)?;
     place::register(m)?;
     doc::register(m)?;
     select::register(m)?;
+    readback::register(m)?;
+    store::register(m)?;
+    mate::register(m)?;
+    assembly::register(m)?;
+    refactor::register(m)?;
     flush::register(m)?;
+    checks::register(m)?;
+    mesh::register(m)?;
     value::register(m)?;
 
-    // Schema/provenance surface: the version the persistence doors
-    // speak, behind `Doc.save`/`load`.
+    // Build-provenance surface. The persistence format carries no
+    // schema version to publish here (the persist module docs say
+    // why): a file this build cannot read refuses `unreadable`.
     let meta = PyDict::new(py);
     meta.set_item("f64_only", true)?;
     meta.set_item("abi3", "py38")?;
-    meta.set_item("schema_version", pncad::document::SCHEMA_VERSION)?;
     m.add("__build_info__", meta)?;
 
     Ok(())

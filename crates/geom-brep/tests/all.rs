@@ -42,6 +42,17 @@
 mod approx_surface;
 #[path = "arc_eval_anchor.rs"]
 mod arc_eval_anchor;
+#[path = "cert1_r1_probes.rs"]
+mod cert1_r1_probes;
+#[path = "cert1_sphere_polar.rs"]
+mod cert1_sphere_polar;
+#[path = "cert3r1_e2e.rs"]
+mod cert3r1_e2e;
+#[path = "cert5_arm_and_cells.rs"]
+mod cert5_arm_and_cells;
+#[path = "cert5_r1_patch_probes.rs"]
+mod cert5_r1_patch_probes;
+
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
 #[path = "imported_chart_arc_rim.rs"]
@@ -66,13 +77,32 @@ mod m8_f67_r1_probes;
 mod offa_r1_probes;
 #[path = "offb_r1_probes.rs"]
 mod offb_r1_probes;
+#[path = "r2_probe_sphere_polar.rs"]
+mod r2_probe_sphere_polar;
 
 #[path = "offb_r2_probes.rs"]
 mod offb_r2_probes;
 
+#[path = "cert7_r1_probes.rs"]
+mod cert7_r1_probes;
+
+#[path = "cert7_r2_probes.rs"]
+mod cert7_r2_probes;
+
+#[path = "cert10_r1_probes.rs"]
+mod cert10_r1_probes;
+
+#[path = "cert10r2_probes.rs"]
+mod cert10r2_probes;
+
+#[path = "r2_quad_digit_probe.rs"]
+mod r2_quad_digit_probe;
+
 #[path = "offset_fit.rs"]
 mod offset_fit;
 
+#[path = "cert5_r2_probes.rs"]
+mod cert5_r2_probes;
 #[path = "offset_mint.rs"]
 mod offset_mint;
 #[path = "pcurve_conic.rs"]
@@ -81,10 +111,14 @@ mod pcurve_conic;
 mod pcurve_general;
 #[path = "pcurve_p1a_meter.rs"]
 mod pcurve_p1a_meter;
+#[path = "pcurve_p1b_r2_probes.rs"]
+mod pcurve_p1b_r2_probes;
 #[path = "pcurve_parameter_finding.rs"]
 mod pcurve_parameter_finding;
 #[path = "r1_pxn_probes.rs"]
 mod r1_pxn_probes;
+#[path = "r2_cert3_e2e.rs"]
+mod r2_cert3_e2e;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
 #[path = "review_flux_probes_r1.rs"]
@@ -111,6 +145,8 @@ mod review_m6_surgery_rider;
 mod review_pr12_meridian_probe;
 #[path = "review_r1_rational_probes.rs"]
 mod review_r1_rational_probes;
+#[path = "revolved_point_anchor.rs"]
+mod revolved_point_anchor;
 #[path = "rim_dim_review_probes.rs"]
 mod rim_dim_review_probes;
 #[path = "rim_dim_scale_twins.rs"]
@@ -122,38 +158,43 @@ mod s81_one_rim_level_rule;
 #[path = "span_meter_dim_twins.rs"]
 mod span_meter_dim_twins;
 
-/// Guards the `autotests = false` hazard: a suite file added to `tests/`
-/// but not declared above would silently stop being compiled and run.
+/// Guards the `autotests = false` hazard: a suite file added under
+/// `tests/` but not declared above would silently stop being compiled
+/// and run. Both directions are asserted — every file on disk is
+/// declared, and every declaration answers to a file, so no number
+/// about this file is stated in prose without being computed.
+///
+/// The walk is `test_utils::source::suite_files`, which recurses into
+/// group directories and tells a suite from a shared helper by Rust's
+/// own module rule; read it before adding either.
 #[test]
 // Scoped to this fn on purpose: a crate-root `#![allow]` in this file would
 // weaken the lint gate for every suite module included above.
 #[allow(clippy::expect_used)]
 fn every_suite_file_is_aggregated() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let src = include_str!("all.rs");
-    let mut missing: Vec<String> = Vec::new();
-    for entry in std::fs::read_dir(&dir).expect("tests/ is readable") {
-        let path = entry.expect("readable dir entry").path();
-        if path.extension().and_then(|e| e.to_str()) != Some("rs") {
-            continue;
-        }
-        let name = path
-            .file_name()
-            .expect("file has a name")
-            .to_string_lossy()
-            .to_string();
-        if name == "all.rs" {
-            continue;
-        }
-        if !src.contains(&format!("#[path = \"{name}\"]")) {
-            missing.push(name);
-        }
-    }
-    missing.sort();
+    let root = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
+    // Comments blanked, string literals KEPT — see
+    // `test_utils::source::code_and_literals`, which states why.
+    let src = test_utils::source::code_and_literals(include_str!("all.rs"));
+    let found = test_utils::source::suite_files(&root);
+    let missing: Vec<&String> = found
+        .iter()
+        .filter(|rel| !src.contains(&format!("#[path = \"{rel}\"]")))
+        .collect();
     assert!(
         missing.is_empty(),
-        "tests/*.rs suites are not declared in tests/all.rs, so `autotests = false` \
+        "suites under tests/ are not declared in tests/all.rs, so `autotests = false` \
          is silently dropping them: {missing:?}. Add a `#[path]` line for each."
+    );
+    // The converse, computed rather than restated: one `#[path]` line
+    // per suite file, no orphan declaration. The `format!` above spells
+    // its quote ESCAPED, so it is not one of these matches.
+    let declared = src.matches("#[path = \"").count();
+    assert_eq!(
+        declared,
+        found.len(),
+        "tests/all.rs declares {declared} suites but {} suite files exist under tests/",
+        found.len()
     );
 }
 
@@ -161,3 +202,38 @@ fn every_suite_file_is_aggregated() {
 mod r2_probes;
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
+
+#[path = "r1_perimeter_probes.rs"]
+mod r1_perimeter_probes;
+
+#[path = "r2_cert6_probes.rs"]
+mod r2_cert6_probes;
+
+#[path = "cert6_gauge_rows.rs"]
+mod cert6_gauge_rows;
+
+#[path = "n2r1_probes.rs"]
+mod n2r1_probes;
+
+#[path = "cert_n2r2_class3_probes.rs"]
+mod cert_n2r2_class3_probes;
+
+#[path = "cert_n2r2_class56_probes.rs"]
+mod cert_n2r2_class56_probes;
+
+#[path = "iso_rectangle_door.rs"]
+mod iso_rectangle_door;
+#[path = "mesh10r1_probes.rs"]
+mod mesh10r1_probes;
+#[path = "mesh10r2_probes.rs"]
+mod mesh10r2_probes;
+#[path = "mesh11_arc_branch.rs"]
+mod mesh11_arc_branch;
+#[path = "mesh11r1_probes.rs"]
+mod mesh11r1_probes;
+#[path = "mesh11r2_base_probes.rs"]
+mod mesh11r2_base_probes;
+#[path = "mesh11r2_probes.rs"]
+mod mesh11r2_probes;
+#[path = "r2_mesh7_door_probes.rs"]
+mod r2_mesh7_door_probes;

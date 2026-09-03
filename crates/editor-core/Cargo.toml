@@ -20,6 +20,7 @@ interval = [
     "profile/interval",
     "sweep/interval",
     "topo/interval",
+    "verbs/interval",
 ]
 # Forwards geom-core's K-telemetry recording scalar so the
 # workspace-wide `--features probe` lane builds uniformly. Same shape
@@ -35,6 +36,7 @@ probe = [
     "profile/probe",
     "sweep/probe",
     "topo/probe",
+    "verbs/probe",
 ]
 
 [dependencies]
@@ -65,6 +67,10 @@ geom-brep = { path = "../geom-brep" }
 # M4 PR 3: the naming layer reads face carrier PLANES (side-of
 # discriminators against cutting carriers, N2) from the result body.
 geom = { path = "../geom" }
+# D9: the analysis lane's normal-quantile bisection and tail-mass
+# accounting read `erf` from the workspace's ONE transcendental source
+# (a system libm differs across platforms in the last ulp).
+libm = { workspace = true }
 profile = { path = "../profile" }
 # LIB-U8a: the expression TEXT parser's unit-suffix vocabulary is the
 # quantity crate's closed unit table (a leaf crate — no dependency
@@ -72,6 +78,10 @@ profile = { path = "../profile" }
 quantity = { path = "../quantity" }
 sweep = { path = "../sweep" }
 topo = { path = "../topo" }
+# The kernel's verb vocabulary. This crate is its only consumer — the
+# enum names ops that live in `sweep` and `topo`, so it sits above both
+# and below this one, and the kernel crates gain no edge to it.
+verbs = { path = "../verbs" }
 # D6: rayon idiom-1 parallelism over independent DAG nodes (the D9
 # addendum's sanctioned idiom) — a runtime switch, so the determinism
 # cross-check can compare both schedules in one test run.

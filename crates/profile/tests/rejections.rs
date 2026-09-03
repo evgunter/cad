@@ -10,7 +10,11 @@ use common::{
 use geom_core::MarginDiag;
 use geom_core::Point2;
 use geom_core::Tol;
-use profile::{ContactKind, EscalationSite, Open, ProfileError, SegmentRef, SketchPlane, Start};
+use geom_core::{Band, Indeterminate};
+use profile::{
+    ArcSweep, Center, ContactKind, EscalationSite, Open, PathError, ProfileError, SegmentRef,
+    SketchPlane, Start,
+};
 
 fn err(p: &profile::Profile<f64>) -> ProfileError {
     p.validate(tol()).expect_err("fixture must be rejected")
@@ -91,7 +95,7 @@ fn sliver_arc_bulge_escalates() {
     }
 }
 
-/// **The re-homed fail-loud demo** (LIB-RETTAIL, Evan's ruling on
+/// **The re-homed fail-loud demo** (LIB-RETTAIL, Ev's ruling on
 /// #413). The tour's coda used to build this loop and print the
 /// refusal; a broken-on-purpose scene is not a use case, so the
 /// contract moved here, where it can be asserted instead of narrated.
@@ -478,4 +482,74 @@ fn concentric_circles_of_close_radii_escalate_as_sliver_annulus() {
         }
         other => panic!("expected identity escalation, got {other:?}"),
     }
+}
+
+/// **The enclosing gate's IN-BAND arm, both halves.** ρ = R − σ·τ·r is a
+/// length like any other gate's margin, so a fillet radius within the
+/// ambiguity band of a leg's carrier radius leaves the class question
+/// itself undecidable — and the kernel says so rather than picking a
+/// side of it.
+///
+/// Two things are covered here because they are one situation rendered
+/// at two doors: the authoring door escalates with the predicate named
+/// (so a driver bisecting a parameter box knows which decision went
+/// unconfirmed), and the fillet escalation's recourse rider carries the
+/// same sentence its definite sibling
+/// [`profile::PathError::FilletEnclosesLegCarrier`] carries (D4 ¶1 (iv)).
+///
+/// The second half constructs its error value rather than provoking it:
+/// `EscalationSite::Fillet` has no producer in the kernel today (the
+/// arc-carrier door reports its escalations as `PathError::Escalated`),
+/// so the rider is a Display rule with no reachable input, and pinning
+/// the rule is what can honestly be pinned about it.
+#[test]
+fn a_radius_within_the_band_of_a_carrier_radius_escalates_the_enclosing_gate() {
+    let eps = tol().eps();
+    // Two unit lobes whose crossing is a real corner, and a radius 5ε
+    // above the lobe radius: rho = -5eps, inside (eps, K*eps).
+    let tip = 0.75f64.sqrt();
+    let err = Open
+        .arc_fillet_arc(
+            Center {
+                c: Point2::new(-0.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: Point2::new(0.0, -tip),
+            },
+            1.0 + 5.0 * eps,
+            Center {
+                c: Point2::new(0.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: Start,
+            },
+            Tol::witness(),
+        )
+        .expect_err("a radius inside the band of the carrier radius cannot be classified");
+    match err {
+        PathError::Escalated { source } => assert_eq!(
+            source.predicate,
+            Some("fillet_enclosing_carrier"),
+            "the escalation must name the gate that could not be classified"
+        ),
+        other => panic!("expected an escalation, got {other:?}"),
+    }
+    // The rider: the in-band arm renders the same recourse as the
+    // definite refusal, and — like that refusal — it endorses no radius
+    // it cannot vouch for.
+    let rendered = ProfileError::Escalated {
+        site: EscalationSite::Fillet,
+        source: Indeterminate {
+            margin: MarginDiag::Value(-5.0 * eps),
+            band: Band::new(eps, tol().k() * eps).expect("the run's band forms"),
+            predicate: Some("fillet_enclosing_carrier"),
+        },
+    }
+    .to_string();
+    assert!(
+        rendered.contains("puts that carrier INSIDE the fillet circle"),
+        "the enclosing recourse is missing: {rendered}"
+    );
+    assert!(
+        rendered.contains("expect to go well below it"),
+        "the recourse must not endorse the class bound: {rendered}"
+    );
 }

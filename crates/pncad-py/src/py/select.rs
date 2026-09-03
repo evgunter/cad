@@ -71,6 +71,21 @@ impl EntityKind {
     }
 }
 
+/// Crossing helper: the kernel kind as the Python mirror.
+///
+/// Exhaustive over the KERNEL enum with no wildcard arm, so a kernel
+/// kind this file does not mirror stops the build — the direction the
+/// tripwire module at the foot of this file asserts for every other
+/// mirrored enum, and which this one asserts by being called.
+pub(crate) fn entity_kind(kind: s::EntityKind) -> EntityKind {
+    match kind {
+        s::EntityKind::Body => EntityKind::Body,
+        s::EntityKind::Face => EntityKind::Face,
+        s::EntityKind::Edge => EntityKind::Edge,
+        s::EntityKind::Vertex => EntityKind::Vertex,
+    }
+}
+
 /// Which role-segment variant a [`SegPat`] names — the fieldless
 /// mirror of the role vocabulary, one tag per op-minted role.
 #[pyclass(eq, eq_int, module = "pncad", from_py_object)]
@@ -256,8 +271,8 @@ pub(crate) enum SplitHalf {
     reason = "each variant mirrors the documented `editor_core::RimSupport` variant of the same name"
 )]
 pub(crate) enum RimSupport {
-    Plane,
-    Curved,
+    Host,
+    Mate,
 }
 
 /// The end/side argument `SegPat.side` accepts: any one of the four
@@ -288,8 +303,8 @@ impl SideArg {
             Self::Meridian(MeridianEnd::Pi) => s::Side::Meridian(s::MeridianEnd::Pi),
             Self::Split(SplitHalf::Above) => s::Side::Split(s::SplitHalf::Above),
             Self::Split(SplitHalf::Below) => s::Side::Split(s::SplitHalf::Below),
-            Self::Rim(RimSupport::Plane) => s::Side::Rim(s::RimSupport::Plane),
-            Self::Rim(RimSupport::Curved) => s::Side::Rim(s::RimSupport::Curved),
+            Self::Rim(RimSupport::Host) => s::Side::Rim(s::RimSupport::Host),
+            Self::Rim(RimSupport::Mate) => s::Side::Rim(s::RimSupport::Mate),
         }
     }
 }
@@ -623,9 +638,12 @@ impl GeomPred {
 /// `None` where inapplicable — so stub-guided reads cannot
 /// `AttributeError` (the house rule from `ExportError`).
 ///
-/// The human message is hand-written per arm because the kernel enum
-/// carries no `Display`; the fields are the contract, the message is
-/// prose.
+/// The human message is written per arm here rather than taken from
+/// the kernel's `Display`, because a candidate is spelled through
+/// `name_text` — the `StableName` alphabet Python speaks — where the
+/// kernel spells it kind-plus-minting-node. The arms this binding does
+/// not mirror fall back to that kernel prose. The fields are the
+/// contract; the message is prose.
 pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
     use s::SelectRefusal as R;
     let reason = select_refusal_tag(err);
@@ -698,7 +716,7 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
             format!(
                 "a decided atom could not read a candidate's position \
                  (the read-back refusal, surfaced rather than swallowed): \
-                 {error:?}"
+                 {error}"
             )
         }
         R::NotADatum { datum, found } => {
@@ -733,18 +751,18 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
                  ambiguity band for `{predicate}`: {source}"
             )
         }
-        R::BadValue(inner) => format!("the stated value did not evaluate: {inner:?}"),
+        R::BadValue(inner) => format!("the stated value did not evaluate: {inner}"),
         R::Band => "the ambiguity band itself could not be built (a broken \
                     ambient tolerance)"
             .to_string(),
         // `SelectRefusal` is `#[non_exhaustive]`: a kernel arm this
-        // binding does not know crosses with its `Debug` rendering and
-        // the `unclassified` tag rather than being dropped. That typed
-        // crossing is the whole guard — no compile-time alarm is
+        // binding does not know crosses with the kernel's own prose
+        // and the `unclassified` tag rather than being dropped. That
+        // typed crossing is the whole guard — no compile-time alarm is
         // possible here, and the tag pin in `src/tests.rs` enumerates
         // the arms this binding speaks without being able to fail on a
         // new one.
-        other => format!("selection refused: {other:?}"),
+        other => other.to_string(),
     };
     typed_err(py, ErrorClass::Select, message, &fields)
 }
@@ -755,24 +773,26 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
 /// here instead of silently never crossing. Never called; the
 /// exhaustiveness IS the assertion (the `SegTag::of` precedent,
 /// `editor-core/src/names/select.rs`).
+///
+/// **What it does not catch**, for the next widener: the tripwire sees
+/// the KERNEL enum and this file's mirror, not `pncad.pyi`. A variant
+/// RENAMED on both sides leaves the stub's attribute names stale with
+/// nothing failing — the census compares top-level names, not an
+/// enum's attributes. Issue #1309 owns that gap; until it closes, a
+/// rename here is a manual edit of the stub.
 #[allow(
     dead_code,
     reason = "compile-time exhaustiveness tripwires; the match is the check, no caller needed"
 )]
 mod growth_tripwire {
     use super::{
-        CapEnd, Cmp, CurveKind, EntityKind, KSurfaceKind, MeridianEnd, OpGroup, RimSupport, SegTag,
-        SideArg, SplitHalf, SurfaceKind, s,
+        CapEnd, Cmp, CurveKind, KSurfaceKind, MeridianEnd, OpGroup, RimSupport, SegTag, SideArg,
+        SplitHalf, SurfaceKind, s,
     };
 
-    fn entity_kind(k: s::EntityKind) -> EntityKind {
-        match k {
-            s::EntityKind::Body => EntityKind::Body,
-            s::EntityKind::Face => EntityKind::Face,
-            s::EntityKind::Edge => EntityKind::Edge,
-            s::EntityKind::Vertex => EntityKind::Vertex,
-        }
-    }
+    // `EntityKind`'s tripwire is `super::entity_kind`, which is the
+    // same exhaustive match with a caller — a mirror that CROSSES
+    // needs no dead twin to assert what the crossing already asserts.
 
     fn seg_tag(k: s::SegTag) -> SegTag {
         match k {
@@ -842,8 +862,8 @@ mod growth_tripwire {
             s::Side::Meridian(s::MeridianEnd::Pi) => SideArg::Meridian(MeridianEnd::Pi),
             s::Side::Split(s::SplitHalf::Above) => SideArg::Split(SplitHalf::Above),
             s::Side::Split(s::SplitHalf::Below) => SideArg::Split(SplitHalf::Below),
-            s::Side::Rim(s::RimSupport::Plane) => SideArg::Rim(RimSupport::Plane),
-            s::Side::Rim(s::RimSupport::Curved) => SideArg::Rim(RimSupport::Curved),
+            s::Side::Rim(s::RimSupport::Host) => SideArg::Rim(RimSupport::Host),
+            s::Side::Rim(s::RimSupport::Mate) => SideArg::Rim(RimSupport::Mate),
         }
     }
 

@@ -73,7 +73,15 @@ pub enum OpGroup {
     Boolean,
     /// Split.
     Split,
-    /// Fillet (M6-5's composition-surgery vocabulary).
+    /// Fillet (M6-5's composition-surgery vocabulary) — and the
+    /// CHAMFER's, which reuses these roles deliberately: the shapes
+    /// are the same (a band face off a source edge, a corner patch off
+    /// a source vertex), and a `StableName` carries the minting node,
+    /// which is what tells the two apart (RECIPE-DOORS D3).
+    ///
+    /// The group's NAME under-describes what it groups, and stays:
+    /// fenced by the ratified verb-vocabulary decision
+    /// (`docs/BLEND-VOCAB-DESIGN.md`, settled ground).
     Fillet,
     /// Pattern.
     Pattern,

@@ -1,6 +1,6 @@
-//! M4 PR 6 spec D6.3 — the refusal CI row: unknown schema versions
-//! and corrupt/truncated files refuse TYPED (position info included);
-//! non-finite floats refuse typed at SAVE naming the site; the D4
+//! M4 PR 6 — the refusal CI row: garbled headers, corrupt payloads and
+//! truncated files refuse TYPED (position info included); non-finite
+//! floats refuse typed at SAVE naming the site; the D4
 //! one-process-one-ε doors refuse loudly. No silent best-effort
 //! loads, ever.
 
@@ -11,8 +11,8 @@ mod fixture;
 use editor_core::persist::SnapshotError;
 use editor_core::{
     CancelToken, Dimension, DocEdit, DocParam, EvalOptions, MetaValue, Node, NodeErrorKind,
-    NodeResult, ParamName, PersistError, ProfileDoc, RecipeNodeId, SCHEMA_VERSION, WitnessDatum,
-    apply, evaluate, load, save,
+    NodeResult, ParamName, PersistError, ProfileDoc, RecipeNodeId, WitnessDatum, apply, evaluate,
+    load, save,
 };
 use fixture::{desc, insert, len};
 use geom_core::Tol;
@@ -54,32 +54,11 @@ fn small() -> (ProfileDoc, String) {
 }
 
 #[test]
-fn unknown_schema_version_refuses_typed() {
-    let (_, text) = small();
-    let body = text.split_once('\n').expect("header").1;
-    // Forward-only (D6.3): a version NEWER than this build is
-    // `UnknownSchema` — held one past `SCHEMA_VERSION` so the row
-    // survives every schema bump (M5 PR 10 moved it from a literal 2).
-    let newer = format!("schema: {}\n{body}", SCHEMA_VERSION + 1);
-    match load(&newer, Tol::witness()) {
-        Err(PersistError::UnknownSchema { found, newest }) => {
-            assert_eq!(found, u64::from(SCHEMA_VERSION) + 1);
-            assert_eq!(newest, SCHEMA_VERSION);
-        }
-        other => panic!("expected UnknownSchema, got {other:?}"),
-    }
-    match load("schema: 0\n{}", Tol::witness()) {
-        Err(PersistError::UnknownSchema { found: 0, .. }) => {}
-        other => panic!("expected UnknownSchema for v0, got {other:?}"),
-    }
-}
-
-#[test]
 fn missing_or_garbled_header_refuses_typed() {
-    for text in ["", "not a save file", "schema: banana\n{}"] {
+    for text in ["", "not a save file", "id: banana\n{}"] {
         match load(text, Tol::witness()) {
-            Err(PersistError::Header { .. }) => {}
-            other => panic!("expected Header refusal for {text:?}, got {other:?}"),
+            Err(PersistError::HeaderId { .. }) => {}
+            other => panic!("expected HeaderId refusal for {text:?}, got {other:?}"),
         }
     }
 }
@@ -104,6 +83,10 @@ fn truncated_file_refuses_typed_with_position() {
     }
 }
 
+/// Valid JSON the typed shape rejects — a non-hex byte string, an
+/// unknown field, an ill-dimensioned expression — is UNREADABLE by
+/// this build (the deserializer's own rejection, recourse attached);
+/// only bytes that are not JSON at all report as `Parse`.
 #[test]
 fn corrupt_payloads_refuse_typed() {
     let (_, text) = small();
@@ -113,7 +96,7 @@ fn corrupt_payloads_refuse_typed() {
     assert!(
         matches!(
             load(&bad_hex, Tol::witness()),
-            Err(PersistError::Parse { .. })
+            Err(PersistError::Unreadable { .. })
         ),
         "non-hex byte string must refuse"
     );
@@ -122,7 +105,7 @@ fn corrupt_payloads_refuse_typed() {
     assert!(
         matches!(
             load(&extra, Tol::witness()),
-            Err(PersistError::Parse { .. })
+            Err(PersistError::Unreadable { .. })
         ),
         "unknown field must refuse"
     );
@@ -136,7 +119,7 @@ fn corrupt_payloads_refuse_typed() {
         assert!(
             matches!(
                 load(&bad_expr, Tol::witness()),
-                Err(PersistError::Parse { .. })
+                Err(PersistError::Unreadable { .. })
             ),
             "ill-dimensioned expression must refuse"
         );
@@ -180,10 +163,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
     // A NaN smuggled through an UNAPPLIED edit log (a log is data).
     let nan_edit = DocEdit::SetDocParam {
         name: ParamName::new("bad"),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: f64::NAN,
-        },
+        value: DocParam::continuous(Dimension::Length, f64::NAN),
     };
     match save(&doc, &[nan_edit], Tol::witness()) {
         Err(PersistError::NonFinite {
@@ -347,16 +327,20 @@ fn program_structure_doors_refuse_typed_at_load() {
         }),
     );
     let text = save(&doc, &[], Tol::witness()).expect("save");
-    // v5 headers are TWO lines (schema, id); split both off.
-    let (schema_line, rest) = text.split_once('\n').expect("schema line");
-    let (id_line, body) = rest.split_once('\n').expect("id line");
-    let header = format!("{schema_line}\n{id_line}");
+    // The header is the id line; split it off.
+    let (header, body) = text.split_once('\n').expect("id line");
     let mut v: serde_json::Value = serde_json::from_str(body).expect("body parses");
     // (a) Wrong-dimension role: retype the circle's centre-x literal
     // as an Angle. The Expr door accepts an Angle literal per se; the
     // shared validator's DIMENSION WALK refuses it in the CenterX role.
+    // The UNIT moves with the dim: since v20 a literal names its
+    // notation, so leaving `"m"` beside an `Angle` dim would be caught
+    // one door earlier as a display-unit mismatch, and this row is
+    // about the SLOT's role dimension, not the literal's own coherence.
     v["snapshot"]["nodes"]["0"]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]["dim"] =
         serde_json::Value::String("Angle".into());
+    v["snapshot"]["nodes"]["0"]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]["unit"] =
+        serde_json::Value::String("rad".into());
     let mangled = format!("{header}\n{}\n", serde_json::to_string_pretty(&v).unwrap());
     match load(&mangled, Tol::witness()) {
         Err(PersistError::ProfileProgram {
@@ -383,9 +367,7 @@ fn program_structure_doors_refuse_typed_at_load() {
         )),
     );
     let text2 = save(&doc2, &[], Tol::witness()).expect("save");
-    let (schema_line2, rest2) = text2.split_once('\n').expect("schema line");
-    let (id_line2, body2) = rest2.split_once('\n').expect("id line");
-    let header2 = format!("{schema_line2}\n{id_line2}");
+    let (header2, body2) = text2.split_once('\n').expect("id line");
     let mut v2: serde_json::Value = serde_json::from_str(body2).expect("body parses");
     let steps = v2["snapshot"]["nodes"]["0"]["Profile"]["loops"][0]["Chain"]
         .as_array_mut()

@@ -368,7 +368,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
 /// wall's boundary column (bits differing from the arc wall's own
 /// column by the arc endpoint's rounding) has no bitwise `IsoCurve`
 /// match. The file's carrier is adopted as EVIDENCE and certified
-/// against both operands instead (declare-and-check, Evan's #264
+/// against both operands instead (declare-and-check, Ev's #264
 /// ruling) — a certificate, not a widened bitwise match.
 ///
 /// The RATIONAL wall completes the picture the integral twin starts:
@@ -589,7 +589,7 @@ fn plane_nurbs_seams(
                 return None;
             };
             let (&s1, &s2) = match curve.description() {
-                geom_brep::EdgeGeometry::Intersection { s1, s2, .. } => (s1, s2),
+                geom_brep::EdgeDescription::Intersection { s1, s2, .. } => (s1, s2),
                 _ => return None,
             };
             let pair = plane(s1)

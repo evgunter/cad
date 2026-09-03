@@ -31,14 +31,17 @@
 // Panicking is a test's failure mechanism (workspace lint policy).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::{FRAC_PI_2, PI};
+use core::f64::consts::FRAC_PI_2;
 use profile::RawLoop;
 
 use geom::NurbsCurve3;
 use geom::curves::fit::interpolate_columns;
 use geom_core::{Affine3, Point2, Point3, Vec3};
-use sweep::skin::{LoftGeometry, Section, loft_geometry, segment_curve, sweep_geometry};
-use sweep::{SketchSegment, loft_body, sweep_body};
+use sweep::skin::{LoftGeometry, Section, loft_geometry, sweep_geometry};
+use sweep::test_support::{
+    ELBOW_H, ELBOW_R, ELBOW_STATIONS, ELBOW_V_DEGREE, elbow_path, elbow_section,
+};
+use sweep::{loft_body, sweep_body};
 
 mod common;
 use common::orient::{
@@ -235,38 +238,11 @@ fn nonuniform_trapezoid_loft_body_is_tier3_valid() {
 // Pin 1: the first successful `sweep_body` caller in the tree
 // ---------------------------------------------------------------------
 
-/// The elbow's path: a quarter circle of radius [`ELBOW_R`] in the
-/// world YZ plane, starting at the origin with tangent `+z` (so the
-/// identity-placed profile, which lies in the world XY plane, is
-/// already perpendicular to the path) and ending at `(0, R, R)`. Its
-/// centre is `(0, R, 0)`; the axis of revolution is the world-x
-/// direction through that centre.
-///
-/// The sketch arc runs `(0,0) → (R,R)` with `bulge = tan(θ/4) =
-/// tan(π/8)`, i.e. a 90° turn, and the placement rotates the sketch
-/// plane by −π/2 about the world y-axis, which sends sketch `(x, y)`
-/// to world `(0, y, x)`.
-const ELBOW_R: f64 = 3.0;
-/// The elbow's square cross-section half-width.
-const ELBOW_H: f64 = 0.25;
-
-fn elbow_path() -> NurbsCurve3<f64> {
-    let place = Affine3::rotation_about_axis(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        -FRAC_PI_2,
-    );
-    segment_curve(
-        0,
-        SketchSegment::Arc {
-            a: Point2::new(0.0, 0.0),
-            b: Point2::new(ELBOW_R, ELBOW_R),
-            bulge: (PI / 8.0).tan(),
-        },
-        place,
-    )
-    .expect("the elbow path is a well-formed quarter arc")
-}
+// The elbow — path, section and constants — is `sweep::test_support`'s:
+// this suite derives the Pappus bracket over it, and the tessellation
+// and STEP suites one crate over meter the same solid. The rational
+// rows below reuse the PATH under a different section, which is why
+// the halves are named separately there.
 
 /// **Pin 1: a curved-path `sweep_body` builds, passes the tier ladder,
 /// and measures.** This is the first successful `sweep_body` caller in
@@ -293,9 +269,9 @@ fn elbow_path() -> NurbsCurve3<f64> {
 #[test]
 fn curved_path_sweep_body_builds_validates_and_brackets_pappus() {
     let path = elbow_path();
-    let profile = square(ELBOW_H);
-    let stations = 9;
-    let v_degree = 3;
+    let profile = elbow_section();
+    let stations = ELBOW_STATIONS;
+    let v_degree = ELBOW_V_DEGREE;
 
     let geometry = sweep_geometry(
         &profile,
@@ -350,11 +326,11 @@ fn curved_path_sweep_body_builds_validates_and_brackets_pappus() {
 #[test]
 fn the_swept_bodys_seam_carriers_meter_positively() {
     let swept = sweep_body::<f64>(
-        &square(ELBOW_H),
+        &elbow_section(),
         Affine3::identity(),
         &elbow_path(),
-        9,
-        3,
+        ELBOW_STATIONS,
+        ELBOW_V_DEGREE,
         Tol::witness(),
     )
     .expect("the curved-path sweep body builds");
@@ -407,25 +383,25 @@ fn circle_section(r: f64) -> Section {
 /// poison, so `nurbs_span_meter` had no metre-per-parameter and
 /// escalated at `CertCheck::ParamSpan`.
 ///
-/// The banked rational-wall unit landed the meter's rational arm (a
-/// quotient-rule assembly over the HOMOGENEOUS control net, derivation
-/// on `NurbsCurve3::speed_lower_bound`), so the refusal is gone and the
+/// The span meter carries a rational arm (a quotient-rule assembly
+/// over the HOMOGENEOUS control net, derivation on
+/// `NurbsCurve3::speed_lower_bound`), so the refusal is gone and the
 /// positive statement takes its place, exactly as
 /// [`the_swept_bodys_seam_carriers_meter_positively`] states it for the
 /// integral lane: the body builds, and every NURBS carrier on it
 /// reports a real, positive metre-per-parameter.
 ///
-/// (The QUADRATURE half of the rational bank is a different frontier
-/// and is NOT retired by this: `QuadratureUnsupported` has its own
-/// pins.)
+/// (The QUADRATURE half is a different frontier and is not what this
+/// row states: it has its own pins, and its remaining limit is a fixed
+/// round budget rather than a missing lane.)
 #[test]
 fn a_rational_section_on_a_curved_path_meters_at_the_span_meter() {
     let swept = sweep_body::<f64>(
         &circle_section(ELBOW_H),
         Affine3::identity(),
         &elbow_path(),
-        9,
-        3,
+        ELBOW_STATIONS,
+        ELBOW_V_DEGREE,
         Tol::witness(),
     )
     .expect(
@@ -504,8 +480,8 @@ fn a_rational_section_on_a_curved_path_faces_out_along_the_turn() {
         &circle_section(ELBOW_H),
         Affine3::identity(),
         &elbow_path(),
-        9,
-        3,
+        ELBOW_STATIONS,
+        ELBOW_V_DEGREE,
         Tol::witness(),
     )
     .expect("the rational elbow sweeps");

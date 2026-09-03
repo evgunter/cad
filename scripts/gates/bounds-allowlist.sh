@@ -9,25 +9,45 @@
 # `real.rs`, Bounds scope rule): the C10 boolean-sweep driver
 # lane in topo, the evaluation-service seam in editor-core,
 # profile's pre-amendment fillet gate, and topo/props.rs — the
-# M5 PR 11 certified-quadrature plumbing (Evan's lane-split
+# M5 PR 11 certified-quadrature plumbing (Ev's lane-split
 # ruling at that PR: certification is the CERTIFYING lanes'
 # business, statically split from the dual lane through
 # `PropsQuadLane`), and — since M5 PR 12 — the fillet-battery
 # seam in sweep. That last one is an ORCHESTRATOR ruling
 # (2026-08-03) applying the PR 11 precedent, flagged for
-# retroactive Evan review per the self-merge convention: the
+# retroactive Ev review per the self-merge convention: the
 # battery's margins are certified metric quantities (sup-κ
 # curvature hulls, blend setback bounds) reported as `f64`
 # payloads, i.e. enclosure consumers of exactly the quadrature's
 # class.
 #
-# STANDING OBLIGATION (D1 ruling, 2026-08-19): the fillet seam is
-# the one allowlisted seam with NO refusing lane behind it, and
-# the guard that made that acceptable — `Bounds` having no `Dual`
-# impl — has lapsed. The argument, the reachability check and what
-# is owed live in ONE home: geom-core/src/real.rs, the M5 PR 12
-# entry of the `Bounds` scope rule. Not restated here; keep this a
-# pointer.
+# `crates/verbs/src/run.rs` is on the list for a different reason from
+# every seam above: it DECIDES NOTHING and READS NO BRACKET. It is the
+# verb vocabulary's dispatch site (one file, one run door per declared
+# arity), and its bound is the delegated
+# kernel doors' own (the blend pair's and, since the boolean's
+# migration, `topo::boolean_op_with`'s — the same three-term bound on
+# each), satisfied so the call type-checks. SEAT-4's entry in the
+# scope rule carries the necessity argument (the weakest bound that
+# works, with the tighter one shown breaking its dual-instantiated
+# caller); this is a pointer, not a restatement.
+#
+# The fillet seam is the one allowlisted seam with NO refusing lane
+# behind it; the written reason it needs none is the DELEGATION RULE
+# (DUAL-DESIGN DL5) recorded in ONE home: geom-core/src/real.rs, the
+# M5 PR 12 entry of the `Bounds` scope rule. Not restated here; keep
+# this a pointer.
+#
+# `Enclosure` is grepped exactly as `Bounds` (DUAL-DESIGN DL4, the
+# issue-701 hole): the blanket `impl<T: Bounds> Enclosure for T`
+# makes every `Dual` an `Enclosure`, so an `…Enclosure`-named term in
+# a compound bound is the same class of decide-and-bracket parameter
+# and shares this file's allowlist. KNOW THE SCOPE CONSEQUENCE: the
+# allowlist is per-FILE, so every file ratified for its `Bounds`
+# compounds is thereby exempt for `Enclosure` compounds too — a new
+# `Decide + Enclosure` inside an allowlisted file rides that file's
+# ratification and never fires here. `CertifiedBounds`'s definition
+# lines stay skipped as exact text, as below.
 # geom-brep/src/{ssi.rs,ssi/certify.rs,pcurve_cache.rs} is the
 # M6-2 SSI generic-T lift: the rung-3 certificate simultaneously
 # DECIDES (its `ssi_*` funnel margins) and reads brackets into the
@@ -56,7 +76,7 @@
 # (certified) from `Dual` (typed refusal) — and it is what keeps
 # `Bounds` out of `topo`'s signatures.
 # topo/src/chart_region.rs is M9-2 PR-1's chart-region overlap
-# predicate (spec item 1; the PR 11 class, retroactive Evan
+# predicate (spec item 1; the PR 11 class, retroactive Ev
 # review per the self-merge convention): it simultaneously
 # DECIDES (its chart_region_* funnel margins) and reads
 # exact-f64 STRUCTURE through the bracket — the C6 planar-trim
@@ -71,6 +91,49 @@
 # refusing impl is still not redundant with that. WHY both are needed
 # has ONE home: geom-core/src/real.rs, the M9-2 entry of the `Bounds`
 # scope rule. Not restated here; keep this a pointer.
+# topo/src/{validate,shell}.rs is the certified at-rest validator and
+# the verb that validates what it built (2026-09-02): tier 3's +V
+# invariant reads a certified volume enclosure, so the validator's
+# public entry is the composition of a structural half and a certified
+# one and carries the union bound. The seam's reasons, the weakest-bound
+# check and the refusal this replaced have ONE home: geom-core/src/real.rs,
+# the 2026-09-02 entry of the `Bounds` scope rule. Not restated here;
+# keep this a pointer.
+# editor-core/src/checks.rs is the advisory-check registry, the
+# SECOND production caller of topo::separation (ratified by Ev
+# 2026-08-29). Its bound is `Decide + CertifiedBounds` — TIGHTENED,
+# per the M9-2 entry's discriminator ("nothing generic calls this
+# door"), which is what the real.rs rule actually prescribes here;
+# the `separation` entry's "passes keep their lanes" does not
+# apply, its caller being a mixed pass beneath evaluate<T> and
+# run_checks being beneath nothing.
+#
+# THE RULING ALSO SAYS WHAT THIS GATE IS FOR, and it binds every
+# future row here: the gate avoids the dangerous pattern WHEN NOT
+# NECESSARY, so a necessary one is fine. What a candidate owes is
+# therefore a demonstration of necessity — that the bound cannot be
+# avoided — not a resemblance to a seam already listed.
+#
+# NECESSITY IS A FILTER, NOT A LICENCE. A candidate that needs the
+# bracket in order to DECIDE something outside the trilean is
+# refused rather than weighed, however necessary: brackets never
+# decide, every topology-determining branch stays a Decide call
+# site, and boxes only ever prune. That is the thing this grep
+# exists to catch, and it is checked FIRST — a necessity argument
+# for a deciding read is an argument for a different design.
+#
+# AND A NECESSITY ARGUMENT MUST NAME THE WEAKEST BOUND THAT WORKS,
+# showing the next tighter one FAILING. This row's first draft did
+# not, argued for `Decide + Bounds`, and was refuted by a reviewer
+# compiling `Decide + CertifiedBounds` — which works, because
+# nothing generic calls run_checks. The row now carries the tighter
+# bound. An argument that a bound SUFFICES is not the argument this
+# rule asks for.
+#
+# That ordering, the two negative results that carried this row,
+# and what a future row owes instead of citing them, have ONE home:
+# geom-core/src/real.rs, the 2026-08-29 entry. Pointer only.
+#
 # A NEW file writing a compound Bounds bound fails here until it
 # is ratified into the real.rs rule AND this allowlist.
 # profile/src/path/arc_fillet.rs is the LIB-G2 PATHS arc-carrier
@@ -100,12 +163,14 @@
 # edit one step earlier. The skip stays exact text because it is the more
 # precise statement of what is exempted; the guarantee is the check's.
 # WHAT THE MATCHER MATCHES, shaped by NAME rather than by a list of names.
-# Three alternatives: an identifier ending in `Bounds` after a `+` (path
-# prefix allowed); one before a `+` (no prefix group and no `\b` -- `\w*`
+# Three alternatives: an identifier ending in `Bounds` or `Enclosure`
+# after a `+` (path prefix allowed); one before a `+` (no prefix group and
+# no `\b` -- `\w*`
 # already spans a path segment and `\b` adds nothing; both verified dead by
 # a tree-wide hit-set diff, and a dead regex element is removed rather than
 # kept as untested reassurance); and a SINGLE-LINE trait DECLARATION whose
-# supertrait or `where` list names a `…Bounds` identifier, which is the
+# supertrait or `where` list names a `…Bounds`/`…Enclosure` identifier,
+# which is the
 # only one that catches an alias spelled without a `+`. Each is planted
 # separately below.
 #
@@ -224,7 +289,7 @@ gate() {
   gate_require_crate_sources
   gate_definition_skip_subject
   local hits
-  hits=$(gate_grep -rnE '(\+\s*(\w+::)*\w*Bounds\b)|(\w*Bounds\s*\+)|(\btrait\s+\w+\b[^;{]*:[^;{]*\w*Bounds\b)' crates/*/src \
+  hits=$(gate_grep -rnE '(\+\s*(\w+::)*\w*(Bounds|Enclosure)\b)|(\w*(Bounds|Enclosure)\s*\+)|(\btrait\s+\w+\b[^;{]*:[^;{]*\w*(Bounds|Enclosure)\b)' crates/*/src \
     | gate_grep -vE ':[0-9]+:\s*(//|///|//!)' \
     | gate_grep -vE ':[0-9]+:pub trait CertifiedBounds: Bounds \+ CertifiedEnclosure \{\}$' \
     | gate_grep -vE ':[0-9]+:impl<T: Bounds \+ CertifiedEnclosure> CertifiedBounds for T \{\}$' \
@@ -233,16 +298,19 @@ gate() {
     | gate_grep -vE '^crates/topo/src/separation\.rs$' \
     | gate_grep -vE '^crates/topo/src/props\.rs$' \
     | gate_grep -vE '^crates/topo/src/chart_region\.rs$' \
+    | gate_grep -vE '^crates/topo/src/(validate|shell)\.rs$' \
     | gate_grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
+    | gate_grep -vE '^crates/editor-core/src/checks\.rs$' \
     | gate_grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
     | gate_grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' \
-    | gate_grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$')
+    | gate_grep -vE '^crates/sweep/src/blend/(battery|build|surgery)\.rs$' \
+    | gate_grep -vE '^crates/verbs/src/run\.rs$')
   if [ -n "$hits" ]; then
     echo "$hits"
-    gate_error "compound Bounds bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"
+    gate_error "compound Bounds/Enclosure bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"
     exit 1
   fi
-  gate_ok "no compound Bounds bound outside the ratified seams"
+  gate_ok "no compound Bounds/Enclosure bound outside the ratified seams"
 }
 
 # The two operand orders are SEPARATE cases, planted one at a time: a
@@ -329,6 +397,26 @@ plant_unknown_alias() {
   printf 'pub fn f<T: Decide + RingBounds>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
 }
 
+# The `Enclosure` rows (DUAL-DESIGN DL4): a `T: Enclosure` bound outside
+# the allowlist must fire, in both operand orders — planted one at a
+# time for the same blindness reason as the `Bounds` pair — and the
+# name-shaped matcher covers an `…Enclosure` alias that does not exist
+# in the tree today, exactly as it covers `RingBounds`.
+plant_enclosure_decide_first() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f<T: Decide + Enclosure>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
+}
+
+plant_enclosure_bounds_side_first() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f<T: geom_core::Enclosure + Decide>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
+}
+
+plant_unknown_enclosure_alias() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f<T: Decide + RingEnclosure>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
+}
+
 # The NEAR MISS, and the case that keeps the widening honest. A SOLE
 # bracket bound is outside this gate's class by construction; a matcher
 # that fired on it would red geom-brep/src/ssi/enclose.rs, geom/src/net.rs
@@ -372,7 +460,7 @@ plant_real_rs_alias_redefined() {
 }
 
 gate_selftest() {
-  local want="compound Bounds bound outside the ratified seams"
+  local want="compound Bounds/Enclosure bound outside the ratified seams"
   gate_selftest_clean
   # A `grep` that cannot run is the failure this gate cannot see for
   # itself: it produces no hits, and no hits is what a clean tree
@@ -385,6 +473,9 @@ gate_selftest() {
   gate_selftest_case "$want" plant_certified_bounds_first
   gate_selftest_case "$want" plant_certified_path_prefixed
   gate_selftest_case "$want" plant_unknown_alias
+  gate_selftest_case "$want" plant_enclosure_decide_first
+  gate_selftest_case "$want" plant_enclosure_bounds_side_first
+  gate_selftest_case "$want" plant_unknown_enclosure_alias
   gate_selftest_case "$want" plant_non_bounds_alias_declaration
   gate_selftest_case "$want" plant_sole_supertrait_alias
   gate_selftest_case "$want" plant_where_self_alias
@@ -392,7 +483,7 @@ gate_selftest() {
   gate_selftest_case "no longer in crates/geom-core/src/real.rs verbatim" plant_real_rs_alias_redefined
   gate_selftest_case "$want" plant_dual_equivalent_spelling
   gate_selftest_passes "a sole bracket bound" plant_sole_bracket_bounds
-  printf '%s selftest OK: passes a clean fixture and a sole bracket bound; fires on both operand orders of Decide+Bounds and of Decide+CertifiedBounds, on a path-qualified alias after the plus, on an alias name not in the tree today, on all three spellings of a non-Bounds-named alias DECLARATION (GAP 4 mitigation: pair, sole supertrait, where-clause), on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through the definition-skip subject check), and on the equivalent spelling of dual.rs Bounds impl (GAP 2); and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and a sole bracket bound; fires on both operand orders of Decide+Bounds, of Decide+CertifiedBounds and of Decide+Enclosure, on a path-qualified alias after the plus, on Bounds- and Enclosure-shaped alias names not in the tree today, on all three spellings of a non-Bounds-named alias DECLARATION (GAP 4 mitigation: pair, sole supertrait, where-clause), on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through the definition-skip subject check), and on the equivalent spelling of dual.rs Bounds impl (GAP 2); and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

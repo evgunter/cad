@@ -1,6 +1,6 @@
 # GQ1 mechanism details: witnesses, branch selection, bifurcation (pre-M4 design doc)
 
-Status: **RATIFIED** (Evan, PR #79, 2026-07-23 — W1–W9 as proposed
+Status: **RATIFIED** (Ev, PR #79, 2026-07-23 — W1–W9 as proposed
 plus the round-2 amendments: bulk certified-same-branch ReWitness,
 drag-as-homotopy UI input, the worked elbow example, and the
 GUI-DESIGN wall-mode-drag idea, all from the in-conversation round). This is the second and last "before M4 planning"
@@ -186,7 +186,7 @@ now pinned:
   the new witness (the direct analogue of NAMING-DESIGN N5's
   explicit `Rebind`; same trivial-or-loud ethos).
 - **Certified-same-branch ReWitness is semantically invisible, so it
-  may be automated in bulk (Evan, in-conversation on this PR)**: when
+  may be automated in bulk (Ev, in-conversation on this PR)**: when
   the W2 certificate proves old witness and new solution lie in one
   uniqueness region (same branch), rewitnessing changes NO predicate
   outcome — it only recenters the stored point, improving future

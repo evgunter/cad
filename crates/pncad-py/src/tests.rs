@@ -9,7 +9,9 @@
 // failure mechanism.
 #![allow(clippy::expect_used, clippy::panic)]
 
-use crate::errors::{ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag};
+use crate::errors::{
+    ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag, reads_as_prose,
+};
 use crate::tags::{
     expr_dimension_error_tag, path_error_tag, persist_error_tag, step_import_error_tag,
     workspace_error_tag,
@@ -25,6 +27,27 @@ fn dimension_tags_are_stable() {
     assert_eq!(dimension_tag(Dimension::Angle), "angle");
     assert_eq!(dimension_tag(Dimension::Count), "count");
     assert_eq!(dimension_tag(Dimension::Scalar), "scalar");
+}
+
+/// The FFI tag and the kernel's prose word are two spellings of one
+/// closed list. This crate owns the tag, so they are free to differ —
+/// but they do not, and a silent divergence between a refusal a user
+/// reads and the tag they branch on is worth a test rather than a
+/// convention.
+#[test]
+fn dimension_tags_match_the_kernel_prose() {
+    for dim in [
+        Dimension::Length,
+        Dimension::Angle,
+        Dimension::Count,
+        Dimension::Scalar,
+    ] {
+        assert_eq!(
+            dimension_tag(dim),
+            dim.to_string(),
+            "the FFI tag and the kernel's prose word have drifted apart"
+        );
+    }
 }
 
 #[test]
@@ -62,11 +85,23 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Literal => "LiteralError",
             ErrorClass::Persist => "PersistError",
             ErrorClass::Export => "ExportError",
+            ErrorClass::Tessellate => "TessellateError",
+            ErrorClass::StlExport => "StlError",
             ErrorClass::StepImport => "StepImportError",
             ErrorClass::Path => "PathError",
             ErrorClass::Select => "SelectRefusal",
             ErrorClass::Frame => "FrameError",
             ErrorClass::Identity => "IdentityError",
+            ErrorClass::Workspace => "WorkspaceError",
+            ErrorClass::Mate => "MateError",
+            ErrorClass::Assembly => "AssemblyError",
+            ErrorClass::Product => "ProductError",
+            ErrorClass::Split => "SplitError",
+            ErrorClass::Inline => "InlineError",
+            ErrorClass::Update => "UpdateError",
+            ErrorClass::Readback => "ReadbackError",
+            ErrorClass::Checks => "ChecksError",
+            ErrorClass::Enforce => "CheckRefusal",
         }
     }
     for class in [
@@ -77,14 +112,93 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Literal,
         ErrorClass::Persist,
         ErrorClass::Export,
+        ErrorClass::Tessellate,
+        ErrorClass::StlExport,
         ErrorClass::StepImport,
         ErrorClass::Path,
         ErrorClass::Select,
         ErrorClass::Frame,
         ErrorClass::Identity,
+        ErrorClass::Workspace,
+        ErrorClass::Mate,
+        ErrorClass::Assembly,
+        ErrorClass::Product,
+        ErrorClass::Split,
+        ErrorClass::Inline,
+        ErrorClass::Update,
+        ErrorClass::Readback,
+        ErrorClass::Checks,
+        ErrorClass::Enforce,
     ] {
         assert_eq!(class.class_name(), expected(class));
     }
+}
+
+/// LIB-B-READBACK: the read-back doors' tag map, arm by arm.
+///
+/// Unlike `SelectRefusal`'s, this map IS the compile-time drift
+/// alarm: neither `InterrogateError` nor `ReadbackError` is
+/// `#[non_exhaustive]`, so a kernel arm added without a tag stops
+/// this crate compiling. What the pin adds on top is the tag TEXT,
+/// which the alarm cannot see — a renamed tag compiles fine and
+/// silently breaks every caller branching on it.
+///
+/// Every arm is constructible here, `Dangling`'s two lanes included:
+/// `DanglingRef` rides on the curated surface beside the refusal that
+/// carries it, so this crate names both lanes and pins both tags.
+/// The keys inside a lane are `topo`'s and come through the façade's
+/// whole re-export of that layer; the tag does not depend on which
+/// key kind a lane names, so a default key is the honest fixture.
+#[test]
+fn readback_refusal_tags_are_stable() {
+    use crate::tags::interrogate_error_tag as tag;
+    use pncad::document::RecipeNodeId;
+    use pncad::select::{DanglingRef, EntityKind, InterrogateError as E, ReadbackError as R};
+    use pncad::topo::{EntityId, GeomRef, SurfaceKey, VertexKey};
+
+    let node = RecipeNodeId(0);
+    assert_eq!(tag(&E::NodeNotEvaluated { node }), "node_not_evaluated");
+    assert_eq!(tag(&E::NodeFailed { node }), "node_failed");
+    assert_eq!(
+        tag(&E::NodePoisoned {
+            node,
+            through: node
+        }),
+        "node_poisoned"
+    );
+    assert_eq!(tag(&E::NoSuchName), "no_such_name");
+    assert_eq!(tag(&E::Ambiguous { candidates: 2 }), "ambiguous");
+    assert_eq!(
+        tag(&E::WrongKind {
+            wanted: EntityKind::Face,
+            found: EntityKind::Edge,
+        }),
+        "wrong_kind"
+    );
+    assert_eq!(tag(&E::WholeBody), "whole_body");
+    assert_eq!(tag(&E::NoBodies { payload: "datum" }), "no_bodies");
+    assert_eq!(tag(&E::NoSuchBody { index: 1 }), "no_such_body");
+    // The geometry half arrives under its OWN tag, not a wrapper's —
+    // and `Dangling`'s two lanes arrive under one tag each, because
+    // a stale handle and a body whose own geometry reference dangles
+    // are different facts and a caller branches on which.
+    assert_eq!(
+        tag(&E::Readback(R::Dangling {
+            what: DanglingRef::Entity(EntityId::Vertex(VertexKey::default())),
+        })),
+        "dangling_entity"
+    );
+    assert_eq!(
+        tag(&E::Readback(R::Dangling {
+            what: DanglingRef::Geometry(GeomRef::Surface(SurfaceKey::default())),
+        })),
+        "dangling_geometry"
+    );
+    assert_eq!(
+        tag(&E::Readback(R::NoCanonicalFrame { carrier: "nurbs" })),
+        "no_canonical_frame"
+    );
+    assert_eq!(tag(&E::Readback(R::NoCarrier)), "no_carrier");
 }
 
 /// LIB-PYSEL: `SelectRefusal` is `#[non_exhaustive]`, so the tag
@@ -194,7 +308,7 @@ fn declare_error_tags_are_stable() {
 /// **Scope: the literal-construction door only.** It is one of TWO
 /// doors that reach the document layer's `DimensionError`; the other
 /// is `load`, and
-/// `the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal`
+/// `the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusal`
 /// below is its half. Read the two together — either alone is a
 /// premise that excludes the mode the other covers.
 #[test]
@@ -237,12 +351,14 @@ fn literal_refusals_come_from_the_kernel_with_stable_tags() {
 /// with no new binding at all — six of them, executed here.
 ///
 /// Today they arrive in Python as `PersistError` with `variant ==
-/// "parse"`, because the deserializer `Debug`-formats the structured
-/// refusal into a serde message. That is a real misrouting and it is
-/// **issue #694**, not this crate's to fix: a dimension mismatch is
-/// not a parse failure, and a `format!("{err:?}")` message is not the
-/// "typed exception carrying the structured error" this crate's
-/// taxonomy promises.
+/// "unreadable"` — the persistence door's one refusal for valid JSON
+/// its types reject, recourse attached — because the deserializer
+/// `Debug`-formats the structured refusal into a serde message and
+/// serde classifies that as data it could not place. That is a real
+/// misrouting and it is **issue #694**, not this crate's to fix: a
+/// dimension mismatch is not "vocabulary this build lacks", and a
+/// `format!("{err:?}")` message is not the "typed exception carrying
+/// the structured error" this crate's taxonomy promises.
 ///
 /// What this test is for is the DECISION the fix will force. When
 /// #694 gives these a typed class, this assertion goes red, and
@@ -251,7 +367,7 @@ fn literal_refusals_come_from_the_kernel_with_stable_tags() {
 /// a `LiteralError` (nothing about it is a literal) and it is not the
 /// quantity boundary's `DimensionError` either.
 #[test]
-fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal() {
+fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusal() {
     let tol = Tol::witness();
     use pncad::document::{DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, apply, save};
     use pncad::prelude::SketchPlane;
@@ -321,7 +437,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal() {
             .unwrap_or_else(|| panic!("{arm}: an ill-dimensioned save file must refuse"));
         assert_eq!(
             persist_error_tag(&err),
-            "parse",
+            "unreadable",
             "{arm}: the load path's dimension refusal has changed class \
              (#694). It is neither a literal-value refusal nor the \
              quantity boundary's operator check — decide which typed \
@@ -356,10 +472,13 @@ fn replace_first_literal(value: &mut serde_json::Value, with: &serde_json::Value
 fn persist_error_tags_are_stable() {
     let header =
         pncad::document::load("not a header", Tol::witness()).expect_err("garbage refuses");
-    assert_eq!(persist_error_tag(&header), "header");
-    let unknown = pncad::document::load("schema: 9999\n{}", Tol::witness())
-        .expect_err("a future schema refuses");
-    assert_eq!(persist_error_tag(&unknown), "unknown_schema");
+    assert_eq!(persist_error_tag(&header), "header_id");
+    let unreadable = pncad::document::load(
+        "id: 00000000000000000000000000000000\n{\"snapshot\": {\"no_such_field\": 1}}",
+        Tol::witness(),
+    )
+    .expect_err("a body this build cannot read refuses");
+    assert_eq!(persist_error_tag(&unreadable), "unreadable");
 }
 
 /// The workspace tags `Doc()` publishes. `randomness_unavailable` is
@@ -426,8 +545,45 @@ fn path_error_tags_are_stable() {
         .expect("a leg east")
         .tangent()
         .tangent_arc_to(Start, Tol::witness())
-        .expect_err("a tangent LINE close refuses always");
-    assert_eq!(path_error_tag(&overdetermined), "tangent_line_close");
+        .expect_err("a collinear tangent-arc close refuses always");
+    // Carrier identity, and it does not become a different fact because
+    // the target is `Start`: the close-only second name for this was
+    // removed with the seam wall's departure half.
+    assert_eq!(path_error_tag(&overdetermined), "same_carrier_junction");
+}
+
+/// The prose rule's guard, checked against what it actually guards
+/// against: real kernel refusals rendered both ways.
+///
+/// `crate::py::typed_err` asserts [`reads_as_prose`] on every raise,
+/// so this test is the half that proves the predicate can go RED — a
+/// guard verified only by a green suite is not verified. The `Debug`
+/// renderings below are exactly what the crate used to send to Python
+/// at the tessellate and select doors.
+#[test]
+fn the_prose_rule_separates_a_display_from_a_debug_dump() {
+    use pncad::prelude::{circle, p2};
+
+    let zero = circle(p2(0.0, 0.0), 0.0, Tol::witness()).expect_err("a zero radius refuses");
+    assert!(reads_as_prose(&zero.to_string()));
+    assert!(!reads_as_prose(&format!("{zero:?}")));
+
+    let entropy = pncad::workspace::WorkspaceError::RandomnessUnavailable {
+        message: "entropy source refused".to_string(),
+    };
+    assert!(reads_as_prose(&entropy.to_string()));
+    assert!(!reads_as_prose(&format!("{entropy:?}")));
+
+    // The second fingerprint: a fieldless variant renders as one bare
+    // word, which no sentence is.
+    assert!(!reads_as_prose("SeamRetrimsArcFirstSide"));
+    // And the shapes prose legitimately carries: a quoted user string
+    // (`Debug` on a `&str`, which the id doors use for its escaping),
+    // and a sentence that opens on a capital.
+    assert!(reads_as_prose(
+        "not a document id: \"nope\" — an id is 32 hex digits"
+    ));
+    assert!(reads_as_prose("Tessellate refused"));
 }
 
 /// Read one flat `key = "value"` TOML table, selected by its exact
@@ -588,5 +744,61 @@ fn a_labelled_document_is_the_same_part_every_time() {
     assert_ne!(
         crate::identity::derived("plate-param", Tol::witness()).id(),
         crate::identity::derived("bracket", Tol::witness()).id()
+    );
+}
+
+/// The registry's two tag namespaces are pinned, and stated honestly:
+/// this constructs every arm the curated surface can BUILD and asserts
+/// its tag. Two arms of each map carry kernel internals with no public
+/// constructor — [`ChecksError::Band`]'s `BandError`, and the shell
+/// door's refusal behind `Escalated`/`Unsupported` — so their tags are
+/// covered by the exhaustive match alone, which is the real alarm
+/// here: neither enum is `#[non_exhaustive]`, so a kernel arm added
+/// without a tag stops this crate compiling.
+///
+/// What the pin adds over the match is the STRINGS. A tag is the
+/// branchable half of a typed refusal, so renaming one is a surface
+/// break the compiler cannot see.
+#[test]
+fn check_registry_tags_are_stable() {
+    use crate::tags::{check_evidence_tag, checks_error_tag};
+    use pncad::document::{CheckEvidence, ChecksError, RecipeNodeId};
+
+    assert_eq!(
+        checks_error_tag(&ChecksError::Root {
+            node: RecipeNodeId(3)
+        }),
+        "root_without_value"
+    );
+    assert_eq!(
+        checks_error_tag(&ChecksError::Product {
+            reason: "no body roots".into()
+        }),
+        "product_unavailable"
+    );
+
+    assert_eq!(
+        check_evidence_tag(&CheckEvidence::Connectedness {
+            actual: 2,
+            expected: 1
+        }),
+        "connectedness"
+    );
+    assert_eq!(
+        check_evidence_tag(&CheckEvidence::StaleExpectation { expected: 1 }),
+        "stale_expectation"
+    );
+    assert_eq!(
+        check_evidence_tag(&CheckEvidence::NotSeparated {
+            other_root: RecipeNodeId(4),
+            other_output: 0
+        }),
+        "not_separated"
+    );
+    assert_eq!(
+        check_evidence_tag(&CheckEvidence::SeparationUnavailable {
+            reason: "boxes refused".into()
+        }),
+        "separation_unavailable"
     );
 }

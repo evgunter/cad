@@ -217,6 +217,11 @@ pub(crate) struct PartCache<'a, T: Decide> {
     /// booleans too — the strategy is a property of the run, not of
     /// the document, and results are bit-identical either way.
     boolean_sweep: topo::SweepStrategy,
+    /// Where profile geometry comes from, inherited across the seam
+    /// for the same reason `boolean_sweep` is: it is a property of the
+    /// RUN, so a referenced document must be elaborated the way its
+    /// instantiator is being elaborated.
+    profile_lift: super::ProfileLift,
     entries: Mutex<Rows<T>>,
     /// How many referenced-document evaluations happened at or BELOW
     /// this level — the D-3 sharing evidence. A counter, not a timing
@@ -230,6 +235,7 @@ impl<'a, T: Decide> PartCache<'a, T> {
         resolver: Option<&'a Arc<dyn PartResolver>>,
         chain: &'a [DocRef],
         boolean_sweep: topo::SweepStrategy,
+        profile_lift: super::ProfileLift,
         tol: Tol,
     ) -> Self {
         Self {
@@ -237,6 +243,7 @@ impl<'a, T: Decide> PartCache<'a, T> {
             chain,
             eps_bits: tol.eps().to_bits(),
             boolean_sweep,
+            profile_lift,
             entries: Mutex::new(BTreeMap::new()),
             evaluations: AtomicUsize::new(0),
         }
@@ -301,6 +308,14 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             parallel: false,
             boolean_sweep: self.boolean_sweep,
             resolver: self.resolver.map(Arc::clone),
+            profile_lift: self.profile_lift,
+            // NOT inherited, unlike the two rows above: a parameter box
+            // is a set of THIS document's parameter names, and a
+            // referenced document is a different document with its own
+            // names (AQ4 — v1 instantiation takes no arguments). A box
+            // that crossed the seam would either name nothing there or,
+            // worse, collide by name with an unrelated parameter.
+            param_box: None,
         };
         let mut chain = self.chain.to_vec();
         chain.push(*doc_ref);

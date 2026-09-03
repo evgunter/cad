@@ -88,8 +88,8 @@ pub enum WorkspaceError {
         /// The path that repeated the id.
         second: PathBuf,
     },
-    /// A file's header refused (no/malformed `schema:` or `id:` line,
-    /// or a pre-v5 schema), naming the file.
+    /// A file's header refused (no or malformed `id:` line), naming
+    /// the file.
     Header {
         /// The refusing file.
         path: PathBuf,
@@ -158,31 +158,38 @@ pub enum WorkspaceError {
     },
 }
 
+// A path is text the caller chose, echoed back inside a sentence, so
+// every arm delimits it: an undelimited path runs into the prose
+// around it and the reader cannot see where the name ends.
 impl core::fmt::Display for WorkspaceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Io { path, message } => {
-                write!(f, "workspace: io error at {}: {message}", path.display())
+                write!(f, "workspace: io error at `{}`: {message}", path.display())
             }
             Self::DuplicateId { id, first, second } => write!(
                 f,
-                "workspace: duplicate document id {id}: {} and {} both claim it — \
+                "workspace: duplicate document id {id}: `{}` and `{}` both claim it — \
                  document ids are unique per workspace",
                 first.display(),
                 second.display()
             ),
             Self::Header { path, error } => {
-                write!(f, "workspace: {} refused: {error}", path.display())
+                write!(f, "workspace: `{}` refused: {error}", path.display())
             }
             Self::UnknownId { id } => {
                 write!(f, "workspace: no document with id {id}")
             }
             Self::Load { path, error } => {
-                write!(f, "workspace: {} refused to load: {error}", path.display())
+                write!(
+                    f,
+                    "workspace: `{}` refused to load: {error}",
+                    path.display()
+                )
             }
             Self::Pin { path, error } => write!(
                 f,
-                "workspace: {} loaded but its content pin would not compute: {error}",
+                "workspace: `{}` loaded but its content pin would not compute: {error}",
                 path.display()
             ),
             Self::PinMismatch {
@@ -192,7 +199,7 @@ impl core::fmt::Display for WorkspaceError {
                 found,
             } => write!(
                 f,
-                "workspace: pin mismatch for document {id} at {}: the reference pins \
+                "workspace: pin mismatch for document {id} at `{}`: the reference pins \
                  {wanted} but the document hashes to {found} — {PIN_MISMATCH_RECOURSE}",
                 path.display()
             ),
@@ -231,9 +238,8 @@ impl Workspace {
     /// # Errors
     ///
     /// [`WorkspaceError::Io`] naming the failing path,
-    /// [`WorkspaceError::Header`] for an unreadable header (including
-    /// pre-v5 schemas), [`WorkspaceError::DuplicateId`] naming both
-    /// claimants.
+    /// [`WorkspaceError::Header`] for an unreadable header,
+    /// [`WorkspaceError::DuplicateId`] naming both claimants.
     pub fn open(dir: impl AsRef<Path>) -> Result<Self, WorkspaceError> {
         let root = dir.as_ref().to_path_buf();
         let io = |path: &Path| {
@@ -476,16 +482,15 @@ fn load_fault(error: &PersistError) -> ResolveFault {
         // different one cannot be evaluated at all.
         PersistError::ToleranceConflict { .. } => ResolveFault::EpsilonSeam,
         PersistError::NonFinite { .. }
+        | PersistError::Distribution { .. }
+        | PersistError::DisplayUnit { .. }
         | PersistError::ProfileProgram { .. }
         | PersistError::Serialize { .. }
-        | PersistError::Header { .. }
         | PersistError::HeaderId { .. }
         | PersistError::IdMismatch { .. }
-        | PersistError::UnknownSchema { .. }
-        | PersistError::SchemaTooOld { .. }
         | PersistError::Parse { .. }
+        | PersistError::Unreadable { .. }
         | PersistError::EditReplay { .. }
-        | PersistError::Migration(_)
         | PersistError::Snapshot(_)
         | PersistError::ToleranceInvalid { .. } => ResolveFault::Unresolved,
     }

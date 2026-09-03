@@ -13,6 +13,12 @@
 //! argument, not API, and the names a consumer needs are at this
 //! root.
 //!
+//! One door is deliberately absent, and is named here so its absence
+//! reads as a decision rather than an omission: **iso-curve
+//! extraction** from a NURBS payload belongs to the EdgeDescription
+//! layer, under a placement rule stated and argued in `geom-brep`'s
+//! `nurbs_iso` module docs.
+//!
 //! # Conventions (normative, stated once)
 //!
 //! These are the parameterization conventions every consumer — edges,
@@ -70,15 +76,39 @@
 //!
 //! **Telling the two states apart is one rule with one spelling.** The
 //! discriminator is the control net's poison: a placeholder's every
-//! control point is all-poison by construction, a described net is
-//! finite data. `all`, not `any` — a described net with one poisoned
-//! point is corrupt *described* geometry and must fail loudly as such
-//! (certification, +V, export), never masquerade as the benign
-//! placeholder. The two payloads that carry the state expose it as
-//! [`NurbsCurve3::is_placeholder`] and
+//! control point is poison in **every channel** by construction, a
+//! described net is finite data. `all`, not `any`, and all over the
+//! channels as well as over the points — a described net with one
+//! poisoned CHANNEL of one point is corrupt *described* geometry and
+//! must fail loudly as such (certification, +V, export), never
+//! masquerade as the benign placeholder. The two payloads that carry
+//! the state expose it as [`NurbsCurve3::is_placeholder`] and
 //! [`NurbsSurface::is_placeholder`]; every consumer that tells the
 //! states apart goes through one of those rather than re-deriving the
 //! test inline.
+//!
+//! **Which poison, per scalar, because the sets differ in extension.**
+//! The rule is spelled once, over [`geom_core::Real::is_poison`], and
+//! that predicate answers a different question at each instantiation:
+//! at `f64` exactly NaN (so `+∞` — which a STEP file can spell — is
+//! **not** poison and a net of infinities is described data); at the
+//! interval scalar NaI **or** the empty interval, so an all-empty net
+//! reads as the placeholder there and would not at `f64`; at `Dual`
+//! the **value channel only**, so a poisoned value over a finite
+//! derivative counts. The state is therefore preserved by a lift
+//! (`from_f64(NaN)` is each scalar's own poison) but is not the same
+//! SET of nets at every scalar, and a consumer reasoning about which
+//! nets reach its placeholder arm has to reason at its own scalar.
+//!
+//! **What a BOX asks instead.** A box is a claim about where the locus
+//! is, not about which state a payload is in, so the box constructors
+//! screen on poison ANYWHERE rather than everywhere — a net with one
+//! poisoned bracket bounds its locus on no axis. That door and its
+//! reason are `net::any_poison`'s.
+//!
+//! Only the two 3-D payloads carry the state at all: `NurbsCurve2`
+//! has no placeholder and no discriminator, so nothing exercises this
+//! rule at two channels.
 //!
 //! # Evaluation-code discipline
 //!
@@ -98,8 +128,7 @@
 mod azimuth;
 pub mod curves;
 mod net;
-mod projection;
-#[cfg(test)]
+mod projection_policy;
 mod scalar_lift;
 pub mod surfaces;
 
@@ -111,7 +140,7 @@ pub use curves::{
 // The §6.1 policy module is interior — its body is the argument for
 // these four values, not API — but the values themselves are the
 // public names both halves' callers have always used.
-pub use projection::{
+pub use projection_policy::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
 };
 pub use surfaces::{

@@ -28,11 +28,6 @@ use editor_core::{
 use fixture::{desc, insert, len, square, step};
 use geom_core::Tol;
 
-/// The v6 bytes, kept verbatim as the clean break's refusal fixture
-/// (the ASM-ROOTS precedent: a break nobody can demonstrate is a break
-/// nobody can trust).
-const V6: &str = include_str!("golden/v6_golden.cad");
-
 // ---- The stub store ----
 
 /// A resolver over an in-memory map, verifying the pin exactly as the
@@ -736,19 +731,10 @@ fn row6_placement_is_part_of_the_content_key() {
 
 // ---- Row 7: persistence ----
 
-/// Row 7 — v7 round-trips (node + placements), v6 refuses typed, and
-/// two blesses of one document are byte-identical.
+/// Row 7 — the instantiate node and its placement round-trip, and two
+/// blesses of one document are byte-identical.
 #[test]
-fn row7_v7_round_trips_and_v6_refuses() {
-    // v7 was this unit's bump; LIB-LBRET's AtToward vocabulary took
-    // v8 on top of it (the two units double-claimed 7 — see the
-    // SCHEMA_VERSION ledger), LIB-RESPELL's §2c re-spell took v9, and
-    // ASM-UPD's `UpdateReference` arm took v10, M9-1's declaration
-    // class took v11, LIB-PLACEDUNION's group boolean took v12, and
-    // ASM-R2a's `Node::Mate` arm took v13. The row's subject is the
-    // round trip and the v6 refusal, both unaffected; only the number
-    // moved.
-    assert_eq!(editor_core::SCHEMA_VERSION, 14);
+fn row7_instantiate_and_placement_round_trip() {
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r7-part", 0.0, 1.0), Tol::witness());
     let (doc, ids) = assembly("asm2a-r7-asm", &[doc_ref, doc_ref]);
@@ -761,11 +747,6 @@ fn row7_v7_round_trips_and_v6_refuses() {
     );
 
     let text = save(&doc, &[], Tol::witness()).expect("saves");
-    assert_eq!(
-        text.lines().next(),
-        Some(&format!("schema: {}", editor_core::SCHEMA_VERSION)[..]),
-        "a fresh save carries the CURRENT version, whatever bumped it last"
-    );
     let loaded = load(&text, Tol::witness()).expect("loads").doc;
     assert!(loaded.bit_eq(&doc), "the placement round-trips bit for bit");
     assert_eq!(loaded.placements().len(), 1);
@@ -781,21 +762,6 @@ fn row7_v7_round_trips_and_v6_refuses() {
         text,
         "byte-stable"
     );
-
-    assert_eq!(V6.lines().next(), Some("schema: 6"));
-    match load(V6, Tol::witness()) {
-        Err(PersistError::SchemaTooOld {
-            found,
-            supported,
-            missing,
-        }) => {
-            assert_eq!(found, 6);
-            assert_eq!(supported, editor_core::SCHEMA_VERSION);
-            assert_eq!(missing, 6, "the 6 → 7 step is the one that does not exist");
-        }
-        other => panic!("v6 must refuse SchemaTooOld, got {other:?}"),
-    }
-    assert!(editor_core::REGENERATE_RECOURSE.contains("regenerate"));
 }
 
 /// Row 7 (validator half) — a file whose placement names a
@@ -1078,8 +1044,10 @@ fn r1_both_sweep_strategies_agree_on_a_part_carrying_a_boolean() {
 /// own expression — deliberately, because that is the right oracle for
 /// agreement — so it calls `Mat3::rotation_about` itself and both
 /// sides move together. **Any change INSIDE the rotation is invisible
-/// here**, oblique axis and `to_bits()` notwithstanding. Smell-scan
-/// **S215**. The value pins that do object live next to the subject,
+/// here**, oblique axis and `to_bits()` notwithstanding — an oracle
+/// that re-spells its caller's expression moves with the code and pins
+/// nothing about it. The value pins that do object live next to the
+/// subject,
 /// in `geom-core`'s `linalg::mat` test module — the two rows named
 /// `rotation_diagonal_takes_the_square_before_the_scale` and
 /// `rotation_off_diagonals_scale_by_t_before_the_second_component`.

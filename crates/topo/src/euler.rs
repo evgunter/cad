@@ -24,26 +24,29 @@
 //!   footnote, is the bounded-traversal half: no panic, no hang, every
 //!   traversal bounded — plus a typed error where corruption is
 //!   detectable. **A mutation phase announces a failed lookup rather
-//!   than discarding it, at every write in these modules** — and, as
-//!   of D21, at every write in `split_edge`, the attach setters,
-//!   `movefac`, `revert`, `merge_coplanar_faces`' role pass, the
-//!   boolean graft and the splitting carve. That enumeration is the
-//!   claim; it is not "the whole crate", and it has **one named
-//!   exception**: `merge_coplanar_faces`' ring re-homing still
-//!   defaults a failed face lookup to an empty ring list, because its
-//!   key arrives from a loop's back-pointer and no check in the call
-//!   proves it — so its disposition is a typed error rather than a
-//!   panic, and it is open as `SMELL-SCAN-2026-08.md`'s **D88**. Every
-//!   key a
-//!   mutation writes through is either minted in that phase or proven
-//!   live by a check in the same call — here the plan phase, which
-//!   returns [`EulerOpError::StaleKey`] otherwise — and never by the
+//!   than discarding it, at every write in these modules** — and at
+//!   every write in `split_edge`, the attach setters, `movefac`,
+//!   `revert`, `merge_coplanar_faces`, the boolean graft and the
+//!   splitting carve. That enumeration is the claim; it is not "the
+//!   whole crate".
+//!
+//!   **Announcing is the rule; which mechanism announces follows the
+//!   key's provenance.** A key a mutation writes through is either
+//!   minted in that phase or proven live by a check in the same call
+//!   — here the plan phase, which returns
+//!   [`EulerOpError::StaleKey`] otherwise — and never by the
 //!   body's tier-1 validity, which is a whole-body property no single
-//!   call establishes; the writes themselves state
+//!   call establishes; those writes state
 //!   that impossibility as `unreachable!` (the addendum's row 4), and
 //!   the one write helper these modules share
 //!   ([`Body::link_half_edges`]) states it as a precondition its
-//!   callers discharge. The
+//!   callers discharge. A key that arrives instead from an arena
+//!   BACK-POINTER has no such proof available to the call, so its
+//!   plan step announces a typed refusal rather than asserting an
+//!   impossibility it cannot establish (the addendum's row 1) —
+//!   `merge_coplanar_faces`' ring re-homing, whose absorbed-face key
+//!   is a loop's `face`, is the site of that shape inside this
+//!   enumeration. The
 //!   *output* still carries no validity promise on corruption the plan
 //!   phase cannot see — a consistently wrong `parent_loop` makes every
 //!   lookup succeed and write the wrong topology — but that residue is
@@ -96,14 +99,18 @@
 //!   every key patched. **All three understate it.** A refusal raised
 //!   between the transplant's two passes leaves entities holding
 //!   source-internal keys, which in `dst` either dangle or resolve to
-//!   an unrelated live entity. Whoever takes S14 fixes one of three
-//!   copies of the same sentence. So a caller that
+//!   an unrelated live entity. The same sentence is written in three
+//!   places, so a correction has to reach all three. So a caller that
 //!   ignores a graft's `Err` and keeps using `dst` can hand the next
 //!   operator a tier-1-invalid body and fire its postcondition from
 //!   **API misuse rather than a kernel bug**. That is the state class
 //!   D9's footnote asserts cannot occur and the D2 addendum's five
-//!   classes do not cover; it is open as **S14** in
-//!   `docs/SMELL-SCAN-2026-08.md` and is not settled here.
+//!   classes do not cover. **It is an open question in front of Ev,
+//!   not a thing this module settles**: whether the graft can be
+//!   restructured so a partially-written destination is not
+//!   representable — staging into a fresh body and committing on
+//!   success, the shape [`Body::merge_coplanar_faces`] already uses —
+//!   or whether the class gets a name of its own.
 //!
 //!   The D9 taxonomy consequence therefore holds **for every door but
 //!   that one**: these debug panics are
@@ -887,6 +894,65 @@ impl fmt::Display for EulerOpError {
 }
 
 impl std::error::Error for EulerOpError {}
+
+impl EulerOpError {
+    /// Whether this refusal reports a **torn arena** — a body that is
+    /// already tier-1-invalid — rather than a fact about the
+    /// operation that was asked for.
+    ///
+    /// The membership is this enum's own documentation: a variant
+    /// answers `true` exactly when its doc comment says the state is
+    /// tier-1-invalid input, plus the two dangling-reference variants
+    /// whose whole subject is a key that did not resolve. Callers
+    /// that place a refusal — a driver deciding whether to record it
+    /// and carry on, or to refuse — ask here instead of keeping a
+    /// second copy of the list.
+    ///
+    /// The match is exhaustive on purpose: a new variant does not
+    /// compile until someone says which side of this line it is on.
+    #[must_use]
+    pub fn reports_tier1_corruption(&self) -> bool {
+        match self {
+            // A key that did not resolve, whichever arena it names.
+            Self::StaleKey { .. } | Self::StaleGeometry { .. } => true,
+            // The walks that cannot fail on a tier-1-valid body.
+            Self::FanOrbitBroken { .. }
+            | Self::LoopCycleBroken { .. }
+            | Self::OrbitBroken { .. } => true,
+            // A half-edge whose parent loop is empty, and the two
+            // corrupt edge <-> half-edge bijections.
+            Self::LoopNotCycle { .. }
+            | Self::NotSameEdge { .. }
+            | Self::UnclaimedHalfEdge { .. } => true,
+            // "Believed unreachable through valid operator sequences
+            // (the offending inputs are already tier-1-invalid)".
+            Self::EmptyAnchorsCollide { .. } => true,
+            // Facts about the operation that was asked for: a
+            // certification verdict, a site or argument that does not
+            // meet the operator's precondition, a shape the operator
+            // does not cover. Every one of these is legal to meet on
+            // a tier-1-valid body.
+            Self::Certification { .. }
+            | Self::DescriptionNotAdjacent { .. }
+            | Self::FanStartMismatch { .. }
+            | Self::NotSameLoop { .. }
+            | Self::LoopNotEmpty { .. }
+            | Self::SelfLoopEdge { .. }
+            | Self::SameLoop { .. }
+            | Self::NotSameFace { .. }
+            | Self::RingIsOuter { .. }
+            | Self::SameFace { .. }
+            | Self::CrossShell { .. }
+            | Self::FaceHasRings { .. }
+            | Self::SolidNotSingleShell { .. }
+            | Self::ShellNotSingleFace { .. }
+            | Self::NullScaffoldCurve { .. }
+            | Self::SplitParamNotInterior { .. }
+            | Self::SplitParamEscalated { .. }
+            | Self::CrossSolid { .. } => false,
+        }
+    }
+}
 
 /// One operator's signed shift of the seven topology-arena lengths.
 ///

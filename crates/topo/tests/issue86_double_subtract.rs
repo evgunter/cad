@@ -34,7 +34,8 @@ fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
     prism_z::<T>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
 }
 
-fn double_subtract_crossing_slots<T: Decide + geom_core::Bounds>() -> BooleanBody<T> {
+fn double_subtract_crossing_slots<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>()
+-> BooleanBody<T> {
     let a = brick::<T>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0));
     let b1 = brick::<T>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5));
     let BooleanResult::Body(s1) =
@@ -128,7 +129,7 @@ fn kef_cascade_reports_killed_surface() {
         .unwrap();
     let p1 = *body.get_point(body.get_vertex(end).unwrap().point).unwrap();
     let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
-    spec.description = geom_brep::EdgeGeometry::Intersection {
+    spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
         s1: s_plus,
         s2: s_minus,
         witness: p0.lerp(p1, 0.5),

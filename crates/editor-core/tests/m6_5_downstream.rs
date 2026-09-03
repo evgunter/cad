@@ -260,28 +260,34 @@ fn every_fillet_minted_role_resolves_through_the_ladder() {
     );
 }
 
-/// **The boolean consumer, ATTEMPTED and pinned** (M6-5 PR-2
-/// deviation 1).
+/// **The boolean consumer, and the frontier that moved under it.**
 ///
-/// The spec's §5 row is a boolean over a fully filleted body.
-/// The NAMING half is ready — the two rows above show the fillet's
-/// names resolving and composing — but the kernel's boolean cannot
-/// take a body carrying sphere OCTANTS at all: it refuses
-/// `FallbackExtentUnsupported` on the first octant it meets, needing
-/// the closed-group extent certificate (PR 9c) that no per-face
-/// chart-trim extent supplies. The refusal fires even for a DISJOINT
-/// second operand, so it is not about the cut.
+/// The spec's §5 row is a boolean over a fully filleted body. The
+/// NAMING half was ready long before the kernel half: the two rows
+/// above show the fillet's names resolving and composing, while the
+/// kernel's boolean would not take a body carrying sphere OCTANTS at
+/// all — the extent scan refused a trimmed sphere face group on sight,
+/// even for a DISJOINT second operand, so the refusal was not about the
+/// cut.
 ///
-/// That frontier predates M6-5 and is untouched by it. This row pins
-/// it executed — the `m6_composed_node.rs` idiom, which is exactly how
-/// M6-5's own blocker was kept honest for a milestone — so the day the
-/// extent lane reaches sphere groups, this test fails and the real
-/// boolean row replaces it.
+/// It takes one now. A cut sphere face is bounded by latitude rims and
+/// meridian great circles, which is exactly the chart's iso-line class,
+/// so the face is the `[azimuth] × [latitude]` rectangle its boundary
+/// pins; and the closed-group certificate is asked where it is USED
+/// rather than on arrival. The boolean row this pin was holding a place
+/// for is therefore live, and it is what the test now runs: the fillet's
+/// name table is full AND the operation completes.
+///
+/// The fixture's operand is placed off the die's own plane carriers on
+/// purpose. A fillet corner sphere is tangent to the flat faces it
+/// blends, so an axis-aligned neighbour sharing those carriers meets the
+/// scan's touching-configuration arm — an honest frontier, and a
+/// different one (`review_m6_5_pr2_sweep_probes::x4` pins it).
 #[test]
-fn a_boolean_over_a_filleted_body_still_meets_the_extent_frontier() {
+fn a_boolean_over_a_filleted_body_composes_downstream_of_the_fillet() {
     let (doc, _, blank) = filleted_blank();
-    // Disjoint, far away: nothing to intersect, nothing to declare.
-    let (doc, far) = block(&doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
+    // Disjoint, far away, and off the die's own plane carriers.
+    let (doc, far) = block(&doc, (4.0, 5.0), (2.0, 3.0), 2.0, 3.0);
     let (doc, union) = insert(
         &doc,
         Node::Boolean {
@@ -292,21 +298,18 @@ fn a_boolean_over_a_filleted_body_still_meets_the_extent_frontier() {
         },
     );
     let ev = eval(&doc);
-    let Some(NodeResult::Failed(e)) = ev.nodes.get(&union) else {
-        panic!(
-            "the extent frontier moved — replace this pin with the real \
-             downstream-of-fillet boolean row (M6-5 PR-2 deviation 1)"
-        );
-    };
-    match &e.kind {
-        editor_core::NodeErrorKind::Boolean(topo::BooleanError::FallbackExtentUnsupported {
-            ..
-        }) => {}
-        other => panic!("expected the extent frontier, got {other:?}"),
+    match ev.nodes.get(&union) {
+        Some(NodeResult::Failed(e)) => {
+            panic!(
+                "the downstream-of-fillet boolean must compose now: {:?}",
+                e.kind
+            )
+        }
+        Some(_) => {}
+        None => panic!("the union node has no result"),
     }
-    // The naming side is nonetheless ready: the operand's table is
-    // full, so the moment the kernel can take the body, the boolean
-    // emitter has everything it needs.
+    // And the naming side, which was ready first: the operand's table
+    // is full, so the boolean emitter has everything it needs.
     assert_eq!(table_of(&ev, blank).len(), 26 + 48 + 24 + 1);
 }
 
@@ -414,7 +417,7 @@ fn all_edges_materializes_exactly_the_authored_every_edge_set() {
 
 /// The empty case is handed back as empty rather than guessed at: a
 /// node with no value, no table, or no edges yields no names, and the
-/// FILLET is where that refuses (`FilletSelectionEmpty`) — one door
+/// FILLET is where that refuses (`BlendSelectionEmpty`) — one door
 /// for the refusal, not two.
 #[test]
 fn all_edges_of_a_nameless_node_is_empty() {

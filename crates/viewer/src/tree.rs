@@ -21,12 +21,27 @@
 //! Rows follow `Evaluation::order` — the evaluation's own
 //! deterministic topological order, which is a pure function of the
 //! DAG — so the tree a user reads is the order the kernel evaluated
-//! in. Depth is the longest input chain, which makes a node sit below
-//! everything it consumes.
+//! in.
+//!
+//! Depth is the number of BRANCHES a node sits under, not the length
+//! of its input chain. A node continues the line of its PRIMARY input
+//! — the first entry of `Node::inputs()`, which is the operand the
+//! kernel accumulates into: a boolean's `a`, a fillet's `target`, a
+//! transform's `input`. Every other input is a branch that indents:
+//!
+//! ```text
+//! depth(n) = 0                                     if n has no inputs
+//! depth(n) = max(depth(primary),
+//!                max over the other inputs s of depth(s) + 1)
+//! ```
+//!
+//! So a chain of twenty booleans cutting features out of one solid
+//! draws as one column with its tools one level in, rather than a
+//! staircase twenty levels wide.
 
 use std::collections::BTreeMap;
 
-use pncad::document::{Doc, Evaluation, Node, NodeResult, ProfileProgram, RecipeNodeId};
+use pncad::document::{Datum, Doc, Evaluation, Node, NodeResult, ProfileProgram, RecipeNodeId};
 
 /// A node's status, as the tree draws it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -102,6 +117,14 @@ pub struct TreeRow {
 /// The kind name of a recipe node — the node vocabulary's own
 /// spelling, one arm per variant so a new node type cannot fall into a
 /// wildcard and draw as something it is not.
+///
+/// **The datum FLAVOURS are named apart** (`Datum plane`, not
+/// `Datum`), which is the same rule one level down: a plane and a
+/// frame are the same surface differing only in whether the spin about
+/// the normal is pinned, so a tree that called both "Datum" would ask
+/// a reader to tell them apart by clicking. The whole name is the
+/// vocabulary's, not a prose gloss — this string is also what the
+/// delete confirmation and the kind census say.
 pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
     match node {
         Node::Profile(_) => "Profile",
@@ -112,13 +135,19 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Split { .. } => "Split",
         Node::Pattern { .. } => "Pattern",
         Node::PlacedUnion { .. } => "PlacedUnion",
-        Node::Datum(_) => "Datum",
+        Node::Datum(Datum::Plane { .. }) => "Datum plane",
+        Node::Datum(Datum::Frame { .. }) => "Datum frame",
+        Node::Datum(Datum::Axis { .. }) => "Datum axis",
+        Node::Datum(Datum::Point { .. }) => "Datum point",
         Node::Declare { .. } => "Declare",
         Node::Fillet { .. } => "Fillet",
+        Node::Chamfer { .. } => "Chamfer",
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
         Node::InstantiatePart { .. } => "InstantiatePart",
         Node::Mate { .. } => "Mate",
+        Node::Measure { .. } => "Measure",
+        Node::Assertion { .. } => "Assertion",
     }
 }
 
@@ -139,16 +168,7 @@ pub fn rows(doc: &Doc<ProfileProgram>, evaluation: Option<&Evaluation<f64>>) -> 
         let Some(node) = doc.node(id) else {
             continue;
         };
-        // The order is topological, so every input already has its
-        // depth; an input that does not (a node the order omits) reads
-        // as depth 0, which under-indents rather than inventing a
-        // parent.
-        let depth = node
-            .inputs()
-            .iter()
-            .filter_map(|input| depths.get(input))
-            .max()
-            .map_or(0, |d| d + 1);
+        let depth = depth_of(&node.inputs(), &depths);
         depths.insert(id, depth);
         rows.push(TreeRow {
             id,
@@ -160,6 +180,24 @@ pub fn rows(doc: &Doc<ProfileProgram>, evaluation: Option<&Evaluation<f64>>) -> 
         });
     }
     rows
+}
+
+/// A node's indentation, under the module's branch rule: the primary
+/// input's own depth, and one level deeper than every other input.
+///
+/// The order is topological, so every input already has its depth; an
+/// input that does not (a node the order omits) reads as depth 0,
+/// which under-indents rather than inventing a parent.
+fn depth_of(inputs: &[RecipeNodeId], depths: &BTreeMap<RecipeNodeId, usize>) -> usize {
+    let Some((primary, branches)) = inputs.split_first() else {
+        return 0;
+    };
+    let on_the_line = depths.get(primary).copied().unwrap_or(0);
+    branches
+        .iter()
+        .filter_map(|input| depths.get(input))
+        .map(|d| d + 1)
+        .fold(on_the_line, usize::max)
 }
 
 /// The standing caveat for a node, when it has one — the kernel's own

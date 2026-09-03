@@ -33,7 +33,7 @@ use viewer::input::{InputMap, PointerButton, ViewportEvent, ViewportSize};
 use viewer::pick::{IdMap, PickIndex};
 use viewer::props::SlotValue;
 use viewer::scene::DisplayTolerance;
-use viewer::session::{DocSession, Selection, SessionOp};
+use viewer::session::{DocSession, Hovered, Selection, SessionOp};
 use viewer::{cursor_projection, input};
 
 /// This suite's own display tolerance — chosen independently of the
@@ -379,7 +379,7 @@ fn clicks_select_replace_and_clear_and_hover_is_transient() {
     assert_eq!(second.node, b, "single-select: the second pick replaces");
     assert_ne!(first.name, second.name);
     assert_eq!(
-        session.hover().map(|h| h.node),
+        session.hover().map(Hovered::node),
         Some(a),
         "the hover still names A; it is not the selection"
     );
@@ -517,7 +517,7 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
 /// The committed gallery ring, re-stamped to this run's ε the same way
 /// the doc-io suite's rows are (ε is the file's only ε-dependent byte;
 /// that claim has its own gate there).
-const GALLERY_RING: &str = include_str!("gallery_ring.v14.pncad");
+const GALLERY_RING: &str = include_str!("gallery_ring.pncad");
 
 fn ring_at(tol: Tol) -> String {
     let probe: Doc<ProfileProgram> = Doc::empty_derived("gui2-r1-eps-probe", tol);
@@ -622,7 +622,7 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
         .expect("the click selected a ring face")
         .clone();
     assert_eq!(
-        session.hover().map(|h| h.name.clone()),
+        session.hover().map(|h| h.name().clone()),
         Some(face.name.clone()),
         "hover and click answered the same cursor the same way"
     );

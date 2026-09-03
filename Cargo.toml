@@ -5,10 +5,12 @@ resolver = "3"
 # tools/ holds CI tooling (the k-lint fragility lint) — same posture:
 # lint policy must never become a workspace dependency.
 # benches/ is the criterion harness (PERF-PLAN §5); same posture again —
-# criterion's 44 transitive crates must never enter `cargo nextest archive
+# criterion's dependency tail must never enter `cargo nextest archive
 # --workspace` or `cargo clippy --workspace --all-targets`, which is to say
-# the two build jobs and both clippy rows of every code-tier PR. That
-# manifest states the exclusion's full price.
+# the two build jobs and both clippy rows of every code-tier PR. How big
+# that tail is is counted once, in `benches/Cargo.toml`, and deliberately
+# not restated here: two copies of one count drift apart independently and
+# nothing reads either. That manifest states the exclusion's full price.
 # interval-transcendentals/ is the `interval` feature's backend (M5 PR 1)
 # and IS depended on by geom-core, but stays a separate workspace root on
 # purpose: its differential-certification oracle is a gmp-backed inari
@@ -35,6 +37,7 @@ members = [
     "crates/sweep",
     "crates/test-utils",
     "crates/topo",
+    "crates/verbs",
     "crates/viewer",
 ]
 

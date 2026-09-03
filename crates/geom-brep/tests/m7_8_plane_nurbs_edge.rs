@@ -27,7 +27,7 @@ use geom::{Curve3, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{
-    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry, EdgeNurbsLane, PlaneNurbsRefusal,
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, EdgeNurbsLane, PlaneNurbsRefusal,
 };
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
@@ -228,7 +228,7 @@ fn door_spec(
     (
         move |k| arena.get(k).cloned(),
         EdgeCurveSpec {
-            description: EdgeGeometry::Intersection { s1, s2, witness },
+            description: EdgeDescriptionSpec::Intersection { s1, s2, witness },
             carrier,
             param_start: 0.0,
             param_end: 1.0,

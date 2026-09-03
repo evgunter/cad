@@ -1,6 +1,6 @@
 # Assembly Design — instances, mates, and the document seam
 
-**Status: RATIFIED (Evan's lgtm on PR #333, 2026-08-10; design
+**Status: RATIFIED (Ev's lgtm on PR #333, 2026-08-10; design
 conversation of record: #328).** This document ratifies Band 3's assembly architecture inside the frame
 already settled elsewhere, and it deliberately re-litigates none of
 it:
@@ -19,7 +19,7 @@ ladder below names homes, and the program that worked through it is
 the ASM program, CLOSED at v1 scope — its done-state of record
 is `docs/ASM-EXIT-WALK.md`. Chat/issue rulings
 incorporated: the scope ladder, materialized evaluation, and the
-key-identity relaxation are Evan's calls of 2026-08-09/10 (#328).
+key-identity relaxation are Ev's calls of 2026-08-09/10 (#328).
 
 ## A1 — The scope ladder
 
@@ -59,7 +59,7 @@ non-connected** (F8 already makes disjoint multi-shell bodies
 tier-2-legal). `build(params) → Result<Body, ModelError>` extends
 to assemblies verbatim; every existing consumer — tier gates, mass
 properties, census, tessellation, export — takes the result with
-no new kernel vocabulary. (Evan's framing, ratified in the #328
+no new kernel vocabulary. (Ev's framing, ratified in the #328
 conversation: *inside the kernel, an assembly is the exact same
 thing as a non-connected body; the split into files is metadata.*)
 
@@ -172,7 +172,7 @@ pins the verification detail).
   mate edge crossing the cut becomes the interface record in the
   remainder — (pin, wrapped name, declaration) — i.e. **the seam is
   the crossing declarations**. Inline is the inverse. Acceptance
-  (Evan's ruling, 2026-08-10): split-then-evaluate ≡ unsplit
+  (Ev's ruling, 2026-08-10): split-then-evaluate ≡ unsplit
   evaluation at **structural + name-resolution identity** — same
   topology and geometry semantically, every stable name resolving
   identically; arena-key/bit identity is not required (matching
@@ -208,7 +208,7 @@ pins the verification detail).
 - **Undeclared contact between instances is a hard error**, never
   blessed — F1's scan-to-bless ban applies across the document seam
   exactly as within it.
-- **The connectedness lint** (LONGTERM-IDEAS I1(0b), Evan
+- **The connectedness lint** (LONGTERM-IDEAS I1(0b), Ev
   2026-08-10): warn when a body has more disconnected components
   than its structure expects; assembly/file-split structure is the
   natural expectation source. Advisory lane, not a gate; recorded
@@ -243,7 +243,7 @@ Cheap to honor now, expensive to retrofit; each names its source:
   referencing an assembly neighbor's face arrives as the
   captured-context object — wrapper-plus-pin again, held by the
   part document. Nothing here forecloses it (AQ5).
-- **Fastener relation bundles** (Evan, #356): a modeled bolt
+- **Fastener relation bundles** (Ev, #356): a modeled bolt
   closes physical loops through several contacts (shank coaxials,
   head rest, thread fit) — a predefined fastener relation is a
   compound declaration TEMPLATE over the existing mate vocabulary
@@ -252,7 +252,7 @@ Cheap to honor now, expensive to retrofit; each names its source:
   each expanded declaration is an ordinary A3 mate, so nothing in
   A11 changes; the bundle just authors the loop's declarations in
   one gesture and names their shared provenance. The bundle is
-  also the intended home of the CROSS-CHAIN COUPLING (Evan, #356):
+  also the intended home of the CROSS-CHAIN COUPLING (Ev, #356):
   when two chains of parts determine the same quantity (bolt
   shoulder vs gasket stack), by-construction agreement means the
   definitions SHARE A PARAMETER — cross-document parameter
@@ -289,7 +289,7 @@ Cheap to honor now, expensive to retrofit; each names its source:
 
 ## A9 — Relative freedom is component structure
 
-**(Evan, chat 2026-08-10, post-ratification addendum; graph
+**(Ev, chat 2026-08-10, post-ratification addendum; graph
 simplified same day — no derived graph, the recipe DAG itself.)**
 The document's ordinary recipe DAG already partitions into disjoint
 connected components: a `Mate` references both its instances, a
@@ -313,7 +313,7 @@ plain recipe DAG needs no carve-out.
   parts relative to each other — acts on whole components: between
   components, orientation is free; within one, relative pose is
   mate-derived, so a drag moves the whole component or refuses.
-- **Anchor frames are never erased** (Evan's ruling). Each component
+- **Anchor frames are never erased** (Ev's ruling). Each component
   keeps its authored explicit frames as ordinary recipe data: the
   component partition is what makes relative freedom *derivable*,
   not an absence of frames. Evaluation therefore stays A2's one
@@ -332,7 +332,7 @@ plain recipe DAG needs no carve-out.
 
 ## A10 — Explicit product roots (strict)
 
-**(Evan, chat 2026-08-10.)** Shipped documents have NO product
+**(Ev, chat 2026-08-10.)** Shipped documents have NO product
 notion: every node evaluates, and every consumer addresses a node
 id per call. A10 gives documents one. The document tracks an
 **ordered list of product roots** (node ids) as document data —
@@ -375,7 +375,7 @@ never a DAG node — maintained by recorded `DocEdit`s.
 ## A11 — The constructive-solve boundary (discharges AQ3)
 
 **(The AQ3 working session, 2026-08-10; REVISED same day per
-Evan's #356 review — placement moved to the cluster level so
+Ev's #356 review — placement moved to the cluster level so
 anchor-count errors are unrepresentable, and mates split into
 determining/declaring so redundant-consistent loops verify instead
 of refusing.)** The v1 line between rung (b) and rung (c), stated
@@ -401,7 +401,7 @@ inspection, no numerics beyond decided predicates. Five rules:
    A10 registry already keeps — instances carry no explicit frame
    of their own; a lone unmated instance is the singleton case of
    the same field. Consequences: zero-anchor and multi-anchor
-   states are **unrepresentable** (Evan's ask); joining two
+   states are **unrepresentable** (Ev's ask); joining two
    clusters with a new mate is ONE recorded edit (the surviving
    cluster keeps its frame, the absorbed cluster's frame is
    consumed into the edit record — undo restores it); deleting a
@@ -458,7 +458,7 @@ inspection, no numerics beyond decided predicates. Five rules:
    declaring mates mint their records like any declaration (A3)
    after verification.
 
-**Member vocabulary (rider, ratified 2026-08-23 — Evan's
+**Member vocabulary (rider, ratified 2026-08-23 — Ev's
 approval in-session; the #945 conversation)**: a mate reference
 head is a live `InstantiatePart` OR a pattern-placed instance —
 the Pattern node with its `Instance(i)` qualifier. A
@@ -483,8 +483,6 @@ Named v1 losses, honest and banked by A1: cross-edge cancellation
 (UNDER tree edges whose composition would determine) refuses to
 rung (c); loop CERTIFICATION beyond the C2 verification tables
 (e.g. in-band closures) escalates per C4 rather than resolving.
-The member-vocabulary rider is ratified ahead of its
-implementation, which is banked (#945).
 
 ## A13 — Update granularity (discharges AQ2)
 

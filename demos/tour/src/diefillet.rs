@@ -32,14 +32,27 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use core::f64::consts::{FRAC_PI_2, PI, TAU};
+// **This document is written in MILLIMETRES and DEGREES**, and it is
+// the MIXED half of the units exhibit: `ring` authors one unit
+// throughout, `heatsink` and `checks` author canonically, and this one
+// carries two units and a dimensionless axis in the same recipe.
+//
+// It also shows the OTHER authoring door. `ring` types its numbers in
+// the unit it means (`WrittenLength::in_unit(300.0, MM)`); every length
+// here is DERIVED from the die's geometry, already in canonical metres,
+// and only its notation is being chosen — which is `canonical_in`, and
+// is exactly the shape a GUI form has, where the draft is canonical
+// whatever the picker shows.
 
-use pncad::document::{BooleanOp, BooleanValue};
+use core::f64::consts::PI;
+
+use pncad::document::{BooleanOp, BooleanValue, save};
 use pncad::prelude::{
-    CancelToken, CurveKind, CurveKindSet, Datum, Dimension, Doc, DocEdit, EntityKind, EvalOptions,
-    Evaluation, Expr, GeomPred, LoopProgram, NamePat, Node, Point3, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SketchPlane, SurfaceKind, SurfaceKindSet,
-    ValuePayload, Vec3, all_edges, apply, evaluate, select_where,
+    CancelToken, CurveKind, CurveKindSet, DEG, Datum, Dimension, Doc, DocEdit, EntityKind,
+    EvalOptions, Evaluation, Expr, GeomPred, LoopProgram, MM, NamePat, Node, Point3,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
+    SketchPlane, SurfaceKind, SurfaceKindSet, ValuePayload, Vec3, WrittenAngle, WrittenLength,
+    all_edges, apply, evaluate, select_where,
 };
 use pncad::topo::Body;
 
@@ -60,11 +73,14 @@ const PIP_R: f64 = 0.09;
 const PIP_H: f64 = 0.05;
 const PIP_D: f64 = 0.22;
 
+/// A length, written in the millimetres this document is authored in.
 fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("a length")
+    Expr::written_length(WrittenLength::canonical_in(v, MM)).expect("a length")
 }
-fn ang(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).expect("an angle")
+/// An angle the face table states IN DEGREES — a quarter turn is `90`,
+/// and the recipe says so.
+fn ang(degrees: f64) -> Expr {
+    Expr::written_angle(WrittenAngle::in_unit(degrees, DEG)).expect("an angle")
 }
 fn scl(v: f64) -> Expr {
     Expr::literal(v, Dimension::Scalar).expect("a scalar")
@@ -97,6 +113,8 @@ fn layout(n: u32) -> Vec<(f64, f64)> {
 struct Placement {
     centre: [f64; 3],
     axis: [f64; 3],
+    /// The rotation carrying +Z onto the face's normal, in DEGREES —
+    /// the unit the face table states and the recipe records.
     angle: f64,
 }
 
@@ -111,14 +129,16 @@ fn placements() -> Vec<Placement> {
     let h = L / 2.0;
     // pip count, outward normal, the two in-plane axes the layout
     // offsets ride, then the axis and angle carrying +Z onto that
-    // normal.
+    // normal. The angle column is DEGREES — these are quarter and half
+    // turns, and a table of `90`s and `180`s is the table a reader can
+    // check against the die in their hand.
     let faces = [
         (1u32, Z, X, Y, Z, 0.0),
-        (6, NEG_Z, X, Y, X, PI),
-        (2, X, Y, Z, Y, FRAC_PI_2),
-        (5, NEG_X, Y, Z, Y, -FRAC_PI_2),
-        (3, Y, Z, X, X, -FRAC_PI_2),
-        (4, NEG_Y, Z, X, X, FRAC_PI_2),
+        (6, NEG_Z, X, Y, X, 180.0),
+        (2, X, Y, Z, Y, 90.0),
+        (5, NEG_X, Y, Z, Y, -90.0),
+        (3, Y, Z, X, X, -90.0),
+        (4, NEG_Y, Z, X, X, 90.0),
     ];
     let mut out = Vec::new();
     for (n, normal, ex, ey, axis, angle) in faces {
@@ -234,16 +254,21 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
         Node::Revolve {
             profile: ball_p,
             axis,
-            angle: ang(TAU),
+            // A full turn, in the degrees this document is written in.
+            angle: ang(360.0),
         },
         tol,
     );
 
     // ---- 21 placements, unioned into ONE cutting tool ----
-    // The group discipline is load-bearing, not a flourish: cutting
-    // the pips one at a time would present a body already carrying a
-    // TRIMMED sphere face as the next operand, which S13 refuses (the
-    // extent certificate needs the closed group).
+    // The group discipline used to be load-bearing: cutting the pips
+    // one at a time presented a body already carrying a TRIMMED sphere
+    // face as the next operand, which the extent scan refused. It is a
+    // CHOICE now — a trimmed sphere face is served through the sphere
+    // chart's own [azimuth] × [latitude] window, and the closed-group
+    // certificate is asked only where it is used — and the reason to
+    // keep it is the one below, which is about the recipe layer rather
+    // than the kernel.
     //
     // NAMED GAP (2026-08-14): the recipe layer's only way to assemble
     // a multi-shell body is a PAIRWISE `Node::Boolean(Union)`, so a
@@ -292,10 +317,12 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
 /// **The source solid as BODIES** — `(sharp cube, pipped cube)` off
 /// one evaluation of the shared recipe above.
 ///
-/// `diechamfer` starts here: its verb has no recipe node to be
-/// (`Node::fillet` has no chamfer sibling), so it cannot continue this
-/// document and takes the source out as geometry instead. What it can
-/// share is the model above the blends, and this is that door.
+/// `diechamfer` starts here: it exercises `chamfer_edges` from the
+/// PLAIN-body seat, so it takes the source out as geometry rather than
+/// continuing this document. (`Node::Chamfer` exists since LIB-G16 —
+/// that scene's choice is about which seat it is evidence for, not
+/// about an absent node.) What it can share is the model above the
+/// blends, and this is that door.
 pub fn source_bodies(tol: Tol) -> (Body<f64>, Body<f64>) {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("die-source", tol);
     let cube = cube_node(&mut doc, tol);
@@ -409,13 +436,113 @@ fn blank_volume() -> f64 {
         + (4.0 / 3.0) * PI * R.powi(3)
 }
 
-/// This scene's recipe, as a document the GUI can open.
+/// The document label [`build`] authors under, and therefore the
+/// identity the exported save file replays from.
+const DOC_LABEL: &str = "die";
+
+/// **The composed die as a SAVE FILE**, so this scene stays the one
+/// place the model is written down.
+///
+/// `crates/editor-core`'s Band 4 corpus registers this document. That
+/// crate cannot call [`build`] — `demos/tour` is a detached cargo
+/// workspace and the kernel must never depend on demo tooling — so the
+/// document crosses as BYTES: written here, committed there,
+/// regenerated by this door.
+///
+/// The file is an ordinary `.pncad`, written through the same
+/// `document::save` the gallery uses, but with the EMPTY document as
+/// snapshot and the whole model as an edit LOG. That split is what
+/// makes the bytes usable at a tolerance other than the one they were
+/// written at: a snapshot records its ε and refuses to load against a
+/// different process ε, while an edit log records none — so a consumer
+/// that replays the log into a document of its own gets the same
+/// recipe at every ε row.
+///
+/// The exported document is [`gallery_document`]'s — the scene as a
+/// DOCUMENT, blank fillet deleted — and for that function's own
+/// reason, which does not stop being true when the consumer is a test
+/// corpus instead of a viewer. A corpus evaluates, gathers and
+/// round-trips its documents; a second root sitting exactly on the
+/// first is the #1162 defect there too.
+///
+/// The log is DERIVED from the built document rather than recorded
+/// beside it, and the derivation is exact because [`build`] mints every
+/// node through one `InsertNode` against the empty document: ids are
+/// minted in insertion order, so replaying `order()`'s nodes and then
+/// the same deletion rebuilds the document — ids and all, hole
+/// included. That is asserted here rather than assumed: a `build` that
+/// grows a non-insert edit fails this door instead of quietly
+/// exporting a document that is not the one the scene renders.
+pub fn corpus_text(tol: Tol) -> String {
+    let die = build(tol);
+    let empty: Doc<ProfileProgram> = Doc::empty_derived(DOC_LABEL, tol);
+    let mut edits: Vec<DocEdit<ProfileProgram>> = die
+        .doc
+        .order()
+        .iter()
+        .map(|id| DocEdit::InsertNode {
+            node: die.doc.node(*id).expect("an ordered node exists").clone(),
+        })
+        .collect();
+    edits.push(DocEdit::DeleteNode { id: die.blank });
+    let mut replay = empty.clone();
+    for edit in &edits {
+        replay = apply(&replay, edit, tol)
+            .expect("the derived log replays")
+            .doc;
+    }
+    assert_eq!(
+        replay,
+        gallery_document(tol),
+        "the derived log must reproduce the document this scene publishes"
+    );
+    save(&empty, &edits, tol).expect("the die document saves")
+}
+
+/// This scene's recipe, as a document the GUI can open — **the
+/// composed die, and only it**.
 ///
 /// The same `build` the stops walk, geometric selections and all: what
 /// a reader opens in the viewer is the document this scene renders,
-/// not a re-authoring of it.
+/// not a re-authoring of it. One node is then DELETED, and the reason
+/// is the difference between a tour and a document.
+///
+/// # Why the blank is not in the file
+///
+/// The scene has three stops and `build` authors all three, because a
+/// stop renders ONE named body and three stops need three of them.
+/// [`Die::blank`] is a second fillet of the same cube, consumed by
+/// nothing — a narration body, and a DAG sink.
+///
+/// A document is not a tour. Its product is the gather of every root,
+/// the root set is exactly the sink set (`editor_core::roots`:
+/// coverage plus ancestor-freedom), so a sink authored for narration
+/// is a product root whether or not the scene means it as one. The
+/// blank is the composed die's own outer shape with no pips cut, so
+/// the two roots sit exactly on each other: the blank's material plugs
+/// every pip cavity, the outer faces z-fight, and the product's volume
+/// counts the same material twice (115 faces, V = 1.918146 ≈ 2 ×
+/// 0.952915). That is the gallery bug #1162 diagnosed. What #1162
+/// landed is the separation resident that REPORTS it — deliberately,
+/// because a viewer must keep drawing a document a modeller is trying
+/// to fix. Nothing was ever going to make this file draw the die.
+///
+/// So the file carries the scene's SUBJECT — "the composed die, which
+/// remains the sheet's die" (Ev's montage curation, #218 follow-up,
+/// which already ruled the two partial dice out of the sheet for
+/// reading as near-duplicates). The blank keeps its stop, its
+/// narration and its render; what it loses is a second root in one
+/// `.pncad`, where it could only ever be an obstruction.
+///
+/// The deletion goes through the ordinary edit door, so the root list
+/// is maintained by `roots::on_delete` rather than asserted here, and
+/// the remaining document is exactly the recipe that builds the die:
+/// 49 nodes, one root, 89 faces, V = 0.952915, no separation finding.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
-    build(tol).doc
+    let die = build(tol);
+    apply(&die.doc, &DocEdit::DeleteNode { id: die.blank }, tol)
+        .expect("the blank is a sink: deleting it drops a root and uncovers nothing")
+        .doc
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
@@ -474,7 +601,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Stop {
             name: "diefillet",
             caption: "the die blank (rolling-ball fillets)".to_string(),
-            // Standalone since the montage-v2 curation (Evan, #218
+            // Standalone since the montage-v2 curation (Ev, #218
             // follow-up): the two PARTIAL dice — the blank and the
             // pipped cube — are interesting for how they work (the
             // battery, the closed-group cut), but without that context
@@ -513,13 +640,15 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                   charted with its pole along the face it is cut by",
             delta: 5e-3,
             note: Some(format!(
-                "cutting the pips one at a time would present a TRIMMED sphere face as the \
-                 next operand, which S13 refuses typed (the extent certificate needs the \
-                 closed-group discipline); charting a ball with a tilted pole would make the \
-                 plane×sphere section non-polar, which the split-join refuses typed. Doing \
-                 both right makes it one certified operation: V = {pip_vol:.6} m³. At M5 \
-                 this and the blank were the die's two halves; the next stop is M6's \
-                 composition surgery joining them"
+                "cutting the pips one at a time used to present a TRIMMED sphere face as \
+                 the next operand, which the extent scan refused typed; the sphere chart's \
+                 [azimuth] × [latitude] window serves that face now, so the group cut here \
+                 is a CHOICE the recipe layer's pairwise-union shape makes convenient, not \
+                 a requirement. Charting a ball with a tilted pole still makes the \
+                 plane×sphere section non-polar, which the split-join refuses typed. One \
+                 certified operation either way: V = {pip_vol:.6} m³. At M5 this and the \
+                 blank were the die's two halves; the next stop is M6's composition \
+                 surgery joining them"
             )),
             view: View {
                 elev: 26.0,

@@ -90,6 +90,20 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
         // 0.16 to 0.73, and the one mechanism that could invert it is
         // the per-cell `ceil` named just below.)
         //
+        // (THE 56, THE 64 AND THAT RANGE ARE A READING OF THE COMMITTED
+        // BASELINE, NOT OF THIS FIXTURE, AND NOTHING RE-TAKES THEM.
+        // `docs/tess-budget-data/` is re-cut deliberately, by
+        // `scripts/tess_budget_sweep.sh`, and every re-cut moves these
+        // three — a scene added to the tour changes them without
+        // touching this file, and no run compares them against anything.
+        // They are here to say why the missing assertion is a judgement
+        // about REACH rather than an oversight, and that argument holds
+        // at any distribution in which multi-cell faces are common. A
+        // reader who needs the current figures reads the baseline, which
+        // carries its own `# tess-budget-cut:` line naming the tree it
+        // came from; that stamp is the guard on the reading's age, and
+        // it is a guard this comment does not have.)
+        //
         // (No `grid_cells <= patch_cells` assertion either: the
         // per-cell schedule pays a `ceil` per cell, and a face with
         // many near-empty cells can honestly cost a few cells MORE

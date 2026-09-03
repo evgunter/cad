@@ -9,7 +9,7 @@
 //! to compare it against. So the carrier is **evidence**: adopted as
 //! stated, then certified against both surfaces, and refused typed
 //! with the measured bound when it does not hold up. That is the
-//! ratified shape (Evan, PR #264) and it is what this module
+//! ratified shape (Ev, PR #264) and it is what this module
 //! implements — never a fit, never a widened gate.
 //!
 //! # What the lane proves
@@ -62,7 +62,7 @@
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
-use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Real, Vec3};
+use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Real, Vec3};
 
 use crate::certify::CERT_SAMPLES;
 use crate::ssi::{SsiError, SsiLimb, SsiOperand, TubeScale, certify_rung3};
@@ -266,52 +266,43 @@ fn lane<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
                    surface to certify against",
         });
     }
-    let (t0, t1) = carrier.domain();
 
     // ---- The fixed schedule: foot points, and the normal angle. ----
-    // D9-fixed and a SUPERSET of the certificate's own schedule
-    // ([`PXN_FIT_SAMPLES`]), so limb 1 re-projects at parameters the
-    // chart image passes through exactly.
-    let mut uv = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
-    let mut params = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
+    // The feet and the image are `chart_image`'s, which is also the
+    // pcurve mint's producer: ONE derivation of this image exists in
+    // the tree, and this lane certifies the same bits the mint stores.
+    // The transversality sweep rides the same walk as a per-sample
+    // hook, so the ORDER in which the two refusals can fire is exactly
+    // what it was when the two loops were one.
     let mut min_sin = T::from_f64(f64::MAX);
-    for i in 0..PXN_FIT_SAMPLES {
-        let frac = f64::from(i) / f64::from(PXN_FIT_SAMPLES - 1);
-        let t = t0 + (t1 - t0) * frac;
-        let p = carrier.eval(T::from_f64(t));
-        let proj = wall
-            .project(p)
-            .map_err(|e| PlaneNurbsRefusal::FootPointInconclusive {
-                sample: i,
-                last_distance: e.last_distance,
-            })?;
-        uv.push(Point2::new(proj.u, proj.v));
-        params.push(frac);
+    let pcurve = chart_image(carrier, wall, |i, foot| {
         // Transversality at the INTERIOR samples only: an endpoint is
         // shared with the neighbouring edges, where a vanishing angle
         // is a vertex fact rather than this edge's — the analytic
         // `Intersection` arm's own convention, kept verbatim.
-        if i > 0 && i < PXN_FIT_SAMPLES - 1 {
-            let jet = wall.ders(T::from_f64(proj.u), T::from_f64(proj.v));
-            let sin_theta = normal_angle_sine(normal, jet.du.cross(jet.dv));
-            // Metered at the analytic side's lever arm: a plane's own
-            // curvature arm is infinite, so the honest arm is the
-            // edge's spatial extent — the same meter the analytic
-            // `Intersection` arm hands `classify_dihedral`.
-            let margin = geom_core::Margin::levered(sin_theta, extent);
-            match crate::dihedral::decide("plane_nurbs_transversality", margin, band) {
-                Ok(geom_core::Sign::Positive) => {}
-                Ok(geom_core::Sign::Zero | geom_core::Sign::Negative) => {
-                    return Err(PlaneNurbsRefusal::NotTransverse { sample: i });
-                }
-                Err(cause) => return Err(PlaneNurbsRefusal::Escalated(cause)),
-            }
-            // `Real::min` PROPAGATES poison (unlike `f64::min`, which
-            // returns the non-NaN operand), so a poisoned sine cannot
-            // be dropped out of this fold — it reaches the guard below.
-            min_sin = min_sin.min(sin_theta);
+        if i == 0 || i == PXN_FIT_SAMPLES - 1 {
+            return Ok(());
         }
-    }
+        let jet = wall.ders(T::from_f64(foot.x), T::from_f64(foot.y));
+        let sin_theta = normal_angle_sine(normal, jet.du.cross(jet.dv));
+        // Metered at the analytic side's lever arm: a plane's own
+        // curvature arm is infinite, so the honest arm is the
+        // edge's spatial extent — the same meter the analytic
+        // `Intersection` arm hands `classify_dihedral`.
+        let margin = geom_core::Margin::levered(sin_theta, extent);
+        match crate::dihedral::decide("plane_nurbs_transversality", margin, band) {
+            Ok(geom_core::Sign::Positive) => {}
+            Ok(geom_core::Sign::Zero | geom_core::Sign::Negative) => {
+                return Err(PlaneNurbsRefusal::NotTransverse { sample: i });
+            }
+            Err(cause) => return Err(PlaneNurbsRefusal::Escalated(cause)),
+        }
+        // `Real::min` PROPAGATES poison (unlike `f64::min`, which
+        // returns the non-NaN operand), so a poisoned sine cannot
+        // be dropped out of this fold — it reaches the guard below.
+        min_sin = min_sin.min(sin_theta);
+        Ok(())
+    })?;
     // FAIL LOUD on a poisoned aggregate. A NaN sine cannot reach here
     // today — the per-sample `decide` above escalates on its levered
     // margin first — but the reported transversality must not depend on
@@ -326,14 +317,6 @@ fn lane<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             predicate: Some("plane_nurbs_transversality_reported"),
         }));
     }
-
-    // ---- The derived chart image, on the carrier's own parameter. ----
-    // Interpolation (not approximation) so the image is exact at every
-    // foot; the interpolation runs in C6's `f64` structure lane and is
-    // lifted, and limb 2 is what certifies the result (module docs).
-    let image = NurbsCurve2::<f64>::interpolate_with_params(&uv, PXN_IMAGE_DEGREE, &params)
-        .map_err(|_| PlaneNurbsRefusal::PcurveFit)?;
-    let pcurve = on_carrier_domain(&image, t0, t1).ok_or(PlaneNurbsRefusal::PcurveFit)?;
 
     // ---- The rung-3 door: all three limbs, both operands. ----
     let localized = localized(wall);
@@ -354,6 +337,128 @@ fn lane<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         tube_boxes: cert.tube_boxes,
         min_sin_theta: min_sin,
     })
+}
+
+/// **The chart image of a declared carrier on a NURBS wall** — the one
+/// derivation of this object in the tree.
+///
+/// The foot points of the D9-fixed [`PXN_FIT_SAMPLES`] schedule,
+/// interpolated (not approximated, so the image is exact at every foot)
+/// at [`PXN_IMAGE_DEGREE`] on the carrier's own parameter: the OQ4
+/// identity, `P(t)` and `C(t)` the same `t` by construction. The
+/// interpolation runs in C6's `f64` structure lane and is lifted to
+/// `T`; nothing here is certified, and nothing here needs to be — the
+/// image is EVIDENCE, and what makes it sound is that its consumer
+/// bounds `sup_t |S(P(t)) − C(t)|` over the whole span (module docs).
+///
+/// **Two consumers, one producer.** [`lane`] certifies the image as
+/// part of the plane × NURBS edge certificate at ADOPT time;
+/// [`crate::PcurveFittedLane::general_image`] hands the same image to
+/// the pcurve mint, where it becomes a stored
+/// [`crate::Pcurve::General`] cache certified through
+/// [`crate::PcurveCache::certify_general`]. They must be the same bits
+/// — an edge whose certificate was derived from one image and whose
+/// cache stores another would be certifying a curve the body does not
+/// carry — so there is one producer and both call it.
+///
+/// `per_sample` is a hook run at every schedule sample in order, with
+/// the sample index and its foot; it is where [`lane`] puts its
+/// transversality sweep, so that adding this second consumer did not
+/// move the order in which two refusals of the same run can fire. The
+/// mint passes a hook that does nothing.
+///
+/// # Errors
+///
+/// [`PlaneNurbsRefusal::FootPointInconclusive`] at the first sample
+/// whose projection does not converge (never a best-effort foot),
+/// [`PlaneNurbsRefusal::PcurveFit`] for a degenerate interpolation, or
+/// whatever `per_sample` returns.
+pub(crate) fn chart_image<T, F>(
+    carrier: &NurbsCurve3<T>,
+    wall: &NurbsSurface<T>,
+    mut per_sample: F,
+) -> Result<NurbsCurve2<T>, PlaneNurbsRefusal>
+where
+    T: Decide + Bounds + geom_core::CertifiedEnclosure,
+    F: FnMut(u32, Point2<f64>) -> Result<(), PlaneNurbsRefusal>,
+{
+    if wall.is_placeholder() {
+        // The same refusal [`lane`] states before it gets here, kept at
+        // the producer too: the mvfs placeholder is a mid-surgery "no
+        // description yet" fact, and projecting onto it would return
+        // feet of a surface that does not exist. `lane` still checks
+        // first, so its own refusal ORDER is unchanged.
+        return Err(PlaneNurbsRefusal::Unsupported {
+            what: "the mvfs placeholder is a mid-surgery 'no description yet' fact, never a \
+                   surface to derive a chart image on",
+        });
+    }
+    let (t0, t1) = carrier.domain();
+    // The schedule is a SUPERSET of the certificate's own
+    // ([`CERT_SAMPLES`] divides it), so limb 1 re-projects at
+    // parameters the image passes through exactly.
+    let mut uv = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
+    let mut params = Vec::with_capacity(PXN_FIT_SAMPLES as usize);
+    for i in 0..PXN_FIT_SAMPLES {
+        let frac = f64::from(i) / f64::from(PXN_FIT_SAMPLES - 1);
+        let t = t0 + (t1 - t0) * frac;
+        let p = carrier.eval(T::from_f64(t));
+        let proj = wall
+            .project(p)
+            .map_err(|e| PlaneNurbsRefusal::FootPointInconclusive {
+                sample: i,
+                last_distance: e.last_distance,
+            })?;
+        let foot = Point2::new(proj.u, proj.v);
+        uv.push(foot);
+        params.push(frac);
+        per_sample(i, foot)?;
+    }
+    let image = NurbsCurve2::<f64>::interpolate_with_params(&uv, PXN_IMAGE_DEGREE, &params)
+        .map_err(|_| PlaneNurbsRefusal::PcurveFit)?;
+    on_carrier_domain(&image, t0, t1).ok_or(PlaneNurbsRefusal::PcurveFit)
+}
+
+/// **The certified foot of ONE point** on a NURBS wall, in the wall's
+/// own chart coordinates — [`chart_image`]'s single-sample sibling,
+/// with the same producer (`NurbsSurface::project`, D9-fixed) and the
+/// same `f64` structure lane.
+///
+/// Its consumer is the pcurve mint's rim arms, which need to know WHERE
+/// on the chart an edge's endpoint actually lands rather than assuming
+/// it lands on a knot-domain end. One foot rather than the image's 33,
+/// because those arms already know the SHAPE of their image (a chart
+/// row or column) and are only missing its position.
+///
+/// Certifies nothing by itself, exactly as [`chart_image`] does not:
+/// the caller offers the result to its own metre-valued check and the
+/// full iso certification follows.
+///
+/// # Errors
+///
+/// [`PlaneNurbsRefusal::FootPointInconclusive`] when the projection
+/// will not converge (never a best-effort foot), or
+/// [`PlaneNurbsRefusal::Unsupported`] on the mvfs placeholder.
+pub(crate) fn chart_foot<T>(
+    point: Point3<T>,
+    wall: &NurbsSurface<T>,
+) -> Result<Point2<f64>, PlaneNurbsRefusal>
+where
+    T: Decide + Bounds + geom_core::CertifiedEnclosure,
+{
+    if wall.is_placeholder() {
+        return Err(PlaneNurbsRefusal::Unsupported {
+            what: "the mvfs placeholder is a mid-surgery 'no description yet' fact, never a \
+                   surface to derive a chart image on",
+        });
+    }
+    let proj = wall
+        .project(point)
+        .map_err(|e| PlaneNurbsRefusal::FootPointInconclusive {
+            sample: 0,
+            last_distance: e.last_distance,
+        })?;
+    Ok(Point2::new(proj.u, proj.v))
 }
 
 /// How many knot spans per direction the wall is refined to before the

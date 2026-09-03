@@ -227,7 +227,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
     .expect("deleting a node a NAME references is allowed (N5)")
     .doc;
     refuses(&after, fillet, |kind| match kind {
-        NodeErrorKind::FilletSelectionResolve { error } => match error.as_ref() {
+        NodeErrorKind::BlendSelectionResolve { error, .. } => match error.as_ref() {
             ResolveError::NodeGone { name, edit } => {
                 assert_eq!(name.node, spare_id);
                 assert!(
@@ -250,7 +250,7 @@ fn a_selection_naming_an_absent_entity_is_vanished() {
     // edge the extrude never minted.
     let (doc, fillet) = planted(vec![rim(RecipeNodeId(1), 7)]);
     refuses(&doc, fillet, |kind| match kind {
-        NodeErrorKind::FilletSelectionResolve { error } => match error.as_ref() {
+        NodeErrorKind::BlendSelectionResolve { error, .. } => match error.as_ref() {
             ResolveError::Vanished {
                 name,
                 diagnosis,
@@ -315,7 +315,7 @@ fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
     .expect("the fillet inserts");
     let fillet = applied.record.minted.expect("a minted id");
     refuses(&applied.doc, fillet, |kind| match kind {
-        NodeErrorKind::FilletSelectionResolve { error } => match error.as_ref() {
+        NodeErrorKind::BlendSelectionResolve { error, .. } => match error.as_ref() {
             ResolveError::Ambiguous {
                 name,
                 candidates,
@@ -347,7 +347,7 @@ fn a_selection_naming_a_face_refuses_on_kind() {
     };
     let (doc, fillet) = planted(vec![face.clone()]);
     refuses(&doc, fillet, |kind| match kind {
-        NodeErrorKind::FilletSelectionKind { name, found } => {
+        NodeErrorKind::BlendSelectionKind { name, found, .. } => {
             assert_eq!(**name, face);
             assert_eq!(*found, EntityKind::Face);
         }
@@ -362,7 +362,7 @@ fn an_empty_selection_refuses() {
     let (doc, fillet) = planted(Vec::new());
     refuses(&doc, fillet, |kind| {
         assert!(
-            matches!(kind, NodeErrorKind::FilletSelectionEmpty),
+            matches!(kind, NodeErrorKind::BlendSelectionEmpty { .. }),
             "{kind:?}"
         );
     });

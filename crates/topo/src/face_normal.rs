@@ -1,5 +1,10 @@
-//! The **one door** for a planar face's outward normal: the single
-//! place the `sense` bit is folded into a stored chart normal.
+//! The **one door** for a face's outward normal — planar or curved:
+//! the single place the `sense` bit is folded into a chart normal.
+//!
+//! Two doors, one flip: [`face_outward_normal`] answers for a PLANE,
+//! where the normal does not depend on where you stand, and
+//! [`face_outward_normal_at`] answers at a POINT, which is what a
+//! curved carrier requires and what the plane arm returns unchanged.
 //!
 //! # Why one door, and why here
 //!
@@ -31,8 +36,9 @@
 //! **"One door" is true of these consumers, not of the workspace.**
 //! Other outward normals are still built by hand-multiplying a chart
 //! normal by [`Face::sense_sign`](crate::entity::Face::sense_sign),
-//! and this module is where they belong when smell-scan D6 is
-//! executed. **Where they are is computed, not recited**: the guard
+//! and this module is where they belong when they are consolidated —
+//! work that is owed and not scheduled here. **Where they are is
+//! computed, not recited**: the guard
 //! test below walks `topo/src`, counts every occurrence of that method
 //! in code, and fails on one its dispositioned table does not carry.
 //! The count is of the whole tree this crate can see; the rest of the
@@ -46,10 +52,11 @@
 //! the rest of the placement questions.
 
 use geom_brep::OutwardNormal;
-use geom_core::Decide;
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign};
 
 use crate::body::Body;
 use crate::entity::FaceKey;
+use crate::validate::decide;
 
 /// A planar face's OUTWARD normal — the chart normal with the face's
 /// `sense` folded in, minted as an [`OutwardNormal`] so no consumer
@@ -72,9 +79,224 @@ pub(crate) fn face_outward_normal<T: Decide>(
     }
 }
 
+/// Why [`face_outward_normal_at`] could not answer.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum NormalAtError {
+    /// The margin certifying `p` on the chart landed in the band.
+    Escalated(Indeterminate),
+    /// `p` is definitely NOT on the face's surface, so the surface has
+    /// no normal there to fold a sense into. The door's contract is a
+    /// point ON the face, so this is the caller's invariant, not a
+    /// remainder.
+    OffSurface,
+}
+
+/// A face's OUTWARD normal **at a point on it** — the same one door,
+/// widened from a planar datum to a point-dependent one.
+///
+/// INVARIANT: the sense flip is still folded here and only here. On a
+/// [`geom::Surface::Plane`] the answer is point-independent and
+/// BIT-IDENTICAL to [`face_outward_normal`]'s, which is what lets the
+/// pierce lane substitute this door for that one without moving a
+/// planar result.
+///
+/// The curved arm is the implicit gradient
+/// ([`geom_brep::implicit_gradient`]), which is unit-magnitude on the
+/// surface and is therefore the chart normal there — computed from the
+/// implicit form rather than from the chart, because the chart normal
+/// of a cylinder/sphere is a `(u, v)` derivative cross product this
+/// layer has no business re-deriving. `sense: true` means the outward
+/// normal IS that chart normal, pointing away from the axis/centre
+/// (the convention `boolean::rest::face_carrier` states).
+///
+/// **The gate is on the kind and on the point, in that order.** The
+/// gradient is honest poison where the surface itself is singular — a
+/// cone apex or axis, a torus axis — and `Nurbs`/`Approx` have no
+/// implicit form at all, so those kinds get `Ok(None)` and the caller
+/// mints its own typed refusal naming the kind. For the kinds that DO
+/// have an arm, `p` is certified onto the chart first: the gradient's
+/// magnitude is 1 exactly on the surface and degenerates to `0/0` on
+/// the singular locus, so `‖∇F‖ − 1` levered by
+/// [`geom_brep::curvature_lever_arm`] — the local radius of curvature,
+/// the chart's own length scale — is both the on-surface certificate
+/// and the singularity guard, in one margin.
+///
+/// **The degenerate gradient is a ZERO vector, not a poison one**, and
+/// the distinction matters because only one of the two is caught by a
+/// comparison: on the axis of a cylinder (or at a sphere's centre) the
+/// radial component is the zero vector and `w / radius` is `0`, whose
+/// norm is a perfectly ordinary `0` — so the margin `0 − 1` classifies
+/// definitely negative and the guard fires on a value it can read.
+/// A cone apex, where the form really is `0/0`, never reaches this
+/// margin at all: the kind has no arm here.
+///
+/// # Errors
+///
+/// [`NormalAtError`] — an in-band chart certificate, or a point
+/// definitely off the surface.
+pub(crate) fn face_outward_normal_at<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    p: Point3<T>,
+    band: Band,
+) -> Result<Option<OutwardNormal<T>>, NormalAtError> {
+    let Some(f) = body.get_face(face) else {
+        return Ok(None);
+    };
+    let Some(surface) = body.get_surface(f.surface) else {
+        return Ok(None);
+    };
+    match surface {
+        geom::Surface::Plane { normal, .. } => {
+            Ok(Some(OutwardNormal::from_chart(*normal, f.sense)))
+        }
+        geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. } => {
+            let arm = geom_brep::curvature_lever_arm(surface, p);
+            let grad = geom_brep::implicit_gradient(surface, p);
+            let margin = Margin::levered(grad.norm() - T::one(), arm);
+            match decide("bool_pierce_normal_on_chart", margin, band) {
+                Ok(Sign::Zero) => Ok(Some(OutwardNormal::from_chart(grad, f.sense))),
+                Ok(Sign::Positive | Sign::Negative) => Err(NormalAtError::OffSurface),
+                Err(diag) => Err(NormalAtError::Escalated(diag)),
+            }
+        }
+        // Cone, Torus, Nurbs, Approx: no arm here. A cone's gradient is
+        // `0/0` on its whole axis (the apex included) and a torus's on
+        // its axis; the NURBS/Approx pair has no implicit form to
+        // differentiate. The caller names the kind in its own refusal
+        // rather than this door guessing which refusal it wants.
+        _ => Ok(None),
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use super::{NormalAtError, face_outward_normal, face_outward_normal_at};
+    use crate::euler::FaceSurface;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// A one-face skeletal body whose face carries `surface`.
+    fn face_on(surface: geom::Surface<f64>) -> (crate::body::Body<f64>, crate::entity::FaceKey) {
+        let st = crate::fixtures::mvfs_state();
+        let mut body = st.body;
+        body.set_face_surface(st.face, FaceSurface::New(surface))
+            .unwrap();
+        (body, st.face)
+    }
+
+    /// **The bit-identity row for the widened door.** On a plane the
+    /// point-dependent arm must return the SAME vector the
+    /// point-independent one does, for both senses — that equality is
+    /// the whole argument that substituting the new door into the
+    /// pierce lane cannot move a planar result.
+    #[test]
+    fn on_a_plane_the_two_doors_agree_bit_for_bit() {
+        let normal = Vec3::new(0.0, 0.0, 1.0);
+        let (mut body, face) = face_on(geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 3.0),
+            normal,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        });
+        for sense in [true, false] {
+            body.set_face_sense(face, sense).unwrap();
+            let flat = face_outward_normal(&body, face).unwrap();
+            // Deliberately far off the plane: the planar arm must not
+            // have grown a dependence on the point.
+            for p in [Point3::new(0.0, 0.0, 3.0), Point3::new(7.0, -2.0, -11.0)] {
+                let at = face_outward_normal_at(&body, face, p, band())
+                    .unwrap()
+                    .unwrap();
+                assert!(
+                    at.vec().x == flat.vec().x
+                        && at.vec().y == flat.vec().y
+                        && at.vec().z == flat.vec().z,
+                    "sense {sense} at {p:?}: {:?} vs {:?}",
+                    at.vec(),
+                    flat.vec()
+                );
+            }
+        }
+    }
+
+    /// The curved arm: on a wall the outward normal is RADIAL at the
+    /// point, and a reversed face points into the material — the same
+    /// sense convention the planar arm has, now varying with `p`.
+    #[test]
+    fn on_a_wall_the_normal_is_radial_at_the_point() {
+        let (mut body, face) = face_on(geom::Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 2.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        });
+        for (p, radial) in [
+            (Point3::new(2.0, 0.0, 5.0), Vec3::new(1.0, 0.0, 0.0)),
+            (Point3::new(0.0, -2.0, -1.0), Vec3::new(0.0, -1.0, 0.0)),
+        ] {
+            body.set_face_sense(face, true).unwrap();
+            let out = face_outward_normal_at(&body, face, p, band())
+                .unwrap()
+                .unwrap();
+            assert!(
+                (out.vec() - radial).norm() == 0.0,
+                "outward at {p:?}: {:?}",
+                out.vec()
+            );
+            body.set_face_sense(face, false).unwrap();
+            let inward = face_outward_normal_at(&body, face, p, band())
+                .unwrap()
+                .unwrap();
+            assert!(
+                (inward.vec() + radial).norm() == 0.0,
+                "reversed at {p:?}: {:?}",
+                inward.vec()
+            );
+        }
+    }
+
+    /// The two halves of the gate, in one row each: a kind with no
+    /// implicit normal to fold answers `None` (the caller mints the
+    /// typed refusal naming it), and a point definitely off the chart
+    /// is the caller's broken invariant rather than a remainder.
+    #[test]
+    fn the_gate_separates_a_missing_arm_from_a_point_off_the_chart() {
+        let (body, face) = face_on(geom::Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: 0.5,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        });
+        assert!(
+            matches!(
+                face_outward_normal_at(&body, face, Point3::new(1.0, 0.0, 2.0), band()),
+                Ok(None)
+            ),
+            "a cone has no arm here"
+        );
+        let (body, face) = face_on(geom::Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 2.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        });
+        assert!(matches!(
+            face_outward_normal_at(&body, face, Point3::new(5.0, 0.0, 0.0), band()),
+            Err(NormalAtError::OffSurface)
+        ));
+        // The axis is where the gradient is 0/0, and the same margin
+        // catches it: poison is never read.
+        assert!(matches!(
+            face_outward_normal_at(&body, face, Point3::new(0.0, 0.0, 1.0), band()),
+            Err(NormalAtError::OffSurface)
+        ));
+    }
+
     /// **The anti-re-fork row for the planar sense flip.** The plane
     /// arm of this walk goes through [`crate::face_normal`], the one
     /// door, and no file under `topo/src` other than that one may both
@@ -114,8 +336,8 @@ mod tests {
             assert!(
                 !(text.contains("Surface::Plane {") && text.contains("from_chart")),
                 "{} mints an OutwardNormal from a plane's chart normal — the planar \
-                 sense flip has been re-forked out of face_normal.rs (smell scan S5 / \
-                 S10). Call `face_outward_normal` instead.",
+                 sense flip has been re-forked out of face_normal.rs, which must hold \
+                 the only one. Call `face_outward_normal` instead.",
                 path.display()
             );
         }
@@ -126,8 +348,8 @@ mod tests {
         );
     }
 
-    /// **The hand-multiply inventory** — smell-scan D6's `grep
-    /// sense_sign` written as a gate rather than as a sentence. Every
+    /// **The hand-multiply inventory**, written as a gate rather than
+    /// as a sentence, because a sentence was what drifted. Every
     /// **occurrence** of [`Face::sense_sign`](crate::entity::Face::sense_sign)
     /// in the CODE of `topo/src` (comments and literal bodies removed
     /// by [`crate::fixtures::code_only`]) is counted per file and
@@ -146,13 +368,44 @@ mod tests {
     /// - `boolean/rest.rs` — `face_carrier`, the curved generalization
     ///   of the door; it binds the `±1` to a local before multiplying,
     ///   which is the form a textual `* ….sense_sign` sweep misses.
+    /// - `boolean/mod.rs` — the shared-rim routing's two face senses,
+    ///   handed to `boolean::rim_wedge` and through it to the same two
+    ///   `geom_brep` entry points check 4's material arm uses. It
+    ///   cannot take the door for that arm's reason and one more of
+    ///   its own: the question is a PAIR of material sides at a point
+    ///   on a shared rim, over kinds [`face_outward_normal_at`]
+    ///   answers `None` for (torus above all), and the operands are
+    ///   two different bodies, so there is no single body the door
+    ///   could be asked about.
     /// - `merge_faces.rs` — two sense-tuple reads in the coplanarity
     ///   gate and the survivor's plane hand-multiply.
     /// - `props.rs` — the `±1` handed to `curved_face`'s closed form.
     ///   Not a normal multiply, and the only read whose consumer is a
     ///   curved carrier.
-    /// - `validate.rs` — check 6's outward normal, where the sense bit
-    ///   is read as a claim to be falsified rather than honored.
+    /// - `census.rs` — two, the crossing rung's side test
+    ///   (`ee_cross_backed`): the declared pair's two `±1`s handed to
+    ///   `geom_brep::classify_material_pairing`, exactly as check 4's
+    ///   material arm below hands them — the same lemma, read at a
+    ///   boundary crossing between bodies rather than edge-locally
+    ///   within one. It cannot take the door for check 4's reason:
+    ///   the question is the PAIR of material sides at one point on a
+    ///   shared carrier, and the sign belongs beside the gradient the
+    ///   sense algebra computes.
+    /// - `validate.rs` — three, all in tier 3. Check 6's outward
+    ///   normal, where the sense bit is read as a claim to be
+    ///   falsified rather than honored; and check 4's material arm,
+    ///   which hands the plus and minus faces' `±1` to
+    ///   `geom_brep::classify_material_pairing` and
+    ///   `geom_brep::material_kappa_rel`. The arm cannot take the
+    ///   door: its question is the PAIR of material sides at a point
+    ///   on a shared carrier, over every kind with an implicit form
+    ///   (cone and torus tangencies included, which
+    ///   [`face_outward_normal_at`] answers `None` for), and the
+    ///   normals it needs are the gradients the wedge classifier
+    ///   already computes — routing them back out and in would fold
+    ///   the sign in one crate and the gradient in another. The `±1`
+    ///   is threaded as a scalar, which is what
+    ///   `contact_verify`'s tangency arm does with the same lemma.
     /// - `face_normal.rs` — **zero**: the door takes the sense BIT
     ///   through [`OutwardNormal::from_chart`], never the `±1`. That
     ///   is why the walk below reads the method name out of `concat!`
@@ -178,25 +431,26 @@ mod tests {
     ///    consumer, and a legitimate one).
     /// 3. An identifier a macro assembles, which no textual walk sees.
     /// 4. **Every crate but this one.** The walk is `topo/src` because
-    ///    that is the tree this crate can see, and the workspace half
-    ///    is D6's. **It is deliberately not enumerated here**: a roster
-    ///    of other crates is exactly the artifact this row replaced,
-    ///    and reciting one beside a computed inventory would mint the
-    ///    same defect one level out. The out-of-crate readers are
-    ///    inventoried once, in `docs/SMELL-SCAN-2026-08.md` at S67,
-    ///    beside D6's work order — a list that is recited and says so,
-    ///    in the document where a work order belongs.
+    ///    that is the tree this crate can see. **It is deliberately
+    ///    not enumerated here**: a roster of other crates is exactly
+    ///    the artifact this row replaced, and reciting one beside a
+    ///    computed inventory would mint the same defect one level out.
+    ///    The out-of-crate readers are recited once, in
+    ///    [`crate::boolean::reduce`]'s `face_plane`, which says that it
+    ///    recites them.
     #[test]
     fn every_hand_multiply_of_the_face_sign_is_inventoried() {
-        const PINNED: [(&str, usize); 8] = [
+        const PINNED: [(&str, usize); 10] = [
             ("boolean/join.rs", 1),
+            ("boolean/mod.rs", 1),
             ("boolean/rest.rs", 1),
             ("boolean/solid_contain.rs", 2),
+            ("census.rs", 2),
             ("entity.rs", 1),
             ("face_normal.rs", 0),
             ("merge_faces.rs", 3),
             ("props.rs", 1),
-            ("validate.rs", 1),
+            ("validate.rs", 3),
         ];
         let needle = concat!("sense", "_sign");
         let root = crate::source_walk::src_root();

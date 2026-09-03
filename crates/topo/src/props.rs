@@ -29,11 +29,16 @@ use core::fmt;
 
 use geom::Surface;
 use geom_brep::props::quad::FaceCutBounds;
-use geom_brep::props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
+use geom_brep::props::{
+    CarrierId, FaceContribution, LoopEdge, PropsError, curved_face, planar_face,
+};
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
+use slotmap::Key;
 
 use crate::body::Body;
+use crate::boolean::ContactRecords;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey, VertexKey};
+use crate::validate::ValidationError;
 
 /// Exact-B-rep integral properties of a body.
 ///
@@ -61,6 +66,36 @@ pub struct MassProperties<T: Real> {
     pub volume_pad: f64,
     /// Certified half-width of the area bracket (m²).
     pub area_pad: f64,
+}
+
+/// The two states flattening one loop into [`LoopEdge`]s can reach —
+/// [`loop_edges`]' own error, absorbed into [`MassPropsError`] by
+/// `From` on this crate's path and matched exactly by the other
+/// consumer (`mesh`'s shape door).
+#[derive(Clone, Debug, PartialEq)]
+pub enum LoopEdgesError {
+    /// A loop is empty or a referenced key fails to resolve —
+    /// tier-1/tier-2 scaffolding or corruption; the structural
+    /// validators own the diagnosis, this is the fail-loud surface.
+    Corrupt {
+        /// What failed to resolve (static description).
+        what: &'static str,
+    },
+    /// An edge is M3 null-edge scaffolding (no carrier by type): the
+    /// body is mid-surgery.
+    NullScaffoldEdge {
+        /// The scaffolding edge.
+        edge: crate::entity::EdgeKey,
+    },
+}
+
+impl From<LoopEdgesError> for MassPropsError {
+    fn from(e: LoopEdgesError) -> Self {
+        match e {
+            LoopEdgesError::Corrupt { what } => MassPropsError::Corrupt { what },
+            LoopEdgesError::NullScaffoldEdge { edge } => MassPropsError::NullScaffoldEdge { edge },
+        }
+    }
 }
 
 /// Typed failure of [`mass_properties`] (closed enum, D4 ¶3).
@@ -168,6 +203,34 @@ pub(crate) fn mass_properties_with<T: PropsQuadLane>(
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
     mass_properties_impl(body, band, T::quad_cut_face, tol)
+}
+
+/// [`mass_properties`] at a scalar that may CERTIFY — the certified
+/// quadrature NAMED, not selected.
+///
+/// The difference from [`mass_properties_with`] is where the
+/// quadrature comes from and therefore which scalars can call this at
+/// all. `mass_properties_with` asks the scalar's lane which quadrature
+/// it has, and a scalar with none answers `Ok(None)`; here the
+/// certified body is handed in directly, so the bound is the one the
+/// quadrature itself carries and a scalar that may not certify cannot
+/// form the call. That is [`crate::validate_geometric`]'s certified
+/// half: the +V invariant is a claim about an enclosure, and a claim
+/// no bracket can be certified for is not a weaker claim, it is not
+/// this claim.
+pub(crate) fn mass_properties_certified<T: Decide + geom_core::CertifiedBounds>(
+    body: &Body<T>,
+    band: Band,
+    tol: Tol,
+) -> Result<MassProperties<T>, MassPropsError> {
+    mass_properties_impl(
+        body,
+        band,
+        |body, surface, outer, hes, band, tol| {
+            quad_lane::cut_face(body, surface, outer, hes, band, tol).map(Some)
+        },
+        tol,
+    )
 }
 
 /// The closed-form-only variant for the boolean engine's INTERNAL
@@ -337,16 +400,27 @@ fn face_flux<T: Decide>(
     })
 }
 
-/// Flatten one loop's half-edge cycle into key-free [`LoopEdge`]s
-/// (traversal order; vertex tags are loop-local first-seen indices),
+/// Flatten one loop's half-edge cycle into [`LoopEdge`]s (traversal
+/// order; vertex tags are loop-local first-seen indices; each edge's
+/// carrier identity is the root of its split lineage, minted from this
+/// body's own keys and comparable only within this flattening),
 /// alongside the half-edge keys walked (the PR 11 quadrature lane
 /// reads stored pcurve caches through them).
+///
+/// Public because `mesh` is its second consumer: the curved lane hands
+/// a face's outer loop to `geom_brep::props`' iso-rectangle door before
+/// walking it, and this is the same half-edge cycle that walk reads —
+/// one flattening, not two. Its error type is its own
+/// ([`LoopEdgesError`]) so that a consumer across the crate boundary
+/// matches exactly the two states a flatten can reach, and a third
+/// arm added here is a compile error there rather than an
+/// `unreachable!`.
 #[allow(clippy::type_complexity)]
-pub(crate) fn loop_edges<T: Decide>(
+pub fn loop_edges<T: Decide>(
     body: &Body<T>,
     lk: LoopKey,
-) -> Result<(Vec<LoopEdge<T>>, Vec<crate::entity::HalfEdgeKey>), MassPropsError> {
-    let corrupt = |what| MassPropsError::Corrupt { what };
+) -> Result<(Vec<LoopEdge<T>>, Vec<crate::entity::HalfEdgeKey>), LoopEdgesError> {
+    let corrupt = |what| LoopEdgesError::Corrupt { what };
     let Some(loop_) = body.loops.get(lk) else {
         return Err(corrupt("loop key does not resolve"));
     };
@@ -379,7 +453,7 @@ pub(crate) fn loop_edges<T: Decide>(
             return Err(corrupt("curve key does not resolve"));
         };
         let Some(curve) = entry.certified() else {
-            return Err(MassPropsError::NullScaffoldEdge { edge: he.edge });
+            return Err(LoopEdgesError::NullScaffoldEdge { edge: he.edge });
         };
         let Some(end) = body.half_edge_end(he_key) else {
             return Err(corrupt("half-edge mate does not resolve"));
@@ -387,6 +461,17 @@ pub(crate) fn loop_edges<T: Decide>(
         let (t0, t1) = curve.params();
         edges.push(LoopEdge {
             carrier: curve.carrier().clone(),
+            // A lineage that cycles is one a graft aliased (issue 1597:
+            // records are copied with their source keys, which in the
+            // destination chain into strangers); the flattening then
+            // stamps NO identity, so no two such edges are ever folded
+            // into one — the fold declines rather than trusting a
+            // record it cannot read, and a split meridian on such a
+            // body refuses at the far rim as it did before any fold.
+            carrier_id: body
+                .split_root(he.edge, |_| false)
+                .ok()
+                .map(|root| CarrierId::minted(root.data().as_ffi())),
             t0,
             t1,
             forward: he_key == edge.he_plus,
@@ -607,7 +692,7 @@ pub fn classify_shells<T: PropsQuadLane>(
     Ok(out)
 }
 
-/// The certified-quadrature **lane split** (M5 PR 11; Evan's ruling at
+/// The certified-quadrature **lane split** (M5 PR 11; Ev's ruling at
 /// this PR, superseding a runtime-`Option` bracket seam): certification
 /// is the f64 / Probe / Interval lanes' business; derivative transport
 /// is the dual lane's — and that split lives in the TYPES. Each
@@ -617,11 +702,15 @@ pub fn classify_shells<T: PropsQuadLane>(
 /// quadrature machinery only ever instantiates for CERTIFYING scalars
 /// (bracket-carrying is no longer the distinguishing property — a dual
 /// carries a bracket since D1, 2026-08-19); the `Dual` impl contains
-/// **no quadrature code at all** — it answers "no lane", the
-/// closed-form pass's typed refusal stands, and tier 3's check 7
-/// reports `VolumeUncomputable` there. The dual lane validates what is
-/// its business; volume certification is proven by the certified
-/// lanes.
+/// **no quadrature code at all** — it answers "no lane", and the
+/// closed-form pass's typed refusal stands. Where tier 3's check 7 then
+/// reports `VolumeUncomputable` depends on which pass asked: the mixed
+/// passes that keep this lane ([`crate::validate_pseudomanifold`],
+/// [`crate::contact_marks`], [`mass_properties`]) report it at every
+/// scalar, while [`crate::validate_geometric`] runs check 7 in its
+/// certified half and is not callable at a scalar with no lane at all.
+/// The dual lane validates what is its business; volume certification is
+/// proven by the certified lanes.
 ///
 /// # Why the pcurve lane rides along (M6-2)
 ///
@@ -664,14 +753,16 @@ pub trait PropsQuadLane:
     /// `k_stats` name). This is the one accessor that answers it.
     ///
     /// **Why a method and not `PropsQuadLane: Enclosure`.**
-    /// `geom-core`'s `real.rs` says in as many words that a new
-    /// `T: Enclosure` bound *on anything that certifies* would be an
-    /// ungated hole (issue #701), and `PropsQuadLane` is exactly "this
-    /// scalar can certify a body at rest". So the bracket arrives
-    /// through one named accessor whose four implementations live in
-    /// this file — the one already ratified for the compound `Bounds`
-    /// seam — instead of through a blanket bound that would let any
-    /// certifying signature read brackets silently. The distinct name
+    /// `PropsQuadLane` is exactly "this scalar can certify a body at
+    /// rest", and a supertrait `Enclosure` would hand every certifying
+    /// signature silent bracket extraction through the blanket
+    /// `impl<T: Bounds> Enclosure for T`. `scripts/gates/`
+    /// `bounds-allowlist.sh` greps `Enclosure` exactly as `Bounds`
+    /// (DUAL-DESIGN DL4), but this file is on its allowlist, so the
+    /// gate would not refuse the supertrait here — the named accessor
+    /// is what keeps the bracket read explicit and single-doored. Its
+    /// four implementations live in this file, the seam already
+    /// ratified for the compound `Bounds` bound. The distinct name
     /// also keeps `lo`/`hi` unshadowed at every concrete call site.
     fn datum_lo(self) -> f64;
 
@@ -690,11 +781,15 @@ pub trait PropsQuadLane:
     /// the ratified one. The stored tolerance stays what it always
     /// was: the MINT's parameter, and the fit door's own gate.
     ///
-    /// `None` = this scalar has no re-derivation lane. That is not a
-    /// pass: tier 3 reports it, because a surface certificate is the
-    /// one claim this kernel refuses to leave unchecked. It is also
-    /// vacuous today — the fit door is `f64`-only, so no other scalar
-    /// can hold an `ApproxSurface` in the first place.
+    /// `None` = this scalar has no re-derivation lane. That is a
+    /// statement about the DERIVATION, never about which values can
+    /// arrive: [`geom::ApproxSurface::certify`] is generic in the
+    /// scalar and takes its certifier as an argument, so an
+    /// `ApproxSurface<Self>` is representable at every scalar and such
+    /// a face reaches this arm. `None` is not a pass — tier 3 reports
+    /// it as [`ValidationError::ApproxLaneUnsupported`](crate::ValidationError),
+    /// because a surface certificate is the one claim this kernel
+    /// refuses to leave unchecked.
     ///
     /// # Errors
     ///
@@ -711,8 +806,10 @@ pub trait PropsQuadLane:
     ///
     /// `None` = this scalar has no fit lane. That is not a pass: a
     /// caller that cannot mint the offset refuses, exactly as tier 3
-    /// refuses a certificate it cannot re-derive. The fit door is
-    /// `f64`-only, so `None` is every other scalar's honest answer.
+    /// refuses a certificate it cannot re-derive. The fit itself is
+    /// derived at `f64` only, so `None` is every other scalar's honest
+    /// answer — the absence of a derivation, not of a representable
+    /// operand.
     ///
     /// # Errors
     ///
@@ -775,9 +872,12 @@ impl PropsQuadLane for f64 {
 
 #[cfg(feature = "probe")]
 impl PropsQuadLane for geom_core::Probe {
-    // The fit door is `f64`-only, so no `ApproxSurface<Self>` can be
-    // minted for this scalar; the honest answer is "no lane", which
-    // tier 3 reports rather than passes.
+    // The offset fit is derived at `f64` only, so this scalar has no
+    // re-derivation lane. That is the whole reason, and it is about the
+    // derivation: an `ApproxSurface<Self>` is representable here —
+    // `ApproxSurface::certify` is scalar-generic and takes its
+    // certifier as an argument — so such a face does reach this arm and
+    // tier 3 reports `ApproxLaneUnsupported` rather than passing.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
         _tolerance: f64,
@@ -813,9 +913,9 @@ impl PropsQuadLane for geom_core::Probe {
 
 #[cfg(feature = "interval")]
 impl PropsQuadLane for geom_core::interval::Interval {
-    // The fit door is `f64`-only, so no `ApproxSurface<Self>` can be
-    // minted for this scalar; the honest answer is "no lane", which
-    // tier 3 reports rather than passes.
+    // No re-derivation lane at this scalar; the reason has one home, on
+    // [`PropsQuadLane::recertify_approx`], and it is about the
+    // DERIVATION rather than about which values can arrive.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
         _tolerance: f64,
@@ -855,9 +955,9 @@ impl<T> PropsQuadLane for geom_core::Dual<T>
 where
     geom_core::Dual<T>: Decide + geom_core::Bounds,
 {
-    // The fit door is `f64`-only, so no `ApproxSurface<Self>` can be
-    // minted for this scalar; the honest answer is "no lane", which
-    // tier 3 reports rather than passes.
+    // No re-derivation lane at this scalar; the reason has one home, on
+    // [`PropsQuadLane::recertify_approx`], and it is about the
+    // DERIVATION rather than about which values can arrive.
     fn recertify_approx(
         _approx: &geom::ApproxSurface<Self>,
         _tolerance: f64,
@@ -891,6 +991,250 @@ where
     }
 }
 
+/// The **scalar policy for the certified at-rest gates**
+/// (`docs/DUAL-DESIGN.md` DL3): whether an evaluation-service
+/// consumer of [`crate::validate_geometric`] /
+/// [`crate::validate_pseudomanifold`] runs them at this scalar.
+///
+/// Certified validation is an act of certification — its tier-3
+/// battery re-derives surface certificates
+/// ([`PropsQuadLane::recertify_approx`]), encloses volume flux
+/// through the quadrature lane, and certifies the contact census —
+/// so it belongs to the scalars with certification rights (`f64`,
+/// the telemetry probe, the interval scalar), whose impls here
+/// delegate to the validation doors verbatim. At a
+/// [`Dual`](geom_core::Dual) the gate is **structurally absent**:
+/// the impl calls nothing, and its success arm SAYS so — the outcome
+/// type separates [`AtRestOutcome::Validated`] from
+/// [`AtRestOutcome::NotRunAtThisScalar`], so a dual gate's `Ok` can
+/// never be read as a certification at any call site. What makes the
+/// absence sound is the PAIRING OBLIGATION: a dual evaluation rides
+/// BESIDE a base-scalar evaluation of the same recipe, whose value
+/// channel is bit-identical (the dual contract) and which these same
+/// gates validate. Nothing in the type system enforces that pairing
+/// at the public doors today; the E4 driver's content-key equality
+/// assertion (DL3's soundness hook) is a NAMED banked obligation of
+/// M10-4's driver. That is sound because
+/// a dual evaluation's value channel is bit-identical to the base
+/// scalar's run of the same recipe (the dual contract), which the
+/// base-scalar evaluation it rides beside already validates;
+/// re-validating the same bits through the dual's refusing
+/// certification arms adds no information. Asking a dual to
+/// validate IS asking it to certify, and a dual never certifies
+/// (DL1).
+///
+/// This is a compile-time, per-scalar policy — never a runtime flag,
+/// and never a swallowed per-face error: the dual arm does not run
+/// validation and discard refusals, it runs nothing. The validation
+/// doors themselves keep their meaning at every `PropsQuadLane`
+/// scalar; this trait only decides which scalars' evaluation-service
+/// gates consult them.
+pub trait AtRestPolicy: PropsQuadLane {
+    /// The at-rest gate over a body ([`crate::validate_geometric`] at
+    /// certifying scalars; absent at duals, and the outcome says
+    /// which).
+    ///
+    /// # Errors
+    ///
+    /// The validator's own findings, verbatim, where the scalar runs
+    /// it.
+    fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>>;
+
+    /// The at-rest gate over a body with declared contacts — the
+    /// tier-3′ census door ([`crate::validate_pseudomanifold`] at
+    /// certifying scalars; absent at duals).
+    ///
+    /// # Errors
+    ///
+    /// The validator's own findings, verbatim, where the scalar runs
+    /// it.
+    fn gate_at_rest_declared(
+        body: &Body<Self>,
+        contacts: &ContactRecords,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, Vec<ValidationError>>;
+}
+
+/// What an [`AtRestPolicy`] gate's success MEANS — the word that keeps
+/// a non-certifying scalar's `Ok` from reading as a certification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AtRestOutcome {
+    /// The certified at-rest validator ran on these bits and passed.
+    Validated,
+    /// This scalar's policy runs no validator (a dual): nothing was
+    /// checked here and nothing is granted. The base-scalar evaluation
+    /// beside this one is the validation of record — the DL3 pairing
+    /// obligation, stated at the doors that return this.
+    NotRunAtThisScalar,
+}
+
+impl AtRestPolicy for f64 {
+    fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
+    }
+
+    fn gate_at_rest_declared(
+        body: &Body<Self>,
+        contacts: &ContactRecords,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        crate::validate::validate_pseudomanifold(body, contacts, tol)
+            .map(|()| AtRestOutcome::Validated)
+    }
+}
+
+#[cfg(feature = "probe")]
+impl AtRestPolicy for geom_core::Probe {
+    fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
+    }
+
+    fn gate_at_rest_declared(
+        body: &Body<Self>,
+        contacts: &ContactRecords,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        crate::validate::validate_pseudomanifold(body, contacts, tol)
+            .map(|()| AtRestOutcome::Validated)
+    }
+}
+
+#[cfg(feature = "interval")]
+impl AtRestPolicy for geom_core::interval::Interval {
+    fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
+    }
+
+    fn gate_at_rest_declared(
+        body: &Body<Self>,
+        contacts: &ContactRecords,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        crate::validate::validate_pseudomanifold(body, contacts, tol)
+            .map(|()| AtRestOutcome::Validated)
+    }
+}
+
+/// The dual arm: STRUCTURALLY ABSENT — no validation door is named,
+/// so nothing runs, nothing refuses, and no error exists to swallow;
+/// the success arm is [`AtRestOutcome::NotRunAtThisScalar`], never a
+/// claim about the geometry (trait docs). The base-scalar evaluation
+/// of the same recipe is where these bits are validated — the DL3
+/// pairing obligation.
+impl<T> AtRestPolicy for geom_core::Dual<T>
+where
+    geom_core::Dual<T>: PropsQuadLane,
+{
+    fn gate_at_rest(_body: &Body<Self>, _tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        Ok(AtRestOutcome::NotRunAtThisScalar)
+    }
+
+    fn gate_at_rest_declared(
+        _body: &Body<Self>,
+        _contacts: &ContactRecords,
+        _tol: Tol,
+    ) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        Ok(AtRestOutcome::NotRunAtThisScalar)
+    }
+}
+
+#[cfg(test)]
+mod at_rest_policy_tests {
+    #![allow(clippy::expect_used)]
+    //! The certifying policy arms ARE the validation doors — pinned on
+    //! a REFUSING subject, because the passing direction is pinned all
+    //! day by every green corpus gather while an arm gutted into a
+    //! grant stays invisible to it. Each certifying (scalar, method)
+    //! pair is asserted equal to its door on a body the door refuses,
+    //! so `Ok(Validated)`-without-validating cannot survive these rows.
+
+    use super::{AtRestOutcome, AtRestPolicy};
+    use crate::body::Body;
+    use crate::boolean::ContactRecords;
+    use geom_core::{Decide, Point3, Tol};
+
+    /// The `mvfs` seed body: its face surface is the placeholder, which
+    /// a body at rest may not carry (`Body::mvfs` docs) — the cheapest
+    /// scalar-generic refusing subject.
+    fn refusing_body<T: Decide>() -> Body<T> {
+        let mut b = Body::new();
+        b.mvfs(Point3::new(T::zero(), T::zero(), T::zero()))
+            .expect("mvfs has no preconditions");
+        b
+    }
+
+    fn certifying_arms_are_the_doors<T: AtRestPolicy + geom_core::CertifiedBounds>() {
+        let tol = Tol::witness();
+        let b = refusing_body::<T>();
+        let door = crate::validate::validate_geometric(&b, tol);
+        assert!(door.is_err(), "the seed body must refuse validation");
+        assert_eq!(
+            T::gate_at_rest(&b, tol),
+            door.map(|()| AtRestOutcome::Validated),
+            "gate_at_rest must be validate_geometric verbatim at a certifying scalar"
+        );
+        let contacts = ContactRecords::default();
+        let door = crate::validate::validate_pseudomanifold(&b, &contacts, tol);
+        assert!(door.is_err(), "the seed body must refuse the census door");
+        assert_eq!(
+            T::gate_at_rest_declared(&b, &contacts, tol),
+            door.map(|()| AtRestOutcome::Validated),
+            "gate_at_rest_declared must be validate_pseudomanifold verbatim at a certifying scalar"
+        );
+    }
+
+    #[test]
+    fn f64_gates_run_the_doors() {
+        certifying_arms_are_the_doors::<f64>();
+    }
+
+    #[cfg(feature = "probe")]
+    #[test]
+    fn probe_gates_run_the_doors() {
+        certifying_arms_are_the_doors::<geom_core::Probe>();
+    }
+
+    #[cfg(feature = "interval")]
+    #[test]
+    fn interval_gates_run_the_doors() {
+        certifying_arms_are_the_doors::<geom_core::interval::Interval>();
+    }
+
+    /// The dual arm on the SAME refusing subject: the gate does not run
+    /// and says so — [`AtRestOutcome::NotRunAtThisScalar`], never a
+    /// verdict about geometry the door itself refuses.
+    ///
+    /// The direct door is no longer part of this row's contrast, and
+    /// the reason is the point: `validate_geometric` cannot be CALLED
+    /// at a dual — the composed entry carries the certified half's
+    /// bound, so there is no refusal left to observe here. What a dual
+    /// can still do is the structural half, and this row pins that
+    /// instead: the seed body's placeholder surface is a check-1
+    /// failure, which is structural, so the dual sees the same refusal
+    /// the certifying scalars see through the same checks.
+    #[test]
+    fn dual_gate_is_absent_not_a_verdict() {
+        let tol = Tol::witness();
+        let b = refusing_body::<geom_core::Dual64>();
+        assert!(
+            crate::validate::validate_geometric_structural(&b, tol).is_err(),
+            "the structural half still runs, and still refuses, at a dual"
+        );
+        assert_eq!(
+            <geom_core::Dual64 as AtRestPolicy>::gate_at_rest(&b, tol),
+            Ok(AtRestOutcome::NotRunAtThisScalar)
+        );
+        assert_eq!(
+            <geom_core::Dual64 as AtRestPolicy>::gate_at_rest_declared(
+                &b,
+                &ContactRecords::default(),
+                tol
+            ),
+            Ok(AtRestOutcome::NotRunAtThisScalar)
+        );
+    }
+}
+
 /// The PR 11 certified-quadrature lane's body-side plumbing: stored
 /// pcurve caches → ring-bracketed [`geom_brep::props::quad::TrimEdgeQ`]s (C4's first hot
 /// consumer). Key-free math stays in `geom_brep::props::quad`; this
@@ -902,7 +1246,7 @@ mod quad_lane {
     use geom_core::Tol;
     use geom_core::ring_interval::RingInterval;
     // The compound `Decide + Bounds` bound below is a RATIFIED seam
-    // (M5 PR 11, Evan's lane-split ruling; discipline allowlist row):
+    // (M5 PR 11, Ev's lane-split ruling; discipline allowlist row):
     // this module is the certified lanes' plumbing and never
     // instantiates for duals. TWO things enforce that, and since #643
     // the second is the load-bearing one: [`super::PropsQuadLane`]'s
@@ -922,18 +1266,6 @@ mod quad_lane {
     /// pad decomposition).
     pub(super) fn mid_pad(x: RingInterval) -> (f64, f64) {
         ((x.lo() + x.hi()) * 0.5, (x.hi() - x.lo()) * 0.5)
-    }
-
-    /// Bracket a scalar into the C9 ring through the **certified** door.
-    ///
-    /// Fallible, which is the whole point: the static lane split above
-    /// guarantees only that a *bracket-carrying* scalar reaches this
-    /// module, and a sound bracket can still be inadmissible —
-    /// `sqrt([−1, 4]) + 1` is `[1, 3]` at `Trv`. Such a scalar becomes
-    /// ring poison here rather than a plausible bound nothing downstream
-    /// can question. See `bracket_seam_tests` below.
-    fn br<T: CertifiedEnclosure>(x: T) -> RingInterval {
-        RingInterval::from_certified(x)
     }
 
     /// `(cos t₀, sin t₀)` enclosure at the carrier-interval start,
@@ -961,9 +1293,11 @@ mod quad_lane {
             } => {
                 let v_ref = axis.cross(*u_ref);
                 let w = p - *center;
-                let c = br(w.dot(*u_ref)) / br(*radius);
-                let s = br(w.dot(v_ref)) / br(*radius);
-                let pad = (RingInterval::point(eps) / br(*radius)).mag();
+                let c = RingInterval::from_certified(w.dot(*u_ref))
+                    / RingInterval::from_certified(*radius);
+                let s = RingInterval::from_certified(w.dot(v_ref))
+                    / RingInterval::from_certified(*radius);
+                let pad = (RingInterval::point(eps) / RingInterval::from_certified(*radius)).mag();
                 Ok((clamp(c, pad), clamp(s, pad)))
             }
             Curve3::Ellipse {
@@ -975,10 +1309,12 @@ mod quad_lane {
             } => {
                 let v_ref = axis.cross(*u_ref);
                 let w = p - *center;
-                let c = br(w.dot(*u_ref)) / br(*major);
-                let s = br(w.dot(v_ref)) / br(*minor);
-                let pad_c = (RingInterval::point(eps) / br(*major)).mag();
-                let pad_s = (RingInterval::point(eps) / br(*minor)).mag();
+                let c = RingInterval::from_certified(w.dot(*u_ref))
+                    / RingInterval::from_certified(*major);
+                let s = RingInterval::from_certified(w.dot(v_ref))
+                    / RingInterval::from_certified(*minor);
+                let pad_c = (RingInterval::point(eps) / RingInterval::from_certified(*major)).mag();
+                let pad_s = (RingInterval::point(eps) / RingInterval::from_certified(*minor)).mag();
                 Ok((clamp(c, pad_c), clamp(s, pad_s)))
             }
             Curve3::Nurbs(_) => Err(PropsError::QuadratureUnsupported {
@@ -999,10 +1335,10 @@ mod quad_lane {
         cl: T,
     ) -> Result<HarmChan, PropsError> {
         Ok(HarmChan {
-            c0: br(c0),
-            ca: br(ca),
-            cb: br(cb),
-            cl: br(cl),
+            c0: RingInterval::from_certified(c0),
+            ca: RingInterval::from_certified(ca),
+            cb: RingInterval::from_certified(cb),
+            cl: RingInterval::from_certified(cl),
         })
     }
 
@@ -1041,7 +1377,7 @@ mod quad_lane {
         };
         let eps = tol.eps();
         let va = loop_vector_area(outer, *origin)?;
-        let o_dot_va = br((*origin - Point3::origin()).dot(va));
+        let o_dot_va = RingInterval::from_certified((*origin - Point3::origin()).dot(va));
         let mut edges = Vec::with_capacity(outer.len());
         for (le, he) in outer.iter().zip(hes) {
             let Some(cache) = body.pcurve(*he) else {
@@ -1077,14 +1413,20 @@ mod quad_lane {
             edges.push(TrimEdgeQ {
                 u: chan(p0.x, pa.x, pb.x, pl.x)?,
                 v: chan(p0.y, pa.y, pb.y, pl.y)?,
-                t0: br(t0),
-                t1: br(t1),
+                t0: RingInterval::from_certified(t0),
+                t1: RingInterval::from_certified(t1),
                 forward: le.forward,
                 trig0,
-                env: br(cache.certificate().envelope),
+                env: RingInterval::from_certified(cache.certificate().envelope),
             });
         }
-        quad::cylinder_cut_face::<T>(br(*radius), o_dot_va, &edges, eps, band)
+        quad::cylinder_cut_face::<T>(
+            RingInterval::from_certified(*radius),
+            o_dot_va,
+            &edges,
+            eps,
+            band,
+        )
     }
 
     /// **The NURBS-patch flux lane** (M6-3 Leg C; RATIONAL since
@@ -1155,8 +1497,14 @@ mod quad_lane {
             let (t0, t1) = cache.params();
             let a = cache.pcurve().eval(t0);
             let b = cache.pcurve().eval(t1);
-            let (ax, ay) = (exact(br(a.x))?, exact(br(a.y))?);
-            let (bx, by) = (exact(br(b.x))?, exact(br(b.y))?);
+            let (ax, ay) = (
+                exact(RingInterval::from_certified(a.x))?,
+                exact(RingInterval::from_certified(a.y))?,
+            );
+            let (bx, by) = (
+                exact(RingInterval::from_certified(b.x))?,
+                exact(RingInterval::from_certified(b.y))?,
+            );
             if ax != bx && ay != by {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "a NURBS-face pcurve is not axis-aligned — a diagonal trim is \
@@ -1172,18 +1520,22 @@ mod quad_lane {
             }
             // Metric boundary length bound + the map-residual defect.
             let len = match &le.carrier {
-                geom::Curve3::Line { dir, .. } => (br(dir.norm()) * br(t1 - t0)).mag(),
+                geom::Curve3::Line { dir, .. } => (RingInterval::from_certified(dir.norm())
+                    * RingInterval::from_certified(t1 - t0))
+                .mag(),
                 geom::Curve3::Nurbs(c) => {
                     let mut l = RingInterval::zero();
                     for w in c.control().windows(2) {
-                        l = l + br(w[0].distance(w[1]));
+                        l = l + RingInterval::from_certified(w[0].distance(w[1]));
                     }
                     l.mag()
                 }
                 // An ARC cap rim on a rational wall (M8-3): the metric
                 // length is exactly `r·Δθ` — the carrier's own
                 // parameter IS the angle, so no bound is needed.
-                geom::Curve3::Circle { radius, .. } => (br(*radius) * br(t1 - t0)).mag(),
+                geom::Curve3::Circle { radius, .. } => (RingInterval::from_certified(*radius)
+                    * RingInterval::from_certified(t1 - t0))
+                .mag(),
                 _ => {
                     return Err(PropsError::QuadratureUnsupported {
                         what: "a NURBS-face boundary carrier outside the loft inventory \
@@ -1192,7 +1544,8 @@ mod quad_lane {
                 }
             };
             perimeter += len;
-            boundary_defect += len * br(cache.certificate().envelope).mag();
+            boundary_defect +=
+                len * RingInterval::from_certified(cache.certificate().envelope).mag();
         }
         // The rectangle certificate: hull of the traversal polygon,
         // every vertex on a corner, and the shoelace equal to ±the
@@ -1234,7 +1587,13 @@ mod quad_lane {
         let control: Vec<quad::RVec3> = payload
             .control()
             .iter()
-            .map(|p| [br(p.x), br(p.y), br(p.z)])
+            .map(|p| {
+                [
+                    RingInterval::from_certified(p.x),
+                    RingInterval::from_certified(p.y),
+                    RingInterval::from_certified(p.z),
+                ]
+            })
             .collect();
         let out = quad::nurbs_patch_face::<T>(
             payload.knots_u(),
@@ -1288,9 +1647,10 @@ mod quad_lane {
         #[cfg(feature = "interval")]
         #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
         mod bracket_seam_tests {
+            use geom_core::ring_interval::RingInterval;
             use geom_core::{Bounds, CertifiedEnclosure, Interval, Real};
 
-            use super::super::{br, chan};
+            use super::super::chan;
 
             /// Finite, strictly positive, and unable to certify — the case
             /// where the laundered answer is a *usable* number.
@@ -1306,25 +1666,26 @@ mod quad_lane {
             }
 
             #[test]
-            fn br_refuses_a_violated_scalar() {
-                let r = br(trv_pos());
+            fn the_certified_door_refuses_a_violated_scalar() {
+                let r = RingInterval::from_certified(trv_pos());
                 assert!(
                     r.is_poison(),
                     "a domain-violated scalar crossed into the ring as {r:?} —                  the bracket door does not read decorations, so the                  quadrature lane certifies a flux built from it"
                 );
                 // Non-vacuity: a certified scalar crosses with its endpoints.
-                let ok = br(Interval::from_bounds(1.0, 4.0).sqrt());
+                let ok = RingInterval::from_certified(Interval::from_bounds(1.0, 4.0).sqrt());
                 assert_eq!((ok.lo(), ok.hi()), (1.0, 2.0));
             }
 
             /// Where a violated scalar would have to come FROM. Every
-            /// scalar this lane hands to `br` is either read straight off
+            /// scalar this lane hands to [`RingInterval::from_certified`]
+            /// is either read straight off
             /// the stored body or built from it by `dot`, `norm`,
             /// `distance` and arithmetic — and none of those can
             /// manufacture a domain violation: a norm is the square root of
             /// a sum of squares, which is never partly negative, so it
             /// certifies even where it is zero and the vector degenerate.
-            /// A `Trv` reaching `br` therefore has to have been STORED in
+            /// A `Trv` reaching the door therefore has to have been STORED in
             /// the body, not produced here. That is a property of the
             /// arithmetic, not of any guard, so it is pinned rather than
             /// assumed.
@@ -1345,7 +1706,7 @@ mod quad_lane {
                         v.norm().certified_bracket().is_some(),
                         "a norm certified nothing for {v:?}"
                     );
-                    assert!(!br(v.norm()).is_poison());
+                    assert!(!RingInterval::from_certified(v.norm()).is_poison());
                 }
             }
 

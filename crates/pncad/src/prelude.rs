@@ -17,7 +17,8 @@
 //! The shape of it follows the user journey the tour documents:
 //!
 //! 1. **Numbers and frames** — points, vectors, transforms,
-//!    tolerance, the decision `Band`, and the f64-first constructors
+//!    tolerance, the decision `Band` the refusals quote, and the
+//!    f64-first constructors
 //!    from [`crate::authoring`] so no literal needs `from_f64`.
 //! 2. **Author a profile** — the PATHS lattice, loops, sketch planes.
 //! 3. **Build a body** — extrude, revolve, loft/sweep, fillet.
@@ -34,12 +35,17 @@
 
 // --- 1. Numbers and frames ------------------------------------
 pub use crate::authoring::{p2, p3, real, v2, v3, validated};
-// `Band` is here because `fillet_edges` (group 3) takes one: a prelude
-// operation whose arguments are not prelude-constructible is a rung the
-// user cannot start from. The recipe is `Band::linear(tol)` — the run's
-// tolerance ε as the coincidence threshold, K·ε as the escalation
-// threshold — which is what every kernel operation builds internally.
-// `Tol` is here for the same reason one rung down: it is the first
+// `Band`/`BandError` are here because the verbs' typed refusals quote
+// them: a caller that matches `BlendError::Band` (this prelude) or
+// `ShellError::Band` (reachable as `pncad::topo::ShellError`, through
+// the wholesale `topo` re-export) has to be able to name what the arm
+// carries. No prelude operation
+// TAKES a band — every kernel verb derives `Band::linear(tol)` from the
+// tolerance witness at its own entry (ε as the coincidence threshold,
+// K·ε as the escalation threshold), so a band is a thing the user reads
+// out of a refusal, not a thing the user supplies. Constructing one
+// directly (`Band::new`, `Band::angular_at`) is a geometry-layer move.
+// `Tol` is here for a different reason one rung down: it is the first
 // argument of every authoring call that decides anything, and a
 // prelude that cannot name it is a prelude you cannot author from.
 // `Tol::witness()` is the one line a program writes before modelling
@@ -55,11 +61,18 @@ pub use geom_core::{
 // surface and must not become it. Scope: the prelude carries the
 // value types + the six unit constants + the formatter; the unit
 // TABLE itself and the prefix data (`UNITS`, `unit_by_symbol`,
-// `MILLI`, `CENTI`) stay one module hop away at `pncad::quantity`,
-// per the corpus-measured prelude rule (module docs above).
+// `MILLI`, `CENTI`, `ONE`) stay one module hop away at
+// `pncad::quantity`, per the corpus-measured prelude rule (module
+// docs above).
+// `WrittenLength`/`WrittenAngle` are value types by the same rule and
+// ride here for the same reason `Length` does: they are what an
+// authored quantity IS at this boundary — a magnitude plus the
+// notation it was written in — and `Expr::written_length` is the door
+// they open, which is how a library recipe records `300 mm` rather
+// than `0.3` for a reader to interpret.
 pub use quantity::{
-    Angle, AngleUnit, CM, Count, DEG, FmtQuantityError, IN, Length, LengthUnit, M, MM, RAD,
-    fmt_angle, fmt_length,
+    Angle, AngleUnit, CM, Count, DEG, FmtQuantityError, IN, Length, LengthUnit, M, MM, PI, RAD,
+    WrittenAngle, WrittenLength, fmt_angle, fmt_length,
 };
 
 // --- 2. Profile authoring -------------------------------------
@@ -88,16 +101,24 @@ pub use ::profile::{
 // `bossplate` scene's three-arc rim IS one), so `circle` alone left
 // half of the closed-carrier vocabulary a crate away.
 pub use ::profile::{
-    ArcLen, ArcSide, Bulge, Center, ClosedLoop, LineTarget, Open, PartialPath, PathError,
-    PathNoCornerReason, Radius, Start, Sweep, TangentArcTarget, Via, circle, circle_split,
+    ArcLen, ArcSide, Bulge, Center, ClosedLoop, ContinueTarget, LineTarget, Open, PartialPath,
+    PathError, PathNoCornerReason, Radius, Start, Sweep, TangentArcTarget, Via, circle,
+    circle_split,
 };
 
 // --- 3. The four body operations ------------------------------
-pub use sweep::fillet::{FilletError, Filleted, fillet_edges};
+pub use sweep::blend::{BlendError, Filleted, fillet_edges};
 // The fillet's ruled sibling shares its refusal vocabulary
-// (`FilletError`, above): one verb, one edge-blend front door, the
+// (`BlendError`, above): one verb, one edge-blend front door, the
 // band the only difference.
 pub use sweep::chamfer::{Chamfered, chamfer_edges};
+// `BlendKind` names WHICH blend a shared refusal came from — the
+// recipe layer's `Node::Chamfer` and `Node::Fillet` carry one kernel
+// error type between them, so the discriminant has to cross with it.
+// `BlendRefusal` is how it crosses at the kernel doors: the refusal
+// both `fillet_edges` and `chamfer_edges` return, the verb attached
+// once around the shared verb-neutral error.
+pub use sweep::blend::{BlendKind, BlendRefusal};
 pub use sweep::{
     ExtrudeError, Extruded, Extrusion, LoftError, Lofted, Revolution, RevolveAxis, RevolveError,
     Revolved, TubeError, TubeWindow, extrude, loft_body, revolve, sweep_body, tube_along_arc,
@@ -116,7 +137,7 @@ pub use geom_brep::SurfaceKind;
 // SameOriented = flush walls), so code inspecting findings names it.
 pub use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
-    BooleanResultKind, ContactRecords, Curve3, EdgeGeometry, EdgeKey, FaceKey, Operand,
+    BooleanResultKind, ContactRecords, Curve3, EdgeDescription, EdgeKey, FaceKey, Operand,
     PlaneRelation, Surface, TransformError, VertexKey, intersect, intersect_with, subtract,
     subtract_with, transform_rigid, union, union_with,
 };
@@ -133,14 +154,22 @@ pub use topo::{MassProperties, MassPropsError, PropsQuadLane, mass_properties};
 pub use mesh::{Mesh, TessellateError, tessellate};
 pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 pub use step_import::{ImportOptions, StepImportError, import_step};
+// `StlError` is the writers' own refusal type — what `write_ascii` and
+// `write_binary` return. The option errors beside it
+// (`BinaryHeaderError`, `SolidNameError`) refuse at option
+// CONSTRUCTION; a prelude that carries the writers but not the type
+// they fail with leaves a caller unable to match on the failure it can
+// actually get.
 pub use stl::{
     AsciiOptions, BinaryHeader, BinaryHeaderError, BinaryOptions, SolidName, SolidNameError,
-    write_ascii, write_binary,
+    StlError, write_ascii, write_binary,
 };
 
 // --- 8. The document layer ------------------------------------
 // `parse_expr` is the expression TEXT door: the checking
-// parser whose every reduction runs the Expr smart constructors.
+// parser whose every reduction runs the Expr smart constructors;
+// `unparse` is the same door outward, source text the parser reads
+// back as the same tree.
 // The v4 program vocabulary: the profile payload is the
 // Expr-bearing `ProfileProgram`, curated through the ONE document
 // surface (`crate::document`). `Datum` and `ParamEnv` ride here
@@ -154,9 +183,9 @@ pub use stl::{
 // the parametric flagship (`plate_param`, guide §3.2) imports both.
 pub use crate::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, EditError, EvalOptions, Evaluation,
-    Expr, LoopProgram, Node, NodeError, ParamEnv, ParamName, ParseError, PatternKind,
+    Expr, LoopProgram, Node, NodeError, ParamEnv, ParamName, ParseError, PatternKind, ProfileLift,
     ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RecordedProgramError,
-    SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr,
+    SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr, unparse,
 };
 pub use editor_core::StableName;
 
@@ -170,13 +199,38 @@ pub use editor_core::StableName;
 // The detect/declare protocol rides in this group too: the
 // findings vocabulary, the detector, and the declare sugar (the
 // worked example is in `crate::select`'s module docs).
+// `DanglingRef` rides beside `ReadbackError` for the same reason
+// every carried refusal's payload does: it is what `Dangling`'s
+// field IS, so without it the arm is matchable and its two lanes
+// are not.
 pub use crate::select::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
-    CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, EntityKind, FIT_DEFERRAL,
-    FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd, NamePat,
-    NameTable, OpGroup, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport,
-    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side,
-    SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, declare,
-    declare_all, declare_node, denotation, edge_frame, edge_name, face_frame, face_name,
-    find_flush_candidates, select, select_where, vertex_position,
+    CurveKind, CurveKindSet, DanglingRef, DeclareError, DeclaredContact, Denotation, EntityKind,
+    FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
+    NameOrigin, NamePat, NameTable, OpGroup, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError,
+    RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector,
+    Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
+    attribute, declare, declare_all, declare_node, denotation, edge_frame, edge_name, face_frame,
+    face_name, find_flush_candidates, select, select_where, vertex_position,
 };
+// The KERNEL query seat (`topo::query`): the same selection
+// vocabulary as a pure function of a `Body`, for the caller who holds
+// arena keys and no document. Re-exported as the MODULE, not its
+// items, because the two seats' materializers deliberately share
+// names — `all_edges` above answers names from an evaluation,
+// `query::all_edges` answers keys from a body — and a prelude must
+// not make one shadow the other. The vocabulary types the doors speak
+// (`CurveKind`, `CurveKindSet`, `SurfaceKindSet`, `SurfaceKind`) are
+// already above, one definition re-exported upward.
+pub use topo::query;
+// The KERNEL flush seat (`topo::flush`): the same detect/declare
+// protocol as a pure function of two `Body`s, for the caller who holds
+// arena keys and no document. A MODULE for the reason `query` is one,
+// and more sharply — all three door names collide with the document
+// seat's above (`find_flush_candidates`, `declare`, `declare_all`),
+// which answer names from an evaluation where `flush::` answers keys
+// from a body. The finding vocabulary the doors speak
+// (`ContactClass`, `FlushEvidence`, `FlushRung`, `PlaneRelation`) is
+// already above, one definition re-exported upward: `FlushFinding` is
+// literally the same type at both seats, over each seat's pair.
+pub use topo::flush;

@@ -26,9 +26,9 @@ layer this doc banks on is REAL —
 `apply`, #81), the GQ2 per-node result DAG with descendants-only
 poisoning plus memoized incremental evaluation and cooperative
 cancelation (#83), one stable-name type with resolution/diagnosis/
-`Rebind` (#87/#96/#102), GQ3 persist-all-edits (schema v1 at #112,
-carried forward through a series of pre-release clean breaks; the
-live number is `persist::SCHEMA_VERSION`) — StableName-
+`Rebind` (#87/#96/#102), GQ3 persist-all-edits (#112; the format
+carries no schema version before release — `persist`'s module docs)
+— StableName-
 keyed appearance with the N3/N5 loss semantics (#92), the
 dimension-checked total expression AST (GQ5's restrictive
 dimension answer) with the text door and display-unit round-trip
@@ -92,7 +92,7 @@ convention):**
   exactly one *committed* `DocEdit` on release — one undo step, one
   document transition. Same shape either way; commit is the one that
   enters the history (ratified in-conversation 2026-07-19).
-- **Every operation the GUI performs is itself API** (Evan,
+- **Every operation the GUI performs is itself API** (Ev,
   2026-08-27): "select this object", "hide this part", "free-move
   this instance", a camera move — each is a typed operation on
   `editor-core` or layer-3 state values, callable with no renderer
@@ -122,7 +122,7 @@ recipe edit**. Two facts recorded from the ratifying conversation:
   solved assignment — is **not** a GUI question; it is GQ1, and it
   constrains M4's recipe format.
 
-## G3 (Evan, 2026-08-03): The v1 GUI minimum EXCLUDES live editing
+## G3 (Ev, 2026-08-03): The v1 GUI minimum EXCLUDES live editing
 
 Sourced from a conversation with a practicing mechanical engineer:
 the minimum useful GUI needs exactly —
@@ -134,7 +134,7 @@ the minimum useful GUI needs exactly —
   involvement, purely a display transform on unmated parts),
 - hiding parts in an assembly (see behind them).
 
-One addition was ruled onto these four at v1 planning (Evan,
+One addition was ruled onto these four at v1 planning (Ev,
 2026-08-27, `docs/GUI-PLAN.md`): **defining a mate between
 previously-unmated parts**, ruled in because free-move fit-probing
 exists precisely to precede it.
@@ -173,6 +173,72 @@ requirement, not a solver one).
   here makes "preview disagreed with commit" conceptually impossible
   rather than merely tested-against.
 
+### Colour: the theme is a user preference, the document overrides it (Ev, 2026-08-30)
+
+Two things set colour, and the precedence between them is one rule.
+
+- **A theme is a USER preference.** It supplies every semantic mark —
+  selection, hover, free-move probe, focus, unresolved — the *default*
+  body colour, and the ambient term. It is **never written into a
+  document**: the same file has to be legible to a colourblind reader
+  and to somebody running the palette they find prettiest, on their
+  own screens. It is therefore not persisted by `editor-core` and
+  takes no part in any content key.
+- **A document overrides the body colour.** `Attr::Color` on a stable
+  name (M4 PR 7) is authored, persisted, and travels with the file.
+  Where a document states a colour, the theme's default body colour
+  gives way; the theme never overrides it back.
+
+Both sides are `editor_core::appearance::Rgba8` — exact 8-bit sRGB —
+so the override is a substitution within one colour space rather than
+a conversion between two. Linear light is entered once, at each
+renderer's own door.
+
+**Colourblind legibility is a claim a theme makes, not a constraint on
+every theme.** A palette may state that its marks stay mutually
+distinguishable under dichromatic vision, and one that does is held to
+it by simulation in `crates/viewer/tests/theme.rs`; a palette that
+makes no such claim is not lesser for it, and is not checked. Shipping
+both is the point — a palette chosen to be beautiful and a palette
+chosen to be discriminable are different jobs, and the failure worth
+preventing is a palette claiming the second job and not doing it.
+Because the marks are *mixed over* the body colour rather than
+replacing it, what any such check must measure is the composited
+colour, never the raw tint.
+
+**A palette also states its GROUND** (`Theme::ground`, Ev,
+2026-09-01) — what fills the viewport where no geometry is drawn. It
+is the palette's and not the toolkit's for the reason every other
+colour here is: the pane is a custom pass that paints only what the
+model covers, so a viewport that states no ground gets whatever the
+window was cleared to, decided behind the palette's back. It is also
+the surface every swatch is finally seen against, so it is held to the
+same separation bar the marks are.
+
+That bar is what puts `colorblind-safe` on a LIGHT ground. Its mark
+ladder runs two of four marks below the body — a deep blue hover and a
+near-black probe — and those are the two a dark ground takes away: no
+dark ground clears the bar at all, while a near-white one clears it
+twice over. A palette whose marks run downward needs a ground above
+all of them.
+
+**Preferences are remembered in a file people can open**, at
+`$XDG_CONFIG_HOME/pncad/viewer.toml` — hand-editable TOML, chosen over
+eframe's `persistence` blob for exactly that reason. The document is a
+value and the storage is one thin edge over a `String`, so the browser
+build's `localStorage` store is a second impl rather than a retrofit;
+until it exists the web arm reports `Absent` and disables saving, the
+same posture `frame::chooser_backend` takes where no portal exists.
+
+The failure posture is deliberately **softer than the document
+path's**, because a preferences file holds no work: malformed TOML
+refuses, an unknown KEY reports and the rest of the file still
+applies, and an unknown VALUE reports and falls back to the default. A
+name typed on the command line is refused instead of falling back —
+same word, different provenance, different answer: a file is a memory
+of an older session and may name a theme since renamed, where a
+typed name is a typo worth showing.
+
 ## GQ items (GQ1–GQ5 RATIFIED and shipped — kept as the rationale record; GQ6's toolkit row RATIFIED 2026-08-16 and its remaining rows settled in the v1 GUI units; GQ7 slimmed by the SELECT-DESIGN re-homing, its remainder deferred to sketcher/tree design)
 
 ### GQ1 (RATIFIED 2026-07-19 round 4): The solver/replay boundary — witness as authoritative branch selection
@@ -183,7 +249,7 @@ inside D9's bit-identity boundary and Q1's trilean discipline (solver
 internals branch on convergence tests that are not predicates;
 interval-instantiating a constraint solver is research).
 
-**Why a stored witness at all (clarified with Evan, 2026-07-19 round
+**Why a stored witness at all (clarified with Ev, 2026-07-19 round
 3): the constraints alone do not define the sketch.** A constraint
 system generically has a *finite set* of discrete solutions
 (reflections, elbow-up/elbow-down — 2^k-ish configurations all
@@ -210,7 +276,7 @@ large-parameter-jump witness landing near a basin boundary escalates
 on the same margin. The witness refreshes at every committed sketch
 edit, so it is always the user's most recent explicit choice.
 
-**Ratified (Evan, round 4: "the clear correct choice for us"):**
+**Ratified (Ev, round 4: "the clear correct choice for us"):**
 solver output demoted to witness; kernel certifies; interval replay
 runs interval-Newton **contraction seeded from the f64 witness**
 (existence/uniqueness in a box) instead of interval-solving from
@@ -242,7 +308,7 @@ value), the solid being the final node's success — fail-loud
 preserved (failures typed and mandatory to confront), last-good
 prefix free for the GUI. **A failure poisons only its descendants**
 (typed "upstream failed" status); independent subgraphs — other
-bodies, sketches, datum geometry — complete normally (Evan's
+bodies, sketches, datum geometry — complete normally (Ev's
 addition). Exact API shape is M4 design work; the codomain
 commitment is what is banked here.
 
@@ -259,15 +325,17 @@ outcome. Progress reporting and in-op yield points remain absent.*
 removing/disabling persistence later is far easier than adding it
 (and session-spanning undo, macros, and collaboration all want it).
 Banked consequences: the edit schema enters Band 4's versioning
-discipline from the first persisted file; storage shape is
+discipline from the first RELEASED file (ruled 2026-09-01: none
+before that); storage shape is
 **snapshot + edit log** (details at editor-core design time).
 
-*Shipped: snapshot + edit log is the on-disk format (`schema: n`
-header + JSON body); save verifies the log replays through `apply`
-before writing, and load replays it after. Schema v1 landed at M4
-PR 6, and the versioning discipline has since carried a series of
-ratified pre-release clean breaks (LQ7a — no migration machinery
-before release).*
+*Shipped: snapshot + edit log is the on-disk format (`id:` header
+line + JSON body); save verifies the log replays through `apply`
+before writing, and load replays it after. The format landed at M4
+PR 6 and carries no schema version before release (the Band 4
+roadmap line in DESIGN.md; LQ7a — no migration machinery before
+release): a format change regenerates the checked-in corpus, and a
+file a build cannot read refuses typed with the regenerate recourse.*
 
 ### GQ4 (RATIFIED 2026-07-19 round 5): Document scope — local refs + wrapper, assemblies in the same formalism
 
@@ -287,7 +355,7 @@ extension shape is composition, not modification. Ratified:
   is touched.
 - The naming design doc proceeds assuming locality, with the wrapper
   named as the sanctioned extension point.
-- **The uniformity principle (Evan's synthesis, the ratifying
+- **The uniformity principle (Ev's synthesis, the ratifying
   addition): the document boundary is a namespace/versioning seam,
   NOT a change of formalism.** An assembly document is a recipe DAG
   of the *same shape* as a part document — its nodes are features
@@ -341,7 +409,7 @@ wrapper-plus-pin shape again, held by the part document.
 ### GQ5 (RATIFIED 2026-07-19 round 4, superseding round 3's raw-meters reading): Typed quantities in the expression sublanguage
 
 Round 3 read D6 as "expressions are raw meters, unit strings are
-parse-time sugar." Evan's round-4 revision, ratified: **the
+parse-time sugar." Ev's round-4 revision, ratified: **the
 expression sublanguage carries typed quantities** — once display
 units are stored anywhere (round-tripping `25 mm` requires it), raw
 storage means the type system knows less than the data does;
@@ -366,8 +434,14 @@ total and finite by charter. The units/display layer landed with
 the library program (LIB U8a/U8b, as banked): the `quantity`
 newtypes and unit table at the D6 API boundary, the expression TEXT
 door (`editor-core::parse`), and stored display units that
-round-trip `25 mm`. The v1 GUI panels sit on canonical
-meters/radians by ruling regardless (`docs/GUI-PLAN.md`).*
+round-trip `25 mm`. The v1 GUI panels sat on canonical
+meters/radians by ruling; that ruling was superseded post-close
+(2026-08-29) and the panels now render and author in the stored
+display unit — see `docs/GUI-PLAN.md`'s units row and
+`docs/GUI-LOG.md`'s tail. The unit table also gained a `pi rad` row
+(half-turns), which is a NOTATION rather than a physical unit and
+says so in `quantity::units`' module docs; it is the default written
+unit for an angle that remembers none.*
 
 ### GQ6: Toolkit and platform (toolkit RATIFIED 2026-08-16; the remaining rows settled inside the v1 GUI units)
 
@@ -375,7 +449,7 @@ meters/radians by ruling regardless (`docs/GUI-PLAN.md`).*
 `docs/GQ6-RESURVEY.md`**, which supersedes the snapshot below as the
 factual record.
 
-**Toolkit (RATIFIED, Evan, 2026-08-16): egui — and if egui does not
+**Toolkit (RATIFIED, Ev, 2026-08-16): egui — and if egui does not
 work out, iced.** A default with a named fallback, not a tie to be
 broken later by a bake-off. Deciding factors: egui tracks current
 wgpu (30) where iced 0.14 pins 27 and has not released since
@@ -422,7 +496,7 @@ cargo feature is additive for the dependency graph and
 `cfg(not(feature = "interval"))` under `crates/*/src`, so the interval
 build compiles a superset of the library sources. Under `crates/*/tests`
 the gate holds a different rule and the negation is legitimate; that does
-not reach this guard, whose step builds no test targets. **Evan's ruling, 2026-08-21:** *"do add wasm
+not reach this guard, whose step builds no test targets. **Ev's ruling, 2026-08-21:** *"do add wasm
 cross compiling for the interval build only. the lint for having
 interval be purely additive suffices."*
 
@@ -485,13 +559,39 @@ survive-the-vanishing-entity semantics are library surface, owned by
 `docs/SELECT-DESIGN.md` and the naming doc's resolution-failure
 semantics.
 
+**Pick-priority — the first concrete instance (recorded at GAUTH-2).**
+Edge picking made the clause real: a face fills the pixel an edge only
+borders, so an edge is unreachable without a rule that lets it win near
+its own boundary. The rule taken is *proximity in the picture*, scoped
+to the body the cursor is over: the cursor's ray picks a face first,
+and an edge **of that face's own body** within
+`viewer::pick::EDGE_PICK_RADIUS_PX`, not hidden by the solid, beats it.
+Everywhere else the face wins, and off the body nothing wins — the rule
+is not a global "nearest entity in the picture", and stating it that
+way would promise a search this mechanism does not do. The constant is
+named and lives in that one place, so a later instance of the same
+question cites it rather than minting a second radius; the mechanism
+(seeded by the face pick, occlusion-checked, deterministic) is the
+implementation's business and is documented at its own door.
+
+The clause's other half arrived with it: **a tool may narrow which
+kinds it accepts**, because a rule that is right for a bare cursor is
+wrong for a tool that can only use one kind — with edges always
+winning, faces narrower than the radius became unpickable while the
+mate tool was open (`viewer::pick::PickKinds`, issue #1379). What is
+NOT settled here is the filter vocabulary: which filters are offered
+where, and how a tool states what it wants, still wait on sketcher/tree
+design with GAUTH-5's edges-only blend tool as the second data point.
+Nothing here widens GQ7 — which entity wins is still the GUI's
+question.
+
 ## UI ideas (non-binding sketchpad)
 
 Ideas captured during design conversations — NOT ratified decisions;
 they inform sketcher/editor design when it happens. Each cites the
 contract it builds on.
 
-- **Wall-mode drag (Evan, PR #79 conversation, 2026-07-23)** — on
+- **Wall-mode drag (Ev, PR #79 conversation, 2026-07-23)** — on
   SOLVER-DESIGN W2/W4: the default click-and-drag mode refuses to
   cross the discriminant locus. As the drag approaches it, the
   preview solver's `solver_branch_margin` shrinks; at the wall the
@@ -513,7 +613,7 @@ contract it builds on.
   `solver_branch_margin` value is a live scalar during editing;
   surfacing it (e.g. subtle proximity shading near walls) turns
   "why did it ask?" into something the user saw coming.
-- **Scale-relative sliver lint** — from #89 (Evan, 2026-07-24): any
+- **Scale-relative sliver lint** — from #89 (Ev, 2026-07-24): any
   feature whose margin is so small it renders indistinguishably from
   exact coincidence at GUI scale is *probably* a mistake — but the
   kernel must not refuse it (K guards certification honesty, not
@@ -527,7 +627,7 @@ contract it builds on.
   effect on evaluation or certification. The kernel-side "should K
   itself be larger" question stays separate, gated on the M5 exit
   K-snapshot (#89 remains the tracking handle).
-- **Painted operands through booleans** — from #92 (Evan, 2026-07-25):
+- **Painted operands through booleans** — from #92 (Ev, 2026-07-25):
   joining painted bodies never errors (resolves-anywhere semantics;
   paint keeps resolving on the operand node). The GUI renders the
   displayed node's appearance, so paint-what-you-see always works;
@@ -539,9 +639,9 @@ contract it builds on.
   "carry appearance through this boolean" policy can enter the N5
   menu as its own ratification.
 
-## Undo as a history tree, not a stack (concept — Evan, 2026-07-25)
+## Undo as a history tree, not a stack (concept — Ev, 2026-07-25)
 
-Motivation (Evan's pet peeve, common to most editors): undo N steps,
+Motivation (Ev's pet peeve, common to most editors): undo N steps,
 make one edit, and the redo branch is silently destroyed — real work
 lost. Better design: edit history is a TREE (a DAG of document
 states); undo moves a pointer toward the root, a new edit after undo
@@ -566,7 +666,7 @@ the tree-shaped *state* under linear chrome (`viewer::history`: an
 edit after undo mints a sibling, nothing is destroyed); the branch
 picker and the sidecar are GUI-6.
 
-Visualization sketch (Evan, 2026-08-27; non-binding like the rest
+Visualization sketch (Ev, 2026-08-27; non-binding like the rest
 of this section): render the history as a graph with the linear
 history running top to bottom; an edit made after an undo mints a
 new child node placed to the right of the child that redo would
@@ -574,10 +674,10 @@ have reached. Sized in the same conversation at one-to-two work
 units including the separable sidecar file, sequenced after GUI
 v1 (`docs/GUI-PLAN.md` banks it as GUI-6).
 
-### State/history separation (Evan, 2026-07-27 — the sharpened
+### State/history separation (Ev, 2026-07-27 — the sharpened
 ### form of the git-like instinct)
 
-What the undo-tree concept above still owed a name: Evan wants it
+What the undo-tree concept above still owed a name: Ev wants it
 POSSIBLE to share a document's state without bringing its entire
 history — the state and the edit DAG should be separable artifacts,
 not one inseparable file. Design facts already in place: F3's

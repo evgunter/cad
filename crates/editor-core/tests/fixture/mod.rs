@@ -206,10 +206,7 @@ pub fn die() -> Die {
     // pip_depth: the mid-DAG continuous parameter.
     r.push(DocEdit::SetDocParam {
         name: ParamName::new("pip_depth"),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: DEPTH,
-        },
+        value: DocParam::continuous(Dimension::Length, DEPTH),
     });
     // The cube: profile on the xy plane, extruded +2.
     let cube_profile = r.insert(Node::Profile(desc(

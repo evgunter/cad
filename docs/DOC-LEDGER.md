@@ -128,7 +128,7 @@ after it are register items, all closed.
 - `LIB-RESPELL-SPEC.md` — LIB-RESPELL spec — the §2c fillet family, implemented (binding)
 - `LIB-RETTAIL-SPEC.md` — LIB-RETTAIL spec — the retirement's tail: ProfileLoop demotion, bowtie re-home, shim deletion (binding)
 - `LIB-RTABLE-SPEC.md` — LIB-RTABLE spec — the four-projection transition table (RESPELL-TABLE; binding)
-- `LIB-SEAL-SPEC.md` — LIB-SEAL spec — ProfileLoop seals: private fields + read accessors (ruled by Evan in-chat 2026-08-16; binding)
+- `LIB-SEAL-SPEC.md` — LIB-SEAL spec — ProfileLoop seals: private fields + read accessors (ruled by Ev in-chat 2026-08-16; binding)
 - `LIB-SEL1-SPEC.md` — LIB-SEL1 spec — geometric selectors PR-1 (binding)
 - `LIB-SWITCH-SPEC.md` — LIB-SWITCH spec — profiles-as-programs v2: the schema-v4 representation switch
 - `LIB-U1-SPEC.md` — LIB-U1 spec — the façade crate + prelude (binding)
@@ -173,7 +173,7 @@ unit is queued, not done.
 
 ### `docs/archive/` — the 2026-08-05 archive, retired in full (50 files)
 
-The archive directory was created 2026-08-05 (method ratified by Evan:
+The archive directory was created 2026-08-05 (method ratified by Ev:
 `docs/archive/` + an index + the git tag `archive/2026-08-05`) to hold
 M0–M6 historical milestone documents. Its index recorded, per file,
 what superseded it: the milestone conventions ratified into
@@ -228,7 +228,7 @@ by this ledger, and **`docs/archive/` no longer exists.**
 - `M5-S13-SPEC.md` — M5 S13 — the die-pips enablers: containment-fallback re-cut + the plane×sphere germ arm (binding spec)
 - `M5-S2-SPEC.md` — M5 S2 — arc-leg fillet sugar (binding spec)
 - `M5-S6-SPEC.md` — M5 S6 — two-tolerance message-unification sweep (binding spec)
-- `M5-S7-SPEC.md` — M5 S7 — CI/docs hygiene sweep (binding spec; Evan-directed 2026-07-30)
+- `M5-S7-SPEC.md` — M5 S7 — CI/docs hygiene sweep (binding spec; Ev-directed 2026-07-30)
 - `M5-S8-SPEC.md` — M5 S8 — fillet branch selection: nearest-the-authored-corner (binding spec)
 - `M5-S9-SPEC.md` — M5 S9 — chord_spec arc-side repair: azimuth-window containment (binding spec)
 - `M6-2-SPEC.md` — M6-2 spec — the SSI generic-T lift (binding)
@@ -251,7 +251,7 @@ at M5 PR 13), and its F5 entry still cross-referenced "the M4 roadmap
 entry above" — a pointer back into `DESIGN.md` that dangled the moment
 it was relocated.
 
-Ruled by Evan, 2026-08-20: **delete the passage rather than re-home the
+Ruled by Ev, 2026-08-20: **delete the passage rather than re-home the
 record.** Two edits to `docs/DESIGN.md` accompany this sweep:
 
 - the `### M4 fork outcomes (F1–F8)` section (10 lines) was removed. It
@@ -394,3 +394,38 @@ of this document resolves any of them. One source comment was edited
 rather than left, because its tense made a live claim: `crates/mesh/
 src/sizing.rs` said `TESS-SPLIT-SPEC.md` "binds its execution", present
 tense, of a unit that had merged.
+
+## Sweep 4 — 2026-09-03: the work tracker replaces the register and the survey
+
+The tracker under `work/` (contract: `work/README.md`) is now the one
+home of live work, and two documents whose content it carries are
+deleted. Recover either with `git show <this sweep's SHA>^:docs/<NAME>`.
+
+- **`SMELL-SCAN-2026-08.md`** — the structural findings register and
+  its Tracks K–X schedule. Every live row is an item file
+  `work/code-quality/<ROWID>.md` (109 rows, the row id kept as the file
+  name), every Ev-only decision a `ruling` item there, every live
+  unrowed finding an `issue` item there, and the four ordering rules,
+  the partition rules, the territories table and the seams are
+  `work/code-quality/plan.md`. §C's process observations are
+  `work/code-quality/process-observations.md` verbatim. The census
+  that reconciles all 94 finding headings against the tree is
+  `work/code-quality/logs/migration-census-2026-09-03.md`; nothing
+  was dropped. One source defect is carried as a flagged
+  reconstruction: partition rule 4's opening sentence was already
+  missing from the document (its text began mid-sentence), and the
+  plan states it as "A style review runs on every unit against …".
+- **`WORK-STREAMS-2026-08.md`** — the 2026-08-29 stream cut. Every
+  stream it proposed graduated to a program, and each program's
+  `work/<program>/program.md` now carries the charter and territory
+  the cut assigned it. Plans that cite the cut as their charter keep
+  the citation; it resolves here.
+
+### Moved, not deleted
+
+Every `docs/<NAME>-PLAN.md` / `docs/<NAME>-LOG.md` pair is now
+`work/<program>/plan.md` / `log.md` (git rename history intact), and
+the nine `SMELL-*-LOG.md` track logs are under
+`work/code-quality/logs/`. `MODEL-AB-LOG.md` stays in `docs/` as the
+experiment log it is. `scripts/work.py lint` refuses a plan or log
+reappearing in `docs/`.

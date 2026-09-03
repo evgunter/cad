@@ -51,10 +51,8 @@
 //! the names themselves yield a `PredicateFlip` derived from recorded
 //! data when a same-shape sibling differs by exactly one pure-sign
 //! `SideOf` entry. If that too finds nothing, the total fallback is
-//! `RecipeEdit { NodeChanged(minting node) }`, documented as "the
-//! recorded reference disagrees with the recipe as it stands; the
-//! cause is not in evidence" — a site, not a claim that an edit
-//! happened.
+//! [`Diagnosis::cause_not_in_evidence`], which carries that reading at
+//! the value rather than in prose here.
 
 mod hit;
 mod pick;
@@ -127,11 +125,13 @@ pub enum ResolveError {
 }
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
-// the PROBLEM in prose — the name by its kind and minting node (a
-// stable name is a derivation path, and the node is the half a user
-// can act on), the WHY forwarded from the payload's own rendering.
-// Composing layers (`NodeErrorKind`'s two resolve arms) FORWARD this
-// rather than re-stating it.
+// the PROBLEM in prose — the name through `StableName`'s own
+// `Display` (its kind and minting node — the half a user can act on),
+// the WHY forwarded from the payload's own rendering. `NodeGone`
+// alone re-spells the name, because its sentence interleaves the
+// fields ("the name's minting node …"). Composing layers
+// (`NodeErrorKind`'s two resolve arms) FORWARD this rather than
+// re-stating it.
 impl core::fmt::Display for ResolveError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -139,18 +139,13 @@ impl core::fmt::Display for ResolveError {
                 name, diagnosis, ..
             } => write!(
                 f,
-                "the {} name minted by node {} no longer resolves in this evaluation: \
-                 {diagnosis}",
-                name.kind.noun(),
-                name.node.0
+                "the {name} no longer resolves in this evaluation: {diagnosis}"
             ),
             Self::Ambiguous { name, tie, .. } => write!(
                 f,
-                "the {} name minted by node {} is tie-marked: {} equally-admissible \
+                "the {name} is tie-marked: {} equally-admissible \
                  candidates at its recorded site — a tie is never broken by picking; \
                  refine the reference until one candidate remains",
-                name.kind.noun(),
-                name.node.0,
                 tie.width
             ),
             Self::NodeGone { name, edit } => write!(
@@ -165,6 +160,85 @@ impl core::fmt::Display for ResolveError {
 }
 
 impl core::error::Error for ResolveError {}
+
+/// The two refusals every N5 ladder in this crate mints, minted in one
+/// place.
+///
+/// Two ladders answer the same question at different scopes — this
+/// module's whole-evaluation one and the mid-evaluation one the
+/// evaluation doors resolve through (`eval::wire`'s `ladder`) — and
+/// their rungs 1 and 2
+/// are the SAME refusal, derived from the same facts. What differs
+/// between them is rung order enforcement and the `Vanished` rung, so
+/// those stay where they are and these do not: a payload shape is
+/// held by one constructor rather than by two sites agreeing.
+impl ResolveError {
+    /// Rung 1: the minting node must still be in the document, or the
+    /// name is stranded. `None` when it is live.
+    ///
+    /// Ids are never reused, so the two cases are derivable rather
+    /// than recorded: an id below the mint counter named a node this
+    /// document DELETED, and one at or above it was never this
+    /// document's at all.
+    ///
+    /// Neither case takes a refinement, and neither can: both are
+    /// decided by the document in hand, and a prior run of the SAME
+    /// document has nothing to add to either — ids are not reused, so
+    /// a node the prior run held and this one does not is deleted,
+    /// which is what the counter already says.
+    pub(crate) fn node_gone(name: &StableName, doc: &Doc<ProfileProgram>) -> Option<Self> {
+        if doc.node(name.node).is_some() {
+            return None;
+        }
+        Some(Self::NodeGone {
+            name: name.clone(),
+            edit: if name.node.0 < doc.next_id {
+                RecipeEditRef::NodeDeleted { node: name.node }
+            } else {
+                RecipeEditRef::ForeignNode { node: name.node }
+            },
+        })
+    }
+
+    /// Rung 2: `name` landed on a tie row — `at`, recorded at `node`,
+    /// `width` candidates wide.
+    ///
+    /// The tie row IS the ambiguity (N5), so the candidates are that
+    /// row expressed in names and are derived from the witness here
+    /// rather than restated per door. `at` is the referenced name
+    /// itself, except on an `order_along` over-tie, where it is the
+    /// widened base row the reference actually tied against.
+    pub(crate) fn ambiguous(
+        name: &StableName,
+        at: StableName,
+        node: RecipeNodeId,
+        width: u32,
+    ) -> Self {
+        Self::Ambiguous {
+            name: name.clone(),
+            candidates: vec![at.clone()],
+            tie: TieWitness { node, at, width },
+        }
+    }
+
+    /// Rung 3 for a door with no history: `name` is gone and nothing
+    /// can be said about why.
+    ///
+    /// `last_good` is `None` because there is nothing to look it up
+    /// in — a mid-evaluation door has no prior run — which is the same
+    /// absence that makes the diagnosis
+    /// [`Diagnosis::cause_not_in_evidence`]. The whole-evaluation
+    /// ladder does not use this: it reaches the same diagnosis only
+    /// after its own rungs come up empty, and it can still bank a
+    /// tombstone.
+    pub(crate) fn vanished_fallback(name: &StableName) -> Self {
+        Self::Vanished {
+            name: name.clone(),
+            diagnosis: Diagnosis::cause_not_in_evidence(name.node),
+            last_good: None,
+        }
+    }
+}
 
 /// Why a name vanished — N5 verbatim plus the reserved
 /// `WitnessBifurcation` arm (SOLVER-DESIGN W3; constructed by the M6
@@ -205,6 +279,28 @@ pub enum Diagnosis {
     WitnessBifurcation(Box<WitnessBifurcation>),
 }
 
+impl Diagnosis {
+    /// The total fallback, honest about its limits: the recorded
+    /// reference disagrees with the recipe as it stands and the CAUSE
+    /// IS NOT IN EVIDENCE. `NodeChanged` names the minting node as the
+    /// SITE of the disagreement, never a claim that an edit happened.
+    ///
+    /// Reachable two ways, and the vocabulary is the same for both, so
+    /// the value has one home: with no evidence to weigh — a
+    /// mid-evaluation door, which has no prior run to diff — and with
+    /// evidence that came up empty, through the population-cancel
+    /// blind spot (`vdiff` module docs) or through SWEEP PRUNING (the
+    /// realized sweep records no verdicts for pruned pairs, so an
+    /// interaction-boundary vanish can land here — ratified
+    /// 2026-07-29, NAMING-DESIGN N5 as amended; the shadow
+    /// re-execution recovery rung is banked there).
+    pub(crate) fn cause_not_in_evidence(node: RecipeNodeId) -> Self {
+        Self::RecipeEdit {
+            edit: RecipeEditRef::NodeChanged { node },
+        }
+    }
+}
+
 // Rendered as the WHY clause of [`ResolveError::Vanished`]'s message:
 // each arm states its cause; payload-holding arms forward the
 // payload's own rendering.
@@ -217,7 +313,7 @@ impl core::fmt::Display for Diagnosis {
                 to,
             } => write!(
                 f,
-                "predicate {predicate} flipped from {from:?} to {to:?} on the name's \
+                "predicate {predicate} flipped from {from} to {to} on the name's \
                  derivation path"
             ),
             Self::StructuralParam { node, param } => write!(
@@ -236,10 +332,8 @@ impl core::fmt::Display for Diagnosis {
             ),
             Self::Cascade { through } => write!(
                 f,
-                "the upstream {} name minted by node {} vanished first; its own \
-                 resolution failure carries the root cause",
-                through.kind.noun(),
-                through.node.0
+                "the upstream {through} vanished first; its own \
+                 resolution failure carries the root cause"
             ),
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
@@ -386,6 +480,45 @@ pub enum ResolveIndeterminate {
     },
 }
 
+// The human-readable rendering (LIB-DOORS F6 shape): each arm states
+// the PROBLEM — the minting node's standing, which is the half a user
+// can act on — plus the fact that makes this vocabulary its own: the
+// reference is indeterminate, not vanished, so the recourse is always
+// to restore the node's value, never to rebind. The three arms say
+// what the hit-test and interrogate doors' identical arms say — the
+// same fact about the same evaluation reached through a different
+// door — and the shared recourse tail ("the repair is upstream, at
+// node N") is deliberately word-for-word across the three standing
+// renderings, hand-synced: each door's sentence differs in subject
+// and consequence, so only the tail is common and it is too small a
+// fragment to be worth a shared helper.
+impl core::fmt::Display for ResolveIndeterminate {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::TargetFailed { node } => write!(
+                f,
+                "the name's minting node {} failed this evaluation, so the reference cannot be \
+                 answered right now — fix the node's own failure and it resolves again",
+                node.0
+            ),
+            Self::TargetPoisoned { through } => write!(
+                f,
+                "the name's minting node is poisoned by the failure at node {}, so the \
+                 reference cannot be answered right now — the repair is upstream, at node {}",
+                through.0, through.0
+            ),
+            Self::TargetNotEvaluated { node } => write!(
+                f,
+                "the name's minting node {} has no result in this evaluation (a canceled run's \
+                 suffix) — re-evaluate and the reference resolves again",
+                node.0
+            ),
+        }
+    }
+}
+
+impl core::error::Error for ResolveIndeterminate {}
+
 /// One resolution's outcome (total: every input name gets exactly one
 /// of these, never a panic).
 #[derive(Debug, Clone, PartialEq)]
@@ -483,15 +616,7 @@ fn enrich_impl<T: Decide, P: PriorCtx>(
         && let Some(Entry::Tied(ents)) = v.name_table.lookup(&loss.name)
     {
         return Resolution::Failed(ResolutionFailure {
-            error: ResolveError::Ambiguous {
-                name: loss.name.clone(),
-                candidates: vec![loss.name.clone()],
-                tie: TieWitness {
-                    node: *at,
-                    at: loss.name.clone(),
-                    width: ents.len() as u32,
-                },
-            },
+            error: ResolveError::ambiguous(&loss.name, loss.name.clone(), *at, ents.len() as u32),
             offers: Vec::new(),
         });
     }
@@ -532,7 +657,6 @@ trait PriorCtx {
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis>;
     fn tombstone<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone>;
-    fn removal_edit(&self, node: RecipeNodeId) -> Option<RecipeEditRef>;
 }
 
 struct NoPrior;
@@ -548,10 +672,6 @@ impl PriorCtx for NoPrior {
     }
 
     fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, _name: &StableName) -> Option<Tombstone> {
-        None
-    }
-
-    fn removal_edit(&self, _node: RecipeNodeId) -> Option<RecipeEditRef> {
         None
     }
 }
@@ -636,13 +756,6 @@ impl<U: Decide> PriorCtx for RunCtx<'_, U> {
             patch: MeshPatchKey { node, entity },
         })
     }
-
-    fn removal_edit(&self, node: RecipeNodeId) -> Option<RecipeEditRef> {
-        self.doc
-            .node(node)
-            .is_some()
-            .then_some(RecipeEditRef::NodeDeleted { node })
-    }
 }
 
 fn resolve_impl<T: Decide, P: PriorCtx>(
@@ -650,22 +763,10 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
     prior: P,
     name: &StableName,
 ) -> Resolution {
-    // 1. NodeGone: the minting node is not live. Ids are never
-    //    reused, so an id below the mint counter was deleted; an id
-    //    at/above it was never this document's (ForeignNode).
-    if new.doc.node(name.node).is_none() {
-        let edit = if name.node.0 < new.doc.next_id {
-            prior
-                .removal_edit(name.node)
-                .unwrap_or(RecipeEditRef::NodeDeleted { node: name.node })
-        } else {
-            RecipeEditRef::ForeignNode { node: name.node }
-        };
+    // 1. NodeGone: the minting node is not live.
+    if let Some(error) = ResolveError::node_gone(name, new.doc) {
         return Resolution::Failed(ResolutionFailure {
-            error: ResolveError::NodeGone {
-                name: name.clone(),
-                edit,
-            },
+            error,
             offers: Vec::new(),
         });
     }
@@ -682,15 +783,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         }
         Some((node, Entry::Tied(ents))) => {
             return Resolution::Failed(ResolutionFailure {
-                error: ResolveError::Ambiguous {
-                    name: name.clone(),
-                    candidates: vec![name.clone()],
-                    tie: TieWitness {
-                        node,
-                        at: name.clone(),
-                        width: ents.len() as u32,
-                    },
-                },
+                error: ResolveError::ambiguous(name, name.clone(), node, ents.len() as u32),
                 offers: Vec::new(),
             });
         }
@@ -705,15 +798,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         match lookup(new.eval, &base) {
             Some((node, Entry::Tied(ents))) => {
                 return Resolution::Failed(ResolutionFailure {
-                    error: ResolveError::Ambiguous {
-                        name: name.clone(),
-                        candidates: vec![base.clone()],
-                        tie: TieWitness {
-                            node,
-                            at: base,
-                            width: ents.len() as u32,
-                        },
-                    },
+                    error: ResolveError::ambiguous(name, base, node, ents.len() as u32),
                     offers: Vec::new(),
                 });
             }
@@ -769,22 +854,9 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             // single-run resolve — the N2 discriminator verdicts
             // recorded IN the names themselves are still evidence.
             .or_else(|| qualifier_delta(new.eval, name))
-            .unwrap_or(Diagnosis::RecipeEdit {
-                // Total fallback, honest about its limits: the
-                // recorded reference disagrees with the recipe as it
-                // stands and the CAUSE IS NOT IN EVIDENCE (no verdict
-                // flip, no doc delta, no recorded qualifier delta —
-                // reachable through the population-cancel blind spot,
-                // `vdiff` module docs, and through SWEEP PRUNING: the
-                // realized sweep records no verdicts for pruned
-                // pairs, so interaction-boundary vanishes can land
-                // here — ratified 2026-07-29, NAMING-DESIGN N5 as
-                // amended; the shadow re-execution recovery rung is
-                // banked there). `NodeChanged` names the minting node
-                // as the site of the disagreement, not a claim that
-                // an edit happened.
-                edit: RecipeEditRef::NodeChanged { node: name.node },
-            })
+            // Every rung above came up empty: no verdict flip, no doc
+            // delta, no recorded qualifier delta.
+            .unwrap_or_else(|| Diagnosis::cause_not_in_evidence(name.node))
     };
     let last_good = prior.tombstone(new, name);
     Resolution::Failed(ResolutionFailure {
@@ -816,9 +888,8 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
 /// `Sign` for either would be fabrication (the R9 honesty pin), so
 /// both fall through to the documented fallback.
 fn qualifier_delta<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Option<Diagnosis> {
-    for &id in &eval.order {
-        let Some(v) = eval.value(id) else { continue };
-        for (candidate, _) in v.name_table.iter() {
+    for (_, table) in tables(eval) {
+        for (candidate, _) in table.iter() {
             if let Some((from, to)) = single_pure_sideof_delta(name, candidate) {
                 return Some(Diagnosis::PredicateFlip {
                     predicate: "name_frag_side_of",
@@ -883,19 +954,30 @@ fn pure_sign(v: &crate::names::SideVerdict) -> Option<Sign> {
     }
 }
 
+/// Every Ok table of an evaluation, with its node, in EVALUATION
+/// ORDER — the one scan this module resolves, offers and diagnoses
+/// through.
+///
+/// The order is the determinism every consumer here leans on: "the
+/// first carrying node wins", "the first honest evidence wins" and
+/// the deterministic order of an offer list are all this iterator's
+/// order and not four independent claims. Nodes that failed or were
+/// never evaluated carry no table and are skipped — a resolution
+/// reads what the run actually built.
+fn tables<T: Decide>(
+    eval: &Evaluation<T>,
+) -> impl Iterator<Item = (RecipeNodeId, &crate::names::NameTable)> {
+    eval.order
+        .iter()
+        .filter_map(|&id| eval.value(id).map(|v| (id, &*v.name_table)))
+}
+
 /// The first (evaluation-order) Ok table carrying `name`.
 fn lookup<'a, T: Decide>(
     eval: &'a Evaluation<T>,
     name: &StableName,
 ) -> Option<(RecipeNodeId, &'a Entry)> {
-    for &id in &eval.order {
-        if let Some(v) = eval.value(id)
-            && let Some(entry) = v.name_table.lookup(name)
-        {
-            return Some((id, entry));
-        }
-    }
-    None
+    tables(eval).find_map(|(id, table)| table.lookup(name).map(|entry| (id, entry)))
 }
 
 /// [`lookup`], demanding a unique entry.
@@ -926,6 +1008,38 @@ fn widened_base(name: &StableName) -> Option<StableName> {
 /// N3's structural offers: the merged name a retired constituent
 /// entered (scan for `Merged` rows containing `name`), or a vanished
 /// merged name's own constituents.
+///
+/// # Why this reads one level and [`rebind_suggestions`] reads all
+///
+/// An OFFER is a name the user can rebind TO, so it has to be a name
+/// that resolves — which is what fixes the depth here, and fixes it
+/// differently for the two halves:
+///
+/// - **Unmerge.** The constituents of `name`'s own top-level `Merged`
+///   segment are the names the merge retired; when the merge stops
+///   happening they are live again, exactly as spelled. A merge nested
+///   DEEPER — inside `FromA(m)`, where `m` is the merged row — is not
+///   dropped by this scan, it is RE-POINTED: an embedded operand name
+///   that does not itself resolve makes the whole resolution a
+///   `Cascade { through: m }`, which names `m` as the root cause, and
+///   resolving `m` runs this function with the `Merged` segment at ITS
+///   top level. So the deep case is answered where it is answerable,
+///   one name up, and answered with names that resolve — which is what
+///   a scan through `FromA(m)` could not do, since the offer it would
+///   collect is the bare constituent and the name that would be live
+///   is `FromA(x)`.
+/// - **Merge.** A retired constituent's merged row is offered from the
+///   table that HOLDS it, so the row is found whole and at its own
+///   depth. A candidate that merely embeds that row deeper (a seam
+///   across it, a boolean carrying it through) needs no separate
+///   offer: the merged row itself still resolves, at the node whose
+///   table minted it, because a lookup takes the first carrying node
+///   in evaluation order.
+///
+/// [`rebind_suggestions`] answers a different question — every
+/// derivation WRAPPING a name, so a paint can follow the entity
+/// forward — and every answer it gives is a whole table row, so
+/// depth costs it nothing.
 fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<StableName> {
     let mut offers = Vec::new();
     // Unmerge: the name IS a merged name — offer its constituents.
@@ -935,20 +1049,18 @@ fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<Stabl
         }
     }
     // Merge: a live Merged row lists `name` as a constituent.
-    for &id in &eval.order {
-        if let Some(v) = eval.value(id) {
-            for (candidate, _) in v.name_table.iter() {
-                let mut contains = false;
-                for seg in &candidate.path {
-                    if let RoleSeg::Merged(constituents) = seg
-                        && constituents.contains(name)
-                    {
-                        contains = true;
-                    }
+    for (_, table) in tables(eval) {
+        for (candidate, _) in table.iter() {
+            let mut contains = false;
+            for seg in &candidate.path {
+                if let RoleSeg::Merged(constituents) = seg
+                    && constituents.contains(name)
+                {
+                    contains = true;
                 }
-                if contains && !offers.contains(candidate) {
-                    offers.push(candidate.clone());
-                }
+            }
+            if contains && !offers.contains(candidate) {
+                offers.push(candidate.clone());
             }
         }
     }
@@ -974,21 +1086,19 @@ fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<Stabl
 /// offering un-rebindable names is not ergonomics.
 pub fn rebind_suggestions<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<StableName> {
     let mut out: Vec<StableName> = Vec::new();
-    for &id in &eval.order {
-        if let Some(v) = eval.value(id) {
-            for (candidate, _) in v.name_table.iter() {
-                if candidate == name || candidate.kind != name.kind || out.contains(candidate) {
-                    continue;
+    for (_, table) in tables(eval) {
+        for (candidate, _) in table.iter() {
+            if candidate == name || candidate.kind != name.kind || out.contains(candidate) {
+                continue;
+            }
+            let mut wraps = false;
+            walk_names(candidate, Partners::Skip, &mut |inner| {
+                if inner == name {
+                    wraps = true;
                 }
-                let mut wraps = false;
-                walk_names(candidate, Partners::Skip, &mut |inner| {
-                    if inner == name {
-                        wraps = true;
-                    }
-                });
-                if wraps {
-                    out.push(candidate.clone());
-                }
+            });
+            if wraps {
+                out.push(candidate.clone());
             }
         }
     }
@@ -1052,6 +1162,7 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::SetStructuralParam { .. }
         | DocEdit::SetExpression { .. }
         | DocEdit::SetDocParam { .. }
+        | DocEdit::SetDocParamValue { .. }
         | DocEdit::ReWitness { .. }
         | DocEdit::ReWitnessBulk { .. }
         | DocEdit::SetTolerance { .. }

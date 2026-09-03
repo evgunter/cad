@@ -5,7 +5,7 @@
 //! Indeterminate — plus N3 offers, the rebind suggestion ladder, and
 //! the R6 name-level edit-time validation door.
 //!
-//! SWEEP-STRATEGY NOTE (Evan's 2026-07-29 ruling): this file's pins
+//! SWEEP-STRATEGY NOTE (Ev's 2026-07-29 ruling): this file's pins
 //! are about diff/resolve engine behavior GIVEN verdicts, so its
 //! evaluator deliberately runs the idealized (verdict-rich) sweep;
 //! the production-path degradation is pinned in `m4_pr4_banked`
@@ -853,65 +853,156 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
 // ---- Review Finding 2: suggestions are structural wraps only, ----
 // ---- kind-filtered (adopted reviewer probe, inverted to a pin) ----
 
+/// Whether a walk counts `SideOf` discriminator PARTNERS as
+/// occurrences of a name.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Partners {
+    /// Count partner positions: any mention at all.
+    Include,
+    /// Structural embedding only — a derivation OF the name.
+    Skip,
+}
+
+/// True iff `needle` occurs anywhere under `hay`, counting
+/// discriminator partners iff `partners` says so.
+///
+/// STRICTLY under: `hay` itself is not an occurrence of `needle`, so
+/// `occurs(n, n, _)` is false unless a name contains itself, which no
+/// name does. The one caller subtracts the two answers, where the
+/// self-case cancels either way.
+///
+/// This is the test's OWN reading of the role vocabulary, spelled out
+/// rather than borrowed from `resolve`'s walker: an oracle that asks
+/// the code under test what the answer is pins nothing.
+///
+/// The match is EXHAUSTIVE, and that is what keeps it an oracle. A
+/// role segment added to the vocabulary must be classified here —
+/// embedding, discrimination, or neither — before this suite
+/// compiles. Under a catch-all a new name-carrying segment reads as
+/// "no occurrence", so [`only_sideof_mention`] would report NO
+/// PHANTOM for a phantom of exactly the new shape, and the row below
+/// would pass while the property it names had failed.
+fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
+    let under = |n: &StableName| n == needle || occurs(n, needle, partners);
+    hay.path.iter().any(|seg| match seg {
+        // One embedded operand name: the entity derives from it.
+        RoleSeg::FromA(x)
+        | RoleSeg::FromB(x)
+        | RoleSeg::SectionEdge { face: x, .. }
+        | RoleSeg::SplitFragment { parent: x, .. }
+        | RoleSeg::CrossingVertex { edge: x, .. }
+        | RoleSeg::OnToolVertex { of: x, .. }
+        | RoleSeg::Instance { of: x, .. }
+        | RoleSeg::FromTarget(x)
+        | RoleSeg::BlendFace(x)
+        | RoleSeg::CornerFace(x)
+        | RoleSeg::BandTrim { edge: x, .. }
+        | RoleSeg::BandFoot(x)
+        | RoleSeg::BandCross(x)
+        | RoleSeg::BandCut(x)
+        | RoleSeg::BandSlit(x) => under(x),
+        // Two.
+        RoleSeg::Seam { a: x, b: y }
+        | RoleSeg::TrimEdge {
+            edge: x,
+            support: y,
+        }
+        | RoleSeg::FootVertex {
+            vertex: x,
+            support: y,
+        }
+        | RoleSeg::CornerArc { vertex: x, edge: y } => under(x) || under(y),
+        // A set.
+        RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().any(under),
+        // ANOTHER document's id space: a local name and a part-local
+        // name that print alike are different names, so a walk that
+        // descended here would report occurrences that are not.
+        RoleSeg::InPart { .. } => false,
+        // Discrimination, not derivation: the fragment is classified
+        // AGAINST these, not built from them.
+        RoleSeg::Fragment(Qualifier::SideOf(v)) => {
+            partners == Partners::Include && v.iter().any(|(p, _)| under(p))
+        }
+        RoleSeg::Fragment(Qualifier::OrderAlong { .. }) => false,
+        // Segments that embed no name.
+        RoleSeg::OutputBody
+        | RoleSeg::Cap(_)
+        | RoleSeg::Lateral(_)
+        | RoleSeg::RimEdge(..)
+        | RoleSeg::LateralEdge(_)
+        | RoleSeg::CapVertex(..)
+        | RoleSeg::Band(_)
+        | RoleSeg::BandRim(_)
+        | RoleSeg::BandRimPi(_)
+        | RoleSeg::BandPi(_)
+        | RoleSeg::Meridian(..)
+        | RoleSeg::MeridianVertex(..)
+        | RoleSeg::RevolveCap(_)
+        | RoleSeg::Pole(_)
+        | RoleSeg::AxisEdge(_)
+        | RoleSeg::SplitBody(_)
+        | RoleSeg::SectionFace { .. } => false,
+    })
+}
+
 /// True iff `needle` occurs in `hay`'s path ONLY inside SideOf
 /// discriminator vectors (never as a structural embedding) — the
 /// reviewer's phantom detector.
 fn only_sideof_mention(hay: &StableName, needle: &StableName) -> bool {
-    fn embeds_structurally(n: &StableName, needle: &StableName) -> bool {
-        if n == needle {
-            return true;
-        }
-        for seg in &n.path {
-            let hit = match seg {
-                RoleSeg::FromA(x)
-                | RoleSeg::FromB(x)
-                | RoleSeg::SectionEdge { face: x, .. }
-                | RoleSeg::SplitFragment { parent: x, .. }
-                | RoleSeg::CrossingVertex { edge: x, .. }
-                | RoleSeg::OnToolVertex { of: x, .. }
-                | RoleSeg::Instance { of: x, .. } => embeds_structurally(x, needle),
-                RoleSeg::Seam { a, b } => {
-                    embeds_structurally(a, needle) || embeds_structurally(b, needle)
-                }
-                RoleSeg::Merged(v) => v.iter().any(|x| embeds_structurally(x, needle)),
-                // SideOf partners deliberately NOT counted here.
-                _ => false,
-            };
-            if hit {
-                return true;
-            }
-        }
-        false
-    }
-    fn mentions_anywhere(n: &StableName, needle: &StableName) -> bool {
-        if n == needle {
-            return true;
-        }
-        for seg in &n.path {
-            let hit = match seg {
-                RoleSeg::FromA(x)
-                | RoleSeg::FromB(x)
-                | RoleSeg::SectionEdge { face: x, .. }
-                | RoleSeg::SplitFragment { parent: x, .. }
-                | RoleSeg::CrossingVertex { edge: x, .. }
-                | RoleSeg::OnToolVertex { of: x, .. }
-                | RoleSeg::Instance { of: x, .. } => mentions_anywhere(x, needle),
-                RoleSeg::Seam { a, b } => {
-                    mentions_anywhere(a, needle) || mentions_anywhere(b, needle)
-                }
-                RoleSeg::Merged(v) => v.iter().any(|x| mentions_anywhere(x, needle)),
-                RoleSeg::Fragment(Qualifier::SideOf(v)) => {
-                    v.iter().any(|(p, _)| mentions_anywhere(p, needle))
-                }
-                _ => false,
-            };
-            if hit {
-                return true;
-            }
-        }
-        false
-    }
-    !embeds_structurally(hay, needle) && mentions_anywhere(hay, needle)
+    !occurs(hay, needle, Partners::Skip) && occurs(hay, needle, Partners::Include)
+}
+
+/// The detector answers about a name reached through a segment its
+/// FIRST vocabulary knew nothing about.
+///
+/// This row is the detector's own pin, and it is here because the
+/// detector shipped for a year reading three groups of segments and
+/// sweeping the rest into a catch-all. Everything the fillet emitter
+/// mints — this row's `BlendFace` among them — was in that catch-all,
+/// so a phantom wrapped in one read as no mention at all and the
+/// suggestion row above passed by not looking.
+///
+/// The shape is the one that row cares about: a name that mentions
+/// `needle` ONLY as a `SideOf` partner, one derivation step below the
+/// surface. It is a phantom, and saying so requires descending
+/// through the blend segment — which is why a detector blind to that
+/// segment reports the opposite.
+#[test]
+fn the_phantom_detector_sees_through_the_whole_vocabulary() {
+    let needle = fixture::fname(RecipeNodeId(1), RoleSeg::Cap(CapEnd::Top));
+    let partner_only = StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(2),
+        path: vec![RoleSeg::Fragment(Qualifier::SideOf(vec![(
+            needle.clone(),
+            editor_core::SideVerdict::Positive,
+        )]))],
+    };
+    let blended = fixture::fname(
+        RecipeNodeId(3),
+        RoleSeg::BlendFace(Box::new(partner_only.clone())),
+    );
+
+    assert!(
+        only_sideof_mention(&partner_only, &needle),
+        "a bare SideOf partner mention is the phantom shape itself"
+    );
+    assert!(
+        only_sideof_mention(&blended, &needle),
+        "a phantom stays a phantom under a blend segment — a detector \
+         that cannot read the segment calls this NO MENTION and lets \
+         the suggestion row through"
+    );
+    // The same segment, carrying the needle structurally: a real
+    // derivation, and the detector must not call it a phantom.
+    let derived = fixture::fname(
+        RecipeNodeId(3),
+        RoleSeg::BlendFace(Box::new(needle.clone())),
+    );
+    assert!(
+        !only_sideof_mention(&derived, &needle),
+        "a blend OF the name is a derivation, not a phantom"
+    );
 }
 
 #[test]

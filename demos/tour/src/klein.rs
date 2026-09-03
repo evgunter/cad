@@ -5,7 +5,7 @@
 //!
 //! A Klein bottle is a 2-manifold, and this kernel is manifold-first
 //! and SOLID-first (D1): a zero-thickness sheet is not a body it can
-//! hold. So the model is the honest 3-D stand-in Evan asked for — a
+//! hold. So the model is the honest 3-D stand-in Ev asked for — a
 //! THIN 3-manifold with boundary whose midsurface is the classic
 //! immersed Klein bottle. Every piece is a wall of thickness
 //! [`WALL`] wrapped around a spine, and the spine is the bottle's own
@@ -32,7 +32,7 @@
 //!
 //! # Why the construction has this shape
 //!
-//! Evan's sketch was: torus loop → fillet → cone → tangent → wide
+//! Ev's sketch was: torus loop → fillet → cone → tangent → wide
 //! torus → fillet → straight tube → back to the loop. Two of those
 //! steps do not survive contact with the geometry, and both
 //! substitutions are recorded here rather than hidden:
@@ -60,7 +60,7 @@
 //! trick is what makes the wide rim and its two tangencies exact, and
 //! it generalizes: **any** blend between two COAXIAL surfaces of
 //! revolution is itself one, so it belongs in the meridian rather
-//! than in a rolling ball afterwards (Evan, 2026-08-16 — the
+//! than in a rolling ball afterwards (Ev, 2026-08-16 — the
 //! substitution is an improvement on the sketch, not a workaround for
 //! it). Asking `fillet_edges` for that same torus is walls 1 and 2 —
 //! which now refuse on the ball's SIZE, not on a missing arm.
@@ -98,7 +98,7 @@
 //!    blend the meridian draws has spine radius `RF`, and a ball that
 //!    big does not fit the neck wall's own curvature, on either rim.
 //!    That is not a defect: it is the reason the substitution is an
-//!    improvement rather than a workaround (Evan, 2026-08-16). An arc
+//!    improvement rather than a workaround (Ev, 2026-08-16). An arc
 //!    in the profile is a CONSTRUCTED part of the wall and answers to
 //!    no rolling ball; a post-hoc roll of the same size cannot exist.
 //! 4. **No boolean may touch a Cone or a Torus face THAT CAN REACH
@@ -153,33 +153,41 @@
 //!    solid refuses `CurvedShellClassification` — the KNOWN standing
 //!    gate of OFFSET-DESIGN O6's demo-gates list, recorded here and
 //!    never worked around.
-//! 8. **Edge selection by adjacent surface kinds is document-layer
-//!    only.** `select_where` + `GeomPred::AdjacentKinds` is the
-//!    ratified way to say "the cone×cylinder corners" (the die scene
-//!    says exactly that), but it takes an `Evaluation`, so a body
-//!    built by calling `revolve` directly has no selector at all:
-//!    [`corner_edges`] below is a hand-rolled scan over
-//!    `body.edges()` reading `get_surface(..)` through two
-//!    back-pointers. NOT a probe: it is a gap in reach, not a
-//!    refusal.
-//! 9. **A valid body the tessellator refuses, at ordinary
-//!    proportions** (wall 7). `mesh::planar`'s own module docs bank
-//!    exactly one uncovered case: when a planar face's boundary
-//!    points carry off-plane noise, the chart frame's FAR point has
-//!    an *engineered* exact-zero v-coordinate whose float residue is
-//!    ~ν², which for small ν is nonzero but below spade's coordinate
-//!    floor (`MIN_ALLOWED_VALUE` = 2⁻¹⁴²), and the face refuses
-//!    `Triangulation`. That paragraph calls the case "synthetic today
-//!    (no corpus body hits it)". **This bottle hits it.** The bulb's
-//!    annular top rim — a slit annulus, 0.05 m wide, at plain
-//!    coordinates — refuses at EVERY δ with its far point projected to
-//!    (0.4978884624952483, 3.94e-47). Whether it refuses is a
-//!    roundoff lottery over parameters that have nothing to do with
-//!    the cap: sweeping the flare angle and the rim radius, the
-//!    refusal appears at (30°, 0.85 m) and (34°, 1.00 m) and not at
-//!    their neighbours. The bottle ships at a rim radius of 0.80 m,
-//!    which triangulates; wall 7 builds the SAME bottle at 0.85 m and
-//!    pins the refusal, so this stops being synthetic.
+//! 8. **Edge selection by adjacent surface kinds works at BOTH
+//!    seats.** `select_where` + `GeomPred::AdjacentKinds` says "the
+//!    cone×cylinder corners" over an `Evaluation` (the die scene says
+//!    exactly that); a body built by calling `revolve` directly says
+//!    the same thing through the kernel query seat —
+//!    [`corner_edges`] below is `query::all_edges` filtered by
+//!    `query::edge_adjacent_matches`, the one implementation the
+//!    document door delegates to.
+//! 9. **A valid body the tessellator refused, at ordinary
+//!    proportions — CLOSED, and wall 7 retired with it.**
+//!    `mesh::planar`'s module docs used to bank exactly one uncovered
+//!    case: when a planar face's boundary points carry off-plane
+//!    noise, the chart frame's FAR point has an *engineered*
+//!    exact-zero v-coordinate whose float residue is ~ν², which for
+//!    small ν is nonzero but below spade's coordinate floor
+//!    (`MIN_ALLOWED_VALUE` = 2⁻¹⁴²), and the face refused
+//!    `Triangulation`. That paragraph called the case "synthetic
+//!    today (no corpus body hits it)"; **this bottle hit it**, which
+//!    is what took the case off the bank. The bulb's annular top rim
+//!    — a slit annulus, 0.05 m wide, at plain coordinates — refused
+//!    at EVERY δ, its far point projecting to
+//!    (0.4978884624952486, -2.19e-48), so no δ the caller could pick
+//!    was an escape. Whether it refused was a roundoff lottery over
+//!    parameters with nothing to do with the cap: sweeping the flare
+//!    angle against the rim radius, the refusal appeared at
+//!    (30°, 0.85 m) and (34°, 1.00 m) — and, re-swept on the tree that
+//!    fixed it, at (24°, 0.85 m) and (26°, 0.75 m) as well, so the
+//!    lottery was denser than the first sweep recorded. `mesh::planar`
+//!    now WRITES that coordinate as the zero its own construction
+//!    produced rather than reading the residue back off the dot
+//!    product — not value snapping but its opposite, a refusal to
+//!    invent a nonzero the frame never had; the module's prose carries
+//!    that argument against its own no-snapping doctrine. Wall 7 no
+//!    longer pins a refusal: it re-runs all four of those lattice
+//!    points and requires them to mesh.
 //! 10. **The lattice cannot say "tangent straight leg to THIS point",
 //!     and the drift is measurable.** After a declared-tangent joint
 //!     off an arc, the only straight continuation the PATHS lattice
@@ -194,7 +202,7 @@
 //!     (see the `tube` scene's bit-exact `minor_radius`), met from the
 //!     profile side. Pinned in [`stops`].
 //! 11. **What went RIGHT, and is worth stating.** The bottle's hole
-//!     is the tube's diameter — Evan's own constraint — so the neck
+//!     is the tube's diameter — Ev's own constraint — so the neck
 //!     wall and the inner tube wall are literally the same cylinder
 //!     about the same axis, twice, in one profile loop. Everything
 //!     downstream copes: the band validates, the full revolve builds,
@@ -217,10 +225,10 @@ use core::f64::consts::PI;
 
 use pncad::authoring::{p2, p3, v2, v3, validated};
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Affine3, Band, Mat3, Point3, Tol};
-use pncad::prelude::{Open, ProfileLoop, Start, circle};
+use pncad::geom_core::{Affine3, CertifiedBounds, Mat3, Point3, Tol};
+use pncad::prelude::{Open, ProfileLoop, Start, SurfaceKindSet, circle, query};
 use pncad::profile::SketchPlane;
-use pncad::sweep::fillet::{FilletError, fillet_edges};
+use pncad::sweep::blend::{BlendError, fillet_edges};
 use pncad::sweep::{LoftError, Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, BooleanError, BooleanOp, EdgeKey, Operand};
 
@@ -233,7 +241,7 @@ use crate::{SceneBody, Stop, View};
 // approximate (the lily's rule).
 // ---------------------------------------------------------------
 
-/// Spine radius of the tube — half Evan's "tube diameter", the one
+/// Spine radius of the tube — half Ev's "tube diameter", the one
 /// number the whole bottle is keyed to: the top loop's tube, the
 /// neck, the straight inner tube and the wide rim's HOLE are all this
 /// size.
@@ -268,7 +276,7 @@ const SWEEP_IN: f64 = 0.5 * PI;
 /// and embedded into whatever scalar the scene runs at.
 struct Meridian {
     /// Spine radius of the neck→flare blend (a parameter, not a
-    /// constant, because wall 7 needs a SECOND bottle).
+    /// constant, because wall 7 builds bottles at other proportions).
     rf: f64,
     /// Outer and inner offsets of the tube radius.
     ro: f64,
@@ -309,8 +317,8 @@ fn meridian() -> Meridian {
 }
 
 /// The meridian at any proportions. Only wall 7 asks for proportions
-/// other than the bottle's own — and the only thing it changes is the
-/// rim radius.
+/// other than the bottle's own: it re-runs the flare-angle × rim-radius
+/// lattice points that used to decide whether the cap meshed.
 fn meridian_at(alpha: f64, rf: f64, rrim: f64, rloop: f64) -> Meridian {
     let half = WALL / 2.0;
     let (sa, ca) = alpha.sin_cos();
@@ -502,32 +510,24 @@ fn bottle<S: Scalar>(tol: Tol) -> [Body<S>; 3] {
     ]
 }
 
-/// Every edge of `body` whose two faces are a cone and a cylinder.
-///
-/// Finding 8: this is what `select_where(&ev, node, &edges,
-/// &[GeomPred::AdjacentKinds(cone, cylinder)], &params)` says in one
-/// line at the document layer — and there is no kernel-level door for
-/// it, so a directly-built body scans its own arena through two
-/// back-pointers instead.
+/// Every edge of `body` whose two faces are a cone and a cylinder
+/// (finding 8): the kernel query seat's adjacent-kind predicate over
+/// its materializer — what `select_where(&ev, node, &edges,
+/// &[GeomPred::AdjacentKinds(cone, cylinder)], &params)` says at the
+/// document layer, said in keys at the body layer through the same
+/// one implementation.
 fn corner_edges<S: Scalar>(body: &Body<S>, a: SurfaceKind, b: SurfaceKind) -> Vec<EdgeKey> {
-    let kind_at = |he| {
-        let l = body.get_half_edge(he)?.parent_loop;
-        let f = body.get_loop(l)?.face;
-        body.get_surface(body.get_face(f)?.surface)
-            .map(SurfaceKind::of)
-    };
-    body.edges()
-        .filter(|(_, e)| {
-            let (ka, kb) = (kind_at(e.he_plus), kind_at(e.he_minus));
-            (ka, kb) == (Some(a), Some(b)) || (ka, kb) == (Some(b), Some(a))
+    query::all_edges(body)
+        .into_iter()
+        .filter(|&e| {
+            query::edge_adjacent_matches(body, e, SurfaceKindSet::just(a), SurfaceKindSet::just(b))
         })
-        .map(|(k, _)| k)
         .collect()
 }
 
 /// The lever arm every angular fillet predicate is metered against —
 /// the maximum pairwise chord over the battery's own per-link sample
-/// schedule (`sweep::fillet::battery::CHAIN_SAMPLES`). Findings
+/// schedule (`sweep::blend::battery::CHAIN_SAMPLES`). Findings
 /// entry 2 is a statement about this number: it stays ~the rim's
 /// diameter whether or not the rim closes.
 fn lever_arm<S: Scalar>(body: &Body<S>, edge: EdgeKey) -> f64 {
@@ -539,7 +539,7 @@ fn lever_arm<S: Scalar>(body: &Body<S>, edge: EdgeKey) -> f64 {
         .expect("a revolved rim carries a certified carrier");
     let (t0, t1) = c.params();
     let carrier = c.carrier();
-    let n = pncad::sweep::fillet::battery::CHAIN_SAMPLES;
+    let n = pncad::sweep::blend::battery::CHAIN_SAMPLES;
     let pts: Vec<_> = (0..n)
         .map(|i| {
             let f = S::from_f64(f64::from(i) / f64::from(n - 1));
@@ -576,7 +576,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     }
 
     // Findings entry 11, executed: the same cylinder, said four ways.
-    // Evan's constraint — the rim's hole is the tube's diameter —
+    // Ev's constraint — the rim's hole is the tube's diameter —
     // makes the neck wall and the inner tube wall THE SAME cylinder
     // about THE SAME axis. The revolve's cosurface merge is a
     // run-ADJACENCY decision inside one loop, and these two runs are
@@ -742,7 +742,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 /// The bottle's frontier, run live (the lily's rule): every shape
 /// this model wanted and the kernel would not state, attempted for
 /// real and pinned by its own typed refusal.
-pub fn wall_probes<S: Scalar>(tol: Tol) {
+///
+/// `CertifiedBounds` beyond [`Scalar`] because wall 6's retirement is
+/// asserted through `validate_geometric`, whose +V invariant reads a
+/// certified volume enclosure — the tour runs this at `f64` and
+/// `Probe`, both of which certify, so the extra term costs the caller
+/// nothing and states what the assertion needs.
+pub fn wall_probes<S: Scalar + CertifiedBounds>(tol: Tol) {
     println!("\n-- the Klein bottle's walls: what a non-orientable surface asks for --");
     let m = meridian();
     let [bulb_body, over, into] = bottle::<S>(tol);
@@ -785,33 +791,21 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         1,
         "fillet the neck→flare corner on the FULL revolve at the radius the band \
          authors by hand",
-        fillet_edges(
-            &sharp_full,
-            &[full_edges[0]],
-            band_radius,
-            Band::linear(tol).expect("the run's band"),
-            tol,
-        ),
-        |e| matches!(e, FilletError::RadiusHeadroom { .. }),
+        fillet_edges(&sharp_full, &[full_edges[0]], band_radius, tol),
+        |e| matches!(e.error, BlendError::RadiusHeadroom { .. }),
         "roll a ball as big as the blend the meridian draws for free",
     );
     crate::walls::wall(
         "bottle",
         2,
         "fillet the SAME corner on a partial revolve (open rim, honest lever)",
-        fillet_edges(
-            &sharp_part,
-            &[part_edges[0]],
-            band_radius,
-            Band::linear(tol).expect("the run's band"),
-            tol,
-        ),
+        fillet_edges(&sharp_part, &[part_edges[0]], band_radius, tol),
         // The SAME refusal as wall 1, and that is the pair's point: the
         // lever is honest on both rims, the dihedral decides on both,
         // and what stops both is the ball's own size against the neck
         // wall's curvature — not the closedness of the rim, and no
         // longer a missing arm.
-        |e| matches!(e, FilletError::RadiusHeadroom { .. }),
+        |e| matches!(e.error, BlendError::RadiusHeadroom { .. }),
         "roll a ball as big as the blend the meridian draws for free",
     );
 
@@ -1021,28 +1015,52 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
          torus — one gate, three probes, retiring together",
     );
 
-    // Wall 7: a valid body the tessellator refuses. The ONLY change
-    // from the bottle this scene ships is the rim's radius, 0.80 m →
-    // 0.85 m; the face that refuses is the bulb's annular top rim,
-    // whose own geometry does not depend on the rim radius at all.
+    // Wall 7 is RETIRED, per its own instruction: `mesh::planar`'s
+    // banked sub-floor case is CLOSED. It pinned a valid body the
+    // tessellator refused — the bulb's annular top rim, at a bottom
+    // rim of 0.85 m rather than the 0.80 m this scene ships, the face
+    // refusing on a parameter its own geometry does not depend on.
+    // The chart frame's far point had an engineered exact-zero
+    // v-coordinate whose float residue landed below spade's
+    // coordinate floor; the projection now writes that coordinate as
+    // the zero it is, and the rim meshes.
+    //
+    // Kept LIVE rather than turned into a comment, for the reason
+    // walls are live at all (`crate::walls`): a closure is a claim
+    // about the kernel, and a claim the tour stops attempting is a
+    // claim nobody re-checks. The lattice points swept when the
+    // refusal was characterised are the ones re-run here — the two
+    // this scene's findings entry named, plus two more the same sweep
+    // turned up — so a regression reappears where it was first seen
+    // rather than somewhere a fresh probe happened to look.
+    //
     // f64: `mesh::tessellate` is the one door in this scene that is
     // not generic over the scalar — meshing is a rendering-side
     // operation and takes the run's own numbers.
-    let wider = bulb::<f64>(
-        band::<f64>(&meridian_at(ALPHA, RF, 0.85, RLOOP), tol),
-        Revolution::Full,
-        tol,
-    );
-    crate::walls::wall(
-        "bottle",
-        7,
-        "tessellate the same bottle with a 5 cm wider bottom rim",
-        pncad::mesh::tessellate(&wider, 1e-2, tol),
-        |e| matches!(e, pncad::mesh::TessellateError::Triangulation { .. }),
-        "check whether `mesh::planar`'s banked sub-floor case was CLOSED (the far \
-         point's engineered exact-zero v-coordinate) — and if it was, say so in \
-         findings entry 9 instead of deleting it",
-    );
+    for (alpha_deg, rim) in [
+        (24.0_f64, 0.85_f64),
+        (26.0, 0.75),
+        (30.0, 0.85),
+        (34.0, 1.00),
+    ] {
+        let body = bulb::<f64>(
+            band::<f64>(&meridian_at(alpha_deg * PI / 180.0, RF, rim, RLOOP), tol),
+            Revolution::Full,
+            tol,
+        );
+        let m = pncad::mesh::tessellate(&body, 1e-2, tol).unwrap_or_else(|e| {
+            panic!(
+                "the bottle at (flare {alpha_deg}°, rim {rim} m) refuses {e:?} — \
+                 `mesh::planar`'s sub-floor case was closed and findings entry 9 \
+                 says so; re-derive BOTH before trusting either"
+            )
+        });
+        println!(
+            "   wall 7 RETIRED — the bottle at (flare {alpha_deg}°, rim {rim} m) \
+             tessellates: {} triangles",
+            pncad::mesh::validate::triangle_count(&m)
+        );
+    }
 
     let _ = into;
 }
@@ -1060,6 +1078,22 @@ mod verbs_gate_r1_probes {
     //! now, and which pair depends on which faces' boxes may meet.
     //!
     //! Same pins as the walls themselves, so the two cannot drift.
+    //!
+    //! **Why the operand gate's covered-pair rung cannot reach either
+    //! wall.** The gate no longer refuses a pair the caller's
+    //! declarations speak for — but "the caller's declarations" is the
+    //! `BooleanDeclarations` value handed to the op, and both walls
+    //! below go through `pncad::topo::union` and `pncad::topo::subtract`,
+    //! the doors that take none. `DeclaredPairs` is empty on both, so
+    //! the covered predicate answers no for every pair and the gate is
+    //! byte-for-byte the gate these pins were written against.
+    //!
+    //! Wall 4 is doubly out of reach and the second reason is the more
+    //! durable one: it is a SUBTRACT, and the revert roster it refuses
+    //! at has no covered rung at all. A declaration supplies the verdict
+    //! a germ arm would have; it cannot supply a seam lane to revert
+    //! through. So even a fully declared torus pair refuses there
+    //! unchanged, which is a claim `mate7a_torus_rest` pins directly.
 
     use super::*;
 
@@ -1100,5 +1134,43 @@ mod verbs_gate_r1_probes {
             ),
             "wall 4 must name the bulb's tube wall against the neck's: {trimmed:?}"
         );
+    }
+}
+
+#[cfg(test)]
+mod r1_mesh2_review_probes {
+    //! R1 review probes for MESH-2 (PR #1421, issue 555): the
+    //! flare-angle × rim-radius lottery cells, exercised through the
+    //! public `mesh::tessellate` door on the real Klein bulb. The
+    //! probe PRINTS each cell's outcome rather than asserting, so the
+    //! identical file runs on the merge base (where the four cells
+    //! should refuse) and on the head (where they should mesh).
+
+    use super::*;
+
+    #[test]
+    fn r1_lottery_cells_outcomes() {
+        let tol = Tol::witness();
+        for (alpha_deg, rim) in [
+            (24.0_f64, 0.85_f64), // PR re-sweep cell
+            (26.0, 0.75),         // PR re-sweep cell
+            (30.0, 0.85),         // issue 555 cell
+            (34.0, 1.00),         // issue 555 cell
+            (30.0, 0.80),         // the shipped bottle: control, always meshed
+            (28.0, 0.85),         // an "ok" neighbour in both sweeps
+        ] {
+            let body = bulb::<f64>(
+                band::<f64>(&meridian_at(alpha_deg * PI / 180.0, RF, rim, RLOOP), tol),
+                Revolution::Full,
+                tol,
+            );
+            match pncad::mesh::tessellate(&body, 1e-2, tol) {
+                Ok(m) => println!(
+                    "R1PROBE cell ({alpha_deg}, {rim}): MESHED {} triangles",
+                    pncad::mesh::validate::triangle_count(&m)
+                ),
+                Err(e) => println!("R1PROBE cell ({alpha_deg}, {rim}): REFUSED {e:?}"),
+            }
+        }
     }
 }

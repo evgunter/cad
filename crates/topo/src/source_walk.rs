@@ -28,7 +28,7 @@
 //! `syn` would dissolve the lexing — [`CodeOnly`] is a hand-rolled
 //! lexer, and every defect it has ever had has been a lexing defect.
 //! It is not taken, and the reason is not build cost or dependency
-//! policy (Evan's rule is that adding one is fine at ~2 weeks' release
+//! policy (Ev's rule is that adding one is fine at ~2 weeks' release
 //! age, and `syn` is already in this workspace's lock file
 //! transitively):
 //!

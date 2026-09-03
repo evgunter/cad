@@ -3,7 +3,7 @@
 //! registry (retired at `5c8540f`; `die_fillet` is registered now).
 //!
 //! `Node::Fillet` wires
-//! [`sweep::fillet::build::fillet_edges`](sweep::fillet::build::fillet_edges)
+//! [`sweep::blend::build::fillet_edges`](sweep::blend::build::fillet_edges)
 //! over an authored selection of its target body's edges — here every
 //! edge of the cube. A parameter edit that mints and retires no edge
 //! cannot make that selection stale, which the bump row below
@@ -171,7 +171,7 @@ fn an_inadmissible_radius_fails_the_node_typed() {
     let ev = eval::<f64>(&doc);
     match ev.nodes.get(&head) {
         Some(NodeResult::Failed(e)) => match &e.kind {
-            NodeErrorKind::Fillet(inner) => {
+            NodeErrorKind::Blend { error: inner, .. } => {
                 let text = format!("{inner}");
                 assert!(
                     text.contains("cannot certify"),

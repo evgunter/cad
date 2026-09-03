@@ -310,7 +310,7 @@ pub(crate) fn normalize_shell(
 /// the shape a natively revolved wall carries.
 ///
 /// The seam azimuth is the surface's own `u_ref` azimuth, ALWAYS
-/// (spec D1): `EdgeGeometry::Seam` is defined spatially as the locus
+/// (spec D1): the seam chart image is defined spatially as the locus
 /// in the closed u_ref half-plane and certification meters
 /// SeamHalfplane/SeamSide against it, so re-charting `u_ref` to dodge
 /// a split would mutate imported geometry beyond need. Where a rim
@@ -585,7 +585,7 @@ fn mint_band(
     );
     // The mint's whole point is D1's spatial statement — this edge IS
     // the u_ref half-plane seam — so adoption must certify it as
-    // `EdgeGeometry::Seam` or refuse; a silent downgrade to the
+    // the seam chart image or refuse; a silent downgrade to the
     // conventional mapped-curve rung would import a body whose "seam"
     // is off the half-plane (R1 fix pass, m2). Recorded here, enforced
     // in [`crate::adopt`].
@@ -729,15 +729,20 @@ fn seam_vertex_on_loop(
         // under evaluation.
         solid.vertices.insert(mid_v, q);
         for half in [first, second] {
-            let spec = &solid.edges[&half];
+            // ONE lookup serves both the reads and the load-bearing
+            // interval write (the comment above) — `edges` and
+            // `vertices` are disjoint fields, so the vertex reads
+            // borrow beside the spec. The half cannot miss: both were
+            // minted into `solid.edges` by `split_at_param` above.
+            let Some(spec) = solid.edges.get_mut(&half) else {
+                unreachable!("a split half minted by `split_at_param` is in `solid.edges`")
+            };
             let self_loop = spec.start == spec.end;
             let (ps, pe) = (solid.vertices[&spec.start], solid.vertices[&spec.end]);
             let (t0, t1) =
                 crate::geometry::endpoint_params(half, &spec.carrier, ps, pe, self_loop)?;
-            if let Some(spec) = solid.edges.get_mut(&half) {
-                spec.t0 = t0;
-                spec.t1 = t1;
-            }
+            spec.t0 = t0;
+            spec.t1 = t1;
         }
         // Patch EVERY face — including this band's own loops (the rim
         // may be shared with the neighbouring face, or with another
@@ -890,17 +895,20 @@ fn apex_cone(
         {
             continue;
         }
-        found = Some((
-            fi,
-            apex,
-            axis,
-            seam,
-            circle,
-            *lp.uses
-                .iter()
-                .find(|u| u.edge == seam.edge && u.forward != seam.forward)
-                .unwrap_or(&seam),
-        ));
+        // The shape's second seam use traverses the seam the OTHER
+        // way — a closed walk crosses its doubled edge once in each
+        // direction. A loop that states the seam twice in the SAME
+        // direction is not this shape (its walk does not close over
+        // the seam), so detection declines rather than picking one
+        // use twice and re-minting a guess.
+        let Some(&seam_back) = lp
+            .uses
+            .iter()
+            .find(|u| u.edge == seam.edge && u.forward != seam.forward)
+        else {
+            continue;
+        };
+        found = Some((fi, apex, axis, seam, circle, seam_back));
         break;
     }
     let Some((fi, apex, axis, seam_a, circle_use, seam_b)) = found else {
@@ -1347,4 +1355,101 @@ fn full_torus(
         },
     });
     Ok(())
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use core::f64::consts::TAU;
+
+    use super::*;
+
+    /// A cone face whose loop states its seam twice in the SAME
+    /// direction is not the degenerate-apex shape — that walk does not
+    /// close over the seam — so detection declines and leaves the
+    /// shell untouched. The import pipeline never presents this shape
+    /// (the shell's manifold precondition refuses a twice-forward
+    /// edge before normalize runs); the decline guards direct
+    /// constructors of a `SolidSpec`.
+    #[test]
+    fn apex_cone_declines_a_same_direction_doubled_seam() {
+        let (apex_v, base_v) = (1, 2);
+        let (seam_e, circle_e) = (10, 11);
+        let apex = Point3::new(0.0, 0.0, 0.0);
+        let base = Point3::new(1.0, 0.0, -1.0);
+        let mut edges = BTreeMap::new();
+        edges.insert(
+            seam_e,
+            EdgeSpec {
+                start: apex_v,
+                end: base_v,
+                carrier: Curve3::Line {
+                    origin: apex,
+                    dir: Vec3::new(1.0, 0.0, -1.0) * 0.5_f64.sqrt(),
+                },
+                t0: 0.0,
+                t1: 2.0_f64.sqrt(),
+                reversed: false,
+            },
+        );
+        edges.insert(
+            circle_e,
+            EdgeSpec {
+                start: base_v,
+                end: base_v,
+                carrier: Curve3::Circle {
+                    center: Point3::new(0.0, 0.0, -1.0),
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    radius: 1.0,
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                t0: 0.0,
+                t1: TAU,
+                reversed: false,
+            },
+        );
+        let mut vertices = BTreeMap::new();
+        vertices.insert(apex_v, apex);
+        vertices.insert(base_v, base);
+        let fwd = |edge| EdgeUse {
+            edge,
+            forward: true,
+        };
+        let mut solid = SolidSpec {
+            id: 100,
+            faces: vec![FaceSpec {
+                id: 101,
+                surface: Surface::Cone {
+                    apex,
+                    axis: Vec3::new(0.0, 0.0, -1.0),
+                    half_angle: std::f64::consts::FRAC_PI_4,
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+                loops: vec![LoopSpec {
+                    outer: true,
+                    uses: vec![fwd(seam_e), fwd(circle_e), fwd(seam_e)],
+                }],
+                band: false,
+            }],
+            edges,
+            vertices,
+            band_seams: Default::default(),
+        };
+        let mut minted = 0_u64;
+        let mut sink = Vec::new();
+        apex_cone(
+            &mut solid,
+            &mut || {
+                minted += 1;
+                1000 + minted
+            },
+            &mut sink,
+        )
+        .expect("a declined detection is not an error");
+        assert_eq!(minted, 0, "a declined detection mints nothing");
+        assert!(sink.is_empty(), "a declined detection reports nothing");
+        assert_eq!(solid.faces.len(), 1, "the face is left as stated");
+        assert_eq!(solid.edges.len(), 2, "no edge is split or minted");
+    }
 }

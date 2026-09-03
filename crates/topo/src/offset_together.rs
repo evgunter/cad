@@ -82,7 +82,7 @@
 //! reaches the word "singular" is one that is.
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+use geom_brep::{EdgeAuthority, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
@@ -245,7 +245,8 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
             .ok_or(ReplaceFaceError::Corrupt)?;
         let old_carrier = curve.carrier().clone();
         let (t0_old, t1_old) = curve.params();
-        let description = *curve.description();
+        let description = curve.description().clone();
+        let authority = curve.authority();
         let old_start = old_carrier.eval(t0_old);
 
         // A SEAM between two faces of one chart is not an intersection
@@ -300,7 +301,7 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
         specs.push((
             edge,
             EdgeCurveSpec {
-                description: restate(description, mid, displacement, edge)?,
+                description: restate(description, authority, mid, displacement, edge)?,
                 carrier,
                 param_start: t0,
                 param_end: t1,
@@ -400,32 +401,61 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
 /// discharge. The duplication is one `match` over five variants and
 /// this note is its disclosure.
 fn restate<T: Real>(
-    description: EdgeGeometry<T>,
+    description: EdgeDescription<T>,
+    authority: EdgeAuthority<T>,
     mid: Point3<T>,
     displacement: Vec3<T>,
     edge: EdgeKey,
-) -> Result<EdgeGeometry<T>, ReplaceFaceError<T>> {
+) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
+    // **The pushforward is carried, wherever it lives** (PCURVE P-1b,
+    // at the merge). This function was written against the
+    // pre-collapse taxonomy, where a conventional locus WAS a
+    // `MappedCurve` and translating the description was the whole job.
+    // U2 restated such loci as chart images and moved the pushforward
+    // beside them as the authority record, so the job splits in two:
+    // the image is in the chart's own coordinates and a rigid
+    // displacement of the chart leaves it alone, while the declaration
+    // is 3-space sketch data and still has to be translated.
+    //
+    // Getting only the first half right is exactly the defect this
+    // unit shipped and had to fix in `replace_face`'s offset lane
+    // (`declared: None` silently destroying the record); the same
+    // question is answered the same way here rather than rediscovered.
+    // Unlike that lane, `offset_together` moves planes RIGIDLY by
+    // construction, so a displacement always exists and only the
+    // rotation-family refusal remains reachable.
+    let carried = |mc: geom_brep::MappedCurve<T>| {
+        crate::replace_face::translate_mapped(mc, displacement).ok_or(
+            ReplaceFaceError::CarrierLaneUnsupported {
+                edge,
+                what: "a rotation-family mapped description (its trajectory does not \
+                       translate)",
+            },
+        )
+    };
     Ok(match description {
-        EdgeGeometry::Intersection { s1, s2, .. } => EdgeGeometry::Intersection {
+        EdgeDescription::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
             s1,
             s2,
             witness: mid,
         },
-        EdgeGeometry::TangentIntersection { s1, s2, .. } => EdgeGeometry::TangentIntersection {
-            s1,
-            s2,
-            witness: mid,
+        EdgeDescription::TangentIntersection { s1, s2, .. } => {
+            EdgeDescriptionSpec::TangentIntersection {
+                s1,
+                s2,
+                witness: mid,
+            }
+        }
+        EdgeDescription::Chart(c) => EdgeDescriptionSpec::Chart {
+            surface: c.surface,
+            image: Some(c.pcurve),
+            seam: c.seam,
+            declared: match authority {
+                EdgeAuthority::Derived => None,
+                EdgeAuthority::Declared(mc) => Some(carried(mc)?),
+            },
         },
-        EdgeGeometry::MappedCurve(m) => EdgeGeometry::MappedCurve(
-            crate::replace_face::translate_mapped(m, displacement).ok_or(
-                ReplaceFaceError::CarrierLaneUnsupported {
-                    edge,
-                    what: "a rotation-family mapped description (its trajectory does not \
-                           translate)",
-                },
-            )?,
-        ),
-        other => other,
+        EdgeDescription::Scaffold(m) => EdgeDescriptionSpec::Scaffold(carried(m)?),
     })
 }
 
@@ -437,11 +467,6 @@ fn solve_corner<T: Decide>(
     arms: &[T],
     band: Band,
 ) -> Result<Point3<T>, ReplaceFaceError<T>> {
-    let non_simple = |what: &'static str| ReplaceFaceError::TogetherCorner {
-        vertex,
-        planes: at.len(),
-        what,
-    };
     // **A corner that is not asked to move does not move**, and it is
     // answered before any meter runs. Metering a motion of zero would
     // classify every corner of a stationary body as unsolvable and say
@@ -453,6 +478,31 @@ fn solve_corner<T: Decide>(
         Ok(_) => {}
         Err(source) => return Err(ReplaceFaceError::Escalated { source }),
     }
+    solve_planar_corner(
+        vertex,
+        &at.iter().map(|p| (p.normal, p.c)).collect::<Vec<_>>(),
+        arms,
+        band,
+    )
+}
+
+/// The corner solve itself, over `(n̂, c)` plane equations — shared with
+/// the axial door, whose all-planar corners are exactly this problem.
+///
+/// The zero-move short-circuit is the CALLER's: only the caller knows
+/// what motion was asked for, and metering a motion of zero here would
+/// call a stationary body's every corner singular.
+pub(crate) fn solve_planar_corner<T: Decide>(
+    vertex: VertexKey,
+    at: &[(Vec3<T>, T)],
+    arms: &[T],
+    band: Band,
+) -> Result<Point3<T>, ReplaceFaceError<T>> {
+    let non_simple = |what: &'static str| ReplaceFaceError::TogetherCorner {
+        vertex,
+        planes: at.len(),
+        what,
+    };
     if at.len() < 3 {
         return Err(non_simple(
             "fewer than three distinct planes meet here, so no point is determined",
@@ -477,7 +527,7 @@ fn solve_corner<T: Decide>(
     'triples: for (i, a) in at.iter().enumerate() {
         for (j, b) in at.iter().enumerate().skip(i + 1) {
             for c in at.iter().skip(j + 1) {
-                let det = a.normal.dot(b.normal.cross(c.normal));
+                let det = a.0.dot(b.0.cross(c.0));
                 let mut resolvable = true;
                 for &arm in arms {
                     match decide(
@@ -510,7 +560,7 @@ fn solve_corner<T: Decide>(
     // corner whose planes do not concur has no offset point at all,
     // and guessing one is how a wrong body gets built.
     for p in at {
-        let residual = p.normal.dot(radius(point)) - p.c;
+        let residual = p.0.dot(radius(point)) - p.1;
         match decide("offset_together_concurrence", Margin::of(residual), band) {
             Ok(Sign::Zero) => {}
             Ok(_) => {
@@ -526,11 +576,8 @@ fn solve_corner<T: Decide>(
 }
 
 /// Cramer's rule on three plane equations with a known determinant.
-fn cramer<T: Real>(a: &MovedPlane<T>, b: &MovedPlane<T>, c: &MovedPlane<T>, det: T) -> Point3<T> {
-    let v = (b.normal.cross(c.normal) * a.c
-        + c.normal.cross(a.normal) * b.c
-        + a.normal.cross(b.normal) * c.c)
-        / det;
+fn cramer<T: Real>(a: &(Vec3<T>, T), b: &(Vec3<T>, T), c: &(Vec3<T>, T), det: T) -> Point3<T> {
+    let v = (b.0.cross(c.0) * a.1 + c.0.cross(a.0) * b.1 + a.0.cross(b.0) * c.1) / det;
     Point3::new(v.x, v.y, v.z)
 }
 
@@ -542,6 +589,15 @@ fn radius<T: Real>(p: Point3<T>) -> Vec3<T> {
 
 /// The chord length of every edge ending at a vertex — the lengths the
 /// corner's conditioning is levered by (see [`solve_corner`]).
+///
+/// **The axial door keeps its own copy, levered by ARC LENGTH, and the
+/// difference is load-bearing rather than a duplication to collapse.**
+/// A chord is the arc length here because this door's bodies are
+/// all-planar and a planar edge is a straight segment: no closed edge
+/// exists for a chord to read zero on. The axial door's do — a chart
+/// with ONE seam closes on itself — and a zero arm makes every meter
+/// read `Zero` and call a perfectly transversal corner degenerate,
+/// which is what it measured on the revolved tube.
 fn corner_arms<T: Real>(
     body: &Body<T>,
     vertex: VertexKey,
@@ -570,7 +626,7 @@ fn corner_arms<T: Real>(
 }
 
 /// Every face incident to a vertex, in orbit order.
-fn faces_at_vertex<T: Real>(
+pub(crate) fn faces_at_vertex<T: Real>(
     body: &Body<T>,
     vertex: VertexKey,
 ) -> Result<Vec<FaceKey>, ReplaceFaceError<T>> {

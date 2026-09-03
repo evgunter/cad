@@ -14,8 +14,8 @@ mod fixture;
 
 use editor_core::{
     Attr, CapEnd, Dimension, DocEdit, DocParam, DocRef, DocumentId, EntityKind, MetaValue, Node,
-    ParamName, PersistError, ProfileDoc, REGENERATE_RECOURSE, Rgba8, RoleSeg, SCHEMA_VERSION,
-    StableName, WitnessDatum, content_pin, header_document_id, load, save,
+    ParamName, PersistError, ProfileDoc, Rgba8, RoleSeg, StableName, WitnessDatum, content_pin,
+    header_document_id, load, save,
 };
 use fixture::{desc, insert, len, step};
 use geom_core::Tol;
@@ -50,10 +50,7 @@ fn exemplar(
         doc,
         DocEdit::SetDocParam {
             name: ParamName::new("depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.75,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.75),
         },
     );
     (doc, profile, extrude)
@@ -83,10 +80,7 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
         base.clone(),
         DocEdit::SetDocParam {
             name: ParamName::new("depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.9,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.9),
         },
     );
     // Path B: wander through 0.1 first, then land on 0.9.
@@ -94,20 +88,14 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
         base,
         DocEdit::SetDocParam {
             name: ParamName::new("depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.1,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.1),
         },
     );
     let (b, _) = step(
         b,
         DocEdit::SetDocParam {
             name: ParamName::new("depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.9,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.9),
         },
     );
     assert_eq!(
@@ -119,17 +107,11 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
     let (origin, _, _) = exemplar("asm1-row2");
     let log_a = vec![DocEdit::SetDocParam {
         name: ParamName::new("depth"),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: 0.9,
-        },
+        value: DocParam::continuous(Dimension::Length, 0.9),
     }];
     let mut log_b = vec![DocEdit::SetDocParam {
         name: ParamName::new("depth"),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: 0.1,
-        },
+        value: DocParam::continuous(Dimension::Length, 0.1),
     }];
     log_b.extend(log_a.clone());
     let loaded_a = load(
@@ -172,10 +154,7 @@ fn row2_undone_edit_pin_unchanged() {
         doc,
         DocEdit::SetDocParam {
             name: ParamName::new("depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.9,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.9),
         },
     );
     assert_ne!(
@@ -187,10 +166,7 @@ fn row2_undone_edit_pin_unchanged() {
         edited,
         DocEdit::SetDocParam {
             name: ParamName::new("depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.75,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.75),
         },
     );
     assert_eq!(content_pin(&undone, Tol::witness()).unwrap(), before);
@@ -236,10 +212,7 @@ fn row4_param_edit_moves_pin() {
         doc,
         DocEdit::SetDocParam {
             name: ParamName::new("depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.8,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.8),
         },
     );
     assert_ne!(content_pin(&edited, Tol::witness()).unwrap(), before);
@@ -324,50 +297,16 @@ fn row4_witness_change_moves_pin() {
     assert_ne!(content_pin(&edited, Tol::witness()).unwrap(), before);
 }
 
-/// Row 8 — a v4 file refuses TYPED with the regenerate recourse (the
-/// ratified clean-break shape, re-pinned at each bump). The body is the
-/// repo's own frozen v4 golden, so the refusal is against real bytes.
-#[test]
-fn row8_v4_file_refuses_typed() {
-    let v4 = include_str!("golden/v4_golden.cad");
-    assert_eq!(v4.lines().next(), Some("schema: 4"));
-    match load(v4, Tol::witness()) {
-        Err(PersistError::SchemaTooOld {
-            found,
-            supported,
-            missing,
-        }) => {
-            assert_eq!(found, 4);
-            assert_eq!(supported, SCHEMA_VERSION);
-            assert_eq!(missing, 4);
-        }
-        other => panic!("a v4 file must refuse SchemaTooOld, got {other:?}"),
-    }
-    let msg = PersistError::SchemaTooOld {
-        found: 4,
-        supported: SCHEMA_VERSION,
-        missing: 4,
-    }
-    .to_string();
-    assert!(msg.contains(REGENERATE_RECOURSE), "{msg}");
-    // The workspace scan's header read refuses the same way.
-    match header_document_id(v4) {
-        Err(PersistError::SchemaTooOld { found: 4, .. }) => {}
-        other => panic!("scan of a v4 header must refuse SchemaTooOld, got {other:?}"),
-    }
-}
-
 // ---- Door pins beyond the numbered rows ----
 
-/// The save header carries `schema: <n>` then `id: <32 hex>`, the scan
-/// helper reads the id back, and load verifies header/snapshot
-/// agreement (tamper refuses typed).
+/// The save header is the `id: <32 hex>` line, the scan helper reads
+/// the id back, and load verifies header/snapshot agreement (tamper
+/// refuses typed).
 #[test]
 fn header_id_line_round_trips_and_tamper_refuses() {
     let (doc, _, _) = exemplar("asm1-header");
     let text = save(&doc, &[], Tol::witness()).unwrap();
     let mut lines = text.lines();
-    assert_eq!(lines.next(), Some(&format!("schema: {SCHEMA_VERSION}")[..]));
     assert_eq!(lines.next(), Some(&format!("id: {}", doc.id())[..]));
     assert_eq!(header_document_id(&text).unwrap(), doc.id());
     assert_eq!(load(&text, Tol::witness()).unwrap().doc.id(), doc.id());

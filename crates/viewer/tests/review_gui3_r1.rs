@@ -77,10 +77,7 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         &doc,
         DocEdit::SetDocParam {
             name: depth_param(),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.002,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.002),
         },
         tol,
     );
@@ -166,7 +163,7 @@ fn r1_an_abandoned_branch_keeps_its_whole_subtree() {
     assert_eq!(depth_of(history.entry(b).doc()), 0.004);
     assert_eq!(depth_of(history.entry(c).doc()), 0.005);
     assert!(
-        history.entry(c).edit().is_some(),
+        !history.entry(c).edits().is_empty(),
         "the abandoned edit is retained"
     );
     assert_eq!(depth_of(history.entry(d).doc()), 0.006);
@@ -330,10 +327,7 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
         &doc,
         DocEdit::SetDocParam {
             name: depth_param(),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.002,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.002),
         },
         tol,
     );

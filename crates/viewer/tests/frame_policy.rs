@@ -20,13 +20,14 @@ use pncad::document::{Doc, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::Ray;
 use viewer::camera::{Camera, CameraOp};
+use viewer::display::DisplayView;
 use viewer::evalseam::Generation;
 use viewer::frame::{self, IdQueryLog, IdStep, StatusUpdate};
 use viewer::input::{self, InputMap, ViewportSize};
 use viewer::pick::{CacheStep, IdMap, PickCache, PickIndex};
 use viewer::props::SlotValue;
 use viewer::scene::{self, DisplayTolerance, PLATE_EXTENT};
-use viewer::session::{DocSession, FaceSelection, Refusal, Selection, SessionOp};
+use viewer::session::{DocSession, FaceSelection, Hovered, Refusal, Selection, SessionOp};
 
 fn delta() -> DisplayTolerance {
     DisplayTolerance::new(2.0e-4).expect("a positive delta")
@@ -86,6 +87,74 @@ fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
     let shown = frame::batch_status(&[SessionOp::Hover(None)], Some(&refusal));
     assert_eq!(shown, StatusUpdate::Show(refusal.to_string()));
     assert!(!refusal.to_string().is_empty());
+}
+
+/// **A tool's notice is not erased by the batch that carried its own
+/// pick** — the composition seam, as the rule that closes it.
+///
+/// The defect this row exists for: the blend tool declines a pick on a
+/// second body and says so, but the declined click is still a `Select`
+/// that the session performs cleanly. `batch_status` sees an acting op
+/// and no refusal, answers `Clear`, and the explanation is wiped in
+/// the same frame it was written — net effect, the selection jumps to
+/// another body and the sentence saying why it did not join the blend
+/// is shown for zero frames.
+///
+/// Both halves are asserted, because the first is what makes the
+/// second necessary rather than decorative.
+#[test]
+fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
+    let declined = [SessionOp::Select(Selection::None)];
+    let notice = "blend tool: the held edges are on feature 3 body 0".to_owned();
+
+    // The batch policy alone: the frame acted, nothing refused, so the
+    // line is cleared. This is the seam.
+    assert_eq!(
+        frame::batch_status(&declined, None),
+        StatusUpdate::Clear,
+        "a declined pick still performs cleanly, so the batch alone clears"
+    );
+
+    // The frame policy: the notice is what the line shows.
+    assert_eq!(
+        frame::frame_status(std::slice::from_ref(&notice), &declined, None),
+        StatusUpdate::Show(notice.clone())
+    );
+
+    // A refusal outranks it — the answer to what the user asked the
+    // DOCUMENT for is the louder of the two.
+    let refusal = Refusal::NothingToDo;
+    assert_eq!(
+        frame::frame_status(std::slice::from_ref(&notice), &declined, Some(&refusal)),
+        StatusUpdate::Show(refusal.to_string())
+    );
+
+    // With no notices the frame policy is the batch policy, verdict
+    // for verdict — including the hover rule, which must not become a
+    // second opinion here.
+    for ops in [
+        vec![SessionOp::Hover(None)],
+        vec![SessionOp::Select(Selection::None)],
+        vec![],
+    ] {
+        assert_eq!(
+            frame::frame_status(&[], &ops, None),
+            frame::batch_status(&ops, None),
+            "{ops:?}"
+        );
+    }
+
+    // SEVERAL notices in one frame are all shown, joined. Assigning
+    // `status` from each in turn keeps the last and loses the rest,
+    // which is the keep-last defect the batch policy already exists to
+    // stop for refusals.
+    let second = "blend tool: an edit removed 6 of the picked edges".to_owned();
+    let both = frame::frame_status(&[notice.clone(), second.clone()], &declined, None);
+    let StatusUpdate::Show(line) = &both else {
+        panic!("two notices are shown, got {both:?}");
+    };
+    assert!(line.contains(&notice) && line.contains(&second), "{line}");
+    assert_eq!(*line, [notice, second].join(frame::NOTICE_SEPARATOR));
 }
 
 #[test]
@@ -292,6 +361,77 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     assert_eq!(report.from_gpu, None);
     assert_eq!(report.from_ray.as_ref(), Some(&hit.name));
     assert!(report.to_string().contains("disagree"));
+}
+
+/// **The diagnostic's subject is the PATCH under the cursor, and the
+/// hover stopped being that answer when edges became pickable.**
+///
+/// The id buffer can only ever name a patch. With the cursor inside
+/// the edge radius the hover names an EDGE, so feeding the hover
+/// compares two different questions and reports a disagreement on
+/// every such frame — which is what the first half below pins, as the
+/// defect rather than as the behaviour. The second half is the fix:
+/// `face_under_cursor` answers the id buffer's own question, and there
+/// is no verdict.
+#[test]
+fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
+    let tol = Tol::witness();
+    let (session, extrude) = plate_session(tol);
+    let index = index_of(&session);
+    let eval = session.evaluation().expect("landed");
+    let pane = ViewportSize {
+        width_px: 1280.0,
+        height_px: 720.0,
+    };
+    let aspect = pane.aspect().expect("a positive aspect");
+    let camera = common::framed(aspect);
+
+    // A cursor ON a drawn edge of the plate: the priority rule answers
+    // with the edge, and the GPU would answer with the patch behind it.
+    let (cursor, edge) = index
+        .edges_in(extrude, 0)
+        .iter()
+        .find_map(|&id| {
+            let points = index.edge_polyline_for(id, &DisplayView::none());
+            if points.len() < 2 {
+                return None;
+            }
+            let at = (points.len() - 1) / 2;
+            let mid = Point3::new(
+                (points[at].x + points[at + 1].x) * 0.5,
+                (points[at].y + points[at + 1].y) * 0.5,
+                (points[at].z + points[at + 1].z) * 0.5,
+            );
+            let ndc = camera.project(mid, aspect).ok()??;
+            let cursor = pane.cursor_of([ndc[0], ndc[1]])?;
+            let hovered = index.hovered_at(eval, &camera, pane, cursor).ok()?;
+            match hovered {
+                Some(Hovered::Edge(edge)) => Some((cursor, edge)),
+                _ => None,
+            }
+        })
+        .expect("some drawn edge of the plate is hoverable from its own midpoint");
+
+    let face = index
+        .face_under_cursor(eval, &camera, pane, cursor, &DisplayView::none())
+        .expect("the cursor un-projects")
+        .expect("an edge is only reachable where its body is, so a face is under it too");
+    let id = *index
+        .ids_of_target(&face)
+        .first()
+        .expect("the face under the cursor is drawn");
+
+    // The defect, pinned: the hover's name against the patch's.
+    assert!(
+        frame::disagreement(&index, answer(7, id), Some(7), Some(&edge.name)).is_some(),
+        "an edge name against a patch name is two questions, and the check cannot know it"
+    );
+    // The fix: the ray side answers the question the id buffer asked.
+    assert_eq!(
+        frame::disagreement(&index, answer(7, id), Some(7), Some(&face.name)),
+        None,
+        "the face under the cursor is what the id buffer named"
+    );
 }
 
 #[test]
@@ -707,4 +847,71 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
     assert!(refusal.is_none(), "{refusal:?}");
     assert_eq!(frame::creation_offer(refusal.as_ref()), None);
     assert_eq!(frame::retype_draft(&batch, refusal.as_ref()), None);
+}
+
+/// The XDG rules for where preferences live, held as a table.
+///
+/// Pure like the chooser probe beside it, and for the same reason:
+/// the ambient read is one line, and everything that can be WRONG
+/// here is the resolution. These rows hold whatever the CI box has in
+/// its environment.
+#[test]
+fn the_preferences_path_follows_the_xdg_rules() {
+    use std::ffi::OsStr;
+    use std::path::PathBuf;
+
+    let xdg = |c: Option<&str>, h: Option<&str>| {
+        frame::prefs_path_in(c.map(OsStr::new), h.map(OsStr::new))
+    };
+    let tail = PathBuf::from("pncad").join("viewer.toml");
+
+    // Set and non-empty wins outright — $HOME is not consulted.
+    assert_eq!(
+        xdg(Some("/cfg"), Some("/home/someone")),
+        Some(PathBuf::from("/cfg").join(&tail)),
+    );
+    assert_eq!(
+        xdg(Some("/cfg"), None),
+        Some(PathBuf::from("/cfg").join(&tail))
+    );
+
+    // Unset falls back to $HOME/.config, as the spec says.
+    assert_eq!(
+        xdg(None, Some("/home/someone")),
+        Some(PathBuf::from("/home/someone/.config").join(&tail)),
+    );
+
+    // EMPTY counts as unset — the spec says so in as many words, and
+    // this is the row that matters: taking `""` as the base would
+    // build a RELATIVE path and write preferences into whatever
+    // directory the viewer was launched from.
+    assert_eq!(
+        xdg(Some(""), Some("/home/someone")),
+        Some(PathBuf::from("/home/someone/.config").join(&tail)),
+        "an empty XDG_CONFIG_HOME is unset, not a relative base",
+    );
+    // The same trap one variable over.
+    assert_eq!(
+        xdg(Some(""), Some("")),
+        None,
+        "an empty HOME is unset too — it would be a relative path as well",
+    );
+
+    // With neither, nothing is invented. The caller's store is then
+    // unusable and says so, which is how a person learns their
+    // preferences are not being kept.
+    assert_eq!(xdg(None, None), None);
+
+    // Whatever it resolves to is absolute, which is the property the
+    // two empty-string rows above exist to protect.
+    for path in [
+        xdg(Some("/cfg"), None),
+        xdg(None, Some("/home/someone")),
+        xdg(Some(""), Some("/home/someone")),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        assert!(path.is_absolute(), "{} is not absolute", path.display());
+    }
 }

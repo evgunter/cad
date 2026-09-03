@@ -78,7 +78,12 @@ sizing the lane already performed. Both run in ~4 s over the whole tour
 in release.
 
 The committed baseline is `docs/tess-budget-data/tess-budget-baseline.csv`
-(WITH the resampling pass). Its row count is the file's own and grows
+(WITH the resampling pass). Its first line is a
+`# tess-budget-cut: <commit> <date>` record of the tree it was swept
+from, written by `scripts/tess_budget_cut.sh` (which
+`tess_budget_sweep.sh` calls, and which derives the commit rather than
+taking one); `tools/tess-lint` prints it beside every verdict and
+needs it to date an uncovered scene. Its row count is the file's own and grows
 with the tour — 1,075 at the TESS-SPLIT re-cut, and every re-cut since
 is an ordinary commit under "Re-cutting the baseline" below — so read
 the file, not this sentence, for the current count.
@@ -90,11 +95,20 @@ of the time, where the committed file's own `grid_cells` sum was
 and grows with the tour like the row count, and the total-slack
 figures come from that same pre-TESS-SPAN cut. Read the committed file as the gate's reference point and the
 figures below as the pre-fix record they are labelled as. CI runs the
-sweep `--sizing-only` and gates on REGRESSION against it: a scene's
-mesh growing, a face's sizing getting wastefuller, or a scene silently
-dropping out of the sweep. The gate reads triangle counts and the
-sizing columns only, so the resampling is a cost the gate has no use
-for; re-cutting the baseline drops the flag.
+sweep `--sizing-only` and gates on REGRESSION against it; what the
+rules ARE is rostered in `tools/tess-lint`'s module docs and nowhere
+else, this document included.
+
+What the gate READS is the part worth stating here, because it is what
+makes `--sizing-only` sound: triangle counts, the sizing columns, and
+the identity columns its per-face join checks itself against — chart,
+trim box, the whole-patch divisions, and whether the row carries a
+sizing block at all. (It read *"triangle counts and the sizing columns
+only"* here until this edit. That has been false since the join gained
+its precondition, and every added rule made it more so.) It never
+reads `worst_dev` or `dev_samples`, which is why the resampling pass
+is a cost the gate has no use for, and why re-cutting the baseline
+drops the flag.
 
 ## The columns after TESS-SPAN
 
@@ -191,8 +205,10 @@ removed.
 
 `grid_cells` remains and is still the schedule's own sum; what it is
 is stated where it is declared. The report prints `held / split /
-total`; `tess-lint`'s gate rules are unchanged in shape (triangle
-growth, per-face recoverable slack growth, vanished scenes).
+total`. **The gate's rules are rostered in one place —
+`tools/tess-lint`'s module docs — and this document does not keep a
+second copy.** A roster restated here is a roster that drifts: read it
+there, where the rules and the code that runs them cannot disagree.
 
 ## What the four numbers meant (pre-fix record)
 
@@ -339,16 +355,64 @@ and say WHY in the commit. A `vanished` finding is never re-baselined
 without reading it first: a scene the sweep stopped covering improves
 every total it used to appear in.
 
-**A re-cut that FOLDS IN uncovered scenes restores coverage, it does
-not verify it.** This is the sentence to read before treating a fold as
-good news, whoever is doing it. Folding an uncovered scene into the
-baseline buys comparison FROM NOW ON; it cannot recover the window the
-scene spent outside the gate. Whatever happened to its sizing in that
-interval is unaudited and is not recoverable from the sweep data, so the
-values a fold blesses are **current-state, not verified-optimal** — if
-the scene regressed in the window, the fold enshrines the regression as
-the new reference. *Coverage restored* is not *coverage verified*, and
-only an audit closes the gap.
+**An `uncovered` scene FAILS the gate, and the PR that grows the
+corpus is the PR that folds it.** (One rule, described here for its
+RECOURSE, as the two paragraphs above describe theirs. The roster of
+rules stays in `tools/tess-lint`'s module docs.) A scene the fresh sweep has and the
+baseline does not is a scene the gate never looked at: swept, measured,
+printed and compared against nothing, with the verdict staying green
+because there was nothing to compare it to. That is the decay #1038
+named, and the ruling is that growth pays for itself — the same
+panic-on-move discipline the rest of this tree runs on, one instrument
+over. The genuinely NEW scene and the scene the baseline was already
+outgrown by are one case here: same recourse, same PR, no way for the
+gate to tell them apart at the moment it fires. Re-run the sweep into
+the baseline, check the diff is ADDITIVE (a row that MOVED is a
+separate finding this one was hiding — read it, do not fold it), and
+commit the baseline with the scene. Well-behaved scene PRs already do
+this voluntarily; at current churn the rule fires on the two or three
+a week that do not.
+
+**What the cut record adds is the reading, not the verdict.** The
+baseline's `# tess-budget-cut:` line names the tree it was swept from,
+so a scene absent from it can be dated: added after that cut, it has
+been uncovered for one PR; older than it, it has been outside the gate
+ever since and the next paragraph is about it. Before the record
+existed those two were one undifferentiated "absent", which is how
+five scenes sat outside the gate for weeks while it reported clean.
+`scripts/tess_budget_cut.sh` derives the commit — the last commit to
+write the file when the file is tracked and unmodified, the swept HEAD
+(marked `-dirty` over uncommitted changes) otherwise — so the record is
+never a typed value, and a sweep taken outside a git checkout records
+none and says so rather than pretending.
+
+**A re-keyed face is read before it is re-cut, and for the same
+reason.** The per-face join is by ORDINAL — the only per-face name the
+CSV carries — so `tess-lint` checks at each ordinal that both sides
+describe one face (chart, trim box, whole-patch divisions, and whether
+the row carries the sizing block at all) and stops comparing a scene
+from the first ordinal where they do not. The finding names that
+column and both readings. Establish what moved in the MODEL first: a
+face genuinely replaced is a geometry change, a face merely renumbered
+is not, and a re-cut taken before that reading commits whatever the
+uncompared faces above it were doing. Where the scene carries no
+Hessian-sized face the same event is a NOTE rather than a finding —
+rule 1 still runs over its total, so no comparison was lost.
+
+**A re-cut that FOLDS IN uncovered scenes
+restores coverage, it does not verify it.** This is the sentence to
+read before treating a fold as good news, whoever is doing it. It is
+also the sentence `tools/tess-lint` quotes back at whoever the gate
+just stopped, so the line break above is load-bearing: the quoted
+clause has to survive a `grep` for it as one string. Folding an
+uncovered scene into the baseline buys comparison FROM NOW ON; it
+cannot recover the window the scene spent outside the gate. Whatever
+happened to its sizing in that interval is unaudited and is not
+recoverable from the sweep data, so the values a fold blesses are
+**current-state, not verified-optimal** — if the scene regressed in the
+window, the fold enshrines the regression as the new reference.
+*Coverage restored* is not *coverage verified*, and only an audit
+closes the gap.
 
 Measured instance (M9-5, PR #1037): the baseline cut at 31f052d2
 predated five scenes already on the tour — `diechamfer` 68,
@@ -365,7 +429,11 @@ their introducing PR's claim and the box-face arithmetic) before
 landing as reference. The class —
 a comparison gate whose coverage decays silently as the corpus
 outgrows its reference, while its verdict stays green by not looking —
-is **#1038**, sibling to #1023, and stays open past the fold.
+is **#1038**, sibling to #1023. The fold restored that instance's
+coverage; what closes the class on the gate's side is the disposition
+above (an uncovered scene now reds the row) plus the cut record that
+makes the silence legible. Neither audits a window already spent
+outside the gate, which is what the paragraph before this one is for.
 
 ## The split schedule's aspect policy (RATIFIED 2026-08-16, PR #568)
 
@@ -394,7 +462,7 @@ fundamental form. The options:
   ordinary measurement + re-cut.
 - (iii) **Status quo AM-GM** — forgoes the dominant factor.
 
-**RATIFIED: option (ii) with A = 16** (Evan's approval on the
+**RATIFIED: option (ii) with A = 16** (Ev's approval on the
 #568 thread, 2026-08-16, noting correctly that (ii) strictly
 generalizes both extremes — A is the dial). Executed by TESS-SPLIT
 (#951) over TESS-SPAN's sizing functions; `NurbsFaceBound::split_steps`

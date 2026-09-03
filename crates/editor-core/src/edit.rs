@@ -5,7 +5,8 @@
 //! this layer (spec D2).
 
 use crate::appearance::{Attr, AttrKind};
-use crate::doc::{Doc, DocParam, ParamName};
+use crate::distribution::DistributionFault;
+use crate::doc::{Doc, DocParam, DocParamValue, ParamName};
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::EntityKind;
@@ -79,6 +80,29 @@ pub enum DocEdit<P> {
         name: ParamName,
         /// The declared dimension and exact value.
         value: DocParam,
+    },
+    /// Write a NEW VALUE into an already-declared document parameter,
+    /// keeping its declaration: its dimension and its optional
+    /// distribution ride through untouched
+    /// ([`DocParam::with_value`]).
+    ///
+    /// The door [`Self::SetDocParam`] cannot be. That one is
+    /// create-or-replace, so it takes a whole `DocParam` and a caller
+    /// who assembled one from `(dim, value)` — the natural spelling,
+    /// and the only one a value-editing panel, gesture or binding
+    /// wants — deletes any annotation the parameter carried, with no
+    /// refusal and no diagnostic. This edit removes the way to make
+    /// that mistake: there is nothing here to omit.
+    ///
+    /// Refuses typed on a name the document does not declare (there is
+    /// no declaration to carry forward) and on a kind mismatch (a
+    /// count for a continuous parameter or the reverse — that is a
+    /// redeclaration, and belongs to the other door).
+    SetDocParamValue {
+        /// The parameter name — must already be declared.
+        name: ParamName,
+        /// The replacement value.
+        value: DocParamValue,
     },
     /// The explicit name repair (N5, spec D3): rewrite every document
     /// site that references `from` EXACTLY (Declare pairs and
@@ -314,6 +338,60 @@ pub enum EditError {
         /// The continuous slot.
         slot: SlotId,
     },
+    /// A node's PAYLOAD expression (a measured expression's value
+    /// leaf, an assertion's bound — the expressions no slot addresses)
+    /// references a document parameter that does not exist. The same
+    /// fault as [`EditError::UnknownDocParam`] at an address that is
+    /// not a slot, so it says so rather than borrowing a slot name
+    /// from a node that has one.
+    UnknownPayloadParam {
+        /// The missing parameter.
+        name: ParamName,
+        /// The referencing node.
+        node: RecipeNodeId,
+    },
+    /// A payload expression's recorded ref dimension disagrees with the
+    /// document parameter's declared dimension.
+    PayloadParamDimensionMismatch {
+        /// The parameter.
+        name: ParamName,
+        /// The referencing node.
+        node: RecipeNodeId,
+        /// The dimension the parameter is declared with.
+        declared: Dimension,
+        /// The dimension the expression recorded.
+        referenced: Dimension,
+    },
+    /// A [`Node::Measure`]'s expression reads a reference the node does
+    /// not carry ([`crate::MeasureNodeFault`]).
+    MeasureMalformed {
+        /// The measure node.
+        node: RecipeNodeId,
+        /// What is wrong with it.
+        fault: crate::node::MeasureNodeFault,
+    },
+    /// A [`Node::Assertion`] references a node that is not a measure.
+    /// An assertion constrains a measurement; there is nothing else in
+    /// the vocabulary for it to constrain.
+    AssertionTarget {
+        /// The assertion.
+        node: RecipeNodeId,
+        /// What it references.
+        measure: RecipeNodeId,
+    },
+    /// A [`Node::Assertion`]'s bound is dimensioned differently from
+    /// the measure it constrains — refused at the edit door, so a
+    /// document never carries a comparison of metres with radians.
+    AssertionDimension {
+        /// The assertion.
+        node: RecipeNodeId,
+        /// The measure it constrains.
+        measure: RecipeNodeId,
+        /// The measure's dimension.
+        measured: Dimension,
+        /// The bound's.
+        bound: Dimension,
+    },
     /// An expression references a document parameter that does not
     /// exist.
     UnknownDocParam {
@@ -344,6 +422,28 @@ pub enum EditError {
         /// The parameter.
         name: ParamName,
     },
+    /// A value-only edit ([`DocEdit::SetDocParamValue`]) named a
+    /// parameter this document does not declare. The value door
+    /// carries an existing declaration forward, so there has to be
+    /// one; declaring a parameter is [`DocEdit::SetDocParam`]'s job.
+    DocParamNotDeclared {
+        /// The undeclared parameter.
+        name: ParamName,
+    },
+    /// A value-only edit offered a value of the wrong kind — a count
+    /// for a continuous parameter or a continuous value for a count.
+    /// Changing a parameter's kind is a REDECLARATION
+    /// ([`DocEdit::SetDocParam`]), where the dimension and the
+    /// distribution are stated afresh rather than carried.
+    DocParamValueKindMismatch {
+        /// The parameter.
+        name: ParamName,
+        /// The dimension the document declares (`Count` for a count
+        /// parameter).
+        declared: Dimension,
+        /// The value the edit offered.
+        offered: DocParamValue,
+    },
     /// A `SetExpression` path runs off the expression tree (spec D5).
     PathOffTree {
         /// The offending address.
@@ -361,12 +461,23 @@ pub enum EditError {
         /// The name whose node is not live.
         name: StableName,
     },
-    /// A non-finite (NaN/inf) continuous doc-param value — refused at
-    /// the edit door (ruled door 1 of the non-finite policy; F3's
+    /// A non-finite (NaN/inf) float on a continuous doc param — its
+    /// value or one of its distribution's offsets — refused at the
+    /// edit door (ruled door 1 of the non-finite policy; F3's
     /// persist-time refusal then has nothing to catch).
     NonFiniteDocParam {
         /// The parameter.
         name: ParamName,
+    },
+    /// A doc param's distribution breaks an E2 invariant other than
+    /// finiteness: `sigma > 0`, or bounds containing the nominal.
+    /// The SAME check the persistence doors run, so a document that
+    /// would refuse to load cannot be authored.
+    InvalidDistribution {
+        /// The parameter.
+        name: ParamName,
+        /// The invariant that failed.
+        fault: DistributionFault,
     },
     /// A `Rebind` whose target name's node is not live (the selection
     /// must denote something the recipe still has — best-diagnostics
@@ -588,8 +699,15 @@ pub enum EditError {
 // LIB-DOORS F6 (reopened on review): the human-readable rendering the
 // bindings' exception messages consume. The comment-style rule
 // applies — each arm states the PROBLEM (and where it is), not the
-// enum's guts; identifiers render via `Debug` because they ARE the
-// location, and the typed variant remains the machine contract.
+// enum's guts; textual identifiers (slot ids, parameter names,
+// metadata keys) render via `Debug` because they ARE the location,
+// while stable names, kinds and dimensions render through their own
+// prose spellings (`StableName`'s `Display`, the `noun` renderings,
+// `Dimension`'s `Display`), never `Debug`. A name is parenthesized apposition when the sentence's
+// subject is a role word ("the rebind target ({name})") and inline
+// when the name itself is the subject ("the {name} does not
+// resolve"); new arms copy whichever their sentence shape calls for.
+// The typed variant remains the machine contract.
 impl core::fmt::Display for EditError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -613,8 +731,9 @@ impl core::fmt::Display for EditError {
             }
             Self::DeleteWouldDangle { id, referenced_by } => write!(
                 f,
-                "edit: deleting node {} would dangle node {}'s reference to it",
-                id.0, referenced_by.0
+                "edit: node {} is still an input to node {} — delete node {} first, \
+                 or delete node {} together with everything downstream of it",
+                id.0, referenced_by.0, referenced_by.0, id.0
             ),
             Self::UnknownSlot { id, slot } => {
                 write!(f, "edit: node {} has no slot {slot:?}", id.0)
@@ -625,7 +744,9 @@ impl core::fmt::Display for EditError {
                 found,
             } => write!(
                 f,
-                "edit: slot {slot:?} needs a {expected:?} expression, got {found:?}"
+                "edit: slot {slot:?} needs {} {expected} expression, got {} {found}",
+                expected.article(),
+                found.article()
             ),
             Self::StructuralSlotNeedsStructuralEdit { slot } => write!(
                 f,
@@ -634,6 +755,46 @@ impl core::fmt::Display for EditError {
             Self::NotStructuralSlot { slot } => {
                 write!(f, "edit: slot {slot:?} is continuous, not structural")
             }
+            Self::UnknownPayloadParam { name, node } => write!(
+                f,
+                "edit: document parameter {:?} does not exist (referenced by node {}'s \
+                 measurement payload)",
+                name.0, node.0
+            ),
+            Self::PayloadParamDimensionMismatch {
+                name,
+                node,
+                declared,
+                referenced,
+            } => write!(
+                f,
+                "edit: document parameter {:?} is declared {declared} but node {}'s \
+                 measurement payload references it as {referenced}",
+                name.0, node.0
+            ),
+            Self::MeasureMalformed { node, fault } => {
+                write!(f, "edit: measure node {}: {fault}", node.0)
+            }
+            Self::AssertionTarget { node, measure } => write!(
+                f,
+                "edit: assertion node {} references node {}, which is not a measure — an \
+                 assertion constrains a measurement",
+                node.0, measure.0
+            ),
+            Self::AssertionDimension {
+                node,
+                measure,
+                measured,
+                bound,
+            } => write!(
+                f,
+                "edit: assertion node {} bounds {} {measured} measure (node {}) with {} \
+                 {bound} expression — an assertion compares like with like or not at all",
+                node.0,
+                measured.article(),
+                measure.0,
+                bound.article()
+            ),
             Self::UnknownDocParam { name, node, slot } => write!(
                 f,
                 "edit: document parameter {:?} does not exist (referenced by node {}, slot {slot:?})",
@@ -647,12 +808,28 @@ impl core::fmt::Display for EditError {
                 referenced,
             } => write!(
                 f,
-                "edit: parameter {:?} is declared {declared:?} but node {} (slot {slot:?}) references it as {referenced:?}",
+                "edit: parameter {:?} is declared {declared} but node {} (slot {slot:?}) references it as {referenced}",
                 name.0, node.0
             ),
             Self::ContinuousParamCannotBeCount { name } => write!(
                 f,
-                "edit: parameter {:?}: a continuous parameter cannot be Count — use a Count parameter",
+                "edit: parameter {:?}: a continuous parameter cannot be a count — use a count parameter",
+                name.0
+            ),
+            Self::DocParamNotDeclared { name } => write!(
+                f,
+                "edit: parameter {:?} is not declared, so a value edit has no declaration to carry \
+                 forward — declare it first",
+                name.0
+            ),
+            Self::DocParamValueKindMismatch {
+                name,
+                declared,
+                offered,
+            } => write!(
+                f,
+                "edit: parameter {:?} is declared {declared} but the value edit offered a \
+                 {offered} — changing a parameter's kind is a redeclaration",
                 name.0
             ),
             Self::PathOffTree { path } => {
@@ -661,30 +838,37 @@ impl core::fmt::Display for EditError {
             Self::Dimension(e) => write!(f, "edit: {e}"),
             Self::DeclareNamesMissingNode { name } => write!(
                 f,
-                "edit: declared name {name:?} refers to a node that is not live"
+                "edit: the declared {name} refers to a node that is not live"
             ),
-            Self::NonFiniteDocParam { name } => {
-                write!(f, "edit: parameter {:?}: the value must be finite", name.0)
+            Self::NonFiniteDocParam { name } => write!(
+                f,
+                "edit: parameter {:?}: the value and every distribution offset must be finite",
+                name.0
+            ),
+            Self::InvalidDistribution { name, fault } => {
+                write!(f, "edit: parameter {:?}: {fault}", name.0)
             }
             Self::RebindTargetMissingNode { name } => write!(
                 f,
-                "edit: rebind target {name:?} refers to a node that is not live"
+                "edit: the rebind target ({name}) refers to a node that is not live"
             ),
             Self::RebindUnknownName { name } => write!(
                 f,
-                "edit: rebind source {name:?} was never minted by this document"
+                "edit: the rebind source ({name}) was never minted by this document"
             ),
             Self::RebindKindMismatch { from, to } => write!(
                 f,
-                "edit: a rebind cannot cross entity kinds ({from:?} to {to:?})"
+                "edit: a rebind cannot cross entity kinds ({} to {})",
+                from.noun(),
+                to.noun()
             ),
             Self::RebindIdentity { name } => write!(
                 f,
-                "edit: rebinding {name:?} to itself is a recorded no-op — refused"
+                "edit: rebinding the {name} to itself is a recorded no-op — refused"
             ),
             Self::RebindNoReferences { name } => write!(
                 f,
-                "edit: no document site references {name:?} — nothing to repair"
+                "edit: no document site references the {name} — nothing to repair"
             ),
             Self::WitnessOnNonSketch { node } => write!(
                 f,
@@ -701,22 +885,24 @@ impl core::fmt::Display for EditError {
             }
             Self::NameUnresolvedInEvaluation { name } => write!(
                 f,
-                "edit: name {name:?} does not resolve in the supplied evaluation — recording the reference would strand it"
+                "edit: the {name} does not resolve in the supplied evaluation — recording the \
+                 reference would strand it"
             ),
             Self::RebindAppearanceCollision { name, kind } => write!(
                 f,
-                "edit: the rebind would land two {kind:?} attributes on {name:?} — clear one first"
+                "edit: the rebind would land two {} attributes on the {name} — clear one first",
+                kind.noun()
             ),
             Self::AppearanceWrongKind { name } => write!(
                 f,
-                "edit: appearance attaches to faces and bodies only (refused for {name:?})"
+                "edit: appearance attaches to faces and bodies only (refused for the {name})"
             ),
             Self::AppearanceNamesMissingNode { name } => write!(
                 f,
-                "edit: appearance name {name:?} refers to a node that is not live"
+                "edit: the appearance target ({name}) refers to a node that is not live"
             ),
             Self::AppearanceNotSet { name, kind } => {
-                write!(f, "edit: no {kind:?} attribute is set on {name:?}")
+                write!(f, "edit: no {} attribute is set on the {name}", kind.noun())
             }
             Self::InvalidTolerance { value } => write!(
                 f,
@@ -724,19 +910,20 @@ impl core::fmt::Display for EditError {
             ),
             Self::MetaUnversioned { name, key, error } => write!(
                 f,
-                "edit: metadata {key:?} on {name:?} does not carry the D7 integer \"v\" \
+                "edit: metadata {key:?} on the {name} does not carry the D7 integer \"v\" \
                  version field: {error}"
             ),
             Self::MetaNonFinite { name, key, path } => write!(
                 f,
-                "edit: metadata {key:?} on {name:?} carries a non-finite float at {path}"
+                "edit: metadata {key:?} on the {name} carries a non-finite float at {path}"
             ),
             Self::MetaNotSet { name, key } => {
-                write!(f, "edit: no metadata {key:?} is set on {name:?}")
+                write!(f, "edit: no metadata {key:?} is set on the {name}")
             }
             Self::RebindMetadataCollision { name, key } => write!(
                 f,
-                "edit: the rebind would land two values under metadata {key:?} on {name:?} — clear one first"
+                "edit: the rebind would land two values under metadata {key:?} on the {name} — \
+                 clear one first"
             ),
             Self::Roots(fault) => write!(f, "edit: {fault}"),
             Self::PlacementOnNonInstance { node } => write!(
@@ -862,6 +1049,69 @@ fn check_param_refs<P>(
 
 /// Validate every slot of a node payload against slot dimensions and
 /// the param table, keyed as `id` for error reporting.
+/// Write a fully-formed [`DocParam`] into the document: the shared
+/// tail of both parameter doors, so the create-or-replace door and the
+/// value door cannot come to disagree about what a legal parameter is.
+///
+/// **The check order is the LOAD door's** (`persist::check`'s
+/// `validate_document`): floats first, then the distribution's shape,
+/// then the structural `dim: Count` fault that
+/// [`validate_snapshot`](crate::persist) reports last. A document
+/// broken in two ways at once therefore names the same fault whichever
+/// door refuses it, which is the property a caller comparing an edit
+/// refusal against a load refusal actually relies on.
+fn write_doc_param<P: Clone + crate::ProfilePayload>(
+    new: &mut Doc<P>,
+    name: &ParamName,
+    value: DocParam,
+) -> Result<EditRecord, EditError> {
+    // Ruled door 1 (non-finite policy): recipe data never carries
+    // NaN/inf — the nominal and the distribution offsets alike.
+    if let DocParam::Continuous { value: v, .. } = value
+        && !v.is_finite()
+    {
+        return Err(EditError::NonFiniteDocParam { name: name.clone() });
+    }
+    // Every E2 invariant, from the ONE shared check the persistence
+    // doors also run: a non-finite offset joins the non-finite class
+    // above, the rest refuse as a distribution fault.
+    if let Some(d) = value.distribution()
+        && let Err(fault) = d.check()
+    {
+        return Err(match fault {
+            DistributionFault::NonFinite { .. } => {
+                EditError::NonFiniteDocParam { name: name.clone() }
+            }
+            DistributionFault::SigmaNotPositive { .. }
+            | DistributionFault::NominalOutsideSupport { .. } => EditError::InvalidDistribution {
+                name: name.clone(),
+                fault,
+            },
+        });
+    }
+    if let DocParam::Continuous {
+        dim: Dimension::Count,
+        ..
+    } = value
+    {
+        return Err(EditError::ContinuousParamCannotBeCount { name: name.clone() });
+    }
+    let structural = matches!(value, DocParam::Count { .. });
+    new.params.insert(name.clone(), value);
+    // A (re)declaration can change the dimension out from under
+    // referencing expressions: re-validate every slot (documents are
+    // small; spec D6's re-run requirement).
+    for &id in &new.order {
+        if let Some(node) = new.nodes.get(&id) {
+            check_node_slots(new, id, node)?;
+        }
+    }
+    Ok(EditRecord {
+        minted: None,
+        structural,
+    })
+}
+
 fn check_node_slots<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     id: RecipeNodeId,
@@ -881,6 +1131,58 @@ fn check_node_slots<P: crate::ProfilePayload>(
             });
         }
         check_param_refs(doc, id, slot, expr)?;
+    }
+    // The expressions no slot addresses (E3/E10). Their DIMENSIONS are
+    // already fixed by construction — a `MeasureExpr` runs the F1
+    // checker at every constructor, and an assertion's bound is checked
+    // against its measure below — so what is left here is the same
+    // parameter-table re-check every slot expression gets.
+    for expr in crate::node::payload_exprs(node).into_iter().flatten() {
+        let mut refs = Vec::new();
+        expr.param_refs(&mut refs);
+        for (name, referenced) in refs {
+            match doc.params().get(&name) {
+                None => return Err(EditError::UnknownPayloadParam { name, node: id }),
+                Some(p) if p.dim() != referenced => {
+                    return Err(EditError::PayloadParamDimensionMismatch {
+                        name,
+                        node: id,
+                        declared: p.dim(),
+                        referenced,
+                    });
+                }
+                Some(_) => {}
+            }
+        }
+    }
+    // A measured expression's reference indices, at the edit door as
+    // well as the construction and load doors: `Node::Measure` is a
+    // public variant, so a hand-built value can reach `apply` without
+    // passing `Node::measure`.
+    if let Some(fault) = node.measure_fault() {
+        return Err(EditError::MeasureMalformed { node: id, fault });
+    }
+    // An assertion's bound against the dimension of the measure it
+    // constrains — the one check that needs the DOCUMENT, which is why
+    // it lands here and not on the node.
+    if let Node::Assertion { measure, bound, .. } = node {
+        let measured = match doc.node(*measure) {
+            Some(Node::Measure { expr, .. }) => expr.dim(),
+            _ => {
+                return Err(EditError::AssertionTarget {
+                    node: id,
+                    measure: *measure,
+                });
+            }
+        };
+        if measured != bound.dim() {
+            return Err(EditError::AssertionDimension {
+                node: id,
+                measure: *measure,
+                measured,
+                bound: bound.dim(),
+            });
+        }
     }
     Ok(())
 }
@@ -929,6 +1231,47 @@ fn check_acyclic<P>(doc: &Doc<P>) -> Result<(), EditError> {
     Ok(())
 }
 
+/// The nodes a cascading delete of `id` must remove, ordered so that
+/// [`DocEdit::DeleteNode`] accepts every one of them in turn:
+/// consumers first, `id` last.
+///
+/// The set is `id` plus everything reachable from it along the
+/// CONSUMER direction of the recipe DAG — the transitive closure of
+/// the same [`Node::inputs`] relation [`EditError::DeleteWouldDangle`]
+/// is stated over, which is why applying this sequence in order never
+/// dangles a reference: every node still live at each step has all of
+/// its inputs still live.
+///
+/// The answer is empty for an id the document does not hold; a caller
+/// that wants the refusal asks [`apply`] for it, so the typed verdict
+/// has one home.
+///
+/// One forward pass suffices because [`Doc::order`] is insertion
+/// order and an insertion's inputs must already be live, making the
+/// list topological: a consumer is always seen after every input it
+/// could inherit doom from.
+pub fn cascade_delete_order<P>(doc: &Doc<P>, id: RecipeNodeId) -> Vec<RecipeNodeId> {
+    use std::collections::BTreeSet;
+    if doc.node(id).is_none() {
+        return Vec::new();
+    }
+    let mut doomed: BTreeSet<RecipeNodeId> = BTreeSet::from([id]);
+    for &n in doc.order() {
+        let doomed_by_input = doc
+            .node(n)
+            .is_some_and(|node| node.inputs().iter().any(|input| doomed.contains(input)));
+        if doomed_by_input {
+            doomed.insert(n);
+        }
+    }
+    doc.order()
+        .iter()
+        .rev()
+        .copied()
+        .filter(|n| doomed.contains(n))
+        .collect()
+}
+
 /// Apply one edit to a document, PURELY (spec D2): the input is
 /// untouched; on acceptance a new value comes back with the
 /// [`EditRecord`]. All validation is here — refs resolve, no cycles,
@@ -956,8 +1299,8 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // a typo. They are not DAG edges: later deletes may strand
             // them (N5), so this is the ONLY door that checks, for
             // every payload that carries a name (`Node::payload_names`
-            // — Declare pairs, a fillet's selection under M6-5, a
-            // mate's two heads under A12).
+            // — Declare pairs, a BLEND's selection (fillet under M6-5,
+            // chamfer alongside it), a mate's two heads under A12).
             for name in node.payload_names() {
                 if !new.nodes.contains_key(&name.node) {
                     return Err(EditError::DeclareNamesMissingNode { name: name.clone() });
@@ -1069,35 +1412,22 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                 structural,
             }
         }
-        DocEdit::SetDocParam { name, value } => {
-            if let DocParam::Continuous {
-                dim: Dimension::Count,
-                ..
-            } = value
-            {
-                return Err(EditError::ContinuousParamCannotBeCount { name: name.clone() });
-            }
-            // Ruled door 1 (non-finite policy): recipe data never
-            // carries NaN/inf.
-            if let DocParam::Continuous { value: v, .. } = value
-                && !v.is_finite()
-            {
-                return Err(EditError::NonFiniteDocParam { name: name.clone() });
-            }
-            let structural = matches!(value, DocParam::Count { .. });
-            new.params.insert(name.clone(), value.clone());
-            // A (re)declaration can change the dimension out from
-            // under referencing expressions: re-validate every slot
-            // (documents are small; spec D6's re-run requirement).
-            for &id in &new.order {
-                if let Some(node) = new.nodes.get(&id) {
-                    check_node_slots(&new, id, node)?;
-                }
-            }
-            EditRecord {
-                minted: None,
-                structural,
-            }
+        DocEdit::SetDocParam { name, value } => write_doc_param(&mut new, name, value.clone())?,
+        DocEdit::SetDocParamValue { name, value } => {
+            let Some(declared) = new.params.get(name) else {
+                return Err(EditError::DocParamNotDeclared { name: name.clone() });
+            };
+            // THE carry-forward: the declaration is read off the
+            // document and reused whole, so the dimension and the
+            // distribution cannot be dropped by an omission here.
+            let Some(written) = declared.with_value(*value) else {
+                return Err(EditError::DocParamValueKindMismatch {
+                    name: name.clone(),
+                    declared: declared.dim(),
+                    offered: *value,
+                });
+            };
+            write_doc_param(&mut new, name, written)?
         }
         DocEdit::Rebind { from, to } => {
             if from == to {
@@ -1122,13 +1452,16 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                 return Err(EditError::RebindUnknownName { name: from.clone() });
             }
             // One-shot rewrite of every EXACT reference (sites:
-            // Declare pairs, fillet selections, appearance-store
-            // keys). Zero sites = nothing to repair, refused.
+            // Declare pairs, blend selections — fillet and chamfer
+            // alike — appearance-store keys). Zero sites = nothing to
+            // repair, refused.
             // Every payload site, by the one list that says which
             // payloads carry a name (`Node::payload_names`' twin): the
             // rewrite reaches a mate's heads exactly as it reaches a
-            // Declare pair, and a fillet selection's GROWTH PATH (M6-5,
-            // ruled #217) re-canonicalizes there.
+            // Declare pair, and a blend selection's GROWTH PATH (M6-5,
+            // ruled #217) re-canonicalizes there — for a chamfer's
+            // selection exactly as for a fillet's, since both are the
+            // same canonical set.
             let mut declare_sites = 0usize;
             for node in new.nodes.values_mut() {
                 declare_sites += node.rebind_payload_names(from, to);
@@ -1171,7 +1504,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             reconcile = true;
             EditRecord {
                 minted: None,
-                // Declare payloads or fillet selections changed:
+                // Declare payloads or blend selections changed:
                 // content keys move and the threading consumes them
                 // — structural. An appearance-only rebind is
                 // presentation motion: no content key moves, nothing

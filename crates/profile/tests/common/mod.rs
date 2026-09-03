@@ -14,7 +14,14 @@
 use geom_core::Tol;
 use geom_core::{Point2, Real};
 use profile::RawLoop;
-use profile::{ClosedLoop, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start};
+use profile::{
+    ArcSweep, ClosedLoop, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start,
+};
+
+/// A point in the profile frame, from its two coordinates.
+pub fn p2(x: f64, y: f64) -> Point2<f64> {
+    Point2::new(x, y)
+}
 
 /// The run's tolerance (env-driven; the multi-ε matrix parameterizes
 /// it).
@@ -254,4 +261,302 @@ pub fn assert_bit_identical(lowered: &ProfileLoop<f64>, replayed: &ProfileLoop<f
     la.sort_unstable();
     lb.sort_unstable();
     assert_eq!(la, lb, "declared tangent joints (multiset)");
+}
+
+/// The census corpus: closed chains whose union covers every declared
+/// verb. Each is authored through the typed surface, so its recorded
+/// program is the table's own output.
+pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
+    use profile::{ArcLen, ArcSide, Bulge, Center, Radius, Sweep, Via};
+    use std::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI};
+
+    // 1. The fused entry verb, the plain binders and the straight legs.
+    let fused = Open
+        .arc_fillet(
+            Center {
+                c: p2(0.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(5.0, 0.0),
+            },
+            0.5,
+            Tol::witness(),
+        )
+        .unwrap()
+        .at(p2(0.0, 3.0), Tol::witness())
+        .unwrap()
+        .toward(-1.0, 0.0, Tol::witness())
+        .unwrap()
+        .line(3.0, Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 2. An endpoint-free sharp leg, ray extension, an arc arrival and
+    //    the mid-chain Radius arc extension.
+    let walk = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .arc_to(
+            Sweep {
+                r: 2.0,
+                side: ArcSide::Left,
+                angle: 0.6,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .fillet(0.2, Tol::witness())
+        .unwrap()
+        .at(p2(4.0, 3.0), Tol::witness())
+        .unwrap()
+        .toward(0.0, 1.0, Tol::witness())
+        .unwrap()
+        .fillet_arc(
+            0.25,
+            Center {
+                c: p2(2.0, 6.0),
+                winding: ArcSweep::Ccw,
+                p: p2(2.0, 9.0),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .arc_fillet(
+            Radius {
+                r: 3.0,
+                side: ArcSide::Left,
+            },
+            0.25,
+            Tol::witness(),
+        )
+        .unwrap()
+        .at(p2(1.0, 4.0), Tol::witness())
+        .unwrap()
+        .toward(0.0, -1.0, Tol::witness())
+        .unwrap()
+        .line(3.0, Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 3. `.turn(δ)` at the corners. Each δ is far from both 0 (which
+    //    refuses — `.tangent()` is its recourse) and ±π (the reverse
+    //    class), so substituting any other director moves real geometry
+    //    and the round-trip reddens on the first vertex it reaches.
+    let turned = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .line(3.0, Tol::witness())
+        .unwrap()
+        .turn(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(3.0, Tol::witness())
+        .unwrap()
+        .turn(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(3.0, Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 4. The seam-fillet close: mid-side anchors, every corner filleted
+    //    including the one under the entry vertex, which `.to(Start)`
+    //    retrims.
+    let seam = Open
+        .at(p2(1.5, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .fillet(0.5, Tol::witness())
+        .unwrap()
+        .at(p2(3.0, 1.5), Tol::witness())
+        .unwrap()
+        .angle(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .fillet(0.5, Tol::witness())
+        .unwrap()
+        .at(p2(1.5, 3.0), Tol::witness())
+        .unwrap()
+        .angle(PI, Tol::witness())
+        .unwrap()
+        .fillet(0.5, Tol::witness())
+        .unwrap()
+        .at(p2(0.0, 1.5), Tol::witness())
+        .unwrap()
+        .angle(-FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .fillet(0.5, Tol::witness())
+        .unwrap()
+        .to(Start, Tol::witness())
+        .unwrap();
+
+    // 5. The declared tangent joint and the unique tangent arc.
+    let tangent_arc = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(2.0, 0.0), Tol::witness())
+        .unwrap()
+        .tangent()
+        .tangent_arc_to(p2(3.0, 1.0), Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 6. The declared-subdivision step on an arc carrier.
+    let subdivided = Open
+        .at(p2(0.0, -0.5))
+        .arc_to(
+            Bulge {
+                p: p2(0.5, 0.0),
+                b: FRAC_PI_8.tan(),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .arc_continue(p2(0.0, 0.5), Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 7. The far-end anchor: the arrival side ENDS at its authored point.
+    let far_end = Open
+        .at(p2(0.0, 0.0))
+        .line_to(p2(3.0, 0.0), Tol::witness())
+        .unwrap()
+        .line_to(p2(3.0, 1.0), Tol::witness())
+        .unwrap()
+        .toward(-1.0, 0.0, Tol::witness())
+        .unwrap()
+        .fillet(0.5, Tol::witness())
+        .unwrap()
+        .toward(0.0, 1.0, Tol::witness())
+        .unwrap()
+        .to(p2(1.0, 3.0), Tol::witness())
+        .unwrap()
+        .line_to(p2(0.0, 3.0), Tol::witness())
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 8. The fused verb with an ARC arrival, closing on the far lobe.
+    let tip = 0.75f64.sqrt();
+    let eye = Open
+        .arc_fillet_arc(
+            Center {
+                c: p2(-0.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(0.0, -tip),
+            },
+            0.25,
+            Center {
+                c: p2(0.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: Start,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+
+    // 9. The DECLARED cusp: the lune between two internally tangent
+    //    circles, cut on the y axis so the region is the one lip —
+    //    the cross-section of D1's kissing-cylinders figure. The
+    //    junction at the kiss is authored by `.cusp()`, which reverses
+    //    the arriving ray exactly; every other corner is a right
+    //    angle, so nothing but the cusp is declared.
+    let lune = Open
+        .at(p2(0.0, 4.0))
+        .angle(-FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .turn(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .tangent_arc_to(p2(0.0, 0.0), Tol::witness())
+        .unwrap()
+        .cusp()
+        .tangent_arc_to(Start, Tol::witness())
+        .unwrap();
+
+    // 12. The two arc modes the chains above never reach: the
+    //     endpoint-free `ArcLen` leg off a directed tip (the extent
+    //     authored as a length rather than a swept angle), and the
+    //     three-point `Via` leg off the bare point it lands on.
+    let mode_legs = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .arc_to(
+            ArcLen {
+                r: 2.0,
+                side: ArcSide::Left,
+                len: 1.2,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .arc_to(
+            Via {
+                q: p2(2.0, 1.5),
+                p: p2(3.0, 0.5),
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .line_to(Start, Tol::witness())
+        .unwrap();
+
+    // 13. The DECLARED point-target continuation and its structural
+    //     CLOSER: a square whose every side is subdivided at one
+    //     interior vertex — four corners said on eight — with the seam
+    //     cut at a corner and the last side crossing it. Each
+    //     subdivision names the point it lands on and is checked
+    //     against the ray it declared; the closer names `Start`. This
+    //     is the shape the ruling was for, and the only chain here in
+    //     which a straight run crosses the seam.
+    let subdivided_square = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .line(1.0, Tol::witness())
+        .unwrap()
+        .continue_to(p2(2.0, 0.0), Tol::witness())
+        .unwrap()
+        .turn(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(1.0, Tol::witness())
+        .unwrap()
+        .continue_to(p2(2.0, 2.0), Tol::witness())
+        .unwrap()
+        .turn(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(1.0, Tol::witness())
+        .unwrap()
+        .continue_to(p2(0.0, 2.0), Tol::witness())
+        .unwrap()
+        .turn(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(1.0, Tol::witness())
+        .unwrap()
+        .continue_to(Start, Tol::witness())
+        .unwrap();
+
+    // 10/11. The complete-loop program forms.
+    let circle = profile::circle(p2(1.0, 2.0), 0.75, Tol::witness()).unwrap();
+    let split = profile::circle_split(p2(0.0, 0.0), 1.0, 5, 0.3, Tol::witness()).unwrap();
+
+    vec![
+        fused,
+        walk,
+        turned,
+        seam,
+        tangent_arc,
+        subdivided,
+        far_end,
+        eye,
+        lune,
+        mode_legs,
+        subdivided_square,
+        circle,
+        split,
+    ]
 }

@@ -14,7 +14,7 @@ use editor_core::{
 };
 use fixture::{ang, desc, die, insert, len, scl};
 use geom_core::Tol;
-use topo::Body;
+use topo::{Body, FaceKey};
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -50,7 +50,11 @@ fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
         ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
         | ValuePayload::Declarations(_)
-        | ValuePayload::Mate(_) => vec![],
+        | ValuePayload::Mate(_)
+        // Neither sink denotes a body, so neither offers an entity to
+        // invert — the same answer a declaration gives.
+        | ValuePayload::Measure { .. }
+        | ValuePayload::Assertion(_) => vec![],
     }
 }
 
@@ -310,4 +314,61 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
             entity: some_face
         })
     );
+}
+
+/// The Display contract (#1111): a consumer renders a `HitTestError`
+/// through the payload's own words, so every arm must state what
+/// happened in prose — the node it is about, the kind of entity where
+/// there is one — and must never read as the `Debug` struct dump the
+/// viewer was reduced to printing. The variant identifier and the
+/// field-name punctuation are the dump's fingerprints; asserting their
+/// ABSENCE is what keeps a future `write!(f, "{self:?}")` from passing
+/// this test.
+#[test]
+fn hit_test_error_display_names_its_content_not_its_struct() {
+    let node = RecipeNodeId(7);
+    let through = RecipeNodeId(3);
+    let cases = [
+        (
+            HitTestError::NodeNotEvaluated { node },
+            vec!["node 7", "no result"],
+        ),
+        (HitTestError::NodeFailed { node }, vec!["node 7", "failed"]),
+        (
+            HitTestError::NodePoisoned { node, through },
+            vec!["node 7", "node 3", "poisoned"],
+        ),
+        (
+            HitTestError::Unnamed {
+                node,
+                entity: EntityRef {
+                    body: 2,
+                    key: EntityKey::Face(FaceKey::default()),
+                },
+            },
+            // The entity renders by KIND and body index — an arena key
+            // is editor-core-private and says nothing to a person.
+            vec!["node 7", "face", "body 2", "kernel bug"],
+        ),
+    ];
+    for (err, wants) in cases {
+        let shown = err.to_string();
+        for want in wants {
+            assert!(
+                shown.contains(want),
+                "{err:?} renders as {shown:?}, missing {want:?}"
+            );
+        }
+        for dump in ["NodeNotEvaluated", "NodeFailed", "NodePoisoned", "Unnamed"] {
+            assert!(
+                !shown.contains(dump),
+                "{err:?} renders as {shown:?} — that is the variant name, i.e. a struct dump"
+            );
+        }
+        assert!(
+            !shown.contains('{') && !shown.contains("node:"),
+            "{err:?} renders as {shown:?} — that is Debug punctuation, not a sentence"
+        );
+        assert_ne!(shown, format!("{err:?}"));
+    }
 }

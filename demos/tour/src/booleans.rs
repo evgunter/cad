@@ -67,71 +67,32 @@ pub fn try_intersect_declared<S: Scalar>(
     pncad::topo::intersect_with(a, b, &flush_declarations(a, b, tol), tol)
 }
 
-/// Demo-authoring convenience (M4 PR 5, same shape as the kernel test
-/// suites'): the [`pncad::topo::BooleanDeclarations`] declaring every
-/// geometrically-plausible cross-operand flush-plane face pair — the
-/// scene author BUILT the contact deliberately; this writes the
-/// intent down. Certification still happens inside the op through
-/// the verified declared rung.
+/// The scene's flush contacts, DETECTED and then DECLARED — the two
+/// library doors a user would reach for, spelled the way a user would
+/// spell them: [`pncad::topo::flush::find_flush_candidates`] reports
+/// the cross-body planar `Rest` pairs the boolean's own verifier would
+/// accept, and [`pncad::topo::flush::declare_all`] turns the findings
+/// the caller has seen into the declarations the op takes. The scene
+/// author BUILT the contact deliberately; this writes the intent down.
+/// Certification still happens inside the op through the verified
+/// declared rung.
+///
+/// The findings pass through this function's hands as VALUES, which is
+/// the no-fusion boundary the library keeps: there is no door that
+/// detects and declares in one call, and this helper is the tour's
+/// one place that does both in sequence.
+///
+/// PLANAR only, and that is the detector's scope rather than this
+/// helper's choice — which matters here, because scenes whose curved
+/// contacts must keep REFUSING call it (the lily's stem glue).
 pub fn flush_declarations<S: Scalar>(
     a: &Body<S>,
     b: &Body<S>,
     tol: Tol,
 ) -> pncad::topo::BooleanDeclarations {
-    use pncad::geom_core::k_stats::{decide, decide_flagged};
-    use pncad::geom_core::{Margin, Sign};
-    let band = pncad::geom_core::Band::linear(tol).unwrap();
-    let planes = |body: &Body<S>| -> Vec<(
-        pncad::topo::FaceKey,
-        pncad::geom_core::Point3<S>,
-        pncad::geom_core::Vec3<S>,
-    )> {
-        body.faces()
-            .filter_map(|(k, f)| match body.get_surface(f.surface) {
-                Some(&pncad::geom::Surface::Plane { origin, normal, .. }) => {
-                    Some((k, origin, normal))
-                }
-                _ => None,
-            })
-            .collect()
-    };
-    let mut decls = pncad::topo::BooleanDeclarations::none();
-    for &(fa, oa, na) in &planes(a) {
-        for &(fb, ob, nb) in &planes(b) {
-            if matches!(
-                decide_flagged(
-                    "demo_flush_parallel",
-                    na.cross(nb).norm(),
-                    band,
-                    "demo fixture: bare sine gate (the topo test-common declarer's twin)",
-                ),
-                Ok(Sign::Positive)
-            ) {
-                continue;
-            }
-            let sigma = match decide_flagged(
-                "demo_flush_orient",
-                na.dot(nb),
-                band,
-                "demo fixture: bare cosine gate (the topo test-common declarer's twin)",
-            ) {
-                Ok(Sign::Positive) => S::from_f64(1.0),
-                Ok(Sign::Negative) => S::from_f64(-1.0),
-                _ => continue,
-            };
-            let da = na.dot(oa - pncad::geom_core::Point3::origin());
-            let db = nb.dot(ob - pncad::geom_core::Point3::origin());
-            if matches!(
-                decide("demo_flush_offset", Margin::of(da - sigma * db), band),
-                Ok(Sign::Zero)
-            ) {
-                decls
-                    .coincident_faces
-                    .push(pncad::topo::FacePairDeclaration::rest(fa, fb));
-            }
-        }
-    }
-    decls
+    let found = pncad::topo::flush::find_flush_candidates(a, b, tol)
+        .expect("the tour's flush contacts are authored exactly, so they decide definitely");
+    pncad::topo::flush::declare_all(&found)
 }
 
 /// The oracle: volume of a boolean result vs the exact expectation.

@@ -13,7 +13,7 @@
 #
 # `mngr usage` cannot be used for this: its reader takes the freshest
 # rate_limits payload across ALL agents ("freshest-wins", see
-# mngr_usage/api.py::_combine_agent_walks) and Evan runs several Claude
+# mngr_usage/api.py::_combine_agent_walks) and Ev runs several Claude
 # accounts, one per agent state dir. So it reports whichever account
 # rendered a statusline most recently, unlabeled, and hides every other
 # account's limits. This monitor does the per-account join mngr omits.

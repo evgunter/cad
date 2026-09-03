@@ -207,22 +207,75 @@ fn instances_by_root(doc: &Doc<ProfileProgram>) -> Vec<(RecipeNodeId, BTreeSet<R
     doc.roots()
         .iter()
         .map(|&root| {
-            let mut instances = BTreeSet::new();
-            let mut stack = vec![root];
-            let mut seen = BTreeSet::new();
-            while let Some(id) = stack.pop() {
-                if !seen.insert(id) {
-                    continue;
-                }
-                if let Some(node) = doc.node(id) {
-                    if matches!(node, Node::InstantiatePart { .. }) {
-                        instances.insert(id);
-                    }
-                    stack.extend(node.inputs());
-                }
-            }
+            let instances = ancestry(doc, root)
+                .into_iter()
+                .filter(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
+                .collect();
             (root, instances)
         })
+        .collect()
+}
+
+/// Every node in `root`'s consuming-edge ancestry, `root` itself
+/// included — "which nodes' work went into this drawn thing".
+///
+/// The one walk both consumers of that question run:
+/// [`instances_by_root`] filters it to instances (whose display state
+/// propagates to the roots drawing them), and [`roots_deriving_from`]
+/// inverts it. Two hand-written traversals of the same edges is how
+/// they come to disagree about what an input is.
+fn ancestry(doc: &Doc<ProfileProgram>, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
+    let mut seen = BTreeSet::new();
+    let mut stack = vec![root];
+    while let Some(id) = stack.pop() {
+        if !seen.insert(id) {
+            continue;
+        }
+        if let Some(node) = doc.node(id) {
+            stack.extend(node.inputs());
+        }
+    }
+    seen
+}
+
+/// **Whether `node`'s geometry derives from `source`** — `source` in
+/// `node`'s consuming-edge ancestry, `node` itself included.
+///
+/// [`roots_deriving_from`]'s question asked of ONE pair, over the same
+/// walk. What it is for: an entity minted at `source` and carried
+/// upward reaches `node`'s output, so a node whose op leaves no trace
+/// in a name — a `Transform`, which contributes no role segment by
+/// construction — can still be told which drawn entities passed
+/// through it.
+pub fn derives_from(doc: &Doc<ProfileProgram>, node: RecipeNodeId, source: RecipeNodeId) -> bool {
+    ancestry(doc, node).contains(&source)
+}
+
+/// **Every product root whose geometry derives from `node`** — the
+/// root itself when `node` is one, and every root that reaches it
+/// through consuming edges otherwise.
+///
+/// The inverse of [`ancestry`], and the answer to "if I am looking at
+/// this recipe node, what in the picture is it responsible for". A
+/// node that draws nothing on its own — a profile, a datum, a sketch
+/// plane — has a non-empty answer here, which is exactly the case that
+/// makes the question worth asking: the profile IS the shape of the
+/// walls the extrude above it drew.
+///
+/// Unlike [`drawn_targets`] this refuses nothing and excludes nothing:
+/// a root fusing several nodes' geometry is listed for each of them.
+/// The two differ because they are asked for different reasons —
+/// `drawn_targets` backs an OPERATION that must address one node's
+/// material alone, and this backs a HIGHLIGHT, where "several features
+/// contributed to this body" is a true and useful thing to show.
+pub fn roots_deriving_from(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+) -> BTreeSet<RecipeNodeId> {
+    doc.roots()
+        .iter()
+        .copied()
+        .filter(|&root| ancestry(doc, root).contains(&node))
         .collect()
 }
 

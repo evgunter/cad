@@ -6,7 +6,7 @@
 //! the document layer's own public vocabulary, not a slotmap key.
 
 use pyo3::prelude::*;
-use pyo3::types::PyString;
+use pyo3::types::{PyDict, PyString};
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
@@ -32,25 +32,16 @@ fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
 
 /// Raise `EditError` for a declare-sugar refusal.
 ///
-/// `DeclareError` carries no `Display`; the per-arm prose is
-/// hand-written here and the machine payload is the stable tag
-/// (`crate::tags::declare_error_tag` — the `Edit` arm carries the
-/// document layer's own tag through).
+/// `DeclareError` implements `Display`: the human message is the
+/// door's own prose (its `Edit` arm forwards the document layer's
+/// message, so one refusal keeps one voice), and the machine payload
+/// is the stable tag (`crate::tags::declare_error_tag` — the `Edit`
+/// arm carries the document layer's own tag through).
 fn declare_err(py: Python<'_>, err: &pncad::select::DeclareError) -> PyErr {
-    use pncad::select::DeclareError as E;
-    let message = match err {
-        E::NoFindings => "declare of NO findings: an empty Declare node records no intent \
-                          and would only pretend something was declared"
-            .to_string(),
-        E::Edit(inner) => inner.to_string(),
-        E::NoMintedId => {
-            "the Declare insert applied but minted no id (an apply contract violation)".to_string()
-        }
-    };
     typed_err(
         py,
         ErrorClass::Edit,
-        message,
+        err.to_string(),
         &[(
             "variant",
             PyString::new(py, crate::tags::declare_error_tag(err))
@@ -61,7 +52,12 @@ fn declare_err(py: Python<'_>, err: &pncad::select::DeclareError) -> PyErr {
 }
 
 /// Raise `PersistError` carrying the refusal's stable tag.
-fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
+///
+/// One door for the whole persistence vocabulary, the pin doors in
+/// `crate::py::store` included: they run the same validator and the
+/// same canonical serializer, so their refusals are the words
+/// `Doc.save` and `load` already speak.
+pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
     let tag = persist_error_tag(err);
     typed_err(
         py,
@@ -186,6 +182,91 @@ impl NodeId {
 #[pyclass(module = "pncad")]
 pub(crate) struct Doc {
     pub(crate) inner: d::ProfileDoc,
+    /// What the LAST accepted edit did to the placement registry.
+    ///
+    /// The Rust `apply` returns this beside the new document; the
+    /// Python wrapper owns the document and swaps it, so the record
+    /// is held here for the same span the document it describes is —
+    /// an invariant [`Doc::accept`] holds by being the only place
+    /// either of the two is written.
+    pub(crate) maintenance: Vec<d::ClusterMaintenance>,
+}
+
+/// The wrapper's own plumbing: the ONE place an accepted edit is taken
+/// up, and the two node-inserting doors that share it. None of it is a
+/// Python method.
+impl Doc {
+    /// **The swap point.** Every accepting door lands here, and it
+    /// replaces the held document and the maintenance record TOGETHER
+    /// — which is what makes `last_maintenance` a fact about the
+    /// document now held rather than about some earlier one. Returns
+    /// the edit's record so each door can read the id it minted.
+    ///
+    /// A door that swapped the document by hand would leave the
+    /// maintenance describing an edit two edits ago; that is the
+    /// staleness this function exists to make unspellable.
+    ///
+    /// **The funnel is held by this doc and by
+    /// `test_assembly_author.py`'s
+    /// `test_last_maintenance_describes_the_last_accepted_edit_at_every_door`,
+    /// not by the type system**: `inner` and `maintenance` are
+    /// `pub(crate)` because the rest of the crate reads the document,
+    /// so nothing stops a new door assigning either field directly.
+    /// [`Doc::insert_node`] closes that hole for the node-inserting
+    /// doors by accepting internally; a door reaching `d::apply` for
+    /// any OTHER edit lands here or is a bug the test names.
+    fn accept(&mut self, applied: d::Applied<d::ProfileProgram>) -> d::EditRecord {
+        self.inner = applied.doc;
+        self.maintenance = applied.maintenance;
+        applied.record
+    }
+
+    /// Insert a node and take the acceptance up: the shared body of
+    /// every node-inserting door, which is why it accepts internally
+    /// rather than handing an un-accepted `Applied` back for a caller
+    /// to remember to swap.
+    ///
+    /// `Ok(None)` is the contract violation "an accepted `InsertNode`
+    /// minted no id", and the document is **not** swapped on that arm:
+    /// each door raises its own refusal for it, and a refusal leaves
+    /// the document untouched exactly as the immutable API guarantees.
+    fn insert_node(
+        &mut self,
+        node: d::Node<d::ProfileProgram>,
+    ) -> Result<Option<NodeId>, d::EditError> {
+        let applied = d::apply(
+            &self.inner,
+            &d::DocEdit::InsertNode { node },
+            Tol::witness(),
+        )?;
+        if applied.record.minted.is_none() {
+            return Ok(None);
+        }
+        Ok(self.accept(applied).minted.map(NodeId))
+    }
+
+    /// The declare doors' shared body: build the kernel's `Declare`
+    /// node from findings the caller already inspected, insert it, and
+    /// take the acceptance up through the swap point.
+    ///
+    /// It reaches `insert_node` rather than `pncad::select::declare_all`
+    /// because that sugar returns the new document alone: its own
+    /// insert's maintenance is dropped inside it, so a caller holding a
+    /// maintenance mirror cannot keep it honest through that door. The
+    /// refusal vocabulary is unchanged — the same `DeclareError` arms,
+    /// raised through the same `declare_err`.
+    fn declare_findings(
+        &mut self,
+        py: Python<'_>,
+        findings: &[pncad::select::FlushFinding],
+    ) -> PyResult<NodeId> {
+        use pncad::select::DeclareError;
+        let raise = |err: DeclareError| declare_err(py, &err);
+        let node = pncad::select::declare_node(findings).map_err(raise)?;
+        self.insert_node(node)
+            .map_err(|err| raise(DeclareError::Edit(err)))?
+            .ok_or_else(|| raise(DeclareError::NoMintedId))
+    }
 }
 
 #[pymethods]
@@ -231,7 +312,10 @@ impl Doc {
                 )
             })?,
         };
-        Ok(Self { inner })
+        Ok(Self {
+            inner,
+            maintenance: Vec::new(),
+        })
     }
 
     /// This document's identity as 32 lowercase hex digits — the
@@ -248,33 +332,138 @@ impl Doc {
     ///
     /// On refusal the document is unchanged and a typed `EditError` is
     /// raised.
+    ///
+    /// An accepted edit may also have performed **cluster-record
+    /// maintenance** — joins, splits, gauge rewrites and drops the
+    /// mate graph's motion forced on the placement registry. That
+    /// rides the edit rather than being a second edit, so it is read
+    /// off `last_maintenance` instead of returned here: the common
+    /// case is an empty list, and widening every caller's return type
+    /// for it would be paying for mates in documents that have none.
     fn apply(&mut self, py: Python<'_>, edit: &DocEdit) -> PyResult<Option<NodeId>> {
         let tol = Tol::witness();
         let applied = d::apply(&self.inner, &edit.inner, tol).map_err(|err| edit_err(py, &err))?;
-        self.inner = applied.doc;
-        Ok(applied.record.minted.map(NodeId))
+        Ok(self.accept(applied).minted.map(NodeId))
+    }
+
+    /// The cluster-record maintenance the LAST accepted edit
+    /// performed, in the order it was performed.
+    ///
+    /// Empty after any edit that moved no mate graph, and empty on a
+    /// fresh document — a document that has never applied an edit has
+    /// no last edit to report about. A REFUSED edit leaves this
+    /// untouched, exactly as it leaves the document untouched.
+    ///
+    /// **The reading begins at the load boundary.** A `Doc` handed out
+    /// by `Loaded.doc`, `Loaded.snapshot` or `Workspace.resolve` starts
+    /// empty even though the replayed history's last edit may well have
+    /// performed maintenance: the replay happens below this wrapper, so
+    /// "the last accepted edit" means the last one accepted THROUGH one
+    /// of these doors.
+    ///
+    /// Undo is keeping the prior document value, which restores every
+    /// one of these exactly; what the record adds is VISIBILITY — an
+    /// absorbed cluster's frame is consumed here, where a caller can
+    /// read what was consumed.
+    #[getter]
+    fn last_maintenance(&self) -> Vec<super::mate::ClusterMaintenance> {
+        self.maintenance
+            .iter()
+            .cloned()
+            .map(super::mate::ClusterMaintenance)
+            .collect()
+    }
+
+    /// The document's ordered **product roots** — what `product` and
+    /// `assemble` gather, in this order.
+    ///
+    /// Set through `DocEdit.set_roots`. Maintained automatically by
+    /// every other edit (inserting a node that consumes a root
+    /// transfers it), so a document always states its product rather
+    /// than leaving it to be inferred.
+    #[getter]
+    fn roots(&self) -> Vec<NodeId> {
+        self.inner.roots().iter().copied().map(NodeId).collect()
+    }
+
+    /// An instance's **cluster frame**: the placement recorded for the
+    /// cluster this node belongs to, or the identity when nothing was
+    /// recorded.
+    ///
+    /// Total — a node with no recorded row answers the identity, which
+    /// is what an unplaced instance's placement IS. To know whether a
+    /// row exists, compare against `Frame.translation((0*m, 0*m,
+    /// 0*m))`; to know which node the registry is keyed by, ask
+    /// `gauge_of`.
+    ///
+    /// This is the AUTHORED frame, not the solved one: a mated
+    /// instance's world pose is its cluster frame composed with the
+    /// solve's relative pose, which is `SolvedPoses.placement`.
+    fn placement(&self, node: &NodeId) -> super::place::Frame {
+        super::place::Frame(self.inner.placement(node.0))
+    }
+
+    /// The placement **registry itself**: every node with a recorded
+    /// cluster frame, as node → frame.
+    ///
+    /// `placement` is total and answers the identity for a node with
+    /// no row, which is what an unplaced instance's placement IS — so
+    /// this is the door that distinguishes "placed at the identity"
+    /// from "carries no frame of its own". A mated instance that is
+    /// not its cluster's gauge is ABSENT here however it is posed:
+    /// placement lives on the cluster, and its pose is solved.
+    fn placements(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
+        let out = PyDict::new(py);
+        for (node, frame) in self.inner.placements() {
+            out.set_item(NodeId(*node), super::place::Frame(*frame))?;
+        }
+        Ok(out.unbind())
+    }
+
+    /// The `(id, pin)` reference an instantiate node carries, or
+    /// `None` for any other node.
+    ///
+    /// The read side of `Node.instantiate_part`: what a document says
+    /// about which part it references, at which version — the value
+    /// `mixed_pins` reports over and `update_reference` moves.
+    fn reference(&self, node: &NodeId) -> Option<super::store::DocRef> {
+        match self.inner.node(node.0) {
+            Some(d::Node::InstantiatePart { doc_ref, .. }) => Some(super::store::DocRef(*doc_ref)),
+            _ => None,
+        }
+    }
+
+    /// The **interface record** an instantiate node carries, or `None`
+    /// for any other node.
+    ///
+    /// Empty for a directly-authored instance — an authored instance
+    /// crosses nothing. A non-empty record is minted only by the
+    /// `split` that observed declarations crossing its cut.
+    fn interface(&self, node: &NodeId) -> Option<super::refactor::InterfaceRecord> {
+        match self.inner.node(node.0) {
+            Some(d::Node::InstantiatePart { interface, .. }) => {
+                Some(super::refactor::InterfaceRecord(interface.clone()))
+            }
+            _ => None,
+        }
     }
 
     /// Insert a node and return its minted id — the common case,
     /// spelled without the intermediate `DocEdit`.
     fn insert(&mut self, py: Python<'_>, node: &Node) -> PyResult<NodeId> {
-        let tol = Tol::witness();
-        let edit = d::DocEdit::InsertNode {
-            node: node.inner.clone(),
-        };
-        let applied = d::apply(&self.inner, &edit, tol).map_err(|err| edit_err(py, &err))?;
-        self.inner = applied.doc;
-        applied.record.minted.map(NodeId).ok_or_else(|| {
-            typed_err(
-                py,
-                ErrorClass::Edit,
-                "an insert minted no node id",
-                &[(
-                    "variant",
-                    PyString::new(py, "no_minted_id").unbind().into_any(),
-                )],
-            )
-        })
+        self.insert_node(node.inner.clone())
+            .map_err(|err| edit_err(py, &err))?
+            .ok_or_else(|| {
+                typed_err(
+                    py,
+                    ErrorClass::Edit,
+                    "an insert minted no node id",
+                    &[(
+                        "variant",
+                        PyString::new(py, "no_minted_id").unbind().into_any(),
+                    )],
+                )
+            })
     }
 
     /// Declare ONE inspected finding: insert a `Declare` node with
@@ -289,11 +478,7 @@ impl Doc {
         py: Python<'_>,
         finding: &super::flush::FlushFinding,
     ) -> PyResult<NodeId> {
-        let tol = Tol::witness();
-        let (doc, id) = pncad::select::declare(&self.inner, &finding.0, tol)
-            .map_err(|err| declare_err(py, &err))?;
-        self.inner = doc;
-        Ok(NodeId(id))
+        self.declare_findings(py, core::slice::from_ref(&finding.0))
     }
 
     /// Declare a SET of inspected findings in one `Declare` node —
@@ -305,12 +490,8 @@ impl Doc {
         py: Python<'_>,
         findings: Vec<super::flush::FlushFinding>,
     ) -> PyResult<NodeId> {
-        let tol = Tol::witness();
         let kernel: Vec<pncad::select::FlushFinding> = findings.into_iter().map(|f| f.0).collect();
-        let (doc, id) = pncad::select::declare_all(&self.inner, &kernel, tol)
-            .map_err(|err| declare_err(py, &err))?;
-        self.inner = doc;
-        Ok(NodeId(id))
+        self.declare_findings(py, &kernel)
     }
 
     /// How many nodes the document holds.
@@ -864,6 +1045,45 @@ impl Node {
         })
     }
 
+    /// Equal-setback flat chamfers on a SELECTION of `target`'s
+    /// edges — `Node.fillet`'s twin.
+    ///
+    /// `selection` is edge names as text, exactly as `Node.fillet`
+    /// takes them: the strings `Evaluation.all_edges` answers with,
+    /// CARRIED and never composed, with no "every edge" spelling and
+    /// no way to filter a materialized set. THE SELECTION FREEZES, in
+    /// the same sense and for the same reason — read `Node.fillet`.
+    ///
+    /// `distance` is the SETBACK along each support from the edge,
+    /// not a radius. That is the one thing this door does not share
+    /// with its twin.
+    ///
+    /// Nothing is pre-checked beyond the text being a name at all. An
+    /// EMPTY selection (`chamfer_selection_empty`), a name that
+    /// resolves to nothing (`chamfer_selection_resolve`), a name of
+    /// the wrong kind (`chamfer_selection_kind`), an edge whose two
+    /// supports are not both planes (`chamfer`) — every one of those
+    /// is the kernel's own typed refusal at `evaluate`.
+    ///
+    /// The node is built through Rust's `Node::chamfer`, the one
+    /// construction door, so the stored set is canonical.
+    #[staticmethod]
+    fn chamfer(
+        py: Python<'_>,
+        target: &NodeId,
+        distance: &super::quantity::Length,
+        selection: Vec<String>,
+    ) -> PyResult<Self> {
+        let distance = literal(py, distance.0.meters(), d::Dimension::Length)?;
+        let selection = selection
+            .iter()
+            .map(|text| name_from_text(text))
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(Self {
+            inner: d::Node::chamfer(target.0, distance, selection),
+        })
+    }
+
     /// Split a target body by a tool — today a `Node.datum_plane`.
     ///
     /// The value is a SPLIT, not a body: read it with `Value.split()`,
@@ -1037,6 +1257,81 @@ impl Node {
             inner: d::Node::placed_union_at(input.0, frames.into_iter().map(|f| f.0).collect()),
         }
     }
+
+    /// An **instance of another document's product**: a leaf whose
+    /// material crosses the document seam rather than arriving from an
+    /// upstream node.
+    ///
+    /// `reference` is the `(id, pin)` pair — which part, at which
+    /// version. Cargo.lock semantics: an edit to the referenced
+    /// document never retargets this reference, and moving the pin is
+    /// its own recorded edit (`DocEdit.update_reference`, or
+    /// `update_references` for every site at once).
+    ///
+    /// **No frame argument.** Placement lives on the CLUSTER, and the
+    /// registry holding it is document data — an instance carries no
+    /// frame of its own, which is what makes zero-anchor and
+    /// multi-anchor states unrepresentable rather than merely refused.
+    /// `DocEdit.set_placement` is the door that places one.
+    ///
+    /// The instance also carries no interface record: an AUTHORED
+    /// instance crosses nothing, and a non-empty record is mintable
+    /// only by the `split` that observed declarations crossing its
+    /// cut. Read one back with `Doc.interface`.
+    ///
+    /// Evaluating this node needs a resolver — `evaluate(doc,
+    /// resolver=workspace)`. Without one it refuses typed
+    /// (`EvaluationError`, `kind == "part_no_resolver"`) rather than
+    /// pretending the part is empty.
+    #[staticmethod]
+    fn instantiate_part(reference: &super::store::DocRef) -> Self {
+        Self {
+            inner: d::Node::instantiate_part(reference.0),
+        }
+    }
+
+    /// A **mate** between two instances: ONE node carrying both the
+    /// placement constraint and the contact declaration, so there is
+    /// no second vocabulary to keep synced.
+    ///
+    /// `a` and `b` are instance-qualified stable references — an
+    /// entity of one instance's product and an entity of the other's.
+    /// They are name REFERENCES, not recipe edges: inserting a mate
+    /// transfers no root, and under consuming edges a mate is an
+    /// ordinary non-body root, denoting no body and ignored by the
+    /// gather.
+    ///
+    /// `class_` is the declared contact class (trailing underscore:
+    /// `class` is a Python keyword). How far each class gets is
+    /// `class_admission` — ask it BEFORE authoring, because a class
+    /// the solve folds may still mint nothing at the at-rest gate.
+    ///
+    /// `alignment` is the authored datum: which frames coincide, at
+    /// which axis sense, with which clocking. It is AUTHORED data, not
+    /// geometry read back — nothing checks it against the faces `a`
+    /// and `b` name (issue #944), so a mate can solve cleanly and
+    /// still be refuted at the gate.
+    ///
+    /// A dangling reference head is not refused here: the solve
+    /// refuses typed naming it (`MateFault`, `mate_dangling_head`),
+    /// which is the ratified dangling-reference semantics.
+    #[staticmethod]
+    fn mate(
+        py: Python<'_>,
+        a: &str,
+        b: &str,
+        class_: super::flush::ContactClass,
+        alignment: &super::mate::Alignment,
+    ) -> PyResult<Self> {
+        Ok(Self {
+            inner: d::Node::Mate {
+                a: name_from_text(a)?,
+                b: name_from_text(b)?,
+                class: class_.to_kernel(py)?,
+                alignment: alignment.0,
+            },
+        })
+    }
 }
 
 /// A document-level parameter name (guide §3.2) — a plain string
@@ -1075,6 +1370,13 @@ impl ParamName {
     }
 }
 
+/// `-0.0` folded to `0.0`, every other value untouched — the
+/// normalization a hash must apply wherever the equality it mirrors is
+/// IEEE (`-0.0 == 0.0`).
+fn fold_zero(v: f64) -> f64 {
+    if v == 0.0 { 0.0 } else { v }
+}
+
 /// A named parameter's declared dimension and exact stored value
 /// (guide §3.2): what `DocEdit.set_doc_param` writes.
 ///
@@ -1083,6 +1385,12 @@ impl ParamName {
 /// bare float. A non-finite value is NOT pre-checked here — the edit
 /// door refuses it typed (`non_finite_doc_param`), fail-loud where
 /// the kernel refuses.
+///
+/// The constructors here author UNANNOTATED parameters: a parameter's
+/// optional distribution (ERROR-DESIGN E1/E2) has no Python spelling
+/// yet, so a document authored from Python declares none. One read
+/// back from a `.pncad` file keeps whatever it carries — equality,
+/// hashing and `repr` all see the annotation.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct DocParam(pub(crate) d::DocParam);
@@ -1092,28 +1400,25 @@ impl DocParam {
     /// A continuous Length parameter.
     #[staticmethod]
     fn length(value: &super::quantity::Length) -> Self {
-        Self(d::DocParam::Continuous {
-            dim: d::Dimension::Length,
-            value: value.0.meters(),
-        })
+        Self(d::DocParam::continuous(
+            d::Dimension::Length,
+            value.0.meters(),
+        ))
     }
 
     /// A continuous Angle parameter.
     #[staticmethod]
     fn angle(value: &super::quantity::Angle) -> Self {
-        Self(d::DocParam::Continuous {
-            dim: d::Dimension::Angle,
-            value: value.0.radians(),
-        })
+        Self(d::DocParam::continuous(
+            d::Dimension::Angle,
+            value.0.radians(),
+        ))
     }
 
     /// A continuous dimensionless parameter.
     #[staticmethod]
     fn scalar(value: f64) -> Self {
-        Self(d::DocParam::Continuous {
-            dim: d::Dimension::Scalar,
-            value,
-        })
+        Self(d::DocParam::continuous(d::Dimension::Scalar, value))
     }
 
     /// An integer Count parameter (structural material, spec D3).
@@ -1144,11 +1449,33 @@ impl DocParam {
         use std::hash::{Hash, Hasher};
         let mut h = std::hash::DefaultHasher::new();
         match &self.0 {
-            d::DocParam::Continuous { dim, value } => {
+            d::DocParam::Continuous {
+                dim,
+                value,
+                display_unit,
+                distribution,
+            } => {
                 0u8.hash(&mut h);
                 format!("{dim:?}").hash(&mut h);
-                let normalized = if *value == 0.0 { 0.0 } else { *value };
-                normalized.to_bits().hash(&mut h);
+                fold_zero(*value).to_bits().hash(&mut h);
+                // The authored notation is part of the DERIVED
+                // `PartialEq` this hash mirrors, so it is part of the
+                // hash: two parameters that `__eq__` calls different
+                // may collide, but two it calls equal may never hash
+                // apart, and leaving the unit out is the direction that
+                // costs nothing to close. (`DocParam::bit_eq` excludes
+                // it — that comparator is D7 replay identity, where a
+                // notation is not part of what a document IS.)
+                display_unit.def().symbol().hash(&mut h);
+                // The distribution is part of the parameter, so it is
+                // part of the equality this hash mirrors — and it gets
+                // the SAME `-0.0` fold the nominal gets, per field,
+                // before its debug spelling is hashed. Without the
+                // fold, `Band { lo: -0.0, .. }` and `Band { lo: 0.0,
+                // .. }` compare EQUAL (Rust's `PartialEq` on `f64` is
+                // IEEE) and hash APART, which is the one thing a
+                // Python dict may not survive.
+                format!("{:?}", distribution.map(d::Distribution::fold_signed_zeros)).hash(&mut h);
             }
             d::DocParam::Count { value } => {
                 1u8.hash(&mut h);
@@ -1160,11 +1487,102 @@ impl DocParam {
 
     fn __repr__(&self) -> String {
         match &self.0 {
-            d::DocParam::Continuous { dim, value } => {
-                format!("DocParam({dim:?} {value})")
-            }
+            // The unit is shown because `__eq__` distinguishes it: a
+            // repr that hid a field two values can differ on would
+            // print them identically. The dimensionless row's symbol is
+            // empty, which reads as the absence it is.
+            d::DocParam::Continuous {
+                dim,
+                value,
+                display_unit,
+                distribution: None,
+            } => format!("DocParam({dim:?} {value} {})", display_unit.def().symbol()),
+            d::DocParam::Continuous {
+                dim,
+                value,
+                display_unit,
+                distribution: Some(d),
+            } => format!(
+                "DocParam({dim:?} {value} {} {d:?})",
+                display_unit.def().symbol()
+            ),
             d::DocParam::Count { value } => format!("DocParam(Count {value})"),
         }
+    }
+}
+
+/// The VALUE half of a document parameter: what
+/// `DocEdit.set_doc_param_value` writes into an ALREADY-DECLARED
+/// parameter.
+///
+/// This is the safe "just change the number" spelling. `set_doc_param`
+/// is create-or-replace and takes a whole `DocParam`, so using it to
+/// move a value rebuilds the declaration from parts — and a parameter
+/// read back from a file carrying a distribution (ERROR-DESIGN E1/E2)
+/// loses it, silently, because Python has no way to spell the
+/// annotation it would need to copy across. The value door carries the
+/// declaration forward instead: the dimension and the annotation stay
+/// exactly as the document has them.
+///
+/// Continuous values arrive as typed quantities for the same reason
+/// `DocParam`'s do — except that here the dimension is NOT being
+/// declared, it is being matched: the quantity says which unit the
+/// number is in, and the parameter's own declaration is what rules.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct DocParamValue(pub(crate) d::DocParamValue);
+
+#[pymethods]
+impl DocParamValue {
+    /// A continuous value in Length units.
+    #[staticmethod]
+    fn length(value: &super::quantity::Length) -> Self {
+        Self(d::DocParamValue::Continuous(value.0.meters()))
+    }
+
+    /// A continuous value in Angle units.
+    #[staticmethod]
+    fn angle(value: &super::quantity::Angle) -> Self {
+        Self(d::DocParamValue::Continuous(value.0.radians()))
+    }
+
+    /// A dimensionless continuous value.
+    #[staticmethod]
+    fn scalar(value: f64) -> Self {
+        Self(d::DocParamValue::Continuous(value))
+    }
+
+    /// An exact integer, for a `Count` parameter.
+    #[staticmethod]
+    fn count(value: i64) -> Self {
+        Self(d::DocParamValue::Count(value))
+    }
+
+    /// Rust's `PartialEq`, mirrored — IEEE on the stored number, so
+    /// the two spellings of zero are the same value.
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    /// Consistent with [`Self::__eq__`]: `-0.0` folds to `0.0`.
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        match self.0 {
+            d::DocParamValue::Continuous(v) => {
+                0u8.hash(&mut h);
+                fold_zero(v).to_bits().hash(&mut h);
+            }
+            d::DocParamValue::Count(v) => {
+                1u8.hash(&mut h);
+                v.hash(&mut h);
+            }
+        }
+        h.finish()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("DocParamValue({})", self.0)
     }
 }
 
@@ -1229,6 +1647,33 @@ impl DocEdit {
         }
     }
 
+    /// Write a new VALUE into an already-declared document parameter,
+    /// keeping its declaration — its dimension and, if a file gave it
+    /// one, its distribution (ERROR-DESIGN E1/E2).
+    ///
+    /// **Prefer this over `set_doc_param` whenever the parameter
+    /// already exists.** `set_doc_param` is create-or-replace: handed
+    /// a `DocParam` rebuilt from a dimension and a number — the only
+    /// shape Python can spell — it REPLACES the declaration, and any
+    /// annotation the parameter carried is gone with no refusal and no
+    /// diagnostic. This door cannot do that, because it never names a
+    /// declaration at all.
+    ///
+    /// Refuses typed on a name the document does not declare
+    /// (`doc_param_not_declared`) and on a kind mismatch — a count for
+    /// a continuous parameter or the reverse
+    /// (`doc_param_value_kind_mismatch`), which is a redeclaration and
+    /// belongs to the other door.
+    #[staticmethod]
+    fn set_doc_param_value(name: &ParamName, value: &DocParamValue) -> Self {
+        Self {
+            inner: d::DocEdit::SetDocParamValue {
+                name: name.0.clone(),
+                value: value.0,
+            },
+        }
+    }
+
     /// Bind `node`'s STRUCTURAL count slot to the document parameter
     /// `name` — the edit that makes a pattern's or a group's
     /// replication count a named, editable number.
@@ -1260,6 +1705,82 @@ impl DocEdit {
             },
         }
     }
+
+    /// Set the document's ordered **product roots** outright.
+    ///
+    /// THE designate/undesignate door: one TOTAL edit rather than
+    /// partial add/remove arms, so the product's solid order is always
+    /// stated rather than inferred from an edit sequence. What the
+    /// roots name is what `product` and `assemble` gather, in this
+    /// order.
+    ///
+    /// Validator-checked like any other apply. The four root
+    /// invariants refuse under their own tags — `root_not_live`,
+    /// `root_duplicate`, `root_ancestor` (one root upstream of
+    /// another would gather its material twice), `root_uncovered` (a
+    /// live node reaching no root is a silently dead subgraph) — on
+    /// `EditError`, because which invariant broke is what a caller
+    /// branches on.
+    #[staticmethod]
+    fn set_roots(roots: Vec<NodeId>) -> Self {
+        Self {
+            inner: d::DocEdit::SetRoots {
+                roots: roots.iter().map(|n| n.0).collect(),
+            },
+        }
+    }
+
+    /// Place an instance's **cluster**.
+    ///
+    /// The target is the instantiate node whose cluster moves, and the
+    /// frame REPLACES whatever was recorded (the identity, if nothing
+    /// was). Placement is per-cluster, not per-instance: an instance
+    /// coupled to others by mates shares their frame, and setting it
+    /// through any member places the whole cluster — `gauge_of` says
+    /// which node the registry is actually keyed by.
+    ///
+    /// Refuses typed on `EditError`: `placement_on_non_instance`,
+    /// `non_finite_placement`, `improper_placement` (determinant ≤ 0
+    /// — a mirror is not a placement).
+    #[staticmethod]
+    fn set_placement(node: &NodeId, frame: &super::place::Frame) -> Self {
+        Self {
+            inner: d::DocEdit::SetPlacement {
+                node: node.0,
+                frame: frame.0,
+            },
+        }
+    }
+
+    /// Move ONE instance's pin to a new version of the same document.
+    ///
+    /// The id does not move: identity and version stay distinct, and
+    /// this edit touches only the version half. `update_references` is
+    /// the whole-document elaboration over this primitive, and
+    /// `Workspace.update_to_store` the one that computes the new pin
+    /// from disk.
+    ///
+    /// **The new pin is RECIPE DATA, not a resolution.** `apply` does
+    /// not reach across the document seam — it has no resolver and no
+    /// store — so a pin naming content that does not exist is accepted
+    /// HERE and refused at EVALUATION, through the seam vocabulary
+    /// that names both pins (`part_pin_mismatch`, `part_unresolved`).
+    /// Checking at the edit door would make the edit's meaning depend
+    /// on which store was mounted when it was recorded, which is
+    /// exactly what a recorded, replayable log must not carry.
+    ///
+    /// Refuses typed: `update_on_non_instance`, and `pin_unchanged`
+    /// when the site already names that version — an update that
+    /// records nothing is never reported as a success.
+    #[staticmethod]
+    fn update_reference(node: &NodeId, new_pin: &super::store::ContentPin) -> Self {
+        Self {
+            inner: d::DocEdit::UpdateReference {
+                node: node.0,
+                new_pin: new_pin.0,
+            },
+        }
+    }
 }
 
 /// A loaded document: what the persistence door
@@ -1276,10 +1797,15 @@ pub(crate) struct Loaded {
 impl Loaded {
     /// The current document: the snapshot with every recorded edit
     /// replayed through the `apply` door.
+    ///
+    /// The replay runs below this wrapper, so the returned `Doc`
+    /// reports no `last_maintenance` even where the replayed history's
+    /// last edit performed some — that reading starts here.
     #[getter]
     fn doc(&self) -> Doc {
         Doc {
             inner: self.doc.clone(),
+            maintenance: Vec::new(),
         }
     }
 
@@ -1288,6 +1814,7 @@ impl Loaded {
     fn snapshot(&self) -> Doc {
         Doc {
             inner: self.snapshot.clone(),
+            maintenance: Vec::new(),
         }
     }
 
@@ -1329,6 +1856,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DocEdit>()?;
     m.add_class::<ParamName>()?;
     m.add_class::<DocParam>()?;
+    m.add_class::<DocParamValue>()?;
     m.add_class::<Node>()?;
     m.add_class::<SketchPlane>()?;
     m.add_class::<BooleanOp>()?;

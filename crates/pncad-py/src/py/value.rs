@@ -226,6 +226,17 @@ impl Body {
         self.run_validator(py, "validate_closed", topo::validate_closed(&self.inner))
     }
 
+    /// Tessellate at a chordal budget — the ladder's step 4.
+    ///
+    /// `chordal` is a DISTANCE: the maximum the piecewise-linear mesh
+    /// may sag from the exact surface. It is deliberately not the
+    /// kernel's ε, which `DocEdit.set_tolerance` sets and which
+    /// decides what the model IS; this decides how coarsely a view of
+    /// it may approximate it. Two budgets see the same body.
+    fn tessellate(&self, py: Python<'_>, chordal: &Length) -> PyResult<super::mesh::Mesh> {
+        super::mesh::tessellate(py, &self.inner, chordal)
+    }
+
     /// Geometric validation only.
     fn validate_geometric(&self, py: Python<'_>) -> PyResult<()> {
         let tol = Tol::witness();
@@ -242,13 +253,12 @@ impl Body {
     /// `Result<(), Vec<ValidationError>>`.
     ///
     /// `ValidationError` has no curated tag mapping, so the exception
-    /// carries the failure COUNT as structured data and a rendering of
-    /// the whole list as the human message. Per-variant tags are the
-    /// same mechanical work `crate::tags` does for edits, deferred
-    /// with the rest of the read-back surface — and so is the choice
-    /// to render the list with `Debug`: the enum does implement
-    /// `Display`, one prose sentence with recourse per finding, and
-    /// nothing composes it here.
+    /// carries the failure COUNT as structured data and the findings
+    /// themselves as the human message — each through the enum's own
+    /// `Display`, one prose sentence with recourse per finding, joined
+    /// because a `Vec` has no rendering of its own. Per-variant tags
+    /// are the same mechanical work `crate::tags` does for edits,
+    /// deferred with the rest of the read-back surface.
     fn run_validator(
         &self,
         py: Python<'_>,
@@ -263,8 +273,13 @@ impl Body {
             py,
             ErrorClass::Validation,
             format!(
-                "{door} reported {} failure(s): {failures:?}",
-                failures.len()
+                "{door} reported {} failure(s): {}",
+                failures.len(),
+                failures
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("; ")
             ),
             &[
                 ("door", PyString::new(py, door).unbind().into_any()),
@@ -274,18 +289,28 @@ impl Body {
     }
 }
 
-/// A datum: a construction plane, axis, or point.
+/// A datum: a construction plane, frame, axis, or point.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Datum {
-    /// `"plane"`, `"axis"`, or `"point"`.
+    /// `"plane"`, `"frame"`, `"axis"`, or `"point"`.
     #[pyo3(get)]
     kind: &'static str,
-    /// Plane/axis origin, or the point's position, as metres.
+    /// Plane/frame/axis origin, or the point's position, as metres.
     #[pyo3(get)]
     origin: (Length, Length, Length),
-    /// Plane normal or axis direction; `None` for a point.
+    /// Plane normal, frame normal (x̂ × ŷ), or axis direction; `None`
+    /// for a point.
     #[pyo3(get)]
     direction: Option<(f64, f64, f64)>,
+    /// A frame's sketch +x and +y axes, unit and perpendicular; `None`
+    /// for every other kind.
+    ///
+    /// The pair rides ALONGSIDE `direction` rather than replacing it:
+    /// a reader asking which way a datum faces gets the same answer
+    /// for a frame as for a plane, and one asking how the frame is
+    /// TURNED — the datum a plane does not carry — reads the axes.
+    #[pyo3(get)]
+    axes: Option<((f64, f64, f64), (f64, f64, f64))>,
 }
 
 #[pymethods]
@@ -295,8 +320,94 @@ impl Datum {
     }
 }
 
+/// **A measured quantity** (ERROR-DESIGN E3): the value a `Measure`
+/// node evaluated to, with the F1 dimension it was measured in.
+///
+/// The dimension rides the measure rather than the reader inferring it
+/// — that is E3's claim, and a Python consumer gets it as data. The
+/// value is reported in canonical kernel units (metres for a `Length`,
+/// radians for an `Angle`); a `Length` measure additionally answers
+/// through the typed quantity, which is the spelling the rest of this
+/// surface uses.
+#[pyclass(frozen, module = "pncad")]
+pub(crate) struct Measurement {
+    /// `"Length"`, `"Angle"`, `"Count"` or `"Scalar"`.
+    #[pyo3(get)]
+    dimension: &'static str,
+    /// The measured value in canonical kernel units.
+    #[pyo3(get)]
+    value: f64,
+    /// The value as a typed `Length`; `None` for every other
+    /// dimension, because a `Length` is what a length is.
+    #[pyo3(get)]
+    length: Option<Length>,
+}
+
+#[pymethods]
+impl Measurement {
+    fn __repr__(&self) -> String {
+        format!("Measurement({} {})", self.value, self.dimension)
+    }
+}
+
+/// **An assertion's verdict** (ERROR-DESIGN E10), REPORT-ONLY.
+///
+/// Three states, kept three: `holds` is `True`, `False`, or `None`
+/// where the run's tolerance could not separate the measurement from
+/// the bound. Nothing collapses the third into a silent pass — that is
+/// the whole reason the state exists.
+///
+/// `measured` and `bound` are present for a decided verdict and `None`
+/// for an undecided one. Reading a verdict changes nothing: a failing
+/// assertion gates no build and moves no product (E10 v1).
+#[pyclass(frozen, module = "pncad")]
+pub(crate) struct Verdict {
+    /// `"Holds"`, `"Violated"` or `"Unevaluated"`.
+    #[pyo3(get)]
+    status: &'static str,
+    /// `True`/`False` for a decided verdict, `None` for an undecided
+    /// one.
+    #[pyo3(get)]
+    holds: Option<bool>,
+    /// What the measure evaluated to, in canonical kernel units.
+    #[pyo3(get)]
+    measured: Option<f64>,
+    /// What the bound evaluated to, in canonical kernel units.
+    #[pyo3(get)]
+    bound: Option<f64>,
+    /// Why there is no verdict; `None` when there is one.
+    #[pyo3(get)]
+    reason: Option<String>,
+}
+
+#[pymethods]
+impl Verdict {
+    fn __repr__(&self) -> String {
+        match (self.measured, self.bound) {
+            (Some(m), Some(b)) => format!("Verdict({}: {m} vs {b})", self.status),
+            _ => format!("Verdict({})", self.status),
+        }
+    }
+}
+
+/// The F1 dimension as the one spelling this surface uses.
+///
+/// Capitalized on purpose: this is the Python-facing type name a
+/// `Measurement` repr reads back as, not prose. The other two
+/// spellings of the same word list are the kernel's prose rendering
+/// (`Dimension`'s `Display`, lowercase) and `errors::dimension_tag`
+/// (the lowercase FFI tag, pinned equal to that rendering).
+fn dimension_name(dim: d::Dimension) -> &'static str {
+    match dim {
+        d::Dimension::Length => "Length",
+        d::Dimension::Angle => "Angle",
+        d::Dimension::Count => "Count",
+        d::Dimension::Scalar => "Scalar",
+    }
+}
+
 /// Project a canonical-metre point into typed `Length`s.
-fn lengths(p: pncad::geom_core::Point3<f64>) -> (Length, Length, Length) {
+pub(crate) fn lengths(p: pncad::geom_core::Point3<f64>) -> (Length, Length, Length) {
     (
         Length(pncad::quantity::Length::from_meters(p.x)),
         Length(pncad::quantity::Length::from_meters(p.y)),
@@ -397,21 +508,40 @@ impl Value {
     /// The datum this value denotes.
     fn datum(&self, py: Python<'_>) -> PyResult<Datum> {
         match &self.payload {
-            d::ValuePayload::Datum(d::DatumValue::Plane { origin, normal }) => Ok(Datum {
-                kind: "plane",
-                origin: lengths(*origin),
-                direction: Some((normal.x, normal.y, normal.z)),
-            }),
-            d::ValuePayload::Datum(d::DatumValue::Axis { origin, dir }) => Ok(Datum {
-                kind: "axis",
-                origin: lengths(*origin),
-                direction: Some((dir.x, dir.y, dir.z)),
-            }),
+            d::ValuePayload::Datum(d::DatumValue::Plane { origin, normal }) => {
+                let n = normal.get();
+                Ok(Datum {
+                    kind: "plane",
+                    origin: lengths(*origin),
+                    direction: Some((n.x, n.y, n.z)),
+                    axes: None,
+                })
+            }
+            d::ValuePayload::Datum(d::DatumValue::Axis { origin, dir }) => {
+                let v = dir.get();
+                Ok(Datum {
+                    kind: "axis",
+                    origin: lengths(*origin),
+                    direction: Some((v.x, v.y, v.z)),
+                    axes: None,
+                })
+            }
             d::ValuePayload::Datum(d::DatumValue::Point { position }) => Ok(Datum {
                 kind: "point",
                 origin: lengths(*position),
                 direction: None,
+                axes: None,
             }),
+            d::ValuePayload::Datum(d::DatumValue::Frame { origin, u, v }) => {
+                let (x, y) = (u.get(), v.get());
+                let n = d::DatumValue::frame_normal(*u, *v);
+                Ok(Datum {
+                    kind: "frame",
+                    origin: lengths(*origin),
+                    direction: Some((n.x, n.y, n.z)),
+                    axes: Some(((x.x, x.y, x.z), (y.x, y.y, y.z))),
+                })
+            }
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a datum", other.kind_name()),
@@ -419,6 +549,51 @@ impl Value {
                 self.node,
             )),
         }
+    }
+
+    /// The quantity a `Measure` node evaluated to (E3).
+    fn measure(&self, py: Python<'_>) -> PyResult<Measurement> {
+        match &self.payload {
+            d::ValuePayload::Measure { value, dim } => Ok(Measurement {
+                dimension: dimension_name(*dim),
+                value: *value,
+                length: (*dim == d::Dimension::Length)
+                    .then(|| Length(pncad::quantity::Length::from_meters(*value))),
+            }),
+            other => Err(eval_err(
+                py,
+                format!("a `{}` value is not a measure", other.kind_name()),
+                "wrong_kind",
+                self.node,
+            )),
+        }
+    }
+
+    /// The verdict an `Assertion` node evaluated to (E10) — report
+    /// only: reading it changes nothing about the document.
+    fn assertion(&self, py: Python<'_>) -> PyResult<Verdict> {
+        let d::ValuePayload::Assertion(verdict) = &self.payload else {
+            return Err(eval_err(
+                py,
+                format!("a `{}` value is not an assertion", self.payload.kind_name()),
+                "wrong_kind",
+                self.node,
+            ));
+        };
+        let (measured, bound, reason) = match verdict {
+            d::AssertionVerdict::Holds { measured, bound }
+            | d::AssertionVerdict::Violated { measured, bound } => {
+                (Some(*measured), Some(*bound), None)
+            }
+            d::AssertionVerdict::Unevaluated { reason } => (None, None, Some(reason.to_string())),
+        };
+        Ok(Verdict {
+            status: verdict.label(),
+            holds: verdict.holds(),
+            measured,
+            bound,
+            reason,
+        })
     }
 
     fn __repr__(&self) -> String {
@@ -429,7 +604,7 @@ impl Value {
 /// The result of evaluating a document: the per-node result DAG.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Evaluation {
-    inner: d::Evaluation<f64>,
+    pub(crate) inner: d::Evaluation<f64>,
     /// The evaluated document's parameter bindings, captured at
     /// `evaluate` — `select_where`'s decided atoms state their value
     /// as an `Expr`, which cannot be evaluated without them. Captured
@@ -579,6 +754,99 @@ impl Evaluation {
         }
     }
 
+    /// **Where is the face I selected?** — the named face's carrier
+    /// frame, as of THIS evaluation.
+    ///
+    /// The forward twin of the materializers: they hand out names,
+    /// and this asks one where it SITS. `name` is one of the opaque
+    /// texts `all_faces` / `select` / `select_where` answered with,
+    /// handed back unread.
+    ///
+    /// The answer is the CARRIER's frame, copied out of stored
+    /// geometry — a definitional re-read, so no pad and no
+    /// measurement. It is not a verdict: no door here says whether a
+    /// face is planar or where it is relative to anything, which is
+    /// `select_where`'s decided half.
+    ///
+    /// Raises `ReadbackError`, typed: `no_such_name` for a stale
+    /// selection, `ambiguous` for an N2 tie (ask
+    /// [`Self::denotation`] first), `wrong_kind` for an edge or
+    /// vertex name, `no_canonical_frame` for a NURBS carrier, and the
+    /// node ladder for a node this evaluation did not produce.
+    fn face_frame(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        name: &str,
+    ) -> PyResult<super::readback::Pose> {
+        let name = super::doc::name_from_text(name)?;
+        pncad::select::face_frame(&self.inner, node.0, &name)
+            .map(super::readback::Pose)
+            .map_err(|err| super::readback::readback_err(py, &err))
+    }
+
+    /// **Where is the edge I selected?** — the named edge's certified
+    /// carrier frame, [`Self::face_frame`]'s sibling.
+    ///
+    /// A straight edge answers with `u_ref is None`: a line has a
+    /// direction and no distinguished perpendicular, and the door
+    /// says so rather than inventing one.
+    ///
+    /// Raises `ReadbackError` as [`Self::face_frame`] does, with
+    /// `wrong_kind` for a non-edge name and `no_carrier` for an edge
+    /// still carrying null-edge scaffolding.
+    fn edge_frame(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        name: &str,
+    ) -> PyResult<super::readback::Pose> {
+        let name = super::doc::name_from_text(name)?;
+        pncad::select::edge_frame(&self.inner, node.0, &name)
+            .map(super::readback::Pose)
+            .map_err(|err| super::readback::readback_err(py, &err))
+    }
+
+    /// **Where is the vertex I selected?** — the named vertex's
+    /// stored position, dimensioned.
+    ///
+    /// Raises `ReadbackError` as [`Self::face_frame`] does, with
+    /// `wrong_kind` for a non-vertex name.
+    fn vertex_position(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        name: &str,
+    ) -> PyResult<(Length, Length, Length)> {
+        let name = super::doc::name_from_text(name)?;
+        pncad::select::vertex_position(&self.inner, node.0, &name)
+            .map(lengths)
+            .map_err(|err| super::readback::readback_err(py, &err))
+    }
+
+    /// **How does this name resolve — uniquely, or as a tie?** The
+    /// referencing question, answered without exposing what it
+    /// resolves to.
+    ///
+    /// This is the door to ask BEFORE a frame: the three frame doors
+    /// refuse an N2 tie (`ambiguous`) rather than picking a
+    /// candidate, and this says whether one is coming. It answers a
+    /// COUNT, never the candidates — those are arena keys, which do
+    /// not cross.
+    ///
+    /// Raises `ReadbackError` for the node ladder and `no_such_name`.
+    fn denotation(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        name: &str,
+    ) -> PyResult<super::readback::Denotation> {
+        let name = super::doc::name_from_text(name)?;
+        pncad::select::denotation(&self.inner, node.0, &name)
+            .map(super::readback::Denotation)
+            .map_err(|err| super::readback::readback_err(py, &err))
+    }
+
     /// **The cross-body flush-plane candidates between `a`'s and
     /// `b`'s outputs, as of THIS evaluation** — the detect arm of the
     /// detect/declare protocol: the verifier run in
@@ -616,16 +884,41 @@ impl Evaluation {
         }
     }
 
-    /// How many nodes were recomputed rather than reused from the memo.
+    /// How many nodes ran their op this evaluation.
+    ///
+    /// With no `prior=`, this is every node that ran. With one, it is
+    /// the changed cone — and `recomputed + reused` is what makes the
+    /// two numbers EVIDENCE of reuse rather than a hint about it.
+    ///
+    /// The sum is the nodes that RAN OR WERE REUSED, which is the live
+    /// node count only when every node produced a result. A POISONED
+    /// node — one that never ran because an ancestor failed — is
+    /// counted by neither, so on any refusal path the sum undershoots
+    /// `len(order())` by exactly the number of poisonings. A node that
+    /// ran and FAILED is counted here, in `recomputed`: it ran.
     #[getter]
     fn recomputed(&self) -> usize {
         self.inner.recomputed
     }
 
-    /// How many nodes were served from the memo.
+    /// How many nodes were served from `evaluate`'s `prior=` memo
+    /// without re-running their op — zero when no prior was passed.
     #[getter]
     fn reused(&self) -> usize {
         self.inner.reused
+    }
+
+    /// How many REFERENCED documents this evaluation actually crossed
+    /// the seam to evaluate.
+    ///
+    /// The sharing evidence for `evaluate`'s `resolver=`: N instances
+    /// of one part count 1, because the part is evaluated once and its
+    /// body reused; a part that instantiates a part counts here too, so
+    /// the number is the whole run's seam traffic and not one level's.
+    /// Zero without a resolver — nothing crosses.
+    #[getter]
+    fn part_evaluations(&self) -> usize {
+        self.inner.part_evaluations
     }
 
     /// Export the single body `node` denotes as a STEP (AP214 Part 21)
@@ -635,18 +928,51 @@ impl Evaluation {
     ///
     /// Accepts a `body` or non-empty `boolean` value; everything else
     /// raises a typed `ExportError`.
-    #[pyo3(signature = (node, product_name=None))]
+    ///
+    /// Every `StepOptions` field is a keyword here, and each defaults
+    /// to `None` meaning the Rust default — so the door narrows
+    /// nothing and an omitted keyword is the same file a Rust caller
+    /// gets from `StepOptions::default()`. The options struct is built
+    /// by a literal that names every field, so a field the kernel
+    /// gains does not compile until this door decides about it; that
+    /// decision is recorded, either way, in the surface census.
+    ///
+    /// `uncertainty` is the exported
+    /// `UNCERTAINTY_MEASURE_WITH_UNIT` length; omitted, the writer
+    /// reads the run's ambient tolerance, which is the ε the body was
+    /// built under. A value that is not finite and strictly positive
+    /// is the writer's refusal, not a check restated here.
+    #[pyo3(signature = (
+        node,
+        product_name = None,
+        timestamp = None,
+        author = None,
+        organization = None,
+        originating_system = None,
+        uncertainty = None,
+    ))]
+    #[allow(clippy::too_many_arguments)]
     fn step_string(
         &self,
         py: Python<'_>,
         node: &NodeId,
         product_name: Option<String>,
+        timestamp: Option<String>,
+        author: Option<String>,
+        organization: Option<String>,
+        originating_system: Option<String>,
+        uncertainty: Option<Length>,
     ) -> PyResult<String> {
         let tol = Tol::witness();
-        let mut options = pncad::step_export::StepOptions::default();
-        if let Some(name) = product_name {
-            options.product_name = name;
-        }
+        let defaults = pncad::step_export::StepOptions::default();
+        let options = pncad::step_export::StepOptions {
+            product_name: product_name.unwrap_or(defaults.product_name),
+            timestamp: timestamp.unwrap_or(defaults.timestamp),
+            author: author.unwrap_or(defaults.author),
+            organization: organization.unwrap_or(defaults.organization),
+            originating_system: originating_system.unwrap_or(defaults.originating_system),
+            uncertainty_m: uncertainty.map(|u| u.0.meters()).or(defaults.uncertainty_m),
+        };
         pncad::export::step_for_node(&self.inner, node.0, &options, tol)
             .map_err(|err| export_err(py, *node, &err))
     }
@@ -747,15 +1073,69 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
 ///
 /// Total: evaluation never raises. Individual nodes may still have
 /// failed — ask the returned object.
+///
+/// `resolver` is the DOCUMENT SEAM: what an `InstantiatePart` node
+/// reaches the document it pins through. A `Workspace` IS a resolver
+/// (`pncad::workspace`'s own impl), so the store is passed as itself.
+/// `None` — the default — is a kernel-only evaluation, in which every
+/// instantiate node refuses typed (`EvaluationError`, `kind ==
+/// "part_no_resolver"`) rather than pretending a part is empty. The
+/// parameter carries the kernel's ROLE name: resolving a reference is
+/// the capability evaluation needs, and a workspace is today's only
+/// thing that has it.
+///
+/// `prior` is the MEMO: a node whose content and naming keys match
+/// its result in `prior` reuses that value instead of re-running its
+/// op, so only the changed cone costs anything. Reuse is not a claim
+/// the caller has to take on trust — `Evaluation.reused` and
+/// `Evaluation.recomputed` count it, node for node.
+///
+/// The memo is PER DOCUMENT and node-id-keyed: the lookup finds
+/// `prior`'s result for the SAME node id and then certifies it by
+/// content, so an evaluation of a different document is a legal prior
+/// that reuses nothing — node ids are minted per document, and two
+/// assemblies over the same parts at the same pins still share none.
+/// Use the prior evaluation of THIS document.
+///
+/// **A memo hit is served WITHOUT re-running the seam's gates.** A
+/// reused `InstantiatePart` node never asks the resolver, so the
+/// AVAILABILITY refusals — `part_pin_mismatch`, `part_unresolved`,
+/// and `part_no_resolver` with them — are raised only for nodes that
+/// actually re-resolve. What the memo serves is what the document's
+/// own `DocRef` PINS, certified by content key: it is never a
+/// different part, and it is not re-checked against the store. Two
+/// consequences, and both are real:
+///
+/// * Edit a part on disk and re-evaluate with a prior, and the run
+///   succeeds serving the previously pinned body where a run without
+///   the prior refuses `part_pin_mismatch`. Relative to the STORE
+///   that is a stale answer; relative to the DOCUMENT it is the
+///   pinned one.
+/// * "A pin that moved refuses, and is never silently retargeted"
+///   therefore holds for evaluations that cross the seam. It is not
+///   weakened for the ones that do — nothing is retargeted either
+///   way — but it is not RE-ASSERTED by a run that never asks.
+///
+/// Pass no prior when the question is "does this document still
+/// resolve against the store as it stands".
 #[pyfunction]
-pub(crate) fn evaluate(doc: &super::doc::Doc) -> Evaluation {
+#[pyo3(signature = (doc, *, resolver=None, prior=None))]
+pub(crate) fn evaluate(
+    doc: &super::doc::Doc,
+    resolver: Option<&super::store::Workspace>,
+    prior: Option<&Evaluation>,
+) -> Evaluation {
     let tol = Tol::witness();
+    let opts = d::EvalOptions {
+        resolver: resolver.map(super::store::Workspace::resolver),
+        ..d::EvalOptions::default()
+    };
     Evaluation {
         inner: d::evaluate::<f64>(
             &doc.inner,
-            None,
+            prior.map(|p| &p.inner),
             &d::CancelToken::new(),
-            &d::EvalOptions::default(),
+            &opts,
             tol,
         ),
         params: doc.inner.param_env::<f64>(),
@@ -769,6 +1149,8 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Body>()?;
     m.add_class::<MassProperties>()?;
     m.add_class::<Datum>()?;
+    m.add_class::<Measurement>()?;
+    m.add_class::<Verdict>()?;
     m.add_function(wrap_pyfunction!(evaluate, m)?)?;
     m.add_function(wrap_pyfunction!(import_step, m)?)?;
     Ok(())

@@ -3,6 +3,19 @@
 //! (see [`super`] module docs for the formulation and the stored-data
 //! discipline).
 //!
+//! **Not everything public here serves that lane, and one item must
+//! NOT be cited by it.** This module hosts two structural predicates
+//! beside the flux arms: [`require_iso_rectangle`], the shape door
+//! every consumer of the iso-rectangle premise cites, and
+//! [`require_one_chart_branch`], the BRANCH door, which is `mesh`'s
+//! alone. The flux lane must not cite the branch door: its own extent
+//! derivations fold a chart singularity into the extent on purpose and
+//! measure a pole-crossing arc EXACTLY (four rows of
+//! `geom-brep/tests/cert1_sphere_polar.rs` ride that fold), so citing
+//! the branch door from [`curved_face`] or from `mass_properties`
+//! would retract those rows. Two predicates for two consumers, one
+//! module, and the sentence that keeps them apart lives here.
+//!
 //! Classification vocabulary: a boundary edge of a revolution surface
 //! is a **rim** (iso-`v` circle about the surface axis — carrier axis
 //! parallel or antiparallel to the surface axis) or a **meridian**
@@ -15,6 +28,7 @@
 
 use geom::Curve3;
 use geom::Surface;
+use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use super::{FaceContribution, LoopEdge, PropsError, loop_vector_area};
@@ -192,12 +206,7 @@ pub fn boundary_material_sign<T: Decide>(
             minor_radius,
             ..
         } => {
-            let (rims, meridians) =
-                torus_boundary(center, axis, major_radius, minor_radius, outer, band)?;
-            let m0 = meridians.first().ok_or(PropsError::NotIsoRectangle {
-                what: "torus face without a meridian",
-            })?;
-            let orient = torus_meridian_orient(m0, center, axis, minor_radius, band)?;
+            let p = torus_parse(center, axis, major_radius, minor_radius, outer, band)?;
             // The premise, on this arm too. The torus reads its side
             // from ONE corner — the anchor meridian's chart orientation
             // and the rim sharing that meridian's `t0` vertex — and a
@@ -208,23 +217,455 @@ pub fn boundary_material_sign<T: Decide>(
             // L-shaped domain the meridian at the notch is flanked by
             // two rims of the same `d_u`, the cancellation fails, and
             // the six rotations of one edge cycle answer +,+,−,−,+,+.
-            let (s0, c0, s1, c1) = torus_ends(m0, center, axis, major_radius, minor_radius, orient);
-            require_rims_at_extremes(
-                &rims,
-                (RimLevel::Unit(s0, c0), RimLevel::Unit(s1, c1)),
-                torus_arms(major_radius, minor_radius),
-                band,
-            )?;
-            let rim_a = torus_anchor_rim(&rims, m0)?;
+            torus_rims_at_extremes(&p, center, axis, major_radius, minor_radius, band)?;
+            let rim_a = torus_anchor_rim(&p.rims, &p.anchor)?;
             Ok(MaterialSign::Encoded(sign_mul(
                 rim_a.d_u_sign,
-                orient.flip(),
+                p.orient.flip(),
             )))
         }
         // As `curved_face`: no closed-form rim inventory for a spline
         // or for an offset description over one.
         Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
     }
+}
+
+/// **The iso-rectangle SHAPE door** — *is this curved face's domain an
+/// iso-parameter rectangle?* — answered by the S58 single-home
+/// predicate (`require_rims_at_extremes`, decided as `props_rim_level`)
+/// on top of the same per-kind boundary classification the flux lane
+/// and [`boundary_material_sign`] parse with, and by nothing else: no
+/// flux, no area, no material side. A consumer whose own lane rests on
+/// the premise — `mesh`'s swept-rectangle walk is the first — cites
+/// this door itself rather than inheriting the refusal transitively
+/// through a mass-properties call: no consumer keeps a transitive
+/// floor, so when the certified-quadrature lane learns notched
+/// domains, each door's line changes visibly instead of a floor
+/// silently vanishing.
+///
+/// **What it decides, per kind.** The boundary parse certifies every
+/// edge's CARRIER as a rim (a coaxial iso-`v` circle, incident on the
+/// surface) or a meridian carrier (an axial line, a generator through
+/// the apex, a great circle through the poles, a minor circle in an
+/// axial plane) — a carrier that is neither refuses there, on every
+/// kind (an oblique sphere section on `props_rim_axis_parallel`, a
+/// torus Villarceau circle on `props_rim_fit`) — and the predicate
+/// then requires
+/// every rim to sit at one of the face's two extreme levels: the
+/// cylinder's, cone's and sphere's from `min_max` over every level the
+/// parse touched (the sphere's with each meridian arc's span-derived
+/// pole extremes folded in), the torus's from its anchor meridian's
+/// stored span. One home and one band: the margins are `RimArms`-
+/// levered through the same named decides as the flux lane
+/// (`props_circle_axis_class`, `props_rim_fit`,
+/// `props_rim_axis_parallel`, `props_rim_center_on_axis`, the
+/// `props_meridian_*` incidences, `props_rim_level`), so a
+/// `NotIsoRectangle` from here carries the `what` the flux lane would
+/// report for the same face.
+///
+/// **Carrier membership is not arc membership; this door decides the
+/// former and [`require_one_chart_branch`] decides the latter** (issue
+/// 1571). A certified meridian CARRIER can carry an arc that leaves
+/// one chart meridian: a great circle contains both poles, so a sphere
+/// meridian arc may cross a pole mid-edge, where the chart's `u` jumps
+/// by π; a generator is a line through the apex, so a cone generator
+/// segment may run through it. This parse folds the singularity into
+/// the face's extent (the closed form is right about the area) and
+/// says nothing about the arc's chart image — deliberately, because
+/// the flux lane must keep measuring such a face. A consumer whose
+/// walk assumes each edge stays on one iso curve — `mesh`'s — no
+/// longer inherits that premise: it cites the branch door beside this
+/// one, and gets it.
+///
+/// **It inherits the extent derivations, and says so.** The door
+/// decides shape from rim structure against the extremes each kind
+/// derives; where a derivation mis-read the extent, the answer would
+/// be a false "not at an extreme", not a shape verdict. Each kind
+/// derives its extremes from spans certification bounded per edge:
+/// the linear kinds' are `min_max` over endpoint levels, the sphere's
+/// fold each arc's pole extremes in, and the torus's is its anchor
+/// meridian's whole stored span — the pieces of a split edge folded
+/// into that meridian first, under the same per-edge invariants
+/// re-decided on the span the fold reconstructs
+/// ([`fold_torus_meridians`]). What no derivation sees is a meridian
+/// an importer states as several edges on one curve entity: those
+/// carry no split lineage, stay several meridians, and the torus
+/// refuses the far rim by `props_rim_level`.
+///
+/// **A rimless sphere band is a chart rectangle and PASSES.** A lune
+/// between two meridians is `[u0, u1] × [−π/2, π/2]` whatever
+/// `u1 − u0` is; the predicate is vacuous on it (no rim to place) and
+/// this door says so. [`curved_face`] refuses the same face unless its
+/// meridians are coplanar (`props_band_coplanar`) — that is the closed
+/// form's own premise, `Δu = π`, which the flux arm needs in order to
+/// integrate and which says nothing about the shape. Two questions,
+/// two homes: a consumer of this door meshes a partial sphere wedge,
+/// the flux lane finds its volume uncomputable, and both are right.
+///
+/// **A zero-extent face PASSES too.** Two rims at one level joined by
+/// zero-length meridians have every rim at an extreme (`lo == hi`);
+/// the flux lane refuses `DegenerateFace` at its own `require_extent`
+/// first. Extent is not a shape question — a degenerate rectangle is a
+/// rectangle — so this door does not ask it: a consumer that cannot
+/// mesh a zero-area face refuses it on its own terms (the walk's and
+/// the CDT's), and one that can is not told otherwise by a shape
+/// predicate. Pinned beside the lune in `tests/r2_mesh7_door_probes`.
+///
+/// **A plane is not its question.** A planar face's loop is arbitrary
+/// by design (rings, polygons, splines); asked anyway, this refuses
+/// typed exactly as [`curved_face`] does, rather than answer "yes" for
+/// a domain no chart rectangle describes.
+///
+/// # Errors
+///
+/// [`PropsError::NotIsoRectangle`] naming the failed structural
+/// expectation; [`PropsError::Escalated`] when a classification lands
+/// in the ambiguity band (escalate, never guess);
+/// [`PropsError::Unimplemented`] for a NURBS carrier or surface. The
+/// recourse for a genuinely notched iso domain is the
+/// certified-quadrature lane (D2 addendum row 2: valid input, lane not
+/// built).
+pub fn require_iso_rectangle<T: Decide>(
+    surface: &Surface<T>,
+    outer: &[LoopEdge<T>],
+    band: Band,
+) -> Result<(), PropsError> {
+    match *surface {
+        Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
+            what: "require_iso_rectangle called on a plane (a planar loop is not a chart rectangle)",
+        }),
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            ..
+        } => {
+            let b = cylinder_boundary(origin, axis, radius, outer, band)?;
+            linear_rims_at_extremes(&b, band)
+        }
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => {
+            let (sin_a, cos_a) = half_angle.sin_cos();
+            let b = cone_boundary(apex, axis, sin_a, cos_a, outer, band)?;
+            linear_rims_at_extremes(&b, band)
+        }
+        Surface::Sphere {
+            center,
+            radius,
+            axis,
+            ..
+        } => {
+            let (b, _meridian_axes) = sphere_boundary(center, radius, axis, outer, band)?;
+            linear_rims_at_extremes(&b, band)
+        }
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        } => {
+            let p = torus_parse(center, axis, major_radius, minor_radius, outer, band)?;
+            torus_rims_at_extremes(&p, center, axis, major_radius, minor_radius, band).map(|_| ())
+        }
+        // As `curved_face`: no rim inventory for a spline or for an
+        // offset description over one.
+        Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
+    }
+}
+
+/// **The BRANCH predicate**: every boundary edge's traversed ARC lies
+/// on ONE branch of the chart — its stored parameter span is monotone
+/// in the chart and contains no chart singularity in its interior.
+///
+/// [`require_iso_rectangle`] certifies each edge's CARRIER as an iso
+/// curve and the face's rim structure as a rectangle. Carrier
+/// membership is not arc membership: a great circle contains both
+/// poles, so a certified sphere meridian carrier can carry an arc that
+/// runs over a pole, where the chart's `u` jumps by π mid-edge; a cone
+/// generator is a line through the apex, so a certified generator
+/// carrier can carry a segment that runs through the apex, where `u`
+/// jumps to the mirror nappe. This predicate is the second question,
+/// with its own home and its own name.
+///
+/// **Two predicates, not two answers — and the flux lane must not cite
+/// this one.** The extent derivations FOLD the singularity in and are
+/// right about the area of such a face: `geom-brep/tests/
+/// cert1_sphere_polar.rs`'s `a_pole_crossing_meridian_arc_measures_
+/// the_half_cap_exactly`, `the_rimless_hemisphere_split_off_its_poles_
+/// still_measures` and `a_multi_wrap_span_covers_both_poles` are three
+/// faces whose meridian arcs contain a pole in their interior and
+/// whose closed form is asserted EXACT. A refusal placed in the shared
+/// parse, or in [`curved_face`], would retract that. What such a face
+/// breaks is a consumer that reads ONE chart coordinate per edge —
+/// `mesh`'s boundary walk, whose `topo::chart_iso::mid_azimuth` reads
+/// the carrier's midpoint through `Chart::u_of` and lands on the far
+/// branch. So `mesh` cites this door and `mass_properties` does not,
+/// and both are right about the same face.
+///
+/// **The quiet side is the walk's own inclusive pole rule.** Only a
+/// definite `Positive` refuses. `Zero`, the indeterminate band and a
+/// poisoned margin all ADMIT, because an arc that ENDS at a pole is
+/// exactly the shape every sphere cap in the inventory has, and
+/// because this door's disposition must not contradict the extent
+/// fold's on the same margin ([`sphere_meridian_pole_margins`], the
+/// one home): the fold takes everything but `Negative`, this takes
+/// only `Positive`, and the gap between them is the arc that ends at
+/// the singularity.
+///
+/// **The floor is [`Band::escalate`], not ε, and the distance is a
+/// factor of K.** A definite sign needs `|m| ≥ escalate`, which at the
+/// ratified `K = 10` is TEN coincidence widths; between `zero` and
+/// `escalate` the classification is indeterminate and this door
+/// admits. So the refusal begins at `10·ε` of point deviation at the
+/// arc's own lever, not at `ε` — a singularity `5·ε` inside a span is
+/// admitted, deliberately and by the rule above, and any statement of
+/// this door's threshold that says "the band" or "ε" understates it by
+/// K. The rows that pin it bracket `escalate` from both sides
+/// (`0.99×` admits, `1.01×` refuses) and walk the ladder
+/// `0.25·zero → zero → the indeterminate midpoint → escalate →
+/// 4·escalate`.
+///
+/// **Per kind.**
+///
+/// * **cylinder — immune, and it is geometry, not a check.** The chart
+///   has no singularity to cross: the axis is not on the surface, `v`
+///   is the axial coordinate and a generator is a line parallel to the
+///   axis (monotone in `v`, constant `u` at every parameter), and a
+///   rim is a coaxial circle whose `v` is constant over the whole
+///   circle however far the span runs. There is no branch to leave, so
+///   this arm decides nothing rather than deciding `Ok` at a band.
+/// * **cone — the apex.** A generator's stored span may contain the
+///   apex; `props_cone_apex` is the signed distance from the apex's
+///   line parameter to the nearer span end, which IS metres (a line's
+///   `t` is arc length on a unit `dir`, the same dimensional argument
+///   `props_meridian_generator` makes). Rims are coaxial circles,
+///   immune as the cylinder's are.
+/// * **sphere — the poles.** Decided on
+///   [`sphere_meridian_pole_margins`]. Rims are not measured against
+///   the poles at all: a rim's `v` is constant over its whole circle,
+///   and the pole-membership arithmetic is a MERIDIAN's (it reads the
+///   great circle's own parameterization), so running it on a rim
+///   would refuse an equatorial full circle for nothing. The
+///   rim/meridian split is `props_circle_axis_class`, the parse's own
+///   name and the parse's own margin.
+/// * **torus — immune on a ring torus, dormant otherwise.** Rims are
+///   major circles at constant `v`; meridians are minor circles in an
+///   axial plane, and on a ring torus (`major > minor`) such a circle
+///   never meets the axis, so its `u` is constant over the whole
+///   circle and no span can leave the branch. `major ≤ minor` — the
+///   horn and spindle tori, whose minor circle DOES cross the axis —
+///   is dormant rather than checked here, the same dormancy
+///   `mesh`'s walk records for `Chart::poles` being empty on a torus:
+///   `revolve` refuses both at construction and `topo::validate`'s
+///   tier-3 `DegenerateTorus` covers the import door. This arm's
+///   blind spot, stated so it reads as a decision.
+/// * **plane — not its question**, refused typed exactly as
+///   [`require_iso_rectangle`] refuses it.
+///
+/// **Layering, and the one classify each arm repeats.** This door
+/// decides ARC membership on carriers the per-kind parse has
+/// certified; it does not re-certify them. A caller that has not run
+/// [`require_iso_rectangle`] first is asking the second question
+/// without the first, and on a carrier that is no iso curve at all the
+/// answer here is not meaningful. `mesh`'s
+/// `curved::require_iso_rectangle_face` asks them in order.
+///
+/// Each arm nonetheless repeats ONE of the parse's classifications —
+/// `props_circle_axis_class` on the sphere, `props_meridian_apex` on
+/// the cone — because it must know WHICH edges the per-kind question
+/// is about, and a public door may not rest on a caller having run
+/// another one. That costs one duplicate funnel sample per circle or
+/// line edge at `mesh`'s door. It is a duplicate of a sample already
+/// in the stream, never a new margin VALUE, so the large-K lint (which
+/// lints margins against K, not counts) cannot move on it. The
+/// alternative a reviewer proposed — route this door through
+/// `sphere_boundary` and read its per-edge kinds — is strictly worse
+/// on exactly this axis: it would repeat EVERY decide of the parse
+/// (`props_rim_fit`, `props_meridian_great`, `props_meridian_pole`,
+/// the rim incidences) instead of one, since the shape door has
+/// already run that parse by the time this one is asked.
+///
+/// # Errors
+///
+/// [`PropsError::NotOneChartBranch`] naming the offending edge and the
+/// branch boundary its span crosses (valid input, unbuilt lane — D2
+/// addendum row 2: the recourse is to state the side as two edges
+/// meeting at the singularity, which every consumer reads);
+/// [`PropsError::Escalated`] when the rim/meridian classification
+/// lands in the ambiguity band (escalate, never guess);
+/// [`PropsError::Unimplemented`] for a NURBS surface;
+/// [`PropsError::NotIsoRectangle`] on a plane.
+pub fn require_one_chart_branch<T: Decide>(
+    surface: &Surface<T>,
+    outer: &[LoopEdge<T>],
+    band: Band,
+) -> Result<(), PropsError> {
+    match *surface {
+        Surface::Plane { .. } => Err(PropsError::NotIsoRectangle {
+            what: "require_one_chart_branch called on a plane (a planar chart has no \
+                   singularity and no branch for an arc to leave)",
+        }),
+        Surface::Cylinder { .. } => Ok(()),
+        Surface::Cone { apex, .. } => {
+            for (i, e) in outer.iter().enumerate() {
+                let Curve3::Line { origin, dir } = e.carrier else {
+                    continue;
+                };
+                // GENERATORS only, by the parse's own incidence margin
+                // — the cone's mirror of the sphere arm's
+                // rim/meridian filter. A line that misses the apex is
+                // no generator of this cone, has no apex in its span
+                // to cross, and must not be refused here: without this
+                // the arm read EVERY `Line` carrier as a generator and
+                // answered `NotOneChartBranch` on a line the shape
+                // door answers `props_meridian_generator` for.
+                if classify(
+                    "props_meridian_apex",
+                    Margin::norm3((apex - e.p0()).cross(dir)),
+                    band,
+                )? != Sign::Zero
+                {
+                    continue;
+                }
+                // The apex's own parameter on the generator's line
+                // (`dir` unit — `props_meridian_generator` certifies
+                // the direction and the parse mints it so — hence `t`
+                // is metres); the margin is its signed distance to the
+                // nearer span end, positive exactly when the apex is
+                // interior to the span.
+                let t_apex = (apex - origin).dot(dir);
+                let m = (t_apex - e.t0).min(e.t1 - t_apex);
+                if matches!(
+                    decide("props_cone_apex", Margin::of(m), band),
+                    Ok(Sign::Positive)
+                ) {
+                    return Err(PropsError::NotOneChartBranch {
+                        edge: i,
+                        what: "a cone generator whose stored span runs through the apex, the \
+                               chart singularity: the azimuth this edge holds constant flips \
+                               to the mirror nappe there",
+                    });
+                }
+            }
+            Ok(())
+        }
+        Surface::Sphere {
+            center,
+            radius,
+            axis,
+            ..
+        } => {
+            for (i, e) in outer.iter().enumerate() {
+                let Curve3::Circle {
+                    axis: n_c,
+                    radius: r_c,
+                    ..
+                } = e.carrier
+                else {
+                    continue;
+                };
+                // Meridians only (see the fn docs): the parse's own
+                // rim/meridian split, on the parse's own margin.
+                if classify(
+                    "props_circle_axis_class",
+                    Margin::levered(n_c.dot(axis), r_c),
+                    band,
+                )? != Sign::Zero
+                {
+                    continue;
+                }
+                for (m, _) in sphere_meridian_pole_margins(e, center, radius, axis, n_c) {
+                    if matches!(
+                        decide("props_meridian_pole", Margin::levered(m, radius), band),
+                        Ok(Sign::Positive)
+                    ) {
+                        return Err(PropsError::NotOneChartBranch {
+                            edge: i,
+                            what: "a sphere meridian arc whose stored span contains a pole, \
+                                   the chart singularity: the azimuth this edge holds \
+                                   constant jumps by π there",
+                        });
+                    }
+                }
+            }
+            Ok(())
+        }
+        Surface::Torus { .. } => Ok(()),
+        Surface::Nurbs(_) | Surface::Approx(_) => Err(PropsError::Unimplemented),
+    }
+}
+
+/// The predicate on a linearly-leveled parse: the face's extremes from
+/// `min_max` over every level the boundary touches, lifted into the
+/// rims' own representation. Vacuous on a rimless parse (the sphere
+/// band), which is the door's stated answer for it.
+fn linear_rims_at_extremes<T: Decide>(b: &LinearBoundary<T>, band: Band) -> Result<(), PropsError> {
+    let (lo, hi) = min_max(&b.levels)?;
+    require_rims_at_extremes(&b.rims, ((b.as_level)(lo), (b.as_level)(hi)), b.arms, band)
+}
+
+/// A torus face's parse with the anchor meridian's chart orientation:
+/// the prologue every torus consumer runs before deciding anything —
+/// the flux lane, [`boundary_material_sign`] and
+/// [`require_iso_rectangle`] — in one place, so the refusal names and
+/// their order are one. The anchor is the FIRST meridian in loop
+/// order after [`torus_boundary`] has folded the pieces of a split
+/// edge into the meridian they carry, so its span is the meridian's
+/// whole span however many edges carry it.
+struct TorusParse<T: Real> {
+    rims: Vec<Rim<T>>,
+    anchor: TorusMeridian<T>,
+    orient: Sign,
+}
+
+fn torus_parse<T: Decide>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major: T,
+    minor: T,
+    edges: &[LoopEdge<T>],
+    band: Band,
+) -> Result<TorusParse<T>, PropsError> {
+    let (rims, mut meridians) = torus_boundary(center, axis, major, minor, edges, band)?;
+    if meridians.is_empty() {
+        return Err(PropsError::NotIsoRectangle {
+            what: "torus face without a meridian",
+        });
+    }
+    let anchor = meridians.swap_remove(0);
+    let orient = torus_meridian_orient(&anchor, center, axis, minor, band)?;
+    Ok(TorusParse {
+        rims,
+        anchor,
+        orient,
+    })
+}
+
+/// The torus's two extreme minor angles from the anchor meridian's
+/// stored span ([`torus_ends`]) with the iso-rectangle premise decided
+/// against them — one call for the three torus consumers. Returns the
+/// ends as `(s0, c0, s1, c1)` for the flux arm's closed form.
+fn torus_rims_at_extremes<T: Decide>(
+    p: &TorusParse<T>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major: T,
+    minor: T,
+    band: Band,
+) -> Result<(T, T, T, T), PropsError> {
+    let (s0, c0, s1, c1) = torus_ends(&p.anchor, center, axis, major, minor, p.orient);
+    require_rims_at_extremes(
+        &p.rims,
+        (RimLevel::Unit(s0, c0), RimLevel::Unit(s1, c1)),
+        torus_arms(major, minor),
+        band,
+    )?;
+    Ok((s0, c0, s1, c1))
 }
 
 // ---------------------------------------------------------------------
@@ -339,15 +780,18 @@ enum RimLevel<T: Real> {
     /// itself, in meters — a difference is ALREADY the point
     /// deviation and reaches `classify` bare.
     Length(T),
-    /// Sphere/torus: a dimensionless direction pair — `(sin v, 0)`
-    /// for the sphere, `(sin v, cos v)` for the torus. Two of them are
+    /// Sphere/torus: the dimensionless direction pair
+    /// `(sin v, cos v)`. Two of them are
     /// compared by the CHORD `√(Δs² + Δc²)` at the level lever arm
-    /// ([`RimArms::level`], meters). On the torus that is exactly the
-    /// point deviation; **on the sphere the second component is always
-    /// zero**, so the chord is the axial separation `|Δ sin v|` and
-    /// UNDERSTATES the true one by `1/cos v̄` near the poles — audit
-    /// note N7 / S82, open. The primary component alone is what the
-    /// side test in [`linear_rim_side`] reads, at the same arm.
+    /// ([`RimArms::level`], meters) — on both kinds that chord IS the
+    /// point deviation, everywhere on the surface (an axial-only pair
+    /// would shrink by `cos v̄` toward the sphere's poles and merge
+    /// genuinely distinct rims). **That claim is the chord's**, not
+    /// every sphere margin's: the side test in [`linear_rim_side`]
+    /// reads the primary component alone (`lo + hi − 2s`, at the same
+    /// arm), and `require_extent`'s sphere margin is the axial sine
+    /// difference `(hi − lo)·R` — both still shrink by `cos v̄` near
+    /// the poles, in the REFUSING direction only (audit note N8).
     Unit(T, T),
 }
 
@@ -427,15 +871,18 @@ impl<T: Real> RimArms<T> {
 /// * **the metric.** A `Unit` pair's deviation is the CHORD
 ///   `√(Δs² + Δc²)` between the two directions, at `arms.level`.
 ///   Deciding the two components separately decides a different
-///   quantity (it admits a pair up to `√2` further apart). **On the
-///   torus that chord IS the distance a point moves** — the Hausdorff
-///   distance between the two rim circles. **On the sphere it is not:**
-///   the pair is `(sin v, 0)`, so the chord collapses to `|Δ sin v|`,
-///   the AXIAL component alone, understating the true separation by
-///   `1/cos v̄` — unbounded toward the poles. That is audit note **N7**
-///   / smell-scan **S82**, open and Evan's; this fn does not fix it and
-///   does not depend on it, because the sphere's second component is
-///   identically zero either way.
+///   quantity (it admits a pair up to `√2` further apart). **On both
+///   `Unit` kinds that chord IS the distance a point moves**: on the
+///   torus the Hausdorff distance between the two rim circles, on the
+///   sphere the direction separation at `R` (~the geodesic rim
+///   separation). The sphere's pair carries its `cos v` for exactly
+///   this — an axial-only `(sin v, 0)` pair shrinks by `cos v̄`
+///   toward the poles and merges genuinely distinct near-polar rims
+///   in the ACCEPTING direction (retired audit note N7). The
+///   retirement is the CHORD's: the sphere's `props_rim_side` and
+///   `props_face_extent` margins still meter axial sine differences
+///   and understate near the poles in the refusing direction — open
+///   as audit note N8, deliberately untouched here.
 /// * **the lever.** The chord is metered at [`RimArms::level`], which
 ///   on the torus is `minor`. Metering it at `major` overstates by
 ///   `major / minor` — audit note N1, now retired: the arms are
@@ -539,19 +986,21 @@ fn mixed_levels<T: Decide>(name: &'static str, band: Band) -> PropsError {
 /// its span-sum agreement is a genuine rectangle test rather than a
 /// proxy for one.)
 ///
-/// **What this does NOT establish — open at #723.** The rule gives
-/// `w ≡ Δu` on `(lo, hi)` and nothing more. `area = r·Δu·(hi − lo)`
-/// needs a SECOND premise, which is not this one: that the `(lo, hi)`
-/// handed in really is the face's `v`-extent. The torus's is sound by
-/// derivation — its ends are the anchor meridian's STORED span — but
-/// the linearly-leveled kinds take theirs from `min_max`, which folds
-/// edge ENDPOINT levels only. On the sphere that is falsifiable: a
-/// meridian arc crossing a pole reaches latitude ±1 in its INTERIOR,
-/// where `min_max` never looks, and the face measures **−47% at
-/// `pad = 0.0` with tier 3 green** (#723, pre-existing, not fixed
-/// here). Such a face passes THIS predicate correctly, at margin 0,
-/// because its domain genuinely is a rectangle. Do not read a pass
-/// here as "the closed form's preconditions are checked".
+/// **What this does NOT establish.** The rule gives `w ≡ Δu` on
+/// `(lo, hi)` and nothing more. `area = r·Δu·(hi − lo)` needs a
+/// SECOND premise, which is not this one: that the `(lo, hi)` handed
+/// in really is the face's `v`-extent. That premise is each kind's
+/// own derivation: the torus's ends are the anchor meridian's STORED
+/// span; the cylinder's and cone's are `min_max` over edge ENDPOINT
+/// levels, exact because their meridians are lines — monotone in `v`,
+/// with no interior extremum to miss; the sphere's meridians are
+/// great-circle arcs whose latitude peaks at a pole the arc may
+/// contain in its INTERIOR, so its fold also carries each arc's
+/// span-derived pole extremes ([`sphere_meridian_span_levels`] — the
+/// torus's stored-span move, in fold form). A face whose extent were
+/// understated would still pass THIS predicate correctly, at margin
+/// 0; do not read a pass here as "the closed form's preconditions are
+/// checked".
 ///
 /// **Deliberately a little stricter than necessary.** An interior
 /// level carrying matching `+`/`−` groups would leave `w` unchanged
@@ -567,15 +1016,19 @@ fn mixed_levels<T: Decide>(name: &'static str, band: Band) -> PropsError {
 /// decision below is [`level_coincides`], including the fail
 /// direction.
 ///
-/// **The margin is not always exactly zero.** On the ordinary domain
-/// it is: `min_max` folds the rim levels among the rest, so each rim's
-/// own level IS one of the extremes and the difference is bitwise 0.
-/// It is a different expression whenever a MERIDIAN endpoint sets `lo`
-/// or `hi` — then the margin is the rim's disagreement with that
-/// endpoint, a real quantity this predicate decides. That case is
-/// subsumed upstream: a rim wobbled a nanometre off the vertex its
-/// meridian starts at is already refused by `certify`'s
-/// `carrier_endpoint_start`, a length residual at the same band.
+/// **The margin is not always exactly zero.** On the ordinary
+/// `Length`-leveled domain it is: `min_max` folds the rim levels
+/// among the rest, so each rim's own level IS one of the extremes and
+/// the difference is bitwise 0. A `Unit` pair's margin carries a
+/// rounding-scale second-component residual even then (the lift
+/// recomputes the extreme's cosine from its sine, the rim reads its
+/// own off stored data). It is a different expression whenever a
+/// MERIDIAN endpoint sets `lo` or `hi` — then the margin is the rim's
+/// disagreement with that endpoint, a real quantity this predicate
+/// decides. That case is subsumed upstream: a rim wobbled a nanometre
+/// off the vertex its meridian starts at is already refused by
+/// `certify`'s `carrier_endpoint_start`, a length residual at the
+/// same band.
 fn require_rims_at_extremes<T: Decide>(
     rims: &[Rim<T>],
     ends: (RimLevel<T>, RimLevel<T>),
@@ -624,7 +1077,7 @@ fn require_rims_at_extremes<T: Decide>(
 /// computation wearing a typed-refusal costume and should be an
 /// `unreachable`-class site (D2 addendum row 4/5) instead. It is left
 /// as a refusal because the argument for unreachability rests on the
-/// predicate above being complete, and #723 is a live demonstration
+/// predicate above being complete, and #723 was a live demonstration
 /// that a premise about these domains can be one clause short.
 fn du_of_rims<T: Decide>(rims: &[Rim<T>], arms: RimArms<T>, band: Band) -> Result<T, PropsError> {
     if rims.is_empty() {
@@ -683,8 +1136,9 @@ fn du_of_rims<T: Decide>(rims: &[Rim<T>], arms: RimArms<T>, band: Band) -> Resul
 struct LinearBoundary<T: Real> {
     /// The face's rims, in traversal order.
     rims: Vec<Rim<T>>,
-    /// Every level the face's boundary touches — rim levels and
-    /// meridian ENDPOINT levels — the list [`min_max`] folds.
+    /// Every level the face's boundary touches — rim levels, meridian
+    /// ENDPOINT levels and, on the sphere, each meridian arc's
+    /// span-derived pole extremes — the list [`min_max`] folds.
     levels: Vec<T>,
     /// The kind's lever arms ([`RimArms`]).
     arms: RimArms<T>,
@@ -1075,18 +1529,14 @@ fn cone_arm<T: Real>(rims: &[Rim<T>], sin_a: T) -> T {
 ///   load-bearing: a lune bounded by meridians on two DIFFERENT great
 ///   circles would take `Δu = π` for a domain of another width and
 ///   measure by that factor (a quarter lune, twice over).
-/// * **NOT established: the `v`-extent.** `(lo, hi)` comes from
-///   `min_max` over the meridians' ENDPOINT latitudes, and nothing
-///   here says the arcs run pole to pole. Split the same hemisphere at
-///   two ordinary points instead of at its poles and the poles fall in
-///   the arcs' INTERIORS, where `min_max` never looks: the face is
-///   accepted and measures short (executed: the great circle cut at
-///   ±π/4 measures **−29.3%** of the hemisphere's area). That is not a
-///   second defect — it is **#723**, the same `min_max`-over-endpoints
-///   mechanism on the same kind, reaching the one arm #723's own text
-///   does not mention because the rimless arm has no rim to place.
-///   Do not read this exemption as "the domain is verified a
-///   rectangle".
+/// * **Established separately: the `v`-extent.** `(lo, hi)` is
+///   `min_max` over the meridians' endpoint latitudes AND each arc's
+///   span-derived pole extremes ([`sphere_meridian_span_levels`]), so
+///   the arcs need not run pole to pole for the extent to be theirs:
+///   the same hemisphere split at two ordinary points instead of at
+///   its poles still folds to `[−1, 1]`. The extent derivation is a
+///   fact about the levels, not about this exemption — do not read
+///   the exemption as "the domain is verified a rectangle".
 ///
 /// Its `s_f` is the **only** flux
 /// sign in this module that the boundary does not encode — with no rim
@@ -1130,10 +1580,10 @@ fn sphere<T: Decide>(
         // the face's sense IS `s_f` here, not a cross-check of it.
         s_f = sense_sign;
     } else {
-        // The iso-rectangle premise (S58/#649). Sphere levels are
-        // latitude SINES — dimensionless `Unit` with a zero second
-        // component — so the extremes are lifted into the same
-        // representation and metered at the sphere radius.
+        // The iso-rectangle premise (S58/#649). Sphere rims carry the
+        // `(sin v, cos v)` direction pair, so the scalar extremes are
+        // lifted into the same representation (`as_level`) and metered
+        // at the sphere radius.
         s_f = t_sign::<T>(linear_rim_side(&b, (lo, hi), band)?);
         du = du_of_rims(&b.rims, b.arms, band)?;
     }
@@ -1141,6 +1591,164 @@ fn sphere<T: Decide>(
     let va = loop_vector_area(edges, center)?;
     let flux = s_f * (radius * area) + (center - Point3::origin()).dot(va);
     Ok(FaceContribution { flux, area })
+}
+
+/// The two poles' span-membership margins for a sphere meridian arc,
+/// each with the latitude sine it would carry — **one home for the
+/// test, two dispositions**.
+///
+/// [`sphere_meridian_span_levels`] FOLDS on this margin (everything
+/// but a definite `Negative` pushes the pole's latitude into the
+/// face's extent, so the closed form measures a pole-crossing arc
+/// exactly); [`require_one_chart_branch`] REFUSES on it (a definite
+/// `Positive` is a pole strictly inside the span, where the chart's
+/// `u` jumps by π mid-edge). The two answers differ only on the
+/// `Positive` side, which is exactly the arc that crosses; an arc
+/// ENDING at a pole is `Zero` and both doors admit it. Both doors
+/// decide the margin `Margin::levered(m, radius)` — metres — through
+/// the funnel under the same name, because it is the same quantity.
+///
+/// Along the meridian the latitude sine is `λ(θ) = sa·cosθ + ca·sinθ`
+/// for `θ` measured from `t0`, with `sa = λ(t0)` and `ca = dλ/dt(t0)`
+/// read off stored data (`dP/dt = n_c × (P − center)` for the stored
+/// circle parameterization). Over the full circle the extremes are
+/// `±r0` with `r0 = √(sa² + ca²)` (= 1 up to the certified
+/// `props_meridian_great` / `props_circle_axis_class` residuals),
+/// attained at the two poles; the arc attains one exactly when that
+/// pole's angular offset from `t0` lands inside the span.
+///
+/// The margin is `props_meridian_pole`: the chord from the pole's
+/// span-relative direction to the nearer span endpoint, carrying the
+/// membership sign, levered at the sphere radius — the point
+/// deviation of moving the pole onto the span boundary.
+///
+/// **Saturated spans (`dt ≥ 2π`) are NOT total, and the earlier claim
+/// that they were is retracted here** (issue 1601, pre-existing on
+/// this unit's base and NOT fixed by it — the fix is the flux lane's).
+/// The clamp holds `c_edge` at `−1`, which leaves the membership test
+/// as `f = ⟨P, M⟩ + 1` — nonnegative, but with a zero set that is not
+/// empty: it vanishes at the ONE direction antipodal to the span's
+/// midpoint `M`. "A full turn covers every direction, so the edge
+/// cosine excludes nothing" is the claim that needed an EMPTY zero
+/// set. At and near that direction `f` is a rounding residual, and
+/// `copysign` transfers its SIGN onto the chord, so a `2π + 2δ` span
+/// whose pole lands there can read `Negative` and fold short — by
+/// `(1 − cos δ)/2` in the dot value — rather than folding as the
+/// paragraph above promises.
+///
+/// **The branch door is unaffected**, which is why this is a note and
+/// not a blocker for it: [`require_one_chart_branch`] refuses only a
+/// definite `Positive`, so a residual `Negative` at that direction
+/// ADMITS — the direction this door is already permissive in, and the
+/// same answer it gives for the arc that merely ends at a pole.
+///
+/// The pole is located relative to the STORED span, as directions —
+/// no chart inversion at all, so this is not the wedge-unwrap trap
+/// the module docs forbid (two endpoint inversions differenced,
+/// which loses the winding); the interval stays the stored
+/// `t1 − t0`.
+fn sphere_meridian_pole_margins<T: SpanLocate>(
+    e: &LoopEdge<T>,
+    center: Point3<T>,
+    radius: T,
+    axis: Vec3<T>,
+    n_c: Vec3<T>,
+) -> [(T, T); 2] {
+    let w0 = e.p0() - center;
+    let sa = w0.dot(axis) / radius;
+    let ca = n_c.cross(w0).dot(axis) / radius;
+    // powi(2), not x*x (the one argument lives at `level_gap`).
+    let r0 = (sa.powi(2) + ca.powi(2)).sqrt();
+    let dt = e.t1 - e.t0;
+    // The north pole (λ = +r0) sits at the span-relative direction
+    // `(sa, ca)` on the parameter circle; the south pole (λ = −r0)
+    // at its antipode. Everything below is direction arithmetic — no
+    // `atan2`, no range reduction: an angle extraction is wide at its
+    // branch cut (an arc anchored at a pole put an interval enclosure
+    // exactly there, live on the die-fillet corpus), and a mod-2π
+    // `floor` spans its integer step at a period boundary; either
+    // widens the margin to the whole period and forces an escalation
+    // the scalar lane does not have.
+    let half = T::from_f64(0.5);
+    let (sd2, cd2) = (dt * half).sin_cos();
+    // The membership EDGE saturates at a half-turn: a span of 2π or
+    // more covers every direction of the parameter circle, so its
+    // edge cosine is −1 — while raw `cos(dt/2)` swings back positive
+    // past `dt = 2π` and would EXCLUDE directions a multi-wrap span
+    // covers (executed: a 3π span read the north pole `Negative` and
+    // the face measured half its area). The clamp makes the test
+    // total over every positive stored span — and it is a clamp only
+    // because this is ONE edge's span, which certification bounded; a
+    // span reconstructed across edges is decided, not clamped
+    // (`fold_chain`, the class statement).
+    let (_, c_edge) = (dt * half).min(T::pi()).sin_cos();
+    let (sdt, cdt) = dt.sin_cos();
+    [(sa, ca, r0), (-sa, -ca, -r0)].map(|(ps, pc, extreme)| {
+        // Sign: the pole lies in the closed span iff its direction is
+        // within `min(dt/2, π)` of the span's midpoint direction —
+        // one dot test, `⟨P, M⟩ − c_edge`, whose zero set on the
+        // circle is exactly the two span endpoints (empty for a
+        // full-period span, which contains everything).
+        let f = ps * cd2 + pc * sd2 - c_edge;
+        // Magnitude: the CHORD to the nearer span endpoint — levered
+        // by R below, that is the point deviation of moving the pole
+        // onto the span boundary. powi(2), not x*x (see `level_gap`).
+        let chord_a = ((ps - T::one()).powi(2) + pc.powi(2)).sqrt();
+        let chord_b = ((ps - cdt).powi(2) + (pc - sdt).powi(2)).sqrt();
+        // `copysign` transfers the membership sign onto the chord; at
+        // an interval scalar a sign enclosure straddling zero yields
+        // the two-sided hull `±chord`, which is tight exactly where
+        // it happens — the pole at a span endpoint, chord ≈ 0.
+        let m = chord_a.min(chord_b).copysign(f);
+        (m, extreme)
+    })
+}
+
+/// Push the latitude-sine extremes a sphere meridian arc attains over
+/// its **stored parameter span** — the span-derived `v`-extent, the
+/// torus's own derivation carried to the sphere. Endpoint latitudes
+/// alone are not the arc's extent: a great circle contains both poles,
+/// so an arc whose span crosses one reaches latitude ±1 in its
+/// INTERIOR, where an endpoint fold never looks.
+///
+/// The membership test is [`sphere_meridian_pole_margins`]; what is
+/// here is this lane's DISPOSITION of it. `Negative` = outside,
+/// nothing to push; **everything else folds** — `Positive`, `Zero`,
+/// and the indeterminate band alike. At or near a span end the
+/// endpoint latitude already sits within band² of the pole's (the
+/// latitude is quadratic at its extremum), so the fold choices agree
+/// far inside any honest tolerance, the folded extent is continuous
+/// across the decision, and an indeterminate margin carries no
+/// information a refusal could honestly report. The margin still
+/// records through the funnel like any decide.
+fn sphere_meridian_span_levels<T: Decide>(
+    e: &LoopEdge<T>,
+    center: Point3<T>,
+    radius: T,
+    axis: Vec3<T>,
+    n_c: Vec3<T>,
+    levels: &mut Vec<T>,
+    band: Band,
+) {
+    for (m, extreme) in sphere_meridian_pole_margins(e, center, radius, axis, n_c) {
+        // Decided through the funnel — the margin is RECORDED like
+        // any other — but the indeterminate outcome FOLDS instead of
+        // escalating. In-band, the pole sits within the band of a
+        // span end, where the two fold choices differ by ~band²/2 in
+        // latitude — sub-band in every downstream quantity — so an
+        // indeterminate carries no information about the answer, and
+        // refusing on it would refuse a solid whose area is not in
+        // doubt (executed: a split vertex 1e-6 rad off the pole
+        // flipped certify-exactly into an import refusal). A POISONED
+        // margin lands in the same arm and folding stays loud: sa/ca
+        // poison makes the folded `±r0` poison too, which the extent
+        // and level decides downstream refuse typed; a poisoned span
+        // is refused upstream by certification before this parse.
+        match decide("props_meridian_pole", Margin::levered(m, radius), band) {
+            Ok(Sign::Positive | Sign::Zero) | Err(_) => levels.push(extreme),
+            Ok(Sign::Negative) => {}
+        }
+    }
 }
 
 /// Classify a sphere face's boundary into (rims, meridian great-circle
@@ -1191,12 +1799,18 @@ fn sphere_boundary<T: Decide>(
                 // circle on the sphere as the iso-v rim.
                 require_rim_incidence(w, n_c, r_c, axis, band)?;
                 let sin_v = w.dot(axis) / radius;
+                let cos_v = r_c / radius;
                 rims.push(Rim {
                     d_u: t_sign::<T>(rim_dir(s, e.forward)),
                     d_u_sign: rim_dir(s, e.forward),
                     dt: e.t1 - e.t0,
-                    // Dimensionless latitude sine — levered by R.
-                    level: RimLevel::Unit(sin_v, T::zero()),
+                    // Dimensionless latitude DIRECTION pair, both
+                    // components from stored data (`w·â/R`, `r_c/R`).
+                    // The chord between two of these is the geodesic
+                    // separation at R everywhere on the sphere; the
+                    // axial component alone shrinks by `cos v̄` toward
+                    // the poles and merges distinct near-polar rims.
+                    level: RimLevel::Unit(sin_v, cos_v),
                     tags: (e.start, e.end),
                 });
                 levels.push(sin_v);
@@ -1212,18 +1826,25 @@ fn sphere_boundary<T: Decide>(
                 meridian_axes.push(n_c);
                 levels.push((e.p0() - center).dot(axis) / radius);
                 levels.push((e.p1() - center).dot(axis) / radius);
+                // The arc's extent is its stored span's, not its
+                // endpoints': fold in the pole latitude(s) the span
+                // contains (see `sphere_meridian_span_levels`).
+                sphere_meridian_span_levels(e, center, radius, axis, n_c, &mut levels, band);
             }
         }
     }
-    // Sphere levels are latitude SINES — dimensionless `Unit` with a
-    // zero second component — metered at the sphere radius, which is
-    // also its azimuthal arm.
+    // Sphere levels are latitude SINES; the rims carry the full
+    // `(sin v, cos v)` direction pair, so the lift completes a scalar
+    // extreme with its cosine (latitudes live in `[−π/2, π/2]`, so
+    // the cosine is the nonnegative root; the `max` keeps the sqrt
+    // in-domain when a folded extreme sits a rounding past ±1).
+    // Metered at the sphere radius, which is also its azimuthal arm.
     Ok((
         LinearBoundary {
             rims,
             levels,
             arms: RimArms::uniform(radius),
-            as_level: |s| RimLevel::Unit(s, T::zero()),
+            as_level: |s| RimLevel::Unit(s, (T::one() - s.powi(2)).max(T::zero()).sqrt()),
         },
         meridian_axes,
     ))
@@ -1247,10 +1868,10 @@ fn torus_arms<T: Real>(major: T, minor: T) -> RimArms<T> {
 ///
 /// The torus's `v` is periodic, so its extremes cannot come from
 /// `min_max` over endpoint levels the way the linearly-leveled kinds'
-/// do; that derivation is also why the torus is the one kind #723's
-/// unstated-extent premise does not reach. One home, because the flux
-/// lane and [`boundary_material_sign`] both need it and a face's
-/// extremes are not a thing two callers may each decide.
+/// do; the sphere's fold carries the same stored-span derivation per
+/// meridian arc ([`sphere_meridian_span_levels`]). One home, because
+/// the flux lane and [`boundary_material_sign`] both need it and a
+/// face's extremes are not a thing two callers may each decide.
 fn torus_ends<T: Real>(
     m0: &TorusMeridian<T>,
     center: Point3<T>,
@@ -1312,32 +1933,20 @@ fn torus<T: Decide>(
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> Result<FaceContribution<T>, PropsError> {
-    let (rims, meridians) = torus_boundary(center, axis, major, minor, edges, band)?;
-    let Some(m0) = meridians.first() else {
-        return Err(PropsError::NotIsoRectangle {
-            what: "torus face without a meridian",
-        });
-    };
-    let orient = torus_meridian_orient(m0, center, axis, minor, band)?;
-    require_extent(Margin::levered(m0.dt, minor), band)?;
-    let dv = m0.dt;
-    let (s0, c0, s1, c1) = torus_ends(m0, center, axis, major, minor, orient);
+    let p = torus_parse(center, axis, major, minor, edges, band)?;
+    require_extent(Margin::levered(p.anchor.dt, minor), band)?;
+    let dv = p.anchor.dt;
     // The iso-rectangle premise (S58/#649) — the SAME predicate the
     // other three kinds run, which is where it came from: this arm was
     // the only one #649's adversarial probe could not break, and
     // generalising it is the fix.
     let arms = torus_arms(major, minor);
-    require_rims_at_extremes(
-        &rims,
-        (RimLevel::Unit(s0, c0), RimLevel::Unit(s1, c1)),
-        arms,
-        band,
-    )?;
-    let du = du_of_rims(&rims, arms, band)?;
+    let (s0, c0, s1, c1) = torus_rims_at_extremes(&p, center, axis, major, minor, band)?;
+    let du = du_of_rims(&p.rims, arms, band)?;
     // s_f: the rim topologically adjacent to the anchor endpoint; the
     // interior sweeps from it in the `dv/dt = −orient` direction.
-    let rim_a = torus_anchor_rim(&rims, m0)?;
-    let s_f = t_sign::<T>(sign_mul(rim_a.d_u_sign, orient.flip()));
+    let rim_a = torus_anchor_rim(&p.rims, &p.anchor)?;
+    let s_f = t_sign::<T>(sign_mul(rim_a.d_u_sign, p.orient.flip()));
     let half = T::from_f64(0.5);
     let area = minor * du * (major * dv + minor * (s1 - s0));
     let k = minor
@@ -1350,8 +1959,11 @@ fn torus<T: Decide>(
     Ok(FaceContribution { flux, area })
 }
 
-/// A torus minor-circle boundary edge (iso-`u` meridian): its carrier
-/// frame, stored parameter span, and traversal-start anchor.
+/// A torus minor-circle boundary meridian (iso-`u`) as the parse
+/// consumes it: its carrier frame, the parameter span the meridian
+/// covers on that carrier, and the anchor at the interval's `t0` end.
+/// One meridian is carried by one edge, or by the pieces of one split
+/// edge folded back into it ([`fold_torus_meridians`]).
 struct TorusMeridian<T: Real> {
     n_c: Vec3<T>,
     c_c: Point3<T>,
@@ -1360,10 +1972,30 @@ struct TorusMeridian<T: Real> {
     anchor_tag: u32,
 }
 
+/// One meridian ARC as one boundary edge carries it — the fold's
+/// input: the edge itself, plus the two facts about its carrier the
+/// classification certified (the minor circle's axis and centre).
+struct TorusArc<'a, T: Real> {
+    edge: &'a LoopEdge<T>,
+    n_c: Vec3<T>,
+    c_c: Point3<T>,
+}
+
+/// A torus boundary edge classified, in loop order, before the fold.
+enum TorusEdge<'a, T: Real> {
+    Rim(Rim<T>),
+    Arc(TorusArc<'a, T>),
+}
+
+/// A torus face's boundary as the consumers read it: its rims, and
+/// its meridians after the fold.
+type TorusParts<T> = (Vec<Rim<T>>, Vec<TorusMeridian<T>>);
+
 /// Classify a torus face's boundary into (rims, meridians) — the
-/// shared parse consumed by both the flux closed form and
-/// [`boundary_material_sign`].
-#[allow(clippy::type_complexity)]
+/// shared parse consumed by the flux closed form,
+/// [`boundary_material_sign`] and the shape door. Every edge is
+/// certified rim-or-meridian in loop order first; the arcs that carry
+/// one meridian are then folded into it.
 fn torus_boundary<T: Decide>(
     center: Point3<T>,
     axis: Vec3<T>,
@@ -1371,9 +2003,8 @@ fn torus_boundary<T: Decide>(
     minor: T,
     edges: &[LoopEdge<T>],
     band: Band,
-) -> Result<(Vec<Rim<T>>, Vec<TorusMeridian<T>>), PropsError> {
-    let mut rims: Vec<Rim<T>> = Vec::new();
-    let mut meridians: Vec<TorusMeridian<T>> = Vec::new();
+) -> Result<TorusParts<T>, PropsError> {
+    let mut classified: Vec<TorusEdge<T>> = Vec::with_capacity(edges.len());
     for e in edges {
         let Curve3::Circle {
             center: c_c,
@@ -1405,14 +2036,14 @@ fn torus_boundary<T: Decide>(
                     band,
                 )?;
                 require_rim_incidence(c_c - center, n_c, r_c, axis, band)?;
-                rims.push(Rim {
+                classified.push(TorusEdge::Rim(Rim {
                     d_u: t_sign::<T>(rim_dir(s, e.forward)),
                     d_u_sign: rim_dir(s, e.forward),
                     dt: e.t1 - e.t0,
                     // Dimensionless minor-angle direction pair.
                     level: RimLevel::Unit(sin_v, cos_v),
                     tags: (e.start, e.end),
-                });
+                }));
             }
             Sign::Zero => {
                 let w = c_c - center;
@@ -1434,17 +2065,198 @@ fn torus_boundary<T: Decide>(
                     Margin::of(n_c.dot(w - axis * h)),
                     band,
                 )?;
-                meridians.push(TorusMeridian {
-                    n_c,
-                    c_c,
-                    dt: e.t1 - e.t0,
-                    anchor: e.p0(),
-                    anchor_tag: e.tag_at_t0(),
+                classified.push(TorusEdge::Arc(TorusArc { edge: e, n_c, c_c }));
+            }
+        }
+    }
+    fold_torus_meridians(classified, minor, band)
+}
+
+/// Fold the arcs that carry ONE meridian into it; rims pass through
+/// in loop order.
+///
+/// Two loop-adjacent arcs are pieces of one meridian iff they carry
+/// equal [`CarrierId`](super::CarrierId)s — pieces of one original edge, whose split
+/// children keep its carrier and partition its interval — and are
+/// traversed the same way. Identity is the whole membership test:
+/// `None` matches nothing, and two arcs from distinct edges stay two
+/// meridians however their stored circles compare as values (two
+/// carriers meeting at a vertex are a corner, never a subdivision, and
+/// the door then refuses the far rim as it always did). A meridian an
+/// importer states as several edges on one curve entity carries no
+/// split lineage and does not fold here.
+///
+/// **What the identity asserts is then enforced, not assumed**
+/// ([`fold_chain`]): the pieces must MEET — adjacent pieces' intervals
+/// abut exactly, `a.t1 == b.t0` in the traversal direction, which is a
+/// structural fact of the split (one `t` is both children's boundary)
+/// decided at the exact-order band rather than inferred at ε — and the
+/// interval they assemble must be one certification could have
+/// admitted. A loop of arcs that all continue one another (one closed
+/// minor circle in pieces, no rim) has no chain boundary and refuses
+/// by one name whatever rotation it arrives in; every other loop is
+/// walked from an edge no chain continues into, so no chain is cut.
+///
+/// The folded interval is `[lowest t0, highest t1]` over the chain —
+/// on one parametrisation, the original edge's own stored interval,
+/// bitwise, whatever the split fractions — and the anchor is the arc
+/// at its `t0` end, so a meridian carried by one edge folds to exactly
+/// the record that edge produces alone.
+fn fold_torus_meridians<T: Decide>(
+    mut edges: Vec<TorusEdge<'_, T>>,
+    minor: T,
+    band: Band,
+) -> Result<TorusParts<T>, PropsError> {
+    fn same_edge<T: Real>(a: &TorusArc<'_, T>, b: &TorusArc<'_, T>) -> bool {
+        a.edge.forward == b.edge.forward
+            && matches!((a.edge.carrier_id, b.edge.carrier_id), (Some(x), Some(y)) if x == y)
+    }
+    let n = edges.len();
+    if n == 0 {
+        return Ok((Vec::new(), Vec::new()));
+    }
+    let Some(start) = (0..n).find(|&i| match (&edges[(i + n - 1) % n], &edges[i]) {
+        (TorusEdge::Arc(a), TorusEdge::Arc(b)) => !same_edge(a, b),
+        _ => true,
+    }) else {
+        return Err(PropsError::NotIsoRectangle {
+            what: "torus meridian pieces close a loop with no rim",
+        });
+    };
+    edges.rotate_left(start);
+    let mut rims = Vec::new();
+    let mut meridians = Vec::new();
+    let mut chain: Vec<TorusArc<'_, T>> = Vec::new();
+    for e in edges {
+        match e {
+            TorusEdge::Rim(r) => {
+                if !chain.is_empty() {
+                    meridians.push(fold_chain(core::mem::take(&mut chain), minor, band)?);
+                }
+                rims.push(r);
+            }
+            TorusEdge::Arc(a) => {
+                if chain.last().is_some_and(|last| !same_edge(last, &a)) {
+                    meridians.push(fold_chain(core::mem::take(&mut chain), minor, band)?);
+                }
+                chain.push(a);
+            }
+        }
+    }
+    if !chain.is_empty() {
+        meridians.push(fold_chain(chain, minor, band)?);
+    }
+    Ok((rims, meridians))
+}
+
+/// The exact-order band: the open interior `(min-subnormal,
+/// 2·min-subnormal)` contains no representable `f64`, so a decision
+/// against it is exact and total at `f64` — `Zero` means bit-level
+/// coincidence — and at the interval scalar an enclosure straddling
+/// the hairline escalates honestly. Profile's canonical-form band and
+/// the split join's ordering decide against the same constants.
+fn exact_band() -> Band {
+    match Band::new(f64::from_bits(1), f64::from_bits(2)) {
+        Ok(band) => band,
+        // Two finite, ordered, positive constants: a `BandError` from
+        // them is a kernel bug, not a state (D2 addendum row 4).
+        Err(_) => unreachable!("the exact-order band's constants are valid by construction"),
+    }
+}
+
+/// One chain of arcs — non-empty, loop-consecutive, one identity, one
+/// traversal direction — as the meridian they carry. Traversal runs up
+/// the parametrisation on a forward chain and down it on a reversed
+/// one, so the `t0` end is the first arc or the last.
+///
+/// **Spans across edges are decided, never clamped — the class
+/// statement, at its one home.** Certification bounds every EDGE's
+/// stored span (`interval_span_forward`, `interval_span_winding`:
+/// `0 < Δt ≤ τ`), and every per-edge span read in this module rests
+/// on that bound — the sphere arm's pole fold saturates its membership
+/// edge at a half-turn, a clamp that is total only because no
+/// certified edge exceeds one period. A span this fold reconstructs
+/// ACROSS edges was certified by nobody: a public door
+/// (`set_edge_curve`) can restate one piece's interval on its own
+/// carrier — shifted by a period, the identical arc, every piece
+/// certifying — and the assembled interval then spans more than a
+/// period, which `sin`/`cos` would silently fold back onto the
+/// extremes and every consumer would answer for, twice over. So a
+/// chain of two or more pieces re-decides three things, and refuses
+/// typed on any of them, naming the decide — the pieces do not
+/// partition one certified interval:
+///
+/// * `props_meridian_pieces_meet` — adjacent intervals abut exactly
+///   (the exact-order band; a sub-ε shift is still not the split's
+///   own `t`, and is refused, not absorbed);
+/// * `props_meridian_pieces_forward` — the assembled span is definitely
+///   positive, as certification requires of one edge;
+/// * `props_meridian_pieces_winding` — it does not definitely exceed a
+///   period, certification's winding bound, at the same band and lever.
+///
+/// A single edge is its own certified interval and re-decides nothing.
+fn fold_chain<T: Decide>(
+    chain: Vec<TorusArc<'_, T>>,
+    minor: T,
+    band: Band,
+) -> Result<TorusMeridian<T>, PropsError> {
+    let (Some(first), Some(last)) = (chain.first(), chain.last()) else {
+        unreachable!("a torus meridian chain is folded only when non-empty")
+    };
+    let forward = first.edge.forward;
+    let pieces = chain.len() > 1;
+    if pieces {
+        let exact = exact_band();
+        for pair in chain.windows(2) {
+            let (a, b) = (pair[0].edge, pair[1].edge);
+            let gap = if forward { b.t0 - a.t1 } else { a.t0 - b.t1 };
+            if classify(
+                "props_meridian_pieces_meet",
+                Margin::levered(gap, minor),
+                exact,
+            )? != Sign::Zero
+            {
+                return Err(PropsError::NotIsoRectangle {
+                    what: "props_meridian_pieces_meet",
                 });
             }
         }
     }
-    Ok((rims, meridians))
+    let (lo, hi) = if forward {
+        (first, last)
+    } else {
+        (last, first)
+    };
+    let dt = hi.edge.t1 - lo.edge.t0;
+    if pieces {
+        if classify(
+            "props_meridian_pieces_forward",
+            Margin::levered(dt, minor),
+            band,
+        )? != Sign::Positive
+        {
+            return Err(PropsError::NotIsoRectangle {
+                what: "props_meridian_pieces_forward",
+            });
+        }
+        if classify(
+            "props_meridian_pieces_winding",
+            Margin::levered(T::tau() - dt, minor),
+            band,
+        )? == Sign::Negative
+        {
+            return Err(PropsError::NotIsoRectangle {
+                what: "props_meridian_pieces_winding",
+            });
+        }
+    }
+    Ok(TorusMeridian {
+        n_c: lo.n_c,
+        c_c: lo.c_c,
+        dt,
+        anchor: lo.edge.p0(),
+        anchor_tag: lo.edge.tag_at_t0(),
+    })
 }
 
 /// Chart orientation of the anchor meridian: `v` winds right-handed

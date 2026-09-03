@@ -115,60 +115,14 @@ fn opening_a_file_that_is_not_a_document_refuses_at_the_persistence_door() {
 /// **A real gallery document, opened through the typed door.**
 ///
 /// The file is the tour's `gallery` mode output for the ring scene,
-/// committed verbatim — so this row is the acceptance walk (open a
-/// gallery `.pncad`, see its feature tree with live statuses, save it
-/// back) with the dialog and the window taken out.
-///
-/// It is version-stamped in its name, as `pncad`'s own fixture is: a
-/// schema break makes this file unreadable, and the fix is to
-/// regenerate it from `demo-tour gallery` and rename, never to teach
-/// the loader about an old shape.
-const GALLERY_RING: &str = include_str!("gallery_ring.v14.pncad");
-
-/// **ε is a run parameter, and a saved document records the one it was
-/// decided at** — "one process, one ε", which `load` enforces by
-/// refusing a file whose recorded ε is not the process's
-/// (`PersistError::ToleranceConflict`). The CI matrix sweeps ε, so a
-/// committed document fixture is loadable at exactly one of its
-/// points and refuses at the others; this row went red at 1e-12 for
-/// precisely that reason.
-///
-/// So the fixture is re-stamped with THIS run's ε before it is opened.
-/// The new ε line comes from `save` itself, via a throwaway document at
-/// the process tolerance: spelling a float the way the serializer
-/// spells it is the serializer's job, not this file's.
-///
-/// **What this function does NOT do is check its own work.** An earlier
-/// version asserted that the re-stamp changed only the ε line by
-/// comparing its own output's non-ε lines against its own input's — an
-/// assertion true by construction of the `map` that built them, which
-/// is to say no assertion at all. The real claim (a re-stamped fixture
-/// is byte-for-byte what the exporter writes at this ε) is measured by
-/// [`the_restamped_fixture_is_what_the_serializer_writes_at_this_eps`],
-/// which puts the bytes back through `save` rather than through this
-/// function's own arithmetic.
-fn gallery_ring_at(tol: Tol) -> String {
-    let probe: pncad::document::Doc<pncad::document::ProfileProgram> =
-        pncad::document::Doc::empty_derived("gui3-epsilon-probe", tol);
-    let probe_text = pncad::document::save(&probe, &[], tol).expect("an empty document saves");
-    let is_epsilon = |line: &str| line.trim_start().starts_with("\"epsilon\":");
-    let wanted = probe_text
-        .lines()
-        .find(|line| is_epsilon(line))
-        .expect("a saved document records its ε");
-    assert_eq!(
-        GALLERY_RING.lines().filter(|l| is_epsilon(l)).count(),
-        1,
-        "the fixture must carry exactly one ε line"
-    );
-    let mut text: String = GALLERY_RING
-        .lines()
-        .map(|line| if is_epsilon(line) { wanted } else { line })
-        .collect::<Vec<&str>>()
-        .join("\n");
-    text.push('\n');
-    text
-}
+/// committed verbatim — so this suite's rows over it are the
+/// acceptance walk (open a gallery `.pncad`, see its feature tree
+/// with live statuses, save it back) with the dialog and the window
+/// taken out. The fixture and its ε re-stamp live in `common`
+/// (`common::GALLERY_RING` / `common::gallery_ring_at`) now that a
+/// second suite (`creation_ops`) compares against the same file; the
+/// serializer-fidelity claim below still gates the re-stamp.
+use common::gallery_ring_at;
 
 /// **The ε claim, measured through the serializer rather than through
 /// the re-stamp's own arithmetic.**
@@ -269,4 +223,95 @@ fn a_saved_file_is_byte_identical_when_nothing_changed_between_saves() {
         std::fs::read_to_string(&b).expect("b is readable")
     );
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// INVARIANT: a document whose product roots occupy the same space
+/// still DRAWS, and the session carries the finding that says so.
+///
+/// This is the diefillet gallery bug, as a session row. The two roots
+/// gather into one product whose picture looks almost right — the
+/// second root's material fills the first's cavities and z-fights its
+/// outer faces — and every local battery passes, because each root's
+/// body is individually perfect. The report is the only thing that
+/// says otherwise, so it has to land with the evaluation, and the
+/// scene has to keep building alongside it (report, never gate: a
+/// modeller cannot fix what the viewer refuses to show).
+#[test]
+fn overlapping_roots_still_draw_and_land_a_finding() {
+    let tol = Tol::witness();
+    // Two extrudes over the same square: two sinks, so two product
+    // roots, exactly on top of each other.
+    let mut doc = pncad::document::Doc::empty_derived("gui-overlap", tol);
+    let mut roots = Vec::new();
+    for _ in 0..2 {
+        let profile = insert_node(
+            &mut doc,
+            pncad::document::Node::Profile(pncad::document::ProfileProgram {
+                plane: pncad::prelude::SketchPlane::xy(),
+                loops: vec![
+                    pncad::prelude::LoopProgram::polygon([
+                        (0.0, 0.0),
+                        (1.0, 0.0),
+                        (1.0, 1.0),
+                        (0.0, 1.0),
+                    ])
+                    .expect("a square"),
+                ],
+            }),
+            tol,
+        );
+        roots.push(insert_node(
+            &mut doc,
+            pncad::document::Node::Extrude {
+                profile,
+                distance: pncad::document::Expr::literal(1.0, pncad::document::Dimension::Length)
+                    .expect("a length"),
+            },
+            tol,
+        ));
+    }
+    assert_eq!(doc.roots().len(), 2, "two sinks, two product roots");
+
+    let mut session = DocSession::new(doc, tol, Box::new(viewer::InlineEvaluator::new()));
+    session.pump();
+
+    // It draws. The scene is the thing the modeller needs in order to
+    // see what is wrong with it.
+    let (landed_doc, landed_ev) = session.landed_pair().expect("an evaluation landed");
+    let scene = viewer::scene::scene_of_evaluation(
+        landed_doc,
+        landed_ev,
+        viewer::DisplayTolerance::new(5e-3).expect("a display delta"),
+        tol,
+    )
+    .expect("an overlapping product still tessellates");
+    assert!(scene.stats().triangles > 0, "the picture is not empty");
+
+    // And the finding landed with it, naming both roots.
+    let report = session.checks().expect("the registry ran");
+    let separation: Vec<_> = report
+        .findings
+        .iter()
+        .filter(|f| f.check == pncad::document::CheckId::Separation)
+        .collect();
+    assert_eq!(separation.len(), 1, "one pair, one finding: {report}");
+    let rendered = separation[0].to_string();
+    for root in &roots {
+        assert!(
+            rendered.contains(&format!("root {}", root.0)),
+            "the finding names both roots: {rendered}"
+        );
+    }
+}
+
+/// Insert one node, returning its minted id.
+fn insert_node(
+    doc: &mut pncad::document::Doc<pncad::document::ProfileProgram>,
+    node: pncad::document::Node<pncad::document::ProfileProgram>,
+    tol: Tol,
+) -> pncad::document::RecipeNodeId {
+    let applied = pncad::document::apply(doc, &pncad::document::DocEdit::InsertNode { node }, tol)
+        .expect("the edit applies");
+    *doc = applied.doc;
+    applied.record.minted.expect("insert mints an id")
 }

@@ -30,6 +30,11 @@
 //!   `start(he_plus)` to `end(he_plus)`**. Per-face traversal senses and
 //!   pcurves are *derived* from that one orientation, never stored as
 //!   peers.
+//! - **The azimuthal frame is one body, and it is not here.** The
+//!   circle and ellipse arms read `v_ref = axis × u_ref` and the
+//!   radial/tangential pair at angle `u` from the interior
+//!   `crate::azimuth` module — the same one home the surface half
+//!   reads, so the two halves cannot drift a convention apart.
 //! - **Periodicity:** a circle is 2π-periodic in θ: as a locus,
 //!   `P(θ) = P(θ + 2πk)` exactly, in the reals. What that does and does
 //!   not promise in floating point is the crate docs' bit-identity
@@ -307,7 +312,7 @@ impl<T: SpanLocate> Curve3<T> {
                 radius,
                 u_ref,
             } => {
-                let (radial, _) = azimuth::frame(*axis, *u_ref, t);
+                let radial = azimuth::frame(*axis, *u_ref, t).radial.0;
                 *center + radial * *radius
             }
             Curve3::Ellipse {
@@ -344,7 +349,7 @@ impl<T: SpanLocate> Curve3<T> {
                 u_ref,
                 ..
             } => {
-                let (_, tangential) = azimuth::frame(*axis, *u_ref, t);
+                let tangential = azimuth::frame(*axis, *u_ref, t).tangential.0;
                 tangential * *radius
             }
             Curve3::Ellipse {
@@ -394,6 +399,137 @@ impl<T: SpanLocate> Curve3<T> {
                 *u_ref * (-(*major * c)) + v_ref * (-(*minor * s))
             }
             Curve3::Nurbs(n) => n.deriv2(t),
+        }
+    }
+
+    /// The parameter of a point **on** this carrier, on the branch
+    /// nearest `near` — the one body for point-on-carrier parameter
+    /// recovery, and pure carrier arithmetic. `None` for the kinds
+    /// whose inversion is a solve rather than a closed form.
+    ///
+    /// - **`Line`**: the projection `t = (p − origin)·dir`. A line's
+    ///   parameterization is injective, so there is no branch to pick
+    ///   and `near` is unused — the argument belongs to the periodic
+    ///   kind and costs this arm nothing.
+    /// - **`Circle`**: `near + δ` with `δ = atan2(w·τ̂, w·r̂)`,
+    ///   `w = p − center`, and the frame at `near` read from the public
+    ///   evaluators (`r̂·radius = eval(near) − center`,
+    ///   `τ̂·radius = deriv(near)`). Both `atan2` arguments carry the
+    ///   factor `radius`, so no division enters and no frame is
+    ///   re-derived here. **The factor is not assumed positive.** A
+    ///   `Curve3::Circle` with a representable NEGATIVE `radius` is a
+    ///   circle traversed through the antipode of the `u_ref` seam, and
+    ///   there `atan2` does not quotient the factor away — it flips the
+    ///   angle by π, which is precisely the parameter that reproduces
+    ///   the point. So this arm inverts `eval` for either sign, which
+    ///   the retired seam spelling did NOT: reading the stored `u_ref`
+    ///   and `v_ref` directly, it answers about the point's angle in
+    ///   the frame rather than about its parameter, and at `radius =
+    ///   −1`, `near = 0`, `t = 0` it returns `π` where this arm returns
+    ///   `0` and `eval(0)` is the point. Not a claimed feature of the
+    ///   consolidation — a measured consequence of reading the frame
+    ///   from the evaluators, recorded so the sign is not later
+    ///   "simplified" back out.
+    /// - **`Ellipse`, `Nurbs`**: `None`. The eccentric anomaly is not
+    ///   the polar angle of the point, and a spline's inversion is
+    ///   Newton on the foot-point condition (`project`) — a different
+    ///   machine with a different refusal, not a branch policy.
+    ///
+    /// **Anchoring at `near` is what removes the branch cut.** `atan2`
+    /// returns its principal value in `(−π, π]`, so `near + δ` is by
+    /// construction the unique branch within half a turn of `near`:
+    /// there is no `k·2π` to select, hence no ordering decision and no
+    /// lane fork. A SEAM anchor would need that selection, which on a
+    /// bare `Real` costs either an ordering (not available) or a
+    /// `floor` whose interval answer widens across the integer. Here
+    /// the interval scalar's `atan2` encloses the same value, and a
+    /// `near` whose half-turn window straddles the cut widens the
+    /// enclosure rather than mis-selecting a branch — degradation the
+    /// consumer's own gate can see, never a silent turn.
+    ///
+    /// **Two preconditions, neither checked here**, because neither is
+    /// this arithmetic's to decide:
+    ///
+    /// - `p` must be ON the carrier. Off it, the circle arm answers
+    ///   about `p`'s radial projection and the line arm about its
+    ///   axial one. The degenerate violation `p == center` has no
+    ///   radial projection at all: `w` is the zero vector, both
+    ///   `atan2` arguments are zero, and the total `atan2(0, 0) = 0`
+    ///   makes the answer `near` itself. (The retired seam spellings
+    ///   answered the nearest multiple of `τ` to `near` instead. Both
+    ///   are arbitrary; this one is at least the anchor the caller
+    ///   already had.)
+    /// - The branch the caller wants must be the one nearest `near`.
+    ///   A caller recovering a parameter INSIDE a stored span
+    ///   `[t₀, t₁]` can get that by passing the span's MIDPOINT, and
+    ///   only while the span is at most one period: then `|t − mid|` is
+    ///   at most half a period for every `t` in the span, so the
+    ///   nearest branch to the midpoint IS the in-span one. Past a
+    ///   period the answer aliases by `2π` and nothing downstream can
+    ///   see it, so a caller with a span that long owes a period guard.
+    ///
+    /// **A THIRD PRECONDITION BELONGS TO SOME CALLERS AND NOT OTHERS,
+    /// and it is what decides the anchor**: whether the answer may
+    /// depend on the anchor the caller passed. It does, at the ulp
+    /// scale, and unavoidably — `near` enters both `atan2` arguments
+    /// through `eval(near)` and `deriv(near)`. So a caller whose anchor
+    /// is derived from a STORED SPAN gets an answer that moves when the
+    /// stored span moves, and a stored span is not a stable thing:
+    /// splitting an edge rewrites it. A caller that needs the recovered
+    /// parameter to be a function of the POINT and the CARRIER alone —
+    /// because two orderings of the same operations have to agree
+    /// bitwise — must anchor at something the CARRIER owns, and the
+    /// circle's own such anchor is its SEAM, `near = 0`.
+    /// `sweep::fillet::surgery::seam_split_param` is that caller and
+    /// carries the measurement that made it one; its period guard is
+    /// what makes the principal branch the in-window one.
+    ///
+    /// # `|δ| = π` — the tie, and what it means at each posture
+    ///
+    /// At exactly half a turn the point has TWO parameters within half
+    /// a turn of the anchor, `near ± π`, and this body returns one of
+    /// them. Which one is not derivable: it is `atan2`'s cut, so the
+    /// SIGN BIT of `w·τ̂` decides it — `Real::atan2(0.0, −1.0) = π`
+    /// against `atan2(−0.0, −1.0) = −π`. Both answers are correct
+    /// parameters of `p`; no answer is "the" one.
+    ///
+    /// **Midpoint-anchored callers are unaffected.** `|δ| = π` from a
+    /// midpoint means the two ends of a full-period span, so whichever
+    /// the tie names is an ENDPOINT, and a consumer whose interiority
+    /// gate refuses a split at either end is unaffected by which.
+    ///
+    /// **ENDPOINT-anchored callers are NOT covered by that argument,
+    /// and this is the harder half.** An endpoint anchor has no span to
+    /// make the tie harmless: the two answers `t_old ± π` describe the
+    /// same point but produce stored spans differing by a full turn,
+    /// and a gate that checks only `eval(t_new) ≈ p` — which is the
+    /// natural gate, and the one
+    /// `topo::replace_face::plan_reanchors` writes — passes both,
+    /// because both ARE parameters of the point. Such a caller is
+    /// relying on never reaching `|δ| = π`: an endpoint that MOVES
+    /// along its carrier does not jump half a turn, so the pose is
+    /// sound, but it is a precondition on the caller's motion and not
+    /// a property of this arithmetic. A caller that cannot argue that
+    /// owes a `|δ| < π` refusal of its own; this body cannot make the
+    /// choice for it, because at `|δ| = π` there is nothing to choose
+    /// between.
+    ///
+    /// The size of the residue is measured rather than asserted:
+    /// `geom`'s `curves/param_near.rs` row
+    /// `at_the_half_turn_boundary_the_two_forms_disagree_by_a_turn_and_
+    /// both_are_right` puts 9 of 30 boundary cases a full `2π` from
+    /// what the retired seam-anchored longhand picks — close to a coin
+    /// flip, and decided by two unrelated last bits.
+    pub fn param_near(&self, p: Point3<T>, near: T) -> Option<T> {
+        match self {
+            Curve3::Line { origin, dir } => Some((p - *origin).dot(*dir)),
+            Curve3::Circle { center, .. } => {
+                let w = p - *center;
+                let r_near = self.eval(near) - *center;
+                let tau_near = self.deriv(near);
+                Some(near + w.dot(tau_near).atan2(w.dot(r_near)))
+            }
+            Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
         }
     }
 }
@@ -532,7 +668,7 @@ mod tests {
             seed in prop_oneof![-100.0..-0.01f64, 0.01..100.0f64],
         ) {
             let c = tilted_circle();
-            let cd: Curve3<Dual64> = lift_to_dual(&c);
+            let cd: Curve3<Dual64> = c.map_scalar(Dual::constant);
             let p = cd.eval(Dual::new(theta, seed));
             let d = c.deriv(theta);
             // Value channel: bit-identical to the f64 evaluation.
@@ -551,7 +687,7 @@ mod tests {
         #[test]
         fn circle_deriv2_matches_dual_of_deriv(theta in -50.0..50.0f64) {
             let c = tilted_circle();
-            let cd: Curve3<Dual64> = lift_to_dual(&c);
+            let cd: Curve3<Dual64> = c.map_scalar(Dual::constant);
             let d = cd.deriv(Dual::variable(theta));
             let d2 = c.deriv2(theta);
             prop_assert!((d.x.deriv - d2.x).abs() <= 1e-12);
@@ -567,7 +703,7 @@ mod tests {
                 origin: Point3::new(1.0, -2.0, 0.5),
                 dir: Vec3::new(3.0 / 13.0, 4.0 / 13.0, 12.0 / 13.0),
             };
-            let ld: Curve3<Dual64> = lift_to_dual(&line);
+            let ld: Curve3<Dual64> = line.map_scalar(Dual::constant);
             let p = ld.eval(Dual::variable(t));
             let d = line.deriv(t);
             prop_assert_eq!(p.x.deriv.to_bits(), d.x.to_bits());
@@ -740,7 +876,7 @@ mod tests {
         #[test]
         fn ellipse_derivs_match_duals(theta in -50.0..50.0f64) {
             let e = tilted_ellipse();
-            let ed: Curve3<Dual64> = lift_to_dual(&e);
+            let ed: Curve3<Dual64> = e.map_scalar(Dual::constant);
             let p = ed.eval(Dual::variable(theta));
             let pf = e.eval(theta);
             prop_assert_eq!(p.x.value.to_bits(), pf.x.to_bits());
@@ -783,7 +919,7 @@ mod tests {
         #[test]
         fn ellipse_residuals_enclose_zero() {
             let e = super::tilted_ellipse();
-            let ei = super::interval::lift(&e);
+            let ei = e.map_scalar(geom_core::Interval::from_f64);
             let Curve3::Ellipse {
                 center,
                 axis,
@@ -813,42 +949,6 @@ mod tests {
         }
     }
 
-    /// Lifts an f64 curve to `Curve3<Dual64>` with constant (∂/∂θ = 0)
-    /// geometry — only the evaluation parameter is the variable.
-    fn lift_to_dual(c: &Curve3<f64>) -> Curve3<Dual64> {
-        match *c {
-            Curve3::Line { origin, dir } => Curve3::Line {
-                origin: crate::scalar_lift::dual_point(origin),
-                dir: crate::scalar_lift::dual_vec(dir),
-            },
-            Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => Curve3::Circle {
-                center: crate::scalar_lift::dual_point(center),
-                axis: crate::scalar_lift::dual_vec(axis),
-                radius: Dual::constant(radius),
-                u_ref: crate::scalar_lift::dual_vec(u_ref),
-            },
-            Curve3::Ellipse {
-                center,
-                axis,
-                major,
-                minor,
-                u_ref,
-            } => Curve3::Ellipse {
-                center: crate::scalar_lift::dual_point(center),
-                axis: crate::scalar_lift::dual_vec(axis),
-                major: Dual::constant(major),
-                minor: Dual::constant(minor),
-                u_ref: crate::scalar_lift::dual_vec(u_ref),
-            },
-            Curve3::Nurbs(_) => Curve3::nurbs_placeholder(),
-        }
-    }
-
     // ------------------------------------------------------------------
     // Totality and poison
     // ------------------------------------------------------------------
@@ -864,6 +964,173 @@ mod tests {
         assert!(d2.x.is_nan() && d2.y.is_nan() && d2.z.is_nan());
     }
 
+    /// A described NURBS fixture: the rational quadratic quarter circle
+    /// of radius 2 about the origin in the xy-plane (weights
+    /// `[1, √2/2, 1]`), so the payload is rational and non-trivial.
+    fn quarter_circle_nurbs() -> Curve3<f64> {
+        let knots =
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let control = vec![
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(2.0, 2.0, 0.0),
+            Point3::new(0.0, 2.0, 0.0),
+        ];
+        let weights = vec![1.0, core::f64::consts::FRAC_1_SQRT_2, 1.0];
+        Curve3::Nurbs(Arc::new(NurbsCurve3::new(knots, control, weights).unwrap()))
+    }
+
+    /// A described NURBS lifts as its PAYLOAD, never as the placeholder:
+    /// the lifted curve's value channel is the source's evaluation bit
+    /// for bit, and its tangent channel is the source's closed-form
+    /// derivative to rounding.
+    #[test]
+    fn described_nurbs_lifts_as_its_payload_at_dual() {
+        let c = quarter_circle_nurbs();
+        let cd: Curve3<Dual64> = c.map_scalar(Dual::constant);
+        for t in [0.0, 0.3, 0.5, 0.75, 1.0] {
+            let p = cd.eval(Dual::variable(t));
+            let q = c.eval(t);
+            let d = c.deriv(t);
+            for (name, lifted, source, tangent) in [
+                ("x", p.x, q.x, d.x),
+                ("y", p.y, q.y, d.y),
+                ("z", p.z, q.z, d.z),
+            ] {
+                assert_eq!(
+                    lifted.value.to_bits(),
+                    source.to_bits(),
+                    "t = {t}: lifted {name} = {} vs source {source}",
+                    lifted.value
+                );
+                assert!(
+                    (lifted.deriv - tangent).abs() <= 1e-12 * (1.0 + tangent.abs()),
+                    "t = {t}: lifted d{name} = {} vs source {tangent}",
+                    lifted.deriv
+                );
+            }
+        }
+        assert!(
+            matches!(&cd, Curve3::Nurbs(n) if !n.is_placeholder()),
+            "a described NURBS lifted to the placeholder"
+        );
+    }
+
+    /// A described NURBS with the structure the quarter circle lacks:
+    /// degree 4, interior knots at multiplicities 1, 2 and 3 (= p − 1),
+    /// weights spanning twelve orders of magnitude.
+    fn knotted_curve() -> Curve3<f64> {
+        let knots = geom_core::spline::KnotVector::clamped(
+            vec![
+                0.0, 0.0, 0.0, 0.0, 0.0, 0.2, 0.5, 0.5, 0.8, 0.8, 0.8, 1.0, 1.0, 1.0, 1.0, 1.0,
+            ],
+            4,
+        )
+        .unwrap();
+        let control: Vec<Point3<f64>> = (0..11)
+            .map(|i| {
+                let x = i as f64;
+                Point3::new(x * 0.5 - 2.0, (x * 0.8).sin() * 1.5, (x * 0.3).cos())
+            })
+            .collect();
+        let weights = vec![1.0, 1e6, 1e-6, 3.0, 2e5, 5e-5, 1.0, 1e4, 1e-4, 7.0, 1.0];
+        Curve3::Nurbs(Arc::new(NurbsCurve3::new(knots, control, weights).unwrap()))
+    }
+
+    /// Every knot value (so every span boundary) and every nonempty
+    /// span's midpoint of a NURBS curve.
+    fn knot_and_span_params(c: &Curve3<f64>) -> Vec<f64> {
+        let Curve3::Nurbs(n) = c else {
+            panic!("fixture is a NURBS");
+        };
+        let knots = n.knots().knots();
+        let mut ps: Vec<f64> = knots.to_vec();
+        ps.extend(
+            knots
+                .windows(2)
+                .filter(|w| w[1] > w[0])
+                .map(|w| 0.5 * (w[0] + w[1])),
+        );
+        ps.sort_by(f64::total_cmp);
+        ps.dedup();
+        ps
+    }
+
+    /// The lift carries the STRUCTURE verbatim — every knot, the degree,
+    /// every weight — and the lifted curve evaluates to the source at
+    /// every knot value, span boundary and span midpoint. A lift that
+    /// perturbs an interior knot or a weight is red here and nowhere in
+    /// the placeholder-vs-payload rows above.
+    #[test]
+    fn knotted_nurbs_lift_carries_structure_verbatim_at_dual() {
+        let c = knotted_curve();
+        let Curve3::Nurbs(source) = &c else {
+            panic!("fixture is a NURBS");
+        };
+        let cd: Curve3<Dual64> = c.map_scalar(Dual::constant);
+        let Curve3::Nurbs(lifted) = &cd else {
+            panic!("a described NURBS lifted to another variant");
+        };
+        assert_eq!(
+            lifted.knots(),
+            source.knots(),
+            "knots must be carried verbatim"
+        );
+        assert_eq!(
+            lifted.weights(),
+            source.weights(),
+            "weights must be carried verbatim"
+        );
+        for t in knot_and_span_params(&c) {
+            let p = cd.eval(Dual::variable(t));
+            let q = c.eval(t);
+            let d = c.deriv(t);
+            for (name, lifted, source, tangent) in [
+                ("x", p.x, q.x, d.x),
+                ("y", p.y, q.y, d.y),
+                ("z", p.z, q.z, d.z),
+            ] {
+                assert_eq!(
+                    lifted.value.to_bits(),
+                    source.to_bits(),
+                    "t = {t}: lifted {name} = {} vs source {source}",
+                    lifted.value
+                );
+                assert!(
+                    (lifted.deriv - tangent).abs() <= 1e-9 * (1.0 + tangent.abs()),
+                    "t = {t}: lifted d{name} = {} vs source {tangent}",
+                    lifted.deriv
+                );
+            }
+        }
+    }
+
+    /// `ders1_in_span` is `eval_in_span` and `deriv_in_span` bit for
+    /// bit — one order-1 pass answering both — on the knotted fixture
+    /// at every knot value, span boundary and span midpoint.
+    #[test]
+    fn ders1_in_span_is_eval_and_deriv_bit_for_bit() {
+        let c = knotted_curve();
+        let Curve3::Nurbs(n) = &c else {
+            panic!("fixture is a NURBS");
+        };
+        for t in knot_and_span_params(&c) {
+            let span = n.knots().span_at(t);
+            let (p, d) = n.ders1_in_span(span, t);
+            let q = n.eval_in_span(span, t);
+            let e = n.deriv_in_span(span, t);
+            for (name, a, b) in [
+                ("x", p.x, q.x),
+                ("y", p.y, q.y),
+                ("z", p.z, q.z),
+                ("dx", d.x, e.x),
+                ("dy", d.y, e.y),
+                ("dz", d.z, e.z),
+            ] {
+                assert_eq!(a.to_bits(), b.to_bits(), "t = {t}: {name} {a} vs {b}");
+            }
+        }
+    }
+
     #[test]
     fn poison_parameter_poisons_the_point() {
         let c = xy_circle(2.0);
@@ -875,7 +1142,8 @@ mod tests {
             origin: Point3::origin(),
             dir: Vec3::unit_x(),
         };
-        assert!(line.eval(f64::NAN).x.is_nan());
+        let lp = line.eval(f64::NAN);
+        assert!(lp.x.is_nan() && lp.y.is_nan() && lp.z.is_nan());
         // The line's deriv is parameter-independent — NaN t does not
         // poison it (there is nothing to poison: the tangent is data).
         assert_eq!(line.deriv(f64::NAN).x, 1.0);
@@ -891,8 +1159,10 @@ mod tests {
             let _ = c.deriv(t);
             let _ = c.deriv2(t);
         }
-        // ±∞ specifically poisons through sin_cos.
-        assert!(c.eval(f64::INFINITY).x.is_nan());
+        // ±∞ specifically poisons through sin_cos — every channel of
+        // the point, not the first one.
+        let p = c.eval(f64::INFINITY);
+        assert!(p.x.is_nan() && p.y.is_nan() && p.z.is_nan());
     }
 
     // ------------------------------------------------------------------
@@ -905,40 +1175,6 @@ mod tests {
 
         use super::*;
 
-        pub(super) fn lift(c: &Curve3<f64>) -> Curve3<Interval> {
-            match *c {
-                Curve3::Line { origin, dir } => Curve3::Line {
-                    origin: crate::scalar_lift::interval_point(origin),
-                    dir: crate::scalar_lift::interval_vec(dir),
-                },
-                Curve3::Circle {
-                    center,
-                    axis,
-                    radius,
-                    u_ref,
-                } => Curve3::Circle {
-                    center: crate::scalar_lift::interval_point(center),
-                    axis: crate::scalar_lift::interval_vec(axis),
-                    radius: Interval::from_f64(radius),
-                    u_ref: crate::scalar_lift::interval_vec(u_ref),
-                },
-                Curve3::Ellipse {
-                    center,
-                    axis,
-                    major,
-                    minor,
-                    u_ref,
-                } => Curve3::Ellipse {
-                    center: crate::scalar_lift::interval_point(center),
-                    axis: crate::scalar_lift::interval_vec(axis),
-                    major: Interval::from_f64(major),
-                    minor: Interval::from_f64(minor),
-                    u_ref: crate::scalar_lift::interval_vec(u_ref),
-                },
-                Curve3::Nurbs(_) => Curve3::nurbs_placeholder(),
-            }
-        }
-
         fn contains(enclosure: Interval, x: f64) -> bool {
             enclosure.lo() <= x && x <= enclosure.hi()
         }
@@ -950,7 +1186,7 @@ mod tests {
         #[test]
         fn circle_residuals_enclose_zero() {
             let c = super::tilted_circle();
-            let ci = lift(&c);
+            let ci = c.map_scalar(Interval::from_f64);
             let (center, axis, r) = match ci {
                 Curve3::Circle {
                     center,
@@ -986,7 +1222,7 @@ mod tests {
                 origin: Point3::new(1.0, -2.0, 0.5),
                 dir: Vec3::new(3.0 / 13.0, 4.0 / 13.0, 12.0 / 13.0),
             };
-            let li = lift(&line);
+            let li = line.map_scalar(Interval::from_f64);
             for t in [0.0, 1.75, -3.5e2, 1234.5678] {
                 let p = line.eval(t);
                 let pi = li.eval(Interval::from_f64(t));
@@ -1000,7 +1236,7 @@ mod tests {
         /// so the θ-evaluation and the shifted evaluation must overlap.
         #[test]
         fn circle_periodicity_containment_form() {
-            let ci = lift(&super::tilted_circle());
+            let ci = super::tilted_circle().map_scalar(Interval::from_f64);
             let theta = Interval::from_f64(0.7);
             let k = Interval::from_f64(3.0);
             let p = ci.eval(theta);
@@ -1022,11 +1258,90 @@ mod tests {
         /// and the Nurbs placeholder poisons at interval type too.
         #[test]
         fn poison_propagates_at_interval() {
-            let ci = lift(&super::xy_circle(2.0));
+            let ci = super::xy_circle(2.0).map_scalar(Interval::from_f64);
             let p = ci.eval(Interval::from_f64(f64::NAN));
             assert!(p.x.lo().is_nan() && p.y.lo().is_nan() && p.z.lo().is_nan());
             let n: Curve3<Interval> = Curve3::nurbs_placeholder();
-            assert!(n.eval(Interval::zero()).x.lo().is_nan());
+            // All-poison, not first-channel-poison.
+            let q = n.eval(Interval::zero());
+            assert!(q.x.is_poison() && q.y.is_poison() && q.z.is_poison());
+        }
+
+        /// The interval half of the payload-lift row: a described NURBS
+        /// lifts as its payload, and the lifted enclosure brackets the
+        /// source's f64 evaluation at every sampled parameter.
+        #[test]
+        fn described_nurbs_lifts_as_its_payload_at_interval() {
+            let c = super::quarter_circle_nurbs();
+            let ci = c.map_scalar(Interval::from_f64);
+            for t in [0.0, 0.3, 0.5, 0.75, 1.0] {
+                let p = ci.eval(Interval::from_f64(t));
+                let q = c.eval(t);
+                for (name, enclosure, source) in [("x", p.x, q.x), ("y", p.y, q.y), ("z", p.z, q.z)]
+                {
+                    assert!(
+                        contains(enclosure, source),
+                        "t = {t}: lifted {name} = [{}, {}] must contain source {source}",
+                        enclosure.lo(),
+                        enclosure.hi()
+                    );
+                    assert!(
+                        enclosure.hi() - enclosure.lo() < 1e-12,
+                        "t = {t}: {name} too wide"
+                    );
+                }
+            }
+            assert!(
+                matches!(&ci, Curve3::Nurbs(n) if !n.is_placeholder()),
+                "a described NURBS lifted to the placeholder"
+            );
+        }
+
+        /// The interval half of the structure row: knots and weights
+        /// verbatim, and the lifted enclosure brackets the source at
+        /// every knot value, span boundary and span midpoint. The width
+        /// bound is a FIXTURE PIN (this net, these weights), not a
+        /// degradation guard: what it measures is the evaluator's
+        /// cancellation under extreme weights, not any width the lift
+        /// adds (the lift adds none — every bracket is a point).
+        #[test]
+        fn knotted_nurbs_lift_carries_structure_verbatim_at_interval() {
+            let c = super::knotted_curve();
+            let Curve3::Nurbs(source) = &c else {
+                panic!("fixture is a NURBS");
+            };
+            let ci = c.map_scalar(Interval::from_f64);
+            let Curve3::Nurbs(lifted) = &ci else {
+                panic!("a described NURBS lifted to another variant");
+            };
+            assert_eq!(
+                lifted.knots(),
+                source.knots(),
+                "knots must be carried verbatim"
+            );
+            assert_eq!(
+                lifted.weights(),
+                source.weights(),
+                "weights must be carried verbatim"
+            );
+            for t in super::knot_and_span_params(&c) {
+                let p = ci.eval(Interval::from_f64(t));
+                let q = c.eval(t);
+                for (name, enclosure, source) in [("x", p.x, q.x), ("y", p.y, q.y), ("z", p.z, q.z)]
+                {
+                    assert!(
+                        contains(enclosure, source),
+                        "t = {t}: lifted {name} = [{}, {}] must contain source {source}",
+                        enclosure.lo(),
+                        enclosure.hi()
+                    );
+                    assert!(
+                        enclosure.hi() - enclosure.lo() <= 1e-8 * (1.0 + source.abs()),
+                        "t = {t}: {name} width {} (fixture pin)",
+                        enclosure.hi() - enclosure.lo()
+                    );
+                }
+            }
         }
 
         /// `Dual<Interval>` instantiates cleanly and its derivative
@@ -1038,34 +1353,10 @@ mod tests {
             let c = super::tilted_circle();
             // Lift f64 → Interval → Dual<Interval>, constants throughout
             // except the evaluation parameter.
-            let cd: Curve3<DualInterval> = match lift(&c) {
-                Curve3::Circle {
-                    center,
-                    axis,
-                    radius,
-                    u_ref,
-                } => Curve3::Circle {
-                    center: Point3::new(
-                        Dual::constant(center.x),
-                        Dual::constant(center.y),
-                        Dual::constant(center.z),
-                    ),
-                    axis: Vec3::new(
-                        Dual::constant(axis.x),
-                        Dual::constant(axis.y),
-                        Dual::constant(axis.z),
-                    ),
-                    radius: Dual::constant(radius),
-                    u_ref: Vec3::new(
-                        Dual::constant(u_ref.x),
-                        Dual::constant(u_ref.y),
-                        Dual::constant(u_ref.z),
-                    ),
-                },
-                _ => panic!("fixture is a circle"),
-            };
+            let cd: Curve3<DualInterval> =
+                c.map_scalar(Interval::from_f64).map_scalar(Dual::constant);
             let p = cd.eval(Dual::variable(Interval::from_f64(0.7)));
-            let ci = lift(&c);
+            let ci = c.map_scalar(Interval::from_f64);
             let d = ci.deriv(Interval::from_f64(0.7));
             for (dual_ch, closed) in [(p.x.deriv, d.x), (p.y.deriv, d.y), (p.z.deriv, d.z)] {
                 assert!(

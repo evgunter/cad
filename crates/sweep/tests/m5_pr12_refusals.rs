@@ -3,7 +3,7 @@
 //! predicate (§1's D4 ¶1 addendum obligation, on every arm including
 //! the definite ones).
 //!
-//! `FilletCornerUnsupported` has zero constructor surface: neither
+//! `UnsupportedCorner` has zero constructor surface: neither
 //! `RunOutPolicy` variant is ever taken, both are only NAMED, and the
 //! rows below are what keeps that vocabulary from being decorative.
 
@@ -13,11 +13,11 @@ use geom_core::Tol;
 use geom_core::{Band, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::battery::{
-    FilletRequest, chain_g1, convexity_at, corner_config, face_clearance, run_battery,
+use sweep::blend::battery::{
+    BlendRequest, chain_g1, convexity_at, corner_config, face_clearance, run_battery,
     spine_regularity,
 };
-use sweep::fillet::{CornerConfig, FilletError, FilletSite, RunOutPolicy};
+use sweep::blend::{BlendError, BlendSite, CornerConfig, RunOutPolicy};
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceKey, VertexKey};
 
@@ -125,7 +125,7 @@ fn corner_tag_n_edge_vertex_names_stop_at_vertex() {
     let body = boxy();
     let (_, v, _) = keys(&body);
     match corner_config(v, 4, 4, [Vec3::new(0.0, 0.0, 1.0); 3], 0.1, band()) {
-        Err(FilletError::FilletCornerUnsupported {
+        Err(BlendError::UnsupportedCorner {
             corner: CornerConfig::NEdgeVertex { valence },
             policy,
             ..
@@ -150,7 +150,7 @@ fn corner_tag_dependent_normals_refuses_definitely() {
         Vec3::new(1.0, 0.0, 0.0),
     ];
     match corner_config(v, 3, 3, normals, 0.1, band()) {
-        Err(FilletError::FilletCornerUnsupported {
+        Err(BlendError::UnsupportedCorner {
             corner: CornerConfig::DependentNormals,
             policy,
             ..
@@ -172,7 +172,7 @@ fn corner_tag_mixed_convexity_names_feather() {
         Vec3::new(0.0, 0.0, 1.0),
     ];
     match corner_config(v, 3, 1, normals, 0.1, band()) {
-        Err(FilletError::FilletCornerUnsupported {
+        Err(BlendError::UnsupportedCorner {
             corner: CornerConfig::MixedConvexity { convex },
             policy,
             ..
@@ -184,8 +184,40 @@ fn corner_tag_mixed_convexity_names_feather() {
     }
 }
 
+/// **The classifier reads the CORNER, and a uniform trihedron is one
+/// configuration on either side of the material.** It admits both and
+/// refuses only the mixed signs, with no verb anywhere in it — which
+/// is what lets one predicate serve two bands, both of which now
+/// carve both uniform sides (the concave-chamfer and concave-fillet
+/// suites each carve the all-concave corner through their own front
+/// door).
+#[test]
+fn corner_config_admits_either_uniform_trihedron() {
+    let body = boxy();
+    let (_, v, _) = keys(&body);
+    let normals = [
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+    ];
+    for convex in [0, 3] {
+        corner_config(v, 3, convex, normals, 0.1, band())
+            .unwrap_or_else(|e| panic!("a uniform trihedron is a configuration, got {e:?}"));
+    }
+    for convex in [1, 2] {
+        match corner_config(v, 3, convex, normals, 0.1, band()) {
+            Err(BlendError::UnsupportedCorner {
+                corner: CornerConfig::MixedConvexity { convex: got },
+                ..
+            }) => assert_eq!(got, convex),
+            other => panic!("a mixed trihedron is out of scope for every band, got {other:?}"),
+        }
+    }
+}
+
 /// The three-convex-edge trihedron with independent normals is the
-/// ONE configuration that passes — the tag that is not a refusal.
+/// ONE configuration that passes for BOTH verbs — the convex tag that
+/// is not a refusal.
 #[test]
 fn corner_tag_three_convex_edges_is_the_one_that_passes() {
     let body = boxy();
@@ -198,7 +230,7 @@ fn corner_tag_three_convex_edges_is_the_one_that_passes() {
     corner_config(v, 3, 3, normals, 0.1, band()).expect("the octant corner is in scope");
     assert_eq!(
         format!("{}", CornerConfig::ThreeConvexEdges),
-        "three convex edges (the sphere-octant corner)"
+        "three convex edges (the built corner configuration)"
     );
 }
 
@@ -226,13 +258,13 @@ fn a_same_surface_smooth_split_refuses_with_a_zero_wedge() {
         })
         .map(|(k, _)| k)
         .expect("a wall-to-wall seam on one cylinder");
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &body,
         edges: vec![wall_edge],
-        radius: 0.05,
+        size: 0.05,
     };
     match run_battery(&req, band()) {
-        Err(FilletError::TangentialEdge { margin, .. }) => {
+        Err(BlendError::TangentialEdge { margin, .. }) => {
             assert_eq!(margin, 0.0, "a smooth split has an exactly-zero wedge");
         }
         other => panic!("expected a zero-wedge refusal, got {other:?}"),
@@ -266,12 +298,12 @@ fn corner_tag_indeterminate_is_reached_at_a_curved_neighbour() {
         .map(|(k, _)| k);
     let mut saw = false;
     for (k, _) in body.edges() {
-        let req = FilletRequest {
+        let req = BlendRequest {
             body: &body,
             edges: vec![k],
-            radius: 0.05,
+            size: 0.05,
         };
-        if let Err(FilletError::FilletCornerUnsupported {
+        if let Err(BlendError::UnsupportedCorner {
             corner: CornerConfig::Indeterminate,
             policy,
             ..
@@ -312,13 +344,13 @@ fn spine_unsupported_names_the_canal_surface_unit() {
         })
         .map(|(k, _)| k)
         .expect("a plane–torus rim edge");
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &body,
         edges: vec![rim],
-        radius: 0.05,
+        size: 0.05,
     };
     match run_battery(&req, band()) {
-        Err(e @ FilletError::SpineUnsupported { .. }) => {
+        Err(e @ BlendError::SpineUnsupported { .. }) => {
             let text = format!("{e}");
             assert!(
                 text.contains("canal-surface"),
@@ -335,13 +367,13 @@ fn spine_unsupported_names_the_canal_surface_unit() {
 // ONE user situation, so both arms carry the same recourse sentence.
 // ---------------------------------------------------------------------
 
-fn assert_same_recourse(definite: &FilletError, escalated: &FilletError, fragment: &str) {
+fn assert_same_recourse(definite: &BlendError, escalated: &BlendError, fragment: &str) {
     let d = format!("{definite}");
     let e = format!("{escalated}");
     assert!(d.contains(fragment), "definite arm lost its recourse: {d}");
     assert!(e.contains(fragment), "escalated arm lost its recourse: {e}");
     assert!(
-        matches!(escalated, FilletError::Escalated { .. }),
+        matches!(escalated, BlendError::Escalated { .. }),
         "the in-band row must escalate, not classify"
     );
 }
@@ -353,7 +385,7 @@ fn trio_spine_regularity() {
     let definite = spine_regularity(2.0, 1.0, b).unwrap_err();
     // Exactly on: r·κ = 1 ⇒ margin exactly 0 — a refusal, not a pass.
     let exact = spine_regularity(1.0, 1.0, b).unwrap_err();
-    assert!(matches!(exact, FilletError::SpineIrregular { .. }));
+    assert!(matches!(exact, BlendError::SpineIrregular { .. }));
     // In band: margin = 5ε.
     let escalated = spine_regularity((1.0 - in_band()) / 1.0, 1.0, b).unwrap_err();
     assert_same_recourse(
@@ -368,13 +400,10 @@ fn trio_face_clearance() {
     let body = boxy();
     let (f, _, _) = keys(&body);
     let b = band();
-    let definite = face_clearance(f, 1.0, 0.8, 0.8, b).unwrap_err();
-    let exact = face_clearance(f, 1.0, 0.5, 0.5, b).unwrap_err();
-    assert!(matches!(
-        exact,
-        FilletError::FaceClearanceUncertified { .. }
-    ));
-    let escalated = face_clearance(f, 1.0, 0.5, 0.5 - in_band(), b).unwrap_err();
+    let definite = face_clearance(f, 1.0, 0.8, 0.8, false, b).unwrap_err();
+    let exact = face_clearance(f, 1.0, 0.5, 0.5, false, b).unwrap_err();
+    assert!(matches!(exact, BlendError::FaceClearanceUncertified { .. }));
+    let escalated = face_clearance(f, 1.0, 0.5, 0.5 - in_band(), false, b).unwrap_err();
     assert_same_recourse(&definite, &escalated, "enlarge the support face");
 }
 
@@ -396,8 +425,8 @@ fn trio_chain_g1() {
     assert_same_recourse(&definite, &escalated, "tangent-continuous chain");
     // The collapsed-arm gate: an arm at zero is not a question.
     match chain_g1(x, y, 0.0, v, b) {
-        Err(FilletError::Escalated {
-            site: FilletSite::Joint { .. },
+        Err(BlendError::Escalated {
+            site: BlendSite::Joint { .. },
             source,
         }) => assert_eq!(source.predicate, Some("fillet3_chain_arm")),
         other => panic!("a collapsed arm must escalate Invalid, got {other:?}"),
@@ -419,7 +448,7 @@ fn trio_convexity_sign() {
         b,
     )
     .expect("a definite box edge");
-    assert_eq!(convex, sweep::fillet::Convexity::Convex);
+    assert_eq!(convex, sweep::blend::Convexity::Convex);
     assert!(
         (m - 1.0).abs() < 1e-12,
         "the 90° box edge margin is the arm"
@@ -433,7 +462,7 @@ fn trio_convexity_sign() {
         b,
     )
     .expect("the mirrored configuration");
-    assert_eq!(concave, sweep::fillet::Convexity::Concave);
+    assert_eq!(concave, sweep::blend::Convexity::Concave);
     // Exactly on: coplanar supports — a tangential edge with no side
     // for the ball to roll on, refused definitely. (The perturbation
     // below turns the normals ABOUT the edge tangent, which is the
@@ -449,7 +478,7 @@ fn trio_convexity_sign() {
     .unwrap_err();
     // Fix pass F6: a tangential edge gets its OWN situation, not a
     // convexity DISAGREEMENT with a chain verdict that was never taken.
-    assert!(matches!(flat, FilletError::TangentialEdge { .. }));
+    assert!(matches!(flat, BlendError::TangentialEdge { .. }));
     assert!(format!("{flat}").contains("no definite wedge side"));
     // In band.
     let escalated = convexity_at(
@@ -461,7 +490,7 @@ fn trio_convexity_sign() {
         b,
     )
     .unwrap_err();
-    assert!(matches!(escalated, FilletError::Escalated { .. }));
+    assert!(matches!(escalated, BlendError::Escalated { .. }));
 }
 
 #[test]
@@ -492,7 +521,7 @@ fn trio_corner_independence() {
     .unwrap_err();
     assert!(matches!(
         exact,
-        FilletError::FilletCornerUnsupported {
+        BlendError::UnsupportedCorner {
             corner: CornerConfig::DependentNormals,
             ..
         }
@@ -512,7 +541,7 @@ fn trio_corner_independence() {
         b,
     );
     match escalated {
-        Err(FilletError::Escalated { source, .. }) => {
+        Err(BlendError::Escalated { source, .. }) => {
             assert_eq!(source.predicate, Some("fillet3_corner_independence"));
         }
         other => panic!("an in-band determinant must escalate, got {other:?}"),
@@ -531,7 +560,7 @@ fn trio_corner_independence() {
 /// this body cannot go red for. **Coverage of the list lives in
 /// `fillet::recourse_tests`'
 /// `every_recourse_sentence_is_rendered_by_some_variant`**, which
-/// renders one value of every `FilletError` variant and requires each
+/// renders one value of every `BlendError` variant and requires each
 /// sentence to appear in some rendering.
 ///
 /// The list below is hand-kept — Rust cannot enumerate a module's
@@ -540,20 +569,20 @@ fn trio_corner_independence() {
 #[test]
 fn every_recourse_sentence_composes_into_a_message() {
     for s in [
-        sweep::fillet::CHAMFER_ARM_RECOURSE,
-        sweep::fillet::FILLET3_RADIUS_RECOURSE,
-        sweep::fillet::FILLET3_CLEARANCE_RECOURSE,
-        sweep::fillet::FILLET3_TANGENTIAL_RECOURSE,
-        sweep::fillet::FILLET3_SPINE_RECOURSE,
-        sweep::fillet::FILLET3_CHAIN_RECOURSE,
-        sweep::fillet::FILLET3_CONVEXITY_RECOURSE,
-        sweep::fillet::FILLET3_CORNER_RECOURSE,
-        sweep::fillet::FILLET3_SEAM_VERTEX_RECOURSE,
-        sweep::fillet::FILLET3_SPINE_KIND_RECOURSE,
-        sweep::fillet::FILLET3_ASSEMBLY_RECOURSE,
-        sweep::fillet::FILLET3_RING_RECOURSE,
-        sweep::fillet::FILLET3_BODY_RECOURSE,
-        sweep::fillet::FILLET3_GEOMETRY_RECOURSE,
+        sweep::blend::CHAMFER_ARM_RECOURSE,
+        sweep::blend::FILLET3_RADIUS_RECOURSE,
+        sweep::blend::FILLET3_CLEARANCE_RECOURSE,
+        sweep::blend::FILLET3_TANGENTIAL_RECOURSE,
+        sweep::blend::FILLET3_SPINE_RECOURSE,
+        sweep::blend::FILLET3_CHAIN_RECOURSE,
+        sweep::blend::FILLET3_CONVEXITY_RECOURSE,
+        sweep::blend::FILLET3_CORNER_RECOURSE,
+        sweep::blend::FILLET3_SEAM_VERTEX_RECOURSE,
+        sweep::blend::FILLET3_SPINE_KIND_RECOURSE,
+        sweep::blend::FILLET3_ASSEMBLY_RECOURSE,
+        sweep::blend::FILLET3_RING_RECOURSE,
+        sweep::blend::FILLET3_BODY_RECOURSE,
+        sweep::blend::FILLET3_GEOMETRY_RECOURSE,
     ] {
         assert!(!s.is_empty(), "a recourse sentence is never empty");
         assert!(

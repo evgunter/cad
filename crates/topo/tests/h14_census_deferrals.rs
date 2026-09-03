@@ -1,4 +1,4 @@
-//! **SMELL-SCAN §H14 — a deferral has to answer the question it defers.**
+//! **A deferral has to answer the question it defers.**
 //!
 //! The census's containment arm (arm 2) reports where one instance
 //! sits relative to another. It used to SKIP any solid pair linked by
@@ -20,7 +20,8 @@
 //! sibling narrowing in arm 1 — a v-on-f deferral that named the other
 //! SOLID where the finding is about the other FACE — needs an
 //! arc-bounded planar face and is pinned in
-//! `sweep/tests/s49_census_jurisdiction.rs` beside §S49's own rows.
+//! `sweep/tests/s49_census_jurisdiction.rs` beside the jurisdiction
+//! rows it belongs with.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod common;
@@ -54,8 +55,8 @@ fn face_verts(body: &Body<f64>, f: FaceKey) -> Vec<(VertexKey, Point3<f64>)> {
             // A lone-vertex loop has no cycle to walk. These fixtures
             // are cubes, which have none; the skip is a shape
             // requirement of the walk, not a judgement that an empty
-            // loop carries nothing — which is the reading §H14's
-            // residue 2 was about.
+            // loop carries nothing, which is the reading that turns a
+            // shape requirement into a silent skip.
             continue;
         };
         for he in body.loop_cycle(first).unwrap() {
@@ -195,7 +196,8 @@ fn an_embedded_instance_is_examined_though_its_contact_is_declared() {
 /// The same fixture UNDECLARED, which is what the arm always did. It
 /// is here so the row above reads as a statement about the deferral
 /// rather than about the fixture: the two verdicts must agree on the
-/// containment question, and before §H14 they did not.
+/// containment question, and before the deferral was removed they did
+/// not.
 #[test]
 fn the_embedded_pair_is_refused_undeclared_too() {
     let (body, _) = embedded();

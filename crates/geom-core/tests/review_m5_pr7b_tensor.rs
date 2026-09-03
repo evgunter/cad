@@ -517,7 +517,6 @@ fn the_missing_center_shift_costs_bound_quality_far_from_origin() {
     }
     let sup_far = sup_of(&s, &p, &c, &[]);
     eprintln!("[review] center-shift cost: sup {sup_near:.3e} near origin, {sup_far:.3e} at 1e6 m");
-    assert!(sup_far >= 0.0 || sup_far.is_nan(), "bound must stay sound");
     assert!(
         sup_far <= 1e-8,
         "center-shift regression: far-origin bound {sup_far:e} left the \

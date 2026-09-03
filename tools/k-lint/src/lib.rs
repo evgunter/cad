@@ -211,6 +211,18 @@
 /// Ratio rules apply only to ambient (ε-scale) bands; the exact
 /// tie-break bands the kernel also records are 5e-324 / 1e-100 —
 /// dozens of decades below any supported ε (1e-6 … 1e-12).
+///
+/// **Not a measurement, and that is why it carries no register**: the
+/// two tie-break figures are values the RECORDER writes for exact
+/// predicates, not readings of a distribution, and the supported ε rows
+/// are the ratified matrix. So this separator sits in a gap between two
+/// things a sweep cannot move, and no re-measurement could shift it.
+/// What COULD falsify it is a change to the kernel's own band
+/// construction putting an exact band above 1e-13 — an edit to
+/// `Band::new`'s callers, not a drift — and nothing here watches for
+/// that: the failure would be silent, an exact row quietly answering to
+/// the ratio rules. That is the residue, stated rather than guarded,
+/// because the guard would have to live in the recorder.
 pub const AMBIENT_BAND_MIN: f64 = 1e-13;
 
 /// "Within 10^2 of the band": the spec's proximity factor (D3).
@@ -220,6 +232,20 @@ pub const PROXIMITY_FACTOR: f64 = 1e2;
 /// docs — the M7 baseline's smallest ε-INDEPENDENT definite margin
 /// 4.7965e-5, P0, rounded down to 4.0e-5 so the baseline itself lints
 /// clean with 16.6% of headroom).
+///
+/// **MEASURED WHEN, AND REFRESHED WHERE — the half a threshold derived
+/// from a distribution owes and this one did not carry.** It was cut
+/// from the M7 sweep committed at `docs/k-report-data/m7-eps-*.csv.gz`,
+/// and the re-derivation is written up in `docs/K-REPORT.md`'s M7
+/// addendum (2026-08-07). NOTHING RE-TAKES IT ON A CADENCE, and the
+/// distinction that matters is which of the two things is watched: CI
+/// re-cuts the SWEEP against this threshold on every run that draws the
+/// `dev-probe` unification and fails on a finding, so a moved
+/// DISTRIBUTION is caught mechanically — but the threshold's own
+/// derivation is refreshed only by a human running that runbook, on a
+/// fired lint. That is why the CLI's recourse leads with re-derivation
+/// and forbids the geometry nudge: the gate can tell you the two have
+/// parted, and it cannot tell you which one moved.
 pub const BASELINE_FLOOR_MARGIN: f64 = 4.0e-5;
 
 /// The ε-coupled families: predicates whose recorded margin is a
@@ -251,6 +277,21 @@ pub const EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
 /// distribution change: it wants re-derivation from a larger
 /// population, not a re-rounding — and never a geometry tweak (the
 /// CLI's recourse (1), `main.rs`).
+///
+/// **MEASURED WHEN, AND REFRESHED WHERE — the same half
+/// [`BASELINE_FLOOR_MARGIN`] carries, and this constant needs it more
+/// rather than less.** Cut from the same M7 sweep, committed at
+/// `docs/k-report-data/m7-eps-*.csv.gz`, with the re-argument in
+/// `docs/K-REPORT.md`'s M7 addendum (2026-08-07) beside its sibling's.
+/// Nothing re-takes it on a cadence: CI re-cuts the SWEEP against this
+/// threshold on every run that draws the `dev-probe` unification, so a
+/// moved distribution reds — but the threshold's own derivation is
+/// refreshed only by a human running that runbook, on a fired row. The
+/// paragraph above is what makes that difference operational: the
+/// sibling's P0 sits behind a ten-decade gap and this one's is the
+/// minimum of 108 draws, so a firing here is likelier to be the
+/// threshold than the distribution, and the runbook rather than this
+/// line is where that gets decided.
 pub const EPS_COUPLED_FLOOR_RATIO: f64 = 1.5e2;
 
 /// Whether `predicate` is one of the [`EPS_COUPLED_PREDICATES`].
@@ -349,6 +390,16 @@ const EXPECTED_HEADER: &str = "shape,predicate,margin,band_zero,band_escalate,ou
 /// thresholds of the `Band` it was classified against, and `Band::new`
 /// refuses a threshold that is not finite and strictly positive — so a
 /// zero or negative band is drift, not a loose band.
+///
+/// **`Band::new`'s third invariant is not one of these**, and cannot be:
+/// `BandError::Empty` is `zero < escalate`, a relation between two
+/// columns that each admit alone. A row inverting them was classified
+/// against a band the recorder could not have built, and rule (2)'s two
+/// arms would then sit on opposite sides of a band that does not exist —
+/// `m < EPS_COUPLED_FLOOR_RATIO * band_zero` for the ε-coupled
+/// predicates and `m < proximity_above_threshold(band_escalate)` for the
+/// rest — making the verdict incoherent rather than wrong in a stated
+/// direction. [`lint_csv`] checks it where the two admissions meet.
 #[derive(Clone, Copy, Debug)]
 enum Admissible {
     /// A classified margin: any FINITE value, of either sign — a margin
@@ -540,6 +591,18 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         let margin = admit(m, 0)?;
         let band_zero = admit(bz, 1)?;
         let band_escalate = admit(be, 2)?;
+        // The band property no per-column policy can state, because it
+        // is a RELATION between two columns that each admit alone.
+        if band_zero >= band_escalate {
+            return Err(ParseError {
+                line: i + 1,
+                text: format!(
+                    "band_zero = {band_zero:e} must be strictly below band_escalate = \
+                     {band_escalate:e} (the ambiguity band is a nonempty open interval; \
+                     sweep drift?): {line}"
+                ),
+            });
+        }
         scanned += 1;
         // Record (once) that rule (2)-above is running capped on this
         // file's ambient rows, so the CLI can say so out loud.
@@ -865,6 +928,51 @@ mod tests {
         let scan = lint_csv(&row("NaN", "1e-9", "1e-8", "invalid")).expect("poison is a reading");
         assert_eq!(scan.scanned, 1);
         assert_eq!(scan.flags[0].reasons, vec![Reason::Invalid]);
+    }
+
+    /// `Band::new`'s third invariant, which the per-column admissions
+    /// structurally cannot carry: each threshold is checked alone and
+    /// the PAIR never was, so an inverted or degenerate band parsed,
+    /// counted in [`Scan::scanned`], and was linted against a band the
+    /// recorder could not have built.
+    #[test]
+    fn an_empty_band_is_harness_breakage_however_admissible_its_columns() {
+        // Both columns are finite and strictly positive on every row
+        // here, so `Admissible::BandThreshold` admits all of them —
+        // which is the point.
+        for (bz, be) in [
+            ("1e-8", "1e-9"),     // inverted
+            ("1e-9", "1e-9"),     // equal: `zero >= escalate` is closed
+            ("1e-323", "5e-324"), // the ambient tie-break band, inverted
+        ] {
+            let e =
+                lint_csv(&row("2e0", bz, be, "positive")).expect_err("an empty band is not a band");
+            assert_eq!(e.line, 2);
+            // The phrase is asserted ACROSS the line continuation the
+            // literal is written over: a wrapped message that loses its
+            // `\` reads back with a run of indentation in the middle,
+            // and half of it still contains "strictly below".
+            assert!(
+                e.text.contains("strictly below band_escalate"),
+                "{}",
+                e.text
+            );
+            assert!(e.text.contains("band_zero"), "{}", e.text);
+        }
+        // A hairline band is REPRESENTABLY empty and mathematically
+        // nonempty, and `Band::new` accepts it — so this lint must too,
+        // or the instrument is stricter than the thing it measures.
+        let t = 1e-9f64;
+        assert!(
+            lint_csv(&row(
+                "2e0",
+                "1e-9",
+                &format!("{:e}", t.next_up()),
+                "positive"
+            ))
+            .is_ok(),
+            "a hairline band is a band"
+        );
     }
 
     /// The refusal names the column and the policy it broke, not just

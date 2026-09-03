@@ -33,6 +33,7 @@ macro_rules! name_free_node {
             | $crate::node::Node::Pattern { .. }
             | $crate::node::Node::PlacedUnion { .. }
             | $crate::node::Node::InstantiatePart { .. }
+            | $crate::node::Node::Assertion { .. }
     };
 }
 
@@ -141,6 +142,46 @@ pub enum StepArg {
 }
 
 impl StepArg {
+    /// A prose label — the one spelling a user-facing rendering uses,
+    /// so a step argument never reaches a reader as `Debug`.
+    ///
+    /// Named by what the argument IS in the verb's vocabulary, as the
+    /// variants are: a coordinate reads as its point plus its axis
+    /// (`centre x`), so a panel can put a 2-D point's two roles beside
+    /// each other and a reader can see that is what they are. The
+    /// arrival-spec twins of a fused step say so rather than carrying a
+    /// bare `2`.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::PointX => "point x",
+            Self::PointY => "point y",
+            Self::TargetX => "target x",
+            Self::TargetY => "target y",
+            Self::ViaX => "via x",
+            Self::ViaY => "via y",
+            Self::CenterX => "centre x",
+            Self::CenterY => "centre y",
+            Self::DirX => "direction x",
+            Self::DirY => "direction y",
+            Self::AngleVal => "angle",
+            Self::TurnVal => "turn",
+            Self::Length => "length",
+            Self::Radius => "radius",
+            Self::Bulge => "bulge",
+            Self::Phase => "phase",
+            Self::CarrierRadius => "carrier radius",
+            Self::SweepVal => "sweep",
+            Self::ArcLenVal => "arc length",
+            Self::Center2X => "arrival centre x",
+            Self::Center2Y => "arrival centre y",
+            Self::Via2X => "arrival via x",
+            Self::Via2Y => "arrival via y",
+            Self::Target2X => "arrival target x",
+            Self::Target2Y => "arrival target y",
+            Self::CarrierRadius2 => "arrival carrier radius",
+        }
+    }
+
     /// The dimension an expression in this role must have (V2's table:
     /// coordinates/lengths/radii Length; angle/turn/phase Angle;
     /// bulge and director components Scalar — ratio only).
@@ -186,10 +227,22 @@ pub enum SlotId {
     Normal(Axis3),
     /// A datum axis's / linear pattern's direction component (Scalar).
     Direction(Axis3),
+    /// A datum frame's first in-plane direction component — sketch +x
+    /// (Scalar).
+    U(Axis3),
+    /// A datum frame's second in-plane direction component — sketch +y
+    /// (Scalar). Orthogonalized against `u` at evaluation.
+    V(Axis3),
     /// An extrude's distance (Length).
     Distance,
     /// A fillet's constant blend radius (Length).
     Radius,
+    /// A chamfer's setback along both supports (Length). Named apart
+    /// from [`SlotId::Radius`] because it is a different quantity: a
+    /// radius is a rolling ball's, a setback is a distance measured
+    /// along each support face from the source edge, and a panel that
+    /// spelled both "radius" would be lying about one of them.
+    ChamferDistance,
     /// A revolve's sweep angle (Angle).
     RevolveAngle,
     /// A transform's translation component (Length).
@@ -232,6 +285,103 @@ pub enum SlotId {
     },
 }
 
+/// A slot family whose members are the three COMPONENTS of one
+/// 3-vector — the vector-valued half of [`SlotId`], named once here so
+/// that a consumer wanting to treat `Origin(X)`, `Origin(Y)` and
+/// `Origin(Z)` as one quantity does not have to re-derive which
+/// variants those are.
+///
+/// **The reason this lives in the node vocabulary and not in a panel.**
+/// "These three slots are one vector" is a fact about the slot
+/// vocabulary (D5), on the same footing as [`SlotId::dimension`] and
+/// [`SlotId::is_structural`]: every component of a family shares a
+/// dimension, and the family is what an editor, a binding, or a
+/// recorded macro means when it says "the origin". A consumer that
+/// matched on `SlotId` itself would answer the question correctly
+/// today and then silently under-cover the next vector slot added; the
+/// exhaustive match in [`SlotId::component`] makes that addition a
+/// compile error instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum VectorSlot {
+    /// A datum's origin / a datum point's position ([`SlotId::Origin`]).
+    Origin,
+    /// A datum plane's normal ([`SlotId::Normal`]).
+    Normal,
+    /// A datum axis's / linear pattern's direction
+    /// ([`SlotId::Direction`]).
+    Direction,
+    /// A datum frame's first in-plane direction ([`SlotId::U`]).
+    U,
+    /// A datum frame's second in-plane direction ([`SlotId::V`]).
+    V,
+    /// A transform's translation ([`SlotId::Translation`]).
+    Translation,
+    /// A transform's rotation axis ([`SlotId::RotationAxis`]).
+    RotationAxis,
+}
+
+impl VectorSlot {
+    /// Every vector family, in no significant order — for a consumer
+    /// enumerating families rather than reading one off a slot.
+    pub const ALL: [VectorSlot; 7] = [
+        VectorSlot::Origin,
+        VectorSlot::Normal,
+        VectorSlot::Direction,
+        VectorSlot::U,
+        VectorSlot::V,
+        VectorSlot::Translation,
+        VectorSlot::RotationAxis,
+    ];
+
+    /// This family's slot for one axis — the inverse of
+    /// [`SlotId::component`], and total.
+    pub fn slot(self, axis: Axis3) -> SlotId {
+        match self {
+            Self::Origin => SlotId::Origin(axis),
+            Self::Normal => SlotId::Normal(axis),
+            Self::Direction => SlotId::Direction(axis),
+            Self::U => SlotId::U(axis),
+            Self::V => SlotId::V(axis),
+            Self::Translation => SlotId::Translation(axis),
+            Self::RotationAxis => SlotId::RotationAxis(axis),
+        }
+    }
+
+    /// All three of this family's slots, component order (x, y, z).
+    pub fn slots(self) -> [SlotId; 3] {
+        Axis3::ALL.map(|axis| self.slot(axis))
+    }
+
+    /// The family as a prose noun — the one spelling a user-facing
+    /// rendering uses.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Origin => "origin",
+            Self::Normal => "normal",
+            Self::Direction => "direction",
+            // The SKETCH's names for them, not the vocabulary's: a
+            // reader picking a frame's axes is thinking in the 2D
+            // coordinates they are about to draw, and "u" alone on a
+            // panel says nothing.
+            Self::U => "x axis",
+            Self::V => "y axis",
+            Self::Translation => "translation",
+            Self::RotationAxis => "rotation axis",
+        }
+    }
+
+    /// The dimension every component of this family carries.
+    ///
+    /// Answered through [`SlotId::dimension`] rather than restated, so
+    /// the family cannot come to disagree with its own slots: the three
+    /// components share a dimension by construction (each family maps
+    /// to one `SlotId` arm, and that arm's dimension does not depend on
+    /// the axis).
+    pub fn dimension(self) -> Dimension {
+        self.slot(Axis3::X).dimension()
+    }
+}
+
 impl SlotId {
     /// The dimension an expression in this slot must have (checked by
     /// `apply` on insert and on every expression edit, spec D6).
@@ -240,9 +390,14 @@ impl SlotId {
             Self::Origin(_)
             | Self::Distance
             | Self::Radius
+            | Self::ChamferDistance
             | Self::Translation(_)
             | Self::Spacing => Dimension::Length,
-            Self::Normal(_) | Self::Direction(_) | Self::RotationAxis(_) => Dimension::Scalar,
+            Self::Normal(_)
+            | Self::Direction(_)
+            | Self::U(_)
+            | Self::V(_)
+            | Self::RotationAxis(_) => Dimension::Scalar,
             Self::RevolveAngle | Self::RotationAngle | Self::Step => Dimension::Angle,
             Self::Count | Self::VDegree | Self::Stations => Dimension::Count,
             // Profile-program roles carry V2's per-role table; none is
@@ -258,6 +413,76 @@ impl SlotId {
     /// structural slots are exactly the Count-dimensioned ones).
     pub fn is_structural(self) -> bool {
         self.dimension() == Dimension::Count
+    }
+
+    /// A prose label — the one spelling a user-facing rendering uses,
+    /// so a slot never reaches a reader as `Debug`.
+    ///
+    /// It exists for the same reason [`Axis3::label`] and
+    /// [`VectorSlot::label`] do, and it is the outermost of the three:
+    /// a component reads as its family plus its axis, and a profile
+    /// slot as its address plus its role. A panel that spelled these
+    /// itself would be a second naming of the vocabulary, drifting from
+    /// it silently.
+    pub fn label(self) -> String {
+        if let Some((family, axis)) = self.component() {
+            return format!("{} {}", family.label(), axis.label());
+        }
+        match self {
+            Self::Distance => "distance".to_owned(),
+            Self::Radius => "radius".to_owned(),
+            Self::ChamferDistance => "chamfer distance".to_owned(),
+            Self::RevolveAngle => "revolve angle".to_owned(),
+            Self::RotationAngle => "rotation angle".to_owned(),
+            Self::Spacing => "spacing".to_owned(),
+            Self::Step => "angular step".to_owned(),
+            Self::Count => "count".to_owned(),
+            Self::VDegree => "v degree".to_owned(),
+            Self::Stations => "stations".to_owned(),
+            Self::Profile { loop_, step, arg } => {
+                format!("loop {loop_} step {step} · {}", arg.label())
+            }
+            // Every component variant answered above.
+            Self::Origin(_)
+            | Self::Normal(_)
+            | Self::Direction(_)
+            | Self::U(_)
+            | Self::V(_)
+            | Self::Translation(_)
+            | Self::RotationAxis(_) => self.component().map_or_else(
+                || String::from("component"),
+                |(family, axis)| format!("{} {}", family.label(), axis.label()),
+            ),
+        }
+    }
+
+    /// The 3-vector family this slot is a component of, and which
+    /// component — `None` for a scalar slot.
+    ///
+    /// The match is EXHAUSTIVE on purpose (see [`VectorSlot`]): a slot
+    /// variant added to this enum has to answer here, so a new vector
+    /// family cannot reach a consumer as three unrelated scalars.
+    pub fn component(self) -> Option<(VectorSlot, Axis3)> {
+        match self {
+            Self::Origin(axis) => Some((VectorSlot::Origin, axis)),
+            Self::Normal(axis) => Some((VectorSlot::Normal, axis)),
+            Self::Direction(axis) => Some((VectorSlot::Direction, axis)),
+            Self::U(axis) => Some((VectorSlot::U, axis)),
+            Self::V(axis) => Some((VectorSlot::V, axis)),
+            Self::Translation(axis) => Some((VectorSlot::Translation, axis)),
+            Self::RotationAxis(axis) => Some((VectorSlot::RotationAxis, axis)),
+            Self::Distance
+            | Self::Radius
+            | Self::ChamferDistance
+            | Self::RevolveAngle
+            | Self::RotationAngle
+            | Self::Spacing
+            | Self::Step
+            | Self::Count
+            | Self::VDegree
+            | Self::Stations
+            | Self::Profile { .. } => None,
+        }
     }
 }
 
@@ -286,6 +511,34 @@ pub enum Datum {
         /// Position components, Length ([`SlotId::Origin`]).
         position: [Expr; 3],
     },
+    /// **An oriented plane**: a plane through `origin` spanned by `u`
+    /// and `v`, with normal u × v — the sketch frame a 2D profile is
+    /// drawn on.
+    ///
+    /// [`Datum::Plane`] is origin plus normal, which pins five of a
+    /// placement's six rigid degrees of freedom. The sixth — the spin
+    /// about the normal — is what a sketch's x and y axes ARE, so a
+    /// plane cannot serve as a sketch frame and a frame is not a
+    /// dressed-up plane: a section cut wants the surface and would
+    /// have to ignore the spin. Both stay, named apart.
+    ///
+    /// `u` and `v` are authored as arbitrary expressions and
+    /// ORTHONORMALIZED at evaluation (PR 2's `wire`), which is also
+    /// where a degenerate or parallel pair refuses loudly. Nothing is
+    /// checked here — this vocabulary carries expression slots, never
+    /// geometry.
+    Frame {
+        /// Origin components, Length ([`SlotId::Origin`]) — sketch
+        /// (0, 0) in world space.
+        origin: [Expr; 3],
+        /// First in-plane direction, sketch +x, Scalar
+        /// ([`SlotId::U`]).
+        u: [Expr; 3],
+        /// Second in-plane direction, sketch +y, Scalar
+        /// ([`SlotId::V`]). Orthogonalized against `u`, so only its
+        /// component perpendicular to `u` is read.
+        v: [Expr; 3],
+    },
 }
 
 /// One declaration crossing a split seam (ASM-4 D-2; ASSEMBLY-DESIGN
@@ -295,8 +548,7 @@ pub enum Datum {
 /// **INHABITED as of ASM-R2b D-4** — the hook ASM-4 named is taken up
 /// by its one intended inhabitant, the crossing MATE EDGE. The
 /// obligation ASM-4 recorded here is discharged with it: the record
-/// now feeds the instantiate node's content key, and the format change
-/// rode a schema-version bump (see [`crate::SCHEMA_VERSION`]'s ledger).
+/// now feeds the instantiate node's content key and is file data.
 ///
 /// An enum with a single variant, not a struct, for the reason ASM-4
 /// gave: a crossing is whatever KIND of edge crossed, and mates are
@@ -390,6 +642,124 @@ pub enum PatternKind {
     /// than reconciled there.
     Explicit(Vec<crate::placement::Frame>),
 }
+
+/// **The `Expr`s a node carries OUTSIDE its slots**, in deterministic
+/// order — `None` for the nodes that carry none, which is every node
+/// but the two the measurement vocabulary adds.
+///
+/// The slot vocabulary is the ordinary home for a node's expressions,
+/// and it stays so: this is the escape hatch for the two expressions
+/// whose dimension a slot ADDRESS cannot fix — a measured
+/// expression's value leaves (they live inside a `MeasureExpr`, not
+/// beside it) and an assertion's bound (its dimension is the measure's).
+///
+/// One order, three consumers: the evaluator resolves these once, the
+/// content key hashes the resolved values, and the op reads the same
+/// vector. `None` rather than an empty vector for a slot-only node —
+/// the key writes nothing at all for those, so no existing document's
+/// content key moves.
+pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
+    match node {
+        Node::Measure { expr, .. } => {
+            let mut leaves = Vec::new();
+            expr.value_leaves(&mut leaves);
+            Some(leaves)
+        }
+        Node::Assertion { bound, .. } => Some(vec![bound]),
+        Node::Datum(_)
+        | Node::Profile(_)
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Split { .. }
+        | Node::Boolean { .. }
+        | Node::Transform { .. }
+        | Node::Pattern { .. }
+        | Node::PlacedUnion { .. }
+        | Node::Declare { .. }
+        | Node::InstantiatePart { .. }
+        | Node::Mate { .. } => None,
+    }
+}
+
+/// **A measured entity reference: a name, and the node to read it at.**
+///
+/// Both halves are load-bearing and they are not the same node.
+/// `name` says WHICH entity (N1: the name embeds the node that minted
+/// it); `at` says which evaluated value to read its carrier out of.
+/// They coincide for a reference to a body's own minting node and
+/// diverge the moment anything places that body — which is the case
+/// this type exists for, because a transform is identity-preserving
+/// and mints no name of its own.
+///
+/// `at` is an ordinary DAG edge ([`Node::inputs`]); `name` resolves
+/// against `at`'s table through the same N5 ladder every other
+/// authored name takes.
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(deny_unknown_fields)]
+pub struct MeasureRef {
+    /// The node whose evaluated value the carrier is read at — the
+    /// PLACED geometry, when that node placed it.
+    pub at: RecipeNodeId,
+    /// The entity's stable name, resolved against `at`'s table.
+    pub name: StableName,
+}
+
+impl MeasureRef {
+    /// A reference read at the node that minted the name — the
+    /// degenerate case, and the honest spelling of "as authored".
+    pub fn at_mint(name: StableName) -> Self {
+        Self {
+            at: name.node,
+            name,
+        }
+    }
+
+    /// A reference read at `at`.
+    pub fn new(at: RecipeNodeId, name: StableName) -> Self {
+        Self { at, name }
+    }
+}
+
+/// What makes a [`Node::Measure`]'s expression unusable
+/// ([`Node::measure_fault`]) — one vocabulary for the construction
+/// door and the load door's re-check.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MeasureNodeFault {
+    /// A primitive addresses a reference the node does not carry. The
+    /// expression indexes `refs` positionally, so an index past its
+    /// end names nothing at all — a corrupt recipe, refused rather
+    /// than resolved to whatever happens to sit at the last position.
+    RefIndexOutOfRange {
+        /// The primitive that reads it.
+        verb: &'static str,
+        /// The out-of-range index.
+        index: u32,
+        /// How many references the node carries.
+        refs: usize,
+    },
+}
+
+// The ONE prose vocabulary for this fault, forwarded by every door
+// that renders it rather than restated.
+impl core::fmt::Display for MeasureNodeFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::RefIndexOutOfRange { verb, index, refs } => write!(
+                f,
+                "`{verb}` reads reference {index}, and the measure carries {refs} — the \
+                 expression indexes the node's reference list, so this names nothing"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for MeasureNodeFault {}
 
 /// What makes a placement-rule node's rule unusable
 /// ([`Node::placement_rule_fault`]) — one vocabulary for the edit
@@ -542,10 +912,10 @@ pub enum Node<P> {
     /// Constant-radius rolling-ball fillets on a SELECTION of
     /// `target`'s edges (M5 PR 12; the selection is M6-5).
     ///
-    /// The op is [`sweep::fillet::build::fillet_edges`] over the
+    /// The op is [`sweep::blend::build::fillet_edges`] over the
     /// resolved selection; anything outside its two assembly front
     /// doors is a typed refusal
-    /// ([`crate::eval::NodeErrorKind::Fillet`]), never a silent
+    /// ([`crate::eval::NodeErrorKind::Blend`]), never a silent
     /// pass-through of the input body.
     ///
     /// # The selection FREEZES (ruled, #217)
@@ -590,6 +960,50 @@ pub enum Node<P> {
         /// The constant blend radius ([`SlotId::Radius`]).
         radius: Expr,
         /// The edges to blend, by stable name — canonical (sorted,
+        /// deduplicated), frozen at authoring time.
+        selection: Vec<StableName>,
+    },
+    /// Equal-setback flat chamfers on a SELECTION of `target`'s edges
+    /// — [`Node::Fillet`]'s twin.
+    ///
+    /// The op is [`sweep::blend::build::chamfer_edges`], which is
+    /// `fillet_edges` modulo the size's meaning: `distance` is the
+    /// SETBACK measured along each support from the source edge, not a
+    /// rolling ball's radius. Everything else this node says is the
+    /// fillet's, and deliberately so — the same two assembly front
+    /// doors, the same typed refusal on anything outside them
+    /// ([`crate::eval::NodeErrorKind::Blend`] carrying
+    /// [`sweep::blend::BlendKind::Chamfer`]), never a silent
+    /// pass-through of the input body.
+    ///
+    /// # The selection FREEZES, and the canonical form
+    ///
+    /// Both exactly as [`Node::Fillet`] states them: a set of stable
+    /// names and nothing else, no "every edge" variant,
+    /// [`crate::DocEdit::Rebind`] the one repair, stored sorted and
+    /// deduplicated by [`Node::chamfer`], and a non-canonical set on
+    /// the wire is a corrupt file. The freeze argument does not depend
+    /// on which blend the surgery performs, so it is not restated
+    /// here — read it there.
+    ///
+    /// # Why this is a separate variant and not a flag on `Fillet`
+    ///
+    /// The two carry different quantities in their size slot
+    /// ([`SlotId::Radius`] vs [`SlotId::ChamferDistance`]), and a
+    /// stored recipe that changed which one a number meant on a
+    /// boolean's value would be a document whose geometry depends on a
+    /// field a reader can miss. Separate variants make the size's
+    /// meaning readable off the node kind, and make the naming
+    /// discrimination structural: the minting node is what tells a
+    /// chamfer's blend from a fillet's at every selector
+    /// (RECIPE-DOORS D3), so the two must be different nodes.
+    Chamfer {
+        /// The body whose edges are chamfered.
+        target: RecipeNodeId,
+        /// The setback along both supports
+        /// ([`SlotId::ChamferDistance`]).
+        distance: Expr,
+        /// The edges to chamfer, by stable name — canonical (sorted,
         /// deduplicated), frozen at authoring time.
         selection: Vec<StableName>,
     },
@@ -759,13 +1173,126 @@ pub enum Node<P> {
         /// clocking (A3's alignment datum).
         alignment: crate::mate::Alignment,
     },
+    /// **A measurement sink** (ERROR-DESIGN E3): one dimension-generic
+    /// node that denotes NO body and evaluates to a typed F1 quantity.
+    ///
+    /// There is one `Measure` variant, not one per measured kind: the
+    /// quantity's dimension rides the EXPRESSION through the existing
+    /// lattice, so `distance` and `angle` are values of one node kind
+    /// rather than a parallel type vocabulary beside F1.
+    ///
+    /// # References
+    ///
+    /// `refs` is the frozen, canonical entity selection — the
+    /// [`Node::Fillet`] `selection` precedent — and the expression
+    /// addresses it by INDEX. Unlike a fillet's selection the order is
+    /// MEANINGFUL (it is argument order: `gap`'s first reference is the
+    /// containing carrier), so the vector is neither sorted nor
+    /// deduplicated; what canonicalization buys elsewhere — bit-equal
+    /// recipes for equal selections — is bought here by the indices
+    /// being part of the expression.
+    ///
+    /// # These name references ARE edges
+    ///
+    /// `Declare` and `Mate` carry names that are not DAG edges (the
+    /// spec D3 carve-out): they pass their names through as data and
+    /// something downstream resolves them. A measure resolves its own,
+    /// against values that must ALREADY EXIST when it runs — so the
+    /// referenced nodes are exactly its data dependencies, and
+    /// [`Node::inputs`] reports them. Nothing else can order the sink
+    /// after the geometry it measures: the schedule is edge-driven, so
+    /// an edgeless measure would be scheduled at level 0 and resolve
+    /// against nothing.
+    ///
+    /// **The consequence, stated because it departs from the
+    /// carve-out**: deleting a referenced node is refused at the
+    /// delete door (`DeleteWouldDangle`) exactly as it is for any
+    /// consumer's input, where a `Declare` would have let the delete
+    /// through and stranded the name. N5's dangling semantics still
+    /// govern the case they were written for — a name that stops
+    /// resolving in a still-live node's table, which the typed
+    /// resolution refusal reports and `Rebind` repairs.
+    ///
+    /// # What a reference denotes: the carrier AT a named node
+    ///
+    /// A [`MeasureRef`] is a pair — the entity's [`StableName`], and
+    /// the node its carrier is READ AT. The second half is what makes
+    /// a measure report placed geometry.
+    ///
+    /// A name alone cannot do it. N1 names embed their MINTING node,
+    /// and a rigid transform is identity-preserving: `wire_transform`
+    /// hands the input's table through by `Arc::clone` and contributes
+    /// no RolePath segment, so a transformed wall keeps the upstream
+    /// name and there is no transform-minted name to reference
+    /// instead. Resolving at the minting node therefore measured the
+    /// UNMOVED carrier — a box translated 100 m measured 5 where the
+    /// placed answer is 95, and said `Ok`.
+    ///
+    /// So the reference names the node to read at, exactly as the
+    /// interrogation doors do (`face_frame(ev, node, name)` — this is
+    /// their contract, not a new one). Selecting a wall from a
+    /// transform's own selection door and measuring it gives the
+    /// placed number, because `at` is that transform.
+    Measure {
+        /// The measured expression: `Expr` arithmetic over
+        /// [`crate::MeasurePrimitive`] leaves that index `refs`.
+        expr: crate::measure::MeasureExpr,
+        /// The referenced entities, in argument order, frozen at
+        /// authoring time.
+        refs: Vec<MeasureRef>,
+    },
+    /// **A recorded tolerance requirement** (ERROR-DESIGN E10): design
+    /// intent as document data — "this web is at least 0.5 mm" lives
+    /// in the versioned, diffable recipe, not in a script beside it.
+    ///
+    /// **Report-only, structurally.** The node's value is a verdict
+    /// ([`crate::AssertionVerdict`]) and no op in the vocabulary
+    /// accepts a verdict as an operand, so a `Violated` assertion
+    /// cannot reach any downstream outcome even by mistake: it denotes
+    /// no body, the product gather skips it as it skips a
+    /// declaration, and `build()` never consults it. E10 v1 rules that
+    /// assertions report; a gating mode is additive policy, not a
+    /// default this node quietly implements.
+    Assertion {
+        /// The measure node this constrains — an ordinary DAG edge, so
+        /// a failed or poisoned measure poisons its assertions (F2)
+        /// rather than producing a verdict about nothing.
+        measure: RecipeNodeId,
+        /// The bound. Recipe payload rather than a slot: a slot's
+        /// address fixes its dimension, and this one's is fixed by the
+        /// MEASURE it constrains. It must type-check against that
+        /// measure's dimension; a mismatch is a typed document error at
+        /// every door, never a silent comparison of radians with
+        /// metres.
+        bound: Expr,
+        /// Which side of the bound the measure must fall on.
+        dir: crate::measure::AssertionDir,
+    },
 }
 
 impl Axis3 {
     /// All three axes, component order (x, y, z).
     pub const ALL: [Axis3; 3] = [Axis3::X, Axis3::Y, Axis3::Z];
 
-    fn index(self) -> usize {
+    /// The axis as a one-letter label — the one spelling a user-facing
+    /// rendering uses, so a component never reaches a reader as
+    /// `Debug`.
+    pub fn label(self) -> &'static str {
+        match self {
+            Axis3::X => "x",
+            Axis3::Y => "y",
+            Axis3::Z => "z",
+        }
+    }
+
+    /// This axis's position in [`Axis3::ALL`] — the component order
+    /// every 3-vector in the recipe is stored and shown in.
+    ///
+    /// Public because a consumer laying three components out (the
+    /// property panel's vector row) needs the same order the recipe
+    /// uses, and deriving it by searching `ALL` is both slower and a
+    /// second definition of the same fact.
+    pub const fn index(self) -> usize {
         match self {
             Axis3::X => 0,
             Axis3::Y => 1,
@@ -833,11 +1360,25 @@ impl<P> Node<P> {
             // (A12's reading edges are recomputed, never stored here).
             | Node::Mate { .. }
             | Node::InstantiatePart { .. } => Vec::new(),
+            // A measure's references ARE its data dependencies (the
+            // variant's docs state why this kind departs from the D3
+            // carve-out). The edge is the node each reference is READ
+            // AT, not the one that minted the name — reading is what
+            // the measure must wait for. Distinct and ascending, so
+            // the edge list is a function of the reference SET and two
+            // references at one node do not repeat an edge.
+            Node::Measure { refs, .. } => {
+                let mut v: Vec<RecipeNodeId> = refs.iter().map(|r| r.at).collect();
+                v.sort_unstable();
+                v.dedup();
+                v
+            }
+            Node::Assertion { measure, .. } => vec![*measure],
             Node::Extrude { profile, .. } => vec![*profile],
             Node::Revolve { profile, axis, .. } => vec![*profile, *axis],
             Node::Loft { profiles, .. } => profiles.clone(),
             Node::Sweep { profile, path, .. } => vec![*profile, *path],
-            Node::Fillet { target, .. } => vec![*target],
+            Node::Fillet { target, .. } | Node::Chamfer { target, .. } => vec![*target],
             Node::Split { target, tool } => vec![*target, *tool],
             Node::Boolean { a, b, declare, .. } => {
                 let mut v = vec![*a, *b];
@@ -880,6 +1421,12 @@ impl<P> Node<P> {
                 s
             }
             Node::Datum(Datum::Point { .. }) => vec3(SlotId::Origin).to_vec(),
+            Node::Datum(Datum::Frame { .. }) => {
+                let mut s = vec3(SlotId::Origin).to_vec();
+                s.extend(vec3(SlotId::U));
+                s.extend(vec3(SlotId::V));
+                s
+            }
             Node::Profile(p) => p.slots(),
             // AQ4: an instance takes no arguments in v1 — the
             // referenced document evaluates at its OWN parameters.
@@ -890,8 +1437,19 @@ impl<P> Node<P> {
             // continuous slot — a mate has no expression to drive.
             | Node::Mate { .. }
             | Node::InstantiatePart { .. } => Vec::new(),
+            // Neither carries a SLOT. A slot's address fixes its
+            // dimension ([`SlotId::dimension`]) — that is the
+            // vocabulary's contract, read by the edit door, the load
+            // re-check and the GUI alike. A measured expression is not
+            // an `Expr` at all, and an assertion's bound takes its
+            // dimension from the MEASURE it constrains, which no slot
+            // address can state. Both are recipe payload instead, fed
+            // to the content key where a fillet's selection is fed and
+            // evaluated in their own stage.
+            Node::Measure { .. } | Node::Assertion { .. } => Vec::new(),
             Node::Extrude { .. } => vec![SlotId::Distance],
             Node::Fillet { .. } => vec![SlotId::Radius],
+            Node::Chamfer { .. } => vec![SlotId::ChamferDistance],
             Node::Revolve { .. } => vec![SlotId::RevolveAngle],
             Node::Loft { .. } => vec![SlotId::VDegree],
             Node::Sweep { .. } => vec![SlotId::Stations, SlotId::VDegree],
@@ -928,6 +1486,7 @@ impl<P> Node<P> {
             (Node::Profile(p), S::Profile { .. }) => p.expr(slot),
             (Node::Datum(Datum::Plane { origin, .. }), S::Origin(ax))
             | (Node::Datum(Datum::Axis { origin, .. }), S::Origin(ax))
+            | (Node::Datum(Datum::Frame { origin, .. }), S::Origin(ax))
             | (Node::Datum(Datum::Point { position: origin }), S::Origin(ax)) => {
                 Some(comp(origin, ax))
             }
@@ -935,8 +1494,11 @@ impl<P> Node<P> {
             (Node::Datum(Datum::Axis { direction, .. }), S::Direction(ax)) => {
                 Some(comp(direction, ax))
             }
+            (Node::Datum(Datum::Frame { u, .. }), S::U(ax)) => Some(comp(u, ax)),
+            (Node::Datum(Datum::Frame { v, .. }), S::V(ax)) => Some(comp(v, ax)),
             (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
             (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
+            (Node::Chamfer { distance, .. }, S::ChamferDistance) => Some(distance),
             (Node::Revolve { angle, .. }, S::RevolveAngle) => Some(angle),
             (Node::Loft { v_degree, .. }, S::VDegree)
             | (Node::Sweep { v_degree, .. }, S::VDegree) => Some(v_degree),
@@ -964,12 +1526,15 @@ impl<P> Node<P> {
                 | Node::Loft { .. }
                 | Node::Sweep { .. }
                 | Node::Fillet { .. }
+                | Node::Chamfer { .. }
                 | Node::Split { .. }
                 | Node::Boolean { .. }
                 | Node::Transform { .. }
                 | Node::Declare { .. }
                 | Node::InstantiatePart { .. }
-                | Node::Mate { .. },
+                | Node::Mate { .. }
+                | Node::Measure { .. }
+                | Node::Assertion { .. },
                 _,
             ) => None,
         }
@@ -986,6 +1551,7 @@ impl<P> Node<P> {
             (Node::Profile(p), S::Profile { .. }) => p.expr_mut(slot),
             (Node::Datum(Datum::Plane { origin, .. }), S::Origin(ax))
             | (Node::Datum(Datum::Axis { origin, .. }), S::Origin(ax))
+            | (Node::Datum(Datum::Frame { origin, .. }), S::Origin(ax))
             | (Node::Datum(Datum::Point { position: origin }), S::Origin(ax)) => {
                 Some(comp_mut(origin, ax))
             }
@@ -993,8 +1559,11 @@ impl<P> Node<P> {
             (Node::Datum(Datum::Axis { direction, .. }), S::Direction(ax)) => {
                 Some(comp_mut(direction, ax))
             }
+            (Node::Datum(Datum::Frame { u, .. }), S::U(ax)) => Some(comp_mut(u, ax)),
+            (Node::Datum(Datum::Frame { v, .. }), S::V(ax)) => Some(comp_mut(v, ax)),
             (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
             (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
+            (Node::Chamfer { distance, .. }, S::ChamferDistance) => Some(distance),
             (Node::Revolve { angle, .. }, S::RevolveAngle) => Some(angle),
             (Node::Loft { v_degree, .. }, S::VDegree)
             | (Node::Sweep { v_degree, .. }, S::VDegree) => Some(v_degree),
@@ -1018,12 +1587,15 @@ impl<P> Node<P> {
                 | Node::Loft { .. }
                 | Node::Sweep { .. }
                 | Node::Fillet { .. }
+                | Node::Chamfer { .. }
                 | Node::Split { .. }
                 | Node::Boolean { .. }
                 | Node::Transform { .. }
                 | Node::Declare { .. }
                 | Node::InstantiatePart { .. }
-                | Node::Mate { .. },
+                | Node::Mate { .. }
+                | Node::Measure { .. }
+                | Node::Assertion { .. },
                 _,
             ) => None,
         }
@@ -1042,10 +1614,15 @@ impl<P> Node<P> {
     pub fn payload_names(&self) -> Vec<&StableName> {
         match self {
             Node::Declare { pairs } => pairs.iter().flat_map(|((a, b), _)| [a, b]).collect(),
-            Node::Fillet { selection, .. } => selection.iter().collect(),
+            Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
+                selection.iter().collect()
+            }
             // A12: a mate's two heads are the instance-qualified
             // references its reading edges are recomputed from.
             Node::Mate { a, b, .. } => vec![a, b],
+            // A measure's references are argument-ORDERED, so they are
+            // listed in that order rather than a canonical one.
+            Node::Measure { refs, .. } => refs.iter().map(|r| &r.name).collect(),
             name_free_node!() => Vec::new(),
         }
     }
@@ -1075,7 +1652,7 @@ impl<P> Node<P> {
                     hits += rewrite(name, from, to);
                 }
             }
-            Node::Fillet { selection, .. } => {
+            Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
                 for name in selection.iter_mut() {
                     hits += rewrite(name, from, to);
                 }
@@ -1087,6 +1664,15 @@ impl<P> Node<P> {
             Node::Mate { a, b, .. } => {
                 hits += rewrite(a, from, to);
                 hits += rewrite(b, from, to);
+            }
+            // No re-canonicalization: the order IS argument order, and
+            // a rebind onto an already-referenced entity must leave two
+            // arguments naming one entity rather than shrink the list
+            // and renumber every index the expression holds.
+            Node::Measure { refs, .. } => {
+                for r in refs.iter_mut() {
+                    hits += rewrite(&mut r.name, from, to);
+                }
             }
             name_free_node!() => {}
         }
@@ -1171,12 +1757,15 @@ impl<P> Node<P> {
             | Node::Loft { .. }
             | Node::Sweep { .. }
             | Node::Fillet { .. }
+            | Node::Chamfer { .. }
             | Node::Split { .. }
             | Node::Boolean { .. }
             | Node::Transform { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }
-            | Node::Mate { .. } => return None,
+            | Node::Mate { .. }
+            | Node::Measure { .. }
+            | Node::Assertion { .. } => return None,
         };
         let Some(frames) = kind.placements() else {
             // A stepped rule needs its count slot and nothing else.
@@ -1225,6 +1814,48 @@ impl<P> Node<P> {
         }
     }
 
+    /// Builds a [`Node::Measure`], checking that every primitive's
+    /// reference index addresses a reference the node actually carries
+    /// — the ONE door, so an expression whose leaf points past the end
+    /// of `refs` is unconstructable rather than an evaluation-time
+    /// surprise. The load door re-runs the same check on file data
+    /// ([`Node::measure_fault`]).
+    pub fn measure(
+        expr: crate::measure::MeasureExpr,
+        refs: Vec<MeasureRef>,
+    ) -> Result<Self, MeasureNodeFault> {
+        let node = Node::Measure { expr, refs };
+        match node.measure_fault() {
+            Some(fault) => Err(fault),
+            None => Ok(node),
+        }
+    }
+
+    /// What is wrong with this node's measured expression, if anything
+    /// — the one answer the construction door and the persistence
+    /// re-check both read, so the two can never disagree about which
+    /// trees are well-formed. `None` for every non-measure node.
+    pub fn measure_fault(&self) -> Option<MeasureNodeFault> {
+        let Node::Measure { expr, refs } = self else {
+            return None;
+        };
+        let mut prims = Vec::new();
+        expr.primitives(&mut prims);
+        let arity = u32::try_from(refs.len()).unwrap_or(u32::MAX);
+        for prim in prims {
+            for index in prim.refs() {
+                if index >= arity {
+                    return Some(MeasureNodeFault::RefIndexOutOfRange {
+                        verb: prim.verb(),
+                        index,
+                        refs: refs.len(),
+                    });
+                }
+            }
+        }
+        None
+    }
+
     /// Builds a [`Node::Fillet`] with a CANONICAL selection (sorted,
     /// deduplicated) — the one construction door, so a recipe's bits
     /// do not depend on the order a user clicked in.
@@ -1235,6 +1866,21 @@ impl<P> Node<P> {
         Node::Fillet {
             target,
             radius,
+            selection,
+        }
+    }
+
+    /// Builds a [`Node::Chamfer`] with a CANONICAL selection (sorted,
+    /// deduplicated) — the one construction door, for the reason
+    /// [`Node::fillet`] is: a recipe's bits must not depend on the
+    /// order a user clicked in.
+    pub fn chamfer(target: RecipeNodeId, distance: Expr, selection: Vec<StableName>) -> Self {
+        let mut selection = selection;
+        selection.sort();
+        selection.dedup();
+        Node::Chamfer {
+            target,
+            distance,
             selection,
         }
     }
@@ -1252,6 +1898,30 @@ impl<P: PartialEq> Node<P> {
         P: crate::ProfilePayload,
     {
         if self != other {
+            return false;
+        }
+        // The expressions no slot addresses ([`payload_exprs`]) are
+        // invisible to the slot walk below, so they are compared here:
+        // otherwise a `0.0` and a `-0.0` assertion bound would be one
+        // node to every D7 comparator. Equal payloads carry the same
+        // payload expressions in the same order (`self != other` has
+        // already returned), so the two vectors align.
+        match (payload_exprs(self), payload_exprs(other)) {
+            (Some(a), Some(b)) => {
+                if a.len() != b.len() || !a.iter().zip(&b).all(|(x, y)| x.bit_eq(y)) {
+                    return false;
+                }
+            }
+            (None, None) => {}
+            _ => return false,
+        }
+        // A measured expression's own literals live inside the
+        // `MeasureExpr`, which `payload_exprs` reaches only the value
+        // leaves of — the primitives and the tree shape are compared by
+        // `PartialEq` above, and the leaves' bits here.
+        if let (Node::Measure { expr: a, .. }, Node::Measure { expr: b, .. }) = (self, other)
+            && !a.bit_eq(b)
+        {
             return false;
         }
         // Equal payloads have identical slot sets; compare each

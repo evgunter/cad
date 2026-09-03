@@ -1,8 +1,8 @@
 # LIBRARY-DESIGN: the usable-as-a-library program
 
 Status: **RATIFIED** (design conversation opened 2026-08-06 at
-Evan's request; first-round rulings in-chat the same day, recorded
-at §L7; Evan's sign-off 2026-08-06 in-chat, merged as PR #229).
+Ev's request; first-round rulings in-chat the same day, recorded
+at §L7; Ev's sign-off 2026-08-06 in-chat, merged as PR #229).
 Recorded open residue: LQ7's tail (wheel cadence, post-release
 schema/package version coupling — deferred to implementation
 time). LQ3 was ratified 2026-08-10 (#362) — see its entry in §L7. This doc turns DESIGN.md's
@@ -23,9 +23,10 @@ LQ3(c)'s frame family landed while LQ3(a)'s open-chain path
 vocabulary and the `wire_sweep`/`Node::Tube` discharge stay the
 named design conversation. The live residuals are the register at
 the tail of `docs/LIB-LOG.md`, whose largest standing item is the
-assembly surface: authorable through the façade, still entirely
-unbound in `pncad-py` (`evaluate` takes no resolver, so an
-`InstantiatePart` node cannot evaluate from Python at all).
+assembly surface: authorable through the façade, still unbound in
+`pncad-py` for AUTHORING — the seam it is reached through is bound
+(LIB-G18a: `evaluate(doc, resolver=store)`, so an assembly document
+loaded from a workspace evaluates), and no door that WRITES one is.
 What follows is the program's design, not its status.
 
 ## L1. What "usable as a library" means
@@ -104,7 +105,7 @@ literally:
 
 **The load-bearing consequence**: for parametric value to reach
 Python, the document layer must stop being opaque to sketch
-geometry. **Ruled (Evan, LQ4): the v2 switch is pulled to the FRONT
+geometry. **Ruled (Ev, LQ4): the v2 switch is pulled to the FRONT
 of the program** — Python never ships the opaque-profile
 intermediate state. The front-loaded arc, still two sequenced
 steps:
@@ -130,7 +131,7 @@ already-known shapes, not research.
 
 ## L4. The Python type story
 
-Two-layer checking, per Evan's directive (in-chat, 2026-08-06):
+Two-layer checking, per Ev's directive (in-chat, 2026-08-06):
 **static checking via `ty`, runtime checking at the user-input
 boundary only.**
 
@@ -175,7 +176,7 @@ boundary only.**
   lowering verifies against. Kills the profile-level re-typing
   class at the profile level — transcribed 16-digit coordinates
   that must value-match; makes corner/anchor work structural.
-- **U3 — profile-vocabulary unification.** RULED (Evan, LQ2):
+- **U3 — profile-vocabulary unification.** RULED (Ev, LQ2):
   retiring `SectionSegments` as an authoring surface IS the goal —
   one profile vocabulary, so U2's algebra serves all four body ops;
   loft/sweep sections move to the `ProfileLoop` form (or the v2
@@ -250,14 +251,14 @@ bindings crate).
   GQ1 audit note generalizes: anything that runs inside evaluation
   satisfies bit-identity).
 
-## L7. Questions — rulings (Evan, in-chat, 2026-08-06) and what stays open
+## L7. Questions — rulings (Ev, in-chat, 2026-08-06) and what stays open
 
 - **LQ1 — the façade's name: RULED.** The façade crate carries the
   eventual project name — one name for the project and its entry
   crate (Q9 decides the name itself; placeholder until then, per
   the standing Q9 posture).
 - **LQ2 — U3's shape: RULED in direction.** Retiring
-  `SectionSegments` as an authoring surface is the goal — Evan's
+  `SectionSegments` as an authoring surface is the goal — Ev's
   framing: that retirement is what the PATHS program is FOR at the
   loft/sweep seam. The internal-form residue question goes to U3's
   measured spec (see U3).
@@ -266,7 +267,7 @@ bindings crate).
   vocabulary vs both, and where the pose/point-at/mirror family
   lives.
 
-  **RATIFIED (Evan 👍 on #362's sign-off comment,
+  **RATIFIED (Ev 👍 on #362's sign-off comment,
   2026-08-10, with the resonance amendment below folded; M8
   orchestrator's kernel-side concurrence on (b) recorded on the
   thread).** The proposal as ratified: The 2026-08-10 substrate survey pins the walls:
@@ -304,7 +305,7 @@ bindings crate).
   and loft/sweep placements as plain `Affine3` values;
   document-level Expr-ized placement stays deferred (VQ8's pose
   conversation), so no schema change rides this unit.
-  **Amendment (Evan, #362, 2026-08-10): resonance with the PATHS
+  **Amendment (Ev, #362, 2026-08-10): resonance with the PATHS
   placement vocabulary is REQUIRED.** The 2-D algebra already
   has rigid placement and mirroring (`nurbs(curve)` places a
   curve value rigidly; `nurbs_reversed`/`nurbs_mirrored` are the
@@ -314,7 +315,7 @@ bindings crate).
   stated orientation consequence; placement means rigid, no
   scale/deform) so the two surfaces read as one vocabulary;
   outright unification only if it falls out naturally — not
-  worth forcing (Evan's stated guess), and U4's spec must SAY
+  worth forcing (Ev's stated guess), and U4's spec must SAY
   which of the two it did.
 
   Consequence: U4 becomes two dispatchable units (path legs +
@@ -331,7 +332,7 @@ bindings crate).
   the opaque-profile intermediate state.
 - **LQ5 — sequencing: RULED.** Implementation units run IN PARALLEL
   with the kernel milestones where footprints are independent, at
-  Evan's per-unit discretion — this program is not sequenced behind
+  Ev's per-unit discretion — this program is not sequenced behind
   them. (DESIGN.md's roadmap carries the ruling.)
 - **LQ6 — Python surface breadth at v1: RULED —
   documents-from-day-one.** The L3 prerequisite completions are
@@ -347,7 +348,7 @@ bindings crate).
   and whether schema versions couple to package versions
   post-release.
 
-## L8. Second-round rulings (Evan, in-chat, 2026-08-06, at program start)
+## L8. Second-round rulings (Ev, in-chat, 2026-08-06, at program start)
 
 Recorded by the program orchestrator; operational detail in
 `docs/LIB-LOG.md`.

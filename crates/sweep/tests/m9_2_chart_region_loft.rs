@@ -2,20 +2,25 @@
 //!
 //! A described NURBS wall's boundary caches are the exact iso images
 //! (`IsoLine` seams and line rims; `IsoArc` arc rims), so the
-//! chart-region UV extraction reads them structurally — and then the
-//! POSITIVE-AREA claim refuses typed at the arm gate: a NURBS chart
-//! has no exact constant lever arms (`sup` stretch bounds over-state
-//! in the unsafe direction; the `inf`-bounds extension is the named
-//! follow-up). These rows pin exactly that seam: the refusal is
-//! `ArmUnbounded` — extraction PASSED the inventory gate — never
-//! `NonPlanarTrim`, never `MissingCache`, never a silent answer.
+//! chart-region UV extraction reads them structurally — and the
+//! POSITIVE-AREA claim now CERTIFIES on them, metred by the chart's
+//! certified LOWER stretch arms (`chart_stretch_inf`'s
+//! derivative-net reading, skew-discounted). The `sup` bounds are
+//! still the wrong side here and are still not what these rows read.
+//!
+//! These are the extension's acceptance rows and they carry their
+//! digits. What they pin is that a real lofted wall — polynomial and
+//! rational — earns a metre-honest positive answer rather than the
+//! `ArmUnbounded` refusal it used to earn, and that the answer comes
+//! out of the extraction path unchanged: never `NonPlanarTrim`,
+//! never `MissingCache`, never a silent answer.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Vec3};
 use profile::{ProfileLoop, ProfileVertex, RawLoop};
-use topo::{Body, ChartRegionError, FaceKey, Pcurve, chart_region_overlap};
+use topo::{Body, ChartOverlap, FaceKey, Pcurve, chart_region_overlap};
 
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
@@ -66,7 +71,7 @@ fn wall_pcurve_kinds(body: &Body<f64>, face: FaceKey) -> Vec<&'static str> {
 }
 
 #[test]
-fn an_iso_line_wall_extracts_and_refuses_at_the_arm_gate() {
+fn an_iso_line_wall_extracts_and_certifies_positive_area() {
     let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
     let square = || {
         vec![ProfileLoop::new(vec![
@@ -95,15 +100,25 @@ fn an_iso_line_wall_extracts_and_refuses_at_the_arm_gate() {
     );
     // The self-pair is same-chart by construction (one SurfaceKey);
     // extraction reads the IsoLine endpoints structurally; the
-    // POSITIVE claim then refuses at the ARM gate, typed.
+    // POSITIVE claim is then metred by the chart's inf arms.
+    //
+    // The digits, on a `[0, 1]²` chart: `inf |S_u| = 2`,
+    // `inf |S_v| = 2`, `sup |S_u| = 2`, `sup |S_v| = 2√2` (the wall is
+    // BOWED, so the loft direction's stretch varies), and
+    // `inf |S_u × S_v| = 4`. The normalized trace is `1 + 2 = 3` and
+    // the normalized determinant `1`, so `ρ = √(2/(3 + √5)) ≈ 0.618`
+    // and the arms are `≈ (1.236, 1.236)` m per chart unit. The unit
+    // square scales to a 1.236 m square whose mean width `2A/P` is
+    // ≈ 0.618 m — eight orders above this band's 1e-8, so the verdict
+    // is definite rather than an escalation.
     match chart_region_overlap(&body, wall, &body, wall, band()) {
-        Err(ChartRegionError::ArmUnbounded { chart }) => assert_eq!(chart, "NURBS"),
-        other => panic!("a NURBS wall must refuse the area claim at the arm gate, got {other:?}"),
+        Ok(ChartOverlap::PositiveArea) => {}
+        other => panic!("a bowed NURBS wall must certify positive area, got {other:?}"),
     }
 }
 
 #[test]
-fn an_iso_arc_wall_extracts_and_refuses_at_the_arm_gate() {
+fn a_rational_iso_arc_wall_extracts_and_certifies_positive_area() {
     // A square with one bulged (arc) edge: the swept wall over the
     // arc is RATIONAL and its cap rims store `IsoArc` caches (M8-3).
     let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
@@ -131,10 +146,18 @@ fn an_iso_arc_wall_extracts_and_refuses_at_the_arm_gate() {
         .map(|(key, _)| key)
         .find(|&key| wall_pcurve_kinds(&body, key).contains(&"IsoArc"))
         .expect("the bulged edge sweeps to a wall with IsoArc rims");
+    // A RATIONAL chart, so every bracket is taken at its own end: the
+    // infs are DIVIDED by the weight-ratio factor where
+    // `nurbs_stretch_bounds` multiplies by it, and the area element
+    // divides by its square. What survives on this wall is
+    // `inf |S_u| ≈ 1.0488`, `inf |S_v| ≈ 0.5244`, `sup ≈ (5.267,
+    // 1.907)` and `inf |S_u × S_v| ≈ 0.5499`, giving `ρ ≈ 0.1613` and
+    // arms `≈ (0.1692, 0.0846)`. The unit square scales to a
+    // 0.1692 × 0.0846 m rectangle of mean width ≈ 0.0564 m: a much
+    // weaker reading than the polynomial wall's, as the conservative
+    // rational direction should be, and still definite.
     match chart_region_overlap(&body, arc_wall, &body, arc_wall, band()) {
-        Err(ChartRegionError::ArmUnbounded { chart }) => assert_eq!(chart, "NURBS"),
-        other => panic!(
-            "an IsoArc-rimmed wall must refuse the area claim at the arm gate, got {other:?}"
-        ),
+        Ok(ChartOverlap::PositiveArea) => {}
+        other => panic!("a rational NURBS wall must certify positive area, got {other:?}"),
     }
 }

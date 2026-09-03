@@ -148,9 +148,10 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
             panic!("selecting {meridian:?} must refuse");
         };
         match &e.kind {
-            NodeErrorKind::Fillet(sweep::fillet::FilletError::TangentialEdge {
-                margin, ..
-            }) => {
+            NodeErrorKind::Blend {
+                error: sweep::blend::BlendError::TangentialEdge { margin, .. },
+                ..
+            } => {
                 assert_eq!(*margin, 0.0, "a co-surface seam has exactly no wedge");
             }
             other => panic!("expected the battery's TangentialEdge refusal, got {other:?}"),

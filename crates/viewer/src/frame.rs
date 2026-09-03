@@ -63,6 +63,60 @@ pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdat
     }
 }
 
+/// **The status line after a whole FRAME**: what the open tool said
+/// about the frame's picks, composed with what the batch of operations
+/// did.
+///
+/// # Why this composition has to exist
+///
+/// A tool notice and a batch verdict are produced by the SAME frame,
+/// from the SAME ops, and they disagree by construction. A pick the
+/// blend tool declines is still a `Select` that the session performs
+/// cleanly — so [`batch_status`] sees an acting op and no refusal,
+/// answers [`StatusUpdate::Clear`], and wipes the notice that was
+/// written a few lines earlier. The user's mis-aimed click moved the
+/// selection to another body and the sentence explaining why it did
+/// not join the blend was on screen for zero frames.
+///
+/// Every other notice path survived only because nothing else in its
+/// frame acted: a survival drop happens on a document change the user
+/// did not click for. That is luck, not a rule, so the rule is here.
+///
+/// # The ranking
+///
+/// 1. A **refusal** wins, alone. It is the answer to the action the
+///    user asked the DOCUMENT for, and it is the louder of the two.
+/// 2. Else **every notice the frame produced**, in the order they
+///    happened, joined with the separator the preferences path already
+///    joins its startup notices with. Not the last one: assigning
+///    `status` from each in turn keeps the last and loses the rest,
+///    which is the same keep-last defect [`batch_status`] exists to
+///    stop for refusals. Not the first one either — a frame CAN drop
+///    two picks (a seated tool has two seats), and both drops are news.
+/// 3. Else the batch's own verdict — [`StatusUpdate::Clear`] for a
+///    clean acting batch, [`StatusUpdate::Keep`] otherwise.
+///
+/// Joining is a SEPARATOR, not a composed sentence: each notice is
+/// still its own typed value's own rendering, which is what the error
+/// micro-decision asks. Nothing here writes prose about someone else's
+/// failure.
+pub fn frame_status(
+    notices: &[String],
+    ops: &[SessionOp],
+    refusal: Option<&Refusal>,
+) -> StatusUpdate {
+    match batch_status(ops, refusal) {
+        refused @ StatusUpdate::Show(_) => refused,
+        verdict if notices.is_empty() => verdict,
+        _ => StatusUpdate::Show(notices.join(NOTICE_SEPARATOR)),
+    }
+}
+
+/// What several notices in one frame are joined with — one spelling,
+/// shared with the preferences path's startup notices so the status
+/// line reads the same however many things it is carrying.
+pub const NOTICE_SEPARATOR: &str = "; ";
+
 /// The name a refused batch offers to CREATE.
 ///
 /// The parse door's unknown-parameter refusal is deliberate
@@ -142,6 +196,11 @@ impl ChooserBackend {
     }
 }
 
+/// The directory this project keeps user files in.
+const PREFS_DIR: &str = "pncad";
+/// The preferences file's name inside it.
+const PREFS_FILE: &str = "viewer.toml";
+
 /// The chooser verdict as a pure function of the two probe readings,
 /// so the rows exercising it do not depend on the CI box's `PATH`.
 pub fn chooser_backend_of(zenity_on_path: bool, session_bus: bool) -> ChooserBackend {
@@ -155,7 +214,16 @@ pub fn chooser_backend_of(zenity_on_path: bool, session_bus: bool) -> ChooserBac
 /// Probe the environment for a chooser backend. Startup calls this
 /// once; everything downstream reads the stored value.
 pub fn chooser_backend() -> ChooserBackend {
-    if cfg!(target_os = "linux") {
+    if cfg!(target_family = "wasm") {
+        // The browser build links no `rfd` at all (its wasm backend
+        // offers only the async dialog; see `viewer`'s Cargo.toml),
+        // so this is the CONFIDENT arm in the strongest possible
+        // sense: there is not merely no backend, there is no dialog
+        // code. Saying `Absent` is what disables Open…/Save… with
+        // their reason showing, which is #1097's whole lesson — a
+        // door that cannot open must not answer a click with silence.
+        ChooserBackend::Absent
+    } else if cfg!(target_os = "linux") {
         chooser_backend_of(zenity_on_path(), session_bus_hinted())
     } else {
         // Off Linux `rfd` speaks the platform's native dialog API and
@@ -178,6 +246,79 @@ fn zenity_on_path() -> bool {
 /// (never sufficient) condition for the portal chooser.
 fn session_bus_hinted() -> bool {
     std::env::var_os("DBUS_SESSION_BUS_ADDRESS").is_some_and(|address| !address.is_empty())
+}
+
+/// Where this platform keeps the viewer's preferences:
+/// `$XDG_CONFIG_HOME/pncad/viewer.toml`, falling back to
+/// `$HOME/.config` as the XDG base-directory specification says to.
+///
+/// **Here rather than in [`crate::prefs`], because this file is the
+/// viewer's ONE ambient door** — the ruling in
+/// `scripts/gates/no-ambient-env.sh`, which names this module by path
+/// and says so in as many words. `prefs` stays a pure value over a
+/// document and a store; where the document lives is a fact about the
+/// machine, and facts about the machine are observed here beside the
+/// chooser-backend verdict and the WSL probe.
+///
+/// Against that gate's four rows, the same way the entry beside it
+/// argues them. CONTRACT-RATIFIED holds vacuously: a config path is
+/// not a model parameter, and no read here can change what any
+/// document evaluates to. COMMIT-ONCE: read at startup and stored in
+/// the application, never re-read under a running app — a viewer
+/// whose config directory moved mid-session would be stranger than
+/// one that kept writing where it started. REPORTED: the path is
+/// carried in every [`crate::prefs::StoreError`], so a refusal to
+/// save names the file it could not write rather than leaving a
+/// person guessing. RECONCILED: this is a BOOTSTRAP and never the
+/// last word — the actual read or write outcome outranks it, and an
+/// environment that names no config directory yields `None`, which
+/// disables saving with a reason instead of inventing a path.
+///
+/// Resolved by hand rather than through `directories`, whose whole
+/// value is the two platforms this project does not build for.
+///
+/// `None` when neither variable is set, which is a real possibility
+/// in a stripped environment.
+#[must_use]
+pub fn prefs_path() -> Option<std::path::PathBuf> {
+    prefs_path_in(
+        std::env::var_os("XDG_CONFIG_HOME").as_deref(),
+        std::env::var_os("HOME").as_deref(),
+    )
+}
+
+/// The preferences path as a pure function of the two environment
+/// readings, so the XDG rules are asserted on rather than trusted.
+///
+/// Split out for [`chooser_backend_of`]'s reason, and it is the same
+/// reason: the ambient read is one line that cannot be exercised in a
+/// test without mutating the process's environment — which is a
+/// global other tests share — while everything INTERESTING here is
+/// the resolution, and the resolution is a function of two `Option`s.
+///
+/// The rules, from the XDG base-directory specification:
+///
+/// - `config_home` set and non-empty wins.
+/// - **An EMPTY `config_home` counts as unset**, which the spec says
+///   in as many words and which is the case a bare
+///   `unwrap_or_else` fallback gets wrong: it would take `""` as the
+///   base and write to a RELATIVE path, i.e. into whatever directory
+///   the viewer happened to be launched from.
+/// - Otherwise `$HOME/.config`.
+/// - With neither, `None` — no path is invented. The caller's store
+///   is then unusable and says so, which is how a person finds out
+///   their preferences are not being kept rather than wondering
+///   later why nothing was remembered.
+#[must_use]
+pub fn prefs_path_in(
+    config_home: Option<&std::ffi::OsStr>,
+    home: Option<&std::ffi::OsStr>,
+) -> Option<std::path::PathBuf> {
+    let base = match config_home {
+        Some(value) if !value.is_empty() => std::path::PathBuf::from(value),
+        _ => std::path::PathBuf::from(home.filter(|h| !h.is_empty())?).join(".config"),
+    };
+    Some(base.join(PREFS_DIR).join(PREFS_FILE))
 }
 
 /// Whether this process runs inside WSL, read off the environment

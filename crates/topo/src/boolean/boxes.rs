@@ -1415,7 +1415,7 @@ mod tests {
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use geom::Curve3;
     use geom::Surface;
-    use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
     use geom_core::Tol;
     use geom_core::{Point3, Vec3};
 
@@ -1477,7 +1477,7 @@ mod tests {
         let plane = body.add_surface(plane_z0());
         let cyl = body.add_surface(cyl_r(r));
         let arc = EdgeCurveSpec {
-            description: EdgeGeometry::Intersection {
+            description: EdgeDescriptionSpec::Intersection {
                 s1: plane,
                 s2: cyl,
                 witness: on(span * 0.5),
@@ -1651,7 +1651,7 @@ mod tests {
             };
             (
                 EdgeCurveSpec {
-                    description: EdgeGeometry::Intersection {
+                    description: EdgeDescriptionSpec::Intersection {
                         s1: wall,
                         s2: plane,
                         witness: on((u0 + u1) * 0.5, z),
@@ -2186,8 +2186,15 @@ mod tests {
     ///   and the WALL-PAIR gate reads two [`face_box`]es, one per
     ///   operand, on the same rule. **Refuses**: whichever box fails
     ///   to clear turns the pair into `FallbackExtentUnsupported`.
-    /// - `separation.rs` — the placement certificate. **Refuses**:
-    ///   non-overlap IS the grant.
+    /// - `separation.rs` — the two separation certificates, the
+    ///   placement one and the solid-pair one, on one rule.
+    ///   **Refuses**, both of them and for the same reason:
+    ///   non-overlap IS the grant, so a loose box withholds a
+    ///   certificate it should have given and can never manufacture
+    ///   one. The second door added no direction to weigh — it is the
+    ///   first read in the body's own frame instead of through a
+    ///   placement's affine image, which drops the image step and
+    ///   changes nothing about what looseness costs.
     /// - `census.rs` — `reach_box` and `edge_reach`, this module's
     ///   extents entered at the census's own scalar. **Refuses**:
     ///   arm 2 clears only on a definitely negative margin against a
@@ -2227,11 +2234,19 @@ mod tests {
     /// fifth instance gets found by accident.
     #[test]
     fn every_door_that_reads_a_box_is_inventoried() {
+        // `census.rs` counts FIVE, and two of them are not doors:
+        // the adopted CERT-N2 reviewer probes in its test module call
+        // `face_box` to execute what a partially poisoned control net
+        // answers there. The number is stated with that content rather
+        // than filtered, because this pin's protection is that an
+        // occurrence cannot arrive, leave or move unnoticed — which it
+        // still gives — while the module docs' DOOR list above stays a
+        // list of doors and gains nothing from the two.
         const PINNED: [(&str, usize); 4] = [
             ("boolean/ops.rs", 5),
             ("boolean/reduce.rs", 5),
-            ("census.rs", 3),
-            ("separation.rs", 1),
+            ("census.rs", 5),
+            ("separation.rs", 2),
         ];
         const HOME: &str = "boolean/boxes.rs";
         const DOORS: [&str; 4] = ["face_box(", "face_box_rule(", "edge_box(", "edge_box_rule("];

@@ -43,45 +43,27 @@
 //!
 //! # Findings this scene records (the demo-purpose rule)
 //!
-//! 1. **The chamfer is not a recipe node.** `Node::fillet` has no
-//!    chamfer sibling, so a consumer modelling in a document cannot
-//!    ask for this die at all inside the document: the scene has to
-//!    evaluate the shared recipe, take the source body OUT, and do
-//!    the surgery beside it. The result has no node, no stable names
-//!    and no rebuild — `bodies::spacer` recorded the same gap on a
-//!    part with no recipe behind it; this is the same gap costing a
-//!    real model its document.
-//! 2. **There is no CURATED selection→verb door.** `diecomposed` says
-//!    "the twelve box edges" as one call —
-//!    `select_where(CurveKind = Line)` — and hands the answer straight
-//!    to `Node::fillet`. Nothing that short exists for a kernel verb.
-//!    A crossing is possible: `NameTable::lookup` is on the pncad
-//!    surface, it answers an `Entry::Unique(EntityRef)`, and the key
-//!    inside is valid against the very evaluation the names came from
-//!    — which is this scene's situation exactly. What is missing is
-//!    the door, not the reach: the consumer supplies the per-name
-//!    table walk, the `Entry`/`EntityRef` unwrap, the kind check, and
-//!    the discipline that the keys are scoped to THAT body. The shared
-//!    source door here hands back bodies rather than the evaluation
-//!    those names are scoped to, so taking that path would mean
-//!    carrying an `Evaluation` through it for the sake of a crossing
-//!    the library should be making. [`line_edges`] says the same
-//!    selection as a carrier-kind scan instead — which is the
-//!    "hand-rolled loop over a kernel body" the selector vocabulary
-//!    exists to retire, arrived at from the other end.
-//! 3. **`CurveGeom` is not in the prelude**, so that loop names
-//!    `pncad::topo` for the one type it needs to read a carrier's
-//!    kind, while `Curve3` beside it comes from the prelude.
-//! 4. The `Band`-beside-`Tol` argument and the missing whole-body
-//!    edge selector are the same two frictions `bodies::spacer`
-//!    already records; this scene hits both again and does not
-//!    re-litigate them.
+//! 1. **This scene stays kernel-direct, and that is now a CHOICE.**
+//!    `Node::Chamfer` exists (LIB-G16), so the die this scene renders
+//!    is sayable as a document — `select_where(CurveKind = Line)` into
+//!    `Node::chamfer`, the path
+//!    `crates/pncad-py/tests/test_north_star.py::TestDiechamferDie`
+//!    executes. What the scene keeps recording is the KERNEL-direct
+//!    seat: it evaluates the shared recipe, takes the source body OUT,
+//!    and does the surgery beside it, so the result has no node and no
+//!    names. That is the cost of calling the verb next to a document —
+//!    the names, not the selection: [`line_edges`] below says "the
+//!    twelve box edges" through the seat's own doors (the materializer
+//!    filtered by the carrier-kind predicate, the same one
+//!    implementation `select_where` delegates to), so what a document
+//!    buys over a body is the NAMES the answer comes back in, not the
+//!    reach of the question.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pncad::geom_core::{Band, Tol};
-use pncad::prelude::{Curve3, EdgeKey, chamfer_edges, fillet_edges};
-use pncad::topo::{Body, CurveGeom};
+use pncad::geom_core::Tol;
+use pncad::prelude::{CurveKind, CurveKindSet, EdgeKey, chamfer_edges, fillet_edges, query};
+use pncad::topo::Body;
 
 use crate::diefillet::{L, R};
 use crate::{SceneBody, Stop, View};
@@ -90,38 +72,19 @@ use crate::{SceneBody, Stop, View};
 /// radius, so the panels compare verbs rather than parameters.
 const D: f64 = R;
 
-/// The band every blend call wants beside the tolerance it is already
-/// given (the `spacer` finding, hit again).
-fn band(tol: Tol) -> Band {
-    let t = tol.get();
-    Band::new(t.eps, t.k * t.eps).expect("a band from the tolerance")
-}
-
-/// Every edge of a body — "all of them", spelled by enumerating the
-/// arena because the plain-body door has no materializer for it.
-fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges().map(|(k, _)| k).collect()
-}
-
 /// **The twelve box edges of the pipped cube**: the only edges on it
 /// whose carrier is a LINE, since every pip cavity contributes circles
 /// (two rim arcs, two meridian seams).
 ///
-/// This is `select_where(CurveKind = Line)` said again as a loop over
-/// arena keys — see finding 2 in the module docs. The reach is edge →
-/// `CurveKey` → `CurveGeom` → certified `EdgeCurve` → carrier, four
-/// hops of body-scoped keys, and the caller has to know that a
-/// non-certified carrier is scaffolding rather than an answer.
+/// This is `select_where(CurveKind = Line)`'s geometric half, said at
+/// the body seat: the kernel's own materializer filtered by its own
+/// carrier-kind predicate — the same one implementation the document
+/// door delegates to, answering in keys because keys are this seat's
+/// vocabulary.
 fn line_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    body.edges()
-        .filter_map(|(k, _)| {
-            let edge = body.get_edge(k)?;
-            let curve = body.get_curve_geom(edge.curve)?;
-            match curve {
-                CurveGeom::Certified(c) if matches!(c.carrier(), Curve3::Line { .. }) => Some(k),
-                _ => None,
-            }
-        })
+    query::all_edges(body)
+        .into_iter()
+        .filter(|&e| query::edge_carrier_matches(body, e, CurveKindSet::just(CurveKind::Line)))
         .collect()
 }
 
@@ -189,10 +152,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let (cube, pipped) = crate::diefillet::source_bodies(tol);
 
     // ---- the blank, both verbs, at r == d ----
-    let filleted = fillet_edges(&cube, &all_edges(&cube), R, band(tol), tol)
+    let filleted = fillet_edges(&cube, &query::all_edges(&cube), R, tol)
         .expect("a cube's twelve edges fillet")
         .body;
-    let chamfered = chamfer_edges(&cube, &all_edges(&cube), D, band(tol), tol)
+    let chamfered = chamfer_edges(&cube, &query::all_edges(&cube), D, tol)
         .expect("a cube's twelve edges chamfer")
         .body;
     let (bf, be, bv) = (
@@ -228,8 +191,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         12,
         "the only LINES are the twelve box edges"
     );
-    let die = chamfer_edges(&pipped, &box_edges, D, band(tol), tol)
-        .expect("the pipped cube's box edges chamfer");
+    let die =
+        chamfer_edges(&pipped, &box_edges, D, tol).expect("the pipped cube's box edges chamfer");
     assert_eq!(die.blend_faces.len(), 12, "one strip per edge");
     assert_eq!(die.corner_faces.len(), 8, "one patch per corner");
     assert!(
@@ -272,7 +235,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             name: "diechamferblank",
             caption: "the die blank (chamfers)".to_string(),
             // Standalone for the same reason `diefillet`'s blank is
-            // (Evan, #218 follow-up): the partial die reads as a
+            // (Ev, #218 follow-up): the partial die reads as a
             // near-duplicate of the composed one on the sheet. The
             // sheet's chamfer panel is `diechamfer`.
             montage: false,
@@ -317,11 +280,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  box-edge material 6·L·d² − (16/3)·d³ = {:.6} m³: the chamfer never reaches \
                  a pip. The pip rims stay SHARP because the chamfer's v1 door is \
                  plane–plane — a plane–sphere rim refuses ChamferArmUnsupported, where \
-                 `diecomposed`'s second call rolls a torus band into it. Two findings \
-                 recorded at the scene: the verb has no recipe node, so this die has no \
-                 document; and `select_where`'s answer (stable names) cannot be handed to \
-                 `chamfer_edges` (arena keys), so \"the twelve box edges\" is re-said here \
-                 as a hand-rolled carrier-kind loop",
+                 `diecomposed`'s second call rolls a torus band into it. \"The twelve box \
+                 edges\" is said here with the kernel's own carrier-kind selector \
+                 (`query::all_edges` filtered by `query::edge_carrier_matches`), the same \
+                 one implementation `select_where` delegates to. This body has no \
+                 document because the scene calls the verb DIRECTLY; the recipe door \
+                 (`Node::chamfer`, LIB-G16) is what a document-modelling consumer uses",
                 props.volume,
                 src_props.volume,
                 edge_material(L, D)

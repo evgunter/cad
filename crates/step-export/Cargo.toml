@@ -34,10 +34,18 @@ geom = { path = "../geom" }
 topo = { path = "../topo" }
 
 [dev-dependencies]
+# The shared Rust reader for this crate's source-text guards.
+test-utils = { path = "../test-utils" }
 # Building acceptance bodies end-to-end (cube, the M3 pocketed die,
 # boolean-result assemblies) through the public profile/sweep APIs.
 profile = { path = "../profile" }
-sweep = { path = "../sweep" }
+# `test-support` ON: the corpus swept elbow this crate exports is
+# `sweep::test_support`'s rather than a per-crate rebuild of the same
+# six constants. NOT every construction here: `examples/` keeps an
+# independent rebuild on purpose, because its whole question is whether
+# one reaches the committed bytes. Dev-only by construction, so the
+# feature reaches no shipped build of this crate (that module's docs).
+sweep = { path = "../sweep", features = ["test-support"] }
 # Float-printer round-trip property tests.
 proptest = { workspace = true }
 # Parse-back oracles (F6 decision: dev-dependencies ONLY — the writer
