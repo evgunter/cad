@@ -1,13 +1,23 @@
-//! R1 review probes for BOOL-3 (issue 1011, torus half). NOT part of
-//! the shipped tree: these exist to falsify the PR's claims by
-//! execution, against oracles independent of the code under test.
+//! Ray-torus root certification held against oracles that share no
+//! code with it.
 //!
-//! * the CERTIFIED ROOT COUNT, against a geometric root counter that
-//!   never touches the quartic's coefficients (it samples the torus's
-//!   own implicit `F` along the ray and bisects every sign change);
-//! * the `sqrt`-chain CUBE ROOT, against `f64::cbrt`;
-//! * the BIQUADRATIC SIGN, through the same geometric oracle on the
+//! * The CERTIFIED ROOT COUNT and the roots themselves answer to a
+//!   geometric counter that never touches the quartic's coefficients:
+//!   it samples the torus's own implicit `F` along the ray and bisects
+//!   every sign change. Where the two disagree in count, in a root's
+//!   value, or over a miss the oracle can see through, the rows say so
+//!   by pose regime.
+//! * The `sqrt`-chain CUBE ROOT answers to `f64::cbrt` across twelve
+//!   decades either side of 1 and both signs, and its truncation is
+//!   registered as a systematic bias rather than an enclosure — the
+//!   magnitude argument `solid_contain`'s `cbrt` docs rest on.
+//! * The BIQUADRATIC SIGN answers to the same geometric oracle, on the
 //!   rays that reach that arm.
+//!
+//! The independence is the content: an oracle built from the quartic's
+//! own algebra would agree with a wrong certifier. Two rows carry the
+//! count claim between them — a deterministic enumeration of the pose
+//! regimes the geometry names, and a sweep over poses nobody chose.
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
@@ -141,11 +151,16 @@ const SHAPES: [(f64, f64); 5] = [(1.0, 0.3), (1.0, 0.9), (1.0, 0.02), (5.0, 0.1)
 
 /// The running census of one sweep: how the certifier answered, and
 /// every disagreement with the geometric oracle.
+///
+/// `undecided` carries the LABEL of every ray the certifier escalated
+/// or refused rather than a bare count, because the count alone cannot
+/// say which pose class stopped deciding — and that is the question a
+/// shrinking decided-ray floor asks.
 struct Tally {
     checked: usize,
     certified: usize,
     misses: usize,
-    uncertain: usize,
+    undecided: Vec<String>,
     bad: Vec<String>,
 }
 
@@ -155,9 +170,17 @@ impl Tally {
             checked: 0,
             certified: 0,
             misses: 0,
-            uncertain: 0,
+            undecided: Vec::new(),
             bad: Vec::new(),
         }
+    }
+
+    /// Rays the certifier answered outright — a certified root set or a
+    /// miss. Read together with `bad`, which holds every answer the
+    /// oracle contradicted: `bad` empty and `decided` at its floor is
+    /// the pair that says the rows tested something.
+    fn decided(&self) -> usize {
+        self.certified + self.misses
     }
 
     /// One pose against both counters. Every line `bad` collects opens
@@ -201,8 +224,9 @@ impl Tally {
                     ));
                 }
             }
-            Ok(TorusRoots::Uncertain) => self.uncertain += 1,
-            Err(_) => self.uncertain += 1,
+            Ok(TorusRoots::Uncertain) | Err(_) => {
+                self.undecided.push(format!("[{regime}] R={rr} r={r}"));
+            }
         }
     }
 
@@ -213,9 +237,12 @@ impl Tally {
             self.checked,
             self.certified,
             self.misses,
-            self.uncertain,
+            self.undecided.len(),
             self.bad.len()
         );
+        for line in self.undecided.iter().take(25) {
+            println!("  UNDECIDED {line}");
+        }
         for line in self.bad.iter().take(25) {
             println!("  {line}");
         }
@@ -303,11 +330,33 @@ fn regime_poses(rr: f64, r: f64) -> Vec<(&'static str, Point3<f64>, Vec3<f64>)> 
     ]
 }
 
+/// How many of the enumeration's 65 rays the certifier must answer
+/// outright. The table is static, so this is a WITNESS, not a budget,
+/// and it exists because agreement with the oracle is vacuous over rays
+/// that never decided: a certifier that escalated on everything would
+/// satisfy the disagreement assertion perfectly.
+///
+/// The 25 rays that legitimately do not decide are the tangencies —
+/// both equator tangents in each of the two symmetry planes, and the
+/// axis-parallel ray up the hole, which grazes the inner equator — at
+/// all five shapes. A double root inside the band is exactly what the
+/// certifier is supposed to escalate on. Every transverse regime
+/// decides at every shape, which is what this floor holds: 40 rays at
+/// the default ε, 41 at 1e-12 and 38 at 1e-6, so the floor is the
+/// smallest of the three. Lower it only with the regime that stopped
+/// deciding named, and only once escalating there is the right answer.
+const DECIDED_FLOOR: usize = 38;
+
 /// CLAIM 1 + 5 — the certified count and the biquadratic sign, against
 /// the geometric oracle, over the ENUMERATION of pose regimes: for each
 /// of the five torus shapes, every ray configuration the geometry names
 /// (`regime_poses`). Deterministic and exhaustive over that table;
 /// generic poses are the sibling sweep's, not this row's.
+///
+/// Two assertions, labelled: **AGREEMENT**, that no answer contradicts
+/// the oracle, and **DECIDEDNESS**, that the table still drives the
+/// certifier to an answer on at least [`DECIDED_FLOOR`] of its rays.
+/// Neither carries the claim alone.
 #[test]
 fn r1_certified_counts_agree_with_a_geometric_oracle() {
     let mut tally = Tally::new();
@@ -319,8 +368,16 @@ fn r1_certified_counts_agree_with_a_geometric_oracle() {
     tally.report("pose regimes");
     assert!(
         tally.bad.is_empty(),
-        "{} disagreements with the oracle over the pose-regime enumeration",
+        "AGREEMENT: {} disagreements with the oracle over the pose-regime enumeration",
         tally.bad.len()
+    );
+    assert!(
+        tally.decided() >= DECIDED_FLOOR,
+        "DECIDEDNESS: only {} of {} enumerated rays were decided (floor {DECIDED_FLOOR}); \
+         the regimes that escalated or refused are {:?}",
+        tally.decided(),
+        tally.checked,
+        tally.undecided
     );
 }
 
@@ -333,13 +390,17 @@ fn r1_certified_counts_agree_with_a_geometric_oracle() {
 /// count is on the workspace `CAD_FUZZ_EFFORT` dial, shipped at the
 /// smoke level a gated run should cost; `CAD_FUZZ_EFFORT=60` restores
 /// roughly the ray count the fixed lattice used to run.
-///
-/// Specific to `crates/topo/src/boolean/solid_contain.rs` (the
-/// certifier `line_torus_roots` lives there) and to this file.
 #[test]
 fn r1_generic_poses_agree_with_the_geometric_oracle() {
     use test_utils::fuzz;
     let mut rng = fuzz::start("boolean::r1_probes::generic_poses");
+    // This sweep is specific to `crates/topo/src/boolean/solid_contain.rs`
+    // — `line_torus_roots` and the `cbrt` chain it calls live there —
+    // and to this file. It runs UNGATED on every leg: the per-file gate
+    // that would restrict it to diffs touching those paths is specified
+    // in `docs/TCOST-1-SPEC.md` and its marker is not in the tree yet,
+    // so the shipped count is the smoke level that costs a full matrix
+    // acceptably rather than the depth a gated run would buy.
     let per_shape = fuzz::scaled(4);
     let mut tally = Tally::new();
     for (rr, r) in SHAPES {
