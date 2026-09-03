@@ -2,10 +2,13 @@
 id: pncad-py-python-feature-clippy-lane-is-red
 kind: issue
 title: the pncad-py python-feature clippy lane is red on main and no CI row runs it
-status: open
+status: closed
 opened: 2026-09-03
-refs: [LIB-B-RESOLVE]
+refs: [LIB-B-RESOLVE, the-python-feature-half-of-pncad-py-is-linted-by-no-ci-row]
+closed: 2026-09-03
 ---
+
+**Closed 2026-09-03 as a duplicate of `the-python-feature-half-of-pncad-py-is-linted-by-no-ci-row`** — the same measurement and the same line filed twice; the CI-row framing survives and is CIW's, LIB clears the one lint.
 
 Measured at LIB-B-RESOLVE while running the unit's own pre-push checks.
 Not caused by that unit and not fixed by it: the finding is that a lint

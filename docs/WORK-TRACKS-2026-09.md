@@ -38,6 +38,10 @@ A track graduates the way streams did: open `work/<id>/` by hand
 re-parent its items by editing their headers. Nothing here is a
 commitment.
 
+**All eleven graduated on 2026-09-03** (Ev, in-chat); each section
+below carries its opening record, and `work/<id>/plan.md` supersedes it
+as the charter.
+
 ## What changed since the August cut
 
 - **Five programs closed on 2026-08-31** (GUI, GAUTH, S-BLEND, S-QA,
@@ -139,6 +143,8 @@ have targets. Counts are items, with the class tally in brackets.
 
 #### CIW — hosted CI, workflows and scripts (`ciw/`) — 17 items [E 15, D 2]
 
+**GRADUATED (2026-09-03): opened as `work/ciw/`, A/B band 1500–1599.**
+
 The S-QA ground, unowned since 08-31, plus the perf emitters. Territory:
 `.github/workflows/*`, `scripts/*` less Track K's `scripts/gates/*` and
 S-TCOST's three, `local-scripts/*`, `demos/*.sh`, `demos/*.py`,
@@ -182,6 +188,8 @@ current lane finishes is an option, not part of this cut.
 
 #### CHROME — viewer chrome and coverage (`chrome/`) — 10 items [E 10]
 
+**GRADUATED (2026-09-03): opened as `work/chrome/`, A/B band 1600–1699.**
+
 The small viewer fixes and the coverage rows CI cannot see. Territory:
 `crates/viewer/src/*` and `crates/viewer/tests/*` (the tests glob is
 also S-TCOST's and Track W's, by declaration). Nothing else edits the
@@ -208,6 +216,8 @@ Sequencing rule: CHROME lands before VIEW's module split ratifies, or
 its remaining items ride the split.
 
 #### FIX — kernel and façade doors with the fix written (`fix/`) — 15 items [E 14, D 1]
+
+**GRADUATED (2026-09-03): opened as `work/fix/`, A/B band 1700–1799.**
 
 One-PR items whose body already contains the fix, on ground no live
 program is working: the unowned `topo/src` files, `census.rs` and
@@ -251,6 +261,8 @@ Not here, deliberately: `boolean-declarations-has-no-geometric-producer`
 ### Design tracks
 
 #### DOCM — the document model (`docm/`) — 16 items [D 13, E 2, H 1 after ruling]
+
+**GRADUATED (2026-09-03): opened as `work/docm/`, A/B band 1800–1899.**
 
 The editor-core document layer: the persisted recipe vocabulary, the
 `DocEdit` set, document identity, and the frames and selectors the
@@ -323,6 +335,8 @@ or documented roll conventions — a UX call).
 
 #### VIEW — viewer architecture (`view/`) — 7 items [D 5, D→H 1, E 1]
 
+**GRADUATED (2026-09-03): opened as `work/view/`, A/B band 1900–1999; dispatches after CHROME's slate.**
+
 The viewer's structural questions, gated by one conversation. Same
 files as CHROME (`session.rs`, `app.rs`, `pick.rs`, the `*tool.rs`
 modules); disjoint from every program. CHROME's items land first.
@@ -345,6 +359,8 @@ cancel-and-restart; PERF cedes hover-picking to the viewer).
 ### Hard tracks
 
 #### FILLET — blend completion, second pass (`fillet/`) — 11 items [H 4, E 3, D 4]
+
+**GRADUATED (2026-09-03): opened as `work/fillet/`, A/B band 2000–2099.**
 
 S-BLEND's residue. Territory: `crates/sweep/src/blend/*`,
 `sweep/src/{fillet,chamfer,extrude}.rs`, `sweep/tests/blend*`, and
@@ -382,6 +398,8 @@ vs named entity; it lands in `topo/query.rs` or `names/`, which is
 SEAT's — coordinate).
 
 #### EXCH — exchange: STEP and STL (`exch/`) — 8 items [H 3, D 3, E 2]
+
+**GRADUATED (2026-09-03): opened as `work/exch/`, A/B band 2100–2199.**
 
 The I/O crates have had no program since M7 closed on 08-09; Track U
 holds four rows there and LIB holds two duplicates of them. Territory:
@@ -426,6 +444,8 @@ slate with the same list — either is fine; what matters is that the
 items are not swept into `work/issues/` with no owner a second time.
 
 #### CURVED — the curved-operand boolean remainder (`curved/`) — at VERBS' exit — 23 items [H 17, D 5, E 1]
+
+**GRADUATED (2026-09-03): opened as `work/curved/`, A/B band 2200–2299; dispatches at VERBS' exit.**
 
 VERBS' Wave-2 claims that never became units, S-BOOL's ceded ground,
 and S-MATE's kernel residue, as one program. Territory: the
@@ -487,6 +507,8 @@ Lanes, each in its own order:
 
 #### SHELL — shell, offset and transform (`shell/`) — at VERBS' exit — 9 items [H 5, E 2, D 2]
 
+**GRADUATED (2026-09-03): opened as `work/shell/`, A/B band 2300–2399; dispatches at VERBS' exit.**
+
 VERBS' Wave-3 leftovers. Territory: `topo/{shell,replace_face,
 transform}.rs`, `geom-brep/offset*.rs` (VERBS' today; `offset_fit.rs`
 is S-CERT's), `editor-core/clearance.rs` (an M10 deliverable that is in
@@ -507,6 +529,8 @@ with S-CERT) → `tier3-approx-regrid-per-face-cost` stays parked on an
 `Approx`-heavy fixture.
 
 #### PROPS — enclosure certificates and interval honesty (`props/`) — at S-CERT's exit — 20 items [H 11, D 6, E 3]
+
+**GRADUATED (2026-09-03): opened as `work/props/`, A/B band 2400–2499; dispatches at S-CERT's exit.**
 
 Every S-CERT issue is residue: its slate is CERT-M3/N3 then exit, and
 none of the 20 is on a unit. Territory is S-CERT's today
@@ -549,6 +573,8 @@ Not here: `k-report-baseline-fold-cert1-roster` and
 `tess-budget-doc-finding-block-stale` are Track K's and go there.
 
 #### TRIM — the NURBS trim frontier (`trim/`) — at CURVED's rim arms — 5 items [H 4, D 1]
+
+**GRADUATED (2026-09-03): opened as `work/trim/`, A/B band 2500–2599; dispatches when CURVED lands the rim arms.**
 
 PCURVE's P-2 residue, the smallest and most blocked candidate.
 Territory: `geom-brep/{pcurve_cache,nurbs_iso,edge_nurbs}.rs` (Track

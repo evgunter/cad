@@ -644,3 +644,22 @@ workspace, so the root `cargo fmt` reaches neither; the pre-push
 sweep must run CI's own commands in every excluded root. The spec
 leaves `docs/` with this merge. What remains for M10 is the exit
 walk.
+
+## Seam — residue re-homed for the exit (2026-09-03)
+
+Per `work/README.md` (residue is re-homed before the sweep) and the
+2026-09 work-track proposal `docs/WORK-TRACKS-2026-09.md`, every open issue this program held
+moved by header-preserving `git mv` to the track that will carry it —
+ids unchanged, nothing copied:
+
+- `certify-locally-valid-range-instead-of-sampling` → `work/docm/`
+- `signed-penetration-depth` → `work/curved/`
+- `contribution-bounds-via-dual-interval` → `work/props/`
+- `k-stats-escalation-channel-and-redo` → `work/props/`
+- `three-per-node-verdict-shapes` → `work/props/`
+- `certified-lane-non-real-contract-audit` → `work/props/`
+- `clearance-window-tightening-needs-chart-boundary` → `work/trim/`
+
+The directory now holds only its units, its narrative and (for S-MATE)
+the `MATE-EXIT` ruling, so the sweep at ratification leaves nothing
+behind.

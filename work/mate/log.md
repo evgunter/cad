@@ -235,3 +235,28 @@ directory's item files and in `work/STATUS.md`; this log stays the
 narrative. The unit slate is complete (nine merged); the one item created
 at migration is MATE-EXIT (ruling, open) — the exit walk's ratification,
 which closes the program when Ev signs it off.
+
+## Seam — residue re-homed for the exit (2026-09-03)
+
+Per `work/README.md` (residue is re-homed before the sweep) and the
+2026-09 work-track proposal `docs/WORK-TRACKS-2026-09.md`, every open issue this program held
+moved by header-preserving `git mv` to the track that will carry it —
+ids unchanged, nothing copied:
+
+- `census-decline-consults-one-face-of-pair` → `work/fix/`
+- `interior-witness-budget-decline-untyped` → `work/fix/`
+- `split-crossings-skip-pattern-mate-ends` → `work/fix/`
+- `mate-clocking-has-no-gui-path` → `work/fix/`
+- `nested-pattern-mate-heads-refuse` → `work/fix/`
+- `instantiation-seam-drops-mate-identity` → `work/docm/`
+- `no-door-mints-mate-frame-from-face` → `work/docm/`
+- `census-at-rest-two-boolean-lane-premises` → `work/curved/`
+- `overlap-lane-boundary-crossing-cuts` → `work/curved/`
+- `dev1-cylinder-sphere-circle-locus-arm` → `work/curved/`
+- `m9-3-semantic-residues` → `work/curved/`
+- `torus-declared-rest-lane-banked` → `work/curved/`
+- `cylindrical-rest-pair-hits-planar-merge` → `work/curved/`
+
+The directory now holds only its units, its narrative and (for S-MATE)
+the `MATE-EXIT` ruling, so the sweep at ratification leaves nothing
+behind.
