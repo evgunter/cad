@@ -3173,3 +3173,27 @@ delivered at the public direct door with a
 red-the-day-props-lands row; work/issues/
 sphere-flux-arm-refuses-partial-bands.md filed. Dual claim to
 main at dispatch; parity per the draw line.
+## Ordinal 114 claimed — 1031B dual (2026-09-03)
+
+1031B delivered with NEITHER STOP firing: the port lands
+(run_term's expression verbatim, two argued divergences — the
+separate bulge pass that makes the Line-only path structurally
+skip the new code, and the closed-cycle chord replacement); the
+cup MERGES ((25,26,48)→(19,24,36), 4 annuli + 2 pole caps + 6
+PeriodClosure skips, tier-3 Ok, roles pinned observably,
+re-posed twin identical); the boolean-after-merge measured at
+the SAME curved-pierce substrate the lily re-measurement
+reached — the register's gate-admission deferral closes by
+citation. Adjudication findings recorded by the lane: the
+spec's 'fourth site' was off by one (three sites, already
+reconciled in-repo — reported not silently fixed); a REAL
+introduced divergence — tier-3 check 6 still skips arc loops,
+so roles are now assigned by a functional the validator cannot
+check (MUT-2: tier-3 GREEN on inverted annulus roles) —
+follow-up declared with schedule; the spec's group-count
+prediction wrong (six not eight — measured, recorded). The unit
+also weathered the account-wide Actions budget wall (11:52–
+15:45 UTC, re-measured on resume rather than assumed) and a
+529 outage death with clean recovery. Dual claim to main at
+dispatch; parity per the draw line (byte 208 ⇒ R1 OPUS + R2
+FABLE).
