@@ -961,7 +961,14 @@ pub fn drive(
 /// every structure decision is re-verified at the lane), sequential
 /// (leaf-level parallelism is the driver's, and nesting a rayon scope
 /// per leaf inside one buys nothing), and no memo.
-fn lane_opts() -> EvalOptions {
+///
+/// **Crate-visible because the clearance engine replays INSIDE a leaf**
+/// ([`crate::clearance`]) and must replay it the way this driver
+/// certified it. Two copies of these options are two lanes: a clearance
+/// query whose lift setting drifted from the driver's would be
+/// certifying a body other than the one the leaf's verdict vector is
+/// about.
+pub(crate) fn lane_opts() -> EvalOptions {
     // `EvalOptions::default()` already mints an epoch; minting a second
     // one to overwrite it burnt a process-global counter per leaf, and
     // a drive is tens of thousands of leaves. The epoch is a
@@ -1110,7 +1117,14 @@ fn classify(
 /// either way there is something narrowing could still resolve. Only an
 /// enclosure strictly between the two thresholds, on one side of zero,
 /// describes a quantity that IS in the band.
-fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
+/// **Crate-visible because the clearance engine's inner subdivision
+/// refuses by the same rule** ([`crate::clearance`]): a cell pair whose
+/// separation margin sits wholly inside the band is terminal for
+/// exactly this reason — interval enclosures shrink monotonically under
+/// subdivision, so a sub-cell's enclosure stays inside the band its
+/// parent's was inside. One home, so the two subdivisions cannot drift
+/// apart on what a sliver is.
+pub(crate) fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
     let MarginDiag::Enclosure { lo, hi } = source.margin else {
         // A point margin (an `f64` lane) or an invalid one says nothing
         // about a box.

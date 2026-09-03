@@ -13,6 +13,7 @@ mod place;
 mod quantity;
 mod readback;
 mod refactor;
+mod resolve;
 mod select;
 mod store;
 mod value;
@@ -536,6 +537,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     select::register(m)?;
     readback::register(m)?;
     pick::register(m)?;
+    resolve::register(m)?;
     store::register(m)?;
     mate::register(m)?;
     assembly::register(m)?;
