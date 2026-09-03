@@ -2600,7 +2600,7 @@ fn block_cell_sums(cuts: &[f64], edges: &[f64]) -> Vec<(f64, f64)> {
             b += 1;
         }
         let h = hi - lo;
-        sums[b].0 += h * h * h;
+        sums[b].0 += h * h.powi(2);
         sums[b].1 += h;
     }
     sums
