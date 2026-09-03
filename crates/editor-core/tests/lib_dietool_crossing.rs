@@ -33,14 +33,15 @@
 //! direction (there the tour authors and the corpus replays; here the
 //! corpus authors and Python must reproduce).
 //!
-//! Two lines are excluded from the Python-side comparison and neither
-//! is model content: the document IDENTITY (answered by the label —
-//! the Python side authors under `Doc("mod")`, the same label
-//! `fixture::Recorder` derives from, so the ids in fact agree and the
-//! exclusion is belt-and-braces) and the snapshot's ONE `"epsilon"`
-//! line, which CI's ε rows sweep by design (`crates/pncad/tests/
-//! all.rs::plate_param_authors_facade_only_and_its_saved_text_is_
-//! pinned` states that disposition; this file inherits it).
+//! ONE line is excluded from either comparison, and it is not model
+//! content: the snapshot's `"epsilon"`, which CI's ε rows sweep by
+//! design (`crates/pncad/tests/all.rs::plate_param_authors_facade_
+//! only_and_its_saved_text_is_pinned` states that disposition; this
+//! file inherits it). Everything else matches whole, the document
+//! IDENTITY included — the Python side authors under `Doc("mod")`,
+//! the label `fixture::Recorder` derives from, so both sides mint
+//! `e55cffc81a5ad8cfe85239d944a3ae95` and the id is a line of the pin
+//! rather than a redaction from it.
 //!
 //! The edit log is saved EMPTY on purpose. `CorpusDoc` carries both a
 //! replayed snapshot and the log that built it, and Python's `Doc` is
