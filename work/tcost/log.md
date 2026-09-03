@@ -1300,3 +1300,61 @@ fixes landed: the census's detection margin (now one tell per
 `all.rs`) stated at the helper, the fourteen doc paragraphs cut to
 pointers, the size figure labelled LOCAL. Binary size at CI's profile
 +0.02 %: the unit buys one home, not bytes, and says so.
+
+## Readout: the 2026-09-03 stretch (22:55 UTC)
+
+What landed today on top of the post-K1 readout (15:47): the two
+remaining kernel units of block TCOST-KB1 and two content units, all
+through their reviews, plus the shard-count question closed on a
+census.
+
+- **TCOST-K2** (ordinal 1401, sample #119): the Bernstein product's
+  structural weight memoized per degree pair — `offset_fit::`
+  −29.7 % / −29.9 % normalised on the two lanes, every coefficient and
+  certificate bit-identical (both reviewers measured it independently
+  over every consumer). The dual found the suite's patch-level blind
+  spot; the fix pass closed it with asymmetric guard rows and a typed
+  table.
+- **TCOST-K3** (ordinal 1402, sample #120): the tier-3 doors return
+  the certificate they computed — the three adopted rows give back
+  −13.4 / −6.7 cpu-s (default / interval lane) at the default ε and
+  nothing at 1e-12 (K1 already took it). The dual found the unit's
+  evidence lane wanting (no hosted run at the ε where the saving
+  lives; a suite that was vacuous at 1e-12 and cost 9.6 cpu-s there);
+  the fix pass bought the evidence hosted at both ε on both lanes with
+  a post-K1 merge-base probe and gated a cheaper suite. The
+  unilateral-instrument candidate was tallied for R2 at merge.
+- **TCOST-10 / TCOST-11**: one home each for the blend suite's
+  fixtures and oracles and for the aggregation guard (−891 lines of
+  test source); no execution win claimed by either, none expected.
+- **Shard count**: stay at N=2; legs are under a minute; the runner
+  presents ~4 vCPUs now.
+
+Where the suite stands (hosted, code-tier, both lanes, the runs of
+record 33803928081 / 33802978677): test legs 46–74 s wall against the
+program's opening picture of 250–430 s; the longest test 30 s at the
+default ε (was 296 s); the per-file gate skipping 33–54 suites on
+closure-tier diffs; the build's rust-cache restore a full-match hit on
+every PR run after a push to main (271 / 325 s against 820 / 840 s
+cold); −5 billed minutes per code-tier run from the CI-posture units.
+`main` is red at the code tier on one `pncad-py` row (M10's; on the
+board), which every PR of the day carried as an inherited red on its
+`2/2` shards.
+
+Open on the board: two kernel candidates that would each need a spec
+and a new A/B block (`offset-composite-lazy-sign-gate`, ~15 % of the
+recentring call in the all-or-nothing case, bounded by the mixed
+rounds; `tcost-area-pad-lever`, the area pass a refused patch face
+still pays), one kernel finding (`edge-nurbs-computes-the-chart-
+image-and-discards-it`), two test-only dedups (`sweep-boolean-suite-
+brick-and-prism-copies`, `chamfered-cube-and-steiner-oracles-outside-
+sweep`), two parked items, and one question for Ev
+(`reviewer-pair-rebuilds-two-trees-two-rules`: `geom-brep/tests/shared`
+refuses reviewer-pair rebuilds even when identical; `sweep/tests/common`
+absorbs them on the argument that blend fixtures are bodies under
+audit — one reading should win and be written into the memory).
+Recommendation: the two test-only dedups are cheap and can go as one
+content unit; the kernel candidates are worth a second block only if
+Ev wants the A/B sample to grow — the suite's seconds are no longer
+where they were, and the next lever on the real program's cost (the
+area pass) is a kernel question more than a test-cost one.
