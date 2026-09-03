@@ -1247,20 +1247,40 @@ mod interval {
     /// `r = 1, R = 1.5` both forms give the same station enclosure to
     /// the bit. NEAR TANGENCY they diverge, because that is where
     /// `R² − r²` is a subtraction of two nearly equal quantities each
-    /// already widened by its own squaring: at `r = 1, R = 1 + 1e-7`
-    /// the squared form's `R²` enclosure is a full f64 ulp wide near
-    /// `1`, and that `~2.2e-16` absolute width survives the cancellation
-    /// into a difference of size `~2e-7` — a RELATIVE blow-up of six
-    /// orders — while the factored form subtracts exactly (Sterbenz:
-    /// `R − r` is exact in f64 for `r ≤ R ≤ 2r`) and its width stays at
-    /// the rounding of one product and one `sqrt`.
+    /// already widened by its own squaring: the squared form's `R²`
+    /// enclosure is a full f64 ulp wide near `1`, and that `~2.2e-16`
+    /// ABSOLUTE width survives the cancellation into a difference of
+    /// size `2δ` — a relative blow-up that grows as `δ` shrinks — while
+    /// the factored form subtracts exactly (Sterbenz: `R − r` is exact
+    /// in f64 for `r ≤ R ≤ 2r`) and its width stays at the rounding of
+    /// one product and one `sqrt`.
     ///
-    /// MEASURED at these radii: **3.25e-19 factored, 4.97e-13 squared**
-    /// — a factor of 1.5e6. The threshold below sits between them, and
-    /// this row reds the moment the arm is rewritten to the squared
-    /// form; under that mutation every OTHER row of this file, both
-    /// lanes, still greens (45 passed, 1 failed), which is why the pin
-    /// had to be written rather than assumed.
+    /// **The gap `δ` is BAND-RELATIVE, and that is a correction rather
+    /// than a preference.** This row first hardcoded `δ = 1e-7` and CI
+    /// reds it on the `eps = 1e-6` draw, correctly: at that tolerance
+    /// `R − r = 1e-7` is INSIDE the band, `cs_wall_reach` escalates, and
+    /// there is no `TwoCircles` to measure at all. A fixture that only
+    /// exists at one tolerance row is not a fixture. `δ` is now
+    /// `100 × band.escalate()` — definitely positive at every draw by
+    /// construction, and still tiny against the radii.
+    ///
+    /// **The tightness claim is RELATIVE too**, computed against the
+    /// squared form evaluated here on the same interval inputs, so no
+    /// absolute threshold has to be re-tuned per tolerance row. Both
+    /// halves were measured at both draws:
+    ///
+    /// | draw | `δ` | factored | squared | ratio |
+    /// |---|---|---|---|---|
+    /// | `eps = 1e-6` | 1e-3 | 2.08e-17 | 4.98e-15 | 239× |
+    /// | `eps = 1e-12` | 1e-9 | 2.71e-20 | 4.97e-12 | 1.8e8× |
+    ///
+    /// The assertion asks for 10×, which the worst draw clears by more
+    /// than an order — deliberately, because `δ` moves with the draw
+    /// and the ratio moves with `δ`. Under the squared-form mutation the two widths are EQUAL,
+    /// so the row reds at BOTH draws — and under that mutation every
+    /// OTHER row of this file, both lanes, still greens (45 passed, 1
+    /// failed, at each draw), which is why the pin had to be written
+    /// rather than assumed.
     ///
     /// It asserts the enclosure is HONEST first — against the surfaces,
     /// not against a recomputed station, which would only restate the
@@ -1268,6 +1288,12 @@ mod interval {
     /// answer would be worse than a wide one, not better.
     #[test]
     fn cylinder_sphere_station_is_tight_near_tangency() {
+        // Definitely outside the reach trilean's band at any draw (100×
+        // its own escalation threshold), and still a near-tangency —
+        // the gap the row needs, in the units the band is denominated
+        // in rather than in a number that only works at one draw.
+        let delta = 100.0 * band().escalate();
+        let big_r = 1.0 + delta;
         let cyl: Surface<Interval> = Surface::Cylinder {
             origin: ip(Point3::new(0.0, 0.0, 0.0)),
             axis: iv(Vec3::unit_z()),
@@ -1276,13 +1302,13 @@ mod interval {
         };
         let sph: Surface<Interval> = Surface::Sphere {
             center: ip(Point3::new(0.0, 0.0, 0.0)),
-            radius: Interval::from_f64(1.0 + 1e-7),
+            radius: Interval::from_f64(big_r),
             axis: iv(Vec3::unit_z()),
             u_ref: iv(Vec3::unit_x()),
         };
         let s = cylinder_sphere_section(&cyl, &sph, CoaxialEvidence::Declared, band()).unwrap();
         let CylinderSphereSection::TwoCircles { station, .. } = s else {
-            panic!("a near-tangent pose still crosses in two circles, got {s:?}");
+            panic!("a near-tangent pose (delta {delta:e}) is still two circles, got {s:?}");
         };
         // Honest first: a point of each section circle still encloses
         // zero residual on BOTH operands.
@@ -1302,12 +1328,24 @@ mod interval {
                 );
             }
         }
-        // Tight second: 3.25e-19 factored vs 4.97e-13 squared.
+        // Tight second, against the squared rewrite evaluated HERE on
+        // the same interval inputs — the comparison the spec is about,
+        // not an absolute number that would need re-tuning per draw.
+        let big_r_i = Interval::from_f64(big_r);
+        let r_i = Interval::from_f64(1.0);
+        let squared = (big_r_i * big_r_i - r_i * r_i).sqrt();
+        let squared_width = squared.hi() - squared.lo();
         let width = station.hi() - station.lo();
         assert!(
-            width < 1e-16,
-            "the station enclosure is not the factored form's: width {width} \
-             (the squared rewrite measures ~5e-13 here)"
+            squared_width > 0.0,
+            "the squared rewrite is exact at this pose, so the row proves nothing \
+             (delta {delta:e})"
+        );
+        assert!(
+            width * 10.0 < squared_width,
+            "the station enclosure is not the factored form's: width {width:e} \
+             against the squared rewrite's {squared_width:e} (delta {delta:e}) — \
+             under the squared form the two are EQUAL"
         );
     }
 
