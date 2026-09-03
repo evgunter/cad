@@ -65,8 +65,8 @@ pub use crate::authoring::{p2, p3, real, v2, v3, validated};
 // `field: Escalate`, the K·ε overflow residue that `Band::linear`'s
 // own docs call unreachable for any physically meaningful tolerance.
 // The other producer, `Band::angular_at`, has NO live call site in
-// the workspace, and `Band::new` is called directly only in geometry
-// -layer interiors and test fixtures.
+// the workspace, and `Band::new` is called directly only in
+// geometry-layer interiors and test fixtures.
 //
 // So a curated `BandField` would publish a two-arm type whose only
 // use here is comparison against a value it always has. CUR3 carried
