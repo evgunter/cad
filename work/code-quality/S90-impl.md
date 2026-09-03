@@ -6,12 +6,29 @@ status: open
 opened: 2026-08-21
 track: M
 pr: 883
-refs: [H5, 867, 886]
+refs: [H5, 867, 886, s90-tightening-cost-measured]
 ---
 
 ## What
 
 The largest D1 residue's implementation, and **#883 is parked on this track's ground** (H-g PR 1, folded into `H5`). **TAKEABLE — `S90` is RULED.** #867 merged 2026-08-21 07:14Z: *"tightening to `CertifiedBounds` works at least for now."* That is `H-R3`, #886 implemented it at two of three sites, and it is why #883 exists. **#883 is parked on a RULING, not on `S90`** — folded into `H5` because the fillet seam is one of the two sites where the lane-trait pattern was *deliberately declined* (`S3`), so its work and `H5`'s collapse are one argument. **Read `H-R16` before starting either.** **Re-read against the tree 2026-09-02, as a measurement and not an unparking** — three things moved and one did not. (i) The blocker STANDS: `sweep::blend::fillet_edges` is still reachable from `editor_core::eval::evaluate`, through `eval::wire::run_op`'s `T: Decide + ContentBits + Bounds + Send + Sync + AtRestPolicy + AxisScalar` to `wire_fillet`, and that set admits `Dual`, so #883's twelve red jobs still reduce to that one `E0277`. (ii) The pass is still mixed, and the split still sits where H-g put it: the geometry builder holds ZERO bracket reads at `T: Real`. (iii) **Every #883-era citation needs re-aiming**: the module is `crates/sweep/src/blend/`, not `sweep/src/fillet/`, and the builder is `blend/arms.rs`, not `blend.rs`. (iv) **H-g's bracket-read count of 14 no longer holds, and the unit matters**: 17 LINES carry a bracket read, 19 READS in all — `battery.rs` 11 lines / 12 reads, `build.rs` 3 / 3, `surgery.rs` 3 / 4, `arms.rs` (the geometry builder) 0. The classification also needs correcting rather than repeating: they are NOT all typed-error payloads. In `battery.rs` nine are error-payload fields (`margin`/`radius`/`gap`/`arm`), `:1235` is a BRANCH CONDITION comparing two bracket lows (`d0.min(d1).lo() == d0.lo()`, a junction-end pick) and `:1289` is a value read feeding an f64 quantity; `build.rs` is one `partial_cmp` datum gate plus two payloads; `surgery.rs`'s four are representation-datum selections, each with its argument written at the site. So the population is payloads plus SELECTIONS, and a taker owes a per-read classification rather than either count.
+
+**Re-derived by compiling, 2026-09-03, and the row's TAKEABLE now has a
+price attached — see `s90-tightening-cost-measured`.** The tightening
+applies to all 35 signatures in `blend/{battery,build,surgery}.rs` with
+`sweep` compiling CLEAN (lib, tests, examples, doctests); the cascade
+downstream is three single-site hops (`verbs::Verb::run` → `wire_blend`
+→ `run_op`) and then 39 `E0277` sites at `EvalScalar`, **none in `src`
+and all in M10's dual suites, `e4_dual_door.rs`'s `evaluate::<Dual64>`
+among them**. Fillets are not hypothetically differentiable but actually
+so: three fillet/chamfer corpus documents evaluate at `Dual64` with a
+bit-identical value channel, asserted and passing. **And the obligation
+this row tracks was discharged on 2026-08-29 by `DL5`** (`DUAL-DESIGN`,
+ratified #1146, landed at `real.rs:688-711`) — by ratifying the
+delegation rule, i.e. the *"written reason it needs none"* half of the
+same either/or, which is the half this row's re-read of 2026-09-02
+cited without noticing it retires the line below. `H-R3` and `DL5` are
+in tension at this one seam; that is Ev's to settle.
 
 Status note: the row says TAKEABLE, so the item is `open`; `pr: 883` records the parked measurement branch, not a queued landing. The id `S90-impl` is carried as written (all characters are within the tracker's id alphabet).
 
