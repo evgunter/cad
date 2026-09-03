@@ -14,7 +14,11 @@
 //! eight` and their spellings with and without the thousands comma —
 //! over every `*.md` and `*.rs` in the tree. **What it could not
 //! match**: a copy that paraphrases the figures without repeating a
-//! literal, and a copy in a non-text artefact. Four hits:
+//! literal, and a copy in a non-text artefact. It also matches text
+//! about other subjects entirely — a `topo` review probe's "8 pairs",
+//! `SMELL-E-LOG`'s "five of the eight edited files", a GitHub issue
+//! numbered 1327 — which are read out rather than counted. Four hits
+//! on this paragraph:
 //!
 //! * `lib.rs`'s module docs — FIXED, they now point here.
 //! * `work/code-quality/C15.md` — FIXED, points here.
