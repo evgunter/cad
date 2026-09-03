@@ -474,10 +474,18 @@ fn the_truncated_normal_sigma_is_finite_and_the_variance_floor_is_measured() {
                         min_var = var;
                         at = (lo, hi);
                     }
-                    // The door's number is the formula's, where the
-                    // formula is non-negative.
-                    if var >= 0.0 {
-                        assert!((s - sigma * var.sqrt()).abs() <= 1e-12 * sigma, "{dist:?}");
+                    // The door's number is the formula's where the
+                    // formula is non-negative and its mass is not
+                    // cancellation-dominated (the door measures Z
+                    // through `erfc` half-lines, this row through an
+                    // `erf` difference, and the two part company only
+                    // where an `erf` difference has no digits left).
+                    if var >= 0.0 && z > 1e-3 {
+                        assert!(
+                            (s - sigma * var.sqrt()).abs() <= 1e-9 * sigma,
+                            "{dist:?}: door {s} vs formula {}",
+                            sigma * var.sqrt()
+                        );
                     }
                 }
                 rows += 1;

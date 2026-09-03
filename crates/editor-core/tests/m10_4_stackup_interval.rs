@@ -60,11 +60,19 @@ const R0: f64 = 0.2;
 /// The assertion's bound: the web must be at least this.
 const MIN_WEB: f64 = 0.0005;
 /// The interval lane's padding on the plate's worst case beyond the
-/// true range, MEASURED (the e2e row prints the number it bounds): the
-/// enclosure of a 0.2-scale web through two lifted cylinder carriers
-/// and the payload expression. A bound, not a target — if it grows,
-/// the question is why the lane widened.
-const PLATE_PADDING: f64 = 1.0e-15;
+/// true range, MEASURED (the e2e row prints the number it bounds), as
+/// a multiple of the radius axis's half-width: each hole's cylinder
+/// axis is recovered from the LIFTED arc's endpoints and bulge, and
+/// interval arithmetic cannot see that the radius cancels out of the
+/// centre — the dependency problem, M10-3's headline — so the recovered
+/// axis widens by the radius's own width, once per hole. The padding is
+/// therefore proportional to the BOX (`2·half`, exactly, plus the
+/// rounding below), not to the machine epsilon. A bound, not a target
+/// — if it grows, the question is why the lane widened.
+const PLATE_PADDING_PER_HALF_WIDTH: f64 = 2.0;
+/// The rounding on top of the dependency padding: a 0.2-scale quantity
+/// through a few dozen outward-rounded operations (measured ~1e-15).
+const PLATE_ROUNDING: f64 = 1.0e-14;
 
 fn eps() -> f64 {
     Tol::witness().eps()
@@ -477,8 +485,9 @@ fn the_two_hole_plate_stackup() {
     // The hull ENCLOSES the true range `nominal ± 2·half` (the web is
     // linear in the radius with slope −2), and exceeds it by the
     // interval lane's padding alone — measured here and bounded by
-    // [`PLATE_PADDING`], which is stated in the honest-limits section
-    // of the PR rather than hidden in a slack term.
+    // [`PLATE_PADDING_PER_HALF_WIDTH`] times the half-width plus
+    // [`PLATE_ROUNDING`], stated in the honest-limits section of the
+    // PR rather than hidden in a slack term.
     assert!(
         wc.lo <= report.nominal - 2.0 * half && report.nominal + 2.0 * half <= wc.hi,
         "the hull must enclose the true range: {wc:?}"
@@ -492,7 +501,7 @@ fn the_two_hole_plate_stackup() {
         padding / eps()
     );
     assert!(
-        padding <= PLATE_PADDING,
+        padding <= PLATE_PADDING_PER_HALF_WIDTH * half + PLATE_ROUNDING,
         "padding {padding:e} exceeds the measured bound"
     );
     assert!(
