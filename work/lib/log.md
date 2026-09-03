@@ -2598,3 +2598,26 @@ python-feature clippy lane is still red on `Datum.axes`
 B-RESOLVE's `:319`, shifted by this diff), exactly as
 `work/lib/pncad-py-python-feature-clippy-lane-is-red.md` records, and
 no CI row runs it. One error, unchanged, inherited.
+
+**THE CENSUS B-FAMILY SLATE IS COMPLETE (2026-09-03).** All six
+queued families closed in one day, each mechanical under the 08-29
+ruling: B-PICKING (#1661), B-EXPR-READ (#1662), B-RESOLVE (#1664),
+B-FORMAT (#1668), B-CANCEL (#1676), B-VALIDATE4 (#1677) — joining
+B-READBACK and B-CHECKS from 08-29. The census's FAMILIES table is
+now empty of open charters; what remains in the gap roster is G1's
+authoring-signature residue (watched by execution, not by name) and
+G2's sweep half (kernel-owned, U4/LQ3). The day's method notes,
+earned: the derived-scope-first discipline caught one family split
+on audit-reach rather than build-shape (#1662 moved nine for a
+charter of three); the carrier-projection rule read out five more
+times (PickTarget, RunCtx, the format receivers, the captured
+ContactRecords); and the closures found three latent defects worth
+the price of the sweep alone — the GIL held across evaluate (Python
+cancellation could never fire), tier-3′ findings rendered through
+Debug (the first honest call panicked), and the quantity boundary's
+poison comparison raising untyped. Program standing after the
+slate: shell (LIB-G17) parked on kernel #1202; a LIB-13 block draw
+owed before any full-protocol unit; the banked-findings pile is the
+remaining mechanical feedstock, headlined by the unlinted
+python-feature CI row (no clippy row on the merge gate covers
+12.6k lines of binding surface — routing decision pending).
