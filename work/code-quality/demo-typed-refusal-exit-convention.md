@@ -18,7 +18,7 @@ narrate a preexisting, already-known frontier.**
 Refinement accepted: *already-known* means the frontier is **declared up
 front at the scene**, not discovered by catching a refusal at runtime. A
 declared frontier narrates and the run still exits **0**, so the second
-exit convention (b) would have cost us — the one `eps_regression.rs`,
+exit convention that (b) would have cost us — the one `eps_regression.rs`,
 `render.sh`, `render.yml` and `check_render_provenance.py` would all have
 had to learn — is not needed. An undeclared refusal still panics: that
 half of today's behaviour is unchanged.
