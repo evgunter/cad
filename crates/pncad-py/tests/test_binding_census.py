@@ -1063,6 +1063,7 @@ FAMILIES = {
 #: signature gap on that page is watched in. G1 keeps a citation
 #: here regardless, on a different residue of the same row:
 #: `ArrivesTangent`, the seam's declared tangent joint.
+#:
 #: **B-VALIDATE4 is CLOSED and no longer a `gap` id here**
 #: (LIB-B-VALIDATE4). It held ONE name, `validate_pseudomanifold`,
 #: and closing it moved exactly that one — B-FORMAT's cheap case
