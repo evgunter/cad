@@ -75,13 +75,16 @@ fn arc_prism(s: f64) -> Body<f64> {
 
 /// **The body the certifying rows measure** — the arc prism at 5 cm.
 ///
-/// Scale is this suite's cost dial and nothing else. The quadrature's
-/// convergence target is a LENGTH (the flux width over three times the
-/// area), so it scales as the body does: a prism ten times smaller
-/// reaches the same target about two of the schedule's four-fold
-/// rounds earlier, and the identity and counting claims below are
-/// scale-free. 5 cm keeps four orders of headroom over the loosest ε
-/// this repo runs.
+/// Scale is this suite's cost dial and nothing else; the identity and
+/// counting claims are scale-free. The quadrature's convergence target
+/// is a LENGTH (the flux width over three times the area), so it scales
+/// as the body does, and 5 cm is where the two ε extremes are BOTH
+/// cheap: the schedule converges in a few rounds at ε = 1e-9 and 1e-6
+/// (~0.9 s a call), and at 1e-12 it is out of reach from the start, so
+/// the last-round bound refuses after round 0 (~0.85 s a call) instead
+/// of running the schedule out. Measured, because the middle is the
+/// expensive place to be: at 5 mm the body CERTIFIES at 1e-12 and this
+/// row costs 30 s; at 50 cm it runs more rounds at every ε.
 fn prism() -> Body<f64> {
     arc_prism(0.05)
 }
