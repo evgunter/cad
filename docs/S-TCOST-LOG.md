@@ -414,3 +414,19 @@ own checkout (`/home/user/cad`), moving it onto the reviewed branch;
 restored from the pushed `tcost/orchestrator`. Every brief template
 now carries the rule (read other branches with `git show`, or your
 own worktree; never touch the orchestrator's checkout).
+
+## Unit: TCOST-5 merged (2026-09-03, PR 1621 at b2babf84)
+
+The sweep + step-import rational family: the duplicated arc-loft row
+deleted (the step-import native row owns every assertion and adds
+tiers 1/2), the cross-crate twin balloon rows merged into the
+import-door row with labelled assertions (the ORACLE pad check
+restored to every ε after review), the deleted suite's measured
+negative findings carried into the merged header, the arc-loft
+posture printed by variant, `r2_probe_cert8` split into a
+written-chart witness row and a floorless varying-seed search on the
+fuzz harness. The in-row stand-down uses `test_utils::vacuity::stood_down`
+(the tree's door for a run-time ε condition; the named-`#[test]` idiom
+is the whole-binary shape). Family −10 % hosted at the cheap ε row,
+−21 % locally at 1e-12; the four-quadrature import row measured
+irreducible from the test side. Interval asked on the final head.
