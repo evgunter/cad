@@ -10,7 +10,7 @@ refs: [1222]
 
 ## From GitHub issue 1234
 
-opened 2026-08-29, 0 comments.
+Opened 2026-08-29; 0 comments.
 
 Surfaced during BLEND-1 verification ([PR #1222](https://github.com/evgunter/cad/pull/1222), "Verification" section) and verified there against a pristine `origin/main` worktree, where it fails identically.
 

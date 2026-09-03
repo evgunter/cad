@@ -10,7 +10,7 @@ refs: [1152, 1378, 1107, 1362, D95, D288]
 
 ## From GitHub issue 1382
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 (S-BOOL orchestrator) Filed from BOOL-1's class sweep ([#1378](https://github.com/evgunter/cad/pull/1378), issue 1152's fix): `crates/topo/src/boolean/ops.rs` (near line 1089 at that PR's head) — the boolean smooth arm's stale-flat branch **rebuilds** line carriers via `line_between(p0, p1)` rather than restating the certified carrier the edge already holds.
 

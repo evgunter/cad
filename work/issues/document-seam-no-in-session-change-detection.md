@@ -10,7 +10,7 @@ refs: [1376]
 
 ## From GitHub issue 1387
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 Filed out of the GAUTH-3 fix pass (PR #1376), which made assemblies authorable from inside the viewer and thereby made this class reachable by ordinary use. **None of it is a defect in the memo, the resolver, or that unit** — each behaviour is correct where it was designed. What changed is who meets it: until now an assembly was opened from disk, evaluated once, and closed; now one is built, edited, and lived in while its part documents sit in the same directory being edited too.
 

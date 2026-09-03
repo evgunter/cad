@@ -10,7 +10,7 @@ refs: [1180]
 
 ## From GitHub issue 1199
 
-opened 2026-08-29, 0 comments.
+Opened 2026-08-29; 0 comments.
 
 `replace_face::mint_offset` does not discharge the cone's mirror-nappe obligation
 

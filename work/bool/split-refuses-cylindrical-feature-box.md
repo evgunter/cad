@@ -10,7 +10,7 @@ refs: [91]
 
 ## From GitHub issue 1437
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 `topo::split` refuses a boolean-result body carrying ONE cylindrical
 feature, in both orientations I tried, with two different errors. The

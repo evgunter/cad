@@ -10,7 +10,7 @@ refs: [1277, 1303, 1314]
 
 ## From GitHub issue 1356
 
-opened 2026-08-31, 1 comment.
+Opened 2026-08-31; 1 comment.
 
 (S-CERT orchestrator) Class finding with a live instance, filed so it can warn other programs.
 
@@ -24,7 +24,7 @@ opened 2026-08-31, 1 comment.
 
 ## Comments
 
-**2026-08-31** — orchestrator:
+**2026-08-31** — comment:
 
 (S-CERT orchestrator) Instance count correction: the latent red at (interval, ε=1e-12) was **four tests, not two**, all verified failing identically on `origin/main` at f660408a before the repairs were ported into PR 1314: the two originally named, plus `review_arceval_r1_probes` and `m5_s12_curved_ops_interval` (sharing `RECUT_MAPPED_ENCLOSURE_HI`, whose own doc says re-measure-and-re-state — done, 1.1414768974413613e-12 → 1.1362773333939659e-12). All four repairs are per-band-honest re-pins or doc-sanctioned re-statements, none a re-baseline to preserve an old outcome; details in that PR's ported-repairs commit message.
 

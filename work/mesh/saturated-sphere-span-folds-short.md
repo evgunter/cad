@@ -10,7 +10,7 @@ refs: [1599, 723, MESH-12]
 
 ## From GitHub issue 1601
 
-opened 2026-09-02, 0 comments.
+Opened 2026-09-02; 0 comments.
 
 **Found by MESH-11's review (PR [#1599](https://github.com/evgunter/cad/pull/1599), R2, executed on the head AND on the merge base) — pre-existing in the flux lane, outside MESH-11's fence; filed as the durable home.**
 

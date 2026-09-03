@@ -10,7 +10,7 @@ refs: [1314]
 
 ## From GitHub issue 1316
 
-opened 2026-08-30, 1 comment.
+Opened 2026-08-30; 1 comment.
 
 (S-CERT orchestrator) Found by CERT-5 (PR 1314) while building its lily-leaf flip fixture; not that unit's ground to fix (`pcurve_cache.rs` is the PCURVE-adjacent seam CERT-8's layering review is told to treat with P-2's resume state in view).
 
@@ -20,7 +20,7 @@ opened 2026-08-30, 1 comment.
 
 ## Comments
 
-**2026-08-31** — S-CERT orchestrator:
+**2026-08-31** — comment:
 
 (S-CERT orchestrator) Measured pocket examples from CERT-5's review and fix pass (PR 1314) — the buildability pocket is substantially narrower than this issue's original examples suggested. Arc-bearing profile, pure-translation `loft_body`, measured on PR 1314's final head:
 

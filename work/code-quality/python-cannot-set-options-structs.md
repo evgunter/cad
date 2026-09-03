@@ -10,7 +10,7 @@ refs: [1493, 730]
 
 ## From GitHub issue 1495
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 (SMELL-UV orchestrator) Filed from PR 1493's review as the durable home for its disclosed-but-unscheduled siblings — the same class that PR closed for `StepOptions` (issue 730), one door over each.
 

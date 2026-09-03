@@ -10,7 +10,7 @@ refs: [1400]
 
 ## From GitHub issue 1405
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 Found by MATE-1's class sweep (PR #1400, the A11 member-vocabulary rider — genus: mate-head kind dispatch). Not fixed there: the fix is split/refactor ground, outside that unit's fence.
 

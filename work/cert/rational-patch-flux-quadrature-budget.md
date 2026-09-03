@@ -10,7 +10,7 @@ refs: [327, 388, 1195, 1314, 1315]
 
 ## From GitHub issue 390
 
-opened 2026-08-11, 1 comment.
+Opened 2026-08-11; 1 comment.
 
 Surfaced by #327 (stage-1 CURVE recognition), which retired dm1-id-214's D7 adoption-ladder refusal and let the file reach the shared at-rest gate for the FIRST time.
 
@@ -34,7 +34,7 @@ Route 2 is the one #327 measured as available: the tensor composites already exi
 
 ## Comments
 
-**2026-08-31** — orchestrator:
+**2026-08-31** — comment:
 
 (S-CERT orchestrator) **Route 1 has landed** (PR 1314, merged at f63f2f3f): knot-aligned composite cells retired the rational flux lane's straddle floor on both the native and import doors — dm1 converges at textbook 4×/round to 1.84× of its target (one schedule round short of first-class; the dial decision is issue 1315). This issue **stays open for route 2** (the algebraic CYLINDER certificate), which remains **unclaimed** per the PCURVE orchestrator's answer on the S-CERT opening PR; whoever takes it inherits a second beneficiary — promoting the wall to an analytic `Cylinder` makes its interior isos analytic, sidestepping #1195's missing knot-insertion machinery (recorded there when filed, unmeasured).
 

@@ -10,7 +10,7 @@ refs: [966, 1477, 1488, 1489]
 
 ## From GitHub issue 968
 
-opened 2026-08-23, 1 comment.
+Opened 2026-08-23; 1 comment.
 
 (M9 orchestrator) The recorded pickup Ev's #966 ruling requires ("we can defer for now, assuming this remains recorded to pick up later"). Lily wall 1 (the stem glue, `lily.rs:1422` — `CurvedBooleanUnsupported{Torus}` at the operand gate, reduce.rs:184) stays a NAMED RESIDUE through M9-5; this issue is the residue's durable record.
 
@@ -28,7 +28,7 @@ Signed: (M9 orchestrator)
 
 ## Comments
 
-**2026-09-01** — orchestrator:
+**2026-09-01** — comment:
 
 MATE-7a (PR [#1477](https://github.com/evgunter/cad/pull/1477), in review) corrects this issue's wall-1 diagnosis by measurement, confirmed independently by both review arms:
 

@@ -10,7 +10,7 @@ refs: [427]
 
 ## From GitHub issue 498
 
-opened 2026-08-15, 0 comments.
+Opened 2026-08-15; 0 comments.
 
 ## The class
 

@@ -10,7 +10,7 @@ refs: [969, 1496, 1500]
 
 ## From GitHub issue 973
 
-opened 2026-08-23, 1 comment.
+Opened 2026-08-23; 1 comment.
 
 Filed out of PR #969's review (gap 1 of CENSUS-REST-CLOSURE, ruling U-R1). #969 corrected D4's at-rest sentence — a premise that was sound in the boolean lane (reduction refines first) and false at rest (nothing refines). **The same premise SHAPE survives in two more places in `census.rs`, and both are executed live below**, not argued. Neither is a soundness hole: both stay LOUD (reported, never blessed). Both are over-loudness on configurations a user can draw and declare.
 
@@ -54,7 +54,7 @@ Reviewer probes to start from: `crates/topo/tests/m9_c1_r1_probes.rs` (`the_lemm
 
 ## Comments
 
-**2026-09-01** — orchestrator:
+**2026-09-01** — comment:
 
 Part (b) stage 1 landed with MATE-9's merge (PR [#1496](https://github.com/evgunter/cad/pull/1496), merge `46d883ac`): `EdgeEdgeCross` is no longer categorical — the unified-strength backing rung certifies a declared, in-region, opposite-sides crossing and refuses/escalates everything else typed (same-side refuses naming the three-valued verdict — the declared-interpenetration hook). The C3/C4 doctrine now carries the ratified unified sentence with the grandfather roster; the first migration attempt (`ef_bound_backed`) measured not clean and is grandfathered with its blocker scheduled as issue 1500.
 

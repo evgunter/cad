@@ -10,7 +10,7 @@ refs: [967, 971, 974]
 
 ## From GitHub issue 975
 
-opened 2026-08-23, 0 comments.
+Opened 2026-08-23; 0 comments.
 
 (m9-3 lane)
 

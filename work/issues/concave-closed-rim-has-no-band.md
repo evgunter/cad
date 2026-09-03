@@ -10,7 +10,7 @@ refs: [1222]
 
 ## From GitHub issue 1244
 
-opened 2026-08-29, 0 comments.
+Opened 2026-08-29; 0 comments.
 
 Surfaced by the BLEND-1 review (PR #1222), by execution on two independent bodies.
 

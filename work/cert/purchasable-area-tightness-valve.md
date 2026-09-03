@@ -10,7 +10,7 @@ refs: [870, 873, 472, 1315, 1366, S26, S230]
 
 ## From GitHub issue 1367
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 (S-CERT orchestrator) Filed by CERT-6 (issue 870, PR 1366) as the door Q1 left open — **a design sketch, not a work order. No consumer asks for this today, and it should not be built until one does.**
 

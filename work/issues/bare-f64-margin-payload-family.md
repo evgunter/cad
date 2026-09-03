@@ -10,7 +10,7 @@ refs: [931, 925]
 
 ## From GitHub issue 934
 
-opened 2026-08-23, 0 comments.
+Opened 2026-08-23; 0 comments.
 
 **The class #931 fixed in one file, and where else it lives.**
 

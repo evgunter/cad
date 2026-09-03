@@ -9,7 +9,7 @@ github: 1456
 
 ## From GitHub issue 1456
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 Found by the `story_authoring` integration lane: `AddPattern` yields `Instances`, and `AddBoolean` correctly refuses them (`WrongNodeKind { wanted: Body }` — the F4 partition working as designed). But the kernel's one-body pattern-union, `Node::PlacedUnion` — which the `die_tool` corpus uses and the heatsink demo wished for — has **no `SessionOp`**. A user who patterns a feature in the GUI has no path to merge the result into their part short of N−1 hand-authored transform + union chains.
 

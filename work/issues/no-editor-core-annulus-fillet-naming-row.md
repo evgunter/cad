@@ -10,7 +10,7 @@ refs: [935, 1268]
 
 ## From GitHub issue 1294
 
-opened 2026-08-30, 0 comments.
+Opened 2026-08-30; 0 comments.
 
 **Raised by the BLEND-2 (#935) review (R2 MINOR-2), filed from the fix pass.**
 

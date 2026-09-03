@@ -10,7 +10,7 @@ refs: [1231, 1234]
 
 ## From GitHub issue 1274
 
-opened 2026-08-29, 0 comments.
+Opened 2026-08-29; 0 comments.
 
 Found during M10-3's fix pass (PR 1231), reported as a pushback rather than fixed there since it is repo tooling, not that unit's scope.
 

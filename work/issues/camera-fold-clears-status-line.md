@@ -9,7 +9,7 @@ github: 1253
 
 ## From GitHub issue 1253
 
-opened 2026-08-29, 0 comments.
+Opened 2026-08-29; 0 comments.
 
 ## What happens
 

@@ -10,7 +10,7 @@ refs: [1400]
 
 ## From GitHub issue 1411
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 Filed from the MATE-1 dual review (PR #1400, both arms; R1 MINOR-5(a)). The landed member vocabulary accepts `Pattern` + `Instance(i)` over a live `InstantiatePart` input only. A nested pattern's copy (pattern-of-pattern) and a pattern over a transform both refuse `DanglingHead` at the (outer) pattern node — typed and honest, and disclosed in the PR body, but NARROWER than the rider's literal text, which fences the head spelling (`Pattern` node + `Instance(i)` qualifier) and says nothing about the pattern's *input*.
 

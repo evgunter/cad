@@ -10,7 +10,7 @@ refs: [1093]
 
 ## From GitHub issue 1098
 
-opened 2026-08-27, 0 comments.
+Opened 2026-08-27; 0 comments.
 
 Class found by both PR #1093 reviews (R2 MINOR-3; R1 style Q7/Q4), same family as the `MeshPatchKey` convention.
 

@@ -10,7 +10,7 @@ refs: [1398, 501]
 
 ## From GitHub issue 1529
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 (S-CERT orchestrator) Filed from CERT-8's sweep (PR 1398), where it was disclosed but unscheduled.
 

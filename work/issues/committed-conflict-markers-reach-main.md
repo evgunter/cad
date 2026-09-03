@@ -10,7 +10,7 @@ refs: [1224]
 
 ## From GitHub issue 1287
 
-opened 2026-08-30, 0 comments.
+Opened 2026-08-30; 0 comments.
 
 Class finding, filed for a durable home (S-QA's track-J territory: a gate that would have caught all three).
 

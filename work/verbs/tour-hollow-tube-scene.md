@@ -10,7 +10,7 @@ refs: [960]
 
 ## From GitHub issue 986
 
-opened 2026-08-25, 0 comments.
+Opened 2026-08-25; 0 comments.
 
 VERBS-TUBEWALL (#960) shipped `tube_along_arc_hollow` — the tube door with a wall — but added no tour scene. The unit's acceptance is closed-form mass properties in `crates/sweep/tests/verbs_tubewall.rs`; a scene was deferred deliberately, because it moves a `docs/tess-budget-data/tess-budget-baseline.csv` row and that re-baseline is its own decision.
 

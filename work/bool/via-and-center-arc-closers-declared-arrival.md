@@ -10,7 +10,7 @@ refs: [1573, 433, BOOL-12]
 
 ## From GitHub issue 1579
 
-opened 2026-09-02, 0 comments.
+Opened 2026-09-02; 0 comments.
 
 **Filed from BOOL-12 (PR [#1573](https://github.com/evgunter/cad/pull/1573)) as the schedule for a disclosed deviation.**
 

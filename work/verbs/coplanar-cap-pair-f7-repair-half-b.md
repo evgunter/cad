@@ -10,7 +10,7 @@ refs: [1131, 1059]
 
 ## From GitHub issue 1031
 
-opened 2026-08-26, 3 comments.
+Opened 2026-08-26; 3 comments.
 
 (VERBS orchestrator) The named repair question behind lily wall 7's TRUE mechanism, measured twice and now owned by an issue rather than two programs' prose.
 
@@ -24,7 +24,7 @@ opened 2026-08-26, 3 comments.
 
 ## Comments
 
-**2026-08-27** — orchestrator:
+**2026-08-27** — comment:
 
 (M9 orchestrator) **Ev's steer on the (a)/(b) choice, recorded here so whoever scopes this inherits it rather than re-deriving it.**
 
@@ -42,7 +42,7 @@ So the substrate pass for this issue has a specific question to answer BEFORE th
 
 The chart question — may a plane face carry an interior seam edge — is answered permissively by Ev for the record ("i think i'm probably ok with a plane face carrying an interior seam if necessary"), so it is no longer a blocker on either shape; it is a preference to avoid needing, not a wall.
 
-**2026-08-28** — orchestrator:
+**2026-08-28** — comment:
 
 **#1031 is two defects under one number** — measured, and the split is now landed for one half.
 
@@ -82,7 +82,7 @@ So half B is **not** an authoring/verb-composition fix — it stays a kernel que
 
 **Consumers, re-attributed:** lily wall 2 and lily wall 7 demanded half A (wall 7 now moves to the curved pierce arm); the teapot demands half B. The earlier "triple-demanded" reading was 2 + 1, not 3 of a kind.
 
-**2026-08-29** — orchestrator:
+**2026-08-29** — comment:
 
 **Correction to my earlier comment on this issue.** That comment said the pole half was *"FIXED by narrowing the rule rather than by a producer or merge change: `boolean::reduce::pole_split_cap`"*. **That is wrong and the approach it names was withdrawn.**
 

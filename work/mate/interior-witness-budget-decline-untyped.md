@@ -10,7 +10,7 @@ refs: [1472, 1435]
 
 ## From GitHub issue 1478
 
-opened 2026-09-01, 0 comments.
+Opened 2026-09-01; 0 comments.
 
 Filed at MATE-8's adjudication (PR #1472, issue 1435's unit) as the scheduled home for a deviation both review arms found disclosed-but-unscheduled.
 

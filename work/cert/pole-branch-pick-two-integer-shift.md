@@ -10,7 +10,7 @@ refs: [1191]
 
 ## From GitHub issue 1305
 
-opened 2026-08-30, 0 comments.
+Opened 2026-08-30; 0 comments.
 
 (S-CERT orchestrator) Found and documented in place by CERT-4 (issue 1191's unit — the disposition comment now lives at the site, `chord_join.rs`'s pole arm); filed so the open half has a durable home.
 

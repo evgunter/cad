@@ -10,7 +10,7 @@ refs: [938]
 
 ## From GitHub issue 947
 
-opened 2026-08-23, 0 comments.
+Opened 2026-08-23; 0 comments.
 
 Two library-TEXT findings from the ASM-DEMO exit walk (#938), which reads every refusal it provokes out loud. Filed together because they are the same class — what a refusal actually says to the author — and both are cheap.
 

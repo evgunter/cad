@@ -10,7 +10,7 @@ refs: [447]
 
 ## From GitHub issue 457
 
-opened 2026-08-13, 0 comments.
+Opened 2026-08-13; 0 comments.
 
 Spun out of the codebase scan that followed #447. Item 7 of that sweep — flagged deliberately as *investigate*, not *do*, because unlike the rest of the sweep it is not mechanical.
 
@@ -23,7 +23,7 @@ Two places carry a *value*-level invariant the same way #447's span index used t
 - `crates/geom-core/src/linalg/frame.rs:238`, `frame_from_unit_aim` — takes an `aim` documented as **unit**, unchecked. The recipe's right-handedness and the `y = aim.cross(x)` normalization both depend on it.
 - `crates/profile/src/lib.rs:353`, `Plane::from_frame` — "normal = u × v (computed, keeping the frame right-handed by construction when u ⊥ v are unit — **which is the caller's conventional obligation, unchecked**)."
 
-Structurally identical to the `span − degree` situation: a fact proven at one site, consumed at another, with only a comment connecting them. The analogous fix is a `UnitVec3` minted once by the ladder that already computes the norm — `frame_from_unit_aim` notably already receives `cross_len` precisely so the caller's decision is not recomputed, which is the same "compute once, carry it" instinct #447 applied to `index − degree`.
+Structurally identical to the `span − degree` situation: a fact proven at one site, consumed at another, with only a comment connecting them. The analogous fix is a `UnitVec3<T>` minted once by the ladder that already computes the norm — `frame_from_unit_aim` notably already receives `cross_len` precisely so the caller's decision is not recomputed, which is the same "compute once, carry it" instinct #447 applied to `index − degree`.
 
 ## Why this is a design question and not a follow-up PR
 

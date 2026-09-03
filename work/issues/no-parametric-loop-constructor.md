@@ -10,11 +10,11 @@ refs: [938]
 
 ## From GitHub issue 948
 
-opened 2026-08-23, 0 comments.
+Opened 2026-08-23; 0 comments.
 
 Small authoring gap, met by the ASM-DEMO exit walk (#938).
 
-`LoopProgram::polygon` takes `impl IntoIterator` — literal coordinates. Its own doc comment names the gap:
+`LoopProgram::polygon` takes `impl IntoIterator<Item = (f64, f64)>` — literal coordinates. Its own doc comment names the gap:
 
 > A literal polygon … (corpus/fixture authoring; **parametric authors write the steps with their own Exprs**).
 
@@ -30,7 +30,7 @@ LoopProgram::Chain(vec[
 ])
 ```
 
-`demos/tour/src/assembly.rs::rect` is that, and every parametric consumer will write it again. The natural door is the same constructor over `Expr` — `LoopProgram::polygon_expr(points: impl IntoIterator)` — with the literal one delegating to it through the literal Expr constructor, so there is one expansion rather than two that can drift.
+`demos/tour/src/assembly.rs::rect` is that, and every parametric consumer will write it again. The natural door is the same constructor over `Expr` — `LoopProgram::polygon_expr(points: impl IntoIterator<Item = [Expr; 2]>)` — with the literal one delegating to it through the literal Expr constructor, so there is one expansion rather than two that can drift.
 
 Note the shape is not rectangle-specific: the gap is the whole chain vocabulary's literal/Expr split at the convenience layer, and a rectangle is just where it shows up first.
 

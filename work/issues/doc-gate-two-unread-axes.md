@@ -10,7 +10,7 @@ refs: [1313]
 
 ## From GitHub issue 1317
 
-opened 2026-08-31, 0 comments.
+Opened 2026-08-31; 0 comments.
 
 Two axes `scripts/doc-gate.sh` still cannot read after QA-8's pass 3 (PR #1313). Both are disclosed at the site in that script's header and neither is scheduled; this issue is the schedule they owe.
 

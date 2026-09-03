@@ -10,7 +10,7 @@ refs: [1301]
 
 ## From GitHub issue 1309
 
-opened 2026-08-30, 0 comments.
+Opened 2026-08-30; 0 comments.
 
 **Raised by BLEND-5's review round** (PR #1301). The PyO3 mirror of a widened enum is guarded by an exhaustive `growth_tripwire` match (`pncad-py/src/py/select.rs:864`) — good shape. The hand-written stub is not: `test_stubs.py`'s `stub_names()` walks only `tree.body`, so class *attributes* in `pncad.pyi` are never descended into (its own docstring says so: "NAME-level equality of the top-level surface"), and `ty` has nothing to cross-check enum members against. Had BLEND-5's author forgotten to update `pncad.pyi:1624-1628` for `RimSupport::{Host, Mate}`, the entire Python suite would have stayed green while the stub advertised retired variants.
 

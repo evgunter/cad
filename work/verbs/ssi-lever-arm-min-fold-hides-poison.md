@@ -10,7 +10,7 @@ refs: [762]
 
 ## From GitHub issue 1219
 
-opened 2026-08-29, 0 comments.
+Opened 2026-08-29; 0 comments.
 
 Found by the shape sweep the CERT-2 lane owed for issue 762's second item ("`f64::max` returns the non-NaN operand, so a single poisoned derivative box cannot reach a guard's `is_nan()` arm"). That item was fixed at the two chart-speed sites; the sweep for the same **shape** — a min/max fold feeding a guard that has a NaN arm — turns up the lever-arm folds, which nobody has swept. Filed rather than fixed: the CERT-2 fence is the chart-speed guards and the two SMELL rows.
 
