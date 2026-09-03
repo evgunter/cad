@@ -179,7 +179,7 @@ pub struct SymbolicDials {
 pub const DEFAULT_SYM_MAX_TERMS: usize = 4096;
 
 /// The shipped degree budget ([`SymbolicDials`]).
-pub const DEFAULT_SYM_MAX_DEGREE: u32 = 16;
+pub const DEFAULT_SYM_MAX_DEGREE: u32 = 128;
 
 impl SymbolicDials {
     /// The tier off — the numeric-only replay, bit for bit.
