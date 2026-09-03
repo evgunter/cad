@@ -106,9 +106,9 @@ does, the census's family tag IS the id and the census owns it**
 (`FAMILIES`, below). Both halves are checked mechanically —
 `test_every_gap_entry_names_a_defined_id` reads the audit page's own
 gap tables and fails on a citation the page does not define, and on a
-family tag `FAMILIES` does not charter. `docs/LIB-LOG.md`'s residual
-register, category B, points here for the enumeration rather than
-carrying one in prose.
+family tag `FAMILIES` does not charter. `work/lib/log.md`'s "LIB
+residual register", category B, points here for the enumeration
+rather than carrying one in prose.
 
 WHAT THIS DOES NOT CLAIM
 ------------------------
@@ -634,13 +634,14 @@ GAP = "gap"
 #: `G1` for the Expr-in-a-profile-step residue its row records.
 #:
 #: **The spelling.** `B-` is the register category these entries used
-#: to point at in prose — `docs/LIB-LOG.md`, "LIB residual register",
-#: category B — which now points HERE for its enumeration, so the
-#: lineage stays legible in the id itself and a reader arriving from
-#: either document lands in the same place. Upper case with a hyphen
-#: makes an id unmistakable for an audit `G##`, for a Python
-#: identifier, or for the prose that follows it; no whitespace, so
-#: `gap: <ID> <prose>` parses by splitting once.
+#: to point at in prose — the "LIB residual register", category B,
+#: spelled `docs/LIB-LOG.md` when these entries were written and now
+#: living at `work/lib/log.md` — and that register points HERE for
+#: its enumeration, so the lineage stays legible in the id itself and
+#: a reader arriving from either document lands in the same place.
+#: Upper case with a hyphen makes an id unmistakable for an audit
+#: `G##`, for a Python identifier, or for the prose that follows it;
+#: no whitespace, so `gap: <ID> <prose>` parses by splitting once.
 #:
 #: **What a charter is.** One line: the door that is missing, and what
 #: a unit closing it would have to DELIVER. Not a plan, not a
@@ -1605,9 +1606,10 @@ class TestBindingCensus(unittest.TestCase):
         A `gap:` entry is OWED WORK, and the id after the colon is
         what a dispatcher works from. Before this guard those ids were
         free prose, and half of them read `register B <something>` —
-        a pointer at a PARAGRAPH of `docs/LIB-LOG.md`, which is not an
-        enumeration and cannot be dispatched against. So each entry
-        now names exactly one id and each id must be defined:
+        a pointer at a PARAGRAPH of `work/lib/log.md`'s "LIB residual
+        register", which is not an enumeration and cannot be
+        dispatched against. So each entry now names exactly one id
+        and each id must be defined:
 
         - an audit citation (`G` + digits) must be a gap
           `docs/guide/north-star-audit.md` actually defines, read off
