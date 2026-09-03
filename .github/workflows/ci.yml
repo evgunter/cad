@@ -599,6 +599,40 @@ jobs:
             cat filter-notices.txt
           fi
 
+      # THE PYTHON SUITE AXIS — ITS VERDICT, IN A SEAT THAT ALWAYS SPEAKS.
+      #
+      # `python suite (wheel + guide + north-star)` is SEED-keyed (see that
+      # job, and `RUN_PNCAD_PY` in scripts/ci-filter.py). The viewer axis
+      # prints its verdict inside `fmt`, beside the rows it gates; this one
+      # cannot borrow that arrangement, because when the axis is false the
+      # whole JOB is skipped and a skipped job runs no step at all. A
+      # green checks list with no python row in it, and nothing anywhere
+      # saying why, is exactly the "green job name over a silent skip" the
+      # ruling that created the viewer axis forbade.
+      #
+      # So it is sited here, in the job that computed it and that carries
+      # no `if:` — the same seat and the same reasoning as the two steps
+      # around it. The seeds are printed with the verdict, so a reader who
+      # sees SKIP can see the list it was decided from without re-deriving
+      # it.
+      - name: python suite - the filter's verdict
+        env:
+          TIER: ${{ steps.classify.outputs.TIER }}
+          SEEDS: ${{ steps.classify.outputs.SEEDS }}
+          RUN_PNCAD_PY: ${{ steps.classify.outputs.RUN_PNCAD_PY }}
+        run: |
+          printf 'seeds: %s\n' "$SEEDS"
+          printf 'tier: %s\n' "$TIER"
+          if [ "$RUN_PNCAD_PY" = true ]; then
+            echo 'RUN: the seeds intersect {pncad-py, pncad, editor-core} (or the tier is unscopable).'
+            echo 'RUN: the wheel is built and the unittest suite discovered over crates/pncad-py/tests.'
+          else
+            echo 'SKIP: no seed in {pncad-py, pncad, editor-core} — the wheel is NOT built on this run,'
+            echo 'and the `python suite (wheel + guide + north-star)` job below is skipped entirely.'
+            echo 'The nightly lane re-takes the whole suite ungated; a break in the re-exported Rust API'
+            echo 'still reds the offending crate ordinary closure rows in this same run.'
+          fi
+
       # DOES THIS RUN GATE ANYTHING AT ALL (#1204). A draft run zeroes every
       # RUN_* flag above and still ends GREEN, with TIER, CARGO_SCOPE and LANE
       # left truthful — a green that means "nothing ran" wearing the clothes of
@@ -2924,11 +2958,36 @@ jobs:
   # `python` feature, which only maturin turns on). Its failure still
   # reds the PR — that is the point.
   #
-  # Root package pncad-py (see JOB_ROOTS in scripts/ci-filter.py): the
-  # wheel compiles pncad-py's whole dependency graph — the entire façade
-  # stack — so `pncad-py in closure` is exactly the condition under
-  # which anything this job runs can have moved; the .py tests and .pyi
-  # stub live under the member directory and seed the same closure.
+  # SEED-KEYED, NOT CLOSURE-KEYED (Ev's approval in chat, 2026-09-03;
+  # S-TCOST unit C3), and the argument is at `RUN_PNCAD_PY` in
+  # scripts/ci-filter.py. This job used to be keyed on `pncad-py in the
+  # dependent CLOSURE` — the wheel compiles that crate's whole dependency
+  # graph, the entire façade stack, so the condition read as "something
+  # the wheel compiles moved". It is true of nearly every kernel change,
+  # because `pncad` re-exports the kernel and `pncad-py` sits under it, so
+  # it selected almost nothing while buying a SECOND compile of the kernel
+  # under the non-default `python` feature on almost every code-tier run.
+  #
+  # The condition is now the change filter's SEEDS — the members whose OWN
+  # files moved — intersecting {pncad-py, pncad, editor-core}: the binding
+  # layer, the façade every binding call goes through, and the document
+  # model the guide and north-star scripts drive. The .py tests and .pyi
+  # stub live under `crates/pncad-py/`, so they seed that member like any
+  # other source.
+  #
+  # WHAT THE SKIP GIVES UP is re-taken daily: nightly.yml's `python suite
+  # (ungated re-take)` runs this suite with no filter at all, so a kernel
+  # change that moves a NUMBER the .py assertions pin — reaching the
+  # bindings through `pncad`'s re-exports without seeding anything here —
+  # surfaces within a day rather than at whichever unlucky PR next touches
+  # the façade. A change that BREAKS the re-exported Rust API still reds
+  # that crate's ordinary closure rows on the offending PR, in the same
+  # run, because the façade's Rust side is compiled by the ordinary build.
+  #
+  # RECORDED, NEVER SILENT: the verdict is printed by an always-run step
+  # in the `filter` job, with the seeds it was decided from. That siting
+  # is not decoration — a SKIPPED job shows no steps at all, so unlike the
+  # viewer rows there is no seat inside this job from which it could speak.
   # Budget: one job, one Python version, no matrix, debug-profile build
   # (release is not required to prove the suite; the D9 bit-exactness
   # pins hold at any opt level — opt never moves rounding, and the

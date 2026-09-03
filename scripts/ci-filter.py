@@ -74,7 +74,9 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   RUN_EDITOR_CORE=true|false    the editor-core rows (see JOB_ROOTS)
   RUN_STL=true|false            watertight (admesh) row
   RUN_STEP_EXPORT=true|false    step import (freecad) row
-  RUN_PNCAD_PY=true|false       python suite (wheel + unittest) row
+  RUN_PNCAD_PY=true|false       python suite (wheel + unittest) row — keyed on
+                                SEEDS, not on the closure, like
+                                RUN_VIEWER_TOOLKIT below; see `PNCAD_PY_SEEDS`
   RUN_INTERVAL_BACKEND=true|false   interval-transcendentals' own workspace
   RUN_INTERVAL_ORACLE=true|false    its oracle-inari certification tier
   RUN_TOPO_RELEASE=true|false   corrupt input (release profile) row
@@ -714,12 +716,16 @@ def _all_tier(root: str) -> dict[str, str]:
 #               for exactly those modules), and `rebuild latency` moved to
 #               nightly.yml. What still reads this is ci.yml's `test-interval`
 #               job — its two named interval rows — plus ci-local.sh.
-# pncad-py      the python-suite row builds the wheel from pncad-py, whose
-#               dependency graph is the whole façade stack (pncad ->
-#               editor-core -> ... ), so `pncad-py in closure` is exactly
-#               "something the wheel compiles moved"; the crate's own .py
-#               test/stub files live under its member directory, so they
-#               seed the same closure.
+# pncad-py      NO LONGER HERE. `RUN_PNCAD_PY` is computed in `decorate`
+#               off the SEEDS, beside `RUN_VIEWER_TOOLKIT` and for the
+#               same reason; the argument is at that site. What this
+#               table said, and why it stopped being the right condition:
+#               the wheel compiles pncad-py's whole dependency graph —
+#               the entire façade stack — so `pncad-py in closure` is
+#               "something the wheel compiles moved", which is true of
+#               nearly every kernel change and therefore gates almost
+#               nothing while costing a second kernel compile under the
+#               `python` feature on almost every code-tier run.
 # topo          the release-profile corrupt-input row compiles
 #               `-p topo --lib`, so topo's own closure membership is
 #               exactly the condition under which anything it runs can
@@ -729,7 +735,6 @@ JOB_ROOTS = {
     "RUN_EDITOR_CORE": {"editor-core"},
     "RUN_STL": {"stl"},
     "RUN_STEP_EXPORT": {"step-export"},
-    "RUN_PNCAD_PY": {"pncad-py"},
     "RUN_TOPO_RELEASE": {"topo"},
 }
 
@@ -780,6 +785,33 @@ def _touches_oracle(files: list[str] | None) -> bool:
 # lane re-takes the whole row daily, which is what makes the set safe to keep
 # small.
 VIEWER_TOOLKIT_SEEDS: frozenset[str] = frozenset({"viewer", "pncad", "bvh"})
+
+# THE SEEDS THAT BUY THE PYTHON SUITE (Ev's approval in chat, 2026-09-03;
+# S-TCOST unit C3). SEEDS, not the closure, and the argument is at
+# `RUN_PNCAD_PY` in `decorate`.
+#
+# `pncad-py` sits downstream of `pncad`, which re-exports the whole kernel, so
+# it is in the dependent CLOSURE of nearly every kernel change — a
+# closure-keyed test is true almost always and gates almost nothing, while the
+# row it gates is a SECOND compile of the kernel under the `python` feature.
+# That is the identical shape the viewer axis was ruled on, one crate over.
+#
+# WHY THESE THREE. `pncad-py` — the binding layer's own Rust and the suite's
+# own .py/.pyi files, which live under that member directory. `pncad` — the
+# façade every binding call goes through, and the one crate whose own source
+# can change what the suite sees without any other crate moving. `editor-core`
+# — the document model the suite drives through the façade (the guide and
+# north-star tests build documents), and the one non-façade edge the bindings
+# have. A kernel crate that `pncad` merely re-exports is deliberately NOT here:
+# a breaking change to a re-exported type reddens the ordinary closure rows on
+# the offending PR, and a change in its NUMBERS is what the nightly re-take is
+# for.
+#
+# Adding a name here is a decision about what can change the wheel's observable
+# behaviour without touching the three above; it is not a convenience. The
+# nightly lane re-takes the whole suite daily, which is what makes the set safe
+# to keep small.
+PNCAD_PY_SEEDS: frozenset[str] = frozenset({"pncad-py", "pncad", "editor-core"})
 
 # THE SAMPLED MATRIX. Both lists are the full set the hosted gate used to
 # run on every push; sampling picks one member of each per run.
@@ -1729,6 +1761,44 @@ def decorate(
     else:
         seeds = set(s for s in res.get("SEEDS", "").split(",") if s)
         res["RUN_VIEWER_TOOLKIT"] = "true" if seeds & VIEWER_TOOLKIT_SEEDS else "false"
+    # THE PYTHON SUITE — SEED-KEYED FOR THE SAME REASON, AND ARGUED THE SAME
+    # WAY (Ev, in chat 2026-09-03; S-TCOST unit C3). It sat in JOB_ROOTS
+    # above until then, keyed on `pncad-py in the dependent closure`.
+    #
+    # WHY THE CLOSURE WAS THE WRONG CONDITION. `pncad-py` depends on `pncad`,
+    # which re-exports the entire kernel, so almost every kernel change puts
+    # `pncad-py` in its closure. The condition was therefore true on nearly
+    # every code-tier run, which is a gate that selects nothing — and what it
+    # bought on each of those runs was a SECOND compile of the kernel, under
+    # the non-default `python` feature (pyo3 plus four more crates, its own
+    # cache lane), to run a suite whose subject had not moved.
+    #
+    # WHY THESE SEEDS ARE ENOUGH. The suite exercises the bindings' own
+    # surface: the .pyi lattice, the guide and north-star scripts, and the
+    # façade calls they make. `pncad-py` is that code; `pncad` is the façade it
+    # calls; `editor-core` is the document model those scripts drive. A change
+    # in any OTHER kernel crate reaches the suite only through `pncad`'s
+    # re-exports — and a breaking one there reddens that crate's ordinary
+    # closure rows on the offending PR, in the same run, because the Rust side
+    # of the façade is compiled by the ordinary build. What the seeds give up
+    # is a change in kernel NUMBERS that the python suite's own assertions
+    # would have caught first, and that is what the nightly re-take exists for.
+    #
+    # RECORDED, NEVER SILENT (the KLINT_ROW lesson, and the viewer axis's own
+    # rule): this is an output key, the filter echoes it with the seeds it was
+    # computed from, and ci.yml prints the verdict in a step that always runs.
+    # A green job name over a skipped job is the failure mode this shape exists
+    # to avoid — and it is worse here than for the viewer rows, because a
+    # SKIPPED job shows no steps at all.
+    if tier == "docs":
+        res["RUN_PNCAD_PY"] = "false"
+    elif tier == "all":
+        # Unscopable: no seed information, so the axis fails OPEN like every
+        # other signal here.
+        res["RUN_PNCAD_PY"] = "true"
+    else:
+        seeds = set(s for s in res.get("SEEDS", "").split(",") if s)
+        res["RUN_PNCAD_PY"] = "true" if seeds & PNCAD_PY_SEEDS else "false"
     # Sampling is the LAST word and reads nothing above it: which point of
     # the matrix a run gates is independent of which rows the change filter
     # selected, and keeping the two apart is what lets the local gate consume
@@ -1863,11 +1933,34 @@ _VIEWER_FIXTURE_PKGS = {
 }
 
 
-def _plant_viewer_fixture(t: str) -> str:
-    """A minimal workspace exercising `RUN_VIEWER_TOOLKIT`'s seed keying."""
+# THE PYTHON SUITE'S FIXTURE, same shape and same argument one crate over:
+#
+#   pncad-py -> pncad -> editor-core -> topo
+#
+# so a `topo` change puts `pncad-py` in the CLOSURE while seeding neither it
+# nor either crate between — precisely what a closure-keyed test gets wrong,
+# and precisely the population this axis is meant to stop paying a second
+# kernel compile for.
+_PY_FIXTURE_PKGS = {
+    "topo": [],
+    "editor-core": [("topo", "normal")],
+    "pncad": [("editor-core", "normal")],
+    "pncad-py": [("pncad", "normal")],
+}
+
+
+def _plant_seed_axis_fixture(t: str, pkgs: dict[str, list] = _VIEWER_FIXTURE_PKGS) -> str:
+    """A minimal workspace exercising a SEED-keyed axis — `RUN_VIEWER_TOOLKIT`
+    by default, `RUN_PNCAD_PY` with `_PY_FIXTURE_PKGS`.
+
+    ONE PLANTER, TWO GRAPHS, and they stay separate graphs deliberately: the
+    viewer cases assert an exact PKGS closure, so growing one fixture to serve
+    both axes would make every one of those expectations a statement about the
+    other axis's dependency edges.
+    """
     import shutil
 
-    for pkg in _VIEWER_FIXTURE_PKGS:
+    for pkg in pkgs:
         os.makedirs(os.path.join(t, "crates", pkg, "src"), exist_ok=True)
         open(os.path.join(t, "crates", pkg, "Cargo.toml"), "w").close()
         open(os.path.join(t, "crates", pkg, "src", "lib.rs"), "w").close()
@@ -1881,7 +1974,7 @@ def _plant_viewer_fixture(t: str) -> str:
                 "manifest_path": os.path.join(t, "crates", pkg, "Cargo.toml"),
                 "dependencies": [{"name": d, "kind": k} for d, k in deps],
             }
-            for pkg, deps in _VIEWER_FIXTURE_PKGS.items()
+            for pkg, deps in pkgs.items()
         ]
     }
     stub = os.path.join(t, "bin", "cargo")
@@ -2178,7 +2271,7 @@ def selftest() -> None:
     # closure. Without the second case a closure-keyed implementation passes
     # this battery, which would make the ruling unenforced.
     with tempfile.TemporaryDirectory() as t:
-        _plant_viewer_fixture(t)
+        _plant_seed_axis_fixture(t)
         _files_case(t, "viewer's own sources buy the toolkit rows",
                     ["crates/viewer/src/app.rs"],
                     TIER="closure", SEEDS="viewer", RUN_VIEWER_TOOLKIT="true")
@@ -2202,6 +2295,42 @@ def selftest() -> None:
                     ["Cargo.toml"], TIER="all", SEEDS="", RUN_VIEWER_TOOLKIT="true")
         _files_case(t, "a docs-only change runs nothing, toolkit included",
                     ["README.md"], TIER="docs", SEEDS="", RUN_VIEWER_TOOLKIT="false")
+
+    # --- THE PYTHON SUITE AXIS, on `_PY_FIXTURE_PKGS`. Same rule, same two
+    # directions: without the closure-only case a closure-keyed implementation
+    # passes this battery, and the axis would be unenforced.
+    with tempfile.TemporaryDirectory() as t:
+        _plant_seed_axis_fixture(t, _PY_FIXTURE_PKGS)
+        _files_case(t, "the binding crate's own sources buy the python suite",
+                    ["crates/pncad-py/src/lib.rs"],
+                    TIER="closure", SEEDS="pncad-py", RUN_PNCAD_PY="true")
+        # THE SUITE'S OWN FILES. They are .py and .pyi under the member
+        # directory, so they are neither docs nor Rust — and they seed the
+        # member like any other source, which is the arm that keeps a
+        # test-only edit from skipping the job that runs it.
+        _files_case(t, "the suite's own .py files buy it",
+                    ["crates/pncad-py/tests/test_guide.py"],
+                    TIER="closure", SEEDS="pncad-py", RUN_PNCAD_PY="true")
+        _files_case(t, "the facade's own sources buy it",
+                    ["crates/pncad/src/lib.rs"],
+                    TIER="closure", SEEDS="pncad", RUN_PNCAD_PY="true")
+        _files_case(t, "the document model's own sources buy it",
+                    ["crates/editor-core/src/doc.rs"],
+                    TIER="closure", SEEDS="editor-core", RUN_PNCAD_PY="true")
+        # THE CASE THAT MATTERS, and the whole reason this key left JOB_ROOTS:
+        # `topo` is under `pncad-py` through two crates, so `pncad-py` is in
+        # the closure and is not a seed. A closure-keyed axis says true here —
+        # on nearly every kernel change — and buys a second kernel compile
+        # under the `python` feature for a suite whose subject held still.
+        _files_case(t, "a kernel crate reaching pncad-py only through the closure does NOT",
+                    ["crates/topo/src/lib.rs"],
+                    TIER="closure", PKGS="editor-core,pncad,pncad-py,topo",
+                    SEEDS="topo", RUN_PNCAD_PY="false")
+        # Fails OPEN with the rest of the filter.
+        _files_case(t, "an unscopable change runs the python suite",
+                    ["Cargo.toml"], TIER="all", SEEDS="", RUN_PNCAD_PY="true")
+        _files_case(t, "a docs-only change runs nothing, the python suite included",
+                    ["README.md"], TIER="docs", SEEDS="", RUN_PNCAD_PY="false")
 
     # An `include!` this reader cannot resolve could name a .md, so it takes
     # the whole change set to TIER=all rather than guessing. Its own fixture:
