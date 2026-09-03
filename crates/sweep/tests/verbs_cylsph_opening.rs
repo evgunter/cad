@@ -101,39 +101,83 @@ fn fixture() -> [(&'static str, Body<f64>, Body<f64>); 2] {
 /// CROSSING layer, in both poses, with the same typed variant — not at
 /// the germ frame, which sits below this door and is never reached.
 ///
-/// The carrier kind is pinned too, because it is what names whose work
-/// the row waits on, and it refuted the guess this row was first
-/// written with: the edge is the cylinder's SEAM LINE, not a rim
-/// circle. The pierce door exists for a LINE carrier against a CYLINDER
-/// WALL, so what refuses here is the FACE — a sphere. That is one
-/// reason, not two, and it is not a germ-pair join.
+/// **BOTH halves of the payload are read off the bodies, and each half
+/// carries a stated non-vacuity guard.** The pierce door exists for a
+/// LINE carrier definitely crossing a CYLINDER wall, so a refusal here
+/// is either the carrier's fault or the face's, and the row has to name
+/// which:
+///
+/// - the EDGE is operand A's, and its certified carrier is a **Line** —
+///   the cylinder's SEAM, which refutes the guess this row was first
+///   written with (a rim circle). Discriminating, and measured so: A
+///   carries SIX edges, of which FOUR are the rim Circles and only two
+///   are seam Lines, and the guard below pins that the circles are on
+///   offer.
+/// - the FACE is operand B's, and its surface kind is **Sphere**.
+///
+/// So the carrier is one the door HAS an arm for and the face is not:
+/// what refuses is the FACE kind. That is one reason, not two, and it
+/// is not a germ-pair join.
+///
+/// **What the Sphere half can and cannot catch, measured rather than
+/// assumed.** B's face roster is UNIFORM — two faces, both the ball's
+/// sphere wall — and body face keys are slotmap indices that COLLIDE
+/// across bodies, so this assertion cannot catch a door that named a
+/// different face; measured directly, substituting a face key drawn
+/// from A leaves the row green. What it does catch is a door reaching
+/// into a roster with no sphere in it, and A is exactly that (two
+/// Planes and two Cylinders), which the second guard pins. That is
+/// strictly more than the assertions it replaced: those read Display
+/// SUBSTRINGS that are static literals present in EVERY
+/// `CurvedPierceUnsupported` message whatever the payload said, so
+/// they pinned nothing about this pose and are gone.
 #[test]
 fn the_coaxial_union_refuses_at_the_curved_pierce_door() {
     for (label, c, s) in fixture() {
         let err = topo::union(&c, &s, Tol::witness())
             .expect_err("a coaxial cyl×sphere crossing has no crossing lane");
-        let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = err else {
+        let BooleanError::CurvedPierceUnsupported {
+            operand,
+            edge,
+            face,
+            ..
+        } = err
+        else {
             panic!("{label}: expected the curved pierce door, got {err:?}");
         };
-        // Operand A is the cylinder, and the edge it names is a rim.
+        // Operand A is the cylinder, and the edge it names is its SEAM.
         assert_eq!(format!("{operand:?}"), "A", "{label}");
-        let Some(topo::CurveGeom::Certified(carrier)) =
-            c.get_edge(edge).and_then(|e| c.get_curve_geom(e.curve))
-        else {
-            panic!("{label}: the named edge has no certified curve");
-        };
-        assert!(
-            matches!(carrier.carrier(), topo::Curve3::Line { .. }),
+        assert_eq!(
+            topo::query::edge_carrier_kind(&c, edge),
+            Some(topo::CurveKind::Line),
             "{label}: the refusal names a non-line carrier"
         );
-        // The face is the ball's, and the message names the clause that
-        // actually applies to this pose, so a reader lands on the right
-        // fact rather than on the carrier clause beside it.
-        let msg = format!("{err}");
-        assert!(msg.contains("sphere face"), "{label}: {msg}");
+        // Non-vacuity for that half: the rim circles ARE on offer, so
+        // "Line" is a choice the door made and not the only kind there.
+        assert_eq!(
+            c.edges()
+                .filter(|&(k, _)| {
+                    topo::query::edge_carrier_kind(&c, k) == Some(topo::CurveKind::Circle)
+                })
+                .count(),
+            4,
+            "{label}: the Line pin only says something while rim circles are on offer"
+        );
+        // The face is the BALL's, and it is the sphere wall — the half
+        // the door has no arm for.
+        assert_eq!(
+            topo::query::face_surface_kind(&s, face),
+            Some(geom_brep::SurfaceKind::Sphere),
+            "{label}: the refusal does not name a sphere face of operand B"
+        );
+        // Non-vacuity for THIS half, exactly as far as it goes (see the
+        // doc): operand A has no sphere face at all, so a door that
+        // reached into A's roster could not answer Sphere.
         assert!(
-            msg.contains("LINE carrier definitely crossing a CYLINDER wall"),
-            "{label}: {msg}"
+            c.faces().all(|(k, _)| {
+                topo::query::face_surface_kind(&c, k) != Some(geom_brep::SurfaceKind::Sphere)
+            }),
+            "{label}: operand A has a sphere face, so the Sphere pin says nothing"
         );
     }
 }
@@ -227,6 +271,13 @@ fn a_contained_ball_refuses_at_the_curved_extent_scan() {
 ///
 /// The row reads the Display text off a constructed error rather than
 /// off the source, so a rewrite that dropped the sentence reds here.
+///
+/// **This row pins `CurvedPairUnsupported`, NOT
+/// `CurvedBooleanUnsupported`** — a torus operand is stopped at the
+/// pair/kind gate and never reaches the germ-pair join dispatch. The
+/// other variant's text is pinned by
+/// [`the_join_dispatchs_refusal_says_what_it_actually_wires`] below,
+/// which had to construct a different error to get at it.
 #[test]
 fn the_deferred_join_windows_door_still_names_itself() {
     let torus = {
@@ -253,5 +304,98 @@ fn the_deferred_join_windows_door_still_names_itself() {
     assert!(
         msg.contains("cyl×sphere") && msg.contains("window"),
         "the deferred window's door stopped naming itself: {msg}"
+    );
+}
+
+/// **The germ-pair JOIN dispatch's refusal says what that dispatch
+/// actually wires** — the corrected clause, read off a CONSTRUCTED
+/// `CurvedBooleanUnsupported`, which no row in the tree did before.
+///
+/// The clause it replaces was created by this unit's own refusal-text
+/// sweep and was measured FALSE: it said the join dispatch wires
+/// `(Sphere, Sphere)` and a declared-coaxial `(Cylinder, Sphere)`. It
+/// does not. `join::join_germ_pair`'s match has three arms —
+/// `(Plane, Plane)`, `(Plane, Sphere) | (Plane, Cylinder)` and the
+/// mirror of the second — and its catch-all is the site that raises
+/// THIS variant, so a sphere pair or a cyl×sphere germ reaches the
+/// catch-all exactly like a cone or torus one. What IS wider is
+/// `join::pair_section_frame`, a different dispatch answering a
+/// different question: it names a section frame (a centre and an axis
+/// for the rotational facing test), never a seam lane. Both Displays
+/// now say that, and neither contradicts the other.
+///
+/// **The operand here is a NURBS wall, deliberately.** The variant is
+/// per-KIND and its Display carries no per-site branch, so any body
+/// that raises it serves; a NURBS wall is the only construction that
+/// reaches it through the public `union` door in this build, because
+/// the cyl×sphere and sphere×sphere germ poses are stopped two layers
+/// above (the rows at the top of this file are that measurement).
+#[test]
+fn the_join_dispatchs_refusal_says_what_it_actually_wires() {
+    let a = cyl(1.0, -2.0, 2.0);
+    let mut b = cyl(1.0, -0.5, 0.5);
+    let (face, _) = b.faces().next().unwrap();
+    b.set_face_surface(
+        face,
+        topo::FaceSurface::New(geom::Surface::Nurbs(std::sync::Arc::new(
+            geom::NurbsSurface::placeholder(),
+        ))),
+    )
+    .unwrap();
+    let err = topo::union(&a, &b, Tol::witness())
+        .expect_err("a NURBS wall has no crossing layer in this build");
+    assert!(
+        matches!(err, BooleanError::CurvedBooleanUnsupported { .. }),
+        "expected the crossing-layer refusal, got {err:?}"
+    );
+    let msg = format!("{err}");
+    // The corrected clause: what the JOIN dispatch wires, and that the
+    // catch-all is not cone/torus-only.
+    assert!(
+        msg.contains("germ-pair JOIN dispatch's catch-all"),
+        "the refusal no longer names the dispatch it is raised from: {msg}"
+    );
+    assert!(
+        msg.contains("(Plane, Plane), (Plane, Cylinder) and (Plane, Sphere) only"),
+        "the refusal does not state what that dispatch wires: {msg}"
+    );
+    assert!(
+        msg.contains("(Sphere, Sphere) or (Cylinder, Sphere) germ reaches the catch-all"),
+        "the refusal still reads as cone/torus-only: {msg}"
+    );
+    // And the distinction from the WIDER dispatch beside it, which is
+    // what the false clause conflated it with.
+    assert!(
+        msg.contains("SECTION-FRAME dispatch"),
+        "the refusal drops the dispatch the false clause confused it with: {msg}"
+    );
+    assert!(
+        msg.contains("a frame is not a join arm"),
+        "the refusal drops why a wider frame dispatch moves nothing: {msg}"
+    );
+    // The two Displays must AGREE, which is the half that was broken:
+    // `CurvedPairUnsupported` said "(Plane, Cylinder) and (Plane,
+    // Sphere) only" while this one implied four wired pairs.
+    let pair_msg = format!(
+        "{}",
+        BooleanError::CurvedPairUnsupported {
+            op: None,
+            operand: topo::Operand::A,
+            face,
+            kind: geom_brep::SurfaceKind::Torus,
+            other_face: face,
+            other_kind: geom_brep::SurfaceKind::Plane,
+        }
+    );
+    assert!(
+        pair_msg.contains(
+            "germ-pair JOIN dispatch wires (Plane, Plane), (Plane, Cylinder) \
+             and (Plane, Sphere) only, mirrors included"
+        ),
+        "the sibling refusal contradicts this one: {pair_msg}"
+    );
+    assert!(
+        pair_msg.contains("names a frame, never a join arm"),
+        "the sibling refusal drops the frame/join distinction: {pair_msg}"
     );
 }

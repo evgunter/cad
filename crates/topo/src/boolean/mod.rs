@@ -855,10 +855,27 @@ pub enum BooleanError {
     /// - **Sphere**: LIVE since M5 S13 — the `(Plane, Sphere)` germ
     ///   arm (exact C5 Circle) plus the extent-certified fallback
     ///   re-cut; no longer gated here.
-    /// - **Cone / torus**: the germ-pair join dispatch wires
-    ///   `(Plane, Cylinder)`, `(Plane, Sphere)`, `(Sphere, Sphere)`
-    ///   and — behind a DECLARED coaxiality no production caller can
-    ///   supply — `(Cylinder, Sphere)`. The cyl×sphere fitted-chord
+    /// - **Cone / torus**: the germ-pair JOIN dispatch —
+    ///   `join::join_germ_pair`'s match on the two germ faces'
+    ///   surfaces — wires `(Plane, Plane)`, `(Plane, Cylinder)` and
+    ///   `(Plane, Sphere)` (plus the two mirrors) and NOTHING else. Its
+    ///   catch-all is the site that raises THIS error, so it is not
+    ///   only a cone or torus germ that reaches it: a
+    ///   `(Sphere, Sphere)` or `(Cylinder, Sphere)` germ lands there
+    ///   too.
+    ///
+    ///   **A wider dispatch sits beside it and must not be confused
+    ///   with it.** `join::pair_section_frame` — the pair-general
+    ///   SECTION-FRAME dispatch — additionally names
+    ///   `(Sphere, Sphere)`, `(Cylinder, Cylinder)` (as a proven
+    ///   STRAIGHT locus, or its own pinch door) and, behind a DECLARED
+    ///   coaxiality no production caller can supply,
+    ///   `(Cylinder, Sphere)`. But a frame is not a join arm: that
+    ///   dispatch names the locus's centre and axis for the rotational
+    ///   facing test, which is a strictly smaller thing than a seam
+    ///   lane. Naming a frame for a pair does not move this refusal.
+    ///
+    ///   The cyl×sphere fitted-chord
     ///   window's blocker MOVED at M6-2: `Pcurve::Fitted` now exists
     ///   and certifies at rest (the SSI enclosure/certify stack is no
     ///   longer `f64`-only), so what is left is the JOIN LANE itself —
@@ -1131,7 +1148,15 @@ impl core::fmt::Display for BooleanError {
                  trim containment, and the fitted chord join lane. The curved \
                  containment/pierce door covers the sphere half; the blocker is the \
                  fitted-chord join lane, which has no cyl×sphere azimuth-window \
-                 analog to read",
+                 analog to read. One of the sites that raises this is the germ-pair \
+                 JOIN dispatch's catch-all, and what that dispatch wires is (Plane, \
+                 Plane), (Plane, Cylinder) and (Plane, Sphere) only, mirrors \
+                 included — so a (Sphere, Sphere) or (Cylinder, Sphere) germ reaches \
+                 the catch-all too, not only a cone or torus one. The pair-general \
+                 SECTION-FRAME dispatch beside it is wider (it names the sphere pair, \
+                 the cylinder pair, and a DECLARED-coaxial cylinder x sphere), but a \
+                 frame is not a join arm: it names the locus's centre and axis for \
+                 the facing test and moves no seam lane",
                 kind.name()
             ),
             Self::CurvedPierceUnsupported {
@@ -1221,7 +1246,9 @@ impl core::fmt::Display for BooleanError {
                  (blind and through holes, exact closed-form volumes, tier 3, both \
                  sweep strategies). What is still refused is blocked on a JOIN lane, \
                  not on revert: a cone or torus germ pair has no seam lane at all — the \
-                 germ-pair dispatch wires (Plane, Cylinder) and (Plane, Sphere) only, \
+                 germ-pair JOIN dispatch wires (Plane, Plane), (Plane, Cylinder) and \
+                 (Plane, Sphere) only, mirrors included, and the wider SECTION-FRAME \
+                 dispatch beside it names a frame, never a join arm — \
                  and a cyl×sphere fitted-chord window has no window analog to read — \
                  and a NURBS face has no crossing layer. The refusal is UP FRONT and \
                  structural because the downstream failure is SILENT, not typed: with \
