@@ -1017,6 +1017,12 @@ NOT_BOUND = {
     # `Evaluation.find_flush_candidates` and `Doc.declare`.
     "flush": SHAPE,
     "real": SHAPE,
+    # The loops-only resolution door the sketch frame created: a caller
+    # with loops in hand and no document — a form previewing what it is
+    # about to author — asks it rather than inventing a plane node. No
+    # Python door has that shape: `Node.profile` always has a document
+    # to name a frame in, so there is nothing here Python cannot say.
+    "resolve_loops": INTERIOR,
     "v2": SHAPE,
     "v3": SHAPE,
     "write_step": SHAPE,

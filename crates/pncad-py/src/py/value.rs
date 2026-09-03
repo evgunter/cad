@@ -520,6 +520,7 @@ impl Value {
                     kind: "plane",
                     origin: lengths(*origin),
                     direction: Some((n.x, n.y, n.z)),
+                    in_plane: None,
                     axes: None,
                 })
             }
@@ -529,6 +530,7 @@ impl Value {
                     kind: "axis",
                     origin: lengths(*origin),
                     direction: Some((v.x, v.y, v.z)),
+                    in_plane: None,
                     axes: None,
                 })
             }
@@ -536,6 +538,7 @@ impl Value {
                 kind: "point",
                 origin: lengths(*position),
                 direction: None,
+                in_plane: None,
                 axes: None,
             }),
             d::ValuePayload::Datum(d::DatumValue::Frame { origin, u, v }) => {

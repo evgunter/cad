@@ -1514,19 +1514,11 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         tol,
     );
     doc = next;
-    let (next, axis) = common::inserted(
-        &doc,
-        Node::Datum(Datum::Axis {
-            origin: [common::len(0.0), common::len(0.0), common::len(0.0)],
-            direction: [common::scl(0.0), common::scl(1.0), common::scl(0.0)],
-        }),
-        tol,
-    );
-    doc = next;
-    // The revolve candidate's axis is a DIFFERENT node kind from the
-    // pattern candidate's: one turns a sketch in its own plane, the
-    // other turns a body about a world line. Both are here so this
-    // sweep asks each seat its own question.
+    // The revolve candidate's axis. It is an in-plane axis and not the
+    // world `Datum::Axis` that used to sit here: a revolve turns a
+    // sketch about a line in its own plane, and the world axis this
+    // sweep no longer needs is a different node kind that no candidate
+    // below consumes (the pattern candidate's rule is Linear).
     let (next, sketch_axis) = common::inserted(
         &doc,
         Node::Datum(Datum::AxisInPlane {

@@ -994,25 +994,28 @@ class Node:
     """A recipe node, before insertion."""
 
     @staticmethod
+    def sketch_frame(
+        plane: Optional[SketchPlane] = None,
+        elevation: Optional[Length] = None,
+    ) -> Node:
+        """The sketch frame a profile is drawn on, as a node.
+
+        `plane=` and `elevation=` are the two spellings of one thing
+        and are mutually exclusive; they moved here from the sketch
+        doors when a profile's plane became a document node.
+        """
+
+    @staticmethod
     def polygon(
         points: list[tuple[Length, Length]],
-        elevation: Optional[Length] = None,
-        plane: Optional[SketchPlane] = None,
+        plane: NodeId,
     ) -> Node: ...
     @overload
     @staticmethod
-    def profile(
-        outline: ClosedLoop,
-        elevation: Optional[Length] = None,
-        plane: Optional[SketchPlane] = None,
-    ) -> Node: ...
+    def profile(outline: ClosedLoop, plane: NodeId) -> Node: ...
     @overload
     @staticmethod
-    def profile(
-        outline: list[ClosedLoop],
-        elevation: Optional[Length] = None,
-        plane: Optional[SketchPlane] = None,
-    ) -> Node: ...
+    def profile(outline: list[ClosedLoop], plane: NodeId) -> Node: ...
     @staticmethod
     def extrude(profile: NodeId, distance: Length) -> Node: ...
     @staticmethod
@@ -1035,6 +1038,18 @@ class Node:
         origin: tuple[Length, Length, Length],
         direction: tuple[float, float, float],
     ) -> Node: ...
+    @staticmethod
+    def datum_axis_in_plane(
+        plane: NodeId,
+        origin: tuple[Length, Length],
+        direction: tuple[float, float],
+    ) -> Node:
+        """An axis written IN a sketch frame — a revolve's axis.
+
+        The two pairs are `plane`'s own 2-D coordinates. A revolve
+        takes one of these and not a `datum_axis`: an axis written in
+        the frame cannot leave the plane it turns.
+        """
     @staticmethod
     def datum_plane(
         origin: tuple[Length, Length, Length],
@@ -1349,6 +1364,18 @@ class Doc:
         non-empty only on one a `split` minted."""
 
     def insert(self, node: Node) -> NodeId: ...
+    def sketch_frame(
+        self,
+        plane: Optional[SketchPlane] = None,
+        elevation: Optional[Length] = None,
+    ) -> NodeId:
+        """Insert a sketch frame and return its id.
+
+        Exactly `insert(Node.sketch_frame(...))`. Each call mints a
+        FRESH frame; two sketches meant to share a plane bind the id
+        once and pass it twice.
+        """
+
     def declare(self, finding: FlushFinding) -> NodeId:
         """Insert a `Declare` node for ONE inspected finding and
         return its id for `Node.boolean`'s `declare=` (the

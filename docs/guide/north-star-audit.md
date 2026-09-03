@@ -160,7 +160,7 @@ Everything Python can say about geometry, in full:
   convention and the binding adds no predicate of its own, so a
   non-rigid frame is a well-defined skewed sketch rather than a
   refusal.
-- `Node.profile(outline, elevation=…, plane=…)` — one closed loop
+- `Node.profile(outline, plane=doc.sketch_frame(plane=…))` — one closed loop
   from that lattice, **or a list of them** (outer boundary first,
   then holes), on any sketch plane, built from the loops' recorded
   programs. `plane=` and `elevation=` are mutually exclusive
@@ -168,7 +168,7 @@ Everything Python can say about geometry, in full:
   Nothing about the loop SET is pre-checked: nesting and containment
   are `Profile::validate`'s work, reaching Python as a typed refusal
   at `insert`.
-- `Node.polygon(points, elevation=…, plane=…)` — the straight-segment
+- `Node.polygon(points, plane=doc.sketch_frame(plane=…))` — the straight-segment
   shortcut, same plane story.
 - `Node.extrude(profile, distance)` — along the sketch-plane normal,
   so the plane is what chooses the axis.
@@ -367,8 +367,11 @@ poly = [
 ]
 
 doc = Doc()
-profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in poly]))
-axis = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0)))
+frame = doc.sketch_frame()
+profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in poly], plane=frame))
+# The axis in the sketch's own coordinates: the frame's v is world
+# +y, so the world y axis IS its own +y through (0, 0).
+axis = doc.insert(Node.datum_axis_in_plane(frame, (0 * m, 0 * m), (0.0, 1.0)))
 chute = doc.insert(Node.revolve(profile, axis, 270 * deg))
 
 body = evaluate(doc).value(chute).body()
@@ -402,7 +405,9 @@ T = [
 ]
 
 doc = Doc()
-sketch = doc.insert(Node.polygon([(a * m, b * m) for a, b in T], plane=t_plane))
+sketch = doc.insert(
+    Node.polygon([(a * m, b * m) for a, b in T], plane=doc.sketch_frame(plane=t_plane))
+)
 prism = doc.insert(Node.extrude(sketch, 2.5 * m))
 
 # Area = left bar 1.4375*0.5625 + stem 0.625*3.0 + right bar 1.4375*0.5

@@ -237,7 +237,7 @@ def slab(doc, z0, z1):
     profile = doc.insert(
         Node.polygon(
             [(0 * mm, 0 * mm), (10 * mm, 0 * mm), (10 * mm, 10 * mm), (0 * mm, 10 * mm)],
-            elevation=z0,
+            plane=doc.sketch_frame(elevation=z0),
         )
     )
     return doc.insert(Node.extrude(profile, z1 - z0))
@@ -282,7 +282,7 @@ def slab(doc, z0, z1):
     profile = doc.insert(
         Node.polygon(
             [(0 * mm, 0 * mm), (10 * mm, 0 * mm), (10 * mm, 10 * mm), (0 * mm, 10 * mm)],
-            elevation=z0,
+            plane=doc.sketch_frame(elevation=z0),
         )
     )
     return doc.insert(Node.extrude(profile, z1 - z0))
@@ -338,7 +338,7 @@ def slab(z0, z1):
     profile = doc.insert(
         Node.polygon(
             [(0 * mm, 0 * mm), (10 * mm, 0 * mm), (10 * mm, 10 * mm), (0 * mm, 10 * mm)],
-            elevation=z0,
+            plane=doc.sketch_frame(elevation=z0),
         )
     )
     return doc.insert(Node.extrude(profile, z1 - z0))
@@ -455,7 +455,7 @@ from pncad import Doc, Node, PncadError, StlError, TessellateError, evaluate, m,
 
 doc = Doc()
 sketch = doc.insert(
-    Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)])
+    Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)], plane=doc.sketch_frame())
 )
 cube = doc.insert(Node.extrude(sketch, 1 * m))
 body = evaluate(doc).value(cube).body()

@@ -44,7 +44,7 @@ def slab(doc, x, y, z):
                 (x[1] * m, y[1] * m),
                 (x[0] * m, y[1] * m),
             ],
-            elevation=z[0] * m,
+            plane=doc.sketch_frame(elevation=z[0] * m),
         )
     )
     return doc.insert(Node.extrude(profile, (z[1] - z[0]) * m))

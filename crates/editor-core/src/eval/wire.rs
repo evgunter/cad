@@ -672,7 +672,7 @@ pub(crate) fn frame_axes<T: Decide>(
 fn axis_frame<T: Decide>(
     results: &Results<T>,
     plane: RecipeNodeId,
-) -> Result<(Point3<T>, UnitVec3<T>, UnitVec3<T>), NodeErrorKind> {
+) -> Result<AxisFrame<T>, NodeErrorKind> {
     let v = value_of(results, plane)?;
     let ValuePayload::Datum(DatumValue::Frame { origin, u, v: y }) = &v.payload else {
         return Err(NodeErrorKind::WrongOperand {
@@ -681,7 +681,21 @@ fn axis_frame<T: Decide>(
             found: v.payload.kind_name(),
         });
     };
-    Ok((*origin, *u, *y))
+    Ok(AxisFrame {
+        origin: *origin,
+        u: *u,
+        v: *y,
+    })
+}
+
+/// The frame an in-plane axis is written against, as the three vectors
+/// the lift needs — a name rather than a bare triple, because a caller
+/// that mixed up `u` and `v` would silently turn every such axis by a
+/// right angle.
+struct AxisFrame<T: Decide> {
+    origin: Point3<T>,
+    u: UnitVec3<T>,
+    v: UnitVec3<T>,
 }
 
 fn wire_datum<T: Decide>(
@@ -744,7 +758,8 @@ fn wire_datum<T: Decide>(
         // there is no residual to decide and no band to decide it
         // against.
         Datum::AxisInPlane { plane, .. } => {
-            let (frame_origin, u, v) = axis_frame(results, *plane)?;
+            let f = axis_frame(results, *plane)?;
+            let (frame_origin, u, v) = (f.origin, f.u, f.v);
             let plane_origin = need_point2(vals, SlotId::Origin)?;
             let plane_dir = need_vec2(vals, SlotId::Direction)?;
             let lift = |d: Vec2<T>| u.get() * d.x + v.get() * d.y;

@@ -89,9 +89,8 @@ seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
 — the finding lane: no `Margin` is constructed, the row id is a
 compile-time argument at the site, and grepping `decide_flagged`
 enumerates the clause-(i) debt exactly (F2 ×4,
-F10 ×1 — one loop over seven rigidity residuals — F13 ×1, F14 ×1,
-F15 ×1 —
-8 shipped sites, tracked as issue #214 and pinned by
+F10 ×1 — one loop over seven rigidity residuals — F13 ×1, F14 ×1 —
+7 shipped sites, tracked as issue #214 and pinned by
 `geom-core/tests/flagged_census.rs`: no new site ships without a row
 here, and the count only moves together with this section).
 
@@ -647,21 +646,34 @@ Flagged, NOT fixed here (dispositions):
   typed). Carried as `decide_flagged(.., "F13")`; the honest lever (a
   slant/extent datum) is a design question for the
   structure-selection-funnel conversation N5 banks.
-- **F15** (added by the clause-(i) fix pass, from the #213 review's
-  MAJ-1 — the review's scale-blindness probe EXECUTED it)
+- **F15 — RETIRED (the predicate is gone, not levered).**
+  (added by the clause-(i) fix pass, from the #213 review's MAJ-1 —
+  the review's scale-blindness probe EXECUTED it)
   `editor-core/eval/wire.rs` `revolve_axis_dir_in_plane`: `dir·n̂` with
-  BOTH vectors unit is a bare **sine** against the metre band — the
+  BOTH vectors unit was a bare **sine** against the metre band — the
   audit's class-(c) shape, wrapped in `of` by the first migration pass
   with no argument (the sibling `revolve_axis_origin_in_plane`
-  comparand `rel·n̂` IS metres and keeps `of`). Executed consequence
+  comparand `rel·n̂` IS metres and kept `of`). Executed consequence
   (review probe, adopted on merge as this row's pin,
   `geom-core/tests/review_margin_probe.rs`): a tilt of θ = 5e-10
-  classifies Zero at every model scale while the induced deviation θ·r
-  crosses the band between a 1 mm and a 10 m profile. The honest form
-  levers the sine at the profile's radial extent, which lives
-  kernel-side (`revolve/mod.rs` computes exactly that arm for
-  `revolve_angle`) — that fix is F15's own unit, byte-identity forbids
-  it here. Carried as `decide_flagged(.., "F15")`.
+  classified Zero at every model scale while the induced deviation θ·r
+  crossed the band between a 1 mm and a 10 m profile.
+  
+  This row proposed levering the sine at the profile's radial extent,
+  kernel-side. What happened instead is that the QUESTION was deleted.
+  A revolve's axis is now a `Datum::AxisInPlane` — written in the
+  profile's own frame, in that frame's two coordinates — so it cannot
+  have an out-of-plane component to classify, and the only thing left
+  to decide is whether it is the same frame the profile is drawn on:
+  an equality of node ids, with no band and no scale. Both in-plane
+  predicates went with it, this one and the metre-valued
+  `revolve_axis_origin_in_plane` beside it.
+  
+  The row stays here, struck through rather than deleted, because it is
+  the executed evidence for why the shape mattered — and because
+  `flagged_census.rs` reads these headings and would call a citation to
+  a vanished row a string. Nothing cites it now: the count above went
+  from 8 to 7, and `LEDGER_FLAGGED_SITES` with it.
 - **F14** (added by the clause-(i) migration)
   `editor-core/eval/wire.rs` `revolve_full_vs_partial`: `|θ| − τ` is
   **radians** against the linear band — the full-circle coincidence

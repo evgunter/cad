@@ -127,7 +127,7 @@ from pncad import Doc, Node, evaluate, mm
 
 doc = Doc()
 profile = doc.insert(
-    Node.polygon([(0 * mm, 0 * mm), (80 * mm, 0 * mm), (80 * mm, 40 * mm), (0 * mm, 40 * mm)])
+    Node.polygon([(0 * mm, 0 * mm), (80 * mm, 0 * mm), (80 * mm, 40 * mm), (0 * mm, 40 * mm)], plane=doc.sketch_frame())
 )
 plate = doc.insert(Node.extrude(profile, 8 * mm))
 body = evaluate(doc).value(plate).body()
@@ -347,7 +347,7 @@ rounded = (
 )
 
 doc = Doc()
-plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded)), 8 * mm))
+plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), 8 * mm))
 ev = evaluate(doc)
 assert ev.succeeded(plate)
 
@@ -412,15 +412,26 @@ blended = (
 assert blended.vertex_count == 4
 ```
 
-**The plane is an argument, not an assumption.** A profile lives on a
-`SketchPlane` — a rigid frame `origin, u, v`, where sketch (x, y) maps
-to `origin + x·u + y·v`. The plane's NORMAL is `u × v`, and that is
-the direction `extrude` runs, so choosing the plane is choosing the
-axis. Three named frames come cyclically (x→y→z→x): `xy` (normal +z),
-`yz` (u = ŷ, v = ẑ, normal +x), `zx` (u = ẑ, v = x̂, normal +y).
-`elevation=` remains what it always was — sugar for the xy-plane, that
-far up z — and naming the plane both ways at once is a `TypeError`
-rather than a silent preference.
+**The plane is a NODE, not an argument.** A profile is drawn on a
+sketch frame that lives in the document — a node you insert, see and
+edit, exactly like the extrude that consumes it. `doc.sketch_frame()`
+inserts one and hands back its id, and `plane=` on a sketch names that
+id.
+
+The frame itself is still `origin, u, v`, where sketch (x, y) maps to
+`origin + x·u + y·v`. Its NORMAL is `u × v`, and that is the direction
+`extrude` runs, so choosing the frame is choosing the axis. The two
+ways to spell one moved from the sketch to the frame and are otherwise
+unchanged: `plane=` a `SketchPlane` (three named frames come
+cyclically, x→y→z→x: `xy` (normal +z), `yz` (u = ŷ, v = ẑ, normal +x),
+`zx` (u = ẑ, v = x̂, normal +y)), or `elevation=`, the xy sugar — that
+far up z. Naming it both ways at once is a `TypeError` rather than a
+silent preference.
+
+Each `doc.sketch_frame()` call mints a FRESH frame. Two sketches meant
+to share a plane bind the id once and pass it twice — which is a fact
+about the document now, with something in the document to be a fact
+about.
 
 Rigidity (u, v unit and perpendicular) is **conventional data,
 unchecked**, in Python exactly as in Rust: a non-rigid frame yields a
@@ -438,7 +449,7 @@ wall = doc.insert(
         doc.insert(
             Node.polygon(
                 [(0 * m, 0 * m), (2 * m, 0 * m), (2 * m, 3 * m), (0 * m, 3 * m)],
-                plane=SketchPlane.yz(),
+                plane=doc.sketch_frame(plane=SketchPlane.yz()),
             )
         ),
         0.25 * m,
@@ -446,9 +457,9 @@ wall = doc.insert(
 )
 assert abs(evaluate(doc).value(wall).body().mass_properties().volume - 1.5) < 1e-12
 
-# Naming the plane twice is refused at the boundary.
+# Naming the frame's plane twice is refused at the boundary.
 try:
-    Node.polygon([(0 * m, 0 * m)], elevation=1 * m, plane=SketchPlane.yz())
+    doc.sketch_frame(elevation=1 * m, plane=SketchPlane.yz())
 except TypeError:
     pass
 else:
@@ -472,7 +483,7 @@ TRAPEZOID = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]
 
 doc = Doc()
 sections = [
-    doc.insert(Node.polygon([(x * m, y * m) for x, y in pts], elevation=z * m))
+    doc.insert(Node.polygon([(x * m, y * m) for x, y in pts], plane=doc.sketch_frame(elevation=z * m)))
     for pts, z in [(SQUARE, 0.0), (TRAPEZOID, 1.0), (SQUARE, 2.0)]
 ]
 prism = doc.insert(Node.loft(sections, 2))
@@ -844,7 +855,7 @@ def slab(doc, x, y, z):
     profile = doc.insert(
         Node.polygon(
             [(x[0], y[0]), (x[1], y[0]), (x[1], y[1]), (x[0], y[1])],
-            elevation=z[0],
+            plane=doc.sketch_frame(elevation=z[0]),
         )
     )
     return doc.insert(Node.extrude(profile, z[1] - z[0]))
@@ -904,7 +915,7 @@ from pncad import BooleanOp, Doc, Node, evaluate, m, mm
 
 doc = Doc()
 profile = doc.insert(
-    Node.polygon([(0 * m, 0 * m), (2 * m, 0 * m), (2 * m, 3 * m), (0 * m, 3 * m)])
+    Node.polygon([(0 * m, 0 * m), (2 * m, 0 * m), (2 * m, 3 * m), (0 * m, 3 * m)], plane=doc.sketch_frame())
 )
 block = doc.insert(Node.extrude(profile, 1 * m))
 body = evaluate(doc).value(block).body()
@@ -976,7 +987,7 @@ Python's document also persists and replays bit-identically:
 from pncad import Doc, Node, evaluate, load, mm
 
 doc = Doc()
-profile = doc.insert(Node.polygon([(0 * mm, 0 * mm), (1 * mm, 0 * mm), (1 * mm, 1 * mm)]))
+profile = doc.insert(Node.polygon([(0 * mm, 0 * mm), (1 * mm, 0 * mm), (1 * mm, 1 * mm)], plane=doc.sketch_frame()))
 doc.insert(Node.extrude(profile, 1 * mm))
 
 text = doc.save()
@@ -1016,7 +1027,7 @@ outer = (
 holes = [circle((-1.5 * m, 0 * m), 0.7 * m), circle((1.5 * m, 0 * m), 0.7 * m)]
 
 doc = Doc()
-sketch = doc.insert(Node.profile([outer, *holes]))
+sketch = doc.insert(Node.profile([outer, *holes], plane=doc.sketch_frame()))
 plate = doc.insert(Node.extrude(sketch, 0.6 * m))
 
 body = evaluate(doc).value(plate).body()
@@ -1027,8 +1038,12 @@ assert abs(body.mass_properties().volume - 0.6 * area) < 1e-12
 # Two disjoint circles are not an outline and its hole. The kernel
 # says so; the binding does not pre-empt it.
 try:
-    Doc().insert(
-        Node.profile([circle((0 * m, 0 * m), 1 * m), circle((5 * m, 0 * m), 1 * m)])
+    other = Doc()
+    other.insert(
+        Node.profile(
+            [circle((0 * m, 0 * m), 1 * m), circle((5 * m, 0 * m), 1 * m)],
+            plane=other.sketch_frame(),
+        )
     )
     raise AssertionError("that profile should not have validated")
 except EditError as refusal:
@@ -1067,7 +1082,7 @@ L, R = 1.0, 0.12
 
 doc = Doc()
 square = doc.insert(
-    Node.polygon([(0 * m, 0 * m), (L * m, 0 * m), (L * m, L * m), (0 * m, L * m)])
+    Node.polygon([(0 * m, 0 * m), (L * m, 0 * m), (L * m, L * m), (0 * m, L * m)], plane=doc.sketch_frame())
 )
 cube = doc.insert(Node.extrude(square, L * m))
 
@@ -1135,7 +1150,7 @@ R, H = 0.09, 0.05  # the pip ball's radius; how deep it dips in
 
 doc = Doc()
 square = doc.insert(
-    Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)])
+    Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)], plane=doc.sketch_frame())
 )
 cube = doc.insert(Node.extrude(square, 1 * m))
 
@@ -1146,9 +1161,15 @@ half = (
     .arc_continue((0 * m, R * m))
     .line_to(Start)
 )
-plane = SketchPlane.from_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0))
-axis = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
-ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=plane)), axis, (2 * math.pi) * rad))
+frame = doc.sketch_frame(
+    plane=SketchPlane.from_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0), (0.0, 0.0, 1.0))
+)
+# The axis of revolution is written IN that frame, in its own two
+# coordinates: the frame's v is world +z, so the pole axis is its +y
+# through (0, 0). A revolve takes this and not a `datum_axis` — an
+# axis written in the frame cannot leave the plane it turns.
+axis = doc.insert(Node.datum_axis_in_plane(frame, (0 * m, 0 * m), (0.0, 1.0)))
+ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=frame)), axis, (2 * math.pi) * rad))
 pip = doc.insert(
     Node.transform(ball, (0.5 * m, 0.5 * m, (1.0 + R - H) * m), (0.0, 0.0, 1.0), 0 * rad)
 )
