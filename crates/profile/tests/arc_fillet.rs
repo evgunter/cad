@@ -22,7 +22,7 @@
 //! so an arc×line corner authors forward from the entry.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{profile, tol};
 use geom_core::Point2;

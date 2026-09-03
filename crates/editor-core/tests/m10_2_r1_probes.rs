@@ -12,8 +12,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-#[path = "fixture/mod.rs"]
-mod fixture;
+use crate::fixture;
 
 use editor_core::UnitSym;
 use editor_core::{
@@ -26,7 +25,6 @@ use editor_core::{
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
-use profile::SketchPlane;
 
 fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -125,10 +123,11 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
         ProgramStep::LineTo(ProgramTarget::Point([len(-0.6), len(0.4)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    let (doc, xy) = insert(&doc, fixture::xy_frame());
     let (doc, profile) = insert(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane: xy,
             loops: vec![outer],
         }),
     );
@@ -416,23 +415,20 @@ fn ball(doc: &ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId) {
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    let (doc, xy) = insert(doc, fixture::xy_frame());
     let (doc, p) = insert(
-        doc,
+        &doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::from_frame(
-                geom_core::Point3::new(0.0, 0.0, 0.0),
-                geom_core::Vec3::new(1.0, 0.0, 0.0),
-                geom_core::Vec3::new(0.0, 1.0, 0.0),
-            ),
+            plane: xy,
             loops: vec![meridian],
         }),
     );
     let (doc, axis) = insert(
         &doc,
-        Node::Datum(editor_core::Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        fixture::axis_in_plane(xy, (0.0, 0.0), (0.0, 1.0)),
     );
     insert(
         &doc,
@@ -486,9 +482,10 @@ fn r1_sphere_gap_three_regimes_on_revolved_balls() {
 /// `pin_r` offset by `off` along x.
 fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-cyl"), Tol::witness());
+    let (doc, xy) = insert(&doc, fixture::xy_frame());
     let circle = |cx: f64, r: f64| {
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane: xy,
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: len(r),
@@ -605,10 +602,17 @@ fn r1_cylinder_gap_role_swap_negates() {
 #[test]
 fn r1_skew_cylinder_axes_refuse_typed() {
     let doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-skew"), Tol::witness());
+    let (doc, xy) = insert(&doc, fixture::xy_frame());
+    // The pin is drawn on the YZ frame, so its axis is x̂ against the
+    // bore's ẑ — the skew this row is about. Two planes, two frames.
+    let (doc, yz) = insert(
+        &doc,
+        fixture::frame([0.0; 3], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
+    );
     let (doc, p1) = insert(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane: xy,
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(0.0)],
                 radius: len(0.3),
@@ -625,7 +629,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
     let (doc, p2) = insert(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::yz(),
+            plane: yz,
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(1.0)],
                 radius: len(0.2),
@@ -1030,9 +1034,10 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
         other => panic!("a mismatched bound dim must refuse AssertionBound, got {other:?}"),
     }
 
-    // (b) The assertion's target: point it at the profile (node 0).
-    // The slab is profile 0 + extrude 1, the measure is 2.
-    let target = "\"measure\": 2";
+    // (b) The assertion's target: point it at the sketch FRAME (node
+    // 0), which is not a measure. The slab is frame 0 + profile 1 +
+    // extrude 2, so the measure is node 3.
+    let target = "\"measure\": 3";
     assert_eq!(text.matches(target).count(), 1, "{target:?} must be unique");
     let corrupt = text.replace(target, "\"measure\": 0");
     match load(&corrupt, Tol::witness()) {
@@ -1041,10 +1046,10 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     }
 
     // (c) A reference whose minting node does not exist. The refs are
-    // minted by the extrude (node 1).
-    let target = "\"node\": 1,";
+    // minted by the extrude (node 2).
+    let target = "\"node\": 2,";
     let n = text.matches(target).count();
-    assert!(n >= 1, "the measure's refs name node 1");
+    assert!(n >= 1, "the measure's refs name node 2");
     let corrupt = text.replacen(target, "\"node\": 77,", 1);
     match load(&corrupt, Tol::witness()) {
         // Two typed gates can own this corruption: the id-counter
@@ -1105,9 +1110,10 @@ fn r1_own_document_web_and_flip() {
             },
         },
     );
+    let (doc, xy) = insert(&doc, fixture::xy_frame());
     let circle = |cx: f64| {
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane: xy,
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: Expr::param(ParamName::new("r"), Dimension::Length),

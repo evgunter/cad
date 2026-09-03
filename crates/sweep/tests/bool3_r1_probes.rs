@@ -14,7 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod revolve_common;
+use crate::revolve_common;
 
 use geom_core::{Point3, Tol, Vec3};
 use profile::RawLoop;

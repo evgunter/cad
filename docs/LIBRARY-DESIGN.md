@@ -22,7 +22,7 @@ out of scope), and of U4, LQ3(b)'s composition door and
 LQ3(c)'s frame family landed while LQ3(a)'s open-chain path
 vocabulary and the `wire_sweep`/`Node::Tube` discharge stay the
 named design conversation. The live residuals are the register at
-the tail of `docs/LIB-LOG.md`, whose largest standing item is the
+the tail of `work/lib/log.md`, whose largest standing item is the
 assembly surface: authorable through the façade, still unbound in
 `pncad-py` for AUTHORING — the seam it is reached through is bound
 (LIB-G18a: `evaluate(doc, resolver=store)`, so an assembly document
@@ -68,7 +68,7 @@ sites, each mapped to the unit below that would kill it.
 *The table itself is retired.* It tracked nothing live once its
 units shipped; the surveyed line numbers no longer resolve, and what
 is genuinely still open is the residual register at the tail of
-`docs/LIB-LOG.md` — the one place that tracks it. The survey is in
+`work/lib/log.md` — the one place that tracks it. The survey is in
 this file's git history if the original sites are ever wanted.
 
 What the corpus showed already WORKS, and must not regress, is a
@@ -351,7 +351,7 @@ bindings crate).
 ## L8. Second-round rulings (Ev, in-chat, 2026-08-06, at program start)
 
 Recorded by the program orchestrator; operational detail in
-`docs/LIB-LOG.md`.
+`work/lib/log.md`.
 
 - **LQ5 execution — first authorized batch**: U1 and U2 start now,
   in parallel with the M6/M7 close-out (footprints verified

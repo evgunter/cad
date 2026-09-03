@@ -38,7 +38,10 @@
 //! `EdgeCurve::certify`'s rung-3 gate and the cache through
 //! `PcurveCache::certify_fitted`, both of which refuse typed.
 
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)]
+// one instance per binary; no single consumer uses all of it
+// Why a helper tree allows these: `crates/editor-core/tests/fixture/mod.rs`.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use std::sync::Arc;

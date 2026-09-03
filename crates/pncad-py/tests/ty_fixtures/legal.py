@@ -9,6 +9,7 @@ the guide's own executed blocks.
 from pncad import (
     Advisory,
     Alignment,
+    Angle,
     ArcSweep,
     Assembly,
     AxisSense,
@@ -28,6 +29,9 @@ from pncad import (
     ClassAdmission,
     ClusterMaintenance,
     Denotation,
+    HitTestError,
+    Expr,
+    TubeWindow,
     Doc,
     DocEdit,
     DocRef,
@@ -41,6 +45,7 @@ from pncad import (
     GeomPred,
     Length,
     Body,
+    Mesh,
     MateFault,
     MateFrame,
     MatePrimitive,
@@ -48,7 +53,10 @@ from pncad import (
     NamePat,
     Node,
     NodeId,
+    NodePick,
+    PickHit,
     Pose,
+    Resolution,
     PinMultiplicity,
     ParamName,
     PatternKind,
@@ -59,6 +67,7 @@ from pncad import (
     PlaneRelation,
     SegPat,
     SegTag,
+    Ray,
     Selector,
     Severity,
     SketchPlane,
@@ -72,6 +81,7 @@ from pncad import (
     clusters,
     content_pin,
     deg,
+    rad,
     enforce_checks,
     evaluate,
     gauge_of,
@@ -80,6 +90,7 @@ from pncad import (
     m,
     mixed_pins,
     mm,
+    pi_rad,
     product,
     product_named,
     random_document_id,
@@ -129,28 +140,49 @@ walked = (
 disc = circle((0 * mm, 0 * mm), 10 * mm)
 
 doc = Doc()
-plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded)), 8 * mm))
-hole = doc.insert(Node.extrude(doc.insert(Node.profile(disc, elevation=-1 * mm)), 10 * mm))
+plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), 8 * mm))
+hole = doc.insert(Node.extrude(doc.insert(Node.profile(disc, plane=doc.sketch_frame(elevation=-1 * mm))), 10 * mm))
 lightened = doc.insert(Node.boolean(BooleanOp.Subtract, plate, hole))
 volume: float = evaluate(doc).value(lightened).body().mass_properties().volume
 
 # The plane vocabulary: a named cyclic frame, and the general rigid
-# frame that carries an origin. Extrusion runs along the plane's
-# normal, so the plane is what chooses the axis.
+# frame that carries an origin — both are how a sketch FRAME node is
+# built, and `plane=` on a sketch is that node's id. Extrusion runs
+# along the frame's normal, so the frame is what chooses the axis.
 upright: NodeId = doc.insert(
     Node.extrude(
-        doc.insert(Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m)], plane=SketchPlane.yz())),
+        doc.insert(
+            Node.polygon(
+                [(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m)],
+                plane=doc.sketch_frame(plane=SketchPlane.yz()),
+            )
+        ),
         2 * m,
     )
 )
+# The `SketchPlane` is still a VALUE — read back below — and the frame
+# NODE it builds is the id a sketch names. Two names, because they are
+# two things.
 offset_frame = SketchPlane.from_frame((0 * m, -0.5 * m, 0 * m), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0))
-sideways: NodeId = doc.insert(Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=offset_frame)), 4 * m))
+offset_node: NodeId = doc.sketch_frame(plane=offset_frame)
+sideways: NodeId = doc.insert(Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m), plane=offset_node)), 4 * m))
+
+# A revolve's axis is written IN the frame it turns, in that frame's
+# own two coordinates — so `datum_axis_in_plane`, never `datum_axis`.
+turned_frame: NodeId = doc.sketch_frame()
+turned: NodeId = doc.insert(
+    Node.revolve(
+        doc.insert(Node.profile(circle((3 * m, 0 * m), 1 * m), plane=turned_frame)),
+        doc.insert(Node.datum_axis_in_plane(turned_frame, (0 * m, 0 * m), (0.0, 1.0))),
+        360 * deg,
+    )
+)
 
 # A three-section loft: the sections are NodeIds in skin order, the
 # v-degree a plain int (a Count, structurally), and each section's
 # placement rides its own profile's plane.
 sections: list[NodeId] = [
-    doc.insert(Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)], elevation=z * m))
+    doc.insert(Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)], plane=doc.sketch_frame(elevation=z * m)))
     for z in (0, 1, 2)
 ]
 skinned = doc.insert(Node.loft(sections, 2))
@@ -166,7 +198,8 @@ plate_with_holes: NodeId = doc.insert(
                     circle((0 * m, 0 * m), 3 * m),
                     circle((-1 * m, 0 * m), 0.5 * m),
                     circle((1 * m, 0 * m), 0.5 * m),
-                ]
+                ],
+                plane=doc.sketch_frame(),
             )
         ),
         1 * m,
@@ -180,6 +213,24 @@ blended: NodeId = doc.insert(Node.fillet(upright, 0.05 * m, blend_edges))
 
 # Chamfer by NAME: the fillet's twin, and the SETBACK is a Length too.
 chamfered: NodeId = doc.insert(Node.chamfer(upright, 0.05 * m, blend_edges))
+
+# The tube pair. The window is a VALUE with two spellings, and the
+# hollow kind's wall is a required Length — there is no `wall=None`
+# that quietly makes it the solid door.
+spine: NodeId = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+donut: NodeId = doc.insert(
+    Node.tube(spine, (1.0, 0.0, 0.0), 0.2 * m, TubeWindow.full(), 0.05 * m)
+)
+elbow: NodeId = doc.insert(
+    Node.hollow_tube(
+        spine,
+        (1.0, 0.0, 0.0),
+        0.2 * m,
+        TubeWindow.arc(0 * rad, 1.5 * rad),
+        0.05 * m,
+        0.01 * m,
+    )
+)
 
 # Split by a datum plane; the value is a split, read as two optional
 # bodies rather than one.
@@ -406,3 +457,53 @@ findings: list[CheckFinding] = run_checks(doc, seamed, strict).findings
 label: CheckKind = CheckId.Connectedness.kind
 enforce_checks(report, strict)
 flagged: Body | None = subject_body(seamed, instance, 0)
+
+# Picking, the fourth door onto a name. A ray's origin is a POSITION
+# and carries `Length`s; its direction is dimensionless and is a bare
+# triple — the same split `Pose` draws. `t` is neither: it is in units
+# of the ray's own direction, so it is a float, and `point` is where
+# the dimensioned answer lives.
+index: NodePick = NodePick.build(seamed, upright, 0, 1 * mm)
+every_body: list[NodePick] = NodePick.build_all(seamed, upright, 1 * mm)
+aimed: Ray = Ray((0 * mm, 0 * mm, 10 * mm), (0.0, 0.0, -1.0))
+from_here: tuple[Length, Length, Length] = aimed.origin
+along: tuple[float, float, float] = aimed.direction
+struck: PickHit | None = seamed.pick_face([index], aimed)
+drawn: Mesh = index.mesh
+paired_with: NodeId = index.node
+which_body: int = index.body
+# The per-slot inversion: a name, or the loud arm as a VALUE in the
+# slot it concerns.
+per_patch: list[str | HitTestError] = index.patch_names(seamed)
+per_edge: list[str | HitTestError] = index.boundary_names(seamed)
+
+# Name resolution across re-evaluation. The verdict is a VALUE — a
+# name that no longer denotes is an answer, not a raise — so every
+# attribute is optional and the caller reads them after branching on
+# `status`, which is always a `str`.
+stored_name: str = seamed.all_faces(upright)[0]
+standing: Resolution = seamed.resolve(stored_name)
+state: str = standing.status
+carried_by: NodeId | None = standing.node
+in_body: int | None = standing.body
+denotes: EntityKind | None = standing.kind
+why: str | None = standing.detail
+suggested: list[str] | None = standing.offers
+# The expression READ side: text in through the document that declares
+# the parameters, a dimension-checked tree out, and a DIMENSIONED
+# value back. `eval` answers the quantity the expression measures, so
+# the union is narrowed by what the caller knows about the source.
+derived: Expr = doc.parse_expr("1 m + 2 mm")
+reads_back: str = derived.text
+measures: str = derived.dimension
+depends_on: list[ParamName] = derived.params
+bare: float | None = derived.literal_value
+worth: Length | Angle | float = doc.eval(derived)
+how_many: int = doc.eval_count(doc.parse_expr("4"))
+# The display formatter: TEXT out, in the unit asked for, from the
+# quantity that carries the dimension. The sibling `in_unit` answers a
+# float and is the door this one exists beside — the pair, typed, is
+# what makes the difference between them legible at a glance.
+shown: str = (25 * mm).format(mm)
+turned: str = (90 * deg).format(pi_rad)
+magnitude: float = (25 * mm).in_unit(mm)

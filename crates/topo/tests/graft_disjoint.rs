@@ -7,7 +7,7 @@
 //! thing under test.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{describe_as_intersections, geometric_cube};
 use geom_core::Tol;
