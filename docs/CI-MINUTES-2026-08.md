@@ -956,6 +956,46 @@ from the SOURCE, the way the interval one does: no marker anywhere under
 `crates/` proves the empty case, markers present with an empty difference
 is a broken rig and fails.
 
+### 2026-09-03 — `corrupt input (release profile)` demoted to the nightly
+
+S-TCOST unit C1, Ev's approval in chat the same day. The job moved out of
+`ci.yml` into `nightly.yml` verbatim — its steps, its non-empty-selection
+count guard and its five `... ok` name greps plus the two suite-header
+greps — and now runs ungated on any night main moved, rather than on every
+code-tier PR run whose closure holds `topo`.
+
+**Argued against §*What is NOT sampled, and the rule*, per row**, which is
+what that section demands of a new entry rather than inheriting another
+job's licence. The three profile-independent-but-release-named rows assert
+on the body the operators produce, and a wrong body persists. `review_d18`'s
+two `cfg(not(debug_assertions))` hammer rows run in NO other lane, which is
+the case that looks like an absence detector and is not one: what they
+detect — a row-4 `unreachable!` becoming input-reachable — is a property of
+the tree's code and persists exactly as the rows above do. The genuine
+absence risk, those rows silently ceasing to be selected, is what the count
+guard and the name greps are for, and they moved WITH the job, so the
+detector kept its cadence relative to the rows it guards. The full argument
+is at the job, which is where the rule says it belongs.
+
+**Billed minutes.** −2 per code-tier PR run whose closure holds `topo` — the
+job's own line in the reference table at the top of this document (1.37 min
+wall, 2 billed), and `topo` is in the closure of 89 of the last 128
+first-parent merges. Against that, ~2 billed minutes a night: the nightly
+pays the same rounded-up minute, once, on days main moved. Re-read from this
+unit's own PR run rather than quoted forward — a billed figure here is only
+true as of its own measurement (the F6 addendum's rule).
+
+**What the demotion gives up, and what it does not.** It gives up
+attribution: a break lands on the night's merges rather than on the PR that
+caused it. Two handles remain — `nightly.yml`'s `ref` dispatch input
+re-measures any commit, and `local-scripts/ci-local.sh` still runs the row
+on every local gate, still scoped by `RUN_TOPO_RELEASE`. That local
+consumer is why the filter key SURVIVES the demotion: `ci.yml`'s `filter`
+job publishes no `run_topo_release` output any more (an output nothing reads
+is how a reader concludes a job still exists), but deleting the key would
+have promoted a scoped local row to unconditional, which is the opposite of
+what this decided.
+
 ### `ready_for_review` is load-bearing
 
 The default `pull_request` type set is `[opened, synchronize,

@@ -357,7 +357,13 @@ jobs:
       run_pncad_py: ${{ steps.classify.outputs.RUN_PNCAD_PY }}
       run_interval_backend: ${{ steps.classify.outputs.RUN_INTERVAL_BACKEND }}
       run_interval_oracle: ${{ steps.classify.outputs.RUN_INTERVAL_ORACLE }}
-      run_topo_release: ${{ steps.classify.outputs.RUN_TOPO_RELEASE }}
+      # NO `run_topo_release` OUTPUT. The filter still emits the key — the
+      # local half reads it (`local-scripts/ci-local.sh`'s
+      # `corrupt input (release profile)` row) — but no job in THIS file
+      # consumes it any more: that row moved to nightly.yml, where it runs
+      # ungated, and the tombstone where it stood carries the argument.
+      # Publishing an output nothing reads is how a reader concludes a job
+      # still exists here.
       run_k_lint: ${{ steps.classify.outputs.RUN_K_LINT }}
       # The sampled matrix point (scripts/ci-filter.py, CONFIGURATION
       # SAMPLING) — or the REQUESTED one: a dispatch input or a `CI-Config:`
@@ -2124,143 +2130,37 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  # THE RELEASE-PROFILE ROW. Three adversarial suites in `crates/topo` feed
-  # tier-1-INVALID bodies to the Euler operators and are written about
-  # RELEASE semantics; the archive matrix above is the dev profile at
-  # opt-1 with debug-assertions ON, so it cannot be what runs them. (The
-  # level moved from 2 on 2026-08-25; the point is unaffected, because what
-  # disqualifies the matrix is debug-assertions, which no opt level moves.)
-  # `review_m1_pr2::release_corruption` splits its expectations on
-  # `cfg(debug_assertions)` outright, so no single profile covers the
-  # file; `review_m1_pr4`'s section 9 ("Release-mode garbage-in") is not
-  # cfg-split but had never once run in the profile it is named for.
+  # THE `corrupt input (release profile)` JOB STOOD HERE, AND HAS MOVED TO
+  # .github/workflows/nightly.yml (Ev, 2026-09-03; S-TCOST unit C1). It is
+  # a PERSISTENCE-detector, and the demotion was argued against
+  # docs/CI-MINUTES-2026-08.md §*What is NOT sampled, and the rule* row by
+  # row rather than by inheriting another job's licence:
   #
-  # WHAT IT BUYS, stated against the ratified text rather than against
-  # the code's current behaviour, because those have diverged:
+  #   * The three profile-independent-but-release-named rows
+  #     (`garbage_in_garbage_out_release`,
+  #     `large_torn_body_terminates_quickly`,
+  #     `kill_ops_survive_torn_bodies_without_panicking`) assert on a body
+  #     the operators produce. A wrong body stays wrong until someone
+  #     changes the code, so a later run of the row still finds it.
+  #   * `review_d18`'s two `cfg(not(debug_assertions))` hammer rows run in
+  #     NO other lane, which is the case that looks like an absence
+  #     detector and is not one: what they detect is a row-4 `unreachable!`
+  #     becoming input-reachable, i.e. a property of the tree's code, which
+  #     persists exactly as the rows above do. The thing that WOULD be an
+  #     absence — those rows silently ceasing to be compiled or selected —
+  #     is caught by the count guard and the five name greps, which moved
+  #     with the job and still run every night.
+  #   * The two suite-header greps are absence detectors about the job's own
+  #     NAME, and they are unaffected by a cadence: they read source files,
+  #     not a test result, and a rename that falsified them stays false
+  #     until fixed.
   #
-  #   * BOUNDED TRAVERSAL. DESIGN.md's D9 footnote, as amended by the D2
-  #     addendum, keeps exactly one clause of the old corrupt-input
-  #     disposition: "The bounded-traversal half stands: never a hang;
-  #     every traversal is bounded." That is
-  #     `large_torn_body_terminates_quickly`, which attacks 3000 struts
-  #     here and 500 under debug-assertions (where the per-op
-  #     postcondition sweep makes the construction loop quadratic). The
-  #     case the gate sees is six times larger in this job, and the
-  #     clause it defends is not superseded by anything.
-  #   * THE ROW-4 ARMS ARE NOT INPUT-REACHABLE, which is the clause the
-  #     whole D2 addendum rests on and the only one with an executable
-  #     test. `review_d18`'s two hammer rows drive every operator that
-  #     reaches `link_half_edges` over randomly torn bodies and over a
-  #     genuinely spent graft destination, counting mutation-phase
-  #     completions. They are release-only BY CONSTRUCTION, not by
-  #     preference: in debug a torn body may legitimately panic at the
-  #     postcondition, so telling that apart from a row-4 arm needs a
-  #     process-global panic hook, which races the threaded matrix. With
-  #     the postcondition compiled out, any panic IS a row-4 arm. So this
-  #     job is the only lane in which those rows mean anything, and the
-  #     only lane that runs them at all.
-  #   * COMPILE ROT, which is a PROFILE-level hazard and independent of
-  #     what any row asserts: a `#[cfg(not(debug_assertions))]` item that
-  #     no CI job ever type-checks can rot into a build error with every
-  #     check green, because clippy and the matrix are both debug passes.
-  #     `foreign_parent_loop_garbage_in_garbage_out_release` and the
-  #     `use crate::validate;` it needs are exactly that shape.
-  #
-  # WHAT IT DOES NOT BUY: it does not certify silent discard, and that
-  # distinction is why it survived **W2c**. D9's ratified corrupt-input
-  # disposition allowed "documented garbage-out in release" until the
-  # **D2 addendum** (2026-08-19) superseded that half with "Silent
-  # discard is never an answer"; W2c executed the addendum across
-  # `euler{,_ring,_kill}.rs`, `link_half_edges` and its two unproven
-  # callers included, so no write there swallows a failed lookup any
-  # more. `foreign_parent_loop_garbage_in_garbage_out_release` passes
-  # unchanged across that conversion because the `parent_loop` it plants
-  # is LIVE BUT WRONG: no lookup fails, every write lands, and what the
-  # row observes is wrong DATA, never a swallowed failure. That is the
-  # residue the addendum deliberately leaves standing — corruption a
-  # plan phase cannot observe still yields `Ok` plus a body the
-  # validator refuses — and it is what the row records. The three greps
-  # below are unchanged for the same reason: the conversion renamed and
-  # retired nothing here.
-  #
-  # The other rows in the file are profile-independent — `pillow()` runs
-  # three SUCCESSFUL operators, so they do fire the debug postcondition
-  # during setup, but the operator each one asserts on fails a
-  # precondition and returns before its mutation phase, so no
-  # postcondition runs over the asserted call and the expectation is the
-  # same in both profiles. `debug_postcondition_fires_on_corrupt_input`
-  # is `#[cfg(debug_assertions)]` and belongs to the matrix above.
-  #
-  # SCOPED to one crate's lib unittests, deliberately, not a release
-  # build of the workspace: `-p topo --lib` compiles topo's closure plus
-  # its dev-dependencies and links one binary. The rows execute in
-  # milliseconds — the compile IS the cost of this job (93 s hosted on a
-  # cold cache, measured on this job's first run, and never since: it is a
-  # one-shot reading with no register and no guard, kept because the SHAPE
-  # it supports — that scoping to one crate's lib is what keeps this job
-  # cheap — is what the next reader needs, and that shape does not turn on
-  # the second. This job's billed minutes, which is the figure a cost
-  # decision would actually read, are docs/CI-MINUTES-2026-08.md's).
-  release-corruption:
-    name: corrupt input (release profile)
-    runs-on: ubuntu-latest
-    needs: filter
-    if: github.event_name != 'push' && needs.filter.outputs.run_topo_release == 'true'
-    steps:
-      - uses: actions/checkout@v4
-      # STRUCTURAL — see the full note on the `filter` job above.
-      - name: prune local-only tooling (hosted CI may not depend on it)
-        run: rm -rf local-scripts .claude
-      - uses: dtolnay/rust-toolchain@stable
-      # Its own cache key: release artifacts share no fingerprint with
-      # the dev-profile jobs, so one shared entry would only thrash.
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: topo-release
-      - name: corrupt-input suites, release profile
-        # DEBUG ASSERTIONS OFF, EXPLICITLY — this job's whole subject is
-        # the posture that SHIPS, and the shipping posture is
-        # debug-assertions off (`DESIGN.md`, "Before publishing"). The
-        # root `[profile.release]` turns them ON as a development
-        # measure, which would compile the three `cfg(not(debug_assertions))`
-        # rows below OUT of the only lane that runs them — silently
-        # deleting the coverage this job exists to provide. The count
-        # guard caught exactly that. Pinned here rather than inherited,
-        # so the job states which posture it tests instead of depending
-        # on a profile default that has now changed once.
-        env:
-          CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"
-        run: |
-          set -o pipefail
-          cargo test --release -p topo --lib -- \
-            review_m1_pr2::release_corruption \
-            review_m1_pr4::kill_ops_survive_torn_bodies_without_panicking \
-            review_d18 \
-            | tee release-corruption.log
-          # A name filter that matches NOTHING exits 0 — the exact
-          # silence this job exists to remove. So assert the selection is
-          # non-empty AND name the rows the job is justified by: delete
-          # or rename one and this reds, rather than quietly returning to
-          # zero coverage.
-          passed=$(sed -n 's/^test result: ok\. \([0-9]\{1,\}\) passed.*/\1/p' release-corruption.log)
-          echo "release-profile rows run: ${passed:-0}"
-          test "${passed:-0}" -gt 0
-          grep -q 'garbage_in_garbage_out_release \.\.\. ok' release-corruption.log
-          grep -q 'large_torn_body_terminates_quickly \.\.\. ok' release-corruption.log
-          grep -q 'kill_ops_survive_torn_bodies_without_panicking \.\.\. ok' release-corruption.log
-          # `review_d18`'s two hammer rows are `cfg(not(debug_assertions))`
-          # on purpose — in debug a torn body may legitimately panic at the
-          # postcondition, so classifying one needs a process-global hook
-          # that races the matrix; in release the postcondition is compiled
-          # out, so any panic IS a row-4 `unreachable!` and no hook is
-          # needed. This job is therefore the ONLY lane that runs them.
-          grep -q 'torn_bodies_never_reach_a_row_four_unreachable \.\.\. ok' release-corruption.log
-          grep -q 'a_spent_graft_destination_never_reaches_a_row_four_unreachable \.\.\. ok' release-corruption.log
-          # Both suite headers name this job as their mechanism. Nothing
-          # else greps for that name, so renaming the job would leave two
-          # doc comments quietly false; this is what makes it loud.
-          grep -q 'corrupt input (release profile)' crates/topo/src/review_m1_pr2/release_corruption.rs
-          grep -q 'corrupt input (release profile)' crates/topo/src/review_m1_pr4.rs
+  # −2 billed minutes per code-tier PR run whose closure holds `topo` (89 of
+  # the last 128 first-parent merges), against ~2 a night. `run_topo_release`
+  # still has a consumer — `local-scripts/ci-local.sh` runs the row on every
+  # local gate, where nothing is billed by the minute — so the filter's
+  # plumbing for it stays and the local half is now the only lane that runs
+  # these suites on a PR's tree.
 
   # BUILD job, interval features — the ONE genuinely different build
   # graph in the matrix. Owns the interval clippy pass and the interval
