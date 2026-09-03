@@ -216,7 +216,7 @@ its ground stated under *What this partition leaves out*.
 | **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` |
 | **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` |
 | **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` |
-| **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` |
+| **V** | `crates/editor-core/` **less the DOCM program's paths** (`persist/`, `program.rs`, `doc.rs`, `edit.rs`, `node.rs`, `names/role.rs`, `eval/{parts,memo}.rs`, `resolve/` less `vdiff.rs`, `mate*`, `assembly.rs` — ceded 2026-09-03 with rows `C6`, `D365`, `D366` and the `debug-in-prose` finding, which moved to `work/docm/` keeping their ids), `crates/profile/` | `D360`–`D379` / `S430`–`S449` |
 | **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` |
 | **X** | `demos/` (Rust and Markdown; its Python is not X's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` |
 

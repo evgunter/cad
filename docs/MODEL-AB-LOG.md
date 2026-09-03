@@ -216,8 +216,12 @@ amended:
      nothing renumbers but the band) · S-TCOST 1400–1499 (claimed
      2026-09-02 at the S-TCOST program's opening —
      `docs/S-TCOST-LOG.md`; test-only units in that program record
-     no row, so the band serves only its kernel-logic units)**,
-     with **1500+ unallocated** — the orchestrator opening the next
+     no row, so the band serves only its kernel-logic units) · CIW 1500–1599 · CHROME 1600–1699 · FIX 1700–1799 · DOCM 1800–1899 · VIEW 1900–1999 · FILLET 2000–2099 · EXCH 2100–2199 · CURVED 2200–2299 · SHELL 2300–2399 · PROPS 2400–2499 · TRIM 2500–2599 (all eleven claimed 2026-09-03 at the programs' joint opening from
+     `docs/WORK-TRACKS-2026-09.md` — the successor programs CURVED,
+     SHELL, PROPS and TRIM hold their bands from opening but draw no
+     ordinal before their predecessor's exit; infra-only and test-only
+     units in CIW and CHROME record no row)**,
+     with **2600+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.
