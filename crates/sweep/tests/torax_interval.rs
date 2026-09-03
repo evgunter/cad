@@ -34,6 +34,12 @@
 //! The comparison is the corner's own closed form as an ENCLOSURE
 //! claim, not a volume: a torus wall's volume of revolution is not a
 //! shorter statement than the corner it is here to check.
+//!
+//! **VERBS-RIMCAP's sites live here too**, under the same law: the
+//! sphere lune row executes the meridian-pair arm and the off-axis rim
+//! mint at the certified scalar, and the klein elbow row executes the
+//! carried-datum arm on its way to the carrier mint's refusal — each
+//! new `decide` site of that unit reached where escalation is real.
 
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -232,4 +238,144 @@ fn encloses_corner(body: &Body<Interval>, rho: f64, h: f64, what: &str) {
         "{what}: no vertex encloses the closed form (ρ, h) = ({rho}, {h}); the nearest \
          was {best:?}"
     );
+}
+
+/// **The sphere lune's rim at `T = Interval`** — VERBS-RIMCAP's new
+/// decide sites, executed at the scalar that can escalate (this file's
+/// own law). The direct door is the row's subject for the same reason
+/// it is at f64: `shell`'s closing tier 3 needs a volume the sphere
+/// flux arm's `props_band_coplanar` premise cannot yet give a lune —
+/// the operand's own standing wall — so the door is asked directly and
+/// the corner enclosures are the claim.
+///
+/// One hollow executes the meridian-pair arm (`offset_axial_cap_pair`,
+/// `offset_axial_cap_line`, and the shared corner/concurrence/residual
+/// meters at its new call sites) and the off-axis rim mint
+/// (`offset_axial_rim_concentric` / `_great` / `_plane` / `_reach`).
+/// The carried-datum site (`offset_axial_datum_arm`) is the klein
+/// elbow's and is executed by the refusal row below. Corners checked
+/// as ENCLOSURES that contain the closed form and stay tight:
+///
+/// ```text
+/// ρ = t·√2          h = ±√((r − t)² − 2t²)      (r, t) = (0.3, 0.05)
+/// ```
+///
+/// Per band, honestly: where the certified scalar escalates instead of
+/// answering, the escalation is pinned as the door's own typed
+/// `Escalated` and the corner claims are stood down by name.
+#[test]
+fn interval_the_sphere_lune_rim_encloses_its_corners() {
+    let tol = Tol::witness();
+    let profile = Profile::new(
+        SketchPlane::<Interval>::xy(),
+        vec![ProfileLoop::new(vec![
+            ProfileVertex::new(p2(0.0, -0.3), iv(0.0)),
+            ProfileVertex::new(p2(0.0, 0.3), iv(-1.0)),
+        ])],
+    )
+    .validate(tol)
+    .expect("the lune's cross-section validates");
+    let body = revolve(
+        &profile,
+        RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir: Vec2::new(iv(0.0), iv(1.0)),
+        },
+        Revolution::Partial(iv(core::f64::consts::FRAC_PI_2)),
+        tol,
+    )
+    .expect("the lune revolves")
+    .body;
+
+    let mut charts: Vec<(topo::SurfaceKey, Vec<topo::FaceKey>)> = Vec::new();
+    for (k, f) in body.faces() {
+        match charts.iter_mut().find(|(s, _)| *s == f.surface) {
+            Some((_, v)) => v.push(k),
+            None => charts.push((f.surface, vec![k])),
+        }
+    }
+    let moves: Vec<topo::ChartMove<Interval>> = charts
+        .into_iter()
+        .map(|(_, faces)| {
+            let sense = body.get_face(faces[0]).expect("face").sense;
+            topo::ChartMove {
+                faces,
+                distance: if sense { iv(-0.05) } else { iv(0.05) },
+            }
+        })
+        .collect();
+    let mut cavity = body.clone();
+    let band = geom_core::Band::linear(tol).expect("band");
+    match topo::offset_charts_together(&mut cavity, &moves, band, tol) {
+        Ok(()) => {}
+        Err(topo::ReplaceFaceError::Escalated { source }) if tol.eps() < DEFAULT_EPS => {
+            stood_down(
+                &format!("the sphere lune's interval rim, eps = {:e}", tol.eps()),
+                &format!(
+                    "the certified scalar escalated ({source:?}) before the corners were \
+                     reachable, so THIS RUN ASSERTS NO corner enclosure — only that the \
+                     escalation is the door's own typed one"
+                ),
+            );
+            return;
+        }
+        Err(e) => panic!("the lune's rim solves at the certified scalar: {e:?}"),
+    }
+    let rho = 0.05 * 2.0f64.sqrt();
+    let h = (0.25f64.powi(2) - 2.0 * 0.05 * 0.05).sqrt();
+    encloses_corner(&cavity, rho, h, "the lune's upper rim corner");
+    encloses_corner(&cavity, rho, -h, "the lune's lower rim corner");
+}
+
+/// **The klein elbow at `T = Interval`**: the carried-datum arm
+/// (`offset_axial_datum_arm` and the shared azimuth solve at its new
+/// call site) executes at the certified scalar on the way to the same
+/// refusal f64 measures — the latitude mint's off-axis-centre payload,
+/// the torus half's own boundary. An escalation at a strict band is
+/// the certified scalar's honest answer and is pinned as such.
+#[test]
+fn interval_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
+    let tol = Tol::witness();
+    let r = 0.275_f64;
+    let profile = Profile::new(
+        SketchPlane::<Interval>::xy(),
+        vec![ProfileLoop::new(vec![
+            ProfileVertex::new(p2(-r, 0.0), iv(1.0)),
+            ProfileVertex::new(p2(r, 0.0), iv(1.0)),
+        ])],
+    )
+    .validate(tol)
+    .expect("the elbow's cross-section validates");
+    let body = revolve(
+        &profile,
+        RevolveAxis {
+            origin: p2(1.2, 0.0),
+            dir: Vec2::new(iv(0.0), iv(-1.0)),
+        },
+        Revolution::Partial(iv(-core::f64::consts::FRAC_PI_2)),
+        tol,
+    )
+    .expect("the elbow revolves")
+    .body;
+    let e = topo::shell(&body, iv(0.05), FIT_TOL, tol)
+        .expect_err("the elbow's moved rim is a spiric section away from a carrier");
+    match e {
+        ShellError::Face { ref error, .. }
+            if matches!(
+                **error,
+                topo::ReplaceFaceError::TogetherAxialEdge { what, .. }
+                    if what == "a circular edge between two charts whose centre is off the axis"
+            ) => {}
+        ShellError::Face { ref error, .. }
+            if tol.eps() < DEFAULT_EPS
+                && matches!(**error, topo::ReplaceFaceError::Escalated { .. }) =>
+        {
+            stood_down(
+                &format!("the klein elbow's interval rim, eps = {:e}", tol.eps()),
+                "the certified scalar escalated before the carrier mint's refusal was \
+                 reachable, so THIS RUN ASSERTS ONLY the door's own typed escalation",
+            );
+        }
+        other => panic!("expected the latitude mint's off-axis refusal, got {other:?}"),
+    }
 }

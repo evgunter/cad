@@ -15,27 +15,32 @@
 //! body, and its rim vertex carries TWO profile constraints (the
 //! cylinder's line and the cap's), with the meridian plane supplying
 //! only the azimuth. A sphere or torus wall whose profile is the whole
-//! closed circle carries ONE — and the two fixtures below then refuse
-//! at two DIFFERENT doors:
+//! closed circle carries ONE — and the two kinds now part ways at the
+//! rim's CARRIER (VERBS-RIMCAP):
 //!
-//! - the klein elbow (torus wall, no second profile surface at the rim
-//!   vertex at all) refuses `TogetherAxialCorner`, "one profile
-//!   constraint meets here…", and the section that rim would need is a
-//!   quartic (spiric) curve;
-//! - the sphere lune's CORNERS do solve, through the axis-pole arm
-//!   where `ρ = 0` is a geometric fact rather than a carried datum;
-//!   what refuses is the rim EDGE — `TogetherEdgeDisagreement`, whose
-//!   gap is exactly the wall thickness — because the moved rim circle
-//!   is centred off the axis and the mint has no arm for one.
+//! - the SPHERE lune's rim solves end to end: the meridian-pair arm
+//!   places its pole corners on the moved caps' meeting line, the
+//!   carried-datum arm covers the off-axis one-cap shape, and the
+//!   off-axis-circle mint carries the moved rim (a plane cuts a
+//!   sphere in a circle, always). What still stands between the lune
+//!   and `shell` is the PROPS inventory — the sphere flux arm's
+//!   `props_band_coplanar` premise refuses the OPERAND's own wall
+//!   today — and that wall is pinned with its payload below;
+//! - the KLEIN ELBOW (torus wall) now refuses one door deeper than
+//!   its old `TogetherAxialCorner`: its corners solve through the
+//!   carried-datum arm, and the rim EDGE has no carrier — the moved
+//!   cap cuts the torus in a spiric QUARTIC, and the latitude mint
+//!   names the off-axis centre it will not carry. The torus half is
+//!   design-gated (the spec's PR-2 conversation), not implemented.
 //!
-//! So the partial revolve's rim is not a torus gap, and it is not
-//! every curved wall's gap either: it is a circle-profile wall's, at
-//! two doors.
+//! So the partial revolve's rim was a circle-profile wall's gap at two
+//! doors; the sphere door is built, and the torus door is the spiric
+//! carrier's.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, LoopBoundary, ShellError, VertexKey, transform_rigid};
@@ -476,25 +481,85 @@ fn torax_the_torus_arms_floor_is_the_ring_closing() {
 }
 
 // ---------------------------------------------------------------------
-// The boundary: the partial revolve's rim, on both kinds
+// The boundary: the partial revolve's rim, on both kinds (VERBS-RIMCAP)
 // ---------------------------------------------------------------------
 
-/// **The klein elbow's rim is this unit's measured blocker, and it is
-/// not a torus one.**
+/// A partial revolve of a half-disc whose diameter lies on the axis: a
+/// sphere wall, two meridian caps, poles on the axis. `turn` is the
+/// revolve angle; the quarter turn is this file's acceptance fixture
+/// and the half turn is the meridian-pair arm's refusing side.
+fn lune(r: f64, turn: f64) -> Body<f64> {
+    let turn = Revolution::Partial(turn);
+    let profile = Profile::new(
+        SketchPlane::xy(),
+        vec![ProfileLoop::new(vec![
+            ProfileVertex::new(p2(0.0, -r), 0.0),
+            ProfileVertex::new(p2(0.0, r), -1.0),
+        ])],
+    )
+    .validate(tol())
+    .expect("the lune's cross-section validates");
+    revolve(
+        &profile,
+        RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        },
+        turn,
+        tol(),
+    )
+    .expect("the lune revolves")
+    .body
+}
+
+/// Every chart of `body` moved inward by `t` through the simultaneous
+/// door — the same moves `shell` builds, spelled at the door itself.
+fn hollow_moves(body: &Body<f64>, t: f64) -> Vec<topo::ChartMove<f64>> {
+    let mut charts: Vec<(topo::SurfaceKey, Vec<FaceKey>)> = Vec::new();
+    for (k, f) in body.faces() {
+        match charts.iter_mut().find(|(s, _)| *s == f.surface) {
+            Some((_, v)) => v.push(k),
+            None => charts.push((f.surface, vec![k])),
+        }
+    }
+    charts
+        .into_iter()
+        .map(|(_, faces)| {
+            let sense = body.get_face(faces[0]).expect("face").sense;
+            topo::ChartMove {
+                faces,
+                distance: if sense { -t } else { t },
+            }
+        })
+        .collect()
+}
+
+/// **The klein elbow's rim now stops one door deeper, and the boundary
+/// is the CARRIER, not the corner.**
 ///
-/// A partial revolve's meridian cap CONTAINS the axis at rest and stops
-/// containing it the moment it is offset inward — by exactly the wall
-/// thickness. The rim vertex is then two distinct surfaces with only
-/// ONE profile constraint between them (the wall's meridian circle; the
-/// cap fixes an AZIMUTH, not a `(ρ, h)`), and the door says so.
+/// Until VERBS-RIMCAP this row pinned `TogetherAxialCorner { surfaces:
+/// 2, what: "one profile constraint…" }`: the rim vertex meets the
+/// torus wall and ONE meridian cap, and the corner solve had no arm
+/// for a lone profile circle off the axis. The carried-datum arm now
+/// answers that corner — the old corner's profile point moved
+/// concentrically with its circle, the azimuth solved from the moved
+/// cap exactly as the wedge's is — so the corner SOLVES, and the
+/// refusal moves to the rim EDGE's carrier: the old rim is the profile
+/// circle in the cap's plane, centred `R` off the axis, and the
+/// latitude mint's own predicate says so. The payload below is the
+/// measured door at this head.
 ///
-/// What the missing coordinate would have to be is the wall chart's own
-/// `v`-seam, a second carried datum in the profile half-plane — and
-/// there is no precedent for it, because on a SPHERE that same seam
-/// lands on the axis poles, where `ρ = 0` is a geometric fact and no
-/// datum is carried at all. The row below measures that.
+/// **What stands between the elbow and a hollow is the torus half's
+/// own boundary, stated rather than glossed**: the moved cap stands
+/// `t` off the axis and parallel to it, and a plane in that posture
+/// cuts a torus in a SPIRIC quartic — sampled below as the oval's own
+/// half-width against its half-height, which a circle would make
+/// equal. `Curve3` has no quartic carrier, so the sphere half's
+/// off-axis-circle mint has no torus sibling to gain here; that half
+/// is design-gated (the VERBS-RIMCAP spec's PR-2 conversation), and
+/// the klein rows stay measured-red until it is funded.
 #[test]
-fn torax_the_partial_revolve_rim_has_one_profile_constraint() {
+fn torax_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
     let r = 0.275_f64;
     let elbow = {
         let profile = Profile::new(
@@ -519,25 +584,20 @@ fn torax_the_partial_revolve_rim_has_one_profile_constraint() {
         .body
     };
     let e = topo::shell(&elbow, 0.05, FIT_TOL, tol())
-        .expect_err("the elbow's rim has no second profile constraint");
+        .expect_err("the elbow's rim circle is a quartic section away from a carrier");
     let ShellError::Face { error, .. } = e else {
         panic!("not the offset door's refusal: {e}");
     };
-    let topo::ReplaceFaceError::TogetherAxialCorner { what, surfaces, .. } = *error else {
-        panic!("the rim must refuse at the corner it is about: {error}");
+    let topo::ReplaceFaceError::TogetherAxialEdge { what, .. } = *error else {
+        panic!("the rim must refuse at the carrier it cannot mint: {error:?}");
     };
-    assert_eq!(surfaces, 2, "wall + meridian cap");
-    assert!(
-        what.contains("one profile constraint"),
-        "the refusal must say what is missing, got {what}"
+    assert_eq!(
+        what, "a circular edge between two charts whose centre is off the axis",
+        "the latitude mint names the off-axis centre"
     );
-    println!("[torax] the elbow rim: {surfaces} surfaces — {what}");
+    println!("[torax] the elbow rim, one door deeper: {what}");
 
-    // And the section that rim edge would need is not a circle. The
-    // moved cap stands `t` from the axis and stays parallel to it, so
-    // it cuts the moved torus in a SPIRIC section: sampled here as the
-    // oval's own half-width against its half-height, which a circle
-    // would make equal.
+    // The section that rim edge would need is not a circle.
     let (big, small) = (1.2_f64, r - 0.05);
     let d = 0.05_f64;
     let out = ((big + small).powi(2) - d * d).sqrt();
@@ -556,74 +616,275 @@ fn torax_the_partial_revolve_rim_has_one_profile_constraint() {
     );
 }
 
-/// **The SPHERE lune refuses the same RIM at a DIFFERENT door**, so the
-/// gap is a circle-profile wall's rather than the torus kind's.
+/// **The sphere lune's rim SOLVES through the axial door, in closed
+/// form** — the row that used to pin its refusal, flipped, with the
+/// old door recorded.
 ///
-/// A quarter revolve of a half-disc whose diameter lies on the axis: a
-/// sphere wall, two meridian caps, poles on the axis — the elbow's
-/// shape with the profile circle slid onto it.
+/// **The old door, verbatim (measured at the unit's head before the
+/// fix):** `TogetherEdgeDisagreement { edge: EdgeKey(1v1), gap: 0.05 }`
+/// — the AXIS edge between the two caps, raised at the
+/// `offset_axial_edge_on_surface` meter: the pole arm had answered both
+/// corners ON the axis (`(ρ, h) = (0, ∓0.25)`) while both moved caps
+/// stood exactly `t = 0.05` m off it, so the minted axis line's
+/// midpoint missed each moved cap by the whole wall thickness. The rim
+/// great circles behind it fell to the latitude mint's plane predicate
+/// ("whose plane is not normal to the axis") — two mechanisms, one
+/// displacement: the moved caps stop containing the axis.
 ///
-/// **Its CORNERS solve.** The rim arc ends on the axis poles, where
-/// `ρ = 0` is a geometric fact and the pole arm answers without any
-/// carried datum, so the elbow's `TogetherAxialCorner` never fires
-/// here. What refuses is the rim EDGE: the moved rim section IS a
-/// circle, but its centre is off the axis and the latitude mint has no
-/// arm for one, so the edge's two ends are solved a wall thickness
-/// apart and `TogetherEdgeDisagreement` says so — this row asserts that
-/// gap is the thickness itself and not some other number.
+/// **What answers now.** The two moved caps meet in a line parallel to
+/// the axis at `ρ_L = t·√2` (their common perpendicular splits the
+/// quarter turn's right angle), and the corner is that line against
+/// the moved profile circle:
 ///
-/// Measured here so that "the partial revolve's rim" is documented as a
-/// capability with TWO unbuilt doors, one per kind, rather than as
-/// something the torus arm failed to reach — and so that the scope is
-/// not read as "every curved wall", which `sf2b_axial`'s
-/// cylinder-walled quarter-turn wedge disproves by hollowing.
+/// ```text
+/// ρ = t√2          h = ±√((r − t)² − 2t²)
+/// ```
+///
+/// with the rim carrier the moved cap's own plane∩sphere section —
+/// centre `t` along the cap normal, radius `√((r − t)² − t²)` — and
+/// the axis edge's carrier the caps' meeting line itself, which the
+/// existing line arm mints once the corners are right. Every number
+/// below is asserted against those closed forms on dyadic-input
+/// arithmetic.
+///
+/// **Why this row is the DIRECT door and not `shell`.** The whole
+/// hollow pipeline now runs — corners, carriers, parameters, pcurves,
+/// the void door's containment — and `shell`'s LAST act, tier 3's +V
+/// invariant, refuses: the sphere flux closed form's
+/// `props_band_coplanar` premise covers only meridians on ONE great
+/// circle, and the lune's wall (the OPERAND's own wall, today, before
+/// any offset) has meridians on two. That standing wall is pinned with
+/// its payload by `torax_the_sphere_lune_next_door_is_the_props_inventory`
+/// below; this row pins what this unit built.
+///
+/// **The cavity's closed-form volume, derived here for the day the
+/// props inventory reaches it.** The cavity is the ball of radius
+/// `R = r − t` cut by two perpendicular planes each `a = t` from its
+/// centre, on the inner side of both (the wedge's `two_chord_area`
+/// story, one dimension up). Integrating the two-chord disc sections
+/// along the axis — or by parts against the segment areas — with
+/// `Q = √(R² − 2a²)`:
+///
+/// ```text
+/// V = (2/3)·[ R³·atan(R·Q/a²) − a·(3R² − a²)·atan(Q/a) + a²·Q ]
+/// ```
+///
+/// (`a → 0` recovers the quarter ball `πR³/3`; verified against direct
+/// quadrature of the section areas to 13 significant figures at these
+/// inputs, `V = 7.909058628579758e-3` m³, so the hollow wall is
+/// `πr³/3 − V = 2.0365275253728374e-2` m³.)
 #[test]
-fn torax_the_sphere_lune_refuses_the_rim_at_the_other_door() {
-    let r = 0.3_f64;
-    let lune = {
-        let profile = Profile::new(
-            SketchPlane::xy(),
-            vec![ProfileLoop::new(vec![
-                ProfileVertex::new(p2(0.0, -r), 0.0),
-                ProfileVertex::new(p2(0.0, r), -1.0),
-            ])],
-        )
-        .validate(tol())
-        .expect("the lune's cross-section validates");
-        revolve(
-            &profile,
-            RevolveAxis {
-                origin: p2(0.0, 0.0),
-                dir: Vec2::new(0.0, 1.0),
-            },
-            Revolution::Partial(core::f64::consts::FRAC_PI_2),
-            tol(),
-        )
-        .expect("the lune revolves")
-        .body
+fn torax_the_sphere_lune_rim_solves_in_closed_form() {
+    let (r, t) = (0.3_f64, 0.05_f64);
+    let body = lune(r, core::f64::consts::FRAC_PI_2);
+    let mut cavity = body.clone();
+    let band = Band::linear(tol()).expect("band");
+    topo::offset_charts_together(&mut cavity, &hollow_moves(&body, t), band, tol())
+        .expect("the meridian-pair arm and the off-axis mint answer the lune's rim");
+
+    // The corners, at the closed form.
+    let rho = t * 2.0_f64.sqrt();
+    let h = ((r - t).powi(2) - 2.0 * t * t).sqrt();
+    has_corner(&cavity, rho, h, "the lune's upper rim corner");
+    has_corner(&cavity, rho, -h, "the lune's lower rim corner");
+
+    // The carriers: two off-axis rim circles and the caps' meeting
+    // line — kinds, centres, radii, all against the closed forms.
+    let rim_radius = ((r - t).powi(2) - t * t).sqrt();
+    let (mut lines, mut rims) = (0usize, 0usize);
+    for (_, d) in cavity.edges() {
+        let c = cavity
+            .get_curve_geom(d.curve)
+            .and_then(|g| g.certified())
+            .expect("a certified carrier");
+        match c.carrier() {
+            geom::Curve3::Line { origin, dir } => {
+                lines += 1;
+                let (rho_l, _) = axial(*origin);
+                assert!(
+                    (rho_l - rho).abs() <= 1e-15,
+                    "the axis edge moved to the caps' meeting line at ρ = t√2, got {rho_l}"
+                );
+                assert!(
+                    (dir.x.abs() + dir.z.abs()) <= 1e-15 && (dir.y.abs() - 1.0).abs() <= 1e-15,
+                    "the meeting line stays parallel to the axis, got {dir:?}"
+                );
+            }
+            geom::Curve3::Circle { center, radius, .. } => {
+                rims += 1;
+                let (rho_c, h_c) = axial(*center);
+                assert!(
+                    (rho_c - t).abs() <= 1e-15 && h_c.abs() <= 1e-15,
+                    "a rim centre stands t off the axis at the equator station, got \
+                     ({rho_c}, {h_c})"
+                );
+                assert!(
+                    (radius - rim_radius).abs() <= 1e-15,
+                    "the rim radius is the section's √((r−t)² − t²), got {radius}"
+                );
+            }
+            other => panic!("no lune edge carries a {other:?}"),
+        }
+    }
+    assert_eq!((lines, rims), (1, 2), "one meeting line, two rim circles");
+
+    // Every corner lies on every moved surface at its own faces — the
+    // same outside read the torus rows make.
+    for (face, f) in cavity.faces() {
+        let surface = cavity.get_surface(f.surface).expect("surface");
+        for v in face_vertices(&cavity, face) {
+            let p = *cavity
+                .get_point(cavity.get_vertex(v).expect("vertex").point)
+                .expect("point");
+            let d = residual(surface, p);
+            assert!(
+                d.abs() <= 1e-15,
+                "{v:?} stands {d} m off {face:?}'s own moved surface"
+            );
+        }
+    }
+}
+
+/// **The lune's corner solve reads no global frame**: offsetting and
+/// re-posing commute, compared as a BIJECTION in the posed frame —
+/// the torus rows' re-pose rule carried to the sphere rim. The anchor
+/// is off the axis and dyadic, so the posed body's stations are all
+/// different numbers and the axis foot is a computed point.
+#[test]
+fn torax_the_lune_cavity_survives_a_rigid_re_pose() {
+    let (r, t) = (0.3_f64, 0.05_f64);
+    let map = Affine3::rotation_about_axis(
+        Point3::new(0.25, -0.5, 0.125),
+        Vec3::new(1.0, 0.0, 0.0),
+        0.7,
+    );
+    let body = lune(r, core::f64::consts::FRAC_PI_2);
+    let band = Band::linear(tol()).expect("band");
+
+    let mut offset_first = body.clone();
+    topo::offset_charts_together(&mut offset_first, &hollow_moves(&body, t), band, tol())
+        .expect("the unposed lune offsets");
+    let posed_after =
+        transform_rigid(&offset_first, &map, tol()).expect("the offset lune re-poses");
+
+    let posed_first = transform_rigid(&body, &map, tol()).expect("the operand re-poses");
+    let mut offset_after = posed_first.clone();
+    topo::offset_charts_together(
+        &mut offset_after,
+        &hollow_moves(&posed_first, t),
+        band,
+        tol(),
+    )
+    .expect("the posed lune offsets");
+
+    let want: Vec<Point3<f64>> = posed_after
+        .vertices()
+        .map(|(_, v)| *posed_after.get_point(v.point).expect("point"))
+        .collect();
+    let mut pool: Vec<Point3<f64>> = offset_after
+        .vertices()
+        .map(|(_, v)| *offset_after.get_point(v.point).expect("point"))
+        .collect();
+    assert_eq!(want.len(), pool.len(), "vertex count under re-pose");
+    for w in &want {
+        let (i, d) = pool
+            .iter()
+            .enumerate()
+            .map(|(i, g)| (i, (*g - *w).norm()))
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .expect("the pool is non-empty while wanted points remain");
+        assert!(
+            d <= 1e-15,
+            "offset-then-pose has {w:?}; the nearest unmatched pose-then-offset point is \
+             {d} m away"
+        );
+        pool.remove(i);
+    }
+    assert!(pool.is_empty(), "the match is not a bijection");
+}
+
+/// **What still stands between the lune and `shell`, named with its
+/// payload — and it is the props inventory's, not this rim's.**
+///
+/// `shell`'s last act is tier 3, whose +V invariant computes the exact
+/// B-rep volume, and the sphere flux arm's `props_band_coplanar`
+/// premise (all boundary meridians on ONE great circle, `Δu = π`)
+/// covers full-revolve bands only. A lune's wall carries meridians on
+/// two great circles, so its volume is `VolumeUncomputable` — for the
+/// OPERAND, today, before any offset is asked for: both reads below
+/// return the SAME payload, which is what places this wall upstream of
+/// the unit rather than inside it (D2 addendum row 2: valid input,
+/// lane not built — `cross.step`'s standing class). The day the sphere
+/// arm measures a lune, this row goes red and the family's acceptance
+/// moves to the hollow's closed-form wall volume, derived and parked
+/// in `torax_the_sphere_lune_rim_solves_in_closed_form`'s docs.
+#[test]
+fn torax_the_sphere_lune_next_door_is_the_props_inventory() {
+    let body = lune(0.3, core::f64::consts::FRAC_PI_2);
+
+    // The operand's own tier 3, first: the wall predates this unit.
+    let operand = topo::validate_geometric(&body, tol())
+        .expect_err("the lune's wall volume is outside the sphere flux arm's premise");
+    assert!(
+        matches!(
+            operand[..],
+            [topo::ValidationError::VolumeUncomputable {
+                source: topo::MassPropsError::Face {
+                    source: geom_brep::PropsError::NotIsoRectangle {
+                        what: "props_band_coplanar"
+                    },
+                    ..
+                },
+            }]
+        ),
+        "the operand refuses at the sphere flux premise, got {operand:?}"
+    );
+
+    // And shell walks the WHOLE hollow — corners, carriers, pcurves,
+    // containment — before the same premise refuses its closing gate.
+    let e = topo::shell(&body, 0.05, FIT_TOL, tol())
+        .expect_err("shell's +V invariant needs the volume the flux arm cannot yet give");
+    println!("[torax] the lune's next door: {e}");
+    let ShellError::NotValid { errors } = e else {
+        panic!("the hollow must reach tier 3 and stop at the props inventory, got {e:?}");
     };
     assert!(
-        lune.surfaces()
-            .any(|(_, s)| matches!(s, Surface::Sphere { .. })),
-        "the lune's wall is a sphere"
+        matches!(
+            errors[..],
+            [topo::ValidationError::VolumeUncomputable {
+                source: topo::MassPropsError::Face {
+                    source: geom_brep::PropsError::NotIsoRectangle {
+                        what: "props_band_coplanar"
+                    },
+                    ..
+                },
+            }]
+        ),
+        "the same premise, one body later: {errors:?}"
     );
-    let e = topo::shell(&lune, 0.05, FIT_TOL, tol())
-        .expect_err("the sphere's partial-revolve rim does not carry either");
-    println!("[torax] the sphere lune's rim: {e}");
+}
+
+/// **The meridian-pair arm's refusing side, on a buildable body**: the
+/// HALF-turn lune's caps are two half-planes of one plane, so their
+/// inward offsets are parallel and meet in no line — the corner is
+/// genuinely under-determined by its surfaces, and the arm says so
+/// typed rather than falling back to the pole answer the moved caps
+/// have left. This is also the row that keeps the circle-profile rim
+/// family's refusal REACHABLE now that the quarter lune solves.
+#[test]
+fn torax_the_half_turn_lune_refuses_the_parallel_cap_pair() {
+    let e = topo::shell(&lune(0.3, core::f64::consts::PI), 0.05, FIT_TOL, tol())
+        .expect_err("parallel moved caps leave the rim corner under-determined");
+    println!("[torax] the half-turn lune: {e}");
     let ShellError::Face { error, .. } = e else {
         panic!("not the offset door's refusal: {e}");
     };
-    let topo::ReplaceFaceError::TogetherEdgeDisagreement { gap, .. } = *error else {
-        panic!(
-            "the sphere lune's rim refuses at the EDGE its two moved surfaces disagree \
-             about — its corners solve at the poles — got {error}"
-        );
+    let topo::ReplaceFaceError::TogetherAxialCorner { surfaces, what, .. } = *error else {
+        panic!("the parallel caps must refuse at the corner they under-determine: {error:?}");
     };
-    // And the disagreement is exactly the wall, not some other length:
-    // the moved rim circle is the unmoved one translated inward by `t`,
-    // so the far end misses the carrier by the whole thickness.
+    assert_eq!(surfaces, 3, "sphere wall + two meridian caps");
     assert!(
-        (gap - 0.05).abs() <= 1e-15,
-        "the gap is the wall thickness itself, got {gap}"
+        what.contains("parallel"),
+        "the refusal names the parallel caps, got {what}"
     );
 }

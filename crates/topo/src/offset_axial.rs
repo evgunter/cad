@@ -27,6 +27,8 @@
 //!                    2 corners  2 [plane ∩ cylinder]   + 2 axis poles
 //! partial wedge      4 corners  3 [cylinder ∩ plane ∩ plane]
 //!                    2 corners  3 [plane ∩ plane ∩ plane]
+//! sphere lune        2 corners  3 [sphere ∩ meridian ∩ meridian]
+//! klein elbow        4 corners  2 [torus ∩ meridian]
 //! ```
 //!
 //! There is no `plane ∩ curved ∩ curved` corner anywhere in it, and no
@@ -64,10 +66,21 @@
 //!
 //! 1. **the profile** — the first well-conditioned PAIR of profile
 //!    constraints, solved as line∩line or line∩circle, with every
-//!    further profile constraint VERIFIED against the answer;
+//!    further profile constraint VERIFIED against the answer. A corner
+//!    with ONE profile circle is answered too, from the fact the wedge
+//!    fixture taught this module: a partial revolve's meridian caps
+//!    stop containing the axis when offset, so the corner they meet is
+//!    displaced off it. TWO moved caps meet in a line parallel to the
+//!    axis, which is the derived wall constraint `ρ = ρ_L` and the
+//!    same line∩circle solve; ONE moved cap leaves the profile angle
+//!    free, and it is CARRIED — the old corner's point moved
+//!    concentrically with its circle, the same conventional datum the
+//!    sphere-seam mint below trusts;
 //! 2. **the azimuth** — carried from the old vertex when no plane
 //!    contains the axis at this corner (the seam's own conventional
-//!    datum), or solved as circle∩plane when exactly one does.
+//!    datum), solved as circle∩plane when exactly one does, or read
+//!    off the moved caps' meeting line when a circle-profile corner
+//!    stands on both.
 //!
 //! **The offsets themselves are [`geom_brep::offset_surface`]'s** — the
 //! same analytic mint the per-chart door uses. One derivation, not a
@@ -81,7 +94,9 @@
 //! perpendicular to itself, a latitude circle keeps its normal and
 //! `u_ref` and takes the corner's own station and radius, a sphere
 //! seam's great circle keeps its centre and plane and takes the
-//! chart's radius — and then it is **verified**: both endpoints are
+//! chart's radius, a sphere-wall rim keeps the cap plane's normal and
+//! `u_ref` and takes the moved cap's own plane∩sphere section — and
+//! then it is **verified**: both endpoints are
 //! read onto it and metered, and its midpoint is metered against BOTH
 //! moved surfaces. The parameters are always re-read, because a
 //! corner's motion slides an endpoint ALONG its own edge as readily as
@@ -92,20 +107,28 @@
 //! Several `what:` strings here are unreachable through `shell` because
 //! an operand door refuses first, and that is said rather than left for
 //! a reader to test for. Reached by a shipped row: the tangency arm of
-//! [`ReplaceFaceError::TogetherAxialCorner`] (the bullet), its
-//! one-profile-constraint arm (the klein elbow's rim, `torax_axial`),
-//! `TogetherNotAxial`'s oblique-plane arm and `TogetherEdgeDisagreement`
-//! (`sf2b_r1_probes`, `sf2b_r2_probes`, and the sphere lune's rim in
-//! `torax_axial`). **Direct-door only**, i.e. pinned by calling
-//! `offset_charts_together` rather than `shell`: the partial-set and
-//! chart-mixed gates. **Unreached by any fixture**, and written for
-//! correctness: the axis-pole station arm, its off-axis-circle arm, the
-//! three seam arms' refusing sides, and the over-determined-azimuth arm
-//! — no constructible body in this workspace has more than one plane
-//! through the axis at a corner that is not also all-planar, and a
-//! profile circle centred off the axis (a torus meridian, `ρ_c = R`)
-//! cannot contain an axis pole at all, since `R > r > 0` holds it
-//! `R − r` clear of it.
+//! [`ReplaceFaceError::TogetherAxialCorner`] (the bullet), the
+//! meridian-pair arm's parallel-caps refusal (the half-turn lune,
+//! `torax_axial`), `TogetherNotAxial`'s oblique-plane arm,
+//! `TogetherEdgeDisagreement` (`sf2b_r1_probes`, `sf2b_r2_probes`), and
+//! the latitude mint's off-axis-centre refusal (the klein elbow's
+//! spiric rim, `torax_axial` and `verbs_shell`). **Direct-door only**,
+//! i.e. pinned by calling `offset_charts_together` rather than `shell`:
+//! the partial-set and chart-mixed gates, and the sphere lune's whole
+//! rim solve (`shell`'s closing tier 3 needs a volume the sphere flux
+//! arm's `props_band_coplanar` premise cannot yet give a lune — the
+//! operand's own standing wall, pinned with its payload in
+//! `torax_axial`). **Unreached by any fixture**, and written for
+//! correctness: the one-profile-constraint refusal (its old fixture,
+//! the klein elbow, now solves through the carried-datum arm and
+//! refuses at its rim carrier instead), the axis-pole station arm, its
+//! off-axis-circle arm, the three seam arms' refusing sides, the
+//! off-axis rim mint's four refusing predicates, and the
+//! over-determined-azimuth arm — no constructible body in this
+//! workspace has more than one plane through the axis at a corner that
+//! is not also all-planar, and a profile circle centred off the axis (a
+//! torus meridian, `ρ_c = R`) cannot contain an axis pole at all, since
+//! `R > r > 0` holds it `R − r` clear of it.
 //!
 //! # What this door does not do
 //!
@@ -1001,10 +1024,20 @@ fn solve_corner<T: Decide>(
         }
     }
 
-    // ---- The one shape a SINGLE profile constraint answers: a vertex
-    // on the axis. Its `ρ = 0` is not a guess — it is what makes it a
-    // revolve's pole — and the station comes from the surface that
-    // meets it. ----
+    // ---- The shapes a SINGLE profile constraint answers. A vertex on
+    // the axis is the classical one: its `ρ = 0` is not a guess — it is
+    // what makes it a revolve's pole — and the station comes from the
+    // surface that meets it. A CIRCLE profile answers two more, both
+    // born from one measured fact (the wedge's own module-doc law, now
+    // met by a circle wall): a partial revolve's meridian caps stop
+    // containing the axis the moment they are offset, so a corner they
+    // meet is displaced OFF it. With BOTH moved caps here, the caps
+    // jointly determine the corner's radial line and the circle
+    // supplies its station ([`cap_pair_corner`]); with ONE, the corner
+    // keeps its own angular position on the moved circle — the carried
+    // datum, the same one the sphere-seam mint below trusts — and the
+    // cap fixes the azimuth through the shared meridian solve. ----
+    let mut carried: Option<(T, T)> = None;
     if profiles.len() < 2 {
         let pole = match decide("offset_axial_pole", Margin::of(rho_old), band) {
             Ok(Sign::Zero) => true,
@@ -1017,55 +1050,98 @@ fn solve_corner<T: Decide>(
                  half-plane is determined",
             ));
         };
-        if !pole {
-            return Err(refuse(
-                "one profile constraint meets here and the vertex is not on the axis, so its \
-                 station is determined but its radius is not",
-            ));
-        }
-        let h = match only {
-            Profile::Line { n, c } => {
-                match decide(
-                    "offset_axial_pole_station",
-                    Margin::levered(n.1.abs(), frame.extent),
-                    band,
-                ) {
-                    Ok(Sign::Positive) => {}
-                    Ok(_) => return Err(refuse("an axis pole whose one surface fixes no station")),
-                    Err(source) => return Err(ReplaceFaceError::Escalated { source }),
-                }
-                c / n.1
+        if let (Profile::Circle { .. }, &[cap0, cap1]) = (&only, &meridians[..]) {
+            // The meridian-pair arm. `None` says the moved caps still
+            // hold the axis, and the pole arm below keeps its answer.
+            if let Some(point) = cap_pair_corner(
+                vertex,
+                at.len(),
+                (rho_old, h_old),
+                &only,
+                (cap0, cap1),
+                arms,
+                frame,
+                band,
+            )? {
+                return Ok(point);
             }
-            Profile::Circle { rho_c, h_c, r } => {
-                // **A profile circle centred OFF the axis contains no
-                // point of the axis.** Its nearest approach is
-                // `ρ_c − r`, which the torus's standing construction
-                // invariant `R > r > 0` keeps strictly positive — so a
-                // vertex read as a pole against one is a contradiction,
-                // not a station, and `h_c ± r` would answer it with a
-                // number that is on no surface here. The arm decides
-                // the centre rather than the kind: it is the circle's
-                // own geometry that makes the step below valid.
-                match decide("offset_axial_pole_centre", Margin::of(rho_c), band) {
-                    Ok(Sign::Zero) => {}
+        }
+        if !pole {
+            if let (Profile::Circle { rho_c, h_c, r }, [_]) = (only, &meridians[..]) {
+                // The carried-datum arm: the corner's `(ρ, h)` is the
+                // OLD corner's profile point moved CONCENTRICALLY with
+                // its circle — centre fixed, radius the moved circle's
+                // own — and the azimuth is the moved cap's, solved
+                // below exactly as the wedge's is. The datum is the
+                // corner's angle about the circle's own centre, which
+                // is a direction only while the old corner stands
+                // clear of that centre — decided, not assumed.
+                let v = Vec3::new(rho_old - rho_c, h_old - h_c, T::zero());
+                let n = v.norm();
+                match decide("offset_axial_datum_arm", Margin::of(n), band) {
+                    Ok(Sign::Positive) => {}
                     Ok(_) => {
                         return Err(refuse(
-                            "an axis pole whose one surface is a profile circle centred off the \
-                             axis, which no point of the axis lies on",
+                            "a rim corner standing at its own profile circle's centre, which \
+                             fixes no direction to carry it along",
                         ));
                     }
                     Err(source) => return Err(ReplaceFaceError::Escalated { source }),
                 }
-                h_c + side_of(
-                    h_old - h_c,
-                    vertex,
-                    "is an axis pole at its sphere's own equator station, where the pole has no \
-                     side to move to",
-                    band,
-                )? * r
+                carried = Some((rho_c + v.x / n * r, h_c + v.y / n * r));
+            } else {
+                return Err(refuse(
+                    "one profile constraint meets here and the vertex is not on the axis, so \
+                     its station is determined but its radius is not",
+                ));
             }
-        };
-        return Ok(frame.origin + frame.dir * h);
+        } else {
+            let h = match only {
+                Profile::Line { n, c } => {
+                    match decide(
+                        "offset_axial_pole_station",
+                        Margin::levered(n.1.abs(), frame.extent),
+                        band,
+                    ) {
+                        Ok(Sign::Positive) => {}
+                        Ok(_) => {
+                            return Err(refuse("an axis pole whose one surface fixes no station"));
+                        }
+                        Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+                    }
+                    c / n.1
+                }
+                Profile::Circle { rho_c, h_c, r } => {
+                    // **A profile circle centred OFF the axis contains no
+                    // point of the axis.** Its nearest approach is
+                    // `ρ_c − r`, which the torus's standing construction
+                    // invariant `R > r > 0` keeps strictly positive — so a
+                    // vertex read as a pole against one is a contradiction,
+                    // not a station, and `h_c ± r` would answer it with a
+                    // number that is on no surface here. The arm decides
+                    // the centre rather than the kind: it is the circle's
+                    // own geometry that makes the step below valid.
+                    match decide("offset_axial_pole_centre", Margin::of(rho_c), band) {
+                        Ok(Sign::Zero) => {}
+                        Ok(_) => {
+                            return Err(refuse(
+                                "an axis pole whose one surface is a profile circle centred off the \
+                             axis, which no point of the axis lies on",
+                            ));
+                        }
+                        Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+                    }
+                    h_c + side_of(
+                        h_old - h_c,
+                        vertex,
+                        "is an axis pole at its sphere's own equator station, where the pole \
+                         has no side to move to",
+                        band,
+                    )? * r
+                }
+            };
+            return Ok(frame.origin + frame.dir * h);
+        }
     }
 
     // ---- The profile solve: the first well-conditioned PAIR, in the
@@ -1075,26 +1151,28 @@ fn solve_corner<T: Decide>(
     // which this is still a corner. Levering by the offset instead would
     // make the verdict a statement about the request wearing the words
     // of a statement about the geometry. ----
-    let mut solved: Option<(T, T)> = None;
-    'pairs: for (i, a) in profiles.iter().enumerate() {
-        for b in profiles.iter().skip(i + 1) {
-            let Some(det) = transversality(a, b) else {
-                continue;
-            };
-            let mut resolvable = true;
-            for &arm in arms {
-                match decide("offset_axial_corner", Margin::levered(det.abs(), arm), band) {
-                    Ok(Sign::Positive) => {}
-                    Ok(_) => {
-                        resolvable = false;
-                        break;
+    let mut solved: Option<(T, T)> = carried;
+    if solved.is_none() {
+        'pairs: for (i, a) in profiles.iter().enumerate() {
+            for b in profiles.iter().skip(i + 1) {
+                let Some(det) = transversality(a, b) else {
+                    continue;
+                };
+                let mut resolvable = true;
+                for &arm in arms {
+                    match decide("offset_axial_corner", Margin::levered(det.abs(), arm), band) {
+                        Ok(Sign::Positive) => {}
+                        Ok(_) => {
+                            resolvable = false;
+                            break;
+                        }
+                        Err(source) => return Err(ReplaceFaceError::Escalated { source }),
                     }
-                    Err(source) => return Err(ReplaceFaceError::Escalated { source }),
                 }
-            }
-            if resolvable {
-                solved = Some(nearest(&roots(a, b, det), rho_old, h_old, vertex, band)?);
-                break 'pairs;
+                if resolvable {
+                    solved = Some(nearest(&roots(a, b, det), rho_old, h_old, vertex, band)?);
+                    break 'pairs;
+                }
             }
         }
     }
@@ -1220,6 +1298,145 @@ fn solve_corner<T: Decide>(
              over-determined — a form this corpus has no fixture for and this door does not guess",
         )),
     }
+}
+
+/// **The rim corner a circle-profile wall shares with BOTH moved
+/// meridian caps** — the sphere lune's pole corner once its caps are
+/// offset.
+///
+/// A partial revolve's two meridian caps contain the axis at rest and
+/// stop containing it when they are offset inward, so the corner that
+/// stood at an axis pole is displaced off the axis. The two moved
+/// planes both stay parallel to the axis and meet in a LINE parallel to
+/// it, and that line is one radial fact plus one azimuth: `ρ = ρ_L` is
+/// exactly a cylinder's profile constraint, so the caps' joint
+/// constraint is DERIVED as that line and handed to the standard pair
+/// machinery against the circle — [`transversality`] levered by the
+/// corner's own arms, [`roots`]' closed form, the branch decided by
+/// [`nearest`] against the old corner. The azimuth is the line's own;
+/// no datum is carried, because the two caps leave nothing free.
+///
+/// The line is solved in the cross-section normal to the axis — a
+/// meridian normal's axial component was decided zero at
+/// classification — and the answer is then VERIFIED against both FULL
+/// plane equations, so the projection is a solving convenience and not
+/// a trusted convention.
+///
+/// Answers `None` when the moved caps still hold the axis (`ρ_L = 0`):
+/// the corner is then the pole the pole arm already answers, and this
+/// arm deliberately does not shadow it.
+#[allow(clippy::too_many_arguments)]
+fn cap_pair_corner<T: Decide>(
+    vertex: VertexKey,
+    surfaces: usize,
+    old: (T, T),
+    circle: &Profile<T>,
+    caps: ((Vec3<T>, T), (Vec3<T>, T)),
+    arms: &[T],
+    frame: &Frame<T>,
+    band: Band,
+) -> Result<Option<Point3<T>>, ReplaceFaceError<T>> {
+    let refuse = |what: &'static str| ReplaceFaceError::TogetherAxialCorner {
+        vertex,
+        surfaces,
+        what,
+    };
+    let (rho_old, h_old) = old;
+    let ((m0, c0), (m1, c1)) = caps;
+
+    // The caps' meeting line, in the cross-section basis (e1, e2). The
+    // pair's transversality is the sine between their cross-section
+    // normals, levered by the corner's own arms exactly as the profile
+    // pairs' is: the solve divides by it, so it is decided first.
+    let mp0 = m0 - frame.dir * m0.dot(frame.dir);
+    let mp1 = m1 - frame.dir * m1.dot(frame.dir);
+    let (n0, n1) = (mp0.norm(), mp1.norm());
+    let sine = (mp0.cross(mp1) / (n0 * n1)).dot(frame.dir);
+    for &arm in arms {
+        match decide(
+            "offset_axial_cap_pair",
+            Margin::levered(sine.abs(), arm),
+            band,
+        ) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => {
+                return Err(refuse(
+                    "the two moved meridian caps meet in no line this corner's own edges can \
+                     resolve — their planes are parallel or nearly so",
+                ));
+            }
+            Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+        }
+    }
+    let e1 = mp0 / n0;
+    let e2 = frame.dir.cross(e1);
+    let rhs0 = c0 - m0.dot(vec_of(frame.origin));
+    let rhs1 = c1 - m1.dot(vec_of(frame.origin));
+    let alpha = rhs0 / n0;
+    let beta = (rhs1 - alpha * mp1.dot(e1)) / (n1 * sine);
+    let rho_line = Vec3::new(alpha, beta, T::zero()).norm();
+    match decide("offset_axial_cap_line", Margin::of(rho_line), band) {
+        // The caps still hold the axis: the pole arm's territory.
+        Ok(Sign::Zero) => return Ok(None),
+        Ok(_) => {}
+        Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+    }
+    let e = (e1 * alpha + e2 * beta) / rho_line;
+
+    // The caps' joint constraint as the profile line `ρ = ρ_L`, against
+    // the circle through the standard machinery.
+    let wall = Profile::Line {
+        n: (T::one(), T::zero()),
+        c: rho_line,
+    };
+    let det = transversality(&wall, circle).ok_or(ReplaceFaceError::Corrupt)?;
+    for &arm in arms {
+        match decide("offset_axial_corner", Margin::levered(det.abs(), arm), band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => {
+                return Err(refuse(
+                    "the moved caps' meeting line does not cross the profile circle \
+                     transversally against the edges that end here — it is tangent, or it \
+                     misses the circle",
+                ));
+            }
+            Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+        }
+    }
+    let (rho, h) = nearest(&roots(&wall, circle, det), rho_old, h_old, vertex, band)?;
+    match decide("offset_axial_radius", Margin::of(rho), band) {
+        Ok(Sign::Positive) => {}
+        Ok(_) => return Err(refuse("the solved corner is on or across the axis")),
+        Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+    }
+    let gap = circle.residual(rho, h);
+    match decide("offset_axial_concurrence", Margin::of(gap), band) {
+        Ok(Sign::Zero) => {}
+        Ok(_) => {
+            return Err(refuse(
+                "the surfaces meeting here do not concur after the offset, so this corner has \
+                 no offset point",
+            ));
+        }
+        Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+    }
+
+    // The answer, VERIFIED onto both full planes — the cross-section
+    // projection above was a solving step, not a claim.
+    let p = frame.place(rho, h, e);
+    for (m, c) in [(m0, c0), (m1, c1)] {
+        let gap = m.dot(vec_of(p)) - c;
+        match decide("offset_axial_azimuth_residual", Margin::of(gap), band) {
+            Ok(Sign::Zero) => {}
+            Ok(_) => {
+                return Err(refuse(
+                    "the rim corner solve did not land on its own moved cap",
+                ));
+            }
+            Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+        }
+    }
+    Ok(Some(p))
 }
 
 /// Two profile curves' TRANSVERSALITY — the sine of the angle at which
@@ -1438,6 +1655,116 @@ fn mint_carrier<T: Decide>(
                 "a seam whose carrier and chart are not one of the closed-form pairs",
             )),
         };
+    }
+
+    // ---- The off-axis rim circle: a sphere wall × meridian cap. ----
+    //
+    // A partial revolve's rim edge lies in the meridian cap's own
+    // plane, and the MOVED cap is that plane translated off the axis by
+    // the offset — it cuts the moved sphere in a circle whose centre is
+    // the cap's own foot of the sphere centre and whose radius is the
+    // section's: the `plane ∩ sphere` closed form, computed here in the
+    // door's own arithmetic (the module's law stands — no marching, no
+    // SSI, no section call). The latitude arm below cannot say this: a
+    // meridian plane is never normal to the axis, so this is a SIBLING
+    // arm gated on the chart pair, and its predicates verify the rest
+    // of the posture in full — the carrier really is the wall × cap
+    // great circle at rest — rather than only the binding relation.
+    let ball_meridian = match (&ca.constraint, &cb.constraint) {
+        (Constraint::Ball { .. }, Constraint::Meridian { m, c }) => Some((ca, *m, *c)),
+        (Constraint::Meridian { m, c }, Constraint::Ball { .. }) => Some((cb, *m, *c)),
+        _ => None,
+    };
+    if let Some((wall, m, c)) = ball_meridian {
+        let Curve3::Circle {
+            center: cc,
+            axis,
+            radius,
+            u_ref,
+        } = old
+        else {
+            return Err(refuse(
+                "an edge between a sphere wall and a meridian cap whose carrier is not a \
+                 circle",
+            ));
+        };
+        let (
+            Surface::Sphere {
+                center: sc,
+                radius: sr,
+                ..
+            },
+            Surface::Sphere { radius: old_r, .. },
+        ) = (&wall.new, &wall.old)
+        else {
+            return Err(ReplaceFaceError::Corrupt);
+        };
+        // The carrier is centred on the sphere's own centre — one
+        // length covers the operand's posture and the mint's
+        // concentricity at once, since the sphere offset keeps its
+        // centre.
+        let off = cc.distance(*sc);
+        match decide("offset_axial_rim_concentric", Margin::of(off), band) {
+            Ok(Sign::Zero) => {}
+            Ok(_) => {
+                return Err(refuse(
+                    "a circular edge between a sphere wall and a meridian cap that is not \
+                     centred on the sphere's own centre",
+                ));
+            }
+            Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+        }
+        // ... and it is GREAT: its radius is the operand sphere's own.
+        let dr = *radius - *old_r;
+        match decide("offset_axial_rim_great", Margin::of(dr), band) {
+            Ok(Sign::Zero) => {}
+            Ok(_) => {
+                return Err(refuse(
+                    "a circular edge between a sphere wall and a meridian cap that is not the \
+                     wall's own great circle in the cap",
+                ));
+            }
+            Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+        }
+        // ... and its plane is the cap's — the moved cap keeps its
+        // normal, so one sine covers the operand plane and the moved
+        // one together.
+        let mh = m.normalize();
+        let tilt = axis.normalize().cross(mh).norm();
+        match decide(
+            "offset_axial_rim_plane",
+            Margin::levered(tilt, frame.extent),
+            band,
+        ) {
+            Ok(Sign::Zero) => {}
+            Ok(_) => {
+                return Err(refuse(
+                    "a circular edge between a sphere wall and a meridian cap that does not \
+                     lie in the cap's own plane",
+                ));
+            }
+            Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+        }
+        // The moved cap's signed stand-off from the sphere centre along
+        // its own normal. The section circle dies as the cap reaches
+        // the sphere, and that is a length, decided before the root.
+        let t = c - mh.dot(vec_of(*sc));
+        match decide("offset_axial_rim_reach", Margin::of(*sr - t.abs()), band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => {
+                return Err(refuse(
+                    "a meridian cap standing tangent to or beyond its sphere wall, whose \
+                     section leaves no rim circle",
+                ));
+            }
+            Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+        }
+        return Ok(Curve3::Circle {
+            center: *sc + mh * t,
+            axis: *axis,
+            radius: (*sr * *sr - t * t).sqrt(),
+            u_ref: *u_ref,
+        });
     }
 
     // Two distinct charts: the carrier keeps its KIND and its

@@ -589,42 +589,40 @@ fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
 /// **It does not retire in this unit, and this row is why.** A partial
 /// revolve of a disc gives a TORUS wall and two PLANAR meridian end
 /// caps, so every rim is a torus × meridian-plane seam vertex. The
-/// axial door now takes the torus KIND — the wall's meridian circle is
-/// a profile constraint like any other — but a meridian cap stops
-/// containing the axis the instant it is offset inward, and the rim
-/// vertex is then TWO distinct surfaces carrying only ONE profile
-/// constraint between them: the cap fixes an azimuth, not a `(ρ, h)`.
-/// The door says exactly that, and this row pins the sentence.
+/// rim-construction capability (VERBS-RIMCAP) moved the elbow's wall
+/// one door deeper: the corner now SOLVES — a meridian cap stops
+/// containing the axis the instant it is offset inward, and the
+/// carried-datum arm answers the displaced corner from the wall's own
+/// profile circle plus the moved cap — but the rim EDGE between them
+/// has no carrier. The moved cap stands `t` off the axis, parallel to
+/// it, and cuts the torus in a spiric QUARTIC; the latitude mint
+/// refuses the off-axis centre it will not pretend is a latitude, and
+/// this row pins that payload.
 ///
 /// **This is not a torus gap — and it is not every curved wall's gap
 /// either.** A partial revolve whose wall is a CYLINDER hollows today:
 /// `sf2b_axial`'s quarter-turn wedge is that body, and its rim vertex
 /// carries TWO profile constraints (the cylinder's line and the cap's)
-/// with the meridian plane supplying only the azimuth. What is missing
-/// is the rim of a wall whose PROFILE CONSTRAINT IS A CIRCLE — a
-/// sphere or a torus, where the closed profile is the whole wall and
-/// the rim vertex has one constraint. `torax_axial` measures the
-/// SPHERE half on a lune, and it refuses at a DIFFERENT door: the
-/// lune's corners DO solve, through the axis-pole arm where `ρ = 0` is
-/// a geometric fact rather than a carried datum, and what refuses is
-/// the rim EDGE — `TogetherEdgeDisagreement`, gap exactly the wall
-/// thickness — because the moved rim circle's centre is off the axis
-/// and the latitude mint has no arm for one. Circle-profile walls, two
-/// doors.
+/// with the meridian plane supplying only the azimuth. And the SPHERE
+/// half of the circle-profile family is BUILT: `torax_axial`'s lune
+/// solves its rim end to end through the meridian-pair corner arm and
+/// the off-axis-circle mint (a plane cuts a sphere in a circle,
+/// always), and now waits only on the props inventory's sphere flux
+/// premise — a wall its OPERAND already stands behind. What is missing
+/// here is exactly the torus's moved-rim CARRIER.
 ///
-/// **What would retire it**, concretely, is two things and the torus
-/// needs both: a carried datum for the wall chart's own `v`-seam (the
-/// coordinate the cap cannot supply), and a carrier for the moved rim.
-/// For the torus that carrier is a QUARTIC: a plane parallel to a
-/// torus's axis at distance `t` cuts it in a spiric section, not a
-/// circle. The C5 table now routes `plane × torus` (VERBS-C5ARMS
-/// shipped the two exact-degenerate closed forms), but the shipped arm
-/// REFUSES exactly this configuration — the axis-parallel offset plane
-/// routes to the general rung, named at the arm's own refusal — so the
-/// rim waits on the rim-construction capability plus the SPIRIC
-/// carrier, not on the C5 table. `torax_axial` carries that measurement too —
-/// on this elbow's own numbers the section's half-width and half-height
-/// differ by `2.03e-4` m, a circle's do not.
+/// **What would retire it**, concretely, is the SPIRIC carrier: a
+/// plane parallel to a torus's axis at distance `t` cuts it in a
+/// spiric section, not a circle, and `Curve3` has no quartic kind. The
+/// C5 table now routes `plane × torus` (VERBS-C5ARMS shipped the two
+/// exact-degenerate closed forms), but the shipped arm REFUSES exactly
+/// this configuration — the axis-parallel offset plane routes to the
+/// general rung, named at the arm's own refusal — so the rim waits on
+/// the spiric carrier (the VERBS-RIMCAP spec's design-gated PR-2
+/// conversation), not on the C5 table and no longer on the corner.
+/// `torax_axial` carries that measurement too — on this elbow's own
+/// numbers the section's half-width and half-height differ by
+/// `2.03e-4` m, a circle's do not.
 ///
 /// The comparison this row would make once that lands: topology exactly
 /// equal, stored radii within one ulp (the two spellings reach the
@@ -661,17 +659,17 @@ fn the_klein_wall_pair_waits_on_the_partial_revolve_rim() {
     assert_eq!(caps.len(), 2, "a partial revolve has two meridian end caps");
 
     let e = topo::shell_open(&solid, KLEIN_WALL, &caps, FIT_TOL, Tol::witness())
-        .expect_err("the elbow's rim has no second profile constraint");
+        .expect_err("the elbow's moved rim is a spiric section away from a carrier");
     assert!(
         matches!(
             e,
             ShellError::Face { ref error, .. } if matches!(
                 **error,
-                topo::ReplaceFaceError::TogetherAxialCorner { surfaces: 2, what, .. }
-                    if what.contains("one profile constraint")
+                topo::ReplaceFaceError::TogetherAxialEdge { what, .. }
+                    if what == "a circular edge between two charts whose centre is off the axis"
             )
         ),
-        "expected the rim vertex's own refusal, got {e}"
+        "expected the latitude mint's off-axis refusal, got {e}"
     );
 
     // The sealed arm stops at the same wall, on the same edges — the
