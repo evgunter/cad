@@ -1042,3 +1042,34 @@ the unit proceeds; the suite's own cost is in scope for findings,
 the per-file gate included; the inherited red is verified, not
 re-opened, and the branch's duplicate issue file for it is dropped
 at the fix pass.
+
+## Seam: the K2 dual concluded; the fix pass dispatched (2026-09-03, 19:15 UTC)
+
+Both K2 reviewers reported within 40 minutes of each other. R1
+MERGEABLE-AFTER-FIXES (0 MAJ / 2 MIN), R2 MERGEABLE (0 MAJ / 2 MIN);
+verdicts diverge in letter and converge in substance. Both re-derived
+the identity argument and then MEASURED it with an independent bitwise
+probe over every `bern_mul_row` consumer — `ch_mul`, the tensor
+composites, elevation, asymmetric patch products, past-cap degrees —
+and both found base and head md5-identical; neither could construct
+a differing pair; both reproduced every hosted number from the raw
+job logs. The one finding both hold: the patch-level key-order
+mutants (tables swapped, `lo` from the wrong degree, the u-weight read
+from the v-table) survive every `geom-core` row and die only in
+`geom-brep`'s `offset_fit` rows — the unit's own patch row uses a
+symmetric (2,2)×(2,2) fixture and compares the head against itself,
+and the weight table is a bare slice whose pair is a convention
+nothing enforces (a swapped table has the same row widths). Unilateral
+R1: two misquoted numbers in the body (the added rows' cost quoted
+from the shard that did not run them; the crate-suite figure raw
+where the headline is normalised — −6.7 % under the PR's own
+normalisation). Unilateral R2: the L3 obligation is one sentence, not
+a soundness argument; the follow-up should be sized so. v6 item-3
+unilateral instrument: no candidate. Union of 7 items dispatched to a
+fresh fix lane on the implementer's arm (asymmetric guard rows against
+the old loop spelled inline, a typed table carrying its pair with one
+home for `lo(k)`, docs at the site, the oracle as the old loop,
+`elevate_block` hoisted, the two numbers, the L3 file resized); three
+declined with reason (`Cow`/names, `binom_row`'s clones for non-memo
+callers, committing the instruments). Correspondence and both reports
+under `/home/user/tcost-work/ab/`.
