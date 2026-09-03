@@ -3341,3 +3341,50 @@ the shared host disclosed; no cross-lane reads). ~240k tokens,
 ~26m harness (~75m self-est). R2 (opus per the draw) dispatched
 sequentially after, brief VERBATIM from the pre-committed store,
 no access to R1's report or probes. Row at merge.
+
+LIB-TUBE R2 DELIVERED (2026-09-03, opus per the draw; frozen
+c0bfba802): **APPROVE-WITH-FIXES 0/2/4, rubric 5/5/3** — no MAJOR;
+all seven claims survived attack. Instruments: the densest
+collision construction the vocabulary permits (three tubes, one
+identical pair, one spine, one document — name tables disjoint and
+reproducible); the stale-build refusal executed AT THE BYTES
+(unknown-variant probe through the one typed door, labeled
+byte-level-equivalent honestly); the non-dyadic storage probe
+(0.3−0.1, bits distinguish where volumes cannot); the audit
+re-derived by SCENE NAME across the 47→43 renumbering (all flips
+landed right; main→head verdict diff exactly three); the seam
+compared as diff-of-diffs (28 dropped files all disclosed v17/log
+machinery, zero undisclosed either direction; escape class: one
+commit, one file, repaired). MINORs: caller-facing docs falsified
+by execution on the non-unit axis (the disclosure never reached
+the two surfaces authors read) and a corpus header asserting a
+mass pin over `pin: None`. NOTE-2 is a DISPATCHER CORRECTION,
+accepted: the brief's claim 5 mislabeled the torus closed form as
+row 25 — it belongs to row 26 and the audit places it correctly.
+
+CORRESPONDENCE PRE-NOTE (ordinal 302): verdicts CONVERGE (A-W-F
+both, no MAJOR either arm) — NO tally candidates; no
+re-verification round; fix pass IMPLEMENTER-INHERITED off the
+adjudicated union. Bilateral: the m4_pr6_golden v17 comment
+fragment (R1-M5 ≡ R2-N1); the dyadic-fixture weakness closed by
+BOTH probe branches independently (R1-M3 ≡ R2 claim-4 probe — the
+same non-dyadic row built twice, convergent evidence). Unilateral
+R1: the renumbering satellite class (M1, four stale citations;
+M2, the self-referential row cite), the PR-body/fence-header
+self-description mismatch (M4), the letter-level canonicalizing-
+doors silence (N1). Unilateral R2: the caller-surface doc falsity
+(MINOR-1) with the spine/u_ref asymmetry note (N3), the mass-pin
+header (MINOR-2).
+
+DISPATCHER CONTAMINATION, recorded for the blinded adjudication:
+the orchestrator's R1 phase-note COMMIT SUBJECT on main carried
+R1's verdict tally ("A-W-F 0/5/2"), and R2's pre-lane `git log`
+orientation surfaced it — R2 disclosed the exposure, states it
+reached its own verdict and findings first, and the finding sets
+are substantially disjoint; the exposure is verdict-shaped only
+(no findings content). The asymmetry is the dispatcher's, not the
+reviewers'. PROTOCOL NOTE going forward: while a dual is open,
+phase-note commit subjects stay verdict-free (tallies in the body
+only). Both reviews' costs: R1 ~240k/~26m harness; R2 ~219k/~18m
+harness (~65m self-est). Fix pass dispatches to the implementer
+lane next; row at merge.
