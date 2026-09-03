@@ -521,8 +521,15 @@ impl core::fmt::Display for SeedError {
 ///
 /// The environment is whichever door built it ([`crate::Doc::param_env`]
 /// or [`param_env_over`]), so seeding composes with the parameter box
-/// by doing nothing besides the one tangent write. One seed per
-/// environment (E4: n parameters ⇒ n independent passes).
+/// by doing nothing besides the one tangent write. **One seed per
+/// environment is the caller's obligation, not this door's check**
+/// (E4: n parameters ⇒ n independent passes): an environment records
+/// no provenance, so a second call on an already-seeded environment
+/// layers a second unit tangent — the multi-seed vector environment
+/// E11.4 leaves out — rather than refusing. The evaluation service
+/// calls this exactly once, on the environment it just built; a
+/// caller composing by hand starts from one of the two doors each
+/// time.
 ///
 /// # Errors
 ///
@@ -599,6 +606,14 @@ impl BoxAxis {
     pub fn width(&self) -> f64 {
         let (lo, hi) = self.span();
         hi - lo
+    }
+
+    /// Whether this axis's span holds the nominal — offset zero — on
+    /// its CLOSED span: exact comparisons on stored offsets, no ε. A
+    /// fixed axis holds it by definition.
+    pub fn contains_nominal(&self) -> bool {
+        let (lo, hi) = self.span();
+        lo <= 0.0 && 0.0 <= hi
     }
 
     /// The axis midpoint, `0.5 * (lo + hi)` — a pure function of the
@@ -805,6 +820,14 @@ impl ParamBox {
             };
         }
         Ok(m)
+    }
+
+    /// Whether this box holds the nominal — offset zero on EVERY axis,
+    /// each on its closed span ([`BoxAxis::contains_nominal`]). The
+    /// predicate the chamber mark is minted on: a certified leaf that
+    /// answers `true` here is a certificate at the nominal.
+    pub fn contains_nominal(&self) -> bool {
+        self.axes.values().all(BoxAxis::contains_nominal)
     }
 
     /// Whether this box touches the boundary of `root` — some axis of it

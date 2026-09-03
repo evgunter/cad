@@ -19,7 +19,8 @@ mod fixture;
 use editor_core::analysis::{AnalysisPolicy, analyzed_box, std_deviation};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::stackup::{
-    Chamber, Rss, SensitivityOutcome, StackupRefusal, Unavailable, sensitivities, stackup,
+    Chamber, Rss, SensitivityOutcome, SensitivityRefusal, StackupRefusal, Unavailable,
+    sensitivities, stackup,
 };
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Evaluation, Expr,
@@ -459,31 +460,26 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
     // The FRESH f64 build of the edited document: the pairing hook is
     // fully satisfied.
     let handed = eval_f64(&edited);
-    let entries = sensitivities(
+    // PIN (flipped from DATUM at the fix pass): the verdict's certified
+    // leaf is content-tied to the build — the retargeted slot re-keys
+    // node 3 in the leaf's replay — so the stale verdict is refused
+    // typed, in the driver and in the report alike, before any mark is
+    // written.
+    let refused = sensitivities(
         &edited,
         m,
         Some(&handed),
         Some(&verdict),
         false,
         Tol::witness(),
-    )
-    .expect("the pairing hook is satisfied by a fresh anchor");
-    let marks: Vec<&Chamber> = entries
-        .iter()
-        .filter_map(|s| match &s.outcome {
-            SensitivityOutcome::Derivative { chamber, .. } => Some(chamber),
-            _ => None,
-        })
-        .collect();
-    assert!(!marks.is_empty());
-    assert!(
-        marks
-            .iter()
-            .all(|c| matches!(c, Chamber::ChamberCertified { .. })),
-        "DATUM: the stale verdict still certifies: {marks:?}"
     );
-
-    // And the report carries the stale drive's coverage verbatim.
+    assert!(
+        matches!(
+            refused,
+            Err(SensitivityRefusal::VerdictNotOfThisBuild { .. })
+        ),
+        "a stale verdict must be refused by content: {refused:?}"
+    );
     let report = stackup(
         &edited,
         m,
@@ -492,12 +488,22 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
         Some(&handed),
         false,
         Tol::witness(),
-    )
-    .expect("DATUM: the stackup does not gate the verdict either");
-    assert_eq!(&report.coverage, verdict.accounting());
+    );
+    assert!(
+        matches!(
+            report,
+            Err(StackupRefusal::Sensitivity(
+                SensitivityRefusal::VerdictNotOfThisBuild { .. }
+            ))
+        ),
+        "the stackup must not price an edited document with the old leaves: {report:?}"
+    );
     // The edited document's OWN sensitivity has changed (h2 no longer
     // drives anything), which is the proof that the certified chamber
-    // is not this document's.
+    // is not this document's — read without a chamber, where it is
+    // honestly `LocalOnly`.
+    let entries = sensitivities(&edited, m, Some(&handed), None, false, Tol::witness())
+        .expect("the pairing hook is satisfied by a fresh anchor");
     match entries
         .iter()
         .find(|s| s.param == name("h2"))
@@ -536,6 +542,10 @@ fn r1_another_documents_verdict_certifies_this_one() {
         "the two documents share an analyzed box"
     );
 
+    // PIN (flipped from DATUM at the fix pass): A's leaf replays over B
+    // with different keys at the first node whose geometry differs, so
+    // A's verdict is refused by content — in the report and in the
+    // driver — however alike the two documents' parameter sets are.
     let report = stackup(
         &b_doc,
         b_m,
@@ -544,19 +554,24 @@ fn r1_another_documents_verdict_certifies_this_one() {
         None,
         false,
         Tol::witness(),
-    )
-    .expect("DATUM: A's verdict prices B");
-    assert!(
-        report.per_param.iter().all(|p| matches!(
-            p.sensitivity,
-            SensitivityOutcome::Derivative {
-                chamber: Chamber::ChamberCertified { .. },
-                ..
-            }
-        )),
-        "DATUM: every mark is certified by another document's drive"
     );
-    assert_eq!(&report.coverage, a_verdict.accounting());
+    assert!(
+        matches!(
+            report,
+            Err(StackupRefusal::Sensitivity(
+                SensitivityRefusal::VerdictNotOfThisBuild { .. }
+            ))
+        ),
+        "A's verdict must not price B: {report:?}"
+    );
+    let entries = sensitivities(&b_doc, b_m, None, Some(&a_verdict), false, Tol::witness());
+    assert!(
+        matches!(
+            entries,
+            Err(SensitivityRefusal::VerdictNotOfThisBuild { .. })
+        ),
+        "A's verdict must not mark B: {entries:?}"
+    );
 }
 
 // ------------------------------------- claim 5/deviation 4: the kinks
@@ -853,12 +868,19 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
     let got = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness());
     println!("EVIDENCE-ONLY r1 ±0.1 stackup: {got:?}");
     match got {
-        Err(StackupRefusal::NothingCertified) => {
-            // DATUM: today's answer to a real study. The consumer gets
-            // a refusal whose text does NOT quote the accounting it
-            // points at, and no per-param table at all — the derivative
-            // columns the driver DID compute are thrown away with it.
+        Err(StackupRefusal::NothingCertified {
+            sensitivities,
+            coverage,
+            ..
+        }) => {
+            // DATUM: today's answer to a real study — a refusal that
+            // CARRIES the accounting it points at and the `LocalOnly`
+            // sensitivities the driver computed (the fix pass's answer
+            // to this row's original finding, which was that both were
+            // thrown away).
             assert!(verdict.certified().is_empty());
+            assert_eq!(&coverage, verdict.accounting());
+            assert_eq!(sensitivities.len(), 2);
         }
         other => panic!("DATUM changed — a ±0.1 study now yields {other:?}"),
     }

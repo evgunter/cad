@@ -86,6 +86,11 @@ pub(crate) struct LaneEnv<'a, T> {
     /// The evaluation's parameter environment — nominals, or nominals
     /// widened by [`crate::analysis::ParamBox`] (E6's leaf replay).
     pub params: &'a crate::expr::ParamEnv<T>,
+    /// The E4 seed this evaluation carries, by name (`None` on the
+    /// build path). Consulted by the one place the lift cannot reach:
+    /// a C6/D9-pinned section refuses a seed it would otherwise embed
+    /// as a constant ([`section_of`]).
+    pub seed: Option<&'a crate::doc::ParamName>,
 }
 
 impl<T> Clone for LaneEnv<'_, T> {
@@ -2027,6 +2032,21 @@ fn section_of<T: Decide + geom_core::Bounds>(
             found: "not a profile node",
         });
     };
+    // THE SEED STOPS HERE, TYPED. The section stays `f64` in every lane
+    // (the C6/D9 argument below), so a seed on a parameter this program
+    // reads has no channel to ride and would arrive at the skinned
+    // surface as a constant — a finite, wrong zero. That is the state
+    // the lift exists to end at the profile node, and cannot end here;
+    // the answer is a refusal naming the section and the parameter,
+    // never the zero.
+    if let Some(param) = lane.seed
+        && program.references(param)
+    {
+        return Err(NodeErrorKind::SeedPinnedSection {
+            section: id,
+            param: param.clone(),
+        });
+    }
     // LIB-SWITCH §4b at the loft/sweep seam: the section is the
     // node's program RESOLVED at f64 and REPLAYED — the same C6/D9
     // pipeline the profile node runs. The profile's own validation

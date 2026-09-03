@@ -45,8 +45,8 @@ use editor_core::stackup::{
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
     DocParam, DocParamValue, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr,
-    MeasurePrimitive, MeasureRef, Node, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId,
-    RoleSeg, ValuePayload, evaluate,
+    MeasurePrimitive, MeasureRef, Node, NodeResult, ParamName, ProfileDoc, ProfileProgram,
+    RecipeNodeId, RoleSeg, ValuePayload, evaluate,
 };
 use geom_core::Tol;
 use profile::SketchPlane;
@@ -59,6 +59,12 @@ const HOLE_X: f64 = 0.30;
 const R0: f64 = 0.2;
 /// The assertion's bound: the web must be at least this.
 const MIN_WEB: f64 = 0.0005;
+/// The interval lane's padding on the plate's worst case beyond the
+/// true range, MEASURED (the e2e row prints the number it bounds): the
+/// enclosure of a 0.2-scale web through two lifted cylinder carriers
+/// and the payload expression. A bound, not a target — if it grows,
+/// the question is why the lane widened.
+const PLATE_PADDING: f64 = 1.0e-15;
 
 fn eps() -> f64 {
     Tol::witness().eps()
@@ -126,15 +132,44 @@ fn entry<'a>(entries: &'a [Sensitivity], n: &str) -> &'a SensitivityOutcome {
         .outcome
 }
 
-/// A leaf box contains the nominal when every axis span holds offset 0.
+/// Certified, and by a leaf that holds the nominal — through the
+/// library's own predicate (`ParamBox::contains_nominal`), so a wrong
+/// rule there fails here rather than being re-implemented beside it.
 fn contains_nominal(chamber: &Chamber) -> bool {
     match chamber {
-        Chamber::ChamberCertified { leaf, .. } => leaf.axes().values().all(|a| {
-            let (lo, hi) = a.span();
-            lo <= 0.0 && 0.0 <= hi
-        }),
+        Chamber::ChamberCertified { leaf, .. } => leaf.contains_nominal(),
         Chamber::LocalOnly => false,
     }
+}
+
+/// One cylindrical wall of a circular extrude, read at that extrude,
+/// found the way a user finds it (the selection door).
+fn cyl_wall(ev: &Evaluation<f64>, doc: &ProfileDoc, node: RecipeNodeId) -> MeasureRef {
+    let mut faces = editor_core::select_where(
+        ev,
+        node,
+        &editor_core::Selector::of(editor_core::NamePat::of_kind(editor_core::EntityKind::Face)),
+        &[editor_core::GeomPred::SurfaceKind(
+            editor_core::SurfaceKindSet::just(geom_brep::SurfaceKind::Cylinder),
+        )],
+        &doc.param_env::<f64>(),
+        Tol::witness(),
+    )
+    .expect("the surface-kind atom is exact");
+    faces.sort();
+    MeasureRef::new(node, faces.remove(0))
+}
+
+/// The vertex of `node`'s body at `at`, by name.
+fn vertex_at(ev: &Evaluation<f64>, node: RecipeNodeId, at: [f64; 3]) -> MeasureRef {
+    let v = editor_core::all_vertices(ev, node)
+        .into_iter()
+        .find(|v| {
+            let p = editor_core::vertex_position(ev, node, v).expect("a vertex");
+            p.x == at[0] && p.y == at[1] && p.z == at[2]
+        })
+        .unwrap_or_else(|| panic!("node {node:?} has a vertex at {at:?}"));
+    MeasureRef::new(node, v)
 }
 
 /// **The two-hole plate** (M10-2's e2e document, distributions from
@@ -144,6 +179,16 @@ fn contains_nominal(chamber: &Chamber) -> bool {
 /// `distance(wall, wall) − 2·hole_r` and an assertion on it. Returns
 /// the document, the measure node and the assertion node.
 fn plate(
+    radius: Option<Distribution>,
+    depth: Option<Distribution>,
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    plate_spaced(HOLE_X, radius, depth)
+}
+
+/// [`plate`] with the hole centres at `±hole_x` — the same parameter
+/// set, nominals and distributions, different geometry.
+fn plate_spaced(
+    hole_x: f64,
     radius: Option<Distribution>,
     depth: Option<Distribution>,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
@@ -168,7 +213,7 @@ fn plate(
         distance: param("depth", Dimension::Length),
     });
     let mut holes = Vec::new();
-    for cx in [-HOLE_X, HOLE_X] {
+    for cx in [-hole_x, hole_x] {
         let p = r.insert(Node::Profile(ProfileProgram {
             plane: SketchPlane::xy(),
             loops: vec![LoopProgram::Circle {
@@ -185,23 +230,7 @@ fn plate(
     // them: evaluate what is built so far, ask each hole for its
     // cylindrical faces, read at the extrude that owns them.
     let ev = eval(&r.doc);
-    let wall_of = |node| {
-        let mut faces = editor_core::select_where(
-            &ev,
-            node,
-            &editor_core::Selector::of(editor_core::NamePat::of_kind(
-                editor_core::EntityKind::Face,
-            )),
-            &[editor_core::GeomPred::SurfaceKind(
-                editor_core::SurfaceKindSet::just(geom_brep::SurfaceKind::Cylinder),
-            )],
-            &r.doc.param_env::<f64>(),
-            Tol::witness(),
-        )
-        .expect("the surface-kind atom is exact");
-        faces.sort();
-        MeasureRef::new(node, faces.remove(0))
-    };
+    let wall_of = |node| cyl_wall(&ev, &r.doc, node);
     let radius = || MeasureExpr::value(param("hole_r", Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
@@ -403,12 +432,20 @@ fn the_two_hole_plate_stackup() {
     }
     match entry(&rows, "depth") {
         SensitivityOutcome::Derivative { value, chamber } => {
-            assert_eq!(value.to_bits(), 0.0f64.to_bits(), "∂web/∂depth");
+            // IEEE zero, not bit zero: a zero tangent arrives SIGNED on
+            // other fixtures (a sign factor times zero), and this row
+            // is about the value, not the sign of nothing.
+            assert_eq!(*value, 0.0, "∂web/∂depth");
             assert!(contains_nominal(chamber), "{chamber:?}");
         }
         other => panic!("depth: {other:?}"),
     }
-    // Contributions: |∂m/∂p|·half-width, labeled advisory.
+    // The mark, once, at the top — the same one every row carries.
+    assert!(contains_nominal(&report.chamber), "{:?}", report.chamber);
+    // Contributions: |∂m/∂p|·half-width over the ANALYZED box, labeled
+    // advisory and chamber-exceeding; beside each, the same product
+    // over the certified leaf's own half-width, which is what the mark
+    // covers. On a drive that split, the box span is the larger.
     for p in &report.per_param {
         let expect = if p.param == name("hole_r") {
             2.0 * half
@@ -416,6 +453,18 @@ fn the_two_hole_plate_stackup() {
             0.0
         };
         assert_eq!(p.contribution, Ok(expect), "{:?}", p.param);
+        let span = p
+            .chamber_span
+            .expect("certified rows carry the chamber span");
+        assert!(span.half_width <= half, "{:?}: {span:?}", p.param);
+        assert!(span.contribution <= expect, "{:?}: {span:?}", p.param);
+        println!(
+            "EVIDENCE-ONLY {:?}: box half-width {half:e}, chamber half-width {:e} \
+             ({:.1}x smaller)",
+            p.param,
+            span.half_width,
+            half / span.half_width
+        );
     }
 
     // The gating number: the hull over the certified leaves encloses
@@ -425,8 +474,27 @@ fn the_two_hole_plate_stackup() {
     // build reported.
     let wc = report.worst_case;
     assert_eq!(wc.leaves, verdict.certified().len());
-    assert!(wc.lo <= report.nominal && report.nominal <= wc.hi, "{wc:?}");
-    assert!(wc.hi - wc.lo <= 4.0 * half + 1e-9, "{wc:?}");
+    // The hull ENCLOSES the true range `nominal ± 2·half` (the web is
+    // linear in the radius with slope −2), and exceeds it by the
+    // interval lane's padding alone — measured here and bounded by
+    // [`PLATE_PADDING`], which is stated in the honest-limits section
+    // of the PR rather than hidden in a slack term.
+    assert!(
+        wc.lo <= report.nominal - 2.0 * half && report.nominal + 2.0 * half <= wc.hi,
+        "the hull must enclose the true range: {wc:?}"
+    );
+    let padding = (wc.hi - wc.lo) - 4.0 * half;
+    println!(
+        "EVIDENCE-ONLY worst-case padding: hull width {:e}, true range {:e}, padding {padding:e} \
+         ({:.2} ε)",
+        wc.hi - wc.lo,
+        4.0 * half,
+        padding / eps()
+    );
+    assert!(
+        padding <= PLATE_PADDING,
+        "padding {padding:e} exceeds the measured bound"
+    );
     assert!(
         wc.lo >= MIN_WEB,
         "the worst case must clear the bound: {wc:?}"
@@ -667,19 +735,32 @@ fn no_drive_or_a_refused_nominal_marks_local_only_and_gates_nothing() {
         SensitivityOutcome::Derivative { chamber, .. } => assert_eq!(*chamber, Chamber::LocalOnly),
         other => panic!("{other:?}"),
     }
-    assert_eq!(
-        stackup(
-            &doc,
-            measure,
-            &analyzed,
-            &verdict,
-            None,
-            false,
-            Tol::witness()
-        )
-        .err(),
-        Some(StackupRefusal::NothingCertified)
-    );
+    // The refusal carries what the run produced: the nominal, the
+    // `LocalOnly` sensitivities, and the drive's accounting and
+    // receipt — a real study's answer is legible from it alone.
+    match stackup(
+        &doc,
+        measure,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        Tol::witness(),
+    ) {
+        Err(StackupRefusal::NothingCertified {
+            nominal,
+            sensitivities,
+            coverage,
+            receipt,
+        }) => {
+            assert_eq!(nominal.to_bits(), 1.0f64.to_bits());
+            assert_eq!(sensitivities, refused);
+            assert_eq!(&coverage, verdict.accounting());
+            assert_eq!(receipt, verdict.receipt());
+            assert!(receipt.holds() && receipt.certified == 0);
+        }
+        other => panic!("a macroscopic box certifies nothing today: {other:?}"),
+    }
     // The control: a box the drive certifies marks the same parameter
     // chamber-certified by a leaf holding the nominal.
     let (doc, measure) = slab(eps() / 16.0);
@@ -816,4 +897,389 @@ fn a_foreign_verdict_or_box_refuses_typed() {
         .err(),
         Some(StackupRefusal::ForeignBox)
     );
+}
+
+/// **The verdict is tied to the build by content.** A value edit
+/// between the drive and the driver, and a wholly different document
+/// with the SAME parameter names, nominals and distributions, are
+/// both refused `VerdictNotOfThisBuild` — in the driver and in the
+/// report — because the verdict's certified leaf replays over the new
+/// document with a different content key at the first node whose bits
+/// moved. A verdict driven over a DIFFERENT box of the SAME document
+/// is accepted by the driver: its leaf is of this build, holds the
+/// nominal, and is a true certificate over itself — pairing a box's
+/// spreads with a verdict's leaves is the report's check.
+#[test]
+fn a_stale_or_foreign_verdict_is_refused_by_content() {
+    let half = eps() / 8.0;
+    let (doc, measure, _) = plate(Some(uniform(half)), Some(uniform(half)));
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
+    assert!(!verdict.certified().is_empty());
+
+    // A value edit the box cannot see: the nominal moves, the offsets
+    // do not.
+    let edited = push(
+        &doc,
+        &DocEdit::SetDocParamValue {
+            name: name("hole_r"),
+            value: DocParamValue::Continuous(0.21),
+        },
+    );
+    let edited_box = analyzed_box(&edited, &AnalysisPolicy::default());
+    assert_eq!(editor_core::ParamBox::of(&edited_box), *verdict.root());
+    match sensitivities(
+        &edited,
+        measure,
+        None,
+        Some(&verdict),
+        false,
+        Tol::witness(),
+    ) {
+        Err(SensitivityRefusal::VerdictNotOfThisBuild {
+            node,
+            recorded,
+            replayed,
+            ..
+        }) => {
+            assert!(edited.node(node).is_some());
+            assert_ne!(recorded, replayed);
+        }
+        other => panic!("a stale verdict must be refused by content: {other:?}"),
+    }
+    assert!(matches!(
+        stackup(
+            &edited,
+            measure,
+            &edited_box,
+            &verdict,
+            None,
+            false,
+            Tol::witness()
+        ),
+        Err(StackupRefusal::Sensitivity(
+            SensitivityRefusal::VerdictNotOfThisBuild { .. }
+        ))
+    ));
+
+    // A foreign document with the SAME names, nominals and
+    // distributions — only the hole spacing differs.
+    let (other, other_measure, _) = plate_spaced(0.35, Some(uniform(half)), Some(uniform(half)));
+    let other_box = analyzed_box(&other, &AnalysisPolicy::default());
+    assert_eq!(editor_core::ParamBox::of(&other_box), *verdict.root());
+    assert!(matches!(
+        sensitivities(
+            &other,
+            other_measure,
+            None,
+            Some(&verdict),
+            false,
+            Tol::witness()
+        ),
+        Err(SensitivityRefusal::VerdictNotOfThisBuild { .. })
+    ));
+    assert!(matches!(
+        stackup(
+            &other,
+            other_measure,
+            &other_box,
+            &verdict,
+            None,
+            false,
+            Tol::witness()
+        ),
+        Err(StackupRefusal::Sensitivity(
+            SensitivityRefusal::VerdictNotOfThisBuild { .. }
+        ))
+    ));
+
+    // The same document, driven over a different (narrower) box: its
+    // leaves are of this build and hold the nominal — accepted by the
+    // driver, marked by that drive's leaf.
+    let (narrow, narrow_measure, _) = plate(Some(uniform(half / 2.0)), Some(uniform(half / 2.0)));
+    let narrow_box = analyzed_box(&narrow, &AnalysisPolicy::default());
+    let narrow_verdict =
+        drive(&narrow, &narrow_box, &config(1024), Tol::witness()).expect("builds");
+    assert_ne!(*narrow_verdict.root(), *verdict.root());
+    let marked = sensitivities(
+        &doc,
+        measure,
+        None,
+        Some(&narrow_verdict),
+        false,
+        Tol::witness(),
+    )
+    .expect("a leaf of this build holding the nominal is a certificate over itself");
+    assert!(matches!(
+        entry(&marked, "hole_r"),
+        SensitivityOutcome::Derivative { chamber, .. } if contains_nominal(chamber)
+    ));
+    let _ = narrow_measure;
+    // And the report refuses the mismatched pairing of spreads and
+    // leaves, typed.
+    assert_eq!(
+        stackup(
+            &doc,
+            measure,
+            &analyzed,
+            &narrow_verdict,
+            None,
+            false,
+            Tol::witness()
+        )
+        .err(),
+        Some(StackupRefusal::ForeignBox)
+    );
+}
+
+/// **The lift-pinning e2e: a bore/pin fit.** The pin's radius `r` is a
+/// profile dimension (a circle program's radius) and the C5 gap
+/// `R − r − d` reads it only through the lifted cylinder carrier: the
+/// stackup reports ∂gap/∂r = −1 exactly, chamber-certified, where the
+/// pinned lift gives the silent zero. (The two-hole plate's −2 is the
+/// measure EXPRESSION's own `− 2·hole_r` and would come out under
+/// either lift; this row is the one where the lift is load-bearing.)
+#[test]
+fn the_bore_pin_gap_stackup_pins_the_lift() {
+    let half = eps() / 16.0;
+    let mut r = Recorder::new();
+    r.push(DocEdit::SetDocParam {
+        name: name("r"),
+        value: continuous(Dimension::Length, 0.2, Some(uniform(half))),
+    });
+    let bore_p = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![LoopProgram::Circle {
+            centre: [len(0.0), len(0.0)],
+            radius: len(0.5),
+        }],
+    }));
+    let bore = r.insert(Node::Extrude {
+        profile: bore_p,
+        distance: len(1.0),
+    });
+    let pin_p = r.insert(Node::Profile(ProfileProgram {
+        plane: SketchPlane::xy(),
+        loops: vec![LoopProgram::Circle {
+            centre: [len(0.1), len(0.0)],
+            radius: param("r", Dimension::Length),
+        }],
+    }));
+    let pin = r.insert(Node::Extrude {
+        profile: pin_p,
+        distance: len(1.0),
+    });
+    let ev = eval(&r.doc);
+    let refs = vec![cyl_wall(&ev, &r.doc, bore), cyl_wall(&ev, &r.doc, pin)];
+    let measure = r.insert(
+        Node::measure(
+            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+            refs,
+        )
+        .expect("indices in range"),
+    );
+    let doc = r.doc;
+
+    // The silent zero the driver never uses, shown beside the fix.
+    let pinned = evaluate::<geom_core::Dual64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions {
+            seed: Some(name("r")),
+            ..EvalOptions::default()
+        },
+        Tol::witness(),
+    );
+    let Some(NodeResult::Ok(v)) = pinned.result(measure) else {
+        panic!("the gap measures")
+    };
+    let ValuePayload::Measure { value, .. } = &v.payload else {
+        panic!("a measure")
+    };
+    assert_eq!(value.deriv, 0.0, "the pinned lift's silent zero");
+
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let verdict = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("builds");
+    assert!(!verdict.certified().is_empty(), "{:?}", verdict.receipt());
+    let report = stackup(
+        &doc,
+        measure,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    assert!(
+        (report.nominal - 0.2).abs() < 1e-12,
+        "gap {}",
+        report.nominal
+    );
+    match &report.per_param[0].sensitivity {
+        SensitivityOutcome::Derivative { value, chamber } => {
+            assert_eq!(
+                value.to_bits(),
+                (-1.0f64).to_bits(),
+                "∂gap/∂r through the lift"
+            );
+            assert!(contains_nominal(chamber));
+        }
+        other => panic!("{other:?}"),
+    }
+    let wc = report.worst_case;
+    assert!(
+        wc.lo <= report.nominal - half && report.nominal + half <= wc.hi,
+        "{wc:?}"
+    );
+}
+
+/// **MAJ-2's valve.** A loft's section stays `f64` in every lane
+/// (C6/D9), so a seed on the section's width has no channel to ride:
+/// the driver reports `Unliftable { PinnedSection }` naming the section
+/// and the parameter — never a finite zero — and the report forfeits
+/// that row's advisory columns to it while `worst_case` still gates.
+#[test]
+fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
+    let half = eps() / 16.0;
+    let mut r = Recorder::new();
+    r.push(DocEdit::SetDocParam {
+        name: name("w"),
+        value: continuous(Dimension::Length, 2.0, Some(uniform(half))),
+    });
+    let section = |z: f64| {
+        Node::Profile(ProfileProgram {
+            plane: SketchPlane::from_frame(
+                geom_core::Point3::new(0.0, 0.0, z),
+                geom_core::Vec3::new(1.0, 0.0, 0.0),
+                geom_core::Vec3::new(0.0, 1.0, 0.0),
+            ),
+            loops: vec![LoopProgram::Chain(vec![
+                editor_core::ProgramStep::At([len(0.0), len(0.0)]),
+                editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([
+                    param("w", Dimension::Length),
+                    len(0.0),
+                ])),
+                editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([
+                    param("w", Dimension::Length),
+                    len(1.0),
+                ])),
+                editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([
+                    len(0.0),
+                    len(1.0),
+                ])),
+                editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Start),
+            ])],
+        })
+    };
+    let p0 = r.insert(section(0.0));
+    let p1 = r.insert(section(1.0));
+    let loft = r.insert(Node::Loft {
+        profiles: vec![p0, p1],
+        v_degree: Expr::count(1),
+    });
+    let ev = eval(&r.doc);
+    if let Some(e) = ev.node_error(loft) {
+        panic!("the loft did not build: {}", e.kind);
+    }
+    let refs = vec![
+        vertex_at(&ev, loft, [0.0, 0.0, 0.0]),
+        vertex_at(&ev, loft, [2.0, 0.0, 0.0]),
+    ];
+    let measure = r.insert(
+        Node::measure(
+            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+            refs,
+        )
+        .expect("indices in range"),
+    );
+    let doc = r.doc;
+
+    let entries = sensitivities(&doc, measure, None, None, false, Tol::witness()).expect("ok");
+    match entry(&entries, "w") {
+        SensitivityOutcome::Unliftable { node, refusal } => {
+            assert_eq!(*node, loft, "the loft is where the seed stops");
+            assert_eq!(
+                *refusal,
+                editor_core::LiftRefusal::PinnedSection {
+                    section: p0,
+                    param: name("w"),
+                }
+            );
+        }
+        other => panic!("a section seed must be the typed valve: {other:?}"),
+    }
+
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let verdict = drive(&doc, &analyzed, &config(256), Tol::witness()).expect("builds");
+    if verdict.certified().is_empty() {
+        // EVIDENCE-ONLY: the loft's interval certification is not
+        // this row's subject; the valve above is.
+        println!("loft drive certified nothing: {:?}", verdict.receipt());
+        return;
+    }
+    let report = stackup(
+        &doc,
+        measure,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    let row = &report.per_param[0];
+    assert!(matches!(
+        row.sensitivity,
+        SensitivityOutcome::Unliftable { .. }
+    ));
+    assert_eq!(
+        row.contribution,
+        Err(Unavailable::Unliftable { param: name("w") })
+    );
+    assert!(row.chamber_span.is_none());
+    assert_eq!(
+        report.rss,
+        Rss::UnavailableBecause {
+            blockers: vec![Unavailable::Unliftable { param: name("w") }]
+        }
+    );
+    assert!(report.worst_case.lo <= 2.0 && 2.0 <= report.worst_case.hi);
+}
+
+/// **DATUM — an undistributed parameter is a point mass in the RSS.**
+/// `depth` with no distribution has σ = 0 exactly: its term is zero and
+/// it does NOT block the column (E2's opt-in rule read literally —
+/// fixed is a modelling statement, not a missing spread). Disclosed as
+/// a deviation from E5's "every contributor carries a measure" read
+/// strictly; pinned here so the reading is a datum, not an accident.
+#[test]
+fn an_undistributed_parameter_is_a_point_mass_in_the_rss() {
+    let half = eps() / 8.0;
+    let (doc, measure, _) = plate(Some(uniform(half)), None);
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    assert_eq!(analyzed.axis_std_deviation(&name("depth")), Some(Ok(0.0)));
+    let verdict = drive(&doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
+    let report = stackup(
+        &doc,
+        measure,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
+    let sigma_r = (2.0 * half) / f64::sqrt(12.0);
+    match report.rss {
+        Rss::Advisory { sigma } => assert!((sigma - 2.0 * sigma_r).abs() <= 1e-9 * sigma_r),
+        other => panic!("a fixed parameter must not block the RSS: {other:?}"),
+    }
+    let depth = report
+        .per_param
+        .iter()
+        .find(|p| p.param == name("depth"))
+        .expect("depth row");
+    assert_eq!(depth.contribution, Ok(0.0));
 }

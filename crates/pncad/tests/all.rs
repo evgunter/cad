@@ -2805,8 +2805,9 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **The E4 seed door and the E4/E5 driver and report** (`SeedScalar`,
 ///   `SeedError`, `seed_env`, `std_deviation`; `sensitivities`,
 ///   `Sensitivity`, `SensitivityOutcome`, `SensitivityRefusal`,
-///   `Chamber`, `PairingViolation`; `stackup`, `Stackup`,
-///   `StackupRefusal`, `PerParam`, `Rss`, `WorstCase`, `Unavailable`):
+///   `Chamber`, `PairingViolation`, `LiftRefusal`; `stackup`, `Stackup`,
+///   `StackupRefusal`, `PerParam`, `ChamberSpan`, `Rss`, `WorstCase`,
+///   `Unavailable`):
 ///   the analysis lane's derivative and stackup services.
 ///
 ///   Interior for the row above's second reason, which now applies to
@@ -2819,7 +2820,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   plumbing — `AxisScalar`/`param_env_over`'s family, interior with
 ///   them. The curated face is the reporting surface — persisted,
 ///   goldened stackups — which is where the façade row lands.
-const NOT_CARRIED: [&str; 118] = [
+const NOT_CARRIED: [&str; 120] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -2836,6 +2837,7 @@ const NOT_CARRIED: [&str; 118] = [
     "BudgetKind",
     "CertifiedLeaf",
     "Chamber",
+    "ChamberSpan",
     "ContentKey",
     "Coset",
     "DEFAULT_MAX_DEPTH",
@@ -2854,6 +2856,7 @@ const NOT_CARRIED: [&str; 118] = [
     "FlipSet",
     "Implicated",
     "LeafResults",
+    "LiftRefusal",
     "MeasureAccounting",
     "MeshPatchKey",
     "MeshPick",

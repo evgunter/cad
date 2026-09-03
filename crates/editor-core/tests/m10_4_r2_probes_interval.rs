@@ -163,9 +163,7 @@ fn cyl_wall(ev: &Evaluation<f64>, doc: &ProfileDoc, node: RecipeNodeId) -> Measu
     let mut faces = editor_core::select_where(
         ev,
         node,
-        &editor_core::Selector::of(editor_core::NamePat::of_kind(
-            editor_core::EntityKind::Face,
-        )),
+        &editor_core::Selector::of(editor_core::NamePat::of_kind(editor_core::EntityKind::Face)),
         &[editor_core::GeomPred::SurfaceKind(
             editor_core::SurfaceKindSet::just(geom_brep::SurfaceKind::Cylinder),
         )],
@@ -439,13 +437,14 @@ fn loft() -> (ProfileDoc, RecipeNodeId) {
 /// **The pure-expression sum**: no geometry, four parameters of every
 /// distribution shape summed into one measure so every ∂m/∂pᵢ is
 /// exactly 1 and the RSS is `√Σσᵢ²`.
-fn sum(
-    u: Distribution,
-    n: Distribution,
-    tn: Distribution,
-) -> (ProfileDoc, RecipeNodeId) {
+fn sum(u: Distribution, n: Distribution, tn: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
-    for (p, dist) in [("u", Some(u)), ("n", Some(n)), ("tn", Some(tn)), ("f", None)] {
+    for (p, dist) in [
+        ("u", Some(u)),
+        ("n", Some(n)),
+        ("tn", Some(tn)),
+        ("f", None),
+    ] {
         r.push(DocEdit::SetDocParam {
             name: name(p),
             value: continuous(Dimension::Length, 1.0, dist),
@@ -490,7 +489,10 @@ fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
             s.measure,
         );
         assert_eq!(m.value.to_bits(), f.to_bits(), "{seed}: value channel");
-        assert_eq!(m.deriv, expect, "∂m/∂{seed} (IEEE equality: a signed zero is a zero)");
+        assert_eq!(
+            m.deriv, expect,
+            "∂m/∂{seed} (IEEE equality: a signed zero is a zero)"
+        );
     }
     // NOTED, not gated: the unused parameter's tangent arrives as
     // `-0.0` (a sign factor multiplied into a zero tangent somewhere in
@@ -501,7 +503,11 @@ fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
         &run::<Dual64>(&s.doc, None, &opts(Some("k"), ProfileLift::Guided)),
         s.measure,
     );
-    println!("∂m/∂k bits: {:#018x} (sign negative: {})", k.deriv.to_bits(), k.deriv.is_sign_negative());
+    println!(
+        "∂m/∂k bits: {:#018x} (sign negative: {})",
+        k.deriv.to_bits(),
+        k.deriv.is_sign_negative()
+    );
     // The pinned lift: the profile dimension's tangent is the silent
     // zero the lift ends; the magnitude slot's is untouched.
     let pinned = measured(
@@ -529,14 +535,30 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
     let on_k = run::<Dual64>(&s.doc, None, &guided(Some("k")));
 
     // (a) keys move exactly with the seed's cone.
-    assert_ne!(key(&on_w, s.profile), key(&base, s.profile), "w moves the profile key");
-    assert_eq!(key(&on_d, s.profile), key(&base, s.profile), "d does not touch the profile");
-    assert_eq!(key(&on_k, s.profile), key(&base, s.profile), "k touches nothing");
+    assert_ne!(
+        key(&on_w, s.profile),
+        key(&base, s.profile),
+        "w moves the profile key"
+    );
+    assert_eq!(
+        key(&on_d, s.profile),
+        key(&base, s.profile),
+        "d does not touch the profile"
+    );
+    assert_eq!(
+        key(&on_k, s.profile),
+        key(&base, s.profile),
+        "k touches nothing"
+    );
     assert_ne!(key(&on_w, s.block), key(&base, s.block));
     assert_ne!(key(&on_d, s.block), key(&base, s.block));
     assert_eq!(key(&on_k, s.block), key(&base, s.block));
     for ev in [&on_w, &on_d, &on_k] {
-        assert_eq!(key(ev, s.cube), key(&base, s.cube), "the literal cube is seed-free");
+        assert_eq!(
+            key(ev, s.cube),
+            key(&base, s.cube),
+            "the literal cube is seed-free"
+        );
     }
     assert_ne!(key(&on_w, s.measure), key(&base, s.measure));
     assert_ne!(key(&on_d, s.measure), key(&base, s.measure));
@@ -570,8 +592,16 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
     ] {
         let threaded = run::<Dual64>(&s.doc, Some(prior), &guided(Some(seed)));
         let m = measured(&threaded, s.measure);
-        assert_eq!(m.deriv.to_bits(), fresh[seed].deriv.to_bits(), "{seed} threaded");
-        assert_eq!(m.value.to_bits(), fresh[seed].value.to_bits(), "{seed} threaded");
+        assert_eq!(
+            m.deriv.to_bits(),
+            fresh[seed].deriv.to_bits(),
+            "{seed} threaded"
+        );
+        assert_eq!(
+            m.value.to_bits(),
+            fresh[seed].value.to_bits(),
+            "{seed} threaded"
+        );
         assert!(threaded.reused >= 2, "the cube is always served: {seed}");
     }
     // The w pass threaded from the d pass recomputes exactly w's cone
@@ -596,7 +626,11 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
     let par = sensitivities(&s.doc, s.measure, None, None, true, Tol::witness());
     assert_eq!(seq, par);
     let seq = seq.expect("ok");
-    assert_eq!(seq.len(), 3, "one entry per continuous parameter, k included");
+    assert_eq!(
+        seq.len(),
+        3,
+        "one entry per continuous parameter, k included"
+    );
     for (n, expect) in [("w", 1.0), ("d", 1.0), ("k", 0.0)] {
         match entry(&seq, n) {
             SensitivityOutcome::Derivative { value, chamber } => {
@@ -620,13 +654,30 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
 fn the_pairing_hook_pairs_only_the_build_of_record() {
     let s = slab(None, None);
     let handed = eval(&s.doc);
-    assert!(sensitivities(&s.doc, s.measure, Some(&handed), None, false, Tol::witness()).is_ok());
+    assert!(
+        sensitivities(
+            &s.doc,
+            s.measure,
+            Some(&handed),
+            None,
+            false,
+            Tol::witness()
+        )
+        .is_ok()
+    );
 
     // (A build at another ε cannot be handed: `Tol` is the process's
     // one witness — D9's "one process, one ε" — so that attack has no
     // spelling here.)
     let guided_f64 = run::<f64>(&s.doc, None, &opts(None, ProfileLift::Guided));
-    match sensitivities(&s.doc, s.measure, Some(&guided_f64), None, false, Tol::witness()) {
+    match sensitivities(
+        &s.doc,
+        s.measure,
+        Some(&guided_f64),
+        None,
+        false,
+        Tol::witness(),
+    ) {
         Err(SensitivityRefusal::Pairing(PairingViolation::ContentKey { .. })) => {}
         other => panic!("a guided f64 build keys differently (tag 41): {other:?}"),
     }
@@ -639,7 +690,17 @@ fn the_pairing_hook_pairs_only_the_build_of_record() {
             ..EvalOptions::default()
         },
     );
-    assert!(sensitivities(&s.doc, s.measure, Some(&parallel), None, false, Tol::witness()).is_ok());
+    assert!(
+        sensitivities(
+            &s.doc,
+            s.measure,
+            Some(&parallel),
+            None,
+            false,
+            Tol::witness()
+        )
+        .is_ok()
+    );
 
     let annotated = push(
         &s.doc,
@@ -648,8 +709,18 @@ fn the_pairing_hook_pairs_only_the_build_of_record() {
             value: continuous(Dimension::Length, 2.0, Some(uniform(-0.1, 0.1))),
         },
     );
-    let r = sensitivities(&annotated, s.measure, Some(&handed), None, false, Tol::witness());
-    assert!(r.is_ok(), "an annotation-only edit is the same build: {r:?}");
+    let r = sensitivities(
+        &annotated,
+        s.measure,
+        Some(&handed),
+        None,
+        false,
+        Tol::witness(),
+    );
+    assert!(
+        r.is_ok(),
+        "an annotation-only edit is the same build: {r:?}"
+    );
 }
 
 /// **RED AT `fc8de0ac` — a STALE CHAMBER VERDICT certifies an edited
@@ -681,7 +752,14 @@ fn a_stale_chamber_verdict_marks_an_edited_document_certified() {
             value: DocParamValue::Continuous(2.5),
         },
     );
-    let entries = sensitivities(&edited, s.measure, None, Some(&verdict), false, Tol::witness());
+    let entries = sensitivities(
+        &edited,
+        s.measure,
+        None,
+        Some(&verdict),
+        false,
+        Tol::witness(),
+    );
     match &entries {
         Ok(entries) => {
             for e in entries {
@@ -694,7 +772,12 @@ fn a_stale_chamber_verdict_marks_an_edited_document_certified() {
                 }
             }
         }
-        Err(SensitivityRefusal::ForeignVerdict) => {}
+        // The fix pass's answer: the verdict's certified leaf is
+        // content-tied to the build, and the edited document re-keys
+        // its profile node.
+        Err(
+            SensitivityRefusal::ForeignVerdict | SensitivityRefusal::VerdictNotOfThisBuild { .. },
+        ) => {}
         Err(other) => panic!("{other}"),
     }
     let report = stackup(
@@ -739,8 +822,16 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
             other => panic!("{n}: {other:?}"),
         }
     }
-    let report = stackup(&doc, angle, &analyzed, &verdict, None, false, Tol::witness())
-        .unwrap_or_else(|e| panic!("E9: {e}"));
+    let report = stackup(
+        &doc,
+        angle,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("E9: {e}"));
     assert_eq!(report.nominal, 0.0);
     // The enclosure of an angle in [0, π] arrives a few subnormals
     // BELOW zero (outward rounding through `atan2`, unclipped to the
@@ -748,7 +839,10 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
     let wc = report.worst_case;
     // The top is the enclosure of the interval normals' disagreement
     // over the leaf — a fraction of ε (measured 3.5e-10 at `fc8de0ac`).
-    assert!(wc.lo <= 0.0 && wc.lo >= -1e-300 && wc.hi >= 0.0 && wc.hi <= eps(), "{wc:?}");
+    assert!(
+        wc.lo <= 0.0 && wc.lo >= -1e-300 && wc.hi >= 0.0 && wc.hi <= eps(),
+        "{wc:?}"
+    );
     assert_eq!(wc.leaves, verdict.certified().len());
     let blockers: Vec<&ParamName> = match &report.rss {
         Rss::UnavailableBecause { blockers } => blockers.iter().map(Unavailable::param).collect(),
@@ -814,7 +908,10 @@ fn where_the_linearization_says_zero_the_hull_still_encloses_the_range() {
     }
     assert_eq!(row.contribution, Ok(0.0));
     let wc = report.worst_case;
-    assert!(wc.lo <= -1.0 && wc.hi >= -0.75, "the hull encloses the true range: {wc:?}");
+    assert!(
+        wc.lo <= -1.0 && wc.hi >= -0.75,
+        "the hull encloses the true range: {wc:?}"
+    );
     assert!(
         wc.hi > report.nominal + row.contribution.clone().unwrap(),
         "the linearized top {} is below the hull's {}",
@@ -834,8 +931,16 @@ fn the_shared_prior_does_not_move_the_hull() {
     let analyzed = analyzed_box(&s.doc, &AnalysisPolicy::default());
     let verdict = drive(&s.doc, &analyzed, &config(1024), Tol::witness()).expect("builds");
     assert!(!verdict.certified().is_empty(), "{:?}", verdict.receipt());
-    let report = stackup(&s.doc, s.measure, &analyzed, &verdict, None, false, Tol::witness())
-        .unwrap_or_else(|e| panic!("{e}"));
+    let report = stackup(
+        &s.doc,
+        s.measure,
+        &analyzed,
+        &verdict,
+        None,
+        false,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{e}"));
     let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
     for leaf in verdict.certified() {
         let ev: Evaluation<Interval> = evaluate(
@@ -864,7 +969,10 @@ fn the_shared_prior_does_not_move_the_hull() {
     assert_eq!(report.worst_case.leaves, verdict.certified().len());
     // The slab is linear in both parameters: the hull is the box's true
     // range, 3 ± 2·half, up to the enclosure's rounding.
-    assert!(lo <= 3.0 - 2.0 * half && hi >= 3.0 + 2.0 * half, "{lo} {hi}");
+    assert!(
+        lo <= 3.0 - 2.0 * half && hi >= 3.0 + 2.0 * half,
+        "{lo} {hi}"
+    );
     // EVIDENCE-ONLY: how much of the ε-scale hull is enclosure padding
     // rather than parameter spread. Measured at `fc8de0ac`: hull width
     // 1.75e-9 against a true range of 5e-10 — 3.5×, i.e. ~1.25 ε of
@@ -1009,10 +1117,21 @@ fn a_circle_radius_seed_reaches_the_gap_through_the_lifted_carrier() {
     let (doc, m) = fit(None);
     let f = measured_f64(&eval(&doc), m);
     assert!((f - 0.2).abs() < 1e-12, "gap {f}");
-    let guided = measured(&run::<Dual64>(&doc, None, &opts(Some("r"), ProfileLift::Guided)), m);
+    let guided = measured(
+        &run::<Dual64>(&doc, None, &opts(Some("r"), ProfileLift::Guided)),
+        m,
+    );
     assert_eq!(guided.value.to_bits(), f.to_bits());
-    assert_eq!(guided.deriv.to_bits(), (-1.0f64).to_bits(), "∂gap/∂r = {}", guided.deriv);
-    let pinned = measured(&run::<Dual64>(&doc, None, &opts(Some("r"), ProfileLift::Pinned)), m);
+    assert_eq!(
+        guided.deriv.to_bits(),
+        (-1.0f64).to_bits(),
+        "∂gap/∂r = {}",
+        guided.deriv
+    );
+    let pinned = measured(
+        &run::<Dual64>(&doc, None, &opts(Some("r"), ProfileLift::Pinned)),
+        m,
+    );
     assert_eq!(pinned.deriv, 0.0, "the pinned lift's silent zero");
     let entries = sensitivities(&doc, m, None, None, false, Tol::witness()).expect("ok");
     match entry(&entries, "r") {
@@ -1044,6 +1163,13 @@ fn a_loft_section_dimension_seed_is_not_a_silent_zero() {
             );
         }
         SensitivityOutcome::TangentDegraded { .. } | SensitivityOutcome::MeasureRefused { .. } => {}
+        // The fix pass's answer: the typed valve, naming the section.
+        SensitivityOutcome::Unliftable { refusal, .. } => {
+            assert!(
+                matches!(refusal, editor_core::LiftRefusal::PinnedSection { .. }),
+                "{refusal:?}"
+            );
+        }
     }
 }
 
@@ -1064,10 +1190,17 @@ fn the_bore_pin_fit_as_a_consumer_reads_it() {
     // answer.
     let verdict = drive(&doc, &analyzed, &config(64), Tol::witness()).expect("builds");
     let real = stackup(&doc, m, &analyzed, &verdict, None, false, Tol::witness());
-    assert_eq!(real.err(), Some(StackupRefusal::NothingCertified));
+    let Err(refusal @ StackupRefusal::NothingCertified { .. }) = real else {
+        panic!("a ±0.05 study certifies nothing today: {real:?}")
+    };
+    // The refusal carries the accounting it points at (the fix pass's
+    // answer to this row's original reading, which had to go back to
+    // the verdict for it).
+    if let StackupRefusal::NothingCertified { coverage, .. } = &refusal {
+        assert_eq!(coverage, verdict.accounting());
+    }
     println!(
-        "±0.05 study: {}\n  accounting (from the VERDICT, not the refusal): {:#?}",
-        StackupRefusal::NothingCertified,
+        "±0.05 study: {refusal}\n  accounting (from the REFUSAL): {:#?}",
         verdict.accounting()
     );
     let local = sensitivities(&doc, m, None, Some(&verdict), false, Tol::witness()).expect("ok");
@@ -1115,7 +1248,10 @@ fn the_bore_pin_fit_as_a_consumer_reads_it() {
     match report.rss {
         Rss::Advisory { sigma } => {
             let expect = (2.0 * half) / 12f64.sqrt();
-            assert!((sigma - expect).abs() <= 1e-9 * expect, "{sigma} vs {expect}");
+            assert!(
+                (sigma - expect).abs() <= 1e-9 * expect,
+                "{sigma} vs {expect}"
+            );
         }
         other => panic!("{other:?}"),
     }

@@ -433,6 +433,64 @@ fn a_profile_dimension_seed_propagates_through_the_guided_lift() {
     );
 }
 
+// ------------------------------------------------------- the σ door
+
+/// **DATUM — the truncated normal's variance formula over a grid.** The
+/// σ door clamps its variance at zero before the root, on the claim
+/// that rounding can push the two-sided truncation formula a few ulps
+/// negative under extreme truncation. This row measures that claim:
+/// the same formula, computed here independently over a grid of
+/// windows from ±0.001σ to ±8σ, symmetric and one-sided, reports its
+/// MINIMUM, and every σ the door returns is finite and non-negative.
+/// The minimum is printed; the clamp is a guard on the printed number,
+/// not a claim beyond it.
+#[test]
+fn the_truncated_normal_sigma_is_finite_and_the_variance_floor_is_measured() {
+    use editor_core::{Distribution, std_deviation};
+    let phi = |x: f64| (-0.5 * x * x).exp() / f64::sqrt(2.0 * core::f64::consts::PI);
+    let mass =
+        |a: f64, b: f64| 0.5 * (libm::erf(b / f64::sqrt(2.0)) - libm::erf(a / f64::sqrt(2.0)));
+    let mut min_var = f64::INFINITY;
+    let mut at = (0.0, 0.0);
+    let mut rows = 0_usize;
+    for &sigma in &[1e-3, 1.0, 40.0] {
+        for &lo in &[-8.0, -3.0, -1.0, -0.1, -0.001, 0.0] {
+            for &hi in &[0.0, 0.001, 0.1, 1.0, 3.0, 8.0] {
+                if lo > hi || (lo == 0.0 && hi == 0.0) {
+                    continue;
+                }
+                let dist = Distribution::TruncatedNormal {
+                    sigma,
+                    lo: lo * sigma,
+                    hi: hi * sigma,
+                };
+                let s = std_deviation(&name("p"), &dist).expect("a truncated normal prices");
+                assert!(s.is_finite() && s >= 0.0, "{dist:?}: σ = {s}");
+                let z = mass(lo, hi);
+                if z > 0.0 {
+                    let var =
+                        1.0 + (lo * phi(lo) - hi * phi(hi)) / z - ((phi(lo) - phi(hi)) / z).powi(2);
+                    if var < min_var {
+                        min_var = var;
+                        at = (lo, hi);
+                    }
+                    // The door's number is the formula's, where the
+                    // formula is non-negative.
+                    if var >= 0.0 {
+                        assert!((s - sigma * var.sqrt()).abs() <= 1e-12 * sigma, "{dist:?}");
+                    }
+                }
+                rows += 1;
+            }
+        }
+    }
+    println!(
+        "EVIDENCE-ONLY truncated-normal variance over {rows} windows: minimum {min_var:e} \
+         (in σ² units) at ({}, {})σ; the clamp fires only below zero",
+        at.0, at.1
+    );
+}
+
 // ---------------------------------------------------- composition
 
 /// `seed` and `param_box` together are legal exactly at

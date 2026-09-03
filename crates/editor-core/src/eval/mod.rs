@@ -513,6 +513,19 @@ pub enum NodeErrorKind {
         /// The door's refusal, unaltered.
         source: crate::analysis::SeedError,
     },
+    /// The evaluation's E4 seed names a parameter a loft's or a sweep's
+    /// SECTION reads, and a section stays `f64` in every lane (C6/D9:
+    /// the skinned surface's structure must be lane-identical) — the
+    /// seed has no channel to ride there and would reach the surface
+    /// as a constant. Refused at the consuming node, naming the
+    /// section, rather than embedded as a finite wrong zero: the
+    /// profile gap, typed.
+    SeedPinnedSection {
+        /// The section profile node the seed reaches and stops at.
+        section: RecipeNodeId,
+        /// The seeded parameter the section reads.
+        param: crate::doc::ParamName,
+    },
     /// An input's value family does not fit this operand (e.g. a
     /// boolean fed a split's two-part value — selecting a part needs
     /// PR 3's naming layer).
@@ -976,6 +989,13 @@ impl core::fmt::Display for NodeErrorKind {
             ),
             Self::ParamBox { source } => write!(f, "parameter box: {source}"),
             Self::Seed { source } => write!(f, "parameter seed: {source}"),
+            Self::SeedPinnedSection { section, param } => write!(
+                f,
+                "the seed on parameter {:?} reaches section profile node {}, which stays f64 \
+                 in every lane (a loft's or a sweep's section is structure) — the tangent \
+                 cannot ride through it, so this node refuses rather than embed a zero",
+                param.0, section.0
+            ),
             Self::WrongOperand {
                 input,
                 expected,
@@ -1431,6 +1451,7 @@ where
         lane: wire::LaneEnv {
             lift: opts.profile_lift,
             params: &env,
+            seed: opts.seed.as_ref(),
         },
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
