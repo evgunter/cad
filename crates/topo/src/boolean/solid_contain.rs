@@ -3492,5 +3492,8 @@ fn at_infinity_side<T: Decide>(
 mod r1_probes;
 
 #[cfg(test)]
+mod r1_generic_poses;
+
+#[cfg(test)]
 #[path = "torus_predicate_rows.rs"]
 mod torus_predicate_rows;

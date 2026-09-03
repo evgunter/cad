@@ -10,12 +10,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+// `tests/corpus/` is named because the corpus these rows measure is assembled
+// there. A marker's own file is implicit; a sibling helper module is not.
 test_utils::gated_to![
     "crates/editor-core/src/distribution.rs",
     "crates/editor-core/src/analysis.rs",
     "crates/editor-core/src/measure.rs",
     "crates/geom-core/src/tolerance.rs",
     "crates/topo/src/props.rs",
+    "crates/editor-core/tests/corpus/",
 ];
 
 use crate::corpus;
