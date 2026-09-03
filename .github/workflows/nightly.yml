@@ -1946,6 +1946,10 @@ jobs:
           }
           split() { body="$(sed '$d' <<<"$1")"; code="$(tail -n1 <<<"$1")"; }
 
+          # A PRIVATE REPOSITORY IS REFUSED HERE — 405, "Interaction limits
+          # are not available for private repositories". So this job cannot
+          # arm the limit ahead of publication, and a green run is itself the
+          # proof that the repo is still public.
           split "$(api PUT /interaction-limits \
             -d '{"limit":"collaborators_only","expiry":"six_months"}')"
           if [ "$code" != "200" ]; then
@@ -1967,20 +1971,7 @@ jobs:
             exit 1
           fi
 
-          # Reported, not asserted: the limit is armed either way, and is
-          # simply inert until the repository is public.
-          split "$(api GET '')"
-          vis="$(jq -r '.visibility // "unknown"' <<<"$body")"
-
-          {
-            echo "interaction limit: **$limit**, expires \`$expires\`"
-            echo
-            echo "repository visibility: \`$vis\`"
-            if [ "$vis" != "public" ]; then
-              echo
-              echo "(the limit is inert while the repository is not public — it is armed ahead of publication, deliberately)"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          echo "interaction limit: **$limit**, expires \`$expires\`" >> "$GITHUB_STEP_SUMMARY"
 
 # THE DEMOTED TESTS' PLUMBING, in one place because it is easy to tidy away.
 #
