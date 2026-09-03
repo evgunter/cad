@@ -13,6 +13,13 @@
 //! quarter cylinder in `cert10_r1_probes.rs` and `cert10r2_probes.rs`
 //! stay too, each saying at its own site why.
 
+// The same allow every suite in this directory carries: these
+// constructors are handed literal knot vectors and control nets that
+// are valid by construction, and an `unwrap` that fires here is a
+// broken fixture, which is exactly what a test wants to hear about
+// loudly.
+#![allow(clippy::unwrap_used)]
+
 use core::f64::consts::FRAC_PI_2;
 
 use geom::NurbsSurface;

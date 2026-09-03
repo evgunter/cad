@@ -15,6 +15,11 @@
 //! `cert5_r1_patch_probes.rs` for this exact code rather than restating
 //! it, and now both reach here.
 
+// `face_posture` panics on a posture the probes do not accept, which is
+// the point of it; the suites that used to spell that panic themselves
+// all carry this allow.
+#![allow(clippy::panic)]
+
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::{FaceCutBounds, nurbs_patch_face};
 use geom_core::spline::KnotVector;
@@ -256,6 +261,7 @@ pub(crate) fn oracle_patch(
 /// every caller passed; `boundary_defect` is zero, which is what an
 /// untrimmed rectangle means. `perimeter`, `eps` and `band` stay the
 /// caller's — they are what the probes vary.
+#[allow(clippy::too_many_arguments)] // one parameter per named quantity
 pub(crate) fn face_posture(
     name: &str,
     ku: &KnotVector,
