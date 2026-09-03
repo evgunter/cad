@@ -2971,3 +2971,98 @@ exactly one refusal deeper under the scratch flip (the
 ReanchorOffCarrier family at 0.83mm, re-pinned as row 4's
 replacement); refusal-text instance 7 recorded spec-directed.
 Dual claim to main at dispatch; parity per the draw line.
+## ORDINAL 111 RETURNED AND ADJUDICATED (2026-09-02)
+
+R1 (fable) 0 MAJ / 4 MIN, 5/4/4.5, APPROVE. R2 (opus) 2 MAJ /
+7 MIN, 4/4/3, APPROVE WITH FIXES. The geometry held BOTH arms'
+independent re-derivations (pure-python implicit-residual checks
+≤2.2e-15 across 200 random configurations; R2 ran 10/10 aimed
+mutations each caught by its own row; R1 6/6 + three SURVIVING
+mutants). The tangency was attacked specifically for the
+SPHSPH-class operand-order defect — none exists (orientation-
+invariant by construction, both signed branches exercised).
+
+- PRINCIPAL, BILATERAL severity-split (R2 MAJ-1 = R1 MINOR-4,
+  adjudicated to R2's reading): pt_ring_guard decides Margin::of
+  (R−r) ONLY — the documented convention is R>r>0, and R2's
+  probes walked the named threat through it (r=−0.3 mints
+  MeridianCircles{radius:−0.3}; r=0 mints a zero-radius circle
+  and a spurious TangentCircle; R<0 transposes the ±m centres).
+  The fix is one predicate (min(r, R−r) or a second trilean).
+  No tally candidate (mentioned by both).
+- R2 MAJ-2 (unilateral but DOC-CLASS — recorded, excluded from
+  the tally by 3b): four in-repo sentences still assert the
+  table declines the pair post-flip, one of them the doc of the
+  row the PR cites as opening measurement #1 (which ALSO
+  misattributes the rim carrier — the rim is spiric, which the
+  shipped arm refuses; the sentence was wrong before the flip
+  and false after). The PR's own memory instance 7 is about
+  exactly this failure mode.
+- R1-only MIN: the negative-station blind spot (an h.abs()
+  mutant survives — every fixture sits at h>0); the identity
+  levers (extent=1.0 at all 25 call sites, delevering survives).
+- R2-only MIN: the five in-band rows do not pin diag.predicate
+  (the file's own precedent does); pt_axis_in_plane's returned
+  circles leave their own plane by r/extent×ε just inside Zero
+  (measured 27×eps at extent=0.01 — cannot bite with a real
+  operand, condition now owed to the audit row); the sibling
+  (Cylinder,Torus) note went stale in the same edit; 'consumers
+  refuse typed' has no refuser (zero production callers); two
+  counts wrong (27+5 vs measured 27+4; 116 vs 132); 'the gated
+  point' against CI's own ASKED-FOR-NOT-DRAWN line; the retired
+  by-name pin's widening-guard job not rehomed.
+
+NO TALLY CANDIDATES — tally 1/8, candidates still 5 pending the
+blinded coding. Pair COUNTS. Union fix pass out (fable,
+implementer-inherited).
+## CYLSPH DISPATCHED (2026-09-02) — VERBS-8 slot 2, OPUS
+
+Spec ratified at ab991663e on the survey + Evan's two rulings
+(shape: exact coaxial arm + germ frame now, fitted window
+DEFERRED on the SPHSPH no-union-flips precedent; COAXIALITY
+DECLARED-ONLY — the RadiusEvidence sibling, #1372 the eventual
+carrier). The survey's central finding: the historical unit name
+was stale — the route arm has been implemented:true since M5
+PR 7; what remained was classification + frame + the #974
+tangent-locus arm + the deferred window. Guard lesson from
+ordinal 111 baked into the spec. Slot 2's arm read from the
+VERBS-8 per-slot line at dispatch: OPUS. Meanwhile C5-1 (ordinal
+111, sample #111) rides #1577 toward its merge; the RIMCAP and
+EXIT-WALK drafts sit in staging pending the C5ARMS/CYLSPH
+closures.
+## C5ARMS PR-1 MERGED (#1577, 2026-09-02) — ordinal-111 row (sample #111)
+
+The full arc closes: STOP at first dispatch → TORAX specced,
+implemented, dualed, merged as the enabler → resume → clean dual
+(no tally candidates) → fix pass (pt_tube_guard red-measured-
+first on the reviewer's exact threat pose; four stale sentences
+incl. the spiric misattribution; negative-station and non-unit-
+lever rows each red under its own mutant; counts re-measured
+with neither reviewer's number adopted blind) → merged. The
+(Plane,Torus) pair is Closed+implemented; the klein elbow rows
+wait on RIMCAP; #347's residue and the C5 table's remaining
+curved pairs are CYLSPH's (running) and the fenced families'.
+Lane swept. WAVE STATE: CYLSPH is the last implementation unit
+of the register scope; RIMCAP's sphere half and the exit-walk
+ratification follow it.
+## ORDINAL 112 CLAIMED — CYLSPH dual (2026-09-03)
+
+CYLSPH delivered with NEITHER STOP firing: the opening
+measurement is a TABLE (crossing pose → the pierce frontier with
+the LINE-seam carrier — the implementer's own Circle guess
+refuted by the run and recorded; non-crossing → the extent scan
+— the contained-ball SPHSPH-shape guess also refuted; the germ
+frame reached by NEITHER pose), so the acceptance's contingent
+second branch fired: classification + frame pinned by direct
+tests, the union's refusals re-verified TRUE at their standing
+doors. CoaxialEvidence {Declared, None} with the guard covering
+the FULL convention (ordinal-111 lesson inherited explicitly,
+MUT-A red-measured-first on all four threat poses); one frame
+serves both circles argued AND measured (16-point sense
+equality); #974 deferred WITH its residual story measured
+passing (the real blocker restated as structural — TangentLocus'
+single direction-reading variant); the route note retired with a
+test asserting the old sentence gone; three adjudication asks
+declared (two SectionError variants vs STOP-2's spirit; the
+cs_pair_frame helper shape; the rest.rs sentence move). Dual
+claim to main at dispatch; parity per the draw line.
