@@ -1540,7 +1540,6 @@ fn render_mass(m: &Result<f64, MeasureUnavailable>) -> String {
 /// The scalar is the interval one, not a choice: a verdict over a BOX
 /// is only meaningful from an enclosure, and the point scalars cannot
 /// produce one.
-#[cfg(feature = "interval")]
 pub fn assertion_at(
     doc: &Doc<ProfileProgram>,
     assertion: RecipeNodeId,
@@ -1573,7 +1572,6 @@ pub fn assertion_at(
 /// (visible, priced under its own name); the cost of being wrong the
 /// other way is a leaf that could have certified and did not, which is
 /// why the list is enumerated rather than defaulted.
-#[cfg(feature = "interval")]
 fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<&'static str> {
     match kind {
         // The selection resolved to the wrong KIND of entity. Document

@@ -554,7 +554,6 @@ fn leaf_opts(box_: ParamBox) -> EvalOptions {
 /// [`measure_of`] folds both into one `Err` because its other callers
 /// want that; this one is the report's advisory column and has to tell
 /// a forfeit from a fault.
-#[cfg(feature = "interval")]
 fn nominal_of(
     ev: &Evaluation<f64>,
     id: RecipeNodeId,

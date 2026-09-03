@@ -489,9 +489,10 @@ fn certified_study(tol: Tol) {
              certified one the only gate.",
             100.0 * fraction,
             mc.samples,
-            bound - stackup(&doc, measure, &analyzed, &verdict, None, true, tol)
-                .map(|r| r.worst_case.lo)
-                .unwrap_or(bound)
+            bound
+                - stackup(&doc, measure, &analyzed, &verdict, None, true, tol)
+                    .map(|r| r.worst_case.lo)
+                    .unwrap_or(bound)
         );
     }
     // **And a bound the run CAN decide**, so the reader sees the gate
@@ -562,12 +563,7 @@ fn assertion_over_leaves(
 /// and the assertion reads a plain `Violated`. Printed so the stop does
 /// not leave a reader thinking the requirement machinery only ever
 /// refuses.
-fn definite_arm(
-    doc: &ProfileDoc,
-    analyzed: &AnalyzedBox,
-    measure: RecipeNodeId,
-    tol: Tol,
-) {
+fn definite_arm(doc: &ProfileDoc, analyzed: &AnalyzedBox, measure: RecipeNodeId, tol: Tol) {
     let verdict = drive(doc, analyzed, &DriveConfig::default(), tol).expect("the nominal builds");
     let Ok(report) = stackup(doc, measure, analyzed, &verdict, None, true, tol) else {
         return;
@@ -590,13 +586,7 @@ fn definite_arm(
 /// arithmetic predicts, so the caption can say how much wider the
 /// certified enclosure is than the sum of contributions — which is a
 /// finding in itself and not a defect (see the printed line).
-fn print_divergence(
-    report: &Stackup,
-    bound: f64,
-    linear_worst: f64,
-    decided: &Decided,
-    tol: Tol,
-) {
+fn print_divergence(report: &Stackup, bound: f64, linear_worst: f64, decided: &Decided, tol: Tol) {
     // The two numbers, and then the VERDICT — which comes from the
     // assertion node, not from comparing them here.
     println!(
@@ -795,7 +785,10 @@ mod tests {
         };
         let gap = (report.nominal.expect("the web has an f64 nominal") - 3.0 * sigma)
             - report.worst_case.lo;
-        assert!(gap > 0.0, "the certified worst case must reach further under than 3σ");
+        assert!(
+            gap > 0.0,
+            "the certified worst case must reach further under than 3σ"
+        );
         assert!(
             gap < 10.0 * tol.eps(),
             "the caption says the whole divergence is inside the escalation threshold:              window {gap:e} against {:e}",
