@@ -1184,8 +1184,9 @@ pub enum StackupRefusal {
         /// [`Chamber::LocalOnly`].
         sensitivities: Vec<Sensitivity>,
         /// The drive's accounting, verbatim: which refusal class holds
-        /// the mass, and the tail.
-        coverage: MeasureAccounting,
+        /// the mass, and the tail. Boxed so the refusal stays a small
+        /// `Err` on every result path that carries it.
+        coverage: Box<MeasureAccounting>,
         /// The drive's counting receipt.
         receipt: Receipt,
     },
@@ -1302,7 +1303,7 @@ pub fn stackup(
         return Err(StackupRefusal::NothingCertified {
             nominal,
             sensitivities: entries,
-            coverage: verdict.accounting().clone(),
+            coverage: Box::new(verdict.accounting().clone()),
             receipt: verdict.receipt(),
         });
     }

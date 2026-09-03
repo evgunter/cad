@@ -764,7 +764,7 @@ fn no_drive_or_a_refused_nominal_marks_local_only_and_gates_nothing() {
         }) => {
             assert_eq!(nominal.to_bits(), 1.0f64.to_bits());
             assert_eq!(sensitivities, refused);
-            assert_eq!(&coverage, verdict.accounting());
+            assert_eq!(&*coverage, verdict.accounting());
             assert_eq!(receipt, verdict.receipt());
             assert!(receipt.holds() && receipt.certified == 0);
         }

@@ -1197,7 +1197,7 @@ fn the_bore_pin_fit_as_a_consumer_reads_it() {
     // answer to this row's original reading, which had to go back to
     // the verdict for it).
     if let StackupRefusal::NothingCertified { coverage, .. } = &refusal {
-        assert_eq!(coverage, verdict.accounting());
+        assert_eq!(&**coverage, verdict.accounting());
     }
     println!(
         "±0.05 study: {refusal}\n  accounting (from the REFUSAL): {:#?}",

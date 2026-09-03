@@ -879,7 +879,7 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
             // to this row's original finding, which was that both were
             // thrown away).
             assert!(verdict.certified().is_empty());
-            assert_eq!(&coverage, verdict.accounting());
+            assert_eq!(&*coverage, verdict.accounting());
             assert_eq!(sensitivities.len(), 2);
         }
         other => panic!("DATUM changed — a ±0.1 study now yields {other:?}"),
