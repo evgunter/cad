@@ -1622,7 +1622,7 @@ jobs:
         id: nextest
         run: |
           set -euo pipefail
-          v="$(sed -n 's/^ *NEXTEST_VERSION: *//p' .github/workflows/ci.yml | head -1 | tr -d "\"'"'"'")"
+          v="$(sed -n 's/^ *NEXTEST_VERSION: *//p' .github/workflows/ci.yml | head -1 | tr -d "\"'")"
           test -n "$v" || { echo "no NEXTEST_VERSION in ci.yml — that pin is this lane's input too"; exit 1; }
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "nextest pin read from ci.yml: $v"
