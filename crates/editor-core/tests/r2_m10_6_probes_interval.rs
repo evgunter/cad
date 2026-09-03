@@ -37,7 +37,7 @@ use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box, sam
 use editor_core::clearance::{MinSepSelection, MinSeparationConfig, min_separation};
 use editor_core::drive::{DriveConfig, VerdictVector, drive};
 use editor_core::mc::{McConfig, monte_carlo};
-use editor_core::report::report_key;
+use editor_core::report::{Dials, report_key};
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, DocParam,
     EntityKind, EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, Node,
@@ -454,20 +454,24 @@ fn sampled_doc() -> ProfileDoc {
     straddling_assertion().0
 }
 
-/// **`report_key` is blind to every dial that moves a report.**
+/// **`report_key` was blind to every dial that moves a report** — and
+/// is not any more.
 ///
-/// D5 says the two key kinds are on purpose and that `report_key` — the
-/// tuple (kind, slice, box, ε, K) — "is the cache seam". But the MC
-/// report is a function of its seed and its sample count as well, and
-/// neither is in that tuple: two runs a consumer would never confuse
-/// hash to one key. A `ReportCache` keyed the documented way therefore
-/// serves one run's numbers to another run's question.
+/// The finding: D5 said the two key kinds are on purpose and that
+/// `report_key` — the tuple (kind, slice, box, ε, K) — "is the cache
+/// seam", but an MC report is a function of its seed and its sample
+/// count too, and neither was in that tuple. Two runs a consumer would
+/// never confuse hashed to one key, so a `ReportCache` keyed the
+/// documented way served one run's numbers to another run's question.
+/// The review also noted that `report_key` had no consumer at all,
+/// which is what kept the collision theoretical.
 ///
-/// Evidence-only in the sense that nothing in the tree keys a cache
-/// this way today — `report_key` has no consumer at all outside the
-/// unit's own key row — which is itself the finding.
+/// Both halves are closed. The dials are in the key
+/// (`report::Dials`), and the unit's cache row now uses `report_key`
+/// the documented pre-work way. This row pins the discrimination it
+/// was written to pin the absence of.
 #[test]
-fn report_key_is_blind_to_the_dials_that_move_a_report() {
+fn report_key_tells_the_dials_that_move_a_report_apart() {
     let doc = sampled_doc();
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let a = monte_carlo(
@@ -498,13 +502,40 @@ fn report_key_is_blind_to_the_dials_that_move_a_report() {
         "two different dials produce two different reports"
     );
     let box_ = one_axis("place", half());
-    let ka = report_key("mc", 7, &box_, Tol::witness().eps(), 10.0);
-    let kb = report_key("mc", 7, &box_, Tol::witness().eps(), 10.0);
-    assert_eq!(
-        ka, kb,
-        "…and the documented cache key cannot tell them apart: the seed and the sample \
-         count are not in (kind, slice, box, eps, K)"
+    let drive_cfg = DriveConfig::default();
+    let mc_a = McConfig {
+        samples: 128,
+        seed: 1,
+        parallel: false,
+    };
+    let mc_b = McConfig {
+        samples: 128,
+        seed: 2,
+        parallel: false,
+    };
+    let key = |mc: &McConfig| {
+        report_key(
+            "mc",
+            7,
+            &box_,
+            Tol::witness().eps(),
+            10.0,
+            &Dials {
+                drive: &drive_cfg,
+                mc: Some(mc),
+            },
+        )
+    };
+    // **The finding, fixed.** The review wrote this as `assert_eq!`:
+    // two reports that differ, keyed the same, because the seed and
+    // the sample count were not in the tuple. They are now
+    // (`report::Dials`), so the row pins the discrimination instead.
+    assert_ne!(
+        key(&mc_a),
+        key(&mc_b),
+        "two different dials produce two different reports, so they must not share a key"
     );
+    assert_eq!(key(&mc_a), key(&mc_a), "the key is a pure function");
 }
 
 // ------------------------------------------------------------------
@@ -830,12 +861,17 @@ fn a_tolerance_study_end_to_end_through_the_public_doors() {
 
     // The cache seam, used the documented way.
     let mut cache = editor_core::report::ReportCache::new();
+    let drive_cfg = DriveConfig::default();
     let key = report_key(
         "stackup",
         verdict.content_key().0,
         verdict.root(),
         Tol::witness().eps(),
         10.0,
+        &Dials {
+            drive: &drive_cfg,
+            mc: None,
+        },
     );
     cache.put(key, "stackup", report.serialize());
     assert_eq!(cache.get(key, "stackup"), Some(report.serialize().as_str()));

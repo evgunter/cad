@@ -1185,6 +1185,16 @@ pub struct Stackup {
     /// refused + tail; sums to 1 where it prices — E2/E6). Not
     /// recomputed here.
     pub coverage: MeasureAccounting,
+    /// **What the masses in `coverage` MEAN** — priced under a stated
+    /// measure, or set-theoretically forced by a Band contributor
+    /// (M10-1's obligation, R2's MINOR-7).
+    ///
+    /// A field rather than a rendering-time computation, because it is
+    /// a property of the report and not of one way of printing it:
+    /// without it [`Self::serialize`] golden-compares a Band document
+    /// and a Uniform one as identical, and the goldening form is where
+    /// the priced/forced distinction most needs to be visible.
+    pub basis: crate::report::MassBasis,
 }
 
 impl Stackup {
@@ -1252,6 +1262,15 @@ impl Stackup {
                 ),
             }
         );
+        // The BASIS before the masses it qualifies: a reader who diffs
+        // two goldens and sees only this line has still learned the
+        // thing that changed.
+        let _ = writeln!(s, "basis {}", self.basis.word());
+        if let crate::report::MassBasis::Forced { by } = &self.basis {
+            for p in by {
+                let _ = writeln!(s, "  forced_by {}", p.0);
+            }
+        }
         let _ = write!(s, "{}", coverage_bits(&self.coverage));
         s
     }
@@ -1649,6 +1668,7 @@ pub fn stackup(
         worst_case,
         rss,
         coverage: verdict.accounting().clone(),
+        basis: crate::report::MassBasis::of(analyzed),
     })
 }
 

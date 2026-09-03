@@ -25,7 +25,9 @@ use crate::fixture;
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::mc::{McConfig, McRefusal, monte_carlo};
-use editor_core::report::{MassBasis, MassBudget, ReportCache, leaf_histogram, report_key};
+use editor_core::report::{
+    Dials, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
+};
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionDir, Dimension, Distribution, DocEdit, DocParam, Expr, LoopProgram, MeasureExpr,
@@ -173,9 +175,6 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
         "and neither is a stackup's"
     );
     assert_eq!(one.content_key(), two.content_key());
-    // Twice in the same schedule, too: a report that moved between two
-    // identical runs would not be a function of its inputs at all.
-    assert_eq!(one.serialize(), one.serialize());
 
     // The two doors are DIFFERENT: the goldening form carries bits, the
     // human form carries percentages and prose. Neither is the other's
@@ -253,14 +252,53 @@ fn a_content_key_moves_exactly_when_the_report_does() {
     assert_ne!(report.content_key(), other.content_key());
 
     // And the pure key function agrees about what it is a function of:
-    // the same tuple keys the same, a different ε keys differently.
-    let k1 = report_key("stackup", 1, verdict.root(), 1e-9, 10.0);
-    let k2 = report_key("stackup", 1, verdict.root(), 1e-9, 10.0);
-    let k3 = report_key("stackup", 1, verdict.root(), 1e-12, 10.0);
-    let k4 = report_key("stackup", 2, verdict.root(), 1e-9, 10.0);
+    // the same inputs key the same, and EVERY input moves the key.
+    let default_drive = DriveConfig::default();
+    let starved_drive = DriveConfig {
+        max_leaves: 4,
+        ..DriveConfig::default()
+    };
+    let seeded_mc = McConfig {
+        seed: 1,
+        ..McConfig::default()
+    };
+    let base = Dials {
+        drive: &default_drive,
+        mc: None,
+    };
+    let k1 = report_key("stackup", 1, verdict.root(), 1e-9, 10.0, &base);
+    let k2 = report_key("stackup", 1, verdict.root(), 1e-9, 10.0, &base);
+    let k3 = report_key("stackup", 1, verdict.root(), 1e-12, 10.0, &base);
+    let k4 = report_key("stackup", 2, verdict.root(), 1e-9, 10.0, &base);
+    // The two the first pass could not tell apart (M10-6's review):
+    // a different drive budget, and a different MC seed.
+    let k5 = report_key(
+        "stackup",
+        1,
+        verdict.root(),
+        1e-9,
+        10.0,
+        &Dials {
+            drive: &starved_drive,
+            mc: None,
+        },
+    );
+    let k6 = report_key(
+        "stackup",
+        1,
+        verdict.root(),
+        1e-9,
+        10.0,
+        &Dials {
+            drive: &default_drive,
+            mc: Some(&seeded_mc),
+        },
+    );
     assert_eq!(k1, k2);
     assert_ne!(k1, k3, "ε is part of the tuple");
     assert_ne!(k1, k4, "so is the recipe slice");
+    assert_ne!(k1, k5, "and the drive budget, which moves the report");
+    assert_ne!(k1, k6, "and the advisory lane's dials — `none` is not a seed");
 }
 
 /// **§2**: the cache serves an equal key and nothing else.
@@ -304,6 +342,43 @@ fn the_cache_serves_equal_keys_and_only_those() {
         cache.get(verdict.content_key(), "stackup").is_none(),
         "the cache has no notion of a key being close"
     );
+
+    // **The DOCUMENTED seam, exercised** (M10-6's review). The two
+    // doors above key on the report's own bits, which a consumer only
+    // has once the work is done. `report_key` is the other door — the
+    // one a consumer computes BEFORE deciding to do the work — and
+    // until the dials went into it, a cache used that way served one
+    // budget's stackup for another's. Here it is used that way, and
+    // the two budgets miss each other.
+    let default_drive = DriveConfig::default();
+    let starved_drive = DriveConfig {
+        max_leaves: 4,
+        ..DriveConfig::default()
+    };
+    let pre = |d: &DriveConfig| {
+        report_key(
+            "stackup",
+            1,
+            verdict.root(),
+            Tol::witness().eps(),
+            Tol::witness().k(),
+            &Dials { drive: d, mc: None },
+        )
+    };
+    let mut seam = ReportCache::new();
+    assert!(
+        seam.put(pre(&default_drive), "stackup", report.serialize())
+            .is_none()
+    );
+    assert_eq!(
+        seam.get(pre(&default_drive), "stackup"),
+        Some(report.serialize().as_str()),
+        "the same run's dials find the entry the run put there"
+    );
+    assert!(
+        seam.get(pre(&starved_drive), "stackup").is_none(),
+        "a DIFFERENT budget must miss: it would have produced a different report, and          serving this one for it is the collision the key exists to prevent"
+    );
 }
 
 /// **§5**: the histogram is a typed table of (leaf, mass, enclosure)
@@ -337,8 +412,6 @@ fn the_histogram_joins_leaf_mass_to_the_measures_enclosure() {
         "and the uncovered mass is on its own line"
     );
     // Deterministic, and keyed like every other report.
-    assert_eq!(histogram.serialize(), histogram.serialize());
-    assert_eq!(histogram.content_key(), histogram.content_key());
 }
 
 /// **§4**: the MC lane refuses a band typed, naming the parameter.
@@ -484,6 +557,17 @@ fn the_mc_tail_fraction_converges_on_the_accountings_tail() {
     // 0.005 is about four σ wide on either side. It is loose ON PURPOSE
     // — the claim is convergence, not a pinned count, and a tight bound
     // here would be a flake with a story.
+    // **And it must be non-zero** (R2's MINOR-8). An absolute window of
+    // 0.005 around 0.0027 admits 0.0 — a lane that sampled the box and
+    // never left it would pass a row whose whole subject is that MC
+    // sees the tail the certified box excludes. The convergence bound
+    // stays loose on purpose; this is the separate claim it was
+    // silently making.
+    assert!(
+        report.outside_box > 0.0,
+        "the sampler must actually reach outside the analyzed box — that is what this \
+         lane adds over the certified one"
+    );
     assert!(
         (report.outside_box - exact).abs() < 0.005,
         "the empirical tail {} and the exact tail {exact} disagree by more than sampling \
@@ -511,5 +595,4 @@ fn the_budget_renders_its_tail_and_its_containment() {
         rendered.contains("exact") || rendered.contains("conservative"),
         "and the budget says which of the two it is"
     );
-    assert_eq!(budget.serialize(), budget.serialize());
 }

@@ -448,15 +448,32 @@ impl ReportCache {
 ///
 /// `slice` is the recipe slice's own identity (the driver's verdict key
 /// or a node content key — whatever the caller's report is derived
-/// from), `box_` the analyzed box, `eps` the run's tolerance and `k`
-/// its band constant. Together they are D9's tuple, and the key is
-/// their bits.
+/// from), `box_` the analyzed box, `eps` the run's tolerance, `k` its
+/// band constant, and `dials` the RUN DIALS the report was produced
+/// under ([`Dials`]).
+///
+/// # Why the dials are in it (M10-6's review; deviation D11)
+///
+/// They were not, and the omission made the key wrong for its one
+/// stated purpose. This module says a derived report is a function of
+/// its inputs and that this key is their identity — but a drive at
+/// `max_leaves = 4` and one at `4096` produce DIFFERENT reports over
+/// the same `(slice, box, ε, K)` tuple, and an MC report's numbers move
+/// with its seed and its sample count. Both reviews built the
+/// collision. A cache keyed on the old tuple would have served one
+/// budget's answer for another's, which is the exact failure a content
+/// key exists to make impossible.
+///
+/// D9 is not strained by the addition and was not satisfied without
+/// it: the recorded run dials are part of what a replay has to fix, and
+/// a derived report is a replay's output.
 pub fn report_key(
     kind: &'static str,
     slice: u128,
     box_: &crate::analysis::ParamBox,
     eps: f64,
     k: f64,
+    dials: &Dials<'_>,
 ) -> ContentKey {
     let mut h = KeyHasher::new();
     h.write_tag(0xEC);
@@ -471,7 +488,56 @@ pub fn report_key(
     }
     h.write_f64_bits(eps);
     h.write_f64_bits(k);
+    h.write_str(&dials.serialize());
     h.finish()
+}
+
+/// **The run dials a derived report is a function of**, in the one
+/// spelling [`report_key`] hashes.
+///
+/// A struct rather than loose arguments, so a dial ADDED to
+/// [`crate::drive::DriveConfig`] or [`crate::mc::McConfig`] has one
+/// place to be threaded through, and so a caller cannot quietly pass
+/// defaults for a report it did not produce with them.
+///
+/// `mc` is `None` for a report the advisory lane had no part in — a
+/// stackup, a fold, a histogram — and the absence is itself hashed, so
+/// "no MC" and "MC at the default seed" are different keys rather than
+/// the same one.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Dials<'a> {
+    /// The drive that produced the leaves under the report.
+    pub drive: &'a crate::drive::DriveConfig,
+    /// The advisory lane's dials, when the report has an advisory half.
+    pub mc: Option<&'a crate::mc::McConfig>,
+}
+
+impl Dials<'_> {
+    /// The dials' goldening form: exact, ordered, and total over every
+    /// field that can move a report's numbers.
+    pub fn serialize(&self) -> String {
+        use core::fmt::Write as _;
+        let d = self.drive;
+        let mut s = format!(
+            "drive max_depth={} max_leaves={} parallel={}",
+            d.max_depth, d.max_leaves, d.parallel
+        );
+        // The probe replay changes what the k_stats funnel SEES, never
+        // what the verdict is, so it is hashed only in the build where
+        // it exists rather than making two builds disagree about the
+        // key of a report they agree on.
+        #[cfg(feature = "probe")]
+        {
+            let _ = write!(s, " k_probe={:?}", d.k_probe);
+        }
+        match self.mc {
+            Some(m) => {
+                let _ = write!(s, "; mc samples={} seed={:#018x}", m.samples, m.seed);
+            }
+            None => s.push_str("; mc none"),
+        }
+        s
+    }
 }
 
 /// A report's content key: its tag, then its goldening form verbatim.

@@ -56,7 +56,7 @@ use editor_core::clearance::{
 };
 use editor_core::drive::{DriveConfig, VerdictVector, drive};
 use editor_core::mc::{McConfig, monte_carlo};
-use editor_core::report::{MassBasis, MassBudget, leaf_histogram, report_key};
+use editor_core::report::{Dials, MassBasis, MassBudget, leaf_histogram, report_key};
 use editor_core::stackup::{StackupRefusal, stackup};
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
@@ -553,13 +553,18 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
 
 // ------------------------------------------- 4. the cache key
 
-/// **Finding:** `report_key` is the tuple (kind, slice, box, ε, K) and
-/// nothing else, so two drives of one document over one box under two
-/// BUDGETS — different verdicts, different goldening forms — key the
-/// same. A `ReportCache` keyed by `report_key` (its documented purpose)
-/// would serve the starved verdict for the full one.
+/// **The finding, and its fix.** `report_key` was the tuple
+/// (kind, slice, box, ε, K) and nothing else, so two drives of one
+/// document over one box under two BUDGETS — different verdicts,
+/// different goldening forms — keyed the same, and a `ReportCache`
+/// keyed on it (its documented purpose) would have served the starved
+/// verdict for the full one.
+///
+/// The dials are in the key now (`report::Dials`), so this row is a
+/// PIN the other way round: the two budgets must key differently, and
+/// the key must still be a pure function of what it is handed.
 #[test]
-fn report_key_cannot_tell_two_budgets_apart() {
+fn report_key_tells_two_budgets_apart() {
     let eps = Tol::witness().eps();
     let mut r = Recorder::new();
     param(
@@ -609,14 +614,67 @@ fn report_key_cannot_tell_two_budgets_apart() {
         "the budget moved the verdict"
     );
     let slice = 7u128;
-    let k_starved = report_key("verdict", slice, starved.root(), eps, Tol::witness().k());
-    let k_full = report_key("verdict", slice, full.root(), eps, Tol::witness().k());
-    assert_eq!(
+    let starved_cfg = DriveConfig {
+        max_leaves: 4,
+        ..DriveConfig::default()
+    };
+    let full_cfg = DriveConfig {
+        max_leaves: 4096,
+        ..DriveConfig::default()
+    };
+    let k_starved = report_key(
+        "verdict",
+        slice,
+        starved.root(),
+        eps,
+        Tol::witness().k(),
+        &Dials {
+            drive: &starved_cfg,
+            mc: None,
+        },
+    );
+    let k_full = report_key(
+        "verdict",
+        slice,
+        full.root(),
+        eps,
+        Tol::witness().k(),
+        &Dials {
+            drive: &full_cfg,
+            mc: None,
+        },
+    );
+    // **The finding, fixed and pinned the other way round.** The review
+    // wrote this row as `assert_eq!` — the two budgets produced
+    // different verdicts and the SAME key, which is the collision a
+    // content key exists to make impossible. The dials are in the key
+    // now, so the row asserts what it was always about: a key that can
+    // tell them apart.
+    assert_ne!(
         k_starved, k_full,
-        "same tuple, same key — the budget is not in it"
+        "different budgets produce different reports, so they must not share a key"
+    );
+    // And the tuple ALONE still cannot: same dials, same key, whatever
+    // the verdict was. That half is what makes the row about the dials
+    // rather than about the box.
+    assert_eq!(
+        report_key(
+            "verdict",
+            slice,
+            starved.root(),
+            eps,
+            Tol::witness().k(),
+            &Dials {
+                drive: &starved_cfg,
+                mc: None,
+            },
+        ),
+        k_starved,
+        "the key is a pure function of its inputs"
     );
     eprintln!(
-        "report_key equal over budgets 4 and 4096; verdict keys {:?} vs {:?}",
+        "report_key over budgets 4 and 4096: {k_starved:?} vs {k_full:?}; verdict keys \
+         {:?} vs {:?}",
         starved.content_key(),
         full.content_key()
     );
