@@ -915,3 +915,22 @@ src-module derivation; the marker-set-vs-imports guard. Evidence PRs
 
 Ev raised the spending limit; the three re-gate runs got runners
 within seconds and every one went green. Issue closed.
+
+## Seam: API overload after the K1 merge (2026-09-03, 14:47–15:22 UTC)
+
+The K2 and K3 implementer lanes (block TCOST-KB1 slots 1 and 2) each
+died three times on server-side 529 overloads before doing any work;
+resumed after a 10-minute backoff at 15:22. They stay on the block's
+drawn arm. The census re-run, which is read-only aggregation of run
+logs and no unit's work, was moved to a different model to get the
+readout; its report lands under `~/tcost-work/timing-history/`.
+Interim reading from it: the suite's cost distribution is much
+flatter (the old 42.6 cpu-s head row is gone; no shard's top row now
+exceeds ~11 % of its shard); K1's interval total at 1e-12 is ~355 cpu-s
+against the 535 baseline (tier differs); the build critical path is
+unchanged inside its own ±25 % noise; most of today's runs were
+tier=all because they touched the workflow, which makes the per-file
+gate a no-op in that sample; the nightly has not yet run on a tree
+carrying C1–C3, and its 09:54 run's gated-suite re-take row failed at
+a pin-read step (being read); B3's first primer run on main was
+cancelled mid-save by the next push, as its own entry predicted.
