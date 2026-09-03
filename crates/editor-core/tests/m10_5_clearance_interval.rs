@@ -83,11 +83,12 @@
 //!
 //! # Which refusal arms have a row, and which cannot
 //!
-//! Rows below cover `Budget(Pairs)`, `Budget(Depth)`, `Selection` (two
-//! shapes), `Unsupported`, `NotADistance` and `EmptyScope`;
-//! `NothingCertified` is covered by the adopted probe suites. The
-//! remaining arms have NO row, and the reason is the same for each:
-//! they are not reachable on any document these fixtures can build.
+//! `ClearanceRefusal` has ten arms. Rows below cover `Budget(Pairs)`,
+//! `Budget(Depth)`, `Selection` (two shapes), `Unsupported`,
+//! `NotADistance` and `EmptyScope`; `NothingCertified` is covered by the
+//! adopted probe suites. FIVE refusal shapes have NO row, and the reason
+//! is the same for each: they are not reachable on any document these
+//! fixtures can build.
 //!
 //! - `Sliver` needs the deciding enclosure to sit WHOLLY inside the
 //!   band — a margin that is in the band and an enclosure narrower than
@@ -97,6 +98,8 @@
 //! - `PoisonEnclosure` needs a margin that comes back `Invalid`, which
 //!   on a carrier that evaluated means a NaI the substrate does not
 //!   produce here.
+//! - `ToleranceHasNoBand` needs a `Tol` whose linear band does not
+//!   construct, which no constructor in the tree hands out.
 //! - `WitnessUnverified` needs the `f64` rebuild to disagree with the
 //!   interval classification on a pair the interval side called
 //!   definite.
