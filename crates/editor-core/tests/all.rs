@@ -350,3 +350,6 @@ mod cert_m2r1_corpus;
 
 #[path = "lib_tube_node.rs"]
 mod lib_tube_node;
+
+#[path = "lib_tube_r2_probes.rs"]
+mod lib_tube_r2_probes;
