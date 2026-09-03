@@ -75,7 +75,7 @@ drops the recourse from `Display` silently stops this door carrying
 it, and nothing on this side would catch that), is left as a comment
 where the arm was.
 
-The three armed pins were flipped in the same change:
+Both armed pins were flipped in the same change:
 
 - `demos/tour/src/assembly.rs::update_door` — the count is 1, the
   `GAP (#947)` block is rewritten to say why 1 is the number with

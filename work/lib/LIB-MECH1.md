@@ -1,9 +1,10 @@
 ---
 id: LIB-MECH1
 kind: unit
-title: the mechanical residue bundle - the python-feature clippy row and five banked repairs
+title: the mechanical residue bundle — the python-feature clippy row and five banked repairs
 status: review
 opened: 2026-09-03
+pr: 1696
 branch: claude/lib-mechanical-clippy-ci-tadd42
 refs: [the-python-feature-half-of-pncad-py-is-linted-by-no-ci-row, pncad-py-python-feature-clippy-lane-is-red, census-points-at-a-deleted-lib-log, stub-check-never-descends-class-attributes, python-refusal-tag-values-pinned-nowhere, pin-mismatch-recourse-emitted-twice, subject-body-drops-the-declared-contacts]
 ---
@@ -89,14 +90,14 @@ says so.
 **One recourse paragraph per refusal.** `impl PartResolver for Workspace`
 re-appended `PIN_MISMATCH_RECOURSE` to a message whose `Display` already
 ended on it, so every pin-mismatch that reached an evaluation carried the
-paragraph twice. The arm is gone and the three armed pins flipped with it
-— including the demo's gap note, which after the fix would print a false
-statement to a reader.
+paragraph twice. The arm is gone and both armed pins flipped with it —
+and the demo's gap note went with them, since after the fix it would
+print a false statement to a reader.
 
 **`subject_body` keeps its contacts.** It called `product::sources_of`
 and dropped the records one line later, so `pncad.subject_body` answered
 with a plain body and a subject carrying declarations reported its own
-certified seam as undeclared under the tier-3' gate. The door hands on
+certified seam as undeclared under the tier-3′ gate. The door hands on
 the pair `sources_of` already builds. The regression pin's red was seen:
 16 undeclared-contact findings before, clean after, on a body whose
 value-door read passed throughout.

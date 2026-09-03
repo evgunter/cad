@@ -52,9 +52,11 @@
 //!   also records the A11 rule-4 drift, and wants Ev's ruling.
 //! - **#946** — a sub-assembly's mate declarations do not cross the
 //!   instantiation seam.
-//! - **#947** — the pin-mismatch recourse is emitted twice
-//!   (ASSERTED here, so it goes red when fixed), and two refusals
-//!   carry no recourse sentence at all (`refusals`).
+//! - **#947 — the doubled recourse is CLOSED.** The pin-mismatch
+//!   recourse now reaches the author exactly once, from the store's
+//!   own `Display`; `update_door` is what holds that count down.
+//!   Two refusals still carry no recourse sentence at all
+//!   (`refusals`), filed as its own item.
 //! - **#948** — no parametric loop constructor (`rect`).
 //!
 //! The declared direction's frontier — a mated assembly's gate can
@@ -1262,7 +1264,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
         1,
         "the kernel-side message carries the recourse once, from the store's own Display"
     );
-    println!("   in full, once: {}", refused.kind);
+    println!("   in full: {}", refused.kind);
 
     // The elaboration: "update this document everywhere", one recorded
     // per-reference edit per site, applied as a group.

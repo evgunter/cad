@@ -3212,6 +3212,8 @@ jobs:
       # job already installs Python 3.12, already restores the `python`
       # feature graph's own cache, and nothing `needs` it, so the row adds
       # work to no job the gate waits on and opens no new job or cache lane.
+      # The LOCAL half sites the same command with the other clippy rows
+      # instead, and argues why the two differ at `local-scripts/ci-local.sh`.
       #
       # FIRST AMONG THIS JOB'S CARGO WORK, before maturin is even
       # installed, because it needs none of the wheel machinery and it is
