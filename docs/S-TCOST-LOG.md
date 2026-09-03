@@ -471,3 +471,23 @@ entry in `docs/CI-MINUTES-2026-08.md`):
   hit stats read on warm runs (workspace crates and test binaries are
   the hypothesis; dependency hits prove nothing), verdict written under
   F4 either way.
+
+## Unit: TCOST-1 merged (2026-09-03, PR 1612 at e293af83)
+
+The per-file test gate is live: an in-file `gated_to!` marker names
+the source paths a suite is specific to; `scripts/ci-filter.py`
+derives one nextest filterset from the markers and the diff and both
+CI halves consume it on every run leg; a discipline gate reds on a
+path that does not resolve; every skip is a notice in the run's log;
+the nightly re-takes the whole gated set ungated (its first execution
+is the first nightly after this merge — neither the lane's nor the
+orchestrator's token can dispatch nightly.yml). 42 markers over 257
+tests (4.6 % of the suite — every `fuzz::`/`effort()` caller plus two
+hand-rolled sweeps; the review's re-audit widened 16 path sets to the
+module each claim rests on, and the two production-file markers moved
+into their own `#[cfg(test)]` files so 44 deterministic pins stay
+ungated). Merged with one red annotated as inherited from main —
+M10-4's bore-pin row is red at interval/1e-6 on any tree, issue 1646
+filed for the M10 lane. Next batch: the `proptest!` population (22
+files), and the two content units' gate candidates (TCOST-2's
+heavily-knotted rows, TCOST-4's torus sweep).
