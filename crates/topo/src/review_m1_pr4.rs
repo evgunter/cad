@@ -1306,10 +1306,12 @@ fn kef_rejects_a_corrupt_edge_bijection() {
 //    "never a hang; every traversal is bounded" (D9's footnote as
 //    amended by the D2 addendum, which retired the garbage-out half).
 //    These rows also run in debug, where the errors are
-//    precondition-caught. The release side is the
-//    `corrupt input (release profile)` job in .github/workflows/ci.yml,
-//    which greps that job name out of this comment, so a rename is loud
-//    rather than quietly falsifying this sentence.
+//    precondition-caught, on every code-tier run. The release side is the
+//    `corrupt input (release profile)` job, which runs once a night in
+//    .github/workflows/nightly.yml (and on every local gate) rather than
+//    per PR: the argument that a persistence-detector may sit on a cadence
+//    is at the job. It greps that job name out of this comment, so a
+//    rename is loud rather than quietly falsifying this sentence.
 // =====================================================================
 
 #[test]

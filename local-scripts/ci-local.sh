@@ -183,7 +183,6 @@ SCOPE=--workspace
 RUN_EDITOR_CORE=true
 RUN_STL=true
 RUN_STEP_EXPORT=true
-RUN_PNCAD_PY=true
 RUN_INTERVAL_BACKEND=true
 RUN_INTERVAL_ORACLE=true
 RUN_K_LINT=true
@@ -220,7 +219,6 @@ else
       RUN_EDITOR_CORE) RUN_EDITOR_CORE="$v" ;;
       RUN_STL) RUN_STL="$v" ;;
       RUN_STEP_EXPORT) RUN_STEP_EXPORT="$v" ;;
-      RUN_PNCAD_PY) RUN_PNCAD_PY="$v" ;;
       RUN_INTERVAL_BACKEND) RUN_INTERVAL_BACKEND="$v" ;;
       RUN_INTERVAL_ORACLE) RUN_INTERVAL_ORACLE="$v" ;;
       RUN_K_LINT) RUN_K_LINT="$v" ;;
@@ -503,6 +501,14 @@ step_import() {
 # compile is the whole cost (93 s on a cold hosted cache). The guards
 # after the run are the point: a name filter that matches nothing exits
 # 0, so an empty selection must fail rather than pass quietly.
+# THE HOSTED HALF OF THIS ROW IS THE NIGHTLY, NOT THE GATE (2026-09-03).
+# `release-corruption` moved to .github/workflows/nightly.yml and runs there
+# ungated once a day; the per-row argument that it may sit on a cadence is at
+# the job. This row keeps its per-change gate (`RUN_TOPO_RELEASE`, which no
+# hosted job reads any more) because nothing bills a local gate by the minute
+# and scoping it costs nothing here. So on a local gate these suites still run
+# against the tree in front of you, which is the whole reason the demotion is
+# affordable.
 # HOSTED MIRROR: release-corruption / corrupt-input suites, release profile
 topo_release() {
   local log rc passed
@@ -541,7 +547,20 @@ topo_release() {
 # maturin). The script takes the build slot itself; nested under
 # ci-local's exclusive hold that acquisition is a no-op
 # (BUILD_SLOT_HELD).
+#
+# UNCONDITIONAL HERE, SEED-GATED HOSTED (2026-09-03), and it is the same
+# asymmetry the viewer toolkit rows below carry, for the same reason. The
+# hosted job runs only when the change filter's SEEDS intersect
+# {pncad-py, pncad, editor-core} — it is billed by the minute on every PR
+# and the wheel is a second compile of the kernel under the `python`
+# feature. This half is billed in one developer's wall clock, on a run
+# they chose to make, and it is already the lane that runs every point of
+# a matrix the hosted gate samples: skipping work here would buy nothing
+# and would leave the local gate proving strictly less than the hosted
+# one, which is the opposite of this file's contract. So `RUN_PNCAD_PY`
+# is deliberately not consulted, exactly as `RUN_VIEWER_TOOLKIT` is not.
 # HOSTED MIRROR: python-suite / run the Python suite (unittest discover)
+# HOSTED MIRROR: python-suite-nightly / run the Python suite (unittest discover)
 python_suite() {
   crates/pncad-py/run-python-tests.sh
 }
@@ -1160,9 +1179,10 @@ run_row_if "$RUN_STEP_EXPORT" "step import (freecad)" step_import
 # and it compiles `-p topo --lib`, so topo's own closure membership is
 # the condition. Fires on 89 of the last 128 first-parent merges.
 run_row_if "$RUN_TOPO_RELEASE" "corrupt input (release profile)" topo_release
-# Root package pncad-py: the wheel's build graph is the whole façade
-# stack, so this fires exactly when something the suite compiles moved.
-run_row_if "$RUN_PNCAD_PY" "python suite (staged cdylib)" python_suite
+# Unconditional: see the note at `python_suite` above. The hosted half is
+# seed-gated and the nightly re-takes it; this half runs it on every
+# code-tier local gate.
+run_row "python suite (staged cdylib)" python_suite
 
 echo
 echo "=== ci-local summary ==="

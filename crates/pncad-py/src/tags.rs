@@ -834,6 +834,26 @@ pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
     }
 }
 
+/// **The standing ladder's "this run has no result for that node"
+/// word, as a NAME rather than a repeated literal.**
+///
+/// The read-back and picking doors reach this spelling through a
+/// `match` on a kernel arm ([`interrogate_error_tag`],
+/// [`hit_test_error_tag`]), so a rename there is loud. The EVALUATION
+/// door has no kernel arm to match on — `Evaluation::result` answers
+/// `None` for a node a canceled run never reached, and the reason tag
+/// beside it is this crate's own decision — so it spelled the word by
+/// hand, and a hand-spelled copy of a shared vocabulary is exactly
+/// the divergence `tests::dimension_tags_match_the_kernel_prose`
+/// exists for one file over.
+///
+/// Naming it here makes the copy a reference, and
+/// `tests::the_evaluation_door_speaks_the_standing_ladder` pins it
+/// against the two doors that DO match, in both directions. (Both
+/// named as text rather than as intra-doc links: `tests` is
+/// `#[cfg(test)]`, so a link to either would not render.)
+pub const NODE_NOT_EVALUATED: &str = "node_not_evaluated";
+
 /// The stable tag for a hit-test refusal — the ray door's own.
 ///
 /// The three standing arms are the SAME vocabulary

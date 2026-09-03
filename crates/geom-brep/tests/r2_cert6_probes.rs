@@ -9,24 +9,14 @@
 //! zero corpus coverage).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::ring::p3;
+use crate::shared::tol::band;
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
+use geom_core::Tol;
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Tol};
 use test_utils::vacuity;
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-fn pt(x: f64) -> RingInterval {
-    RingInterval::from_bounds(x, x)
-}
-
-fn p3(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
-    [pt(x), pt(y), pt(z)]
-}
 
 /// A mildly curved single-span biquadratic dome, my own authoring.
 fn dome() -> (KnotVector, KnotVector, Vec<[RingInterval; 3]>) {

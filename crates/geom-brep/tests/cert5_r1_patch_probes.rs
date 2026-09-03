@@ -23,13 +23,11 @@
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, RingInterval, Tol};
+use geom_core::{RingInterval, Tol};
 
-use crate::shared::patch::{face_posture, oracle_patch, pt};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use crate::shared::patch::{face_posture, oracle_patch};
+use crate::shared::ring::pt;
+use crate::shared::tol::band;
 
 /// Run the engine; on `Ok`, both brackets must contain the dense
 /// oracle (with a 1e-9-relative slack for the oracle's own f64
