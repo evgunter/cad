@@ -1012,3 +1012,33 @@ re-opened. Ordinal 1401 claimed on `main` (PR 1706 from
 hashed and stored under `/home/user/tcost-work/ab/`; both reviewers
 dispatched concurrently on the frozen head with PRIVATE target dirs
 (R1's is the finished implementer lane's, moved; R2's fresh).
+
+## Seam: TCOST-K3 reported; its dual dispatched (2026-09-03, 18:50 UTC)
+
+TCOST-K3 reported (PR 1703, final head `d5cb0f5b1`): spec option 3
+on both doors — `validate_geometric_certificate[_declared]` and
+`validate_pseudomanifold_certificate` return the `MassProperties`
+the gate decided on, the old doors are `.map(|_| ())`, `PlusVCheck`
+yields the derivation and the battery applies `plus_v_invariant`
+itself, `StepImport::Solid` carries the aggregate gate's enclosure.
+Phase 1 confirmed the spec's correction at the instrument (the pair
+sits behind the tier-3′ door on single-solid imports), the pairs
+bit-identical in all four fields; digest md5-identical on the
+certified subset at six lane×ε points; no pin moved. Two facts the
+spec did not have: dm1-id-214 pays ONE certificate (multi-instance;
+the per-solid gate refuses first) and the saving is largest at
+ε = 1e-9 (−½/−⅓/−¼ on the three rows) and flat at 1e-12, because K1
+already refuses those schedules after round 0. Disclosed against the
+program's own arithmetic: the unit's suite costs ≈9.6 cpu-s at 1e-12
+across the two shards where the unit saves nothing there. The PR
+body's Hosted CI section is unfilled at the frozen head (owed by the
+fix pass). Ordinal 1402 claimed on `main` (PR 1707 from
+`tcost/k3-claim`); byte 124 parity 0 ⇒ R1 OPUS, R2 FABLE; briefs
+hashed and stored; both reviewers dispatched concurrently on the
+frozen head with PRIVATE target dirs, alongside K2's dual on the
+same box (four review lanes, one heavy cargo at a time). Rulings at
+the claim: the 1e-12 acceptance line is falsified by measurement and
+the unit proceeds; the suite's own cost is in scope for findings,
+the per-file gate included; the inherited red is verified, not
+re-opened, and the branch's duplicate issue file for it is dropped
+at the fix pass.
