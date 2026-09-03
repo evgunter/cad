@@ -1589,16 +1589,18 @@ repo's cache churn.
 
 ### The size of it
 
-* **Miss rate: 40 of 49** sampled build jobs (82 %) — 14/18 default,
-  26/31 interval.
+* **The population: 53 non-skipped build jobs** in the 60 most recent
+  completed `pull_request` runs, spanning 3.20 h — **16.6 an hour**. 49 of
+  the 53 had a readable restore line (the other 4 were cancelled before
+  the step printed one).
+* **Miss rate: 40 of those 49 (82 %)** — 14/18 default, 26/31 interval.
 * **Cold minus warm, matched within one branch, same lane, same scope**
   (`tcost/c2-rustdoc-roots-nightly`, `--workspace`): default **820 s**
   cold → **639 s** and **603 s** warm; interval **840 s** cold → **677 s**
   and **606 s** warm. About **200 s** either way. The population medians
   agree: default `--workspace` 775 s miss (n=6) against 631 s hit (n=1),
   interval 830 s miss (n=7) against 634 s hit (n=2).
-* **Rate**: 16.6 non-skipped build jobs an hour (60 completed PR runs over
-  3.20 h). At an 82 % miss rate and 200 s each that is **~45 billed
+* **So the bill**: 16.6 jobs/h x 0.82 x 200 s = 2 722 s/h = **~45 billed
   minutes an hour** spent recompiling ~225 dependency crates.
 * **The entry is 276 MB** and every missing job saves one, which is
   ~4.6 GB an hour of writes against a 10 GB repository budget — the same
@@ -1619,13 +1621,22 @@ local half, holds the coupling: the primer and the job it primes must keep
 identical `env:` blocks and one shared key each, or the build is red
 rather than quietly cold.
 
-**What it costs.** The key rotates only when the rust environment or a
-lockfile moves: **5 commits in 14 days** touched `Cargo.lock`, any crate's
-`Cargo.toml`, `.cargo/config.toml` or `rust-toolchain.toml`, against 2962
-commits on main. Main moved **3.4 times an hour** in that window, so on
-almost every push both jobs are a checkout plus a 14 s restore — one
-billed minute each, ~7 billed minutes an hour — and a rotation costs one
-full dependency build per lane.
+**What it costs.** Two denominators, kept apart. Of the **2962 commits**
+main took in 14 days, **5** touched `Cargo.lock`, any crate's
+`Cargo.toml`, `.cargo/config.toml` or `rust-toolchain.toml` — the only
+files that rotate the key — so a rotation is a ~3-day event. Separately,
+main received **3.4 PUSHES an hour** (200 `push` runs of ci.yml over
+59.3 h), and it is pushes, not commits, that fire these jobs: 3.4 x 2
+jobs x one billed minute (a checkout plus a 14 s restore) = **~7 billed
+minutes an hour**, against the ~45 above.
+
+**A rotation costs at least one full dependency build per lane, and can
+cost several.** This workflow's `cancel-in-progress` cancels the running
+push run when main moves again; at 3.4 pushes an hour a ~13-minute
+priming build is often cancelled part-way, `cache-on-failure` is off (see
+below), and the repair restarts on the next push. Every branch is cold
+until one completes, so "one build per rotation" is a floor and the
+lower-bound figure, not an expectation.
 
 **A second effect, not the one we went looking for.** rust-cache does not
 re-save on an exact hit ("Cache up-to-date." — observed in every warm job
@@ -1676,6 +1687,14 @@ the `build test binaries + archive` duration**, against the 820 s / 840 s
 `--workspace` cold figures above at the same tier. If that line still says
 `No cache found`, compare the two `Cache Key:` strings — this job's and
 the primer's on the merge commit's push run — before anything else.
+
+**The residual miss population is sampling's, not scope's.** A branch
+draws its lane per run, so a branch that pushes twice is cold in the lane
+it has not yet built — which is why the interval miss rate (26/31) sits
+above the default one (14/18): the interval build is the rarer draw, so
+its branch-own entry is the one that has usually been evicted. After this
+change both lanes are primed on main, so the draw stops mattering for the
+first run; what remains is the branch that rotates the key itself.
 
 Two more things one run cannot settle: whether main's entry survives
 eviction over days (the mechanism says it should, since every restore

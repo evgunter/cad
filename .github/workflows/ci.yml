@@ -1725,12 +1725,14 @@ jobs:
   #
   # WHY IT IS CHEAP, which is the whole reason it can sit on the push side.
   # The key rotates only when the rust environment or a lockfile moves — 5
-  # commits in 14 days touched Cargo.lock, any crate's Cargo.toml,
-  # .cargo/config.toml or rust-toolchain.toml, against 2962 commits on main.
-  # On every other push `cache-hit` is `true`, the build step is skipped,
-  # and the job is a checkout plus a restore: under half a minute, one
-  # billed minute. On a rotation it pays one full dependency build and
-  # every branch after it restores.
+  # of the 2962 COMMITS main took in 14 days touched Cargo.lock, any
+  # crate's Cargo.toml, .cargo/config.toml or rust-toolchain.toml. What
+  # fires these jobs is PUSHES, of which main took 3.4 an hour: on all but
+  # a rotation `cache-hit` is `true`, the build step is skipped, and the
+  # job is a checkout plus a 14 s restore — one billed minute each, ~7 an
+  # hour for the pair, against the ~45 an hour the misses cost. On a
+  # rotation it pays a full dependency build and every branch after it
+  # restores; see the note below on why that is a floor.
   #
   # WHY THE GUARD IS `cache-hit` AND NOT A REBUILD EVERY PUSH. main moved
   # 3.4 times an hour when this was measured; rebuilding on each push would
@@ -1741,11 +1743,14 @@ jobs:
   #
   # WHY `cache-on-failure` STAYS OFF HERE, deliberately. This workflow's
   # concurrency cancels an in-progress run when main moves again, so a
-  # rotation's build can be cancelled part-way. Saving that partial target
-  # directory would store a partial dependency set under the EXACT key,
-  # after which every later push would see `cache-hit` and skip the build
-  # that would repair it — a cache that never heals. Off, a cancelled prime
-  # writes nothing and the next push to main retries from scratch.
+  # rotation's ~13-minute build can be cancelled part-way — at 3.4 pushes
+  # an hour, often. Saving that partial target directory would store a
+  # partial dependency set under the EXACT key, after which every later
+  # push would see `cache-hit` and skip the build that would repair it — a
+  # cache that never heals. Off, a cancelled prime writes nothing and the
+  # next push retries from scratch, so a rotation may take SEVERAL pushes
+  # to repair and every branch is cold until one completes. That is the
+  # accepted cost of the guard, not an oversight.
   #
   # THE COUPLING TO WATCH. The key is composed from the `env:` block and
   # the toolchain, so THIS JOB'S `env:` AND `build`'S MUST STAY IDENTICAL,

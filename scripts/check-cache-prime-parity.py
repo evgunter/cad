@@ -20,18 +20,26 @@ an hour — is the 2026-09-03 entry in `docs/CI-MINUTES-2026-08.md`.
 WHAT IT PROVES, no wider:
 
   For each (consumer, primer) pair below, both jobs exist in ci.yml, their
-  `env:` blocks are identical once comments and blank lines are dropped, and
-  the `shared-key` on each one's `Swatinem/rust-cache@v2` step is the same
-  string; the two pairs' shared keys differ from each other; and no OTHER job
-  in any workflow under .github/workflows/ uses either of those two keys.
+  `env:` blocks are identical once comments and blank lines are dropped, their
+  `runs-on:` lines are the same text, and the `shared-key` on each one's
+  `Swatinem/rust-cache@v2` step is the same string; the two pairs' shared keys
+  differ from each other; and no OTHER job in any workflow under
+  .github/workflows/ uses either of those two keys.
+
+`runs-on` is in that list because os + arch are IN the key: a primer moved to a
+different runner class would satisfy every other claim here and still write an
+entry the build job cannot restore. The comparison is textual, so the two must
+spell the runner the same way — today both say
+`${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}`, and two spellings of one runner
+would red this rather than pass, which is the direction that fails safe.
 
 WHAT IT DOES NOT PROVE. Not that the keys match at run time — the toolchain,
-the runner image and the lockfiles are inputs this cannot read, and a primer
-put on a different `runs-on` would satisfy every claim here and still write an
-unreachable entry (the os/arch component). Not that the primer builds the right
-thing; `--workspace` versus a scoped build is a comment's job, not this one.
-Not that the entry survives eviction. And not anything about a THIRD job that
-grows its own `shared-key`: the exclusivity claim covers these two values only.
+the runner image and the lockfiles are inputs this cannot read, and a label
+that resolves to two different images at two different times is outside it. Not
+that the primer builds the right thing; `--workspace` versus a scoped build is
+a comment's job, not this one. Not that the entry survives eviction. And not
+anything about a THIRD job that grows its own `shared-key`: the exclusivity
+claim covers these two values only.
 
 Stdlib only, and a line recogniser rather than a YAML parser — the same posture
 as `scripts/check-ci-mirror-parity.py`, whose header argues it. Anything it
@@ -111,6 +119,14 @@ def _env_block(block: list[str]) -> list[str]:
     return body
 
 
+def _runs_on(block: list[str]) -> str:
+    """The job-level `runs-on:` line, as text. os + arch ride the cache key."""
+    hits = [line.strip() for line in block if line.startswith("    runs-on:")]
+    if len(hits) != 1:
+        raise Bail(f"expected exactly one job-level `runs-on:`, found {len(hits)}")
+    return hits[0]
+
+
 def _shared_keys(block: list[str]) -> list[str]:
     return [m.group(1) for m in map(SHARED_KEY_RE.match, block) if m]
 
@@ -143,6 +159,14 @@ def check(root: str) -> list[str]:
                 f"blocks (only in {consumer}: {only_a or '-'}; only in {primer}: {only_b or '-'}). "
                 "rust-cache hashes CARGO_*/RUST* into its cache key, so the primer would write an "
                 "entry the build job cannot restore, and nothing would go red — see the header"
+            )
+
+        ra, rb = _runs_on(jobs[consumer]), _runs_on(jobs[primer])
+        if ra != rb:
+            errs.append(
+                f"{HOSTED} job `{consumer}` is `{ra}` and `{primer}` is `{rb}`. os and arch are "
+                "components of rust-cache's key, so a primer on another runner class writes an "
+                "entry the build job cannot restore — and every other claim here would still pass"
             )
 
         ka, kb = _shared_keys(jobs[consumer]), _shared_keys(jobs[primer])
@@ -252,6 +276,14 @@ def _selftest() -> int:
             1,
         )
 
+    def drift_runs_on(t):
+        i = t.index("  cache-prime:")
+        return t[:i] + t[i:].replace(
+            "    runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}\n",
+            "    runs-on: ubuntu-24.04\n",
+            1,
+        )
+
     def lose_primer(t):
         return t.replace("  cache-prime:", "  cache-prime-renamed-away:", 1)
 
@@ -263,6 +295,7 @@ def _selftest() -> int:
     case("the primer's shared-key renamed", rename_key, True)
     case("the primer's shared-key deleted", drop_key, True)
     case("one shared-key across both lanes", one_key_both_lanes, True)
+    case("the primer moved to another runner class", drift_runs_on, True)
     case("a third job claiming the key", third_job, True)
     case("the primer job renamed away", lose_primer, True)
     case("a workflow with no jobs: mapping", no_jobs, True)
@@ -273,8 +306,9 @@ def _selftest() -> int:
         return 1
     print(
         "check-cache-prime-parity selftest OK: passes a clean tree; fires on an env knob moved on "
-        "one side, a renamed or deleted `shared-key`, one key across both lanes, a third job "
-        "claiming a key, a primer renamed away, and a workflow it cannot read"
+        "one side, a renamed or deleted `shared-key`, one key across both lanes, a primer moved "
+        "to another runner class, a third job claiming a key, a primer renamed away, and a "
+        "workflow it cannot read"
     )
     return 0
 
@@ -296,8 +330,9 @@ def main(argv: list[str]) -> int:
         return 1
     pairs = ", ".join(f"{c}/{p}" for c, p in PAIRS)
     print(
-        f"check-cache-prime-parity OK: {pairs} each agree on their job-level env block and on one "
-        "`shared-key`, the two lanes' keys differ, and no other job claims either"
+        f"check-cache-prime-parity OK: {pairs} each agree on their job-level env block, their "
+        "`runs-on:` line and one `shared-key`, the two lanes' keys differ, and no other job "
+        "claims either"
     )
     return 0
 
