@@ -271,11 +271,11 @@ concurrency:
 # the local gate stays byte-for-byte equivalent in what it PROVES. The
 # mirror convention covers the matrix, not the runner's linker.
 env:
-  # sccache pin for the EXPERIMENT wired into the two build jobs below.
-  # LIVE — disable by setting the repo variable SCCACHE to "0". See
-  # .github/actions/install-sccache and docs/CI-MINUTES-2026-08.md F4.
+  # sccache pin for the rig wired into the two build jobs below, which
+  # is OFF: it runs only for the repo variable SCCACHE = "1". The
+  # measurement that turned it off is docs/CI-MINUTES-2026-08.md F4.
   # 0.16.0 is the version local-scripts/gate.sh already runs on the
-  # local gate box, so the trial and the local lane agree.
+  # local gate box, so the rig and the local lane agree.
   SCCACHE_VERSION: "0.16.0"
   NEXTEST_VERSION: "0.9.140"
   # maturin rides the same pattern as nextest: pinned here (single source
@@ -1759,7 +1759,7 @@ jobs:
       CARGO_PROFILE_TEST_STRIP: debuginfo
       CARGO_PROFILE_DEV_OPT_LEVEL: "1"
       CARGO_PROFILE_TEST_OPT_LEVEL: "1"
-      RUSTC_WRAPPER: ${{ vars.SCCACHE != '0' && 'sccache' || '' }}
+      RUSTC_WRAPPER: ${{ vars.SCCACHE == '1' && 'sccache' || '' }}
     steps:
       - uses: actions/checkout@v4
       - name: prune local-only tooling (hosted CI may not depend on it)
@@ -1769,8 +1769,8 @@ jobs:
         id: cache
         with:
           shared-key: build-default
-      - name: install sccache (experiment; disable with vars.SCCACHE = '0')
-        if: vars.SCCACHE != '0' && steps.cache.outputs.cache-hit != 'true'
+      - name: install sccache (off; enable with vars.SCCACHE = '1')
+        if: vars.SCCACHE == '1' && steps.cache.outputs.cache-hit != 'true'
         uses: ./.github/actions/install-sccache
         with:
           version: ${{ env.SCCACHE_VERSION }}
@@ -1800,7 +1800,7 @@ jobs:
       CARGO_PROFILE_TEST_STRIP: debuginfo
       CARGO_PROFILE_DEV_OPT_LEVEL: "1"
       CARGO_PROFILE_TEST_OPT_LEVEL: "1"
-      RUSTC_WRAPPER: ${{ vars.SCCACHE != '0' && 'sccache' || '' }}
+      RUSTC_WRAPPER: ${{ vars.SCCACHE == '1' && 'sccache' || '' }}
     steps:
       - uses: actions/checkout@v4
       - name: prune local-only tooling (hosted CI may not depend on it)
@@ -1810,8 +1810,8 @@ jobs:
         id: cache
         with:
           shared-key: build-interval
-      - name: install sccache (experiment; disable with vars.SCCACHE = '0')
-        if: vars.SCCACHE != '0' && steps.cache.outputs.cache-hit != 'true'
+      - name: install sccache (off; enable with vars.SCCACHE = '1')
+        if: vars.SCCACHE == '1' && steps.cache.outputs.cache-hit != 'true'
         uses: ./.github/actions/install-sccache
         with:
           version: ${{ env.SCCACHE_VERSION }}
@@ -2033,16 +2033,26 @@ jobs:
       CARGO_PROFILE_TEST_STRIP: debuginfo
       CARGO_PROFILE_DEV_OPT_LEVEL: "1"
       CARGO_PROFILE_TEST_OPT_LEVEL: "1"
-      # sccache EXPERIMENT, ON (2026-08-20). The kill switch is the
-      # repo variable SCCACHE set to "0"; unset means enabled, so the
-      # trial runs without a variable needing to exist.
-      # cargo treats an EMPTY RUSTC_WRAPPER as "no wrapper", so the
-      # unset case is a genuine no-op rather than a broken command.
-      # Note this var is RUST*-prefixed, so Swatinem/rust-cache hashes
-      # it: flipping SCCACHE rotates the cache key and buys exactly one
-      # cold rebuild. That run is not the verdict — same trap the OPT
-      # LEVEL note above warns about.
-      RUSTC_WRAPPER: ${{ vars.SCCACHE != '0' && 'sccache' || '' }}
+      # sccache: OFF, on a measurement. docs/CI-MINUTES-2026-08.md's
+      # finding F4 carries it, with the runs, and
+      # docs/perf-data/sccache-trial/ the raw readings.
+      #
+      # WHY IT IS OFF RATHER THAN GONE. sccache does not cache
+      # `--crate-type bin`, and every target in the nextest archive is
+      # one; test targets are 82% of this job's compile time. On the
+      # single run where its object cache restored, it took 18 units —
+      # the workspace libs — and refused 47. The two steps below cost
+      # ~0 s while skipped, so the rig stays as the thing that makes the
+      # negative re-checkable rather than re-run.
+      #
+      # `vars.SCCACHE == '1'` turns it on: OFF with no variable set, so
+      # the repo variable can be deleted. cargo treats an EMPTY
+      # RUSTC_WRAPPER as "no wrapper", so the off case is a genuine
+      # no-op rather than a broken command. The var is RUST*-prefixed,
+      # so Swatinem/rust-cache hashes it: flipping it rotates that cache
+      # key and buys one cold rebuild in the lane that flips — the same
+      # trap the OPT LEVEL note above warns about.
+      RUSTC_WRAPPER: ${{ vars.SCCACHE == '1' && 'sccache' || '' }}
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -2068,8 +2078,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: build-default
-      - name: install sccache (experiment; disable with vars.SCCACHE = '0')
-        if: vars.SCCACHE != '0'
+      - name: install sccache (off; enable with vars.SCCACHE = '1')
+        if: vars.SCCACHE == '1'
         uses: ./.github/actions/install-sccache
         with:
           version: ${{ env.SCCACHE_VERSION }}
@@ -2085,13 +2095,12 @@ jobs:
       # the closure's test binaries, so the run rows need no re-scoping.
       - name: build test binaries + archive
         run: cargo nextest archive ${{ needs.filter.outputs.cargo_scope }} --archive-file nextest-default.tar.zst
-      # THE MEASUREMENT. Hit rate here is the whole question: the
-      # deps are already served by rust-cache, so a run that only
-      # hits on those has proved nothing. What would justify
-      # adopting this is hits on the WORKSPACE crates, on a warm
-      # run, against the archive step's own duration on main.
-      - name: sccache stats (experiment)
-        if: vars.SCCACHE != '0' && !cancelled()
+      # The reading, if anyone turns the rig back on. What it printed
+      # in the trial window is F4's table: hits only ever on the
+      # workspace LIBS, and `Non-cacheable reasons: crate-type` on
+      # every binary, which is what the archive is made of.
+      - name: sccache stats (only when the rig is on)
+        if: vars.SCCACHE == '1' && !cancelled()
         run: sccache --show-stats
       # Upload right after the archive (the run legs still wait on the
       # whole job via `needs`): if a later step fails, the archive is
@@ -2471,16 +2480,26 @@ jobs:
       CARGO_PROFILE_TEST_STRIP: debuginfo
       CARGO_PROFILE_DEV_OPT_LEVEL: "1"
       CARGO_PROFILE_TEST_OPT_LEVEL: "1"
-      # sccache EXPERIMENT, ON (2026-08-20). The kill switch is the
-      # repo variable SCCACHE set to "0"; unset means enabled, so the
-      # trial runs without a variable needing to exist.
-      # cargo treats an EMPTY RUSTC_WRAPPER as "no wrapper", so the
-      # unset case is a genuine no-op rather than a broken command.
-      # Note this var is RUST*-prefixed, so Swatinem/rust-cache hashes
-      # it: flipping SCCACHE rotates the cache key and buys exactly one
-      # cold rebuild. That run is not the verdict — same trap the OPT
-      # LEVEL note above warns about.
-      RUSTC_WRAPPER: ${{ vars.SCCACHE != '0' && 'sccache' || '' }}
+      # sccache: OFF, on a measurement. docs/CI-MINUTES-2026-08.md's
+      # finding F4 carries it, with the runs, and
+      # docs/perf-data/sccache-trial/ the raw readings.
+      #
+      # WHY IT IS OFF RATHER THAN GONE. sccache does not cache
+      # `--crate-type bin`, and every target in the nextest archive is
+      # one; test targets are 82% of this job's compile time. On the
+      # single run where its object cache restored, it took 18 units —
+      # the workspace libs — and refused 47. The two steps below cost
+      # ~0 s while skipped, so the rig stays as the thing that makes the
+      # negative re-checkable rather than re-run.
+      #
+      # `vars.SCCACHE == '1'` turns it on: OFF with no variable set, so
+      # the repo variable can be deleted. cargo treats an EMPTY
+      # RUSTC_WRAPPER as "no wrapper", so the off case is a genuine
+      # no-op rather than a broken command. The var is RUST*-prefixed,
+      # so Swatinem/rust-cache hashes it: flipping it rotates that cache
+      # key and buys one cold rebuild in the lane that flips — the same
+      # trap the OPT LEVEL note above warns about.
+      RUSTC_WRAPPER: ${{ vars.SCCACHE == '1' && 'sccache' || '' }}
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -2533,8 +2552,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: build-interval
-      - name: install sccache (experiment; disable with vars.SCCACHE = '0')
-        if: vars.SCCACHE != '0'
+      - name: install sccache (off; enable with vars.SCCACHE = '1')
+        if: vars.SCCACHE == '1'
         uses: ./.github/actions/install-sccache
         with:
           version: ${{ env.SCCACHE_VERSION }}
@@ -2551,13 +2570,12 @@ jobs:
       # is the run's critical path (measured on #167): keep it lean.
       - name: build test binaries + archive (interval)
         run: cargo nextest archive ${{ needs.filter.outputs.cargo_scope }} --features interval --archive-file nextest-interval.tar.zst
-      # THE MEASUREMENT. Hit rate here is the whole question: the
-      # deps are already served by rust-cache, so a run that only
-      # hits on those has proved nothing. What would justify
-      # adopting this is hits on the WORKSPACE crates, on a warm
-      # run, against the archive step's own duration on main.
-      - name: sccache stats (experiment)
-        if: vars.SCCACHE != '0' && !cancelled()
+      # The reading, if anyone turns the rig back on. What it printed
+      # in the trial window is F4's table: hits only ever on the
+      # workspace LIBS, and `Non-cacheable reasons: crate-type` on
+      # every binary, which is what the archive is made of.
+      - name: sccache stats (only when the rig is on)
+        if: vars.SCCACHE == '1' && !cancelled()
         run: sccache --show-stats
       - uses: actions/upload-artifact@v4
         with:
