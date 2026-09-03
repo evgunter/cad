@@ -56,6 +56,7 @@ from pncad import (
     NodePick,
     PickHit,
     Pose,
+    Resolution,
     PinMultiplicity,
     ParamName,
     PatternKind,
@@ -89,6 +90,7 @@ from pncad import (
     m,
     mixed_pins,
     mm,
+    pi_rad,
     product,
     product_named,
     random_document_id,
@@ -474,6 +476,19 @@ which_body: int = index.body
 # slot it concerns.
 per_patch: list[str | HitTestError] = index.patch_names(seamed)
 per_edge: list[str | HitTestError] = index.boundary_names(seamed)
+
+# Name resolution across re-evaluation. The verdict is a VALUE — a
+# name that no longer denotes is an answer, not a raise — so every
+# attribute is optional and the caller reads them after branching on
+# `status`, which is always a `str`.
+stored_name: str = seamed.all_faces(upright)[0]
+standing: Resolution = seamed.resolve(stored_name)
+state: str = standing.status
+carried_by: NodeId | None = standing.node
+in_body: int | None = standing.body
+denotes: EntityKind | None = standing.kind
+why: str | None = standing.detail
+suggested: list[str] | None = standing.offers
 # The expression READ side: text in through the document that declares
 # the parameters, a dimension-checked tree out, and a DIMENSIONED
 # value back. `eval` answers the quantity the expression measures, so
@@ -485,3 +500,10 @@ depends_on: list[ParamName] = derived.params
 bare: float | None = derived.literal_value
 worth: Length | Angle | float = doc.eval(derived)
 how_many: int = doc.eval_count(doc.parse_expr("4"))
+# The display formatter: TEXT out, in the unit asked for, from the
+# quantity that carries the dimension. The sibling `in_unit` answers a
+# float and is the door this one exists beside — the pair, typed, is
+# what makes the difference between them legible at a glance.
+shown: str = (25 * mm).format(mm)
+turned: str = (90 * deg).format(pi_rad)
+magnitude: float = (25 * mm).in_unit(mm)
