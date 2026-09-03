@@ -673,3 +673,18 @@ profile, not comparable with B1's table. main regrew the class within
 a day (five lib_tube suites, 21 965 lines) and B1's guard caught it —
 the argument for the guard. Filed: the fourteen-copy assertion wants
 one home in `test_utils`, and `pncad/tests/all.rs` sits outside it.
+
+## Unit: TCOST-K1 fix pass landed (2026-09-03)
+
+The union of both reviews of PR 1652 (frozen 554f2b0f) applied on the
+branch: the budget exit decides through the k-funnel under its own
+predicate (`props_quad_last_round`), asked once after round 0, on a
+definite negative only; `QuadratureBudget` carries the rounds it paid
+for, and the suite's rows are gated on that receipt on both lanes
+(four kernel mutants — exit never fires, exit refuses in-band, pad
+dropped, bound × 4 — each red on the rows that own them); one home
+for block assignment, cut count, hull selection and the remainder's
+cell factor; the bound's monotonicity written at the site; the stale
+"measured width" prose swept, the Display and its five matchers with
+it; the area pad filed as `tcost-area-pad-lever`. Refusal payloads
+bit-identical to the frozen head on the digest's probe subset.
