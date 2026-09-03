@@ -227,8 +227,9 @@ fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 
 /// Deliberately NOT `common::oracles::rounded_box_volume`: the die
 /// family spells the twelve quarter-cylinders as `12·(πr²/4)·core`
-/// where that form sums them as `3πlr²` — the same number in a
-/// different association, so not the same `f64`.
+/// where that form sums them as `3πlr²`. At `(1.0, 0.12)` the two are
+/// bit-identical, so this is conservatism, not a bit-level necessity —
+/// see `common::oracles`' module doc for the measurement.
 ///
 /// The blank's closed-form volume (Steiner: core + 6 slabs + 12
 /// quarter-cylinders + 8 octants).

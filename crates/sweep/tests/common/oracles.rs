@@ -26,16 +26,45 @@
 //!   `m5_pr12_die_body.rs`, `m6_surgery.rs`, `m6_surgery_interval.rs`,
 //!   `review_m6_surgery_probes.rs`): `core³ + 6R·core² +
 //!   12(πR²/4)·core + (4/3)πR³` sums twelve quarter-cylinders where
-//!   [`rounded_box_volume`] sums one `3πlr²` term. Same number, a
-//!   different association, so NOT the same `f64` — moving those rows
-//!   onto this form would move a fixture value at the bit level, which
-//!   is not this unit's to do.
+//!   [`rounded_box_volume`] sums one `3πlr²` term.
+//!
+//!   **What that difference is, measured rather than asserted.** The
+//!   two are the same number in a different association, so they are
+//!   not the same computation — but at the constants those rows
+//!   actually use they very nearly are. Evaluated in Rust's operation
+//!   order at `(1.0, 0.12)`, `(1.0, 0.15)`, `(2.0, 0.25)` and
+//!   `(4.0, 0.25)` the two spellings are BIT-IDENTICAL; at
+//!   `(2.0, 0.4)` (`m5_pr12_die_body.rs`'s second radius) they differ
+//!   by one ulp, `8.9e-16`, against that row's `1e-9 · volume`
+//!   tolerance. So keeping the copies is CONSERVATISM, not a bit-level
+//!   necessity: the die family's rows were written and pinned against
+//!   their own spelling, re-associating an expectation is not a
+//!   test-support change, and those suites are a different family from
+//!   this one. Nothing here claims a row would redden if they moved.
+//!
+//! - the same two forms OUTSIDE this crate, found by a sweep over the
+//!   CONSTANTS rather than the names (the name-based census that cut
+//!   this unit found none of them — every one is an inline expression
+//!   or a differently-named helper). `chamfered_cube_volume`'s exact
+//!   association appears at `crates/editor-core/tests/lib_g16_chamfer_node.rs`
+//!   and, in Python, at `crates/pncad-py/tests/test_north_star.py`;
+//!   `chamfered_cube_removed`'s at `demos/tour/src/diechamfer.rs`; the
+//!   die family's Steiner association at
+//!   `crates/editor-core/tests/m5_pr12_fillet_node.rs` — a sixth member
+//!   of the five-file class above — and at
+//!   `demos/tour/src/diefillet.rs`. None comes here, for the reason
+//!   `super::cavity`'s own list gives its builders: a cross-crate home
+//!   is LIB-U6's territory and this tree's routing rule says it is
+//!   deliberately not built here, and `demos/` reaches the kernel from
+//!   an outside consumer's seat, which is the point of a demo. Tracked
+//!   as `work/tcost/chamfered-cube-and-steiner-oracles-outside-sweep.md`.
 //!
 //! For the same reason [`chamfered_cube_removed`] is not spelled as
-//! `a³ − chamfered_cube_volume(a, d)` and vice versa: the two
-//! associations agree at every input the suites presently use, but
-//! they are not the same computation, and each family's rows are
-//! pinned at the rounding they were written against.
+//! `a³ − chamfered_cube_volume(a, d)` and vice versa. Same measurement:
+//! at `a ∈ {2.0, 4.0}, d = 0.25` — every input the suites presently
+//! use — the two associations are bit-identical; they are still two
+//! computations, and each family's rows are pinned at the spelling
+//! they were written against.
 
 use core::f64::consts::PI;
 

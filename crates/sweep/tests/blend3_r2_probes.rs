@@ -41,14 +41,14 @@ use topo::{Body, validate_closed};
 const D: f64 = 0.25;
 
 /// The unit's fixture with the FIRST DRAFT's vent: a square chimney
-/// instead of the round one. Deliberately NOT in `common::cavity`:
-/// it is this probe's own body, built from that home's constructors,
-/// and P1 is the only row that carves it.
+/// instead of the round one. Deliberately NOT `common::cavity`'s: it
+/// is this probe's own body, built from that home's constructors, and
+/// P1 is the only row that carves it.
 fn square_vented_cavity() -> Body<f64> {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let vent = brick(Point3::new(1.5, 1.5, 2.5), Point3::new(2.5, 2.5, 5.0));
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
-    cut(&cut(&block, &vent), &cavity)
+    cut("cavity", &cut("vent", &block, &vent), &cavity)
 }
 
 /// **P1 — the third door, executed.** With both convexity doors
@@ -167,7 +167,7 @@ fn p2_all_twelve_cavity_edges_are_concave_and_the_eight_corners_trivalent() {
 fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let pocket = brick(Point3::new(1.0, 1.0, 2.0), Point3::new(3.0, 3.0, 5.0));
-    let body = cut(&block, &pocket);
+    let body = cut("pocket", &block, &pocket);
 
     let floor_corner = |p: Point3<f64>| {
         (p.z - 2.0).abs() < 1e-12

@@ -239,9 +239,12 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 ///
 /// Deliberately NOT `common::oracles::rounded_box_volume`: that form
 /// sums the twelve quarter-cylinders as one `3πlr²` term, and this one
-/// sums them as `12·(πr²/4)·core`. Same number, a different
-/// association, so not the same `f64` — and the surgery rows below
-/// subtract caps and rims from THIS value.
+/// sums them as `12·(πr²/4)·core`. At `(1.0, 0.12)` the two are
+/// bit-identical, so this is CONSERVATISM rather than a bit-level
+/// necessity — the die family's rows are pinned against their own
+/// spelling, the surgery rows subtract caps and rims from THIS value,
+/// and re-associating a pinned expectation is not a test-support
+/// change. `common::oracles`' module doc carries the measurement.
 fn blank_volume() -> f64 {
     let core = DIE_L - 2.0 * DIE_R;
     core.powi(3)

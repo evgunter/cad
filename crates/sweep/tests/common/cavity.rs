@@ -11,17 +11,37 @@
 //! row measures, and a fixture that drifts here reddens every suite at
 //! once instead of silently splitting the corpus in two.
 //!
+//! **This tree takes the OPPOSITE line to
+//! `crates/geom-brep/tests/shared/mod.rs`, and a reader should know
+//! it.** That header's last not-absorbed bullet calls reviewer-pair
+//! rebuilds "the class this tree must never absorb even when the text
+//! is identical"; this module absorbs exactly that class — the vented
+//! cavity is shared with `blend3_r2_probes` and both `review_blend*`
+//! suites. The distinction claimed is what the rebuild IS. In
+//! `geom-brep` the paired rebuilds are DERIVATIONS (a basis seeding,
+//! a quadrature, an evaluator): two of them are two opinions, and
+//! merging them leaves one. Here they are the SUBJECT — the body under
+//! audit — and two of them are not two opinions but two experiments,
+//! only one of which anyone else measures. What stays independent in
+//! the probes is their derivations, which [`super::oracles`]'s own
+//! rule protects. Whether that reading is right is a question for Ev:
+//! `work/issues/reviewer-pair-rebuilds-two-trees-two-rules.md`.
+//!
 //! **Deliberately not absorbed**, and the whole of it:
 //!
 //! - the SQUARE-vented cavity (`blend3_r2_probes::square_vented_cavity`)
 //!   and the SKEWED one (`blend4_r1_probes::skewed_cavity`) — each is
 //!   one probe's own fixture, built from the constructors below;
-//! - every corner PREDICATE. [`edges_with_corners`] is the traversal;
-//!   which points count as corners is the caller's own fixture value
-//!   (the `[1,3]³` cavity at 1e-12 in [`cavity_corner`], the block's
-//!   `[0,4]³` at 1e-9 in `review_blend3_r1_probes::block_edges`, the
-//!   parallelogram's four vertices at 1e-9 in `blend4_r1_probes`), and
-//!   a predicate moved here would be a fixture value moved;
+//! - the corner predicates that are not [`vented_cavity`]'s own.
+//!   [`edges_with_corners`] is the traversal, and it is shared;
+//!   which points count as corners is the caller's fixture value, so
+//!   only the one belonging to the body defined here comes with it
+//!   ([`cavity_corner`], the `[1,3]³` cavity at 1e-12). The block's
+//!   `[0,4]³` at 1e-9 (`review_blend3_r1_probes::block_edges`), the
+//!   arbitrary swept polygon at 1e-9 (`cavity_edges_of` in the same
+//!   file) and the parallelogram's four vertices at 1e-9
+//!   (`blend4_r1_probes`) stay at their sites: each is a value that
+//!   suite chose, and moving one here would move a fixture value;
 //! - the `prism`/`brick` builders of the OTHER crates' suites
 //!   (`topo`, `mesh`, `stl`, `step-export`, `editor-core`) — a
 //!   cross-crate home is LIB-U6's territory, which this tree's routing
@@ -97,11 +117,16 @@ pub fn rod(center: Point2<f64>, r: f64, z0: f64, z1: f64) -> Body<f64> {
 /// `base` less `tool`, demanding that the cut succeed and leave
 /// material — a fixture step, so a refusal here is a broken fixture
 /// rather than a failed claim.
-pub fn cut(base: &Body<f64>, tool: &Body<f64>) -> Body<f64> {
+///
+/// `what` NAMES the step, and it is not decoration: a fixture is
+/// usually two or three of these in a row, and a panic reading only
+/// "the cut succeeds" cannot say which subtraction broke. The callers
+/// pass the tool's name ("vent", "cavity", "pocket").
+pub fn cut(what: &str, base: &Body<f64>, tool: &Body<f64>) -> Body<f64> {
     subtract(base, tool, Tol::witness())
-        .expect("the cut succeeds")
+        .unwrap_or_else(|e| panic!("the {what} cut succeeds: {e:?}"))
         .body()
-        .expect("the cut leaves material")
+        .unwrap_or_else(|| panic!("the {what} cut leaves material"))
         .body
         .clone()
 }
@@ -143,7 +168,7 @@ pub fn vented_cavity() -> Body<f64> {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let vent = rod(Point2::new(2.0, 2.0), 0.5, 2.5, 5.0);
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
-    cut(&cut(&block, &vent), &cavity)
+    cut("cavity", &cut("vent", &block, &vent), &cavity)
 }
 
 /// Every edge both of whose endpoints satisfy `on` — found by

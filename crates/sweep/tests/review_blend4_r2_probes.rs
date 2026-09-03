@@ -41,8 +41,8 @@ fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
 }
 
 // ------------------------------------------------------------------
-// Fixtures — the concave-fillet suite's vented cavity, restated (the
-// suite-tree fixture-copy class that suite already declares).
+// The two carves these rows read: the cube's twelve convex edges and
+// `common::cavity`'s vented cavity's twelve concave ones.
 // ------------------------------------------------------------------
 
 /// The all-convex carve: a cube's twelve edges.

@@ -31,6 +31,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::cavity::{cut, edges_with_corners, prism, rod};
+use crate::common::oracles::rounded_box_volume;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
@@ -54,7 +55,7 @@ fn skew_quad(a: Point2<f64>, s: f64, theta: f64) -> [Point2<f64>; 4] {
 /// top. One shell, twelve concave cavity edges, eight all-concave but
 /// OBLIQUE trihedra (corner determinant `sin θ`).
 ///
-/// Deliberately NOT in `common::cavity`: it is this suite's own pose,
+/// Deliberately NOT `common::cavity`'s: it is this suite's own pose,
 /// carved by P1 and P2 alone, built from that home's constructors.
 fn skewed_cavity(s: f64, theta: f64, vent_r: f64) -> (Body<f64>, [Point2<f64>; 4]) {
     let quad = skew_quad(Point2::new(1.0, 1.0), s, theta);
@@ -74,16 +75,17 @@ fn skewed_cavity(s: f64, theta: f64, vent_r: f64) -> (Body<f64>, [Point2<f64>; 4
     );
     let vent = rod(centroid, vent_r, 2.5, 5.0);
     let cavity = prism(&quad, 1.0, 3.0);
-    let vented = cut(&block, &vent);
-    (cut(&vented, &cavity), quad)
+    let vented = cut("vent", &block, &vent);
+    (cut("cavity", &vented, &cavity), quad)
 }
 
 /// The cavity's twelve edges, found by their endpoints — both at
 /// corners of the cavity prism — never by index.
 ///
-/// The traversal is `common::cavity`'s; the PREDICATE stays here,
-/// because it is this fixture's own value: the parallelogram's four
-/// vertices at 1e-9, not the axis-aligned `[1,3]³` at 1e-12.
+/// The traversal is `common::cavity`'s; the PREDICATE is deliberately
+/// NOT `common::cavity::cavity_corner` and stays here, because it is
+/// this fixture's own value: the parallelogram's four vertices at
+/// 1e-9, not the axis-aligned `[1,3]³` at 1e-12.
 fn cavity_edges(body: &Body<f64>, quad: &[Point2<f64>; 4]) -> Vec<EdgeKey> {
     edges_with_corners(body, |q: Point3<f64>| {
         ((q.z - 1.0).abs() < 1e-9 || (q.z - 3.0).abs() < 1e-9)
@@ -202,6 +204,30 @@ fn p1_an_oblique_all_concave_cavity_carves_to_its_own_steiner_form() {
         "the oblique concave fillet's volume: got {after}, want {want}"
     );
 
+    // **The agreement point, so "an independent derivation" is a GATE
+    // rather than a claim.** `rounded_void_volume` is kept out of
+    // `common::oracles` on the grounds that it CAN disagree with
+    // `rounded_box_volume`; that is only worth saying if somewhere
+    // they are made to agree. At a right-angled square quad whose side
+    // equals its height the inner offset polytope is a cube, which is
+    // exactly `rounded_box_volume`'s subject — so the two derivations
+    // must land on the same number there. This row is arithmetic, not
+    // a carve, so it rides P1 rather than paying for a process of its
+    // own.
+    let square = [
+        Point2::new(1.0, 1.0),
+        Point2::new(3.0, 1.0),
+        Point2::new(3.0, 3.0),
+        Point2::new(1.0, 3.0),
+    ];
+    let by_polygon = rounded_void_volume(&square, 1.0, 3.0, r);
+    let by_cube = rounded_box_volume(2.0 - 2.0 * r, r);
+    assert!(
+        (by_polygon - by_cube).abs() <= 1e-12 * by_cube,
+        "at theta = pi/2 the polygon Steiner sum and the rounded-box \
+         form are the same volume: {by_polygon} vs {by_cube}"
+    );
+
     let mesh = mesh::tessellate(&out.body, 5e-3, Tol::witness()).expect("tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");
 }
@@ -304,7 +330,7 @@ fn p3_the_chamfer_digest_is_bit_identical_to_the_merge_base() {
         1.0,
         3.0,
     );
-    let body = cut(&cut(&block, &vent), &cavity);
+    let body = cut("cavity", &cut("vent", &block, &vent), &cavity);
     let corner = |q: Point3<f64>| {
         [q.x, q.y, q.z]
             .iter()

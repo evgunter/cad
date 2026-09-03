@@ -54,6 +54,11 @@ const D: f64 = 0.25;
 /// Every edge both of whose endpoints are corners of the given cavity
 /// polygon swept between `z0` and `z1` — found by position, never by
 /// index, so the row cannot silently address a different edge.
+///
+/// The traversal is `common::cavity`'s; the predicate is deliberately
+/// NOT `common::cavity::cavity_corner` — it is parameterised on the
+/// caller's polygon and reads at 1e-9, both of which are this suite's
+/// own values.
 fn cavity_edges_of(body: &Body<f64>, poly: &[Point2<f64>], z0: f64, z1: f64) -> Vec<EdgeKey> {
     edges_with_corners(body, |p: Point3<f64>| {
         let z_ok = (p.z - z0).abs() < 1e-9 || (p.z - z1).abs() < 1e-9;
@@ -79,7 +84,7 @@ fn r1_a_square_vent_refuses_on_the_ring_gate_not_on_convexity() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let vent = brick(Point3::new(1.7, 1.7, 2.5), Point3::new(2.3, 2.3, 5.0));
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
-    let body = cut(&cut(&block, &vent), &cavity);
+    let body = cut("cavity", &cut("vent", &block, &vent), &cavity);
     assert_eq!(validate(&body), Ok(()), "tier 1");
     assert_eq!(
         body.shells().count(),
@@ -123,7 +128,7 @@ fn r1_a_square_vent_refuses_on_the_ring_gate_not_on_convexity() {
 fn r1_a_pocket_cannot_supply_an_all_concave_component() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let pocket = brick(Point3::new(1.0, 1.0, 2.0), Point3::new(3.0, 3.0, 5.0));
-    let body = cut(&block, &pocket);
+    let body = cut("pocket", &block, &pocket);
     assert_eq!(validate_closed(&body), Ok(()), "tier 2");
 
     // The pocket's four floor edges and its four vertical ones: every
@@ -181,7 +186,7 @@ fn r1_a_pocket_cannot_supply_an_all_concave_component() {
 fn r1_an_unvented_cavity_refuses_at_the_body_door() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
-    let body = cut(&block, &cavity);
+    let body = cut("cavity", &block, &cavity);
     assert_eq!(
         body.shells().count(),
         2,
@@ -224,7 +229,7 @@ fn r1_a_nine_edge_triangular_cavity_is_a_simpler_shape_of_the_same_class() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let vent = rod(Point2::new(2.0, 1.618), 0.2, 2.5, 5.0);
     let cavity = prism(&tri, 1.0, 3.0);
-    let body = cut(&cut(&block, &vent), &cavity);
+    let body = cut("cavity", &cut("vent", &block, &vent), &cavity);
 
     assert_eq!(validate(&body), Ok(()), "tier 1");
     assert_eq!(validate_closed(&body), Ok(()), "tier 2");
@@ -277,7 +282,7 @@ fn r1_the_ring_gate_still_meters_on_the_concave_side() {
         let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
         let vent = rod(Point2::new(2.0, 2.0), r, 2.5, 5.0);
         let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
-        let body = cut(&cut(&block, &vent), &cavity);
+        let body = cut("cavity", &cut("vent", &block, &vent), &cavity);
         let edges = cavity_edges_of(&body, &poly, 1.0, 3.0);
         assert_eq!(edges.len(), 12, "twelve cavity edges at r = {r}");
         chamfer_edges(&body, &edges, D, Tol::witness()).map(|o| o.body)
@@ -337,7 +342,7 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let vent = rod(Point2::new(2.0, 2.0), 0.5, 2.5, 5.0);
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
-    let body = cut(&cut(&block, &vent), &cavity);
+    let body = cut("cavity", &cut("vent", &block, &vent), &cavity);
     let plain = topo::mass_properties(&body, Tol::witness())
         .expect("closed-form props")
         .volume;
@@ -384,6 +389,10 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
 
 /// Every edge both of whose endpoints are corners of the block
 /// `[0,4]³` — the outer, all-CONVEX component of the same body.
+///
+/// The traversal is `common::cavity`'s; the predicate is deliberately
+/// NOT `common::cavity::cavity_corner` — the block's `[0,4]³` at 1e-9
+/// is this suite's own value, not the cavity's.
 fn block_edges(body: &Body<f64>) -> Vec<EdgeKey> {
     edges_with_corners(body, |p: Point3<f64>| {
         [p.x, p.y, p.z]
@@ -412,7 +421,7 @@ fn r1_one_request_carries_both_convexity_signs() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let vent = rod(Point2::new(2.0, 2.0), 0.5, 2.5, 5.0);
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
-    let body = cut(&cut(&block, &vent), &cavity);
+    let body = cut("cavity", &cut("vent", &block, &vent), &cavity);
 
     let poly = [
         Point2::new(1.0, 1.0),
@@ -486,7 +495,7 @@ fn r1_one_fillet_request_carries_both_convexity_signs() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let vent = rod(Point2::new(2.0, 2.0), 0.5, 2.5, 5.0);
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
-    let body = cut(&cut(&block, &vent), &cavity);
+    let body = cut("cavity", &cut("vent", &block, &vent), &cavity);
     let poly = [
         Point2::new(1.0, 1.0),
         Point2::new(3.0, 1.0),

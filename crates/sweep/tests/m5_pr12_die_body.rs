@@ -61,8 +61,10 @@ fn filleting_every_edge_of_a_box_yields_a_tier3_valid_rounded_solid() {
     // octants (which sum to one whole ball).
     // Deliberately NOT `common::oracles::rounded_box_volume`: that form
     // sums the twelve quarter-cylinders as one `3πlr²` term where this
-    // spells them `12·(πr²/4)·core` — the same number in a different
-    // association, so not the same `f64`.
+    // spells them `12·(πr²/4)·core`. At (1.0, 0.15) the two are
+    // bit-identical, so this is conservatism rather than a bit-level
+    // necessity — see `common::oracles`' module doc for the
+    // measurement, including the one radius below where they differ.
     let core = l - 2.0 * r;
     let volume = core.powi(3)
         + 6.0 * r * core.powi(2)
@@ -120,8 +122,12 @@ fn the_die_is_tier3_valid_at_a_second_radius() {
         Ok(()),
         "tier 3"
     );
-    // The die family's own spelling again; see the note on the row
-    // above for why it is not `common::oracles`'.
+    // The die family's own spelling again — deliberately
+    // NOT `common::oracles::rounded_box_volume` — see the note on the
+    // row above. THIS radius is the one place the two associations part:
+    // at (2.0, 0.4) `rounded_box_volume` differs by one ulp, 8.9e-16,
+    // against this row's 1e-9·volume tolerance — far inside it, so the
+    // reason the copy stays is still conservatism, not a red.
     let core = l - 2.0 * r;
     let volume = core.powi(3)
         + 6.0 * r * core.powi(2)

@@ -31,8 +31,22 @@
 //! reading**: each module says which of its neighbours it deliberately
 //! did NOT absorb, as a list that claims to be the whole of it; and
 //! every suite that keeps its own copy of something this tree holds
-//! says why AT the copy. So `grep -rn 'Deliberately not' crates/sweep`
-//! and the module lists can be compared rather than sampled.
+//! says why AT the copy.
+//!
+//! The second rule has a MARKER so it can be compared rather than
+//! sampled: every such copy's note carries the literal
+//! ``NOT `common::`` naming the item it is not, on ONE line, so
+//!
+//! ```text
+//! grep -rn 'NOT `common::' crates/sweep/tests
+//! ```
+//!
+//! returns exactly the kept copies inside this crate and nothing else.
+//! Its hits and the two module lists below name the same set; a hit
+//! missing from a list, or a list entry with no hit, is the rule
+//! broken. (Copies OUTSIDE `crates/sweep` are out of the recipe's
+//! scope by construction — [`oracles`]'s list names the ones it knows
+//! of, and they are tracked as their own item.)
 //!
 //! Section authoring (LIB-U3): loft/sweep sections in the profile
 //! vocabulary, one copy per crate. Cross-crate constant deduplication
