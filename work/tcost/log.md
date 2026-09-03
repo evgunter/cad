@@ -705,3 +705,35 @@ scratch on most runs" claim narrowed to what one branch's runs
 show (a branch's first build job restores nothing; main never runs
 the job under F3). C4 lands last of the four. TCOST-B3's body
 narrowed the same way.
+
+## Seam: TCOST-K1 dual delivered — correspondence pre-note (2026-09-03)
+
+Both reviews on frozen `554f2b0f`, reports stored under
+`~/tcost-work/ab/`. Verdicts DIVERGE in letter, converge in
+substance: R1 MERGEABLE-AFTER-FIXES 2/8/3, R2 MERGEABLE 0/4/2.
+Neither could construct a certifying face the exit refuses; both
+re-derived the bound and measured it per round; both verified every
+hosted number against the cost reports. BILATERAL: the exit's
+decision sits outside the named predicate / k-funnel (R1 MAJ A1 ≡
+R2 MINOR 4 — severity-divergent: R1 reads a shrunken ledger
+population and a stale justification sentence, R2 telemetry only);
+the suite cannot red when the exit stops firing on the integral
+lane and `refused_early…` cannot detect absence (R1 MAJ A2 + B1 ≡
+R2's mutant table and Q3, which R2 scored in the rubric rather than
+as a finding); the monotonicity across rounds unstated (B4 ≡ M1);
+the pad term dead under the test surface (B8 ≡ M2); the NaN
+sentence (B5 ≡ NOTE); second spellings of the last piece count and
+block assignment (B3 ≡ style); no default-lane run on the final
+head, both judging it adequate (B7 ≡ claim 4). UNILATERAL R1: the
+threshold-to-zero mutant (escalation pre-emption unguarded), the
+stale "measured width" prose class, the undisclosed 1.1461e-6 pin,
+the TARGET_LEN_FACTOR/K mirrors, the half-vacuous certify row.
+UNILATERAL R2: the pinned width's `#[ignore]` retake is registered
+nowhere (R1 has it inside C2), the QUAD2_RATIONAL_MAX_ROUNDS doc,
+DESIGN.md:603. DISPATCHER FAULT (R1 C3): the shared target dir let
+one review lane execute the other's mutated binary — cargo's lock
+serialises writes, it does not isolate artifacts; R1 re-took every
+result privately, R2's mutant matrix is flagged as possibly
+contaminated (its outcomes agree with R1's on every shared mutant).
+Union fix pass dispatched to the implementing lane, same arm; the
+row records at merge.
