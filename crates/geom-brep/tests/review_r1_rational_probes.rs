@@ -35,9 +35,6 @@ fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-/// The engine's convergence target as a multiple of ε
-/// (`QUAD_TARGET_LEN_FACTOR`, crate-private — mirrored here so a
-/// refusal's carried target can be checked against the run's ε).
 /// Relative-ulp overshoot of `v` outside `[lo, hi]`; `0.0` when inside.
 ///
 /// A DIAGNOSTIC, printed on every probe row so that a carrier drifting
@@ -49,7 +46,11 @@ fn overshoot_ulps(lo: f64, hi: f64, v: f64) -> f64 {
     ((lo - v).max(v - hi).max(0.0)) / (mag * f64::EPSILON)
 }
 
-const TARGET_LEN_FACTOR: f64 = 1024.0;
+/// The engine's convergence target as a multiple of ε
+/// (`QUAD_TARGET_LEN_FACTOR`, crate-private — mirrored here, once for
+/// the aggregated binary, so a refusal's carried target can be checked
+/// against the run's ε).
+pub(crate) const TARGET_LEN_FACTOR: f64 = 1024.0;
 
 /// The corpus's declared ambient uncertainty — the ε the fixed
 /// quadrature schedule (D9) is dimensioned for, and the boundary the
@@ -509,6 +510,7 @@ fn probe(
                 PropsError::QuadratureBudget {
                     width_len,
                     target_len,
+                    ..
                 } => {
                     assert!(
                         width_len.is_finite() && width_len > target_len,
@@ -1002,6 +1004,7 @@ fn probe_determinism_bits() {
         Err(PropsError::QuadratureBudget {
             width_len,
             target_len,
+            ..
         }) => {
             println!("BUDGET width_len {width_len:.15e} target {target_len:.6e}");
             assert!(width_len.is_finite() && width_len > target_len);

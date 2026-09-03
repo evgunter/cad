@@ -593,6 +593,7 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
                 geom_brep::PropsError::QuadratureBudget {
                     width_len,
                     target_len,
+                    ..
                 },
             ..
         }) => {

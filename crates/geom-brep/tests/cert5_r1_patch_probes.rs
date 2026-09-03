@@ -312,7 +312,9 @@ fn refusal_width_does_not_scale_with_offgrid_knot_count() {
                 w
             }
             Err(PropsError::QuadratureBudget { width_len, .. }) => {
-                eprintln!("CERT5-R1 {name}: budget, width_len {width_len:.6e}");
+                eprintln!(
+                    "CERT5-R1 {name}: budget, width_len (the last round's own or its bound) {width_len:.6e}"
+                );
                 width_len
             }
             other => panic!("{name}: unexpected outcome {other:?}"),

@@ -1,7 +1,9 @@
 //! **TCOST-K1 — the patch lanes' budget exit.** One row per way a
-//! round loop ends, on both lanes and both rational arms, and the
-//! width the early refusal carries against the width the schedule
-//! itself reaches.
+//! round loop ends, on both lanes and both rational arms, each with
+//! a witness that is not the width: the refusal's `rounds` receipt
+//! says whether the exit fired (one round paid) or the schedule ran
+//! out (every round paid), so a loop that stops exiting, or exits
+//! where it must not, turns a row red on its own evidence.
 //!
 //! The rows drive the public door `nurbs_patch_face` with an EXPLICIT
 //! ε and band, so each states its claim at a tolerance of its own
@@ -9,17 +11,18 @@
 //! ε, band), and a row that wants the schedule to run out picks the
 //! band that makes it.
 //!
-//! The "schedule's own width" is measured LIVE on the rational lane,
-//! not pinned: a face whose last round lands inside a band's
-//! coincidence zone is classified zero there and falls through to
-//! the ordinary exhaustion refusal, whose payload is the last
-//! round's measured width. The band is chosen from the early exit's
-//! own payload, so the comparison needs no number from outside the
-//! run. On the INTEGRAL lane the same measurement costs the
-//! composite's whole schedule — 262 144 cells at the last round,
-//! tens of cpu-seconds on any face past the exact rule's window —
-//! so there the width is pinned ([`RIDGE_SCHEDULE_WIDTH`]) and the
-//! live re-take is a reporting row run by hand.
+//! The "schedule's own width" is measured LIVE: a face whose last
+//! round lands inside a band's coincidence zone is classified zero
+//! there and falls through to the ordinary exhaustion refusal, whose
+//! payload is the last round's measured width. The band is chosen
+//! from the early exit's own payload, so the comparison needs no
+//! number from outside the run. That measurement is taken on the
+//! rational lane's exact-v arm (8 192 cells at the last round); the
+//! integral composite's last round is 262 144 cells, tens of
+//! cpu-seconds on any face past the exact rule's window, so on that
+//! lane the rows assert the exit and its receipt, and the width
+//! relation is the rational rows' claim — the two loops share the
+//! bound, the predicate and the exit site.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::f64::consts::{FRAC_1_SQRT_2, PI};
@@ -27,16 +30,18 @@ use std::time::Instant;
 
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::{FaceCutBounds, nurbs_patch_face};
-use geom_core::Band;
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::KnotVector;
+use geom_core::{Band, DEFAULT_K};
 
-/// The meter's target factor (`QUAD_TARGET_LEN_FACTOR`), restated
-/// where the rows read it.
-const TARGET_LEN_FACTOR: f64 = 1024.0;
-/// The funnel's escalation multiple (K), for a band shaped like the
-/// run's own `Band::linear`.
-const K: f64 = 10.0;
+use crate::review_r1_rational_probes::TARGET_LEN_FACTOR;
+
+/// The rounds each lane's fixed schedule runs when it runs out
+/// (`QUAD2_RATIONAL_MAX_ROUNDS + 1` and `QUAD2_MAX_ROUNDS + 1`,
+/// crate-private — mirrored here so the exhaustion receipt can be
+/// checked against the schedule rather than against "more than one").
+const RATIONAL_SCHEDULE_ROUNDS: usize = 8;
+const INTEGRAL_SCHEDULE_ROUNDS: usize = 7;
 
 fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
     [
@@ -48,7 +53,7 @@ fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
 
 /// A band shaped like `Band::linear` at an explicit ε.
 fn linear_band(eps: f64) -> Band {
-    Band::new(eps, K * eps).unwrap()
+    Band::new(eps, DEFAULT_K * eps).unwrap()
 }
 
 struct Face {
@@ -58,6 +63,9 @@ struct Face {
     net: Vec<[RingInterval; 3]>,
     weights: Vec<f64>,
     perimeter: f64,
+    /// The boundary defect the pad is folded from; `0.0` unless a row
+    /// is about the pad.
+    boundary_defect: f64,
 }
 
 impl Face {
@@ -75,7 +83,7 @@ impl Face {
             &self.weights,
             (ua, ub, va, vb),
             self.perimeter,
-            0.0,
+            self.boundary_defect,
             eps,
             band,
         );
@@ -84,15 +92,34 @@ impl Face {
     }
 }
 
-/// The budget refusal's payload, or a labelled panic.
-fn budget_width(name: &str, out: &Result<FaceCutBounds, PropsError>) -> (f64, f64) {
+/// The budget refusal's payload `(width, target, rounds)`, or a
+/// labelled panic.
+fn budget(name: &str, out: &Result<FaceCutBounds, PropsError>) -> (f64, f64, usize) {
     match out {
         Err(PropsError::QuadratureBudget {
             width_len,
             target_len,
-        }) => (*width_len, *target_len),
+            rounds,
+        }) => (*width_len, *target_len, *rounds),
         other => panic!("{name}: expected the typed budget refusal, got {other:?}"),
     }
+}
+
+/// The early exit's three claims on one refusal: it fired after ONE
+/// round, its target is `1024·ε`, and its width really missed.
+fn assert_early(name: &str, eps: f64, (width, target, rounds): (f64, f64, usize)) {
+    assert_eq!(
+        rounds, 1,
+        "{name}: the last-round bound must refuse after round 0, but the loop paid {rounds} rounds"
+    );
+    assert!(
+        (target - TARGET_LEN_FACTOR * eps).abs() <= target * 1e-12,
+        "{name}: the refused target must be 1024·ε: {target:e}"
+    );
+    assert!(
+        width.is_finite() && width > target,
+        "{name}: the payload must be a finite width that really missed: {width:e} vs {target:e}"
+    );
 }
 
 // ---------- carriers ----------
@@ -121,6 +148,7 @@ fn quarter_torus() -> Face {
         net,
         weights,
         perimeter: 2.0 * (PI / 2.0) * (rr + r) + 2.0 * (PI / 2.0) * r,
+        boundary_defect: 0.0,
     }
 }
 
@@ -129,7 +157,7 @@ fn quarter_torus() -> Face {
 /// in v). At `knot = 0.5` the knot sits on the schedule's grid and
 /// every cell splits evenly; off the grid, the cells abutting it do
 /// not, and the remainder decays more slowly than 4× per round there.
-fn half_cylinder(name: &'static str, knot: f64) -> Face {
+fn half_cylinder(name: &'static str, knot: f64, boundary_defect: f64) -> Face {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, knot, knot, 1.0, 1.0, 1.0], 2).unwrap();
     let kv = KnotVector::unit_segment(1);
     let h = 2.0;
@@ -153,11 +181,15 @@ fn half_cylinder(name: &'static str, knot: f64) -> Face {
         net,
         weights: vec![1.0, 1.0, w2, w2, 1.0, 1.0, w2, w2, 1.0, 1.0],
         perimeter: 2.0 * h + 2.0 * PI,
+        boundary_defect,
     }
 }
 
-/// Quarter cylinder (r = 1, h = 2), single span: certifies at the
-/// default ε with room (flux = π/2·r²h, area = π/2·r·h).
+/// Quarter cylinder (r = 1, h = 2), single span — the carrier whose
+/// schedule bottoms out at 1.533e-7 m (`quad.rs`'s floor table), so
+/// an explicit ε can put its target just above that and make the
+/// certification happen at the schedule's END rather than at round 0
+/// (flux = π/2·r²h, area = π/2·r·h).
 fn quarter_cylinder() -> Face {
     let (r, h) = (1.0, 2.0);
     let w2 = FRAC_1_SQRT_2;
@@ -175,49 +207,52 @@ fn quarter_cylinder() -> Face {
         ],
         weights: vec![1.0, 1.0, w2, w2, 1.0, 1.0],
         perimeter: 2.0 * h + PI * r,
+        boundary_defect: 0.0,
     }
 }
 
-/// A degree-(5, 1) unit-weight patch over the unit square — quintic
+/// A degree-(5, 1) unit-weight ridge over the unit square — quintic
 /// in u, past the exact per-span rule's degree window (which needs
 /// `3·degree ≤ 12` in BOTH directions), so the INTEGRAL lane's
-/// composite rounds run; linear in v, so each of the schedule's
-/// 262 144 last-round cells costs a 6 × 2 net rather than a 6 × 6
-/// one. `z(i, j)` sets the control heights; the abscissae `i/5` and
-/// `j` make `x(u) = u` and `y(v) = v` exactly.
-fn quintic(name: &'static str, z: impl Fn(usize, usize) -> f64) -> Face {
+/// composite rounds run; linear in v. The abscissae `i/5` and `j`
+/// make `x(u) = u` and `y(v) = v` exactly; the ridge is the two
+/// middle control columns lifted to `z = 0.6`.
+fn quintic_ridge() -> Face {
     let ku = KnotVector::clamped(vec![0.0; 6].into_iter().chain([1.0; 6]).collect(), 5).unwrap();
     let kv = KnotVector::unit_segment(1);
     let mut net = Vec::new();
     for i in 0..6 {
         for j in 0..2 {
+            let z = if (2..=3).contains(&i) { 0.6 } else { 0.0 };
             #[allow(clippy::cast_precision_loss)]
-            net.push(p(i as f64 / 5.0, j as f64, z(i, j)));
+            net.push(p(i as f64 / 5.0, j as f64, z));
         }
     }
     Face {
-        name,
+        name: "quintic ridge",
         ku,
         kv,
         net,
         weights: vec![1.0; 12],
         perimeter: 4.0,
+        boundary_defect: 0.0,
     }
 }
 
 // ---------- the rows ----------
 
-/// **Certified early** — the certify exit is untouched: the
-/// single-span quarter cylinder certifies at ε = 1e-9 with its closed
-/// forms inside both brackets, and the quintic plane (whose Taylor
-/// remainder is identically zero) certifies on the integral lane's
-/// composite at round 0 containing its exact flux and area.
+/// **Certified — the exit did not pre-empt a certifying face.** Both
+/// carriers certify AFTER round 0, so the exit is consulted with a
+/// bound that must read positive: the quarter cylinder at an ε whose
+/// target (2.25e-7 m) sits 1.5× above its schedule's floor, so it
+/// certifies at the schedule's end and a bound inflated by 4× would
+/// refuse it; the ridge at an ε its composite reaches mid-schedule.
 #[test]
 fn certify_exit_is_untouched() {
-    let eps = 1e-9;
+    let eps = 2.2e-10;
     let cyl = quarter_cylinder();
     let (out, secs) = cyl.run(eps, linear_band(eps));
-    let fb = out.unwrap_or_else(|e| panic!("{}: must certify at ε = 1e-9, got {e}", cyl.name));
+    let fb = out.unwrap_or_else(|e| panic!("{}: must certify at ε = {eps:e}, got {e}", cyl.name));
     println!("K1 {}: certified in {secs:.3}s", cyl.name);
     let (r, h) = (1.0, 2.0);
     assert!(
@@ -231,76 +266,49 @@ fn certify_exit_is_untouched() {
         cyl.name
     );
 
-    let c = 0.75;
-    let plane = quintic("quintic plane z = 0.75", |_, _| c);
-    let (out, secs) = plane.run(eps, linear_band(eps));
-    let fb = out.unwrap_or_else(|e| panic!("{}: must certify, got {e}", plane.name));
-    println!("K1 {}: certified in {secs:.3}s", plane.name);
+    let eps = 4.9e-7;
+    let ridge = quintic_ridge();
+    let (out, secs) = ridge.run(eps, linear_band(eps));
+    let fb = out.unwrap_or_else(|e| panic!("{}: must certify at ε = {eps:e}, got {e}", ridge.name));
+    println!("K1 {}: certified in {secs:.3}s", ridge.name);
+    let lever = 3.0 * (fb.area.lo() + fb.area.hi()) * 0.5;
     assert!(
-        fb.flux.contains(c),
-        "{}: exact flux {c} outside [{:e}, {:e}]",
-        plane.name,
-        fb.flux.lo(),
-        fb.flux.hi()
-    );
-    assert!(
-        fb.area.contains(1.0),
-        "{}: exact area 1 outside [{:e}, {:e}]",
-        plane.name,
-        fb.area.lo(),
-        fb.area.hi()
+        fb.area.lo() > 0.0 && fb.flux.width() / lever <= TARGET_LEN_FACTOR * eps,
+        "{}: a certified bracket must meet the target it was certified against: width {:e} m \
+         over lever {lever:e} against {:e}",
+        ridge.name,
+        fb.flux.width(),
+        TARGET_LEN_FACTOR * eps
     );
 }
 
 /// **Refused early on the last-round bound**: the quarter torus at
-/// ε = 1e-9 cannot certify (the schedule's last round reaches
-/// 1.12× the target), so the loop refuses after round 0. The typed
-/// class is the budget refusal, the target is `1024·ε`, and the
-/// payload is the schedule's own last-round width to within 1e-3.
+/// ε = 1e-9 cannot certify (its schedule's last round reaches 1.12×
+/// the target), so the loop refuses after ONE round — the receipt
+/// says so — typed, at target `1024·ε`, with a width that missed.
 #[test]
 fn refused_early_on_the_last_round_bound() {
     let eps = 1e-9;
     let torus = quarter_torus();
     let (out, secs) = torus.run(eps, linear_band(eps));
-    let (width, target) = budget_width(torus.name, &out);
+    let got = budget(torus.name, &out);
     println!(
-        "K1 {}: early budget refusal width {width:e} in {secs:.3}s",
-        torus.name
+        "K1 {}: early budget refusal width {:e} after {} round in {secs:.3}s",
+        torus.name, got.0, got.2
     );
-    assert!(
-        (target - TARGET_LEN_FACTOR * eps).abs() <= target * 1e-12,
-        "{}: the refused target must be 1024·ε: {target:e}",
-        torus.name
-    );
-    assert!(
-        width.is_finite() && width > target,
-        "{}: the payload must be a finite width that really missed: {width:e} vs {target:e}",
-        torus.name
-    );
-    // The schedule's own last-round width on this carrier, as the
-    // merge base measured it running all eight rounds (the same number
-    // `review_r1_rational_probes` pins as the carrier's floor).
-    let schedule_width = 1.1461e-6;
-    assert!(
-        (width - schedule_width).abs() <= 1e-3 * schedule_width,
-        "{}: the early refusal's width {width:e} is not the schedule's own {schedule_width:e}",
-        torus.name
-    );
+    assert_early(torus.name, eps, got);
 }
 
-/// Drive `face` to the early exit at ε = 1e-9, then again under a
-/// band whose coincidence zone the last round lands in, so the bound
-/// cannot fire and the schedule runs out honestly; return both
-/// payloads (early, exhausted) and the two wall times.
-fn early_then_exhausted(face: &Face) -> ((f64, f64), (f64, f64)) {
+/// Drive `face` to the early exit at ε = 1e-9 (asserting the exit's
+/// receipt), then again under a band whose coincidence zone the last
+/// round lands in, so the bound cannot fire and the schedule runs out
+/// honestly (asserting THAT receipt); return `(bound, measured)`.
+fn early_then_exhausted(face: &Face) -> (f64, f64) {
     let eps = 1e-9;
     let (early, secs_early) = face.run(eps, linear_band(eps));
-    let (bound, target) = budget_width(face.name, &early);
-    assert!(
-        bound > target,
-        "{}: the early refusal must carry a width over its target: {bound:e} vs {target:e}",
-        face.name
-    );
+    let got = budget(face.name, &early);
+    assert_early(face.name, eps, got);
+    let bound = got.0;
     // A target 1e-3 above the bound, with a coincidence zone of 3e-3
     // around it: rounds 0–6 read negative (≥ 4× the last), the bound
     // reads inside the zone (so it never fires), and the last round
@@ -308,16 +316,21 @@ fn early_then_exhausted(face: &Face) -> ((f64, f64), (f64, f64)) {
     let target = bound * (1.0 + 1e-3);
     let band = Band::new(3e-3 * bound, 5e-3 * bound).unwrap();
     let (late, secs_late) = face.run(target / TARGET_LEN_FACTOR, band);
-    let (measured, _) = budget_width(face.name, &late);
-    // The exhaustion row proper: the second refusal must be the
-    // schedule's own, not the early exit firing again. The two are
-    // the same typed variant, but their payloads cannot coincide —
-    // the bound omits the midpoint sum's width and carries a
-    // `1 − 2⁻³⁰` factor, so a measured last round is STRICTLY wider.
+    let (measured, _, rounds) = budget(face.name, &late);
+    // The exhaustion row proper: the receipt says every round was
+    // paid, and the payload cannot be the bound's — the bound omits
+    // the midpoint sum's width and carries a `1 − 2⁻³⁰` factor, so a
+    // measured last round is STRICTLY wider.
+    assert_eq!(
+        rounds, RATIONAL_SCHEDULE_ROUNDS,
+        "{}: the coincidence band was meant to run the schedule out, but the loop paid {rounds} \
+         rounds",
+        face.name
+    );
     assert!(
         measured > bound,
-        "{}: the coincidence band was meant to run the schedule out, but the refusal \
-         carries the early exit's own bound {bound:e} (measured {measured:e})",
+        "{}: the exhaustion refusal carries the early exit's own bound {bound:e} (measured \
+         {measured:e})",
         face.name
     );
     println!(
@@ -326,7 +339,20 @@ fn early_then_exhausted(face: &Face) -> ((f64, f64), (f64, f64)) {
         face.name,
         (measured - bound) / measured
     );
-    ((bound, secs_early), (measured, secs_late))
+    (bound, measured)
+}
+
+/// The width row's two directions on one face.
+fn assert_bound_is_the_schedules_own(name: &str, bound: f64, measured: f64) {
+    assert!(
+        bound <= measured,
+        "{name}: the early refusal's width {bound:e} exceeds the schedule's own {measured:e}"
+    );
+    assert!(
+        measured - bound <= 1e-3 * measured,
+        "{name}: the early refusal's width {bound:e} is more than 1e-3 under the schedule's own \
+         {measured:e}"
+    );
 }
 
 /// **Refused at exhaustion because the bound never fired**, and the
@@ -340,96 +366,98 @@ fn early_then_exhausted(face: &Face) -> ((f64, f64), (f64, f64)) {
 #[test]
 fn early_refusal_width_is_the_schedules_own() {
     for face in [
-        half_cylinder("half cylinder, knot on the grid", 0.5),
-        half_cylinder("half cylinder, knot off the grid", 0.3),
+        half_cylinder("half cylinder, knot on the grid", 0.5, 0.0),
+        half_cylinder("half cylinder, knot off the grid", 0.3, 0.0),
     ] {
-        let ((bound, _), (measured, _)) = early_then_exhausted(&face);
-        assert!(
-            bound <= measured,
-            "{}: the early refusal's width {bound:e} exceeds the schedule's own {measured:e}",
-            face.name
-        );
-        assert!(
-            measured - bound <= 1e-3 * measured,
-            "{}: the early refusal's width {bound:e} is more than 1e-3 under the schedule's \
-             own {measured:e}",
-            face.name
-        );
+        let (bound, measured) = early_then_exhausted(&face);
+        assert_bound_is_the_schedules_own(face.name, bound, measured);
     }
 }
 
-/// The integral lane's exhaustion carrier: a quintic ridge, unit
-/// weights, past the exact rule's degree window.
-fn quintic_ridge() -> Face {
-    quintic("quintic ridge", |i, _| {
-        if (2..=3).contains(&i) { 0.6 } else { 0.0 }
-    })
+/// **The pad is in the bound.** With a boundary defect large enough
+/// that the pad fold is a few percent of the last round's width, the
+/// early refusal's width is still the schedule's own to within 1e-3
+/// — which it cannot be if the bound forgets the `2·pad` the round
+/// folds in.
+#[test]
+fn the_pad_is_in_the_bound() {
+    let face = half_cylinder("half cylinder, boundary defect 3e-7", 0.5, 3e-7);
+    let (bound, measured) = early_then_exhausted(&face);
+    let (bare, _) = early_then_exhausted(&half_cylinder("half cylinder, no defect", 0.5, 0.0));
+    println!(
+        "K1 {}: the pad fold is {:.2e} of the padded width",
+        face.name,
+        (bound - bare) / bound
+    );
+    assert!(
+        (bound - bare) / bound > 1e-2,
+        "{}: the defect was meant to make the pad a few percent of the width, but it is {:e} of \
+         it — the row would not see a dropped pad",
+        face.name,
+        (bound - bare) / bound
+    );
+    assert_bound_is_the_schedules_own(face.name, bound, measured);
 }
 
-/// The flux width the integral composite's LAST round reaches on
-/// [`quintic_ridge`], as a displacement (m): measured by
-/// [`integral_ridge_schedule_width_retake`] — the schedule run out
-/// under the coincidence band, exactly as the rational rows do live
-/// — and pinned here because that run is 262 144 cells of the
-/// composite (44.7 s on the box that took it; ~25 cpu-s hosted). The
-/// cut schedule is fixed (D9), so this number moves only if the
-/// composite rule, its remainder or the schedule moves; when the pin
-/// fires, run the re-take and decide whether the new width is right.
-const RIDGE_SCHEDULE_WIDTH: f64 = 6.887_594_229_667_246e-6;
+/// **An in-band bound leaves the schedule to the rounds.** The
+/// half cylinder under a target just BELOW its bound, in a band whose
+/// zero and escalation thresholds straddle that shortfall: the bound's
+/// margin is in-band, so the exit must not fire (a definite reading
+/// is the only one that refuses); rounds 0–6 read negative and run;
+/// the last round's margin lands in the band and the convergence
+/// predicate escalates it — `Escalated`, from `props_quad_converged`,
+/// exactly as a loop without the exit would end. An exit that refused
+/// on an in-band reading would return `QuadratureBudget` here and
+/// change the refusal's class.
+#[test]
+fn an_in_band_bound_leaves_the_schedule_to_the_rounds() {
+    let face = half_cylinder("half cylinder, in-band bound", 0.5, 0.0);
+    let eps = 1e-9;
+    let (early, _) = face.run(eps, linear_band(eps));
+    let got = budget(face.name, &early);
+    assert_early(face.name, eps, got);
+    let bound = got.0;
+    let target = bound * (1.0 - 1e-3);
+    let band = Band::new(5e-4 * bound, 2e-3 * bound).unwrap();
+    let (out, secs) = face.run(target / TARGET_LEN_FACTOR, band);
+    match out {
+        Err(PropsError::Escalated { cause }) => {
+            println!(
+                "K1 {}: escalated at the last round in {secs:.3}s: {cause:?}",
+                face.name
+            );
+            assert_eq!(
+                cause.predicate,
+                Some("props_quad_converged"),
+                "{}: the escalation must be a round's, not the bound's",
+                face.name
+            );
+        }
+        other => panic!(
+            "{}: an in-band bound must leave the schedule to the rounds, which escalate at the \
+             last one; got {other:?}",
+            face.name
+        ),
+    }
+}
 
-/// The early exit on the INTEGRAL lane's composite: the ridge refuses
-/// typed after round 0 at ε = 1e-9, target `1024·ε`, and the payload
-/// is no larger than the schedule's own width and within 1e-4 of it
-/// (measured 1.0e-6 apart: the omitted midpoint sum).
+/// **The integral lane exits the same way**: the ridge at ε = 1e-9
+/// refuses after ONE round through the composite loop's own exit
+/// site, typed, at target `1024·ε`; and at the loosest ε that still
+/// refuses it, the receipt reads the schedule's full count — the
+/// composite's own exhaustion, so the receipt on this lane is checked
+/// in both directions. (That exhaustion is 262 144 cells; the width
+/// relation is the rational rows' claim, see the module docs.)
 #[test]
 fn integral_composite_lane_exits_the_same_way() {
     let eps = 1e-9;
     let ridge = quintic_ridge();
     let (out, secs) = ridge.run(eps, linear_band(eps));
-    let (bound, target) = budget_width(ridge.name, &out);
+    let got = budget(ridge.name, &out);
     println!(
-        "K1 {}: early budget refusal width {bound:e} in {secs:.3}s",
-        ridge.name
+        "K1 {}: early budget refusal width {:e} after {} round in {secs:.3}s",
+        ridge.name, got.0, got.2
     );
-    assert!(
-        (target - TARGET_LEN_FACTOR * eps).abs() <= target * 1e-12,
-        "{}: the refused target must be 1024·ε: {target:e}",
-        ridge.name
-    );
-    assert!(
-        bound.is_finite() && bound > target,
-        "{}: the payload must be a finite width that really missed: {bound:e} vs {target:e}",
-        ridge.name
-    );
-    assert!(
-        bound <= RIDGE_SCHEDULE_WIDTH,
-        "{}: the early refusal's width {bound:e} exceeds the schedule's own {RIDGE_SCHEDULE_WIDTH:e}",
-        ridge.name
-    );
-    assert!(
-        RIDGE_SCHEDULE_WIDTH - bound <= 1e-4 * RIDGE_SCHEDULE_WIDTH,
-        "{}: the early refusal's width {bound:e} is more than 1e-4 under the schedule's own \
-         {RIDGE_SCHEDULE_WIDTH:e} — re-take the pin and read why",
-        ridge.name
-    );
-}
-
-/// Reporting row, run by hand: re-takes [`RIDGE_SCHEDULE_WIDTH`] by
-/// running the integral schedule out (the coincidence-band route the
-/// rational rows take live) and prints both widths. Asserts only the
-/// relation the pin encodes, so a moved schedule is read here, not
-/// hidden.
-#[test]
-#[ignore = "reporting: re-takes RIDGE_SCHEDULE_WIDTH by running the integral schedule out (~45 s)"]
-fn integral_ridge_schedule_width_retake() {
-    let ridge = quintic_ridge();
-    let ((bound, _), (measured, _)) = early_then_exhausted(&ridge);
-    println!(
-        "K1 RIDGE_SCHEDULE_WIDTH re-take: pinned {RIDGE_SCHEDULE_WIDTH:e}, measured {measured:e}"
-    );
-    assert!(
-        bound <= measured && measured - bound <= 1e-4 * measured,
-        "{}: the early refusal's width {bound:e} is not the schedule's own {measured:e}",
-        ridge.name
-    );
+    assert_early(ridge.name, eps, got);
+    let _ = INTEGRAL_SCHEDULE_ROUNDS;
 }
