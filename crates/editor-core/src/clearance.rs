@@ -1400,6 +1400,59 @@ impl Default for MinSeparationConfig {
 /// [`crate::measure::WINDOW_TIGHTENING`]: a window tightened to its
 /// trimmed face makes `m = M` and every arm sound again. Until then
 /// the asymmetry is typed rather than papered over.
+///
+/// # How WIDE the bracket actually is (M10-6's review, MINOR-13)
+///
+/// "Budget-honest" says the bracket never lies. It does not say the
+/// bracket is tight, and on curved carriers it is not. Measured, two
+/// cylinders whose axes are 1 m apart
+/// (`r2_m10_6_probes_interval::min_separation_brackets_a_curved_pair_at_every_budget`):
+///
+/// ```text
+///   max_cell_pairs =   1   [1, 5.385]   width 4.385
+///   max_cell_pairs =   4   [1, 5.385]   width 4.385
+///   max_cell_pairs =  32   [1, 2.062]   width 1.062
+///   max_cell_pairs = 512   [1, 1.586]   width 0.586   <- the default
+/// ```
+///
+/// So at the shipped budget the upper end of a curved pair's bracket
+/// is still ~59% above the truth. A planar neck does far better (~7%),
+/// because a plane's window IS its cell. A consumer who needs a tight
+/// upper bound on a curved pair must raise
+/// [`MinSeparationConfig::max_cell_pairs`] and pay for it; a consumer
+/// who needs a sound LOWER bound — which is what gates — has one at
+/// every budget, including the first.
+///
+/// # `window_hi` is a CELL-BOX distance, not an attained point pair
+///
+/// Stated because "the least distance of any station pair found"
+/// reads as though a witness exists. It does not: `hi` is the least
+/// over the examined pairs of that pair's `separation_hi` and its two
+/// centre CELLS' furthest separation, each an interval-enclosed
+/// quantity. Every one of them bounds `m` from above at every `p`, so
+/// the fold is sound — but none of them is a pair of points anyone
+/// evaluated, and the number should not be reported as one.
+///
+/// # The budget is a CONSTANT at the measure door
+///
+/// [`min_separation`] takes a [`MinSeparationConfig`], but the
+/// `min_clearance` MEASURE calls it with
+/// `MinSeparationConfig::default()` and nothing threads a dial through
+/// (`measure.rs`, the `Interval` lane impl). So a document evaluating
+/// that primitive gets 512 pairs whatever it asked for, and the widths
+/// above are what it gets. Making it a recorded run dial is a
+/// signature change through `MinClearanceLane`, which this unit did
+/// not take; it is disclosed rather than hidden.
+///
+/// # Cost, and where it is paid
+///
+/// The door runs INSIDE evaluation, once per leaf per `min_clearance`
+/// primitive. At the driver's default 65,536-leaf budget that is up to
+/// 65,536 subdivision searches of up to 512 cell pairs each, which is
+/// why every fixture in this unit's suites drives an ε-scaled box that
+/// certifies in one or a few leaves. A document that both varies
+/// widely and measures a `min_clearance` will pay accordingly, and
+/// nothing here caps it.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MinSeparation {
     lo: f64,

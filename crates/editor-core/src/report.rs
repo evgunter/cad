@@ -225,7 +225,7 @@ impl MassBudget {
 /// interval.
 ///
 /// It is not a density. E11.6 is explicit that true output densities
-/// are v2; this is the near-free note beside that exclusion, and the
+/// are v2; this is the cheap note beside that exclusion, and the
 /// rendering says so on its own first line rather than leaving a reader
 /// to infer it from a doc comment they are not reading.
 #[derive(Debug, Clone, PartialEq)]
@@ -334,6 +334,20 @@ impl LeafHistogram {
 /// Nothing: a leaf that cannot be read is accounted, not refused. The
 /// mass columns carry [`MeasureUnavailable`] where a band blocks
 /// pricing, exactly as the drive's own accounting does.
+/// # What it costs (M10-6's review, MINOR-13)
+///
+/// E11.6 calls this datum "near-free" because its two columns are
+/// numbers the drive and the evaluation already produced. That is true
+/// of the NUMBERS and not of this function: it re-evaluates the
+/// document over every certified leaf to read the measure's enclosure,
+/// which duplicates exactly the replays `Stackup::worst_case` already
+/// did. A consumer that wants both pays for the leaves twice.
+///
+/// Not shared here, and the reason is a signature: `worst_case` hulls
+/// the enclosures and discards them, so sharing means threading a
+/// per-leaf vector out of it and into this — a change to two public
+/// shapes for a report that is advisory. Disclosed instead, so nobody
+/// reads "near-free" as "free".
 pub fn leaf_histogram(
     doc: &crate::doc::Doc<crate::program::ProfileProgram>,
     analyzed: &AnalyzedBox,
@@ -539,7 +553,6 @@ impl Dials<'_> {
         s
     }
 }
-
 
 /// A mass as exact bits, or the unavailability's parameter — the
 /// goldening form's one spelling for a column that may refuse.

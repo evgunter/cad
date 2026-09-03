@@ -374,7 +374,10 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let measure = r.insert(
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            vec![MeasureRef::new(c, bname(c)), MeasureRef::new(block, bname(block))],
+            vec![
+                MeasureRef::new(c, bname(c)),
+                MeasureRef::new(block, bname(block)),
+            ],
         )
         .expect("both indices in range"),
     );
@@ -596,7 +599,10 @@ fn the_mc_stream_is_re_derived_bit_for_bit() {
     for k in 1..20 {
         let u = f64::from(k) / 20.0;
         let z = sample_offset(&name("p"), &normal, u).expect("a normal is sampleable");
-        assert!(z > prev, "the quantile is monotone in u at u={u}: {z} <= {prev}");
+        assert!(
+            z > prev,
+            "the quantile is monotone in u at u={u}: {z} <= {prev}"
+        );
         prev = z;
         let mirror = sample_offset(&name("p"), &normal, 1.0 - u).expect("sampleable");
         assert!(
@@ -796,7 +802,10 @@ fn a_tolerance_study_end_to_end_through_the_public_doors() {
     let verdict = drive(&g.doc, &analyzed, &DriveConfig::default(), Tol::witness())
         .expect("the nominal builds");
     eprintln!("--- drive ---\n{}", verdict.render(&analyzed));
-    assert!(!verdict.certified().is_empty(), "the ε-scaled box certifies");
+    assert!(
+        !verdict.certified().is_empty(),
+        "the ε-scaled box certifies"
+    );
 
     // The stackup over the CLOSED-FORM measure: a real report.
     let report = editor_core::stackup::stackup(

@@ -1351,8 +1351,7 @@ impl Stackup {
                     match &self.chamber {
                         Chamber::ChamberCertified { .. } =>
                             "the nominal sits in a certified chamber",
-                        Chamber::LocalOnly =>
-                            "LOCAL ONLY: the nominal's chamber was not certified",
+                        Chamber::LocalOnly => "LOCAL ONLY: the nominal's chamber was not certified",
                     }
                 );
             }

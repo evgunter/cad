@@ -763,8 +763,7 @@ pub enum UnevaluatedReason {
 /// tightening a carrier window to its trimmed face needs the trim
 /// boundary in chart coordinates. Named from the type so the recourse
 /// travels with the refusal instead of living in a reader's memory.
-pub const WINDOW_TIGHTENING: &str =
-    "work/m10/clearance-window-tightening-needs-chart-boundary.md";
+pub const WINDOW_TIGHTENING: &str = "work/m10/clearance-window-tightening-needs-chart-boundary.md";
 
 /// **How much of a measured enclosure is certified for the thing the
 /// measure NAMES**, as against the carrier the engine subdivided.

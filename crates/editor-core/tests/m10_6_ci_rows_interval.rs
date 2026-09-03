@@ -698,85 +698,23 @@ fn accounting_text() -> String {
     s
 }
 
-/// M10-3's planted-flip fixture, re-derived: a square extruded by a
-/// parameter whose box straddles zero, so the far side is a definite
-/// different branch and refuses as `FlipCrossing` mass.
+/// **M10-3's own fixtures, not copies of them** (M10-6's fix pass;
+/// R2's MINOR-14).
+///
+/// This row goldens the ACCOUNTING of M10-3's planted-flip and
+/// terminal-sliver documents. It used to re-derive both here, which
+/// meant the golden could go on passing while the documents it claims
+/// to be about drifted away from it — the two would simply have become
+/// different fixtures wearing the same names. They are imported now,
+/// so there is one home and a change to either reds this golden, which
+/// is exactly what a golden about someone else's fixture is for.
 fn planted_flip() -> ProfileDoc {
     let eps = Tol::witness().eps();
-    slab(20.0 * eps, 40.0 * eps)
+    crate::m10_3_driver_interval::slab(20.0 * eps, 40.0 * eps)
 }
 
-fn slab(nominal: f64, half: f64) -> ProfileDoc {
-    let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: name("depth"),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: nominal,
-            display_unit: UnitSym::canonical_for(Dimension::Length),
-            distribution: Some(Distribution::Uniform {
-                lo: -half,
-                hi: half,
-            }),
-        },
-    });
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
-    let p = r.insert(Node::Profile(ProfileProgram {
-        plane,
-        loops: vec![
-            LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
-                .expect("finite square corners"),
-        ],
-    }));
-    r.insert(Node::Extrude {
-        profile: p,
-        distance: Expr::param(name("depth"), Dimension::Length),
-    });
-    r.doc
-}
-
-/// M10-3's terminal-sliver fixture, re-derived: a rigid transform whose
-/// rotation AXIS length is a parameter reaching into the ambiguity
-/// band, where refinement provably cannot move the enclosure out.
 fn terminal_sliver() -> ProfileDoc {
-    let eps = Tol::witness().eps();
-    let scalar = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite scalar");
-    let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: name("axis"),
-        value: DocParam::Continuous {
-            dim: Dimension::Scalar,
-            value: 20.0 * eps,
-            display_unit: UnitSym::canonical_for(Dimension::Scalar),
-            distribution: Some(Distribution::Uniform {
-                lo: -15.0 * eps,
-                hi: 15.0 * eps,
-            }),
-        },
-    });
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
-    let p = r.insert(Node::Profile(ProfileProgram {
-        plane,
-        loops: vec![
-            LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
-                .expect("finite square corners"),
-        ],
-    }));
-    let block = r.insert(Node::Extrude {
-        profile: p,
-        distance: len(1.0),
-    });
-    r.insert(Node::Transform {
-        input: block,
-        translation: [len(0.0), len(0.0), len(0.0)],
-        rotation_axis: [
-            scalar(0.0),
-            scalar(0.0),
-            Expr::param(name("axis"), Dimension::Scalar),
-        ],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
-    });
-    r.doc
+    crate::m10_3_driver_interval::sliver_axis()
 }
 
 /// **The priced-vs-forced type, at the row that needs it** (M10-6 §2,

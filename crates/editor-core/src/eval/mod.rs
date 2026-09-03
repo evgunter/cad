@@ -3486,4 +3486,3 @@ pub fn key_of(tag: u8, serialized: &str) -> ContentKey {
     h.write_str(serialized);
     h.finish()
 }
-

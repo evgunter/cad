@@ -415,7 +415,12 @@ fn min_clearance_of_a_body_against_itself_is_the_selections_self_clearance() {
         "dumbbell self-clearance: {}",
         m.serialize().replace('\n', " | ")
     );
-    assert!(m.lo() <= 0.4 && 0.4 <= m.window_hi(), "[{}, {}]", m.lo(), m.window_hi());
+    assert!(
+        m.lo() <= 0.4 && 0.4 <= m.window_hi(),
+        "[{}, {}]",
+        m.lo(),
+        m.window_hi()
+    );
     // Tight enough to be the neck and not the outer walls (5 apart).
     assert!(m.window_hi() < 1.0);
 }

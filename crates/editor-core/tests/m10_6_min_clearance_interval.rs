@@ -360,7 +360,10 @@ fn the_budget_narrows_the_bracket_and_never_falsifies_it() {
             m.lo(),
             m.window_hi()
         );
-        assert!(m.lo() <= m.window_hi(), "budget {pairs}: a bracket is ordered");
+        assert!(
+            m.lo() <= m.window_hi(),
+            "budget {pairs}: a bracket is ordered"
+        );
         assert!(
             m.receipt().holds(),
             "budget {pairs}: the receipt identity holds"
@@ -550,7 +553,9 @@ fn a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates(
     // diff shows it, the human one so a reader is not left to infer a
     // missing line.
     assert!(
-        report.serialize().contains("nominal=unavailable:min_clearance"),
+        report
+            .serialize()
+            .contains("nominal=unavailable:min_clearance"),
         "the goldening form records the forfeit: {}",
         report.serialize()
     );

@@ -1554,8 +1554,7 @@ pub fn assertion_at(
         param_box: Some(Arc::new(box_.clone())),
         ..lane_opts()
     };
-    let ev: Evaluation<geom_core::Interval> =
-        evaluate(doc, None, &CancelToken::new(), &opts, tol);
+    let ev: Evaluation<geom_core::Interval> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
     match ev.result(assertion) {
         Some(crate::eval::NodeResult::Ok(v)) => match &v.payload {
             crate::eval::ValuePayload::Assertion(a) => Some(a.clone()),

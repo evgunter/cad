@@ -25,9 +25,7 @@ use crate::fixture;
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::mc::{McConfig, McRefusal, monte_carlo};
-use editor_core::report::{
-    Dials, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
-};
+use editor_core::report::{Dials, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key};
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionDir, Dimension, Distribution, DocEdit, DocParam, Expr, LoopProgram, MeasureExpr,
@@ -185,12 +183,21 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
         "the human form leads with the gating number: {rendered}"
     );
     assert!(
-        !rendered.contains(&format!("{:016x}", one.nominal.expect("a closed-form measure has an f64 nominal").to_bits())),
+        !rendered.contains(&format!(
+            "{:016x}",
+            one.nominal
+                .expect("a closed-form measure has an f64 nominal")
+                .to_bits()
+        )),
         "the human form does not print bits"
     );
     assert!(
-        one.serialize()
-            .contains(&format!("{:016x}", one.nominal.expect("a closed-form measure has an f64 nominal").to_bits())),
+        one.serialize().contains(&format!(
+            "{:016x}",
+            one.nominal
+                .expect("a closed-form measure has an f64 nominal")
+                .to_bits()
+        )),
         "and the goldening form prints nothing else"
     );
 }
@@ -298,7 +305,10 @@ fn a_content_key_moves_exactly_when_the_report_does() {
     assert_ne!(k1, k3, "ε is part of the tuple");
     assert_ne!(k1, k4, "so is the recipe slice");
     assert_ne!(k1, k5, "and the drive budget, which moves the report");
-    assert_ne!(k1, k6, "and the advisory lane's dials — `none` is not a seed");
+    assert_ne!(
+        k1, k6,
+        "and the advisory lane's dials — `none` is not a seed"
+    );
 }
 
 /// **§2**: the cache serves an equal key and nothing else.
@@ -623,7 +633,11 @@ fn the_two_xorshift_streams_agree_bit_for_bit() {
         z ^= z >> 31;
         if z == 0 { 0x9e37_79b9_7f4a_7c15 } else { z }
     };
-    for (seed, index) in [(1u64, 0u64), (0xdead_beef, 7), (editor_core::DEFAULT_SEED, 41)] {
+    for (seed, index) in [
+        (1u64, 0u64),
+        (0xdead_beef, 7),
+        (editor_core::DEFAULT_SEED, 41),
+    ] {
         let state = splitmix(seed, index);
         let mut theirs = test_utils::fuzz::Rng::from_seed(state);
         let mut ours = editor_core::mc::sample_stream(seed, index as usize);
