@@ -2,8 +2,9 @@
 id: one-declaration-guard-one-home-in-test-utils
 kind: issue
 title: The one-declaration assertion is copied verbatim into fourteen all.rs files, and pncad has no guard at all
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-03
 ---
 
 
@@ -48,3 +49,19 @@ TCOST-B1 (#1616) and TCOST-B2 (#1669); raised in TCOST-B2's style review.
 Neither unit is the place to fix it — B2's diff is the five crates' `mod`
 lines, and moving the assertion into `test_utils` is a `src/` change its
 keep-outs forbid.
+
+## Disposition (2026-09-03, TCOST-11)
+
+Both halves land together. The three checks and their messages move to
+`test_utils::source::aggregation_violations`, and each aggregating
+`tests/all.rs` keeps one call — so the message, the exemptions or a
+fourth check are one edit.
+
+`pncad` keeps no guard, and the reason is now in its header: its
+`tests/` holds one file, and the row could not live there anyway
+because it reads `test_utils::source` while that file's own closure
+guard admits no `use` root but the façade. What holds the crate to that
+sentence is
+`crates/bvh/tests/aggregator_headers.rs::a_non_aggregating_tests_directory_holds_one_suite_file`,
+which reds when a `tests/all.rs` that mounts nothing heads a directory
+with a second suite in it.
