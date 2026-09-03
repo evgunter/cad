@@ -81,11 +81,14 @@ tree-wide sweep found no other live pointer at it.
 literal occurrences, of which 189 distinct words appeared in no test at
 all before this. `TAG_INVENTORY` is re-derived from `src/tags.rs` at test
 time on the no-interpreter row; a renamed, added or deleted value, a new
-or deleted tag function, or a moved delegation reds by name. The reader
-fails loud on anything it cannot follow rather than enumerating less.
-What it proves is a rename; a MIS-mapping still belongs to the
-construction pins, which cover 18 of 37 functions by sample, and the test
-says so.
+or deleted tag function, or a moved delegation reds by name. It reads through
+`test_utils::source`, the shared lexer, rather than one of its own: the
+first draft hand-rolled a reader, `reader_census` caught it as the tree
+is built to, and the conversion is the adoption that crate's own docs ask
+of `pncad-py` by name. The reader fails loud on anything it cannot follow
+rather than enumerating less. What it proves is a rename; a MIS-mapping
+still belongs to the construction pins, which cover 18 of 37 functions by
+sample, and the test says so.
 
 **One recourse paragraph per refusal.** `impl PartResolver for Workspace`
 re-appended `PIN_MISMATCH_RECOURSE` to a message whose `Display` already
@@ -102,12 +105,29 @@ the pair `sources_of` already builds. The regression pin's red was seen:
 16 undeclared-contact findings before, clean after, on a body whose
 value-door read passed throughout.
 
+## The review round
+
+A style pass and a correctness pass ran over the finished branch. The
+correctness pass found no behaviour bug — it attacked the widened
+`subject_body` and the deleted `PinMismatch` arm by execution and both
+held — and between them they found four claims THIS BUNDLE had written
+that were false: the demo's roster still advertising a gap it had just
+closed, "three armed pins" that were two, a coupling called unguarded
+that `crates/viewer/tests/instance_authoring.rs` guards, and a
+dimensionless-direction convention claimed over a field whose first half
+is a position in metres. All four are repaired here. Two holes were also
+closed: `ty` could not see the one property this bundle added to the
+stub, and the class walk's reach was pinned by name but not by count.
+
 ## Banked
 
-Two findings carried out rather than swept, each with its own file:
+Three findings carried out rather than swept, each with its own file:
 `work/lib/select-refusal-predicate-names-are-unpinned.md` (four of five
 reachable `SelectRefusal.predicate` names pinned nowhere, and neither
 carrying arm is constructible from `pncad-py`) and
 `work/lib/two-refusals-carry-no-recourse-sentence.md` (finding 2 of the
 pin-mismatch issue — authoring recourse prose into a kernel crate, which
-is not mechanical).
+is not mechanical), and
+`work/lib/datum-in-plane-reads-back-a-length-pair-bare.md` (the write
+door takes `tuple[Length, Length]` where this read door answers bare
+floats; changing a published Python type is not mechanical either).
