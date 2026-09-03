@@ -1,6 +1,6 @@
 # How a shared blend refusal names its verb — the 917 conversation
 
-**Status: RATIFIED (Evan, 👍 on the PR-1279 impact discussion,
+**Status: RATIFIED (Ev, 👍 on the PR-1279 impact discussion,
 2026-08-30), with the three open choices settled as recommended:
 "edge blend" as the neutral noun, `Filleted`/`Chamfered` collapse
 to one blend-named result type with both names kept as aliases,

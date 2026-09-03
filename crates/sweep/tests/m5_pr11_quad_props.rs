@@ -212,7 +212,7 @@ fn halves_sum_to_the_cylinder() {
     );
 }
 
-/// The LANE SPLIT (Evan's PR 11 ruling): the dual lane instantiates
+/// The LANE SPLIT (Ev's PR 11 ruling): the dual lane instantiates
 /// none of the certified quadrature — a trimmed face at `Dual64`
 /// keeps the closed form's typed refusal (volume certification is the
 /// CERTIFYING lanes' business; derivative transport is the dual's — a

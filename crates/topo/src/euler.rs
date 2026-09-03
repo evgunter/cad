@@ -105,7 +105,7 @@
 //!   operator a tier-1-invalid body and fire its postcondition from
 //!   **API misuse rather than a kernel bug**. That is the state class
 //!   D9's footnote asserts cannot occur and the D2 addendum's five
-//!   classes do not cover. **It is an open question in front of Evan,
+//!   classes do not cover. **It is an open question in front of Ev,
 //!   not a thing this module settles**: whether the graft can be
 //!   restructured so a partially-written destination is not
 //!   representable — staging into a fresh body and committing on

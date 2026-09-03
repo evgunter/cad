@@ -692,7 +692,7 @@ pub fn classify_shells<T: PropsQuadLane>(
     Ok(out)
 }
 
-/// The certified-quadrature **lane split** (M5 PR 11; Evan's ruling at
+/// The certified-quadrature **lane split** (M5 PR 11; Ev's ruling at
 /// this PR, superseding a runtime-`Option` bracket seam): certification
 /// is the f64 / Probe / Interval lanes' business; derivative transport
 /// is the dual lane's — and that split lives in the TYPES. Each
@@ -1246,7 +1246,7 @@ mod quad_lane {
     use geom_core::Tol;
     use geom_core::ring_interval::RingInterval;
     // The compound `Decide + Bounds` bound below is a RATIFIED seam
-    // (M5 PR 11, Evan's lane-split ruling; discipline allowlist row):
+    // (M5 PR 11, Ev's lane-split ruling; discipline allowlist row):
     // this module is the certified lanes' plumbing and never
     // instantiates for duals. TWO things enforce that, and since #643
     // the second is the load-bearing one: [`super::PropsQuadLane`]'s

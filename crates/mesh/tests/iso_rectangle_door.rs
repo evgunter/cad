@@ -13,7 +13,15 @@
 //!   generator, and not a rectangle;
 //! * **the oblique lens**: a sphere face bounded by two plane sections
 //!   that are neither coaxial rims nor great circles, meeting off the
-//!   axis — the `walk::iso_side_starts` qualification's own case.
+//!   axis — the `walk::iso_side_starts` qualification's own case, in
+//!   its CARRIER half.
+//!
+//! The qualification's other half — a certified iso CARRIER whose
+//! traversed ARC leaves the branch — is not this door's and is not
+//! pinned in this file: it is `props::require_one_chart_branch`'s, and
+//! its rows are `mesh/tests/mesh11_arc_branch.rs` (issue 1571). Both
+//! doors are cited by `curved::require_iso_rectangle_face`, so a face
+//! reaching the walk has passed both; this file is about the first.
 //!
 //! Per direction: a notched iso domain refuses at the SHAPE door with
 //! props' predicate name; the spatial check, asked directly about the
@@ -60,6 +68,8 @@ fn the_keyway_refuses_at_the_shape_door_by_props_rim_level() {
 /// great circle, and a tilted section is neither. This is the face the
 /// `walk::iso_side_starts` qualification named as the one that could
 /// collapse past the spatial check; it never reaches the walk now.
+/// (The qualification's ARC half is the branch door's, and refuses
+/// elsewhere — `mesh/tests/mesh11_arc_branch.rs`.)
 #[test]
 fn the_oblique_lens_refuses_at_the_shape_door() {
     let (body, face) = oblique_lens();
