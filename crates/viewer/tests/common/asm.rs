@@ -25,7 +25,6 @@ use pncad::document::{
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::prelude::StableName;
-use pncad::profile::SketchPlane;
 use pncad::select::{CapEnd, EntityKind, NamePat, Ray, SegPat, SegTag, Selector};
 use pncad::workspace::Workspace;
 use viewer::session::{DocSession, SessionOp};
@@ -85,10 +84,11 @@ fn box_part(label: &str, width: f64, depth: f64, height: f64, tol: Tol) -> Profi
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), tol);
     let outline = LoopProgram::polygon([(0.0, 0.0), (width, 0.0), (width, depth), (0.0, depth)])
         .expect("a literal rectangle");
+    let plane = insert(&mut doc, super::xy_frame(), tol);
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![outline],
         }),
         tol,

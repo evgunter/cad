@@ -3,8 +3,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
 
 use corpus::tube_ring;
 use editor_core::{ProfileDoc, save};

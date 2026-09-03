@@ -392,7 +392,9 @@ class TestTheMemoIsObservable(CorpusCase):
             )
         )
         again = evaluate(post, prior=first)
-        self.assertEqual((again.reused, again.recomputed), (1, 1))
+        # TWO reused: the post's sketch frame carries no parameter, so
+        # a height edit reuses it beside the profile drawn on it.
+        self.assertEqual((again.reused, again.recomputed), (2, 1))
         self.assertVolumes(volumes(again, again.order()[-1]), [2 * POST_VOLUME])
 
     def test_a_prior_of_another_document_reuses_nothing_and_is_legal(self):

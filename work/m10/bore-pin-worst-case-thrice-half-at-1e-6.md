@@ -2,8 +2,9 @@
 id: bore-pin-worst-case-thrice-half-at-1e-6
 kind: issue
 title: m10_4 bore-pin worst case is 3x half, not 2x — reds only at eps=1e-6, where the absolute 1e-9 slack stops hiding it
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-03
 ---
 
 ## Was

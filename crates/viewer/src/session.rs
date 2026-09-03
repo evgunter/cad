@@ -42,7 +42,6 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, attribute};
-use pncad::profile::SketchPlane;
 use pncad::quantity::UnitDef;
 use pncad::select::{ContactClass, Resolution, RunCtx, resolve};
 use pncad::workspace::WorkspaceError;
@@ -386,10 +385,21 @@ impl Standing {
 pub enum NodeKindWanted {
     /// A `Node::Profile`.
     Profile,
-    /// A `Node::Datum(Datum::Axis)`.
+    /// A `Node::Datum(Datum::Axis)` — a world-space line, which is
+    /// what a circular placement rule turns about.
     Axis,
+    /// A `Node::Datum(Datum::AxisInPlane)` — an axis written in a
+    /// sketch frame, which is what a revolve turns.
+    ///
+    /// Separate from [`Self::Axis`] because the two are separate node
+    /// kinds and the evaluator's operand door refuses across them. A
+    /// seat that admitted both would route a pick the door then
+    /// rejects, which is the drift this vocabulary exists to prevent.
+    SketchAxis,
     /// A `Node::Datum(Datum::Plane)`.
     Plane,
+    /// A `Node::Datum(Datum::Frame)` — what a profile is drawn on.
+    Frame,
     /// A node whose value is ONE body — the combining seats' kind
     /// ([`combine::denotes_body`] carries the admissible set and why a
     /// split's sides and a pattern's instances are not in it).
@@ -411,7 +421,11 @@ pub fn admits(held: Option<&Node<ProfileProgram>>, wanted: NodeKindWanted) -> bo
     match wanted {
         NodeKindWanted::Profile => matches!(held, Some(Node::Profile(_))),
         NodeKindWanted::Axis => matches!(held, Some(Node::Datum(Datum::Axis { .. }))),
+        NodeKindWanted::SketchAxis => {
+            matches!(held, Some(Node::Datum(Datum::AxisInPlane { .. })))
+        }
         NodeKindWanted::Plane => matches!(held, Some(Node::Datum(Datum::Plane { .. }))),
+        NodeKindWanted::Frame => matches!(held, Some(Node::Datum(Datum::Frame { .. }))),
         NodeKindWanted::Body => held.is_some_and(combine::denotes_body),
     }
 }
@@ -422,7 +436,9 @@ impl NodeKindWanted {
         match self {
             Self::Profile => "a profile",
             Self::Axis => "an axis datum",
+            Self::SketchAxis => "an axis datum in a sketch frame",
             Self::Plane => "a plane datum",
+            Self::Frame => "a frame datum",
             Self::Body => "a body",
         }
     }
@@ -868,6 +884,24 @@ pub enum DatumSpec {
         /// Position components (`Length`).
         position: [Expr; 3],
     },
+    /// An axis written in a sketch frame — a revolve's axis of
+    /// revolution.
+    ///
+    /// `plane` is a PICK, not a field: it names the `Datum::Frame` the
+    /// two coordinate pairs are written against, and the pairs are
+    /// that frame's own 2-D coordinates. There is no third component,
+    /// which is the whole of why a revolve about one cannot leave the
+    /// sketch.
+    AxisInPlane {
+        /// The frame node the axis lives in.
+        plane: RecipeNodeId,
+        /// Origin components in the frame's coordinates (`Length`).
+        origin: [Expr; 2],
+        /// Direction components in the frame's coordinates (`Scalar`),
+        /// unnormalized — the kernel's `RevolveAxis` normalizes and
+        /// refuses a sliver at its own door.
+        direction: [Expr; 2],
+    },
     /// A sketch frame through `origin`, spanned by `u` and `v`.
     Frame {
         /// Origin components (`Length`).
@@ -1195,12 +1229,23 @@ pub enum SessionOp {
     /// non-nested pair all refuse through the authoring-time check
     /// ([`Refusal::Edit`]), one rule for authored and hand-written
     /// programs alike (only a non-finite field refuses earlier, at
-    /// the literal door). The plane is frozen `f64` placement data
-    /// (the program's own placement struct — a snapshot, never a
-    /// reference to the geometry it may have been derived from).
+    /// the literal door). The plane is a REFERENCE to a frame node,
+    /// which the pick below spells out.
     AddProfile {
-        /// The sketch-plane placement the profile is authored on.
-        plane: SketchPlane<f64>,
+        /// **The frame node the profile is drawn on** — a PICK, not a
+        /// field.
+        ///
+        /// It was a `SketchPlane<f64>` the form filled in from a
+        /// world-XY constant. A profile's plane is a document node
+        /// now, so the form names one that already exists rather than
+        /// minting one on the side: one submit inserts one node, and
+        /// the frame a person drew on is the frame they can see in the
+        /// viewport and edit afterwards.
+        ///
+        /// A reference that does not name a `Datum::Frame` refuses
+        /// [`Refusal::WrongNodeKind`] at the door, like every other
+        /// pick.
+        plane: RecipeNodeId,
         /// The loop programs, in description order.
         loops: Vec<LoopProgram>,
     },
@@ -1226,7 +1271,8 @@ pub enum SessionOp {
     AddRevolve {
         /// The profile node revolved.
         profile: RecipeNodeId,
-        /// The `Datum::Axis` node revolved about.
+        /// The `Datum::AxisInPlane` node revolved about — an axis
+        /// written in the same sketch frame the profile is drawn on.
         axis: RecipeNodeId,
         /// The sweep angle (`Angle`); the chrome's default is a full
         /// turn.
@@ -2621,9 +2667,17 @@ impl DocSession {
     /// the edit door's authoring-time check refuses them typed in the
     /// profile layer's own words — the one rule authored and
     /// hand-written programs share.
-    fn add_profile(&mut self, plane: SketchPlane<f64>, loops: Vec<LoopProgram>) -> OpOutcome {
+    fn add_profile(&mut self, plane: RecipeNodeId, loops: Vec<LoopProgram>) -> OpOutcome {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        // The plane is a PICK now, so it is gated where every other
+        // pick is: at this door, by kind, before the edit. Without
+        // this the reference would reach evaluation and refuse there
+        // — a typed refusal either way, but one the person gets after
+        // the node lands rather than instead of it.
+        if let Err(refusal) = self.require_kind(plane, NodeKindWanted::Frame) {
+            return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram { plane, loops }),
@@ -2653,7 +2707,7 @@ impl DocSession {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
-        if let Err(refusal) = self.require_kind(axis, NodeKindWanted::Axis) {
+        if let Err(refusal) = self.require_kind(axis, NodeKindWanted::SketchAxis) {
             return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
@@ -2919,6 +2973,15 @@ fn datum_node(spec: DatumSpec) -> Node<ProfileProgram> {
         DatumSpec::Axis { origin, direction } => Datum::Axis { origin, direction },
         DatumSpec::Point { position } => Datum::Point { position },
         DatumSpec::Frame { origin, u, v } => Datum::Frame { origin, u, v },
+        DatumSpec::AxisInPlane {
+            plane,
+            origin,
+            direction,
+        } => Datum::AxisInPlane {
+            plane,
+            origin,
+            direction,
+        },
     })
 }
 

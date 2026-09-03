@@ -20,7 +20,7 @@
 //!   fixture rather than about the predicate.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use geom::Surface;
 use geom_core::{Band, Point3, Tol};

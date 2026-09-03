@@ -272,5 +272,5 @@ pub use editor_core::{
 // The profile description node type and its document alias.
 pub use editor_core::{
     LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecordedProgramError, StepArg,
+    RecordedProgramError, StepArg, resolve_loops,
 };

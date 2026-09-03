@@ -11,7 +11,7 @@
 use viewer::camera::{self, Camera, CameraOp};
 use viewer::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
 
-mod common;
+use crate::common;
 
 fn framed() -> Camera {
     common::framed(1.6)

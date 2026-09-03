@@ -63,7 +63,7 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners]))
+    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, height * m))
     return doc
 
@@ -157,7 +157,7 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners]))
+    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, height * m))
     return doc
 
@@ -331,7 +331,7 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners]))
+    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, height * m))
     return doc
 
@@ -414,7 +414,7 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners]))
+    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, height * m))
     return doc
 
@@ -503,7 +503,7 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners]))
+    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, height * m))
     return doc
 
@@ -627,7 +627,7 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners]))
+    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, height * m))
     return doc
 
@@ -808,7 +808,7 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners]))
+    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, height * m))
     return doc
 
@@ -916,7 +916,7 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners]))
+    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, height * m))
     return doc
 
