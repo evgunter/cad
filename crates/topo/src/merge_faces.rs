@@ -1435,6 +1435,42 @@ impl<T: Decide> Body<T> {
     /// derivation, and why this predicate must state it identically at
     /// all three of its sites, is in `boolean::join::ring_run_ccw`.
     ///
+    /// # The carriers this answers about
+    ///
+    /// Line, Circle and Ellipse. A cycle carrying a NURBS edge returns
+    /// `None` — the honest remainder: a chord winding says nothing
+    /// about a fitted carrier's region and no closed form exists for
+    /// it, so the caller refuses rather than guesses.
+    ///
+    /// For the conic carriers the enclosed vector area decomposes
+    /// EXACTLY, per edge — this is a substitution, not an
+    /// approximation:
+    ///
+    /// ```text
+    ///   2·A⃗ = Σ_edges       (p_prev − p₀) × (p − p₀)      [chord Newell]
+    ///        + Σ_conic-edges axis · sa·sb · (Δ − sin Δ)    [bulge]
+    /// ```
+    ///
+    /// A circular arc of radius `R` spanning signed angle `Δ` cuts off
+    /// a circular segment of area `R²(Δ − sin Δ)/2` between itself and
+    /// its chord; twice that is `R²(Δ − sin Δ)`, which is the
+    /// cross-sum's own `2A` convention, and it is ODD in `Δ` — so it
+    /// carries the traversal sign the winding question is about. The
+    /// ellipse is the circle's affine image, which scales every area by
+    /// `major·minor/R²`, giving `sa·sb`. The chord term is untouched
+    /// for every edge, so the bulge is a CORRECTION on a chord polygon
+    /// and a mixed Line+Circle cycle needs no case split beyond the
+    /// per-edge carrier match.
+    ///
+    /// The perimeter lever moves with the area (the same F4 metering
+    /// statement): a conic edge contributes `|Δ|·sa` — the circle's
+    /// exact arc length, the ellipse's upper bound, and an over-large
+    /// `P` understates the width, i.e. escalates rather than decides.
+    ///
+    /// A LINE-ONLY cycle is decided bit-identically to before this arm
+    /// existed: the correction block below is structurally skipped, not
+    /// zero-added into a reordered sum.
+    ///
     /// Behaviour change riding with that metering (the unit's
     /// deviation 1, SECOND site — the join lane's zero-perimeter note
     /// has the same shape): a cycle whose perimeter is exactly zero —
@@ -1471,21 +1507,46 @@ impl<T: Decide> Body<T> {
             return Ok(None);
         };
         let cycle = self.loop_cycle(first).ok_or_else(corrupt)?;
-        // Line-bounded cycles only (the tier-3 check-6 scope): an
-        // arc's vertex chord is not the boundary, so a curved-bounded
-        // loop's chord winding says nothing about the region — treat
-        // it as undecidable (`None`; the caller then refuses rather
-        // than guesses if roles hinge on it).
-        let all_lines = cycle.iter().all(|&he| {
+        // The carrier this half-edge rides, or `None` when anything on
+        // the way to it fails to resolve. Both guards below read the
+        // same lookup, so a torn half-edge, edge or curve leaves the
+        // cycle undecidable exactly as it did when the guard was
+        // line-only.
+        // What this half-edge's carrier is to the winding sum: a chord,
+        // a chord plus a closed-form bulge, or nothing this can answer
+        // about. `None` when anything on the way to the carrier fails
+        // to resolve — a torn half-edge, edge or curve leaves the cycle
+        // undecidable exactly as it did when the guard was line-only.
+        enum Carrier {
+            Line,
+            Conic,
+        }
+        let carrier_of = |he| {
             self.get_half_edge(he)
                 .and_then(|hd| self.get_edge(hd.edge))
                 .and_then(|e| self.get_curve_geom(e.curve))
                 .and_then(crate::null::CurveGeom::certified)
-                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
-        });
-        if !all_lines {
+                .and_then(|c| match c.carrier() {
+                    geom::Curve3::Line { .. } => Some(Carrier::Line),
+                    geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
+                        Some(Carrier::Conic)
+                    }
+                    geom::Curve3::Nurbs(_) => None,
+                })
+        };
+        // A NURBS edge is the honest remainder — its region has no
+        // closed-form area and its chord winding is not that region's,
+        // so the cycle stays undecidable (`None`; the caller then
+        // refuses rather than guesses if roles hinge on it).
+        if cycle.iter().any(|&he| carrier_of(he).is_none()) {
             return Ok(None);
         }
+        // Whether the chord polygon IS the region: on a line-only cycle
+        // the correction block below never runs, which is what makes
+        // every pre-existing decision bit-identical.
+        let all_lines = cycle
+            .iter()
+            .all(|&he| matches!(carrier_of(he), Some(Carrier::Line)));
         let point_of = |he| -> Result<geom_core::Point3<T>, MergeCoplanarError> {
             let v = self.get_half_edge(he).ok_or_else(corrupt)?.start;
             self.get_vertex(v)
@@ -1495,7 +1556,7 @@ impl<T: Decide> Body<T> {
         let p0 = point_of(cycle[0])?;
         let mut newell = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
         // The F4 metering lever: this cycle's perimeter, accumulated
-        // with the area (line-bounded only, so chords ARE the boundary).
+        // with the area (chords here; the conic arm re-meters below).
         let mut perimeter = T::zero();
         let mut prev = p0;
         for &he in &cycle[1..] {
@@ -1505,6 +1566,64 @@ impl<T: Decide> Body<T> {
             prev = p;
         }
         perimeter = perimeter + (p0 - prev).norm();
+        // The arc correction (fn docs), stated as
+        // `boolean::join::ring_run_ccw`'s `run_term` states it: one
+        // curve lookup yields both the vector area between an arc and
+        // its chord and the half-edge's own boundary length. It runs
+        // only when some carrier is a conic, so a line-only cycle keeps
+        // the arithmetic and the accumulation order it had.
+        if !all_lines {
+            let end_point_of = |he| -> Result<geom_core::Point3<T>, MergeCoplanarError> {
+                let v = self.half_edge_end(he).ok_or_else(corrupt)?;
+                self.get_vertex(v)
+                    .and_then(|vd| self.get_point(vd.point).copied())
+                    .ok_or_else(corrupt)
+            };
+            let zero = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
+            // `(bulge, boundary length)`. Every lookup here already
+            // resolved for `decidable` above; announcing rather than
+            // discarding is what keeps a body torn under us from
+            // answering a role question anyway.
+            let arc_term =
+                |he| -> Result<(geom_core::Vec3<T>, T), MergeCoplanarError> {
+                    let chord = || -> Result<T, MergeCoplanarError> {
+                        Ok((end_point_of(he)? - point_of(he)?).norm())
+                    };
+                    let edge = self
+                        .get_half_edge(he)
+                        .and_then(|hd| self.get_edge(hd.edge))
+                        .ok_or_else(corrupt)?;
+                    let curve = self
+                        .get_curve_geom(edge.curve)
+                        .and_then(crate::null::CurveGeom::certified)
+                        .ok_or_else(corrupt)?;
+                    let (t0, t1) = curve.params();
+                    let (axis, sa, sb) = match *curve.carrier() {
+                        geom::Curve3::Circle { axis, radius, .. } => (axis, radius, radius),
+                        geom::Curve3::Ellipse {
+                            axis, major, minor, ..
+                        } => (axis, major, minor),
+                        geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => {
+                            return Ok((zero, chord()?));
+                        }
+                    };
+                    // Signed by traversal: the half-edge runs with
+                    // increasing carrier parameter iff it is the plus
+                    // half. `|Δ|·sa` is the circle's exact arc length
+                    // and the ellipse's upper bound.
+                    let span = if edge.he_plus == he { t1 - t0 } else { t0 - t1 };
+                    Ok((axis * (sa * sb * (span - span.sin())), span.abs() * sa))
+                };
+            let mut bulge = zero;
+            let mut metered = T::zero();
+            for &he in &cycle {
+                let (b, len) = arc_term(he)?;
+                bulge = bulge + b;
+                metered = metered + len;
+            }
+            newell = newell + bulge;
+            perimeter = metered;
+        }
         match crate::validate::decide(
             "bool_ring_run_winding",
             Margin::over_lever(normal.dot(newell), perimeter),
@@ -1861,6 +1980,277 @@ mod tests {
             })
             .contains("fix the declaration or the geometry"),
             "the declared-pair contradiction carries its recourse"
+        );
+    }
+}
+
+/// **The winding arm's own rows** (`loop_winding`): the carriers the
+/// functional answers about, decided directly rather than through the
+/// merge that consumes them.
+///
+/// The fixtures are built through the euler doors as chord polygons and
+/// then RETYPED onto their real carriers — the same two-step
+/// `tier3_tests` uses — because the arm is about what a cycle's edges
+/// carry, not about how the face was minted.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod winding_arm_tests {
+    use super::*;
+    use crate::euler::{FaceSurface, MefSite, MevSite};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_core::{Point3, Sign, Vec3};
+
+    /// The plane every fixture here lives on, and the outward normal
+    /// every winding is asked about.
+    fn plane() -> geom::Surface<f64> {
+        geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    /// A triangle `a → b → d` on the z = 0 plane, as ONE face's outer
+    /// loop, with the `a → b` edge handed back so a row can retype it.
+    /// The loop's stored order is `a → b → d`, so `a → b` is traversed
+    /// by that edge's `he_plus`.
+    struct Tri {
+        body: Body<f64>,
+        r#loop: LoopKey,
+        surface: geom_brep::SurfaceKey,
+        ab: crate::entity::EdgeKey,
+    }
+
+    fn tri(a: Point3<f64>, b: Point3<f64>, d: Point3<f64>, tol: Tol) -> Tri {
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(a).unwrap();
+        let surface = body
+            .set_face_surface(seed.face, FaceSurface::New(plane()))
+            .unwrap();
+        let e_ab = body
+            .mev_line(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                b,
+                tol,
+            )
+            .unwrap();
+        let e_bd = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: e_ab.he_minus,
+                    he2: e_ab.he_minus,
+                },
+                d,
+                tol,
+            )
+            .unwrap();
+        let new = body
+            .mef_chord(
+                MefSite::Chords {
+                    he1: e_bd.he_minus,
+                    he2: e_ab.he_plus,
+                },
+                tol,
+            )
+            .unwrap();
+        body.set_face_surface(new.face, FaceSurface::New(plane()))
+            .unwrap();
+        let r#loop = body.get_face(seed.face).unwrap().outer;
+        let ab = body_edge(&body, e_ab.he_plus);
+        Tri {
+            body,
+            r#loop,
+            surface,
+            ab,
+        }
+    }
+
+    fn body_edge(body: &Body<f64>, he: crate::HalfEdgeKey) -> crate::entity::EdgeKey {
+        body.get_half_edge(he).unwrap().edge
+    }
+
+    fn band(tol: Tol) -> Band {
+        Band::linear(tol).unwrap()
+    }
+
+    /// **The pure-arc pair**: a disc bounded by two semicircles, and
+    /// the same boundary traversed the other way. Its CHORD Newell sum
+    /// is exactly zero — the two vertices and the base point are
+    /// collinear, so every cross product vanishes — which is the whole
+    /// reason the bulge term exists: without it a two-semicircle 2-gon
+    /// reads as no region at all. With it, one traversal is Positive
+    /// about the outward normal and its counterpart Negative, which is
+    /// exactly the outer-loop/ring statement the role pass reads.
+    #[test]
+    fn a_two_arc_cycle_winds_positively_and_its_counterpart_negatively() {
+        let tol = Tol::witness();
+        let (a, b) = (Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0));
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(a).unwrap();
+        let surface = body
+            .set_face_surface(seed.face, FaceSurface::New(plane()))
+            .unwrap();
+        let arc = |axis: Vec3<f64>| EdgeCurveSpec {
+            description: EdgeDescriptionSpec::chart(surface),
+            carrier: geom::Curve3::Circle {
+                center: Point3::new(0.0, 0.0, 0.0),
+                axis,
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            param_start: 0.0,
+            param_end: core::f64::consts::PI,
+        };
+        // Upper semicircle a → b, then the lower one, minted so that
+        // BOTH run a → b under their own `he_plus` — the axis flip is
+        // what turns the second one around, not a backwards parameter
+        // range (the `he_plus` forward contract).
+        let e1 = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                b,
+                arc(Vec3::unit_z()),
+                tol,
+            )
+            .unwrap();
+        let e2 = body
+            .mef(
+                MefSite::Chords {
+                    he1: e1.he_plus,
+                    he2: e1.he_minus,
+                },
+                arc(-Vec3::unit_z()),
+                FaceSurface::New(plane()),
+                tol,
+            )
+            .unwrap();
+        let outward = Vec3::unit_z();
+        let disc = body.get_face(e2.face).unwrap().outer;
+        let anti = body.get_face(seed.face).unwrap().outer;
+        assert_eq!(
+            body.loop_winding(disc, outward, band(tol)),
+            Ok(Some(Sign::Positive)),
+            "the disc's own boundary encloses material about the outward normal"
+        );
+        assert_eq!(
+            body.loop_winding(anti, outward, band(tol)),
+            Ok(Some(Sign::Negative)),
+            "the same boundary reversed anti-encloses — a ring's signature"
+        );
+    }
+
+    /// **The mixed Line + Circle cycle**, and the reason the bulge is a
+    /// CORRECTION rather than a case split: this triangle's chord
+    /// polygon winds positively (`2A = 1`), and its `a → b` side is a
+    /// quarter arc bulging INTO it, worth `−(π/2 − 1)`. The verdict is
+    /// the sum — `+0.43` — and no arm of the code ever asks whether
+    /// the cycle is "an arc cycle" or "a chord cycle".
+    #[test]
+    fn a_mixed_line_and_circle_cycle_decides_on_chord_plus_bulge() {
+        let tol = Tol::witness();
+        let mut t = tri(
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+            tol,
+        );
+        t.body
+            .set_edge_curve(
+                t.ab,
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::chart(t.surface),
+                    carrier: geom::Curve3::Circle {
+                        center: Point3::new(0.0, 0.0, 0.0),
+                        axis: -Vec3::unit_z(),
+                        radius: 1.0,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    param_start: -core::f64::consts::FRAC_PI_2,
+                    param_end: 0.0,
+                },
+                tol,
+            )
+            .unwrap();
+        assert_eq!(
+            t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)),
+            Ok(Some(Sign::Positive)),
+            "chord 2A = 1 minus the bite the arc takes out of it"
+        );
+    }
+
+    /// **The honest remainder**: a cycle carrying a NURBS edge is not
+    /// answered. No closed form exists for the region a fitted carrier
+    /// bounds, and the chord winding is not that region's — so the
+    /// question comes back `None` and the caller refuses rather than
+    /// guesses. The chord polygon here winds positively, so `None` is
+    /// a REFUSAL to read the chords, not an absence of chords to read.
+    #[test]
+    fn a_nurbs_carrying_cycle_stays_undecidable() {
+        let tol = Tol::witness();
+        let mut t = tri(
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(0.0, 2.0, 0.0),
+            Point3::new(-1.0, -1.0, 0.0),
+            tol,
+        );
+        assert_eq!(
+            t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)),
+            Ok(Some(Sign::Positive)),
+            "as a chord triangle it is decidable and positive"
+        );
+        // The rational quadratic quarter circle `a → b`, described as
+        // the plane chart's own image of itself: the chart is
+        // `origin + u·x̂ + v·ŷ` here, so the 2-D control net is the
+        // 3-D one with `z` dropped.
+        let knots = || {
+            geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap()
+        };
+        let weights = || vec![1.0, core::f64::consts::FRAC_1_SQRT_2, 1.0];
+        t.body
+            .set_edge_curve(
+                t.ab,
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::chart_image(
+                        t.surface,
+                        geom_brep::pcurve_cache::Pcurve::General(std::sync::Arc::new(
+                            geom::NurbsCurve2::new(
+                                knots(),
+                                vec![
+                                    geom_core::Point2::new(2.0, 0.0),
+                                    geom_core::Point2::new(2.0, 2.0),
+                                    geom_core::Point2::new(0.0, 2.0),
+                                ],
+                                weights(),
+                            )
+                            .unwrap(),
+                        )),
+                    ),
+                    carrier: geom::Curve3::Nurbs(std::sync::Arc::new(
+                        geom::NurbsCurve3::new(
+                            knots(),
+                            vec![
+                                Point3::new(2.0, 0.0, 0.0),
+                                Point3::new(2.0, 2.0, 0.0),
+                                Point3::new(0.0, 2.0, 0.0),
+                            ],
+                            weights(),
+                        )
+                        .unwrap(),
+                    )),
+                    param_start: 0.0,
+                    param_end: 1.0,
+                },
+                tol,
+            )
+            .unwrap();
+        assert_eq!(
+            t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)),
+            Ok(None),
+            "one fitted carrier and the whole cycle stops being answerable"
         );
     }
 }
