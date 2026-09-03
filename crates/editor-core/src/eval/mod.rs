@@ -3467,3 +3467,23 @@ mod alignment_key {
         }
     }
 }
+
+/// **A derived report's content key**: its tag, then its goldening
+/// form verbatim.
+///
+/// One helper rather than one hasher per report, so every key in the
+/// reporting lane is taken the same way over the same substrate — the
+/// text that IS the report.
+///
+/// It lives HERE, beside [`KeyHasher`], rather than in
+/// [`crate::report`] where its callers are, because
+/// [`crate::mc`] needs it and that lane is pure `f64`: a helper in an
+/// `interval`-gated module was the only thing keeping the advisory
+/// estimator out of a default build (M10-6, R2's MINOR-9).
+pub fn key_of(tag: u8, serialized: &str) -> ContentKey {
+    let mut h = KeyHasher::new();
+    h.write_tag(tag);
+    h.write_str(serialized);
+    h.finish()
+}
+

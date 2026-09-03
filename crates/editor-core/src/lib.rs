@@ -41,10 +41,14 @@ pub mod mate;
 /// The E11.1 Monte-Carlo ADVISORY estimator lane (ruling Q3): pure f64
 /// replay over samples drawn from the document's own distributions.
 /// Never gates, never persists as an assertion, never enters the
-/// accounting. Gated on `interval` only because its report is written
-/// to sit beside the certified one, whose types the reporting layer
-/// carries.
-#[cfg(feature = "interval")]
+/// accounting.
+///
+/// **UNGATED** (M10-6, R2's MINOR-9). It shipped behind `interval`,
+/// which made E11.1's pure-`f64` advisory lane unusable in a default
+/// build — a narrowing nothing in E11 asks for. The only thing holding
+/// it there was one hashing helper that lived in the gated reporting
+/// module; the helper moved to [`mod@eval`] beside `KeyHasher`, and
+/// nothing else in this module needs the certified scalar.
 pub mod mc;
 pub mod measure;
 pub mod meta;
@@ -124,7 +128,6 @@ pub use mate::{
     class_admission, clusters, gauge_of, reading_edges, relative_freedom_components,
     solve_document,
 };
-#[cfg(feature = "interval")]
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
     monte_carlo,

@@ -253,7 +253,7 @@ impl McReport {
 
     /// The content key of everything [`Self::serialize`] renders.
     pub fn content_key(&self) -> ContentKey {
-        crate::report::key_of(0xE9, &self.serialize())
+        crate::eval::key_of(0xE9, &self.serialize())
     }
 
     /// **The human form**, with the advisory label and the dials on
@@ -274,6 +274,23 @@ impl McReport {
             "{tag}. Never gates, never persisted as an assertion, never in the accounting."
         );
         for m in &self.measures {
+            // **A measure NOTHING could sample says so, rather than
+            // rendering `NaN`** (M10-6's fix pass; R2's MINOR-14). A
+            // `min_clearance` has no f64 value at any sample, so every
+            // one of its statistics is 0/0 — and `mean NaN σ NaN min
+            // inf max -inf` is a line a reader has to decode before
+            // learning that the answer is "this lane cannot see this
+            // measure at all".
+            if m.unmeasured == self.samples {
+                let _ = writeln!(
+                    s,
+                    "  node {}: UNMEASURED — no sample had an f64 value for this measure, so \
+                     this lane has nothing to estimate. Its certified answer is the E6 \
+                     driver's per-leaf enclosure (see the leaf histogram).   [{tag}]",
+                    m.node.0
+                );
+                continue;
+            }
             let _ = writeln!(
                 s,
                 "  node {}: mean {} σ {} min {} max {}   [{tag}]",
@@ -565,10 +582,19 @@ fn summarize(values: &[f64]) -> (f64, f64, f64, f64) {
 /// `xorshift64*`, one stream per sample.
 ///
 /// Re-stated here rather than shared with `test-utils::fuzz::Rng`
-/// because that crate is a DEV dependency and this is production code;
-/// the constants and the zero remap are that generator's, so a reader
-/// comparing the two finds the same stream rather than a second one.
-struct Rng(u64);
+/// because that crate is a dependency-free leaf that appears only in
+/// `dev-dependencies` and this is production code: the library cannot
+/// reach it and it cannot reach the library, so neither direction of
+/// sharing is available without breaking one of the two invariants
+/// that put them where they are.
+///
+/// **What keeps the two equal is a test, not a comment** (M10-6, R2's
+/// MINOR-14): `the_two_xorshift_streams_agree_bit_for_bit` in
+/// `m10_6_reports_interval` draws from both and requires the sequences
+/// to match, so a change to either reds instead of quietly forking
+/// them. Before that row, "the same stream" was an assertion nothing
+/// checked — in both files.
+pub struct Rng(u64);
 
 impl Rng {
     /// The stream for one sample index: `splitmix64(seed ⊕ index)`.
@@ -586,7 +612,10 @@ impl Rng {
         Self(if z == 0 { 0x9e37_79b9_7f4a_7c15 } else { z })
     }
 
-    fn next_u64(&mut self) -> u64 {
+    /// The next draw. Public so the cross-copy equality row can
+    /// compare this stream against `test_utils::fuzz::Rng`'s; nothing
+    /// else outside this module uses it.
+    pub fn next_u64(&mut self) -> u64 {
         let mut x = self.0;
         x ^= x << 13;
         x ^= x >> 7;
@@ -599,4 +628,15 @@ impl Rng {
     fn unit(&mut self) -> f64 {
         (self.next_u64() >> 11) as f64 * (1.0 / 9_007_199_254_740_992.0)
     }
+}
+
+/// **One sample's stream**, exposed for the cross-copy equality row
+/// (`the_two_xorshift_streams_agree_bit_for_bit`).
+///
+/// The two transcriptions of `xorshift64*` in this tree — this one and
+/// `test_utils::fuzz::Rng` — cannot depend on each other, so a test is
+/// what keeps them equal, and a test needs a door. That is all this is
+/// for: the lane itself calls `Rng::for_sample` directly.
+pub fn sample_stream(seed: u64, index: usize) -> Rng {
+    Rng::for_sample(seed, index)
 }

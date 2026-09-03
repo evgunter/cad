@@ -1323,7 +1323,7 @@ impl Stackup {
     /// keys, and any bit that differs anywhere in the report produces
     /// different ones.
     pub fn content_key(&self) -> ContentKey {
-        crate::report::key_of(0xE5, &self.serialize())
+        crate::eval::key_of(0xE5, &self.serialize())
     }
 
     /// **The human form**: the gating number first, the advisory table

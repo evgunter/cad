@@ -3345,11 +3345,23 @@ jobs:
       # row's own draw): release build 2m11, then the bin's unit tests
       # 0.21 s and the three-ε `eps_regression` tour runs 13.60 s.
       # RE-MEASURED 2026-09-03 with `--features interval` below: the
-      # bin's unit tests go 0.21 s -> ~33 s, all of it the tolerance
-      # cell's two drives and its stackup, and the build pays one more
-      # kernel monomorphization. The
+      # bin's unit tests go 0.21 s -> ~32 s. **That is NOT the tolerance
+      # cell**, and the first version of this note said it was, which
+      # R2's MINOR-12 caught. Measured on this branch, same machine,
+      # release profile:
+      #
+      #   whole bin suite, --features interval          32.02 s
+      #   the same with `-- --skip tolerance`           32.30 s
+      #   the tolerance cell alone                       1.19 s
+      #
+      # The cell's differential is inside the noise. The ~32 s is what
+      # the OTHER 26 rows cost once the crate is built with the
+      # certified scalar — the feature changes the kernel they link
+      # against, so they all pay for it — and attributing it to the one
+      # new row would have sent the next person optimising the wrong
+      # thing. The
       # bin's unit tests link against the crate this row already builds
-      # in release, so the widening pays a link plus ~14 s of running,
+      # in release, so the widening pays a link plus that running time,
       # not a sixth feature unification. (Those same unit tests cost
       # ~412 s in the DEV profile — the finding-13 rows tessellate the
       # lily at δ = 2e-3 — which is why this row is the release one and

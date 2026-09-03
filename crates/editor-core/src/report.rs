@@ -36,7 +36,7 @@ use std::collections::BTreeMap;
 use crate::analysis::{AnalyzedBox, MeasureUnavailable};
 use crate::distribution::Distribution;
 use crate::doc::ParamName;
-use crate::eval::{ContentKey, KeyHasher};
+use crate::eval::{ContentKey, KeyHasher, key_of};
 
 /// **Priced or forced** — the honesty type the unresolved-mass budget
 /// was missing (the M10-1 adjudication's R2 MINOR-1, this unit's named
@@ -540,17 +540,6 @@ impl Dials<'_> {
     }
 }
 
-/// A report's content key: its tag, then its goldening form verbatim.
-///
-/// One helper rather than one hasher per report, so every key in this
-/// lane is taken the same way over the same substrate — the text that
-/// IS the report.
-pub(crate) fn key_of(tag: u8, serialized: &str) -> ContentKey {
-    let mut h = KeyHasher::new();
-    h.write_tag(tag);
-    h.write_str(serialized);
-    h.finish()
-}
 
 /// A mass as exact bits, or the unavailability's parameter — the
 /// goldening form's one spelling for a column that may refuse.

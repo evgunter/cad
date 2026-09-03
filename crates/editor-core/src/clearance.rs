@@ -938,6 +938,18 @@ impl ClearanceReport {
         s
     }
 
+    /// **The report's content key** — the identity of everything
+    /// [`Self::serialize`] renders.
+    ///
+    /// Added in M10-6's fix pass (R2's MINOR-10): §2 claims every
+    /// derived report in this lane carries the two doors AND a key,
+    /// and claim 3 names `ClearanceReport` among them, but this type
+    /// shipped with `serialize`/`render` and no key at all. Tag
+    /// `0xEE`, appended.
+    pub fn content_key(&self) -> crate::eval::ContentKey {
+        crate::eval::key_of(0xEE, &self.serialize())
+    }
+
     /// **The human form** (M10-6 §2): the verdict in words, the
     /// witness as numbers rather than as bits, and the measured
     /// discharge widths that say what the certificate cost.
@@ -1796,7 +1808,7 @@ impl LeafFold {
     /// The fold's content key — the identity of everything
     /// [`Self::serialize`] renders.
     pub fn content_key(&self) -> crate::eval::ContentKey {
-        crate::report::key_of(0xED, &self.serialize())
+        crate::eval::key_of(0xED, &self.serialize())
     }
 
     /// **The human form**: the verdict, then the four mass columns as

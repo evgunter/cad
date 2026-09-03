@@ -89,12 +89,18 @@ pub use editor_core::drive::assertion_at;
 #[cfg(feature = "interval")]
 pub use editor_core::{AssertionVerdict, Certified, UnevaluatedReason, WINDOW_TIGHTENING};
 
-/// The E10/E11.6 reporting layer and the E11.1 advisory estimator.
-#[cfg(feature = "interval")]
+/// **The E11.1 advisory estimator — UNGATED**, because it is pure `f64`
+/// replay and E11.1 says so. It shipped behind `interval` in M10-6's
+/// first pass, which made the advisory lane unreachable in a default
+/// build; R2's MINOR-9 caught it. A caller with no certified scalar
+/// still gets the labeled estimate, which is the whole point of an
+/// advisory lane.
 pub use editor_core::mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
     monte_carlo,
 };
+
+/// The E10/E11.6 reporting layer.
 #[cfg(feature = "interval")]
 pub use editor_core::report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,

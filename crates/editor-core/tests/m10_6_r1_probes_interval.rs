@@ -57,7 +57,7 @@ use editor_core::clearance::{
 use editor_core::drive::{DriveConfig, VerdictVector, drive};
 use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, MassBasis, MassBudget, leaf_histogram, report_key};
-use editor_core::stackup::{StackupRefusal, stackup};
+use editor_core::stackup::stackup;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
     DocParam, EvalOptions, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, Node,
@@ -1098,8 +1098,45 @@ fn the_bracket_walk_through_the_public_doors() {
         &Selection::body_of(verdict_base(&doc)),
         &ClearanceQuery::at_least(0.1, tol),
     );
-    eprintln!("{}", fold.render());
-    assert_eq!(fold.serialize(), fold.serialize());
+    // **§2's two doors and the key, on the three reports that shipped
+    // with no row at all** (R2's MINOR-10): `LeafFold`'s trio,
+    // `ClearanceReport`'s — which had no `content_key` until the fix
+    // pass, though claim 3 names it — and `MinSeparation::render`.
+    let fold_gold = fold.serialize();
+    let fold_human = fold.render();
+    eprintln!("{fold_human}");
+    assert_ne!(
+        fold_gold, fold_human,
+        "the goldening form and the human form are not each other"
+    );
+    assert!(
+        fold_human.contains('%'),
+        "the human form reports masses as percentages: {fold_human}"
+    );
+    assert_eq!(
+        fold.content_key(),
+        editor_core::eval::key_of(0xED, &fold_gold),
+        "the fold's key is its tag over its own serialized bits, and nothing else"
+    );
+    // And the per-leaf report the fold is made of, through its own
+    // single-leaf door.
+    let leaf_box = verdict.certified()[0].box_.clone();
+    let report = editor_core::clearance::clearance(
+        &doc,
+        &leaf_box,
+        &Selection::body_of(verdict_post(&doc)),
+        &Selection::body_of(verdict_base(&doc)),
+        0.1,
+        tol,
+    );
+    let gold = report.serialize();
+    let human = report.render();
+    assert_ne!(gold, human, "and the same for a per-leaf clearance report");
+    assert_eq!(
+        report.content_key(),
+        editor_core::eval::key_of(0xEE, &gold),
+        "ClearanceReport's key, added in the fix pass — claim 3 named it and it did not exist"
+    );
 
     eprintln!("== histogram(web)");
     let h = leaf_histogram(&doc, &analyzed, &verdict, web, tol);

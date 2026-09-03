@@ -596,3 +596,43 @@ fn the_budget_renders_its_tail_and_its_containment() {
         "and the budget says which of the two it is"
     );
 }
+
+/// **The two `xorshift64*` copies agree, bit for bit** (M10-6's fix
+/// pass; R2's MINOR-14).
+///
+/// `editor_core::mc` runs the generator in library code and
+/// `test_utils::fuzz::Rng` runs it for the tree's randomized sweeps.
+/// Neither can depend on the other — `test-utils` is a dependency-free
+/// leaf that only appears in `dev-dependencies` — so the two are
+/// separate transcriptions of one algorithm, and until this row
+/// nothing kept them equal. Both files claimed "the same stream"; a
+/// claim nothing checks is a claim that drifts.
+///
+/// This test can see both, because it IS a dev target. It seeds each
+/// the way its own door does and requires the sequences to match.
+#[test]
+fn the_two_xorshift_streams_agree_bit_for_bit() {
+    // `mc`'s door is per-sample and seeds through splitmix64; the
+    // state it lands on is what `from_seed` must be handed for the two
+    // to be comparable at all. Derive it here the way `for_sample`
+    // does, so this row pins the STREAM rather than the seeding.
+    let splitmix = |seed: u64, index: u64| -> u64 {
+        let mut z = seed ^ index.wrapping_mul(0x9e37_79b9_7f4a_7c15);
+        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+        z ^= z >> 31;
+        if z == 0 { 0x9e37_79b9_7f4a_7c15 } else { z }
+    };
+    for (seed, index) in [(1u64, 0u64), (0xdead_beef, 7), (editor_core::DEFAULT_SEED, 41)] {
+        let state = splitmix(seed, index);
+        let mut theirs = test_utils::fuzz::Rng::from_seed(state);
+        let mut ours = editor_core::mc::sample_stream(seed, index as usize);
+        for step in 0..64 {
+            assert_eq!(
+                ours.next_u64(),
+                theirs.next_u64(),
+                "the two xorshift64* copies diverged at step {step} of seed {seed:#x}/{index}"
+            );
+        }
+    }
+}

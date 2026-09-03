@@ -40,9 +40,13 @@
 //! `0x3fe3f8000000000c` (1e-9) against `0x3fe3f7fffffffff5` (1e-6) is
 //! four ulps of the same number. A bit-exact golden must therefore be
 //! per-ε, and [`ACCOUNTING_GOLDENS`] carries the three rows the matrix
-//! draws; a run at any other tolerance says so on the terminal and
-//! compares nothing, which is the honest ε-scoped skip rather than
-//! either a red over an unblessed tolerance or a silent pass.
+//! draws — precisely `ci-filter.py`'s `EPS_ROWS`, so every point the
+//! gate can draw has one. A run at any other tolerance FAILS, naming
+//! the blessed rows and the bless command: the arm is unreachable on
+//! any drawn point, and what it catches is the matrix growing a row
+//! while this table does not. (It used to print a note and return
+//! green, which is a row that reports nothing and passes — the shape
+//! this tree refuses everywhere else.)
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -622,22 +626,33 @@ fn every_assertion_carrying_corpus_document_has_a_budget() {
 fn the_margin_thin_accounting_is_goldened_bit_exact() {
     let eps = format!("{:e}", Tol::witness().eps());
     let Some(&(_, golden, path)) = ACCOUNTING_GOLDENS.iter().find(|(row, _, _)| *row == eps) else {
-        // **A loud ε-scoped skip, and the shape issue 1342 asked for.**
-        // The goldens are keyed by ε row and the matrix draws three; a
-        // run at some other tolerance has no golden to compare against,
-        // and inventing one from the run would make the row a
-        // tautology. Say so on the terminal rather than either failing
-        // over a tolerance nobody blessed or passing silently.
-        eprintln!(
-            "m10_6 accounting golden: no committed golden for eps={eps} (the rows are {}); \
-             bless one with M10_6_BLESS_ACCOUNTING=1 if this tolerance should have one",
+        // **An unblessed ε FAILS** (M10-6's fix pass; R2's MINOR-11).
+        //
+        // The first pass printed a note and returned — green, in 0.00
+        // s, on a tolerance nothing had ever been compared at. That is
+        // the shape this repository refuses everywhere else: a row that
+        // reports nothing and passes is indistinguishable from a row
+        // that checked something, and the sampled matrix is exactly
+        // where nobody is watching which point was drawn.
+        //
+        // It costs nothing to fail here, because
+        // [`ACCOUNTING_GOLDENS`] holds precisely `ci-filter.py`'s
+        // `EPS_ROWS`: every point the matrix can draw HAS a golden, so
+        // this arm is unreachable on any run the gate takes. What it
+        // catches is the matrix growing an ε row while the goldens do
+        // not — the drift the silent return would have hidden for as
+        // long as nobody read a log.
+        panic!(
+            "no committed accounting golden for eps={eps}. The blessed rows are {}, which \
+             are ci-filter.py's EPS_ROWS — so either the matrix grew a row and this table \
+             did not, or this run is at a tolerance the gate does not draw. Bless it with \
+             M10_6_BLESS_ACCOUNTING=1 and commit the file WITH the change it records.",
             ACCOUNTING_GOLDENS
                 .iter()
                 .map(|(r, _, _)| *r)
                 .collect::<Vec<_>>()
                 .join(", ")
         );
-        return;
     };
     let text = accounting_text();
     if std::env::var("M10_6_BLESS_ACCOUNTING").is_ok() {
