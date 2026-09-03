@@ -38,6 +38,18 @@ pub mod expr;
 mod finding;
 pub mod ident;
 pub mod mate;
+/// The E11.1 Monte-Carlo ADVISORY estimator lane (ruling Q3): pure f64
+/// replay over samples drawn from the document's own distributions.
+/// Never gates, never persists as an assertion, never enters the
+/// accounting.
+///
+/// **UNGATED** (M10-6, R2's MINOR-9). It shipped behind `interval`,
+/// which made E11.1's pure-`f64` advisory lane unusable in a default
+/// build — a narrowing nothing in E11 asks for. The only thing holding
+/// it there was one hashing helper that lived in the gated reporting
+/// module; the helper moved to [`mod@eval`] beside `KeyHasher`, and
+/// nothing else in this module needs the certified scalar.
+pub mod mc;
 pub mod measure;
 pub mod meta;
 pub mod names;
@@ -49,6 +61,13 @@ pub mod placement;
 pub mod product;
 pub mod program;
 pub mod refactor;
+/// The E10/E11.6 reporting layer: the goldening and human forms every
+/// derived report carries, the priced-vs-forced budget type, the
+/// leaf-mass histogram, and the one content-key cache. Gated on
+/// `interval` because every report in it is derived from a drive, and
+/// a drive needs the certified scalar to have leaves at all.
+#[cfg(feature = "interval")]
+pub mod report;
 pub mod resolve;
 pub mod roots;
 /// The E4 sensitivity driver and the E5 stackup — the analysis lane's
@@ -66,7 +85,8 @@ pub mod witness;
 pub use analysis::{
     AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, AxisScalar, BoxAxis,
     DEFAULT_QUANTILE_MASS, MeasureUnavailable, OffsetInterval, ParamBox, ParamBoxError, SeedError,
-    SeedScalar, analyzed_box, box_mass, param_env_over, seed_env, std_deviation, tail_mass,
+    SeedScalar, analyzed_box, box_mass, param_env_over, sample_offset, seed_env, std_deviation,
+    tail_mass,
 };
 pub use appearance::{
     AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord, AppearanceResolution,
@@ -108,8 +128,14 @@ pub use mate::{
     class_admission, clusters, gauge_of, reading_edges, relative_freedom_components,
     solve_document,
 };
+pub use mc::{
+    DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
+    monte_carlo,
+};
 pub use measure::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive, UnevaluatedReason,
+    ASSERT_BOUND, AssertionDir, AssertionVerdict, Certified, MeasureExpr, MeasurePrimitive,
+    MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, MinClearanceRefusal,
+    UnevaluatedReason, WINDOW_TIGHTENING,
 };
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
@@ -141,6 +167,10 @@ pub use program::{
     ProgramStep, ProgramTarget, RecordedProgramError, resolve_loops,
 };
 pub use refactor::{InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, split};
+#[cfg(feature = "interval")]
+pub use report::{
+    HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
+};
 pub use resolve::{
     Diagnosis, FlipSet, HitTestError, MeshPatchKey, NodeVerdictDelta, PredicateDivergence,
     RecipeEditRef, Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate, Resolved,
@@ -165,7 +195,7 @@ pub use roots::RootFault;
 pub use stackup::{
     Chamber, ChamberSpan, LiftRefusal, PairingViolation, PerParam, Rss, Sensitivity,
     SensitivityOutcome, SensitivityRefusal, Stackup, StackupRefusal, Unavailable, WorstCase,
-    sensitivities, stackup,
+    render_sensitivity, sensitivities, stackup,
 };
 pub use update::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update_references};
 pub use witness::{

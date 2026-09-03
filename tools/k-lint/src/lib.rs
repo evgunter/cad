@@ -363,6 +363,42 @@ pub enum Reason {
     BelowEpsCoupledFloor,
 }
 
+impl Reason {
+    /// **Which RULE of the module's three this reason belongs to.**
+    ///
+    /// The distinction is load-bearing since M10-6: rule 1 detects a
+    /// margin the run could not decide at all (`indeterminate`) or a
+    /// poisoned one (`invalid`) — a defect wherever it appears, and
+    /// the trigger ERROR-DESIGN E6 names for re-opening the K
+    /// question. Rules 2 and 3 detect margins that are DECIDED but sit
+    /// near a threshold or below a calibrated floor — a statement
+    /// about the distribution, which a population that refines margins
+    /// toward zero by construction will make in bulk without anything
+    /// being wrong.
+    ///
+    /// A consumer may demote 2 and 3 with a recorded justification
+    /// (`docs/K-REPORT.md`'s recourse 2). Demoting rule 1 would demote
+    /// the trigger, so nothing offers that.
+    pub fn rule(self) -> u8 {
+        match self {
+            Self::InBand | Self::Invalid => 1,
+            Self::NearBandAbove | Self::NearBandBelow => 2,
+            Self::BelowBaselineFloor | Self::BelowEpsCoupledFloor => 3,
+        }
+    }
+
+    /// Every reason, for tallying — so a per-rule count cannot silently
+    /// omit a variant the enum grows.
+    pub const ALL: [Self; 6] = [
+        Self::InBand,
+        Self::Invalid,
+        Self::NearBandAbove,
+        Self::NearBandBelow,
+        Self::BelowBaselineFloor,
+        Self::BelowEpsCoupledFloor,
+    ];
+}
+
 impl core::fmt::Display for Reason {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let s = match self {
@@ -574,6 +610,23 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
             continue;
         }
         if line.is_empty() {
+            continue;
+        }
+        // **A `#` line is a COMMENT, not a sample.** The E6 driver
+        // sweep writes one census line per fixture ahead of that
+        // fixture's rows — `# census driver/<shape> eps=… certified=N
+        // samples=M` — because an empty population is a legitimate
+        // outcome there and a bare header would leave a reader unable
+        // to tell it from a harness that died. Skipping the line rather
+        // than parsing it keeps this lint's subject exactly what it has
+        // always been (a sample distribution) while letting the file it
+        // reads say what produced it.
+        //
+        // It is not a hole in the malformed-row alarm: a row that DROPS
+        // a field or misspells an outcome still fails, because a `#` is
+        // never the first character of a sample row (a shape is
+        // namespaced `corpus/`, `demo/` or `driver/`).
+        if line.starts_with('#') {
             continue;
         }
         let err = || ParseError {
@@ -867,6 +920,23 @@ mod tests {
             )
             .is_err()
         );
+        // A `#` census line is skipped, and skipping it does not
+        // disarm the malformed-row alarm one line over: the E6 driver
+        // sweep writes those lines, and a dropped field in a real row
+        // still fails.
+        let censused = "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+                        # census driver/slab eps=1e-9 certified=0 samples=0\n\
+                        demo/x,p1,2e0,1e-9,1e-8,positive\n";
+        let scan = lint_csv(censused).expect("a census line is a comment");
+        assert_eq!(scan.scanned, 1, "the comment is not a sample");
+        assert!(
+            lint_csv(
+                "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+                 # census driver/slab eps=1e-9 certified=1 samples=1\n\
+                 x,y,2e0,1e-9,1e-8\n"
+            )
+            .is_err()
+        );
     }
 
     /// One row, with each float column settable.
@@ -1018,5 +1088,53 @@ mod tests {
         assert_eq!(e.line, 2);
         assert!(e.text.contains("band_zero"), "{}", e.text);
         assert!(e.text.contains("above zero"), "{}", e.text);
+    }
+    /// **Every reason is on exactly one rule, and `Reason::ALL` is
+    /// complete** (M10-6). The driver row demotes rules 2 and 3 and
+    /// cannot demote rule 1, so a variant that fell off the partition
+    /// — or off `ALL`, which the CLI's tally iterates — would silently
+    /// stop being counted or stop gating.
+    #[test]
+    fn every_reason_lands_on_one_rule_and_all_lists_them() {
+        for r in Reason::ALL {
+            let rule = r.rule();
+            assert!(
+                (1..=3).contains(&rule),
+                "{r:?} claims rule {rule}, which is not one of the module's three"
+            );
+        }
+        // Rule 1 is exactly the two undecided outcomes: the trigger E6
+        // names. If this pair ever grows, the driver row's recorded
+        // justification has to be re-read, so it is pinned here.
+        let rule1: Vec<Reason> = Reason::ALL.into_iter().filter(|r| r.rule() == 1).collect();
+        assert_eq!(rule1, vec![Reason::InBand, Reason::Invalid]);
+        // And `ALL` really is every variant: a missing one would make
+        // the tally under-count without failing anything.
+        let mut seen = std::collections::BTreeSet::new();
+        for r in Reason::ALL {
+            assert!(seen.insert(format!("{r:?}")), "{r:?} listed twice in ALL");
+        }
+        assert_eq!(seen.len(), 6, "Reason::ALL must list every variant");
+    }
+
+    /// An `indeterminate` row is rule 1 and a merely-near-threshold row
+    /// is not — the discriminator the driver row's gate turns on, read
+    /// off a parsed CSV rather than off the enum alone.
+    #[test]
+    fn an_indeterminate_row_is_rule_one_and_a_near_threshold_row_is_not() {
+        let scan = lint_csv(&row("0.0", "1e-9", "1e-8", "indeterminate")).expect("parses");
+        let rules: Vec<u8> = scan.flags[0].reasons.iter().map(|r| r.rule()).collect();
+        assert!(
+            rules.contains(&1),
+            "an indeterminate margin is rule 1: {rules:?}"
+        );
+        // A definite margin sitting just above the escalation
+        // threshold: flagged, but never rule 1.
+        let scan = lint_csv(&row("1.05e-8", "1e-9", "1e-8", "positive")).expect("parses");
+        for f in &scan.flags {
+            for r in &f.reasons {
+                assert_ne!(r.rule(), 1, "a DECIDED margin must not be rule 1: {r:?}");
+            }
+        }
     }
 }

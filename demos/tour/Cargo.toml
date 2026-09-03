@@ -26,6 +26,14 @@ publish = false
 # argument — the cost avoided is state in the tessellation lane, not
 # codegen. `scripts/tess_budget_sweep.sh` passes `--features budget`.
 [features]
+# Forwards the certified interval scalar, for ONE scene: the tolerance
+# cell (`src/tolerance.rs`), whose subject is the E6 driver's certified
+# leaves and the E5 stackup over them. Opt-in for the reason `probe` is
+# — it monomorphizes the geometry stack a second time — and the render
+# lanes deliberately do not pass it: the cell is narration-only, so a
+# render has nothing of it to draw. `ci.yml`'s `demos tour suite` row
+# passes it, which is where the cell EXECUTES on hosted CI.
+interval = ["pncad/interval"]
 probe = ["pncad/probe"]
 budget = ["pncad/budget"]
 

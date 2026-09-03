@@ -399,7 +399,7 @@ pub(crate) fn output_body<T: Decide>(
         // is the same category error as interrogating a declaration —
         // and so is interrogating a measurement or its verdict.
         ValuePayload::Mate(_) => none("mate"),
-        ValuePayload::Measure { .. } => none("measure"),
+        ValuePayload::Measure { .. } | ValuePayload::MeasureUnavailable { .. } => none("measure"),
         ValuePayload::Assertion(_) => none("assertion"),
     }
 }

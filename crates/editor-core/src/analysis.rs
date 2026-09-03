@@ -955,6 +955,98 @@ pub fn box_mass(
     interval_mass(param, dist, sub)
 }
 
+/// **The offset a distribution puts at quantile `u`** — inverse-
+/// transform sampling's one door, and the E11.1 advisory lane's only
+/// way to draw a parameter value.
+///
+/// `u` is a uniform draw in `[0, 1)`. The result is an OFFSET from the
+/// nominal, in the parameter's own dimension, exactly as every other
+/// door in this module speaks offsets.
+///
+/// **Inverse transform rather than a shaped generator**, and the reason
+/// is the one this module is built on: the quantile is derived from
+/// [`std_normal_mass`] — the SAME measure `box_mass` and `tail_mass`
+/// report — by the same monotone bisection [`quantile_z`] uses, so a
+/// sample lands in a sub-box with exactly the frequency `box_mass` says
+/// it should. A Box–Muller pair would be a second implementation of the
+/// normal law sitting beside the first, and the two would agree only by
+/// luck.
+///
+/// **It draws from the WHOLE law, never from the analyzed box.** That
+/// is what the MC lane adds over the certified one (E11.1): the tail
+/// the box excludes is exactly the region the certified answer does not
+/// cover, so an estimator that also clipped it would be estimating the
+/// same restriction twice.
+///
+/// # Errors
+///
+/// [`MeasureUnavailable::BandHasNoMeasure`] for a band: limits without
+/// a shape cannot be sampled, and promoting one to uniform is the E2
+/// violation this whole module refuses.
+pub fn sample_offset(
+    param: &ParamName,
+    dist: &Distribution,
+    u: f64,
+) -> Result<f64, MeasureUnavailable> {
+    match *dist {
+        Distribution::Band { .. } => Err(MeasureUnavailable::BandHasNoMeasure {
+            param: param.clone(),
+        }),
+        Distribution::Uniform { lo, hi } => Ok(lo + (hi - lo) * u),
+        Distribution::Normal { sigma } => Ok(sigma * std_normal_quantile(u)),
+        Distribution::TruncatedNormal { sigma, lo, hi } => {
+            // The truncated law's own inverse CDF: bisect the standard
+            // normal's mass over `[a, z]` against `u` of the window's
+            // total, so the draw is conditioned on the window rather
+            // than rejected into it. Rejection sampling would be the
+            // other route and it is not deterministic in the count of
+            // draws it makes, which D9 forbids.
+            let (a, b) = (lo / sigma, hi / sigma);
+            let total = std_normal_mass(a, b);
+            if total <= 0.0 || total.is_nan() {
+                // A window of zero mass is the degenerate point: the
+                // one offset every measure on it agrees about.
+                return Ok(lo);
+            }
+            let target = u * total;
+            let (mut z_lo, mut z_hi) = (a, b);
+            loop {
+                let mid = 0.5 * (z_lo + z_hi);
+                if mid <= z_lo || mid >= z_hi {
+                    return Ok(sigma * z_hi);
+                }
+                if std_normal_mass(a, mid) >= target {
+                    z_hi = mid;
+                } else {
+                    z_lo = mid;
+                }
+            }
+        }
+    }
+}
+
+/// `Φ⁻¹(u)` in standard deviations, by the same monotone bisection
+/// [`quantile_z`] runs and over the same measure.
+///
+/// Saturates at ±[`Z_BRACKET`], which is honest rather than a clamp
+/// hiding a failure: a `u` beyond what 16σ resolves is a draw the `f64`
+/// uniform grid cannot distinguish from the extreme itself.
+fn std_normal_quantile(u: f64) -> f64 {
+    let target = u.clamp(0.0, 1.0);
+    let (mut lo, mut hi) = (-Z_BRACKET, Z_BRACKET);
+    loop {
+        let mid = 0.5 * (lo + hi);
+        if mid <= lo || mid >= hi {
+            return hi;
+        }
+        if std_normal_mass(-Z_BRACKET, mid) >= target {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+}
+
 /// The standard deviation a distribution puts around its own mean —
 /// the σ the E5 RSS column consumes (`√Σ(∂m/∂pᵢ·σᵢ)²` is a statement
 /// about spreads, and this is the one place a spread is read off a
