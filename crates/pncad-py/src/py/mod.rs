@@ -7,6 +7,7 @@ mod flush;
 mod mate;
 mod mesh;
 mod path;
+mod pick;
 mod place;
 mod quantity;
 mod readback;
@@ -290,6 +291,51 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     pncad,
+    HitTestError,
+    PncadError,
+    "A hit test could not answer. Carries `variant`, the stable tag of \
+     the refusing arm, plus `node`, `through`, `kind` and `body`, each \
+     present on every arm and `None` where that arm does not carry \
+     it.\n\n\
+     A MISS is not this. The ray hitting no offered triangle is \
+     `None`, typed, and an error is never flattened into it — so \
+     catching this class never means \"nothing was there\".\n\n\
+     Three arms are the standing ladder, spelled exactly as \
+     `ReadbackError` spells it (`node_not_evaluated`, `node_failed`, \
+     `node_poisoned`): a mesh displayed for a node this evaluation did \
+     not produce cannot belong to it. The fourth, `unnamed`, is a \
+     KERNEL BUG report — the node evaluated and the entity has no name \
+     in its table — and it carries the entity's `kind` and `body`, \
+     never its arena key.\n\n\
+     `NodePick.patch_names` answers with instances of this class IN A \
+     SLOT rather than raising: one naming-emission bug must not cost a \
+     consumer the names of every other patch it is drawing."
+);
+pyo3::create_exception!(
+    pncad,
+    NodePickError,
+    PncadError,
+    "A pick index could not be built. Carries `variant`, the stable \
+     tag of the refusing arm, plus `node`, `through`, `kind` and \
+     `body`, each present on every arm and `None` where that arm does \
+     not carry it.\n\n\
+     `not_a_body` and `no_such_body` are different states and stay \
+     apart: a datum, profile, declaration or mate NEVER draws, while a \
+     node that draws nothing today (an annihilated boolean, an empty \
+     split side) draws again after an edit.\n\n\
+     Two arms FORWARD rather than wrap. The standing ladder arrives \
+     under `HitTestError`'s own tags, because it IS that refusal; a \
+     tessellation refusal arrives under the tessellator's own tag and \
+     prose. What a forwarded arm does not bring is the inner refusal's \
+     extra ATTRIBUTES — a tessellation refusal's `value`, `bound`, \
+     `requested` and `note` stay on `TessellateError`, where \
+     `Body.tessellate` raises them. `mesh_index` is the arm with \
+     nothing to forward: its payload type is deliberately absent from \
+     the façade, so it crosses as one tag plus the kernel's own prose, \
+     which states the offending patch, triangle and index."
+);
+pyo3::create_exception!(
+    pncad,
     ChecksError,
     PncadError,
     "The advisory-check registry could not RUN. Carries `variant`, the \
@@ -374,6 +420,8 @@ pub(crate) fn typed_err(
         ErrorClass::Inline => InlineError::new_err(message),
         ErrorClass::Update => UpdateError::new_err(message),
         ErrorClass::Readback => ReadbackError::new_err(message),
+        ErrorClass::HitTest => HitTestError::new_err(message),
+        ErrorClass::NodePick => NodePickError::new_err(message),
         ErrorClass::Checks => ChecksError::new_err(message),
         ErrorClass::Enforce => CheckRefusal::new_err(message),
     };
@@ -426,6 +474,8 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("InlineError", py.get_type::<InlineError>())?;
     m.add("UpdateError", py.get_type::<UpdateError>())?;
     m.add("ReadbackError", py.get_type::<ReadbackError>())?;
+    m.add("HitTestError", py.get_type::<HitTestError>())?;
+    m.add("NodePickError", py.get_type::<NodePickError>())?;
     m.add("ChecksError", py.get_type::<ChecksError>())?;
     m.add("CheckRefusal", py.get_type::<CheckRefusal>())?;
 
@@ -435,6 +485,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     doc::register(m)?;
     select::register(m)?;
     readback::register(m)?;
+    pick::register(m)?;
     store::register(m)?;
     mate::register(m)?;
     assembly::register(m)?;
