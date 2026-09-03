@@ -82,6 +82,7 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Evaluation => "EvaluationError",
             ErrorClass::Validation => "ValidationError",
             ErrorClass::Dimension => "DimensionError",
+            ErrorClass::FmtQuantity => "FmtQuantityError",
             ErrorClass::Literal => "LiteralError",
             ErrorClass::Parse => "ParseError",
             ErrorClass::Eval => "EvalError",
@@ -113,6 +114,7 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Evaluation,
         ErrorClass::Validation,
         ErrorClass::Dimension,
+        ErrorClass::FmtQuantity,
         ErrorClass::Literal,
         ErrorClass::Parse,
         ErrorClass::Eval,
@@ -425,6 +427,56 @@ fn literal_refusals_come_from_the_kernel_with_stable_tags() {
          literal-value pair — it raises `LiteralError`, so decide \
          whether that is still the right class before widening this pin"
     );
+}
+
+/// LIB-B-FORMAT: the display formatter's tag map, and the CLASS
+/// question it settles.
+///
+/// The map has one arm, so the interesting content is not the string
+/// — it is that the string is `non_finite`, the SAME tag
+/// [`expr_dimension_error_tag`] answers for `NonFiniteLiteral`, while
+/// the two are nonetheless different exception classes. That is the
+/// deliberate shape: the tag names the fact (a float that is NaN or
+/// ±∞), the class names the door (INTO a recipe, or OUT to a human),
+/// and a caller who wants to know which asks the class it already
+/// caught rather than parsing a discriminant.
+///
+/// Driven through `fmt_length` / `fmt_angle` themselves rather than
+/// by constructing the arm, on
+/// [`expression_text_door_tags_are_stable`]'s reasoning: the question
+/// is what a caller sees when the door refuses, and a hand-built
+/// value pins the map against something the door might never produce.
+/// The finite half is asserted too, and it is not filler — a
+/// formatter that refused everything would satisfy the refusal
+/// assertions alone.
+#[test]
+fn display_formatter_refusals_carry_the_shared_non_finite_tag() {
+    use crate::tags::fmt_quantity_error_tag as tag;
+    use pncad::quantity::{DEG, MM, fmt_angle, fmt_length};
+
+    for poison in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let refused = fmt_length(poison, MM).expect_err("poison has no display form");
+        assert_eq!(tag(&refused), "non_finite");
+        let refused = fmt_angle(poison, DEG).expect_err("poison has no display form");
+        assert_eq!(tag(&refused), "non_finite");
+    }
+    assert_eq!(fmt_length(0.025, MM).expect("finite"), "25 mm");
+    assert_eq!(fmt_angle(0.0, DEG).expect("finite"), "0 deg");
+
+    // Same fact, same tag, different class — the paragraph above, as
+    // an assertion rather than as a claim about what someone meant.
+    let into_a_recipe = pncad::document::Expr::literal(f64::NAN, Dimension::Length)
+        .expect_err("a non-finite literal refuses");
+    assert_eq!(expr_dimension_error_tag(&into_a_recipe), "non_finite");
+    assert_eq!(ErrorClass::Literal.class_name(), "LiteralError");
+    assert_eq!(ErrorClass::FmtQuantity.class_name(), "FmtQuantityError");
+
+    // The refusal's own prose is what crosses as the message, and it
+    // is prose rather than a `Debug` dump — the rule
+    // `crate::py::typed_err` asserts on every raise.
+    let refused = fmt_length(f64::NAN, MM).expect_err("poison has no display form");
+    assert!(reads_as_prose(&refused.to_string()));
+    assert!(!reads_as_prose(&format!("{refused:?}")));
 }
 
 /// LIB-B-EXPR-READ: the text door's tag map, arm by arm, driven

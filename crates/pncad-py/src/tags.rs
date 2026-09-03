@@ -34,6 +34,7 @@ use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
 use pncad::prelude::BlendKind;
 use pncad::profile::{PathError, PathErrorKind};
+use pncad::quantity::FmtQuantityError;
 use pncad::select::{DanglingRef, HitTestError, InterrogateError, NodePickError, ReadbackError};
 use pncad::step_import::StepImportError;
 // All three STL refusals are prelude-curated; the module path is the
@@ -554,6 +555,28 @@ pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
         DimensionError::NonFiniteLiteral => "non_finite",
         DimensionError::DisplayUnitMismatch { .. } => "display_unit_mismatch",
         DimensionError::UnknownDisplayUnit { .. } => "unknown_display_unit",
+    }
+}
+
+/// The stable tag for a display-formatter refusal (`Length.format` /
+/// `Angle.format`).
+///
+/// One arm today, and the map exists anyway for the reason every
+/// other one does: the tag is the branchable interface, and a SECOND
+/// arm arriving must break this build rather than reach a caller
+/// untagged. A one-arm `match` with no wildcard IS that alarm, at the
+/// size this refusal happens to be.
+///
+/// The tag is `non_finite`, deliberately the same string
+/// [`expr_dimension_error_tag`] uses for `NonFiniteLiteral`. Two
+/// layers refuse the same fact — a float that is NaN or ±∞ — on
+/// opposite doors (one on the way INTO a recipe, one on the way OUT
+/// to a human), and a caller branching on the tag is asking what went
+/// wrong, not which layer said so; the exception CLASS already
+/// answers the second question.
+pub fn fmt_quantity_error_tag(err: &FmtQuantityError) -> &'static str {
+    match err {
+        FmtQuantityError::NonFinite { .. } => "non_finite",
     }
 }
 

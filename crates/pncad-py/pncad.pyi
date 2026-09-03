@@ -126,6 +126,24 @@ class DimensionError(PncadError):
     left: str
     right: str
 
+class FmtQuantityError(PncadError):
+    """`Length.format` or `Angle.format` refused a value: it is NaN or
+    ±∞, and a non-finite quantity has no display form.
+
+    `value` is the refused float, `variant` the stable tag
+    (`"non_finite"`).
+
+    Reachable, which is why it is typed. The quantity newtypes are
+    plain value wrappers that refuse no float, so `float("inf") * mm`
+    is an ordinary Length; poison is stopped at the doors values LEAVE
+    through, and rendering one for a reader is one of those. The tag
+    is deliberately the same string LiteralError uses for a non-finite
+    literal — same fact, opposite doors — and the CLASS is what says
+    which door refused."""
+
+    variant: str
+    value: float
+
 class LiteralError(PncadError):
     """A value the expression layer refused (`Expr::literal`'s own
     curated error). `value` is the offending number.
@@ -571,6 +589,7 @@ class Length:
     @property
     def meters(self) -> float: ...
     def in_unit(self, unit: LengthUnit) -> float: ...
+    def format(self, unit: LengthUnit) -> str: ...
     def __add__(self, other: Length) -> Length: ...
     def __sub__(self, other: Length) -> Length: ...
     def __neg__(self) -> Length: ...
@@ -589,6 +608,7 @@ class Angle:
     @property
     def radians(self) -> float: ...
     def in_unit(self, unit: AngleUnit) -> float: ...
+    def format(self, unit: AngleUnit) -> str: ...
     def __add__(self, other: Angle) -> Angle: ...
     def __sub__(self, other: Angle) -> Angle: ...
     def __neg__(self) -> Angle: ...

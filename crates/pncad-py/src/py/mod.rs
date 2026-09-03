@@ -76,6 +76,22 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     pncad,
+    FmtQuantityError,
+    PncadError,
+    "`Length.format` or `Angle.format` refused a value: it is NaN or \
+     ±∞, and a non-finite quantity has no display form. Carries \
+     `variant` (`\"non_finite\"`) and `value`, the refused float.\n\n\
+     Reachable, and that is why it is typed rather than asserted \
+     away. `quantity`'s newtypes are plain value wrappers that \
+     refuse no float, so `float(\"inf\") * mm` is an ordinary \
+     `Length`; poison is stopped at the doors values LEAVE through, \
+     and rendering one for a human is one of those. The recourse is \
+     upstream by construction — nothing this formatter could be \
+     asked differently turns poison into text — so the message names \
+     the operation that produced the value."
+);
+pyo3::create_exception!(
+    pncad,
     LiteralError,
     PncadError,
     "A value the expression layer refused: non-finite, or a count \
@@ -447,6 +463,7 @@ pub(crate) fn typed_err(
         ErrorClass::Evaluation => EvaluationError::new_err(message),
         ErrorClass::Validation => ValidationError::new_err(message),
         ErrorClass::Dimension => DimensionError::new_err(message),
+        ErrorClass::FmtQuantity => FmtQuantityError::new_err(message),
         ErrorClass::Literal => LiteralError::new_err(message),
         ErrorClass::Parse => ParseError::new_err(message),
         ErrorClass::Eval => EvalError::new_err(message),
@@ -503,6 +520,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("EvaluationError", py.get_type::<EvaluationError>())?;
     m.add("ValidationError", py.get_type::<ValidationError>())?;
     m.add("DimensionError", py.get_type::<DimensionError>())?;
+    m.add("FmtQuantityError", py.get_type::<FmtQuantityError>())?;
     m.add("LiteralError", py.get_type::<LiteralError>())?;
     m.add("ParseError", py.get_type::<ParseError>())?;
     m.add("EvalError", py.get_type::<EvalError>())?;
