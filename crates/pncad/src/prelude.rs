@@ -64,9 +64,13 @@ pub use crate::authoring::{p2, p3, real, v2, v3, validated};
 // the only `InvalidValue` reachable from a prelude door is
 // `field: Escalate`, the K·ε overflow residue that `Band::linear`'s
 // own docs call unreachable for any physically meaningful tolerance.
-// The other producer, `Band::angular_at`, has NO live call site in
-// the workspace, and `Band::new` is called directly only in
-// geometry-layer interiors and test fixtures.
+// The other producer, `Band::angular_at`, has no caller anywhere in
+// the workspace outside `geom_core`'s OWN tests — no kernel verb
+// reaches it — and `Band::new` is called directly only in
+// geometry-layer interiors and test fixtures. `geom_core`'s
+// `band_tolerance` test is worth naming rather than waving at: it is
+// the one place `angular_at`'s overflow residue is exercised, and it
+// lands on `field: Escalate` too.
 //
 // So a curated `BandField` would publish a two-arm type whose only
 // use here is comparison against a value it always has. CUR3 carried
