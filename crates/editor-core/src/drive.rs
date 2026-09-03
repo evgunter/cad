@@ -72,7 +72,7 @@ use std::sync::Arc;
 
 use geom_core::interval::Interval;
 use geom_core::k_stats::Verdict;
-use geom_core::{MarginDiag, Tol};
+use geom_core::{MarginDiag, Sym, SymCounts, Tol};
 
 #[cfg(feature = "probe")]
 use crate::analysis::BoxAxis;
@@ -133,6 +133,81 @@ pub struct DriveConfig {
     /// writes to only exists in a probe build.
     #[cfg(feature = "probe")]
     pub k_probe: KProbe,
+    /// The symbolic identity tier (E12): whether the leaf replay carries
+    /// parameter expressions, and how large a normal form may grow
+    /// before it freezes.
+    pub symbolic: SymbolicDials,
+}
+
+/// **The symbolic tier's dials** (E12, `geom_core::sym`).
+///
+/// # The defaults, and the argument for them
+///
+/// `enabled` is ON, because a certifier that can only certify boxes
+/// narrower than its own ε is the state M10-3 pinned and E12 exists to
+/// leave; the tier off is the comparison lane, not the shipped one.
+///
+/// `max_terms = 4096` and `max_degree = 16` are the FREEZING budget, and
+/// they are sized against what the identities actually are rather than
+/// against a machine limit. A certification identity on an analytic
+/// carrier is a low-degree polynomial in a handful of parameters — the
+/// plate's widest form is a squared distance in three symbols, degree 2
+/// per symbol — so degree 16 is an order of magnitude of headroom and
+/// term counts stay in the tens. What the budget defends against is the
+/// pathological product a NURBS-heavy recipe could build, where a form
+/// would grow multiplicatively with no identity at the end of it; there
+/// the freeze costs a cancellation that was never going to happen and
+/// saves the replay. The evidence for the numbers is the FROZEN COUNT on
+/// the verdict: a corpus that freezes nothing has budget to spare, and a
+/// corpus that freezes often is telling you to look at the forms rather
+/// than to raise the dial.
+///
+/// `SymbolicDials::off()` reproduces the numeric-only replay bit for
+/// bit: no session is installed, no node is minted, and the verdict's
+/// serialization carries no symbolic line at all.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SymbolicDials {
+    /// Whether the leaf replay runs at the symbolic tier.
+    pub enabled: bool,
+    /// The most terms one normal form may hold before it freezes.
+    pub max_terms: usize,
+    /// The largest total degree one normal form may reach.
+    pub max_degree: u32,
+}
+
+/// The shipped term budget ([`SymbolicDials`]).
+pub const DEFAULT_SYM_MAX_TERMS: usize = 4096;
+
+/// The shipped degree budget ([`SymbolicDials`]).
+pub const DEFAULT_SYM_MAX_DEGREE: u32 = 16;
+
+impl SymbolicDials {
+    /// The tier off — the numeric-only replay, bit for bit.
+    #[must_use]
+    pub fn off() -> Self {
+        Self {
+            enabled: false,
+            ..Self::default()
+        }
+    }
+
+    /// The budget as the scalar's own type.
+    fn budget(self) -> geom_core::SymBudget {
+        geom_core::SymBudget {
+            max_terms: self.max_terms,
+            max_degree: self.max_degree,
+        }
+    }
+}
+
+impl Default for SymbolicDials {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_terms: DEFAULT_SYM_MAX_TERMS,
+            max_degree: DEFAULT_SYM_MAX_DEGREE,
+        }
+    }
 }
 
 /// How driver-path predicate samples reach the `k_stats` funnel.
@@ -190,6 +265,7 @@ impl Default for DriveConfig {
             parallel: false,
             #[cfg(feature = "probe")]
             k_probe: KProbe::Off,
+            symbolic: SymbolicDials::default(),
         }
     }
 }
@@ -568,6 +644,10 @@ pub struct CertifiedLeaf {
     pub verdict_vector_key: VerdictVectorKey,
     /// What its replay produced.
     pub results: LeafResults,
+    /// How this leaf's decisions were answered — the E12 receipt
+    /// ([`SymbolicDials`]). All zero when the tier is off, because no
+    /// session exists to count in.
+    pub decisions: SymCounts,
 }
 
 /// A leaf the driver refused, and why.
@@ -577,6 +657,9 @@ pub struct RefusedLeaf {
     pub box_: ParamBox,
     /// The typed reason.
     pub reason: RefusalReason,
+    /// How this leaf's decisions were answered before it refused — the
+    /// E12 receipt ([`SymbolicDials`]).
+    pub decisions: SymCounts,
 }
 
 /// The counting receipt of one drive.
@@ -611,6 +694,7 @@ pub struct ParamBoxVerdict {
     refused: Vec<RefusedLeaf>,
     accounting: MeasureAccounting,
     receipt: Receipt,
+    decisions: SymCounts,
     witness_vector: Arc<VerdictVector>,
     root: ParamBox,
 }
@@ -634,6 +718,18 @@ impl ParamBoxVerdict {
     /// The counting receipt.
     pub fn receipt(&self) -> Receipt {
         self.receipt
+    }
+
+    /// **The E12 receipt**: how this drive's predicate decisions were
+    /// answered, summed over every leaf — `symbolic_zero` against
+    /// `numeric`, with `frozen` beside them.
+    ///
+    /// All zero when the symbolic tier is off ([`SymbolicDials::off`]),
+    /// which is not a claim that nothing decided: with no session
+    /// installed there is nothing counting, and the verdict says so by
+    /// omitting the line rather than by reporting zeros as data.
+    pub fn decisions(&self) -> SymCounts {
+        self.decisions
     }
 
     /// The witness build's CERTIFYING verdict vector — the thing every
@@ -687,6 +783,18 @@ impl ParamBoxVerdict {
                 render_reason(&leaf.reason)
             );
         }
+        // The symbolic tier's receipt, and ONLY when there is one: a
+        // drive with the tier off installs no session, counts nothing,
+        // and serializes exactly the text it serialized before E12 —
+        // which is what makes the tier-off differential a byte
+        // comparison rather than a filtered one.
+        if self.decisions != SymCounts::default() {
+            let _ = writeln!(
+                s,
+                "decisions symbolic_zero={} numeric={} frozen={}",
+                self.decisions.symbolic_zero, self.decisions.numeric, self.decisions.frozen
+            );
+        }
         let _ = write!(s, "{}", self.accounting.serialize());
         s
     }
@@ -720,6 +828,21 @@ impl ParamBoxVerdict {
         }
         for (class, n) in &classes {
             let _ = writeln!(s, "  {n} leaf/leaves refused {class}");
+        }
+        let d = self.decisions;
+        if d != SymCounts::default() {
+            let total = d.decisions();
+            let share = if total == 0 {
+                0.0
+            } else {
+                100.0 * (d.symbolic_zero as f64) / (total as f64)
+            };
+            let _ = writeln!(
+                s,
+                "  {} of {total} decisions were symbolic identities ({share:.1}%); \
+                 {} form(s) frozen",
+                d.symbolic_zero, d.frozen
+            );
         }
         let _ = write!(
             s,
@@ -934,6 +1057,7 @@ pub fn drive(
     let mut certified: Vec<CertifiedLeaf> = Vec::new();
     let mut refused: Vec<RefusedLeaf> = Vec::new();
     let mut splits = 0usize;
+    let mut decisions = SymCounts::default();
 
     // A level-synchronous frontier, so the sequential and the parallel
     // schedule visit the same boxes in the same order and combine them
@@ -949,35 +1073,45 @@ pub fn drive(
         // priced and reported, never dropped.
         if certified.len() + refused.len() + frontier.len() > config.max_leaves {
             for b in frontier.drain(..) {
+                // A box the budget refuses before it is replayed decided
+                // nothing, so its receipt is empty rather than absent.
                 refused.push(RefusedLeaf {
                     box_: b.box_,
                     reason: RefusalReason::Budget(BudgetKind::Leaves {
                         max_leaves: config.max_leaves,
                     }),
+                    decisions: SymCounts::default(),
                 });
             }
             break;
         }
-        let verdicts: Vec<LeafVerdict> = if config.parallel {
+        let leaf = |b: &Box_| {
+            classify(
+                doc,
+                &b.box_,
+                &witness,
+                &witness_vector,
+                witness_key,
+                config.symbolic,
+                tol,
+            )
+        };
+        let verdicts: Vec<(LeafVerdict, SymCounts)> = if config.parallel {
             use rayon::prelude::*;
-            frontier
-                .par_iter()
-                .map(|b| classify(doc, &b.box_, &witness, &witness_vector, witness_key, tol))
-                .collect()
+            frontier.par_iter().map(leaf).collect()
         } else {
-            frontier
-                .iter()
-                .map(|b| classify(doc, &b.box_, &witness, &witness_vector, witness_key, tol))
-                .collect()
+            frontier.iter().map(leaf).collect()
         };
         let mut next = Vec::new();
         let level = frontier.len();
-        for (i, (b, v)) in frontier.drain(..).zip(verdicts).enumerate() {
+        for (i, (b, (v, counts))) in frontier.drain(..).zip(verdicts).enumerate() {
+            decisions.absorb(counts);
             match v {
                 LeafVerdict::Certified(leaf) => certified.push(leaf),
                 LeafVerdict::Refused(reason) => refused.push(RefusedLeaf {
                     box_: b.box_,
                     reason,
+                    decisions: counts,
                 }),
                 // The budget is enforced AT ADMISSION, not after the
                 // fact: splitting turns one box into two, so the split
@@ -1003,6 +1137,7 @@ pub fn drive(
                             reason: RefusalReason::Budget(BudgetKind::Leaves {
                                 max_leaves: config.max_leaves,
                             }),
+                            decisions: counts,
                         });
                     } else {
                         match bisect(&b, &root, config.max_depth) {
@@ -1014,6 +1149,7 @@ pub fn drive(
                             Err(kind) => refused.push(RefusedLeaf {
                                 box_: b.box_,
                                 reason: RefusalReason::Budget(kind),
+                                decisions: counts,
                             }),
                         }
                     }
@@ -1026,7 +1162,7 @@ pub fn drive(
     #[cfg(feature = "probe")]
     if config.k_probe == KProbe::CertifiedMidpoints {
         for leaf in &certified {
-            probe_midpoint(doc, &leaf.box_, tol);
+            probe_midpoint(doc, &leaf.box_, config.symbolic, tol);
         }
     }
 
@@ -1059,6 +1195,7 @@ pub fn drive(
         refused,
         accounting,
         receipt,
+        decisions,
         witness_vector,
         root,
     })
@@ -1103,20 +1240,74 @@ enum LeafVerdict {
     Bisect,
 }
 
-/// The leaf protocol: replay at `Interval` over this box and classify.
+/// The leaf protocol: replay this box at the configured lane scalar and
+/// classify, answering the verdict beside the leaf's own E12 receipt.
+///
+/// **Which scalar, and why the choice is here rather than inside**
+/// (E12). With the symbolic tier on, the replay runs at
+/// `Sym<Interval>` inside a fresh [`geom_core::sym::with_session`]: the
+/// numeric channel is `Interval`'s, verbatim and bit for bit, and the
+/// tier adds one thing — a margin whose expression is identically zero
+/// in the document's parameters decides `Zero` without consulting its
+/// enclosure. With the tier off the replay is the plain `Interval` one,
+/// which is why `SymbolicDials::off()` is a byte-exact reproduction of
+/// the pre-E12 driver rather than an approximation of it.
+///
+/// The session is per-CALL, so its hash-consing table is per leaf and is
+/// dropped with the leaf; under the parallel schedule each leaf runs
+/// wholly on one rayon thread, and the session is thread-local, so no
+/// table is ever shared. Node ids are content hashes, so the two
+/// schedules build identical DAGs anyway (D9).
+///
+/// **The f64 witness pass is untouched.** A point residual is tight, so
+/// the witness still catches a constructor that does not build what it
+/// claims — which is exactly the failure the symbolic tier could
+/// otherwise hide, since an expression that is identically zero on
+/// paper says nothing about whether the code computed it.
 fn classify(
     doc: &Doc<ProfileProgram>,
     box_: &ParamBox,
     witness: &Evaluation<f64>,
     witness_vector: &VerdictVector,
     witness_key: VerdictVectorKey,
+    symbolic: SymbolicDials,
     tol: Tol,
-) -> LeafVerdict {
+) -> (LeafVerdict, SymCounts) {
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
         ..lane_opts()
     };
+    if symbolic.enabled {
+        let (leaf, counts) = geom_core::sym::with_session(symbolic.budget(), || {
+            let leaf: Evaluation<Sym<Interval>> =
+                evaluate(doc, None, &CancelToken::new(), &opts, tol);
+            leaf
+        });
+        return (
+            classify_replay(doc, box_, &leaf, witness, witness_vector, witness_key, counts),
+            counts,
+        );
+    }
     let leaf: Evaluation<Interval> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
+    let counts = SymCounts::default();
+    (
+        classify_replay(doc, box_, &leaf, witness, witness_vector, witness_key, counts),
+        counts,
+    )
+}
+
+/// The classification itself, over an already-replayed leaf — generic
+/// in the lane scalar, because the two lanes above differ only in which
+/// scalar produced the evaluation and in nothing this function reads.
+fn classify_replay<T: crate::eval::EvalScalar>(
+    doc: &Doc<ProfileProgram>,
+    box_: &ParamBox,
+    leaf: &Evaluation<T>,
+    witness: &Evaluation<f64>,
+    witness_vector: &VerdictVector,
+    witness_key: VerdictVectorKey,
+    decisions: SymCounts,
+) -> LeafVerdict {
 
     // (i) Definiteness. An indeterminacy anywhere is the cue to
     // bisect — unless the enclosure that could not be classified sits
@@ -1208,11 +1399,12 @@ fn classify(
     // (ii) The comparison. EXACT, on the CERTIFYING verdict vector —
     // never a width, and never a report node
     // ([`VerdictVector::certifying`]).
-    let vector = VerdictVector::certifying(doc, &leaf);
+    let vector = VerdictVector::certifying(doc, leaf);
     if structure_flips.is_empty() && vector == *witness_vector {
         return LeafVerdict::Certified(CertifiedLeaf {
             box_: box_.clone(),
             verdict_vector_key: witness_key,
+            decisions,
             results: LeafResults {
                 node_keys: leaf
                     .order
@@ -1242,7 +1434,7 @@ fn classify(
     // the whole evaluation, its per-node deltas come back unaltered,
     // and the filter is the SAME predicate `certifying` uses, spelled
     // once here so the two cannot drift.
-    let mut verdicts = diff_verdicts(witness, &leaf);
+    let mut verdicts = diff_verdicts(witness, leaf);
     verdicts
         .nodes
         .retain(|id, _| !matches!(doc.node(*id), Some(Node::Assertion { .. })));
@@ -1409,7 +1601,12 @@ fn contained(root: &ParamBox, certified: &[CertifiedLeaf], refused: &[RefusedLea
 /// existing scalar, the existing sink — the driver only decides WHICH
 /// parameter points get sampled.
 #[cfg(feature = "probe")]
-fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, tol: Tol) {
+fn probe_midpoint(
+    doc: &Doc<ProfileProgram>,
+    box_: &ParamBox,
+    symbolic: SymbolicDials,
+    tol: Tol,
+) {
     // THE SAME MIDPOINT THE SPLIT RULE USES, through the same door
     // (`BoxAxis::midpoint`). Writing `0.5 * (lo + hi)` here as well
     // would let a change to the split rule silently detach the K
@@ -1428,6 +1625,20 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, tol: Tol) {
         param_box: Some(Arc::new(ParamBox::from_axes(mid))),
         ..lane_opts()
     };
+    // The replay runs at the SAME TIER the drive did (E12): with the
+    // tier on the recording scalar is `Sym<Probe>`, so a margin that is
+    // an identity lands in the funnel as `SampleOutcome::SymbolicZero`
+    // and the hosted K row reports the symbolic/numeric split of the
+    // driver's own population. Running it at bare `Probe` would report a
+    // population the driver did not produce.
+    if symbolic.enabled {
+        let _ = geom_core::sym::with_session(symbolic.budget(), || {
+            let ev: Evaluation<Sym<geom_core::Probe>> =
+                evaluate(doc, None, &CancelToken::new(), &opts, tol);
+            ev
+        });
+        return;
+    }
     let _: Evaluation<geom_core::Probe> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
 }
 

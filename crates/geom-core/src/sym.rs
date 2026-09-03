@@ -475,6 +475,14 @@ impl Poly {
         Self::default()
     }
 
+    fn one() -> Self {
+        Self::constant(Rat {
+            num: 1,
+            den: 1,
+            exp2: 0,
+        })
+    }
+
     fn constant(c: Rat) -> Self {
         let mut terms = BTreeMap::new();
         if !c.is_zero() {
@@ -687,7 +695,7 @@ type IdMap<V> = HashMap<SymId, V, core::hash::BuildHasherDefault<IdHasher>>;
 struct Session {
     budget: SymBudget,
     nodes: IdMap<SymNode>,
-    forms: IdMap<Rc<Poly>>,
+    forms: IdMap<Rc<Form>>,
     counts: SymCounts,
 }
 
@@ -756,18 +764,145 @@ const INDET_PI: u128 = 0x5049_5f49_4e44_4554_5f5f_5f5f_5f5f_5f5f;
 
 /// The indeterminate a parameter symbol enters the form as.
 fn indet_param(symbol: u64) -> u128 {
-    Hash128::new().word(0x5041_5241_4d5f_494e).word(symbol).finish()
+    Hash128::new()
+        .word(0x5041_5241_4d5f_494e)
+        .word(symbol)
+        .finish()
 }
 
 /// The indeterminate an OPAQUE atom enters the form as: its op tag, its
-/// payload and the DIGESTS of its arguments' normal forms — so two
-/// atoms whose arguments are the same real are one indeterminate.
+/// payload and the DIGESTS of its argument forms — so two atoms whose
+/// arguments are the same rational function are one indeterminate.
 fn indet_atom(tag: u64, payload: u64, args: &[u128]) -> u128 {
-    let mut h = Hash128::new().word(0x4154_4f4d_5f49_4e44).word(tag).word(payload);
+    let mut h = Hash128::new()
+        .word(0x4154_4f4d_5f49_4e44)
+        .word(tag)
+        .word(payload);
     for d in args {
         h = h.wide(*d);
     }
     h.finish()
+}
+
+/// **The normal form: a quotient of two polynomials** over the parameter
+/// symbols, π and the opaque atoms — with exact rational coefficients,
+/// a denominator that is never the zero polynomial, and NO common-factor
+/// cancellation.
+///
+/// # Why a quotient and not a polynomial
+///
+/// Division is not decoration in this kernel's identities. An extruded
+/// strut's carrier is `origin + (w/‖w‖)·t` metered by `t ∈ [0, ‖w‖]`, so
+/// the endpoint-pinning residual `carrier.eval(t₁) − end` is literally
+/// `w·(‖w‖ · ‖w‖⁻¹ − 1)`: with the reciprocal held opaque the residual is
+/// not the zero form, the tier discharges the rest of the identity
+/// population and the macroscopic box still refuses. Measured on
+/// `m10_3_driver_interval`'s slab at a ±0.05 band: 945 identities
+/// discharged, `carrier_endpoint_end` still indeterminate at `[0, 0.21]`.
+///
+/// A quotient is not a simplification RULE bolted on — it is the normal
+/// form of the field of fractions, reached by the same construction the
+/// polynomial form is: `a/b + c/d = (ad + cb)/(bd)`, `(a/b)⁻¹ = b/a`.
+/// Nothing is factored, `sqrt` and the transcendentals stay opaque
+/// atoms, and no identity is asserted about them.
+///
+/// # Why the zero test stays a theorem
+///
+/// The form is zero **iff its NUMERATOR is the zero polynomial**. As a
+/// rational function that is exactly zero; as a real number at the box's
+/// actual parameter point it is `p(x)/q(x) = 0` PROVIDED `q(x) ≠ 0`, and
+/// clause 1 of [`Decide::sign_within`]'s test already guarantees that: a
+/// division by an enclosure containing zero is undefined there, so the
+/// interval decoration drops to `Trv`, `Trv` propagates, and
+/// `certified_bracket()` refuses the margin before the identity test is
+/// ever asked. The clause was there for `sqrt(-1)`; it covers `1/0` by
+/// the same sentence.
+///
+/// # What is deliberately absent
+///
+/// No common-factor cancellation, so `x²/x` and `x/1` are DIFFERENT
+/// forms and an atom over one does not cancel against an atom over the
+/// other. That is the conservative direction — a missed cancellation is
+/// a numeric decision, which is what the kernel did before the tier
+/// existed — and it keeps the form's cost linear in the expression
+/// rather than in a polynomial GCD.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Form {
+    num: Poly,
+    den: Poly,
+}
+
+impl Form {
+    fn poly(num: Poly) -> Self {
+        Self {
+            num,
+            den: Poly::one(),
+        }
+    }
+
+    fn zero() -> Self {
+        Self::poly(Poly::zero())
+    }
+
+    fn is_zero(&self) -> bool {
+        self.num.is_zero()
+    }
+
+    fn add(&self, other: &Self) -> Option<Self> {
+        // A shared denominator adds numerators, which is both cheaper
+        // and tighter against the budget than cross-multiplying two
+        // copies of the same polynomial.
+        if self.den == other.den {
+            return Some(Self {
+                num: self.num.add(&other.num)?,
+                den: self.den.clone(),
+            });
+        }
+        Some(Self {
+            num: self
+                .num
+                .mul(&other.den)?
+                .add(&other.num.mul(&self.den)?)?,
+            den: self.den.mul(&other.den)?,
+        })
+    }
+
+    fn neg(&self) -> Option<Self> {
+        Some(Self {
+            num: self.num.neg()?,
+            den: self.den.clone(),
+        })
+    }
+
+    fn mul(&self, other: &Self) -> Option<Self> {
+        Some(Self {
+            num: self.num.mul(&other.num)?,
+            den: self.den.mul(&other.den)?,
+        })
+    }
+
+    /// The reciprocal — `None` when the numerator is identically zero,
+    /// which is not a rational function and is poison at every point.
+    fn recip(&self) -> Option<Self> {
+        if self.num.is_zero() {
+            return None;
+        }
+        Some(Self {
+            num: self.den.clone(),
+            den: self.num.clone(),
+        })
+    }
+
+    /// The form's canonical digest — the key an opaque atom is minted
+    /// under, so two atoms with equal-form arguments are one
+    /// indeterminate.
+    fn digest(&self) -> u128 {
+        Hash128::new()
+            .word(0x464f_524d_5f4e_4652)
+            .wide(self.num.digest())
+            .wide(self.den.digest())
+            .finish()
+    }
 }
 
 /// The value an opaque UNARY atom takes at argument zero, where that
@@ -775,12 +910,7 @@ fn indet_atom(tag: u64, payload: u64, args: &[u128]) -> u128 {
 /// lets `‖a − b‖` decide `Zero` when `a − b` does, which is the shape
 /// most of the kernel's identity margins arrive in (`Margin::of` of a
 /// distance is a `sqrt`).
-fn unary_at_zero(op: SymOp) -> Option<Poly> {
-    let one = Rat {
-        num: 1,
-        den: 1,
-        exp2: 0,
-    };
+fn unary_at_zero(op: SymOp) -> Option<Form> {
     match op {
         SymOp::Sqrt
         | SymOp::Abs
@@ -788,9 +918,8 @@ fn unary_at_zero(op: SymOp) -> Option<Poly> {
         | SymOp::Tan
         | SymOp::Asin
         | SymOp::Atan
-        | SymOp::Floor
-        | SymOp::Neg => Some(Poly::zero()),
-        SymOp::Cos => Some(Poly::constant(one)),
+        | SymOp::Floor => Some(Form::zero()),
+        SymOp::Cos => Some(Form::poly(Poly::one())),
         // acos 0 = π/2 — expressible, because π is an indeterminate of
         // the form rather than a number.
         SymOp::Acos => {
@@ -799,26 +928,25 @@ fn unary_at_zero(op: SymOp) -> Option<Poly> {
             for c in p.terms.values_mut() {
                 *c = c.mul(half)?;
             }
-            Some(p)
+            Some(Form::poly(p))
         }
         // 1/0 is not a real; the numeric channel owns that refusal.
         _ => None,
     }
 }
 
-/// Whether a form is inside the session's freezing budget.
-fn within(budget: SymBudget, p: &Poly) -> bool {
-    p.terms.len() <= budget.max_terms && p.degree() <= budget.max_degree
+/// Whether a form is inside the session's freezing budget — both halves
+/// of the quotient, because a denominator that grows without bound costs
+/// exactly what a numerator does.
+fn within(budget: SymBudget, f: &Form) -> bool {
+    let ok = |p: &Poly| p.terms.len() <= budget.max_terms && p.degree() <= budget.max_degree;
+    ok(&f.num) && ok(&f.den)
 }
 
 /// `base^n` for `n >= 0`, budget-checked at every step so a large
 /// exponent freezes rather than allocating its way to the ceiling.
-fn powi_form(base: &Poly, n: u32, budget: SymBudget) -> Option<Poly> {
-    let mut acc = Poly::constant(Rat {
-        num: 1,
-        den: 1,
-        exp2: 0,
-    });
+fn powi_form(base: &Form, n: u32, budget: SymBudget) -> Option<Form> {
+    let mut acc = Form::poly(Poly::one());
     for _ in 0..n {
         acc = acc.mul(base)?;
         if !within(budget, &acc) {
@@ -830,43 +958,46 @@ fn powi_form(base: &Poly, n: u32, budget: SymBudget) -> Option<Poly> {
 
 /// The form of one node, given its children's forms — `None` for
 /// anything the caller must freeze (an overflow, a budget, an
-/// unrepresentable literal).
-fn combine(node: &SymNode, kids: [&Poly; 2], budget: SymBudget) -> Option<Poly> {
+/// unrepresentable literal, a reciprocal of the zero form).
+fn combine(node: &SymNode, kids: [&Form; 2], budget: SymBudget) -> Option<Form> {
     let (a, b) = (kids[0], kids[1]);
     let atom1 = |op: SymOp| {
         if a.is_zero() {
-            if let Some(p) = unary_at_zero(op) {
-                return Some(p);
+            if let Some(f) = unary_at_zero(op) {
+                return Some(f);
             }
         }
-        Some(Poly::indet(indet_atom(op.tag(), node.payload, &[a.digest()])))
+        Some(Form::poly(Poly::indet(indet_atom(
+            op.tag(),
+            node.payload,
+            &[a.digest()],
+        ))))
     };
     let atom2 = |op: SymOp| {
-        Some(Poly::indet(indet_atom(
+        Some(Form::poly(Poly::indet(indet_atom(
             op.tag(),
             node.payload,
             &[a.digest(), b.digest()],
-        )))
+        ))))
     };
     match node.op {
-        SymOp::Param => Some(Poly::indet(indet_param(node.payload))),
-        SymOp::Lit => Rat::of_f64(f64::from_bits(node.payload)).map(Poly::constant),
-        SymOp::Pi => Some(Poly::indet(INDET_PI)),
+        SymOp::Param => Some(Form::poly(Poly::indet(indet_param(node.payload)))),
+        SymOp::Lit => Rat::of_f64(f64::from_bits(node.payload))
+            .map(|c| Form::poly(Poly::constant(c))),
+        SymOp::Pi => Some(Form::poly(Poly::indet(INDET_PI))),
         SymOp::Add => a.add(b),
         SymOp::Sub => a.add(&b.neg()?),
         SymOp::Mul => a.mul(b),
         SymOp::Neg => a.neg(),
+        SymOp::Inv => a.recip(),
         SymOp::Powi => {
             let n = node.payload as u32 as i32;
             match u32::try_from(n) {
                 Ok(n) => powi_form(a, n, budget),
-                // A negative power is `Inv` of a positive one, and `Inv`
-                // is an atom: keyed by the exponent and the base's form.
-                Err(_) => atom1(SymOp::Powi),
+                Err(_) => powi_form(&a.recip()?, n.unsigned_abs(), budget),
             }
         }
-        SymOp::Inv
-        | SymOp::Sqrt
+        SymOp::Sqrt
         | SymOp::Abs
         | SymOp::Sin
         | SymOp::Cos
@@ -879,7 +1010,7 @@ fn combine(node: &SymNode, kids: [&Poly; 2], budget: SymBudget) -> Option<Poly> 
         // nothing, so only the both-zero fold is taken.
         SymOp::Min | SymOp::Max => {
             if a.is_zero() && b.is_zero() {
-                Some(Poly::zero())
+                Some(Form::zero())
             } else {
                 atom2(node.op)
             }
@@ -888,7 +1019,7 @@ fn combine(node: &SymNode, kids: [&Poly; 2], budget: SymBudget) -> Option<Poly> 
         // zero whatever the sign argument does (±0 is one real).
         SymOp::Copysign => {
             if a.is_zero() {
-                Some(Poly::zero())
+                Some(Form::zero())
             } else {
                 atom2(node.op)
             }
@@ -897,13 +1028,13 @@ fn combine(node: &SymNode, kids: [&Poly; 2], budget: SymBudget) -> Option<Poly> 
         // the form can take without reading a value.
         SymOp::Atan2 => atom2(node.op),
         // Keyed by the CHILD IDS, never by their forms (the op's docs).
-        SymOp::Hull => Some(Poly::indet(
+        SymOp::Hull => Some(Form::poly(Poly::indet(
             Hash128::new()
                 .word(SymOp::Hull.tag())
                 .wide(node.kids[0].bits())
                 .wide(node.kids[1].bits())
                 .finish(),
-        )),
+        ))),
     }
 }
 
@@ -914,10 +1045,10 @@ fn combine(node: &SymNode, kids: [&Poly; 2], budget: SymBudget) -> Option<Poly> 
 /// Termination is structural — a node's id is a hash of its children's
 /// ids, so a cycle would need a hash preimage — and every popped id
 /// leaves a form behind, so each is visited at most twice.
-fn form_in(sess: &mut Session, root: SymId) -> Rc<Poly> {
-    let frozen = |sess: &mut Session, id: SymId| -> Rc<Poly> {
+fn form_in(sess: &mut Session, root: SymId) -> Rc<Form> {
+    let frozen = |sess: &mut Session, id: SymId| -> Rc<Form> {
         sess.counts.frozen += 1;
-        Rc::new(Poly::indet(id.bits()))
+        Rc::new(Form::poly(Poly::indet(id.bits())))
     };
     let mut stack = vec![(root, false)];
     while let Some((id, expanded)) = stack.pop() {
@@ -945,25 +1076,25 @@ fn form_in(sess: &mut Session, root: SymId) -> Rc<Poly> {
                 continue;
             }
         }
-        let empty = Poly::zero();
-        let ka = node.kids[0];
-        let kb = node.kids[1];
+        let empty = Form::zero();
         let fa = if arity >= 1 {
-            sess.forms.get(&ka).cloned()
+            sess.forms.get(&node.kids[0]).cloned()
         } else {
             None
         };
         let fb = if arity >= 2 {
-            sess.forms.get(&kb).cloned()
+            sess.forms.get(&node.kids[1]).cloned()
         } else {
             None
         };
-        let kids = [
-            fa.as_deref().unwrap_or(&empty),
-            fb.as_deref().unwrap_or(&empty),
-        ];
         let budget = sess.budget;
-        let made = combine(&node, kids, budget).filter(|p| within(budget, p));
+        let made = {
+            let kids = [
+                fa.as_deref().unwrap_or(&empty),
+                fb.as_deref().unwrap_or(&empty),
+            ];
+            combine(&node, kids, budget).filter(|f| within(budget, f))
+        };
         drop((fa, fb));
         let f = match made {
             Some(p) => Rc::new(p),
@@ -974,7 +1105,7 @@ fn form_in(sess: &mut Session, root: SymId) -> Rc<Poly> {
     sess.forms
         .get(&root)
         .cloned()
-        .unwrap_or_else(|| Rc::new(Poly::indet(root.bits())))
+        .unwrap_or_else(|| Rc::new(Form::poly(Poly::indet(root.bits()))))
 }
 
 /// **The identity test**: is this node's expression identically zero in
@@ -1421,24 +1552,45 @@ mod tests {
         assert!(out);
     }
 
-    /// The documented limits, pinned as limits: no `Inv(b)·b`, no
-    /// trigonometric identity. Both fall to the numeric channel.
+    /// The documented limits, pinned as limits: no factoring past the
+    /// quotient, and no trigonometric identity. `sin² + cos² − 1` is not
+    /// the zero form and never will be — both are opaque atoms.
     #[test]
     fn the_opaque_atoms_are_opaque() {
         let (_, counts) = with_session(budget(), || {
             let x = p("w", 3.0);
-            let y = p("h", 2.0);
-            let inv = (x / y) * y - x;
             let (s, c) = x.sin_cos();
-            let pyth = s * s + c * c - Sym::from_f64(1.0);
-            (decides_zero(inv), decides_zero(pyth))
+            decides_zero(s * s + c * c - Sym::from_f64(1.0))
         });
-        // Both are numerically zero at this point — the numeric channel
-        // answers them, as it always did. What is pinned is that the
-        // TIER claims neither: `Inv` and the trigonometric pair are
-        // opaque atoms and no form of theirs is the zero polynomial.
-        assert_eq!(counts.symbolic_zero, 0, "no factoring, no trig identities");
-        assert_eq!(counts.numeric, 2);
+        // Numerically zero at this point — the numeric channel answers
+        // it, as it always did. What is pinned is that the TIER claims
+        // nothing: no form of a trigonometric pair is the zero form.
+        assert_eq!(counts.symbolic_zero, 0, "no trigonometric identities");
+        assert_eq!(counts.numeric, 1);
+    }
+
+    /// **Division is IN the normal form** (the quotient of polynomials,
+    /// not an opaque reciprocal): `(x/y)·y − x` is the zero form.
+    ///
+    /// This is the shape the kernel's own endpoint-pinning identity
+    /// arrives in — an extruded strut's carrier is metered in metres and
+    /// its direction normalized, so the residual is
+    /// `w·(‖w‖ · ‖w‖⁻¹ − 1)` — and holding the reciprocal opaque leaves
+    /// exactly that identity undischarged.
+    #[test]
+    fn a_reciprocal_cancels_because_the_form_is_a_quotient() {
+        let (_, counts) = with_session(budget(), || {
+            let x = p("w", 3.0);
+            let y = p("h", 2.0);
+            decides_zero((x / y) * y - x);
+            // And the shape the kernel actually builds: a direction
+            // normalized by a norm, re-metered by the same norm.
+            let w = [p("a", 0.0), p("b", 0.0), p("d", 1.0)];
+            let n = (w[0] * w[0] + w[1] * w[1] + w[2] * w[2]).sqrt();
+            let residual = w[2] / n * n - w[2];
+            decides_zero(residual)
+        });
+        assert_eq!(counts.symbolic_zero, 2, "{counts:?}");
     }
 
     /// A poisoned expression never decides `Zero` however zero its form

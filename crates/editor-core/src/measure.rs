@@ -662,6 +662,38 @@ impl MinClearanceLane for geom_core::Interval {
     }
 }
 
+/// **The symbolic tier has no clearance lane, and the absence is a
+/// DISCLOSED limitation rather than a design position** (E12's unit,
+/// deviation D3; issue 1276).
+///
+/// Every other lane the tier composes with is scalar-generic and runs
+/// at `Sym<T>` unaltered. This one is not: [`crate::clearance`]'s engine
+/// is written at [`geom_core::Interval`] concretely — its selection type
+/// borrows a `&Body<Interval>` and its inner subdivision is spelled in
+/// that type — so the door cannot be handed a `Body<Sym<Interval>>`, and
+/// stripping one would need a scalar remap of a whole body, which no
+/// door in `topo` offers today.
+///
+/// `None` is therefore the honest answer, and it behaves exactly as the
+/// point scalars' `None` does: `min_clearance` refuses TYPED at this
+/// lane, naming it, instead of reporting a number it did not compute. A
+/// document carrying that measure drives with the symbolic tier off
+/// (`DriveConfig::symbolic.enabled = false`) and says so; nothing
+/// silently degrades.
+impl<T: MinClearanceLane> MinClearanceLane for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: geom_core::Real,
+{
+    const LANE: &'static str = "Sym";
+
+    fn min_separation(
+        _a: &MinClearanceOperand<'_, Self>,
+        _b: &MinClearanceOperand<'_, Self>,
+    ) -> Option<Result<Self, MinClearanceRefusal>> {
+        None
+    }
+}
+
 /// Which way an [`Assertion`](crate::Node::Assertion) constrains its
 /// measure (E10).
 #[derive(
