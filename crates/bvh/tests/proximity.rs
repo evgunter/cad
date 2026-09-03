@@ -78,7 +78,9 @@ proptest! {
     }
 
     /// The tree's proximity query against brute force, on the same
-    /// boxes: exactly the padded-overlap set, in ascending order.
+    /// boxes: exactly the items whose own bound says they are within
+    /// `pad`, in ascending order. The tree's node pruning must change
+    /// which boxes are EXAMINED and nothing else.
     #[test]
     fn within_reproduces_the_brute_force_set(
         boxes in prop::collection::vec(arb_box(), 1..40),
@@ -86,11 +88,10 @@ proptest! {
         pad in 0.0..3.0f64,
     ) {
         let tree = Bvh::build(&boxes);
-        let padded = query.padded(pad);
         let brute: Vec<usize> = boxes
             .iter()
             .enumerate()
-            .filter(|(_, b)| b.overlaps(&padded))
+            .filter(|(_, b)| b.separation_lo(&query) <= pad)
             .map(|(i, _)| i)
             .collect();
         prop_assert_eq!(tree.within(&query, pad), brute);
@@ -98,8 +99,7 @@ proptest! {
 
     /// Conservativeness, the property the clearance lane rests on: a
     /// pair whose true separation is at most `pad` is always a
-    /// candidate. (The converse does not hold and must not: the
-    /// per-axis padding admits pairs up to `pad·√3` apart.)
+    /// candidate.
     #[test]
     fn pairs_within_never_drops_a_close_pair(
         left in prop::collection::vec(arb_box(), 1..12),
@@ -142,9 +142,14 @@ fn the_degenerate_boxes_answer_zero() {
     }
     // A poison box is a candidate of every proximity query, at every
     // pad — the crate's fail-safe direction.
+    let far = boxed([99.0, 99.0, 99.0], [100.0, 100.0, 100.0]);
     let tree = Bvh::build(&[Aabb::poison(), unit]);
     assert_eq!(tree.within(&touching, 0.0), vec![0, 1]);
-    assert_eq!(tree.within(&boxed([99.0, 99.0, 99.0], [100.0, 100.0, 100.0]), 0.0), vec![0]);
+    assert_eq!(tree.within(&far, 0.0), vec![0]);
+    // A pad that is not a distance answers everything rather than
+    // pruning the tree bare.
+    assert_eq!(tree.within(&far, -1.0), vec![0, 1]);
+    assert_eq!(tree.within(&far, f64::NAN), vec![0, 1]);
 }
 
 /// A separation the bound must actually SEE: two unit boxes a metre
@@ -174,9 +179,11 @@ fn self_pairs_are_unordered_and_reported_once() {
     ];
     let tree = Bvh::build(&boxes);
     assert_eq!(tree.self_pairs_within(0.0), vec![(0, 1)]);
-    // A pad wide enough to reach the far box pairs everything, still
-    // once each and still ascending.
-    assert_eq!(tree.self_pairs_within(9.0), vec![(0, 1), (0, 2), (1, 2)]);
+    // The far box is `8√3 ≈ 13.86` away on the diagonal, not 8: the
+    // query's reach is Euclidean, not per-axis. A pad that clears it
+    // pairs everything, still once each and still ascending.
+    assert_eq!(tree.self_pairs_within(13.0), vec![(0, 1)]);
+    assert_eq!(tree.self_pairs_within(14.0), vec![(0, 1), (0, 2), (1, 2)]);
 }
 
 /// The `T: Bounds` door at `T = f64` is the vertex-extent constructor

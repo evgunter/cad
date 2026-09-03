@@ -200,18 +200,68 @@ impl Bvh {
     /// caller asking what could be NEAR a box rather than what could
     /// touch it.
     ///
-    /// The padding goes on the query, once, through [`Aabb::padded`]'s
-    /// outward-only arithmetic; nothing here reasons about distance. A
-    /// pair this drops is separated on some axis by strictly more than
-    /// `pad`, hence by strictly more than `pad` in Euclidean distance —
-    /// which is why a proximity consumer may use it as a filter and must
-    /// still decide each surviving pair for itself (the crate's
+
+    /// Pruning is [`Aabb::separation_lo`], a certified LOWER bound on a
+    /// Euclidean separation, so a subtree is dropped only when every
+    /// item under it is provably further than `pad` — and dropping it
+    /// is sound because a node hull contains its items' boxes, whose
+    /// own separations are therefore no smaller. Nothing is decided:
+    /// the answer is a candidate set, and a proximity consumer still
+    /// classifies each survivor at its own funnel (the crate's
     /// decides-nothing contract).
     ///
+    /// A negative or NaN `pad` makes every item a candidate — the
+    /// fail-safe direction, matching [`Aabb::padded`]'s own poison rule
+    /// rather than silently pruning the tree bare.
+    ///
     /// Otherwise [`Bvh::overlapping`]'s contract verbatim: ascending
-    /// input order, poison never pruned.
+    /// input order, poison never pruned (a poison box separates from
+    /// nothing).
     pub fn within(&self, query: &Aabb, pad: f64) -> Vec<usize> {
-        self.overlapping(&query.padded(pad))
+        let pad = if pad.is_nan() || pad < 0.0 {
+            f64::INFINITY
+        } else {
+            pad
+        };
+        let mut out = Vec::new();
+        // Same fixed traversal shape as `overlapping` (D9 discipline).
+        let mut stack = Vec::new();
+        if !self.nodes.is_empty() {
+            stack.push(0usize);
+        }
+        while let Some(idx) = stack.pop() {
+            let Some(node) = self.nodes.get(idx) else {
+                // Unreachable: child indices are minted by the build.
+                continue;
+            };
+            match node {
+                Node::Leaf { start, count, aabb } => {
+                    if aabb.separation_lo(query) > pad {
+                        continue;
+                    }
+                    for &item in self.items.iter().skip(*start).take(*count) {
+                        if self
+                            .boxes
+                            .get(item)
+                            .is_some_and(|b| b.separation_lo(query) <= pad)
+                        {
+                            out.push(item);
+                        }
+                    }
+                }
+                Node::Inner { right, aabb } => {
+                    if aabb.separation_lo(query) > pad {
+                        continue;
+                    }
+                    stack.push(*right);
+                    stack.push(idx + 1);
+                }
+            }
+        }
+        // Each item lives in exactly one leaf, so this is a permutation
+        // sort, never a dedup.
+        out.sort_unstable();
+        out
     }
 
     /// Every CROSS pair `(i, j)` — `i` an item of `self`, `j` an item of
