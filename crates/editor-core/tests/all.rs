@@ -361,3 +361,6 @@ mod lib_tube_r1_dump;
 
 #[path = "lib_tube_r1_probes2.rs"]
 mod lib_tube_r1_probes2;
+
+#[path = "lib_tube_r2_probes.rs"]
+mod lib_tube_r2_probes;

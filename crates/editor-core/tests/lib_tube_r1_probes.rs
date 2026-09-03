@@ -1,6 +1,16 @@
 //! **LIB-TUBE R1 review probes** — adversarial rows written against PR
 //! #1628's claims, beyond the fixtures the unit chose.
 //!
+//! Adopted as PERMANENT rows at the fix pass, authorship preserved.
+//! The non-dyadic row below and `lib_tube_r2_probes`'s
+//! `r2_the_storage_contract_holds_at_non_dyadic_radii` were written
+//! independently and are BOTH kept: they pin different spellings —
+//! this one drives a WINDOWED (arc) hollow tube at two value pairs
+//! and adds the solid door's verbatim store, while R2's drives a FULL
+//! ring at one pair and guards its own sharpness against the decimal
+//! `0.2`'s bits. Neither subsumes the other; do not dedupe them
+//! without re-reading both.
+//!
 //! 1. The storage contract at NON-DYADIC values: the committed fixture
 //!    subtracts 0.5 − 0.125 (exact); these rows subtract 0.3 − 0.1 and
 //!    0.123456789 − 0.017, where `minor_radius − wall` is NOT the real
