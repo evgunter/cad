@@ -112,6 +112,8 @@ mod mate9_crossing_rung;
 mod merge_skip;
 #[path = "mesh12_rim_row_reach.rs"]
 mod mesh12_rim_row_reach;
+#[path = "mesh12r2_probes.rs"]
+mod mesh12r2_probes;
 #[path = "mesh8_coherence.rs"]
 mod mesh8_coherence;
 #[path = "r1_mate4a_probes.rs"]

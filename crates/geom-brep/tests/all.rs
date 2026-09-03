@@ -237,5 +237,7 @@ mod mesh11r2_base_probes;
 mod mesh11r2_probes;
 #[path = "mesh12_saturated_span.rs"]
 mod mesh12_saturated_span;
+#[path = "mesh12r2_probes.rs"]
+mod mesh12r2_probes;
 #[path = "r2_mesh7_door_probes.rs"]
 mod r2_mesh7_door_probes;
