@@ -519,6 +519,15 @@ whose unit had merged; each unit's record is its row in
 - `M10-3-SPEC.md` — M10-3, the E6 subdivision driver (#1231)
 - `M10-4-SPEC.md` — M10-4, sensitivities and the stackup (#1627)
 
+## Per-merge deletion — M10-5's spec (2026-09-03)
+
+Recoverable at `git show f02d2af15f04ef7d24f0b18efba1b1d19dd6af0d:docs/M10-5-SPEC.md`
+(the M10-5 unit head, before the state-sync commit that deleted it).
+The rule above; the unit's record is its row in `MODEL-AB-LOG.md`
+and its MERGED entry in `work/m10/log.md`.
+
+- `M10-5-SPEC.md` — M10-5, clearance and self-intersection (#1638)
+
 ## Sweep 6 — 2026-09-03: finished work leaves `docs/`; its design moves beside the code
 
 Sweep SHA: `3ec71b16575c5887bae358331e517d2ad9348404` — `main`'s tip
@@ -581,8 +590,8 @@ item file, the program log entry and the `MODEL-AB-LOG.md` row are the
 record), applied to every spec whose unit had merged, including the
 dozen written and merged inside the week before this sweep. Kept
 because their units have not merged: `BOOL-9`, `BOOL-10`, `BOOL-12`,
-`M10-5`, `MESH-12`, `PCURVE-P2`, `TCOST-K1`, `VERBS-C5ARMS` (PR-2
-open), `VERBS-CYLSPH`, and `PARAM-LINT` (a draft never dispatched).
+`MESH-12`, `PCURVE-P2`, `TCOST-K1`, `VERBS-C5ARMS` (PR-2 open),
+`VERBS-CYLSPH`, and `PARAM-LINT` (a draft never dispatched).
 
 - `BOOL-1-SPEC.md` — BOOL-1 — issue 1152: coplanar-split section boundaries cite non-adjacent surfaces
 - `BOOL-2-SPEC.md` — BOOL-2 — issue 1011, the cone arm: point_in_solid learns ray×cone

@@ -10,6 +10,7 @@ from pncad import (
     ChecksConfig,
     Severity,
     Bulge,
+    CancelToken,
     Cmp,
     CurveKind,
     Doc,
@@ -21,6 +22,8 @@ from pncad import (
     NamePat,
     Node,
     NodeId,
+    NodePick,
+    Ray,
     Open,
     PatternKind,
     SegPat,
@@ -305,3 +308,114 @@ enforce_checks(doc)  # ty: error
 # A subject is named by a node and an OUTPUT INDEX — the same
 # attribution a finding carries — never by the finding's rendering.
 subject_body(evaluate(doc), solid)  # ty: error
+
+# A ray's ORIGIN is a position and carries `Length`s; writing it as
+# bare floats is the same dimension mistake `Pose.origin` catches
+# above, and the surface refuses to guess a unit.
+Ray((0.0, 0.0, 10.0), (0.0, 0.0, -1.0))  # ty: error
+
+# ...and its DIRECTION is dimensionless. Handing it lengths claims a
+# direction has a unit, which is the mistake in the other direction.
+Ray((0 * m, 0 * m, 10 * m), (0 * m, 0 * m, -1 * m))  # ty: error
+
+# A pick index is built against the EVALUATION that minted the body,
+# not against the document: a `(node, body)` pairing only means
+# something as of one run, which is the whole reason this type exists.
+NodePick.build(doc, solid, 0, 1 * mm)  # ty: error
+
+# The chordal budget is a DISTANCE (δ), never a bare float — the same
+# closed-set rule `Body.tessellate` states.
+NodePick.build(evaluate(doc), solid, 0, 0.001)  # ty: error
+
+# `pick_face` takes the pre-paired targets, not the node they were
+# built for. There is no spelling of a raw target here, and that is
+# what stops a confidently wrong name.
+evaluate(doc).pick_face([solid], Ray((0 * m, 0 * m, 1 * m), (0.0, 0.0, -1.0)))  # ty: error
+
+# A miss is `None`, so a hit is OPTIONAL: reading `.name` off the
+# answer without asking whether there was one is the mistake the typed
+# miss exists to make visible.
+maybe_hit = evaluate(doc).pick_face([], Ray((0 * m, 0 * m, 1 * m), (0.0, 0.0, -1.0)))
+hit_name: str = maybe_hit.name  # ty: error
+
+# `resolve` is EVALUATION-wide: it takes a name and nothing else. The
+# node-scoped door is `denotation`, and handing this one a node is the
+# confusion between the two the docstrings exist to prevent.
+evaluate(doc).resolve(solid, "a face")  # ty: error
+
+# A name crosses as opaque TEXT, never as the `NodeId` that minted it.
+evaluate(doc).resolve(solid)  # ty: error
+
+# The verdict is a value, and its location attributes are OPTIONAL
+# because two of the three states have no location. Binding one to a
+# bare `NodeId` claims a verdict always resolved, which is exactly the
+# assumption the three states exist to stop.
+where: NodeId = evaluate(doc).resolve("a face").node  # ty: error
+
+# ...and the same on the failure half: `detail` is prose that is
+# `None` on a resolved verdict, so it is not a `str`.
+reason: str = evaluate(doc).resolve("a face").detail  # ty: error
+
+# `offers` is a list of NAMES — opaque texts — not of parsed
+# structures, and it is `None` where suggestions do not apply.
+rebinds: list[str] = evaluate(doc).resolve("a face").offers  # ty: error
+
+# The status is a stable tag STRING, not the kind enum: "which of the
+# three states" and "what kind of entity" are different questions.
+tag: EntityKind = evaluate(doc).resolve("a face").status  # ty: error
+# The two evaluators are not interchangeable and neither takes text:
+# an expression is a VALUE, built by the document that declares the
+# parameters it references.
+doc.eval("width / 2.0")  # ty: error
+doc.eval_count("4")  # ty: error
+
+# `eval` answers a quantity where the expression is dimensioned, so
+# reading it as a bare float is the same dimension mistake the
+# quantity boundary catches elsewhere.
+plain: float = doc.eval(doc.parse_expr("1 m"))  # ty: error
+
+# NOT here, deliberately: an expression is unhashable on purpose
+# (equality is an IEEE comparison of the literals inside it), and `ty`
+# does not check hashability of a set member, so the pin would be a
+# comment wearing a marker. `tests/test_expressions.py` executes it.
+
+# The display formatter takes the unit of the dimension it is a method
+# ON. That is the whole reason it is a method: `quantity`'s free
+# `fmt_length` takes a bare `f64` of metres, and a free binding of it
+# would accept an angle's radians without complaint. The receiver
+# carries the dimension, so the mis-pairing has no spelling.
+(1 * m).format(deg)  # ty: error
+(1 * rad).format(mm)  # ty: error
+
+# It answers TEXT, not a number — the door beside it, `in_unit`, is
+# the one that answers a float, and the difference between them is
+# what the family closed.
+digits: float = (1 * m).format(m)  # ty: error
+
+# The cancel token is a keyword, and a keyword of its own TYPE: the
+# three optional arguments of `evaluate` are not interchangeable, and
+# a bare bool is not a handle onto a flag anybody else can set.
+evaluate(doc, cancel=True)  # ty: error
+evaluate(doc, CancelToken())  # ty: error
+evaluate(doc, prior=CancelToken())  # ty: error
+
+# The stop is ONE-WAY. `canceled` is a read-only property on both the
+# token and the run — a settable one would let a caller un-observe a
+# cancelation, which is the state neither object has.
+CancelToken().canceled = False  # ty: error
+evaluate(doc).canceled = False  # ty: error
+
+# A canceled run is a partial `Evaluation`, not a boolean and not a
+# raise: reading the run where the TOKEN was meant, or the other way
+# round, is the confusion the two names invite and the types refuse.
+finished: CancelToken = evaluate(doc, cancel=CancelToken())  # ty: error
+# The fourth rung takes NO contacts argument. `ContactRecords` has no
+# Python spelling at all — it is minted by the ops that certify
+# geometry, never built by a caller — so the two shapes a reader might
+# reach for from the Rust signature are both unspellable: there is no
+# value to pass, and the door would not take one.
+product(doc, evaluate(doc)).validate_pseudomanifold(doc)  # ty: error
+
+# And it answers nothing. A rung that returned a verdict would be a
+# gate a caller could pass without reading; every rung raises instead.
+verdict: bool = product(doc, evaluate(doc)).validate_pseudomanifold()  # ty: error

@@ -27,7 +27,11 @@
 //!
 //! It writes the M2 file convention — `shape,predicate,margin,
 //! band_zero,band_escalate,outcome` — with shapes namespaced
-//! `driver/<fixture>`, so a merged CSV stays attributable beside
+//! `driver/<fixture>`, one `# census …` comment line per fixture ahead
+//! of that fixture's rows (see [`Population`]: a drive that certified
+//! nothing has an empty population, and the census is what says so
+//! instead of leaving a reader an empty file to interpret), so a
+//! merged CSV stays attributable beside
 //! `corpus/<doc>` and `demo/<scene>`. `scripts/k_probe_sweep.sh` runs
 //! it into `<outdir>/driver/`, BESIDE the linted CSV rather than
 //! inside it: what `k-lint` gates is a distribution whose thresholds
@@ -57,7 +61,6 @@ use editor_core::{
 };
 use geom_core::k_stats::{self, MarginSample, SampleOutcome};
 use geom_core::{Sign, Tol};
-use profile::SketchPlane;
 
 use fixture::Recorder;
 
@@ -135,19 +138,80 @@ fn probing() -> DriveConfig {
     }
 }
 
-/// One document's driver sweep: the samples the funnel received while
-/// the driver replayed its certified leaves' midpoints.
-fn run_doc(doc: &ProfileDoc) -> Vec<MarginSample> {
+/// One document's driver sweep: what the drive certified, and the
+/// samples the funnel received while it replayed those leaves'
+/// midpoints.
+///
+/// **AN EMPTY CERTIFIED SET IS AN OUTCOME, NOT A FAULT** (issues 1296,
+/// 1304, 1342 — one defect reported from three lanes). A drive that
+/// refuses every leaf has certified nothing, so the certified-midpoint
+/// replay has nothing to sample and this population is legitimately
+/// empty. The row used to `assert!` over that state, and because
+/// `scripts/k_probe_sweep.sh` runs its three ε rows in one loop, the
+/// panic took the whole sweep down with it — so no branch could
+/// produce a k-lint verdict at ANY ε (1304), and the failure printed
+/// the ε row it happened to die on, which read as a tolerance defect
+/// it was not.
+///
+/// **What actually emptied it, measured**: the leaf budget, not the
+/// tolerance. These fixtures are ε-relative, so what they certify does
+/// not move with ε — 1 and 344 leaves at every one of 1e-2, 1e-6,
+/// 1e-9 and 1e-12 (measured 2026-09-03) — and the drive that certified
+/// nothing was the `max_leaves: 256` one recorded at [`probing`]
+/// (#1343, since raised to 4096). The panic is gone anyway: a budget
+/// is a run dial, a report is not the place to die over one, and the
+/// row below plants the empty population deliberately to prove it.
+///
+/// So the count rides BESIDE the samples, every caller says what it
+/// found, and the claim the row makes is the biconditional below
+/// rather than a floor that only holds when the dials are generous.
+struct Population {
+    /// How many leaves the drive certified — the population's size at
+    /// its source, and the only thing that can explain an empty
+    /// sample set.
+    certified: usize,
+    /// Every margin the funnel received during the certified-midpoint
+    /// replay.
+    samples: Vec<MarginSample>,
+}
+
+impl Population {
+    /// The census line: what this fixture's drive certified and how
+    /// many margins came out of it, at the ε the run was given.
+    ///
+    /// Written into the dump AND onto the terminal, because the two
+    /// readers are different: the CSV's reader is whoever re-examines
+    /// K months from now and needs to know an empty file was an empty
+    /// POPULATION, and the terminal's is whoever is watching the sweep
+    /// wonder why a row is quiet.
+    fn census(&self, shape: &str) -> String {
+        format!(
+            "# census driver/{shape} eps={:e} certified={} samples={}",
+            Tol::witness().eps(),
+            self.certified,
+            self.samples.len()
+        )
+    }
+}
+
+fn run_doc(doc: &ProfileDoc) -> Population {
+    run_doc_with(doc, &probing())
+}
+
+/// The same drive at a caller's config — the seam the empty-population
+/// row below needs, so that row can plant an empty certified set with
+/// the ONE dial that produces one rather than by hunting for a
+/// tolerance where the ε-relative fixtures stop certifying (they do
+/// not: the fixtures scale with ε, which is why the original defect
+/// was a budget and not a tolerance).
+fn run_doc_with(doc: &ProfileDoc, config: &DriveConfig) -> Population {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     k_stats::start_recording();
-    let v =
-        drive(doc, &analyzed, &probing(), Tol::witness()).expect("the fixture's nominal builds");
-    let samples = k_stats::take_samples();
-    assert!(
-        !v.certified().is_empty(),
-        "nothing certified, nothing to sample"
-    );
-    samples
+    let v = drive(doc, &analyzed, config, Tol::witness()).expect("the fixture's nominal builds");
+    Population {
+        samples: k_stats::take_samples(),
+        certified: v.certified().len(),
+    }
 }
 
 /// **The standing row**: the funnel actually receives driver-path
@@ -157,16 +221,39 @@ fn run_doc(doc: &ProfileDoc) -> Vec<MarginSample> {
 /// so the claim is made by counting what arrived in the sink.
 #[test]
 fn the_dial_puts_driver_path_margins_in_the_funnel_and_nothing_else_does() {
-    let (_, doc) = documents().remove(0);
+    let (name, doc) = documents().remove(0);
     let with = run_doc(&doc);
-    assert!(
-        !with.is_empty(),
-        "the certified-midpoint replay recorded no margins"
+    // The census, on the terminal, at every run — including the run
+    // where the population is empty, which is the one a reader would
+    // otherwise have to guess at.
+    eprintln!("{}", with.census(name));
+    // **THE BICONDITIONAL, not a floor.** The dial samples certified
+    // leaves and nothing else, so "the drive certified something" and
+    // "the funnel received something" are one fact seen twice, and
+    // asserting the equivalence keeps the claim SHARP over a drive that
+    // certified nothing instead of either going vacuous or reporting a
+    // run dial as a defect. A floor (`!samples.is_empty()`) is the
+    // version that holds only while the dials are generous, and it is
+    // the shape that reddened the sweep.
+    assert_eq!(
+        with.certified > 0,
+        !with.samples.is_empty(),
+        "{}: the drive certified {} leaves and the funnel received {} margins — the \
+         certified-midpoint replay is the only path into the sink, so those two are the \
+         same fact and cannot disagree",
+        with.census(name),
+        with.certified,
+        with.samples.len()
     );
     // Named predicates, real bands: these are the kernel's own
-    // decisions, not a parallel stream this unit invented.
-    assert!(with.iter().all(|s| !s.predicate.is_empty()));
-    assert!(with.iter().any(|s| s.band_zero > 0.0));
+    // decisions, not a parallel stream this unit invented. Both are
+    // total over an empty population — the `any` rides the
+    // biconditional above rather than restating the floor it replaced.
+    assert!(with.samples.iter().all(|s| !s.predicate.is_empty()));
+    assert!(
+        with.samples.is_empty() || with.samples.iter().any(|s| s.band_zero > 0.0),
+        "a non-empty driver population carries at least one real band"
+    );
 
     // ONE DIAL VARIES. The `with` run used `probing()`, so the `off`
     // run must be `probing()` with the probe turned off and nothing
@@ -198,6 +285,45 @@ fn the_dial_puts_driver_path_margins_in_the_funnel_and_nothing_else_does() {
     );
 }
 
+/// **The empty population is REPORTED, not panicked over** (issues
+/// 1296, 1304, 1342 — one defect seen from three lanes).
+///
+/// The plant is the leaf budget, because that is the dial that
+/// measurably produces an empty certified set on this fixture: at
+/// `max_leaves: 256` the flip-straddling slab splits all 255 interior
+/// boxes, hits the frontier bound, and refuses the whole frontier
+/// `Budget(Leaves)` having certified nothing (the number recorded at
+/// [`probing`]). That is exactly the state the row used to die in, and
+/// dying took the sweep's whole ε loop with it.
+///
+/// What it asserts is the biconditional's other half: no certified
+/// leaves, no samples, no panic, and a census line that says which.
+#[test]
+fn an_empty_certified_set_is_reported_rather_than_panicked_over() {
+    let (name, doc) = documents().remove(1);
+    let starved = run_doc_with(
+        &doc,
+        &DriveConfig {
+            max_leaves: 256,
+            ..probing()
+        },
+    );
+    eprintln!("{}", starved.census(name));
+    assert_eq!(
+        starved.certified,
+        0,
+        "{}: the plant is a budget too small to reach a certificate; a drive that \
+         certified something here is not exercising the empty population",
+        starved.census(name)
+    );
+    assert!(
+        starved.samples.is_empty(),
+        "{}: nothing certified, so the certified-midpoint replay had nothing to sample",
+        starved.census(name)
+    );
+    assert!(starved.census(name).contains("certified=0 samples=0"));
+}
+
 fn outcome_str(o: SampleOutcome) -> &'static str {
     match o {
         SampleOutcome::Definite(Sign::Negative) => "negative",
@@ -209,7 +335,8 @@ fn outcome_str(o: SampleOutcome) -> &'static str {
 }
 
 /// The K-REPORT dump: every driver-path sample as CSV, in the M2 file
-/// convention, shapes namespaced `driver/<fixture>`.
+/// convention, shapes namespaced `driver/<fixture>`, each fixture's
+/// rows preceded by its [`Population`] census line.
 #[test]
 #[ignore = "the K sweep's dump run; drives every fixture and writes a CSV"]
 fn k_report_driver_dump() {
@@ -223,7 +350,19 @@ fn k_report_driver_dump() {
     )
     .expect("the header writes");
     for (name, doc) in documents() {
-        for s in run_doc(&doc) {
+        let population = run_doc(&doc);
+        // THE CENSUS FIRST, and unconditionally. A fixture that
+        // certified nothing writes this line and no rows, which is the
+        // honest shape of an empty population: the file says which
+        // fixture was driven, at what ε, and that it yielded nothing —
+        // where a bare header would leave a reader unable to tell an
+        // empty population from a harness that died before writing.
+        // It is a `#` comment line so every row in the file stays the
+        // M2 convention.
+        let census = population.census(name);
+        writeln!(out, "{census}").expect("the census line writes");
+        eprintln!("{census}");
+        for s in population.samples {
             writeln!(
                 out,
                 "driver/{name},{},{:e},{:e},{:e},{}",

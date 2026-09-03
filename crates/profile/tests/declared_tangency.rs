@@ -95,20 +95,15 @@ fn declared_tangency_on_a_transversal_joint_is_contradicted() {
         .validate(tol())
         .expect_err("contradicted declaration must refuse")
     {
-        ProfileError::TangencyContradicted {
-            joint,
-            same_carrier,
-            ..
-        } => {
+        ProfileError::TangencyContradicted { joint, .. } => {
             assert_eq!(joint, 2);
-            assert!(!same_carrier);
         }
         other => panic!("expected TangencyContradicted, got {other:?}"),
     }
 }
 
 #[test]
-fn declared_tangency_on_collinear_lines_is_contradicted_as_continuation() {
+fn declared_tangency_on_collinear_lines_is_a_declared_tangent_joint() {
     // A rectangle with a redundant collinear vertex on the bottom
     // side: legal undeclared (carrier continuation)...
     let redundant = || {
@@ -123,34 +118,30 @@ fn declared_tangency_on_collinear_lines_is_contradicted_as_continuation() {
     profile(vec![redundant()])
         .validate(tol())
         .expect("collinear continuation is legal undeclared");
-    // ...but a tangency declaration there is refused: continuation is
-    // not a tangency.
+    // ...and legal DECLARED too, since 2026-09-02: every zero-turn
+    // joint is a declared tangent joint (Ev, in-chat). Identity is a
+    // fact about the carriers and tangency is a fact about the
+    // directions; the directions agree here, so the declaration is
+    // true. The row used to require `TangencyContradicted
+    // { same_carrier: true }`, and that arm is retired.
     let mut lp = redundant();
     lp = lp.with_tangent_joints(vec![1]);
-    match profile(vec![lp]).validate(tol()).expect_err("continuation") {
-        ProfileError::TangencyContradicted {
-            joint,
-            same_carrier,
-            ..
-        } => {
-            assert_eq!(joint, 1);
-            assert!(same_carrier);
-        }
-        other => panic!("expected same-carrier contradiction, got {other:?}"),
-    }
+    profile(vec![lp])
+        .validate(tol())
+        .expect("a declared collinear joint is a declared tangent joint");
 }
 
 #[test]
-fn declared_tangency_on_a_cocircular_joint_is_contradicted() {
+fn declared_tangency_on_a_cocircular_joint_is_a_declared_tangent_joint() {
     // The minimal two-arc circle: joints are cocircular continuation —
-    // legal undeclared (asserted all over the corpus), contradicted
-    // declared.
+    // legal undeclared (asserted all over the corpus), and legal
+    // DECLARED since 2026-09-02 for the same reason as the collinear
+    // row above.
     let mut lp = circle_h(0.0, 0.0, 1.0);
     lp = lp.with_tangent_joints(vec![0]);
-    match profile(vec![lp]).validate(tol()).expect_err("cocircular") {
-        ProfileError::TangencyContradicted { same_carrier, .. } => assert!(same_carrier),
-        other => panic!("expected same-carrier contradiction, got {other:?}"),
-    }
+    profile(vec![lp])
+        .validate(tol())
+        .expect("a declared cocircular joint is a declared tangent joint");
 }
 
 #[test]

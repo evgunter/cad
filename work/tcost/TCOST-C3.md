@@ -2,9 +2,11 @@
 id: TCOST-C3
 kind: unit
 title: python suite seed-keyed like the viewer toolkit; ungated nightly
-status: dispatched
+status: closed
 opened: 2026-09-03
 branch: tcost/c3-python-suite-seeded
+pr: 1655
+closed: 2026-09-03
 ---
 
 CI-posture unit (Ev's ask). `pncad-py` sits in nearly every kernel
