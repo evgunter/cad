@@ -100,6 +100,8 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Inline => "InlineError",
             ErrorClass::Update => "UpdateError",
             ErrorClass::Readback => "ReadbackError",
+            ErrorClass::HitTest => "HitTestError",
+            ErrorClass::NodePick => "NodePickError",
             ErrorClass::Checks => "ChecksError",
             ErrorClass::Enforce => "CheckRefusal",
         }
@@ -127,6 +129,8 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Inline,
         ErrorClass::Update,
         ErrorClass::Readback,
+        ErrorClass::HitTest,
+        ErrorClass::NodePick,
         ErrorClass::Checks,
         ErrorClass::Enforce,
     ] {
@@ -199,6 +203,80 @@ fn readback_refusal_tags_are_stable() {
         "no_canonical_frame"
     );
     assert_eq!(tag(&E::Readback(R::NoCarrier)), "no_carrier");
+}
+
+/// LIB-B-PICKING: the two picking refusals, pinned tag by tag.
+///
+/// The standing ladder is spelled EXACTLY as the read-back doors spell
+/// it (the test above), and that is the property worth a pin rather
+/// than a comment: "node 7 has no result in this evaluation" is one
+/// fact about the run, and a caller that already branches on
+/// `node_not_evaluated` from a frame read must not have to learn a
+/// second word for it at the pick. The forwarding is what makes that
+/// true, so the assertions below are written to fail if a wrapper tag
+/// is ever introduced.
+///
+/// Two arms have no façade constructor and so no line here — the
+/// `select_refusal_tags_are_stable` caveat, for a different reason.
+/// `HitTestError::Unnamed`'s payload is an `EntityRef`, an arena key
+/// beside a body index, and the façade deliberately does not name that
+/// type; `NodePickError::Index`'s payload is `MeshPickError`, which
+/// CUR3 recorded DECIDED absent. Both tags are covered by the matches
+/// themselves, which are exhaustive and would stop compiling if an arm
+/// moved.
+#[test]
+fn picking_refusal_tags_are_stable() {
+    use crate::tags::{hit_test_error_tag, node_pick_error_tag};
+    use pncad::document::RecipeNodeId;
+    use pncad::mesh::TessellateError;
+    use pncad::select::{HitTestError as H, NodePickError as N};
+
+    let node = RecipeNodeId(0);
+    assert_eq!(
+        hit_test_error_tag(&H::NodeNotEvaluated { node }),
+        "node_not_evaluated"
+    );
+    assert_eq!(hit_test_error_tag(&H::NodeFailed { node }), "node_failed");
+    assert_eq!(
+        hit_test_error_tag(&H::NodePoisoned {
+            node,
+            through: node
+        }),
+        "node_poisoned"
+    );
+
+    // The pick door's own two arms: "never draws" and "draws nothing
+    // today" are different states and keep different tags.
+    assert_eq!(node_pick_error_tag(&N::NotABody { node }), "not_a_body");
+    assert_eq!(
+        node_pick_error_tag(&N::NoSuchBody { node, body: 1 }),
+        "no_such_body"
+    );
+
+    // The standing arm FORWARDS: no `standing` wrapper tag exists, and
+    // a caller reads the same three words at either door.
+    for standing in [
+        H::NodeNotEvaluated { node },
+        H::NodeFailed { node },
+        H::NodePoisoned {
+            node,
+            through: node,
+        },
+    ] {
+        assert_eq!(
+            node_pick_error_tag(&N::Standing(standing)),
+            hit_test_error_tag(&standing)
+        );
+    }
+
+    // ...and so does the tessellation arm, under the tessellator's own
+    // word rather than a `tessellate` wrapper.
+    assert_eq!(
+        node_pick_error_tag(&N::Tessellate(TessellateError::InvalidChordalTolerance {
+            value: 0.0
+        })),
+        "invalid_chordal_tolerance"
+    );
 }
 
 /// LIB-PYSEL: `SelectRefusal` is `#[non_exhaustive]`, so the tag
