@@ -2,10 +2,11 @@
 id: TCOST-9
 kind: unit
 title: gate the proptest population and the two content units' gate candidates with gated_to!
-status: dispatched
+status: review
 opened: 2026-09-03
 refs: [TCOST-1, TCOST-2, TCOST-4]
 branch: tcost/9-proptest-gating
+pr: 1681
 ---
 
 
