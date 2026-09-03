@@ -18,6 +18,7 @@ use crate::tags::{
 };
 use pncad::document::Dimension;
 use pncad::tolerance::Tol;
+use pncad::topo::{FaceKey, VertexKey};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -1265,5 +1266,77 @@ fn check_registry_tags_are_stable() {
             reason: "boxes refused".into()
         }),
         "separation_unavailable"
+    );
+}
+
+/// **The tier-3′ census findings do not read as prose, and that is a
+/// KERNEL rendering, not a binding one.**
+///
+/// `crate::py::typed_err` asserts every message it raises satisfies
+/// [`reads_as_prose`], and every door in this crate obeys the rule the
+/// assertion stands for — the binding never authors a `Debug` dump.
+/// Three `ValidationError` arms are worded by the kernel out of
+/// `Debug` anyway: `UndeclaredContact` renders its `CensusContact` as
+/// `{contact:?}` and carries a `witness` the kernel builds with
+/// `format!("{p:?}")`, and `StaleContactDeclaration` renders its
+/// `DeclaredContact` the same way. Only tier 3′ produces those arms,
+/// so `Body::validate_pseudomanifold` is the first door to reach them
+/// — and reach them it does, on an ordinary call: two touching solids
+/// gathered by `product`, which declares nothing.
+///
+/// This pin is the reason `run_validator` raises through
+/// `typed_err_kernel_authored`. It is deliberately an assertion that
+/// the message is NOT prose, so the day the kernel renders these arms
+/// through `Display` (filed at
+/// `work/lib/tier-3-prime-findings-render-through-debug.md`) this row
+/// goes red and the exemption can go with it.
+#[test]
+fn the_census_findings_are_not_prose_by_this_crate_s_own_rule() {
+    use pncad::topo::{CensusContact, StaleDeclaration, ValidationError};
+
+    // Both arms are built here rather than by evaluating a document:
+    // this row is about the RENDERING, and a default arena key is
+    // enough to render one — nothing dereferences it.
+    let census = ValidationError::UndeclaredContact {
+        contact: CensusContact::VertexOnFace {
+            vertex: VertexKey::default(),
+            face: FaceKey::default(),
+        },
+        // The kernel builds this field with `format!("{p:?}")`
+        // (`census::witness`), so it carries braces of its own.
+        witness: format!("{:?}", pncad::geom_core::Point3::<f64>::origin()),
+    };
+    let stale = ValidationError::StaleContactDeclaration {
+        declaration: StaleDeclaration::VertexOnFace {
+            vertex: VertexKey::default(),
+            face: FaceKey::default(),
+        },
+    };
+
+    for finding in [&census, &stale] {
+        let message = finding.to_string();
+        assert!(
+            !reads_as_prose(&message),
+            "a tier-3′ census finding reads as prose now — the kernel \
+             rendering was fixed. Drop `typed_err_kernel_authored` and \
+             its exemption, let `run_validator` raise through \
+             `typed_err` again, and close the filed item. Message: \
+             {message}"
+        );
+        assert!(
+            message.contains(" { "),
+            "the struct-brace fingerprint is exactly what \
+             `reads_as_prose` rejects; without it the arm was \
+             reworded: {message}"
+        );
+    }
+
+    // The recourse survives the Debug guts: what a Python caller
+    // reads is unusable as a TAG but is still the kernel's whole
+    // diagnosis, which is why the binding pastes it rather than
+    // inventing a second wording.
+    assert!(
+        census.to_string().contains("never blessed from discovery"),
+        "the undeclared-contact recourse is the actionable half"
     );
 }

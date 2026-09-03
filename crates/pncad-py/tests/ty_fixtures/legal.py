@@ -507,3 +507,13 @@ how_many: int = doc.eval_count(doc.parse_expr("4"))
 shown: str = (25 * mm).format(mm)
 turned: str = (90 * deg).format(pi_rad)
 magnitude: float = (25 * mm).in_unit(mm)
+
+# The validator ladder, all four rungs. Each answers NOTHING and
+# raises on failure, which is what makes `-> None` the honest return:
+# a verdict a caller could forget to read would be the wrong shape for
+# a gate. The fourth takes no arguments either, because the contacts
+# it certifies against ride with the body.
+gathered.validate()
+gathered.validate_closed()
+gathered.validate_geometric()
+gathered.validate_pseudomanifold()

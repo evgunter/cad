@@ -2087,12 +2087,38 @@ class MassProperties:
     def area_pad(self) -> float: ...
 
 class Body:
-    """A solid body — an opaque handle with curated doors."""
+    """A solid body — an opaque handle with curated doors.
+
+    A body also carries the DECLARED CONTACTS its producer minted for
+    it, which is the second argument `validate_pseudomanifold` takes
+    in Rust. It has no Python spelling and needs none: it is captured
+    with the body rather than passed, because a record set belongs to
+    one body and pairing it with another is the mistake the tier-3′
+    contract exists to refuse."""
 
     def mass_properties(self) -> MassProperties: ...
     def validate(self) -> None: ...
     def validate_closed(self) -> None: ...
     def validate_geometric(self) -> None: ...
+    def validate_pseudomanifold(self) -> None:
+        """Tier 3′, the ladder's fourth rung: tier 3's whole local
+        battery PLUS the global coincidence census tier 3 defers,
+        certified against this body's OWN declared contacts.
+
+        Every coincidence the census finds must be backed by a
+        declaration and every declaration must have a geometric
+        witness — neither direction is blessed from discovery. So the
+        verdict turns on which door minted the body, and that is the
+        contract rather than a wrinkle: `assemble`'s at-rest body
+        carries its mates' minted records and passes over its seats,
+        while `product`, which gathers the same solids and declares
+        nothing, reports every seat as an undeclared contact. With no
+        declarations at all this is simply the strictest rung — the
+        census still runs, and on a body with no coincidences it finds
+        nothing.
+
+        Raises `ValidationError` with `door` and `failure_count`, as
+        the other three rungs do."""
     def tessellate(self, chordal: Length) -> Mesh:
         """Triangulate every face within `chordal` of the exact
         surface — the ladder's step 4.

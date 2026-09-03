@@ -600,6 +600,16 @@ BOUND_AS = {
     "validate": "Body.validate",
     "validate_closed": "Body.validate_closed",
     "validate_geometric": "Body.validate_geometric",
+    # The fourth rung takes a SECOND argument in Rust, and it crosses
+    # by being captured rather than passed: a `Body` carries the
+    # declared contacts its producer minted for it, so the Python door
+    # is a bare method like the three above it. `ContactRecords` stays
+    # `INTERIOR` for the reason it always was — nothing hands one out
+    # — and now for a second: there is no Python constructor, so a
+    # door taking one would be uncallable, and a door taking ANOTHER
+    # body's records would spell exactly the mis-pairing tier 3′
+    # exists to refuse.
+    "validate_pseudomanifold": "Body.validate_pseudomanifold",
     "write_ascii": "Mesh.to_stl_ascii",
     "write_binary": "Mesh.to_stl_binary",
 }
@@ -701,12 +711,6 @@ FAMILIES = {
         "caller cannot yet do is WRITE one — the same asymmetry "
         "B-DISTRIBUTIONS records, and without B-DISTRIBUTIONS's sharp "
         "edge, because no existing write door silently drops a measure"
-    ),
-    "B-VALIDATE4": (
-        "the fourth validator rung; closing it binds "
-        "`validate_pseudomanifold` beside the three `Body` already "
-        "carries — the ladder is bound three-quarters and this is the "
-        "missing quarter"
     ),
 }
 
@@ -857,7 +861,10 @@ FAMILIES = {
 #: key-to-name inversions with no key to invert), the declared-contact
 #: interior behind `FlushFinding` (`DeclaredContact`, `ContactVerdict`,
 #: `ContactRefusal`, `FlushEvidence`, `ContactRecords`,
-#: `BooleanDeclarations`), the fillet's coincidence band
+#: `BooleanDeclarations` — `ContactRecords` is behind a SECOND door
+#: since LIB-B-VALIDATE4, `Body.validate_pseudomanifold`, which takes
+#: one in Rust and captures it here rather than asking a caller for a
+#: value they cannot build), the fillet's coincidence band
 #: (`Band`, `BandError`, built from the run's epsilon), and
 #: `ContentBits` — a TRAIT, and Python has no way to spell one.
 #:
@@ -1056,9 +1063,52 @@ FAMILIES = {
 #: signature gap on that page is watched in. G1 keeps a citation
 #: here regardless, on a different residue of the same row:
 #: `ArrivesTangent`, the seam's declared tangent joint.
-#: - **B-VALIDATE4 — the fourth validator rung.**
-#:   `validate_pseudomanifold`. `Body` binds three of the ladder's
-#:   four; this one is simply missing.
+#: **B-VALIDATE4 is CLOSED and no longer a `gap` id here**
+#: (LIB-B-VALIDATE4). It held ONE name, `validate_pseudomanifold`,
+#: and closing it moved exactly that one — B-FORMAT's cheap case
+#: rather than B-EXPR-READ's expensive one, and the audit-reach check
+#: that separates them came back negative again: the door needs a
+#: body and a `ContactRecords`, Python has had `Body` since §L4, and
+#: no other id owned an entry this unit had to build.
+#:
+#: **What was NOT already crossing is the second argument, and how it
+#: crosses is the family's whole content.** `ContactRecords` has no
+#: Python constructor and never will — it is minted by the ops that
+#: certify geometry — so a `validate_pseudomanifold(contacts)` door
+#: would be a door nobody can call, and one taking ANOTHER body's
+#: records would spell precisely the mis-pairing F1 refuses. The
+#: records are therefore CAPTURED: a `Body` carries the declarations
+#: its producer minted for it, and the Python door is a bare method
+#: like the three rungs below it. That is #1668's carrier-projection
+#: rule (`fmt_length` landing on the `Length` it needs) at a door
+#: whose Rust signature takes two things, and #1664's pairing
+#: argument (`RunCtx` becoming `Evaluation`) at a door that would
+#: otherwise let a caller ask one body about another's intent.
+#: `ContactRecords` accordingly stays `INTERIOR` — the same
+#: disposition, now with a second reason under it.
+#:
+#: **The capture reconciles the kernel's two homes for a record set,
+#: and does it where the kernel does.** `NodeValue::contacts` is what
+#: `instantiate` carried in (D-1); a boolean's records ride
+#: `BooleanValue::Body` instead; `editor_core::product::sources_of`
+#: is where the two meet, and `Value.body` / `Value.bodies` now make
+#: the same reconciliation so a body read off a value and the same
+#: body read by the gather cannot disagree about what was declared
+#: over it. `assemble` is the second source (D-1 plus the mates'
+#: minted D-2), and `product` is deliberately the third case: it
+#: gathers and declares NOTHING, so its body is plain. Those two are
+#: the same geometry through two doors, and the suite pins that they
+#: answer differently — which is the only way to show from Python
+#: that the capture is load-bearing rather than decorative.
+#:
+#: **One thing the closing measured, and it is a defect the other
+#: three rungs could not reach.** Only tier 3′ produces the census
+#: arms, and the kernel words three of them out of `Debug` — so the
+#: first honest call of this door PANICKED inside the crate's own
+#: "never a `Debug` dump" assertion. Filed, not fixed
+#: (`work/lib/tier-3-prime-findings-render-through-debug.md`); the
+#: raise takes a narrow, single-caller exemption that says why, and
+#: the text is pinned so the kernel fix goes red.
 #: **G16 is CLOSED and no longer a `gap` id here** (LIB-G16). It held
 #: `chamfer_edges` and `Chamfered`, and its own row said what would
 #: close it: "the day `Node::Chamfer` lands, binding it is the
@@ -1252,6 +1302,17 @@ NOT_BOUND = {
     # the category — it is `ValidationError::ContactContradicted`'s
     # payload, it has been curated all along, and it sits at
     # `INTERIOR`.
+    #
+    # LIB-B-VALIDATE4 bound the door that PRODUCES those arms and left
+    # this disposition standing, with one sharper thing to say for it.
+    # A census finding does reach Python — inside the joined message,
+    # through the kernel's own `Debug` rendering of this type, keys and
+    # all. So the sentence above is exact rather than comfortable:
+    # nothing here is a thing Python can READ, and the reason a tag
+    # map was not written to fix that is that the rendering is the
+    # KERNEL's (`work/lib/tier-3-prime-findings-render-through-debug
+    # .md`), so inventing a second vocabulary at the boundary would
+    # fork a diagnosis the kernel already words.
     "CensusContact": INTERIOR,
     "Chamfered": INTERIOR,
     "ContactRecords": INTERIOR,
@@ -1408,7 +1469,13 @@ NOT_BOUND = {
     # the id is gone from `FAMILIES` with it. All three of its names
     # left and nothing else moved with them — the paragraph above says
     # why that is the boring case and B-EXPR-READ's was not.
-    "validate_pseudomanifold": f"{GAP}: B-VALIDATE4 the fourth validator rung",
+    # B-VALIDATE4 IS GONE FROM THIS ROSTER TOO, closed at
+    # LIB-B-VALIDATE4, with its id gone from `FAMILIES`. It held ONE
+    # name and moved exactly that one — B-FORMAT's case, for
+    # B-FORMAT's reason (its arguments already crossed), except that
+    # the second argument crossed by being CAPTURED rather than by
+    # already having a spelling; `BOUND_AS` says how, and
+    # `tests/test_validate.py` is the positive form.
 }
 
 
