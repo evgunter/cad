@@ -654,3 +654,22 @@ rest on — the first marker inside a whole-file `cfg(interval)` suite
 path). Findings: no slow-kernel candidate (cost linear in the leaf
 budget); the four other interval-only census rows are corpus-shaped
 and want a corpus unit, not this mechanism.
+
+## Unit: TCOST-B2 merged (2026-09-03)
+
+PR 1669 at `2b4bf85e` (run 33742913933, default lane, all green; the
+parent head's interval run red only on main's M10-5 row, filed as
+`work/issues/m10-5-e2e-channel-slider-reds-at-eps-1e-6.md`). The one-
+declaration pass over step-export, step-import, stl, geom and
+geom-core (36 `mod` → `use`, 11 948 redundant compiled lines); the
+guard assertion now in all fourteen guarded crates and demonstrated
+to fire on the merge-base shape; `clippy::duplicate_mod` allows gone
+from every `all.rs`; geom's helper inside the `curves/` group directory
+reached through an inline `mod curves { pub mod n1r2_fixtures; }` so
+the `#[path]` census stays clean. Honest size reading: at ~3 % of the
+class the guard's own ~100 KB per crate outweighs the dedup in three
+of the five (net −1.4 MB across the five after the control), dev
+profile, not comparable with B1's table. main regrew the class within
+a day (five lib_tube suites, 21 965 lines) and B1's guard caught it —
+the argument for the guard. Filed: the fourteen-copy assertion wants
+one home in `test_utils`, and `pncad/tests/all.rs` sits outside it.
