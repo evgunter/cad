@@ -105,6 +105,32 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
+        path: "crates/bvh/src/tree.rs",
+        subject: "build_bounded",
+        why: Payload(
+            "the `T: Bounds` construction door: it reads brackets only through \
+             `Aabb::from_points` above, so the endpoints land in an f64 `Aabb` and stop",
+        ),
+    },
+    Site {
+        path: "crates/editor-core/src/clearance.rs",
+        subject: "in_plane_axis",
+        why: Selection(
+            "the clearance engine's planar re-chart picks WHICH world axis to cross the \
+             normal with, by the widest cross product's `lo()` under `total_cmp`. A chart \
+             choice decides nothing semantic — every choice yields a sound superset, and \
+             the enclosure it names is locally constant in the choice",
+        ),
+    },
+    Site {
+        path: "crates/editor-core/src/clearance.rs",
+        subject: "chart_frame",
+        why: Payload(
+            "the same re-chart's finiteness guard: the brackets are read only to refuse a \
+             frame that did not come out finite, and nothing downstream reads them",
+        ),
+    },
+    Site {
         path: "crates/geom-brep/src/ssi.rs",
         subject: "impl<T: geom_core::Bounds> TubeScale<T>",
         why: HandedOff("Track Q's ssi ground; enumerated by S88 and not taken there"),
