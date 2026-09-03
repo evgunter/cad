@@ -4,7 +4,8 @@
 //!
 //! (A cost-baseline probe branch: this comment exists so the change
 //! filter classifies the commit at the code tier and the run produces
-//! a `Slowest N tests` report for the tree as it stands. Never merged.)
+//! a `Slowest N tests` report for the tree as it stands. Never merged.
+//! Second point: the same report at the tightest tolerance row.)
 //!
 //! # The two validity tiers (ratified via the M1-PLAN conversation)
 //!
