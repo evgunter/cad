@@ -1163,11 +1163,18 @@ mod interval {
     /// `T = Interval`, and both section circles' points enclose zero
     /// against both operands.
     ///
-    /// The station is the FACTORED `√((R−r)(R+r))`, which is what keeps
-    /// this enclosure tight: `R² − r²` widens both squares before
-    /// cancelling them, and at `R = 1.5, r = 1` the two forms differ in
-    /// the last bits of the station and therefore in the residual's
-    /// width — the `sphere_sphere_section` precedent, on this arm.
+    /// **This row does NOT pin the factored station form, and saying so
+    /// is the point.** The station is the factored `√((R−r)(R+r))`, but
+    /// at these comfortable radii (`r = 1`, `R = 1.5`) the factored and
+    /// the squared `√(R² − r²)` forms are BIT-IDENTICAL — measured:
+    /// both give a station enclosure of width `4.440892098500626e-16`,
+    /// so every residual below is unchanged by the swap and this row
+    /// greens under either. The rationale this doc once carried — that
+    /// the two forms "differ in the last bits of the station" at exactly
+    /// these numbers — was measured FALSE and is replaced by what is
+    /// true. The factored form's real win is NEAR-CANCELLATION, where
+    /// `R² − r²` subtracts two nearly equal widened squares, and it is
+    /// [`cylinder_sphere_station_is_tight_near_tangency`] that pins it.
     #[test]
     fn cylinder_sphere_coaxial_residuals_enclose_zero_at_interval() {
         let cyl: Surface<Interval> = Surface::Cylinder {
@@ -1211,6 +1218,78 @@ mod interval {
                 }
             }
         }
+    }
+
+    /// **The row that actually pins the FACTORED station form** — the
+    /// spec-mandated `√((R−r)(R+r))` against its squared rewrite
+    /// `√(R² − r²)`, at the radii where the two stop agreeing.
+    ///
+    /// The comfortable-radius row above cannot see the difference: at
+    /// `r = 1, R = 1.5` both forms give the same station enclosure to
+    /// the bit. NEAR TANGENCY they diverge, because that is where
+    /// `R² − r²` is a subtraction of two nearly equal quantities each
+    /// already widened by its own squaring: at `r = 1, R = 1 + 1e-7`
+    /// the squared form's `R²` enclosure is a full f64 ulp wide near
+    /// `1`, and that `~2.2e-16` absolute width survives the cancellation
+    /// into a difference of size `~2e-7` — a RELATIVE blow-up of six
+    /// orders — while the factored form subtracts exactly (Sterbenz:
+    /// `R − r` is exact in f64 for `r ≤ R ≤ 2r`) and its width stays at
+    /// the rounding of one product and one `sqrt`.
+    ///
+    /// MEASURED at these radii: **3.25e-19 factored, 4.97e-13 squared**
+    /// — a factor of 1.5e6. The threshold below sits between them, and
+    /// this row reds the moment the arm is rewritten to the squared
+    /// form; under that mutation every OTHER row of this file, both
+    /// lanes, still greens (45 passed, 1 failed), which is why the pin
+    /// had to be written rather than assumed.
+    ///
+    /// It asserts the enclosure is HONEST first — against the surfaces,
+    /// not against a recomputed station, which would only restate the
+    /// form under test — because a tight interval that had lost the
+    /// answer would be worse than a wide one, not better.
+    #[test]
+    fn cylinder_sphere_station_is_tight_near_tangency() {
+        let cyl: Surface<Interval> = Surface::Cylinder {
+            origin: ip(Point3::new(0.0, 0.0, 0.0)),
+            axis: iv(Vec3::unit_z()),
+            radius: Interval::from_f64(1.0),
+            u_ref: iv(Vec3::unit_x()),
+        };
+        let sph: Surface<Interval> = Surface::Sphere {
+            center: ip(Point3::new(0.0, 0.0, 0.0)),
+            radius: Interval::from_f64(1.0 + 1e-7),
+            axis: iv(Vec3::unit_z()),
+            u_ref: iv(Vec3::unit_x()),
+        };
+        let s = cylinder_sphere_section(&cyl, &sph, CoaxialEvidence::Declared, band()).unwrap();
+        let CylinderSphereSection::TwoCircles { station, .. } = s else {
+            panic!("a near-tangent pose still crosses in two circles, got {s:?}");
+        };
+        // Honest first: a point of each section circle still encloses
+        // zero residual on BOTH operands.
+        for sign in [Interval::one(), -Interval::one()] {
+            let p = Point3::new(
+                Interval::from_f64(1.0),
+                Interval::from_f64(0.0),
+                station * sign,
+            );
+            for (name, sf) in [("cylinder", &cyl), ("sphere", &sph)] {
+                let res = implicit_residual(sf, p);
+                assert!(
+                    res.lo() <= 0.0 && 0.0 <= res.hi(),
+                    "{name} residual lost zero: [{}, {}]",
+                    res.lo(),
+                    res.hi()
+                );
+            }
+        }
+        // Tight second: 3.25e-19 factored vs 4.97e-13 squared.
+        let width = station.hi() - station.lo();
+        assert!(
+            width < 1e-16,
+            "the station enclosure is not the factored form's: width {width} \
+             (the squared rewrite measures ~5e-13 here)"
+        );
     }
 
     /// Both plane×torus closed forms run at `T = Interval` UNCHANGED —
