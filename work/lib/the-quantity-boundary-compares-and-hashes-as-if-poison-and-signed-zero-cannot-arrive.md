@@ -4,6 +4,7 @@ kind: issue
 title: the quantity boundary compares and hashes as if poison and signed zero cannot arrive
 status: open
 opened: 2026-09-03
+refs: [1668]
 ---
 
 Banked at LIB-B-FORMAT. Found by BINDING the display formatter: it is
