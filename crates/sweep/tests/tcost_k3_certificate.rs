@@ -30,6 +30,8 @@
 //! refusal class) is bought by SIZE instead — `exhausting_prism`
 //! below — which is ε-independent.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use geom_core::k_stats::{start_verdict_log, take_verdict_log};
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::RawLoop;
