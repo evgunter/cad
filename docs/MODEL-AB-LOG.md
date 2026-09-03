@@ -3293,3 +3293,98 @@ surfaces moved by the work/ tracker migration). The lane RESUMES with
 its context (the M10-DI/BLEND-1 implementer-resume precedent —
 recorded, not excluded; annotated in the row at merge). Slot-4 arm
 discipline unchanged; ordinal still claimed at review dispatch.
+
+LIB-TUBE review ordinal fixed at dispatch (2026-09-03, PR #1628 open
+— frozen head `c0bfba802`): **ordinal 302** (LIB band; single
+claimant in band). Protocol v6 dual: draw = `/dev/urandom` byte
+**91**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**. Method as ordinals
+300/301's, recorded before either review runs: SEQUENTIAL same-head
+(host disk; two mechanical lanes also active at dispatch), both
+briefs authored and STORED before R1 dispatches (sha256
+af9869db8f61… r1 / 655cf3a135f6… r2 — identical text modulo lane
+names), neither reviewer sees the other's report, v6 item 5
+isolation in both briefs; the standing LIB-12 CONTAMINATION FLAG
+rides the pair (slot 4, the block's LAST — the block OPENS when
+this dual concludes, per the per-block opening rule). Pre-draw
+fields at the spec: M-L / STRUCTURAL. The unit's interruption
+history (impl-lane usage-limit death pre-push; four idle days;
+BOOL-13 landing mid-unit; the pre-review spec amendment #1623; a
+container-restart mid-merge discarded; adaptation by a fresh lane)
+is public record in the spec's Amendment section and work/lib/
+LIB-TUBE.md — both briefs direct reviewers to adjudicate the seam
+(claim 7) without model talk. Impl phase (for the row): the
+pre-death impl lane's tokens unrecorded (~3–4h shape by its
+commits); adaptation ~385k harness, ~66m wall; impl CI 33711887192
+GREEN on c0bfba802 ({interval trailer-asked, default ε, dev-probe
+klint}). Row at merge.
+
+LIB-TUBE R1 DELIVERED (2026-09-03, fable per the byte-91 draw;
+frozen c0bfba802): **APPROVE-WITH-FIXES 0/5/2, rubric 5/4/4** — no
+MAJOR; every brief claim survived execution. Decisive instruments:
+the seam INTERDIFF (cb63c8898→head reduced to exactly the disclosed
+adaptations; escape-class sweep zero hits), the stale-build refusal
+EXECUTED for real (merge-base editor-core built from source, fed a
+tube-bearing save, refused typed Unreadable), non-dyadic storage
+probes (0.3−0.1 one ulp under 0.2 — bits verbatim where volumes are
+blind), fence-removal digests replicated, audit machine-counted.
+Findings: the predicted renumbering defect LANDED in satellite
+surfaces (M1: four stale pre-migration row-number citations across
+log/tests/docstrings — a class for the fix pass to sweep; M2: a
+self-referential row-26 cite that should read 25), all-dyadic
+committed storage fixtures (M3 — probe row pushed for adoption),
+a PR-body-vs-fence-header self-description mismatch (M4), one
+v17-era comment surviving the demolition (M5). One borderline
+letter-level silent deviation (N1: the spec's "canonicalizing
+construction doors" satisfied vacuously, unmentioned). Probes
+pushed lib/tube-r1-probes. Disclosures clean (lane-name listing on
+the shared host disclosed; no cross-lane reads). ~240k tokens,
+~26m harness (~75m self-est). R2 (opus per the draw) dispatched
+sequentially after, brief VERBATIM from the pre-committed store,
+no access to R1's report or probes. Row at merge.
+
+LIB-TUBE R2 DELIVERED (2026-09-03, opus per the draw; frozen
+c0bfba802): **APPROVE-WITH-FIXES 0/2/4, rubric 5/5/3** — no MAJOR;
+all seven claims survived attack. Instruments: the densest
+collision construction the vocabulary permits (three tubes, one
+identical pair, one spine, one document — name tables disjoint and
+reproducible); the stale-build refusal executed AT THE BYTES
+(unknown-variant probe through the one typed door, labeled
+byte-level-equivalent honestly); the non-dyadic storage probe
+(0.3−0.1, bits distinguish where volumes cannot); the audit
+re-derived by SCENE NAME across the 47→43 renumbering (all flips
+landed right; main→head verdict diff exactly three); the seam
+compared as diff-of-diffs (28 dropped files all disclosed v17/log
+machinery, zero undisclosed either direction; escape class: one
+commit, one file, repaired). MINORs: caller-facing docs falsified
+by execution on the non-unit axis (the disclosure never reached
+the two surfaces authors read) and a corpus header asserting a
+mass pin over `pin: None`. NOTE-2 is a DISPATCHER CORRECTION,
+accepted: the brief's claim 5 mislabeled the torus closed form as
+row 25 — it belongs to row 26 and the audit places it correctly.
+
+CORRESPONDENCE PRE-NOTE (ordinal 302): verdicts CONVERGE (A-W-F
+both, no MAJOR either arm) — NO tally candidates; no
+re-verification round; fix pass IMPLEMENTER-INHERITED off the
+adjudicated union. Bilateral: the m4_pr6_golden v17 comment
+fragment (R1-M5 ≡ R2-N1); the dyadic-fixture weakness closed by
+BOTH probe branches independently (R1-M3 ≡ R2 claim-4 probe — the
+same non-dyadic row built twice, convergent evidence). Unilateral
+R1: the renumbering satellite class (M1, four stale citations;
+M2, the self-referential row cite), the PR-body/fence-header
+self-description mismatch (M4), the letter-level canonicalizing-
+doors silence (N1). Unilateral R2: the caller-surface doc falsity
+(MINOR-1) with the spine/u_ref asymmetry note (N3), the mass-pin
+header (MINOR-2).
+
+DISPATCHER CONTAMINATION, recorded for the blinded adjudication:
+the orchestrator's R1 phase-note COMMIT SUBJECT on main carried
+R1's verdict tally ("A-W-F 0/5/2"), and R2's pre-lane `git log`
+orientation surfaced it — R2 disclosed the exposure, states it
+reached its own verdict and findings first, and the finding sets
+are substantially disjoint; the exposure is verdict-shaped only
+(no findings content). The asymmetry is the dispatcher's, not the
+reviewers'. PROTOCOL NOTE going forward: while a dual is open,
+phase-note commit subjects stay verdict-free (tallies in the body
+only). Both reviews' costs: R1 ~240k/~26m harness; R2 ~219k/~18m
+harness (~65m self-est). Fix pass dispatches to the implementer
+lane next; row at merge.
