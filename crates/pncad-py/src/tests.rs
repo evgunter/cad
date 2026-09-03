@@ -21,6 +21,11 @@ use pncad::tolerance::Tol;
 use pncad::topo::{FaceKey, VertexKey};
 use std::collections::BTreeMap;
 use std::path::Path;
+// The shared Rust-source lexer: `src/tags.rs` is READ by the tag-table
+// guard below, and this is the tree's one answer to "is this text code,
+// prose or a literal". `crates/test-utils/tests/reader_census.rs`
+// carries the line that says so.
+use test_utils::source::{balanced_end, code_and_literals, code_only};
 
 #[test]
 fn dimension_tags_are_stable() {
@@ -1136,7 +1141,13 @@ fn toml_table(source: &str, header: &str) -> BTreeMap<String, String> {
 /// (no-Python) path hosted CI takes.
 #[test]
 fn crate_lints_match_the_workspace_minus_unsafe_code() {
-    let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    // `source::crate_dir`, not the baked path alone, for the reason
+    // the tag-table guard below states at its own read: under a
+    // nextest ARCHIVE replayed on another runner the compile-time
+    // directory need not exist, and a guard that cannot find its
+    // subject reds for the wrong reason. Converted alongside that
+    // guard, since the helper arrived with it.
+    let crate_dir = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"));
     let root_manifest = crate_dir.join("..").join("..").join("Cargo.toml");
     let root = std::fs::read_to_string(&root_manifest)
         .expect("the workspace root Cargo.toml is two levels above this crate");
@@ -1982,34 +1993,51 @@ struct TagTable {
     constants: BTreeMap<String, String>,
 }
 
-/// The line with any trailing `//` comment removed, quote-aware.
+/// The contents of the string literal at `at`, and the offset one past
+/// it — or `None` when `at` opens no literal, or opens one that never
+/// closes.
 ///
-/// `tags.rs` has no multi-line string and no string containing `//`,
-/// so per-line quote parity is sound here; the day either changes,
-/// the arm parser downstream refuses the result rather than
-/// mis-reading it.
-fn strip_line_comment(line: &str) -> &str {
-    let bytes = line.as_bytes();
-    let mut in_string = false;
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'\\' if in_string => i += 1,
-            b'"' => in_string = !in_string,
-            b'/' if !in_string && bytes.get(i + 1) == Some(&b'/') => return &line[..i],
-            _ => {}
-        }
-        i += 1;
+/// **The extent comes from the CODE view, and that is the whole
+/// technique.** [`code_only`] has blanked every literal to spaces,
+/// prefix, escapes and closing delimiter included, so the first byte
+/// that survived blanking is past the literal's end; the contents are
+/// then read out of `text` at those offsets. Nothing here knows what an
+/// escape is, which is the point of asking the shared lexer instead.
+fn string_literal<'a>(text: &'a str, code: &str, at: usize) -> Option<(&'a str, usize)> {
+    if !text[at..].starts_with('"') {
+        return None;
     }
-    line
+    let blanked = code.as_bytes();
+    let mut end = at;
+    while end < blanked.len() && blanked[end] == b' ' {
+        end += 1;
+    }
+    // Trailing source whitespace — and any blanked comment — sits in
+    // the same run of spaces, so the literal is what is left after it.
+    let literal = text[at..end].trim_end();
+    let value = literal.strip_prefix('"')?.strip_suffix('"')?;
+    Some((value, at + literal.len()))
 }
 
-/// A byte cursor over ONE tag function's comment-stripped body.
+/// A cursor over ONE tag function's body, in the two views the shared
+/// lexer supplies.
+///
+/// Both preserve byte offsets, so `at` indexes either — and the file's
+/// text as well. What this file used to re-derive to get here (a
+/// quote-aware line-comment stripper, string and escape lexing, three
+/// brace-depth loops) is [`test_utils::source`]'s, and the precondition
+/// it states is what makes the depth counting below a parse: in the
+/// code view every bracket is a real bracket.
 struct Cursor<'a> {
-    /// The body text.
+    /// Comments blanked, literals KEPT — the view tokens are read from.
     text: &'a str,
-    /// The read position, a byte offset into `text`.
+    /// Comments and literals both blanked — the view structure is read
+    /// from, and the only one [`balanced_end`] may be run over.
+    code: &'a str,
+    /// The read position, a byte offset into both views.
     at: usize,
+    /// One past the body's last byte.
+    end: usize,
     /// The function the body belongs to — messages name it.
     what: &'a str,
 }
@@ -2017,13 +2045,25 @@ struct Cursor<'a> {
 impl<'a> Cursor<'a> {
     /// The unread remainder.
     fn rest(&self) -> &'a str {
-        &self.text[self.at..]
+        &self.text[self.at..self.end]
     }
 
-    /// Advance past whitespace.
+    /// Advance past whitespace — and past any comment, which the view
+    /// has already blanked to whitespace.
     fn skip_ws(&mut self) {
         let rest = self.rest();
         self.at += rest.len() - rest.trim_start().len();
+    }
+
+    /// Advance one CHARACTER. The views are blanked byte for byte and
+    /// are valid UTF-8, so stepping by the character's own width keeps
+    /// `at` on a boundary — which is what the reader's old `is_ascii()`
+    /// refusal bought by forbidding the case outright.
+    fn bump(&mut self) {
+        self.at += self.code[self.at..]
+            .chars()
+            .next()
+            .map_or(1, char::len_utf8);
     }
 
     /// Advance past `token` if it is next, and say whether it was.
@@ -2049,65 +2089,47 @@ impl<'a> Cursor<'a> {
     }
 
     /// Read a `"..."` string starting at the cursor, returning its
-    /// contents. Escapes are refused rather than decoded: no tag has
-    /// one, and a tag that did would not be the snake-case word this
-    /// file's whole convention is.
+    /// contents.
     fn take_string(&mut self) -> &'a str {
-        let bytes = self.text.as_bytes();
-        assert_eq!(
-            bytes[self.at], b'"',
+        assert!(
+            self.rest().starts_with('"'),
             "tags.rs: in `{}`, not a string",
             self.what
         );
-        self.at += 1;
-        let start = self.at;
-        while self.at < bytes.len() && bytes[self.at] != b'"' {
-            assert!(
-                bytes[self.at] != b'\\',
-                "tags.rs: in `{}`, a string literal with an escape — \
-                 I do not understand this",
+        let (value, end) = string_literal(self.text, self.code, self.at).unwrap_or_else(|| {
+            panic!(
+                "tags.rs: in `{}`, an unterminated string literal",
                 self.what
-            );
-            self.at += 1;
-        }
-        assert!(
-            self.at < bytes.len(),
-            "tags.rs: in `{}`, an unterminated string literal",
-            self.what
-        );
-        let value = &self.text[start..self.at];
-        self.at += 1;
+            )
+        });
+        self.at = end;
         value
     }
 
     /// Consume one arm's PATTERN, up to the `=>` that ends it.
     ///
-    /// Brace-, paren- and bracket-aware, so a struct pattern spanning
-    /// several lines (`ReadbackError::Dangling { what: ... }`) is one
-    /// pattern rather than three unrecognised lines.
+    /// Read over the code view, where a bracket inside a string literal
+    /// is a space — so [`balanced_end`] steps over a struct pattern
+    /// (`ReadbackError::Dangling { what: ... }`) whole, however many
+    /// lines it spans, and a closer met here has no opener at all.
     fn skip_pattern(&mut self) {
-        let bytes = self.text.as_bytes();
-        let mut depth = 0i32;
-        while self.at < bytes.len() {
-            match bytes[self.at] {
-                b'"' => {
-                    self.take_string();
-                    continue;
+        let blanked = self.code.as_bytes();
+        while self.at < self.end {
+            match blanked[self.at] {
+                b'(' | b'[' | b'{' => {
+                    let Some(close) = balanced_end(self.code, self.at) else {
+                        break;
+                    };
+                    self.at = close + 1;
                 }
-                b'(' | b'[' | b'{' => depth += 1,
-                b')' | b']' | b'}' => {
-                    assert!(
-                        depth > 0,
-                        "tags.rs: in `{}`, a match arm closed before its `=>` — \
-                         I do not understand this",
-                        self.what
-                    );
-                    depth -= 1;
-                }
-                b'=' if depth == 0 && bytes.get(self.at + 1) == Some(&b'>') => return,
-                _ => {}
+                b')' | b']' | b'}' => panic!(
+                    "tags.rs: in `{}`, a match arm closed before its `=>` — \
+                     I do not understand this",
+                    self.what
+                ),
+                b'=' if blanked.get(self.at + 1) == Some(&b'>') => return,
+                _ => self.bump(),
             }
-            self.at += 1;
         }
         panic!(
             "tags.rs: in `{}`, a match arm ran off the end of the body",
@@ -2118,21 +2140,24 @@ impl<'a> Cursor<'a> {
     /// Parse `match SCRUTINEE { ARMS }`, collecting what the arms mint.
     fn parse_match(&mut self, values: &mut Vec<String>, delegates: &mut Vec<String>) {
         self.expect("match");
-        let bytes = self.text.as_bytes();
-        let mut depth = 0i32;
+        let blanked = self.code.as_bytes();
         loop {
             assert!(
-                self.at < bytes.len(),
+                self.at < self.end,
                 "tags.rs: in `{}`, a `match` with no `{{`",
                 self.what
             );
-            match bytes[self.at] {
-                b'(' | b'[' => depth += 1,
-                b')' | b']' => depth -= 1,
-                b'{' if depth == 0 => break,
-                _ => {}
+            match blanked[self.at] {
+                // The scrutinee's own brackets, stepped over whole, so
+                // a `{` inside one is not mistaken for the block's.
+                b'(' | b'[' => {
+                    self.at = balanced_end(self.code, self.at).unwrap_or_else(|| {
+                        panic!("tags.rs: in `{}`, a `match` with no `{{`", self.what)
+                    }) + 1;
+                }
+                b'{' => break,
+                _ => self.bump(),
             }
-            self.at += 1;
         }
         self.expect("{");
         loop {
@@ -2192,27 +2217,17 @@ impl<'a> Cursor<'a> {
             .collect();
         if !name.is_empty() && rest[name.len()..].trim_start().starts_with('(') {
             self.at += name.len();
-            self.expect("(");
-            let bytes = self.text.as_bytes();
-            let mut depth = 1i32;
-            while depth > 0 {
-                assert!(
-                    self.at < bytes.len(),
-                    "tags.rs: in `{}`, a call that never closes",
-                    self.what
-                );
-                match bytes[self.at] {
-                    b'(' => depth += 1,
-                    b')' => depth -= 1,
-                    b'"' => panic!(
-                        "tags.rs: in `{}`, a string literal inside a delegation's \
-                         arguments — I do not understand this",
-                        self.what
-                    ),
-                    _ => {}
-                }
-                self.at += 1;
-            }
+            self.skip_ws();
+            let open = self.at;
+            let close = balanced_end(self.code, open)
+                .unwrap_or_else(|| panic!("tags.rs: in `{}`, a call that never closes", self.what));
+            assert!(
+                !self.text[open..=close].contains('"'),
+                "tags.rs: in `{}`, a string literal inside a delegation's \
+                 arguments — I do not understand this",
+                self.what
+            );
+            self.at = close + 1;
             delegates.push(name);
             return;
         }
@@ -2227,10 +2242,17 @@ impl<'a> Cursor<'a> {
 }
 
 /// One tag function's body, read into (values, delegates).
-fn parse_tag_body(name: &str, body: &str) -> (Vec<String>, Vec<String>) {
+fn parse_tag_body(
+    name: &str,
+    text: &str,
+    code: &str,
+    body: std::ops::Range<usize>,
+) -> (Vec<String>, Vec<String>) {
     let mut cursor = Cursor {
-        text: body,
-        at: 0,
+        text,
+        code,
+        at: body.start,
+        end: body.end,
         what: name,
     };
     // The `use ... as R;` shorthands some functions open with.
@@ -2274,22 +2296,48 @@ fn parse_tag_body(name: &str, body: &str) -> (Vec<String>, Vec<String>) {
 /// line or a `{`-opened block closed by `};`; a
 /// `pub fn NAME(..) -> &'static str {` whose body closes with a `}` in
 /// column 0; and a `pub const NAME: &str = "value";`.
+///
+/// **Every one of those is matched over a view from the shared lexer**
+/// ([`test_utils::source`]) rather than over the raw text: `code` is
+/// the file with comments and literals blanked, `text` is the file with
+/// comments alone blanked, and both preserve byte offsets, so a form
+/// located structurally in `code` has its literal read out of `text` at
+/// the same offsets. A comment is therefore already whitespace by the
+/// time this loop sees a line, and the reader spells no comment
+/// delimiter of its own.
 fn read_tag_table(source: &str) -> TagTable {
+    let text = code_and_literals(source);
+    let code = code_only(source);
     let lines: Vec<&str> = source.lines().collect();
+    let code_lines: Vec<&str> = code.lines().collect();
+    // Both views preserve byte offsets AND line structure, so one table
+    // of line starts serves the source and both of them.
+    let starts: Vec<usize> = code
+        .split_inclusive('\n')
+        .scan(0usize, |at, line| {
+            let start = *at;
+            *at += line.len();
+            Some(start)
+        })
+        .collect();
     let mut functions: BTreeMap<String, (Vec<String>, Vec<String>)> = BTreeMap::new();
     let mut constants: BTreeMap<String, String> = BTreeMap::new();
     let mut i = 0;
     while i < lines.len() {
+        // Matched on the code view; REPORTED as the file spells it.
         let line = lines[i];
+        let code_line = code_lines[i];
         let number = i + 1;
-        if line.is_empty() || line.starts_with("//") {
+        // A blank line and a line that is nothing but comment are one
+        // case here, because the lexer has already blanked the second.
+        if code_line.trim().is_empty() {
             i += 1;
             continue;
         }
-        if let Some(rest) = line.strip_prefix("use ") {
+        if let Some(rest) = code_line.strip_prefix("use ") {
             if rest.ends_with('{') {
                 i += 1;
-                while i < lines.len() && lines[i] != "};" {
+                while i < lines.len() && code_lines[i] != "};" {
                     i += 1;
                 }
                 assert!(
@@ -2307,7 +2355,7 @@ fn read_tag_table(source: &str) -> TagTable {
             i += 1;
             continue;
         }
-        if let Some(rest) = line.strip_prefix("pub fn ") {
+        if let Some(rest) = code_line.strip_prefix("pub fn ") {
             let (name, tail) = rest.split_once('(').unwrap_or_else(|| {
                 panic!("tags.rs:{number}: a `pub fn` with no argument list: {line}")
             });
@@ -2325,7 +2373,7 @@ fn read_tag_table(source: &str) -> TagTable {
                 "tags.rs:{number}: {name:?} is not a lower snake-case name: {line}"
             );
             let mut j = i + 1;
-            while j < lines.len() && lines[j] != "}" {
+            while j < lines.len() && code_lines[j] != "}" {
                 j += 1;
             }
             assert!(
@@ -2333,17 +2381,9 @@ fn read_tag_table(source: &str) -> TagTable {
                 "tags.rs:{number}: `{name}` has no closing `}}` in column 0 — \
                  I do not understand where its body ends"
             );
-            let body = lines[i + 1..j]
-                .iter()
-                .map(|l| strip_line_comment(l))
-                .collect::<Vec<_>>()
-                .join("\n");
-            assert!(
-                body.is_ascii(),
-                "tags.rs:{number}: `{name}`'s body has non-ASCII text outside a \
-                 comment — I do not understand this"
-            );
-            let previous = functions.insert(name.to_owned(), parse_tag_body(name, &body));
+            let body = starts[i + 1]..starts[j];
+            let previous =
+                functions.insert(name.to_owned(), parse_tag_body(name, &text, &code, body));
             assert!(
                 previous.is_none(),
                 "tags.rs:{number}: `{name}` is defined twice"
@@ -2351,16 +2391,20 @@ fn read_tag_table(source: &str) -> TagTable {
             i = j + 1;
             continue;
         }
-        if let Some(rest) = line.strip_prefix("pub const ") {
+        if let Some(rest) = code_line.strip_prefix("pub const ") {
             let (name, tail) = rest.split_once(": &str = ").unwrap_or_else(|| {
                 panic!(
                     "tags.rs:{number}: a `pub const` in the tag module that is not a \
                      `&str` — I do not understand this: {line}"
                 )
             });
-            let value = tail
-                .strip_prefix('"')
-                .and_then(|t| t.strip_suffix("\";"))
+            // The value is blanked in the code view, so it is located
+            // by the structure around it and read from `text`.
+            let at = starts[i] + code_line.len() - tail.len();
+            let end_of_line = starts[i] + code_line.len();
+            let value = string_literal(&text, &code, at)
+                .filter(|&(_, after)| text[after..end_of_line].trim() == ";")
+                .map(|(value, _)| value)
                 .unwrap_or_else(|| {
                     panic!(
                         "tags.rs:{number}: a `&str` const whose value is not a bare \
@@ -2431,24 +2475,24 @@ fn read_tag_table(source: &str) -> TagTable {
 ///
 /// **And the construction pins are sampled, not total.** Eighteen of
 /// the thirty-seven functions carry at least one — `interrogate`,
-/// `readback`, `hit_test`, `node_pick`, `tessellate`, `resolution
-/// _status`, `select_refusal`, `declare_error`, `expr_dimension`,
-/// `fmt_quantity`, `parse_error`, `eval_error`, `persist_error`,
-/// `workspace_error`, `step_import_error`, `path_error`,
-/// `checks_error`, `check_evidence` — and even those are samples
-/// (`persist_error_tag`: two of thirteen arms; `step_import_error_tag`:
-/// two of twenty-two; `path_error_tag`: three of thirty). The other
-/// nineteen — `assembly`, `binary_header`, `edit`, `export`, `frame`,
-/// `inline`, `mate_fault`, `node_error`, `part_fault`,
-/// `placement_rule_fault`, `product`, `recorded_program`,
-/// `refused_ref`, `resolve_fault`, `root_fault`, `solid_name`,
-/// `split`, `stl`, `update` — have none, and between them hold 192 of
-/// the table's 354 literals, `edit_error_tag`'s fifty and
-/// `node_error_tag`'s fifty-four included. For those the inventory
-/// below is the ONLY thing between a rename and a broken caller. That
-/// is a large gain over nothing; it is not the same claim as "the tag
-/// table is verified", and this comment refuses to make the second
-/// one.
+/// `readback`, `hit_test`, `node_pick`, `tessellate`,
+/// `resolution_status`, `select_refusal`, `declare_error`,
+/// `expr_dimension`, `fmt_quantity`, `parse_error`, `eval_error`,
+/// `persist_error`, `workspace_error`, `step_import_error`,
+/// `path_error`, `checks_error`, `check_evidence` — and even those
+/// are samples (`persist_error_tag`: two of thirteen arms;
+/// `step_import_error_tag`: two of twenty-two; `path_error_tag`: three
+/// of thirty). The other nineteen — `assembly`, `binary_header`,
+/// `edit`, `export`, `frame`, `inline`, `mate_fault`, `node_error`,
+/// `part_fault`, `placement_rule_fault`, `product`,
+/// `recorded_program`, `refused_ref`, `resolve_fault`, `root_fault`,
+/// `solid_name`, `split`, `stl`, `update` — have none, and between
+/// them hold 192 of the table's 354 literals, `edit_error_tag`'s
+/// fifty and `node_error_tag`'s fifty-four included. For those the
+/// inventory below is the ONLY thing between a rename and a broken
+/// caller. That is a large gain over nothing; it is not the same claim
+/// as "the tag table is verified", and this comment refuses to make
+/// the second one.
 ///
 /// **Out of scope, stated so it is not read as covered.**
 /// `SelectRefusal::{InBand, PairInBand}` carry a `predicate: &'static
@@ -2458,9 +2502,22 @@ fn read_tag_table(source: &str) -> TagTable {
 /// constructible from this crate (see
 /// `select_refusal_tags_are_stable`), so nothing on this page pins
 /// them. `work/lib/` carries that as its own row.
+///
+/// **A second family is outside it too**: the `reason` words minted as
+/// bare literals in `py/value.rs` rather than as a tag function here —
+/// `"wrong_kind"` (five sites), `"empty_boolean"`, `"unknown_node"`,
+/// `"poisoned"`, `"node_failed"` and `"mass_properties_failed"` — which
+/// cross as an exception's `reason` attribute and so are as
+/// Python-visible as anything in `tags.rs`. `pncad.pyi` documents the
+/// first three and `node_failed`/`poisoned`; `"mass_properties_failed"`
+/// is pinned nowhere in the tree. This inventory reads `src/tags.rs`
+/// and nothing else, so none of them is covered by it.
 #[test]
 fn the_whole_tag_table_matches_its_committed_inventory() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+    // `crate_dir`, not the baked path alone: a nextest ARCHIVE replayed
+    // on another runner has no such directory, and this crate's own
+    // source is what the guard opens.
+    let path = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
         .join("src")
         .join("tags.rs");
     let source = std::fs::read_to_string(&path).expect("this crate's own src/tags.rs");
