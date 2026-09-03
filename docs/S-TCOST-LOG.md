@@ -441,3 +441,33 @@ a suite's code view is a violation; helper trees are directories with
 a `mod.rs`, which the walk already excludes), so a shared helper has
 exactly one home in `tests/all.rs`. Per crate, so B1's six crates
 carry it now and TCOST-B2 carries it to the rest as it converts them.
+
+## Seam: CI-posture units cut (2026-09-03, Evan's ask)
+
+Evan asked which jobs, or expensive parts of them, can go to the
+nightly, and whether caching can avoid compiling the kernel so many
+times. Assessment (per the ratified rule — a persistence detector may
+be demoted, an absence detector may not — and the audit's billing
+model): a code-tier run compiles the kernel ~9–10 times in ~8
+distinct profile/feature unifications that share no artifacts, so
+only fewer jobs collapse them; the cross-RUN lever is content-keyed
+sccache (F4), wired since #852 and currently off with its reading
+still owed. Evan approved the plan and kept the render lanes.
+
+Units, CI-infrastructure track (Opus lanes, style review, no A/B row,
+one PR each with its own hosted measurement and the billed-minute
+entry in `docs/CI-MINUTES-2026-08.md`):
+
+- **TCOST-C1** — `corrupt input (release profile)` → the nightly
+  (persists; the only lane running the two `cfg(not(debug_assertions))`
+  rows keeps running daily).
+- **TCOST-C2** — the rustdoc gate's six excluded roots and its third
+  pass → the nightly; the workspace pass stays on PRs, scoped to the
+  closure the build already uses.
+- **TCOST-C3** — the python suite seed-keyed like the viewer toolkit
+  (PRs only when `pncad`, `pncad-py` or `editor-core` seeds move;
+  ungated nightly).
+- **TCOST-C4** — the sccache trial re-read: on for a window, per-crate
+  hit stats read on warm runs (workspace crates and test binaries are
+  the hypothesis; dependency hits prove nothing), verdict written under
+  F4 either way.
