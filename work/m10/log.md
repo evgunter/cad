@@ -733,3 +733,24 @@ ids unchanged, nothing copied:
 The directory now holds only its units, its narrative and (for S-MATE)
 the `MATE-EXIT` ruling, so the sweep at ratification leaves nothing
 behind.
+
+## M10-7 opened: the program does not close at ε (2026-09-03)
+
+Ev, reading the exit walk's honesty row 1: "we need to make this
+parameter-aware so it's usable; that's the whole point of this
+machinery so I don't think we can close the program until then." The
+walk (#1700) went back to draft. The design conversation ran in
+chat the same afternoon — per-site re-association (Ev's first
+instinct, for its simplicity) ruled out because the funnel sites
+receive VALUES and the dependence is lost upstream when one parameter
+becomes two intervals; an affine-form lane ruled out at √ε; the
+symbolic identity tier chosen because it tracks the parameters fully
+for every explicit quantity and touches no site — and was written
+down as ERROR-DESIGN revision E12 with E3's two amendments (the extent
+lever with no floor, replacing M10-2's `max(separation, 1 m)`; the
+binary `min_clearance`), ratified on #1712 ("lgtm"). The frontier —
+iterated quantities — filed at S-CERT on Ev's word (#1711). Block
+M10-B4 drawn (byte 103), M10-7 dispatched on slot 1 with the spec
+to main. Ev's second question of the day, "what concretely would go
+wrong at zero separation if we ignore tilt", is answered in the E3
+clause: the VALUE is fine, the VERDICT is what is consumed.
