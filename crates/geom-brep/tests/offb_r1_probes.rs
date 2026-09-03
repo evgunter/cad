@@ -34,14 +34,11 @@ use geom::NurbsSurface;
 use geom_brep::offset_fit::{OffsetFitError, OffsetLimb, certify_offset, fit_offset};
 use geom_brep::offset_meters::{OFFSET_METER_LADDER, patch_collapse};
 use geom_brep::patch_bound::patch_cells_refined;
-use geom_core::{Band, Point3, Tol};
+use geom_core::Point3;
 
 use crate::shared::fixture::{kv2, quarter_cylinder, sphere_band};
 use crate::shared::sample::{grid, worst_offset_residual};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use crate::shared::tol::band;
 
 /// The true residual of `candidate` against the exact offset locus of
 /// `base` at `d`, over 41 x 37 stations — counts coprime to every cell

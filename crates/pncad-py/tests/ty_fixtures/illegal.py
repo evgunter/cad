@@ -10,6 +10,7 @@ from pncad import (
     ChecksConfig,
     Severity,
     Bulge,
+    CancelToken,
     Cmp,
     CurveKind,
     Doc,
@@ -391,6 +392,23 @@ plain: float = doc.eval(doc.parse_expr("1 m"))  # ty: error
 # what the family closed.
 digits: float = (1 * m).format(m)  # ty: error
 
+# The cancel token is a keyword, and a keyword of its own TYPE: the
+# three optional arguments of `evaluate` are not interchangeable, and
+# a bare bool is not a handle onto a flag anybody else can set.
+evaluate(doc, cancel=True)  # ty: error
+evaluate(doc, CancelToken())  # ty: error
+evaluate(doc, prior=CancelToken())  # ty: error
+
+# The stop is ONE-WAY. `canceled` is a read-only property on both the
+# token and the run — a settable one would let a caller un-observe a
+# cancelation, which is the state neither object has.
+CancelToken().canceled = False  # ty: error
+evaluate(doc).canceled = False  # ty: error
+
+# A canceled run is a partial `Evaluation`, not a boolean and not a
+# raise: reading the run where the TOKEN was meant, or the other way
+# round, is the confusion the two names invite and the types refuse.
+finished: CancelToken = evaluate(doc, cancel=CancelToken())  # ty: error
 # The fourth rung takes NO contacts argument. `ContactRecords` has no
 # Python spelling at all — it is minted by the ops that certify
 # geometry, never built by a caller — so the two shapes a reader might

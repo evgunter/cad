@@ -11,14 +11,11 @@
 // `-D warnings`. Nothing else in this file is this lane's.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::point::p3 as p;
 use geom::surfaces::nurbs::NurbsSurface;
 use geom_brep::patch_bound::{PatchCell, patch_cells};
 use geom_core::spline::knots::KnotVector;
 use geom_core::{Point3, Vec3};
-
-fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
 
 /// Clamped knot vector of `degree` with the given interior knots on
 /// `[0, 1]`.

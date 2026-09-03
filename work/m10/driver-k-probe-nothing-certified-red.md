@@ -2,10 +2,12 @@
 id: driver-k-probe-nothing-certified-red
 kind: issue
 title: m10_3_driver_k_probe_interval reds on its first-ever hosted execution: nothing certified, nothing to sample under k-lint's eps=1e-6
-status: open
+status: closed
 opened: 2026-08-30
 github: 1296
 refs: [1191, 1268]
+closed: 2026-09-03
+pr: 1670
 ---
 
 ## From GitHub issue 1296
@@ -29,3 +31,29 @@ nothing certified, nothing to sample
 ## Home
 
 `work/m10/` — `crates/editor-core/tests/m10*` is an M10 territory glob and the issue says the resolution is M10's call on its own ratified territory.
+
+## Closed (2026-09-03, the M10-6 lane's k-probe hotfix branch)
+
+The row no longer panics over an empty certified set. `run_doc` now
+returns a `Population { certified, samples }`, every caller prints a
+`# census driver/<fixture> eps=… certified=N samples=M` line (into the
+dump AND onto the terminal), and the standing row asserts the
+BICONDITIONAL — the drive certified something exactly when the funnel
+received something — which is sharp at every ε and over every dial
+setting instead of holding only where the budget is generous.
+
+Two facts measured while closing it, because the issue's framing named
+ε and the cause was a dial. (1) The panic is already unreachable on
+main at the shipped config: `eb21e503` raised the row's leaf budget to
+4096 (#1343) and the dump now certifies 1 and 344 leaves and runs green
+at 1e-6, 1e-9 and 1e-12. (2) The fixtures are ε-RELATIVE, so what they
+certify does not move with ε at all — the same 1/344 at 1e-2 as at
+1e-12 — which means the 1e-6 in the report was the loop's first row and
+never the cause. What remained after the budget fix was the SHAPE, and
+that is what this change fixes: a budget is a run dial, and a report is
+not a place to die over one.
+
+`an_empty_certified_set_is_reported_rather_than_panicked_over` plants
+the empty population deliberately (the 256-leaf budget the doc records
+as certifying nothing) and asserts it is reported: no certified leaves,
+no samples, no panic, and a census line that says which.

@@ -663,11 +663,6 @@ GAP = "gap"
 #: LIB-B-READBACK, the first family to close, and the four verbs it
 #: chartered say so where they now sit in `BOUND_AS`.
 FAMILIES = {
-    "B-CANCEL": (
-        "cooperative cancellation; closing it puts a `CancelToken` on "
-        "the `evaluate(doc)` door, which today takes none — so a Python "
-        "caller cannot stop a long evaluation at all"
-    ),
     "B-NOTATION": (
         "authored notation, the D6 boundary's other half; closing it "
         "binds `WrittenLength` / `WrittenAngle` onto the `DocParam` and "
@@ -1123,9 +1118,50 @@ FAMILIES = {
 #: error `kind` tag (`fillet`/`chamfer` and the three
 #: `*_selection_*` tags), so the discriminant crosses — just not as a
 #: type.
-#: - **B-CANCEL — cooperative cancellation.** `CancelToken`.
-#:   `evaluate(doc)` takes none, so a Python caller cannot stop a long
-#:   evaluation.
+#: **B-CANCEL is CLOSED and no longer a `gap` id here**
+#: (LIB-B-CANCEL) — the last of the queued mechanical sweep, and the
+#: one whose accounting says the most about what a charter can and
+#: cannot see. It held ONE name, `CancelToken`, and
+#: closing it moved that one; by the B-FORMAT arithmetic that is the
+#: cheap case. It was not, and the reason is the family's own shape.
+#:
+#: **A door's ARGUMENT crossing is not the same as its ANSWER
+#: crossing, and this charter counted only the first.** B-FORMAT was
+#: cheap because `fmt_length`'s arguments already had Python
+#: spellings; B-CANCEL's argument is a token nobody had to build
+#: either — `CancelToken` is an `Arc<AtomicBool>` with two methods.
+#: What was missing was the OTHER end: a canceled run answers by
+#: being a PARTIAL `Evaluation`, and Python could not ask an
+#: `Evaluation` whether it completed. So the family bound its one
+#: chartered name and then had to bind the answer that name makes
+#: reachable — `Evaluation.canceled` — before the door meant
+#: anything. **A charter that names the ARGUMENT of a missing door
+#: undercounts by whatever the door ANSWERS with**, which is the
+#: general form of the thing B-EXPR-READ found by splitting on
+#: audit reach and B-FORMAT found by not needing to.
+#:
+#: `EvalOutcome` therefore stays `different-shape` and is the ONE
+#: roster entry this family re-cut in place rather than moved: see
+#: its entry, which now records a shape it did not have when the
+#: disposition was written.
+#:
+#: The audit-reach check ran first, as it now does on every family,
+#: and came back NEGATIVE in the strongest available form:
+#: `docs/guide/north-star-audit.md` does not contain the string
+#: "cancel" at all. No tour scene interrupts an evaluation, so no
+#: audit gap id reaches this door and nothing was filed under another
+#: id to reclaim — the census's founding finding in its purest case,
+#: and the reason this family was census-owned rather than cited.
+#:
+#: The positive form is `tests/test_cancellation.py`. Its oracle is
+#: the kernel's own contract on a canceled run — full `order()`, the
+#: completed prefix, node granularity — read back through the doors
+#: that report it, with the DETERMINISTIC arm (a token canceled
+#: before the run starts, so the check before the first node fires)
+#: as the pin, and the interruption of a run already under way
+#: measured rather than threshold-guarded. What that arm needed was
+#: not a kernel change: it was releasing the GIL across the kernel
+#: call, because a Python thread that cannot run cannot set a flag.
 #: **B-FORMAT is CLOSED and no longer a `gap` id here**
 #: (LIB-B-FORMAT). It held three names — `fmt_length`, `fmt_angle`
 #: and `FmtQuantityError` — and closing it moved exactly those three,
@@ -1168,6 +1204,21 @@ NOT_BOUND = {
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
     "EvalOptions": SHAPE,
+    # A two-variant enum flattened to the boolean that answers it:
+    # `Evaluation.canceled`, bound at LIB-B-CANCEL.
+    #
+    # RE-CUT rather than moved, and the re-cut is the point. This
+    # disposition was written when Python's `evaluate` minted a token
+    # nobody could reach, so the outcome of a Python evaluation was a
+    # CONSTANT — `Completed`, on every run, unconditionally. A
+    # constant needs no accessor, so `different-shape` was true
+    # vacuously: there was no Python shape, and none was owed.
+    # B-CANCEL's `cancel=` made the second variant reachable and the
+    # entry therefore owed a real shape, which is the general hazard
+    # this file should be read for — a disposition can be honest about
+    # a surface and stop being honest when a NEIGHBOURING door opens,
+    # with nothing mechanical to say so. Nothing here fails when that
+    # happens; only reading the entry beside the door does.
     "EvalOutcome": SHAPE,
     "FIT_DEFERRAL": SHAPE,
     "FaceKey": SHAPE,
@@ -1465,7 +1516,14 @@ NOT_BOUND = {
     # `tests/test_expressions.py`.
     # --- gap: geometry read-back doors (census-owned) -------------
     # --- gap: assorted single doors -------------------------------
-    "CancelToken": f"{GAP}: B-CANCEL cooperative cancellation",
+    # B-CANCEL IS GONE FROM THIS ROSTER, closed at LIB-B-CANCEL, and
+    # the id is gone from `FAMILIES` with it. `CancelToken` is a
+    # top-level name in `pncad.pyi` at that exact spelling and needed
+    # no `BOUND_AS`; it was the family's only entry and it left alone.
+    # What it did NOT leave alone is `EvalOutcome`, three screens up,
+    # whose `different-shape` was vacuous until this door opened — the
+    # paragraph above says why a charter naming a door's ARGUMENT
+    # undercounts by whatever that door ANSWERS with.
     # B-FORMAT IS GONE FROM THIS ROSTER, closed at LIB-B-FORMAT, and
     # the id is gone from `FAMILIES` with it. All three of its names
     # left and nothing else moved with them — the paragraph above says

@@ -14,7 +14,7 @@
 //! tier-3 gate that actually runs on every imported solid.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use std::collections::BTreeMap;
 

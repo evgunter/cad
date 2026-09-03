@@ -34,14 +34,11 @@ use geom::curves::fit::interpolate_columns;
 use geom_brep::offset_fit::{OffsetFitError, certify_offset, fit_offset};
 use geom_brep::offset_meters::{OFFSET_METER_LADDER, patch_collapse};
 use geom_brep::patch_bound::patch_cells_refined;
-use geom_core::{Band, Point3, Tol};
+use geom_core::Point3;
 
 use crate::shared::fixture::{arc_weight, kv1, kv2, quarter_cylinder};
 use crate::shared::sample::{grid, worst_offset_residual};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use crate::shared::tol::band;
 
 // ---------------------------------------------------------------------
 // P1 — the two-limb inequality, brute-forced
