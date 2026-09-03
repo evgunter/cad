@@ -827,3 +827,27 @@ at 11:45. TCOST-B3 is in review (PR 1684) — its finding is the
 program's biggest CI-minutes lever so far: ~45 billed minutes an
 hour going to dependency rebuilds on a cache no branch could read,
 against ~7 for a main-scoped primer.
+
+## Seam: style batch 4 adjudicated (2026-09-03)
+
+TCOST-9 (PR 1681) MERGEABLE WITH FIXES — everything load-bearing
+reproduced (the 54 terms, both proof counts by hand from the filter
+logs, byte-identical moved rows, no `#[path]` mount on the two new
+files, the census re-derived). One MAJOR on the batch-2 bar, one
+level over: a marker's own file is implicit but a sibling test-helper
+module is not, and three sets omit the helper their fixtures and
+tolerance come from (`profile/tests/common/` for two, `editor-core/
+tests/fixture/` for one) — a PR editing that helper would skip the
+suites that depend on it; the class swept across all 54 markers, and
+a mechanical guard (marker set vs the suite's own helper imports)
+filed as a candidate. `curves/boxes.rs` omits `linalg/` where its bvh
+siblings name it. Minors: an orphaned doc paragraph from the split, a
+stale fuzz label, a title contradicting its body, and §0's wrong
+diagnosis of the red housekeeping job (it is the budget denial).
+TCOST-B3 (PR 1684) MERGEABLE WITH FIXES — the mechanism proved from
+the tree, the YAML coupling verified character-identical, the parity
+selftest's seven plants confirmed; two arithmetic lines (a rate whose
+denominator does not close; commits vs pushes), `runs-on` added to
+the parity check, the never-executed primer and the cancel-in-
+progress interaction stated. Landing ruling: on a re-gate of the head
+when runners return, not before. Both fix passes dispatched locally.
