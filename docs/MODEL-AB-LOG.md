@@ -3333,3 +3333,21 @@ position 2 (0-indexed) ⇒ slot 1 OPUS, slot 2 OPUS, slot 3 FABLE.
 (arm per the block draw above). Spec docs/M10-5-SPEC.md (to main
 at dispatch). Runs CONCURRENT with M10-4 (block B2 slot 3) — two
 implementation lanes, the disk budget's ceiling.
+
+**M10-4 + M10-5 first dispatches DIED (branch-side, 2026-08-30 →
+2026-09-03).** Both implementer lanes were killed by the account
+session limit (~01:30Z, 2026-08-30) pre-first-commit — nothing
+pushed; the surviving worktrees held early drafts (a 970-line
+`stackup.rs`, a 1790-line `clearance.rs`, plus small substrate
+edits). The orchestrator session was itself away four days; main
+moved 524 merges in the interval, rewriting exactly the files the
+drafts touched (`eval/mod.rs`, `eval/wire.rs`, `bvh`, `props.rs`,
+`dual.rs`). Per the death-recovery rule (fresh over resume when
+stalled over an hour with the remaining work specifiable from
+pushed commits) and the G16A precedent (first dispatch died to a
+usage limit — partial discarded, fresh run recorded pre-delivery):
+FRESH SAME-ARM lanes dispatched 2026-09-03 from current main, the
+same slots (M10-4 = B2 slot 3, M10-5 = B3 slot 1), the drafts
+handed over as UNTRUSTED reference material at lane-private paths.
+The rows at merge annotate the interruption; the arms and slots
+are unchanged, so the pairs count.
