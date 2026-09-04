@@ -92,6 +92,14 @@
 //! the 2026-07-29 amendment names the crate, but a ratification in the
 //! rule is not one in the allowlist.
 //!
+//! **That absence is deliberate, and is not a mismatch to close from
+//! this side.** Its home, with the reason a crate-wide filter is the
+//! wrong repair and the record that the first such red will be FALSE, is
+//! `scripts/gates/bounds-allowlist.sh`'s header, under *"A crate the
+//! rule names is not a filter"*. What is owed when that red lands is a
+//! per-FILE filter, written by the first file here that writes the
+//! compound form — not a ratification, and not an entry for the crate.
+//!
 //! # The SSI-cell seam (wiring deferred, and UNSCHEDULED)
 //!
 //! The seam is unwired: `geom-brep` does not depend on this crate,

@@ -46,9 +46,13 @@ anything still open when it does rides the split.
    gate to the A11 member vocabulary.
 7. `refused-mate-badges-every-instance-row` — the refusing mate is the
    loudest badge; instance rows read "upstream mate refused".
-8. `doc-params-carry-no-display-unit` — a display unit beside
-   `DocParam`, `SetParamUnit` mirroring `SetSlotUnit`; one persisted
-   field under the GQ3 versioning rule (announce).
+8. `doc-params-carry-no-display-unit` — **re-cut on the item; this
+   row was written from a stale premise.** The display unit beside
+   `DocParam` had already landed in another program's PR, so there is
+   no new persisted field and the GQ3 versioning announcement this row
+   schedules is owed on nothing. What is left is the PANEL half, plus
+   one `DocEdit` door in `editor-core` outside this program's `paths`.
+   Read the item, not this row.
 9. `viewer-first-light-on-real-hardware` — an Ev-run checklist
    (culling flip in both pipelines, `R32Uint` clear semantics,
    readback cost), not a lane unit; the hardening PR it names is

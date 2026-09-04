@@ -400,6 +400,7 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
         MateFault::Under { .. } => "mate_under",
         MateFault::DanglingHead { .. } => "mate_dangling_head",
         MateFault::SelfMate { .. } => "mate_self",
+        MateFault::Unleverable { .. } => "mate_datum_too_small_to_lever",
     }
 }
 
