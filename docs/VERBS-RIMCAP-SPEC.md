@@ -89,19 +89,41 @@ Re-run at the unit's head, payloads and raising sites quoted:
 
 ## PR-1 — the SPHERE half (the off-axis circle rim)
 
-1. **The rim corner with a circle profile.** The corner's profile
-   half gains the carried-datum rule the SHELLFIX-2b lineage
-   already uses one constraint up: with ONE profile circle, the
-   corner's `(ρ, h)` is the OLD corner's profile point moved
-   concentrically with the circle (radius `r → r + d`, centre
-   fixed — the same datum `mint_carrier`'s sphere-seam arm
-   already trusts at `offset_axial.rs:1369-1391`), and the
-   AZIMUTH solves from the moved cap exactly as the wedge's
-   does today (`ρ·sin(Δφ) = t` — the existing meridian solve,
-   fed the off-axis offset). No new public type; the new arm
-   lives beside the pole arm and refuses typed when the datum
-   is not a circle or the azimuth solve has no root
-   (`|t| > ρ`).
+1. **The rim corner with a circle profile** *(re-cut at the
+   ordinal-113 fix pass: the dispatched wording described the
+   carried-datum rule alone, and item 4's own measurement
+   falsifies that wording as sufficient — the lune's rim corner
+   is the POLE case, both caps at one vertex, where `ρ_old = 0`
+   fixes no concentric direction to carry; the acceptance the
+   spec asks for cannot be produced without the second arm
+   below, which both reviews judged a REDUCTION of the same
+   displacement fact rather than a widening)*. The corner's
+   profile half gains TWO arms beside the pole arm:
+   - **the carried-datum rule** (ONE profile circle, ONE moved
+     cap, off the axis) — the rule the SHELLFIX-2b lineage
+     already uses one constraint up: the corner's `(ρ, h)` is
+     the OLD corner's profile point moved concentrically with
+     the circle (radius `r → r + d`, centre fixed — the same
+     datum `mint_carrier`'s sphere-seam arm already trusts at
+     `offset_axial.rs:1369-1391` at ratification), and the
+     AZIMUTH solves from the moved cap exactly as the wedge's
+     does today (`ρ·sin(Δφ) = t` — the existing meridian solve,
+     fed the off-axis offset). Refuses typed when the datum is
+     not a circle or the azimuth solve has no root (`|t| > ρ`).
+   - **the meridian-pair arm** (ONE profile circle, BOTH moved
+     caps at the corner — the lune's pole corner once its caps
+     are offset): the two moved caps stop containing the axis
+     and meet in a line PARALLEL to it, so their joint
+     constraint is DERIVED as the profile line `ρ = ρ_L` (a
+     cylinder's) and handed to the EXISTING line∩circle
+     machinery, the azimuth read off the line itself — the 2-cap
+     reduction of the same moved-cap displacement fact the
+     carried-datum rule reads with one cap, in this spec's own
+     reduction, no new kinds. `ρ_L` decided `Zero` routes to the
+     pole arm (full-revolve behavior preserved); parallel caps
+     refuse typed.
+
+   No new public type; both arms live beside the pole arm.
 2. **The rim edge carrier.** `mint_carrier` (`offset_axial.rs:1325`)
    gains the **off-axis-circle** arm for a circular edge between
    two distinct charts (sphere wall × plane cap): centre
