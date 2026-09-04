@@ -2,11 +2,12 @@
 id: camera-fold-clears-status-line
 kind: issue
 title: A camera fold clears the status line, so a message raised on Open never survives the re-frame
-status: review
+status: closed
 opened: 2026-08-29
 github: 1253
 branch: view/status-lifetimes
 pr: 1849
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1253
