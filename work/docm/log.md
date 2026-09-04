@@ -36,3 +36,21 @@ directory at opening, by header edit and `git mv` only (ids unchanged):
 
 No unit is cut and no branch exists yet. The first dispatch claims its
 ordinal from the band above and records it in `docs/MODEL-AB-LOG.md`.
+
+## The two conversations, ratified in-chat (2026-09-04)
+
+Both axes ran as one chat conversation with Ev and are recorded as
+`docs/DOCM-REFERENCES-DESIGN.md` (DM1–DM6) and
+`docs/DOCM-IDENTITY-DESIGN.md` (DI1–DI5); the PR carrying them is the
+record, companion rows added to `docs/DESIGN.md`. Decisions made
+unilaterally on the way: reading Ev's free-move answer as the stronger
+form (DI5, release is the edit) — stated in the doc, stands unless
+corrected; parking splice on `DOCM-3` rather than closing it; closing
+`sketch-frame-from-face`, `memo-admission-and-resolver-state` and
+`split-side-and-pattern-instance-as-operand` with pointers at their
+units; converting the three E-class issues to units in place (ids
+kept). Seven items re-homed to CHROME (5), VIEW (1) and LIB (1) with a
+signed entry in each log. Question 1 collapsed out of the plan (already
+ruled). S-MATE's closing sweep is PR 1786, which opens `mate.rs` and
+`assembly.rs` here. Slate now: `DOCM-1`–`DOCM-4` (spec), the three
+E-class units, and the rest as the plan lists them.
