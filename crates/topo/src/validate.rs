@@ -1405,6 +1405,53 @@ pub enum CensusContact {
     },
 }
 
+/// Prose, not `Debug` guts: this payload is quoted verbatim into
+/// [`ValidationError::UndeclaredContact`]'s message, which every façade
+/// pastes as the refusal a user reads. The arena keys stay `{:?}` —
+/// tuple-shaped, and the key IS the name a caller resolves — while the
+/// enum's own struct-variant braces do not reach the message.
+impl fmt::Display for CensusContact {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::VertexVertex { a, b } => {
+                write!(f, "vertices {a:?} and {b:?} at one position")
+            }
+            Self::VertexOnFace { vertex, face } => {
+                write!(f, "vertex {vertex:?} on face {face:?}'s interior")
+            }
+            Self::VertexOnEdge { vertex, edge } => {
+                write!(f, "vertex {vertex:?} on edge {edge:?}'s interior")
+            }
+            Self::EdgeFacePierce { edge, face } => write!(
+                f,
+                "edge {edge:?} piercing face {face:?} transversally at both interiors"
+            ),
+            Self::EdgeEdgeCross { a, b } => {
+                write!(f, "edges {a:?} and {b:?} crossing at both interiors")
+            }
+            Self::EdgeEdgeOverlap { a, b } => write!(
+                f,
+                "edges {a:?} and {b:?} overlapping along a positive-length segment"
+            ),
+            Self::EdgeFaceOverlap { edge, face } => write!(
+                f,
+                "edge {edge:?} lying in face {face:?} along a positive-length segment"
+            ),
+            // The declaration that WOULD verify it, quoted in the
+            // declaration's own vocabulary (M9-1's layering: one
+            // vocabulary end to end).
+            Self::ConformalPatch { finding } => write!(
+                f,
+                "conformal contact between faces {:?} and {:?} (the declaration that \
+                 would verify it is a {} contact on that pair)",
+                finding.pair.a,
+                finding.pair.b,
+                finding.pair.class.name()
+            ),
+        }
+    }
+}
+
 /// A declared contact the census could not confirm (tier 3′).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StaleDeclaration {
@@ -1442,6 +1489,39 @@ pub enum StaleDeclaration {
         /// The record's B-side face.
         face_b: FaceKey,
     },
+}
+
+/// Prose, not `Debug` guts, for the same reason
+/// [`CensusContact`]'s rendering is: this payload is quoted into
+/// [`ValidationError::StaleContactDeclaration`]'s user-facing message.
+/// Each arm names the record's GRANULARITY, which is what tells a
+/// caller which declaration to withdraw or re-seat.
+impl fmt::Display for StaleDeclaration {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::VertexVertex { a, b } => write!(
+                f,
+                "the vertex-granularity record naming vertices {a:?} and {b:?}"
+            ),
+            Self::VertexOnFace { vertex, face } => write!(
+                f,
+                "the vertex-granularity record naming vertex {vertex:?} and face {face:?}"
+            ),
+            Self::CurveLocus {
+                face_a,
+                face_b,
+                witness,
+            } => write!(
+                f,
+                "the curve-granularity record naming faces {face_a:?} and {face_b:?}, \
+                 whose witness edge is {witness:?}"
+            ),
+            Self::Patch { face_a, face_b } => write!(
+                f,
+                "the patch-granularity record naming faces {face_a:?} and {face_b:?}"
+            ),
+        }
+    }
 }
 
 impl fmt::Display for ValidationError {
@@ -1607,7 +1687,7 @@ impl fmt::Display for ValidationError {
             // supply intent — it can only hide its absence.
             Self::UndeclaredContact { contact, witness } => write!(
                 f,
-                "tier-3′ census: undeclared contact {contact:?} at {witness} — \
+                "tier-3′ census: undeclared contact {contact} at {witness} — \
                  touching must be backed by a declared-contact record, never \
                  blessed from discovery; {}",
                 crate::contact::CONTACT_RECOURSE
@@ -1631,7 +1711,7 @@ impl fmt::Display for ValidationError {
             ),
             Self::StaleContactDeclaration { declaration } => write!(
                 f,
-                "tier-3′ census: declaration {declaration:?} has no geometric \
+                "tier-3′ census: declaration {declaration} has no geometric \
                  witness — stale contact records are defects, not noise"
             ),
             // `{cause}` (Display), NOT `{cause:?}`: the S6 sweep fixed a

@@ -2,9 +2,10 @@
 id: tier-3-prime-findings-render-through-debug
 kind: issue
 title: tier-3' census findings render through Debug, so the fourth validator rung cannot raise through the prose gate
-status: open
+status: review
 opened: 2026-09-03
 refs: [LIB-B-VALIDATE4]
+branch: fix/tier3-census-display
 ---
 
 Measured at LIB-B-VALIDATE4, which bound `validate_pseudomanifold` —
@@ -98,3 +99,47 @@ census finding should also cross as a per-arm TAG. `CensusContact` is
 `INTERIOR` in the binding census and its row says why; a `Display`
 fixes the message without settling that, and the two should not be
 bundled.
+
+## Closed
+
+`CensusContact` and `StaleDeclaration` each carry a `Display`, worded
+the way `RingContact`'s own already is one screen below them in the same
+file — prose around arena keys, which stay `{:?}` because a key is
+tuple-shaped and IS the name a caller resolves. The two
+`ValidationError` arms render `{contact}` / `{declaration}`, and
+`census::witness` renders a coordinate triple. `run_validator` raises
+through `typed_err` again and `typed_err_kernel_authored` is deleted —
+it had one caller and no other reason to exist.
+
+What a caller reads, measured through the door:
+
+    tier-3′ census: undeclared contact vertex VertexKey(9v1) on face
+    FaceKey(1v1)'s interior at (0.25, 0.25, 1.0) — touching must be
+    backed by a declared-contact record, never blessed from discovery;
+    declare the named contact class, or move the geometry
+
+**Three pins turned, not deleted.** The two the filing unit armed —
+`pncad-py/src/tests.rs` and `test_validate.py::TestTheRefusalsShape` —
+now assert the findings DO read as prose, and each still checks that the
+prose kept the entities and the witness, so a rewording that reads well
+and says nothing fails them. The third was not named in the brief and
+the sweep found it: `crates/topo/tests/mate4a_ef_bound_rung.rs` pins the
+straddle seat's whole census through `Debug`, witness strings included,
+so the coordinate change moved six of them.
+
+**The sweep.** Resolver over every `impl fmt::Display` in `crates/`,
+matching `{ident:?}` and resolving `ident` to its declared field type,
+then asking whether that type is brace-shaped (named-field struct, or an
+enum with a struct variant) — the shape `reads_as_prose` rejects. 370
+sites, 32 brace-shaped after the false positives were read out. The
+disposition is in the PR body; three families are outside this fence and
+one of them is already filed at
+`work/docm/debug-in-prose-residue-after-finding-sink.md`, whose own
+kernel-side note is the arm this unit just discharged.
+
+**Not settled here**, and now its own file so it survives this one:
+whether a census finding should also cross as a per-arm TAG —
+`work/issues/census-findings-cross-without-a-per-arm-tag.md`.
+`CensusContact` stays `INTERIOR` in the binding census; a `Display`
+fixes the message without touching that, and the pin that asserts no tag
+crosses is untouched.

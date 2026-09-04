@@ -640,10 +640,18 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
     }
 }
 
-/// A debug rendering of a witness position (the payload posture of
+/// A witness position rendered as COORDINATES (the payload posture of
 /// `ResultVolumeImplausible`: display data, never load-bearing).
+///
+/// Coordinates rather than the point's own `Debug`, because this string
+/// is pasted verbatim into a user-facing refusal: `Point3`'s derived
+/// rendering carries the field braces that mark a message as `Debug`
+/// guts, and the coordinate triple is the spelling the rest of the tree
+/// already uses for a point in prose. Each scalar keeps `{:?}` — `Real`
+/// bounds `Debug` and not `Display`, and projecting `T` to `f64` for a
+/// message payload is what the `Bounds` ruling (L7) refuses.
 fn witness<T: Real>(p: Point3<T>) -> String {
-    format!("{p:?}")
+    format!("({:?}, {:?}, {:?})", p.x, p.y, p.z)
 }
 
 /// An impossible sign from a nonnegative margin — surfaced as the
