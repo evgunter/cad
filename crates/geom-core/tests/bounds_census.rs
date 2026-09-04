@@ -319,14 +319,24 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/sweep/src/test_support.rs",
+        subject: "arcs_at",
+        why: Selection(
+            "the raw radius-and-station scan `rim_arcs_at` seeds from, and the fixture \
+             selector for the one row whose subject is a set of arcs that is NOT a rim; \
+             same reads and same disposition as `rim_arcs_at` below",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/test_support.rs",
         subject: "rim_arcs_at",
         why: Selection(
             "a test-side fixture SELECTOR, generic so the interval lane picks its rims \
-             through the same door as f64: which stored circle edges sit at a named \
+             through the same door as f64: which stored circle edge sits at a named \
              radius and station, both enclosure ends compared against a fixed 1e-9 — a \
-             fixture-selection tolerance, not a kernel predicate. It chooses edges for a \
-             request and decides nothing about them; at a dual it reads the value \
-             channel's bracket and selects the edges the f64 lane selects",
+             fixture-selection tolerance, not a kernel predicate. It chooses ONE seed \
+             edge for a request and decides nothing about it (`topo::query::rim_of` \
+             hands back the rim that seed belongs to); at a dual it reads the value \
+             channel's bracket and selects the edge the f64 lane selects",
         ),
     },
 ];

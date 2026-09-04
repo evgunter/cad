@@ -32,8 +32,9 @@ use sweep::blend::build::fillet_edges;
 use sweep::blend::{
     BlendError, FILLET3_ASSEMBLY_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_RING_RECOURSE,
 };
-use sweep::test_support::{cube, dome_profile, prism, revolved_about_y, rim_arcs_at};
+use sweep::test_support::{arcs_at, cube, dome_profile, prism, revolved_about_y, rim_arcs_at};
 use sweep::{Revolution, RevolveAxis, revolve};
+use topo::RimError;
 use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, EdgeKey, query, validate_geometric};
 
@@ -238,9 +239,20 @@ fn open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves() 
         Revolution::Partial(core::f64::consts::PI),
         tol(),
     );
-    let arcs = rim_arcs_at(&half, 1.0, 0.0);
+    let arcs = arcs_at(&half, 1.0, 0.0);
     assert!(!arcs.is_empty(), "the half dome keeps its equator arcs");
     for a in &arcs {
+        // The arc is NOT a rim, and the rim door is what says so: a half
+        // revolve's arcs do not close, so `rim_of` names the matched set
+        // and the parameter it stops at rather than handing back a
+        // partial rim a fillet request would then stall on.
+        match topo::query::rim_of(&half, *a) {
+            Err(RimError::NotOneRim { arcs: matched, .. }) => assert!(
+                matched.contains(a),
+                "the refusal names the arcs that matched, {a:?} among them"
+            ),
+            other => panic!("an open arc is not one rim, got {other:?}"),
+        }
         let err = refusal(&half, &[*a], 0.05, "an open plane–sphere arc");
         assert!(
             matches!(err, BlendError::UnsupportedChain { .. }),
