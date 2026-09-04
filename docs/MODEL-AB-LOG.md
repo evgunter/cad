@@ -3645,3 +3645,22 @@ VERBS-1031B review ordinal fixed at dispatch (2026-09-03, PR
 band; the #1095 shape). v6 DUAL, parity byte 208 ⇒ R1 OPUS +
 R2 FABLE, concurrent, briefs symmetric. Sample number AT MERGE
 in main's order. Row at merge.
+
+## FILLET program rows (work/fillet/plan.md; band 2000–2099; blocks named FILLET-B<n>)
+
+Opened 2026-09-04 (`work/fillet/log.md`); single-orchestrator remote
+box, no away-channel. The program's three E openers run outside the
+experiment (the ratified charter gives them a single style review; v6
+is a dual-per-row protocol) and record NO row; only the H units do,
+under v6. Block FILLET-B1's draw and slot record live branch-side
+(`fillet/b1-block`) until the block concludes, per the block-draw
+redaction ruling; the record follows.
+
+Block FILLET-B1 pre-draw fields (2026-09-04, logged before the draw):
+slot 0 = FILLET-H4 (`docs/FILLET-H4-SPEC.md`,
+`concave-closed-rim-has-no-band`) — difficulty **L**, task-class
+**NUMERIC** (the material-adding closed-rim band; a Pappus closed form
+is the oracle and any fold found hardcoded convex is a sign decision).
+Slots 1–2 bank for the next H units in dispatch order
+(`repaired-pole-rim-serves-no-closed-door`, then
+`extrude-cap-rim-smooth-arm-noop`), pre-draw fields at their specs.
