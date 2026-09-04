@@ -201,12 +201,6 @@ raw `cargo` invocations yourself.
 - An OOM-killed test shows as a bare "Terminated" single-row FAIL —
   check what else was running and rerun quiet before diagnosing a bug.
 
-**A piped command's exit status is the FILTER's.** Without
-`pipefail`, `cmd | tail -2` exits 0 whenever `tail` does, whatever
-`cmd` did. Read the subject's own output — `test result:`,
-`error[E0004]`, the words the tool prints — not a pipeline's status,
-or `set -o pipefail` before you trust a code.
-
 **The ways CI silently does not run.** An exhausted Actions SPENDING
 LIMIT kills every job seconds after creation — no steps, no logs,
 `failure` — which reads as runner loss; the tell is unrelated PRs'

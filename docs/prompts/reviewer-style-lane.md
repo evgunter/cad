@@ -8,10 +8,7 @@ must carry the `sure` / `likely` / `unsure` confidence vocabulary.** That is how
 a skipped read is visible in the output rather than invisible.
 
 **Every finding carries one, including those filed under "off-target" or "worth
-mentioning"** — that heading is where the exemption gets taken, and a finding
-that resists carrying a marker is one that has not been checked. A clause
-asserting how you came by a fact (*"reporting because it cost me a build"*) is
-not evidence that you came by it that way.
+mentioning".**
 
 Dispatcher-facing material — why this lane exists, how to calibrate it, and how
 to dispatch it — is in `docs/REVIEW-STYLE-DISPATCH.md`.
