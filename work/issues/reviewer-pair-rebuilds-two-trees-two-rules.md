@@ -2,9 +2,9 @@
 id: reviewer-pair-rebuilds-two-trees-two-rules
 kind: issue
 title: Reviewer-pair rebuilds: two test-support trees now state opposite rules
-status: open
+status: closed
 opened: 2026-09-03
-needs_ev: true
+closed: 2026-09-04
 ---
 
 
@@ -71,3 +71,19 @@ Whether the protected class is "anything a reviewer rebuilt" or "any
 DERIVATION a reviewer rebuilt", and therefore which of the two headers
 gets rewritten. Either answer is cheap to apply: TCOST-10's merge is
 mechanical to undo, and `geom-brep`'s bullet is one sentence.
+
+## Ruling (Ev, 2026-09-04)
+
+Neither reading. The policy memory was overstated: reviewer tests are
+ordinary tests — a reviewer writes useful rows, the useful ones join
+the permanent suite, and nothing about them is special afterwards. A
+copy stays apart when a row's claim needs its own derivation, which is
+a general test-design question, not a question of who wrote the row;
+a fixture builder carries no derivation, so sweep's merge stands. The
+"fixture drift" argument for keeping a probe's own builder is a
+nuisance change detector, not a feature: the unit suites' own pinned
+volumes and oracles already red on a changed body. Applied: the memory
+rewritten (`memories/review-and-dependency-policy.md`, the index line,
+`orchestration-model.md`), geom-brep's "never absorb" bullet replaced
+by the reason-at-the-copy rule, sweep's "opposite line" paragraph
+replaced by the ruling.
