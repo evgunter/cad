@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-04
 refs: [viewer-session-god-module-split]
 branch: view/set-param-precheck
+pr: 1846
 ---
 
 
