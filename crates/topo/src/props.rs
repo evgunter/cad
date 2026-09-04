@@ -949,6 +949,56 @@ impl PropsQuadLane for geom_core::interval::Interval {
     }
 }
 
+/// **The symbolic tier over a certifying scalar** (`geom_core::sym`):
+/// every lane door is the BASE scalar's, run at `Sym<T>` itself.
+///
+/// The tier changes exactly one thing — how a margin whose expression
+/// is identically zero decides — and it changes it inside the scalar.
+/// Everything a quadrature lane does is arithmetic, so it runs here
+/// unaltered; wrapping the base scalar must not silently demote a
+/// certifying lane to a refusing one, or the driver's leaf replay would
+/// stop validating the bodies it certifies.
+impl<T> PropsQuadLane for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: Decide + geom_core::Bounds,
+    T: geom_core::CertifiedBounds,
+{
+    // No re-derivation lane, for the base scalar's reason: the offset
+    // fit is derived at `f64` only. This is about the DERIVATION, not
+    // about which values can arrive.
+    fn recertify_approx(
+        _approx: &geom::ApproxSurface<Self>,
+        _tolerance: f64,
+        _band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
+        None
+    }
+
+    fn approx_offset_surface(
+        _base: std::sync::Arc<geom::NurbsSurface<Self>>,
+        _d: Self,
+        _tolerance: f64,
+        _band: Band,
+    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
+        None
+    }
+
+    fn datum_lo(self) -> f64 {
+        geom_core::Bounds::lo(self)
+    }
+
+    fn quad_cut_face(
+        body: &Body<Self>,
+        surface: &Surface<Self>,
+        outer: &[LoopEdge<Self>],
+        hes: &[HalfEdgeKey],
+        band: Band,
+        tol: Tol,
+    ) -> Result<Option<FaceCutBounds>, PropsError> {
+        quad_lane::cut_face(body, surface, outer, hes, band, tol).map(Some)
+    }
+}
+
 /// The dual lane: STATICALLY no quadrature — this impl instantiates
 /// none of the certified machinery (trait docs).
 impl<T> PropsQuadLane for geom_core::Dual<T>
@@ -1101,6 +1151,30 @@ impl AtRestPolicy for geom_core::Probe {
 
 #[cfg(feature = "interval")]
 impl AtRestPolicy for geom_core::interval::Interval {
+    fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
+    }
+
+    fn gate_at_rest_declared(
+        body: &Body<Self>,
+        contacts: &ContactRecords,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        crate::validate::validate_pseudomanifold(body, contacts, tol)
+            .map(|()| AtRestOutcome::Validated)
+    }
+}
+
+/// **The symbolic tier over a certifying scalar**: the gates are the
+/// base scalar's, run at `Sym<T>`. A leaf the driver certifies is
+/// validated at rest exactly as it was before the tier existed —
+/// demoting to the dual's `NotRunAtThisScalar` arm here would quietly
+/// drop the validator from the one replay that certifies.
+impl<T> AtRestPolicy for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: PropsQuadLane,
+    T: geom_core::CertifiedBounds,
+{
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }

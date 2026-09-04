@@ -186,6 +186,20 @@ where
     }
 }
 
+/// **The symbolic tier feeds the VALUE's bits only** (E12): provenance
+/// is not content. Two builds that computed the same numbers by
+/// different routes memoize the same entry — which is what a content
+/// key is for — and a DAG node id, which is a fact about how a number
+/// was written rather than about the number, never enters one.
+impl<T: ContentBits> ContentBits for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: Real,
+{
+    fn feed(&self, h: &mut KeyHasher) {
+        self.value.feed(h);
+    }
+}
+
 /// The K-telemetry recording scalar (M4 PR 8b): `Probe` is a
 /// transparent `f64` whose every operation delegates exactly, so its
 /// exact representation IS the wrapped f64's bits. This impl is what

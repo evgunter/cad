@@ -2970,11 +2970,18 @@ class Alignment:
     @property
     def clocking(self) -> Optional[Angle]: ...
     @property
-    def lever_arm(self) -> Length:
+    def lever_arm(self) -> Optional[Length]:
         """The largest distance in this mate's own authored data over
-        which an angular error accumulates into a gap. Floored at one
-        metre, so a mate authored AT the origin cannot claim an
-        arbitrarily tight angular threshold."""
+        which an angular error accumulates into a gap.
+
+        `None` when the alignment names a scale but names one too small
+        to lever anything: a lever of `L` makes the smallest decidable
+        tilt `eps/L`, so a datum at a nanometre buys a threshold of a
+        whole radian, and a verdict there is vacuous rather than tight.
+        The solve records that case as the
+        `mate_datum_too_small_to_lever` fault. An alignment that names
+        NO scale at all is not this case — it borrows the session box's
+        scale and answers with a number."""
 
 class ClassAdmission:
     """How far a contact class gets in v1, as a value BOTH enforcing
