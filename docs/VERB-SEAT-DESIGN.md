@@ -306,6 +306,22 @@ masquerading as structure, the thing the contract forbids.
   consumer for the structure (nothing composes a motion-invariant
   field). Rejected: a content digest — identity claims become
   hash-collision-shaped for no gain over interning.
+  **Open for ruling (SEAT-6, PR #1593; 2026-09-04):** the unit landed
+  the token as a canonical injective prefix ENCODING of the lowered
+  expression (`Arc<[u8]>`: a tag byte per node, operands in child
+  order, literals as f64 bits, parameters by name), not an index into
+  an interning table. Everything else above holds — opaque, `Eq`-only
+  below the line, `editor-core`-minted, inverted upstairs, no
+  structural address in the kernel. The argument: an interner's ids are
+  facts about a RUN, and the memo serves bodies minted by an earlier
+  run beside siblings re-minted under fresh state, so equal indices
+  from two tables would read as a false `Declared`; an encoding is a
+  function of the recipe alone (D9) and, being injective, is not the
+  rejected digest. Proposed revision: replace "interned token" with
+  "canonical injective encoding". Alternative if refused: an interner
+  keyed by stable recipe identity (the `GeomSource` discipline) — the
+  dual review is asked whether that is equivalent or merely the same
+  bytes by another name. Ev's ruling lands here in place.
 - **VS-Q5 — does `RimSide`/`RimSupport` collapse onto V2's
   pattern?** Once a canonical owner exists, the persisted spelling
   can be a stable-tag match over the kernel enum and the twin
