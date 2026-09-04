@@ -623,3 +623,146 @@ fn r2p6_rung_one_on_the_two_section_planes() {
     let _ = fixture::len(0.0);
     let _: Option<SlotId> = None;
 }
+
+/// **Two document nodes handing ONE `Arc` to one boolean.** DM5's
+/// pairwise-distinct rule is about node ids, so two `Part`s of the
+/// same half — and `Part(Instance(0))` beside the pattern's own master
+/// — are distinct inputs carrying the identical body, with identical
+/// `GeomSource`s on every description. That state is new with this
+/// node. Whatever the boolean does with it, it must be typed: no
+/// panic, no debug assertion.
+#[test]
+fn r2p9_two_parts_of_one_half_at_one_boolean() {
+    let mut r = Recorder::new();
+    let cube = l_prism(&mut r);
+    let tool = r.insert(Node::Datum(Datum::Plane {
+        origin: [len(0.0), len(0.0), len(1.0)],
+        normal: [scl(0.0), scl(0.0), scl(1.0)],
+    }));
+    let split = r.insert(Node::Split {
+        target: cube,
+        tool,
+    });
+    let a = r.insert(Node::Part {
+        of: split,
+        select: PartSelect::SplitHalf(SplitHalf::Above),
+    });
+    let b = r.insert(Node::Part {
+        of: split,
+        select: PartSelect::SplitHalf(SplitHalf::Above),
+    });
+    let joined = r.insert(Node::Boolean {
+        op: BooleanOp::Union,
+        a,
+        b,
+        declare: None,
+    });
+    let pat = r.insert(Node::Pattern {
+        input: cube,
+        count: Expr::count(2),
+        kind: PatternKind::Linear {
+            direction: [scl(1.0), scl(0.0), scl(0.0)],
+            spacing: len(9.0),
+        },
+    });
+    let zero = r.insert(Node::Part {
+        of: pat,
+        select: PartSelect::Instance(Expr::count(0)),
+    });
+    let cut = r.insert(Node::Boolean {
+        op: BooleanOp::Subtract,
+        a: zero,
+        b: cube,
+        declare: None,
+    });
+    let ev = run(&r.doc);
+    assert!(
+        Arc::ptr_eq(body_arc(&ev, a), body_arc(&ev, b)),
+        "the two Parts share the allocation"
+    );
+    println!("R2P9 union of one half with itself: {:?}", ev.nodes.get(&joined));
+    println!("R2P9 instance 0 minus its own master: {:?}", ev.nodes.get(&cut));
+}
+
+/// **The pattern side of the tie question.** A three-instance pattern
+/// of the tied body: each instance's rows are the master's wrapped in
+/// `Instance { i }`, so a master tie becomes one tie per instance,
+/// inside ONE body — and `Part(Instance(1))` projects it.
+#[test]
+fn r2p7_a_part_of_an_instance_of_a_tied_master() {
+    let (doc, sub) = u_cutter_tie(ProfileDoc::empty_derived("docm2_r2", Tol::witness()));
+    let (doc, pat) = insert(
+        doc,
+        Node::Pattern {
+            input: sub,
+            count: Expr::count(3),
+            kind: PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(20.0),
+            },
+        },
+    );
+    let (doc, p1) = insert(
+        doc,
+        Node::Part {
+            of: pat,
+            select: PartSelect::Instance(Expr::count(1)),
+        },
+    );
+    let ev = run(&doc);
+    let Some(v) = ev.value(pat) else {
+        panic!("the pattern failed: {:?}", ev.nodes.get(&pat));
+    };
+    let straddling: Vec<String> = v
+        .name_table
+        .iter()
+        .filter_map(|(n, e)| match e {
+            Entry::Tied(c) => {
+                let b: std::collections::BTreeSet<u32> = c.iter().map(|x| x.body).collect();
+                (b.len() > 1).then(|| format!("{n} -> {c:?}"))
+            }
+            Entry::Unique(_) => None,
+        })
+        .collect();
+    println!("R2P7 pattern straddling ties: {}", straddling.len());
+    println!(
+        "R2P7 Part(Instance(1)): {:?}",
+        ev.nodes.get(&p1).map(discriminant)
+    );
+    assert!(straddling.is_empty(), "{straddling:?}");
+    assert!(ev.value(p1).is_some(), "{:?}", ev.nodes.get(&p1));
+}
+
+/// **The split table ALIASES one name across its two output bodies.**
+/// The straddling tie of `r2p3`, read from the other direction: one
+/// `StableName` answers for an entity in body 0 AND for one in body 1,
+/// which is what makes the projection's stated premise false.
+#[test]
+fn r2p8_one_name_answers_for_an_entity_in_each_half() {
+    let (doc, sub) = u_cutter_tie(ProfileDoc::empty_derived("docm2_r2", Tol::witness()));
+    let (doc, tool) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.0), len(2.0), len(0.0)],
+            normal: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
+    let (doc, split) = insert(doc, Node::Split { target: sub, tool });
+    let ev = run(&doc);
+    let t = &ev.value(split).expect("the split names").name_table;
+    let mut crossing = 0usize;
+    for (n, e) in t.iter() {
+        if let Entry::Tied(c) = e {
+            let in0: Vec<&EntityRef> = c.iter().filter(|x| x.body == 0).collect();
+            let in1: Vec<&EntityRef> = c.iter().filter(|x| x.body == 1).collect();
+            if !in0.is_empty() && !in1.is_empty() {
+                crossing += 1;
+                println!("R2P8 {n}: body0={in0:?} body1={in1:?}");
+            }
+        }
+    }
+    assert_eq!(
+        crossing, 0,
+        "{crossing} name(s) in one split table answer for an entity in EACH output body"
+    );
+}
