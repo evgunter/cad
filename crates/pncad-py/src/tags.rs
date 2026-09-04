@@ -168,6 +168,13 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::ProfileProgramRefused { .. } => "profile_program_refused",
         EditError::UnresolvedInput { .. } => "unresolved_input",
         EditError::WouldCycle { .. } => "would_cycle",
+        // The list-input door's three (DM4/DM5). Tags only: the Python
+        // SURFACE for `Node.union` and `SetMembers` is LIB's build,
+        // and this match is exhaustive, so the crate's compile is what
+        // requires these rows and nothing else here changes.
+        EditError::DuplicateInput { .. } => "duplicate_input",
+        EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
+        EditError::TooFewMembers { .. } => "too_few_members",
         EditError::DeleteWouldDangle { .. } => "delete_would_dangle",
         EditError::UnknownSlot { .. } => "unknown_slot",
         EditError::SlotDimensionMismatch { .. } => "slot_dimension_mismatch",

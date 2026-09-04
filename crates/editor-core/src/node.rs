@@ -31,6 +31,7 @@ macro_rules! name_free_node {
             | $crate::node::Node::Sweep { .. }
             | $crate::node::Node::Split { .. }
             | $crate::node::Node::Boolean { .. }
+            | $crate::node::Node::Union { .. }
             | $crate::node::Node::Transform { .. }
             | $crate::node::Node::Pattern { .. }
             | $crate::node::Node::PlacedUnion { .. }
@@ -842,6 +843,7 @@ pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
         | Node::Chamfer { .. }
         | Node::Split { .. }
         | Node::Boolean { .. }
+        | Node::Union { .. }
         | Node::Transform { .. }
         | Node::Pattern { .. }
         | Node::PlacedUnion { .. }
@@ -1301,6 +1303,42 @@ pub enum Node<P> {
         /// Optional coincidence-intent input (a `Declare` node).
         declare: Option<RecipeNodeId>,
     },
+    /// **The n-ary union** (DOCM-REFERENCES-DESIGN DM4): two or more
+    /// member bodies, ONE body out — the same value shape a pair
+    /// union yields, so every consumer of a union is unchanged.
+    ///
+    /// It sits beside [`Node::Boolean`], which stays for a pair, and
+    /// beside [`Node::PlacedUnion`], which fuses instances of one
+    /// prototype and is a different sentence.
+    ///
+    /// # Why the list, and what the list buys
+    ///
+    /// A pairwise chain records JOIN DEPTH in every name it mints:
+    /// boolean naming wraps each operand's names in `FromA`/`FromB`,
+    /// so the twentieth member of a chain is twenty segments deep and
+    /// removing one link renames every member that joined before it.
+    /// A member of this node is named by IDENTITY —
+    /// [`crate::RoleSeg::FromMember`] wrapping the member's own name,
+    /// one wrapper whatever the fold's depth — so a member's names
+    /// depend on neither its position in the list nor on how many
+    /// members precede it, and [`crate::DocEdit::SetMembers`] can drop
+    /// one without disturbing the rest.
+    ///
+    /// # No `declare` field
+    ///
+    /// A declared-contact union is spelled with [`Node::Boolean`],
+    /// which carries the `Declare` input, and stays so: a declaration
+    /// is a statement about ONE pair of operands, and a field here
+    /// would have to say which fold step it applies to — a position,
+    /// which is the one thing this node exists not to record.
+    Union {
+        /// The member bodies, in fold order (D9: the order is the
+        /// list's, and the list is data). Two or more, pairwise
+        /// distinct — both held at the edit door
+        /// ([`crate::EditError::TooFewMembers`],
+        /// [`crate::EditError::DuplicateInput`]).
+        members: Vec<RecipeNodeId>,
+    },
     /// A rigid placement of an upstream body (F4: Transform).
     Transform {
         /// The body placed.
@@ -1692,6 +1730,10 @@ impl<P> Node<P> {
                 v.extend(declare.iter().copied());
                 v
             }
+            // In LIST ORDER, not sorted: the order is the fold's (D9),
+            // so it is what the DAG edge list has to report. The list
+            // is pairwise distinct at the edit door, so no edge repeats.
+            Node::Union { members } => members.clone(),
             Node::Transform { input, .. } => vec![*input],
             // The two placement-rule nodes take the same edges: the
             // body, plus the datum a circular rule turns about.
@@ -1702,6 +1744,90 @@ impl<P> Node<P> {
                 }
                 v
             }
+        }
+    }
+
+    /// **The node's LIST input**, where it has one — the whole of it,
+    /// in order.
+    ///
+    /// A list input is an input the recipe spells as a sequence rather
+    /// than as named slots, so the only edit that can change it is one
+    /// that names the WHOLE new sequence
+    /// ([`crate::DocEdit::SetMembers`]) — there is no position to
+    /// address and no per-entry edit. Two nodes have one: a union's
+    /// members and a loft's sections. Everything else answers `None`,
+    /// which is what makes `SetMembers` at a boolean or a split a
+    /// typed refusal rather than a silent no-op.
+    ///
+    /// The match is EXHAUSTIVE on purpose: a future node whose inputs
+    /// are a list must be classified here or the compile breaks,
+    /// rather than defaulting to "has no list" and being unreachable
+    /// from the edit that exists for exactly it.
+    pub fn list_input(&self) -> Option<&[RecipeNodeId]> {
+        match self {
+            Node::Union { members } => Some(members),
+            Node::Loft { profiles, .. } => Some(profiles),
+            Node::Datum(_)
+            | Node::Profile(_)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Sweep { .. }
+            | Node::Fillet { .. }
+            | Node::Chamfer { .. }
+            | Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Transform { .. }
+            | Node::Pattern { .. }
+            | Node::PlacedUnion { .. }
+            | Node::Declare { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Mate { .. }
+            | Node::Measure { .. }
+            | Node::Assertion { .. } => None,
+        }
+    }
+
+    /// Writes a whole new list into [`Node::list_input`]'s slot,
+    /// answering whether this node has one. The edit door validates
+    /// against the REWRITTEN node, so the write happens first and the
+    /// checks run on the result — which is what makes `SetMembers`
+    /// share `InsertNode`'s checks rather than mirror them.
+    pub(crate) fn set_list_input(&mut self, list: Vec<RecipeNodeId>) -> bool {
+        match self {
+            Node::Union { members } => {
+                *members = list;
+                true
+            }
+            Node::Loft { profiles, .. } => {
+                *profiles = list;
+                true
+            }
+            // Exhaustive, and it names the same variants
+            // [`Node::list_input`] answers `None` for: the read and
+            // the write are one answer read two ways, and a variant
+            // one of them treats as list-free while the other writes
+            // it is a list nothing can read back.
+            Node::Datum(_)
+            | Node::Profile(_)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Sweep { .. }
+            | Node::Fillet { .. }
+            | Node::Chamfer { .. }
+            | Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Transform { .. }
+            | Node::Pattern { .. }
+            | Node::PlacedUnion { .. }
+            | Node::Declare { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Mate { .. }
+            | Node::Measure { .. }
+            | Node::Assertion { .. } => false,
         }
     }
 
@@ -1747,6 +1873,7 @@ impl<P> Node<P> {
             // referenced document evaluates at its OWN parameters.
             Node::Split { .. }
             | Node::Boolean { .. }
+            | Node::Union { .. }
             | Node::Declare { .. }
             // A11: the alignment datum is authored geometry, not a
             // continuous slot — a mate has no expression to drive.
@@ -1881,6 +2008,7 @@ impl<P> Node<P> {
                 | Node::Chamfer { .. }
                 | Node::Split { .. }
                 | Node::Boolean { .. }
+                | Node::Union { .. }
                 | Node::Transform { .. }
                 | Node::Declare { .. }
                 | Node::InstantiatePart { .. }
@@ -1961,6 +2089,7 @@ impl<P> Node<P> {
                 | Node::Chamfer { .. }
                 | Node::Split { .. }
                 | Node::Boolean { .. }
+                | Node::Union { .. }
                 | Node::Transform { .. }
                 | Node::Declare { .. }
                 | Node::InstantiatePart { .. }
@@ -2133,6 +2262,7 @@ impl<P> Node<P> {
             | Node::Chamfer { .. }
             | Node::Split { .. }
             | Node::Boolean { .. }
+            | Node::Union { .. }
             | Node::Transform { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }

@@ -28,6 +28,7 @@ mod emit_chamfer;
 mod emit_fillet;
 mod emit_sweep;
 mod emit_topo;
+mod emit_union;
 mod flush;
 mod geompred;
 pub(crate) mod interrogate;
@@ -43,6 +44,7 @@ pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{OperandCtx, name_boolean, name_split};
+pub(crate) use emit_union::name_union;
 pub use flush::{
     CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict, DeclareError, DeclaredContact,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, declare, declare_all, declare_node,

@@ -361,6 +361,23 @@ pub enum RoleSeg {
     FromA(Box<StableName>),
     /// An entity surviving from operand B.
     FromB(Box<StableName>),
+    /// **An entity surviving from one MEMBER of an n-ary union**
+    /// ([`crate::Node::Union`]; DM4), by the member's own name.
+    ///
+    /// The union's value is a fold of the pair verb, so the fold's own
+    /// tables carry `FromA`/`FromB` descent chains whose depth is the
+    /// member's POSITION in the list. This segment is what the union's
+    /// emitter mints instead: one wrapper, whatever the depth, holding
+    /// the member's name in the member's own table. A member's names
+    /// are therefore a function of the member's identity alone —
+    /// neither its position nor how many members precede it — which is
+    /// what lets a member be dropped without renaming the rest.
+    ///
+    /// Both a `FromMember` and a `FromA`/`FromB` can wrap the same
+    /// inner name, and they are different names: the wrapper says
+    /// which NODE minted the entity's role, and a pair union and an
+    /// n-ary union are two nodes.
+    FromMember(Box<StableName>),
     /// A zip-minted seam entity: the crossing of an A-operand entity
     /// and a B-operand entity (edges: face × face; vertices:
     /// edge × face / face × edge), by their operand names.

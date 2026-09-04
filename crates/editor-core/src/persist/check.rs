@@ -335,6 +335,8 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
         //   exhaustive on `DocEdit`, not on `Node`.
         DocEdit::SetDocParamValue { .. }
         | DocEdit::InsertNode { .. }
+        // A list of node ids carries no float.
+        | DocEdit::SetMembers { .. }
         | DocEdit::SetTolerance { .. }
         | DocEdit::DeleteNode { .. }
         | DocEdit::SetParam { .. }

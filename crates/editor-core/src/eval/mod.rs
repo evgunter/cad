@@ -2411,6 +2411,16 @@ where
         // quoted above a published tag is never taken back — so the
         // unpublished one moves. This is that rule applied to itself.
         Node::Datum(Datum::AxisInPlane { .. }) => 30,
+        // DOCM-3. Tags APPEND — 31 is the next free number and an
+        // existing one is never reused. It does NOT share the pair
+        // union's 8: the two nodes carry different payloads (a list
+        // against two named operands and a `declare` slot) and mint
+        // different names, so a shared key would serve one's geometry
+        // and table for the other out of the memo. The member list
+        // itself is not written here — members are input EDGES, and
+        // the inputs' own keys carry them in list order below, which
+        // is the rule `Loft`'s profiles already run on.
+        Node::Union { .. } => 31,
     };
     // NODE-TAG-SPACE END
     h.write_tag(tag);
@@ -2639,6 +2649,10 @@ where
         | Node::Sweep { .. }
         | Node::Split { .. }
         | Node::Boolean { .. }
+        // The member list is edges, so the upstream keys carry it — in
+        // list order, and prefixed by its length, so neither a
+        // reordering nor a dropped member can alias another list.
+        | Node::Union { .. }
         | Node::Transform { .. } => {}
     }
     // Evaluated slot values, in the node's deterministic slot order.
@@ -3400,6 +3414,14 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         }
         RoleSeg::BandSlit(n) => {
             h.write_tag(39);
+            feed_stable_name(h, n);
+        }
+        // The n-ary union (DOCM-3). Appended past 40, the sequence's
+        // previous high-water mark: this space is append-only, and a
+        // segment sharing `FromA`'s 16 would key a member's face and a
+        // pair operand's face identically.
+        RoleSeg::FromMember(n) => {
+            h.write_tag(41);
             feed_stable_name(h, n);
         }
     }

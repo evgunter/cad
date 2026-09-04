@@ -163,6 +163,7 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Revolve { .. } => "Revolve",
         Node::Transform { .. } => "Transform",
         Node::Boolean { .. } => "Boolean",
+        Node::Union { .. } => "Union",
         Node::Split { .. } => "Split",
         Node::Pattern { .. } => "Pattern",
         Node::PlacedUnion { .. } => "PlacedUnion",
@@ -321,7 +322,10 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::Indeterminate { mate, .. }
         | MateFault::Under { mate, .. }
         | MateFault::DanglingHead { mate, .. }
-        | MateFault::SelfMate { mate, .. } => vec![*mate],
+        | MateFault::SelfMate { mate, .. }
+        // The refusal is about THIS mate's own datum, so this mate is
+        // the row at fault and no other.
+        | MateFault::Unleverable { mate, .. } => vec![*mate],
         MateFault::Band { .. } => Vec::new(),
         // A contradiction is a claim about a PAIR of mates: neither is
         // the wrong one on the fault's own telling, so both read as

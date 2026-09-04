@@ -1158,6 +1158,8 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::ClearAppearanceMeta { .. } => {}
         // Carry no `StableName` at all.
         DocEdit::DeleteNode { .. }
+        // A list of node ids carries no name.
+        | DocEdit::SetMembers { .. }
         | DocEdit::SetParam { .. }
         | DocEdit::SetStructuralParam { .. }
         | DocEdit::SetExpression { .. }
@@ -1226,6 +1228,7 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
             // Structural embeddings: the entity derives from these.
             RoleSeg::FromA(n)
             | RoleSeg::FromB(n)
+            | RoleSeg::FromMember(n)
             | RoleSeg::SectionEdge { face: n, .. }
             | RoleSeg::SplitFragment { parent: n, .. }
             | RoleSeg::CrossingVertex { edge: n, .. }

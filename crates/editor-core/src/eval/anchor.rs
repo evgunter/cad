@@ -327,6 +327,7 @@ fn remap_seg(naming: &ProfileNaming, seg: RoleSeg) -> RoleSeg {
         R::OutputBody
         | R::Cap(..)
         | R::RevolveCap(..)
+        | R::FromMember(..)
         | R::FromA(..)
         | R::FromB(..)
         | R::Seam { .. }

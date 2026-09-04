@@ -571,6 +571,7 @@ fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
         name_free_seg!() => seg.clone(),
         R::FromA(n) => R::FromA(one(n)?),
         R::FromB(n) => R::FromB(one(n)?),
+        R::FromMember(n) => R::FromMember(one(n)?),
         R::Seam { a, b } => R::Seam {
             a: one(a)?,
             b: one(b)?,
@@ -800,6 +801,9 @@ fn remap_node(
             a: id(*a)?,
             b: id(*b)?,
             declare: declare.map(id).transpose()?,
+        },
+        Node::Union { members } => Node::Union {
+            members: members.iter().map(|&m| id(m)).collect::<Result<_, _>>()?,
         },
         Node::Transform {
             input,

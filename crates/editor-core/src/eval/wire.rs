@@ -207,6 +207,14 @@ where
             env.boolean_sweep,
             tol,
         ),
+        Node::Union { members } => wire_union(
+            &crate::verbs::boolean::boolean(),
+            id,
+            members,
+            results,
+            env.boolean_sweep,
+            tol,
+        ),
         Node::Transform { input, .. } => wire_transform(id, *input, results, vals, tol),
         Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals, tol),
         Node::PlacedUnion { input, kind, .. } => wire_placed_union(
@@ -1977,6 +1985,11 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     // no silent drop, no best-effort gluing. This stays upstairs: it
     // is the document's semantics (names, freezes, refusal payloads),
     // and the kernel verb receives only the lowered arena-key form.
+    // Both operand tables are read three times downstairs — by the
+    // declare resolution, by the refusal menu and by the emitter — so
+    // they are taken once here rather than re-fetched per reader.
+    let a_table = Arc::clone(&value_of(results, a)?.name_table);
+    let b_table = Arc::clone(&value_of(results, b)?.name_table);
     let mut kernel_decls = BooleanDeclarations::none();
     if let Some(d) = declare {
         let dv = value_of(results, d)?;
@@ -1987,15 +2000,13 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
                 found: dv.payload.kind_name(),
             });
         };
-        let a_table = Arc::clone(&value_of(results, a)?.name_table);
-        let b_table = Arc::clone(&value_of(results, b)?.name_table);
         kernel_decls = resolve_declarations(pairs, doc, &a_table, &b_table)?;
     }
     let body_a = body_operand(results, a)?;
     let body_b = body_operand(results, b)?;
     match (verb.build)(op, kernel_decls)
         .run_pair(&body_a, &body_b, boolean_sweep, tol)
-        .map_err(|err| refusal_menu(results, a, b, err))?
+        .map_err(|err| refusal_menu(&a_table, &b_table, err))?
     {
         verbs::PairOut::Empty => Ok(OpOut::plain(
             ValuePayload::Boolean(BooleanValue::Empty),
@@ -2020,8 +2031,6 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
                     }));
                 }
             };
-            let a_table = Arc::clone(&value_of(results, a)?.name_table);
-            let b_table = Arc::clone(&value_of(results, b)?.name_table);
             let table = (verb.emitter)(
                 id,
                 &out.body,
@@ -2055,6 +2064,136 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     }
 }
 
+/// **The n-ary union's lowering** (DM4): the SAME pair verb, folded
+/// over the members in list order — `((m0 ∪ m1) ∪ m2) ∪ …`, through
+/// the same `run_pair` door, the same refusal menu, and one body out
+/// in the same `BooleanValue::Body` shape a pair union yields, so
+/// every consumer of a union is unchanged.
+///
+/// No new numeric decision is taken anywhere here: the geometry is the
+/// pair verb's at every step, which is what makes the fold and the
+/// chain it replaces the same body. What the node adds is the NAMING
+/// — the fold's own tables record join depth, and `names::name_union`
+/// rewrites the last one into member-keyed names.
+///
+/// **Nothing ∅-absorbing is invented** (D3, "wire, don't invent"). A
+/// member that evaluates to an empty boolean refuses `EmptyOperand`
+/// naming that member, exactly as `body_operand` refuses one for a
+/// pair. An empty INTERMEDIATE — which two non-empty operands cannot
+/// produce under union, so this is a kernel-bug path rather than an
+/// authoring one — is the empty operand the next step would be handed,
+/// and refuses the same way, naming the member the fold had reached;
+/// at the LAST step it is the typed empty success a pair union already
+/// has.
+fn wire_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+    verb: &crate::verbs::boolean::PairVerb<T>,
+    id: RecipeNodeId,
+    members: &[RecipeNodeId],
+    results: &Results<T>,
+    boolean_sweep: topo::SweepStrategy,
+    tol: Tol,
+) -> OpResult<T> {
+    // Two or more is the node's contract, held at both edit doors
+    // (`EditError::TooFewMembers`). Reaching here with fewer means the
+    // fold has no pair to hand the verb, which is the arity class this
+    // crate already refuses typed — never a panic, and never a
+    // one-member "union" that silently denotes its own input.
+    let (Some(first), true) = (members.first(), members.len() >= 2) else {
+        return Err(NodeErrorKind::VerbArity {
+            verb: verbs::VerbKind::Boolean(BooleanOp::Union),
+            given: verbs::Arity::One,
+        });
+    };
+    let mut acc_body = body_operand(results, *first)?;
+    let mut acc_table = Arc::clone(&value_of(results, *first)?.name_table);
+    let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
+    let mut empty_at: Option<RecipeNodeId> = None;
+    for member in &members[1..] {
+        if let Some(reached) = empty_at {
+            return Err(NodeErrorKind::EmptyOperand { input: reached });
+        }
+        let member_body = body_operand(results, *member)?;
+        let member_table = Arc::clone(&value_of(results, *member)?.name_table);
+        // No declarations: a declared-contact union is spelled with
+        // `Node::Boolean`, which is where the `Declare` input lives.
+        match (verb.build)(BooleanOp::Union, BooleanDeclarations::none())
+            .run_pair(&acc_body, &member_body, boolean_sweep, tol)
+            .map_err(|err| refusal_menu(&acc_table, &member_table, err))?
+        {
+            verbs::PairOut::Empty => empty_at = Some(*member),
+            verbs::PairOut::Out(out) => {
+                let verbs::VerbRecord::Boolean {
+                    kind,
+                    contacts,
+                    naming,
+                } = out.record
+                else {
+                    return Err(NodeErrorKind::Naming(names::NamingError::Emission {
+                        what: verb.foreign_record,
+                    }));
+                };
+                last = Some((kind, Arc::new(contacts)));
+                // The fold's own table, minted by the PAIR emitter
+                // under THIS node's id: that id is what tells an
+                // intermediate row from a member's own name when the
+                // chain is collapsed, and it is the id the node's
+                // names carry in the end anyway.
+                acc_table = (verb.emitter)(
+                    id,
+                    &out.body,
+                    &naming,
+                    &names::OperandCtx {
+                        node: id,
+                        table: &acc_table,
+                        body: &acc_body,
+                    },
+                    &names::OperandCtx {
+                        node: *member,
+                        table: &member_table,
+                        body: &member_body,
+                    },
+                    tol,
+                )
+                .map_err(NodeErrorKind::Naming)?;
+                acc_body = Arc::new(out.body);
+            }
+        }
+    }
+    if empty_at.is_some() {
+        return Ok(OpOut::plain(
+            ValuePayload::Boolean(BooleanValue::Empty),
+            names::empty(),
+        ));
+    }
+    let table = names::name_union(id, &acc_body, &acc_table).map_err(NodeErrorKind::Naming)?;
+    let mut body = (*acc_body).clone();
+    // ONCE, over the finished body, and not per fold step: the stamp
+    // numbers a node's minted descriptions from zero, so a second pass
+    // would hand a later step's geometry an index an earlier step
+    // already used. Everything carried from a member keeps its own
+    // source (D1); a seam chord minted at any step gets this node's.
+    stamp_minted(&mut body, id);
+    // The LAST step's record is the result's: the kind says how the
+    // body that came out was produced, and the body that came out is
+    // that step's. The contacts are empty at every step — the fold
+    // resolves no declarations — so carrying them is carrying the
+    // channel, not a value; the absent case is the arity refusal above.
+    let Some((kind, contacts)) = last else {
+        return Err(NodeErrorKind::VerbArity {
+            verb: verbs::VerbKind::Boolean(BooleanOp::Union),
+            given: verbs::Arity::One,
+        });
+    };
+    Ok(OpOut::plain(
+        ValuePayload::Boolean(BooleanValue::Body {
+            body: Arc::new(body),
+            kind,
+            contacts,
+        }),
+        table,
+    ))
+}
+
 /// The refusal-menu lift (register R3, LIB-PYG5; SELECT-DESIGN §3d):
 /// a kernel [`topo::BooleanError::UndeclaredCoincidence`] becomes
 /// [`NodeErrorKind::UndeclaredContact`] carrying the raise site's
@@ -2074,10 +2213,13 @@ fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
 /// context, so it happens here, before the shared translation: every
 /// other refusal a boolean run can carry falls through to
 /// [`verb_refused`], the same door every verb's refusal goes through.
-fn refusal_menu<T: Decide>(
-    results: &Results<T>,
-    a: RecipeNodeId,
-    b: RecipeNodeId,
+/// The two operands are given as their name TABLES rather than as node
+/// ids: the n-ary union folds the same verb over an ACCUMULATION that
+/// is no node's result, and the menu reads nothing else about an
+/// operand.
+fn refusal_menu(
+    a_table: &crate::names::NameTable,
+    b_table: &crate::names::NameTable,
     err: verbs::VerbError,
 ) -> NodeErrorKind {
     let verbs::VerbError::Boolean(topo::BooleanError::UndeclaredCoincidence {
@@ -2099,11 +2241,11 @@ fn refusal_menu<T: Decide>(
         pair
     };
     let name_of = |(operand, face): (topo::Operand, topo::FaceKey)| {
-        let node = match operand {
-            topo::Operand::A => a,
-            topo::Operand::B => b,
+        let table = match operand {
+            topo::Operand::A => a_table,
+            topo::Operand::B => b_table,
         };
-        face_name(value_of(results, node).ok()?, face)
+        face_name(table, face)
     };
     let (Some(na), Some(nb)) = (name_of(ordered[0]), name_of(ordered[1])) else {
         return NodeErrorKind::Boolean(topo::BooleanError::UndeclaredCoincidence {
@@ -2137,13 +2279,13 @@ fn refusal_menu<T: Decide>(
 /// fact). Ties or multiple denoting names resolve to the canonical
 /// least name — deterministic, and any denoting name identifies the
 /// pair for the declare arm.
-fn face_name<T: Decide>(
-    v: &super::NodeValue<T>,
+fn face_name(
+    table: &crate::names::NameTable,
     face: topo::FaceKey,
 ) -> Option<crate::names::StableName> {
     use crate::names::{EntityKey, EntityKind, EntityRef, Entry};
     let mut found: Option<&crate::names::StableName> = None;
-    for (name, entry) in v.name_table.iter() {
+    for (name, entry) in table.iter() {
         if name.kind != EntityKind::Face {
             continue;
         }

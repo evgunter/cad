@@ -123,6 +123,7 @@ pub enum SegTag {
     // Boolean
     FromA,
     FromB,
+    FromMember,
     Seam,
     Merged,
     Fragment,
@@ -212,6 +213,7 @@ impl SegTag {
             RoleSeg::AxisEdge(..) => Self::AxisEdge,
             RoleSeg::FromA(..) => Self::FromA,
             RoleSeg::FromB(..) => Self::FromB,
+            RoleSeg::FromMember(..) => Self::FromMember,
             RoleSeg::Seam { .. } => Self::Seam,
             RoleSeg::Merged(..) => Self::Merged,
             RoleSeg::Fragment(..) => Self::Fragment,
@@ -254,9 +256,15 @@ impl SegTag {
             | Self::RevolveCap
             | Self::Pole
             | Self::AxisEdge => OpGroup::Revolve,
-            Self::FromA | Self::FromB | Self::Seam | Self::Merged | Self::Fragment => {
-                OpGroup::Boolean
-            }
+            Self::FromA
+            | Self::FromB
+            // The n-ary union is a boolean in the vocabulary's sense —
+            // the group is the naming CONTRACT the segment versions
+            // with, and this segment versions with the union's.
+            | Self::FromMember
+            | Self::Seam
+            | Self::Merged
+            | Self::Fragment => OpGroup::Boolean,
             Self::SplitBody
             | Self::SectionFace
             | Self::SectionEdge
@@ -310,6 +318,7 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::AxisEdge(_)
         | RoleSeg::FromA(_)
         | RoleSeg::FromB(_)
+        | RoleSeg::FromMember(_)
         | RoleSeg::Seam { .. }
         | RoleSeg::Merged(_)
         | RoleSeg::Fragment(Qualifier::SideOf(_) | Qualifier::OrderAlong { .. })
@@ -343,6 +352,7 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
     match seg {
         RoleSeg::FromA(n)
         | RoleSeg::FromB(n)
+        | RoleSeg::FromMember(n)
         | RoleSeg::FromTarget(n)
         | RoleSeg::BlendFace(n)
         | RoleSeg::CornerFace(n)

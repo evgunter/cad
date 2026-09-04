@@ -100,6 +100,7 @@ fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         // level down.
         RoleSeg::FromA(of)
         | RoleSeg::FromB(of)
+        | RoleSeg::FromMember(of)
         | RoleSeg::FromTarget(of)
         | RoleSeg::SplitFragment { parent: of, .. }
         | RoleSeg::OnToolVertex { of, .. }

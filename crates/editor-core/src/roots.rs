@@ -181,6 +181,40 @@ pub(crate) fn on_insert<P: crate::ProfilePayload>(
     doc.roots.insert(at, id);
 }
 
+/// The D-3 maintenance for an accepted `SetMembers`, applied AFTER the
+/// rewritten node is live.
+///
+/// The other two maintainers can splice, because an insert and a
+/// delete each move the sink set in ONE direction. This edit moves it
+/// both ways at once — a member the new list dropped may have become a
+/// sink, a member it added may have stopped being one — so the answer
+/// is recomputed instead: the root set IS the sink set (D-2's coverage
+/// plus ancestor-freedom leave no other set possible, since a sink can
+/// be covered only by itself and a non-sink is an ancestor of the sink
+/// below it). Existing roots keep their order, and nodes the rewrite
+/// orphaned join at the end in document order — the edit vacates no
+/// position for them to take.
+pub(crate) fn on_set_members<P: crate::ProfilePayload>(doc: &mut Doc<P>) {
+    let sinks: Vec<RecipeNodeId> = doc
+        .order
+        .iter()
+        .copied()
+        .filter(|x| !doc.nodes.values().any(|n| n.inputs().contains(x)))
+        .collect();
+    let mut kept: Vec<RecipeNodeId> = doc
+        .roots
+        .iter()
+        .copied()
+        .filter(|r| sinks.contains(r))
+        .collect();
+    let fresh: Vec<RecipeNodeId> = sinks
+        .into_iter()
+        .filter(|s| !kept.contains(s))
+        .collect();
+    kept.extend(fresh);
+    doc.roots = kept;
+}
+
 /// The D-3 maintenance for an accepted `DeleteNode`, applied AFTER the
 /// node is gone: deleting a root re-roots the direct inputs that its
 /// departure turned into sinks, in DOCUMENT order, expanding at the

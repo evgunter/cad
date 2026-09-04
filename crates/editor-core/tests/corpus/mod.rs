@@ -434,6 +434,7 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         | Node::Fillet { .. }
         | Node::Chamfer { .. }
         | Node::Split { .. }
+        | Node::Union { .. }
         | Node::Transform { .. }
         | Node::Loft { .. }
         | Node::Sweep { .. }
@@ -458,6 +459,7 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::HollowTube { .. } => "HollowTube",
         Node::Split { .. } => "Split",
         Node::Boolean { .. } => "Boolean",
+        Node::Union { .. } => "Union",
         Node::Transform { .. } => "Transform",
         Node::Pattern { .. } => "Pattern",
         Node::PlacedUnion { .. } => "PlacedUnion",
@@ -476,6 +478,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
     match edit {
         DocEdit::InsertNode { .. } => "InsertNode",
         DocEdit::DeleteNode { .. } => "DeleteNode",
+        DocEdit::SetMembers { .. } => "SetMembers",
         DocEdit::SetParam { .. } => "SetParam",
         DocEdit::SetStructuralParam { .. } => "SetStructuralParam",
         DocEdit::SetExpression { .. } => "SetExpression",
