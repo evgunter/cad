@@ -63,3 +63,79 @@ dispatch, per the dispatcher's-exposure rule:
   item's Ev-only residue is §2 (the culling flip, both pipelines) and
   §4's failure 2 and 3 (`R32Uint` clear semantics, readback cost on a
   real driver).
+
+## First wave: four units on three PRs (2026-09-04)
+
+`probe-bounds-lacks-driven-slot-guard` (PR 1746),
+`viewer-mate-tool-refuses-pattern-picks` (PR 1748),
+`viewer-render-pipeline-creation-untested` and
+`viewer-chrome-not-in-nextest-archive` (PR 1755, one branch — they
+interlock: one is a row, the other is where a row can run).
+
+**The archive measurement, which `plan.md` names as the slate's only
+decision.** Verdict: a row beside the app-feature clippy step under the
+same `run_viewer_toolkit` axis, NOT `--features app` in the archive.
+The archive is downloaded by every leg of the `test` matrix, so its
++179 MB is paid per leg and buys nothing for rows that already gate.
+Numbers, both readings and their blind spots, are in PR 1755's body.
+
+**Three corrections the lanes made to the orchestrator, all upheld.**
+Recorded because the pattern is the point: every one of them was a
+premise the orchestrator asserted and a lane checked.
+
+- The dependency-graph delta was published as 71 → 265 crates. It is
+  **65 → 211**. The orchestrator's `cargo tree | sort -u` did not
+  strip `(*)` duplicate-subtree markers, so a crate appearing in two
+  subtrees counted twice. Verdict unchanged; the number was wrong.
+- The argument that the app-feature test row is nearly free in `fmt`
+  ("that job already compiles this graph") rests on a false
+  sub-premise: `cargo clippy` is CHECK semantics and leaves metadata,
+  not rlibs. Consequence in
+  `work/chrome/fmt-cache-carries-the-toolkit-codegen`, filed rather
+  than decided — the deciding measurement does not exist.
+- `viewer-chrome-not-in-nextest-archive` named ONE silent skip and
+  there were three; and the cause the orchestrator suspected
+  (`tests/all.rs`, `autotests = false`) was checked and cleared. The
+  invisibility was purely the `#![cfg(feature = "app")]` inner
+  attribute.
+
+**What the style lane bought, stated plainly** because the posture was
+chosen over the A/B protocol and should be judged. Twenty-two
+findings. The three that justify the lane on their own were not
+correctness findings at all: a PR body claiming a finding was
+"recorded against that item" when the item was byte-identical to main
+(the record existed on a branch that does not ride that PR); an item
+whose title and cited cost were both false, so it scheduled finished
+work while understating what was left; and `refactor.rs:1224`
+restating the same vocabulary PR 1748 had just given one home, in the
+crate that PR edited, self-declared in twenty lines of comment nobody
+reads. None is reachable by asking whether a claim holds.
+
+**The fence CHROME had to amend.** `keep_out` said *"editor-core
+mate.rs and assembly.rs vocabulary is read and not edited"*, and PR
+1748 edits `mate.rs`. The first disclosure named only "outside
+`paths`" — the weaker boundary — which the style lane caught. The
+clause is amended with its argument in `program.md`: the viewer's gate
+was a RESTATEMENT of the rule `mate.rs` owns, so honouring the fence
+would have preserved the defect it was written to keep out. This is
+the session's one decision an orchestrator should not be able to take
+alone, and it is recorded as such rather than buried in a diff.
+
+**Items filed this wave**, all from lane or review findings that would
+otherwise have existed only in a session's context:
+`mate-member-vocabulary-restated-in-refactor` (issues/),
+`session-gesture-guard-spelled-thirteen-times`,
+`probe-rows-assert-in-one-direction-only`,
+`fmt-cache-carries-the-toolkit-codegen`, plus four live residues
+re-cut onto `doc-params-carry-no-display-unit`, whose scope shrank:
+the persisted field the plan schedules an announcement for had already
+landed in another program's PR.
+
+**Inherited red, on PR 1748 only.** `pncad-py
+tests::the_whole_tag_table_matches_its_committed_inventory` is red on
+`main` itself (`work/lib/pncad-py-tag-inventory-misses-two-measure-tags`,
+which asks for an instance rather than a repair — appended, not
+repaired). PR 1746 is GREEN on the same base, so that item's "billed
+to every code-tier PR" is too strong: it is billed to every PR whose
+closure REACHES `pncad-py`. 1748 does only because it re-exports
+through `crates/pncad`.
