@@ -24,7 +24,7 @@ use topo::{
     ValidationError, validate, validate_closed, validate_geometric,
 };
 
-mod common;
+use crate::common;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()

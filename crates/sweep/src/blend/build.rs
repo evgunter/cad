@@ -4,9 +4,11 @@
 //!
 //! # The ordering contract, structurally
 //!
-//! [`fillet_edges`] calls [`run_battery`] as its FIRST statement and
-//! propagates the refusal unchanged. Nothing here mints a surface, a
-//! point, or a topology entity before a verdict exists — the C8 claim
+//! [`fillet_edges`] runs [`run_battery`] before any construction and
+//! propagates its refusal unchanged: what precedes it is the request
+//! preamble ([`nonpositive_size_gate`], [`repeated_edge_gate`]), which
+//! reads the REQUEST and never the body. Nothing here mints a surface,
+//! a point, or a topology entity before a verdict exists — the C8 claim
 //! ("if the battery returns `Ok`, construction cannot fail for a
 //! geometric reason") is kept by construction order, not by hope.
 //!
@@ -119,8 +121,9 @@ pub struct Blended<T: Real> {
 /// A [`BlendRefusal`] carrying [`BlendKind::Fillet`] — the verb
 /// crosses HERE, once, and the inner [`BlendError`] stays
 /// verb-neutral — around: [`BlendError::Band`] when the committed
-/// tolerance admits no ambiguity band; any refusal the battery
-/// produces;
+/// tolerance admits no ambiguity band;
+/// [`BlendError::NonpositiveSize`] when `radius` is not definitely
+/// positive; any refusal the battery produces;
 /// [`BlendError::RepeatedEdge`] when the request names one edge
 /// twice; [`BlendError::UnsupportedBody`],
 /// [`BlendError::UnsupportedChain`], [`BlendError::UnsupportedRunOut`],
@@ -156,12 +159,8 @@ fn fillet_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     tol: Tol,
 ) -> Result<Filleted<T>, BlendError> {
     let band = Band::linear(tol)?;
+    nonpositive_size_gate(radius)?;
     repeated_edge_gate(edges)?;
-    // NOTE the door asymmetry: this door has no NonpositiveSize check,
-    // so a zero radius reaches predicate 1 and refuses RadiusHeadroom
-    // with an unfollowable sentence (pinned as a characterization in
-    // `tests/review_blend6_r1_probes.rs`). Issue #1336 (the
-    // door-asymmetric size validation) owns closing it.
 
     // ---- The ordering contract: verdict first, unchanged. ----
     let request = BlendRequest {
@@ -177,16 +176,38 @@ fn fillet_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 
 /// **Both doors' shared request preamble**: a repeated edge is
 /// malformed for the chain walk (it would double a link), so it
-/// refuses before the battery samples anything. One home rather than
-/// a stanza per door — the duplicated stanza is where the doors'
-/// validation already drifted once (the size check grew on one side
-/// only).
+/// refuses before the battery samples anything. It and
+/// [`nonpositive_size_gate`] are the whole preamble, and each has one
+/// home rather than a stanza per door: a per-door copy is what lets
+/// the two doors' input validation diverge.
 fn repeated_edge_gate(edges: &[EdgeKey]) -> Result<(), BlendError> {
     let mut requested = edges.to_vec();
     requested.sort_unstable();
     match requested.windows(2).find(|w| w[0] == w[1]).map(|w| w[0]) {
         Some(edge) => Err(BlendError::RepeatedEdge { edge }),
         None => Ok(()),
+    }
+}
+
+/// **Both doors' shared size gate**: a size that is not definitely
+/// positive refuses [`BlendError::NonpositiveSize`] before anything is
+/// metered. Why a size the caller handed in is screened at the door
+/// rather than measured is the variant's own doc
+/// ([`BlendError::NonpositiveSize`]); this is the one place that
+/// applies it.
+///
+/// The rule is a bracket read — `lo() > 0` — and nothing else: it
+/// screens a size that is not positive AT ALL, and says nothing about
+/// a positive size below the band's zero
+/// (`work/fillet/blend-size-gate-unmetered-under-epsilon.md` owns
+/// that). Written through `partial_cmp` rather than `<= 0` so the
+/// INCOMPARABLE case is an arm and not an accident: a poisoned size is
+/// not definitely positive either, and it refuses here with the other
+/// two.
+fn nonpositive_size_gate<T: Bounds>(size: T) -> Result<(), BlendError> {
+    match size.lo().partial_cmp(&0.0) {
+        Some(core::cmp::Ordering::Greater) => Ok(()),
+        _ => Err(BlendError::NonpositiveSize { size: size.lo() }),
     }
 }
 
@@ -392,27 +413,7 @@ fn chamfer_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     tol: Tol,
 ) -> Result<Chamfered<T>, BlendError> {
     let band = Band::linear(tol)?;
-    // The setback must be definitely positive, and that is a fact
-    // about the REQUEST, so it is read off the bracket's low end
-    // rather than metered: a `Zero`/`Negative` here is not a geometric
-    // verdict about the body, and quoting one downstream would lever
-    // the corner and clearance margins by the very number that is
-    // wrong. Written through `partial_cmp` rather than `<= 0` so the
-    // INCOMPARABLE case is an arm and not an accident: a poisoned size
-    // is not definitely positive either, and it refuses here with the
-    // other two.
-    // NOTE the door asymmetry: only THIS door refuses a nonpositive
-    // size; the fillet door lets a zero radius reach predicate 1 and
-    // report a false fact. Issue #1336 (the door-asymmetric size validation)
-    // owns closing it.
-    if !matches!(
-        distance.lo().partial_cmp(&0.0),
-        Some(core::cmp::Ordering::Greater)
-    ) {
-        return Err(BlendError::NonpositiveSize {
-            size: distance.lo(),
-        });
-    }
+    nonpositive_size_gate(distance)?;
     repeated_edge_gate(edges)?;
 
     let request = BlendRequest {

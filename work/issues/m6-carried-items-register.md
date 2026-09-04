@@ -12,7 +12,7 @@ refs: [161, 178, 214, 222, 226, 239, 243]
 
 Opened 2026-08-08; 3 comments.
 
-Consolidated register per Ev's ask at M6 closure (PR #243 comment 5224869607). One row per carried item from docs/M6-EXIT-WALK.md (the ratified done-state); each names its owner and its flip/re-open condition. The M8-bound family folds into the M8 opening plan when C7 opens it — this register is the checklist that folding consumes.
+Consolidated register per Ev's ask at M6 closure (PR #243 comment 5224869607). One row per carried item from the M6 exit walk (ratified; recorded in `docs/DOC-LEDGER.md`); each names its owner and its flip/re-open condition. The M8-bound family folds into the M8 opening plan when C7 opens it — this register is the checklist that folding consumes.
 
 ## The C7/M8 family (the concentration — implement with contacts+clearance)
 - **Curved REST contact implementation** (design ratified, CONTACT-DESIGN #178): C7 join lane = M8's ruled opener. Flip: the join lane merges.

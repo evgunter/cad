@@ -18,7 +18,7 @@
 //!         loud on some arm, never a silent pass.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -29,7 +29,7 @@ use editor_core::{
     ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName, assemble,
     content_pin, evaluate, run_checks,
 };
-use fixture::{desc, insert, len, step};
+use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
 #[derive(Debug, Default, Clone)]
@@ -81,14 +81,12 @@ fn block(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
     );
     insert(
         doc,
@@ -110,6 +108,11 @@ fn cube_part(label: &str) -> ProfileDoc {
     doc
 }
 
+/// The extrude in a one-block part document. A block is three nodes
+/// — the sketch frame, the profile drawn on it, then the extrude — so
+/// a part-local name is minted by node 2.
+const PART_BODY: RecipeNodeId = RecipeNodeId(2);
+
 fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
     StableName {
         kind: EntityKind::Face,
@@ -117,7 +120,7 @@ fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
         path: vec![RoleSeg::InPart {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: PART_BODY,
                 path: vec![RoleSeg::Cap(cap)],
             }),
         }],

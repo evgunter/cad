@@ -6,12 +6,12 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, EvalOptions, Node, ProfileDoc, ValuePayload, evaluate,
 };
-use fixture::{ang, desc, insert, len, scl};
+use fixture::{ang, insert, len, on_frame, scl};
 use geom_core::Tol;
 use geom_core::{Bounds, Interval};
 use topo::{mass_properties, validate, validate_closed};
@@ -21,14 +21,12 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
     // Cube [0,2]³ minus one pip 0.25×0.25×0.125 embedded in the top
     // face (the die's +z pip, alone): volume exactly 8 − 1/128.
     let doc = ProfileDoc::empty_derived("m4_pr2_eval_interval", Tol::witness());
-    let (doc, cube_p) = insert(
+    let (doc, cube_p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
     );
     let (doc, cube) = insert(
         doc,
@@ -37,14 +35,12 @@ fn interval_evaluation_of_a_boolean_doc_brackets_the_oracle() {
             distance: len(2.0),
         },
     );
-    let (doc, pip_p) = insert(
+    let (doc, pip_p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 2.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![fixture::square(0.0, 0.0, 0.125)],
-        )),
+        [0.0, 0.0, 2.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(0.0, 0.0, 0.125)],
     );
     let (doc, pip) = insert(
         doc,

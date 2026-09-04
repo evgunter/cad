@@ -481,7 +481,7 @@ one"*. Corrections, in both directions:
   **flag rules** the K sweep re-evaluates: those are gated per merge.
 * It **stands for the deviation half of TESS-BUDGET, and for K-REPORT's
   histogram/percentile/roster content** — nothing re-takes those.
-* And it needs narrowing on the other four too. `docs/PERF-PLAN.md:553-568`
+* And it needs narrowing on the other four too. `work/perf/plan.md:553-568`
   and `docs/PERF-SCAN-2026-08.md:98-127, :367-370` quote **rebuild-latency**
   figures, and since 2026-08-17 that quantity *is* re-measured and
   committed per merge (#663 identified this itself). So row 9 stands for

@@ -3478,8 +3478,7 @@ fn loop_walk_face<T: Decide>(
 /// geometry. That is what makes an imported fillet's trimline a
 /// reconstruction into a variant this kernel already stores and
 /// certifies, rather than a taxonomy scramble at adoption time
-/// (`CURVED-DESIGN.md` §D7, fifth leave-room obligation; the rule
-/// itself is `DESIGN.md`'s prefer-intrinsic paragraph under D2).
+/// (the rule is `DESIGN.md`'s prefer-intrinsic paragraph under D2).
 fn attach_contact<T: Decide + Bounds>(
     body: &mut Body<T>,
     edge: EdgeKey,

@@ -5,13 +5,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::tol::band;
 use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, RingInterval, Tol};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use geom_core::{RingInterval, Tol};
 
 /// The masquerade driven through the mass-properties patch door: a
 /// bilinear net whose every control point has a poisoned `x` and

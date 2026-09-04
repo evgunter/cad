@@ -457,6 +457,17 @@ EOF
 gate_selftest() {
   gate_selftest_clean
   gate_selftest_without_tool python3 "the manifest reader failed"
+  # THE TWO GUARDS ON THE GATE'S OWN RESULT, and neither can be reached
+  # by planting a manifest: the reader below emits `DEP`, `FWD` and
+  # `COUNT` and nothing else, and it refuses a tree with no
+  # `crates/*/Cargo.toml` before it can reach a zero count. So the
+  # fixture is a reader that SUCCEEDS and says something this gate
+  # cannot read -- which is exactly what these two guards claim to
+  # catch, and what a rewrite of that heredoc would produce.
+  gate_selftest_with_broken_tool python3 "unrecognised scan output" \
+    "printf 'NOPE\\tone\\ttwo\\tthree\\nCOUNT\\t2\\n'"
+  gate_selftest_with_broken_tool python3 "the manifest scan reported no count" \
+    "exit 0"
   gate_selftest_case "[dependencies] lib" plant_r1_inline
   gate_selftest_case "[workspace.dependencies] lib" plant_r2_workspace_inherit
   gate_selftest_case "[target.cfg(unix).dependencies] lib" plant_r3_target
@@ -465,7 +476,7 @@ gate_selftest() {
   gate_selftest_case "forwards the ordinary feature 'interval'" plant_r6_same_crate_forward
   gate_selftest_case "forwards the ordinary feature 'middle'" plant_r7_chain
   gate_selftest_case "entry 'lib?/sweep-testing'" plant_r8_weak_forward
-  printf '%s selftest OK: passes a clean fixture carrying the sanctioned dev-dependency and workspace-inheritance shapes, a [package.metadata.*.dependencies] table, and an optional-dependency activation named like a test feature; fires on all eight routes (R1 inline, R2 workspace inheritance, R3 target.*, R4 build-dependencies, R5 cross-crate forward, R6 same-crate forward, R7 two-deep chain, R8 weak forward), and diagnoses a reader that fails rather than dying at the assignment that captured it\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying the sanctioned dev-dependency and workspace-inheritance shapes, a [package.metadata.*.dependencies] table, and an optional-dependency activation named like a test feature; fires on all eight routes (R1 inline, R2 workspace inheritance, R3 target.*, R4 build-dependencies, R5 cross-crate forward, R6 same-crate forward, R7 two-deep chain, R8 weak forward), and diagnoses a reader that fails rather than dying at the assignment that captured it, a reader that SUCCEEDS with an unreadable record, and one that succeeds without reporting a count\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

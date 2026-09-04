@@ -52,9 +52,11 @@
 //!   also records the A11 rule-4 drift, and wants Ev's ruling.
 //! - **#946** — a sub-assembly's mate declarations do not cross the
 //!   instantiation seam.
-//! - **#947** — the pin-mismatch recourse is emitted twice
-//!   (ASSERTED here, so it goes red when fixed), and two refusals
-//!   carry no recourse sentence at all (`refusals`).
+//! - **#947 — the doubled recourse is CLOSED.** The pin-mismatch
+//!   recourse now reaches the author exactly once, from the store's
+//!   own `Display`; `update_door` is what holds that count down.
+//!   Two refusals still carry no recourse sentence at all
+//!   (`refusals`), filed as its own item.
 //! - **#948** — no parametric loop constructor (`rect`).
 //!
 //! The declared direction's frontier — a mated assembly's gate can
@@ -70,15 +72,15 @@ use std::path::Path;
 use std::sync::Arc;
 
 use pncad::document::{
-    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, Dimension, DocEdit,
-    DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame, InlineError,
-    LoopProgram, MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind, ProfileDoc,
-    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, apply, assemble, content_pin,
-    evaluate, inline, load, mixed_pins, parse_expr, product_named, save, solve_document, split,
+    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, Datum, Dimension,
+    DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame,
+    InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind,
+    ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, apply, assemble,
+    content_pin, evaluate, inline, load, mixed_pins, parse_expr, product_named, save,
+    solve_document, split,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
-use pncad::profile::SketchPlane;
 use pncad::select::{
     CapEnd, ContactClass, EntityKind, NamePat, NameTable, RoleSeg, SegPat, SegTag, Selector,
 };
@@ -291,10 +293,21 @@ fn prism_part(
         scope.insert(name, Dimension::Length);
     }
     let zero = pe("0 mm", &scope);
+    let plane = insert(
+        &mut doc,
+        Node::Datum(Datum::Frame {
+            origin: [pe("0 mm", &scope), pe("0 mm", &scope), pe("0 mm", &scope)],
+            // A bare integer parses as a Count; the frame's axes are
+            // Scalars, so they are spelled as decimals.
+            u: [pe("1.0", &scope), pe("0.0", &scope), pe("0.0", &scope)],
+            v: [pe("0.0", &scope), pe("1.0", &scope), pe("0.0", &scope)],
+        }),
+        tol,
+    );
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![rect(&pe(plan.0, &scope), &pe(plan.1, &scope), &zero)],
         }),
         tol,
@@ -366,11 +379,14 @@ fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
 /// Every placement carries [`FLAT_PACK_GAP`] along +x, which is how the
 /// flat-pack sits BESIDE the assembled bench in their shared montage
 /// cell. It is AUTHORED into the frames rather than applied to the
-/// gathered body, and that is not a preference: both furniture bodies
-/// carry declared contacts, and `transform_rigid` re-mints face keys,
-/// so a moved product would carry `ContactRecords` naming faces that
-/// no longer exist. A common offset on every placement moves the
-/// product and changes nothing else about it.
+/// gathered body, and that is not a preference: a layout document's
+/// placements ARE its subject, so where the parts sit has to be
+/// something this document SAYS. What the montage ships is the body
+/// `assemble` returned from this document (`layout_scene`); moving
+/// that afterwards would hand the renderer a body no gate had seen,
+/// standing at coordinates no document records. A common offset on
+/// every placement moves the product and changes nothing else about
+/// it.
 fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut doc = ProfileDoc::empty(DocumentId::derive("pncad-demo-layout"), tol);
     let scope = BTreeMap::new();
@@ -1228,25 +1244,30 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
         pin_fault(refused)
     );
 
-    // GAP (#947), in the message a user reads: the recourse paragraph
-    // arrives TWICE. `WorkspaceError::PinMismatch`'s own Display
-    // already ends on `PIN_MISMATCH_RECOURSE`, and the `PartResolver`
-    // impl appends it again when it classifies the failure for the
-    // kernel.
+    // The message a user reads carries the recourse EXACTLY ONCE, and
+    // this line is what holds that number down. It used to be two —
+    // `WorkspaceError::PinMismatch`'s own `Display` ends on
+    // `PIN_MISMATCH_RECOURSE`, and the `PartResolver` impl appended it
+    // a second time on its way to the kernel — and the demo recorded
+    // that doubling as a gap (#947) until the seam stopped appending.
+    // One is the count with meaning on BOTH sides: zero would mean the
+    // store's `Display` dropped the sentence and the kernel-side
+    // message no longer tells an author what to do, two would mean the
+    // seam started re-appending it. The ZERO case is also held inside
+    // the workspace, by `crates/viewer/tests/instance_authoring.rs`,
+    // which asserts the recourse on the badge; what only this line and
+    // the Python author suite hold is the COUNT, which is what a
+    // `contains` assertion cannot see.
     assert_eq!(
         refused
             .kind
             .to_string()
             .matches(PIN_MISMATCH_RECOURSE)
             .count(),
-        2,
-        "the doubled recourse is what this line records (#947); ONE copy means it was \
-         fixed, and this count must be flipped to 1 in that same change"
+        1,
+        "the kernel-side message carries the recourse once, from the store's own Display"
     );
-    println!(
-        "   note (gap): that message carries its recourse paragraph twice — the store's \
-         Display ends on it and the seam classifier appends it again"
-    );
+    println!("   in full: {}", refused.kind);
 
     // The elaboration: "update this document everywhere", one recorded
     // per-reference edit per site, applied as a group.

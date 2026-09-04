@@ -35,8 +35,8 @@ use pyo3::types::PyString;
 
 use crate::errors::ErrorClass;
 use crate::py::quantity::Length;
-use crate::py::{doc::NodeId, typed_err};
-use crate::tags::{export_error_tag, node_error_tag, step_import_error_tag};
+use crate::py::{doc::NodeId, typed_err, typed_err_kernel_authored};
+use crate::tags::{NODE_NOT_EVALUATED, export_error_tag, node_error_tag, step_import_error_tag};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 use pncad::topo;
@@ -184,10 +184,51 @@ impl MassProperties {
 ///
 /// Arena keys never cross; a body crosses as a handle whose
 /// interior is reachable only through curated doors.
+///
+/// # The declared contacts ride WITH the body
+///
+/// `contacts` is the tier-3′ second argument (M3 PR 6a): the
+/// declarations the op that produced this body minted for it. It is
+/// CAPTURED here rather than crossing as a value, which is the
+/// carrier-projection rule at a door whose Rust signature takes two
+/// things a Python caller can only hold one of. `ContactRecords` has
+/// no Python constructor and is curated `INTERIOR` — so a
+/// `validate_pseudomanifold(contacts)` door would be uncallable — and
+/// handing one body ANOTHER body's declarations is exactly the
+/// mis-pairing the F1 contract exists to refuse (the validator never
+/// blesses discovered contacts). The demo tour states the same rule
+/// from the other side: its `SceneBody` carries `contacts` beside the
+/// body and runs 3′ "with the op's OWN declared contacts".
+///
+/// Empty is the honest default, not a hole. With no declarations the
+/// kernel's own contract is that 3′ ≡ tier 3 plus the census actually
+/// run, which is the STRICTEST rung of the ladder — so a door that
+/// mints a body without records can only make this gate refuse
+/// (`UndeclaredContact`), never falsely pass.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Body {
     pub(crate) inner: Arc<topo::Body<f64>>,
+    contacts: Arc<topo::ContactRecords>,
+}
+
+impl Body {
+    /// A body with no declared contacts — every door but the two that
+    /// have records to carry (an evaluated value, and `assemble`).
+    pub(crate) fn plain(inner: Arc<topo::Body<f64>>) -> Self {
+        Self {
+            inner,
+            contacts: Arc::new(topo::ContactRecords::default()),
+        }
+    }
+
+    /// A body with the declarations its producer minted for it.
+    pub(crate) fn declared(
+        inner: Arc<topo::Body<f64>>,
+        contacts: Arc<topo::ContactRecords>,
+    ) -> Self {
+        Self { inner, contacts }
+    }
 }
 
 #[pymethods]
@@ -246,6 +287,34 @@ impl Body {
             topo::validate_geometric(&self.inner, tol),
         )
     }
+
+    /// **Tier 3′** — the ladder's fourth rung: tier 3's whole local
+    /// battery PLUS the global coincidence census tier 3 defers,
+    /// certified against THIS body's own declared contacts.
+    ///
+    /// The census is a diff in both directions. Every coincidence it
+    /// finds must be backed by a declaration (`UndeclaredContact`
+    /// otherwise — no scan-to-bless) and every declaration must be
+    /// geometrically confirmed (`StaleContactDeclaration` otherwise).
+    /// There is no contacts argument because a body already carries
+    /// its own; see the type's docs for why that is the only pairing
+    /// this door can honestly offer.
+    ///
+    /// So the verdict depends on which door minted the body, and that
+    /// is the point rather than a wrinkle: a boolean result and an
+    /// assembled product arrive with their declarations and pass over
+    /// their seams; the SAME solids gathered by `product`, which
+    /// declares nothing, arrive without and this gate reports the
+    /// seam it finds. Raises `ValidationError` listing the failures,
+    /// with `door` and `failure_count` as on the other three rungs.
+    fn validate_pseudomanifold(&self, py: Python<'_>) -> PyResult<()> {
+        let tol = Tol::witness();
+        self.run_validator(
+            py,
+            "validate_pseudomanifold",
+            topo::validate_pseudomanifold(&self.inner, &self.contacts, tol),
+        )
+    }
 }
 
 impl Body {
@@ -259,6 +328,13 @@ impl Body {
     /// because a `Vec` has no rendering of its own. Per-variant tags
     /// are the same mechanical work `crate::tags` does for edits,
     /// deferred with the rest of the read-back surface.
+    ///
+    /// It raises through [`typed_err_kernel_authored`] rather than
+    /// [`typed_err`]: three of the tier-3′ census arms are worded by
+    /// the KERNEL out of `Debug`, so the prose assertion — which is a
+    /// rule about text this crate composes — would panic on a
+    /// perfectly honest refusal. That function carries the argument
+    /// and names the filed kernel item; this is its only caller.
     fn run_validator(
         &self,
         py: Python<'_>,
@@ -269,7 +345,7 @@ impl Body {
             return Ok(());
         };
         let count = failures.len().into_pyobject(py)?.unbind().into_any();
-        Err(typed_err(
+        Err(typed_err_kernel_authored(
             py,
             ErrorClass::Validation,
             format!(
@@ -292,7 +368,8 @@ impl Body {
 /// A datum: a construction plane, frame, axis, or point.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Datum {
-    /// `"plane"`, `"frame"`, `"axis"`, or `"point"`.
+    /// `"plane"`, `"frame"`, `"axis"`, `"axis_in_plane"`, or
+    /// `"point"`.
     #[pyo3(get)]
     kind: &'static str,
     /// Plane/frame/axis origin, or the point's position, as metres.
@@ -302,6 +379,11 @@ pub(crate) struct Datum {
     /// for a point.
     #[pyo3(get)]
     direction: Option<(f64, f64, f64)>,
+    /// An in-plane axis in its frame's own 2-D coordinates — the
+    /// origin then the direction, as authored. `None` for every other
+    /// kind, whose numbers are all world numbers.
+    #[pyo3(get)]
+    in_plane: Option<((f64, f64), (f64, f64))>,
     /// A frame's sketch +x and +y axes, unit and perpendicular; `None`
     /// for every other kind.
     ///
@@ -309,6 +391,22 @@ pub(crate) struct Datum {
     /// a reader asking which way a datum faces gets the same answer
     /// for a frame as for a plane, and one asking how the frame is
     /// TURNED — the datum a plane does not carry — reads the axes.
+    //
+    // The tuple is spelled out rather than hidden behind a
+    // `type SketchAxes = ((f64, f64, f64), (f64, f64, f64))`, and the
+    // reason is that this is a `#[pyo3(get)]` projection: the written
+    // shape IS the object Python receives, and `pncad.pyi` states it
+    // literally as
+    // `Optional[tuple[tuple[float, float, float], tuple[float, float, float]]]`.
+    // An alias would name the pair on the Rust side while the thing the
+    // stub records stayed a bare nested tuple on the Python side, so a
+    // reader checking the binding against the stub would have to chase
+    // the alias to learn nothing new. The two fields above it —
+    // `direction`'s triple and `in_plane`'s pair of pairs — are literal
+    // for the same reason and stay under clippy's threshold; naming
+    // only the third would make three projections of one kind read as
+    // two.
+    #[allow(clippy::type_complexity)] // the tuple IS the Python-side contract; see above
     #[pyo3(get)]
     axes: Option<((f64, f64, f64), (f64, f64, f64))>,
 }
@@ -425,7 +523,36 @@ fn names(py: Python<'_>, found: Vec<pncad::prelude::StableName>) -> PyResult<Vec
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Value {
     payload: d::ValuePayload<f64>,
+    /// The value's OWN declared-contact channel (ASM-R2b D-1): what
+    /// `instantiate` carried in from a part. A boolean's records ride
+    /// its payload instead, and the two homes reconcile at
+    /// [`Value::declared_body`] — deliberately the same reconciliation
+    /// `editor_core::product::sources_of` makes, because a Python
+    /// caller reading a body off a value and the gather reading the
+    /// same body must not disagree about what was declared over it.
+    contacts: Arc<topo::ContactRecords>,
     node: NodeId,
+}
+
+impl Value {
+    /// One of this value's bodies with the declarations that body
+    /// carries — `sources_of`'s rule, restated at the boundary.
+    ///
+    /// Multi-output payloads carry no records (the `OpOut` invariant:
+    /// "output body 0" names nothing there), so `Instances` and
+    /// `Split` halves are plain — no home to read from, and none is
+    /// invented.
+    fn declared_body(&self, body: &Arc<topo::Body<f64>>) -> Body {
+        match &self.payload {
+            d::ValuePayload::Body(_) => {
+                Body::declared(Arc::clone(body), Arc::clone(&self.contacts))
+            }
+            d::ValuePayload::Boolean(d::BooleanValue::Body { contacts, .. }) => {
+                Body::declared(Arc::clone(body), Arc::clone(contacts))
+            }
+            _ => Body::plain(Arc::clone(body)),
+        }
+    }
 }
 
 #[pymethods]
@@ -444,12 +571,10 @@ impl Value {
     /// other kind, and for an empty Boolean.
     fn body(&self, py: Python<'_>) -> PyResult<Body> {
         match &self.payload {
-            d::ValuePayload::Body(body) => Ok(Body {
-                inner: Arc::clone(body),
-            }),
-            d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => Ok(Body {
-                inner: Arc::clone(body),
-            }),
+            d::ValuePayload::Body(body) => Ok(self.declared_body(body)),
+            d::ValuePayload::Boolean(d::BooleanValue::Body { body, .. }) => {
+                Ok(self.declared_body(body))
+            }
             d::ValuePayload::Boolean(d::BooleanValue::Empty) => Err(eval_err(
                 py,
                 "the Boolean produced an empty result",
@@ -468,9 +593,7 @@ impl Value {
     /// Every body this value denotes: one for `Body`/`Boolean`, the
     /// whole list for `Instances`, both sides for a `Split`.
     fn bodies(&self) -> Vec<Body> {
-        let wrap = |body: &Arc<topo::Body<f64>>| Body {
-            inner: Arc::clone(body),
-        };
+        let wrap = |body: &Arc<topo::Body<f64>>| self.declared_body(body);
         let side = |s: &d::SplitSide<f64>| match s {
             d::SplitSide::Body(body) => Some(wrap(body)),
             d::SplitSide::Empty => None,
@@ -489,9 +612,7 @@ impl Value {
     /// A split's two sides, `(above, below)`; `None` where empty.
     fn split(&self, py: Python<'_>) -> PyResult<(Option<Body>, Option<Body>)> {
         let side = |s: &d::SplitSide<f64>| match s {
-            d::SplitSide::Body(body) => Some(Body {
-                inner: Arc::clone(body),
-            }),
+            d::SplitSide::Body(body) => Some(Body::plain(Arc::clone(body))),
             d::SplitSide::Empty => None,
         };
         match &self.payload {
@@ -514,6 +635,7 @@ impl Value {
                     kind: "plane",
                     origin: lengths(*origin),
                     direction: Some((n.x, n.y, n.z)),
+                    in_plane: None,
                     axes: None,
                 })
             }
@@ -523,6 +645,7 @@ impl Value {
                     kind: "axis",
                     origin: lengths(*origin),
                     direction: Some((v.x, v.y, v.z)),
+                    in_plane: None,
                     axes: None,
                 })
             }
@@ -530,6 +653,7 @@ impl Value {
                 kind: "point",
                 origin: lengths(*position),
                 direction: None,
+                in_plane: None,
                 axes: None,
             }),
             d::ValuePayload::Datum(d::DatumValue::Frame { origin, u, v }) => {
@@ -539,7 +663,27 @@ impl Value {
                     kind: "frame",
                     origin: lengths(*origin),
                     direction: Some((n.x, n.y, n.z)),
+                    in_plane: None,
                     axes: Some(((x.x, x.y, x.z), (y.x, y.y, y.z))),
+                })
+            }
+            // BOTH spellings reach Python: `origin`/`direction` are the
+            // world line, so a reader that only wants to know where the
+            // axis IS treats it like any other axis, and `in_plane`
+            // carries the sketch numbers a revolve consumes.
+            d::ValuePayload::Datum(d::DatumValue::AxisInPlane {
+                plane_origin,
+                plane_dir,
+                origin,
+                dir,
+            }) => {
+                let v = dir.get();
+                Ok(Datum {
+                    kind: "axis_in_plane",
+                    origin: lengths(*origin),
+                    direction: Some((v.x, v.y, v.z)),
+                    in_plane: Some(((plane_origin.x, plane_origin.y), (plane_dir.x, plane_dir.y))),
+                    axes: None,
                 })
             }
             other => Err(eval_err(
@@ -552,6 +696,17 @@ impl Value {
     }
 
     /// The quantity a `Measure` node evaluated to (E3).
+    ///
+    /// **A measure with no value at this scalar refuses by NAME**
+    /// (M10-6, R2's MINOR-4). `min_clearance` is answered by an engine
+    /// that needs an enclosure, so at the `f64` scalar a Python caller
+    /// drives it has no value — a typed ABSENCE, not a failure, which
+    /// is why the node evaluates at all. That absence shares
+    /// `kind_name()` with a taken measurement ("measure"), so the
+    /// generic arm below produced the nonsense "a `measure` value is
+    /// not a measure" and told a caller nothing about what to do.
+    /// `Value.assertion` already carried its reason through; this door
+    /// now does the same.
     fn measure(&self, py: Python<'_>) -> PyResult<Measurement> {
         match &self.payload {
             d::ValuePayload::Measure { value, dim } => Ok(Measurement {
@@ -560,6 +715,12 @@ impl Value {
                 length: (*dim == d::Dimension::Length)
                     .then(|| Length(pncad::quantity::Length::from_meters(*value))),
             }),
+            d::ValuePayload::MeasureUnavailable { reason, .. } => Err(eval_err(
+                py,
+                format!("this measure has no value in this build: {reason}"),
+                "measure_unavailable",
+                self.node,
+            )),
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a measure", other.kind_name()),
@@ -612,6 +773,21 @@ pub(crate) struct Evaluation {
     /// evaluation is of; threading the doc back in per query would
     /// let the two drift.
     params: d::ParamEnv<f64>,
+    /// The document the evaluation ran on, captured at `evaluate` for
+    /// the same reason [`Self::params`] is — and this is the whole of
+    /// what the kernel's `RunCtx` is: a run is a (document,
+    /// evaluation) PAIR, and resolution needs both halves (the
+    /// document decides whether a stored name's minting node is still
+    /// there at all, which no evaluation can answer).
+    ///
+    /// **Captured rather than taken per call**, which is the same
+    /// argument `NodePick` makes about its `(node, body)` pairing:
+    /// Python's `Doc` is mutable and `accept` swaps the document
+    /// under the handle, so a `resolve(doc, name)` door would let a
+    /// caller ask this evaluation about a document it is not of, and
+    /// answer confidently against the wrong recipe. Pairing the two
+    /// here makes that unspellable.
+    doc: d::ProfileDoc,
 }
 
 #[pymethods]
@@ -623,10 +799,23 @@ impl Evaluation {
     /// `reason` is `"node_failed"` or `"poisoned"`, `kind` is the
     /// `NodeErrorKind`'s stable tag, a poisoning carries `through`,
     /// and the message renders the kernel's own `NodeError`.
+    ///
+    /// A node with no ENTRY at all is two different states and they
+    /// are kept apart: `unknown_node` for an id this document does
+    /// not have, and `node_not_evaluated` — the standing ladder's own
+    /// spelling, shared with `ReadbackError` and `HitTestError` — for
+    /// a live node that this run never reached. The second arm exists
+    /// because [`super::value::evaluate`]'s `cancel=` made it
+    /// reachable: a canceled run holds the completed PREFIX, and every
+    /// node past it is in [`Self::order`] with no result. Before that
+    /// keyword the arm was unreachable and the door said "no such
+    /// node" for both, which was true only because the false case
+    /// could not arise.
     fn value(&self, py: Python<'_>, node: &NodeId) -> PyResult<Value> {
         match self.inner.result(node.0) {
             Some(d::NodeResult::Ok(node_value)) => Ok(Value {
                 payload: node_value.payload.clone(),
+                contacts: Arc::clone(&node_value.contacts),
                 node: *node,
             }),
             Some(d::NodeResult::Failed(error)) => Err(node_failure(py, *node, error)),
@@ -634,6 +823,13 @@ impl Evaluation {
                 let root = self.inner.node_error(node.0);
                 Err(poisoning(py, *node, NodeId(*through), root))
             }
+            None if self.inner.order.contains(&node.0) => Err(eval_err(
+                py,
+                "this evaluation never reached the node: it was canceled first, \
+                 and holds the completed prefix only",
+                NODE_NOT_EVALUATED,
+                *node,
+            )),
             None => Err(eval_err(
                 py,
                 "no such node in the evaluated document",
@@ -641,6 +837,28 @@ impl Evaluation {
                 *node,
             )),
         }
+    }
+
+    /// **Whether this run was CANCELED** — the Python shape of the
+    /// kernel's `EvalOutcome`, whose two variants are a yes/no and
+    /// cross as one.
+    ///
+    /// `True` means the token passed as [`super::value::evaluate`]'s
+    /// `cancel=` was observed set at a yield point, so
+    /// [`Self::order`] is still the FULL deterministic order (order is
+    /// data, not schedule) while the results hold the completed
+    /// PREFIX only. Every node past that prefix answers `False` from
+    /// [`Self::succeeded`] and raises `node_not_evaluated` from
+    /// [`Self::value`] — a canceled run is a PARTIAL ANSWER, never a
+    /// failed one, and no node in it is marked failed by the
+    /// cancelation.
+    ///
+    /// `False` without a `cancel=` token is not a claim worth
+    /// doubting: `evaluate` mints a fresh token nobody can reach, so
+    /// a run with no token cannot be canceled.
+    #[getter]
+    fn canceled(&self) -> bool {
+        self.inner.outcome == d::EvalOutcome::Canceled
     }
 
     /// Whether the node produced a value.
@@ -847,6 +1065,76 @@ impl Evaluation {
             .map_err(|err| super::readback::readback_err(py, &err))
     }
 
+    /// **Does this STORED name still denote, in THIS evaluation?** —
+    /// the question every consumer that keeps names must ask on every
+    /// run, and the one Python's whole store-then-reuse story runs on.
+    ///
+    /// Answers a `Resolution`, never a raise: "this name is gone" is
+    /// a verdict, not an error, and the three states are kept three
+    /// because their repairs differ. `resolved` carries `node`, `body`
+    /// and `kind`; `failed` means rebind (with `offers` as the
+    /// kernel's suggestions, never its substitutions); `indeterminate`
+    /// means the name is fine and the RUN is not — the minting node
+    /// failed, was poisoned or never evaluated, so the repair is
+    /// upstream and the name resolves again when that node does.
+    ///
+    /// **Evaluation-wide**, where `denotation` is node-scoped: this
+    /// searches every table in evaluation order and answers WHICH node
+    /// carries the name, so it resolves for a name `denotation` would
+    /// refuse `no_such_name` for at the node you happened to ask.
+    ///
+    /// The only raise here is the boundary one every name-taking door
+    /// shares: text that is not a name at all is a `ValueError`. A
+    /// well-formed name that denotes nothing is the `failed` verdict,
+    /// which is the whole point of the door.
+    fn resolve(&self, py: Python<'_>, name: &str) -> PyResult<super::resolve::Resolution> {
+        let name = super::doc::name_from_text(name)?;
+        super::resolve::resolution(
+            py,
+            &pncad::select::resolve(
+                pncad::select::RunCtx {
+                    doc: &self.doc,
+                    eval: &self.inner,
+                },
+                &name,
+            ),
+        )
+    }
+
+    /// **What is under this ray?** — the nearest face hit across
+    /// `targets`, resolved to a stable name, as of THIS evaluation.
+    ///
+    /// The fourth door onto a name, and it answers in the same opaque
+    /// alphabet the other three speak: `PickHit.name` is a text
+    /// `Node.fillet` takes unread, exactly as `select`'s answers are.
+    ///
+    /// `targets` are `NodePick`s — build them with `NodePick.build` or
+    /// `NodePick.build_all`. There is no other spelling of a pick
+    /// target here, and that is deliberate: a target whose
+    /// `(node, body)` is not the pair its mesh was tessellated from
+    /// answers a plausible, confidently WRONG name rather than an
+    /// error, and a `NodePick` cannot be built that way.
+    ///
+    /// **A miss is `None`, and it is typed.** The ray hitting no
+    /// offered triangle is not a failure, and a failure is never
+    /// flattened into it. Ties are broken totally and documented
+    /// kernel-side: the winner minimizes `(t, position in targets,
+    /// triangle position)`, so a ray down a shared edge answers the
+    /// same face every time.
+    ///
+    /// Raises `HitTestError`, typed: the standing ladder up front for
+    /// a target whose node this evaluation has no value for
+    /// (`node_not_evaluated`, `node_failed`, `node_poisoned`), and the
+    /// loud `unnamed` bug arm if the winning face inverts to no name.
+    fn pick_face(
+        &self,
+        py: Python<'_>,
+        targets: Vec<PyRef<'_, super::pick::NodePick>>,
+        ray: &super::pick::Ray,
+    ) -> PyResult<Option<super::pick::PickHit>> {
+        super::pick::pick_face(py, self, targets, ray)
+    }
+
     /// **The cross-body flush-plane candidates between `a`'s and
     /// `b`'s outputs, as of THIS evaluation** — the detect arm of the
     /// detect/declare protocol: the verifier run in
@@ -1033,9 +1321,7 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
     let tol = Tol::witness();
     match pncad::step_import::import_step(text, &pncad::step_import::ImportOptions::default(), tol)
     {
-        Ok(pncad::step_import::StepImport::Solid { body, .. }) => Ok(Body {
-            inner: Arc::new(body),
-        }),
+        Ok(pncad::step_import::StepImport::Solid { body, .. }) => Ok(Body::plain(Arc::new(body))),
         // Not a refusal variant: the import SUCCEEDED and produced
         // the other arm of `StepImport`, which this door does not
         // adopt. Its tag is the arm's name and shares the namespace
@@ -1066,6 +1352,80 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
                     .into_any(),
             )],
         )),
+    }
+}
+
+/// **The cooperative cancel token (spec D5)** — what a caller holds
+/// to stop an evaluation it has already launched.
+///
+/// Shared, not copied: the token is a handle onto one flag, so the
+/// thread that calls [`Self::cancel`] and the thread inside
+/// [`super::value::evaluate`] are looking at the same bit. That is
+/// why this class is FROZEN and `cancel` takes no mutable borrow —
+/// setting the flag is not a mutation of the Python object, and a
+/// token that had to be borrowed mutably could not be held by a
+/// running evaluation at all.
+///
+/// **Cooperative, at NODE granularity.** The kernel reads the flag
+/// between nodes (or between levels on the parallel schedule) and
+/// never inside a kernel op, so `cancel()` does not abort the boolean
+/// or the tessellation already in flight; it stops the run before the
+/// next node starts. The token is one-way — there is no `reset`,
+/// because the flag a canceled run observed cannot be un-observed and
+/// a reusable token would let two runs disagree about what it meant.
+/// Mint a new one per launch, which is what `evaluate` does when no
+/// `cancel=` is passed.
+///
+/// What a canceled run ANSWERS is `Evaluation.canceled`, and the
+/// answer is a partial result rather than a raise: see that property.
+#[pyclass(frozen, module = "pncad")]
+#[derive(Default)]
+pub(crate) struct CancelToken {
+    inner: d::CancelToken,
+}
+
+#[pymethods]
+impl CancelToken {
+    /// A fresh, un-canceled token.
+    #[new]
+    fn new() -> Self {
+        Self::default()
+    }
+
+    /// **Request cancelation** — any thread, any time, idempotent.
+    ///
+    /// Setting the flag before the run starts is legal and is the
+    /// deterministic case: the evaluation checks the token before its
+    /// first node, so a pre-canceled token yields a run with the full
+    /// `order()`, no results at all, and `canceled` true.
+    fn cancel(&self) {
+        self.inner.cancel();
+    }
+
+    /// Whether cancelation has been requested on THIS token.
+    ///
+    /// A property of the token, not of any run: it says the flag is
+    /// set, never that an evaluation observed it. `Evaluation.canceled`
+    /// is the run's own answer, and the two differ exactly when a run
+    /// finished before the flag was set.
+    #[getter]
+    fn canceled(&self) -> bool {
+        self.inner.is_canceled()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CancelToken(canceled={})",
+            if self.canceled() { "True" } else { "False" }
+        )
+    }
+}
+
+impl CancelToken {
+    /// The kernel token this handle carries — cloned, which shares
+    /// the flag rather than copying it.
+    pub(crate) fn token(&self) -> d::CancelToken {
+        self.inner.clone()
     }
 }
 
@@ -1118,32 +1478,53 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
 ///
 /// Pass no prior when the question is "does this document still
 /// resolve against the store as it stands".
+///
+/// `cancel` is the COOPERATIVE STOP: a [`CancelToken`] the caller
+/// keeps a handle on, checked between nodes, so a run already under
+/// way can be abandoned. Omitted, this door mints a fresh token
+/// nobody holds — which is exactly what it did before the keyword
+/// existed, and is why an evaluation without one is never canceled.
+/// A canceled run is a PARTIAL ANSWER and not a raise: it returns
+/// normally with `Evaluation.canceled` true, the full `order()`, and
+/// results for the completed prefix only.
+///
+/// **The GIL is released for the kernel run**, and that is what makes
+/// the token reachable rather than decorative: the flag is set by
+/// ANOTHER Python thread while this one is inside the evaluation, and
+/// a thread that cannot run cannot set it. `doc` is borrowed for the
+/// whole call, so a concurrent MUTATION of the same document —
+/// `Doc.insert`, `Doc.apply`, any door needing `&mut` — raises
+/// pyo3's own `RuntimeError("Already borrowed")` instead of editing
+/// a recipe out from under a running evaluation. Measured, not
+/// reasoned: `tests/test_cancellation.py` executes it.
 #[pyfunction]
-#[pyo3(signature = (doc, *, resolver=None, prior=None))]
+#[pyo3(signature = (doc, *, resolver=None, prior=None, cancel=None))]
 pub(crate) fn evaluate(
+    py: Python<'_>,
     doc: &super::doc::Doc,
     resolver: Option<&super::store::Workspace>,
     prior: Option<&Evaluation>,
+    cancel: Option<&CancelToken>,
 ) -> Evaluation {
     let tol = Tol::witness();
     let opts = d::EvalOptions {
         resolver: resolver.map(super::store::Workspace::resolver),
         ..d::EvalOptions::default()
     };
+    let token = cancel.map_or_else(d::CancelToken::new, CancelToken::token);
+    let recipe = &doc.inner;
+    let memo = prior.map(|p| &p.inner);
+    let inner = py.detach(|| d::evaluate::<f64>(recipe, memo, &token, &opts, tol));
     Evaluation {
-        inner: d::evaluate::<f64>(
-            &doc.inner,
-            prior.map(|p| &p.inner),
-            &d::CancelToken::new(),
-            &opts,
-            tol,
-        ),
+        inner,
         params: doc.inner.param_env::<f64>(),
+        doc: doc.inner.clone(),
     }
 }
 
 /// Register the value surface on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<CancelToken>()?;
     m.add_class::<Evaluation>()?;
     m.add_class::<Value>()?;
     m.add_class::<Body>()?;

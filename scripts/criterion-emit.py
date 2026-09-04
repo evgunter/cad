@@ -13,9 +13,11 @@ is worth nothing if you cannot say which box produced it. Three refreshes
 of the old rebuild-latency baseline disagreed by more than any real change
 could explain, and `docs/PERF-SCAN-2026-08.md` had to label every
 absolute-millisecond claim in the tree provisional as a result. Same
-shape here, same defence: runner, core count, memory, toolchain,
-RUSTFLAGS, every `CARGO_PROFILE_*` and the debug-assertions posture, on
-every sample.
+shape here, same defence: runner, core count, memory, CPU model and the
+vector-extension flags that move these rows, toolchain, RUSTFLAGS, every
+`CARGO_PROFILE_*` and the debug-assertions posture, on every sample.
+The CPU pair is what says WHICH box: everything else in that list is
+constant across a hosted runner pool while the silicon under it is not.
 
 THE ROSTER IS PINNED, AND THAT IS THE ONE THING THIS SCRIPT FAILS ON. A
 benchmark that is renamed, dropped or added changes the history's shape
@@ -123,6 +125,56 @@ def collect(criterion_dir: Path) -> dict[str, dict]:
     return rows
 
 
+# The flag subset that actually moves these rows. Not the whole `flags` line:
+# that is a couple of hundred mostly-irrelevant capability names per sample.
+# The 2026-08-22 census found the opt-0/opt-2 ratio 30% apart between an
+# AVX-512 guest and CI, which is the discrimination worth recording.
+HOST_CPU_FLAGS = ("avx2", "avx512f")
+
+# Read through a name so the selftest can point it at a path that is not
+# there and PROVE the degradation rather than assert it.
+CPUINFO = Path("/proc/cpuinfo")
+
+
+def cpu_identity() -> tuple[str | None, list[str] | None]:
+    """Which box this is, as far as `/proc/cpuinfo` can say.
+
+    `nproc`, `mem_total_kb` and `platform.machine()` are constant across a
+    hosted runner pool while the CPU generation underneath it is not, so
+    without this pair a sample cannot be attributed to a host at all.
+
+    PARITY OBLIGATION: two more copies of this parser exist, in
+    `scripts/opt-level-calibrate.py` and
+    `crates/editor-core/tests/m4_pr8_latency.rs`. They are copies rather
+    than one reader because no cheap home is shared across Rust and Python,
+    so the obligation is manual and it is this: a change to the field names,
+    to `HOST_CPU_FLAGS`, or to what a null means here is a change owed to
+    both of them in the same diff. Blocks that disagree do not compare, and
+    comparing them is the entire point of the fields.
+
+    `(None, None)` means the file could not be read; `[]` means the flags
+    are genuinely absent. A reader must be able to tell those apart, and a
+    box without `/proc` must not cost the whole environment block.
+    """
+    try:
+        text = CPUINFO.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None, None
+    model: str | None = None
+    flags: list[str] | None = None
+    for line in text.splitlines():
+        key, sep, value = line.partition(":")
+        if not sep:
+            continue
+        key = key.strip()
+        if key == "model name" and model is None:
+            model = value.strip() or None
+        elif key == "flags" and flags is None:
+            present = set(value.split())
+            flags = [f for f in HOST_CPU_FLAGS if f in present]
+    return model, ([] if flags is None else flags)
+
+
 def environment() -> dict:
     """The block without which none of the numbers above mean anything."""
     overrides = sorted(
@@ -154,11 +206,16 @@ def environment() -> dict:
             toolchain = f"{version}-{host}"
     except (OSError, subprocess.SubprocessError, IndexError):
         pass
+    cpu_model, cpu_flags = cpu_identity()
     return {
         "arch": platform.machine(),
         "os": platform.system().lower(),
         "nproc": os.cpu_count(),
         "mem_total_kb": mem_total_kb,
+        # Which box, not just which class of box: every field above is
+        # constant across a hosted runner pool. See `cpu_identity`.
+        "cpu_model": cpu_model,
+        "cpu_flags": cpu_flags,
         "runner": os.environ.get("CRITERION_RUNNER", ""),
         "rustup_toolchain": toolchain,
         "rustflags": os.environ.get("RUSTFLAGS", ""),
@@ -239,8 +296,30 @@ def selftest() -> int:
         entry = build_entry(root, "deadbeef", ("a/one", "a/two"), "m")
         if list(entry["benchmarks"]) != ["a/one", "a/two"]:
             failures.append("roster order not preserved")
-        if not entry["environment"]["arch"]:
+        env = entry["environment"]
+        if not env["arch"]:
             failures.append("environment block is empty")
+        # HOST IDENTITY, and both halves of it. A sample that cannot name its
+        # box is the defect this pair exists to close, so the keys are
+        # asserted present rather than trusted to be.
+        for key in ("cpu_model", "cpu_flags"):
+            if key not in env:
+                failures.append(f"environment block lost `{key}`")
+        if env["cpu_flags"] is not None and not set(env["cpu_flags"]) <= set(HOST_CPU_FLAGS):
+            failures.append(f"cpu_flags outside the probed subset: {env['cpu_flags']}")
+
+        # AND IT MUST DEGRADE, not crash and not take the block with it: a box
+        # with no readable /proc/cpuinfo still owes a complete environment.
+        saved_cpuinfo = globals()["CPUINFO"]
+        globals()["CPUINFO"] = root / "no-such-cpuinfo"
+        try:
+            degraded = environment()
+        finally:
+            globals()["CPUINFO"] = saved_cpuinfo
+        if degraded["cpu_model"] is not None or degraded["cpu_flags"] is not None:
+            failures.append(f"an unreadable /proc/cpuinfo did not degrade to null: {degraded}")
+        if not degraded["arch"] or "rustflags" not in degraded:
+            failures.append("an unreadable /proc/cpuinfo cost the rest of the block")
 
         # The roster pin: a row the harness no longer emits must be fatal.
         # `die` writes its diagnosis to stderr, which is the point of it —

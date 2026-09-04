@@ -292,3 +292,1082 @@ narrative. Items at migration, matched to the entries above: TCOST-1
 PRs 1609 / 1614 / 1608), TCOST-5 and TCOST-6 (open, cut at the timing
 census), TCOST-7 (open, cut at style review 1), TCOST-B1 (dispatched,
 PR 1616), TCOST-K1 (spec) and TCOST-K2 (open, candidate).
+
+## Seam: TCOST-5 back (2026-09-03)
+
+PR 1621, green at interval (asked) / 1e-6 (drawn). The sweep and
+step-import rational family: one duplicated arc-loft row deleted
+(the step-import native row owns every assertion and adds tiers
+1/2), the cross-crate twin balloon rows merged into the import-door
+row with every assertion labelled and a bare early return turned
+into a named loud skip, two assertion-free digit dumps deleted with
+owners, and the `r2_probe_cert8` sweep put on the fuzz harness (it
+had a fixed seed, a private LCG and no replay line). Family −10 %
+hosted at the cheap ε row, −21 % locally at 1e-12. The
+four-quadrature import row measured irreducible from the test side
+(the imported body is not the native body; `ImportOptions` cannot
+skip the at-rest gate). Awaiting style batch 2.
+
+**Third kernel finding for the A/B track — TCOST-K3 candidate:**
+`topo::validate_geometric` recomputes the enclosure its caller just
+computed and hands nothing back, so three rows in this family (and
+the real import path) pay two rational certificates per body. An API
+that lets the gate consume or return the mass properties removes one
+certificate per body. Separate from K1 (a schedule exit) and K2 (the
+fit loop); its own spec after K1 lands.
+
+## Seam: usage-limit interruption (2026-09-03, ~03:00–04:22 UTC)
+
+Evan's session usage limit bound at ~03:00 UTC; the four lanes then
+running (TCOST-1, TCOST-K1, TCOST-B1, TCOST-7) were killed mid-turn
+by the 429 and no new work was dispatched until the reset (Evan's
+ask, in-chat). State at the kill, verified from the pushed branches:
+TCOST-1's head 4cba1468 fully green on the interval lane (asked) with
+the report unwritten; TCOST-B1 pushed through its five-crate widening;
+TCOST-7 pushed its first consolidation commit; TCOST-K1 had two
+uncommitted instrumentation files and no branch. All four resumed
+from their own transcripts at 04:25 UTC with the cwd-reset rule in
+the message; a lane that shows no progress by the next check-in is
+re-spawned fresh from its pushed state rather than resumed again.
+
+## Seam: TCOST-1 and TCOST-B1 back (2026-09-03)
+
+- **TCOST-1** (PR 1612, green on both compile modes — interval asked
+  on the final head, default drawn on the same code one commit
+  earlier; evidence PR 1613 shows the skip in a run: 35 `gated: …
+  skipped` notices, 2 663 tests run against 5 611 unfiltered).
+  42 markers over 299 tests (5.3 % of the suite): every `fuzz::`/
+  `effort()` caller plus two hand-rolled xorshift sweeps. Deviations
+  disclosed: the marker is a no-op macro without `include_str!`
+  (directories cannot be expressed that way; the discipline gate
+  covers both), an unresolvable marker fails open for its own suite
+  only, the nightly row builds `--features interval` once, and **the
+  nightly row has never executed hosted** (the lane's token could not
+  dispatch nightly.yml). The `proptest!` population (22 files, 15 of
+  them `#[cfg(test)]` modules in production files) is the disclosed
+  next batch. Under review.
+- **TCOST-B1** (PR 1616, green; interval asked on the six-crate head):
+  353 per-suite helper `mod` lines → one declaration per binary,
+  329 772 redundant compiled lines gone (96 % of the class); local
+  editor-core test-target compile −20 % over three alternating pairs,
+  binaries −4.9 %. The lint policy those helper trees inherited from
+  whichever suite loaded them is now stated per tree (159 clippy
+  errors surfaced and were resolved by naming, not widening). A
+  finding for the program: **the hosted archive-step duration is a
+  function of the change filter's tier and package set** — at one
+  identical configuration it ranges ±25 %, wider than any single
+  unit's effect — so build-side units quote the tier with the number
+  or compare post-merge distributions; the 609 s figure in the plan's
+  brief was a median over mixed tiers. Under style batch 2 with
+  TCOST-5.
+
+## Seam: batch style review 2 and the TCOST-1 review adjudicated (2026-09-03)
+
+- **TCOST-1 (PR 1612)**: MERGEABLE WITH FIXES — the selection right in
+  both directions (every arm planted with the full filterset string
+  asserted), the composition one `-E` on every leg, 35 + 7 = 42
+  notices in the demo run, the discipline gate wired in both halves.
+  One MAJOR in marker CONTENT: `mesh8r2_probes`' set named only
+  `crates/mesh/src/` while its subject is `topo::examine_chart_coherence`.
+  Fix pass: widen that set and `r1_p2_onb_probes`', re-audit every
+  set against "does it name the module the CLAIM rests on", move the
+  two production files' fuzz rows into their own `#[cfg(test)]` files
+  so 44 deterministic pins stop being gated with them, tighten the
+  reader census's marker recogniser to the python's shape with a
+  unit test, state the nightly row's cost shape in-file.
+- **TCOST-B1 (PR 1616)**: MERGEABLE — every claim reproduced
+  independently, the lint delta strictly narrower than before, the
+  matched hosted pair better matched than claimed (same cache key,
+  members evicted on both sides). Three cheap fixes (a counted token
+  in six header comments; one home for the allow-block prose; the
+  two inert `duplicate_mod` allows dropped, the two live ones kept).
+  **TCOST-B2 cut**: the same pass over step-export, step-import, stl,
+  geom and geom-core (11 933 redundant lines, ~3 % of the class).
+- **TCOST-5 (PR 1621)**: MERGEABLE WITH FIXES — one assertion
+  narrowed (the ORACLE pad check moved inside the certified path, so
+  it no longer runs at 1e-12), contradicting "nothing was weakened";
+  the loud skip not in the tree's named-`#[test]` idiom; a copied
+  const doc calling a 60° arc 150°; the deleted suite's measured
+  negative findings dropped; the fuzz row still the floor-plus-search
+  trap the memory names — split per the memory's remedy.
+
+## Seam: container restart (2026-09-03, ~04:50 UTC)
+
+The session's container restarted with five lanes live (TCOST-1 and
+TCOST-5 mid fix-pass, TCOST-B1 with a fresh clippy red on its fix
+head, TCOST-7 with PR 1635 open, TCOST-K1 with its first kernel commit
+pushed and no PR). The disk survived — worktrees, uncommitted fix-pass
+edits (15 files in TCOST-1's lane, 3 in TCOST-5's), warm target dirs —
+and only the agents' transcripts were lost, so each lane was
+re-created FRESH from its on-disk and pushed state with the fix list
+restated in the brief (the death-recovery rule: fresh over resume when
+the remainder is specifiable from what is pushed).
+
+## Seam: TCOST-7 back and reviewed (2026-09-03)
+
+PR 1635 (green at default/1e-6 drawn; no interval suite touched):
+`crates/geom-brep/tests/shared/` holds one home each for the quarter
+cylinder, the sphere band, the knot vectors, the dense grid and the
+offset-residual loop, and the `Patch` oracle; bit-identity of every
+caller's fixture was checked at the merge base by the finisher and
+again by the reviewer. Review verdict MERGEABLE WITH FIXES: six
+call sites of the very loop the unit consolidated were left
+un-migrated in two files the PR edited, `review_r1_rational_probes`
+keeps a `dense` and a `dbasis` character-identical to the shared
+ones, a minted "cited by" entry cites nothing, and `face_posture`
+carries a parameter both callers pass identically. Fix pass in the
+lane. **TCOST-8 cut**: the helper families the unit deferred —
+`band` (47 spellings), `edge`/`great` (16), `p3`/`v3`/`pt` (38) —
+after TCOST-7 merges.
+
+Operational: a reviewer ran `git checkout` inside the orchestrator's
+own checkout (`/home/user/cad`), moving it onto the reviewed branch;
+restored from the pushed `tcost/orchestrator`. Every brief template
+now carries the rule (read other branches with `git show`, or your
+own worktree; never touch the orchestrator's checkout).
+
+## Unit: TCOST-5 merged (2026-09-03, PR 1621 at b2babf84)
+
+The sweep + step-import rational family: the duplicated arc-loft row
+deleted (the step-import native row owns every assertion and adds
+tiers 1/2), the cross-crate twin balloon rows merged into the
+import-door row with labelled assertions (the ORACLE pad check
+restored to every ε after review), the deleted suite's measured
+negative findings carried into the merged header, the arc-loft
+posture printed by variant, `r2_probe_cert8` split into a
+written-chart witness row and a floorless varying-seed search on the
+fuzz harness. The in-row stand-down uses `test_utils::vacuity::stood_down`
+(the tree's door for a run-time ε condition; the named-`#[test]` idiom
+is the whole-binary shape). Family −10 % hosted at the cheap ε row,
+−21 % locally at 1e-12; the four-quadrature import row measured
+irreducible from the test side. Interval asked on the final head.
+
+## Seam: the one-declaration pattern becomes an invariant (2026-09-03, Evan's ask)
+
+Evan (in-chat): can the existing aggregation guard enforce TCOST-B1's
+pattern? Yes — folded into B1's fix pass: each converted crate's
+`every_suite_file_is_aggregated` gains a second assertion over the
+same walk, **a suite file declares no modules** (every `mod` item in
+a suite's code view is a violation; helper trees are directories with
+a `mod.rs`, which the walk already excludes), so a shared helper has
+exactly one home in `tests/all.rs`. Per crate, so B1's six crates
+carry it now and TCOST-B2 carries it to the rest as it converts them.
+
+## Seam: CI-posture units cut (2026-09-03, Evan's ask)
+
+Evan asked which jobs, or expensive parts of them, can go to the
+nightly, and whether caching can avoid compiling the kernel so many
+times. Assessment (per the ratified rule — a persistence detector may
+be demoted, an absence detector may not — and the audit's billing
+model): a code-tier run compiles the kernel ~9–10 times in ~8
+distinct profile/feature unifications that share no artifacts, so
+only fewer jobs collapse them; the cross-RUN lever is content-keyed
+sccache (F4), wired since #852 and currently off with its reading
+still owed. Evan approved the plan and kept the render lanes.
+
+Units, CI-infrastructure track (Opus lanes, style review, no A/B row,
+one PR each with its own hosted measurement and the billed-minute
+entry in `docs/CI-MINUTES-2026-08.md`):
+
+- **TCOST-C1** — `corrupt input (release profile)` → the nightly
+  (persists; the only lane running the two `cfg(not(debug_assertions))`
+  rows keeps running daily).
+- **TCOST-C2** — the rustdoc gate's six excluded roots and its third
+  pass → the nightly; the workspace pass stays on PRs, scoped to the
+  closure the build already uses.
+- **TCOST-C3** — the python suite seed-keyed like the viewer toolkit
+  (PRs only when `pncad`, `pncad-py` or `editor-core` seeds move;
+  ungated nightly).
+- **TCOST-C4** — the sccache trial re-read: on for a window, per-crate
+  hit stats read on warm runs (workspace crates and test binaries are
+  the hypothesis; dependency hits prove nothing), verdict written under
+  F4 either way.
+
+## Unit: TCOST-1 merged (2026-09-03, PR 1612 at e293af83)
+
+The per-file test gate is live: an in-file `gated_to!` marker names
+the source paths a suite is specific to; `scripts/ci-filter.py`
+derives one nextest filterset from the markers and the diff and both
+CI halves consume it on every run leg; a discipline gate reds on a
+path that does not resolve; every skip is a notice in the run's log;
+the nightly re-takes the whole gated set ungated (its first execution
+is the first nightly after this merge — neither the lane's nor the
+orchestrator's token can dispatch nightly.yml). 42 markers over 257
+tests (4.6 % of the suite — every `fuzz::`/`effort()` caller plus two
+hand-rolled sweeps; the review's re-audit widened 16 path sets to the
+module each claim rests on, and the two production-file markers moved
+into their own `#[cfg(test)]` files so 44 deterministic pins stay
+ungated). Merged with one red annotated as inherited from main —
+M10-4's bore-pin row is red at interval/1e-6 on any tree, issue 1646
+filed for the M10 lane. Next batch: the `proptest!` population (22
+files), and the two content units' gate candidates (TCOST-2's
+heavily-knotted rows, TCOST-4's torus sweep).
+
+## Unit: TCOST-7 merged (2026-09-03, PR 1635 at 6d7f577a)
+
+`crates/geom-brep/tests/shared/`: one home each for the quarter
+cylinder, the sphere band, the knot vectors, the dense grid, the
+offset-residual loop (nine call sites, three `None` policies, one
+routine) and the `Patch` oracle, with `dense_over`/`dbasis_over`
+parameterised on each oracle's own `basis` so the three deliberately
+independent seedings stay three (the price — a shared-recurrence typo
+now mirrors in all three — stated in the PR). Bit-identical fixtures
+at every caller, checked by the finisher and the reviewer; 509 rows
+byte-identical in listing; green on both lanes (interval asked on
+an empty trailer commit because one touched suite is
+`cfg(feature = "interval")`). Compile-time delta inside this box's
+noise. TCOST-8 holds the deferred families.
+
+## Tracker adopted (2026-09-03)
+
+Ev (in-chat): GitHub issues are retired; `work/` is the tracker. The
+two issues this program filed (1607 render-lane checkout; 1646 the
+M10-4 ε-band row) are now `work/issues/` files carrying their numbers,
+and every open unit has an item: TCOST-6 (blocked on B1), B2, 8, C1–C4
+(dispatched), K3 (candidate); TCOST-1/5/7 closed at their merges.
+
+## Unit: TCOST-B1 merged (2026-09-03)
+
+PR 1616 at `913b1f04`, run 33722014086 (interval lane, ε default,
+all green). Each shared test-helper tree is declared ONCE in its
+crate's `tests/all.rs` for editor-core, topo, mesh, sweep, viewer and
+profile (324 `mod` → `use crate::…`, 29 `mod` lines deleted; 329 772
+redundant compiled lines gone, ~96 % of the class the build profile
+measured). `every_suite_file_is_aggregated` in those six crates gained
+the one-declaration assertion (a suite file declares no `mod <name>;`),
+read through the new `test_utils::source::file_module_decls`; it fires
+on exactly the five unconverted crates, which TCOST-B2 takes.
+`clippy::duplicate_mod` allows dropped from eight `all.rs` (kept in the
+five). Measurement: local alternating A/B −20.5 % on editor-core's test
+target (66.5 → 52.9 s median), binaries −4.9 % total; hosted archive
+step ±25 % at fixed tier, so the effect of record is the post-merge
+distribution (a reading for a later census, not one run). Inherited
+red annotated on the PR: the M10-4 bore-pin row at ε 1e-6
+(`work/issues/m10-4-bore-pin-row-red-at-interval-1e-6.md`). TCOST-6
+and TCOST-B2 were dispatched on B1's head before the merge (Ev's call)
+and share its target dir; they retarget onto main from here.
+
+## Seam: B1's merge reddened main's default lane; hotfix (2026-09-03)
+
+TCOST-B1's merge turned `editor-core/tests/m10_p_lift.rs`'s `mod
+fixture;` into a module-scope `use crate::fixture;` whose only use is
+inside an `#[cfg(feature = "interval")]` row, so the default-feature
+build carries an unused import and `-D warnings` reds every default-
+lane draw on main (first seen on PR 1647's run 33723972788). B1's own
+gating run drew the interval lane, which compiles the row — the
+sampled point missed it, exactly the shape the sampling accepts. The
+TCOST-C2 lane found it on its merge run and carried the fix; the
+orchestrator cherry-picked it as PR 1658 (one file, 4 lines) on B1's
+behalf per the inherited-red rule (the causing lane owes the fix).
+Lesson for build units that touch per-feature suites: a `use` that
+replaces a `mod` must sit where the `mod`'s uses are, and the lane
+should ask for BOTH lanes on its final head, not one.
+
+## Seam: second usage-limit interruption (2026-09-03, ~07:55–09:20 UTC)
+
+Five lanes (TCOST-6, TCOST-B2, TCOST-K1, C1..C3, C4) died on a 429 at
+about 07:55; nothing was lost — every lane's worktree was clean and
+its last commit pushed (TCOST-6's two local commits excepted, still on
+disk). Resumed from their transcripts at 09:22 with the cwd-reset rule
+and the state each needed (the m10_p_lift hotfix on main; K1's
+incremental cache dropped). TCOST-8 reported before the cut (PR 1659).
+
+## Seam: CI-posture batch review adjudicated (2026-09-03)
+
+C1 (PR 1650), C2 (PR 1654), C3 (PR 1655): all MERGEABLE WITH FIXES;
+C4 (PR 1648) not yet delivered, joins the same reviewer by message.
+Verified by the reviewer against the jobs API: the corrupt-input job
+is absent from C1's head run; C2's warm-vs-warm reading (179 s / 110 s
+gate step / 69 s non-gate) is the batch's strongest measurement; C3's
+seed axis has the planted failure a closure-keyed implementation
+would fail. Fixes owed: C2's widened `OUTLIER_GATES` matcher admits a
+bare `--print-roots` invocation as a real run (reproduced; the tree
+is saved only by the `$(` spelling of the roots step) — drop it in
+the same pass as `--selftest` and plant the failure; the scoping of
+pass 1 is a second demotion that gets its own sentence; `--scope ""`
+silently means `--workspace`; the nightly side of C2's ledger is
+unpriced. C3's re-take can report green having run nothing
+(`unittest discover` on an empty match exits 0) — a nonzero-count
+guard, as a class across the three call sites. C1: two prose sites
+the sweep missed, an honest rationale for the dropped output. All
+three owe a row in the nightly budget table (~8 → roughly double).
+Landing order C2 → C1 → C3 (C2 is the only one not touching
+`ci-filter.py`; C1's delta there is the smaller), main merged and one
+green run each before landing. Two candidate `work/issues/` items
+filed by the lane: D107's prose now points at the wrong workflow;
+the pin-reading `sed | head -1` idiom's fourth copy in nightly.yml.
+
+## Seam: style batch 3 adjudicated (2026-09-03)
+
+TCOST-8 (PR 1659), TCOST-6 (PR 1666), TCOST-B2 (PR 1669, found open
+by the reviewer before its lane reported): all MERGEABLE WITH FIXES.
+Every cited chain verified character-exact (the `Band::linear` chain,
+`Real::from_f64` on f64 and `Probe`, the `sin(±0)` merge, the
+turbofish sites). Fixes owed — TCOST-8: a `Band::linear` spelled
+inline inside the shared tree it made a home for; reasons AT the copy
+for `control`/`tmer`/`wall_domain`/`width` (the reviewer's ruling: the
+R1/R2 pair and the carrier-id stamp are the reason, "file-local
+tokens" is a preference); the ~29 inline `Band::linear(Tol::witness())`
+sites taken since the home now exists; a default-lane run before
+merge (64 of 71 suites compile there — the B1 lesson). TCOST-6: the
+new frontier-width claim lacks its column and its `>= 64` floor its
+argument; `LEVEL_CEILING = 128`'s justification is false for f64 (the
+bound is `DEFAULT_MAX_DEPTH = 24`); the single-axis assumption of
+`widest_frontier` made a stated precondition; no default-lane run
+needed (whole-file `cfg(interval)`, textual filterset term — the first
+gated marker inside such a suite). TCOST-B2: the hosted evidence sits
+two commits behind the head, whose own default-lane run was still
+running; a false "no path-relative read" sentence (step-import's
+`common/mod.rs` reads `CARGO_MANIFEST_DIR`; conclusion holds).
+Candidates filed by the lanes: the rename-only blind spot of the
+body-hash census; the one-declaration assertion's nine verbatim copies
+wanting one home in `test_utils`, with `pncad/tests/all.rs` outside it.
+
+## Seam: TCOST-K1 review dual dispatched (2026-09-03, ~10:20 UTC)
+
+PR 1652 green on its final head `554f2b0f` (interval 1e-12 asked;
+the default-lane head's own clippy red was main's m10_p_lift, since
+fixed). Ordinal 1400 claimed on main (PR 1672) with the v6 draw and
+the brief hashes; both reviewers dispatched concurrently on the
+frozen head, briefs identical modulo lane name, neither sees the
+other's report. The unit's own log entry waits for the dual to
+conclude. Hosted reading of record for the program: default-lane
+shard totals 219.7 + 300.1 → 135.0 + 127.6 cpu-s at 1e-12; the
+digest instrument found every certified bound byte-identical across
+six lane×ε rows.
+
+## Unit: TCOST-6 merged (2026-09-03)
+
+PR 1666 at `5666f015` (run 33743321953, interval 1e-12 asked, green).
+editor-core's three chamber heads (39.3 cpu-s on the interval lane)
+are one labelled row at 6.7 cpu-s hosted: every assertion kept, two
+strengthened (receipt identity on the D9 drive; the widest frontier
+the schedule had to spread, ≥ 64, with the single-axis precondition
+asserted). The budget constant 4096 → `CHAMBER_LEAVES = 1280` on a
+measured, ε-invariant threshold at 1024 (sweep table in the doc);
+the two partition rows keep `FULL_PARTITION_LEAVES = 4096` with the
+measured cost of not cutting them; the ulp-wide box row gets
+`GRID_FLOOR_LEAVES`. The suite is gated (`gated_to!`) to the driver,
+analysis, distribution, resolve and tolerance modules its claims
+rest on — the first marker inside a whole-file `cfg(interval)` suite
+(no default-lane run needed: the filterset term is derived from the
+path). Findings: no slow-kernel candidate (cost linear in the leaf
+budget); the four other interval-only census rows are corpus-shaped
+and want a corpus unit, not this mechanism.
+
+## Unit: TCOST-B2 merged (2026-09-03)
+
+PR 1669 at `2b4bf85e` (run 33742913933, default lane, all green; the
+parent head's interval run red only on main's M10-5 row, filed as
+`work/issues/m10-5-e2e-channel-slider-reds-at-eps-1e-6.md`). The one-
+declaration pass over step-export, step-import, stl, geom and
+geom-core (36 `mod` → `use`, 11 948 redundant compiled lines); the
+guard assertion now in all fourteen guarded crates and demonstrated
+to fire on the merge-base shape; `clippy::duplicate_mod` allows gone
+from every `all.rs`; geom's helper inside the `curves/` group directory
+reached through an inline `mod curves { pub mod n1r2_fixtures; }` so
+the `#[path]` census stays clean. Honest size reading: at ~3 % of the
+class the guard's own ~100 KB per crate outweighs the dedup in three
+of the five (net −1.4 MB across the five after the control), dev
+profile, not comparable with B1's table. main regrew the class within
+a day (five lib_tube suites, 21 965 lines) and B1's guard caught it —
+the argument for the guard. Filed: the fourteen-copy assertion wants
+one home in `test_utils`, and `pncad/tests/all.rs` sits outside it.
+
+## Unit: TCOST-C2 merged (2026-09-03)
+
+PR 1654 at `b6a85c32` (run 33742313504, default 1e-12 drawn, green;
+interval covered by the pre-fix run 33730257957 — every fix sits in a
+lane-independent seat). The rustdoc gate's excluded roots and pass 3
+leave the PR gate for the nightly; pass 1 is scoped to the dependent
+closure (a second demotion, argued per row: a member whose sources
+changed is its own seed; a rename/delete break lands in a dependent
+by construction; prose-only breaks in unrelated members are the
+nightly's). `fmt` job 222 s / 4 billed → 179 s / 3, warm against warm
+(run 33727294346); the nightly side priced at ~3 billed a night,
+DERIVED, to be re-read from the first nightly run. The review's hole
+closed: `gate-roster.sh` no longer counts a bare `--print-roots`
+invocation as a run of the gate (planted failure added); `--scope ""`
+is refused rather than silently widening to `--workspace`. Landing
+order C2 → C1 → C3; C1 re-merges main now.
+
+## Seam: C4 reviewed (2026-09-03)
+
+PR 1648 MERGEABLE WITH FIXES: the verdict (sccache refuses
+`--crate-type bin`, so its ceiling is the libs' 18 %) confirmed
+from the stats themselves; the control's miss verified from its
+job (a 275 MB save on the post step, against `Cache up-to-date.` on
+the warm run). Owed: F4's 82 % figure cited a lane-private path —
+the seconds go inline or the table into `docs/perf-data/`; one
+number that does not reconcile (90 − 47 = 43, not "62-odd"); the
+miss rows lack the rust-cache key they missed; the "compiles from
+scratch on most runs" claim narrowed to what one branch's runs
+show (a branch's first build job restores nothing; main never runs
+the job under F3). C4 lands last of the four. TCOST-B3's body
+narrowed the same way.
+
+## Seam: TCOST-K1 dual delivered — correspondence pre-note (2026-09-03)
+
+Both reviews on frozen `554f2b0f`, reports stored under
+`~/tcost-work/ab/`. Verdicts DIVERGE in letter, converge in
+substance: R1 MERGEABLE-AFTER-FIXES 2/8/3, R2 MERGEABLE 0/4/2.
+Neither could construct a certifying face the exit refuses; both
+re-derived the bound and measured it per round; both verified every
+hosted number against the cost reports. BILATERAL: the exit's
+decision sits outside the named predicate / k-funnel (R1 MAJ A1 ≡
+R2 MINOR 4 — severity-divergent: R1 reads a shrunken ledger
+population and a stale justification sentence, R2 telemetry only);
+the suite cannot red when the exit stops firing on the integral
+lane and `refused_early…` cannot detect absence (R1 MAJ A2 + B1 ≡
+R2's mutant table and Q3, which R2 scored in the rubric rather than
+as a finding); the monotonicity across rounds unstated (B4 ≡ M1);
+the pad term dead under the test surface (B8 ≡ M2); the NaN
+sentence (B5 ≡ NOTE); second spellings of the last piece count and
+block assignment (B3 ≡ style); no default-lane run on the final
+head, both judging it adequate (B7 ≡ claim 4). UNILATERAL R1: the
+threshold-to-zero mutant (escalation pre-emption unguarded), the
+stale "measured width" prose class, the undisclosed 1.1461e-6 pin,
+the TARGET_LEN_FACTOR/K mirrors, the half-vacuous certify row.
+UNILATERAL R2: the pinned width's `#[ignore]` retake is registered
+nowhere (R1 has it inside C2), the QUAD2_RATIONAL_MAX_ROUNDS doc,
+DESIGN.md:603. DISPATCHER FAULT (R1 C3): the shared target dir let
+one review lane execute the other's mutated binary — cargo's lock
+serialises writes, it does not isolate artifacts; R1 re-took every
+result privately, R2's mutant matrix is flagged as possibly
+contaminated (its outcomes agree with R1's on every shared mutant).
+Union fix pass dispatched to the implementing lane, same arm; the
+row records at merge.
+
+## Unit: TCOST-C1 merged (2026-09-03)
+
+PR 1650 at `f593881e` (run 33745119482, default 1e-6 drawn, green;
+interval covered by the pre-fix run 33722960963). `corrupt input
+(release profile)` leaves the PR gate: −2 billed minutes on every
+code-tier run whose closure holds topo (89 of the last 128 merges),
+re-taken nightly with its absence detectors (count guard + name
+greps) moved with it. The nightly job-insertion conflict with C2 was
+resolved by rebuilding nightly.yml from main and re-inserting C1's
+job (both parse; both jobs present; no markers). The nightly budget
+total is edited once, by C3 as the last to land.
+
+## Unit: TCOST-8 merged (2026-09-03)
+
+PR 1659 at `d13b23a9` (default 1e-12 asked, run 33746172065, green
+on the post-merge head; interval 1e-6 asked, run 33728831063, on the
+pre-fix head, the three interval-only edits re-verified locally
+against a byte-identical 553-name listing). Fourteen helper families
+of `crates/geom-brep/tests/` into `tests/shared/` — 43 `fn` bodies
+plus, after the review, 27 inline `Band::linear(Tol::witness())`
+sites, 70 sites for one home; the nextest listing `cmp`-clean
+against the merge base on both lanes throughout. Nineteen "kept
+apart" copies each carry their reason at the copy, the R1/R2 pair
+and the carrier-id stamp among them, and `shared/mod.rs` enumerates
+them with a grep-checkable count. Compile-time deliberately not
+measured (TCOST-7's precedent: noise). Filed: the inline canonical-
+frame surfaces (34 sites at merge-base numbers) and the body-hash
+census's rename-only blind spot (a sweep obligation across geom-brep
+and the B1/B2 crates). Operational: the session scratchpad is shared
+across sibling lanes — one lane's PR draft was overwritten by
+another's; lane notes belong under `~/tcost-work/<lane>-notes/`.
+
+## Unit: TCOST-C3 merged (2026-09-03)
+
+PR 1655 at `82cdff58` (run 33746592219, interval 1e-6 drawn, green;
+default covered by the fix-head run 33742871112). The python suite is
+seed-keyed on {pncad-py, pncad, editor-core}: −2 billed minutes on
+every code-tier run whose seeds miss, with the verdict step sited in
+the `filter` job because a skipped job runs no step. The review's
+hole closed as a class: `unittest discover` over an empty match exits
+0, so a nonzero-count guard now stands at all three call sites
+(ci.yml's job, the nightly re-take, `run-python-tests.sh` — no single
+seam exists for them, and that is filed). As the last of the three
+to land, C3 set the nightly budget total once (~8 → ~15; calibration
+night ~34 → ~41), dropped the three per-row "not yet included" notes,
+and corrected the paragraph under the table that had gone false.
+Ledger after the three: PR side −1 (C2, measured) −2 (C1, per
+topo-closure run) −2 (C3, per seed-miss run); nightly side +~7, of
+which C2's ~3 is derived and wants a re-read from the first nightly
+that executes it. C4 lands last after its final main merge.
+
+## Unit: TCOST-C4 merged (2026-09-03)
+
+PR 1648 at `eb7a78a2` (run 33748099185, interval 1e-6 asked, all
+green; the default lane on earlier heads of the same tier). The
+sccache trial re-run under its own rules — seven runs, two lanes,
+tier=all, 18 packages, lane asked by trailer — and its verdict
+written into CI-MINUTES F4: sccache 0.16.0 refuses `--crate-type
+bin`, so the 47 refusals on a warm run are the workspace's test
+binaries and build scripts, 82 % of compile time by the build
+profile's census (now inline in F4 with provenance: test targets
+726.3 s, libs 159.5 s, 297 units); dependency hits are zero on any
+warm run because a restored rust-cache means rustc never runs for
+deps; the object cache barely persists. Rig kept, inverted to
+`vars.SCCACHE == '1'` (inert with nothing set). The finding that
+outgrew the unit — a branch's first build job restores nothing
+(branch-scoped caches + F3's "main never runs the job"), the control
+verified by its 275 MB save — is TCOST-B3, dispatched. The four
+CI-posture units are landed: PR side −5 billed minutes on a typical
+code-tier run, nightly side +~7.
+
+## Seam: hosted CI down account-wide — the Actions spending limit (2026-09-03, from 11:52 UTC)
+
+Every `ci.yml` run created after 11:52 UTC fails within seconds with
+no job started, on main and every branch ("The job was not started
+because an Actions budget is preventing further use"); the last run
+to get a runner was 33751935948 at 11:51. Verified against the run
+list, not a lane's clock (an earlier "stall" report from the TCOST-9
+lane was a clock error and is retracted). Routed to Ev as an `[ev]`
+PR carrying `work/issues/actions-budget-denies-job-starts.md`
+(`needs_ev: true`; the B3 lane filed it). Lanes told: no empty
+commits to re-gate until CI is back. State at the cut: TCOST-9's
+head green on both test legs (only the runner-less archive-cleanup
+job red); TCOST-B3's default run green on every job that started,
+test legs never started; K1's fix pass had a green default-lane run
+at 11:45. TCOST-B3 is in review (PR 1684) — its finding is the
+program's biggest CI-minutes lever so far: ~45 billed minutes an
+hour going to dependency rebuilds on a cache no branch could read,
+against ~7 for a main-scoped primer.
+
+## Seam: style batch 4 adjudicated (2026-09-03)
+
+TCOST-9 (PR 1681) MERGEABLE WITH FIXES — everything load-bearing
+reproduced (the 54 terms, both proof counts by hand from the filter
+logs, byte-identical moved rows, no `#[path]` mount on the two new
+files, the census re-derived). One MAJOR on the batch-2 bar, one
+level over: a marker's own file is implicit but a sibling test-helper
+module is not, and three sets omit the helper their fixtures and
+tolerance come from (`profile/tests/common/` for two, `editor-core/
+tests/fixture/` for one) — a PR editing that helper would skip the
+suites that depend on it; the class swept across all 54 markers, and
+a mechanical guard (marker set vs the suite's own helper imports)
+filed as a candidate. `curves/boxes.rs` omits `linalg/` where its bvh
+siblings name it. Minors: an orphaned doc paragraph from the split, a
+stale fuzz label, a title contradicting its body, and §0's wrong
+diagnosis of the red housekeeping job (it is the budget denial).
+TCOST-B3 (PR 1684) MERGEABLE WITH FIXES — the mechanism proved from
+the tree, the YAML coupling verified character-identical, the parity
+selftest's seven plants confirmed; two arithmetic lines (a rate whose
+denominator does not close; commits vs pushes), `runs-on` added to
+the parity check, the never-executed primer and the cancel-in-
+progress interaction stated. Landing ruling: on a re-gate of the head
+when runners return, not before. Both fix passes dispatched locally.
+## Unit: TCOST-K1 fix pass landed (2026-09-03)
+
+The union of both reviews of PR 1652 (frozen 554f2b0f) applied on the
+branch: the budget exit decides through the k-funnel under its own
+predicate (`props_quad_last_round`), asked once after round 0, on a
+definite negative only; `QuadratureBudget` carries the rounds it paid
+for, and the suite's rows are gated on that receipt on both lanes
+(four kernel mutants — exit never fires, exit refuses in-band, pad
+dropped, bound × 4 — each red on the rows that own them); one home
+for block assignment, cut count, hull selection and the remainder's
+cell factor; the bound's monotonicity written at the site; the stale
+"measured width" prose swept, the Display and its five matchers with
+it; the area pad filed as `tcost-area-pad-lever`. Refusal payloads
+bit-identical to the frozen head on the digest's probe subset.
+
+## Unit: TCOST-K1 merged (2026-09-03) — the program's first A/B row
+
+PR 1652 at `b28b734f` (interval 1e-12 with the dev-probe k-lint row
+asked, run 33766712819, every job green; the fix pass's default-lane
+run 33750172871 green at 1c78f3c9). Merged at 5e668ba6, recorded as
+ordinal 1400 / sample #117 in `docs/MODEL-AB-LOG.md`; block TCOST-KB1
+slot 0 concluded (record branch-side). The NURBS-patch lanes refuse at
+the budget without running the schedule: a lower bound on the last
+round's flux width, decided through the k-funnel under
+`props_quad_last_round` once after round 0; `QuadratureBudget` carries
+the rounds it paid. Hosted at 1e-12: default-lane shard totals
+219.7 + 300.1 → 135.0 + 127.6 cpu-s; the block-edge gap row 27 → 2.9.
+Every certified bound byte-identical across six lane×ε rows; no pin
+re-baselined. `docs/TCOST-K1-SPEC.md` deleted at merge per the
+DOC-LEDGER rule (the PR body and this entry are its record).
+
+## Unit: TCOST-B3 merged (2026-09-03)
+
+PR 1684 at `cf9392f4` (default 1e-6, run 33766730064, all green
+including the new `cache-prime` parity step). The build jobs'
+rust-cache lived in a scope no branch could read (main never saved
+one; 40 of 49 first build jobs missed; ≈45 billed minutes an hour on
+dependency rebuilds). Two primer jobs on `push: main` save under the
+shared keys the build jobs now restore, at ~7 billed minutes an hour;
+`scripts/check-cache-prime-parity.py` reds if the primer and build
+jobs' env, key or runner drift. OWED: the after-reading — the first
+PR run after the next push to main, `build + archive`'s restore line
+and archive duration against 820/840 s cold — and the first push to
+main pays one full dependency build per lane.
+
+## Unit: TCOST-9 merged (2026-09-03)
+
+PR 1681 at `b09a0b33` (default 1e-6, run 33766720238, all green).
+The second gating batch: the proptest population (8 whole suites, 2
+splits so pins stay ungated, cert5_r2_probes whole) plus TCOST-2's and
+TCOST-4's gate candidates — gated set 43 → 54 suites, 257 → 384 tests;
+both hosted proofs (54 skip notices on an unrelated diff; the named
+suite running on a touched path). The batch-4 MAJOR closed as a class:
+ten markers (three of this unit's, seven of TCOST-1's) now name the
+sibling test-helper module their fixtures come from. Left ungated with
+a filed question for Ev: 14 in-src proptest modules at 0.62 cpu-s
+total. Filed: the `#[path]`-mount blind spot in `ci-filter.py`'s
+src-module derivation; the marker-set-vs-imports guard. Evidence PRs
+1679/1680 closed unmerged.
+
+## Seam: the outage ended (2026-09-03, 14:24 UTC)
+
+Ev raised the spending limit; the three re-gate runs got runners
+within seconds and every one went green. Issue closed.
+
+## Seam: API overload after the K1 merge (2026-09-03, 14:47–15:22 UTC)
+
+The K2 and K3 implementer lanes (block TCOST-KB1 slots 1 and 2) each
+died three times on server-side 529 overloads before doing any work;
+resumed after a 10-minute backoff at 15:22. They stay on the block's
+drawn arm. The census re-run, which is read-only aggregation of run
+logs and no unit's work, was moved to a different model to get the
+readout; its report lands under `~/tcost-work/timing-history/`.
+Interim reading from it: the suite's cost distribution is much
+flatter (the old 42.6 cpu-s head row is gone; no shard's top row now
+exceeds ~11 % of its shard); K1's interval total at 1e-12 is ~355 cpu-s
+against the 535 baseline (tier differs); the build critical path is
+unchanged inside its own ±25 % noise; most of today's runs were
+tier=all because they touched the workflow, which makes the per-file
+gate a no-op in that sample; the nightly has not yet run on a tree
+carrying C1–C3, and its 09:54 run's gated-suite re-take row failed at
+a pin-read step (being read); B3's first primer run on main was
+cancelled mid-save by the next push, as its own entry predicted.
+
+## Seam: the program's before/after readout (2026-09-03, post-K1)
+
+Re-taken from hosted runs only (`~/tcost-work/timing-history/
+REPORT-after.md`, every number labelled with its run id). What is
+clean: K1's own controlled pair at 1e-12 on the default lane,
+219.7 + 300.1 → 135.0 + 127.6 cpu-s (−48 %); the head of the
+distribution is flat — the 2026-09-02 top row (42.6 cpu-s) is gone,
+the largest row on a comparable run is 9.8 cpu-s, and no row exceeds
+~5 % of a shard. What is indicative: tier=all runs at ε 1e-6 read
+333–337 cpu-s per default-lane run against the 459 baseline (~−27 %,
+but 1e-6 was already the cheap row); the cleanest like-for-like at
+1e-12 (447) shows only a small drop; K1's interval run at 1e-12 reads
+356 against 535 (−33 %, tier=closure). What is noise: the build
+critical path (631–793 s default, 647–685 s interval at tier=all) sits
+inside B1's own ±25 % envelope; a one-pair billed-minutes comparison
+was swamped by the k-lint draw and the render-lane scene, so the
+CI-posture saving of record stays CI-MINUTES' own matched pairs,
+−5 billed minutes per code-tier PR run. Two structural facts the
+readout surfaces: (1) a diff touching `ci.yml` forces tier=all, which
+makes the per-file gate a no-op — 4 of 6 default and 5 of 6 interval
+runs sampled were such runs, so the gate's steady-state saving is not
+in this sample (TCOST-9's closure-tier run skipped 33 suites; TCOST-8's
+41); (2) the nightly has not run on a tree carrying C1–C3 or
+TCOST-9, and its last run (09:54, pre-TCOST tree but carrying
+TCOST-1's row) FAILED the gated-suite re-take at "read the nextest
+pin from ci.yml" before any suite ran — the pin-reading idiom the C3
+lane filed as `nightly-pin-reading-idiom-four-copies` biting first on
+TCOST-1's own row; a fix is owed before tomorrow's nightly. B3's
+primer: the first push to main after it was cancelled mid-save by the
+next push (predicted); its restore-hit reading is still owed.
+
+## Seam: the nightly row fixed; the primer primed (2026-09-03, 15:47 UTC)
+
+PR 1693 merged at c5263958: the gated-suite re-take's "read the
+nextest pin" step had unbalanced quotes (one of five copies of the
+pin-reading idiom — the instance C3's filed issue predicted) and had
+never run; all five copies now execute locally against ci.yml. Tonight's
+nightly is the first that can execute TCOST-1's and TCOST-9's re-take
+and C1–C3's three new jobs. B3's primer (census agent's audit of the
+six pushes to main after 14:45): the first two pushes were cancelled
+before or during the save; the 14:56 push completed a real save on the
+default lane (762 s) and the interval save's steps succeeded under a
+job-level cancel; the 15:11 push RESTORED on both lanes (its dependency
+build skipped) — the mechanism works; the owed reading is the first
+PR-context `build + archive` restore under the new keys.
+
+## Seam: main's inherited red on the board; the K2 dual dispatched (2026-09-03, 18:40 UTC)
+
+`main` has been red at the code tier since the M10 measure tags landed
+ahead of the gate that pins them: `pncad-py`'s `TAG_INVENTORY` misses
+`measure_clearance_refused` and `measure_selection_kind`, and nobody
+saw it because `main`'s own push runs are docs-tier. The K2 lane found
+it on the merge of `main` into its branch and filed it rather than
+repairing it (the repair is a public-Python-surface call — M10's);
+the issue file was cherry-picked onto `main` as PR 1705 (merged
+601977d1) so it is on the board before either kernel lane merges.
+Every K2/K3 run that carries `main` past that point shows ONE red row
+on the `2/2` shard of both lanes; that row is this inherited red and
+is annotated as such at merge, not chased.
+
+TCOST-K2 reported (PR 1697, final head `efeb59f22`): L1 landed in
+`geom-core::compose` (the Bernstein weight table memoized per degree
+pair, one product row reused per cell block, elevation hoisted the
+same way); digest md5-identical on six lane×ε rows; `offset_fit::`
+−29.7 % normalised on both lanes, `geom-brep` whole-crate −8.7 %; L3
+NOT landed — the census reproduced but `measure` reads its poison
+verdict off `X`, so deferring `X` moves which value decides a
+refusal; filed as `offset-composite-lazy-sign-gate`. The lane raised
+the stop clause's ambiguity ("the crate suite" vs the suite the spec
+measured L1 on) rather than reading it its own way. Rulings at the
+claim: the bar reads against the `offset_fit::` suite; L3's argument
+is a finding either way; the inherited red is verified, not
+re-opened. Ordinal 1401 claimed on `main` (PR 1706 from
+`tcost/k2-claim`); byte 128 parity 0 ⇒ R1 OPUS, R2 FABLE; briefs
+hashed and stored under `/home/user/tcost-work/ab/`; both reviewers
+dispatched concurrently on the frozen head with PRIVATE target dirs
+(R1's is the finished implementer lane's, moved; R2's fresh).
+
+## Seam: TCOST-K3 reported; its dual dispatched (2026-09-03, 18:50 UTC)
+
+TCOST-K3 reported (PR 1703, final head `d5cb0f5b1`): spec option 3
+on both doors — `validate_geometric_certificate[_declared]` and
+`validate_pseudomanifold_certificate` return the `MassProperties`
+the gate decided on, the old doors are `.map(|_| ())`, `PlusVCheck`
+yields the derivation and the battery applies `plus_v_invariant`
+itself, `StepImport::Solid` carries the aggregate gate's enclosure.
+Phase 1 confirmed the spec's correction at the instrument (the pair
+sits behind the tier-3′ door on single-solid imports), the pairs
+bit-identical in all four fields; digest md5-identical on the
+certified subset at six lane×ε points; no pin moved. Two facts the
+spec did not have: dm1-id-214 pays ONE certificate (multi-instance;
+the per-solid gate refuses first) and the saving is largest at
+ε = 1e-9 (−½/−⅓/−¼ on the three rows) and flat at 1e-12, because K1
+already refuses those schedules after round 0. Disclosed against the
+program's own arithmetic: the unit's suite costs ≈9.6 cpu-s at 1e-12
+across the two shards where the unit saves nothing there. The PR
+body's Hosted CI section is unfilled at the frozen head (owed by the
+fix pass). Ordinal 1402 claimed on `main` (PR 1707 from
+`tcost/k3-claim`); byte 124 parity 0 ⇒ R1 OPUS, R2 FABLE; briefs
+hashed and stored; both reviewers dispatched concurrently on the
+frozen head with PRIVATE target dirs, alongside K2's dual on the
+same box (four review lanes, one heavy cargo at a time). Rulings at
+the claim: the 1e-12 acceptance line is falsified by measurement and
+the unit proceeds; the suite's own cost is in scope for findings,
+the per-file gate included; the inherited red is verified, not
+re-opened, and the branch's duplicate issue file for it is dropped
+at the fix pass.
+
+## Seam: the K2 dual concluded; the fix pass dispatched (2026-09-03, 19:15 UTC)
+
+Both K2 reviewers reported within 40 minutes of each other. R1
+MERGEABLE-AFTER-FIXES (0 MAJ / 2 MIN), R2 MERGEABLE (0 MAJ / 2 MIN);
+verdicts diverge in letter and converge in substance. Both re-derived
+the identity argument and then MEASURED it with an independent bitwise
+probe over every `bern_mul_row` consumer — `ch_mul`, the tensor
+composites, elevation, asymmetric patch products, past-cap degrees —
+and both found base and head md5-identical; neither could construct
+a differing pair; both reproduced every hosted number from the raw
+job logs. The one finding both hold: the patch-level key-order
+mutants (tables swapped, `lo` from the wrong degree, the u-weight read
+from the v-table) survive every `geom-core` row and die only in
+`geom-brep`'s `offset_fit` rows — the unit's own patch row uses a
+symmetric (2,2)×(2,2) fixture and compares the head against itself,
+and the weight table is a bare slice whose pair is a convention
+nothing enforces (a swapped table has the same row widths). Unilateral
+R1: two misquoted numbers in the body (the added rows' cost quoted
+from the shard that did not run them; the crate-suite figure raw
+where the headline is normalised — −6.7 % under the PR's own
+normalisation). Unilateral R2: the L3 obligation is one sentence, not
+a soundness argument; the follow-up should be sized so. v6 item-3
+unilateral instrument: no candidate. Union of 7 items dispatched to a
+fresh fix lane on the implementer's arm (asymmetric guard rows against
+the old loop spelled inline, a typed table carrying its pair with one
+home for `lo(k)`, docs at the site, the oracle as the old loop,
+`elevate_block` hoisted, the two numbers, the L3 file resized); three
+declined with reason (`Cow`/names, `binom_row`'s clones for non-memo
+callers, committing the instruments). Correspondence and both reports
+under `/home/user/tcost-work/ab/`.
+
+## Seam: the K3 dual concluded; the fix pass dispatched (2026-09-03, 19:35 UTC)
+
+Both K3 reviewers MERGEABLE-AFTER-FIXES, 2 MAJ each, converging: the
+kernel change is sound (both traced every path, both killed the same
+mutants, both found the `unreachable!` input-unreachable) and the
+unit's EVIDENCE is not — every hosted run on the branch was at
+ε = 1e-12, the ε where K1 already removed the cost, so the headline
+−½/−⅓/−¼ is local-only and the acceptance's hosted before/after row
+is unmet; at that ε the new suite costs ≈9.6 cpu-s per lane (the #1
+and #2 slowest tests of their shards) against nothing saved, ungated
+though its subject persists. One MAJOR was UNILATERAL: R2 showed by
+mutation that the suite is vacuous at 1e-12 — the certifying fixture
+refuses after round 0 there, the identity row takes its `Err` arm and
+compares nothing, and three kernel mutants live at 1e-12 that die at
+1e-9. That is a v6 item-3 unilateral-instrument candidate (test-gap,
+demonstrated); adjudication is recorded at merge, blinded here. R2
+also showed the import path's "one certificate" has no guard (a
+`gate3` that recomputes leaves every row green). R1 identified the
+digest's "noise floor" as a likely ungated fuzzer (`R1_SEED` from
+`SystemTime`, unpinned by `CAD_FUZZ_SEED`) and the identity as held
+by convention at the non-f64 scalars. R1 corrected the dispatch: the
+suite's 1e-12 cost was in the implementer's report to the
+orchestrator, not the PR body, so it is undisclosed on the PR. Union
+of 10 items to a fresh fix lane on the implementer's arm: the suite
+certifying at every ε with its arm asserted, `gated_to!` plus a
+cheaper fixture, hosted evidence at 1e-9 on both lanes with a
+post-K1 merge-base probe (the plan's 2026-09-02 runs are PRE-K1 and
+are not K3's before), an import-path certificate count, the planted
+row's assertions made real, the digest's blind spots named and the
+fuzzer filed, the identity pinned across scalars, the needle's
+coverage stated, docs and one home, three files (two filings, one
+duplicate dropped). Program-level lesson, recorded: a kernel unit in
+a TEST-COST program has to price its own suite at every ε in the
+draw, and the orchestrator's brief should have asked for a hosted
+run at the ε where the saving lives.
+
+## Seam: B3's owed after-reading, taken (2026-09-03, 19:35 UTC)
+
+The first PR-context `build + archive` restore under B3's shared keys:
+run 33791378275 (K3's `lane=both` head, 18:36 UTC), both lanes —
+`Cache hit for: v0-rust-build-default-Linux-x64-fa41882e-fd5fb1c1`
+and its interval twin, `full match: true`, restore 14 s / 12 s;
+`build test binaries + archive` 271 s (default) / 325 s (interval)
+against the 820 / 840 s cold figure B3 recorded — the build critical
+path −67 % / −61 % on a branch's first build job, which is the case
+F4's premise was false for. The parity step is green on the same run.
+B3's after-reading is closed; the primer's ~7 billed minutes an hour
+buy this on every PR run after a push to main.
+
+## Unit: TCOST-K2 merged (2026-09-03) — the program's second A/B row
+
+PR 1697 at `6108d6f82` (`lane=both eps=1e-12` asked, run 33796624357:
+eighteen jobs green on both lanes; the two `2/2` shards red on the
+inherited `pncad-py` inventory row only, annotated on the PR). Merged
+at 87d33648c, recorded as ordinal 1401 / sample #119 in
+`docs/MODEL-AB-LOG.md`; block TCOST-KB1 slot 1 concluded (record
+branch-side on `tcost/kb1-block`). The Bernstein product's structural
+weight is built once per degree pair and memoized; every coefficient,
+hull and certificate bit-identical (both reviewers measured it
+independently over every consumer); `offset_fit::` −29.7 % / −29.9 %
+normalised on the two lanes, `geom-brep` −8.7 % raw / −6.7 %
+normalised. The fix pass added the asymmetric-bidegree guard rows the
+dual asked for and a typed weight table that makes a swapped key a
+debug panic instead of a wrong bound. `docs/TCOST-K2-SPEC.md` deleted
+at merge per the DOC-LEDGER rule (ledgered this time, with K1's).
+Remaining in the block: TCOST-K3 (slot 2), fix pass in flight.
+
+## Unit: TCOST-K3 merged (2026-09-03) — the program's third A/B row; block TCOST-KB1 concluded
+
+PR 1703 at `497b1b48e` (two gating runs on the final tree, both
+`lane=both` asked: 33802978677 at ε default and 33803928081 at 1e-12,
+twenty jobs green on both lanes at each point; the two `2/2` shards
+red on the inherited `pncad-py` inventory row only, annotated on the
+PR; the merge-base probe PR 1709 showed the same shape on the base
+tree and was closed unmerged). Merged at 6381ebdd9, recorded as
+ordinal 1402 / sample #120; block TCOST-KB1 concluded — its
+branch-side record (pre-draw fields, the byte-126 draw, the three
+slot conclusions) merged into `docs/MODEL-AB-LOG.md` with this entry.
+The tier-3 doors return the certificate they computed; the fix pass
+turned the dual's two MAJORs into hosted numbers: the adopted rows
+give back −13.4 / −6.7 cpu-s (default / interval lane) at the default
+ε and nothing at 1e-12 (K1 already took it), against a suite now
+gated to the five paths it is specific to and costing 6.0 / 6.9 cpu-s
+where it runs. The v6 unilateral-instrument candidate (R2's "vacuous
+at 1e-12", demonstrated by mutation) was TALLIED for R2 at merge: the
+fix pass reproduced the gap from its own side. One instrument lesson
+came out of the digest re-take — the shared append log tears lines
+under concurrent writers, so a body measured once can vanish from a
+`sort -u` roster; the "closed-form noise" was that, not a fuzzer —
+and one filing on the rule alone (`R1_SEED` from `SystemTime`,
+unpinned by `CAD_FUZZ_SEED`). `docs/TCOST-K3-SPEC.md` deleted at
+merge and ledgered.
+
+## Seam: after the block — two content units and a census (2026-09-03, 21:20 UTC)
+
+With TCOST-KB1 concluded (three kernel units, three A/B rows), the
+board's open items are two kernel candidates (`offset-composite-lazy-
+sign-gate`, `tcost-area-pad-lever` — each a spec and a new block if
+taken), one kernel finding filed by K3's fix pass (`edge-nurbs-
+computes-the-chart-image-and-discards-it`), two test-only dedups and
+the parked shard-count question. Dispatched now: TCOST-10 (the blend
+suite's fixture builders and volume oracles homed in
+`sweep/tests/common/`) and TCOST-11 (the one-declaration guard's
+fourteen copies homed in `test_utils`, pncad decided) as content
+units on the style-batch track; and a read-only shard-count census
+over the post-K3 hosted runs (fixed cost per leg, imbalance, the
+longest test, N = 2/3/4 modelled), which is the measurement the
+program's keep_out asks for before any sharding knob moves.
+
+## Seam: the shard-count question answered (2026-09-03, 21:30 UTC)
+
+The parked `nextest-shard-count-needs-remeasure` item (issue 461 of
+2026-08-13, "blocked on the test-speedup work") is closed on the
+post-K3 census: test legs are 34–74 s wall (were 250–430 s), the fixed
+cost per leg is unchanged at ~15.6 s and is now a quarter to a half of
+a leg, the 296 s floor is a 30 s floor, and the shard imbalance the
+old audit found structural is now noise around 1.15×. Stay at N=2:
+every added shard costs a billed minute for a 20–45 % wall cut on legs
+already under a minute; the interval rows' boundary case (~1 billed
+minute per row, modelled) is not worth a measured PR. One finding for
+the CI-minutes arithmetic: saturation reads ~3.9× on every leg, so the
+runner presents ~4 vCPUs now, not the 2 the 2026-08 figures assumed.
+
+## Seam: TCOST-10 reported; style batch 5 dispatched (2026-09-03, 21:45 UTC)
+
+TCOST-10 (PR 1715, head `4da8f030`, interval 1e-6 asked, run
+33809383460 green but the inherited row): the blend suite's builders
+and the two oracle families homed in `sweep/tests/common/`
+(`cavity.rs`, `oracles.rs`), builders retired in six suites and
+oracle spellings at seven sites; `nextest list` byte-identical at
+both feature sets; no execution win claimed (constructors). The lane
+applied a narrower rule than the candidate asked for — "a spelling
+that could not disagree comes home; one that could stays and says
+so" — and kept the die/surgery Steiner spelling in five files because
+its association differs at the bit level; reviewer suites gave up
+their BUILDERS on the argument that the audit, not the constructor,
+is their independence. Both calls go to the batch review as
+questions. Filed: the same brick/prism shape outside the blend family
+(`sweep-boolean-suite-brick-and-prism-copies`). Style batch 5
+dispatched on TCOST-10 now; TCOST-11 joins by message when it reports.
+
+## Seam: batch 5 on TCOST-10; TCOST-11 reported (2026-09-03, 22:05 UTC)
+
+Batch 5 read TCOST-10 MERGEABLE WITH FIXES: nothing moved (the
+reviewer re-took the test-name multiset itself, 1100 = 1100, and
+checked the seven retired oracle spellings token by token), but the
+reason written at seven die/surgery copy sites — "different
+association, so not the same f64" — is false at the constants those
+rows use (bit-identical at all but one, and that one 8.9e-16 against a
+1e-9·volume tolerance); two headers went stale; a constants sweep
+found four copies of the homed forms outside `sweep` that the lane's
+name-based census could not see; and the rule's "could disagree"
+discriminator is never exercised (a = b = c has measure zero; θ = π/2
+is never visited). Ten fixes sent to the lane, including the two
+agreement rows that turn the rule into a gate. The reviewer also
+found the two test-support trees holding opposite rules for the same
+class — `geom-brep/tests/shared` refuses reviewer-pair rebuilds "even
+when the text is identical", `sweep/tests/common` absorbs them on the
+argument that blend fixtures are bodies under audit, not derivations
+— a reading of a ratified memory that goes to Ev (`needs_ev`), filed
+by the lane with its fixes. TCOST-11 reported (PR 1716): the guard's
+fourteen copies are one `test_utils::source::aggregation_violations`
+call each (−807 lines of test source), a selftest plants four
+violations, `pncad` gets no guard for a stated reason and a new `bvh`
+row that reds if any non-aggregating crate's `tests/` grows a second
+file; binary size at CI's profile +0.02 % (neutral, as the unit
+says), the dev-profile +2.1 MB recorded and explicitly not quoted.
+Joined to batch 5 by message.
+
+## Unit: TCOST-10 merged (2026-09-03)
+
+PR 1715 at `ab47d903c` (interval lane asked, ε default drawn, run
+33812074765, every job green but the inherited row). The blend
+suite's cavity/cube builders and the two closed-form volume oracle
+families have one home in `sweep/tests/common/`; builders retired in
+six suites, oracle spellings at seven sites; `nextest list`
+byte-identical at both feature sets; no execution win claimed. Batch
+5's fixes landed: the false "not the same f64" reason at seven copy
+sites retracted with the measurement (bit-identical at all but one
+constant, 1 ulp at that one against 1e-9·volume) and the copies kept
+as conservatism; the two agreement rows that make the "could
+disagree" rule a gate (a planted 1e-7 perturbation of each home form
+reds exactly those two rows); a distinctive marker (``NOT `common::``)
+at every kept copy so the disclosure list is grep-comparable (14 = 14);
+the four out-of-crate copies named and filed as
+`chamfered-cube-and-steiner-oracles-outside-sweep` (a CONSTANTS
+sweep, not names); the home's header states it takes the opposite
+line from `geom-brep/tests/shared` on reviewer-pair rebuilds, and the
+policy question is on the board for Ev
+(`reviewer-pair-rebuilds-two-trees-two-rules`, `needs_ev`).
+
+## Seam: batch 5 on TCOST-11 (2026-09-03, 22:40 UTC)
+
+MERGEABLE WITH FIXES. The reviewer re-derived rather than read: the
+fourteen merge-base guard bodies hash identical (so "nothing
+crate-specific was lost" is true because there was nothing to lose),
+the RULE paragraph is untouched, the source-reader census's predicate
+recomputed on all fourteen heads, the new `bvh` row's population
+enumerated across the tree ({pncad}, and `test-utils` confirmed a
+non-hazard), and TCOST-10's merge proved non-conflicting by
+`merge-tree`. Findings, all cheap: the new row passes green if
+`pncad`'s aggregator is renamed or moved (it keys on a readable
+`all.rs`, not on `autotests = false`); the census's detection margin
+fell from two tells to one and nobody is told; fourteen byte-identical
+guard doc paragraphs arrived with the unit that kills fourteen
+byte-identical guard bodies; the quoted binary-size figure is a local
+build unlabelled; check 2's message lost `assert_eq!`'s left/right
+lines and the body calls it unchanged. Six fixes sent to the lane.
+
+## Unit: TCOST-11 merged (2026-09-03)
+
+PR 1716 at `52ab13d1d` (default lane, ε 1e-6 drawn, run 33814096354;
+earlier heads on the interval lane at 1e-6 and 1e-12; every job green
+but the inherited row on each). The one-declaration guard's fourteen
+byte-identical bodies are one `test_utils::source::aggregation_violations`
+call each (−891 lines across the fourteen `all.rs`, +204 in the
+library compiled once), with a selftest that plants four violations
+and reports every one rather than the first; `pncad` gets no guard
+for a stated reason and a `bvh` row keyed on `autotests = false` that
+reds if a non-aggregating crate's `tests/` grows a second file — the
+review's receipt showed the first spelling of that row passing green
+over a renamed aggregator, and the fix closed it. Batch 5's other
+fixes landed: the census's detection margin (now one tell per
+`all.rs`) stated at the helper, the fourteen doc paragraphs cut to
+pointers, the size figure labelled LOCAL. Binary size at CI's profile
++0.02 %: the unit buys one home, not bytes, and says so.
+
+## Readout: the 2026-09-03 stretch (22:55 UTC)
+
+What landed today on top of the post-K1 readout (15:47): the two
+remaining kernel units of block TCOST-KB1 and two content units, all
+through their reviews, plus the shard-count question closed on a
+census.
+
+- **TCOST-K2** (ordinal 1401, sample #119): the Bernstein product's
+  structural weight memoized per degree pair — `offset_fit::`
+  −29.7 % / −29.9 % normalised on the two lanes, every coefficient and
+  certificate bit-identical (both reviewers measured it independently
+  over every consumer). The dual found the suite's patch-level blind
+  spot; the fix pass closed it with asymmetric guard rows and a typed
+  table.
+- **TCOST-K3** (ordinal 1402, sample #120): the tier-3 doors return
+  the certificate they computed — the three adopted rows give back
+  −13.4 / −6.7 cpu-s (default / interval lane) at the default ε and
+  nothing at 1e-12 (K1 already took it). The dual found the unit's
+  evidence lane wanting (no hosted run at the ε where the saving
+  lives; a suite that was vacuous at 1e-12 and cost 9.6 cpu-s there);
+  the fix pass bought the evidence hosted at both ε on both lanes with
+  a post-K1 merge-base probe and gated a cheaper suite. The
+  unilateral-instrument candidate was tallied for R2 at merge.
+- **TCOST-10 / TCOST-11**: one home each for the blend suite's
+  fixtures and oracles and for the aggregation guard (−891 lines of
+  test source); no execution win claimed by either, none expected.
+- **Shard count**: stay at N=2; legs are under a minute; the runner
+  presents ~4 vCPUs now.
+
+Where the suite stands (hosted, code-tier, both lanes, the runs of
+record 33803928081 / 33802978677): test legs 46–74 s wall against the
+program's opening picture of 250–430 s; the longest test 30 s at the
+default ε (was 296 s); the per-file gate skipping 33–54 suites on
+closure-tier diffs; the build's rust-cache restore a full-match hit on
+every PR run after a push to main (271 / 325 s against 820 / 840 s
+cold); −5 billed minutes per code-tier run from the CI-posture units.
+`main` is red at the code tier on one `pncad-py` row (M10's; on the
+board), which every PR of the day carried as an inherited red on its
+`2/2` shards.
+
+Open on the board: two kernel candidates that would each need a spec
+and a new A/B block (`offset-composite-lazy-sign-gate`, ~15 % of the
+recentring call in the all-or-nothing case, bounded by the mixed
+rounds; `tcost-area-pad-lever`, the area pass a refused patch face
+still pays), one kernel finding (`edge-nurbs-computes-the-chart-
+image-and-discards-it`), two test-only dedups (`sweep-boolean-suite-
+brick-and-prism-copies`, `chamfered-cube-and-steiner-oracles-outside-
+sweep`), two parked items, and one question for Ev
+(`reviewer-pair-rebuilds-two-trees-two-rules`: `geom-brep/tests/shared`
+refuses reviewer-pair rebuilds even when identical; `sweep/tests/common`
+absorbs them on the argument that blend fixtures are bodies under
+audit — one reading should win and be written into the memory).
+Recommendation: the two test-only dedups are cheap and can go as one
+content unit; the kernel candidates are worth a second block only if
+Ev wants the A/B sample to grow — the suite's seconds are no longer
+where they were, and the next lever on the real program's cost (the
+area pass) is a kernel question more than a test-cost one.
+
+## Seam: Ev's ruling on reviewer-pair rebuilds (2026-09-04)
+
+Neither tree's rule survives. The policy memory was overstated — Ev
+had thought it revised to "reviewer tests are ordinary tests" and the
+revision had never reached the in-repo copy — so the memory is
+rewritten to that, geom-brep's "must never absorb even when identical"
+bullet is now the reason-at-the-copy rule (a claim that needs its own
+derivation keeps it; authorship is not a reason), and sweep's
+"opposite line" paragraph is the ruling. The orchestrator's own
+"fixture drift" argument for a compensating row was retracted as a
+nuisance change detector: the unit suites' pinned volumes and oracles
+already red on a changed body. Issue closed; nothing else moves.

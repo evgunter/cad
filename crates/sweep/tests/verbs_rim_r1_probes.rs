@@ -38,8 +38,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+test_utils::gated_to![
+    "crates/sweep/src/blend/",
+    "crates/sweep/src/revolve/",
+    "crates/sweep/src/extrude.rs",
+    "crates/sweep/src/test_support.rs",
+    "crates/geom-core/src/predicate.rs",
+];
+
+use crate::common::approx::band;
 use geom::Surface;
-use geom_core::{Band, Point2, Tol};
+use geom_core::{Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::battery::{BlendRequest, run_battery};
@@ -51,10 +60,6 @@ use topo::{Body, EdgeKey};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {

@@ -118,7 +118,7 @@ the row that now owns each claim.
 ## Levers and their units (fixed after the censuses; live list in the log)
 
 - **TCOST-1 — the per-file gate** (charter lever 3; mechanism spec at
-  `docs/TCOST-1-SPEC.md`). An in-file marker names the source paths a
+  `work/tcost/TCOST-1.md`). An in-file marker names the source paths a
   suite covers; `scripts/ci-filter.py` reads the markers and the diff
   and emits a nextest filterset that skips a gated suite whose named
   paths and own file are untouched; both CI halves consume it; it

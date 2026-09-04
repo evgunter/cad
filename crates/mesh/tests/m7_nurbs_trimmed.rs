@@ -27,7 +27,7 @@ use sweep::loft_body;
 use sweep::test_support::{ELBOW_H, ELBOW_R, swept_elbow};
 use topo::Body;
 
-mod common;
+use crate::common;
 use common::quad;
 use geom_core::Tol;
 

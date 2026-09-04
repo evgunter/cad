@@ -19,9 +19,12 @@
 //! 1. **every predicate was definite** — no `k_stats` escalation, no
 //!    guided typed abort, no node that failed for a reason this driver
 //!    cannot prove definite; and
-//! 2. **the leaf's verdict vector equals the witness build's, EXACTLY**
-//!    — same nodes, same outcomes, same predicates, same signs, in
-//!    order.
+//! 2. **the leaf's CERTIFYING verdict vector equals the witness
+//!    build's, EXACTLY** — same nodes, same outcomes, same predicates,
+//!    same signs, in order. "Certifying" is one exclusion and it is
+//!    named at [`VerdictVector::certifying`]: an `Assertion` node
+//!    reports and gates nothing (E10 v1), and certification is a gate,
+//!    so its rows are not in the comparison.
 //!
 //! Clause 2 is an equality of [`geom_core::k_stats::Verdict`] rows,
 //! which are float-free and scalar-independent by construction: the
@@ -79,7 +82,7 @@ use crate::eval::{
     CancelToken, ContentKey, EvalOptions, Evaluation, KeyHasher, NodeErrorKind, NodeResult,
     ProfileLift, evaluate,
 };
-use crate::node::RecipeNodeId;
+use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
 use crate::resolve::{FlipSet, diff_verdicts};
 use crate::witness::WitnessBifurcation;
@@ -278,6 +281,44 @@ impl VerdictVector {
         Self { rows }
     }
 
+    /// **The CERTIFYING vector**: [`Self::of`] with the rows of nodes
+    /// that only report left out.
+    ///
+    /// One node kind qualifies and it is [`Node::Assertion`], whose own
+    /// contract is that nothing downstream reads its verdict — "no gate
+    /// consults it" (E10 v1: assertions report; a gating mode is
+    /// additive policy nobody has ratified). Certification IS a gate,
+    /// and it was consulting it.
+    ///
+    /// **What that cost, measured on the case this unit needed.** An
+    /// assertion decides `measured − bound` at the `assert_bound`
+    /// funnel site. At the f64 witness that comparand is a number and
+    /// the site records a definite verdict; over a leaf it is an
+    /// enclosure, and an enclosure STRADDLING the bound records nothing
+    /// (the verdict is `Unevaluated`, which is exactly E10's third
+    /// state doing its job). The two rows then differ, so the leaf was
+    /// refused `FlipCrossing` and priced as refused mass — a report
+    /// node reported as a change of SHAPE, on the very documents E10
+    /// exists for: a bound near the measured value is the ordinary
+    /// case, not a pathological one. The `min_clearance` measure this
+    /// unit adds makes it unconditional rather than occasional, because
+    /// its value exists only at the interval scalar
+    /// ([`crate::measure::MeasurePrimitive::MinClearance`]), so its
+    /// assertion is `Unevaluated` at EVERY f64 witness.
+    ///
+    /// **What is NOT dropped**: the measure node itself. A measurement
+    /// can escalate a parallelism predicate or fail to be taken at all,
+    /// and a leaf where the measurement could not be taken is not the
+    /// witness build — that difference is a real one and stays in the
+    /// comparison.
+    pub fn certifying<T: geom_core::Decide, P>(doc: &Doc<P>, ev: &Evaluation<T>) -> Self {
+        let mut vector = Self::of(ev);
+        vector
+            .rows
+            .retain(|row| !matches!(doc.node(row.node), Some(Node::Assertion { .. })));
+        vector
+    }
+
     /// The vector's content key — the `verdict_vector_key` a certified
     /// leaf carries. Derived, never persisted (E10).
     pub fn key(&self) -> VerdictVectorKey {
@@ -415,6 +456,26 @@ pub enum RefusalReason {
     /// partial answer, and never a leaf quietly dropped from the
     /// receipt.
     Budget(BudgetKind),
+    /// **A measure could not be taken, for a reason the BOX cannot
+    /// change** (M10-6, R1's MINOR-6): a selection that names the wrong
+    /// kind of entity, a pairing the wedge rule empties, a carrier the
+    /// engine does not support.
+    ///
+    /// These are facts about the DOCUMENT, not about the parameter
+    /// values, so every sub-box inherits them exactly. Before this
+    /// class they fell to the catch-all `Bisect` and the driver split
+    /// its way through the whole leaf budget re-deriving the same
+    /// refusal — a measured >60 s on a `NoAdmittedPair` fixture — and
+    /// then priced the mass as `Budget`, which named the symptom
+    /// instead of the cause. Refusing terminally is both faster and
+    /// truer: the mass is refused under its own class, and the class
+    /// carries the engine's own name for the refusal.
+    MeasureRefused {
+        /// The measure node that could not be taken.
+        node: RecipeNodeId,
+        /// The engine's or the wiring's own class name for it.
+        class: &'static str,
+    },
 }
 
 impl RefusalReason {
@@ -426,6 +487,7 @@ impl RefusalReason {
             Self::Bifurcation(_) => ReasonClass::Bifurcation,
             Self::Infeasible => ReasonClass::Infeasible,
             Self::Budget(_) => ReasonClass::Budget,
+            Self::MeasureRefused { .. } => ReasonClass::MeasureRefused,
         }
     }
 }
@@ -465,6 +527,8 @@ pub enum ReasonClass {
     Infeasible,
     /// [`RefusalReason::Budget`].
     Budget,
+    /// [`RefusalReason::MeasureRefused`].
+    MeasureRefused,
 }
 
 impl ReasonClass {
@@ -476,6 +540,7 @@ impl ReasonClass {
             Self::Bifurcation => "bifurcation",
             Self::Infeasible => "infeasible",
             Self::Budget => "budget",
+            Self::MeasureRefused => "measure_refused",
         }
     }
 }
@@ -571,8 +636,13 @@ impl ParamBoxVerdict {
         self.receipt
     }
 
-    /// The witness build's verdict vector — the thing every certified
-    /// leaf's vector was compared against, shipped once.
+    /// The witness build's CERTIFYING verdict vector — the thing every
+    /// certified leaf's vector was compared against, shipped once.
+    ///
+    /// [`VerdictVector::certifying`]'s, not [`VerdictVector::of`]'s: it
+    /// carries no `Assertion` row, because a report node's verdict is
+    /// not part of what certification means. A consumer who wants the
+    /// whole vector of an evaluation takes `of` over that evaluation.
     pub fn witness_vector(&self) -> &VerdictVector {
         &self.witness_vector
     }
@@ -618,6 +688,44 @@ impl ParamBoxVerdict {
             );
         }
         let _ = write!(s, "{}", self.accounting.serialize());
+        s
+    }
+
+    /// **The human form** (M10-6 §2), beside the goldening one and
+    /// never instead of it: leaf counts as counts, masses as
+    /// percentages, the tail on its own line, and the
+    /// priced-or-forced basis stated rather than assumed.
+    ///
+    /// It takes the analyzed box because the BASIS is a property of
+    /// the box's distributions, not of the verdict: a drive over a
+    /// band-only box produces exactly the same masses as one over a
+    /// uniform box, and only the box knows that none of them is a
+    /// probability ([`crate::report::MassBasis`]).
+    pub fn render(&self, analyzed: &AnalyzedBox) -> String {
+        use core::fmt::Write as _;
+        let mut s = String::new();
+        let r = self.receipt;
+        let _ = writeln!(
+            s,
+            "drive over {} axis/axes: {} certified, {} refused ({} splits; receipt {})",
+            self.root.axes().len(),
+            r.certified,
+            r.refused,
+            r.splits,
+            if r.holds() { "holds" } else { "BROKEN" }
+        );
+        let mut classes: BTreeMap<&'static str, usize> = BTreeMap::new();
+        for leaf in &self.refused {
+            *classes.entry(leaf.reason.class().name()).or_default() += 1;
+        }
+        for (class, n) in &classes {
+            let _ = writeln!(s, "  {n} leaf/leaves refused {class}");
+        }
+        let _ = write!(
+            s,
+            "{}",
+            crate::report::MassBudget::of(&self.accounting, analyzed).render()
+        );
         s
     }
 
@@ -815,7 +923,7 @@ pub fn drive(
             .map_or_else(|| "not evaluated".to_owned(), |e| e.kind.to_string());
         return Err(DriveRefusal::WitnessDoesNotBuild { node, cause });
     }
-    let witness_vector = Arc::new(VerdictVector::of(&witness));
+    let witness_vector = Arc::new(VerdictVector::certifying(doc, &witness));
     let witness_key = witness_vector.key();
     // The witness EVALUATION stays alive for the whole drive, not just
     // long enough to take its vector: `diff_verdicts` names a leaf's
@@ -961,7 +1069,14 @@ pub fn drive(
 /// every structure decision is re-verified at the lane), sequential
 /// (leaf-level parallelism is the driver's, and nesting a rayon scope
 /// per leaf inside one buys nothing), and no memo.
-fn lane_opts() -> EvalOptions {
+///
+/// **Crate-visible because the clearance engine replays INSIDE a leaf**
+/// ([`crate::clearance`]) and must replay it the way this driver
+/// certified it. Two copies of these options are two lanes: a clearance
+/// query whose lift setting drifted from the driver's would be
+/// certifying a body other than the one the leaf's verdict vector is
+/// about.
+pub(crate) fn lane_opts() -> EvalOptions {
     // `EvalOptions::default()` already mints an epoch; minting a second
     // one to overwrite it burnt a process-global counter per leaf, and
     // a drive is tens of thousands of leaves. The epoch is a
@@ -1069,13 +1184,31 @@ fn classify(
                     });
                 }
             },
-            _ => return LeafVerdict::Bisect,
+            // **Box-independent measure refusals are TERMINAL**
+            // (M10-6, R1's MINOR-6). A selection naming the wrong kind
+            // of entity, or a pairing the wedge rule empties, is a
+            // fact about the document: every sub-box inherits it
+            // exactly, so refining re-derives the same refusal until
+            // the budget runs out and then prices the mass `Budget`,
+            // naming the symptom. The classes listed in
+            // `box_independent_measure_class` are the ones that
+            // provably cannot move under refinement; a clearance
+            // refusal that CAN (a cell budget, a poisoned enclosure,
+            // an unverified witness) still bisects, because for those
+            // a smaller box is exactly the remedy.
+            kind => {
+                if let Some(class) = box_independent_measure_class(kind) {
+                    return LeafVerdict::Refused(RefusalReason::MeasureRefused { node, class });
+                }
+                return LeafVerdict::Bisect;
+            }
         }
     }
 
-    // (ii) The comparison. EXACT, on the verdict vector — never a
-    // width.
-    let vector = VerdictVector::of(&leaf);
+    // (ii) The comparison. EXACT, on the CERTIFYING verdict vector —
+    // never a width, and never a report node
+    // ([`VerdictVector::certifying`]).
+    let vector = VerdictVector::certifying(doc, &leaf);
     if structure_flips.is_empty() && vector == *witness_vector {
         return LeafVerdict::Certified(CertifiedLeaf {
             box_: box_.clone(),
@@ -1090,11 +1223,32 @@ fn classify(
         });
     }
     // NAMED by the built-once engine, not by a second diff of our own
-    // (see `FlipEvidence`): the two evaluations go in, its `FlipSet`
-    // comes out unaltered.
+    // (see `FlipEvidence`): the two evaluations go in and its
+    // `FlipSet` comes out. What this module then does is DROP THE
+    // NODES the comparison above does not read.
+    //
+    // **Why the evidence has to be filtered the same way** (M10-6,
+    // both reviews). `certifying` retains no `Assertion` row, so an
+    // assertion's `assert_bound` flip cannot be why this leaf refused
+    // — the comparison never looked at it. Left in, the evidence names
+    // a predicate that did not cause the refusal, on exactly the
+    // documents E10 exists for: a `min_clearance` assertion is
+    // `Unevaluated` at every f64 witness and definite over a certified
+    // leaf, so it flips on EVERY leaf and would head the flip list of
+    // every unrelated refusal.
+    //
+    // It is a projection of the engine's answer onto the nodes the
+    // question is about, not a second diff: the engine still runs over
+    // the whole evaluation, its per-node deltas come back unaltered,
+    // and the filter is the SAME predicate `certifying` uses, spelled
+    // once here so the two cannot drift.
+    let mut verdicts = diff_verdicts(witness, &leaf);
+    verdicts
+        .nodes
+        .retain(|id, _| !matches!(doc.node(*id), Some(Node::Assertion { .. })));
     LeafVerdict::Refused(RefusalReason::FlipCrossing {
         flipped: Box::new(FlipEvidence {
-            verdicts: diff_verdicts(witness, &leaf),
+            verdicts,
             structure: structure_flips,
         }),
     })
@@ -1110,7 +1264,14 @@ fn classify(
 /// either way there is something narrowing could still resolve. Only an
 /// enclosure strictly between the two thresholds, on one side of zero,
 /// describes a quantity that IS in the band.
-fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
+/// **Crate-visible because the clearance engine's inner subdivision
+/// refuses by the same rule** ([`crate::clearance`]): a cell pair whose
+/// separation margin sits wholly inside the band is terminal for
+/// exactly this reason — interval enclosures shrink monotonically under
+/// subdivision, so a sub-cell's enclosure stays inside the band its
+/// parent's was inside. One home, so the two subdivisions cannot drift
+/// apart on what a sliver is.
+pub(crate) fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
     let MarginDiag::Enclosure { lo, hi } = source.margin else {
         // A point margin (an `f64` lane) or an invalid one says nothing
         // about a box.
@@ -1272,7 +1433,7 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, tol: Tol) {
 
 /// A box's goldening rendering: `name=[lo_bits,hi_bits]` per axis, in
 /// name order, floats as exact bits.
-fn render_box(b: &ParamBox) -> String {
+pub(crate) fn render_box(b: &ParamBox) -> String {
     use core::fmt::Write as _;
     let mut s = String::new();
     for (name, axis) in b.axes() {
@@ -1295,6 +1456,9 @@ fn render_reason(r: &RefusalReason) -> String {
     use core::fmt::Write as _;
     match r {
         RefusalReason::SliverTerminal { predicate } => format!("sliver_terminal {predicate}"),
+        RefusalReason::MeasureRefused { node, class } => {
+            format!("measure_refused {} {class}", node.0)
+        }
         RefusalReason::FlipCrossing { flipped } => {
             let mut s = String::from("flip_crossing");
             // Deterministic by construction: `FlipSet` is a `BTreeMap`
@@ -1352,5 +1516,80 @@ fn render_mass(m: &Result<f64, MeasureUnavailable>) -> String {
         Err(MeasureUnavailable::BandHasNoMeasure { param }) => {
             format!("refused band:{}", param.0)
         }
+    }
+}
+
+/// **The recorded requirement's verdict over one certified leaf** —
+/// the number E10 says a CI row gates on, through a door rather than
+/// through a hand-assembled evaluation.
+///
+/// A consumer with a `ParamBoxVerdict` in hand has the leaves; what it
+/// did not have until M10-6's review was any way to ask what the
+/// assertion says over one, short of rebuilding `EvalOptions`, picking
+/// the interval scalar and matching on `ValuePayload` — three steps in
+/// which the easy mistake is to skip the node entirely and compare
+/// `worst_case.lo` against the bound by hand. That comparison is an
+/// `f64` `<` over quantities that may differ by less than the run's own
+/// coincidence threshold, and it manufactures exactly the certainty the
+/// band exists to deny. The tour's tolerance cell made it; this door is
+/// what it should have called.
+///
+/// `None` when `assertion` is not an `Assertion` node, or the
+/// evaluation over `box_` did not produce a verdict for it.
+///
+/// The scalar is the interval one, not a choice: a verdict over a BOX
+/// is only meaningful from an enclosure, and the point scalars cannot
+/// produce one.
+pub fn assertion_at(
+    doc: &Doc<ProfileProgram>,
+    assertion: RecipeNodeId,
+    box_: &ParamBox,
+    tol: Tol,
+) -> Option<crate::measure::AssertionVerdict<geom_core::Interval>> {
+    if !matches!(doc.node(assertion), Some(Node::Assertion { .. })) {
+        return None;
+    }
+    let opts = EvalOptions {
+        param_box: Some(Arc::new(box_.clone())),
+        ..lane_opts()
+    };
+    let ev: Evaluation<geom_core::Interval> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
+    match ev.result(assertion) {
+        Some(crate::eval::NodeResult::Ok(v)) => match &v.payload {
+            crate::eval::ValuePayload::Assertion(a) => Some(a.clone()),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// The measure-refusal classes a smaller box cannot change
+/// ([`RefusalReason::MeasureRefused`]).
+///
+/// Conservative by construction: a class is here only when refinement
+/// PROVABLY cannot alter it, and everything else keeps bisecting. The
+/// cost of being wrong in this direction is a leaf refused early
+/// (visible, priced under its own name); the cost of being wrong the
+/// other way is a leaf that could have certified and did not, which is
+/// why the list is enumerated rather than defaulted.
+fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<&'static str> {
+    match kind {
+        // The selection resolved to the wrong KIND of entity. Document
+        // structure; no parameter value moves it.
+        NodeErrorKind::MeasureSelectionKind { .. } => Some("selection_kind"),
+        NodeErrorKind::MeasureClearanceRefused(r) => match r.class {
+            // Which faces are admitted, whether the two scopes pair at
+            // all, and whether the carrier has an implementation: all
+            // decided by the document's own topology and the engine's
+            // support table, not by the box.
+            c @ ("no_admitted_pair" | "unsupported" | "selection" | "empty_scope"
+            | "not_a_distance") => Some(c),
+            // `budget`, `sliver`, `poison_enclosure`, `witness_unverified`,
+            // `nothing_certified`, `tolerance_has_no_band`: every one of
+            // these can differ over a smaller box, so refinement is the
+            // right answer and the catch-all keeps it.
+            _ => None,
+        },
+        _ => None,
     }
 }

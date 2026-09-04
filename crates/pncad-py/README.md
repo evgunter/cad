@@ -37,7 +37,7 @@ from pncad import Doc, Node, evaluate, mm
 
 doc = Doc()
 profile = doc.insert(
-    Node.polygon([(0 * mm, 0 * mm), (80 * mm, 0 * mm), (80 * mm, 40 * mm), (0 * mm, 40 * mm)])
+    Node.polygon([(0 * mm, 0 * mm), (80 * mm, 0 * mm), (80 * mm, 40 * mm), (0 * mm, 40 * mm)], plane=doc.sketch_frame())
 )
 plate = doc.insert(Node.extrude(profile, 8 * mm))
 
@@ -62,7 +62,7 @@ rounded = (
     .line_to(Start)
 )
 doc = Doc()
-plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded)), 8 * mm))
+plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded, plane=doc.sketch_frame())), 8 * mm))
 assert evaluate(doc).succeeded(plate)
 ```
 

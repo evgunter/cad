@@ -4,6 +4,19 @@
 //! LINK/DEBUGINFO note in .github/workflows/ci.yml carries it with its
 //! date and provenance run.
 //!
+//! **No aggregation guard here, and why.** Every other crate's
+//! `tests/all.rs` mounts its suites with `#[path]` and carries
+//! `every_suite_file_is_aggregated`, which checks that set against the
+//! directory on every run. This `tests/` directory holds ONE `.rs`
+//! file — this one — so there is no set to check; and the row could not
+//! live here anyway, because it reads `test_utils::source` and the
+//! guard at the bottom of this file admits no `use` root but the
+//! façade. What keeps that sentence TRUE is not this paragraph:
+//! `crates/bvh/tests/aggregator_headers.rs`'s
+//! `a_non_aggregating_tests_directory_holds_one_suite_file` reds if a
+//! second suite is ever dropped in beside this one, where
+//! `autotests = false` would otherwise leave it uncompiled and unrun.
+//!
 //! What this file pins is the **closure property** (the crate docs'
 //! contract clause 1): every type reachable through the public API of
 //! the re-exported surface — every error-enum payload included — is
@@ -987,14 +1000,29 @@ fn lib_doors_vocabulary_is_nameable() {
     named::<Option<pncad::export::ExportError>>(None);
 }
 
-/// A square profile-program node, `[0,s]²` on the xy-plane.
-fn doors_square(s: f64) -> pncad::document::Node<pncad::document::ProfileProgram> {
+/// The world xy frame — the plane these door fixtures sketch on.
+fn doors_xy_frame() -> pncad::document::Node<pncad::document::ProfileProgram> {
+    use pncad::document::{Datum, Dimension, Expr, Node};
+    let len = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
+    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).unwrap();
+    Node::Datum(Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    })
+}
+
+/// A square profile-program node, `[0,s]²` on `plane`.
+fn doors_square(
+    plane: pncad::document::RecipeNodeId,
+    s: f64,
+) -> pncad::document::Node<pncad::document::ProfileProgram> {
     use pncad::document::{
         Dimension, Expr, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget,
     };
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([lit(0.0), lit(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([lit(s), lit(0.0)])),
@@ -1031,7 +1059,8 @@ fn doors_box_doc() -> (
     use pncad::document::{Dimension, Expr, Node};
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     let doc = pncad::document::ProfileDoc::empty_derived("all", Tol::witness());
-    let (doc, profile) = doors_insert(doc, doors_square(2.0));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, profile) = doors_insert(doc, doors_square(plane, 2.0));
     let (doc, body) = doors_insert(
         doc,
         Node::Extrude {
@@ -1099,10 +1128,11 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
 
     // And it evaluates as a document node.
     let doc = pncad::document::ProfileDoc::empty_derived("all", Tol::witness());
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
     let (doc, profile) = doors_insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![lifted],
         }),
     );
@@ -1214,14 +1244,18 @@ fn the_export_door_serves_the_one_shot_journey() {
     }
 }
 
-/// A square of side `s` whose lower-left corner sits at `x`.
-fn doors_square_at(s: f64, x: f64) -> pncad::document::Node<pncad::document::ProfileProgram> {
+/// A square of side `s` on `plane`, lower-left corner at `x`.
+fn doors_square_at(
+    plane: pncad::document::RecipeNodeId,
+    s: f64,
+    x: f64,
+) -> pncad::document::Node<pncad::document::ProfileProgram> {
     use pncad::document::{
         Dimension, Expr, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget,
     };
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([lit(x), lit(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([lit(x + s), lit(0.0)])),
@@ -1241,7 +1275,8 @@ fn the_document_export_door_ships_the_multi_solid_product() {
     use pncad::document::{Dimension, Expr, Node};
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     let doc = pncad::document::ProfileDoc::empty_derived("asm-roots-doc-export", Tol::witness());
-    let (doc, p0) = doors_insert(doc, doors_square_at(2.0, 0.0));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, p0) = doors_insert(doc, doors_square_at(plane, 2.0, 0.0));
     let (doc, b0) = doors_insert(
         doc,
         Node::Extrude {
@@ -1249,7 +1284,8 @@ fn the_document_export_door_ships_the_multi_solid_product() {
             distance: lit(1.5),
         },
     );
-    let (doc, p1) = doors_insert(doc, doors_square_at(1.0, 10.0));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, p1) = doors_insert(doc, doors_square_at(plane, 1.0, 10.0));
     let (doc, b1) = doors_insert(
         doc,
         Node::Extrude {
@@ -1290,7 +1326,8 @@ fn the_document_export_door_refuses_a_bodiless_document() {
     use pncad::export::ExportError;
     let doc =
         pncad::document::ProfileDoc::empty_derived("asm-roots-doc-export-bodiless", Tol::witness());
-    let (doc, _profile) = doors_insert(doc, doors_square_at(2.0, 0.0));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, _profile) = doors_insert(doc, doors_square_at(plane, 2.0, 0.0));
     let ev = doors_evaluate(&doc);
     match pncad::export::export_document_step(&ev, &doc, &StepOptions::default(), Tol::witness()) {
         Err(ExportError::Product(ProductError::NoBodyRoots)) => {}
@@ -1304,7 +1341,8 @@ fn the_export_door_refuses_typed_not_vaguely() {
     use pncad::export::ExportError;
     let (doc, profile_node, first_box) = doors_box_doc();
     // A failing Boolean (undeclared coincidence) and its downstream.
-    let (doc, second_profile) = doors_insert(doc, doors_square(1.0));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, second_profile) = doors_insert(doc, doors_square(plane, 1.0));
     let (doc, second_box) = doors_insert(
         doc,
         Node::Extrude {
@@ -1405,10 +1443,11 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         ProgramStep::LineTo(ProgramTarget::Point([lit(0.0), lit(2.0)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
     let (doc, profile) = doors_insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
         }),
     );
@@ -1419,10 +1458,22 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             distance: lit(0.5),
         },
     );
+    // The tab sits inside the plate's slab: its own plane, so its own
+    // frame.
+    let scl =
+        |v: f64| pncad::document::Expr::literal(v, pncad::document::Dimension::Scalar).unwrap();
+    let (doc, tab_plane) = doors_insert(
+        doc,
+        Node::Datum(pncad::document::Datum::Frame {
+            origin: [lit(0.0), lit(0.0), lit(0.125)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
     let (doc, tab_p) = doors_insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.125))),
+            plane: tab_plane,
             loops: vec![
                 LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
                     .expect("finite tab corners"),
@@ -1631,13 +1682,18 @@ impl Drop for WsDir {
 }
 
 /// A one-block document under the given derived-id label, saved.
+/// The extrude in a [`ws_doc`] part: its sketch frame, the profile
+/// drawn on it, then the body. A part-local name is minted by node 2.
+const WS_PART_BODY: pncad::document::RecipeNodeId = pncad::document::RecipeNodeId(2);
+
 fn ws_doc(label: &str) -> (pncad::document::ProfileDoc, String) {
     use pncad::document::{Expr, Node};
     let doc = pncad::document::ProfileDoc::empty(
         pncad::document::DocumentId::derive(label),
         Tol::witness(),
     );
-    let (doc, profile) = doors_insert(doc, doors_square(2.0));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, profile) = doors_insert(doc, doors_square(plane, 2.0));
     let (doc, _) = doors_insert(
         doc,
         Node::Extrude {
@@ -1976,7 +2032,8 @@ fn asm2a_row5b_stale_pin_refuses_through_the_real_store() {
     // after the assembly pinned it" state.
     let edited = {
         let doc = pncad::document::ProfileDoc::empty(doc_ref.id, Tol::witness());
-        let (doc, profile) = doors_insert(doc, doors_square(3.0));
+        let (doc, plane) = doors_insert(doc, doors_xy_frame());
+        let (doc, profile) = doors_insert(doc, doors_square(plane, 3.0));
         let (doc, _) = doors_insert(
             doc,
             pncad::document::Node::Extrude {
@@ -2082,7 +2139,7 @@ fn asm_r2a_mated_assembly(
     pncad::document::ProfileDoc,
     Vec<pncad::document::RecipeNodeId>,
 ) {
-    use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive, Node, RecipeNodeId};
+    use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive, Node};
     use pncad::prelude::StableName;
     use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
     let mut doc = pncad::document::ProfileDoc::empty(
@@ -2101,7 +2158,7 @@ fn asm_r2a_mated_assembly(
         path: vec![RoleSeg::InPart {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: WS_PART_BODY,
                 path: vec![RoleSeg::Cap(CapEnd::Bottom)],
             }),
         }],
@@ -2218,7 +2275,7 @@ const ASM_R2B_PROBE_OUT: &str = "ASM_R2B_PROBE_OUT";
 /// question that may move.
 #[test]
 fn asm_r2b_child_crossing_probe() {
-    use pncad::document::{DocEdit, Node, RecipeNodeId};
+    use pncad::document::{DocEdit, Node};
     use pncad::prelude::StableName;
     use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
     let Ok(out) = std::env::var(ASM_R2B_PROBE_OUT) else {
@@ -2237,12 +2294,12 @@ fn asm_r2b_child_crossing_probe() {
             class: ContactClass::Rest,
             outer: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: WS_PART_BODY,
                 path: vec![RoleSeg::Cap(CapEnd::Top)],
             },
             inner: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: WS_PART_BODY,
                 path: vec![RoleSeg::Cap(CapEnd::Bottom)],
             },
         }],
@@ -2546,7 +2603,8 @@ fn asm4_workspace_create_and_resave() {
 
     // Resave rewrites in place; the old pin no longer holds and the
     // stale reference is a typed PinMismatch (A4 — never retargeted).
-    let (moved, _) = doors_insert(doc.clone(), doors_square(3.0));
+    let (moved, plane) = doors_insert(doc.clone(), doors_xy_frame());
+    let (moved, _) = doors_insert(moved, doors_square(plane, 3.0));
     let resaved = ws
         .resave(&moved, Tol::witness())
         .expect("the resave writes");
@@ -2699,7 +2757,8 @@ fn asm_upd_resave_part(
 ) -> pncad::document::ContentPin {
     use pncad::document::{Expr, Node};
     let doc = pncad::document::ProfileDoc::empty(id, Tol::witness());
-    let (doc, profile) = doors_insert(doc, doors_square(side));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, profile) = doors_insert(doc, doors_square(plane, side));
     let (doc, _) = doors_insert(
         doc,
         Node::Extrude {
@@ -3000,27 +3059,32 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   façade consumer can reach, and `NodePick` is not merely the
 ///   preferred door but the only one. `PickTarget` is carried because
 ///   `pick_face`'s signature names it, not because it can be built.
-/// - **The E6 driver and its parameter box** (`drive`, `DriveConfig`,
-///   `DriveRefusal`, `ParamBoxVerdict`, `CertifiedLeaf`,
-///   `RefusedLeaf`, `RefusalReason`, `BudgetKind`, `FlipEvidence`, `StructureFlip`,
-///   `ReasonClass`, `Receipt`, `LeafResults`, `MeasureAccounting`,
-///   `ReplayOutcome`, `VerdictVector`, `VerdictRow`,
-///   `VerdictVectorKey`, `DEFAULT_MAX_DEPTH`, `DEFAULT_MAX_LEAVES`,
-///   `ParamBox`, `BoxAxis`, `ParamBoxError`, `AxisScalar`,
-///   `param_env_over`): the analysis lane's subdivision service and
-///   the box it drives over.
+/// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
+///   `StructureFlip`, `ReplayOutcome`, `VerdictVector`, `VerdictRow`,
+///   `VerdictVectorKey`, `AxisScalar`, `param_env_over`, `SeedScalar`,
+///   `SeedError`, `seed_env`, `std_deviation`, `sensitivities`,
+///   `PairingViolation`; and the third lane seam `MinClearanceLane`
+///   with its `MinClearanceOperand`, which is how a `min_clearance`
+///   measure asks the interval lane for the bracket only that lane
+///   can carry).
 ///
-///   Interior because the curated face is a DIFFERENT shape and is
-///   not built yet: what a consumer asks the analysis lane is "does
-///   this measurement hold over its tolerances", and E5's answer to
-///   that is a typed per-measurement stackup report whose INPUT is a
-///   leaf set. Carrying the leaf vocabulary now would door the
-///   intermediate and then have to un-door it. `drive` is also gated
-///   on the `interval` feature — there is no leaf to certify without
-///   the certified scalar — so a façade row for it would be a
-///   conditional door, which this surface does not have and should
-///   not acquire for a type its consumer does not want yet.
-const NOT_CARRIED: [&str; 101] = [
+///   **The rest of this family is now CARRIED**, by `crate::analysis`
+///   behind the `interval` feature (M10-6): the driver and its box,
+///   the stackup and its field types, the reporting layer and the
+///   advisory estimator. The entry that stood here said the curated
+///   face "is the REPORTING surface — persisted, goldened stackups —
+///   which is where the façade row lands", and M10-6 built it, so the
+///   row landed. What that cost is a conditional door on a surface
+///   that had none, and `crate::analysis` states the trade at its own
+///   head rather than here.
+///
+///   What stays interior is what a consumer of the REPORTS does not
+///   hold: the verdict-vector vocabulary (a certification identity,
+///   not a report), the flip evidence a refusal carries (read through
+///   the refusal's own `Display`), the two scalar CAPABILITY seams and
+///   their env plumbing, and `sensitivities` — the intermediate whose
+///   answer `stackup` already carries.
+const NOT_CARRIED: [&str; 92] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -3031,19 +3095,12 @@ const NOT_CARRIED: [&str; 101] = [
     "AttrSet",
     "AxisScalar",
     "BifurcationKind",
-    "BoxAxis",
     "BranchCertification",
     "BranchMarginEvidence",
-    "BudgetKind",
-    "CertifiedLeaf",
     "ContentKey",
     "Coset",
-    "DEFAULT_MAX_DEPTH",
-    "DEFAULT_MAX_LEAVES",
     "Diagnosis",
     "DocDiff",
-    "DriveConfig",
-    "DriveRefusal",
     "EntityKey",
     "EntityRef",
     "Entry",
@@ -3053,34 +3110,28 @@ const NOT_CARRIED: [&str; 101] = [
     "FlipEvidence",
     "FlipSet",
     "Implicated",
-    "LeafResults",
-    "MeasureAccounting",
     "MeshPatchKey",
     "MeshPick",
     "MeshPickError",
     "MetaError",
     "MetaValue",
     "MetaVersionError",
+    "MinClearanceLane",
+    "MinClearanceOperand",
     "MintRefusal",
     "NamingError",
     "NamingKey",
     "NodeChange",
     "NodeVerdictDelta",
     "NodeVerdicts",
-    "ParamBox",
-    "ParamBoxError",
-    "ParamBoxVerdict",
+    "PairingViolation",
     "ParamValue",
     "PredicateDivergence",
     "Product",
     "ProfilePayload",
     "ProgramRefusal",
     "Qualifier",
-    "ReasonClass",
-    "Receipt",
     "RecipeEditRef",
-    "RefusalReason",
-    "RefusedLeaf",
     "ReplayOutcome",
     "ResolutionFailure",
     "ResolveError",
@@ -3088,6 +3139,8 @@ const NOT_CARRIED: [&str; 101] = [
     "Resolved",
     "Rgba8",
     "RunStatus",
+    "SeedError",
+    "SeedScalar",
     "SideVerdict",
     "StructureFlip",
     "SummaryDelta",
@@ -3110,7 +3163,6 @@ const NOT_CARRIED: [&str; 101] = [
     "derivation_nodes",
     "diff_summaries",
     "diff_verdicts",
-    "drive",
     "enrich_appearance_loss",
     "enrich_appearance_loss_with_prior",
     "entity_name",
@@ -3119,6 +3171,9 @@ const NOT_CARRIED: [&str; 101] = [
     "product_recorded",
     "rebind_suggestions",
     "resolve_with_prior",
+    "seed_env",
+    "sensitivities",
+    "std_deviation",
     "to_value",
     "verdict_summary",
     "vertex_name",

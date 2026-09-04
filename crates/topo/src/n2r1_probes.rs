@@ -127,8 +127,9 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
             band,
             &mut marks,
             tol,
-            &|_, _, _| Vec::new(),
+            &|_, _, _| None,
         )
+        .0
     };
     let with_placeholder = run(Surface::nurbs_placeholder());
     let with_masquerade = run(masquerading_surface());

@@ -2,10 +2,11 @@
 id: blend-suite-fixture-and-oracle-copies
 kind: issue
 title: Blend suite tree - one test-support home for the cavity/cube fixture builders and the blend volume oracles
-status: open
+status: closed
 opened: 2026-08-31
 github: 1364
 refs: [1360]
+closed: 2026-09-03
 ---
 
 ## From GitHub issue 1364

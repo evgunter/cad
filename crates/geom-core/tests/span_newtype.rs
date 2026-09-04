@@ -14,7 +14,7 @@
 
 use geom_core::spline::Span;
 
-mod span_fixtures;
+use crate::span_fixtures;
 use span_fixtures::{multiplicity_2_cubic, vectors};
 
 #[test]

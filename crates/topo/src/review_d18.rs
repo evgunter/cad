@@ -57,14 +57,25 @@
 //! backtrace.
 //!
 //! **PROMOTION NOTE.** The only release-profile test invocation the
-//! kernel workspace has is `ci.yml`'s `corrupt input (release profile)`
-//! job, which selects rows BY NAME. Promoting this file means adding
+//! kernel workspace has is the `corrupt input (release profile)` job —
+//! `nightly.yml`'s since 2026-09-03, so these two rows execute once a
+//! night rather than per PR — and it selects rows BY NAME. Promoting a
+//! file means adding
 //! `review_d18` to that job's filter list and a `grep -q` line for
 //! [`torn_bodies_never_reach_a_row_four_unreachable`], or the sweep
 //! ships without ever running. The profile-independent rows above ride
 //! the standard matrix and need nothing.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+test_utils::gated_to![
+    "crates/topo/src/euler.rs",
+    "crates/topo/src/euler_ring.rs",
+    "crates/topo/src/euler_kill.rs",
+    "crates/topo/src/body.rs",
+    "crates/topo/src/entity.rs",
+    "crates/topo/src/fixtures.rs",
+];
 
 use geom_core::Point3;
 

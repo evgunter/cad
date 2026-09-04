@@ -384,7 +384,7 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
     /// those senses contains that carrier whole, and the corner is a
     /// point of the carrier, so the corner is strictly inside the blend
     /// circle: the arc cannot touch the corner it would round. That is
-    /// not a fillet OF the corner, and `docs/ENCLOSING-TANGENCY-DESIGN.md`
+    /// not a fillet OF the corner, and `crates/profile/README.md`
     /// rules the class permanently unreachable — so the demand refuses
     /// here, before any candidate centre exists, rather than being ranked
     /// away downstream by whichever gate happens to catch it.
@@ -478,7 +478,7 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
     radius: T,
     tol: Tol,
 ) -> Result<ArcFilletOutcome<T>, ArcTrimRefusal<T>> {
-    let band = Band::new(tol.eps(), tol.k() * tol.eps()).map_err(ArcTrimRefusal::Band)?;
+    let band = Band::linear(tol).map_err(ArcTrimRefusal::Band)?;
     // The exact-order band (validate module docs): no representable
     // f64 lies strictly inside it, so f64 classification is total.
     let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ArcTrimRefusal::Band)?;
@@ -518,7 +518,7 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
     // demands a blend circle that SWALLOWS that leg's carrier: the
     // corner lies on the carrier, so it lies strictly inside the blend
     // circle, and the arc cannot touch the corner it was asked to round
-    // (`docs/ENCLOSING-TANGENCY-DESIGN.md`). No door serves that
+    // (`crates/profile/README.md`). No door serves that
     // construction, so the demand refuses here rather than downstream —
     // where the honest answer would arrive dressed as a disjoint-offset,
     // no-corner-side or anchor-fit refusal depending only on how far past
@@ -862,7 +862,7 @@ fn enclosing_refusal<T: Real>(
 ///
 /// ρ > 0 is the ordinary tangency; ρ < 0 is the ENCLOSING one — the
 /// blend circle contains the leg's carrier, hence the corner. That class
-/// is permanently refused (`docs/ENCLOSING-TANGENCY-DESIGN.md`), and this
+/// is permanently refused (`crates/profile/README.md`), and this
 /// function is where the refusal reads its verdict: `arc_fillet_trims`'
 /// `fillet_enclosing_carrier` gate classifies this value, so the
 /// construction's own ρ decides the class rather than a second
@@ -964,7 +964,7 @@ impl<T: Real> Leg<T> {
     /// The antipodal flip is the ENCLOSING tangency's tangent point, and
     /// that class is refused before a candidate centre is ever computed
     /// (`arc_fillet_trims`' `fillet_enclosing_carrier` gate, per
-    /// `docs/ENCLOSING-TANGENCY-DESIGN.md`), so no shipped door arrives
+    /// `crates/profile/README.md`), so no shipped door arrives
     /// here with a negative ρ. The general form stays for the same reason
     /// [`fillet_bulge`]'s major-arc branch does: the sign rule is the
     /// closed form's, not a property of which corners the gates admit,
@@ -1410,7 +1410,7 @@ mod tests {
     /// [`Leg::tangent_point`]'s antipodal flip: the ENCLOSING tangency's
     /// tangent point, which no door reaches (the
     /// `fillet_enclosing_carrier` gate refuses the class first — see
-    /// `docs/ENCLOSING-TANGENCY-DESIGN.md`), pinned here directly so the
+    /// `crates/profile/README.md`), pinned here directly so the
     /// closed form stays honest about the sign it is defined for.
     ///
     /// A radius-2 blend circle centred at the carrier's own centre plus a

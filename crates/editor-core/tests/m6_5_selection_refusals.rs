@@ -10,8 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::fixture;
 
 use editor_core::resolve::{Diagnosis, RecipeEditRef, ResolveError};
 use editor_core::{
@@ -33,6 +32,13 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
 /// The plants build their own documents through the public authoring
 /// door instead of mutating one: a cube, an extrude, and a fillet
 /// whose selection is the plant.
+/// This suite's documents all start the same way: the sketch frame,
+/// the profile drawn on it, then the extrude whose body every rim name
+/// below is minted by.
+const PLANE: RecipeNodeId = RecipeNodeId(0);
+const PROFILE: RecipeNodeId = RecipeNodeId(1);
+const BODY: RecipeNodeId = RecipeNodeId(2);
+
 fn planted(selection: Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
     use editor_core::{Dimension, DocEdit, Expr, LoopProgram, ProfileProgram, apply};
     let square =
@@ -41,14 +47,17 @@ fn planted(selection: Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
     let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals", Tol::witness());
     for edit in [
         DocEdit::InsertNode {
+            node: fixture::xy_frame(),
+        },
+        DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
-                plane: profile::SketchPlane::xy(),
+                plane: PLANE,
                 loops: vec![square],
             }),
         },
         DocEdit::InsertNode {
             node: Node::Extrude {
-                profile: RecipeNodeId(0),
+                profile: PROFILE,
                 distance: len(1.0),
             },
         },
@@ -60,7 +69,7 @@ fn planted(selection: Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::fillet(RecipeNodeId(1), len(0.125), selection),
+            node: Node::fillet(BODY, len(0.125), selection),
         },
         Tol::witness(),
     )
@@ -74,7 +83,7 @@ fn planted(selection: Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
 /// geometry). Returns the document and the subtract node.
 fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     use editor_core::{BooleanOp, Dimension, DocEdit, Expr, apply};
-    use fixture::desc;
+    use fixture::on_frame;
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
     let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals", Tol::witness());
     let insert = |doc: &ProfileDoc, node: Node<editor_core::ProfileProgram>| {
@@ -84,14 +93,12 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
         (a.doc, id)
     };
     let square = vec![vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]];
-    let (d, bp) = insert(
-        &doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            square,
-        )),
+    let (d, bp) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        square,
     );
     let (d, ua) = insert(
         &d,
@@ -100,23 +107,21 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
             distance: len(4.0),
         },
     );
-    let (d, up) = insert(
-        &d,
-        Node::Profile(desc(
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (2.0, 1.0),
-                (6.0, 1.0),
-                (6.0, 3.0),
-                (2.0, 3.0),
-                (2.0, 2.5),
-                (5.0, 2.5),
-                (5.0, 1.5),
-                (2.0, 1.5),
-            ]],
-        )),
+    let (d, up) = on_frame(
+        d,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (2.0, 1.0),
+            (6.0, 1.0),
+            (6.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 2.5),
+            (5.0, 2.5),
+            (5.0, 1.5),
+            (2.0, 1.5),
+        ]],
     );
     let (d, ub) = insert(
         &d,
@@ -168,12 +173,12 @@ fn refuses(doc: &ProfileDoc, fillet: RecipeNodeId, check: impl FnOnce(&NodeError
 #[test]
 fn a_selection_naming_a_never_existed_node_refuses_at_edit_time() {
     use editor_core::{Dimension, DocEdit, EditError, Expr, apply};
-    let (doc, _) = planted(vec![rim(RecipeNodeId(1), 0)]);
+    let (doc, _) = planted(vec![rim(BODY, 0)]);
     match apply(
         &doc,
         &DocEdit::InsertNode {
             node: Node::fillet(
-                RecipeNodeId(1),
+                BODY,
                 Expr::literal(0.125, Dimension::Length).expect("a length"),
                 vec![rim(RecipeNodeId(99), 0)],
             ),
@@ -197,12 +202,12 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
     // A second extrude off the same profile: nothing depends on it, so
     // it can be deleted out from under the selection.
-    let (doc, _) = planted(vec![rim(RecipeNodeId(1), 0)]);
+    let (doc, _) = planted(vec![rim(BODY, 0)]);
     let spare = apply(
         &doc,
         &DocEdit::InsertNode {
             node: Node::Extrude {
-                profile: RecipeNodeId(0),
+                profile: PROFILE,
                 distance: len(2.0),
             },
         },
@@ -213,7 +218,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
     let with_fillet = apply(
         &spare.doc,
         &DocEdit::InsertNode {
-            node: Node::fillet(RecipeNodeId(1), len(0.125), vec![rim(spare_id, 0)]),
+            node: Node::fillet(BODY, len(0.125), vec![rim(spare_id, 0)]),
         },
         Tol::witness(),
     )
@@ -248,7 +253,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
 fn a_selection_naming_an_absent_entity_is_vanished() {
     // Segment 7 of a four-segment square: a well-formed name for an
     // edge the extrude never minted.
-    let (doc, fillet) = planted(vec![rim(RecipeNodeId(1), 7)]);
+    let (doc, fillet) = planted(vec![rim(BODY, 7)]);
     refuses(&doc, fillet, |kind| match kind {
         NodeErrorKind::BlendSelectionResolve { error, .. } => match error.as_ref() {
             ResolveError::Vanished {
@@ -256,14 +261,14 @@ fn a_selection_naming_an_absent_entity_is_vanished() {
                 diagnosis,
                 last_good,
             } => {
-                assert_eq!(name.node, RecipeNodeId(1));
+                assert_eq!(name.node, BODY);
                 assert!(last_good.is_none(), "no prior run is consultable mid-eval");
                 assert!(
                     matches!(
                         diagnosis,
                         Diagnosis::RecipeEdit {
                             edit: RecipeEditRef::NodeChanged { node }
-                        } if *node == RecipeNodeId(1)
+                        } if *node == BODY
                     ),
                     "the diagnosis names the minting node, got {diagnosis:?}"
                 );
@@ -342,7 +347,7 @@ fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
 fn a_selection_naming_a_face_refuses_on_kind() {
     let face = StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(1),
+        node: BODY,
         path: vec![RoleSeg::Cap(editor_core::CapEnd::Top)],
     };
     let (doc, fillet) = planted(vec![face.clone()]);

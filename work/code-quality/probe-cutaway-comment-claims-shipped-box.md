@@ -2,10 +2,12 @@
 id: probe-cutaway-comment-claims-shipped-box
 kind: issue
 title: probe.rs says the cutaway probe splits the SAME box the projectbox stop ships — the shipped halves now carry a +5 m offset the probe's don't
-status: open
+status: closed
 opened: 2026-09-01
 github: 1518
 refs: [1506]
+closed: 2026-09-03
+branch: smell/x-prose-tracker
 ---
 
 ## From GitHub issue 1518
@@ -52,3 +54,25 @@ Found by a review of #1506.
 ## Home
 
 `work/code-quality/` — a comment whose stated premise stopped holding is prose debt, the register's ground; `demos/tour` is in no open program's territory.
+
+## Closed
+
+Landed on `smell/x-prose` (SMELL Track X), comment-only. **Option 2**,
+as the issue recommends: the probe stays on the un-offset box and the
+comment now says what it measures.
+
+The first sentence was true and stays — the cutaway does split the same
+box (`projectbox::build`'s `acc.body`, which is also what
+`cutaway::sectioned_beside` takes at `demos/tour/src/projectbox.rs:105`).
+What had quietly stopped holding was the reading of it, so the comment
+now states the seam out loud: the group meters the section's SHAPE, the
+stop places the halves `SECTION_GAP` = 5 m along +x
+(`demos/tour/src/cutaway.rs:73,96-100`) so the pair and the whole box
+share one montage cell, and the probe takes `cutaway::build`'s output
+where it stands. Same ops, same halves, coordinates 5 m apart.
+
+Option 1 was not taken and the issue's ground for that holds on
+re-reading: the offset is presentation applied by `sectioned_beside`
+after `build`, and the probe consumes `build` directly, so taking the
+placed halves would mean metering a body at a rendering offset. The
+K-margin population is unchanged, so no `k-lint` baseline moves.

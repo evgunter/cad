@@ -14,8 +14,7 @@
 //! bar. Ignored by default — run with `--ignored`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
 
 use editor_core::{CancelToken, EvalOptions, NodeResult, ValuePayload, evaluate};
 use geom_core::Tol;

@@ -21,18 +21,54 @@
     clippy::too_many_arguments
 )]
 
+// Gated to the code it tests (TCOST-1). Every row here drives the public
+// props door `nurbs_patch_face` on an adversarially knotted patch and
+// checks the returned bracket against an independent plain-f64 oracle, so
+// the claim rests on the quad props module — the cut list, the arm choice
+// and the refusal vocabulary — and on the spline machinery the cut list is
+// built from. The certified scalars are named because a bracket IS a
+// `RingInterval` over `Interval`, and the band that decides refusal is
+// `predicate`/`tolerance`; `tests/shared/` is named because the oracle's
+// basis and dense-quadrature helpers live there and a change to them moves
+// the truth this suite compares against.
+test_utils::gated_to![
+    "crates/geom-brep/src/props/",
+    "crates/geom-core/src/spline/",
+    "crates/geom-core/src/ring_interval.rs",
+    "crates/geom-core/src/interval.rs",
+    "crates/geom-core/src/real.rs",
+    "crates/geom-core/src/predicate.rs",
+    "crates/geom-core/src/tolerance.rs",
+    "crates/geom-brep/tests/shared/",
+];
+
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
+use geom_core::RingInterval;
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, RingInterval};
 
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
+use crate::shared::patch::{dbasis_over, dense_over};
+use crate::shared::ring::p3 as p;
+use crate::shared::tol::band;
 
 // ---------- independent oracle (no kernel spline code) ----------
 
+/// All basis values N_{i,p}(t).
+///
+/// **This copy stays, and is the only part of this oracle that does.**
+/// It seeds the Cox-de Boor recursion by clamping `t` into the last
+/// nonzero span at the domain end, where
+/// `crates/geom-brep/tests/shared/patch.rs`'s takes a separate
+/// `t >= knots[n]` branch. That seeding is the part of an oracle a
+/// `props::quad` defect could plausibly be mirrored by, so the crate
+/// keeps more than one of it on purpose; the recurrence and the
+/// quadrature loop underneath carry no such risk and are shared.
+///
+/// It is character-identical to `review_r1_rational_probes.rs`'s.
+/// Those two are one derivation spelled twice, and collapsing them is
+/// an adjudication about which suite owns it rather than a dedup —
+/// left for TCOST-8, not decided here.
 fn basis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
     let n = knots.len() - 1;
     let mut nn = vec![0.0f64; n];
@@ -84,20 +120,11 @@ fn basis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
     nn
 }
 
+/// Basis derivatives N'_{i,p}(t) — the shared divided difference,
+/// taken over THIS file's `basis` above, so the derivative path keeps
+/// the seeding that makes this oracle independent.
 fn dbasis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64> {
-    let n = knots.len() - 1;
-    let mut low = basis(knots, degree - 1, n - (degree - 1), t);
-    low.resize(n, 0.0);
-    let mut out = vec![0.0f64; ncp];
-    let pf = degree as f64;
-    for (i, o) in out.iter_mut().enumerate() {
-        let da = knots[i + degree] - knots[i];
-        let db = knots[i + degree + 1] - knots[i + 1];
-        let a = if da > 0.0 { pf / da * low[i] } else { 0.0 };
-        let b = if db > 0.0 { pf / db * low[i + 1] } else { 0.0 };
-        *o = a - b;
-    }
-    out
+    dbasis_over(basis, knots, degree, ncp, t)
 }
 
 struct Oracle {
@@ -134,66 +161,14 @@ impl Oracle {
         (s, su, sv)
     }
 
-    /// (flux, area) by composite 5-pt Gauss-Legendre, `cells` per span.
+    /// (flux, area) at `cells` per span: the shared composite
+    /// Gauss-Legendre loop over THIS file's `eval`. The ladder this
+    /// suite runs it at is 8/16; the argument for why two rungs a
+    /// factor of two apart settle it is
+    /// [`crate::shared::patch::dense_over`]'s doc, its one home.
     fn dense(&self, cells: usize) -> (f64, f64) {
-        const GX: [f64; 5] = [
-            -0.906_179_845_938_664,
-            -0.538_469_310_105_683,
-            0.0,
-            0.538_469_310_105_683,
-            0.906_179_845_938_664,
-        ];
-        const GW: [f64; 5] = [
-            0.236_926_885_056_189,
-            0.478_628_670_499_366,
-            0.568_888_888_888_889,
-            0.478_628_670_499_366,
-            0.236_926_885_056_189,
-        ];
-        let spans = |k: &[f64]| -> Vec<(f64, f64)> {
-            k.windows(2)
-                .filter(|w| w[1] > w[0])
-                .map(|w| (w[0], w[1]))
-                .collect()
-        };
-        let (mut flux, mut area) = (0.0, 0.0);
-        for (ua, ub) in spans(&self.ku) {
-            for (va, vb) in spans(&self.kv) {
-                let hu = (ub - ua) / cells as f64;
-                let hv = (vb - va) / cells as f64;
-                for cu in 0..cells {
-                    for cv in 0..cells {
-                        let u0 = ua + cu as f64 * hu;
-                        let v0 = va + cv as f64 * hv;
-                        for a in 0..5 {
-                            for b in 0..5 {
-                                let u = u0 + hu * 0.5 * (1.0 + GX[a]);
-                                let v = v0 + hv * 0.5 * (1.0 + GX[b]);
-                                let (s, sud, svd) = self.eval(u, v);
-                                let cx = [
-                                    sud[1] * svd[2] - sud[2] * svd[1],
-                                    sud[2] * svd[0] - sud[0] * svd[2],
-                                    sud[0] * svd[1] - sud[1] * svd[0],
-                                ];
-                                let wq = GW[a] * GW[b] * hu * hv * 0.25;
-                                flux += wq * (s[0] * cx[0] + s[1] * cx[1] + s[2] * cx[2]);
-                                area += wq * (cx[0] * cx[0] + cx[1] * cx[1] + cx[2] * cx[2]).sqrt();
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        (flux, area)
+        dense_over(&self.ku, &self.kv, cells, |u, v| self.eval(u, v))
     }
-}
-
-fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
-    [
-        RingInterval::point(x),
-        RingInterval::point(y),
-        RingInterval::point(z),
-    ]
 }
 
 /// Drive the public door; assert SOUNDNESS against the oracle.
@@ -208,9 +183,25 @@ fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
 /// 16-cell value's own error bounded at ~1e-12 relative — three orders
 /// below what the containment slack needs. The argument for why two
 /// rungs a factor of two apart settle that is written once, on
-/// `Patch::dense` in `crates/geom-brep/tests/cert5_r1_patch_probes.rs`;
-/// the oracle in THIS file is an independent spelling of the same
-/// rule, and shares nothing with that one but the reasoning.
+/// `dense_over` in `crates/geom-brep/tests/shared/patch.rs`.
+///
+/// **Why the oracle here is not that one, and what it does share.**
+/// Its Cox–de Boor bases are a DIFFERENT derivation — they clamp `t`
+/// into the last nonzero span at the domain end where the shared one
+/// takes a separate `t >= knots[n]` branch — and that is the part of
+/// an oracle a `props::quad` defect could plausibly be mirrored by, so
+/// the crate keeps more than one, and this file keeps its own `basis`.
+/// Everything under that seeding is shared and no longer restated
+/// here: the divided difference that turns basis values into their
+/// derivatives, and the composite Gauss–Legendre loop, both taken over
+/// THIS file's `basis` and `eval`. Sharing them merges no derivation —
+/// it stops two derivations from spelling one loop twice.
+///
+/// **And why this row does not use `shared::patch::face_posture`.**
+/// That gate answers "certified, or an honest refusal"; the rows here
+/// need the budget refusal told apart from the rest, because a budget
+/// stop is a reading they assert on (a finite width above the target)
+/// rather than a pass.
 fn drive(
     name: &str,
     ku: &KnotVector,
@@ -290,9 +281,10 @@ fn drive(
         Err(PropsError::QuadratureBudget {
             width_len,
             target_len,
+            ..
         }) => {
             println!(
-                "R2 {name}: BUDGET width {width_len:.6e} vs target {target_len:.6e} ({:.1}x)",
+                "R2 {name}: BUDGET width (the last round's own or its bound) {width_len:.6e} vs target {target_len:.6e} ({:.1}x)",
                 width_len / target_len
             );
             assert!(width_len.is_finite() && width_len > target_len);

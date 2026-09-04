@@ -9,12 +9,12 @@
 //! pick's own probe point included.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::tol::band;
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{ChartWindow, Pcurve, PcurveCache};
-use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Point2, Point3, Vec2};
+use geom_core::{Point2, Point3, Vec2};
 
 const R: f64 = 0.005;
 const H: f64 = 0.01;
@@ -57,10 +57,6 @@ fn imported_wall() -> Surface<f64> {
     Surface::Nurbs(std::sync::Arc::new(
         NurbsSurface::new(ku, kv, control, weights).unwrap(),
     ))
-}
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
 }
 
 fn window() -> ChartWindow<f64> {

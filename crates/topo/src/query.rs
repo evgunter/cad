@@ -45,6 +45,17 @@
 //!   it buys the door above is that [`datum_distance`] is arithmetic
 //!   all the way down.
 //!
+//!   **[`is_finite_length`] is a second thing here that is not a
+//!   selection question**, and unlike the one above it is public. It
+//!   takes a bare scalar, reads no [`Body`] and reaches no funnel: it
+//!   is the value-channel question `UnitVec3::new` asks before
+//!   deciding a length, shared so that the evaluation layer's own
+//!   direction door asks it in the same words rather than a second
+//!   spelling. Whether it belongs here at all — `geom-core` holds
+//!   `Real`, `is_poison` and `Vec3::normalize`'s own overflow note —
+//!   is an open question for this seat's owner, filed as
+//!   `is-finite-length-homed-in-the-query-seat`.
+//!
 //! # Where an entity IS, for the decided door
 //!
 //! The decided door measures a POINT against a [`DatumValue`]. The
@@ -70,7 +81,7 @@
 use geom::Curve3;
 use geom_brep::SurfaceKind;
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey};
@@ -427,7 +438,17 @@ impl std::error::Error for UnitVec3Error {}
 /// enclosure whose upper end overflowed still contains its truth) —
 /// the honest scope: this catches the point scalars, which is where an
 /// infinite length turns into a definite wrong answer.
-fn is_finite_length<T: Real>(x: T) -> bool {
+///
+/// Every direction door in this crate asks the length question through
+/// THIS predicate, and so does the evaluation layer's own direction
+/// door, so one rule has one spelling where it is asked at all. It is
+/// not asked everywhere a direction is normalized: `editor-core`'s
+/// `Frame::rotate_then_translate` asks nothing and is refused
+/// downstream on the non-finite frame it builds, and its
+/// `clearance::chart_frame` asks a different question (a bracket read
+/// of the normalized OUTPUT). Unifying those is issue 1570's family,
+/// not a claim this predicate can make on its own.
+pub fn is_finite_length<T: Real>(x: T) -> bool {
     #[allow(clippy::eq_op)]
     let residual = x - x;
     !residual.is_poison()
@@ -540,6 +561,37 @@ pub enum DatumValue<T: Real> {
         /// `u`.
         v: UnitVec3<T>,
     },
+    /// **An axis that lives in a sketch frame**, carried in BOTH
+    /// spellings — the frame's own 2-D coordinates, and the world
+    /// line those coordinates name.
+    ///
+    /// Neither is derivable from this value alone (the frame is not in
+    /// it), and the two have different readers: a revolve consumes the
+    /// sketch pair, because a `RevolveAxis` IS sketch-plane metres and
+    /// a round trip out to world and back would round the numbers a
+    /// person typed; everything that measures or draws in 3-D consumes
+    /// the world line. Carrying one and deriving the other at each
+    /// reader would put the lift in two places.
+    AxisInPlane {
+        /// A point on the axis in the frame's 2-D coordinates, as
+        /// authored.
+        plane_origin: Point2<T>,
+        /// The axis direction in the frame's 2-D coordinates, as
+        /// authored and NOT normalized: `RevolveAxis` takes "any
+        /// definitely nonzero vector" and refuses a sliver at its own
+        /// door, so normalizing here would be a second opinion about
+        /// the same vector. The lift below is unit because a 3-D
+        /// direction in this vocabulary always is, and because the
+        /// frame's axes are orthonormal the two refusals coincide
+        /// exactly: `|lift(d)| = |d|`.
+        plane_dir: Vec2<T>,
+        /// The same axis lifted through its frame — a point on it in
+        /// world space.
+        origin: Point3<T>,
+        /// The same axis lifted through its frame — its world
+        /// direction, unit.
+        dir: UnitVec3<T>,
+    },
 }
 
 impl<T: Real> DatumValue<T> {
@@ -592,6 +644,14 @@ pub fn datum_distance<T: Real>(datum: &DatumValue<T>, p: Point3<T>) -> T {
         }
         DatumValue::Point { position } => (p - *position).norm(),
         DatumValue::Frame { origin, u, v } => (p - *origin).dot(DatumValue::frame_normal(*u, *v)),
+        // The world lift, by the same arithmetic the 3-D axis uses —
+        // an axis is an axis to a measurement, whichever coordinates
+        // it was written in.
+        DatumValue::AxisInPlane { origin, dir, .. } => {
+            let d = dir.get();
+            let v = p - *origin;
+            (v - d * v.dot(d)).norm()
+        }
     }
 }
 
