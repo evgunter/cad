@@ -310,8 +310,17 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
 /// refusal reached it without naming it.
 ///
 /// `None` — so the row keeps its own `Failed` — when the failure is
-/// not a mate refusal, when the fault names no mate at all, or when
-/// this row IS one of the mates it names.
+/// not a mate refusal, when the fault names no mate at all, when this
+/// row IS one of the mates it names, and when THIS EVALUATION does not
+/// corroborate the blame.
+///
+/// That last condition is what keeps [`RowStatus::Poisoned`]'s
+/// walkable-in-one-hop invariant true here rather than assumed: the
+/// mate a fault names can read `Ok` in the very evaluation carrying
+/// the fault (a mate's memo key does not carry the solve, so a cluster
+/// that breaks around an unedited mate does not re-run it). Pointing a
+/// row at a green row would send the user nowhere AND drop the message
+/// they can act on, so the row keeps its own `Failed` instead.
 fn downstream_of_mate(
     id: RecipeNodeId,
     error: &NodeError,
@@ -324,19 +333,19 @@ fn downstream_of_mate(
     if blamed.contains(&id) {
         return None;
     }
-    // The first named mate, which is document order: the solve names
-    // `held` before `added`, and every other arm names one.
-    let through = *blamed.first()?;
+    // The first named mate the evaluation agrees is failing — the
+    // fault names `held` before `added`, and every other arm names
+    // one, so this is document order.
+    let (through, cause) = blamed
+        .into_iter()
+        .find_map(|mate| Some((mate, ev.result(mate).and_then(NodeResult::error)?)))?;
     Some(RowStatus::Poisoned {
         through,
         // The CAUSE's own rendering, not this row's copy of the fault:
         // the message a user reads under a downstream badge is the
         // failed mate's error, exactly as a DAG-poisoned row shows its
         // ancestor's.
-        message: ev
-            .result(through)
-            .and_then(NodeResult::error)
-            .map(ToString::to_string),
+        message: Some(cause.to_string()),
     })
 }
 

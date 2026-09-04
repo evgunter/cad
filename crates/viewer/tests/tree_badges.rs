@@ -293,3 +293,106 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
 
     std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
 }
+
+/// **A contradiction between two mates blames both, and the rows it
+/// reaches point at one the evaluation agrees is failing.**
+///
+/// Two mates on ONE pair at incompatible alignments: the fold names
+/// `held` and `added` together, because neither is the wrong one on
+/// the fault's own telling. What a downstream row must never do is
+/// point at a row reading `Ok` — which is reachable, since a mate's
+/// memo key does not carry the solve and the mate already evaluated
+/// before the second one broke the pair.
+#[test]
+fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("badge-contradiction", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+
+    let seat = |b_x: f64| Alignment {
+        a: MateFrame {
+            origin: [
+                common::asm::POST_SECTION / 2.0,
+                common::asm::POST_SECTION / 2.0,
+                common::asm::POST_HEIGHT,
+            ],
+            axis: [0.0, 0.0, 1.0],
+            reference: [1.0, 0.0, 0.0],
+        },
+        b: MateFrame {
+            origin: [b_x, common::asm::SHELF_DEPTH / 2.0, 0.0],
+            axis: [0.0, 0.0, -1.0],
+            reference: [1.0, 0.0, 0.0],
+        },
+        primitive: MatePrimitive::FrameCoincidence,
+        sense: AxisSense::Opposed,
+        clocking: None,
+    };
+    let add_mate = |session: &mut DocSession, alignment| {
+        common::insert(
+            session,
+            SessionOp::AddMate {
+                a: common::asm::in_part(bench.post_a, &bench.post_top),
+                b: common::asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+                class: ContactClass::Rest,
+                alignment,
+            },
+        )
+    };
+    // The first mate lands and EVALUATES — the memo now holds an `Ok`
+    // for it — and only then does the second one contradict it.
+    let held = add_mate(&mut session, seat(common::asm::SHELF_LENGTH / 2.0));
+    session.pump();
+    let added = add_mate(&mut session, seat(common::asm::SHELF_LENGTH / 2.0 + 0.01));
+    session.pump();
+
+    let rows = session.tree_rows();
+    let status_of = |id| {
+        rows.iter()
+            .find(|row| row.id == id)
+            .map(|row| row.status.clone())
+            .unwrap_or_else(|| panic!("node {id:?} has a row"))
+    };
+    let failing: Vec<_> = rows
+        .iter()
+        .filter(|row| matches!(row.status, RowStatus::Failed { .. }))
+        .map(|row| row.id)
+        .collect();
+    assert!(
+        failing.contains(&added),
+        "the mate that broke the pair is a cause: {rows:?}"
+    );
+    assert!(
+        !failing.contains(&bench.post_a) && !failing.contains(&bench.shelf_i),
+        "the mated instances are not causes: {rows:?}"
+    );
+    // Both mates are blamed, so whichever of them this evaluation
+    // reports as failing is where the instances point — never at a row
+    // the evaluation calls `Ok`.
+    for instance in [bench.post_a, bench.shelf_i] {
+        match status_of(instance) {
+            RowStatus::Poisoned { through, message } => {
+                assert!(
+                    [held, added].contains(&through),
+                    "the instance points at one of the two blamed mates, got {through:?}"
+                );
+                assert!(
+                    matches!(status_of(through), RowStatus::Failed { .. }),
+                    "and that mate's own row reports the failure: {:?}",
+                    status_of(through)
+                );
+                assert_eq!(
+                    message,
+                    status_of(through).message().map(ToOwned::to_owned),
+                    "the message is the cause's own"
+                );
+            }
+            other => panic!("a mated instance must read as downstream, got {other:?}"),
+        }
+    }
+    // post_b is in no cluster with them: an independent subgraph
+    // completes, exactly as GQ2 says.
+    assert_eq!(status_of(bench.post_b), RowStatus::Ok);
+
+    std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
+}
