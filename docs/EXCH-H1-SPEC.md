@@ -188,6 +188,59 @@ is S-CERT's fence, route 2 is unit 3); any `spline::compose` edit;
 `nurbs_iso_derive` arms beyond the rung (the trimmed-NURBS lane is
 TRIM's); the STEP/STL option surface (EXCH's D items).
 
+## Re-scope at Phase 1 (2026-09-04, orchestrator)
+
+Phase 1 executed as bound and its stop clause 2 fired; this section
+records the orchestrator's ruling, so reviewers read it as settled —
+they falsify the built limb and the rows, they do not re-open where
+the rung lives.
+
+**Measured corrections to §The claim** (each by execution on the
+lane, differential against merge base):
+
+1. `nurbs_iso_derive` needs **no new arm**: its Chart/Scaffold arms
+   are carrier-keyed and the LINE cap-rim arm (:683) already covers
+   line rims; the catch-all never fires in any measured
+   configuration. Phase 2 item 1 is measured unnecessary and is NOT
+   built.
+2. The true #327-measured blocker is
+   `geom-brep/src/pcurve_cache.rs::run_iso_checks` check 4: the SEAM
+   class has no `Curve3::Line` carrier limb. Without it, the
+   recognition limb plus the adoption candidate red exactly four
+   rows with one cause — including a REGRESSION of a native rational
+   arc-prism export→import round trip that is first-class at the
+   merge base (`tcost_k3_import_certificate`), i.e. the class is
+   every exported loft/prism with straight ruling seams.
+3. The gap's mechanism: dm1's six matching slit carriers adopt via
+   the bitwise IsoCurve rung today; `#389` alone is
+   control-order-REVERSED against its wall column. The adopt.rs
+   Line-column candidate (Phase 2 item 4's disclosed contingency,
+   now in scope) hands it a candidate.
+4. At the merge base the `#389` gap is MASKED at every band by the
+   rational-flux refusal (the probe's Adoption arm is dead code), so
+   Phase 1 step 1's expectation was stale; the masked state is the
+   baseline truth.
+
+**The ruling**: the announced TRIM seam extends to exactly one limb —
+the seam-class `Curve3::Line` carrier limb in `run_iso_checks`
+(`geom-brep/src/pcurve_cache.rs`), the shape the lane's reverted
+prototype measured (~35 lines; Greville linear-precision hull
+transposed from the cap class, unit-weight gate, rational columns
+refuse typed like the cap class). Both keep_outs' rule — whichever
+program dispatches first builds the pcurve-lane rung EXCH consumes —
+covers this limb in spirit; TRIM has no live orchestrator until
+CURVED's exit, and the announcement is this section plus the program
+log plus the unit PR. Track Q's rows riding that file are not
+absorbed and not edited. The binding constraint tightens accordingly:
+**in `pcurve_cache.rs`, the one limb and its tests — nothing else.**
+
+Pre-draw fields unchanged (M / NUMERIC), re-logged with this ruling
+in `work/exch/log.md`. Acceptance gains, replacing the stale step-1
+expectation: the four named rows green at head; dm1's refusal
+bit-identical to the merge base at 1e-9 (same solid, same face, same
+width); the arc-prism round trip stays first-class; `#389` holds a
+candidate through its reversed column.
+
 ## Review
 
 v6 dual on the frozen head, claims to falsify (reviewers get these
