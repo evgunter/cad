@@ -153,9 +153,13 @@ fn c3_a_storage_door_mint_over_an_offdomain_base_still_maps() {
     let d = 0.05;
     let mut body = unit_box();
     let face = top_face(&body);
-    let approx =
-        geom_brep::approx_offset_surface(Arc::new(pulled_back(&offdomain_patch(1.0), d)), d, 1e-9, band())
-            .expect("the off-domain cap's offset fits");
+    let approx = geom_brep::approx_offset_surface(
+        Arc::new(pulled_back(&offdomain_patch(1.0), d)),
+        d,
+        1e-9,
+        band(),
+    )
+    .expect("the off-domain cap's offset fits");
     let Surface::Approx(a) = &approx else {
         panic!("the door mints the variant")
     };
