@@ -57,3 +57,64 @@ concludes the tracks are idle. One did: it redid `D244`, which
 - **Track `P` runs as three sub-lanes** — Euler surgery and validation,
   the review and fixture readers, liveness and the generator — on three
   disjoint file sets, no new letters and no new blocks.
+
+## Track T, first pass (2026-09-04)
+
+Track T (`crates/sweep/`) was carrying six rows. Four landed; three are
+parked, one of them new.
+
+**Landed.** `D320` and `D321` on PR 1782 (`smell/t1-scalar-lifts`) —
+`skin.rs`'s `lift_surface` and `loft.rs`'s `lift_affine` deleted for
+`NurbsSurface::map_scalar` and `Affine3::map`, with `loft.rs`'s
+`LoftError::Skin(SkinError::Structure)` mapping and four test callers'
+`.expect("lifts")`. `D323` and `D324` on PR 1783
+(`smell/t2-blend-naming`) — the *"What consumes these rows"* paragraph
+made true of `emit_blend`, and `Retired`'s absent face channel settled:
+**no channel is owed**, argued from the operator set rather than from
+fixtures. The surgery destroys through `kev` (kills no face) and `kef`
+(kills the face of the half-edge it is handed), and every `kef` in
+`surgery.rs` is handed a half of a face that surgery's own `mef` minted,
+because a carve splits a support into the shrunk face plus its strips
+and the shrunk face keeps its source key. That argument now lives at
+`Retired` itself.
+
+**Parked, on the two FILLET lanes live in `blend/surgery.rs`** (PRs 1763,
+1752) — `T-R1`'s class, and the reason the rows were held rather than
+dispatched: `D322` (gate `ring_clearance` behind `test-support`), `D325`
+(the corner fusion's `first_arc`), and **`D326`, new**, raised by the T-2
+style review as the row-0 answer `D323` did not take: `topo`'s
+`canonicalize_chart` PICKS the dying face and structurally refuses to
+hand the anchor to `kef` (`shell.rs:1398-1406`), where the blend surgery
+establishes the same invariant six times by six unrelated local
+arguments and states it at none of its call sites. With that carried,
+`Retired`'s doc is two sentences instead of fifteen lines.
+
+**Reviews were style-only this pass** (Ev's call for a track of this
+size), against `docs/prompts/reviewer-style-lane.md`, one per unit, no
+A/B arms. Both found real work: T-1's review established from
+`validate_counts` and the `Vec<f64>` weights field that the deleted
+re-validation could never have fired — the one thing that would have
+been a MAJOR — and caught that a `map_scalar(f64::from_f64)` at the
+`f64` test sites is a deep clone spelled as a lift; T-2's review
+mutation-tested both face assertions to prove they can go red, and found
+the `ShellRetired` contrast false in both halves (the chart reduction
+runs `kef`, not `kfmrh`; `ShellRetired` records RESULT keys where
+`blend::Retired` records SOURCE keys). Neither fix pass was optional and
+both rows' PRs carry them.
+
+**Filed out of the two reviews**, because a residue disclosed in a PR
+body is filed nowhere: `d321-row-number-reissued` (the id was reused —
+`plan.md` says ids never are), `sweep-doc-comments-cite-tests-unenforced`
+(~16 doc comments naming a test file, nothing resolving them),
+`profile-has-no-scalar-lift-door` and
+`sweep-test-rebuilds-validated-net-for-v-reversal` (T-1's two residues),
+`work/issues/stale-track-t-citations-in-fillet-and-cert`,
+`work/issues/emit-blend-restates-the-kernels-own-arguments` (Track V's),
+and `work/issues/two-green-prs-merge-into-a-red-main`.
+
+**Main was red for the second time in one day** while this track ran —
+`crates/viewer`'s deliberately exhaustive `blamed_mates` against a
+`MateFault` variant added twenty-two minutes later by a concurrently
+gated PR. Repaired by PR 1792 rather than handed back, per the standing
+argument that main red blocks every program and a compile repair carries
+no design content. The mechanism is the last issue above.
