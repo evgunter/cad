@@ -1422,6 +1422,16 @@ NOT_BOUND = {
     # doors, both of them holding one internally, neither handing it
     # to Python — which is what `behind-a-door` means.
     "ParamEnv": INTERIOR,
+    # DI3's memo refusal, recorded on `Evaluation.prior_ignored`: the
+    # two document ids behind a prior that was dropped rather than
+    # mined. Nothing in Python hands one out — the facade's
+    # `Evaluation` projects no such attribute — and the fact it
+    # records reaches a Python caller where it always did, as
+    # `Evaluation.reused` being 0 with every node recomputed. Not a
+    # `gap:`: the debt, if there is one, is the `evaluate` door's
+    # PROSE about a foreign prior, which `pncad.pyi`'s own paragraph
+    # owns, not a missing binding for this record.
+    "PriorIgnored": INTERIOR,
     "Profile": INTERIOR,
     "ProfileEdgeRef": INTERIOR,
     "ProfileLoop": INTERIOR,
