@@ -55,7 +55,7 @@ it for later lanes if style work should be instrumented.
 | **T-c** | D90 (the corner chart's unchecked faces — **ADV**), D321 (`admit.rs`'s `include_str!` self-reader), D96 (the `unreachable!` row-0 candidates, enumerated first) | **PR #1359 open, not merged.** All three closed; see the lane record below. `D96` is struck with its out-of-fence members re-homed (`D242`, `D243`, `D304`) and its one unaffordable in-fence arm rowed as `D325` |
 | (kept out per `T-R1`) | **`D322`, `D323`, `D324`** — `D124`'s three re-homes, all inside `crates/sweep/src/blend/` | **HELD until BLEND-4 (#1360) merges** (`T-R7`): that PR is open and edits all six files of the module, `surgery.rs` — `D322`'s own file — included. `D323` and `D324` are the same file as each other and cheaper taken together |
 | (was kept out per `T-R2`) | — | **spent.** `D91` was taken and closed by `T-b`. `D90` and `D321` were taken and closed by `T-c` against a live BLEND-4 — a deliberate exception to `T-R1` rather than a lift of it (`T-R7`) |
-| (not takeable) | D320 | waits on D240 |
+| **T-1** | D320 (`skin.rs`'s `lift_surface`), D321 (`loft.rs`'s `lift_affine`) | **closed.** `D240` minted `NurbsSurface::map_scalar`, which is what `D320` waited on; both rows land on one branch. The `D321` of this row is the `loft.rs` one — the number was reissued after `T-c` closed the `admit.rs` `D321`, so every `D321` in the lane records above is the earlier, unrelated row |
 
 ## Lane records
 

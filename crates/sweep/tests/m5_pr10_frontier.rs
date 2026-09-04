@@ -17,10 +17,10 @@
 
 use geom::Surface;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
+use geom_core::{Affine3, Point2, Real, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
-use sweep::skin::{lift_surface, loft_geometry};
+use sweep::skin::loft_geometry;
 use sweep::{Extrusion, extrude};
 use topo::{FaceSurface, validate_geometric};
 
@@ -85,7 +85,7 @@ fn tier_three_certifies_the_kind_and_refuses_the_geometry() {
     validate_geometric(&body, Tol::witness()).expect("the extrusion validates at tier 3");
 
     let g = geometry();
-    let wall = lift_surface::<f64>(&g.walls[0][1]).expect("lifts");
+    let wall = g.walls[0][1].map_scalar(f64::from_f64);
     let face = built.side_faces[0][1];
     body.set_face_surface(face, FaceSurface::New(Surface::Nurbs(wall.into())))
         .expect("the arena takes a real NURBS surface");

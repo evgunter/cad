@@ -39,7 +39,8 @@
 //! parameters are chosen in `f64`, deterministically: same sections in,
 //! same knots and same control bits out. The produced surface then
 //! evaluates generically over [`geom_core::Real`] (the substrate's
-//! rule) — [`lift_surface`] carries a chosen structure to any scalar.
+//! rule) — [`NurbsSurface::map_scalar`] carries a chosen structure to
+//! any scalar.
 //! No topology decision is made here, so nothing routes through
 //! `k_stats`; the raw `f64` comparisons below are structure selection
 //! under C6.
@@ -52,7 +53,7 @@ use geom::curves::fit::{FitError, interpolate_columns};
 use geom_brep::SketchSegment;
 use geom_core::Tol;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
-use geom_core::{Affine3, COINCIDENCE_RECOURSE, Point2, Point3, Real, Vec3};
+use geom_core::{Affine3, COINCIDENCE_RECOURSE, Point2, Point3, Vec3};
 use profile::{Profile, ProfileError, ProfileLoop, SketchPlane, ValidatedProfile};
 
 /// The quarter-turn ceiling on one rational-quadratic arc span: every
@@ -746,29 +747,6 @@ pub fn skin_on(
     }
     // `NurbsSurface::new` is the `w > 0` door (and the count door).
     NurbsSurface::new(knots_u, knots_v, control, weights).map_err(SkinError::Structure)
-}
-
-/// Carries an `f64`-chosen surface structure to any scalar for
-/// evaluation (crate docs' C6 note): the control bits and weights are
-/// DATA — the Q8 definition — so lifting is `from_f64`, exact at every
-/// scalar, and the interval lane encloses the very same surface.
-///
-/// # Errors
-///
-/// [`SplineError`] — unreachable for a surface that already validated,
-/// surfaced rather than swallowed.
-pub fn lift_surface<T: Real>(s: &NurbsSurface<f64>) -> Result<NurbsSurface<T>, SplineError> {
-    let control = s
-        .control()
-        .iter()
-        .map(|p| Point3::new(T::from_f64(p.x), T::from_f64(p.y), T::from_f64(p.z)))
-        .collect();
-    NurbsSurface::new(
-        s.knots_u().clone(),
-        s.knots_v().clone(),
-        control,
-        s.weights().to_vec(),
-    )
 }
 
 // ---------------------------------------------------------------------

@@ -20,8 +20,8 @@
 use geom::NurbsCurve3;
 use geom_brep::SketchSegment;
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Point2, Point3, Vec3};
-use sweep::skin::{SkinError, lift_surface, make_compatible, segment_curve, skin, skin_parameters};
+use geom_core::{Affine3, Band, Point2, Point3, Real, Vec3};
+use sweep::skin::{SkinError, make_compatible, segment_curve, skin, skin_parameters};
 
 /// The band this row resolves at — every probe scales from it.
 fn band() -> Band {
@@ -223,7 +223,7 @@ fn the_wall_is_genuinely_curved_in_v() {
 fn lifting_the_structure_reproduces_it_exactly() {
     let compat = strip(1);
     let surface = skin(&compat, 2).expect("skins");
-    let lifted = lift_surface::<f64>(&surface).expect("lifts");
+    let lifted = surface.map_scalar(f64::from_f64);
     assert_eq!(lifted.knots_u().knots(), surface.knots_u().knots());
     assert_eq!(lifted.knots_v().knots(), surface.knots_v().knots());
     assert_eq!(lifted.weights(), surface.weights());
