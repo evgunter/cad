@@ -158,3 +158,12 @@ partly requested runs out wherever it sits). Headline claim, to be
 falsified by the review before it gets an issue: all six `profile`
 fillet recourse sentences are dead because `EscalationSite::Fillet`
 has no producer. Style review dispatched on the frozen head.
+
+**E1 MERGED (2026-09-04)**, PR [#1743](https://github.com/evgunter/cad/pull/1743)
+at `fcb2c915`, green 22/22 at the asked-for interval lane, ε 1e-12
+drawn. Both blend doors share one size gate; the false-fact refusal at
+radius zero is gone; the reviewer's rows adopted `--no-ff` (the gate
+order pinned, the `Interval` bracket rows that make the interval claim
+real, the no-metering probe row); the sub-ε class filed as
+`blend-size-gate-unmetered-under-epsilon` with a characterization row
+as its witness. The first FILLET unit closes.
