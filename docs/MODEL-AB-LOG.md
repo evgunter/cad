@@ -250,6 +250,26 @@ amended:
      by a recorded byte, the stopping rule and the adjudication
      instrument are unchanged.
 
+- **Protocol amendment (Ev, in-chat, 2026-09-04): IMPLEMENTER RATIO
+  fable:opus 1:2.** Blocks become three slots {opus,opus,fable} with
+  the fable position drawn uniformly (byte mod 3). Effective at the
+  NEXT block draw; no in-flight slot moves (VERBS-8's drawn slots all
+  executed). The 5.1 era-boundary note below applies to all
+  post-boundary fable rows regardless of ratio.
+
+- **Instrument note (Ev, in-chat, 2026-09-02): FABLE 5.1 RELEASE
+  BOUNDARY.** Fable 5.1 released 2026-09-01. The exact identity
+  (5.0 vs 5.1) of fable-armed sessions dispatched near the mark is
+  NOT KNOWN; fable rows clearly after the mark must be ANALYZED
+  SEPARATELY from those before, and any readout spanning 2026-09-01
+  must say so and report the eras separately (the v5-discontinuity
+  convention applied to the model axis). Affected VERBS rows near
+  the boundary: ordinal-107 R1-redispatch and ordinal-108 R2
+  (2026-08-31, before/near); ordinal-110 R1 and the C5ARMS
+  implementer (2026-09-01, SPANNING); ordinal-111+ fable rows
+  (after). Other programs' fable rows in the window carry the same
+  caveat.
+
 - **Protocol v6 (Ev, in-chat, 2026-08-26, from the fourth
   readout's confound review). DUAL REVIEW REINSTATED,
   SLOT-RANDOMIZED, with a pre-registered stopping rule and a
@@ -3258,145 +3278,6 @@ PR #1577 open — frozen head `d4e67f57a`): **ordinal 111** (VERBS
 band; the #1095 shape). v6 DUAL, concurrent, briefs symmetric.
 Sample number AT MERGE in main's order. Row at merge.
 | C5-1 | 2026-09-02 | VERBS-C5ARMS PR-1 (PR #1577; the plane×torus section arm — the unit that STOPped honestly at its first dispatch, spawned TORAX as its enabler via adjudication (c), and RESUMED after the enabler merged): plane_torus_section with MeridianCircles / the demanded ConcentricCircles / TangentCircle-as-classification-data / Empty; six named pt_* trileans after the fix pass; the (Plane,Torus) table arm flips Closed+implemented; the opening measurement found the elbow already at the RIM door and the barrel/teapot hollows flag-independent (TORAX's axial door never consults route — verified at code level by both reviewers: exactly ONE production implemented-gate in the workspace); the direct door moved exactly one refusal deeper under the flip; elbow rows re-scoped to the rim-capability unit per the TORAX adjudication; refusal-text instance 7 recorded | M (pre-logged; VERBS-7 slot 4's assignment carried through the STOP + resume) | FABLE (block VERBS-7 slot 4, per-slot arm line — the block's drawn fable executed; NEAR THE 5.1 BOUNDARY, see the release note above: the implementer spans the mark, the fix pass is after-near) | **DUAL (ordinal 111; sample #111 at merge — ledger max #110, main's merge order rules; parity byte 181 ⇒ R1 FABLE + R2 OPUS, frozen d4e67f57a, v6; suites-via-CI rule both arms). R1 0 MAJ / 4 MIN, 5/4/4.5, APPROVE — independent pure-python re-derivation of all three closed forms (residuals ≤2.5e-16), 6/6 aimed mutations caught + THREE SURVIVING MUTANTS found (the negative-station h.abs() blind spot; two identity levers), and the 8.472-vs-8.331 gap discrepancy resolved to different fixtures (honest, not stale). R2 2 MAJ / 7 MIN, 4/4/3, APPROVE WITH FIXES — 10/10 aimed mutations caught; the tangency attacked specifically for the SPHSPH operand-order class: NONE exists (orientation-invariant by construction). PRINCIPAL BILATERAL severity-split (R2 MAJ-1 = R1 MIN-4, adjudicated to R2): pt_ring_guard decided R−r only against its documented R>r>0 — R2 walked the named threat through it (r=−0.3 minted MeridianCircles{radius:−0.3}; r=0 a zero-radius circle + spurious TangentCircle; R<0 transposed centres). R2 MAJ-2 unilateral but DOC-CLASS (3b-excluded): four in-repo sentences still asserted the table declines the pair post-flip, one in the opening-measurement row's own doc (which also misattributed the rim carrier — it is SPIRIC, which the shipped arm refuses). NO TALLY CANDIDATES — tally 1/8, candidates 5 | 0 (all deviations declared; the guard gap was a code defect, not a silent deviation) | 4 | 4 | 4 (R1 5/4/4.5; R2 4/4/3) | substantial, IMPLEMENTER-INHERITED: pt_tube_guard added as a SECOND named trilean before pt_ring_guard (the file's one-margin-per-question shape over a min() fold, so in-band operands escalate naming the actually-ambiguous inequality) with the three threat poses planted RED-MEASURED-FIRST (the unguarded arm minted radius −0.3 on the probe) and an in-band twin pinned to the predicate; all four stale sentences fixed including the spiric misattribution; negative-station + non-unit-lever rows added each red under its own mutant; diag.predicate pinned on all six in-band rows; the lever condition recorded at site and audit row; counts re-measured honestly (121 on the stated filter list; 30+4; neither reviewer's count adopted blind); CI wording corrected to the run's own ASKED-FOR-NOT-DRAWN line | impl run 33626098475 step-verified green (interval by trailer, 1e-6 drawn); fix head f70397777: 33654893911 (PR, interval, 1e-12 drawn) + 33654890961 (dispatch, default 1e-12) BOTH fully green, every new/changed row by name, no inherited reds surfaced | impl ~261k / fix ~200k + ~130k pre-unpark / R1 ~171k / R2 ~212k | impl ~5.4h / fix ~2h + an unparked stall / R1 ~2.4h / R2 ~2.7h |
-## INSTRUMENT NOTE — FABLE 5.1 RELEASE BOUNDARY (Ev, in-chat 2026-09-02)
-
-**Fable 5.1 was released 2026-09-01.** The exact identity (5.0 vs
-5.1) of fable-armed sessions dispatched a bit before or after
-that mark is NOT KNOWN — dispatches near the boundary may have
-landed on either. Fable rows from clearly after the mark onward
-must be ANALYZED SEPARATELY from those before; any readout whose
-window spans 2026-09-01 must say so and should report the two
-eras separately (the v5-discontinuity convention applies to the
-model axis exactly as it did to the instrument axis).
-
-Affected VERBS rows near the boundary, for the analysis agent's
-era assignment: the ordinal-107 R1 redispatch and ordinal-108 R2
-(both 2026-08-31, before, near-mark); the ordinal-110 R1 and the
-C5ARMS implementer (dispatched 2026-09-01, SPANNING the mark);
-the ordinal-111 R1 and the C5ARMS fix pass (2026-09-02, after,
-near-mark). Other programs' fable rows in the same window carry
-the same caveat.
-
-Also recorded, PENDING (not ratified): Ev is considering
-switching the implementer arm ratio from the v4 blocks'
-{opus,opus,opus,fable} (1:3) back to fable:opus 1:2. If ratified,
-it takes effect at the next block draw; already-drawn per-slot
-arms stand unless Ev says redraw.
-VERBS-CYLSPH review ordinal fixed at dispatch (2026-09-03, PR
-#1604 open — frozen head `d49ddd894`): **ordinal 112** (VERBS
-band; the #1095 shape). v6 DUAL, concurrent, briefs symmetric.
-Sample number AT MERGE in main's order. Row at merge.
-
-LIB-TUBE SPEC AMENDED (2026-09-03, orchestrator; recorded BEFORE any
-review dispatched and applying identically to both future arms): the
-implementer lane — dispatched 2026-08-29, complete locally, UNPUSHED
-— was killed by a session usage limit at the finish line, and in the
-four idle days that followed main ratified and landed BOOL-13's
-schema demolition (#1540/#1553), voiding the spec's deliverable-3
-bump machinery mid-unit. Amendment in docs/LIB-TUBE-SPEC.md
-(deliverable 3 rewritten to the post-BOOL-13 persist contract; record
-surfaces moved by the work/ tracker migration). The lane RESUMES with
-its context (the M10-DI/BLEND-1 implementer-resume precedent —
-recorded, not excluded; annotated in the row at merge). Slot-4 arm
-discipline unchanged; ordinal still claimed at review dispatch.
-
-LIB-TUBE review ordinal fixed at dispatch (2026-09-03, PR #1628 open
-— frozen head `c0bfba802`): **ordinal 302** (LIB band; single
-claimant in band). Protocol v6 dual: draw = `/dev/urandom` byte
-**91**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**. Method as ordinals
-300/301's, recorded before either review runs: SEQUENTIAL same-head
-(host disk; two mechanical lanes also active at dispatch), both
-briefs authored and STORED before R1 dispatches (sha256
-af9869db8f61… r1 / 655cf3a135f6… r2 — identical text modulo lane
-names), neither reviewer sees the other's report, v6 item 5
-isolation in both briefs; the standing LIB-12 CONTAMINATION FLAG
-rides the pair (slot 4, the block's LAST — the block OPENS when
-this dual concludes, per the per-block opening rule). Pre-draw
-fields at the spec: M-L / STRUCTURAL. The unit's interruption
-history (impl-lane usage-limit death pre-push; four idle days;
-BOOL-13 landing mid-unit; the pre-review spec amendment #1623; a
-container-restart mid-merge discarded; adaptation by a fresh lane)
-is public record in the spec's Amendment section and work/lib/
-LIB-TUBE.md — both briefs direct reviewers to adjudicate the seam
-(claim 7) without model talk. Impl phase (for the row): the
-pre-death impl lane's tokens unrecorded (~3–4h shape by its
-commits); adaptation ~385k harness, ~66m wall; impl CI 33711887192
-GREEN on c0bfba802 ({interval trailer-asked, default ε, dev-probe
-klint}). Row at merge.
-
-LIB-TUBE R1 DELIVERED (2026-09-03, fable per the byte-91 draw;
-frozen c0bfba802): **APPROVE-WITH-FIXES 0/5/2, rubric 5/4/4** — no
-MAJOR; every brief claim survived execution. Decisive instruments:
-the seam INTERDIFF (cb63c8898→head reduced to exactly the disclosed
-adaptations; escape-class sweep zero hits), the stale-build refusal
-EXECUTED for real (merge-base editor-core built from source, fed a
-tube-bearing save, refused typed Unreadable), non-dyadic storage
-probes (0.3−0.1 one ulp under 0.2 — bits verbatim where volumes are
-blind), fence-removal digests replicated, audit machine-counted.
-Findings: the predicted renumbering defect LANDED in satellite
-surfaces (M1: four stale pre-migration row-number citations across
-log/tests/docstrings — a class for the fix pass to sweep; M2: a
-self-referential row-26 cite that should read 25), all-dyadic
-committed storage fixtures (M3 — probe row pushed for adoption),
-a PR-body-vs-fence-header self-description mismatch (M4), one
-v17-era comment surviving the demolition (M5). One borderline
-letter-level silent deviation (N1: the spec's "canonicalizing
-construction doors" satisfied vacuously, unmentioned). Probes
-pushed lib/tube-r1-probes. Disclosures clean (lane-name listing on
-the shared host disclosed; no cross-lane reads). ~240k tokens,
-~26m harness (~75m self-est). R2 (opus per the draw) dispatched
-sequentially after, brief VERBATIM from the pre-committed store,
-no access to R1's report or probes. Row at merge.
-
-LIB-TUBE R2 DELIVERED (2026-09-03, opus per the draw; frozen
-c0bfba802): **APPROVE-WITH-FIXES 0/2/4, rubric 5/5/3** — no MAJOR;
-all seven claims survived attack. Instruments: the densest
-collision construction the vocabulary permits (three tubes, one
-identical pair, one spine, one document — name tables disjoint and
-reproducible); the stale-build refusal executed AT THE BYTES
-(unknown-variant probe through the one typed door, labeled
-byte-level-equivalent honestly); the non-dyadic storage probe
-(0.3−0.1, bits distinguish where volumes cannot); the audit
-re-derived by SCENE NAME across the 47→43 renumbering (all flips
-landed right; main→head verdict diff exactly three); the seam
-compared as diff-of-diffs (28 dropped files all disclosed v17/log
-machinery, zero undisclosed either direction; escape class: one
-commit, one file, repaired). MINORs: caller-facing docs falsified
-by execution on the non-unit axis (the disclosure never reached
-the two surfaces authors read) and a corpus header asserting a
-mass pin over `pin: None`. NOTE-2 is a DISPATCHER CORRECTION,
-accepted: the brief's claim 5 mislabeled the torus closed form as
-row 25 — it belongs to row 26 and the audit places it correctly.
-
-CORRESPONDENCE PRE-NOTE (ordinal 302): verdicts CONVERGE (A-W-F
-both, no MAJOR either arm) — NO tally candidates; no
-re-verification round; fix pass IMPLEMENTER-INHERITED off the
-adjudicated union. Bilateral: the m4_pr6_golden v17 comment
-fragment (R1-M5 ≡ R2-N1); the dyadic-fixture weakness closed by
-BOTH probe branches independently (R1-M3 ≡ R2 claim-4 probe — the
-same non-dyadic row built twice, convergent evidence). Unilateral
-R1: the renumbering satellite class (M1, four stale citations;
-M2, the self-referential row cite), the PR-body/fence-header
-self-description mismatch (M4), the letter-level canonicalizing-
-doors silence (N1). Unilateral R2: the caller-surface doc falsity
-(MINOR-1) with the spine/u_ref asymmetry note (N3), the mass-pin
-header (MINOR-2).
-
-DISPATCHER CONTAMINATION, recorded for the blinded adjudication:
-the orchestrator's R1 phase-note COMMIT SUBJECT on main carried
-R1's verdict tally ("A-W-F 0/5/2"), and R2's pre-lane `git log`
-orientation surfaced it — R2 disclosed the exposure, states it
-reached its own verdict and findings first, and the finding sets
-are substantially disjoint; the exposure is verdict-shaped only
-(no findings content). The asymmetry is the dispatcher's, not the
-reviewers'. PROTOCOL NOTE going forward: while a dual is open,
-phase-note commit subjects stay verdict-free (tallies in the body
-only). Both reviews' costs: R1 ~240k/~26m harness; R2 ~219k/~18m
-harness (~65m self-est). Fix pass dispatches to the implementer
-lane next; row at merge.
-
-| TUBE | 2026-09-03 | LIB-TUBE (PR #1628; spec docs/LIB-TUBE-SPEC.md as AMENDED 2026-09-03 pre-review, #1623; RECIPE-DOORS D4 as revised by the #1205 split ruling): `Node::Tube` + `Node::HollowTube` over the kernel's two public doors, one emitter each, wall REQUIRED on the hollow kind, `Option` nowhere in the recipe vocabulary, kernel untouched (fence: zero diff files under sweep/topo/geom-core/geom-brep/profile). The revolve emitter template applied WHOLESALE (zero new RoleSegs, emit_sweep.rs unchanged — the spec's measured question answered); storage contract metered at the stored BITS (outer half-walls verbatim, inner one IEEE subtraction — both arms' non-dyadic probes adopted); persistence per the amended deliverable 3 (additive growth; round-trip by roster + explicit row; older-doc loads; stale-build typed refusal probed at the bytes); content tags 28/29 (25–27 taken mid-outage; injectivity gated); audit re-cut on main's renumbered 43-row table: rows 23/25/26 flip, 13/27 keep NO, G2 8→5, 36 = 32+4* of 43; corpus tube_ring + hollow_tube_elbow registered, digest gate + m10-p fence re-blessed by the roster procedure (probe row executed). UNIT HISTORY (all public record): impl lane completed 8 commits then died to a usage limit UNPUSHED; four idle days in which BOOL-13 demolished the schema version mid-unit and the tracker migrated; spec amended pre-review (#1623, environment-forced, symmetric); one resume died to a container restart mid-merge (aborted); adaptation by a fresh lane preserved the unit's shape and removed the void v17 machinery | M-L / STRUCTURAL (pre-draw at spec) | OPUS (block LIB-12 slot 4 — the block's LAST slot; the standing LIB-12 contamination flag applies) | **DUAL (ordinal 302; sample #114 at merge; byte 91 parity 1 ⇒ R1 FABLE + R2 OPUS; SEQUENTIAL same-head on frozen c0bfba802 per the pre-recorded method note, briefs stored with hashes before R1 ran; v5 instrument).** R1: A-W-F 0/5/2, rubric 5/4/4 — seam INTERDIFF clean (escape class: one commit, one file, repaired); stale-build refusal executed from merge-base sources; unilateral: the renumbering satellite class (M1 four stale citations + M2 self-reference), the PR-body/fence-header mismatch (M4), the letter-level canonicalizing-doors silence (N1). R2: A-W-F 0/2/4, rubric 5/5/3 — densest-collision construction held; audit re-derived by scene name across 47→43 (flips landed right); unilateral: caller-facing doc falsity on the non-unit axis (MINOR-1) + the mass-pin header (MINOR-2). BILATERAL: the v17 comment fragment (R1-M5 ≡ R2-N1) and the dyadic-fixture weakness — BOTH arms independently wrote the same non-dyadic probe (convergent evidence, both adopted). CORRESPONDENCE: verdicts CONVERGE, no MAJOR either arm — NO tally candidates; no re-verification round. DISPATCHER NOTES: R2's brief-claim-5 row-label error corrected by R2 (accepted); the R1-phase-note commit-subject tally leak into R2's orientation recorded as dispatcher contamination (verdict-shaped only; R2's verdict pre-dated notice; protocol rule adopted: verdict-free subjects while a dual is open). **v6 tally after this pair: unchanged. Clean-toward-twelve: DEFERRED to the blinded adjudication (contamination flag + the interruption history + sequential method + the subject-leak, all recorded pre-merge).** | 0 substantive silent (R1's N1 letter-level vacuity, recorded and paid in the fix pass); 5 reported, all verified | 5 | R1 4 / R2 5 | R1 4 / R2 3 | full 10-item union taken, none declined; BOTH probe branches merge parents authorship-preserving (+13 permanent rows, both non-dyadic and both axis rows kept as different spellings, cross-referenced); fix-phase incidents: the rustdoc-gate ambiguity and the ε-DEPENDENT WALL-GAP ROW — the fix head's 1e-6 draw (a point no run of the branch had sampled) found a real defect in a unit-written row (hard-coded wall = ε fires the positivity arm first); fixed ε-relative (1000·ε under an ulp-2 radius), verified locally at all six {lane}×{ε} points; work/lib/lib-per-arm-error-tags.md filed | impl CI 33711887192 GREEN (interval trailer-asked, default ε) on c0bfba802; fix CI 33720534346 GREEN (interval trailer-asked, default ε) on 1b17294be — the 1e-6 point that found the wall-gap defect gated 99cfb658c mid-pass; merged #1628 at sample #114 — **RECIPE-DOORS unit 2 of 3 complete; block LIB-12 CONSUMED (opening below)** | impl 8-commit shape (~3–4h, tokens unrecorded — pre-death lane) / adaptation ~385k harness ~66m / fix ~250k ~70m / R1 ~240k ~26m harness / R2 ~219k ~18m harness | ANNOTATED: impl usage-limit death unpushed + 4-day gap + container-restart mid-merge discard + environment-forced spec amendment — the most interrupted unit in the log; the review pair itself ran clean |
-
 ## Block LIB-12 CLOSED and OPENED (2026-09-03)
 
 **All four slots' reviews have concluded, so nothing remains to blind
@@ -3702,4 +3583,4 @@ SHELL-2 RECORDED AT MERGE (2026-09-04, PR #1758, sample #122 — prior highest #
 
 | SHELL-2 | 2026-09-04 | SHELL-2 (PR #1758; spec docs/SHELL-2-SPEC.md, issue record 1020): `transform_rigid` maps a `Surface::Approx` face — `PcurveFittedLane::remap_certificate` (four explicit arms; `f64` derives, the rest answer `None`), `geom::NurbsSurface::map_affine`, the certificate re-derived on the mapped pair through `ApproxSurface::certify` with the lane injected, `ApproxLaneUnsupported { lane }` / `ApproxRecertify { source }` replacing `ApproxSurface`; the `NurbsPlaceholder` message made true. The spec's fixture premise was FALSE (the OFF-C loft cannot move — its seams carry `Curve3::Nurbs`, issue record 1346) and the lane measured that no `Approx`-faced body in the tree is both movable and tier-3 clean, filed it, and built `box_with_approx_cap`. Fix pass: union of 10 items taken — the vacuous 1e-9 limb assertion replaced (`hull_sup` is NOT a rigid invariant, measured 7.4e-9 under an oblique rotation; `on_locus_max` is), one window home `certify_offset_over` shared by the storage door, `recertify_approx` and the map (a narrowed-window body had passed tier 3 and refused at the map), the re-derivation tolerance guarded by two rows, the fixture upgraded to Chart+IsoLine (four `DescriptionNotAdjacent` → one real wall), the three walls a user meets pinned (mass, mesh, STEP), doctrine deduped; both lanes covered across heads (interval asked on the reviewed head, default drawn on the fix-pass code head; three docs-only commits after it drew no run — a missed webhook, recorded) | S–M / STRUCTURAL-NUMERIC (pre-draw at the spec) | OPUS (block SHELL-B1 slot 1) | **DUAL (ordinal 2301; sample #122; byte 96 parity 0 ⇒ R1 OPUS + R2 FABLE; CONCURRENT on frozen b58274d8; briefs stored with sha256 before dispatch, identical modulo lane names; PRIVATE target dirs; ran beside SHELL-1's dual on one four-core cloud box at `-j2`, ENOSPC mid-review — a method note on both arms equally).** R1 APPROVE-WITH-FIXES 0/5/5 (idiom 4 / test 2 / doc 4; MINOR: two rows vacuous at the 1e-9 fixture; the window check covered by no row and re-implemented in a sibling test; the re-derivation tolerance unguarded by mutation; the trait header false about its membership; the moved part cannot be measured or exported). R2 APPROVE-WITH-FIXES 0/4/3 (idiom 4 / test 3 / doc 4; MINOR: `hull_sup` not a rigid invariant — the spec's premise; the fixture's stated reason wrong (Chart+IsoLine IS accepted; the one wall is check 7's cache need); three re-derivation doors, two window rules; rows 2 and 6 decorative). No unilateral MAJOR. Both e2e consumers: a user can place an `Approx`-faced part and then neither weigh, mesh nor export it (two issues filed: EXCH, MESH). Silent deviations: 0 / 0 (R1 counted the spec's own vacuous premise as undisclosed — a spec finding, not a lane deviation). Fix pass implementer-inherited, ~110 min. Tokens impl 299,459 / fix ≈146,600 / R1 217,115 / R2 264,492. Wall-clock impl ~75 min (no outage; contention noted) / R1 25 min / R2 21 min. |
 | RC-1 | 2026-09-04 | VERBS-RIMCAP PR-1 (PR #1674; the rim-construction capability, SPHERE half; the TORAX elbow-split lineage): the meridian-pair arm (cap_pair_corner — the moved caps' meeting line as a derived Profile::Line handed to existing transversality/roots/nearest, answers verified onto both FULL plane equations) + the carried-datum arm + the off-axis-circle mint computed INLINE (no section call; seven named predicates in six audit rows); the mechanism hypothesis CONFIRMED by instrumentation (the pole arm answers on-axis while both moved caps stand t off; the raising-site correction to the axis-edge meter measured right by BOTH reviewers' independent instrumentation); the lune's pole corners the 2-CAP case the spec's one-cap wording could not answer (both arms judged REDUCTION not widening; the spec re-cut at the fix pass); corners bit-exact at ρ=t√2; ONE DECLARED DEVIATION with a forcing red-the-day row and filed schedule (the operand lune is tier-3 VolumeUncomputable TODAY — props_band_coplanar — so the hollow shipped at the public direct door; work/issues/sphere-flux-arm-refuses-partial-bands.md); the klein elbow one door deeper (TogetherAxialEdge; the spiric boundary stays PR-2's design gate) | M (pre-logged) | FABLE (block VERBS-8 slot 3, per-slot arm line — post-5.1-boundary per the release note) | **DUAL (ordinal 113; sample #123 at merge — ledger max #122, main's merge order rules; parity byte 74 ⇒ R1 OPUS + R2 FABLE, frozen 8c8a7b7f1, v6; R1 was a FRESH redispatch after a 529 outage death-at-start; R2 resumed once across a limit death, lane pristine — both flagged, pair COUNTS). R1 1 MAJ / 6 MIN, 5/4/4, ACCEPT — instrumented the base mechanism itself, verified bit-exactness at the BIT level, re-derived the cavity volume (rel 8.55e-15), probed the reflex 270° and outward poses (worst residual 8.7e-18). R2 0 MAJ / 2 MIN, 4/5/5, ACCEPT — independent instrumentation of the same mechanism, six mutations landing on typed doors with predicted numbers, interval widths measured. R1 MAJ-1 UNILATERAL TALLY CANDIDATE (class doc/contract-API — 3b weighed at the coding; the demonstrated half real): TogetherEdgeDisagreement's PUBLIC doc and Display assert a cause its three raising sites don't share — at the lune's site the gap is a midpoint-to-surface residual, not 'two ends solved apart'; the false text is what originally misled the module doc; the unit fixed every derived text and left the authoritative one | 0 (deviations declared; the doc defect pre-existing, surfaced by this unit's own measurement) | 5 | 5 | 4 (R1 5/4/4; R2 4/5/5) | substantial, IMPLEMENTER-INHERITED: the variant's doc+Display rewritten to enumerate the three meters with a constructed-error pin asserting off payload FIELDS (the ordinal-112 static-literal lesson applied); the fifth refusal string pinned on the buildable lune(0.3,20°) and added to the reached list; the cavity-volume row added (rel 5.70e-15 measured, 1e-12 gate); reflex-270° and outward-offset rows pinning R1's exact numbers (2.0102263481348114e-19 residual); the sealed-arm assert tightened to the payload triple; both idiom laxities closed; the spec item-1 re-cut to both arms; AND ONE UNION INSTRUCTION REFUTED BY MEASUREMENT (the :441 cite was correct at the opening head — recorded, not applied; the orchestrator's fix was the error) | impl runs 33747086028 + 33747145122 step-verified green (interval+default at 1e-6; prior heads' reds discipline-gate-only with tests green at 1e-12 both lanes); fix head 4a1785cb9: 33836698609 (PR, interval 1e-12) + 33836699808 (dispatch, default 1e-12) both green, every row by name both shards both lanes | impl ~371k / fix ~407k across an unpark / R1 ~229k fresh / R2 ~204k across a resume | impl ~7.4h / fix ~1.3h / R1 ~10.8h wall / R2 ~3.3h wall incl. the limit gap |
-| WB-1 | 2026-09-04 | VERBS-1031B (PR #1671; the arc-bounded winding arm — Evan's option-(1) ruling on the measured fork; a PORT of join's run_term, not an invention, per the spec's own discovery): loop_winding gains the conic bulge (Δ−sinΔ scaled) + arc-length metering as bool_ring_run_winding's port (three sites — the spec's 'fourth' was off by one, reported not silently fixed); the Line-only path structurally skips the new code (a separate bulge pass); THE TEAPOT CUP MERGES ((25,26,48)→(19,24,36), 4 annuli + 2 pole caps + 6 PeriodClosure skips vs the spec's predicted 8 groups — measured, recorded), tier-3 Ok, roles pinned load-bearing; the boolean-after-merge measured at the curved-pierce substrate — the register's gate-admission deferral CLOSED BY CITATION; the unit's honestly-declared introduced divergence: roles now assigned by a functional tier-3 check 6 cannot check (MUT-2: green validator on inverted roles) | M- (pre-logged; the port discovery at spec time) | OPUS (block VERBS-8 slot 4, per-slot arm line) | **DUAL (ordinal 114; sample #124 at merge — ledger max #123, main's merge order rules; parity byte 208 ⇒ R1 OPUS + R2 FABLE, frozen 93bcce7e6, v6; R2 resumed once across a limit death, lane pristine — flagged, pair COUNTS; the unit itself weathered the account-wide Actions-budget wall + a 529 death with clean recovery). R1 1 MAJ / 6 MIN, 4/3/5, MERGEABLE-AFTER-ONE-FIX — every claim reproduced verbatim; the sharper half of the principal: the validator's stated reason for its line-only scope is EXACTLY the defect the bulge term dissolves (removed at one site, left standing at the other). R2 1 MAJ / 4 MIN, 4/4/4 — same principal found independently (BILATERAL, dedup single, no tally candidate): the divergence's schedule existed only in PR prose, no committed artifact, the owning M6 register lines uncited. Both arms judged the FENCE right (porting into the validator changes its refusal surface — its own measurement pass). Minor union: the Ellipse arm dead to the battery (both arms' mutations survive), the perimeter re-metering unpinned (same shape: the escalation lever had no red half), the committed module doc contradicting its own test doc, a third undeclared divergence, payload pins vs quoted payloads | 0 (the divergence itself was declared with its evidence; the gap was the schedule artifact) | 4 | 4 | 4 (R1 4/3/5; R2 4/4/4) | substantial, IMPLEMENTER-INHERITED: the schedule artifact FILED (work/verbs/verbs-1031b-assigner-checker-divergence.md with the MUT-2 evidence and the refusal-surface-change cost as the follow-up's opening measurement) + cross-referenced from the item body AND the owning register line (the new fact: the class now has a PRODUCER); validate.rs's stale justification qualified (the chord-disagreement reason RETIRED for circle carriers); the Ellipse row added with the key finding that both reviewers' mutations scale the margin by the SAME factor major/minor (one asserted value covers both); the perimeter re-metering PINNED via the module's one test-visible seam (MarginDiag::Value — the only place the denominator is observable); the module doc corrected; the third divergence counted; payloads pinned; ONE ε-FRAGILITY OF ITS OWN CAUGHT BY CI and re-derived band-relative (recorded, not quietly patched) | impl runs 33742846713 (interval 1e-12) + dispatch 33782315651 green across the Actions-budget window; fix head 99fa21836: THREE runs step-verified (PR interval+default incl. render lanes; dispatch default compile lane — never drawn on the branch before; dispatch lane=both eps=1e-12 — the row that actually broke), all rows by name at both ε | impl ~251k across two deaths / fix ~234k / R1 ~194k / R2 ~109k across a resume | impl ~0.7h active + gaps / fix ~1.2h / R1 ~4.5h / R2 ~0.3h active |
+| WB-1 | 2026-09-04 | VERBS-1031B (PR #1671; the arc-bounded winding arm — Evan's option-(1) ruling on the measured fork; a PORT of join's run_term, not an invention, per the spec's own discovery): loop_winding gains the conic bulge (Δ−sinΔ scaled) + arc-length metering as bool_ring_run_winding's port (three sites — the spec's 'fourth' was off by one, reported not silently fixed); the Line-only path structurally skips the new code (a separate bulge pass); THE TEAPOT CUP MERGES ((25,26,48)→(19,24,36), 4 annuli + 2 pole caps + 6 PeriodClosure skips vs the spec's predicted 8 groups — measured, recorded), tier-3 Ok, roles pinned load-bearing; the boolean-after-merge measured at the curved-pierce substrate — the register's gate-admission deferral CLOSED BY CITATION; the unit's honestly-declared introduced divergence: roles now assigned by a functional tier-3 check 6 cannot check (MUT-2: green validator on inverted roles) | M- (pre-logged; the port discovery at spec time) | OPUS (block VERBS-8 slot 4, per-slot arm line) | **DUAL (ordinal 114; sample #125 — CORRECTED post-merge per precedent: M10-7 merged first holding #124; WB-1 takes #125, the first free number in main's merge order; parity byte 208 ⇒ R1 OPUS + R2 FABLE, frozen 93bcce7e6, v6; R2 resumed once across a limit death, lane pristine — flagged, pair COUNTS; the unit itself weathered the account-wide Actions-budget wall + a 529 death with clean recovery). R1 1 MAJ / 6 MIN, 4/3/5, MERGEABLE-AFTER-ONE-FIX — every claim reproduced verbatim; the sharper half of the principal: the validator's stated reason for its line-only scope is EXACTLY the defect the bulge term dissolves (removed at one site, left standing at the other). R2 1 MAJ / 4 MIN, 4/4/4 — same principal found independently (BILATERAL, dedup single, no tally candidate): the divergence's schedule existed only in PR prose, no committed artifact, the owning M6 register lines uncited. Both arms judged the FENCE right (porting into the validator changes its refusal surface — its own measurement pass). Minor union: the Ellipse arm dead to the battery (both arms' mutations survive), the perimeter re-metering unpinned (same shape: the escalation lever had no red half), the committed module doc contradicting its own test doc, a third undeclared divergence, payload pins vs quoted payloads | 0 (the divergence itself was declared with its evidence; the gap was the schedule artifact) | 4 | 4 | 4 (R1 4/3/5; R2 4/4/4) | substantial, IMPLEMENTER-INHERITED: the schedule artifact FILED (work/verbs/verbs-1031b-assigner-checker-divergence.md with the MUT-2 evidence and the refusal-surface-change cost as the follow-up's opening measurement) + cross-referenced from the item body AND the owning register line (the new fact: the class now has a PRODUCER); validate.rs's stale justification qualified (the chord-disagreement reason RETIRED for circle carriers); the Ellipse row added with the key finding that both reviewers' mutations scale the margin by the SAME factor major/minor (one asserted value covers both); the perimeter re-metering PINNED via the module's one test-visible seam (MarginDiag::Value — the only place the denominator is observable); the module doc corrected; the third divergence counted; payloads pinned; ONE ε-FRAGILITY OF ITS OWN CAUGHT BY CI and re-derived band-relative (recorded, not quietly patched) | impl runs 33742846713 (interval 1e-12) + dispatch 33782315651 green across the Actions-budget window; fix head 99fa21836: THREE runs step-verified (PR interval+default incl. render lanes; dispatch default compile lane — never drawn on the branch before; dispatch lane=both eps=1e-12 — the row that actually broke), all rows by name at both ε | impl ~251k across two deaths / fix ~234k / R1 ~194k / R2 ~109k across a resume | impl ~0.7h active + gaps / fix ~1.2h / R1 ~4.5h / R2 ~0.3h active |
