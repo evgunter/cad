@@ -1,0 +1,17 @@
+[package]
+name = "cert-m3r1-probe"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+geom-core = { path = "../../crates/geom-core" }
+geom = { path = "../../crates/geom" }
+geom-brep = { path = "../../crates/geom-brep" }
+topo = { path = "../../crates/topo" }
+
+[features]
+probe = ["geom-core/probe", "geom-brep/probe", "topo/probe"]
+interval = ["geom-core/interval", "geom-brep/interval", "topo/interval"]

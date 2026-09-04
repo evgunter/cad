@@ -172,6 +172,8 @@ pub mod merge_faces;
 pub mod movefac;
 #[cfg(test)]
 mod n2r1_probes;
+#[cfg(test)]
+mod cert_m3r1_probes;
 pub mod null;
 pub mod offset_axial;
 pub mod offset_together;
