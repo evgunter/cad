@@ -188,3 +188,27 @@ dispatch (PR 1853); parity byte 83 ⇒ R1 = FABLE, R2 = OPUS; briefs
 hashed and diff-identical modulo lane names; private build AND private
 scratch directories per lane. Both lanes running concurrently on the
 frozen head. The unit's log entry waits for the dual's conclusion.
+
+## DOCM-1 MERGED (2026-09-04, PR 1829, ordinal 1802, sample #128)
+
+Block DOCM-B1 slot 2 (FABLE), concluded; the block is concluded with
+it and its record is on main. Three phases: the Phase-1 stop at PP6's
+f64 sketch-plane fence (Ev ruled option A; PP6/DM1c amended, #1837),
+the build under the amendment, then the v6 dual (R1 fable
+NOT-MERGEABLE-AS-IS 1/2/4, R2 opus APPROVE-WITH-FIXES 2/4/4) and its
+union fix pass. Adjudicated: one bilateral MAJOR (the tag-42 key-guard
+row could not fail — the feed was redundant and is gone) and two
+unilateral MAJORs by execution, one per slot: R1's symbolic-lane
+asymmetry (a derived frame's placement does not certify on
+`Sym<Interval>` under a widened upstream parameter; the fix pass
+diagnosed it to the kernel's symbolic budget and stopped at its
+clause — filed for M10 as
+`derived-frame-placement-freezes-on-the-symbolic-lane`) and R2's A3
+handedness gap (a surviving mutant, now caught by A3b). Both reviewers
+falsified the PR's "any width refuses" kernel claim; the measured
+floor (plain `Interval`, near ε/16) is the record now. Filed at merge:
+`LIB-B-FACE-FRAME` (the Python surface), the two issues the fix pass
+filed, and — from the tally read this merge required —
+`ab-log-v6-stream-is-past-its-stopping-rule-unadjudicated` (Ev's).
+The spec is deleted into the ledger. Next: DOCM-2 (`Node::Part`,
+spec written) under a fresh block draw, DOCM-B2.
