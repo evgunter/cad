@@ -10,12 +10,14 @@
 //!   than the true one, the screen passes, and the surgery's exact ring
 //!   check refuses `RingClearance`. The sentence is then followable:
 //!   the reduced size builds.
-//! - `FILLET3_GEOMETRY_RECOURSE` IS handed to a caller, and it is a
-//!   dead recourse of issue 1278's class: a square pocket leaves a ring
-//!   of LINE carriers on the top face, `ring_circle` refuses every
-//!   outer-edge fillet at every radius, and the sentence endorses
-//!   planar supports on line/circle carriers — which the request
-//!   already has.
+//! - `FILLET3_GEOMETRY_RECOURSE` IS handed to a caller: a square
+//!   pocket leaves a ring of LINE carriers on the top face, and
+//!   `ring_circle` refuses every outer-edge fillet at every radius. As
+//!   filed this was also a dead recourse of issue 1278's class — the
+//!   sentence endorsed planar supports on line/circle carriers, which
+//!   the request already had. The sentence has since been rewritten to
+//!   name the ring and the order that answers it; this row keeps the
+//!   witness, and the followability suite executes the order.
 //! - `CORNER_SUPPORT_NOT_PLANAR` stays unreachable for the reason the
 //!   chain gate states: an open chain's supports must be plane–plane at
 //!   every link, so no corner with a curved support is ever admitted.
@@ -30,8 +32,8 @@ use sweep::blend::build::fillet_edges;
 use sweep::blend::{
     BlendError, FILLET3_ASSEMBLY_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_RING_RECOURSE,
 };
-use sweep::test_support::{cube, dome_profile, revolved_about_y, rim_arcs_at};
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::test_support::{cube, dome_profile, prism, revolved_about_y, rim_arcs_at};
+use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, EdgeKey, query, validate_geometric};
 
@@ -45,13 +47,6 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 
 fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
     ProfileVertex::new(p2(x, y), bulge)
-}
-
-fn prism(verts: Vec<ProfileVertex<f64>>, h: f64) -> Body<f64> {
-    let pf = Profile::new(SketchPlane::xy(), vec![ProfileLoop::new(verts)])
-        .validate(tol())
-        .unwrap();
-    extrude(&pf, Extrusion::Distance(h), tol()).unwrap().body
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
@@ -122,9 +117,11 @@ fn builds(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) {
 /// `1 − 0.2828·cos 15° = 0.7268`. Setbacks between the two are passed
 /// by the screen and refused by the exact ring check.
 ///
-/// Red when `the_ring_recourse_has_no_front_door_witness_…` becomes
-/// true of this body: that is, when the screen stops overestimating a
-/// sampled gap or the surgery stops checking rings exactly.
+/// Red when the screen stops overestimating a sampled gap, or the
+/// surgery stops checking rings exactly. Its lattice-ALIGNED twin, on
+/// which the screen does answer first, is
+/// `blend_recourse_followability::the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple`;
+/// the pair is what separates the fixture's property from the door's.
 #[test]
 fn the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_followable() {
     let hd = core::f64::consts::SQRT_2;
@@ -136,6 +133,7 @@ fn the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_follow
             })
             .collect(),
         2.0,
+        tol(),
     );
     let dimpled = subtract(&turned, &ball_at(Vec3::new(1.0, 1.0, 2.1)));
     validate_geometric(&dimpled, tol()).expect("the dimpled prism is valid");
@@ -165,18 +163,25 @@ fn the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_follow
     );
 }
 
-/// **`FILLET3_GEOMETRY_RECOURSE` reaches the front door and cannot be
-/// followed.**
+/// **`FILLET3_GEOMETRY_RECOURSE` reaches the front door at a line
+/// ring.**
 ///
 /// A square pocket protruding through the cube's top face leaves a
 /// ring of four LINE carriers. `ring_circle` reads circle rings only,
 /// so every outer-edge fillet refuses `UnsupportedGeometry` — at 0.05
-/// as at 0.3 — carrying a sentence that endorses planar supports on
-/// line and circle carriers, which is exactly what the twelve
-/// requested edges are. The lever the caller would need (the ring) is
-/// not named, and no radius builds.
+/// as at 0.3 — and no radius builds.
+///
+/// As filed this row was named `…_and_cannot_be_followed`, and it was
+/// right: the sentence endorsed planar supports on line and circle
+/// carriers, which is exactly what the twelve requested edges already
+/// were, so following it changed nothing. The sentence has since been
+/// rewritten to name the RING and the order that answers it, and
+/// `blend_recourse_followability::the_geometry_recourse_names_a_ring_and_an_order_that_builds`
+/// executes that order. This row keeps the witness — the refusal, at
+/// every radius, carrying the geometry recourse — which is what makes
+/// the other row's premise true.
 #[test]
-fn the_geometry_recourse_reaches_the_front_door_at_a_line_ring_and_cannot_be_followed() {
+fn the_geometry_recourse_reaches_the_front_door_at_a_line_ring() {
     let pocket = topo::transform_rigid(
         &cube(0.3, tol()),
         &Affine3::translation(Vec3::new(0.35, 0.35, 0.8)),

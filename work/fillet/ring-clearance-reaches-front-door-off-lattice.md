@@ -2,8 +2,10 @@
 id: ring-clearance-reaches-front-door-off-lattice
 kind: issue
 title: RingClearance reaches fillet_edges when the ring's closest point is off the screen's sample lattice; the screen's exactness claim is narrower than written
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-04
+pr: 1753
 refs: [recourse-sentences-owe-followability-pin]
 ---
 
@@ -59,3 +61,31 @@ State the screen's exactness as it is (sampled; exact where samples
 coincide with the closest approach), retract the two unreachability
 claims, and give `FILLET3_RING_RECOURSE` the composed pin its class
 owes: the front-door witness above, followed to the build.
+
+## Resolved (PR 1753)
+
+All three asks are done.
+
+- **The screen's exactness is stated as it is.** `ring_clearance`'s doc
+  (`surgery.rs`) no longer says the refuse arm is FRONT-DOOR-SCREENED.
+  It now states the one-sided invariant that is actually true — the
+  sampled gap is never SMALLER than the true one, so nothing this check
+  would pass is refused by the screen — and says plainly that the screen
+  does not always answer first, naming the turned-prism witness and the
+  axis-aligned fixtures the old wording was written against.
+- **Both unreachability claims are retracted.** The doc at
+  `FILLET3_RING_RECOURSE` now describes the off-lattice reach and points
+  at the witness row.
+- **The composed pin is adopted**, as
+  `review_fillet_e2_probes::the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_followable`.
+  The followability suite's row is rewritten as its lattice-ALIGNED twin,
+  `the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple`, whose
+  doc names axis alignment as the premise doing the work.
+
+**Not addressed here, deliberately:** `face_clearance`'s own doc
+(`battery.rs` ~`:632`) makes the wider version of the same overstatement
+about two parallel boundary edges, and this file measured it (0.35089
+reported for a true 0.35). That doc governs the battery's screen rather
+than the fillet's recourse prose, and correcting it is a claim about
+every caller of `face_clearance`, not just the ring path. Left for the
+battery's owner, with the measurement above as the input.

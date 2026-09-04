@@ -311,6 +311,14 @@ impl fmt::Display for NoCornerReason {
 /// `the_turn_in_band_recourse_is_followed_by_moving_the_geometry`,
 /// which also records that the near-degenerate turn escalates under
 /// `path_corner_turn`, not the `fillet_corner_turn` this arm keys on.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
 pub const FILLET_TURN_INBAND_RECOURSE: &str = "this corner is degenerate at any precision you could care about, and which kind is below \
      the tolerance: if the legs run smoothly into each other, keep them and declare the \
      tangency (the joint's index in the loop's tangent_joints); if they double back, that is a cusp and the \
@@ -328,6 +336,14 @@ pub const FILLET_TURN_INBAND_RECOURSE: &str = "this corner is degenerate at any 
 /// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]);
 /// followed to a build by the row named
 /// `the_no_corner_recourse_reduces_to_a_radius_that_builds`.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
 pub const FILLET_NO_CORNER_RECOURSE: &str =
     "use a smaller radius, or move the legs so a circle of that radius can sit in the corner";
 
@@ -346,6 +362,14 @@ pub const FILLET_NO_CORNER_RECOURSE: &str =
 /// and the gate itself has no default-tolerance witness; both are
 /// recorded by the row named
 /// `the_offset_lever_recourse_has_no_default_tolerance_witness`.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
 pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered by projecting the fillet's centre back onto that leg's \
      carrier, and the projection divides by the offset radius rho = R - sigma*tau*r, so a \
      fillet radius this close to the leg's carrier radius cannot place the tangent point \
@@ -368,6 +392,14 @@ pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered b
 /// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]);
 /// the bound it endorses is followed to a build by the row named
 /// `the_enclosing_recourse_endorses_a_bound_that_builds`.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
 pub const FILLET_ENCLOSING_RECOURSE: &str = "on the side the corner turns toward, a fillet radius above the leg's own carrier radius \
      puts that carrier INSIDE the fillet circle, and the corner with it, so the arc could not \
      touch the corner it would round — and whether this radius is above or below that carrier \
@@ -381,6 +413,14 @@ pub const FILLET_ENCLOSING_RECOURSE: &str = "on the side the corner turns toward
 /// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]);
 /// both its clauses are followed by the row named
 /// `the_fit_recourse_is_followed_by_a_smaller_radius_and_by_longer_legs`.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
 pub const FILLET_FIT_RECOURSE: &str =
     "the arc would never approach the requested corner; use a smaller radius or longer legs";
 
@@ -389,6 +429,14 @@ pub const FILLET_FIT_RECOURSE: &str =
 /// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]);
 /// followed to a build by the row named
 /// `the_leg_extent_recourse_is_followed_by_giving_the_leg_an_extent`.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
 pub const FILLET_LEG_EXTENT_RECOURSE: &str = "give the leg a real extent (a non-degenerate chord, or an arc carrier with a positive \
      radius and a non-zero sweep) — a leg with no extent has no direction to be tangent to";
 

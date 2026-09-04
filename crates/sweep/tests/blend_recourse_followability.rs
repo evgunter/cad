@@ -12,27 +12,37 @@
 //! EXECUTES the request the sentence names and asserts the outcome it
 //! promises.
 //!
-//! **Where the recourse cannot be followed the row says so in its own
-//! name.** A `*_has_no_front_door_witness` row pins the CURRENT
-//! outcome: the constant's variant is not reachable through
-//! `fillet_edges`/`chamfer_edges` on any body this file can build, and
-//! what the caller meets at the nearest site instead is a DIFFERENT
-//! refusal carrying a different recourse. Those rows go red the day
-//! the variant becomes reachable, which is when its own composed row
-//! is owed.
+//! **Where no fixture HERE reaches the refusal, the row says exactly
+//! that.** A `*_has_no_witness_in_this_suite` row is a measurement of
+//! this file, not an invariant of the door: on the bodies named in the
+//! row, the constant's variant is not reached through
+//! `fillet_edges`/`chamfer_edges`, and what the caller meets at the
+//! nearest site is a DIFFERENT refusal carrying a different recourse.
+//! Each such row names the PREMISE its fixture fixes — the property
+//! that excludes the failing mode — because that premise is where the
+//! next witness will come from. Two of these rows were wrong in
+//! exactly that way and are gone: `FILLET3_GEOMETRY_RECOURSE` and
+//! `FILLET3_RING_RECOURSE` are both front-door reachable, on a
+//! non-circular ring and off the clearance screen's sample lattice
+//! respectively, and `review_fillet_e2_probes.rs` holds both witnesses
+//! (`work/fillet/geometry-recourse-dead-at-line-ring.md`,
+//! `work/fillet/ring-clearance-reaches-front-door-off-lattice.md`).
+//! Wording a fixture's reach as a door's reach is what hid them.
 //!
-//! Two constants are already held composed elsewhere and are not
-//! duplicated here — duplicating them would buy a second copy of the
-//! same evidence at full fixture cost:
+//! Three constants are held composed elsewhere and are not duplicated
+//! here — duplicating them would buy a second copy of the same
+//! evidence at full fixture cost:
 //! `review_blend1_r2_probes::the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`
-//! (`FILLET3_SEAM_VERTEX_RECOURSE`) and
+//! (`FILLET3_SEAM_VERTEX_RECOURSE`),
 //! `blend_tworims::colliding_bands_on_a_shared_wall_refuse_upfront`
-//! (`FILLET3_CLEARANCE_SPLIT_RECOURSE`).
+//! (`FILLET3_CLEARANCE_SPLIT_RECOURSE`) and
+//! `review_fillet_e2_probes::the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_followable`
+//! (`FILLET3_RING_RECOURSE`).
 //!
 //! **A recourse constant is not the only place a recourse lives.** Two
-//! refusals map to `Recourse::None` in the recourse table — the row
-//! that says an invalid-input variant "has no fillet advice to give" —
-//! and then end their own sentence with advice anyway. Those two are
+//! refusals map to `Recourse::None` in the recourse table — which
+//! decides which named CONSTANT is appended, and appends none — and
+//! then end their own `Display` arm with advice anyway. Those two are
 //! rowed here on the same terms as the named constants
 //! ([`a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of`],
 //! [`a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of`]):
@@ -47,15 +57,16 @@ use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
-    BlendError, CHAMFER_ARM_RECOURSE, CornerConfig, FILLET3_ASSEMBLY_RECOURSE,
+    ALL_RECOURSES, BlendError, CHAMFER_ARM_RECOURSE, CornerConfig, FILLET3_ASSEMBLY_RECOURSE,
     FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
-    FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_RECOURSE,
-    FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
-    FILLET3_SEAM_VERTEX_RECOURSE, FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
-    FILLET3_TANGENTIAL_RECOURSE,
+    FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE,
+    FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
+    FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
 };
-use sweep::test_support::{closed_plane_sphere_rim, cube, dome, revolved_about_y, rim_arcs_at};
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::test_support::{
+    closed_plane_sphere_rim, cube, dome, prism, rim_arcs_at, spool, waisted,
+};
+use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, EdgeKey, query, validate_geometric};
 
@@ -71,46 +82,73 @@ fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
     ProfileVertex::new(p2(x, y), bulge)
 }
 
-/// A closed sketch loop extruded `h` along +z.
-fn prism(verts: Vec<ProfileVertex<f64>>, h: f64) -> Body<f64> {
-    let pf = Profile::new(SketchPlane::xy(), vec![ProfileLoop::new(verts)])
+/// `a ∖ b`, the one boolean these rows use.
+fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+    boolean_op_with(
+        BooleanOp::Subtract,
+        a,
+        b,
+        &BooleanDeclarations::none(),
+        SweepStrategy::Realized,
+        tol(),
+    )
+    .expect("the subtraction runs")
+    .body()
+    .expect("the subtraction leaves a body")
+    .body
+    .clone()
+}
+
+/// A radius-0.3 ball centred at `c`. Same body the review probe dimples
+/// its turned prism with, so the two fixtures differ in the ONE thing
+/// their rows are about: whether the box is axis-aligned.
+fn ball_at(c: Vec3<f64>) -> Body<f64> {
+    let lp = ProfileLoop::new(vec![v(0.0, -0.3, 1.0), v(0.0, 0.3, 0.0)]);
+    let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
-    extrude(&pf, Extrusion::Distance(h), tol()).unwrap().body
+    let axis = RevolveAxis {
+        origin: p2(0.0, 0.0),
+        dir: Vec2::new(0.0, 1.0),
+    };
+    let b = revolve(&vp, axis, Revolution::Full, tol()).unwrap().body;
+    topo::transform_rigid(&b, &Affine3::translation(c), tol()).unwrap()
 }
 
-/// The waisted revolve: two cones meeting at radius 0.5, so the waist
-/// rim is CONCAVE and the base rim CONVEX — the cheapest body that
-/// carries both a clearance-refusing rim and a material-side refusal.
-fn waisted() -> Body<f64> {
-    revolved_about_y(
-        vec![
-            v(0.0, 0.0, 0.0),
-            v(1.0, 0.0, 0.0),
-            v(0.5, 0.5, 0.0),
-            v(1.0, 1.0, 0.0),
-            v(0.0, 1.0, 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    )
+/// The edges of `body` on LINE carriers — on a dimpled or pocketed box,
+/// the box's own twelve.
+fn line_edges(body: &Body<f64>) -> Vec<EdgeKey> {
+    query::all_edges(body)
+        .into_iter()
+        .filter(|k| {
+            body.get_edge(*k)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(|g| g.certified())
+                .is_some_and(|c| matches!(*c.carrier(), geom::Curve3::Line { .. }))
+        })
+        .collect()
 }
 
-/// A toroidal spool: an off-axis meridian arc revolved, so its outer
-/// wall is a TORUS — a support pair with no analytic blend arm.
-fn spool() -> Body<f64> {
-    let bulge = (core::f64::consts::FRAC_PI_6 / 2.0).tan();
-    let (ex, ey) = (1.75, 0.25 * 3.0f64.sqrt());
-    revolved_about_y(
-        vec![
-            v(0.5, 0.0, 0.0),
-            v(2.0, 0.0, bulge),
-            v(ex, ey, 0.0),
-            v(0.5, ey, 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    )
+/// The twelve edges of the OUTER unit box: line carriers whose midpoint
+/// sits on `x = 0/1` or `y = 0/1`. A pocket's own rim is interior to the
+/// top face, so this is what separates the request from the ring.
+fn outer_box_edges(body: &Body<f64>) -> Vec<EdgeKey> {
+    let on = |c: f64| c.abs() < 1e-9 || (c - 1.0).abs() < 1e-9;
+    line_edges(body)
+        .into_iter()
+        .filter(|k| {
+            let Some(g) = body
+                .get_edge(*k)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(|g| g.certified())
+            else {
+                return false;
+            };
+            let (t0, t1) = g.params();
+            let m = g.carrier().eval((t0 + t1) / 2.0);
+            on(m.x) || on(m.y)
+        })
+        .collect()
 }
 
 /// The edges of `body` whose two supports are the SAME surface — a
@@ -216,7 +254,7 @@ fn the_radius_recourse_reduces_to_a_radius_that_builds() {
 /// different body, and is not pinned here.
 #[test]
 fn the_clearance_recourse_reduces_to_a_blend_size_that_builds() {
-    let body = waisted();
+    let body = waisted(tol());
     let rim = rim_arcs_at(&body, 1.0, 0.0);
     assert_eq!(rim.len(), 2, "the base rim is seam-split");
     let err = refusal(&body, &rim, 0.5, "r = 0.5 on the base rim", false);
@@ -359,7 +397,7 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
 /// trivalent corner, which no fixture here builds.
 #[test]
 fn the_assembly_recourse_names_two_doors_that_both_carve() {
-    let body = waisted();
+    let body = waisted(tol());
     let waist = rim_arcs_at(&body, 0.5, 0.5);
     assert_eq!(waist.len(), 2, "the waist rim is seam-split");
     let err = refusal(&body, &waist, 0.05, "the concave waist rim", false);
@@ -427,7 +465,7 @@ fn the_body_recourse_names_a_single_solid_that_builds() {
 /// and is left as measured.
 #[test]
 fn the_spine_kind_recourse_names_an_analytic_pair_that_builds() {
-    let s = spool();
+    let s = spool(Revolution::Full, tol());
     let torus_edges: Vec<EdgeKey> = query::all_edges(&s)
         .into_iter()
         .filter(|k| {
@@ -489,34 +527,17 @@ fn the_chamfer_arm_recourse_names_a_plane_plane_pair_that_chamfers() {
 // two away from every constant above and they advise anyway.
 // ------------------------------------------------------------------
 
-/// Every recourse constant this module can append. Restated here
-/// rather than imported as the crate's own private array, exactly as
-/// `review_d2_recourse_at_the_site.rs` restates it: a constant dropped
-/// from that array must not silently weaken the two rows below, whose
-/// whole content is that NONE of these appears.
-const EVERY_NAMED_RECOURSE: [(&str, &str); 15] = [
-    ("radius", FILLET3_RADIUS_RECOURSE),
-    ("clearance", FILLET3_CLEARANCE_RECOURSE),
-    ("clearance-split", FILLET3_CLEARANCE_SPLIT_RECOURSE),
-    ("tangential", FILLET3_TANGENTIAL_RECOURSE),
-    ("spine", FILLET3_SPINE_RECOURSE),
-    ("chain", FILLET3_CHAIN_RECOURSE),
-    ("convexity", FILLET3_CONVEXITY_RECOURSE),
-    ("corner", FILLET3_CORNER_RECOURSE),
-    ("seam-vertex", FILLET3_SEAM_VERTEX_RECOURSE),
-    ("assembly", FILLET3_ASSEMBLY_RECOURSE),
-    ("body", FILLET3_BODY_RECOURSE),
-    ("geometry", FILLET3_GEOMETRY_RECOURSE),
-    ("ring", FILLET3_RING_RECOURSE),
-    ("spine-kind", FILLET3_SPINE_KIND_RECOURSE),
-    ("chamfer-arm", CHAMFER_ARM_RECOURSE),
-];
-
 /// The refusal appends no named recourse constant — what the table
 /// routes as `Recourse::None` — and still says something.
+///
+/// Reads [`ALL_RECOURSES`], the crate's one home for that list, rather
+/// than a copy: these rows' whole content is that NONE of the fifteen
+/// appears, so a copy that fell behind would weaken them silently, and
+/// the copy this suite used to keep is exactly the failure the home's
+/// own doc records.
 fn carries_no_named_recourse(err: &BlendError, what: &str) {
     let shown = err.to_string();
-    for (name, sentence) in EVERY_NAMED_RECOURSE {
+    for (name, sentence) in ALL_RECOURSES {
         assert!(
             !shown.contains(sentence),
             "{what}: the `{name}` constant was appended, which the recourse table \
@@ -535,9 +556,12 @@ fn carries_no_named_recourse(err: &BlendError, what: &str) {
 /// on the same terms as a named one: the positive setback chamfers and
 /// validates.
 ///
-/// Reached through the CHAMFER door, which is where the check lives.
-/// Whether the fillet door grows one is a separate unit's business and
-/// this row does not assert either way.
+/// Reached through the CHAMFER door. The check is no longer only
+/// there — FILLET-E1 put the shared size gate in `build.rs`, so the
+/// fillet door answers `NonpositiveSize` too — and this row stays on
+/// the chamfer because that is where the SETBACK half of the sentence
+/// ("a positive radius or setback") is followable. The fillet door's
+/// own row is E1's.
 #[test]
 fn a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of() {
     let body = cube(1.0, tol());
@@ -583,18 +607,28 @@ fn a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of() {
 }
 
 // ------------------------------------------------------------------
-// Not followable: no request reaches the constant. The row pins what
-// the caller meets instead, so the gap is a measured fact.
+// No fixture HERE reaches the constant. Each row pins what the caller
+// meets instead AND the premise its fixture fixes — never "the door
+// cannot be reached", which is a claim no fixture can support and
+// which two rows in this file got wrong.
 // ------------------------------------------------------------------
 
-/// **`FILLET3_SPINE_RECOURSE` has no front-door witness.**
+/// **No fixture in this suite reaches `FILLET3_SPINE_RECOURSE`.**
 ///
 /// The sentence endorses "a radius below the spine's own curvature
-/// radius", which presumes the caller was told the spine folded. On a
-/// plane–sphere rim — the one closed-form curved spine the surgery
-/// carries — the clearance screen answers at every radius from the one
-/// that builds to the one that poisons: `SpineIrregular` never reaches
-/// the caller, so its sentence names a lever nobody was handed.
+/// radius", which presumes the caller was told the spine folded. On the
+/// one closed-form curved spine these fixtures can build — a
+/// plane–sphere rim — the clearance screen answers at every radius from
+/// the one that builds to the one that poisons, so `SpineIrregular` is
+/// not what this caller reads.
+///
+/// **The premise, stated as one:** on a plane–sphere rim the spine's
+/// curvature limit and the face's clearance limit are the same
+/// geometry, so the screen cannot be outrun. A body whose spine folds
+/// while clearance stays ample would be handed the sentence; this row
+/// does not claim there is none, and the suite builds no such body.
+/// That is the shape of witness to look for, and the two flipped
+/// verdicts above are what makes the distinction worth writing down.
 ///
 /// The nearest existing pin, `verbs_arms1_r1_probes::near_limit_radii_
 /// refuse_typed`, accepts either variant and so does not decide this.
@@ -602,7 +636,7 @@ fn a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of() {
 /// Red when a radius on this ladder starts refusing at the spine gate:
 /// that is when the composed row is owed.
 #[test]
-fn the_spine_recourse_has_no_front_door_witness_the_clearance_screen_answers_first() {
+fn the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first() {
     let body = dome(1.0, tol());
     let rim = [closed_plane_sphere_rim(&body, 1.0)];
     let (mut built, mut clearance) = (0, 0);
@@ -625,13 +659,17 @@ fn the_spine_recourse_has_no_front_door_witness_the_clearance_screen_answers_fir
     );
 }
 
-/// **`FILLET3_CONVEXITY_RECOURSE` has no front-door witness.**
+/// **No fixture in this suite reaches `FILLET3_CONVEXITY_RECOURSE`.**
 ///
 /// The sentence endorses splitting a chain at a convexity flip, which
-/// presumes a G1 chain whose links disagree in sign. Every G1 chain
-/// this kernel's doors can express is a rim, and a rim's convexity is
-/// uniform; a body that mixes convexity mixes it at a CORNER, and the
-/// corner tag answers first with a different recourse.
+/// presumes a G1 chain whose links disagree in sign.
+///
+/// **The premise, stated as one:** every G1 chain this kernel's doors
+/// can express TODAY is a rim, and a rim's convexity is uniform, so a
+/// body that mixes convexity mixes it at a CORNER and the corner tag
+/// answers first. That is a property of the doors, not a theorem about
+/// blends — a chain door admitting a non-rim G1 run is exactly where
+/// the witness would come from, and this row goes red there.
 ///
 /// The L prism is that body: its reflex edge makes one vertex
 /// mixed-convexity, and the whole-body request meets
@@ -640,7 +678,7 @@ fn the_spine_recourse_has_no_front_door_witness_the_clearance_screen_answers_fir
 /// ten refusal classes over hundreds of requests and this is not one
 /// of them.
 #[test]
-fn the_convexity_recourse_has_no_front_door_witness() {
+fn the_convexity_recourse_has_no_witness_in_this_suite() {
     let l = prism(
         vec![
             v(0.0, 0.0, 0.0),
@@ -651,6 +689,7 @@ fn the_convexity_recourse_has_no_front_door_witness() {
             v(0.0, 2.0, 0.0),
         ],
         1.0,
+        tol(),
     );
     let err = refusal(
         &l,
@@ -675,98 +714,102 @@ fn the_convexity_recourse_has_no_front_door_witness() {
     );
 }
 
-/// **`FILLET3_GEOMETRY_RECOURSE` has no front-door witness.**
+/// **`FILLET3_GEOMETRY_RECOURSE` names a ring and an order that
+/// builds.**
 ///
-/// The sentence endorses supports that are planes (or, for a rim, a
-/// sphere cap) with line and circle carriers. Reaching the refusal
-/// needs a corner whose support is neither, fully requested — but the
-/// chain-shape gate reads the support pair FIRST and answers with the
-/// assembly recourse, so the geometry frontier stays behind it.
+/// The refusal is reached at a support face's non-circular RING:
+/// `review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_a_line_ring_and_cannot_be_followed`
+/// is the witness — a square pocket through a cube's top face, the
+/// twelve outer edges refused at every radius, because `ring_circle`
+/// reads circle rings only.
 ///
-/// The arc-sided prism is the cheapest such body: one wall is a
-/// cylinder, and every-edge request meets `UnsupportedChain`.
+/// This row follows the sentence. The old wording described only the
+/// REQUEST ("blend edges whose supports are planes … carriers are lines
+/// and circles"), which the twelve requested edges already satisfied —
+/// a dead recourse of issue 1278's class. The sentence now says the
+/// offending shape need not be one you requested and gives the lever
+/// that exists: **cut the feature that leaves the ring AFTER the blend
+/// rather than before it.** Executed here, on the same body, at the
+/// same radius the pocketed body refuses.
+///
+/// Red if that order stops working, or if the sentence stops naming
+/// the ring — either way the caller is back to advice they cannot act
+/// on.
 #[test]
-fn the_geometry_recourse_has_no_front_door_witness() {
-    let bulge = (core::f64::consts::FRAC_PI_4 / 2.0).tan();
-    let a = prism(
-        vec![
-            v(0.0, 0.0, 0.0),
-            v(2.0, 0.0, bulge),
-            v(2.0, 2.0, 0.0),
-            v(0.0, 2.0, 0.0),
-        ],
-        1.0,
-    );
+fn the_geometry_recourse_names_a_ring_and_an_order_that_builds() {
+    let pocket = topo::transform_rigid(
+        &cube(0.3, tol()),
+        &Affine3::translation(Vec3::new(0.35, 0.35, 0.8)),
+        tol(),
+    )
+    .unwrap();
+    let pocketed = subtract(&cube(1.0, tol()), &pocket);
+    let outer = outer_box_edges(&pocketed);
+    assert_eq!(outer.len(), 12, "the outer box's twelve edges");
+
+    // The refusal, and that it is about the RING rather than anything
+    // the caller named.
     let err = refusal(
-        &a,
-        &query::all_edges(&a),
+        &pocketed,
+        &outer,
         0.1,
-        "every edge of an arc-sided prism",
+        "the outer edges of a pocketed box",
         false,
     );
     assert!(
-        matches!(err, BlendError::UnsupportedChain { .. }),
-        "the chain-shape gate reads the support pair first, got {err:?}"
+        matches!(err, BlendError::UnsupportedGeometry { .. }),
+        "the ring's line carriers are what refuse, got {err:?}"
+    );
+    let shown = err.to_string();
+    assert!(
+        shown.contains(FILLET3_GEOMETRY_RECOURSE),
+        "the caller is handed the geometry recourse: {shown}"
     );
     assert!(
-        !err.to_string().contains(FILLET3_GEOMETRY_RECOURSE),
-        "the caller is handed the assembly recourse, not the geometry one"
+        FILLET3_GEOMETRY_RECOURSE.contains("support face's own ring")
+            && FILLET3_GEOMETRY_RECOURSE.contains("AFTER the blend"),
+        "the sentence names the ring the refusal is about, and the order that \
+         answers it: {FILLET3_GEOMETRY_RECOURSE}"
     );
-}
 
-/// **`FILLET3_RING_RECOURSE` has no front-door witness.**
-///
-/// The sentence endorses reducing the blend size or moving the feature
-/// whose ring the trimline would consume. Both levers are real, but the
-/// battery's clearance screen meters the same gap BEFORE the surgery's
-/// ring carry-through check runs, and it is the screen that answers: a
-/// dimpled cube builds while the dimple clears the setback and refuses
-/// `FaceClearanceUncertified` — naming the CLEARANCE recourse — as soon
-/// as it does not.
-///
-/// So the ring sentence is written for a caller nobody becomes. Its one
-/// pinned producer is the predicate called directly
-/// (`m6_surgery::ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate`).
-#[test]
-fn the_ring_recourse_has_no_front_door_witness_the_clearance_screen_answers_first() {
-    let ball = {
-        let lp = ProfileLoop::new(vec![v(0.0, -0.3, 1.0), v(0.0, 0.3, 0.0)]);
-        let vp = Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(tol())
-            .unwrap();
-        let axis = RevolveAxis {
-            origin: p2(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        };
-        let b = revolve(&vp, axis, Revolution::Full, tol()).unwrap().body;
-        topo::transform_rigid(&b, &Affine3::translation(Vec3::new(0.5, 0.5, 1.1)), tol()).unwrap()
-    };
-    let dimpled = boolean_op_with(
-        BooleanOp::Subtract,
+    // Followed: blend first, cut the pocket second.
+    let blended = fillet_edges(
         &cube(1.0, tol()),
-        &ball,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
+        &outer_box_edges(&cube(1.0, tol())),
+        0.1,
         tol(),
     )
-    .expect("the dimple subtracts")
-    .body()
-    .expect("the subtraction leaves a body")
-    .body
-    .clone();
+    .expect("the bare cube's twelve edges blend")
+    .body;
+    let after = subtract(&blended, &pocket);
+    validate_geometric(&after, tol())
+        .expect("and cutting the pocket into the blended cube leaves a tier-3 valid body");
+}
 
-    // The straight edges are the cube's twelve; the dimple's rim is the
-    // ring the carry-through check exists for.
-    let box_edges: Vec<EdgeKey> = query::all_edges(&dimpled)
-        .into_iter()
-        .filter(|k| {
-            dimpled
-                .get_edge(*k)
-                .and_then(|e| dimpled.get_curve_geom(e.curve))
-                .and_then(|g| g.certified())
-                .is_some_and(|c| matches!(*c.carrier(), geom::Curve3::Line { .. }))
-        })
-        .collect();
+/// **On a LATTICE-ALIGNED dimple the clearance screen answers before
+/// the ring check — a property of this fixture, not of the door.**
+///
+/// `FILLET3_RING_RECOURSE` is front-door reachable and followable;
+/// `review_fillet_e2_probes::the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_followable`
+/// is the composed pin, and this row is not a second copy of it.
+///
+/// What is measured here is the ORDER, and its premise. The battery's
+/// screen samples each boundary edge at `CHAIN_SAMPLES = 9` places; a
+/// sampled gap is never smaller than the true one, so which check
+/// answers first depends on whether the ring's closest approach to a
+/// requested edge lands ON a sample. On an axis-aligned dimpled cube it
+/// does, the two margins agree, and the screen answers — the caller
+/// reads the CLEARANCE recourse. Turn the same body 30° and it does
+/// not, and the exact ring check answers instead.
+///
+/// That premise — axis alignment — is the whole content of the row, and
+/// stating it as a property of the door is what made this suite file
+/// the ring recourse unreachable
+/// (`work/fillet/ring-clearance-reaches-front-door-off-lattice.md`).
+#[test]
+fn the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple() {
+    let dimpled = subtract(&cube(1.0, tol()), &ball_at(Vec3::new(0.5, 0.5, 1.1)));
+    let box_edges = line_edges(&dimpled);
     assert_eq!(
         box_edges.len(),
         12,
@@ -783,10 +826,11 @@ fn the_ring_recourse_has_no_front_door_witness_the_clearance_screen_answers_firs
     );
     assert!(
         matches!(err, BlendError::FaceClearanceUncertified { .. }),
-        "the screen meters the ring gap first, got {err:?}"
+        "on THIS fixture the samples land on the closest approach, so the screen \
+         meters the ring gap first, got {err:?}"
     );
     assert!(
         !err.to_string().contains(FILLET3_RING_RECOURSE),
-        "the caller is handed the clearance recourse, not the ring one"
+        "and the caller reads the clearance recourse here, not the ring one"
     );
 }

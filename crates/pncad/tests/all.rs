@@ -3396,6 +3396,51 @@ fn assert_layer_root_exports_are_carried_or_listed(
 /// surface that declares five of the types the façade carries and one
 /// it deliberately does not — so for that layer the same omission
 /// would be a hole, and this closes it.
+/// The source with every `#[cfg(…)]`-gated item removed, attribute and
+/// all.
+///
+/// The two scanners below read a layer's root for the names it
+/// exports, and what the guard means by that is the surface a CONSUMER
+/// can name — the thing that must be carried through the façade or
+/// argued away. An item behind a `#[cfg]` is not that surface: no
+/// consumer's build graph turns the feature on (the profile layer's
+/// `test-support` is reached only through that crate's own self
+/// dev-dependency), so the name does not exist one hop past the
+/// façade, and asking the façade to carry it would advertise something
+/// unreachable. Without this the guard read the gate's TEXT and
+/// demanded a carrier statement for six sentences no build outside
+/// `profile/tests/` compiles.
+///
+/// Line-based and deliberately shallow: it drops the attribute line,
+/// then the item it gates, up to the statement's terminator. That is
+/// exactly the shape both roots use.
+fn code_without_cfg_gated(src: &str) -> String {
+    let mut out = String::new();
+    let mut lines = src.lines();
+    while let Some(line) = lines.next() {
+        if !line.trim_start().starts_with("#[cfg(") {
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        }
+        let mut depth: i32 = 0;
+        for gated in lines.by_ref() {
+            for c in gated.chars() {
+                match c {
+                    '{' | '(' | '[' => depth += 1,
+                    '}' | ')' | ']' => depth -= 1,
+                    _ => {}
+                }
+            }
+            let trimmed = gated.trim_end();
+            if depth <= 0 && (trimmed.ends_with(';') || trimmed.ends_with('}')) {
+                break;
+            }
+        }
+    }
+    out
+}
+
 fn root_declared_pub_names(src: &str) -> std::collections::BTreeSet<String> {
     let code = code_without_comments(src);
     let mut names = std::collections::BTreeSet::new();
@@ -3432,26 +3477,13 @@ fn root_declared_pub_names(src: &str) -> std::collections::BTreeSet<String> {
 ///   `polygon`; leaving the trait unnameable is what makes
 ///   `ProfileLoop::polygon(…)` fail to resolve while `ProfileLoop`
 ///   itself stays nameable. Carrying it here would undo the curation.
-/// - **The fillet recourse sentences** (`FILLET_*_RECOURSE`): the
-///   prose one Display arm appends to an in-band fillet escalation.
-///   They are public so the layer's own suite can spell them —
-///   `profile/tests/fillet_recourse_followability.rs` asserts each
-///   against what a caller actually reads — and no consumer names
-///   them: today NOTHING renders them at all, because the arm that
-///   writes them (`ProfileError::Escalated` at
-///   `EscalationSite::Fillet`) has no producer. Carrying six sentences
-///   through the façade would advertise a diagnostic surface that
-///   reaches nobody. When a producer lands, the decision to carry them
-///   is worth re-taking here.
-const PROFILE_NOT_CARRIED: [&str; 7] = [
-    "RawLoop",
-    "FILLET_ENCLOSING_RECOURSE",
-    "FILLET_FIT_RECOURSE",
-    "FILLET_LEG_EXTENT_RECOURSE",
-    "FILLET_NO_CORNER_RECOURSE",
-    "FILLET_OFFSET_LEVER_RECOURSE",
-    "FILLET_TURN_INBAND_RECOURSE",
-];
+///
+/// The layer's six `FILLET_*_RECOURSE` sentences are NOT listed here,
+/// and the reason is worth keeping: they are exported behind that
+/// crate's `test-support` feature, so no consumer's build compiles
+/// them and there is nothing for the façade to carry.
+/// [`code_without_cfg_gated`] is what makes the scan agree.
+const PROFILE_NOT_CARRIED: [&str; 1] = ["RawLoop"];
 
 /// **The document layer's guard, for the other layer curated the same
 /// way.**
@@ -3486,6 +3518,7 @@ fn every_profile_layer_root_export_is_carried_or_listed() {
     let layer_lib = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../profile/src/lib.rs");
     let src = std::fs::read_to_string(&layer_lib)
         .unwrap_or_else(|e| panic!("reading {}: {e}", layer_lib.display()));
+    let src = code_without_cfg_gated(&src);
     let mut exported = module_pub_use_names(&src);
     exported.append(&mut root_declared_pub_names(&src));
 

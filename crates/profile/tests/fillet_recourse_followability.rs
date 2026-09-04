@@ -32,6 +32,18 @@
 //!    in advance of being reachable, which is what the dead-recourse
 //!    class costs when it is discovered the other way round.
 //!
+//! **What step 2 watches, and what it does not.** Every row here drives
+//! the PATH door, so the value it inspects is a `PathError`. A producer
+//! that landed on the OTHER side — something constructing
+//! `ProfileError::Escalated { site: EscalationSite::Fillet, .. }`
+//! directly, which is the arm that writes these six sentences — would
+//! make them reach a caller without turning any row below red. Only
+//! [`the_six_sentences_render_off_the_one_display_arm_that_has_no_producer`]
+//! looks at that side, and it pins the dispatch RULE, not the absence
+//! of a producer. Closing the gap needs a guard over the
+//! `ProfileError` surface, which is the door change
+//! `work/fillet/fillet-escalation-site-has-no-producer.md` owns.
+//!
 //! [`the_six_sentences_render_off_the_one_display_arm_that_has_no_producer`]
 //! pins the render rule itself, so a producer landing finds the wiring
 //! already held.
@@ -49,12 +61,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Indeterminate, MarginDiag, Point2, Tol};
+use geom_core::{Point2, Tol};
 use profile::{
-    ArcSweep, Center, EscalationSite, FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE,
-    FILLET_LEG_EXTENT_RECOURSE, FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE,
-    FILLET_TURN_INBAND_RECOURSE, Open, PathError, Profile, ProfileError, ProfileLoop, SketchPlane,
-    Start,
+    ArcSweep, Center, FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE, FILLET_LEG_EXTENT_RECOURSE,
+    FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE, FILLET_TURN_INBAND_RECOURSE, Open,
+    PathError, Profile, ProfileLoop, SketchPlane, Start,
 };
 
 fn tol() -> Tol {
@@ -188,8 +199,6 @@ fn bend(start_x: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathE
 /// the dispatch already held.
 #[test]
 fn the_six_sentences_render_off_the_one_display_arm_that_has_no_producer() {
-    let eps = tol().eps();
-    let band = Band::new(eps, tol().k() * eps).expect("the run's band forms");
     for (predicate, sentence) in [
         ("fillet_corner_turn", FILLET_TURN_INBAND_RECOURSE),
         ("fillet_leg_reach", FILLET_NO_CORNER_RECOURSE),
@@ -198,15 +207,7 @@ fn the_six_sentences_render_off_the_one_display_arm_that_has_no_producer() {
         ("fillet_leg_fit", FILLET_FIT_RECOURSE),
         ("fillet_corner_arm", FILLET_LEG_EXTENT_RECOURSE),
     ] {
-        let rendered = ProfileError::Escalated {
-            site: EscalationSite::Fillet,
-            source: Indeterminate {
-                margin: MarginDiag::Value(-5.0 * eps),
-                band,
-                predicate: Some(predicate),
-            },
-        }
-        .to_string();
+        let rendered = crate::common::fillet_escalation_rendered(predicate, tol());
         assert!(
             rendered.contains(sentence),
             "`{predicate}` must render its own sentence: {rendered}"

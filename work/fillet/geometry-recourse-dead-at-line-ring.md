@@ -2,8 +2,10 @@
 id: geometry-recourse-dead-at-line-ring
 kind: issue
 title: FILLET3_GEOMETRY_RECOURSE is front-door reachable at a non-circle ring and endorses a request the caller already made
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-04
+pr: 1753
 refs: [recourse-sentences-owe-followability-pin]
 ---
 
@@ -56,3 +58,24 @@ and names the ring and the lever that exists (move or remove the
 feature; blend a face without a non-circular ring). Whichever is
 chosen, the composed pin the class asks for is owed: the second request
 executed and its outcome asserted.
+
+## Resolved (PR 1753)
+
+The second of the two options this file names was taken: the refusal no
+longer carries a sentence written only about the request.
+`FILLET3_GEOMETRY_RECOURSE` now says the offending shape need not be one
+the caller requested, names the support face's RING as the thing that
+must be carried through, says only a circle ring is, and gives the lever
+— cut the feature that leaves the ring AFTER the blend, not before.
+
+The composed pin the class asks for is
+`sweep/tests/blend_recourse_followability::the_geometry_recourse_names_a_ring_and_an_order_that_builds`:
+it reaches the refusal on this file's own fixture, asserts the sentence,
+then executes the order and asserts the result is tier-3 valid. The
+witness row here stays as
+`review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_a_line_ring`
+(renamed: `…_and_cannot_be_followed` stopped being true).
+
+`ring_circle` still reads circle rings only — teaching it line rings was
+the other option and is NOT done. That is a door change, and nothing in
+this file needs it: the caller now has an order that works.
