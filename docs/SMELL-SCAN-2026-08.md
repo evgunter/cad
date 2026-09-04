@@ -819,7 +819,6 @@ adversarially reviewed.
 | `bspline_green_integral` + its whole `DerivLadder` substrate | `props/quad.rs:706`, `:629` | Module doc at `:42` claims the patch flux engine consumes it; the patch engine runs a separate near-parallel copy |
 | `pcurve.rs`'s ellipse constructors | `geom-brep/src/pcurve.rs:107`, `:219` | Superseded by `pcurve_cache`, which says so in its own docs; the file keeps the name a reader reaches for first |
 | `hull.rs` — 8 of 10 public fns test-only | `spline/hull.rs:151`, `:196`, `:211`, `:297` | `span_hull_rational` documented as returning the same hull as `span_hull` — a wrapper whose body is a precondition check |
-| `boxes` modules on **both** halves of `geom` | `geom/src/curves/boxes.rs:29`, `geom/src/surfaces/boxes.rs:25` | Zero production consumers, while `topo/boolean/boxes.rs` carries a KNOWN GAP note saying "the sound constructor exists unused" (see S16) |
 | `Node::Sweep` | `eval/wire.rs:1524` | Full vocabulary entry — variant, 2 `SlotId`s, content tag, `inputs`/`slots`/`expr` arms — for an op with no success path |
 | STEP cylinder recognition | `recognize.rs:257`, `:794` | ~90-line estimator whose own test `p7_exact_cylinder_envelope_is_honest` asserts an exactly cylindrical patch must **not** promote; `PromotedKind::Cylinder` asserted as an outcome nowhere in `src` or `tests` |
 | `ProfileError`'s five fillet variants | `profile/src/validate.rs:411`–`:507` | Constructible only from `test_support.rs`, behind the `test-support` feature; `Profile::validate` cannot produce any of them |
@@ -850,7 +849,6 @@ being written.**
 | `bspline_green_integral` + `DerivLadder` | **DELIBERATE-FRONTIER**, blocker named at `topo/src/props.rs:581` (it is S8's missing producer; rational half banked at #390/#453). But the `quad.rs:42` liveness claim is **SUPERSEDED** — see S39. |
 | `pcurve.rs` ellipse constructors | **SUPERSEDED**, in writing, with a measured deviation (`pcurve_cache.rs:32`). |
 | `hull.rs`'s 8 unused fns | **Split**: the rational half was spec-commissioned against issues 390/453 (register row in #250), whose lane has since landed — recheck which of those fns the landed lane actually consumes; `domain_hull` and `derivative_span_hull` have **no named consumer**. |
-| `boxes` in both geom crates | **PLANNED**, three named consumers — and one is a *correctness* item: `PERF-SCAN-2026-08.md:208` Tier A finding 1 names `nurbs_surface_aabb` as the fix for S16's unsound `face_box`. |
 | `Node::Sweep` | **DELIBERATE-FRONTIER → now PLANNED with a landed first half.** LQ3 ratified (#362); the door landed (`compose_chain`); the `wire_sweep` discharge is explicitly fenced out of U4A as its own later unit. |
 | STEP cylinder recognition | **DELIBERATE-FRONTIER** — the refusal is the honest result and the module doc says so in advance; the algebraic tightening is banked but tied to **no issue or plan**. |
 | `ProfileError`'s five fillet variants | **SUPERSEDED — and now fully orphaned.** #377 closed 2026-08-18 by PR #608; `test_support.rs` **no longer exists on `origin/main`**. The retirement removed their producer and left the variants. *This row's sort changed while the scan was being written.* |
@@ -1105,7 +1103,6 @@ happened. they should certainly be unified."*
 | …and again *within* `mesh`, curve vs surface | The curve version's doc says "the face bound's quotient-rule assembly one dimension down" | `mesh/chords.rs:363` |
 | Bulge-arc closed form (ratified convention) | 3 | `edge_geometry.rs:146`, `profile/seg.rs:143`, `sweep/skin.rs:306` |
 | Knot insertion — the span search | 2 | **Not one search in the tree**: `spline/knots.rs` locates spans for **clamped** vectors, and `geom-brep`'s `props::quad::raw_span` does it again for the derived vectors `KnotVector` cannot represent (**D30**). The coefficient arithmetic beside it is a **deliberate permanent fork** — a `CurvePlan` of `Step`s over f64 weights against an in-place `RingInterval` fold whose α rounds outward — and both sites say so in their own docs, so it is not part of this row | `spline/knots.rs` (`span_offset_in`, `find_span_in`), `props/quad.rs` (`raw_span`) |
-| The union-and-refine routine built on the interior-knot query | 2 crates | `sweep::skin::make_compatible` and `geom::curves::fit::deviation_from` are **one routine written twice**: each unions two knot vectors' interior runs and refines both to the union. Giving the *query* one home (`spline/knots.rs`'s `runs_in`, behind `interior_knots()` / `knot_runs()`) did not close the routine built on it — the two only became legible as one once both opened with the same expression (**D31**) | `sweep/src/skin.rs`, `geom/src/curves/fit.rs`; proposed home `geom-core/src/spline/algebra.rs` |
 | Prefer-intrinsic upgrade rule | 3, with **3 different sample schedules**: validator uses `CERT_SAMPLES`; `revolve/upgrade.rs` hardcodes `let samples = 9u32`; `extrude.rs` uses a *single* midpoint with no lane gate. The doc claims "the SAME quantity, the same predicate name" — true only by coincidence of the literal 9 | `revolve/upgrade.rs:198`, `extrude.rs:1044`, `validate.rs:1994` |
 | Planar divergence-theorem volume | `step-export/volume.rs` re-derives what `props::planar_face` computes, strictly weaker (planes+lines only) and reading its sign with a raw `volume < 0.0` outside the trilean discipline | `step-export/src/volume.rs:88` |
 | Deep-snapshot test helper | ≥4 in `topo` alone, duplication named as intentional in its own doc comment | `fixtures.rs:87`, `review_m1_pr2/mod.rs:35`, `review_m1_pr3.rs:44`, `tests/box_with_hole.rs:368` |
@@ -2066,18 +2063,6 @@ it only makes the six locally-argued rules legible as six.
   partial accessors plus `normal` as its projections), `crates/step-import/src/chart.rs` (`metric_floor`),
   `crates/geom/tests/surfaces/s32_jet_projection.rs` (the pin)
 - **Confidence**: sure
-
-**The class's analytic curve-side member is filed, not fixed** — §D row
-**C24**. `Curve3::deriv`/`deriv2` are the identical shape one file over on
-the analytic arms, and `topo/src/splitting/neighborhood.rs` calls both at
-the same `t` under a comment naming the result *"the base-endpoint jet"* —
-the call sits in the `Circle | Ellipse` arm and repeats an azimuthal frame,
-two `sin_cos` for one jet. **C-R6 does not reach it** even though it is the
-same crate: the surface side had a ratified `SurfaceJet` to project onto,
-and the curve enum has no `CurveJet` at all, so that work is minting a
-public type — a design element, C-R19 tier two. (The NURBS payload's own
-jet doors, `NurbsCurve3::ders` and `ders1_in_span`, are what such an arm
-would have to read; whether it does is the design question.)
 
 **Two shapes on the surface side are noted and deliberately not fixed:**
 `SurfaceJet` lives in the NURBS arm's module though it is the enum-wide
@@ -3653,18 +3638,6 @@ plane×cylinder rim inherits the cylinder surface's own `u_ref`
 (`geom-brep/src/intersect.rs:602`), and the plane×sphere circle derives one
 from the seam or polar candidate (`:716`) — neither axis-aligned in general.
 
-**The exact box already EXISTS and SHIPS, and has no production caller.**
-`geom::curves::boxes::circle_arc_aabb` computes `Aᵢ = √((û_i·a)² + (v̂_i·b)²)`
-outward-bracketed **and** restricts to the certified span — tighter on both
-counts — is `pub`, and takes the two params `EdgeCurve::params()` already hands
-`edge_box`. `git grep` finds its callers in `crates/geom/tests/` and nowhere
-else. So this is not *"someone should write the tight version"*: the tight
-version ships while production calls the hand-derived one. **Carried as its
-own finding, `S235`**, because it outlives #862 — after both tightenings land, *why were
-there two constructions and why was the correct one the unused one* is still
-unanswered, and that is S16's subject at the curve level, a fourth instance
-never counted.
-
 **"Looseness is free" is a claim about a DOOR, and the doors do not support
 it.** **Four** doors read a box from this module and **three** read over-width
 as a refusal — `separation.rs` (non-overlap IS the grant), `census.rs` arm 2 (a
@@ -4159,15 +4132,11 @@ seams — the part that grows — is `geom_core::real::bounds_allowlist`.
   gate's planted must-not-fire case, so `crates/bvh/` cannot be added to
   its filters, and the crate's module header says so.
 
-## S89. The one-home fix for the ring crossing minted three local aliases
+## S89. The one-home fix for the ring crossing minted local aliases
 
-`RingInterval::from_certified` is the declared one home, and two
-private one-line wrappers sit on top of it, each carrying its own
-multi-paragraph restatement of the same rule — and the two share a
-verbatim sentence. **Citations re-derived 2026-09-01**, because neither
-was where the finding said: `bracket` is
-`crates/geom-core/src/spline/hull.rs:116` (Track N's ground, not
-`ring_interval.rs`) and `ring` is
+`RingInterval::from_certified` is the declared one home, and a
+private one-line wrapper sits on top of it carrying its own
+multi-paragraph restatement of the same rule: `ring`,
 `crates/geom-brep/src/ssi/enclose.rs:195` (Track Q's).
 
 A unit that unifies duplicates minting named copies is the fix
@@ -5962,56 +5931,6 @@ there: an out-of-crate door (impossible today — all four functions are
 `pub(crate)`), a door reading through a wrapper defined in `boxes.rs`,
 and a call spelled through an alias, re-export or macro.
 
-## S235. The exact conic box exists, is public, and has no production caller; `topo` re-derives a looser one by hand
-
-**Raised by I-d (#876) while measuring S66's second over-width.** S16's
-class, a fourth instance nobody counted, and it **outlives #862's fix**.
-
-`geom::curves::boxes::circle_arc_aabb` (and `ellipse_arc_aabb`) computes
-the conic's true per-coordinate amplitude `Aᵢ = √((û_i·a)² + (v̂_i·b)²)`
-through the outward `Brk` bracket, **and** restricts it to the certified
-span via an extremal-angle interval — so it is tighter than
-`topo::boolean::boxes::EdgeBoxRule::ConicAmplitude` on **two** counts,
-orientation and span. It is `pub`. It takes exactly the two parameters
-`geom_brep::EdgeCurve::params()` already hands `edge_box`. `git grep` for
-its callers returns `crates/geom/tests/curves/boxes.rs` **and nothing
-else.**
-
-Meanwhile `edge_box` hand-derives `|û_i|·a + |v̂_i|·b` — the
-triangle-inequality bound over the same quantity, span-blind, and **not a
-function of the locus**: two `Curve3::Circle` values describing one
-circle with `u_ref` rotated in the plane get boxes `r√2` against `r`
-apart. It is not latent. Measured through the public API on
-`s16_box_soundness.rs`'s extruded three-arc `cylinder()`, **four of six
-carriers** take the wide branch at factor 1.366, so that body's cap faces
-claim `x, y ∈ [−0.683, 0.683]` against a true `[−0.5, 0.5]`.
-
-**This is not "someone should write the tight version".** The tight
-version ships. The finding is that there are two constructions of one box
-and **the correct one is the unused one** — which is exactly S16's
-subject (*"Three face bounding-box constructions with three different
-soundness rules"*, whose unification reached two of three at the
-SURFACE level). This is the curve level, and it was not in that count.
-
-**The two halves separate, and only one of them is #862's.**
-
-- **Correctness / tightness → #862.** The axial over-width is a
-  *deletion*. The conic amplitude is a **tightening**, which carries the
-  obligation `EdgeBoxRule`'s NURBS bullet already states in writing: it
-  would start pruning pairs that are examined today, so a rung-3 operand
-  gate has to admit the kind first. Adopting `circle_arc_aabb` also
-  changes the box's SPAN behaviour, not only its width — a larger
-  behavioural step, worth landing separately.
-- **Structure → this row.** Even after both land, *why are there two
-  constructions and why was the correct one the unused one* is
-  unanswered, and answering it is what stops a fifth from appearing. A
-  row that lives only on #862 retires when the defect does; the
-  duplication would not.
-
-**Not fixed by #876**, which documented the arm, pinned the current
-formula so tightening it is loud, and changed no arithmetic.
-
-
 ## S212. The certified door's postcondition now has one home, and at least three doors re-derive it without reference to it
 
 **Raised by H-a (#880) on closing S86**, out of Track H's `S210`–`S229`
@@ -6929,13 +6848,7 @@ not read as "no diff outside the trait". Its three verdicts: `EdgeNurbsLane` **s
 **Fence:** `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}`.
 **Block:** `D240`–`D259` / `S310`–`S329`.
 
-| # | What | Was |
-|---|---|---|
-| **D244** | **`S89`'s first alias, filed by CERT-M1**: `crates/geom-core/src/spline/hull.rs:113-118`'s private `fn bracket<E: CertifiedEnclosure>` is `RingInterval::from_certified` under another name, with an eight-line restatement of the door's rule above it. Inline it at its call sites and delete the restatement; the rule's one home is `from_certified`'s own doc, which (since CERT-M1) carries no caller census either. `geom-core/tests/decoration_seam.rs`'s header names this crossing; keep that sentence true when the alias goes | CERT-M1 (PR 1533), filed |
-| **S235** | The exact conic box exists, is public and has no production caller, while `topo` re-derives a looser one by hand. **The one `topo` call site is this row's**; everything else in `topo` is P's or Q's | unrowed |
-| **D98** | `unit_segment` clamps a degree it could refuse, and the claim licensing the clamp is the wrong claim | Track E |
-| **D31** | `sweep::skin::make_compatible` and `geom::curves::fit`'s `deviation_from` are ONE routine in two crates, and the proposed home is `geom-core/src/spline/algebra.rs`. **The `sweep/src/skin.rs` call site is this row's** | Track E |
-| **C24** | The analytic curve-side member of S32's discarded-jet class — `Curve3::deriv`/`deriv2` on the `Circle`/`Ellipse` arms each rebuild the azimuthal frame, and `topo/src/splitting/neighborhood.rs`'s conic arm calls both at one `t` for *"the base-endpoint jet"* (two `sin_cos` for one jet). The enum has no jet door: minting a `CurveJet` is a public type — a design element, C-R19 tier two (the NURBS payload's own jet doors, `NurbsCurve3::ders` / `ders1_in_span`, are what an arm would read; the design decides whether). The `neighborhood.rs` call site is Track Q's | Track C |
+The table is empty: every row landed.
 
 ## Track P — `topo`'s Euler surgery, liveness and the generator
 
@@ -6991,6 +6904,8 @@ plus `crates/topo/src/{review_d18.rs,review_d18_probes.rs,fixtures.rs,source_wal
 | **D284** | **`boolean/join.rs` classifies an unnamed `geom_brep::SectionError` as a desync, twice.** `pair_section_frame`'s plane×sphere arm and its plane×cylinder tail each end `Err(_) => Err(FrameError::Desync("germ pair's section refused at match time"))`, and each sits immediately below an explicit `Err(SectionError::Escalated(diag)) => Err(FrameError::Escalated(diag))` — so the wildcard is doing classification with the named arm in view. `SectionError` has six variants today (`WrongLane`, `Escalated`, `RoutesToGeneralRung`, `RadiusDeclarationContradicted`, `CoincidentSurfaces`, `Carrier`); a seventh becomes `Desync`, which reports a reduction bug the germ pair did not commit. Structurally identical to the sites `D120` closed, and outside `S192`'s stated clause only because the enum lives in `geom-brep` rather than `topo` | unrowed |
 | **D287** | **Four `topo/src` readers of Rust source text, converted onto the shared home** (`S117`/`S172`): `sector_shape.rs` (needle is a quoted name, so `code_and_literals`), `chord_join.rs` (a whitespace-stripped raw copy, needle `decide("split_arc_window"`, `code_and_literals`), `face_normal.rs:113` (`code_only`; its `:206` already reads a shared walk), and `boolean/boxes.rs` (already reads `source_walk::CodeOnly`, so it converts with that collapse). the source-text guard class's shared home is `crates/test-utils/src/source.rs` (one lexer, three views: `code_only`, `code_and_literals`, `comments_only`), and the census that keeps the population honest is `crates/test-utils/tests/reader_census.rs`, whose `Unconverted` ceiling this row lowers by its own member count | `D61` residue |
 | **D288** | `boolean/ops.rs:210-211` restates `MergeCoplanarOutcome::skipped`'s doc — *"Declared-licensed merge groups the output stage SKIPPED … faces + the actual refusing diagnostics"* — and **both halves are now false**: curved runs skip with no declaration at all, and the payload is a typed `MergeCoplanarError`, not rendered diagnostics. `D38` corrected the sentence at its origin and could not cross the fence to this copy. A second spelling of one sentence, drifting exactly as `S4` says such a pair does | `D38` residue |
+| **D291** | `census.rs`'s conic arm (the `reach_box` mirror, ~`:1951`) says it reads *"the same construction the boolean lane reads, so the two cannot drift"*. It does not: `boolean::boxes::edge_box` reads the exact arc box (`geom::curves::boxes::conic_arc_aabb`) and the census reads `arc_extent`'s subdivision, by design — the census scalar carries no ordering (`EdgeBoxRule`'s conic bullet states the rule; `the_two_box_lanes_agree_face_for_face` pins the gap at the charge). The comment is a stale claim other code is instructed to rely on (S39's shape) | filed by CERT-N3 |
+| **D292** | `boolean::boxes::edge_axial_span`'s conic arm subdivides an arc along an arbitrary axis (`ARC_SAMPLES` samples plus the 1-D sagitta charge) where the exact extremum exists in closed form — the per-coordinate body of `geom::curves::boxes` (`c ± √((a·û·n)² + (b·v̂·n)²)`, admitted when `atan2` of the pair lies in the span) generalized from a coordinate axis to a unit direction `n`. The boolean lane's `axial_window` has the ordering to read it; the census mirror (`face_reach`) does not, so the same two-arithmetics rule as the edge box applies, and `geom` would grow the directional door first (Track N's ground; file there when this is taken) | filed by CERT-N3 |
 
 ## Track R — the measuring consumers: `geom-brep` and `mesh/`
 
