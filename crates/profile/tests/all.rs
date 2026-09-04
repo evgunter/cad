@@ -139,3 +139,5 @@ fn every_suite_file_is_aggregated() {
     let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
     assert!(violations.is_empty(), "{}", violations.join("\n"));
 }
+#[path = "review_fillet_e2_probes.rs"]
+mod review_fillet_e2_probes;
