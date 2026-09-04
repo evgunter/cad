@@ -226,7 +226,7 @@ fn r2_revolved_tube_separates_seam_from_axis() {
     );
     match pncad::topo::shell_open(&body, 0.05, &chart, FIT_TOL, tol) {
         Err(e) => println!("[r2-2] REFUSED: {e}"),
-        Ok(cup) => {
+        Ok(pncad::topo::Shelled { body: cup, .. }) => {
             println!(
                 "[r2-2] Ok: tier3 = {:?}; shells = {}; rings = {}; genus = {}",
                 pncad::topo::validate_geometric(&cup, tol),
@@ -281,7 +281,7 @@ fn r2_partial_revolve_one_cap_face() {
     // class ("a plane NORMAL to a cylinder's axis") excludes.
     match pncad::topo::shell(&body, 0.05, FIT_TOL, tol) {
         Err(e) => println!("[r2-3] SEALED refuses: {}", offset_refusal(&e)),
-        Ok(b) => println!(
+        Ok(pncad::topo::Shelled { body: b, .. }) => println!(
             "[r2-3] SEALED hollows: shells = {}, genus = {}",
             b.shells().count(),
             genus(&b)
@@ -290,7 +290,7 @@ fn r2_partial_revolve_one_cap_face() {
     if chart.len() == 1 {
         match pncad::topo::shell_open(&body, 0.05, &chart, FIT_TOL, tol) {
             Err(e) => println!("[r2-3] OPEN refuses: {e}"),
-            Ok(cup) => println!(
+            Ok(pncad::topo::Shelled { body: cup, .. }) => println!(
                 "[r2-3] OPEN Ok: rings = {}, genus = {}, mesh = {:?}",
                 rings(&cup),
                 genus(&cup),
@@ -527,7 +527,7 @@ fn r2_oblique_plane_prisms_outside_their_table() {
         let body = extruded(lp, 0.3, tol);
         match pncad::topo::shell(&body, 0.02, FIT_TOL, tol) {
             Err(e) => println!("[r2-6] {what}: REFUSES {}", offset_refusal(&e)),
-            Ok(h) => println!(
+            Ok(pncad::topo::Shelled { body: h, .. }) => println!(
                 "[r2-6] {what}: HOLLOWS (shells {}, genus {})",
                 h.shells().count(),
                 genus(&h)
@@ -563,7 +563,9 @@ fn r2_tangent_bullet_which_door() {
     let body = revolved(lp, tol);
     match pncad::topo::shell(&body, 1.0 / 128.0, FIT_TOL, tol) {
         Err(e) => println!("[r2-7] bullet: {}", offset_refusal(&e)),
-        Ok(h) => println!("[r2-7] bullet HOLLOWS (genus {})", genus(&h)),
+        Ok(pncad::topo::Shelled { body: h, .. }) => {
+            println!("[r2-7] bullet HOLLOWS (genus {})", genus(&h))
+        }
     }
     // The SAME curved pair (sphere against cylinder) reached by the
     // ORDINARY `Center` arc instead of the tangent door: the centre is
@@ -596,7 +598,9 @@ fn r2_tangent_bullet_which_door() {
             "[r2-7] NON-tangent dome (Center arc): {}",
             offset_refusal(&e)
         ),
-        Ok(h) => println!("[r2-7] NON-tangent dome HOLLOWS (genus {})", genus(&h)),
+        Ok(pncad::topo::Shelled { body: h, .. }) => {
+            println!("[r2-7] NON-tangent dome HOLLOWS (genus {})", genus(&h))
+        }
     }
 }
 
@@ -644,7 +648,7 @@ fn r2_acceptance_corpus_sits_inside_the_class() {
         ("the tube", tube, 0.1),
     ] {
         match pncad::topo::shell(&body, t, FIT_TOL, tol) {
-            Ok(h) => println!(
+            Ok(pncad::topo::Shelled { body: h, .. }) => println!(
                 "[r2-8] {what} hollows (shells {}, genus {})",
                 h.shells().count(),
                 genus(&h)
