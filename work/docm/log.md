@@ -54,3 +54,12 @@ signed entry in each log. Question 1 collapsed out of the plan (already
 ruled). S-MATE's closing sweep is PR 1786, which opens `mate.rs` and
 `assembly.rs` here. Slate now: `DOCM-1`–`DOCM-4` (spec), the three
 E-class units, and the rest as the plan lists them.
+
+## First dispatch (2026-09-04)
+
+`DOCM-3` dispatched on `docm/3-union` against `docs/DOCM-3-SPEC.md`
+(pre-draw fields L / STRUCTURAL at the spec; block DOCM-B1's draw record
+is branch-side on `docm/b1-block` until the block concludes). Chosen first
+because it retires the die's chain, which every later naming-sensitive
+unit would otherwise inherit. The review ordinal is claimed on main at
+review dispatch, per the log's standing rule.
