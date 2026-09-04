@@ -2690,6 +2690,40 @@ Where a wrong answer is reachable: the tightened pass (H-R3 — what
 skip), the deletion's forced callers, and the new skip semantics.
 Sample number at merge. Row at merge.
 
+CERT-N3 (PR #1879) ordinal FIXED AT DISPATCH (2026-09-04):
+**ordinal 714** (S-CERT band; block CERT-B4 slot 3, drawn byte 123 —
+fable at position 3, so this slot's implementer arm FABLE). v6 dual:
+slot byte 89, parity 1 ⇒ **R1 FABLE + R2 OPUS**; SEQUENTIAL on frozen
+`b5a727c3b` (run 33927371220 ALL GREEN, lane=both eps=all by trailer).
+The frozen head is the lane's own: nine unit commits on the dispatch
+base 724c84927 plus the lane's merge of origin/main at the tracker-
+migration head (4d9b0cd9a; conflicts only in the D98 ripple and two
+callers main added) — no orchestrator-direct commits. The implementer
+session DIED mid-unit on a model rate limit (HTTP 429, during the D31
+bit-identity measurement, ~2026-09-02) and was RESUMED from its
+transcript on the same worktree and branch two days later; the D31
+evidence was re-taken after the resume. Implementer difficulty M
+(logged at spec pre-draw, docs/CERT-N3-SPEC.md at 1267e32c0); the
+usage counter records only the resumed half — ~498k tokens, 99 tool
+uses, ~68m wall — the pre-death half left no usage record (its wall
+was ~2h by the dispatch/death timestamps). Verification the lane
+disclosed: three-ε sweep (1e-6, 1e-9, 1e-12) on every moved row in
+both lanes; full suites of the five touched crates in both lanes plus
+the three ripple crates; every gate; excluded roots re-swept (no
+caller). Unit shape for the reviewers' weighting: one BEHAVIOUR change
+— the boolean lane's conic edge box becomes geom's exact extremal
+construction (S235), strictly tighter than the subdivision bound it
+replaces (36 candidate pairs stop being examined on the corpus, all
+with zero accepted events), plus a branch-cut fix inside the exact door
+itself (extremal angle exactly π now bounded) that is beyond "adopt";
+D31 claimed bit-identical (measured); D98 a D2 row-0 type change with
+a 53-site fixture ripple; D244 an inline; C24 closed on a measurement.
+Where a wrong answer is reachable: S235's soundness at every scalar
+the boolean reads it at (a too-tight box is a pruning hole), the
+branch-cut fix's own soundness, and the census/boolean lane gap pin.
+Sample number at merge. Row at merge. CERT-M3's dual (ordinal 713)
+runs CONCURRENTLY; grounds file-disjoint.
+
 ## GAUTH program rows (docs/GAUTH-PLAN.md; band 900–999; blocks named GAUTH-B<n>)
 
 Opened 2026-08-31 (`docs/GAUTH-LOG.md`); single-orchestrator remote
