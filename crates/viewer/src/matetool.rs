@@ -14,17 +14,17 @@
 //!
 //! # Where the numbers come from
 //!
-//! A mate's alignment frames are AUTHORED data in each instance's own
+//! A mate's alignment frames are AUTHORED data in each member's own
 //! part coordinates (A11 keeps the solve structural — no geometry
 //! inspection at evaluation). This tool is the door that derives that
 //! authored data FROM the picked geometry, once, at authoring time:
 //! `names::interrogate::face_frame` answers each picked face's world
-//! pose as of the landed evaluation, and the instance's current
-//! placement (the shipped constructive solve) pulls it back into part
-//! coordinates. What lands in the document is plain numbers, exactly
-//! as if the author had typed them — the solve stays structural, and
-//! issue #944's "nothing mints an alignment frame from a selected
-//! face" is the gap this closes for the viewer.
+//! pose as of the landed evaluation, and the member's instance's
+//! current placement (the shipped constructive solve) pulls it back
+//! into part coordinates. What lands in the document is plain
+//! numbers, exactly as if the author had typed them — the solve stays
+//! structural, and issue #944's "nothing mints an alignment frame
+//! from a selected face" is the gap this closes for the viewer.
 //!
 //! # What a pick must be
 //!
@@ -134,9 +134,14 @@ pub fn admitted_classes() -> Vec<MateAdmission> {
         .collect()
 }
 
-/// **The member a pick names, and where to read its face pose**: the
-/// kernel's own member for the pick's head, plus the `(node, name)`
-/// the alignment frame is interrogated at.
+/// **The member a pick names, and which name to read its face pose
+/// at**: the kernel's own member for the pick's head, plus the entity
+/// name the alignment frame is interrogated by.
+///
+/// The NODE that name is read at is not returned because it is not a
+/// second fact: both the returned name and the placement that divides
+/// the pose out are the MEMBER's instance's, which is what makes the
+/// two reads agree.
 ///
 /// The admission rule is A11's member vocabulary READ, not restated
 /// ([`pncad::document::member_of`]): a live `InstantiatePart` head, or
@@ -166,7 +171,7 @@ fn picked_member(
     doc: &Doc<ProfileProgram>,
     side: MateSide,
     pick: &FaceSelection,
-) -> Result<(Member, (RecipeNodeId, StableName)), MateToolError> {
+) -> Result<(Member, StableName), MateToolError> {
     let refused = || MateToolError::NotAnInstancePick {
         side,
         node: pick.node,
@@ -175,15 +180,23 @@ fn picked_member(
         return Err(refused());
     }
     let member = member_of(doc, &pick.name).ok_or_else(refused)?;
-    match (member.copy, pick.name.path.first()) {
-        (None, _) => Ok((member, (pick.node, pick.name.clone()))),
-        // The qualifier `member_of` admitted the head on, carrying the
-        // master entity this copy is an image of.
-        (Some(_), Some(RoleSeg::Instance { of, .. })) => {
-            Ok((member, (member.instance, (**of).clone())))
-        }
-        (Some(_), _) => Err(refused()),
-    }
+    let read = match member.copy {
+        // A plain member's own name, headed at its instance — which
+        // the guard above and `member_of` together make `pick.node`.
+        None => pick.name.clone(),
+        // A copy reads its MASTER's entity: the name inside the
+        // `Instance(i)` qualifier, headed at the pattern's input.
+        //
+        // `member_of` admits a copy only on a head carrying that
+        // qualifier, so the refusal below cannot fire — it stands
+        // where a panic otherwise would, for an invariant this crate
+        // reads rather than owns.
+        Some(_) => match pick.name.path.first() {
+            Some(RoleSeg::Instance { of, .. }) => (**of).clone(),
+            _ => return Err(refused()),
+        },
+    };
+    Ok((member, read))
 }
 
 /// A typed mate-tool refusal (closed enum, D4 ¶3).
@@ -224,9 +237,9 @@ pub enum MateToolError {
         /// Which pick.
         side: MateSide,
     },
-    /// The instance's current placement could not be read (its
-    /// cluster's solve refused), so the world pose cannot be pulled
-    /// back into part coordinates.
+    /// The member's instance's current placement could not be read
+    /// (its cluster's solve refused), so the world pose cannot be
+    /// pulled back into part coordinates.
     Placement {
         /// Which pick.
         side: MateSide,
@@ -254,7 +267,7 @@ impl core::fmt::Display for MateToolError {
             ),
             Self::SamePick { head } => write!(
                 f,
-                "both picks are on the same member of node {}; a mate relates a pair",
+                "both picks name the same member (head: node {}); a mate relates a pair",
                 head.0
             ),
             Self::Frame { side, error } => write!(
@@ -270,7 +283,7 @@ impl core::fmt::Display for MateToolError {
             ),
             Self::Placement { side, fault } => write!(
                 f,
-                "pick {}'s instance has no current placement: {fault}",
+                "pick {}'s member has no current placement: {fault}",
                 side.name()
             ),
             Self::ClassRefused { class } => {
@@ -328,7 +341,7 @@ impl core::fmt::Display for MateToolEvent {
         match self {
             Self::PickLost { side, pick, .. } => write!(
                 f,
-                "pick {} (a face of instance {}) no longer resolves; the tool dropped it",
+                "pick {} (a face of node {}) no longer resolves; the tool dropped it",
                 side.name(),
                 pick.node.0
             ),
@@ -350,15 +363,15 @@ pub struct MateChoice {
     pub clocking: Option<f64>,
 }
 
-/// The derived, ready-to-commit mate: the two instance-qualified
+/// The derived, ready-to-commit mate: the two picked members'
 /// references and the alignment in part coordinates, plus the class's
 /// admission verdict for the chrome to show beside the commit.
 #[derive(Debug, Clone)]
 pub struct MateProposal {
     /// The `a` reference.
-    pub a: pncad::prelude::StableName,
+    pub a: StableName,
     /// The `b` reference.
-    pub b: pncad::prelude::StableName,
+    pub b: StableName,
     /// The declared class.
     pub class: ContactClass,
     /// The derived alignment.
@@ -504,9 +517,13 @@ impl MateTool {
         let poses = solve_document(doc, tol);
         let frame_of = |side: MateSide,
                         member: Member,
-                        read: &(RecipeNodeId, StableName)|
+                        read: &StableName|
          -> Result<MateFrame, MateToolError> {
-            let pose = face_frame(eval, read.0, &read.1)
+            // ONE node for both reads: the member's instance is the
+            // node `read` is headed at and the node whose placement
+            // pulls the pose back, so the pose and the placement
+            // cannot come from different nodes.
+            let pose = face_frame(eval, member.instance, read)
                 .map_err(|error| MateToolError::Frame { side, error })?;
             let u_ref = pose.u_ref.ok_or(MateToolError::NoReference { side })?;
             let placement: Frame = poses

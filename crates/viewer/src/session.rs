@@ -1175,13 +1175,14 @@ pub enum SessionOp {
     /// commit door as every other edit: one apply, one history state,
     /// one re-evaluation, and the free-move supersession prune.
     AddMate {
-        /// The `a` reference (instance-qualified).
+        /// The `a` reference — the head names a member of A11's
+        /// vocabulary (`pncad::document::member_of`).
         a: StableName,
-        /// The `b` reference (instance-qualified).
+        /// The `b` reference, same vocabulary.
         b: StableName,
         /// The declared contact class.
         class: ContactClass,
-        /// The alignment datum (frames in each instance's own part
+        /// The alignment datum (frames in each member's own part
         /// coordinates).
         alignment: Alignment,
     },

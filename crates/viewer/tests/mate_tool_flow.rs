@@ -241,24 +241,19 @@ const PATTERN_STEP: f64 = 0.04;
 
 /// Pattern post_b twice along +x and answer the pattern node.
 fn patterned_post(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
-    let outcome = session.perform(SessionOp::AddPattern {
-        input: bench.post_b,
-        count: 2,
-        rule: PatternRuleSpec::Linear {
-            direction: [scl(1.0), scl(0.0), scl(0.0)],
-            spacing: len(PATTERN_STEP),
+    let pattern = common::insert(
+        session,
+        SessionOp::AddPattern {
+            input: bench.post_b,
+            count: 2,
+            rule: PatternRuleSpec::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(PATTERN_STEP),
+            },
         },
-    });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    );
     session.pump();
-    *outcome
-        .committed
-        .first()
-        .and_then(|edit| match edit {
-            pncad::document::DocEdit::InsertNode { .. } => session.committed_doc().roots().last(),
-            _ => None,
-        })
-        .expect("the pattern node is a root")
+    pattern
 }
 
 /// A pick on pattern copy `i` of the patterned post's top cap.
@@ -373,26 +368,28 @@ fn a_pattern_over_a_non_instance_is_still_not_an_instance_pick() {
     // A transform between the instance and the pattern: the pattern's
     // input is a `Transform`, not an `InstantiatePart`, which is one
     // of the heads `member_of` declines.
-    let moved = session.perform(SessionOp::AddTransform {
-        input: bench.post_b,
-        translation: [len(0.0), len(0.0), len(0.0)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
-    assert!(moved.refusal.is_none(), "{:?}", moved.refusal);
-    session.pump();
-    let moved = *session.committed_doc().roots().last().expect("a root");
-    let outcome = session.perform(SessionOp::AddPattern {
-        input: moved,
-        count: 2,
-        rule: PatternRuleSpec::Linear {
-            direction: [scl(1.0), scl(0.0), scl(0.0)],
-            spacing: len(PATTERN_STEP),
+    let moved = common::insert(
+        &mut session,
+        SessionOp::AddTransform {
+            input: bench.post_b,
+            translation: [len(0.0), len(0.0), len(0.0)],
+            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+            rotation_angle: ang(0.0),
         },
-    });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    );
     session.pump();
-    let pattern = *session.committed_doc().roots().last().expect("a root");
+    let pattern = common::insert(
+        &mut session,
+        SessionOp::AddPattern {
+            input: moved,
+            count: 2,
+            rule: PatternRuleSpec::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(PATTERN_STEP),
+            },
+        },
+    );
+    session.pump();
 
     let copy_one = copy_pick(&session, 1);
     assert_eq!(copy_one.node, pattern);
