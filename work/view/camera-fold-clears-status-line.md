@@ -6,6 +6,7 @@ status: review
 opened: 2026-08-29
 github: 1253
 branch: view/status-lifetimes
+pr: 1849
 ---
 
 ## From GitHub issue 1253
