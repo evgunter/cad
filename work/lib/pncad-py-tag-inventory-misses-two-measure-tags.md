@@ -156,3 +156,24 @@ composing into a red main, with no instrument anywhere that could see
 the composition.** Recorded as evidence in
 `work/ciw/f3-recosting-on-a-public-repo`, which is re-costing F3 now
 that the repository is public and standard-runner minutes are free.
+
+## Re-confirmed 2026-09-04 (FIX, PR 1742)
+
+Third unrelated branch, same red, same two ADDED values. Run
+[33827213873](https://github.com/evgunter/cad/actions/runs/33827213873),
+job `test (interval, eps = 1e-12, 2/2)` (100884541230) — the ONLY failure
+in that shard (3150/3151 passed under `--no-fail-fast`, so that summary is
+the shard's whole failure surface). The carrying diff is
+`crates/topo/src/transform.rs`, `crates/geom/src/{surfaces,curves}/nurbs.rs`,
+one `crates/sweep/tests/` suite and `demos/tour/src/skinned.rs`; it touches
+no `pncad-py` line.
+
+**Reproduced on `main`'s own tree**, not inferred from the branch: an
+`origin/main` worktree at `bdfa604b8` fails
+`cargo test -p pncad-py --lib -- the_whole_tag_table_matches_its_committed_inventory`
+with the identical message. The two values entered at `5a3fc8389`
+("M10-6 part 1: the min_clearance primitive, the min_separation door, the
+reporting layer's first doors"), so the debt is the **M10** program's.
+
+Disposition unchanged: not repaired here, for the reason the
+*Not fixed here, deliberately* paragraph gives.

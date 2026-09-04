@@ -603,14 +603,13 @@ fn map_mapped_curve<T: Real>(map: &Affine3<T>, mc: &MappedCurve<T>) -> MappedCur
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     //! The NURBS gate: the discriminator is the placeholder STATE, not
     //! the `Nurbs` variant. These rows pin both directions, so the gate
     //! cannot silently invert — a described net refusing and a
     //! placeholder mapping are each one edit away from each other, and
     //! only one of them is loud on its own.
-
-    #![allow(clippy::unwrap_used, clippy::expect_used)]
 
     use super::*;
     use geom::{NurbsCurve3, NurbsSurface};
