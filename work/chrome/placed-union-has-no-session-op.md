@@ -24,7 +24,6 @@ Repro is in-tree: `crates/viewer/tests/story_authoring.rs` deliberately turns th
 ## Home
 
 `work/issues/` — a missing viewer `SessionOp` and property-panel row; GUI and GAUTH are both closed and no open program's territory covers `crates/viewer`.
-
 ## Fixed (CHROME, 2026-09-04) — and the item's own sketch was not buildable
 
 **The correction first, because it changes what this item was asking

@@ -139,7 +139,7 @@ fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
     );
 
     let hollow = match topo::shell(&body, iv(T), FIT_TOL, tol) {
-        Ok(hollow) => hollow,
+        Ok(hollow) => hollow.body,
         Err(ShellError::NotValid { errors }) if tol.eps() < DEFAULT_EPS => {
             let [ValidationError::SliverDihedral { edge, cause }] = errors.as_slice() else {
                 panic!(
