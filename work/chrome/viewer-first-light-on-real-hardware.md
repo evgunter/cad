@@ -300,3 +300,63 @@ setting three flags together.
 
 `needs_ev` is set: these three are a request for a hardware run, not
 work an agent can do.
+
+## Hardware run 2026-09-04 — all three readings taken
+
+Run on a Windows-native build, D3D12 backend, Intel Iris Plus Graphics
+(integrated), driver 31.0.101.1999, against `main` at `c98914af0`. Debug
+build. The three above are answered; what remains is named at the end.
+
+**1. The culling flip — `FrontFace::Ccw` is correct.** With
+`cull_mode: Some(Face::Back)` and `front_face: FrontFace::Ccw` on the
+scene pass and the id pass, the plate stayed fully drawn through a full
+orbit, bore included. Neither failure appeared: not the total vanish that
+would have meant `Cw`, and not the subtler partial loss of patches, which
+was watched for specifically because the CI enclosed-volume assertion
+cannot rule out a non-uniform winding on its own. Recorded in the module
+comment, which no longer states ignorance, and the two solid passes now
+cull. **The edge pass keeps `cull_mode: None`** — the separate judgement
+this re-cut asked for, left open on its own terms rather than answered by
+a reading about winding.
+
+**2. `R32Uint` clear semantics — clean.** No disagreement message appeared
+over empty space under deliberate slow sweeps of the background, so
+`LoadOp::Clear(Color::TRANSPARENT)` does clear the uint target to zero on
+this driver.
+
+**3. The blocking readback's cost — does not bite.** Timed from
+`queue.submit` through the blocking `device.poll(wait_indefinitely())` to
+mapped, which is the stall the UI thread eats. 293 samples taken while
+sweeping the cursor, since `IdQueryLog` gates the query on motion: min
+0.624 ms, median 0.803 ms, p95 0.931 ms, p99 1.069 ms, max 1.511 ms —
+nothing above 8 ms, about 5% of a 16.7 ms frame at the median. The
+movement gate already in place is sufficient; no case for making the
+readback asynchronous.
+
+**§1's checklist.** The window opens and the docked layout and plate are
+as described — **the startup panic that opened this item does not
+reproduce**. The depth buffer is attached, confirmed through a full orbit
+rather than one viewpoint, since a single view can be correct by
+submission order alone. The first-frame fit is good, checked at a
+deliberately extreme ~3:1 window so any mismatch between the provisional
+square aspect and the pane's real aspect would be maximal: the plate lands
+centred with no visible snap. Navigation works and the `InputMap::default()`
+rates needed no change. Left-click selection works and clicking empty space
+clears it.
+
+**What this run does NOT cover.** Reading 1 is backend-independent, since
+wgpu normalizes `FrontFace`. Readings 2 and 3 are one driver each, an
+integrated part on D3D12; a discrete card can stall longer rather than
+shorter, so 3 is evidence and not a guarantee. Vulkan gave no second
+opinion: wgpu finds and names an Intel Vulkan adapter on that machine, but
+that path access-violates during device creation, so the backend was
+pinned to D3D12.
+
+Beyond the three readings, this run exercised the **frame** path — buffer
+and texture allocation, render-pass encoding, and the id pass's readback —
+and not only construction, which is the family §4 said still escaped CI
+after #1755.
+
+**Still open, and still Ev's:** whether the edge pass should cull. An edge
+mark is a camera-facing quad rather than part of a closed solid, so it is a
+question about billboards, not about winding, and nothing above answers it.
