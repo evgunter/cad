@@ -214,3 +214,128 @@ each to find. The cheap countermeasure is the order this program is
 already working in — resolve every cited symbol before cutting the
 unit, not at dispatch — so no rule is added; it is recorded here so the
 next orchestrator has the reason rather than the habit.
+
+## Unit 1's evidence: both files read end to end (2026-09-04)
+
+A read of `session.rs` (3224) and `app.rs` (5696) end to end, plus
+`tools.rs`, dispatched before any design was written. The point of
+reading whole files is that nothing else in this project ever does —
+specs, diffs and reviews are all per-unit, so accumulation is invisible
+by construction — and the read paid for itself: the issue's own
+framing is wrong in five places, and four defects turned up that no
+unit's diff could have contained.
+
+### Where the issue's framing is now wrong
+
+The issue is from 2026-08-31 and its numbers are the tree as it was.
+
+- **`app.rs` is 5,696 lines, not the 3,474 its comment cites** — 64%
+  growth since the sentence naming it "the larger instance of the same
+  class" was written.
+- **`Tools` holds SEVEN `Option<…Tool>` fields, not six**
+  (`tools.rs:113`); `blend` landed after the issue.
+- **The per-seat wrong-kind arms the issue predicted were unified** —
+  one `WrongNodeKind { node, wanted }`, so that prediction is
+  discharged rather than outstanding.
+- **The "four hand-lists" over the tool set are down to two** —
+  `ToolKind::ALL` (`tools.rs:23`) and the `seated!` invocation
+  (`tools.rs:470`), with `commits_a_modal_tool` renamed
+  `commits_open_tool` and now delegating to an exhaustive match. Both
+  survivors are fixed-length or hand-named, so an eighth tool is
+  silently omitted by each; `Tools::open_kind` scans `ALL`, so a
+  variant missing from that array makes its tool permanently invisible
+  while compiling clean.
+- **The "three shapes" of recourse wording are six**, and the const
+  the issue records as "removed again in a fix pass" came back in two
+  sibling modules (`blend.rs:73`, `frame.rs:343`). The six:
+  composing fns on `Refusal` (`session.rs:727/748/757`); a
+  wording-bearing struct (`DeleteAffordance::of`, `session.rs:798`);
+  19 `Display` arms (`session.rs:638`); a free fn in the app
+  (`indeterminate_wording`, `app.rs:146`); a prefixing combinator
+  (`ToolKind::says`, `tools.rs:110`, used ~14 times, and `seat_line`,
+  `seats.rs:370`); and the two consts. Plus `AtRestBadge::Refused`
+  storing a **stringified** refusal (`session.rs:1708`, set at 3199) —
+  a typed-values-not-strings exception nothing documents.
+
+None of this changes the unit's direction. It changes what the design
+has to answer, and it is why the design was not written first.
+
+### Four defects filed
+
+- `revolve-tool-unreachable-no-axisinplane-form` — **the serious one.**
+  `add_revolve` seats a `SketchAxis`, `admits` satisfies that only for
+  `Datum::AxisInPlane`, and the datum form offers four kinds with
+  `AxisInPlane` not among them. A shipped tool whose seat cannot be
+  filled from the running application. Second instance of CHROME's
+  `add-profile-mints-no-frame` class, so it is filed with that class
+  named and the announce owed.
+- `save-is-not-gesture-guarded` — `open` guards, `save` does not,
+  thirty-eight lines apart, and the gesture-safe set is not derivable
+  from the code (23 guards, no table).
+- `two-gestures-can-be-in-flight-together` — `session::Gesture` and the
+  free-move gesture share a field name and no guard.
+- `opoutcome-superseded-has-no-production-reader` — the GUI reads only
+  `.refusal`; a discarded free-move probe reaches the tests and never
+  the user.
+
+### Smaller readings, kept here rather than filed
+
+Each has a citation; none asserts a class, so none earns a file.
+
+- `open` (`session.rs:2712`) and `new_document` (`:2777`) are
+  near-duplicate reset blocks — **nine landed fields spelled twice**, so
+  a tenth must be added in both.
+- `standing()` resolves twice per frame for a face or edge selection:
+  `app.rs:2913`, then again through `slot_groups` → `slot_rows` →
+  `standing` (`session.rs:2002`).
+- Three whole-document passes per landing — `product` (`:2064`),
+  `at_rest_of` → `assemble` (`:2069`), `run_checks` (`:2078`) — each
+  with a comment claiming to be "the one place a result becomes the
+  session's", and unbudgeted together. Adjacent to DOCM's
+  `check-registry-gathers-product-twice`.
+- `ToolKind::ordinal` (`tools.rs:33`) has three call sites, all in
+  `crates/viewer/tests/combine_ops.rs`, and none in `src/`.
+- One hover sentence spelled twice with different line breaks,
+  `app.rs:4779` and `:4816`.
+- `DatumKind::ALL` (`app.rs:750`) orders Plane, Frame, Axis, Point; the
+  enum declares Plane, Axis, Point, Frame. The order carries UI meaning
+  and the divergence is undocumented.
+- `PathVerb` (`app.rs:803`, 17 arms, 163 lines) mirrors
+  `sketch::PathStep` by hand; `of` is exhaustive but `ALL: [Self; 17]`
+  is not.
+- `impl ViewerApp` appears twice (`app.rs:1441` and `:1849`) separated
+  by nothing but a doc comment — unlike `Refusal`'s split, which at
+  least has trait impls between its halves.
+- `Refusal::rank`'s comment (`session.rs:617`) orders its two sentences
+  against the arms they describe. The code is consistent with the
+  intent; the prose is not.
+- The README's "Where in the code" row for `src/session.rs` names
+  `DocSession`, `SessionOp`, `perform`, `OpOutcome` and is silent about
+  `Refusal`, the lowering specs, `DeleteAffordance` and the range
+  probe. The split must rewrite that row whatever shape it takes.
+
+### The two facts that decide the split's shape
+
+**The test surface makes a pure module move free.** 459 tests across 44
+files, no in-file tests in either `session.rs` or `app.rs`, and
+`perform(` appears 500+ times — the suite reaches through
+`DocSession::perform`/`SessionOp`, so **not one assertion changes**
+under a module move. What a move breaks is import paths: 32 of 44 test
+files spell `use viewer::session::{…}` rather than the crate-root
+re-exports `lib.rs:139` already provides. Leaving `pub use` shims costs
+zero test edits; removing them costs 32 files.
+
+**And `crates/viewer/tests/*` is CHROME's glob, not this program's.**
+So the shim removal is not a choice this program can simply make. It is
+recorded as its own unit with the announce owed, not as a deferral.
+
+**`app.rs`'s only externally-pinned items are exactly the ones its
+header says are not there.** Five test files name six items —
+`Pane`, `document_name`, `initial_layout`, `model_stack`,
+`indeterminate_wording`, `StartupError`, plus `FieldWriting` and
+doc-comment references to `datum_view` and `INITIAL_DELTA` — and every
+one is vocabulary or policy, while the entire 2,507-line
+`impl ViewerBehavior` (32 `*_ui` fns) has no direct test at all. The
+file's header claims "Toolkit adaptation, and nothing else"
+(`app.rs:6`), and roughly 900 of its first 1,188 lines contain no egui
+call whatever.
