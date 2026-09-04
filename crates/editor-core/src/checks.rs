@@ -481,9 +481,12 @@ pub enum ChecksError {
         error: BandError,
     },
     /// The document's roots did not gather into a product, so the
-    /// separation resident has no subject. The gather's own refusal,
+    /// registry has no subject to run over. The gather's own refusal,
     /// forwarded — this layer has no second opinion about what a
     /// product is.
+    ///
+    /// The refusal of the door that GATHERS, and of no resident: a
+    /// registry handed its subject never raises this.
     Product {
         /// The gather's own refusal, rendered — see
         /// [`CheckEvidence::SeparationUnavailable`] for why the message
@@ -531,6 +534,28 @@ impl fmt::Display for CheckRefusal {
 
 impl core::error::Error for CheckRefusal {}
 
+/// What the registry runs its residents over: the document's product,
+/// gathered ONCE by whoever calls the registry.
+///
+/// A resident does not derive its own subject. Two residents deriving
+/// the same subject differently would be two answers to "what is this
+/// document's product", and a caller that already holds the product
+/// would pay for it again.
+///
+/// [`Subject::NoBodyRoots`] is the document that denotes no body at
+/// all — an empty document, or one holding only sketches and datums.
+/// It is not a failure to run the registry: a resident that needs a
+/// body has no subject there and contributes no finding, and a
+/// resident that does not (connectedness reads the evaluation) runs
+/// exactly as it would otherwise.
+#[derive(Debug)]
+pub enum Subject<'a, T: Decide> {
+    /// The gathered product, borrowed for the run.
+    Product(&'a product::Product<T>),
+    /// No root denotes a body, so there is no product to be had.
+    NoBodyRoots,
+}
+
 /// Runs every configured check over `doc`'s evaluated roots and
 /// returns the report. **Reports, never gates** (the
 /// [`crate::mixed_pins`] posture): nothing calls this from `apply`,
@@ -559,12 +584,54 @@ impl core::error::Error for CheckRefusal {}
 ///
 /// # Errors
 ///
-/// [`ChecksError`] — a root without a value in `ev`, or a band the
-/// tolerance cannot form. These mean the checks could not run at all;
-/// a check that ran and disagreed is a FINDING, not an error.
+/// [`ChecksError`] — a root without a value in `ev`, a band the
+/// tolerance cannot form, or a document whose roots do not gather into
+/// a product. These mean the checks could not run at all; a check that
+/// ran and disagreed is a FINDING, not an error.
 pub fn run_checks<P, T: Decide + AtRestPolicy + CertifiedBounds>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
+    cfg: &ChecksConfig,
+    tol: Tol,
+) -> Result<ChecksReport, ChecksError> {
+    match product::product_recorded(doc, ev, tol) {
+        Ok(gathered) => run_checks_on(doc, ev, Subject::Product(&gathered), cfg, tol),
+        Err(product::ProductError::NoBodyRoots) => {
+            run_checks_on(doc, ev, Subject::NoBodyRoots, cfg, tol)
+        }
+        Err(source) => {
+            // PRECEDENCE: the registry's own preconditions answer
+            // before the subject does. A root without a value in this
+            // evaluation, or a tolerance that forms no band, is a
+            // statement about whether the checks may run AT ALL, and
+            // it holds whether or not the document also has a product.
+            // The report that run would have produced is not this
+            // call's answer and is dropped.
+            run_checks_on(doc, ev, Subject::NoBodyRoots, cfg, tol)?;
+            Err(ChecksError::Product {
+                reason: source.to_string(),
+            })
+        }
+    }
+}
+
+/// The registry over a subject the CALLER gathered — the door
+/// [`run_checks`] wraps, and the one a caller with a product in hand
+/// uses so the document is gathered once.
+///
+/// Everything [`run_checks`] documents about what is checked, in what
+/// order, and what a finding means holds here verbatim; the only
+/// difference is where the subject came from.
+///
+/// # Errors
+///
+/// [`ChecksError::Root`] and [`ChecksError::Band`] — the registry's own
+/// preconditions. [`ChecksError::Product`] is [`run_checks`]'s alone:
+/// this door was handed its subject and has no gather to refuse.
+pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds>(
+    doc: &Doc<P>,
+    ev: &Evaluation<T>,
+    subject: Subject<'_, T>,
     cfg: &ChecksConfig,
     tol: Tol,
 ) -> Result<ChecksReport, ChecksError> {
@@ -577,7 +644,7 @@ pub fn run_checks<P, T: Decide + AtRestPolicy + CertifiedBounds>(
     if cfg.severity(CheckId::Separation) == Severity::Off {
         report.skipped.push(CheckId::Separation);
     } else {
-        separation(doc, ev, tol, &mut report)?;
+        separation(&subject, tol, &mut report);
     }
     Ok(report)
 }
@@ -719,33 +786,20 @@ fn connectedness<P, T: Decide + PropsQuadLane>(
 /// too would make a correctly-mated assembly noisy about the thing it
 /// got right. The suppression reads the declarations only — it never
 /// blesses a contact from discovery (F1).
-fn separation<P, T: Decide + AtRestPolicy + CertifiedBounds>(
-    doc: &Doc<P>,
-    ev: &Evaluation<T>,
+fn separation<T: Decide + CertifiedBounds>(
+    subject: &Subject<'_, T>,
     tol: Tol,
     report: &mut ChecksReport,
-) -> Result<(), ChecksError> {
-    let gathered = match product::product_recorded(doc, ev, tol) {
-        Ok(gathered) => gathered,
-        // A document whose roots denote no body has no SUBJECT for this
-        // resident — an empty document, or one holding only sketches
-        // and datums. That is not a failure to RUN the registry, and
-        // sinking the whole report on it would make the checks go
-        // silent on the most common document in the GUI (a new one, on
-        // its first frame) with no reason given, since the viewer takes
-        // the report through an `.ok()`. The other arms ARE refusals: a
-        // root that failed to evaluate, a naming collision across
-        // roots, a source body invalid at rest.
-        Err(product::ProductError::NoBodyRoots) => return Ok(()),
-        Err(source) => {
-            return Err(ChecksError::Product {
-                reason: source.to_string(),
-            });
-        }
+) {
+    // A document whose roots denote no body has no SUBJECT for this
+    // resident, so it contributes no finding — the reading
+    // [`Subject::NoBodyRoots`] states.
+    let Subject::Product(gathered) = subject else {
+        return;
     };
     // Fewer than two gathered solids cannot make a pair.
     if gathered.solid_roots.len() < 2 {
-        return Ok(());
+        return;
     }
     let boxes = match topo::SolidSeparation::of(&gathered.body, tol) {
         Ok(boxes) => boxes,
@@ -759,7 +813,7 @@ fn separation<P, T: Decide + AtRestPolicy + CertifiedBounds>(
                 output_ix: first.output,
                 evidence: CheckEvidence::separation_unavailable(&source),
             });
-            return Ok(());
+            return;
         }
     };
     let declared = declared_pairs(&gathered);
@@ -790,7 +844,6 @@ fn separation<P, T: Decide + AtRestPolicy + CertifiedBounds>(
             });
         }
     }
-    Ok(())
 }
 
 /// Which solid pairs are DECLARED to touch, keyed as an ordered pair
