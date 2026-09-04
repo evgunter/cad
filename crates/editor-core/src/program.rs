@@ -249,8 +249,9 @@ pub enum LoopProgram {
 /// # The plane is a reference, not a placement
 ///
 /// This field held a `SketchPlane<f64>` — twelve placement floats
-/// inline, unshared and unnameable. It now names a
-/// [`crate::Datum::Frame`] node, which is the whole of what the frame
+/// inline, unshared and unnameable. It now names a frame node — a
+/// [`crate::Datum::Frame`], or a [`crate::Datum::FaceFrame`] derived
+/// from a face — which is the whole of what the frame
 /// datum was added for: two profiles on one face are two references to
 /// one frame rather than two copies of a placement that can silently
 /// drift apart, an axis can be declared to lie IN a named frame, and a
@@ -275,8 +276,10 @@ pub enum LoopProgram {
 /// (they are invisible to `bit_eq` itself, D7).
 #[derive(Debug, Clone)]
 pub struct ProfileProgram {
-    /// The [`crate::Datum::Frame`] node this profile is drawn on —
-    /// sketch (0, 0) and the directions sketch +x and +y point.
+    /// The frame node this profile is drawn on — a
+    /// [`crate::Datum::Frame`] or a [`crate::Datum::FaceFrame`], either
+    /// of which lands the same frame value: sketch (0, 0) and the
+    /// directions sketch +x and +y point.
     ///
     /// Typed as a plain node reference rather than a frame-only
     /// newtype for the reason every other operand reference here is:
