@@ -775,3 +775,74 @@ as string literals the inventory cannot see, one of them
 The F3 residue stands: main's push runs never execute this test; the
 composition of two green PRs into a red main was first seen days later
 on an unrelated branch (CIW is re-costing F3).
+
+## M10-7 dual review adjudication (2026-09-04)
+
+Both arms on frozen 292273f5a (PR #1725, green run 33828394312 at
+the pinned point). R1 NOT-MERGEABLE-then-mergeable (2 MAJ, rubric
+3/3/2); R2 BLOCK (2 MAJ, rubric 4/4/2). One MAJOR is bilateral and
+identically diagnosed with independent red probes: `Sym::opaque`
+gives every untracked value the reserved id 0, so two different
+reals freeze to one indeterminate and `opaque(1) − opaque(2)`
+decides a symbolic `Zero` — a latent false-theorem door (`pub`, and
+`AxisScalar::axis for Sym`), off `drive`'s path today only because
+`param_env_over` takes the named door. The other two are UNILATERAL
+BY EXECUTION, one each way — the program's second symmetric pair.
+R2: the driver K row's gate is DISARMED by the unit — the new
+`symbolic_zero` token is unknown to `tools/k-lint`'s parser, which
+rejects the driver CSV at its first sample row as harness breakage,
+so ZERO samples were linted at any ε on the green run; the step
+stayed green because `ci.yml`'s status capture reads `PIPESTATUS`
+after `$?` has reset it, so the gate's red arms were unreachable —
+a pre-existing hole the unit's token turned live, meaning E6's
+rule-1 gate has been off since this head and the K-REPORT
+addendum's "rule 1 fires zero times" was never measured by CI
+(M10-6's row must be re-examined for the same vacuity). R1: claim
+6's mechanism is misattributed — the slab's certifying half-width
+is ε-DEPENDENT (0.488 at 1e-9, 0.439 at 1e-6) and the first refusal
+beyond it is not the zero-extrusion flip but dependency widening in
+NON-identity margins (`dihedral_wedge` indeterminate, then the
+Newell normal's enclosure reaching zero and poisoning
+`newell_plane_residual`), refined through by bisection; the re-cut
+row asserts only `lo ≥ 1e-3` and cannot see it; the tier-off
+baseline is ε/8 not ε/16 (R2), so the factor is 3.9·10⁹. The MINORs
+converge: the K re-tag rewriting whatever sample sits last in the
+sink (an `Indeterminate` included); the dial docs arguing 16 while
+128 ships; the "documented limits" and "never partially on"
+sentences false after D1; two spliced doc blocks; the runtime cost
+unreported (a leaf replay 40×, a drive 50×, `Poly::mul` building
+the whole product before the budget refuses it); i128 freezes on
+curved geometry at 7% of decisions; the mate lever discontinuous at
+zero extent; the census naming 18 of 66. Both e2e walks agree on
+the thing that matters most: on CURVED geometry a real study gets
+the pre-E12 answer — R2's filleted L-bracket certifies nothing at
+any scale with the tier on or off, and the arc family collapses
+wider than D4's rim endpoint (`carrier_on_surface`,
+`witness_on_surface` at 0 symbolic); R1's parametric chain refuses
+at the guided lift before the tier is even asked (pre-existing).
+Everything both arms could execute held otherwise: the tier-off
+differential byte-identical against the merge base at two ε rows,
+identities by five routes at every width, coincidences never
+symbolic, clause 1 catching every non-real path tried, D9 across
+repeats and the rayon schedule, the K split reproduced exactly, the
+lever's counts reproduced, `reach` an upper bound by the triangle
+inequality.
+
+Fix pass IMPLEMENTER-INHERITED, three MAJORs and fifteen MINORs
+dispatched as the union: k-lint taught the token with the outcome
+vocabulary given one home and the CI status capture fixed so the
+gate can red (the final run must show the CSVs linted, quoted from
+the log); opaque values each their own indeterminate; the ceiling
+row asserting its mechanism at each ε row with the first refusal's
+predicate named and the pins tightened; the cost measured and
+disclosed; the full census table; the arc family's width appended
+to M10-8.
+
+Tally candidates: R2's disarmed-gate MAJ and R1's ceiling-mechanism
+MAJ — one unilateral execution finding each way. Durable homes:
+the real-margin dependency-widening class (the Newell normal,
+`arc_diameter_clearance`) gets a tracker item as the ceiling after
+M10-8; the `PIPESTATUS` pattern across `ci.yml` goes to CIW by
+issue; M10-8's scope widens to the whole arc family with R2's
+per-predicate numbers; the guided lift refusing a parametric
+profile chain is filed if no item exists.
