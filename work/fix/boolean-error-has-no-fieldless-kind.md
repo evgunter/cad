@@ -40,24 +40,47 @@ cannot enter. The site's disclosure comment is replaced by the
 invariant: prose is what a reader reads, kind is what a consumer
 matches, and neither half is a substring hunt through the other.
 
-Two rows pin it. `topo`'s
-`the_kind_enum_names_exactly_the_error_arms` reads both declarations
-and the projection out of the module's own source and asserts the
-three name lists agree — verified red on a planted phantom kind
-variant and on a planted mis-paired arm. `editor-core`'s
-`separation_unavailable_carries_the_kernel_class_beside_its_prose`
-pins that the finding forwards the kernel's own sentence whole, that
-the class is recovered by pattern, and that two findings with
-byte-identical prose and different classes compare unequal.
+Two rows pin it, and a style review replaced the first draft of both.
+`topo`'s `each_kind_has_an_arm_and_each_built_arm_projects_to_its_own_kind`
+carries an exhaustive match over `BooleanErrorKind` — so a phantom
+variant fails to COMPILE, by name, at `error[E0004]`, in the crate that
+owns both enums — plus 34 constructed errors whose projected kind is
+compared against the variant name `Debug` prints for the error itself,
+which catches a mis-projected arm with no expected value written down
+twice. `editor-core`'s
+`the_separation_door_carries_the_class_of_the_error_it_saw` pins the
+door's own constructor: the prose is the kernel's sentence whole and
+the kind is the arm the error IS. Verified red: a planted phantom
+(E0004, names the variant), a planted `Self::GermFrameCylinderPinch =>
+GermFrameUnsupported`, and a kind hardcoded at the door.
 
-**The direction still unguarded.** The compiler sees the error→kind
-direction only. The source-scan row closes the kind→error (phantom)
-and the mis-pairing directions FOR THIS PAIR, and its blind spot is
-stated at the row: it is a text scan of one file, so a macro-expanded
-variant or an arm whose formatting the patterns misread is invisible
-to it. `PathErrorKind` and `AttrKind` have no equivalent row at all.
-The single-declaration form is filed as
-`kind-mirrors-have-no-single-declaration`.
+**What the first draft got wrong, and it matters more than what it
+got right.** The original guard read the two enums and the projection
+out of the module's SOURCE TEXT. The review planted two pieces of
+ordinary Rust and both broke it: a `/** ... */` doc comment on a
+variant read as a variant named `Nothing`, and an unbalanced `{` inside
+a `/* */` comment truncated the scan silently. Both failed with a
+message telling the author to delete a phantom variant that did not
+exist — a plausible false accusation against correct code. That is the
+third instance of
+`work/issues/source-scanning-censuses-are-a-tripwire-on-ordinary-rust.md`
+and the worst of them; the scanner is gone rather than patched, and
+both plants are now inert.
+
+**The direction still unguarded.** The compiler sees error → kind
+through `kind()`, and now kind → error through the exhaustive visit.
+What no guard in the tree closes in general is **pairing**: an arm
+projected to the wrong kind type-checks. Here it is closed only for the
+34 arms a test cheaply constructs; the 7 whose payload nests another
+crate's typed refusal (`Euler`, `CrossingInsertion`, `Join`, `Merge`,
+`Revert`, `GraftRecertify`, and the `DeclaredContact` cusp arm) are
+unchecked, and nothing reds if a future arm is simply absent from that
+list — the row measures what it builds and accuses no one of anything
+else. `kind-mirrors-have-no-single-declaration` carries the general
+fix and now records the corrected picture: `PathErrorKind` IS guarded
+(`pncad-py/src/tags.rs:88`'s `path_error_tag`), `VerbKind::ALL` is the
+census precedent, and `AttrKind` is the one with no exhaustive
+consumer anywhere (measured: zero `AttrKind::X =>` arms tree-wide).
 
 **The sweep** (typed error degraded to `String` at a consumer door),
 one line each:
@@ -117,13 +140,18 @@ differently from any of these patterns would still be invisible.
 
 **Fences crossed** (`work.py territory --base origin/main`):
 `crates/topo/src/boolean/mod.rs` — `bool` (S-BOOL), announced in this
-program's `keep_out`; `crates/editor-core/tests/dsc_checks.rs` —
-`tcost`; `crates/pncad-py/src/py/checks.rs` and
+program's `keep_out`; `crates/pncad-py/src/py/checks.rs` and
 `crates/pncad-py/src/tests.rs` — `lib`, both one-line threads of the
 new field. `crates/topo/src/lib.rs` (the re-export) is unowned;
 `crates/editor-core/src/checks.rs` is this program's.
+`crates/editor-core/tests/dsc_checks.rs` was touched by the first
+draft and is back to `main` byte-for-byte: the claim moved into
+`checks.rs`'s own test module, so `tcost`'s fence is no longer
+crossed.
 
-**Not taken.** The Python surface reads the reason string and does not
-publish a boolean-kind tag. Minting 41 FFI names is a new published
-vocabulary and the phantom-tag hazard `PathErrorKind`'s doc names; it
-waits for a caller that wants it.
+**Not taken, and filed rather than left in prose.** The Python surface
+still reads the reason string and publishes no boolean-kind tag, so the
+defect this item describes is still true one door out —
+`boolean-kind-not-published-at-the-python-door`, which names
+`path_error_tag` as the written template and both reasons this unit did
+not carry it (LIB's fence; 41 FFI names is a vocabulary decision).

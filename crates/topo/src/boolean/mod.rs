@@ -6,9 +6,13 @@
 //! (F1/F2), vertex-vertex sector classification, vertex-on-face
 //! classification with the ring insertion, on-edge machinery, and
 //! paired null-edge insertion with explicit cross-body correspondence
-//! keys (F9/F12). NO joining, NO result generation, NO containment
-//! fallback — those are PR 5. Both operands are functionally untouched
-//! (annotated clones come back in [`BooleanReduction`]).
+//! keys (F9/F12). [`boolean_reduce`] itself stops there: both operands
+//! are functionally untouched and the annotated clones come back in
+//! [`BooleanReduction`]. Joining, result generation and the
+//! containment fallback are the module's too — they arrived with PR 5
+//! and after, and [`BooleanError`] carries their refusals — so a
+//! reader deciding what belongs in this file should read the pipeline
+//! below, not this paragraph, as its boundary.
 //!
 //! Pipeline of [`boolean_reduce`]:
 //!
@@ -1128,15 +1132,18 @@ pub enum BooleanError {
 /// record, a hash key, a test assertion, an FFI tag map.
 ///
 /// One variant per [`BooleanError`] arm, and [`BooleanError::kind`]
-/// matches exhaustively — a new arm there stops every consumer that
-/// maps this enum compiling, rather than falling into a wildcard.
+/// matches exhaustively — an arm added to the error reds `kind` itself,
+/// here in this crate. It reds nothing downstream, because no consumer
+/// maps this enum yet: today it appears only as a field type on
+/// `editor_core::CheckEvidence` and in this module's tests.
 ///
-/// The exhaustiveness runs one way only. A variant HERE with no arm
-/// behind it is a phantom: nothing constructs it, so no test can reach
-/// it, and the compiler reds only a downstream exhaustive map. The
-/// arity row in this module's tests is what sees the other direction;
-/// the fix at either red is to delete the phantom, never to give it a
-/// tag.
+/// A variant HERE with no arm behind it is a phantom: nothing
+/// constructs it, so no test can reach it. Since there is no
+/// downstream map to red, this module's tests carry the visit that
+/// does — an exhaustive match over this enum, which names the phantom
+/// at compile time. The fix at that red is to delete the phantom,
+/// never to give it a tag: a tag minted for a phantom publishes a name
+/// no refusal can ever carry.
 ///
 /// Deliberately NOT `Ord`. The declaration order mirrors
 /// [`BooleanError`]'s for reading, and nothing depends on it.
@@ -2478,91 +2485,233 @@ mod tests {
         assert!(msg.contains("declared-REST union zip"), "{msg}");
     }
 
-    /// **The two directions the compiler does not see.**
+    /// One [`BooleanError`] per arm whose payload is keys, spans,
+    /// enums and `&'static str` — everything the projection can be
+    /// checked on without reaching into another crate's error type.
+    /// Arms nesting a foreign refusal (`Euler`, `Join`, `Merge`,
+    /// `Revert`, `GraftRecertify`, `CrossingInsertion`) are absent by
+    /// the same rule.
+    fn sample_errors() -> Vec<BooleanError> {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let diag = Indeterminate {
+            margin: MarginDiag::Value(5e-9),
+            band,
+            predicate: Some("bool_plane_offset"),
+        };
+        let face = FaceKey::default();
+        let edge = EdgeKey::default();
+        let declaration = crate::contact::DeclaredContact {
+            a: face,
+            b: face,
+            class: ContactClass::Rest,
+        };
+        vec![
+            BooleanError::Band(Band::new(1.0, 1.0).unwrap_err()),
+            BooleanError::CurvedBooleanUnsupported {
+                operand: Operand::A,
+                face,
+                kind: geom_brep::SurfaceKind::Cone,
+            },
+            BooleanError::CurvedSectorSideUnsupported { band },
+            BooleanError::CurvedPierceUnsupported {
+                operand: Operand::A,
+                face,
+                edge,
+                band,
+            },
+            BooleanError::CurvedEdgeUnsupported {
+                operand: Operand::B,
+                edge,
+            },
+            BooleanError::PointSplitCarrierUnsupported {
+                operand: Operand::A,
+                edge,
+            },
+            BooleanError::ArcLoopContainmentUnsupported {
+                operand: Operand::A,
+                r#loop: crate::entity::LoopKey::default(),
+            },
+            BooleanError::ScaffoldingOperand {
+                operand: Operand::A,
+                edge,
+            },
+            BooleanError::NonMaximalFaces {
+                operand: Operand::A,
+                edge,
+            },
+            BooleanError::Escalated { diag },
+            BooleanError::UndeclaredCoincidence {
+                diag,
+                pair: [(Operand::A, face), (Operand::B, face)],
+                relation: PlaneRelation::SameOpposite,
+            },
+            BooleanError::DeclarationContradicted { diag },
+            BooleanError::ContactContradicted {
+                declaration,
+                margin: diag,
+                steer: None,
+            },
+            BooleanError::UnsupportedDeclarationClass {
+                class: ContactClass::Tangent,
+            },
+            BooleanError::RimSeamNotDeclarable { declaration },
+            BooleanError::InvalidDeclaration {
+                operand: Operand::A,
+                what: "a stale key",
+            },
+            BooleanError::PairingMismatch {
+                a_vertex: VertexKey::default(),
+                b_vertex: VertexKey::default(),
+            },
+            BooleanError::ClassificationInvariant {
+                what: "an invariant",
+            },
+            BooleanError::CorruptOperand {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+            },
+            BooleanError::CurvedPairUnsupported {
+                op: None,
+                operand: Operand::A,
+                face,
+                kind: geom_brep::SurfaceKind::Cone,
+                other_face: face,
+                other_kind: geom_brep::SurfaceKind::Plane,
+            },
+            BooleanError::NurbsExtentUnsupported {
+                operand: Operand::A,
+                face,
+            },
+            BooleanError::FallbackExtentUnsupported {
+                operand: Operand::A,
+                face,
+                what: "an uncertifiable pose",
+            },
+            BooleanError::GermFrameUnsupported {
+                a_face: face,
+                a_kind: geom_brep::SurfaceKind::Cone,
+                b_face: face,
+                b_kind: geom_brep::SurfaceKind::Torus,
+            },
+            BooleanError::GermFrameCylinderPinch {
+                a_face: face,
+                b_face: face,
+            },
+            BooleanError::Pcurves {
+                source: crate::pcurves::PcurveMintError::Corrupt,
+            },
+            BooleanError::RestZipUnsupported {
+                what: "a sub-frontier",
+            },
+            BooleanError::JoinDesync { what: "a lockstep" },
+            BooleanError::TornComponent {
+                operand: Operand::A,
+                shell: ShellKey::default(),
+            },
+            BooleanError::Containment(
+                crate::boolean::solid_contain::PointInSolidError::RayExhausted,
+            ),
+            BooleanError::SeamOrientation {
+                a_face: face,
+                b_face: face,
+            },
+            BooleanError::ZipCorrespondence { what: "a record" },
+            BooleanError::ResultInvalid { errors: Vec::new() },
+            BooleanError::ResultVolumeImplausible {
+                which: "vol(A ∖ B) ≤ vol(A)",
+                got: "1.0".to_owned(),
+                bound: "0.5".to_owned(),
+            },
+            BooleanError::UnrepresentableResult,
+        ]
+    }
+
+    /// **The phantom direction, closed by the compiler; the pairing
+    /// direction, closed by construction.**
     ///
-    /// [`BooleanError::kind`] is exhaustive over [`BooleanError`], so
-    /// an arm added there reds this crate. Nothing plays that role for
-    /// a variant added to [`BooleanErrorKind`] alone — it is
-    /// constructed nowhere, so it reds only some downstream exhaustive
-    /// map, in another crate, whenever one next exists — and nothing
-    /// at all objects to an arm PROJECTED to the wrong kind, which
-    /// type-checks. This row reads both declarations and the
-    /// projection out of this file's own source and asserts the three
-    /// name lists agree.
+    /// [`BooleanError::kind`] is exhaustive over the ERROR, so an arm
+    /// added there reds this crate. `label` below is exhaustive over
+    /// the KIND, so a variant added to [`BooleanErrorKind`] alone reds
+    /// HERE, by name, in the crate that owns both — rather than in
+    /// whatever downstream crate next maps the enum, of which there are
+    /// currently none. `path_error_tag`
+    /// (`crates/pncad-py/src/tags.rs`) and the `VerbKind::ALL` census
+    /// (`crates/verbs/src/verb.rs`) are the in-tree precedents for
+    /// guarding a hand-written mirror with a compile-time visit.
     ///
-    /// What it does NOT catch: it is a text scan of one file, so a
-    /// variant a macro expands to, or an arm whose formatting the
-    /// patterns below misread, is invisible to it — and a scan that
-    /// finds nothing to compare would pass, which is why it asserts
-    /// the lists are non-empty. A single declaration generating both
-    /// enums and the projection is what would retire it.
+    /// Neither exhaustiveness objects to an arm PROJECTED to the wrong
+    /// kind, which type-checks. That is what the errors below are for:
+    /// each is built, projected, and its kind's name compared with the
+    /// variant name `Debug` prints for the error itself, so a
+    /// mis-projected arm and a mis-labelled arm both fail here with no
+    /// expected value written down twice.
+    ///
+    /// **The errors are spot checks, not a census.** They cover the
+    /// arms whose payloads are keys, spans and `&'static str`; an arm
+    /// whose payload is another module's or crate's typed refusal is
+    /// not built here, so a mis-projection confined to one of those is
+    /// not caught. Nothing reds when an arm is missing from this list —
+    /// this row accuses no author of anything it has not measured.
     #[test]
-    fn the_kind_enum_names_exactly_the_error_arms() {
-        /// Top-level variant names of `pub enum <name>`, in
-        /// declaration order.
-        fn variants(text: &str, name: &str) -> Vec<String> {
-            let start = text
-                .find(&format!("pub enum {name} {{"))
-                .expect("the enum is declared in this file");
-            let mut depth = 0i32;
-            let mut out = Vec::new();
-            for line in text[start..].lines().skip(1) {
-                // Doc prose carries unbalanced brackets; depth is
-                // about code.
-                if line.trim_start().starts_with("//") {
-                    continue;
-                }
-                if depth == 0 {
-                    if line == "}" {
-                        break;
-                    }
-                    let t = line.trim_start();
-                    let head = t.split(['{', '(', ',', ' ']).next().unwrap_or_default();
-                    if line.len() - t.len() == 4 && head.starts_with(char::is_uppercase) {
-                        out.push(head.to_owned());
-                    }
-                }
-                depth += i32::try_from(line.matches(['{', '(', '[']).count()).unwrap()
-                    - i32::try_from(line.matches(['}', ')', ']']).count()).unwrap();
+    fn each_kind_has_an_arm_and_each_built_arm_projects_to_its_own_kind() {
+        fn label(kind: BooleanErrorKind) -> &'static str {
+            match kind {
+                BooleanErrorKind::Band => "Band",
+                BooleanErrorKind::CurvedBooleanUnsupported => "CurvedBooleanUnsupported",
+                BooleanErrorKind::CurvedSectorSideUnsupported => "CurvedSectorSideUnsupported",
+                BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
+                BooleanErrorKind::CurvedEdgeUnsupported => "CurvedEdgeUnsupported",
+                BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
+                BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",
+                BooleanErrorKind::ScaffoldingOperand => "ScaffoldingOperand",
+                BooleanErrorKind::NonMaximalFaces => "NonMaximalFaces",
+                BooleanErrorKind::Escalated => "Escalated",
+                BooleanErrorKind::UndeclaredCoincidence => "UndeclaredCoincidence",
+                BooleanErrorKind::DeclarationContradicted => "DeclarationContradicted",
+                BooleanErrorKind::ContactContradicted => "ContactContradicted",
+                BooleanErrorKind::UnsupportedDeclarationClass => "UnsupportedDeclarationClass",
+                BooleanErrorKind::RimSeamNotDeclarable => "RimSeamNotDeclarable",
+                BooleanErrorKind::RimCuspArmUnbuilt => "RimCuspArmUnbuilt",
+                BooleanErrorKind::InvalidDeclaration => "InvalidDeclaration",
+                BooleanErrorKind::PairingMismatch => "PairingMismatch",
+                BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
+                BooleanErrorKind::CorruptOperand => "CorruptOperand",
+                BooleanErrorKind::CrossingInsertion => "CrossingInsertion",
+                BooleanErrorKind::CurvedPairUnsupported => "CurvedPairUnsupported",
+                BooleanErrorKind::NurbsExtentUnsupported => "NurbsExtentUnsupported",
+                BooleanErrorKind::FallbackExtentUnsupported => "FallbackExtentUnsupported",
+                BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
+                BooleanErrorKind::GermFrameCylinderPinch => "GermFrameCylinderPinch",
+                BooleanErrorKind::Euler => "Euler",
+                BooleanErrorKind::Pcurves => "Pcurves",
+                BooleanErrorKind::Join => "Join",
+                BooleanErrorKind::RestZipUnsupported => "RestZipUnsupported",
+                BooleanErrorKind::JoinDesync => "JoinDesync",
+                BooleanErrorKind::TornComponent => "TornComponent",
+                BooleanErrorKind::Containment => "Containment",
+                BooleanErrorKind::Revert => "Revert",
+                BooleanErrorKind::SeamOrientation => "SeamOrientation",
+                BooleanErrorKind::ZipCorrespondence => "ZipCorrespondence",
+                BooleanErrorKind::Merge => "Merge",
+                BooleanErrorKind::ResultInvalid => "ResultInvalid",
+                BooleanErrorKind::ResultVolumeImplausible => "ResultVolumeImplausible",
+                BooleanErrorKind::UnrepresentableResult => "UnrepresentableResult",
+                BooleanErrorKind::GraftRecertify => "GraftRecertify",
             }
-            out
         }
-        /// The `(arm, kind)` name pair of every arm of `kind()`.
-        fn projection(text: &str) -> Vec<(String, String)> {
-            let start = text
-                .find("pub fn kind(&self) -> BooleanErrorKind {")
-                .expect("the projection is in this file");
-            let body = &text[start..text[start..].find("\n    }\n").unwrap() + start];
-            let ident = |s: &str| {
-                s.chars()
-                    .take_while(|c| c.is_alphanumeric() || *c == '_')
-                    .collect::<String>()
-            };
-            body.split("Self::")
-                .skip(1)
-                .map(|arm| {
-                    let kind = arm
-                        .split_once("BooleanErrorKind::")
-                        .expect("every arm names its kind")
-                        .1;
-                    (ident(arm), ident(kind))
-                })
+        /// The variant name `Debug` opens with.
+        fn variant_of(err: &BooleanError) -> String {
+            format!("{err:?}")
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
                 .collect()
         }
-        let text = include_str!("mod.rs");
-        let arms = variants(text, "BooleanError");
-        assert!(arms.len() > 30, "the scan found the enum: {arms:?}");
-        assert_eq!(
-            arms,
-            variants(text, "BooleanErrorKind"),
-            "BooleanErrorKind is a hand-mirror of BooleanError's arms; delete the \
-             phantom rather than teaching a consumer about it"
-        );
-        let projected: Vec<(String, String)> = projection(text);
-        let paired: Vec<String> = projected.iter().map(|(a, _)| a.clone()).collect();
-        assert_eq!(paired, arms, "kind() covers the arms in declaration order");
-        for (arm, kind) in &projected {
-            assert_eq!(arm, kind, "kind() projects each arm to its own name");
+        for err in sample_errors() {
+            assert_eq!(
+                label(err.kind()),
+                variant_of(&err),
+                "kind() projects each arm to its own kind, and label names it"
+            );
         }
     }
 }

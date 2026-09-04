@@ -292,6 +292,21 @@ pub enum CheckEvidence {
     },
 }
 
+impl CheckEvidence {
+    /// [`CheckEvidence::SeparationUnavailable`] built from ONE refusal:
+    /// `kind` is the class a consumer matches, `reason` the kernel's
+    /// own sentence a reader reads. Both come off the same error, which
+    /// is the invariant the door holds and a hand-built literal does
+    /// not — so the door goes through here rather than writing the two
+    /// fields at the raise site.
+    fn separation_unavailable(source: &topo::BooleanError) -> Self {
+        Self::SeparationUnavailable {
+            kind: source.kind(),
+            reason: source.to_string(),
+        }
+    }
+}
+
 /// One finding of one check on one subject — a body-denoting root
 /// output, attributed as `(root, output_ix)` (the
 /// [`crate::AtRestFinding`]/`Attribution` rhyme).
@@ -742,10 +757,7 @@ fn separation<P, T: Decide + AtRestPolicy + CertifiedBounds>(
                 check: CheckId::Separation,
                 root: first.node,
                 output_ix: first.output,
-                evidence: CheckEvidence::SeparationUnavailable {
-                    kind: source.kind(),
-                    reason: source.to_string(),
-                },
+                evidence: CheckEvidence::separation_unavailable(&source),
             });
             return Ok(());
         }
@@ -891,5 +903,46 @@ pub fn enforce_checks(report: &ChecksReport, cfg: &ChecksConfig) -> Result<(), C
         Ok(())
     } else {
         Err(CheckRefusal { findings })
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::CheckEvidence;
+
+    /// INVARIANT: the separation door's evidence carries the class and
+    /// the prose OF ONE REFUSAL — `kind` is the arm the error actually
+    /// is, not a class written down beside it.
+    ///
+    /// The refusing branch itself cannot be reached from `run_checks`
+    /// over a well-formed document: every refusal
+    /// `topo::SolidSeparation::of` can raise needs either a corrupt
+    /// body or an ε within a factor K of `f64::MAX`, and `Tol` is a
+    /// zero-sized witness for the run's committed tolerance, so a test
+    /// cannot hand it one. This row therefore pins the door's
+    /// CONSTRUCTION, which is the part a caller can get wrong, and says
+    /// so rather than implying the branch was executed.
+    #[test]
+    fn the_separation_door_carries_the_class_of_the_error_it_saw() {
+        let refusal = topo::BooleanError::ClassificationInvariant {
+            what: "solid separation: the ambient tolerance band is unusable",
+        };
+        let CheckEvidence::SeparationUnavailable { kind, reason } =
+            CheckEvidence::separation_unavailable(&refusal)
+        else {
+            panic!("the arm this row is about");
+        };
+        // The reader's half is the kernel's own sentence, whole.
+        assert_eq!(reason, refusal.to_string());
+        // The consumer's half is the arm the error IS — compared
+        // against the variant name `Debug` prints for the error, so a
+        // class hardcoded here would have to be the right one by
+        // accident to pass.
+        let variant: String = format!("{refusal:?}")
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        assert_eq!(format!("{kind:?}"), variant);
     }
 }
