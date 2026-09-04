@@ -61,3 +61,41 @@ Two more readers may treat the arm as non-fatal and were not examined:
 and the predicate is overdue rather than merely tidy.
 
 Signed: (VIEW orchestrator)
+
+## Update after VIEW-3 landed its half (2026-09-04)
+
+The viewer's copy grew. `frame::product_badge` now declines four arms,
+not one — `NoBodyRoots`, `RootFailed`, `RootPoisoned` and
+`UnknownNode` — because the last three are states the feature tree
+already badges at the node with a typed cause, and `pane/features.rs`
+draws a poisoned row **deliberately quiet**. A loud toolbar badge
+repeating a poisoning the pane just chose to whisper is the chrome
+contradicting itself.
+
+**That makes the duplication sharper and the framing above slightly
+too strong.** Read carefully, the two sites are answering two
+questions:
+
+- `checks.rs` asks *should the registry run at all* and declines the
+  one arm that means there is no subject;
+- `product_badge` asks *should the chrome say this here* and declines
+  the arm with no subject **plus** three arms another channel already
+  carries.
+
+So they are not one rule with two copies across the board. **What IS
+one rule with two copies is the `NoBodyRoots` classification** — empty
+is not malformed — argued at length, independently, in two crates,
+with the same worked example, and cited by neither. The other three
+arms are the viewer's own chrome policy and belong to the viewer.
+
+The predicate this file asks for is therefore narrower and easier than
+it first looked: `ProductError` wants a way to say **"this arm means
+there is no subject"** — `is_empty_document`, or whatever it is
+called. That is the fact both crates re-derive. What each consumer
+does *beyond* that is properly its own.
+
+VIEW-3's lane flagged this itself, and its reading is the one recorded
+here: if a predicate ever lands on `ProductError`, `product_badge`'s
+carve-out should be its first caller.
+
+Signed: (VIEW orchestrator)
