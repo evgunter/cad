@@ -97,11 +97,13 @@
 #
 # HOSTED CAN BE NARROWED TO A POINT (2026-08-28; it aimed a DRAW until
 # 2026-09-04 and narrows a full run now) — ci.yml's `workflow_dispatch`
-# inputs, or a `CI-Config:` trailer in the head commit's message, both
-# landing in ci-filter.py's NARROWING A RUN path. That does not reach this
-# half and deliberately so: every value either spelling can name is one this
-# file already runs, so a narrowing can only ever make hosted gate LESS than
-# this half, never more, and there is nothing here for a request to buy.
+# inputs, landing in ci-filter.py's NARROWING A RUN path. There was a second
+# spelling, a `CI-Config:` trailer in the head commit's message, and it was
+# deleted on 2026-09-04 once every dimension ran whole and it had no value
+# left to name that changed anything. Neither reached this half and
+# deliberately so: every value a request can name is one this file already
+# runs, so a narrowing can only ever make hosted gate LESS than this half,
+# never more, and there is nothing here for a request to buy.
 #
 # NOT MIRRORED, deliberately (2026-08-04): ci.yml's two build jobs set
 # RUSTFLAGS=-C link-arg=-fuse-ld=mold and CARGO_PROFILE_{DEV,TEST}_DEBUG=

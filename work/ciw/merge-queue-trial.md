@@ -305,12 +305,12 @@ workflow's gating jobs one by one fails here for **two** reasons, both of
 which a name list cannot fix:
 
 1. **Two of the names are computed.** `test (eps = …, …/2)` and
-   `test (interval, eps = …, …/2)` interpolate `eps_rows`. Neither a
-   dispatch input nor a `CI-Config:` trailer can reach a merge_group run
-   (a group head's commit message is GitHub's own, and a queue takes no
-   inputs) — but a required-check list is **shared with pull requests**,
-   where both spellings can still narrow the matrix. A gate whose names a
-   commit message can shrink is a gate a commit message can shrink.
+   `test (interval, eps = …, …/2)` interpolate `eps_rows`. A dispatch
+   input cannot reach a merge_group run (a queue takes no inputs) — but a
+   required-check list is **shared with pull requests**, where a
+   dispatch's narrowed names show up. A gate whose names a run's inputs
+   can shrink is a gate those inputs can shrink. (A commit trailer was
+   the second spelling here until 2026-09-04, when it was deleted.)
 2. **A list goes stale silently.** A job added to `ci.yml` and forgotten
    in a branch-protection setting is a gate nobody removed and nobody
    runs.
@@ -487,8 +487,9 @@ exist when the PR was reviewed. So a queue run draws a row
 * a pull request green on row X can be **ejected from the queue** by
   row Y, for a defect its own branch never displayed;
 * the author cannot reproduce it by re-running their PR, because a
-  re-run of the same head SHA draws the same row — it takes a
-  `CI-Config: klint=<row>` trailer on a new commit;
+  re-run of the same head SHA draws the same row — it takes a new commit
+  and a way to name the row, which after 2026-09-04 is a
+  `workflow_dispatch` and nothing else;
 * re-queueing draws **again**, so the ejection may not reproduce in the
   queue either: a failure that looks flaky and is perfectly
   deterministic.
@@ -578,7 +579,7 @@ protection rules that use wildcard characters (`*`)."*
 | Require status checks to pass | **on**, with exactly one check: **`gate ok`** | one name that reports on every tier; see the required-check section |
 | Require branches to be up to date before merging | **off** | the queue is what makes the branch up to date; this setting fights it |
 | Require merge queue | **on** | the switch |
-| Merge method | **Merge commit** | `CLAUDE.md`: merge commits only, no squash, no rebase. It also keeps `CI-Config:` trailers out of the group head, so a queue run cannot be narrowed |
+| Merge method | **Merge commit** | `CLAUDE.md`: merge commits only, no squash, no rebase |
 | Build concurrency | **5** | observed peak in flight is 4 over 24 h; at 4+ every PR's latency is exactly one run's wall clock. 1 produces a 22-minute median and a 63-minute worst case |
 | Only merge non-failing pull requests | **on (Yes)** | with it off, a failing PR can ride into `main` behind a passing last PR — and because the change filter classifies a group against its parent, a docs-only last PR would skip the build entirely |
 | Maximum pull requests to merge | **1** | keeps one merge ↔ one push to `main`, which the render re-baseline and `STATUS.md` regeneration assume. Costs nothing; raising it later is pure throughput |

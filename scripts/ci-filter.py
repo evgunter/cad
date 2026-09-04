@@ -102,8 +102,11 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   CONFIG_SOURCE=lane:<src> eps:<src> klint:<src>
                                 where each of the three values above came
                                 from: `unsampled` (the whole dimension runs,
-                                which is now every dimension's default),
-                                `requested` (--config) or `commit-trailer`
+                                which is now every dimension's default) or
+                                `requested` (--config, which is where ci.yml's
+                                `workflow_dispatch` inputs land). There is no
+                                third source: the vocabulary names what can
+                                happen and nothing else
   TEST_FILTER=<nextest filterset expression>|<empty>
                                 the GATED SUITES this run does not execute,
                                 as one `-E` expression EXCLUDING them
@@ -241,31 +244,32 @@ one case: a run a REQUEST narrowed to `lane=default` over a diff touching
 `*interval*` files. Someone who narrowed away the axis their diff touches is
 the one reader that notice is still for. It changes nothing about what runs.
 
-NARROWING A RUN TO ONE POINT (2026-08-28, Ev's ask; repurposed and SPLIT
-2026-09-04, and the split completed 2026-09-04 when the k-lint draw went). While
-the draws existed, this was how someone ASKED for the point a draw kept missing,
-and the two spellings below were one applier because either could only
-substitute one drawn point for another. With nothing drawn they are no longer
-the same act, so THEY NO LONGER HAVE THE SAME AUTHORITY:
+NARROWING A RUN TO ONE POINT (2026-08-28, Ev's ask; repurposed 2026-09-04 when
+the draws went, and reduced to ONE SPELLING on 2026-09-04). While the draws
+existed, this was how someone ASKED for the point a draw kept missing. There is
+now exactly one way to say it:
 
   --config lane=interval eps=1e-12 klint=dev-probe   THE INVOCATION says it,
       and it MAY NARROW. ci.yml's `workflow_dispatch` inputs land here, so a
       run can be aimed at a configuration with no commit and no push — typed
       by whoever is standing there now, which is what a deliberate narrowing
       is.
-  --config-from-message <file>                       THE COMMIT says it, in a
-      `CI-Config:` trailer line in the message (see `CONFIG_TRAILER`), and it
-      is ADDITIVE-ONLY: since 2026-09-04 that covers all three dimensions, so
-      the only values it may name are `lane=both`, `eps=all` and `klint=all`,
-      every one of which changes nothing. It may not narrow. `WHOLE_BY_DEFAULT`
-      carries the rule and the argument; the short form is that a trailer is
-      COPIED rather than typed and rides one push with nobody standing over
-      it, so the failure it produces is a run gating LESS than an unmarked
-      one and looking identical. ci.yml reads the PR's HEAD commit, not the
-      merge ref it is checked out at, so what gates the run is what the
-      author wrote.
 
-Neither does anything but replace a value before it is printed — no job
+THERE WAS A SECOND SPELLING AND IT IS DELETED (2026-09-04, Ev: *"i see in 1855
+it's still talking about the ci config trailer; that code should be deleted
+since it's no longer live"*). `--config-from-message` read a `CI-Config:`
+trailer out of the head commit's message and was ADDITIVE-ONLY: it could not
+gate less than an unmarked run, because a trailer is COPIED rather than typed
+and rides one push with nobody standing over it. Once un-sampling reached the
+last dimension, "additive-only" and "every dimension already runs whole" met:
+the only values a trailer could legally name were `lane=both`, `eps=all` and
+`klint=all`, each of which changed nothing, and every other value red the
+classify step. NO INPUT MADE IT USEFUL — it could restate the default or fail —
+so the path is gone rather than kept as a spelling whose entire legal
+vocabulary is a no-op. What it was for survives in the dispatch input, which
+is the deliberate act it was never a good shape for.
+
+The request does nothing but replace a value before it is printed — no job
 condition, no matrix and no cache key reads anything but the LANE / EPS /
 KLINT_ROW lines, so a narrowed run runs the identical gate that point runs
 inside a full one. A NARROWED RUN ANNOUNCES ITSELF ON THE RUN PAGE: ci.yml's
@@ -273,23 +277,15 @@ inside a full one. A NARROWED RUN ANNOUNCES ITSELF ON THE RUN PAGE: ci.yml's
 whenever LANE, EPS or KLINT_ROW is not the whole dimension, which is the one
 channel that reaches a reader who never opens a job log.
 
-WHY BOTH, when either alone answers the ask. They fail at opposite ends. A
-dispatch cannot put its verdict on a pull request — its checks belong to the
-run, not to the head commit's status — so it cannot be the thing a reviewer
-looks at before merging. A trailer cannot re-gate a commit that is already
-written, which is the whole of "that landed, now run it at 1e-12", because
-this repo does not rewrite history. And the trailer keeps the property a
-dispatch necessarily breaks: WHICH CONFIGURATION
-GATED THIS COMMIT IS RECOVERABLE FROM THE COMMIT. A dispatch's answer lives in
-one run's inputs, which is why CONFIG_SOURCE exists and why ci.yml prints it
-in a step that always runs.
+WHICH CONFIGURATION GATED THIS COMMIT is recoverable from CONFIG_SOURCE, which
+ci.yml prints in a step that always runs. A dispatch's answer lives in one
+run's inputs and not in the commit, and that is now the only answer there is;
+the trailer's one advantage over it died with the values that made it a no-op.
 
-PRECEDENCE is invocation over trailer over the default, PER DIMENSION: the
-flag was typed by whoever is standing here now, the trailer by whoever wrote
-the commit. A dimension nobody names keeps its default, and every default is
-now the WHOLE dimension — every lane, every eps row and every k-lint
-unification — so `--config eps=1e-12` narrows one axis and leaves the rest
-whole.
+PRECEDENCE is the invocation over the default, PER DIMENSION. A dimension
+nobody names keeps its default, and every default is now the WHOLE dimension —
+every lane, every eps row and every k-lint unification — so `--config
+eps=1e-12` narrows one axis and leaves the rest whole.
 
 A REQUEST THAT NAMES NO REAL POINT IS A HARD FAILURE, not a fallback to the
 default: an unknown key, an unknown value, a repeated key, a token that is not
@@ -1006,9 +1002,9 @@ KLINT_ROWS: tuple[str, ...] = (
 # ITS POPULATION NARROWED TO ONE CASE WHEN THE LANE STOPPED BEING SAMPLED
 # (2026-09-04) and it is kept for that case rather than retired with the draw.
 # A default run gates both compile modes, so nobody can miss the interval lane
-# by accident any more; what remains is missing it ON PURPOSE — a
-# `CI-Config: lane=default` trailer, or a dispatch aimed at `lane: default`,
-# over a diff whose filenames say interval. That is someone narrowing away the
+# by accident any more; what remains is missing it ON PURPOSE — a dispatch
+# aimed at `lane: default` over a diff whose filenames say interval, which is
+# the only spelling of that left. That is someone narrowing away the
 # axis their own diff touches, and it is worth one line of stderr. A name can
 # raise the question; only the author can answer it.
 def _advises_interval(files: list[str] | None) -> list[str]:
@@ -1544,70 +1540,16 @@ CONFIG_DIMENSIONS: dict[str, tuple[str, tuple[str, ...]]] = {
     "klint": ("KLINT_ROW", (*KLINT_ROWS, "all")),
 }
 
-# THE COMMIT-MESSAGE SPELLING, deliberately shaped so it cannot happen by
-# accident: a git trailer at the START of a line, which prose about this
-# feature (indented, quoted, or mid-sentence) does not match. Case-insensitive
-# on purpose — `CI-config:` is a typo, and a typo that reads as "no request"
-# would run a configuration nobody chose with nothing anywhere saying the line
-# was ignored.
-CONFIG_TRAILER = re.compile(r"^ci-config:[ \t]*(\S.*?)[ \t]*$", re.M | re.I)
-
-# THE DIMENSIONS WHOSE DEFAULT IS THE WHOLE DIMENSION, and the token that
-# spells it. ALL THREE ARE HERE SINCE 2026-09-04. `klint` was deliberately
-# absent while its default was ONE DRAWN ROW — naming a row then SUBSTITUTED
-# one drawn point for another and subtracted nothing, and `all` added. With the
-# draw gone `klint=dev-probe` in a trailer can only mean "run one of the five
-# rows this commit would otherwise have run", which is a narrowing, so it is
-# refused on exactly the terms `lane` and `eps` are. Nothing about k-lint makes
-# it the exception: the cost is the reason someone would want to narrow it, and
-# a cheap re-gate of one row is what the dispatch input is for.
-#
-# THIS TABLE IS WHAT MAKES THE TRAILER ADDITIVE-ONLY (2026-09-04). A TRAILER
-# MAY NEVER SHRINK THE GATE; a dispatch may.
-#
-# THE TWO SPELLINGS ARE OPPOSITES AND THE SECTION ABOVE ALREADY SAID SO — a
-# dispatch is typed by whoever is standing there now, a trailer by whoever
-# wrote the commit — and while both spellings could only SUBSTITUTE one drawn
-# point for another, that difference cost nothing. Un-sampled it decides the
-# question: a narrowing is an act someone takes deliberately, at the moment
-# they take it, which is a dispatch; a trailer is COPIED — out of an older
-# brief, an older spec, or a habit — and rides one push with nobody standing
-# over it. The failure mode that shape produces is a run gating LESS than it
-# would have gated with no line at all, which is the one outcome no mechanism
-# here may deliver silently.
-#
-# REFUSED, NOT IGNORED, and that is the same rule every other malformed
-# request here follows. Ignoring a trailer while running something else needs
-# a word for "requested and overruled" that `CONFIG_SOURCE` does not have, and
-# inventing one is a second mechanism next to the one that already works. The
-# author of a trailer IS standing there on the push that carries it — the
-# trailer lasts exactly one push, by design — so the red lands in front of the
-# person who wrote the line.
-#
-# WHAT IT REDS, said out loud: a head commit carrying `CI-Config: lane=interval`,
-# `eps=1e-12` or — since the k-lint draw went — `klint=dev-probe` now fails the
-# classify step. Both populations are real: live specs instruct the first
-# (`work/issues/fillet-specs-require-a-narrowing-ci-config`), and the second was
-# instructed by this repo's own implementer brief, by ci.yml and by
-# docs/K-REPORT.md, every one of them swept in the PR that made the value
-# illegal. The fix is to drop the line, which is one commit. A red naming the
-# dispatch is the cheapest discovery available; a notice inside one step of one
-# job is where notices go to die.
-WHOLE_BY_DEFAULT: dict[str, str] = {"lane": "both", "eps": "all", "klint": "all"}
-
-
-def parse_config(
-    tokens: list[str], source: str, additive_only: bool = False
-) -> dict[str, tuple[str, str]]:
+def parse_config(tokens: list[str], source: str) -> dict[str, tuple[str, str]]:
     """`["lane=interval", ...]` -> `{"LANE": ("interval", source)}`, or raise.
 
     Raises rather than skipping: see the docstring's REQUEST section — an
     input error is the one failure here that must not fail open.
 
-    `additive_only` refuses any value that would gate LESS than no request at
-    all. It is a parameter rather than a test of `source` because the property
-    belongs to the CALLER's authority, not to the string it labels itself
-    with: `config_from_message` passes it, the invocation path does not.
+    ONE CALLER, ONE AUTHORITY (2026-09-04). This used to take `additive_only`
+    for the commit-trailer spelling, which could add but never narrow; that
+    spelling is deleted, so every request reaching here was typed by whoever is
+    standing there now and MAY narrow.
     """
     legal_keys = ", ".join(sorted(CONFIG_DIMENSIONS))
     out: dict[str, tuple[str, str]] = {}
@@ -1624,35 +1566,10 @@ def parse_config(
             raise ConfigError(
                 f"{source}: {key}={value!r} is not one of {', '.join(choices)}"
             )
-        if additive_only and key in WHOLE_BY_DEFAULT and value != WHOLE_BY_DEFAULT[key]:
-            raise ConfigError(
-                f"{source}: {key}={value} would NARROW this run — every {key} runs by "
-                f"default, so a trailer naming one gates LESS than no trailer at all. "
-                f"A trailer may only add: `{key}={WHOLE_BY_DEFAULT[key]}` is the one "
-                f"value it may name. To narrow deliberately, dispatch the workflow "
-                f"with the `{key}` input; to gate the whole matrix, delete the line."
-            )
         if out_key in out:
             raise ConfigError(f"{source}: {key} named twice; say it once")
         out[out_key] = (value, source)
     return out
-
-
-def config_from_message(message: str) -> dict[str, tuple[str, str]]:
-    """The `CI-Config:` trailer(s) of one commit message, parsed like a flag.
-
-    Several trailer lines are read as one request, so a repeated dimension is
-    the same error across lines as within one.
-
-    ADDITIVE-ONLY: see `WHOLE_BY_DEFAULT`. Every dimension runs whole by
-    default, so the only values a trailer may name are `lane=both`, `eps=all`
-    and `klint=all`, none of which changes anything; it may not narrow.
-    """
-    tokens: list[str] = []
-    for line in CONFIG_TRAILER.findall(message):
-        tokens.extend(line.split())
-    return parse_config(tokens, "commit-trailer", additive_only=True)
-
 
 def decorate(
     res: dict[str, str],
@@ -2308,9 +2225,10 @@ def selftest() -> None:
         _selftest_lane_unsampled(t)
     # --- THE REQUEST PATH THROUGH THE CLI. `_selftest_config` covers the
     # applier as a function; what only a subprocess can show is the wiring —
-    # that the flags reach it, that a bad request exits NONZERO rather than
-    # printing a fallback, and that `--force-all` returns a tier without
-    # touching a diff. All three are what ci.yml actually invokes.
+    # that the flag reaches it, that a bad request exits NONZERO rather than
+    # printing a fallback, that the DELETED second spelling reds rather than
+    # being quietly ignored, and that `--force-all` returns a tier without
+    # touching a diff. All of it is what ci.yml actually invokes.
     with tempfile.TemporaryDirectory() as t:
         _plant_fixture(t)
         _expect("a requested point must reach the output through the flag",
@@ -2319,14 +2237,19 @@ def selftest() -> None:
                                  "crates/geom-core/src/lib.rs\n"),
                 {"LANE": "interval", "EPS": "1e-12",
                  "CONFIG_SOURCE": "lane:requested eps:requested klint:unsampled"})
+        # `--config-from-message` IS AN ERROR NOW, on the same terms as
+        # `--seed`: the trailer spelling is deleted, and an option that took a
+        # commit message and ignored it would read, to every caller copied from
+        # an older brief or an older ci.yml, as a trailer that still configures
+        # the run. There is nothing left for it to mean.
         with open(os.path.join(t, "msg.txt"), "w") as fh:
             fh.write("topo: a commit\n\nCI-Config: lane=both\n")
-        _expect("a requested point must reach the output through the commit trailer",
-                _selftest_invoke(t, ["--files", "-",
-                                     "--config-from-message", "msg.txt"],
-                                 "crates/geom-core/src/lib.rs\n"),
-                {"LANE": "both",
-                 "CONFIG_SOURCE": "lane:commit-trailer eps:unsampled klint:unsampled"})
+        stale = _selftest_run(t, ["--files", "-", "--config-from-message", "msg.txt"],
+                              "crates/geom-core/src/lib.rs\n", allow_fail=True)
+        if stale.returncode == 0:
+            raise SystemExit("SELFTEST FAILED: `--config-from-message` was accepted. The commit "
+                             "trailer is deleted; accepting the flag tells a caller their "
+                             f"trailer still configures the run\n{stale.stdout}")
         err = _selftest_invoke_must_fail(
             t, ["--files", "-", "--config", "eps=1e-13"],
             "crates/geom-core/src/lib.rs\n")
@@ -2380,14 +2303,11 @@ def selftest() -> None:
         "file rather than the first and saying it was narrowed — and stays silent on "
         "an un-narrowed run and a diff naming no such file, while --notices carries it "
         "to a relay file and is truncated when there is none; and a "
-        "configuration REQUESTED by hand "
-        "— by flag or by `CI-Config:` commit trailer — reaches the dimension it names "
+        "configuration REQUESTED by hand — by the one spelling left, `--config`, where "
+        "ci.yml's workflow_dispatch inputs land — reaches the dimension it names "
         "and only that one, is recorded in CONFIG_SOURCE, and "
-        "reds the step rather than falling back when it names no real point "
-        "— while the TRAILER spelling is additive-only on ALL THREE dimensions, refusing "
-        "every value that would gate less than no trailer at all, in a "
-        "refusal that says so and names the dispatch, and accepting the one "
-        "whole-dimension value each of them has; "
+        "reds the step rather than falling back when it names no real point, "
+        "while `--config-from-message` is refused rather than ignored; "
         "and the per-file test gate excludes a gated suite whose named paths and own file "
         "are all untouched — reading the module prefix out of the crate\'s tests/all.rs "
         "rather than off the filename, and the src/ shape off the module path — while "
@@ -3013,20 +2933,18 @@ def _selftest_config() -> None:
     CLI where the wiring is.
 
     WHAT IS ACTUALLY AT RISK HERE, and it is not "does an override override".
-    It is the two SILENT failures either spelling can have:
+    It is the SILENT failure a request can have: one that is READ BUT NOT
+    APPLIED, or applied to the wrong dimension. Nothing reds; the run gates
+    the wrong point and reports a green that answers a question nobody asked.
 
-      * a request that is READ BUT NOT APPLIED, or applied to the wrong
-        dimension. Nothing reds; the run gates the drawn point and reports a
-        green that answers a question nobody asked.
-      * a request that is NOT READ — the trailer regex drifting, most likely,
-        since it is the half nobody types twice. Same green, same wrong
-        question, and the author's line sits in the commit forever looking
-        like it did something.
+    So every legal value of every dimension is requested and checked, and the
+    dimensions nobody named are required to still be the whole dimension.
 
-    So every legal value of every dimension is requested and checked, the
-    dimensions nobody named are required to still be the whole dimension, and
-    the trailer's near-misses (indented, mid-sentence) are required NOT to be
-    read while the typo case (wrong case) is required to be."""
+    THE COMMIT-TRAILER SPELLING'S CASES STOOD HERE AND ARE DELETED WITH IT
+    (2026-09-04): the regex near-misses, the case-insensitivity, the
+    precedence pair and the additive-only refusals all asserted properties of
+    a path that no longer exists. Its wiring is now covered by the one thing
+    left to say about it — `--config-from-message` reds — in `selftest`."""
     files = ["crates/geom-core/src/lib.rs"]
     base = {"TIER": "closure", "PKGS": "geom-core", "CARGO_SCOPE": "-p geom-core"}
     unasked = decorate(dict(base), files)
@@ -3051,45 +2969,7 @@ def _selftest_config() -> None:
                     raise SystemExit(f"SELFTEST FAILED: requesting {name} moved {other} as well "
                                      "— the dimensions nobody named must keep their default")
 
-    # PRECEDENCE, per dimension: the invocation over the trailer over the
-    # default. The trailer's half of this case is `klint=all`, because since
-    # 2026-09-04 that is the only k-lint value a trailer may name — a trailer
-    # is additive-only on every dimension now (see `WHOLE_BY_DEFAULT`), so what
-    # this checks is that a legal trailer is still READ and still recorded as
-    # the trailer's, not that it can decide anything the default did not.
-    merged = dict(config_from_message("t\n\nCI-Config: lane=both klint=all\n"))
-    merged.update(parse_config(["lane=interval"], "requested"))
-    got = decorate(dict(base), files, merged)
-    if (got["LANE"], got["EPS"], got["KLINT_ROW"]) != ("interval", "all", "all"):
-        raise SystemExit(f"SELFTEST FAILED: precedence is invocation > trailer > default; got {got}")
-    if got["CONFIG_SOURCE"] != "lane:requested eps:unsampled klint:commit-trailer":
-        raise SystemExit(f"SELFTEST FAILED: a mixed run must say which dimension came from where "
-                         f"— got {got['CONFIG_SOURCE']!r}")
-
-    # THE TRAILER, read out of a message shaped like a real one.
-    real = (
-        "topo: split the half-edge link\n"
-        "\n"
-        "Body prose that mentions ci-config: lane=both in passing.\n"
-        "    CI-Config: lane=both\n"
-        "\n"
-        "CI-Config: eps=all klint=all\n"
-    )
-    if config_from_message(real) != {
-        "EPS": ("all", "commit-trailer"),
-        "KLINT_ROW": ("all", "commit-trailer"),
-    }:
-        raise SystemExit("SELFTEST FAILED: the trailer must be read at the start of a line and "
-                         f"nowhere else — got {config_from_message(real)}")
-    if config_from_message("no request here\n\nSigned-off-by: someone\n"):
-        raise SystemExit("SELFTEST FAILED: a message with no trailer must request nothing")
-    # A TYPO IN THE CASE IS STILL A REQUEST. The alternative reading — silence
-    # — is the failure this whole function is about.
-    if config_from_message("t\n\nci-Config: eps=all\n") != {"EPS": ("all", "commit-trailer")}:
-        raise SystemExit("SELFTEST FAILED: the trailer must be case-insensitive; a miscased line "
-                         "that reads as `no request` gates the wrong point silently")
-
-    # LOUD ON EVERY MALFORMED REQUEST, from either spelling.
+    # LOUD ON EVERY MALFORMED REQUEST.
     # `eps=all` is NOT in this list any more (2026-09-04): it became legal
     # when the hosted half started expanding it into three matrix legs. What
     # replaces it here is `eps=every`, a value that is still not one.
@@ -3100,55 +2980,6 @@ def _selftest_config() -> None:
         except ConfigError:
             continue
         raise SystemExit(f"SELFTEST FAILED: {bad} was accepted as a configuration request")
-    for bad_msg in ("t\n\nCI-Config: eps=1e-13\n", "t\n\nCI-Config: lane=x eps=all\n",
-                    "t\n\nCI-Config: lane=both\nCI-Config: lane=interval\n"):
-        try:
-            config_from_message(bad_msg)
-        except ConfigError:
-            continue
-        raise SystemExit(f"SELFTEST FAILED: {bad_msg!r} was accepted as a configuration request")
-
-    # THE TRAILER IS ADDITIVE-ONLY AND THE INVOCATION IS NOT, which is one
-    # rule with two halves and neither half is testable by reading the other.
-    # A trailer that could narrow would be silent — the run would gate less
-    # than an unmarked one and look identical — so every narrowing value is
-    # required to RED here, in both spellings of the dimensions that have a
-    # whole-dimension default, while the same values are required to be
-    # ACCEPTED through the invocation.
-    for name, whole in WHOLE_BY_DEFAULT.items():
-        narrowing = [v for _, choices in [CONFIG_DIMENSIONS[name]] for v in choices if v != whole]
-        if not narrowing:
-            raise SystemExit(f"SELFTEST FAILED: {name} has no narrowing value, so this case "
-                             "proves nothing — re-derive it against CONFIG_DIMENSIONS")
-        for value in narrowing:
-            try:
-                config_from_message(f"t\n\nCI-Config: {name}={value}\n")
-            except ConfigError as exc:
-                if "NARROW" not in str(exc) or "dispatch" not in str(exc):
-                    raise SystemExit(f"SELFTEST FAILED: the refusal of a narrowing trailer must "
-                                     f"say it NARROWS and where narrowing lives — got {exc}") from exc
-            else:
-                raise SystemExit(
-                    f"SELFTEST FAILED: `CI-Config: {name}={value}` was accepted. A trailer is "
-                    "copied, not typed, and rides one push — it may never gate LESS than no "
-                    "trailer at all (see WHOLE_BY_DEFAULT)")
-            if parse_config([f"{name}={value}"], "requested")[CONFIG_DIMENSIONS[name][0]][0] != value:
-                raise SystemExit(f"SELFTEST FAILED: the INVOCATION must still narrow "
-                                 f"{name}={value}; only the trailer is additive-only")
-        if config_from_message(f"t\n\nCI-Config: {name}={whole}\n") != {
-            CONFIG_DIMENSIONS[name][0]: (whole, "commit-trailer")
-        }:
-            raise SystemExit(f"SELFTEST FAILED: `{name}={whole}` adds nothing and subtracts "
-                             "nothing, so a trailer must be allowed to say it")
-    # NO DIMENSION IS EXEMPT ANY MORE, and the loop above is what says so:
-    # `WHOLE_BY_DEFAULT` carries all three, so all three are walked. The
-    # exemption that used to stand here was `klint`, on the argument that
-    # naming a row SUBSTITUTED one drawn row for another and subtracted
-    # nothing. With the draw gone that argument inverts — naming a row runs one
-    # of the five this commit would otherwise have run — so the case that
-    # asserted the exemption is deleted rather than weakened, and the refusal
-    # of `CI-Config: klint=dev-probe` is now one of the values the loop above
-    # requires to red.
 
 
 def _selftest_docs_premise() -> None:
@@ -3233,12 +3064,12 @@ def main() -> int:
         "dimensions keep their default, which is the WHOLE dimension (every "
         "lane, every eps row, every k-lint unification)",
     )
-    ap.add_argument(
-        "--config-from-message",
-        metavar="FILE",
-        help="read the same request from the `CI-Config:` trailer of a commit "
-        "message in FILE; --config wins per dimension",
-    )
+    # `--config-from-message` STOOD HERE AND IS DELETED (2026-09-04), on the
+    # same terms as `--seed`. It read a `CI-Config:` trailer out of the head
+    # commit's message, and once every dimension ran whole by default the
+    # additive-only rule left it no value it could name that changed anything.
+    # An option that read a message and ignored it would tell every caller
+    # copied from an older brief that their trailer still configures the run.
     ap.add_argument(
         "--notices",
         metavar="FILE",
@@ -3272,9 +3103,6 @@ def main() -> int:
     # become TIER=all — it becomes a red step under the person who typed it.
     config: dict[str, tuple[str, str]] = {}
     try:
-        if args.config_from_message:
-            with open(args.config_from_message) as fh:
-                config.update(config_from_message(fh.read()))
         if args.config:
             config.update(parse_config(args.config, "requested"))
     except (ConfigError, OSError) as exc:
@@ -3347,9 +3175,9 @@ def main() -> int:
             f"— {shown} — and this run was NARROWED to LANE=default by a request.\n"
             "  An un-narrowed run gates both compile modes, so this is the one way "
             "left to miss the interval lane, and you chose it.\n"
-            "  IF INTERVAL SEMANTICS CHANGED, DROP THE NARROWING: remove the "
-            "`CI-Config: lane=default` trailer (or say `lane=both`), or re-run the "
-            "workflow_dispatch without narrowing the lane.\n"
+            "  IF INTERVAL SEMANTICS CHANGED, DROP THE NARROWING: re-run the "
+            "workflow_dispatch without the `lane=default` input, or aim it at "
+            "`lane: both`.\n"
             "  If they did not change, this notice is noise and you can ignore it. "
             "The convention is in docs/prompts/implementer-discipline.md."
         )

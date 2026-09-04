@@ -545,3 +545,56 @@ its **own** row: a PR green on row X can be ejected by row Y, the author
 cannot reproduce it by re-running, and re-queueing draws again. Ev has
 authorised un-sampling k-lint; that lands first
 (`klint-row-still-sampled`), then the switch.
+
+## 2026-09-04 — the `CI-Config:` trailer deleted (`delete-config-trailer`)
+
+**Ev, reading PR 1855:** *"i see in 1855 it's still talking about the ci
+config trailer; that code should be deleted since it's no longer live"*. He
+is right, and the reason is arithmetic rather than taste. `WHOLE_BY_DEFAULT`
+gained `klint` in PR 1850, so it carried all three dimensions; `parse_config`'s
+`additive_only` arm red any trailer value that was not the whole-dimension
+value. That leaves a trailer exactly two possible effects — name the value
+that is already the default and change nothing, or name anything else and red
+the classify step. **There is no input that makes it useful**, which is
+different from an input nobody happens to use.
+
+The entry above (`reinstate-full-configuration-runs`) called the two
+spellings *opposites* and kept the trailer as the half that can be read back
+off the commit. That reading survived until the k-lint row went. Once every
+dimension ran whole, "readable back off the commit" had nothing left to read:
+the only thing a trailer could legally record is that its author asked for
+what the run was already doing.
+
+**What went.** `config_from_message`, `CONFIG_TRAILER`, `additive_only`, the
+`WHOLE_BY_DEFAULT` table (nothing else read it), `--config-from-message` and
+its call site; ci.yml's `HEAD_COMMIT` env and the `git log -1 --format=%B`
+line that fed it; and every selftest case that exercised the trailer — the
+regex near-misses, the case-insensitivity, the precedence pair, the
+additive-only refusal loop and the CLI round-trip — **with the `--selftest`
+prose that claimed them**, because a coverage sentence outliving its
+assertions is the failure this program keeps meeting in other people's files.
+Two assertions replaced them: `--config-from-message` reds rather than being
+ignored (the `--seed` precedent, one lane over), and the invocation-narrows
+loop that already walked every legal value of every dimension.
+
+**`CONFIG_SOURCE` now has two words, not three.** `unsampled` and
+`requested`. `commit-trailer` joins `sampled` and `pinned` as a value no run
+can print, and both prose sites say so out loud — a source vocabulary that
+names a thing that cannot happen is a reader's wrong turn.
+
+**Nothing about what runs changed.** `LANE=both`, `EPS=all`,
+`KLINT_ROW=all`, and `workflow_dispatch` still narrows.
+
+**The sweep was most of the work.** `grep -rn "CI-Config"` found the spelling
+taught as live in `memories/agent-lane-operations.md` (Ev's message is the
+`CLAUDE.md` sign-off for that one bullet, and it is deleted rather than
+rewritten — PR 1855 trimmed it once already and Ev's point is that the whole
+thing goes), `docs/prompts/implementer-discipline.md`, `docs/K-REPORT.md`,
+`local-scripts/ci-local.sh`, this program's merge-queue runbook, and **five
+live specs** across FILLET, PCURVE, EXCH and TRIM. `work/issues/`'s
+`fillet-specs-require-a-narrowing-ci-config` is closed by the same sweep,
+with the correction that its central sentence — a narrowing trailer REDS the
+classify step — is now false in the quieter direction: the line is inert, so
+an implementer obeying a stale spec gets no error and no interval lane
+either. Logs, `docs/CI-MINUTES-2026-08.md` and `docs/MODEL-AB-LOG.md` keep
+their mentions: those are dated records of what was true, not instructions.
