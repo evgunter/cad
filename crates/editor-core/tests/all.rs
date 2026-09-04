@@ -102,6 +102,9 @@ mod dsc_checks;
 mod e4_dual_door;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
+
+#[path = "fix_xblind_probe.rs"]
+mod fix_xblind_probe;
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]
