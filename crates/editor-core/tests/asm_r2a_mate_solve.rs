@@ -409,6 +409,7 @@ fn row3_a_gap_mismatched_planar_pair_refuses_contradictory() {
         added,
         predicate,
         clash,
+        lever,
     } = &fault
     else {
         panic!("expected CONTRADICTORY, got {fault:?}");
@@ -419,6 +420,10 @@ fn row3_a_gap_mismatched_planar_pair_refuses_contradictory() {
     assert!(
         (clash.abs() - 1.0).abs() < 1e-9,
         "the measured clash IS the authored gap mismatch: {clash}"
+    );
+    assert!(
+        lever.is_none(),
+        "a translation predicate measures a LENGTH outright, so there is no lever: {lever:?}"
     );
     let message = fault.to_string();
     assert!(message.contains(predicate), "{message}");
@@ -951,6 +956,7 @@ fn row5b_mismatched_inter_axis_invariants_refuse_contradictory() {
         added,
         predicate,
         clash,
+        lever,
     } = &fault
     else {
         panic!("expected CONTRADICTORY, got {fault:?}");
@@ -960,6 +966,10 @@ fn row5b_mismatched_inter_axis_invariants_refuse_contradictory() {
     assert!(
         (clash.abs() - 1.0).abs() < 1e-9,
         "the clash IS the inter-axis invariant difference (2 − 1): {clash}"
+    );
+    assert!(
+        lever.is_none(),
+        "a point-on-axis offset is a LENGTH outright, so there is no lever: {lever:?}"
     );
 }
 
@@ -1662,5 +1672,69 @@ fn row7f_a_non_finite_alignment_refuses_at_the_edit_door() {
     assert!(
         matches!(refusal, editor_core::EditError::NonFiniteAlignment { .. }),
         "{refusal:?}"
+    );
+}
+
+/// A frame coincidence with a nonzero clocking rider: the coincidence
+/// has already pinned the roll, so the table refuses the rider — and
+/// the refusal names ONE mate, because one mate is at fault. The
+/// magnitude the predicate decided on is the roll LEVERED by the
+/// contact arm, so the message carries both halves and the reader can
+/// multiply them back into the metre figure.
+#[test]
+fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
+    let (doc, ids, _) = assembly("asm-r2a-row7g", 2);
+    let (doc, id) = mint(
+        doc,
+        DocEdit::InsertNode {
+            node: mate(
+                ids[0],
+                ids[1],
+                MatePrimitive::FrameCoincidence,
+                AxisSense::Aligned,
+                z_up(),
+                z_up(),
+                Some(core::f64::consts::FRAC_PI_2),
+            ),
+        },
+    );
+    let poses = solve_document(&doc, Tol::witness());
+    let fault = poses.fault(id).expect("the rider refuses").clone();
+    let editor_core::MateFault::Contradictory {
+        held,
+        added,
+        predicate,
+        clash,
+        lever,
+    } = &fault
+    else {
+        panic!("expected CONTRADICTORY, got {fault:?}");
+    };
+    assert_eq!(
+        (*held, *added),
+        (id, id),
+        "the mate contradicts ITSELF, so it stands on both sides"
+    );
+    assert_eq!(*predicate, "mate_clocking_redundant");
+    let (radians, arm) = lever.expect("the clocking clash is levered, not measured as a length");
+    assert!((radians - core::f64::consts::FRAC_PI_2).abs() < 1e-15);
+    assert!(
+        (radians * arm - clash).abs() < 1e-15,
+        "the stored metre figure IS the product of the halves at the raising site: \
+         {radians} * {arm} vs {clash}"
+    );
+    let message = fault.to_string();
+    assert!(
+        message.contains(&format!("mate {} contradicts itself", id.0)),
+        "one mate at fault is named ONCE: {message}"
+    );
+    assert!(
+        !message.contains(&format!("mates {} and {}", id.0, id.0)),
+        "the pair sentence reads as an indexing fault here: {message}"
+    );
+    assert!(
+        message.contains(&format!("a roll of {radians} rad"))
+            && message.contains(&format!("on a {arm} m arm")),
+        "the levered magnitude names its roll and the arm it was decided at: {message}"
     );
 }

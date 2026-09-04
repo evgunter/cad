@@ -321,6 +321,17 @@ may be inferred from the absence and that it gates nothing — which is
 the right shape for a report that cannot run, and the opposite of the
 silent feature-skip this program's unit 2 existed to close.
 
+## Hand-off from DOCM (2026-09-04)
+
+Five items re-homed here by header-preserving `git mv` (ids unchanged),
+each a viewer build of a ruling in `docs/DOCM-REFERENCES-DESIGN.md` or
+`docs/DOCM-IDENTITY-DESIGN.md`: `add-profile-mints-no-frame` and
+`add-profile-placement-on-picked-face-frame` (DM1/DM2; the kernel half
+is `DOCM-1`), `save-a-copy-duplicate-id-bricks-store` (DI4),
+`no-persistent-setplacement-session-op` (DI5: the gesture's release IS
+the placement edit), `document-seam-no-in-session-change-detection`
+(DI2: `Reevaluate` re-mounts the store; its two chrome edges). Signed
+(DOCM orchestrator).
 ## Eight of nine landed; what the slate cost and what it found (2026-09-04)
 
 `doc-params-carry-no-display-unit` merged as PR 1776 after a fix pass
@@ -330,11 +341,12 @@ a checklist only a real GPU can answer, and it sits with Ev as PR 1771.
 **The program cannot close until Ev runs it**, so the exit walk waits
 on hardware rather than on work.
 
-**The slate landed and the territory grew.** Fourteen items are open in
-this directory and exactly one of them is a slate unit; the other
-thirteen were filed BY the slate — style-review class findings, fence
-artifacts, and residues the units disclosed. That is not a failure of
-estimation. Every one has a `file:line` and a reason, and the
+**The slate landed and the territory grew.** Twenty items are open in
+this directory and exactly one is a slate unit (`viewer-first-light-on-
+real-hardware`). Fourteen were filed BY the slate — style-review class
+findings, fence artifacts, and residues the units disclosed — and five
+arrived the same day as DOCM's hand-off, which is not this slate's
+doing at all. That is not a failure of estimation. Every one has a `file:line` and a reason, and the
 alternative was not fewer defects but the same defects unrecorded: the
 `work/README.md:100-106` rule this program tripped over twice says
 exactly that a residue with no file dies with the directory. Anyone
@@ -363,12 +375,18 @@ invariants in three functions, and the review is why it is now a
 construction. **A style lane that verifies claims finds correctness
 defects as a side effect of checking whether the words are true.**
 
-**The orchestrator was corrected six times, all upheld**: a crate-count
+**The orchestrator was corrected seven times, all upheld**: a crate-count
 delta published wrong (the `(*)` markers), a false sub-premise about
 clippy's caching, a sweep miscounted four ways in one PR body, a
 differential described as independent that was a transcription, a
-`field_drag_tick` caller count wrong twice in a row, and a `.speed(`
-sweep given to a reviewer at half its size. Recorded together because
+`field_drag_tick` caller count wrong twice in a row, a `.speed(` sweep
+given to a reviewer at half its size — and the paragraph above, whose
+first draft said fourteen open and thirteen filed when the board said
+fifteen and fourteen. Recording that one rather than quietly fixing it,
+because it is the seventh instance of this shape and it happened INSIDE
+the paragraph naming the shape. Reading a total off a table is exactly
+the "asserted from a command whose semantics were not checked" move,
+and knowing the pattern did not stop it; only the recount did. Recorded together because
 the shape is one shape: every one was a number or a claim the
 orchestrator asserted from a command it had not checked the semantics
 of, and every one was caught downstream. The lanes are not merely doing
