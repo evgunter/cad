@@ -1008,6 +1008,22 @@ impl DocSession {
         // of them.
         match apply(&gesture.base, &edit, self.tol) {
             Ok(applied) => {
+                // **The display layer's identity, held rather than
+                // argued.** Every display predicate is a function of
+                // the node graph, and the free-move probe is admitted
+                // against the COMMITTED document while the view and
+                // the panel's own admission test resolve against this
+                // scratch — so the two agree only while a gesture's
+                // edits leave the graph alone. This holds the half a
+                // check can hold; the other half is that
+                // [`GestureTarget::edit`] can produce nothing but
+                // `SetParam`, `SetStructuralParam` and
+                // `SetDocParamValue`, none of which removes a node
+                // either.
+                assert!(
+                    applied.record.minted.is_none(),
+                    "a value gesture's preview minted a node, which the display                      layer's admission tests are not re-run against"
+                );
                 gesture.value = Some(slot_value);
                 self.scratch = Some(applied.doc);
                 self.request_eval();
