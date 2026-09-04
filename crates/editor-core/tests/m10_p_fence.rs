@@ -49,7 +49,10 @@
 //! builds the fold and the chain in one document at one scalar and
 //! compares them face for face, edge for edge and description bits for
 //! description bits. The `probe` row moved with the `f64` row and
-//! stayed equal to it, which is the property that row exists for.
+//! stayed equal to it, which is the property that row exists for. The
+//! `interval` row moved for the same structural reason and was read
+//! off the hosted `interval` lane, which is the only place this
+//! workspace builds that backend.
 //!
 //! THE INTERVAL NUMBER MOVED ONCE FOR THE AZIMUTH CONSOLIDATION, and
 //! the `f64` one did not. Point parameter recovery on a periodic
@@ -580,7 +583,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x429b_b854_4165_fe04, 0xb1ba_b6fa_d216_5b10),
+        (0xda98_0271_d615_12d8, 0xc35c_2a2b_2d3f_791c),
         "the corpus's Interval evaluation moved"
     );
 }
