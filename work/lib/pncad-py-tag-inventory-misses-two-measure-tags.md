@@ -156,3 +156,18 @@ composing into a red main, with no instrument anywhere that could see
 the composition.** Recorded as evidence in
 `work/ciw/f3-recosting-on-a-public-repo`, which is re-costing F3 now
 that the repository is public and standard-runner minutes are free.
+
+## Further instance 2026-09-04 (FILLET-E1, PR 1743)
+
+Run [33827273007](https://github.com/evgunter/cad/actions/runs/33827273007),
+job `test (interval, eps = 1e-6, 2/2)` (100883789529): the same two ADDED
+values, the same shard, and the ONLY failure in the run — 2161/2162 passed,
+`1/2` green. The point was ASKED for (`CI-Config: lane=interval` on the head
+commit), so this instance adds that the red does not depend on the lane being
+sampled: a requested `interval` reaches it exactly as a drawn one does. The
+carrying diff is two files under `crates/sweep/` (the blend doors and one
+probe file) and one `work/` file; it names no `pncad-py` line. Re-verified
+unfixed on `origin/main` at `750a34c2`: `crates/pncad-py/src/tags.rs:318,322`
+ship both values and `crates/pncad-py/src/tests.rs` names neither.
+
+Not repaired here, per the disposition above.
