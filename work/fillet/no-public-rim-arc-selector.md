@@ -1,12 +1,11 @@
 ---
 id: no-public-rim-arc-selector
-kind: issue
+kind: unit
 title: selection: no public 'give me this rim's arcs' selector — every caller hand-rolls a radius/station scan
 status: open
 opened: 2026-08-29
 github: 1246
 refs: [1222]
-needs_ev: true
 ---
 
 ## From GitHub issue 1246
@@ -62,3 +61,10 @@ announced seam in SEAT's log; FILLET writes the spec, and the
 selector is a topology question with no blend vocabulary in it.
 
 A 👍 on 1 ratifies the key shape and the unit is cut.
+
+**Ruled (Ev, approved PR 1735, 2026-09-04): option 1.** The door is
+`rim_of(body, edge)` in `topo::query`: the whole rim the given arc
+belongs to, co-surface seam meridians excluded by construction, "not
+one rim" refused typed. This item is now the unit that builds it; the
+spec follows, and the `topo/query.rs` seam is announced in SEAT's log
+at dispatch.
