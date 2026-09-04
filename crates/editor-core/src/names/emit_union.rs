@@ -52,8 +52,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
         match entry {
             Entry::Unique(e) => t.insert(keyed, *e),
             Entry::Tied(es) => t.insert_tied(keyed, es.clone()),
-        }
-        ?;
+        }?;
     }
     check_total(&t, body, 0)?;
     Ok(Arc::new(t))
@@ -141,9 +140,7 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
                     .collect::<Result<Vec<_>, NamingError>>()?;
                 RoleSeg::Fragment(Qualifier::SideOf(partners))
             }
-            RoleSeg::Fragment(q @ Qualifier::OrderAlong { .. }) => {
-                RoleSeg::Fragment(q.clone())
-            }
+            RoleSeg::Fragment(q @ Qualifier::OrderAlong { .. }) => RoleSeg::Fragment(q.clone()),
             _ => return Err(bug(FOREIGN)),
         });
     }

@@ -207,10 +207,7 @@ pub(crate) fn on_set_members<P: crate::ProfilePayload>(doc: &mut Doc<P>) {
         .copied()
         .filter(|r| sinks.contains(r))
         .collect();
-    let fresh: Vec<RecipeNodeId> = sinks
-        .into_iter()
-        .filter(|s| !kept.contains(s))
-        .collect();
+    let fresh: Vec<RecipeNodeId> = sinks.into_iter().filter(|s| !kept.contains(s)).collect();
     kept.extend(fresh);
     doc.roots = kept;
 }

@@ -2098,7 +2098,7 @@ fn wire_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     // fold has no pair to hand the verb, which is the arity class this
     // crate already refuses typed — never a panic, and never a
     // one-member "union" that silently denotes its own input.
-    let (Some(first), true) = (members.first(), members.len() >= 2) else {
+    let Some((first, rest)) = members.split_first().filter(|(_, rest)| !rest.is_empty()) else {
         return Err(NodeErrorKind::VerbArity {
             verb: verbs::VerbKind::Boolean(BooleanOp::Union),
             given: verbs::Arity::One,
@@ -2108,7 +2108,7 @@ fn wire_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     let mut acc_table = Arc::clone(&value_of(results, *first)?.name_table);
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
     let mut empty_at: Option<RecipeNodeId> = None;
-    for member in &members[1..] {
+    for member in rest {
         if let Some(reached) = empty_at {
             return Err(NodeErrorKind::EmptyOperand { input: reached });
         }

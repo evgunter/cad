@@ -30,17 +30,15 @@ fn cube(doc: ProfileDoc, x0: f64) -> (ProfileDoc, RecipeNodeId) {
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
-        vec![vec![
-            (x0, 0.0),
-            (x0 + 1.0, 0.0),
-            (x0 + 1.0, 1.0),
-            (x0, 1.0),
-        ]],
+        vec![vec![(x0, 0.0), (x0 + 1.0, 0.0), (x0 + 1.0, 1.0), (x0, 1.0)]],
     );
-    insert(doc, Node::Extrude {
-        profile: p,
-        distance: len(1.0),
-    })
+    insert(
+        doc,
+        Node::Extrude {
+            profile: p,
+            distance: len(1.0),
+        },
+    )
 }
 
 /// Three disjoint boxes, and a union of them in the given member
@@ -52,9 +50,12 @@ fn three_boxes(order: [usize; 3]) -> (ProfileDoc, [RecipeNodeId; 3], RecipeNodeI
     let (doc, b) = cube(doc, 2.0);
     let (doc, c) = cube(doc, 4.0);
     let boxes = [a, b, c];
-    let (doc, u) = insert(doc, Node::Union {
-        members: order.map(|i| boxes[i]).to_vec(),
-    });
+    let (doc, u) = insert(
+        doc,
+        Node::Union {
+            members: order.map(|i| boxes[i]).to_vec(),
+        },
+    );
     (doc, boxes, u)
 }
 
@@ -104,11 +105,7 @@ fn a_members_face_names_are_the_same_first_or_last() {
             v
         };
         let forward = faces_under(&ev, u);
-        assert_eq!(
-            forward.len(),
-            6,
-            "member {k} contributes its six box faces"
-        );
+        assert_eq!(forward.len(), 6, "member {k} contributes its six box faces");
         assert_eq!(
             forward,
             faces_under(&rev_ev, rev_u),
@@ -151,18 +148,24 @@ fn every_union_name_wraps_its_member_exactly_once() {
 #[test]
 fn the_fold_and_the_pairwise_chain_are_the_same_body() {
     let (doc, boxes, u) = three_boxes([0, 1, 2]);
-    let (doc, ab) = insert(doc, Node::Boolean {
-        op: BooleanOp::Union,
-        a: boxes[0],
-        b: boxes[1],
-        declare: None,
-    });
-    let (doc, abc) = insert(doc, Node::Boolean {
-        op: BooleanOp::Union,
-        a: ab,
-        b: boxes[2],
-        declare: None,
-    });
+    let (doc, ab) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: boxes[0],
+            b: boxes[1],
+            declare: None,
+        },
+    );
+    let (doc, abc) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: ab,
+            b: boxes[2],
+            declare: None,
+        },
+    );
     let ev = run(&doc);
     let (folded, chained) = (body_of(&ev, u), body_of(&ev, abc));
     assert_eq!(
@@ -256,12 +259,15 @@ fn set_members_refuses_a_duplicate_member() {
 #[test]
 fn set_members_refuses_a_node_with_no_list_input() {
     let (doc, boxes, _) = three_boxes([0, 1, 2]);
-    let (doc, pair) = insert(doc, Node::Boolean {
-        op: BooleanOp::Union,
-        a: boxes[0],
-        b: boxes[1],
-        declare: None,
-    });
+    let (doc, pair) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: boxes[0],
+            b: boxes[1],
+            declare: None,
+        },
+    );
     let err = doc
         .apply(
             &DocEdit::SetMembers {
@@ -302,12 +308,15 @@ fn set_members_refuses_a_member_that_is_not_live() {
 #[test]
 fn set_members_refuses_a_cycle() {
     let (doc, boxes, u) = three_boxes([0, 1, 2]);
-    let (doc, downstream) = insert(doc, Node::Boolean {
-        op: BooleanOp::Union,
-        a: u,
-        b: boxes[0],
-        declare: None,
-    });
+    let (doc, downstream) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: u,
+            b: boxes[0],
+            declare: None,
+        },
+    );
     let err = doc
         .apply(
             &DocEdit::SetMembers {
@@ -436,18 +445,24 @@ fn members_that_share_a_minting_node_refuse_rather_than_alias() {
     let doc = ProfileDoc::empty_derived("docm3_union", Tol::witness());
     let (doc, base) = cube(doc, 0.0);
     let place = |doc, dx: f64| {
-        insert(doc, Node::Transform {
-            input: base,
-            translation: [len(dx), len(0.0), len(0.0)],
-            rotation_axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-            rotation_angle: fixture::ang(0.0),
-        })
+        insert(
+            doc,
+            Node::Transform {
+                input: base,
+                translation: [len(dx), len(0.0), len(0.0)],
+                rotation_axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
+                rotation_angle: fixture::ang(0.0),
+            },
+        )
     };
     let (doc, left) = place(doc, 0.0);
     let (doc, right) = place(doc, 2.0);
-    let (doc, u) = insert(doc, Node::Union {
-        members: vec![left, right],
-    });
+    let (doc, u) = insert(
+        doc,
+        Node::Union {
+            members: vec![left, right],
+        },
+    );
     let ev = run(&doc);
 
     // The mechanism: the two members' tables are the same table.
@@ -478,12 +493,15 @@ fn members_that_share_a_minting_node_refuse_rather_than_alias() {
 #[test]
 fn a_union_is_one_body_at_an_operand_seat() {
     let (doc, _, u) = three_boxes([0, 1, 2]);
-    let (doc, downstream) = insert(doc, Node::Transform {
-        input: u,
-        translation: [len(0.0), len(0.0), len(0.0)],
-        rotation_axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-        rotation_angle: fixture::ang(0.0),
-    });
+    let (doc, downstream) = insert(
+        doc,
+        Node::Transform {
+            input: u,
+            translation: [len(0.0), len(0.0), len(0.0)],
+            rotation_axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
+            rotation_angle: fixture::ang(0.0),
+        },
+    );
     let ev = run(&doc);
     assert!(
         ev.value(downstream).is_some(),
