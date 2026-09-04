@@ -114,6 +114,16 @@ consumer suite `crates/sweep/tests/verbs_offc_consumer.rs`, whose
    certificate's `hull_sup` and `on_locus_max` agree with the
    original's to 1e-9 (a residual is a distance; a rigid map
    preserves it).
+
+   **Amended 2026-09-04, measured, after review:** that parenthetical
+   is true of `on_locus_max` (a sampled distance; measured invariant
+   to 5.7e-16) and FALSE of `hull_sup`, which is a certified bound
+   assembled from control-hull enclosures in the ambient frame and
+   moves by 7.4e-9 on a bowed base at 1e-6 under an oblique rotation.
+   At the 1e-9 fixture the stated assertion is vacuous besides: both
+   limbs are certified `<= tolerance`, so `|Δ| <= 1e-9` holds for any
+   two of them. What the row asserts instead: `on_locus_max` invariant
+   to 1e-12, and `hull_sup <= tolerance` on the mapped surface.
 2. **Volume and area are rigid invariants**: mass properties before
    and after agree to the props lane's own certified width — read
    the enclosures, do not compare floats raw.
@@ -172,6 +182,11 @@ lane without a second constructor (report the shape you would need);
 or the mapped certificate's sup bounds disagree with the original by
 more than 1e-9 on the prism (that is the composition law failing at
 the body, and it is not this unit's to explain away).
+
+**Amended 2026-09-04**: the third clause does not fire as written —
+`hull_sup` disagreeing under a rotation is the bound's frame
+dependence, not the composition law failing (§3.1's amendment). The
+clause that would fire is the same one about `on_locus_max`.
 
 ## 7. Lane rules
 
