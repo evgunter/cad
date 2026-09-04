@@ -1260,9 +1260,10 @@ pub fn best_split_steps(bound: Bound, du: f64, dv: f64, delta_s: f64) -> (f64, f
 /// each of the three retunes moves an assertion, and the k-lint row that
 /// runs that suite (`dev-default`) is gated by every code-tier run since
 /// 2026-09-04 (`KLINT_ROWS` in `scripts/ci-filter.py`). So the number is
-/// history and the guard is live, which is the right way round. The figure is stated HERE and nowhere else — the derivations
-/// row that holds this composition points at this paragraph rather than
-/// restating the pair, so the two cannot part.
+/// history and the guard is live, which is the right way round. The
+/// figure is stated HERE and nowhere else — the derivations row that
+/// holds this composition points at this paragraph rather than restating
+/// the pair, so the two cannot part.
 ///
 /// So the derivations suite asserts this function EQUALS
 /// `split_scan(bound, du, dv, delta_s, shipped_split_scan_aspects(),

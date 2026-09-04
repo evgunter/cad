@@ -48,8 +48,9 @@
 //! drawn from the head SHA. That sampling was sound here and NOT in
 //! general: this row is a PERSISTENCE detector — a degraded certified
 //! door stays degraded in the tree, so a later draw still found it, and
-//! the red was deferred rather than lost. The ABSENCE half is deliberately not sampled:
-//! `--check-executed` and the `RUN_FLOOR` it reads run unconditionally
+//! the red was deferred rather than lost. The ABSENCE half is
+//! deliberately not sampled: `--check-executed` and the `RUN_FLOOR` it
+//! reads run unconditionally
 //! in the `discipline` job, because a suite that DISAPPEARS leaves no
 //! future red to catch and would merge silently, once. A probe-gated
 //! body nobody runs is the state that roster exists to end, and this

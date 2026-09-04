@@ -121,7 +121,9 @@ authorisations from Ev in chat: "feel free to reinstate full runs instead of
 sampling" for the lane and the eps row, then "you can un-sample k-lint" for the
 row that was left).
 
-THE LANE AND THE EPS ROW ARE NOT SAMPLED.WHAT THAT UNDOES. From 2026-08-22 to 2026-09-04 a run drew ONE of those six
+THE LANE AND THE EPS ROW ARE NOT SAMPLED.
+
+WHAT THAT UNDOES. From 2026-08-22 to 2026-09-04 a run drew ONE of those six
 points from the head SHA and let repetition cover the rest. The premise was a
 scarce billed resource — `docs/CI-MINUTES-2026-08.md` opens with the Actions
 allowance being consumed faster than the work justified — and that premise
@@ -2365,7 +2367,10 @@ def selftest() -> None:
         "and `--seed` is refused rather than ignored; ci.yml's eps and k-lint matrix "
         "literals are both re-derived against EPS_ROWS and KLINT_ROWS rather than kept in "
         "step by a comment, and the k-lint job's step conditions are required to name every "
-        "row of that matrix and no others, so a leg cannot report green over no steps; a "
+        "row of that matrix and no others — read off `if:` keys alone, so a row named only "
+        "in a comment does not count as gating anything — while the job's matrix axis is "
+        "required to read `needs.filter.outputs.klint_rows`, so the literal re-derived is "
+        "the list the job expands and a leg cannot report green over no steps; a "
         "request NARROWS any one dimension, leaves the rest whole, is recorded as "
         "`requested`, and `eps=all` / `klint=all` are legal because they are what an "
         "un-narrowed run prints; LANE_ADVISORY fires on exactly the run a request "
@@ -2779,20 +2784,29 @@ KLINT_WORKFLOW = ".github/workflows/ci.yml"
 # equality against `matrix.row` rather than with a `contains(fromJSON([...]))`
 # list that had to carry `all` as its escape hatch. The set a step is gated on
 # is still what this returns, so everything below reads the same way.
+#
+# ANCHORED TO `if:`, because the row set is read off CONDITIONS and not off
+# mentions. An unanchored scan over a step's whole text counts a row named in
+# a COMMENT inside that step, so a careless edit that deletes a real `if:` and
+# leaves the comment behind still satisfies the union check below — which is
+# the one failure this case exists to catch.
 _KLINT_IF_RE = re.compile(r"matrix\.row\s*==\s*'([a-z0-9-]+)'")
 _KLINT_MATRIX_RE = re.compile(r"^\s*klint_rows:.*?'(\[[^\]]*\])'", re.M)
+# THE WIRE BETWEEN THE TWO ENDS. The matrix literal is checked above and the
+# step conditions below, and neither of them reads `strategy.matrix.row` — so
+# without this, rewriting line 3807 to a hand-typed `['dev-default']` leaves
+# both halves green while three rows silently run nothing.
+_KLINT_AXIS_RE = re.compile(
+    r"^\s*row:\s*\$\{\{\s*fromJSON\(\s*needs\.filter\.outputs\.klint_rows\s*\)\s*\}\}\s*$",
+    re.M)
 
 
-def _klint_job_steps(text: str) -> list[tuple[frozenset[str], str]]:
-    """`(rows this step is gated on, the step's text)` for the k-lint job.
+def _klint_job_block(text: str) -> str:
+    """The `k-lint` job's own block of ci.yml, and nothing else.
 
-    Bounded to that job's own block: every other job in this workflow indents
-    its steps identically, so an unbounded scan would attribute a neighbour's
-    row to this one and the assertions below would be about the wrong file.
-    A step with no `klint_row` condition comes back with an EMPTY row set
-    rather than being dropped — "gated on nothing" is a real answer here (the
-    checkout and cache steps are), and dropping it would let a row condition
-    that was DELETED read as a step that never had one.
+    Every job in this workflow indents identically, so a scan that is not
+    bounded to one block attributes a neighbour's text to this job and the
+    assertions built on it are then about the wrong file.
     """
     lines = text.split("\n")
     try:
@@ -2807,8 +2821,25 @@ def _klint_job_steps(text: str) -> list[tuple[frozenset[str], str]]:
         (i for i in range(start + 1, len(lines)) if re.match(r"^  [A-Za-z0-9_-]+:\s*$", lines[i])),
         len(lines),
     )
+    return "\n".join(lines[start:end])
+
+
+def _klint_job_steps(text: str) -> list[tuple[frozenset[str], str]]:
+    """`(rows this step is gated on, the step's text)` for the k-lint job.
+
+    Bounded to that job's own block: every other job in this workflow indents
+    its steps identically, so an unbounded scan would attribute a neighbour's
+    row to this one and the assertions below would be about the wrong file.
+    A step with no `klint_row` condition comes back with an EMPTY row set
+    rather than being dropped — "gated on nothing" is a real answer here (the
+    checkout and cache steps are), and dropping it would let a row condition
+    that was DELETED read as a step that never had one.
+
+    ONLY the step's `if:` key is read for rows, never its comments or its
+    `run:` body: a row is what GATES a step, and a mention of one is not.
+    """
     steps: list[list[str]] = []
-    for ln in lines[start:end]:
+    for ln in _klint_job_block(text).split("\n"):
         if re.match(r"^      - \S", ln):
             steps.append([])
         if steps:
@@ -2816,8 +2847,34 @@ def _klint_job_steps(text: str) -> list[tuple[frozenset[str], str]]:
     out: list[tuple[frozenset[str], str]] = []
     for body in steps:
         blob = "\n".join(body)
-        out.append((frozenset(_KLINT_IF_RE.findall(blob)), blob))
+        out.append((frozenset(_KLINT_IF_RE.findall(_step_conditions(body))), blob))
     return out
+
+
+def _step_conditions(body: list[str]) -> str:
+    """The text of a step's `if:` key(s) and nothing else.
+
+    A block or folded `if:` continues onto the lines indented deeper than the
+    key itself, so those are taken too; anything at the key's indent or
+    shallower ends it. Everything outside — comments, `name:`, `run:` — is
+    dropped, so a row named anywhere but in a condition does not count as
+    gating a step.
+    """
+    out: list[str] = []
+    depth: int | None = None
+    for ln in body:
+        stripped = ln.lstrip()
+        indent = len(ln) - len(stripped)
+        if depth is not None:
+            if stripped and indent <= depth:
+                depth = None
+            else:
+                out.append(ln)
+                continue
+        if re.match(r"if:\s", stripped) or stripped == "if:":
+            out.append(ln)
+            depth = indent
+    return "\n".join(out)
 
 
 def _selftest_klint_workflow() -> None:
@@ -2829,7 +2886,7 @@ def _selftest_klint_workflow() -> None:
     script's output is a stream of words. `EPS_ROWS` has exactly this problem
     and exactly this answer — read the workflow's TEXT and re-derive.
 
-    TWO CLAIMS, and each is a sentence written elsewhere in this file that
+    THREE CLAIMS, and each is a sentence written elsewhere in this file that
     would otherwise be true only on the day it was typed:
 
       * THE MATRIX. ci.yml's `klint_rows` literal names exactly `KLINT_ROWS`.
@@ -2837,6 +2894,11 @@ def _selftest_klint_workflow() -> None:
         accept as a request and the workflow will expand into nothing; a row in
         the literal and not in the tuple is a leg no request can name and no
         `--selftest` here has ever seen.
+      * THE WIRE. The k-lint job's matrix axis reads
+        `fromJSON(needs.filter.outputs.klint_rows)` — i.e. the literal checked
+        above is the literal the job actually expands. Without this the other
+        two claims hold over a job whose axis was rewritten to a hand-typed
+        list, and three rows run nothing while both ends read green.
       * THE STEPS. The set of rows the job's own step conditions name is
         exactly `KLINT_ROWS` too. This is the half that catches the failure the
         draw used to hide in plain sight: a leg that runs with no step gated on
@@ -2871,6 +2933,14 @@ def _selftest_klint_workflow() -> None:
             f"SELFTEST FAILED: {KLINT_WORKFLOW} expands KLINT_ROW=all into {rows} and this "
             f"script's KLINT_ROWS is {list(KLINT_ROWS)}. One of them gates unifications the other "
             "does not name — change both, in the same commit")
+
+    block = _klint_job_block(text)
+    if not _KLINT_AXIS_RE.search(block):
+        raise SystemExit(
+            f"SELFTEST FAILED: the `{KLINT_JOB_KEY}` job in {KLINT_WORKFLOW} does not take its "
+            "matrix axis from `${{ fromJSON(needs.filter.outputs.klint_rows) }}`. The literal "
+            "re-derived above is then not the list the job expands, and a dispatch narrowing "
+            "the `klint` input reaches nothing")
 
     steps = _klint_job_steps(text)
     in_workflow = frozenset().union(*(rows for rows, _ in steps)) if steps else frozenset()

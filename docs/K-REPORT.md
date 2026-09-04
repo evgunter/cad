@@ -176,8 +176,9 @@ gathered across M2's full pipeline.
   `dev-default` instead. The row is a persistence-detector, which is
   what made the sampling sound while it lasted: a harness that stops
   compiling or starts panicking stays broken until a later draw finds
-  it, so what the sampling gave up here was latency, not coverage. The `k-lint` job's *"compile and list every probe-gated test target"*
-  step covers the whole workspace — `scripts/gates/probe-suite-census.sh`
+  it, so what the sampling gave up here was latency, not coverage. The
+  `k-lint` job's *"compile and list every probe-gated test target"* step
+  covers the whole workspace — `scripts/gates/probe-suite-census.sh`
   derives the owning crates from the tree and the step `cargo check`s
   each `--features probe --all-targets`; the gate greps for that step
   name, **which is why this paragraph could go quietly false about how
@@ -239,8 +240,9 @@ gathered across M2's full pipeline.
   every code-tier run gates since 2026-09-04 (until then: 1 run in 5,
   and none at all on a merge the `tools/` path pin sent to
   `dev-default`) — so the ε sweep of that property is already paid on
-  exactly the runs this one is. What running the default selection adds is that these bodies
-  execute at all, and the `#[ignore]`d complement the floor reconciles.
+  exactly the runs this one is. What running the default selection adds
+  is that these bodies execute at all, and the `#[ignore]`d complement
+  the floor reconciles.
   It runs at a stated ε (1e-9) rather than at whatever the ambient
   default happens to be.
 
