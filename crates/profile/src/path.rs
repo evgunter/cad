@@ -1910,14 +1910,16 @@ impl<T: Real> Core<T> {
 /// through the caller's [`Tol`] witness — the zero edge at the
 /// precision tolerance, the escalate edge at the input tolerance.
 ///
-/// The label matters and was previously wrong ("(ε_input, K·ε_input)",
-/// which under this repo's role naming reads as (K·ε, K²·ε) — a band
-/// this function has never built). D4's two-tolerance principle gives
-/// ε_input its meaning as a ROLE: ε_input IS K·ε, the escalating edge,
-/// not a third dial. So the two edges are ε and ε_input, and naming
-/// them that way is what lets a reader check the body against the doc.
+/// Under D4's two-tolerance principle ε_input is a ROLE, not a third
+/// dial: it IS K·ε, the escalating edge. So the band's two edges are ε
+/// and ε_input, which is what lets a reader check this body against
+/// the doc.
+///
+/// This is the module's one home for that band paired with
+/// [`PathError::Band`]; every path decision needing it comes here
+/// rather than re-spelling the mapping.
 fn linear_band<T: Real>(tol: Tol) -> Result<Band, PathError<T>> {
-    Band::new(tol.eps(), tol.k() * tol.eps()).map_err(PathError::Band)
+    Band::linear(tol).map_err(PathError::Band)
 }
 
 /// Unit direction of an angle.

@@ -67,7 +67,7 @@ use core::f64::consts::PI;
 
 use geom_brep::SurfaceKind;
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
+use geom_core::{Affine3, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::{BlendError, fillet_edges};
 use sweep::test_support::cube;
@@ -82,11 +82,6 @@ use topo::{Body, BooleanDeclarations, EdgeKey};
 /// of `CAD_FUZZ_EFFORT` per body. `CAD_FUZZ_SEED` pins the draws.
 fn effort() -> usize {
     fuzz::scaled(24)
-}
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {

@@ -41,8 +41,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::approx::band;
 use geom::Surface;
-use geom_core::{Band, Point2, Point3, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::battery::{BlendRequest, run_battery};
@@ -53,10 +54,6 @@ use topo::{Body, EdgeKey, SurfaceKey, VertexKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {

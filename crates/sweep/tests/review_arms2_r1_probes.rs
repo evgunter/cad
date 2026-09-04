@@ -15,7 +15,7 @@
 use std::fmt::Write as _;
 
 use geom::{Curve3, Surface};
-use geom_core::{Band, Point2, Tol};
+use geom_core::{Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
@@ -24,10 +24,6 @@ use topo::{Body, EdgeKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 fn body_of(verts: Vec<ProfileVertex<f64>>) -> Body<f64> {
