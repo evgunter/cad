@@ -28,7 +28,7 @@ fn tol() -> Tol {
 }
 
 fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
+    Band::linear(tol()).unwrap()
 }
 
 fn body_of(verts: Vec<ProfileVertex<f64>>) -> Body<f64> {

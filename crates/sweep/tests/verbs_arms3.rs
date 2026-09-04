@@ -56,7 +56,7 @@ fn tol() -> Tol {
 }
 
 fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
+    Band::linear(tol()).unwrap()
 }
 
 fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {

@@ -26,7 +26,7 @@ fn tol() -> Tol {
 }
 
 fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
+    Band::linear(tol()).unwrap()
 }
 
 /// A margin strictly inside the band: escalation territory, never a

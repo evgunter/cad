@@ -35,8 +35,7 @@ const PIP_H: f64 = 0.05;
 const PIP_D: f64 = 0.22;
 
 fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {

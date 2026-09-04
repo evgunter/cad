@@ -51,7 +51,7 @@ fn tol() -> Tol {
 }
 
 fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
+    Band::linear(tol()).unwrap()
 }
 
 /// The dome's profile, verbatim from the R1 probe suite: a sphere zone

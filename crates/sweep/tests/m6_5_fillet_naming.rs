@@ -31,8 +31,7 @@ const PIP_H: f64 = 0.05;
 const R: f64 = 0.05;
 
 fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {

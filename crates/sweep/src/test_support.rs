@@ -80,7 +80,6 @@ pub fn cube(l: f64, tol: Tol) -> Body<f64> {
 /// Every edge of `body` resolved by the fillet battery, in edge
 /// order.
 pub fn all_links(body: &Body<f64>, tol: Tol) -> Vec<Link<f64>> {
-    let tol = tol.get();
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     let verdict = run_battery(
         &BlendRequest {
@@ -88,7 +87,7 @@ pub fn all_links(body: &Body<f64>, tol: Tol) -> Vec<Link<f64>> {
             edges,
             size: R,
         },
-        Band::new(tol.eps, tol.k * tol.eps).unwrap(),
+        Band::linear(tol).unwrap(),
     )
     .expect("the battery resolves every edge of a cube");
     let mut links: Vec<Link<f64>> = verdict

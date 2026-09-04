@@ -1917,7 +1917,7 @@ impl<T: Real> Core<T> {
 /// not a third dial. So the two edges are ε and ε_input, and naming
 /// them that way is what lets a reader check the body against the doc.
 fn linear_band<T: Real>(tol: Tol) -> Result<Band, PathError<T>> {
-    Band::new(tol.eps(), tol.k() * tol.eps()).map_err(PathError::Band)
+    Band::linear(tol).map_err(PathError::Band)
 }
 
 /// Unit direction of an angle.

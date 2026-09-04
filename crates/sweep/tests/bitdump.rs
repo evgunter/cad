@@ -36,8 +36,7 @@ use topo::query::{self, SurfaceKindSet};
 use topo::{Body, BooleanDeclarations, EdgeKey};
 
 fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 /// Dump one body, bit for bit, in key iteration order (identical

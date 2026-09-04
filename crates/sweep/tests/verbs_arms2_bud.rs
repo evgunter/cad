@@ -52,7 +52,7 @@ fn tol() -> Tol {
 }
 
 fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
+    Band::linear(tol()).unwrap()
 }
 
 /// The **bud's meridian**: bore at `0.2`, a flat base annulus at `t = 0`,

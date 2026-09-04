@@ -486,7 +486,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
     tol: Tol,
 ) -> Result<ArcFilletTrims<T>, PathError<T>> {
     let consumed = guide.consume().map_err(structure)?;
-    let band = Band::new(tol.eps(), tol.k() * tol.eps()).map_err(PathError::Band)?;
+    let band = Band::linear(tol).map_err(PathError::Band)?;
     // Two refusal channels, deliberately. A corner the GATES discard is
     // the weaker story — the author's anchors simply do not bracket it,
     // and the other root is usually the one they meant. A corner that
