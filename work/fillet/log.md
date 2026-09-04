@@ -110,3 +110,21 @@ the item is a unit, spec to follow after H4/RIM/H5. All four opening
 rulings are now answered; only the cut-off's tag name remains to be
 ratified, inside H7's spec. This session is subscribed to its own
 open `[ev]` PRs so comments wake it.
+
+**H4 stopped at Phase 1 and was re-scoped, same lane (2026-09-04).** The
+lane measured, gate off, that every concave closed rim reaches its door
+and the surgery correctly refuses to cut a seam at a foot beyond the
+rim: the curved arms and `plane_sphere_blend` fold the supports' sense
+bits and never the chain's convexity, so a concave rest is the convex
+one mirrored through the rim (waist spine `0.5 − r√2` vs the void-side
+`0.5 + r√2`). With the fold applied and the surgery untouched, the
+waist, the lily mouth and a `cube ∪ ball` boss (which the boolean
+builds and which routes to the LADDER) all carve tier-3 clean at their
+Pappus volumes, pad 0. The spec's stop clause routed the arms out; the
+orchestrator's re-scope routes them back in — same territory, the
+ratified rolling-ball convention, BLEND-4's plane–plane fold the
+precedent — as `docs/FILLET-H4-SPEC.md` §"Re-scope at Phase 1". L /
+NUMERIC unchanged, re-logged branch-side. PR
+[#1752](https://github.com/evgunter/cad/pull/1752) is the unit's PR; the
+finding is filed as `concave-rim-arms-rest-ball-on-material-side`,
+which the unit closes.

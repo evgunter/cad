@@ -2,8 +2,8 @@
 # Compose the UV trim-loop contact sheet -> renders-uv/montage-uv.svg
 #
 # The third montage lane. The other two need an external renderer
-# (`render.sh`: headless FreeCAD, matplotlib as an uncommittable
-# fallback) because they draw 3-D. This one draws each face's own
+# (`render.sh`: headless FreeCAD, with matplotlib as an explicit,
+# uncommittable preview lane) because they draw 3-D. This one draws each face's own
 # (u, v) chart, which is already 2-D — so it has NO renderer
 # dependency at all: the tour writes the per-face SVGs, and this
 # script tiles them with Python's standard library. No venv, no
