@@ -7,10 +7,13 @@ opened: 2026-09-03
 ---
 
 **If your run is red on this, append an instance below — do not open a
-new item.** Every code-tier PR carries this one, and three lanes have now
-filed or nearly filed a second file for it. And if you are only passing
-through, do not repair it by refreshing the receipt: the last paragraph
-here says why that is the measure work owner's call and not a lane's.
+new item.** Every code-tier PR carries this one, and two CIW lanes have
+already opened a second file for it and had to withdraw it:
+`work/ciw/perf-history-cannot-identify-its-host` and
+`work/ciw/render-lanes-red-at-missing-merge-ref` (PR 1724). And if you
+are only passing through, do not repair it by refreshing the receipt —
+the paragraph headed *Not fixed here, deliberately* says why the repair
+is the measure work owner's call and not a lane's.
 
 
 `pncad-py tests::the_whole_tag_table_matches_its_committed_inventory`
