@@ -52,10 +52,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc, DocEdit, DocParam,
-    DocRef, DocumentId, Evaluation, Expr, LoopProgram, Node, ParamName, PartResolver, ProductError,
-    ProfileProgram, RecipeNodeId, SlotId, apply, assemble, cascade_delete_order, parse_expr,
-    product, run_checks,
+    Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
+    DocEdit, DocParam, DocRef, DocumentId, Evaluation, Expr, LoopProgram, Node, ParamName,
+    PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, Subject, apply,
+    assemble_gathered, cascade_delete_order, parse_expr, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -596,33 +596,66 @@ impl DocSession {
             return Landing::Canceled;
         }
         self.landed_generation = Some(done.generation);
-        // **The product's own verdict, once per landed evaluation.**
-        // The gather is the only thing that answers "is this
-        // document's product well formed" — a naming collision across
-        // roots is not a node failure, so the feature tree's badges
-        // cannot see it, and a viewport that draws the parts without
-        // ever asking would render a body nothing says is wrong.
+        // **ONE gather, feeding all three of the landing's consumers.**
         // Computed HERE because here is the one place a result becomes
-        // the session's, so it cannot be run twice or skipped.
-        self.landed_fault = product(self.requested_doc.as_ref(), &done.evaluation, self.tol).err();
-        // The A5 verdict, in the same once-per-landing spot and for
-        // the same reason: nowhere else can it run exactly once per
-        // result that becomes the session's.
-        self.landed_at_rest = at_rest_of(self.requested_doc.as_ref(), &done.evaluation, self.tol);
-        // The advisory registry, same spot and same reason. It REPORTS
-        // — a document with findings still draws, which is the whole
-        // point of running it on the draw path: a product whose roots
-        // interpenetrate renders a picture that looks almost right,
-        // and the finding is the only thing that says otherwise.
-        // A refusal of the registry itself leaves no report rather
-        // than a clean one: "not checked" is not "checked and fine".
-        self.landed_checks = run_checks(
-            self.requested_doc.as_ref(),
-            &done.evaluation,
-            &ChecksConfig::default(),
-            self.tol,
-        )
-        .ok();
+        // the session's, so it cannot be run twice or skipped — and
+        // ONCE because the ORDER below is what makes one enough: the
+        // product's own verdict reads the refusal, the registry
+        // BORROWS the product, and the A5 badge CONSUMES it last.
+        // Nothing after the badge wants a product, so nothing here
+        // clones one.
+        let doc: &Doc<ProfileProgram> = &self.requested_doc;
+        let cfg = ChecksConfig::default();
+        // The A5 badge is taken for assembly-shaped documents only, and
+        // whether the document is one is a fact about the document
+        // rather than about its product — readable on either arm.
+        let assembly_shaped = assembly_shaped(doc);
+        match product_recorded(doc, &done.evaluation, self.tol) {
+            Ok(product) => {
+                self.landed_fault = None;
+                // The advisory registry. It REPORTS — a document with
+                // findings still draws, which is the whole point of
+                // running it on the draw path: a product whose roots
+                // interpenetrate renders a picture that looks almost
+                // right, and the finding is the only thing that says
+                // otherwise. A refusal of the registry itself leaves
+                // no report rather than a clean one: "not checked" is
+                // not "checked and fine".
+                self.landed_checks = run_checks_on(
+                    doc,
+                    &done.evaluation,
+                    Subject::Product(&product),
+                    &cfg,
+                    self.tol,
+                )
+                .ok();
+                self.landed_at_rest =
+                    assembly_shaped.then(|| badge(assemble_gathered(product, self.tol)));
+            }
+            Err(fault) => {
+                // **The product's own verdict.** The gather is the only
+                // thing that answers "is this document's product well
+                // formed" — a naming collision across roots is not a
+                // node failure, so the feature tree's badges cannot see
+                // it, and a viewport that draws the parts without ever
+                // asking would render a body nothing says is wrong.
+                //
+                // A document with no body-denoting root has no product
+                // and no failure either: the registry still runs, over
+                // the subject that says so. Every other refusal leaves
+                // the report absent, which is "not checked".
+                self.landed_checks = matches!(fault, ProductError::NoBodyRoots)
+                    .then(|| {
+                        run_checks_on(doc, &done.evaluation, Subject::NoBodyRoots, &cfg, self.tol)
+                            .ok()
+                    })
+                    .flatten();
+                self.landed_at_rest = assembly_shaped.then(|| AtRestBadge::Refused {
+                    message: AssemblyError::product_refusal(&fault),
+                });
+                self.landed_fault = Some(fault);
+            }
+        }
         self.landed = Some(done.evaluation);
         self.landed_doc = Some(Arc::clone(&self.requested_doc));
         Landing::Landed
@@ -1476,26 +1509,28 @@ impl DocSession {
     }
 }
 
-/// The at-rest verdict for one landed pair, taken only for
-/// assembly-shaped documents (see [`AtRestBadge`]). The gate's own
+/// Whether a document is assembly-shaped, which is what decides
+/// whether an A5 badge is taken at all (see [`AtRestBadge`]): a
+/// document that instantiates no part declares no cross-instance rest
+/// and has nothing for the gate to answer about.
+fn assembly_shaped(doc: &Doc<ProfileProgram>) -> bool {
+    doc.order()
+        .iter()
+        .any(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })))
+}
+
+/// One A5 verdict as the badge that shows it — the gate's own
 /// vocabulary either way: a certification with its minted count, or
 /// the typed refusal rendered by its own `Display`.
-fn at_rest_of(doc: &Doc<ProfileProgram>, eval: &Evaluation<f64>, tol: Tol) -> Option<AtRestBadge> {
-    let assembly_shaped = doc
-        .order()
-        .iter()
-        .any(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })));
-    if !assembly_shaped {
-        return None;
-    }
-    Some(match assemble(doc, eval, tol) {
+fn badge(verdict: Result<Assembly<f64>, AssemblyError>) -> AtRestBadge {
+    match verdict {
         Ok(assembly) => AtRestBadge::Certified {
             minted: assembly.minted.len(),
         },
         Err(refusal) => AtRestBadge::Refused {
             message: refusal.to_string(),
         },
-    })
+    }
 }
 
 /// The directory a document at `path` resolves against — its parent,
