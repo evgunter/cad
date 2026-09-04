@@ -3674,3 +3674,11 @@ reviews conclude; each ordinal claim at review dispatch goes to main on
 its own.
 
 Block FILLET-B1 slot record (branch-side, appended as each slot concludes):
+Reorder (2026-09-04, before any slot-1 dispatch): slot 1 = FILLET-RIM
+(`docs/FILLET-RIM-SPEC.md`, `no-public-rim-arc-selector`; pre-draw
+**S / STRUCTURAL**, logged at the spec), slot 2 = H5
+(`repaired-pole-rim-serves-no-closed-door`); H6 moves to block
+FILLET-B2's first slot. Reason: Ev's ruling on the selector (PR 1735)
+arrived at opening, and the door unblocks the tour's consumers and the
+fixture-copy class. The draw is untouched — a slot's arm does not
+depend on which unit takes it.
