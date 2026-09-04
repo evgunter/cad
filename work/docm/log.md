@@ -272,3 +272,16 @@ one-boolean diagnosis (DOCM's slate). The spec is deleted into the
 ledger. Next: the remaining slate needs rulings before the next kernel
 unit — the union declaration channel (Ev's), then the instantiation
 seam, the check-registry subject and the certified range query.
+
+## DOCM-5 dispatched (2026-09-04, block DOCM-B2 slot 1, OPUS)
+
+The plan's ruled item 2 (the check registry's subject) cut as a unit:
+`docs/DOCM-5-SPEC.md` (pre-draw M / STRUCTURAL) — `run_checks_on` over
+a `Subject`, `assemble_gathered` over a gathered product with `assemble`
+as a logic-free wrapper, `DocSession::land` gathering once for its
+three consumers in the order fault → registry → A5 badge, a debug-only
+gather counter as the witness, the registry's cost re-measured with
+both terms separated and a Q6 disposition. The `product.rs` Dual arms
+stay M10's (stop clause). Unit branch `docm/5-check-subject` cut from
+the orchestrator branch (the spec rides PR 1863 to main). Slot 1's
+pre-draw fields recorded branch-side on `docm/b2-block`.
