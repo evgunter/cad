@@ -1392,6 +1392,22 @@ NOT_BOUND = {
     "FlushEvidence": INTERIOR,
     "Lofted": INTERIOR,
     "LoopProgram": INTERIOR,
+    # A11's member vocabulary, and the structural answer it gives.
+    # `member_of` is the admission rule an authoring door gates on:
+    # which instance a mate head names, and which pattern copy of it.
+    # A Python caller reaches that answer through the door it was
+    # going to call anyway — every mate door refuses a head outside
+    # the vocabulary with `MateFault::DanglingHead`, which is bound and
+    # dispatchable. What needs the PREDICATE rather than the refusal is
+    # an interactive picker, which must refuse before it proposes; that
+    # is the Rust caller this door was made public for.
+    #
+    # So `Member` is behind a door in the plainest sense — nothing in
+    # Python hands one out, and no bound door takes one. Read this
+    # entry beside a Python picker if one is ever written: that is the
+    # neighbouring door whose opening would make this disposition stop
+    # being honest, in exactly the shape `EvalOutcome`'s entry records.
+    "Member": INTERIOR,
     "NameTable": INTERIOR,
     "Operand": INTERIOR,
     # The evaluation environment, and the entry that had been on the
@@ -1433,6 +1449,8 @@ NOT_BOUND = {
     "ValidatedProfile": INTERIOR,
     "edge_name": INTERIOR,
     "face_name": INTERIOR,
+    # The predicate; `Member` above carries the argument for both.
+    "member_of": INTERIOR,
     "validated": INTERIOR,
     # --- gap: the SWEEP half of G2, still banked -------------------
     # The tube half closed at LIB-TUBE; `sweep_body` did not, and the
