@@ -754,3 +754,24 @@ M10-B4 drawn (byte 103), M10-7 dispatched on slot 1 with the spec
 to main. Ev's second question of the day, "what concretely would go
 wrong at zero separation if we ignore tilt", is answered in the E3
 clause: the VALUE is fine, the VERDICT is what is consumed.
+
+## Orchestrator-direct hotfix: main's TAG_INVENTORY red (2026-09-04)
+
+Ev: another orchestrator had routed the red to LIB (correct on
+territory — `pncad-py` is LIB's fence) but LIB is not active and the
+two tags are M10-6's. A hotfix lane answered the question the item
+said only M10 could — the absence of `measure_clearance_refused` and
+`measure_selection_kind` from every `.pyi` and Python test is CORRECT
+surface: the six sibling `measure_*` tags occur in exactly the same two
+files and nowhere else, because Python cannot author a measure node and
+so cannot observe a refusal (M10-6's own census note) — added the two
+inventory lines (byte-identical to M10-7's D11 in-passing fix), re-homed
+the item to `work/m10/` closed, and merged on a run whose shard-2/2 step
+conclusions show the failing test executed and passed on both lanes.
+Found in passing and filed: eight `eval_err` call sites mint tag words
+as string literals the inventory cannot see, one of them
+(`measure_unavailable`) named nowhere else in the tree
+(`work/m10/pncad-py-eval-err-variants-outside-the-tag-inventory.md`).
+The F3 residue stands: main's push runs never execute this test; the
+composition of two green PRs into a red main was first seen days later
+on an unrelated branch (CIW is re-costing F3).
