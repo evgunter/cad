@@ -83,7 +83,7 @@ pub mod cavity;
 pub mod oracles;
 
 use geom::NurbsCurve3;
-use geom_core::{Affine3, Mat3, Point2, Vec3};
+use geom_core::{Affine3, Mat3, Point2, Point3, Vec3};
 use profile::RawLoop;
 use sweep::{ProfileLoop, ProfileVertex, Section};
 
@@ -154,6 +154,20 @@ pub fn arc_section(s: f64) -> Section {
         v(s, s, 0.0),
         v(-s, s, 0.0),
     ])]
+}
+
+/// The **sup-norm distance** between two points — the largest
+/// coordinate disagreement, which is the honest meter for "these two
+/// constructions produced the same point": it bounds every coordinate
+/// at once and never averages a bad axis away, as a Euclidean norm
+/// would. Lives here because a per-coordinate comparison is what any
+/// exactness row in this tree wants, and a fourth hand-rolled copy is
+/// how a suite ends up with a subtly different one.
+pub fn sup_dist(a: Point3<f64>, b: Point3<f64>) -> f64 {
+    (a.x - b.x)
+        .abs()
+        .max((a.y - b.y).abs())
+        .max((a.z - b.z).abs())
 }
 
 /// Loft placements: the given heights, each scaled by `s`, as pure

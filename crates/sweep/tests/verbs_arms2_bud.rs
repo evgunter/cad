@@ -37,8 +37,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::approx::band;
 use geom::{Curve3, Surface};
-use geom_core::{Band, Point2, Tol, Vec3};
+use geom_core::{Point2, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::BlendError;
@@ -49,10 +50,6 @@ use topo::{Body, EdgeKey, FaceSurface, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 /// The **bud's meridian**: bore at `0.2`, a flat base annulus at `t = 0`,

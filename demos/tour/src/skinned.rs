@@ -33,8 +33,9 @@
 //!   sections at z = 0/0.15/2 — same sections, same total height,
 //!   ONLY the middle placement moves — driving the bulge to
 //!   half-width 1.646 at 32.6% of height: silhouette-obvious. Rendered
-//!   `LOFT_PAIR_GAP` along +x of its twin (a rigid placement, applied
-//!   after every assertion; volume is translation-invariant).
+//!   `LOFT_PAIR_GAP` along +x of its twin by `transform_rigid` on the
+//!   BUILT body — the walls are described NURBS nets, which the rigid
+//!   map carries by their control points.
 //! - `s_duct` — standalone since montage-v2 (Ev, #218 follow-up:
 //!   the S SOLID is two glued partial revolves, shape for shape, so
 //!   as a cell it demonstrated the one-op path, not an unreachable
@@ -281,22 +282,8 @@ const ELBOW_H: f64 = 0.25;
 /// Section placements: pure translations up the world z-axis (also
 /// `common/mod.rs::lofted_at_z`).
 fn lofted_at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
-    lofted_at_x_z(0.0, zs)
-}
-
-/// The same stack of placements, the whole loft shifted `dx` along +x —
-/// how the pair cell puts the two lofts side by side while
-/// `transform_rigid` refuses a NURBS-walled body (#1346).
-///
-/// A COMMON offset on every placement is a rigid motion of the finished
-/// solid: it moves the body and changes no section, no spacing and no
-/// parameterization (`skin_parameters` reads chord lengths between
-/// control rows, which a common translation leaves alone — pinned by
-/// the `loft_parameters` assertion in [`stops`], which still gets the
-/// same `t`).
-fn lofted_at_x_z(dx: f64, zs: &[f64]) -> Vec<Affine3<f64>> {
     zs.iter()
-        .map(|z| Affine3::translation(Vec3::new(dx, 0.0, *z)))
+        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
         .collect()
 }
 
@@ -408,7 +395,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // dramatically (numbers in the stop's note). The corpus fixture
     // keeps 0/1/3 — this scene now LEADS the corpus, the s_duct/lily
     // precedent.
-    let nonuniform_places = lofted_at_x_z(LOFT_PAIR_GAP, &[0.0, 0.15, 2.0]);
+    let nonuniform_places = lofted_at_z(&[0.0, 0.15, 2.0]);
     // The middle section's v-parameter, ASKED (LIB-U5 deliverable 1)
     // rather than re-derived: the note below narrates
     // t = 3√29/(3√29 + √5701) and every number downstream of it, so
@@ -420,10 +407,22 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         vec![0.0, NONUNIFORM_T, 1.0],
         "the narrated v-parameterization is no longer what the skin chose"
     );
-    let nonuniform =
+    let nonuniform_at_origin =
         pncad::sweep::loft_body::<f64>(&prism_sections(tol), &nonuniform_places, 2, tol)
             .expect("the non-uniform loft builds")
             .body;
+    // The pair is placed the way a user places anything: BUILD the
+    // body where its sections are authored, then MOVE it. The walls
+    // are described NURBS nets and `transform_rigid` maps them by
+    // their control points, so the rendered solid is the exact image
+    // of the one every derivation below is stated about — the
+    // placement is not part of the shape.
+    let nonuniform = pncad::topo::transform_rigid(
+        &nonuniform_at_origin,
+        &Affine3::translation(Vec3::new(LOFT_PAIR_GAP, 0.0, 0.0)),
+        tol,
+    )
+    .expect("the non-uniform loft is placed beside its twin");
     // ONE CELL, BOTH BODIES (montage-v3 curation, Ev 2026-08-30).
     // Two adjacent cells were not showing the pair the pair claims to
     // be: `compose_montage.py` trims and scales EVERY cell
@@ -432,29 +431,6 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // pair — was distorted by the composer. Side by side in ONE frame
     // they share a camera AND a scale, which is what "only the middle
     // placement moved" needs a reader to be able to see.
-    //
-    // GAP RECORDED, NOT WORKED AROUND (`memories/demo-purpose.md`):
-    // the natural spelling here is `twopeg`'s / the teapot lid's one
-    // — build the body, then place it with `transform_rigid` — and it
-    // REFUSES on this body: `TransformError::NurbsPlaceholder`, from an
-    // arm that matches the `Surface::Nurbs` VARIANT while its own text
-    // describes only the placeholder ("unimplemented geometry evaluates
-    // to poison"). These walls are described degree-1×2 and 2×2 nets
-    // that evaluate, tessellate, integrate and export; nothing about
-    // them is poison, and `NurbsSurface::is_placeholder()` is public on
-    // both halves. So NO loft, sweep or skinned body in this kernel can
-    // be moved — filed as #1346, which is strictly less work than the
-    // Approx arm beside it (#1020): a rigid map of a described net is
-    // the control-point map, weights and knots unchanged, no
-    // certificate to re-derive.
-    //
-    // Until it lands, the pair is placed by AUTHORING the second loft's
-    // three placements at the offset rather than by moving the built
-    // body. That is a rigid motion of the whole loft — every section
-    // shifted by the same vector — so it changes the body's position
-    // and nothing else, and the derivations below still hold of the
-    // body that renders. What it does NOT do is exercise the door a
-    // user would reach for, which is the finding.
 
     // The S path (#218 review; DEMOTED to standalone at montage-v2):
     // two opposed quarter arcs of radius R in the world x = 0 plane,
@@ -526,8 +502,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     than any authored section (the trapezoid stops at 1.375), peaking \
                     at 32.6% of the height with a long taper above",
             ops: "sweep::loft_body(square, trapezoid, square, v_degree 2) twice — \
-                  @ z = 0/1/2, and @ z = 0/0.15/2 with every placement carrying the \
-                  pair's +x offset (transform_rigid REFUSES a NURBS-walled body, #1346)",
+                  @ z = 0/1/2, and @ z = 0/0.15/2 -> topo::transform_rigid for the \
+                  pair's +x offset",
             delta: 6e-3,
             note: Some(format!(
                 "[loft_prism] the corpus fixture's body, section for section \
@@ -561,13 +537,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  11.604 m^3 — 19% off: the chord-length choice is load-bearing. \
                  Same skin-fit lane whose synthesized weight channel used to land an \
                  ulp off 1.0 on non-uniform spacings and refuse at assembly (#207); \
-                 authored {LOFT_PAIR_GAP} m along +x of its twin (a COMMON offset on \
-                 all three placements — a rigid motion of the whole loft, leaving \
-                 every number above invariant). It is authored rather than \
-                 transformed because `transform_rigid` REFUSES a NURBS-walled body: \
-                 the arm matches the `Surface::Nurbs` variant while its reason \
-                 describes only the placeholder, so no loft, sweep or skinned body \
-                 in this kernel can be moved — #1346"
+                 BUILT at the origin like its twin and then MOVED {LOFT_PAIR_GAP} m \
+                 along +x by transform_rigid, which maps the described NURBS walls by \
+                 their control points (knots and weights untouched), so the rendered \
+                 solid is the exact image of the body every number above is stated \
+                 about"
             )),
             view: loft_view(),
             bodies: vec![
