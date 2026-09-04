@@ -2,9 +2,10 @@
 id: no-persistent-setplacement-session-op
 kind: issue
 title: SessionOp vocabulary gap - no persistent SetPlacement, free-move cannot be committed as a document edit
-status: open
+status: parked
 opened: 2026-08-28
 github: 1120
+blocked_on: [viewer-session-god-module-split]
 ---
 
 ## From GitHub issue 1120

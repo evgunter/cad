@@ -52,3 +52,24 @@ items 4–6) is in discussion with Ev in-chat; no `[ev]` PR opened yet.
 Cross-program note at dispatch: main's tour row was red from SHELL's
 `Shelled` return with the fix (#1770) in flight — inherited, not
 EXCH's; the lane merges main when it lands.
+
+## EXCH-H1 re-scoped at Phase 1 (2026-09-04)
+
+The lane executed Phase 1 as bound and stop clause 2 fired with the
+right evidence: the spec mis-cited the blocker. Measured on the lane
+(full battery differential against merge base): `nurbs_iso_derive`
+needs no new arm at all — the missing limb is `run_iso_checks`'
+seam-class `Curve3::Line` carrier limb in
+`geom-brep/src/pcurve_cache.rs` (TRIM's file, Track Q rows riding),
+without which the promotion regresses a first-class native arc-prism
+round trip. Orchestrator's ruling, recorded as
+`docs/EXCH-H1-SPEC.md` §"Re-scope at Phase 1": the announced TRIM
+seam extends to exactly that one limb (the keep_outs'
+whichever-dispatches-first rule in spirit; TRIM dormant until
+CURVED's exit), Q's rows untouched. M / NUMERIC unchanged,
+re-logged here. Phase-1 yield worth naming: dm1's degree-1 census is
+now a measured table (37 carriers, √sup ∈ [1.9e-10, 6.2e-9] m
+against eps_in 1e-5), and `#389`'s gap mechanism is a
+control-order-reversed wall column — the adoption Line-column
+candidate (the spec's disclosed contingency) is what hands it a
+candidate.

@@ -2,7 +2,8 @@
 id: VERBS-RIMCAP
 kind: unit
 title: the rim-construction capability — sphere half
-status: spec
+status: closed
+closed: 2026-09-04
 opened: 2026-09-03
 branch: verbs/rimcap-1
 refs: [VERBS-C5ARMS]
@@ -22,4 +23,4 @@ half would unblock C5ARMS' klein-elbow rows 3/4/8. Spec
 `docs/VERBS-RIMCAP-SPEC.md` ratified 2026-09-03 on `mngr/kernel-verbs`;
 two pre-registered STOPs (machinery-shape; mechanism — the lune
 mechanism story is reading-derived and opening-measurement item 4
-executes it). Not yet dispatched; queued behind CYLSPH's cycle.
+executes it). Dispatched on branch `verbs/rimcap-1`.

@@ -507,7 +507,9 @@ fn mate_coset(
     band: Band,
     tol: Tol,
 ) -> Result<Coset, Box<MateFault>> {
-    let arm = alignment.lever_arm();
+    let arm = alignment
+        .lever_arm()
+        .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal }))?;
     let frame = |side: MateSide, f: &super::MateFrame| {
         f.placement(tol)
             .map_err(|error| Box::new(MateFault::Frame { mate, side, error }))
@@ -533,6 +535,7 @@ fn mate_coset(
             // agree with is zero.
             if let Some(theta) = alignment.clocking {
                 let margin = geom_core::predicate::Margin::levered(theta, arm);
+                let deviation = margin.value();
                 let sign = geom_core::k_stats::decide("mate_clocking_redundant", margin, band)
                     .map_err(|diag| {
                         Box::new(MateFault::Indeterminate {
@@ -545,7 +548,8 @@ fn mate_coset(
                         held: mate,
                         added: mate,
                         predicate: "mate_clocking_redundant",
-                        clash: theta * arm,
+                        clash: deviation,
+                        lever: Some((theta, arm)),
                     }));
                 }
             }
@@ -650,7 +654,11 @@ pub fn fold_pair<P>(
 ) -> Result<Coset, Box<MateFault>> {
     let mut held = Coset::unconstrained();
     let mut held_mate = None;
-    let mut arm = 1.0_f64;
+    // The fold's lever is the largest of the mates' own, and it starts
+    // at nothing: the constant, where one is still needed, is
+    // [`Alignment::lever_arm`]'s own and is argued there rather than
+    // seeded here.
+    let mut arm = 0.0_f64;
     for &mate in mates {
         let Some(Node::Mate {
             a,
@@ -674,7 +682,11 @@ pub fn fold_pair<P>(
                 instance: ha.instance,
             }));
         }
-        arm = arm.max(alignment.lever_arm());
+        arm = arm.max(
+            alignment
+                .lever_arm()
+                .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal }))?,
+        );
         let mut coset = mate_coset(mate, alignment, band, tol)?;
         // The authored order is `a`'s coordinates from `b`'s; the tree
         // may need the other direction.
@@ -692,6 +704,7 @@ pub fn fold_pair<P>(
                     added: mate,
                     predicate,
                     clash: margin,
+                    lever: None,
                 }));
             }
         };
@@ -699,8 +712,9 @@ pub fn fold_pair<P>(
             return Err(Box::new(MateFault::Contradictory {
                 held: held_mate.unwrap_or(mate),
                 added: mate,
-                predicate: "mate_member_empty",
+                predicate: super::MATE_MEMBER_EMPTY,
                 clash: f64::INFINITY,
+                lever: None,
             }));
         }
         held_mate.get_or_insert(mate);

@@ -1,6 +1,6 @@
 ---
 id: capend-top-bottom-contradicted-by-negative-extrude
-kind: issue
+kind: unit
 title: CapEnd::{Top, Bottom} makes a spatial claim a negative extrude distance contradicts
 status: open
 opened: 2026-08-30
@@ -25,3 +25,11 @@ Not scheduled to any live program; kernel naming territory.
 ## Home
 
 `work/issues/` — the issue says so itself: kernel naming territory (`names/role.rs`, `emit_sweep.rs`) scheduled to no live program, and the raising program S-BLEND is closed.
+
+## Unit (2026-09-04)
+
+No ruling owed: the schema version is gone (`docs/DESIGN.md` Band 4,
+BOOL-13), so a rename is a corpus regeneration. E-class: rename
+`CapEnd::{Top, Bottom}` to the extrusion's own ends (start of the
+sweep vector, end of it), regenerate, and re-pin the reviewer probe
+named above as a row.

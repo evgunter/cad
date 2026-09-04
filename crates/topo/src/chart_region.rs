@@ -526,6 +526,40 @@ impl ChartRegionLane for geom_core::interval::Interval {
     }
 }
 
+/// **The symbolic tier over a certifying scalar** (`geom_core::sym`):
+/// the overlap doors are the base scalar's, run at `Sym<T>`. The tier
+/// alters one decision rule inside the scalar and nothing about what a
+/// chart region is, so demoting to the dual's `None` here would drop a
+/// certified door from the driver's own replay.
+impl<T> ChartRegionLane for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: Decide,
+    T: geom_core::CertifiedBounds,
+{
+    fn chart_overlap(
+        body_a: &Body<Self>,
+        face_a: FaceKey,
+        body_b: &Body<Self>,
+        face_b: FaceKey,
+        band: Band,
+    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
+        Some(chart_region_overlap(body_a, face_a, body_b, face_b, band))
+    }
+
+    fn declared_overlap(
+        body_a: &Body<Self>,
+        face_a: FaceKey,
+        body_b: &Body<Self>,
+        face_b: FaceKey,
+        door_one: crate::contact::ContactVerdict,
+        band: Band,
+    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
+        Some(declared_pair_overlap(
+            body_a, face_a, body_b, face_b, door_one, band,
+        ))
+    }
+}
+
 /// The dual lane: statically no chart-region predicate (trait docs).
 impl<T> ChartRegionLane for geom_core::Dual<T>
 where

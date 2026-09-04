@@ -352,12 +352,23 @@ impl Alignment {
 
     /// The **lever arm** this mate's angular decisions turn on: the
     /// largest distance in its own authored data over which an angular
-    /// error accumulates into a gap. Floored at one metre, so a mate
-    /// authored AT the origin cannot claim an arbitrarily tight
-    /// angular threshold.
+    /// error accumulates into a gap.
+    ///
+    /// `None` when the alignment names a scale but names one too small
+    /// to lever anything: a lever of `L` makes the smallest decidable
+    /// tilt `ε/L`, so a datum at a nanometre buys a threshold of a whole
+    /// radian, and a verdict there is vacuous rather than tight. The
+    /// solve records that case as the `mate_datum_too_small_to_lever`
+    /// fault; this getter is the same fact read off the alignment, so it
+    /// answers with an absence rather than raising. An alignment that
+    /// names NO scale at all is not this case — it borrows the session
+    /// box's scale and answers with a number.
     #[getter]
-    fn lever_arm(&self) -> Length {
-        Length(pncad::quantity::Length::from_meters(self.0.lever_arm()))
+    fn lever_arm(&self) -> Option<Length> {
+        self.0
+            .lever_arm()
+            .ok()
+            .map(|m| Length(pncad::quantity::Length::from_meters(m)))
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -575,7 +586,8 @@ impl MateFault {
             | F::Indeterminate { mate, .. }
             | F::Under { mate, .. }
             | F::DanglingHead { mate, .. }
-            | F::SelfMate { mate, .. } => Some(NodeId(*mate)),
+            | F::SelfMate { mate, .. }
+            | F::Unleverable { mate, .. } => Some(NodeId(*mate)),
             F::Band { .. } | F::Contradictory { .. } => None,
         }
     }

@@ -106,6 +106,13 @@ fn main() {
     // Rule 1's count is the number this row exists to report, and a
     // number nobody prints is a number nobody reads.
     let mut per_rule = [0usize; 4];
+    // The symbolic column, summed the same way and printed the same
+    // way: a decision the identity tier answered is not a rule sample
+    // (lib.rs, `lint_sample`), and a population that is mostly such
+    // decisions would otherwise read as "0 flagged" with no hint that
+    // most of its rows never met a threshold at all.
+    let mut total_scanned = 0usize;
+    let mut total_symbolic = 0usize;
     for path in &paths {
         let text = match std::fs::read_to_string(path) {
             Ok(t) => t,
@@ -144,9 +151,14 @@ fn main() {
         for (i, c) in file_rule.iter().enumerate() {
             per_rule[i] += c;
         }
+        total_scanned += scanned;
+        total_symbolic += scan.symbolic;
         say(format_args!(
-            "k-lint: {path}: {scanned} samples, {} flagged — rule 1 (undecided/invalid): {}, \
-             rule 2 (near a threshold): {}, rule 3 (below a floor): {}",
+            "k-lint: {path}: {scanned} samples ({} symbolic_zero, {} classified), {} flagged \
+             — rule 1 (undecided/invalid): {}, rule 2 (near a threshold): {}, rule 3 (below a \
+             floor): {}",
+            scan.symbolic,
+            scanned - scan.symbolic,
             flags.len(),
             file_rule[1],
             file_rule[2],
@@ -193,9 +205,11 @@ fn main() {
         total_flags += flags.len();
     }
     say(format_args!(
-        "k-lint: TOTAL over {} file(s): rule 1 (undecided/invalid) {}, rule 2 (near a \
+        "k-lint: TOTAL over {} file(s): {total_scanned} samples ({total_symbolic} \
+         symbolic_zero, {} classified), rule 1 (undecided/invalid) {}, rule 2 (near a \
          threshold) {}, rule 3 (below a floor) {}",
         paths.len(),
+        total_scanned - total_symbolic,
         per_rule[1],
         per_rule[2],
         per_rule[3]

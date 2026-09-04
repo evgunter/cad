@@ -53,6 +53,7 @@ pub(crate) mod sealed {
     #[cfg(feature = "probe")]
     impl Sealed for crate::k_stats::Probe {}
     impl<T: Sealed> Sealed for crate::dual::Dual<T> {}
+    impl<T: Sealed> Sealed for crate::sym::Sym<T> {}
     #[cfg(feature = "interval")]
     impl Sealed for crate::interval::Interval {}
 }

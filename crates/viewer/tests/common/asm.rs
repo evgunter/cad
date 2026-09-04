@@ -232,6 +232,36 @@ pub fn seat() -> viewer::matetool::MateChoice {
     }
 }
 
+/// **The seat ALIGNMENT the mate rows author directly**: a post's top
+/// cap on the shelf's underside, each frame in its own part's
+/// coordinates, at `b_x` along the shelf and with `clocking` as the
+/// rider.
+///
+/// One home because it is one geometric fact about this fixture — the
+/// two suites that build refused clusters differ only in where along
+/// the shelf a post lands and whether a rider rides, and a per-suite
+/// copy of the ladder could only drift from the bench it addresses.
+/// (`seat` above is the mate TOOL's choice for the same seat; this is
+/// the frame pair `SessionOp::AddMate` takes.)
+pub fn seat_alignment(b_x: f64, clocking: Option<f64>) -> pncad::document::Alignment {
+    use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive};
+    Alignment {
+        a: MateFrame {
+            origin: [POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT],
+            axis: [0.0, 0.0, 1.0],
+            reference: [1.0, 0.0, 0.0],
+        },
+        b: MateFrame {
+            origin: [b_x, SHELF_DEPTH / 2.0, 0.0],
+            axis: [0.0, 0.0, -1.0],
+            reference: [1.0, 0.0, 0.0],
+        },
+        primitive: MatePrimitive::FrameCoincidence,
+        sense: AxisSense::Opposed,
+        clocking,
+    }
+}
+
 /// A `BTreeMap` from a small list — the shape a few rows want for
 /// expected-per-instance assertions.
 pub fn map_of<K: Ord, V>(entries: impl IntoIterator<Item = (K, V)>) -> BTreeMap<K, V> {
