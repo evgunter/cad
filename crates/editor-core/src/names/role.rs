@@ -193,6 +193,35 @@ pub enum SplitHalf {
     Below,
 }
 
+impl SplitHalf {
+    /// Both halves, in output-body order.
+    pub const ALL: [SplitHalf; 2] = [SplitHalf::Above, SplitHalf::Below];
+
+    /// **The half's OUTPUT-BODY INDEX in a split's value** — the one
+    /// definition of the mapping every reader of a split's table and
+    /// value keys by: the emitter writes the rows under it, the
+    /// product gather and the interrogation doors read the value by
+    /// it, and a projection of one half selects by it. `Above` is
+    /// body 0 and `Below` is body 1 because that is the order the
+    /// value's fields are declared in; nothing else fixes it, so
+    /// nothing else may restate it.
+    pub fn output_body(self) -> u32 {
+        match self {
+            SplitHalf::Above => 0,
+            SplitHalf::Below => 1,
+        }
+    }
+
+    /// The half that owns output body `index`, if either does — the
+    /// inverse of [`SplitHalf::output_body`], DERIVED from it rather
+    /// than written a second time.
+    pub fn of_output_body(index: u32) -> Option<SplitHalf> {
+        SplitHalf::ALL
+            .into_iter()
+            .find(|half| half.output_body() == index)
+    }
+}
+
 /// A recorded side-of verdict (N2: a margined predicate's SIGN, never
 /// a value). `Mixed` aggregates a fragment whose probe vertices sit
 /// definitely on both sides (wrap-around fragments) — still a
