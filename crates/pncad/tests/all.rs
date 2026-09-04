@@ -3396,6 +3396,51 @@ fn assert_layer_root_exports_are_carried_or_listed(
 /// surface that declares five of the types the façade carries and one
 /// it deliberately does not — so for that layer the same omission
 /// would be a hole, and this closes it.
+/// The source with every `#[cfg(…)]`-gated item removed, attribute and
+/// all.
+///
+/// The two scanners below read a layer's root for the names it
+/// exports, and what the guard means by that is the surface a CONSUMER
+/// can name — the thing that must be carried through the façade or
+/// argued away. An item behind a `#[cfg]` is not that surface: no
+/// consumer's build graph turns the feature on (the profile layer's
+/// `test-support` is reached only through that crate's own self
+/// dev-dependency), so the name does not exist one hop past the
+/// façade, and asking the façade to carry it would advertise something
+/// unreachable. Without this the guard read the gate's TEXT and
+/// demanded a carrier statement for six sentences no build outside
+/// `profile/tests/` compiles.
+///
+/// Line-based and deliberately shallow: it drops the attribute line,
+/// then the item it gates, up to the statement's terminator. That is
+/// exactly the shape both roots use.
+fn code_without_cfg_gated(src: &str) -> String {
+    let mut out = String::new();
+    let mut lines = src.lines();
+    while let Some(line) = lines.next() {
+        if !line.trim_start().starts_with("#[cfg(") {
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        }
+        let mut depth: i32 = 0;
+        for gated in lines.by_ref() {
+            for c in gated.chars() {
+                match c {
+                    '{' | '(' | '[' => depth += 1,
+                    '}' | ')' | ']' => depth -= 1,
+                    _ => {}
+                }
+            }
+            let trimmed = gated.trim_end();
+            if depth <= 0 && (trimmed.ends_with(';') || trimmed.ends_with('}')) {
+                break;
+            }
+        }
+    }
+    out
+}
+
 fn root_declared_pub_names(src: &str) -> std::collections::BTreeSet<String> {
     let code = code_without_comments(src);
     let mut names = std::collections::BTreeSet::new();
@@ -3425,13 +3470,19 @@ fn root_declared_pub_names(src: &str) -> std::collections::BTreeSet<String> {
 }
 
 /// The profile layer's interior: root exports the façade's curated
-/// `profile` module does not carry, by family. One family, one name.
+/// `profile` module does not carry, by family. One family, one entry.
 ///
 /// - **The minting tier** (`RawLoop`): the one name whose absence is
 ///   the module's entire reason for existing. It carries `new` and
 ///   `polygon`; leaving the trait unnameable is what makes
 ///   `ProfileLoop::polygon(…)` fail to resolve while `ProfileLoop`
 ///   itself stays nameable. Carrying it here would undo the curation.
+///
+/// The layer's six `FILLET_*_RECOURSE` sentences are NOT listed here,
+/// and the reason is worth keeping: they are exported behind that
+/// crate's `test-support` feature, so no consumer's build compiles
+/// them and there is nothing for the façade to carry.
+/// [`code_without_cfg_gated`] is what makes the scan agree.
 const PROFILE_NOT_CARRIED: [&str; 1] = ["RawLoop"];
 
 /// **The document layer's guard, for the other layer curated the same
@@ -3467,6 +3518,7 @@ fn every_profile_layer_root_export_is_carried_or_listed() {
     let layer_lib = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../profile/src/lib.rs");
     let src = std::fs::read_to_string(&layer_lib)
         .unwrap_or_else(|e| panic!("reading {}: {e}", layer_lib.display()));
+    let src = code_without_cfg_gated(&src);
     let mut exported = module_pub_use_names(&src);
     exported.append(&mut root_declared_pub_names(&src));
 

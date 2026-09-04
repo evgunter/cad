@@ -344,6 +344,19 @@ pub fn insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
         .expect("the insert landed")
 }
 
+/// One node's row status out of a tree render — the lookup five
+/// suites had written out by hand.
+///
+/// Panics rather than answering `None`: every id these rows pass is
+/// one the document holds, so a missing row is the failure, not a
+/// case to handle.
+pub fn status_of(rows: &[viewer::tree::TreeRow], id: RecipeNodeId) -> viewer::tree::RowStatus {
+    rows.iter()
+        .find(|row| row.id == id)
+        .map(|row| row.status.clone())
+        .unwrap_or_else(|| panic!("node {id:?} has a row"))
+}
+
 /// `got` and `want` agree to one part in 10⁹, relatively.
 ///
 /// The 1e-9 is a chosen bound, not a derived one: the closed-form
