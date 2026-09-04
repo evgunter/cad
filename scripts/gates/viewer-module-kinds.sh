@@ -135,6 +135,22 @@ VOCAB_TABLES=(
   "### The app's vocabularies"
 )
 
+# LIST MEMBERSHIP IN BASH, not `printf … | grep -qxF`. `grep -q` as a
+# predicate is sanctioned by `lib.sh`, but only where exit 1 IS the
+# answer — and here a grep that could not run (exit 2) would read as
+# "not in the list", which is a FALSE RED on the roster checks and a
+# silently DROPPED exemption on the exception check. The lists are five
+# to forty short strings held in memory; nothing needs a subprocess to
+# search them, and one that cannot fail cannot fail wrong.
+contains() {
+  local needle=$1 item
+  shift
+  for item in "$@"; do
+    [ "$item" = "$needle" ] && return 0
+  done
+  return 1
+}
+
 # The kind a file declares, or the empty string. Count and value are
 # read separately so "declares two kinds" is a distinct diagnosis from
 # "declares one".
@@ -206,7 +222,7 @@ gate() {
   # module cannot promote itself by editing its own header.
   local d
   for rel in ${driver[@]+"${driver[@]}"}; do
-    if ! printf '%s\n' "${DRIVER_ROSTER[@]}" | grep -qxF "$rel"; then
+    if ! contains "$rel" "${DRIVER_ROSTER[@]}"; then
       gate_error "$SRC/$rel declares itself a DRIVER and is not on this gate's driver roster. $README says there are exactly two drivers (\`session\` and \`app\`, the latter split across \`app\`, \`pane\`, \`widgets\` and \`gpu\`) — a third one is a README amendment plus an entry here, not a header edit, because a module that declares \`driver\` is exempt from every import check below"
       rc=1
     fi
@@ -215,7 +231,7 @@ gate() {
     if [ ! -f "$SRC/$d" ]; then
       gate_error "$(gate_name): the driver roster names $SRC/$d, which is not a file under $PWD — this list has no filesystem to derive itself from, so a roster entry naming nothing is a roster entry watching nothing. Fix the path or drop the entry deliberately"
       rc=1
-    elif ! printf '%s\n' ${driver[@]+"${driver[@]}"} | grep -qxF "$d"; then
+    elif ! contains "$d" ${driver[@]+"${driver[@]}"}; then
       gate_error "$(gate_name): the driver roster names $d but $SRC/$d does not declare \`//! Module kind: **driver**\` — a module demoted in its own header while this list still exempts it is exempt from every import check and classified as a vocabulary by every reader"
       rc=1
     fi
@@ -228,7 +244,7 @@ gate() {
   # stays green, and a string literal cannot fire it either.
   local -a scanned=() ex
   for rel in ${vocab[@]+"${vocab[@]}"}; do
-    if printf '%s\n' "${VOCAB_EXCEPTIONS[@]}" | grep -qxF "$rel"; then continue; fi
+    if contains "$rel" "${VOCAB_EXCEPTIONS[@]}"; then continue; fi
     scanned+=("$SRC/$rel")
   done
   if [ "${#scanned[@]}" -eq 0 ]; then
@@ -254,7 +270,7 @@ gate() {
       rc=1
       continue
     fi
-    if ! printf '%s\n' ${vocab[@]+"${vocab[@]}"} | grep -qxF "$ex"; then
+    if ! contains "$ex" ${vocab[@]+"${vocab[@]}"}; then
       gate_error "$(gate_name): the exception list names $ex, which no longer declares \`//! Module kind: **vocabulary**\` — an exception to the vocabulary rule on a module that is not a vocabulary exempts nothing and hides the module from every check here"
       rc=1
       continue
@@ -292,7 +308,7 @@ gate() {
       if [ ! -f "$SRC/$path" ]; then
         gate_error "$README's \"$table\" lists \`$row\`, which is not a module in the tree ($SRC/$path does not exist) — the table outran the code"
         rc=1
-      elif ! printf '%s\n' ${vocab[@]+"${vocab[@]}"} | grep -qxF "$path"; then
+      elif ! contains "$path" ${vocab[@]+"${vocab[@]}"}; then
         gate_error "$README's \"$table\" lists \`$row\` as a vocabulary, but $SRC/$path declares itself a DRIVER — the README and the module disagree about what the module is, which is the drift a per-module declaration buys and this check pays for"
         rc=1
       fi
