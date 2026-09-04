@@ -149,3 +149,32 @@ the lane resumes as the same arm. The three E-class units run as
 MECHANICAL units on Ev's "use your judgment" (in-chat): opus, no
 review lane, no row, merged on green CI plus the orchestrator's read —
 `docm/capend-ends`, `docm/spec2-slots`, `docm/revolve-pole-rule`.
+## revolve-pole-export-interior-on-axis-vertex MERGED (2026-09-04, PR 1839)
+
+Mechanical unit (opus, no review lane, no row; merged on green CI plus
+the orchestrator's read of the diff). The rule as filed held on the
+first run of both rows. One note for the WORK-TRACKS doc, which still
+lists the question as open; that doc is a dated proposal and is not
+edited.
+## fused-step-slot-aliases-arrival-spec MERGED (2026-09-04, PR 1840)
+
+Mechanical unit (opus, no review lane, no row; merged on green CI plus
+the orchestrator's read of the diff). One material deviation, disclosed:
+the `SetParam`/`SetExpression`/`expr_at` rows the item asked for cannot
+exist, because the VQ9 insert door and the snapshot walk refuse a
+program carrying an arrival `Sweep`/`ArcLen`/`Bulge` — the payload's
+`expr`/`expr_mut` half is pinned instead, and the door's refusal with it.
+No content-key tag was involved (`StepArg` feeds no key).
+## capend-top-bottom-contradicted-by-negative-extrude MERGED (2026-09-04, PR 1851)
+
+Mechanical unit (opus, no review lane, no row; merged on green CI plus
+the orchestrator's read of the diff): `CapEnd::{End, Start}`, 76 files
+of which the substance is the enum, the emitter's two loops, the
+Python mirror, the corpus and seven digest pins re-taken through their
+own doors, and the adopted probe. Two judgement calls accepted: the
+variant declaration order kept (the derived `Ord` is every name
+table's row order) and the probe moved out of the review record rather
+than rewritten in place. Filed: the sweep crate's `top` field docs
+(`work/issues/`). Noted for CIW's ground, not filed: the k-lint job's
+byte-for-byte die-corpus step is SKIPPED on the tier this PR drew, so
+hosted CI did not re-derive the regenerated corpus itself.

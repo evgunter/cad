@@ -222,7 +222,7 @@ fn seated(
     let (doc, _mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(in_part(base, CapEnd::Top), in_part(top, CapEnd::Bottom)),
+            node: seat(in_part(base, CapEnd::End), in_part(top, CapEnd::Start)),
         },
     );
     (doc, opts, base, top, tail)
@@ -341,8 +341,8 @@ fn named_face_z(ev: &Evaluation<f64>, at: RecipeNodeId, name: &StableName) -> f6
 fn step3_the_mated_faces_in_the_product() {
     let (doc, opts, base, top, xf) = seated("xblind-faces", true);
     let ev = run(&doc, &opts);
-    let a = in_part(base, CapEnd::Top);
-    let b = in_part(top, CapEnd::Bottom);
+    let a = in_part(base, CapEnd::End);
+    let b = in_part(top, CapEnd::Start);
 
     let a_z = named_face_z(&ev, base, &a);
     let b_at_instance = named_face_z(&ev, top, &b);
@@ -434,13 +434,13 @@ fn step4_pattern_over_transform_refuses_today() {
         node: pattern,
         path: vec![RoleSeg::Instance {
             i: 1,
-            of: Box::new(in_part(top, CapEnd::Bottom)),
+            of: Box::new(in_part(top, CapEnd::Start)),
         }],
     };
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: seat(in_part(base, CapEnd::Top), copy_face),
+            node: seat(in_part(base, CapEnd::End), copy_face),
         },
     );
     let mate = mate.unwrap();

@@ -3,9 +3,10 @@
 //! defers, run at rest against a body's declared-contact records.
 //!
 //! **Sweep shape**: quadratic all-pairs sweeps in arena order
-//! (vertex×vertex, vertex×edge, vertex×face, edge×face, edge×edge) —
-//! the boolean edge×face convention: correctness first, the BVH filter
-//! is PERF-PLAN's later 10×. Exact on the F5 planar subset (`Line`
+//! (vertex×vertex, vertex×edge, vertex×face, edge×face, edge×edge),
+//! plus the conformal-patch arm and the cross-solid backstop named
+//! below — the boolean edge×face convention: correctness first, the
+//! BVH filter is PERF-PLAN's later 10×. Exact on the F5 planar subset (`Line`
 //! carriers, `Plane` surfaces). **Since M9-2 the census ADMITS every
 //! carrier kind**, and its reach is exactly this, stated class by
 //! class (the union fix's truth pass):

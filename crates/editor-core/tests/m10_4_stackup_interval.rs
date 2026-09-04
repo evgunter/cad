@@ -363,8 +363,8 @@ fn slab(half: f64) -> (ProfileDoc, RecipeNodeId) {
         distance: param("depth", Dimension::Length),
     });
     let refs = vec![
-        MeasureRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Bottom))),
-        MeasureRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Top))),
+        MeasureRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Start))),
+        MeasureRef::new(block, fname(block, RoleSeg::Cap(CapEnd::End))),
     ];
     let m = r.insert(
         Node::measure(
