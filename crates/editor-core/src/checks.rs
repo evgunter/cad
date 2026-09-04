@@ -816,7 +816,7 @@ fn separation<T: Decide + CertifiedBounds>(
             return;
         }
     };
-    let declared = declared_pairs(&gathered);
+    let declared = declared_pairs(gathered);
     for (j, later) in gathered.solid_roots.iter().enumerate() {
         for earlier in &gathered.solid_roots[..j] {
             if (earlier.node, earlier.output) == (later.node, later.output) {
