@@ -3287,3 +3287,18 @@ landing on its named row).
 TALLY: no new candidates (the principal bilateral) — still 7
 pending the blinded coding. Pair COUNTS (R2's resume flagged).
 Union fix pass out (opus, implementer-inherited).
+## RIMCAP PR-1 merged (#1674, 2026-09-04) — ordinal-113 row (sample #123, no collision)
+
+The fix pass landed the whole union AND refuted one union
+instruction by measurement (the :441 cite was correct at the
+opening head — the orchestrator's fix was the error; recorded).
+TogetherEdgeDisagreement's doc/Display rewritten to enumerate
+its three meters with a constructed-error pin off payload
+fields; the fifth refusal string pinned on the buildable
+lune(0.3,20°); the cavity-volume row (rel 5.70e-15); reflex-270°
+and outward-offset rows pinning R1's exact numbers; the sealed
+assert tightened; the spec item-1 re-cut to both arms. The
+sphere rim capability ships; the klein elbow waits on the TORUS
+half (the spiric carrier design conversation in the RIMCAP
+spec); C5ARMS rows 3/4/8 wait with it. Lane swept. REMAINING
+IN-FLIGHT: the 1031B fix pass (the program's last open unit).
