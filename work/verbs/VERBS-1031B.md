@@ -87,7 +87,7 @@ with every annulus inside out and `validate_geometric` stays `Ok(())`.
 Nothing regressed (check 6 skipped those loops before too) — what is
 new is that a PRODUCER now feeds the class. The divergence, that
 evidence, and the flip condition (port the arm into
-`validate.rs:3529`'s check-6 site, whose refusal-surface-change cost is
+`validate.rs:3549`'s check-6 site, whose refusal-surface-change cost is
 why this unit's fence deferred it) are owned by
 `work/verbs/verbs-1031b-assigner-checker-divergence.md`, cross-recorded
 at `work/props/m6-sense-gate-recorded-residuals.md:20` — the register

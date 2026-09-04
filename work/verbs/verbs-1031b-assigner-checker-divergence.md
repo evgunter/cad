@@ -14,8 +14,8 @@ VERBS-1031B ported `boolean::join::ring_run_ccw`'s arc machinery into
 now decides Line-, Circle- and Ellipse-bounded cycles at that site.
 `validate.rs`'s tier-3 **check 6** — the third site of the same
 predicate — still guards on `all_lines` and `continue`s past every
-conic-bounded loop (`crates/topo/src/validate.rs:3529`, the guard;
-`:3574`, the shared `decide` call).
+conic-bounded loop (`crates/topo/src/validate.rs:3549`, the guard;
+`:3594`, the shared `decide` call).
 
 The three sites no longer cover the same carrier set, and the split is
 not in a harmless direction:
@@ -59,7 +59,7 @@ exists to close.
 ## Flip condition
 
 **Port the winding arm into `validate.rs`'s check-6 site** — widen the
-`all_lines` guard at `validate.rs:3529` the way
+`all_lines` guard at `validate.rs:3549` the way
 `merge_faces::loop_winding` was widened, adding the same per-conic
 bulge `axis · sa·sb · (Δ − sin Δ)` and the same arc-length re-metering,
 leaving NURBS as the honest remainder. The arithmetic is already
