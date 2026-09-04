@@ -294,8 +294,45 @@ way, since all four guards live in `crates/pncad/tests/all.rs`.
 
 ### The question for Ev
 
-Is a second, date-pinned nightly toolchain — with its own bump
-discipline, in a repo that pins its compiler for determinism — worth
-buying a blind-spot class with no instances in the tree, when two of
-the three things the rustdoc-JSON pass was wanted for turn out to be
-reachable by the text scanners already in the same file?
+**Restated 2026-09-04 by the CIW orchestrator, because the first
+spelling stacked the deck.** It led with the cost, called the benefit
+"a blind-spot class with no instances", and closed on "already
+reachable" — three clauses all tilting to no, on the one sentence Ev
+decides from. The recommendation below is unchanged and is still (2);
+what changes is that the case for (1) is now stated at its strongest
+rather than as an absence.
+
+> Do we buy a **structural** check of the façade's real public API —
+> one that reads what the compiler actually exports rather than what
+> someone remembered to grep for, and so reaches aliases, public
+> fields, associated types and below-root names that text scanning
+> cannot reach in principle — at the price of a second date-pinned
+> nightly toolchain with its own bump discipline, ~90–120 s a night,
+> in a repo whose determinism argument opens with a pinned compiler?
+
+**The case for (1), stated properly.** These guards make a claim about
+the *API* — "no arena key is nameable through the façade" — and only a
+tool that reads the API can check it. A text scanner catches the
+spellings someone thought to enumerate; that is not a defect in these
+three guards, it is the ceiling of the technique. **The best evidence
+for that is this unit's own new finding**: both LB13 guards are
+line-local, and 33 of the façade's 77 `pub use` statements open a
+multi-line brace list (15 naming `editor_core::`), so a key added
+inside an existing list — the natural spelling of the regression — is
+invisible to the guard built to catch it. A structural check would
+never have had that hole, and would not acquire the next one like it.
+The cost is also genuinely small: +3.9 % nightly runner load, +0 wall
+clock, $0, and nothing on the per-PR gate.
+
+**The case for (2) is unchanged** and is above: two of the three
+purchases are text-reachable (one demonstrably, fifty lines away), the
+alias class has no live instance, and the deciding asymmetry is
+reachability by an ordinary edit — the regressions the text scans
+catch are one line someone could plausibly write, while an aliased or
+field-exposed key takes a coordinated two-crate edit whose second half
+already trips an assert. Against that sits a second pinned compiler,
+an unstable schema under *negative*-claim guards where a moved format
+reads as green, and a toolchain this repo has never once installed.
+
+Both cases are now on the page. The recommendation stays (2); the
+ruling is Ev's.
