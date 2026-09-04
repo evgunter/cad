@@ -3302,3 +3302,23 @@ sphere rim capability ships; the klein elbow waits on the TORUS
 half (the spiric carrier design conversation in the RIMCAP
 spec); C5ARMS rows 3/4/8 wait with it. Lane swept. REMAINING
 IN-FLIGHT: the 1031B fix pass (the program's last open unit).
+## 1031B merged (#1671, 2026-09-04) — ordinal-114 row (sample #125 after the M10-7 collision)
+
+THE REGISTER'S LAST OPEN UNIT LANDS. The fix pass filed the
+assigner/checker divergence as a committed artifact with the
+refusal-surface measurement as the follow-up's opening step,
+pinned the Ellipse arm (both reviewers' mutations covered by one
+asserted value — they scale the margin by the same major/minor
+factor from opposite sides), pinned the perimeter re-metering
+via the module's one test-visible seam, and caught one
+ε-fragility of its own via CI (re-derived band-relative,
+recorded). The teapot cup merges whole; the register's
+gate-admission deferral is closed by citation; #1031 can close.
+
+PROGRAM STATE AT THIS MERGE: every register implementation row
+is DELIVERED or MEASURED-AND-REFUSED with a typed door and an
+owner. Remaining before the exit walk ratifies: the blinded
+coding session (7 candidates; the analysis agent's, not the
+orchestrator's), the design conversations (#1372, #1377, the
+RIMCAP torus half), and the transfers already recorded. The
+exit-walk draft in staging updates next.
