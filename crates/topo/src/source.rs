@@ -186,7 +186,7 @@ pub(crate) fn plane_bits_witness<T: geom_core::Real>(
         (n1.y, n2.y),
         (n1.z, n2.z),
     ];
-    bits_witness(pairs)
+    bits_witness(&pairs)
 }
 
 /// Debug-only bit agreement of two vectors (the `u_ref` leg of the
@@ -197,15 +197,18 @@ pub(crate) fn vec3_bits_witness<T: geom_core::Real>(
     a: geom_core::Vec3<T>,
     b: geom_core::Vec3<T>,
 ) -> Option<bool> {
-    bits_witness([(a.x, b.x), (a.y, b.y), (a.z, b.z)])
+    bits_witness(&[(a.x, b.x), (a.y, b.y), (a.z, b.z)])
 }
 
 /// `Some(all pairs bit-equal)` where the scalar has a bit channel,
 /// `None` where it has none — the one fold both witnesses share, so
-/// a channel-less scalar cannot read as disagreement at either.
+/// a channel-less scalar cannot read as disagreement at either. A
+/// slice rather than a const-generic array: the debug-only gate reads
+/// an item's extent from its attribute to its first brace, and the
+/// `;` inside an array type would end that read before the use.
 #[cfg(debug_assertions)]
-fn bits_witness<T: geom_core::Real, const N: usize>(pairs: [(T, T); N]) -> Option<bool> {
-    pairs.into_iter().try_fold(true, |agree, (a, b)| {
-        geom_core::bit_identity::eq_bits(&a, &b).map(|eq| agree && eq)
+fn bits_witness<T: geom_core::Real>(pairs: &[(T, T)]) -> Option<bool> {
+    pairs.iter().try_fold(true, |agree, (a, b)| {
+        geom_core::bit_identity::eq_bits(a, b).map(|eq| agree && eq)
     })
 }
