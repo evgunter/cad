@@ -71,7 +71,9 @@ Ev's standing instructions for implementation work:
   the doc to state the question, update in place with the answer) with
   `needs_ev: true` on the asking item in `work/` — NEVER comments on
   merged PRs, he doesn't scan them. Watch 👍 reactions only on comments
-  you explicitly requested sign-off on.
+  you explicitly requested sign-off on. Arrange to be woken by comments
+  on every `[ev]` PR you open (the away-channel monitor locally, a PR
+  subscription on a remote box) — the answer arrives as a comment.
 - **State-sync records RIDE THE UNIT'S OWN PR (Ev, 2026-08-27)** — a
   unit's ledger row and log entries go on as one more commit to that
   unit's branch. Two conditions: **LAST, after both reviews are
@@ -94,8 +96,8 @@ Ev's standing instructions for implementation work:
 - **Reviews**: assign reviewers explicit claims to falsify AND point
   them at `docs/prompts/reviewer-style-lane.md` by path (dispatcher
   notes: `docs/REVIEW-STYLE-DISPATCH.md`) — the claims lane is strong on
-  soundness and blind to structure. Promote reviewer suites into CI
-  after the fix pass ([[review-and-dependency-policy]]).
+  soundness and blind to structure. A reviewer's useful rows go into
+  the suite as ordinary tests ([[review-and-dependency-policy]]).
 - **A finding with no durable home cannot warn anyone.** At
   ADJUDICATION time, as part of reading a report, any finding asserting
   a CLASS rather than an instance gets a log line or an issue. A report

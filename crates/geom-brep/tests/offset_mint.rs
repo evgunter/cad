@@ -142,8 +142,8 @@ fn torus_dist(center: Point3<f64>, axis: Vec3<f64>, big_r: f64, r: f64, q: Point
 /// perpendicular distance to the generator line in the meridian
 /// half-plane through the point, positive outside the nappe.
 /// **Deliberately not shared with `offa_r1_probes.rs`'s** restatement
-/// of it — see that copy: a closed-form oracle the reviewer re-derives
-/// is the one thing `shared/` must never absorb.
+/// of it — see that copy: a closed-form oracle this probe re-derives
+/// is its own derivation, and stays here on that ground.
 fn cone_dist(apex: Point3<f64>, axis: Vec3<f64>, alpha: f64, q: Point3<f64>) -> f64 {
     let rel = q - apex;
     let h = rel.dot(axis);

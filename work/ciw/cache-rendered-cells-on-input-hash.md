@@ -2,10 +2,11 @@
 id: cache-rendered-cells-on-input-hash
 kind: issue
 title: Cache rendered cells on their input hash, to close the window where main's committed renders are stale
-status: open
+status: parked
 opened: 2026-08-18
 github: 603
 refs: [598]
+blocked_on: [rust-cache-never-restores-across-branches]
 ---
 
 ## From GitHub issue 603
@@ -61,3 +62,44 @@ https://claude.ai/code/session_013rfD4xGEJuD41qXBW8JR2r
 ## Home
 
 `work/issues/`: `.github/workflows/render.yml` and `ci.yml` are S-QA's territory and S-QA is closed; no open program's charter names the render lanes.
+
+## Parked (2026-09-04, CIW): the cache this needs is already being evicted
+
+Not withdrawn — the staleness window is real and this issue's own
+non-goal ("not a runner-minutes optimization") survives the repository
+going public untouched, since it never rested on minutes. What parks it
+is a measurement that did not exist when it was filed.
+
+TCOST-C4 (PR 1648, merged 2026-09-03) measured this repository's
+**Actions cache budget churning a ~205 MB entry out inside the hour**:
+five restore attempts on one branch, hits at 9 and 17 minutes, misses
+at 38, 60 and 88. The budget is 10 GB for the whole repository and the
+build lanes' own `rust-cache` entries live in it — on the same runs,
+`rust-cache` reported `No cache found` on five of seven build jobs
+(`work/tcost/rust-cache-never-restores-across-branches`).
+
+A render-cells cache is ~55 cells across two PNG lanes, keyed per lane,
+and would sit in that same budget. Two consequences, both against
+building it now:
+
+- **It would mostly miss.** The window this issue exists to close is
+  "the minutes between a PR's last render and main's own run" — the
+  same order as the eviction interval measured above. A cache that has
+  been evicted by the time main asks for it closes nothing.
+- **It would make the worse problem worse.** Every megabyte it holds is
+  a megabyte evicting the build-lane entries that sit on the gate's
+  critical path. Trading the render lanes' staleness window for a colder
+  build job is a bad trade, and it is a trade this issue's sketch does
+  not price.
+
+**Unparked by:** an answer to the budget question — either the budget
+stops being the binding constraint (an eviction policy, a smaller
+working set, a paid tier), or it is measured and found to hold a
+render-cells entry for long enough. Both are
+`work/tcost/rust-cache-never-restores-across-branches`, which is why
+this item is blocked on it rather than on a date.
+
+The correctness design in the sketch above needs no revision and should
+be reused as-is when it unparks — keying on the inputs plus the runner
+image version, never on the previous run, is right, and the reasoning
+against reusing a PR run's artifact is unaffected by any of this.

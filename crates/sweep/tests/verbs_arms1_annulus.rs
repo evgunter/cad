@@ -36,8 +36,9 @@
 
 use core::f64::consts::FRAC_1_SQRT_2;
 
+use crate::common::approx::band;
 use geom::Surface;
-use geom_core::{Band, Tol};
+use geom_core::Tol;
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::BlendError;
@@ -48,10 +49,6 @@ use topo::{Body, EdgeKey, FaceSurface, ValidationError, mass_properties, validat
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 /// The dome's profile, verbatim from the R1 probe suite: a sphere zone

@@ -1411,18 +1411,21 @@ fn spec_lit(spec: &profile::ArcData<f64>) -> Result<ProgramArcData, RecordedProg
 }
 
 impl LoopProgram {
-    /// A literal polygon: `At(p0)`, `LineTo(p1)`, …, `LineTo(Start)` —
-    /// the VQ5 expansion of the polygon builder, at literal points
-    /// (corpus/fixture authoring; parametric authors write the steps
-    /// with their own Exprs).
+    /// A polygon over EXPRESSION corners: `At(p0)`, `LineTo(p1)`, …,
+    /// `LineTo(Start)` — the VQ5 expansion of the polygon builder, at
+    /// arbitrary points, so a document whose corners are driven by
+    /// document parameters reaches the builder rather than spelling
+    /// the expansion out.
     ///
-    /// # Errors
+    /// Infallible: every coordinate is already an [`Expr`], so there
+    /// is no literal left to refuse.
     ///
-    /// A non-finite coordinate (the literal door's refusal).
-    pub fn polygon(points: impl IntoIterator<Item = (f64, f64)>) -> Result<Self, DimensionError> {
+    /// This is the ONE expansion. [`LoopProgram::polygon`] is this
+    /// door at literal corners, so the two spellings of a polygon
+    /// cannot drift apart.
+    pub fn polygon_expr(points: impl IntoIterator<Item = [Expr; 2]>) -> Self {
         let mut steps = Vec::new();
-        for (i, (x, y)) in points.into_iter().enumerate() {
-            let p = [len_lit(x)?, len_lit(y)?];
+        for (i, p) in points.into_iter().enumerate() {
             steps.push(if i == 0 {
                 ProgramStep::At(p)
             } else {
@@ -1430,7 +1433,21 @@ impl LoopProgram {
             });
         }
         steps.push(ProgramStep::LineTo(ProgramTarget::Start));
-        Ok(LoopProgram::Chain(steps))
+        LoopProgram::Chain(steps)
+    }
+
+    /// A literal polygon — [`LoopProgram::polygon_expr`] at literal
+    /// corners (corpus/fixture authoring).
+    ///
+    /// # Errors
+    ///
+    /// A non-finite coordinate (the literal door's refusal).
+    pub fn polygon(points: impl IntoIterator<Item = (f64, f64)>) -> Result<Self, DimensionError> {
+        let corners = points
+            .into_iter()
+            .map(|(x, y)| Ok([len_lit(x)?, len_lit(y)?]))
+            .collect::<Result<Vec<_>, DimensionError>>()?;
+        Ok(Self::polygon_expr(corners))
     }
 
     /// Lift a RECORDED PATHS program to its document form — the

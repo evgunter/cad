@@ -54,3 +54,34 @@ behind PCURVE P-2; the SSI family's certificate should be executed with
 PCURVE, this item being the frontier's home rather than a claim on that
 code. Not blocking M10-7 (explicit quantities), which is what the
 two-hole plate needs.
+
+---
+
+**The census landed** (M10-7, 2026-09-04). PR #1231's two sweeps re-run
+on M10-7's head find 66 identity-shaped names (57 at that PR's merge
+base). Buckets, with the evidence, in `geom_core::sym`'s module docs and
+M10-7's PR body:
+
+- **IMPLICIT — exactly the four this item already names**, confirmed
+  rather than widened: `ssi_on_locus`, `ssi_on_locus_foot`,
+  `plane_nurbs_on_locus`, `offset_reanchor_on_carrier`.
+- NOT A PREDICATE — 6 (`coincide`, `coincident`, `carrier_kind`,
+  `carrier_in_chain`, `rebind_identity`, `frame_coincidence`).
+- EXPLICIT — 56, of which 8 are measured discharging symbolically on the
+  M10 fixtures and the tour's plate.
+
+**And one family that is EXPLICIT and this tier still misses**, which
+belongs beside the frontier even though it is not implicit: an ARC rim's
+endpoint pinning. A swept arc's carrier is
+`Circle { center: c, radius: r, u_ref: (q − c).normalize() }`
+(`crates/sweep/src/swept.rs`), so `‖carrier.eval(0) − q‖` is zero iff
+`‖q − c‖ = r` — a fact about the RADIUS'S SIGN, not a rational-function
+identity, so no normal form reaches it. Measured: the two-hole plate's
+whole-certifying ceiling is unmoved by the tier (7.81e-7 of the real
+study either way) and `carrier_endpoint_start` is the first refusal
+beyond it, where the straight-walled slab's ceiling moves by ~8·10^9.
+E12's reserved recourse — a provenance token, "built as the arc's far
+endpoint", discharged structurally and verified at the f64 witness — is
+the shape that closes it; this item is where it should be scheduled
+against, since the driver's refusal for it is the same typed-and-priced
+refusal the implicit rows get.

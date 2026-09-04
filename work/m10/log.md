@@ -734,6 +734,17 @@ The directory now holds only its units, its narrative and (for S-MATE)
 the `MATE-EXIT` ruling, so the sweep at ratification leaves nothing
 behind.
 
+## Handoff note from SHELL (2026-09-04)
+
+Ev ruled B on `[ev]` #1737: the body-level half of
+`crates/editor-core/src/clearance.rs` (the cell subdivision over
+`Body<Interval>`, `min_separation` and its types) moves into `topo`
+behind `interval`, and editor-core's leaf/param-box half calls down.
+SHELL cuts it as `work/shell/SHELL-3.md`, a joint unit; M10-7 (#1725)
+does not touch the file, measured, so the move is sequenced after
+#1725 merges and SHELL asks the M10 orchestrator to co-review. The
+gate itself is SHELL-4.
+
 ## M10-7 opened: the program does not close at ε (2026-09-03)
 
 Ev, reading the exit walk's honesty row 1: "we need to make this
@@ -846,3 +857,33 @@ M10-8; the `PIPESTATUS` pattern across `ci.yml` goes to CIW by
 issue; M10-8's scope widens to the whole arc family with R2's
 per-predicate numbers; the guided lift refusing a parametric
 profile chain is filed if no item exists.
+
+## M10-7 MERGED (2026-09-04)
+
+PR #1725 merged, sample #124 (ordinal 508). Certification is
+parameter-aware for explicit geometry: a margin that is identically
+zero in the parameters decides `Zero` at any box width, inside the
+scalar, with no funnel site touched — the M10-3 limit rows are
+positive pins now, the slab's certifying half-width moved from ε/8
+to 0.488 on a 1.0 nominal, and the ±0.05 study certifies in one
+leaf at the shipped depth. The reviews did their job in the
+direction that matters. R2 found the unit had DISARMED the driver K
+gate it was supposed to feed — the new outcome token was unknown to
+k-lint, zero samples were linted, and the step stayed green through
+a status-capture hole that had made the row incapable of failing
+since M10-6 wrote it; the fix gives the outcome vocabulary one home,
+makes the gate able to red, and the merge run's log shows the three
+driver CSVs read with rule 1 at zero. R1 found the ceiling's stated
+mechanism was wrong — ε-dependent, bounded by dependency widening in
+NON-identity margins (the Newell normal poisoning), not by the flip
+the row claimed — so E12's "plain intervals suffice for the real
+margins" has a caveat, filed as the class after M10-8. Both found
+that every opaque value shared one id and could cancel to a false
+theorem through a public door. And both e2e walks agreed that on
+curved geometry a real study still gets the pre-E12 answer: the
+arc family the tier misses is wider than D4's rim endpoint, and
+M10-8's scope is widened to it with R2's per-predicate numbers. The
+program's second symmetric tally pair. Twenty-eight deviations, the
+plate's miss among them stated in the tour's own caption. The spec
+leaves `docs/` with this merge; M10-8 is next, and the exit walk
+stays a draft until it lands.

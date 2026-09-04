@@ -43,7 +43,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use editor_core::appearance::Rgba8;
 use eframe::egui;
-use egui_tiles::{EditAction, Tile, TileId, Tiles, Tree, UiResponse};
+use egui_tiles::{ContainerKind, EditAction, Tile, TileId, Tiles, Tree, UiResponse};
 use pncad::document::{
     Axis3, BooleanOp, Dimension, DimensionError, DocumentId, Expr, LoopProgram, ParamName,
     ProductError, RecipeNodeId, SlotId,
@@ -54,6 +54,7 @@ use pncad::quantity::{self, AngleUnit, LengthUnit, UnitDef, WrittenAngle, Writte
 
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::camera::{self, Camera, CameraOp};
+use crate::combine::PatternOutputChoice;
 use crate::datums;
 use crate::display::{DisplayView, free_move_check};
 use crate::evalseam::Generation;
@@ -117,6 +118,34 @@ const UNTITLED: &str = "untitled";
 /// properties — the document's model, as against the View pane's
 /// display settings.
 const MODEL_TAB_TITLE: &str = "Model";
+
+/// A container's tab title, in words.
+///
+/// A tab title is prose a person reads, so the layout vocabulary is
+/// spelled here rather than taken from `ContainerKind`'s `Debug`. The
+/// match is exhaustive over a foreign enum on purpose: a kind added
+/// upstream breaks this build instead of quietly reaching a user as a
+/// type identifier, which is the guarantee `Debug` cannot give whether
+/// or not the new kind carries a field.
+fn container_kind_title(kind: ContainerKind) -> &'static str {
+    match kind {
+        ContainerKind::Tabs => "Tabs",
+        ContainerKind::Horizontal => "Columns",
+        ContainerKind::Vertical => "Rows",
+        ContainerKind::Grid => "Grid",
+    }
+}
+
+/// The status line for a referent the resolution machinery cannot
+/// place right now.
+///
+/// The cause is rendered through its OWN `Display`: the layer that
+/// raised the indeterminacy names it, and this one contributes only
+/// the noun it is talking about. Named rather than composed inside the
+/// render pass so the wording has one home and can be asserted on.
+pub fn indeterminate_wording(noun: &str, cause: &editor_core::ResolveIndeterminate) -> String {
+    format!("this {noun} cannot be resolved right now: {cause}")
+}
 
 /// The most of the Features/Properties stack the feature tree is
 /// auto-given: past this, the tree scrolls in its own half rather than
@@ -450,6 +479,10 @@ struct Drafts {
     transform_angle: f64,
     /// The pattern tool's rule choice.
     pattern_kind: PatternKindChoice,
+    /// Its output choice — which of the two doors the commit button
+    /// calls, and so whether the placements come out as separate
+    /// instances or as one fused body.
+    pattern_output: PatternOutputChoice,
     /// Its instance count — an INTEGER all the way from the field,
     /// because the slot it lands in is Count-typed and a number that
     /// was rounded on the way could differ from the one on screen.
@@ -516,6 +549,7 @@ impl Default for Drafts {
             transform_axis: [0.0, 0.0, 1.0],
             transform_angle: 0.0,
             pattern_kind: PatternKindChoice::Linear,
+            pattern_output: PatternOutputChoice::Instances,
             pattern_count: 3,
             pattern_direction: [1.0, 0.0, 0.0],
             pattern_spacing: 0.02,
@@ -2283,7 +2317,7 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
         }
         match tiles.get(tile_id) {
             Some(Tile::Pane(pane)) => self.tab_title_for_pane(pane),
-            Some(Tile::Container(container)) => format!("{:?}", container.kind()).into(),
+            Some(Tile::Container(container)) => container_kind_title(container.kind()).into(),
             None => "MISSING TILE".into(),
         }
     }
@@ -2752,20 +2786,45 @@ impl ViewerBehavior<'_> {
             }
             match &row.status {
                 RowStatus::Ok => {}
-                RowStatus::Unevaluated => {
+                // Nothing to act on HERE: the row was never run, or it
+                // shows someone else's failure and points at the row
+                // that owns it. Quiet, so the eye passes over it.
+                RowStatus::Unevaluated | RowStatus::Poisoned { .. } => {
                     ui.weak(row.status.badge());
                 }
-                RowStatus::Failed { .. } | RowStatus::Poisoned { .. } => {
+                // The ACTIONABLE rows — the nodes whose own operation
+                // refused — are the ones that take the colour, so a
+                // document with six rows downstream of one broken
+                // feature sends the eye to the one. There can be more
+                // than one: a `MateFault::Contradictory` naming two
+                // different mates blames both, and both go red
+                // (`tree::blamed_mates`).
+                RowStatus::Failed { .. } => {
                     ui.colored_label(chrome(self.theme.unresolved), row.status.badge());
                 }
             }
         });
-        // The typed payload's own message, indented under the row it
-        // belongs to. Never a sentence this module wrote.
+        // The line under the row: the payload's own words where the
+        // row failed, and where it did not, the pointer at the row
+        // that has them — which is a CLICK, so "that row" is one
+        // gesture away rather than an id to hunt for.
         if let Some(message) = row.status.message() {
+            let through = match &row.status {
+                RowStatus::Poisoned { through, .. } => Some(*through),
+                _ => None,
+            };
             ui.horizontal(|ui| {
                 ui.add_space(indent(row.depth) + INDENT_STEP);
-                ui.weak(message);
+                match through {
+                    Some(through) => {
+                        if ui.link(message).clicked() {
+                            self.ops.push(SessionOp::Select(Selection::Node(through)));
+                        }
+                    }
+                    None => {
+                        ui.weak(message);
+                    }
+                }
             });
         }
         // The node's standing caveat (a mate class with no at-rest
@@ -3058,7 +3117,7 @@ impl ViewerBehavior<'_> {
             Some(pncad::select::Resolution::Indeterminate(cause)) => {
                 ui.colored_label(
                     chrome(self.theme.unresolved),
-                    format!("this {noun} cannot be resolved right now: {cause:?}"),
+                    indeterminate_wording(noun, cause),
                 );
             }
         }
@@ -3158,11 +3217,11 @@ impl ViewerBehavior<'_> {
                 ui.weak("no picks yet");
             }
             MateToolState::One(a) => {
-                ui.weak(format!("pick a: face of instance {}", a.node.0));
+                ui.weak(format!("pick a: face of node {}", a.node.0));
             }
             MateToolState::Two { a, b } => {
                 ui.weak(format!(
-                    "pick a: instance {}; pick b: instance {}",
+                    "pick a: node {}; pick b: node {}",
                     a.node.0, b.node.0
                 ));
             }
@@ -3934,8 +3993,13 @@ impl ViewerBehavior<'_> {
     }
 
     /// The pattern tool's panel: a body pick, a rule choice with its
-    /// fields, the axis pick the circular rule needs, and the one
-    /// committed edit.
+    /// fields, the axis pick the circular rule needs, the output
+    /// choice, and the one committed edit.
+    ///
+    /// The output row is what fuses a pattern into the part: `fused`
+    /// commits `Node::PlacedUnion`, whose ONE body every downstream
+    /// seat consumes, where `instances` commits the several bodies a
+    /// boolean seat refuses.
     fn pattern_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.pattern() else {
             if ui.button("Pattern tool…").clicked() {
@@ -3952,6 +4016,12 @@ impl ViewerBehavior<'_> {
             ui.label("rule");
             for (kind, label) in PatternKindChoice::ALL {
                 ui.radio_value(&mut self.drafts.pattern_kind, kind, label);
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label("output");
+            for (output, label) in PatternOutputChoice::ALL {
+                ui.radio_value(&mut self.drafts.pattern_output, output, label);
             }
         });
         ui.horizontal(|ui| {
@@ -4003,13 +4073,16 @@ impl ViewerBehavior<'_> {
             ToolKind::Pattern,
             |drafts| match drafts.pattern_kind {
                 PatternKindChoice::Linear => Ok(tool.linear_op(
+                    drafts.pattern_output,
                     drafts.pattern_count,
                     scalars(drafts.pattern_direction)?,
                     drafts.length(drafts.pattern_spacing)?,
                 )?),
-                PatternKindChoice::Circular => {
-                    Ok(tool.circular_op(drafts.pattern_count, drafts.angle(drafts.pattern_step)?)?)
-                }
+                PatternKindChoice::Circular => Ok(tool.circular_op(
+                    drafts.pattern_output,
+                    drafts.pattern_count,
+                    drafts.angle(drafts.pattern_step)?,
+                )?),
             },
         );
     }
@@ -5439,8 +5512,11 @@ pub enum WebStartupError {
     /// refusals the native build reports to a terminal.
     Startup(StartupError),
     /// `eframe`'s own web runner refused, with whatever the browser
-    /// said. The one arm that cannot be typed further: it is a
-    /// `JsValue` from the platform, rendered through its `Debug`.
+    /// said. The one arm on this crate's surface that cannot forward
+    /// to its payload's own words: the platform hands back a
+    /// `JsValue`, which implements no `Display`, and the orphan rule
+    /// puts writing one out of this crate's reach. The captured text
+    /// is therefore a `Debug` rendering, taken at the seam.
     Runner(String),
 }
 
@@ -5518,5 +5594,11 @@ pub async fn run_web(tol: Tol, canvas_id: &str) -> Result<(), WebStartupError> {
             }),
         )
         .await
+        // The one payload on this crate's surface that CANNOT forward:
+        // `JsValue` is `wasm-bindgen`'s, it implements no `Display`,
+        // and the orphan rule forecloses writing one here. `Debug` is
+        // the honest rendering — `as_string()` is not the alternative,
+        // because it answers `None` for every non-string `JsValue` and
+        // would drop the browser's message entirely.
         .map_err(|error| WebStartupError::Runner(format!("{error:?}")))
 }

@@ -11,6 +11,7 @@ use geom_core::k_stats::decide;
 use geom_core::{Affine3, Band, Decide, Margin, Mat3, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use sweep::blend::BlendKind;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use topo::query::is_finite_length;
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
 use topo::{
@@ -478,8 +479,18 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
     Band::linear(tol).map_err(NodeErrorKind::Band)
 }
 
-/// Normalizes a direction-valued vector; decided-zero length refuses,
-/// in-band indeterminacy escalates.
+/// Normalizes a direction-valued vector; a non-finite length refuses,
+/// decided-zero length refuses, in-band indeterminacy escalates.
+///
+/// The finiteness question comes FIRST and is the kernel's own
+/// predicate ([`topo::query::is_finite_length`]), the same one
+/// [`topo::UnitVec3::new`] asks at the datum door: a length that
+/// overflowed to +∞ reads as a maximally definite positive margin and
+/// normalizes the vector to zero, so a decision taken before that
+/// question is a definite wrong answer. It is asked through the value
+/// channel every scalar has, with no bracket read and no threshold
+/// invented, so an enclosure of any width still passes and refuses
+/// later where it is unsound rather than here where it is merely wide.
 ///
 /// **Two doors, not one, and the split is a crate boundary.** This one
 /// carries the directions this layer OWNS — a transform's rotation
@@ -501,6 +512,12 @@ pub(crate) fn unit<T: Decide>(
     role: &'static str,
     band: Band,
 ) -> Result<Vec3<T>, NodeErrorKind> {
+    // `norm3` below recomputes this same value (`Vec3::norm` is
+    // deterministic), so the gate and the margin are the one length;
+    // it is spelled twice rather than reached into.
+    if !is_finite_length(v.norm()) {
+        return Err(NodeErrorKind::NonFiniteDirection { role });
+    }
     match decide("eval_direction_norm", Margin::norm3(v), band) {
         Ok(Sign::Positive) => Ok(v.normalize()),
         Ok(_) => Err(NodeErrorKind::DegenerateDirection { role }),

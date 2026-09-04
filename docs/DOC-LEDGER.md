@@ -519,6 +519,15 @@ whose unit had merged; each unit's record is its row in
 - `M10-3-SPEC.md` — M10-3, the E6 subdivision driver (#1231)
 - `M10-4-SPEC.md` — M10-4, sensitivities and the stackup (#1627)
 
+## Per-merge deletion — M10-7's spec (2026-09-04)
+
+Recoverable at `git show bb3fba8bc:docs/M10-7-SPEC.md` (the M10-7 unit
+head, before the state-sync commit that deleted it). The rule above;
+the unit's record is its row in `MODEL-AB-LOG.md` and its MERGED entry
+in `work/m10/log.md`.
+
+- `M10-7-SPEC.md` — M10-7, parameter-aware certification: the symbolic identity tier (E12) and the extent lever (E3) (#1725)
+
 ## Per-merge deletion — M10-6's spec (2026-09-03)
 
 Recoverable at `git show c0b38dadf3b5b7af4f6165ecd8d37ea51b39423b:docs/M10-6-SPEC.md`
@@ -650,6 +659,8 @@ at the parent of the commit that removed it):
 - `QA-8-SPEC.md` — QA-8 — what the rustdoc gate cannot see (D180 + D301, together) and the false copies (D181, D182)
 - `QA-9-SPEC.md` — QA-9 — the status line that invites wrong action (#1139)
 - `SEAT-4-SPEC.md` — SEAT-4 — the Verb substrate, carried by the blend pair (unit spec)
+- `SHELL-1-SPEC.md` — SHELL-1 — the `ShellNaming` birth channel: `shell`/`shell_open` return `Shelled<T>` (unit spec)
+- `SHELL-2-SPEC.md` — SHELL-2 — `transform_rigid` maps an `Approx` face through the scalar's re-certification lane (unit spec)
 - `TCOST-1-SPEC.md` — TCOST-1 — the per-file test gate (spec)
 - `VERBS-GERMARMS-SPEC.md` — VERBS-GERMARMS — the curved pierce ring lane + the cyl×cyl germ arm (two PRs)
 - `VERBS-SHELLFIX-SPEC.md` — VERBS-SHELLFIX — the two teapot-found shell defects (two PRs)

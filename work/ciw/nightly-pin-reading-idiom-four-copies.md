@@ -2,8 +2,10 @@
 id: nightly-pin-reading-idiom-four-copies
 kind: issue
 title: nightly.yml reads ci.yml's tool pins with a sed idiom that is now in four places and breaks silently on a second match
-status: open
+status: review
 opened: 2026-09-03
+pr: 1723
+branch: ciw/one-pin-reader
 ---
 
 
@@ -37,3 +39,31 @@ quoting right once), anchored to the workflow-level block rather than to
 
 Sites: `.github/workflows/nightly.yml:362`, `:363`, `:773`, `:1130`,
 `:1352`.
+
+## The class has now fired, on main (added 2026-09-04, CIW)
+
+Filed the day before as a hazard. It is no longer hypothetical:
+
+    c5263958  nightly: the gated-suite re-take's pin-read step had
+              unbalanced quotes and never ran
+
+Same file, same idiom, a sixth site — and the failure mode is the one
+this item names, one layer down: the guard each site carries catches an
+EMPTY answer, and this step did not get that far. It was found by a
+person reading a log, not by anything in CI.
+
+Sites re-checked on this tree (line numbers moved with the file):
+`.github/workflows/nightly.yml:635` and `:636` (MATURIN_VERSION,
+TY_VERSION), `:1064`, `:1421`, `:1643` (NEXTEST_VERSION).
+
+## One thing the fix has to clear, and it is small
+
+A `scripts/` helper named by `nightly.yml` trips
+`scripts/check-ci-mirror-parity.py`'s claim 1, which requires a
+`scripts/` path named by a workflow to be named literally by
+`local-scripts/ci-local.sh` too. The mechanism for a legitimate
+asymmetry already exists — `MIRROR_EXEMPT`, one entry with a sentence
+saying why the local half has no pin to read (it does not install from
+`ci.yml`'s pins). That is the whole cost; it is not the seam problem
+`python-suite-zero-test-guard-three-copies` faces, which moves a
+developer tool's contract.

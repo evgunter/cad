@@ -75,9 +75,8 @@ use pncad::document::{
     Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, Datum, Dimension,
     DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame,
     InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind,
-    ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, apply, assemble,
-    content_pin, evaluate, inline, load, mixed_pins, parse_expr, product_named, save,
-    solve_document, split,
+    ProfileDoc, ProfileProgram, RecipeNodeId, apply, assemble, content_pin, evaluate, inline, load,
+    mixed_pins, parse_expr, product_named, save, solve_document, split,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -174,26 +173,6 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
 fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol) {
     let applied = apply(doc, e, tol).unwrap_or_else(|err| panic!("edit refused: {err:?}"));
     *doc = applied.doc;
-}
-
-/// A rectangle in the sketch plane from two Expr corners — the
-/// parametric spelling of `LoopProgram::polygon`, which only takes
-/// literals.
-///
-/// GAP (#948): a parametric author writes the five steps by hand. The
-/// document's own doc comment says so ("parametric authors write the
-/// steps with their own Exprs"), and this function is what every
-/// parametric consumer will write until the loop vocabulary grows an
-/// Expr-bearing rectangle.
-fn rect(w: &Expr, h: &Expr, zero: &Expr) -> LoopProgram {
-    let pt = |x: &Expr, y: &Expr| ProgramTarget::Point([x.clone(), y.clone()]);
-    LoopProgram::Chain(vec![
-        ProgramStep::At([zero.clone(), zero.clone()]),
-        ProgramStep::LineTo(pt(w, zero)),
-        ProgramStep::LineTo(pt(w, h)),
-        ProgramStep::LineTo(pt(zero, h)),
-        ProgramStep::LineTo(ProgramTarget::Start),
-    ])
 }
 
 /// A mate frame: origin, primary axis, clocking reference.
@@ -304,11 +283,20 @@ fn prism_part(
         }),
         tol,
     );
+    // The section, counter-clockwise from the origin corner: the two
+    // extents are the document's own named parameters, so the corners
+    // are expressions and the loop is built from them directly.
+    let (width, height) = (pe(plan.0, &scope), pe(plan.1, &scope));
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
             plane,
-            loops: vec![rect(&pe(plan.0, &scope), &pe(plan.1, &scope), &zero)],
+            loops: vec![LoopProgram::polygon_expr([
+                [zero.clone(), zero.clone()],
+                [width.clone(), zero.clone()],
+                [width, height.clone()],
+                [zero.clone(), height],
+            ])],
         }),
         tol,
     );

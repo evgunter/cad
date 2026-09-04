@@ -79,7 +79,10 @@ fn findings_fail_with_the_discipline_message() {
     );
     // The flags themselves still print, in full, on stdout.
     let so = stdout(&out);
-    assert!(so.contains("2 samples, 2 flagged"), "summary line: {so}");
+    assert!(
+        so.contains("2 samples (0 symbolic_zero, 2 classified), 2 flagged"),
+        "summary line: {so}"
+    );
     assert!(so.contains("FLAG demo/bracket:carrier_line_circle"), "{so}");
 
     // The verdict is on stderr, so it survives a redirected stdout.
@@ -149,6 +152,45 @@ fn missing_input_is_harness_breakage() {
     assert!(stderr(&out).contains("usage: k-lint"));
 }
 
+/// **A driver population is LINTED, and its symbolic column is
+/// reported** — the row that would have caught the E6 gate going dark.
+///
+/// The symbolic identity tier writes `symbolic_zero` rows; this lint
+/// refused that token as harness breakage and exited 1 on the first one,
+/// so every driver CSV was rejected unread while the CI row still
+/// reported success (a separate `PIPESTATUS` defect, fixed in ci.yml).
+/// Two things are pinned here: the file parses at all, and the counts
+/// SAY how many of its samples never met a threshold, so a population
+/// that is mostly symbolic cannot read as a clean classified one.
+#[test]
+fn a_symbolic_population_lints_clean_and_says_how_much_of_it_was_symbolic() {
+    let path = csv(
+        "driver-symbolic.csv",
+        &format!(
+            "{HEADER}\n\
+             driver/slab_narrow,witness_at_mid_parameter,0e0,1e-100,1e-50,symbolic_zero\n\
+             driver/slab_narrow,carrier_endpoint_start,0e0,1e-100,1e-50,symbolic_zero\n\
+             driver/slab_narrow,volume_backstop,2.0,1e-9,1e-8,positive\n"
+        ),
+    );
+    let out = run(&[&path]);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "a symbolic zero answers to no rule, so this file is clean: {}",
+        stderr(&out)
+    );
+    let so = stdout(&out);
+    assert!(
+        so.contains("3 samples (2 symbolic_zero, 1 classified), 0 flagged"),
+        "the per-file line separates the two populations: {so}"
+    );
+    assert!(
+        so.contains("TOTAL over 1 file(s): 3 samples (2 symbolic_zero, 1 classified)"),
+        "and so does the TOTAL: {so}"
+    );
+}
+
 /// Findings anywhere in a MULTI-FILE run fail the whole run, and every
 /// file is scanned first: the CI row lints all three ε rows in one
 /// invocation, so an early clean file must not short-circuit the
@@ -167,7 +209,8 @@ fn findings_in_any_file_fail_the_run() {
     assert_eq!(out.status.code(), Some(2));
     let so = stdout(&out);
     assert_eq!(
-        so.matches("1 samples, 0 flagged").count(),
+        so.matches("1 samples (0 symbolic_zero, 1 classified), 0 flagged")
+            .count(),
         2,
         "both clean files were scanned and reported: {so}"
     );

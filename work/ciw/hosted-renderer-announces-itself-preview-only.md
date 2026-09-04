@@ -2,10 +2,12 @@
 id: hosted-renderer-announces-itself-preview-only
 kind: issue
 title: hosted-render-guard — the canonical renderer announces itself as PREVIEW ONLY, do NOT commit what this pass draws
-status: open
+status: review
 opened: 2026-08-19
 github: 630
 refs: [626]
+pr: 1739
+branch: ciw/hosted-render-sentence
 ---
 
 ## From GitHub issue 630

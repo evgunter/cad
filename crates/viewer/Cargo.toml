@@ -226,6 +226,23 @@ test-utils = { path = "../test-utils" }
 perceive-cvd = "=0.1.0"
 perceive-color = "=0.1.0"
 
+# --- the GPU smoke row's block-on (`src/gpu.rs`'s `mod tests`) ---
+#
+# `wgpu`'s adapter and device requests are futures, and a test is not
+# async. This is the executor that drives the two of them: a parking
+# loop on the current thread and nothing else.
+#
+# ALREADY IN THE LOCKFILE, at exactly this version — `wgpu` itself
+# carries it, so the `app` graph has it either way and this edge adds
+# no crate there. What it does add is one crate, with no dependencies
+# of its own, to the DEFAULT-feature test build, because cargo has no
+# optional dev-dependencies. 1.0.1 (2026-06-11), MIT OR Apache-2.0,
+# zero dependencies, ~8 kB.
+#
+# Not hand-rolled: a noop-waker poll loop would be a dozen lines that
+# silently spin forever the day a future actually parks.
+pollster = "1.0.1"
+
 
 [features]
 # The eframe application: windowing, the docked chrome, and the wgpu
