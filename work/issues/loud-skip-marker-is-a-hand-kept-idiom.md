@@ -1,7 +1,7 @@
 ---
-id: loud-skip-marker-is-a-seven-copy-idiom
+id: loud-skip-marker-is-a-hand-kept-idiom
 kind: issue
-title: The loud-skip marker is a seven-copy idiom, each copy naming its rows by hand and admitting it goes stale silently
+title: The loud-skip marker is a hand-kept idiom in eight files, each copy naming its rows by hand and admitting it goes stale silently
 status: open
 opened: 2026-09-04
 refs: [1776]
@@ -79,3 +79,15 @@ if there is to be one, lands in `crates/test-utils`.
 
 Found by the style review of PR 1776 (CHROME unit 8). The reviewer
 counted seven; the eighth is `crates/sweep/tests/m5_s13_pips_interval.rs`.
+This file was first filed under an id naming the wrong count, which is
+the idiom's own defect one level up — an id is a hand-kept enumeration
+too. It is named for the shape now rather than for a number.
+
+**A grep for the idiom over-matches**, so a taker does not chase the
+same three: `crates/step-import/tests/freecad.rs` (a RUNTIME skip on
+the ambient epsilon, printed from a row that ran),
+`crates/sweep/tests/m5_pr9_cosurface_merge.rs` and
+`crates/topo/src/merge_faces.rs` (the merge driver's own "loud skip"
+record, a domain term for a refused cosurface run) all carry the words
+and none is this shape. The eight in the table are the
+`#[cfg(not(feature = …))] #[test]` marker rows.

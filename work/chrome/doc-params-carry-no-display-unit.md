@@ -129,7 +129,7 @@ themselves are in them.
   of them this unit's: `work/chrome/app-rs-doc-comment-merge-scars.md`.
 - The `#[cfg]`-gated loud-skip marker is now an eight-copy hand-written
   idiom, and this unit added the eighth:
-  `work/issues/loud-skip-marker-is-a-seven-copy-idiom.md`.
+  `work/issues/loud-skip-marker-is-a-hand-kept-idiom.md`.
 
 **Two of this item's own residues were wrong, and the lane said so.**
 
