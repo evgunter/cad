@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-03
 refs: [LIB-B-VALIDATE4]
 branch: fix/tier3-census-display
+pr: 1779
 ---
 
 Measured at LIB-B-VALIDATE4, which bound `validate_pseudomanifold` —
