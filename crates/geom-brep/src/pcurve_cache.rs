@@ -5449,7 +5449,10 @@ mod tests {
     /// displaced off the column INSIDE the band certifies with an
     /// envelope at least the displacement (deleting or weakening the
     /// Greville hull would report ~0 here), and a displacement beyond
-    /// the band refuses.
+    /// the band refuses. Both displacements SCALE with the ambient
+    /// band — "in-band" is a band-relative fact, and a fixed metre
+    /// value flips the row's meaning across the ε matrix (3e-10 is
+    /// in-band at 1e-9 and three decades OUT at 1e-12).
     #[test]
     fn the_hull_meters_an_off_column_line_from_both_sides() {
         let displaced =
@@ -5458,7 +5461,7 @@ mod tests {
             p0: Point2::new(0.0, 0.0),
             pl: Vec2::new(0.0, 1.0),
         };
-        let d = 3.0e-10;
+        let d = 0.3 * Tol::witness().get().eps;
         let cache = PcurveCache::certify(
             image(),
             0.0,
@@ -5479,7 +5482,7 @@ mod tests {
                 image(),
                 0.0,
                 1.0,
-                &displaced(1.0e-3),
+                &displaced(1.0e3 * Tol::witness().get().eps),
                 &ruled_wall(),
                 wide(),
                 band(),
