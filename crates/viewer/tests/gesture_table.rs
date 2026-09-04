@@ -7,9 +7,11 @@
 //! reader answering "is X safe mid-drag" had to walk every arm, and a
 //! new operation joined the enum without the question being put. It is
 //! now [`SessionOp::permitted_during_value_gesture`], consulted once
-//! before dispatch, and these rows pin it from both sides.
+//! before dispatch. The rows below do not all deliver the same thing,
+//! and reading them as one story overstates each of them, so each one
+//! says what it is worth.
 //!
-//! # Why `expected` restates the table
+//! # What `expected` delivers
 //!
 //! [`expected`] is a SECOND, hand-written copy of the answers, so an
 //! accidental edit to the predicate fails here rather than passing by
@@ -20,16 +22,39 @@
 //! sample fail too — an unasserted variant is the same silence in a
 //! different place.
 //!
-//! # Why the behavioural row is separate
+//! **This is the only row here that can catch a WRONG table entry**,
+//! and it catches one by disagreeing with a second hand-written copy,
+//! not by consulting behaviour. Both copies were written by one author
+//! in one commit, so the honest scope is narrower than "the answers are
+//! checked": reversing the whole table — every op permitted, in the
+//! predicate and in `expected` together — turns five tests red across
+//! the viewer suite, which witnesses 20 of the 26 refusals from outside
+//! this file. The six with no external witness are
+//! [`SessionOp::DeleteNode`], [`SessionOp::ProbeBounds`],
+//! [`SessionOp::SetSlotUnit`], [`SessionOp::CreateParam`],
+//! [`SessionOp::BeginParamGesture`] and [`SessionOp::AddMate`]; for
+//! those, `expected` is the only place the answer is written down
+//! rather than a check on a written answer. That is strictly more than
+//! the dispatch recorded before the table existed, and it is not the
+//! same as an independent confirmation.
 //!
-//! The table is a claim about `DocSession::perform`, not about a bool.
-//! `every_op_behaves_as_the_table_says` opens a real gesture and
-//! performs every operation against it, asserting
-//! [`Refusal::GestureInFlight`] appears exactly where the table says
-//! and nowhere else. A permitted op may still refuse for its own
+//! # What the behavioural rows deliver
+//!
+//! The table is a claim about `DocSession::perform`, not about a bool,
+//! so `every_op_behaves_as_the_table_says` opens a real gesture and
+//! performs every operation against it. It compares `perform`'s fencing
+//! against the very predicate `perform` reads, so it CANNOT catch a
+//! wrong table entry — flip one answer in the predicate alone and this
+//! row stays green while `the_table_answers_for_every_op` goes red.
+//! What it does deliver is that `perform` consults the table AT ALL,
+//! that the refusal it raises is [`Refusal::GestureInFlight`] and not
+//! some other, that a fenced op commits nothing, and that no arm has
+//! re-added a guard of its own — which is exactly what deleting 23
+//! guards put at risk. A permitted op may still refuse for its own
 //! reasons (an `Open` of a path that is not there, an `Undo` with no
 //! history) — the assertion is about WHICH refusal, never about
-//! success.
+//! success. `nothing_is_fenced_when_no_gesture_is_in_flight` is the
+//! same shape with the gesture closed.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -327,11 +352,14 @@ fn the_table_answers_for_every_op() {
     }
     let missing: Vec<usize> = (0..OP_COUNT).filter(|i| !seen[*i]).collect();
     assert!(missing.is_empty(), "variants with no sample: {missing:?}");
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }
 
-/// The table is a claim about `perform`, so perform every op against a
-/// real in-flight gesture and check the refusal lands where the table
-/// says — and only there.
+/// **That `perform` consults the table, not that the table is right.**
+/// Every op runs against a real in-flight gesture and the fencing is
+/// compared with the predicate `perform` itself reads, so a wrong entry
+/// agrees with itself here; a re-added arm-level guard, or a `perform`
+/// that stopped consulting the table, does not.
 #[test]
 fn every_op_behaves_as_the_table_says() {
     let tol = Tol::witness();
@@ -364,6 +392,7 @@ fn every_op_behaves_as_the_table_says() {
             );
         }
     }
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }
 
 /// The other half of "unchanged behaviour": with no gesture open, the
@@ -381,4 +410,5 @@ fn nothing_is_fenced_when_no_gesture_is_in_flight() {
             "{op:?} claimed a gesture that is not in flight"
         );
     }
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }

@@ -1207,7 +1207,8 @@ pub enum SessionOp {
     /// Everything session-scoped is cleared: path, history, selection,
     /// hover, display state and the resolver (a fresh document has no
     /// backing file, so its instantiate nodes refuse with the shipped
-    /// no-resolver semantics until it is saved). Refused mid-gesture;
+    /// no-resolver semantics until it is saved). Refused mid-gesture
+    /// by the table ([`SessionOp::permitted_during_value_gesture`]);
     /// a blank name refuses [`Refusal::EmptyName`].
     ///
     /// The name is TRIMMED before the id is derived, so `" ring "` and
@@ -1473,15 +1474,22 @@ impl SessionOp {
     /// **It is not a statement about the free-move gesture.** That is
     /// a second, independent drag living on the display state
     /// ([`DisplayState::begin_free_move`]), with its own in-flight
-    /// refusal; the two can be open at once and neither answer implies
-    /// the other. An operation this returns `true` for is permitted
+    /// refusal. Nothing observed so far enforces either an exclusion
+    /// or an independence between the two: they can be open at once
+    /// and neither answer implies the other, and whether that is
+    /// intended is open — see
+    /// `work/view/two-gestures-can-be-in-flight-together.md`. An
+    /// operation this returns `true` for is permitted
     /// mid-value-gesture and nothing more.
     ///
     /// The whole policy is here, exhaustively, so that the set of
     /// operations a drag refuses can be READ rather than reconstructed
     /// from the dispatch, and so that a new operation cannot join the
     /// enum without an answer: [`DocSession::perform`] consults this
-    /// once, before dispatch, and no arm carries a guard of its own.
+    /// once, before dispatch, and no arm re-guards against the VALUE
+    /// gesture. Four arms do guard against the OTHER one: the
+    /// `*FreeMove` quartet delegates to [`DisplayState`], which refuses
+    /// [`DisplayFault::FreeMoveInFlight`] off its own state.
     ///
     /// Three shapes of `true` sit in the table:
     ///
@@ -1881,8 +1889,10 @@ impl DocSession {
     /// and the number of features that vanish are one list read twice.
     ///
     /// Read off the COMMITTED document, which is the one the edits
-    /// apply to; the delete op refuses outright while a gesture holds
-    /// a scratch value, so the two never disagree at a live button.
+    /// apply to; the delete op is one of the table's refusals
+    /// ([`SessionOp::permitted_during_value_gesture`]) while a gesture
+    /// holds a scratch value, so the two never disagree at a live
+    /// button.
     pub fn delete_affordance(&self, node: RecipeNodeId) -> DeleteAffordance {
         DeleteAffordance::of(self.committed_doc(), node)
     }
@@ -2170,9 +2180,13 @@ impl DocSession {
     /// Perform one operation.
     ///
     /// The mid-gesture policy is applied ONCE, here, off
-    /// [`SessionOp::permitted_during_value_gesture`] — the arms below
-    /// carry no gesture guard of their own, so the set of operations a
-    /// slot or parameter drag refuses is the table and only the table.
+    /// [`SessionOp::permitted_during_value_gesture`] — no arm below
+    /// carries a guard against the VALUE gesture of its own, so the set
+    /// of operations a slot or parameter drag refuses is the table and
+    /// only the table. The free-move arms do carry a guard, against
+    /// their own gesture: they delegate to [`DisplayState`], which
+    /// refuses [`DisplayFault::FreeMoveInFlight`] off the free-move
+    /// state this check never reads.
     pub fn perform(&mut self, op: SessionOp) -> OpOutcome {
         if self.gesture.is_some() && !op.permitted_during_value_gesture() {
             return OpOutcome::refused(Refusal::GestureInFlight);
@@ -2502,8 +2516,10 @@ impl DocSession {
     /// not a method that reads the session again: the two arms below
     /// once read two different documents (the shown one and the
     /// committed one), which agreed only because a probe refuses while
-    /// a gesture is in flight. Taking the document as an argument makes
-    /// that agreement structural instead of circumstantial.
+    /// a gesture is in flight
+    /// ([`SessionOp::permitted_during_value_gesture`]). Taking the
+    /// document as an argument makes that agreement structural instead
+    /// of circumstantial.
     fn probe_scale(
         doc: &Doc<ProfileProgram>,
         target: &BoundsTarget,

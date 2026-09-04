@@ -38,8 +38,8 @@ That is exactly the shape where a patch is the wrong instrument: with
 no table, adding a guard to `save` asserts a rule nobody has written
 down, and leaving it asserts the opposite equally silently. Unit 1's
 charter ("gesture-safety as data") answers it properly — one exhaustive
-`SessionOp::gesture_safe` checked once in `perform`, which a fortieth
-operation cannot be added without answering.
+`SessionOp::permitted_during_value_gesture` checked once in `perform`,
+which a fortieth operation cannot be added without answering.
 
 **This item is the row that table must state a value for.** The
 gesture-as-data unit lands the table stating today's behaviour exactly,

@@ -305,11 +305,14 @@ values the receiving module already defines, and none names `egui`.
   the same node, this instance is itself, the seat wanted a different
   node kind.
 
-`rank` stays a separate axis and stays exhaustive, so a new arm is
-compiler-caught. What the ladder cannot catch is a new arm ranked
-*wrongly*, and that is the discipline's real cost; it is accepted
-because the alternative — a rank derived from the arm's shape — would
-make the ordering unstateable, and the ordering is the part users see.
+`rank` stays a separate axis, and it is exhaustive over `Refusal`'s own
+arms, so a new arm is compiler-caught. It is not exhaustive one level
+down: `Display(_)` is a catch-all beneath its two named cases, so a new
+`DisplayFault` variant is ranked by default rather than by decision.
+Both costs — an arm ranked wrongly, and a delegated fault ranked by
+default — are accepted, because the alternative of deriving a rank from
+the arm's shape would make the ordering unstateable, and the ordering is
+the part users see.
 
 **A flat arm must not restate a refusal a door already gives.** That is
 where the rule bites, and `delete_node` already states it in the code:
@@ -327,24 +330,23 @@ own.
 
 ### Gesture safety is data
 
-The mid-gesture guard is one spelling repeated at 23 doors, and the
-consequence is that **the set of gesture-safe operations cannot be
-read off the code** — answering "is this operation safe mid-gesture"
-means reading every dispatch target. It also lets the question go
-unasked: `open` guards and `save` does not.
+The mid-gesture policy is one exhaustive value,
+`SessionOp::permitted_during_value_gesture`, checked once in `perform`
+before dispatch: 26 operations refuse while a value gesture is open and
+13 are permitted. A fortieth operation cannot be added without
+answering for it, and the whole policy is readable in one place rather
+than inferred from every dispatch target.
 
-So it becomes a value: `SessionOp::gesture_safe`, one exhaustive
-match, checked once in `perform` before dispatch. A fortieth operation
-cannot be added without answering for it, and the answer is in one
-place a reader can see whole.
+It says nothing about the free-move gesture, which is a different value
+with a different owner (`display::DisplayState`) and carries its own
+in-flight refusal. The name carries that limit deliberately: both
+fields are spelled `self.gesture`, and a predicate reading as a general
+guarantee would be a table that looks complete and is not.
 
-Two things this deliberately does not do. It does not change any
-operation's current answer — the table states today's behaviour,
-`save` included, and whether `save`'s answer is right is a separate
-question with its own item. And it is not one flag for two gestures:
-the free-move gesture is a different value with a different owner, so
-the predicate says which gesture it is about rather than reading as a
-guarantee it does not give.
+The table records behaviour rather than deciding it — `save` is
+permitted mid-gesture and `open` is refused, which is what the code did
+before the table existed. Whether that asymmetry is right is a separate
+question with its own item.
 
 ### One open tool, not seven optional ones
 
