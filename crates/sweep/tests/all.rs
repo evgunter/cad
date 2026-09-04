@@ -479,3 +479,6 @@ mod review_fillet_e2_probes;
 
 #[path = "review_h4_r1_probes.rs"]
 mod review_h4_r1_probes;
+
+#[path = "fillet_h4_r2_probes.rs"]
+mod fillet_h4_r2_probes;
