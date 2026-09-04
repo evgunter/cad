@@ -39,3 +39,33 @@ a public Python contract. Neither new value appears in any `.pyi` or
 that absence is correct surface or a missing binding, and that is the
 owner of the measure work's call, not a passing lane's. A lane that
 refreshed the receipt would launder the question away.
+
+## Re-confirmed 2026-09-04 (CIW unit 5, PR 1722)
+
+Still live, and now on a second unrelated branch: runs
+[33822129170](https://github.com/evgunter/cad/actions/runs/33822129170)
+(`test (eps = 1e-12, 2/2)`) and
+[33822742334](https://github.com/evgunter/cad/actions/runs/33822742334)
+(`test (interval, eps = 1e-12, 2/2)`). Same test, same two ADDED values,
+same shard, both lanes — and it is the ONLY failure in either run
+(2862/2863 and 3146/3147 passed under `--no-fail-fast`, so each summary
+is that shard's whole failure surface, not its first failure). The
+carrying diff was two `scripts/` files, one `crates/editor-core/tests/`
+file and three `docs/perf-data/*/README.md` files.
+
+**Sharper than "main's push runs classify at the docs tier":** the
+skipping is observable per run and it has been unbroken. `main`'s three
+most recent runs at the time of writing — `59c461c`, `ae25e03`,
+`d8d0256` — each show BOTH test rows as `skipped`, still carrying their
+unexpanded matrix names (`test (eps = ${{ needs.filter.outputs.eps }},
+${{ matrix.shard }}/2)`). So it is not that `main` runs this test and
+tolerates it, nor that the lane draw has been unlucky: **no run on
+`main` has drawn a point that executes this test since the two values
+landed.** Every instance of this red is therefore a branch's, and every
+branch that draws a code-tier test row will keep paying for it until the
+repair lands. That is worth stating because the symptom — "my unrelated
+PR is red" — is going to recur and will keep costing a lane its triage
+time before it gets here.
+
+Nothing above revises the disposition: still not fixed by a passing
+lane, for the reason the section above gives.
