@@ -99,6 +99,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/editor-core/tests/docm1_face_frame.rs",
+        disposition: Shared, // the two read-door module docs, prose view
+    },
+    Entry {
         path: "crates/editor-core/tests/docm4_evaluation_identity.rs",
         disposition: Shared, // Evaluation-literal census, code view
     },

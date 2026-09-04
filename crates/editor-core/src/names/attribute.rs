@@ -198,7 +198,7 @@ mod tests {
         StableName {
             kind: EntityKind::Face,
             node: EXTRUDE,
-            path: vec![RoleSeg::Cap(CapEnd::Top)],
+            path: vec![RoleSeg::Cap(CapEnd::End)],
         }
     }
 

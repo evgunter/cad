@@ -11,7 +11,7 @@ use crate::fixture;
 use editor_core::{
     CancelToken, EntityKind, EvalOptions, Evaluation, LoopProgram, NameTable, Node, ProfileDoc,
     ProfileProgram, ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, StableName, evaluate,
+    RoleSeg, StableName, ValuePayload, evaluate, vertex_position,
 };
 use fixture::{ang, insert, len, scl};
 use geom_core::Tol;
@@ -76,29 +76,15 @@ fn p2(x: f64, y: f64) -> [editor_core::Expr; 2] {
     [len(x), len(y)]
 }
 
-/// **This row's premise is RETIRED, and the row records that rather
-/// than asserting it** (Ev, in-chat, 2026-09-02: every zero-turn
-/// joint is a declared tangent joint).
-///
-/// It used to pin that a SUBDIVIDED axis run — an interior on-axis
-/// vertex — is unrepresentable through the program layer, because every
-/// authoring of a collinear line-line junction was refused upstream
-/// (overdetermined close / tangent junction / same-carrier #101). The
-/// same-carrier refusal is gone: `.tangent()` then `line(len)` is a
-/// DECLARED tangent joint now, so this chain applies.
-///
-/// **FORWARD OBSERVATION, reported not acted on (M9/D1 ground).** What
-/// the old refusal was standing in for is a claim about the pole
-/// export: "an editor-reachable profile's axis run is always ONE
-/// segment, so every live on-axis vertex is a run TIP — the pole
-/// export's `Some`". That claim no longer follows, and the
-/// deleted-interior branch (`None` export), covered at the sweep API
-/// level in `sweep/tests/m9_d1_r1_probes.rs`, is now editor-reachable.
-/// Whether that branch is correct when reached from the editor is M9's
-/// question, not this unit's; this row keeps the fixture alive and
-/// names the change so it cannot be discovered by accident.
+/// A SUBDIVIDED axis run — an on-axis side carried by two collinear
+/// legs, so the run has an INTERIOR on-axis vertex — is representable
+/// through the program layer: `.tangent()` then `line(len)` is a
+/// declared tangent joint, and the lattice takes the collinear
+/// line-line junction on that declaration. This row pins the
+/// authoring; the two rows below revolve the same chain and pin what
+/// the naming lane emits at its interior vertex.
 #[test]
-fn subdivided_axis_run_is_now_representable_through_the_program_layer() {
+fn subdivided_axis_run_is_representable_through_the_program_layer() {
     use editor_core::DocEdit;
     let doc = ProfileDoc::empty_derived("m9_d1_r1_probes", Tol::witness());
     // The frame goes in first: this row is about the PROGRAM's
@@ -150,4 +136,118 @@ fn full_mixed_profile_names_poles_and_anchors_the_off_axis_vertex() {
         "off-axis vertex is not a pole"
     );
     assert!(t.lookup(&pole(rev, 2)).is_some());
+}
+
+/// The subdivided axis run, authored through the program layer: the
+/// chain of the row above, whose PROGRAM vertices are v0 = (0, 1),
+/// v1 = (0, 0) — the interior on-axis vertex — and v2 = (0, −1).
+fn subdivided_axis_run(angle: f64) -> (ProfileDoc, RecipeNodeId) {
+    revolve_chain(
+        vec![
+            ProgramStep::At(p2(0.0, 1.0)),
+            ProgramStep::LineTo(ProgramTarget::Point(p2(0.0, 0.0))),
+            ProgramStep::Tangent,
+            ProgramStep::Line(len(1.0)),
+            ProgramStep::ArcTo(ProgramArcData::Bulge {
+                target: ProgramTarget::Start,
+                b: scl(1.0),
+            }),
+        ],
+        angle,
+    )
+}
+
+/// The `poles` export of the doc's profile, re-swept at the same
+/// revolution, reindexed by PROGRAM vertex: the emitter reads canonical
+/// indices and the published table is program-anchored, so the arm a
+/// row compares against the emitter's outcome has to cross the anchor.
+fn export_poles_by_program_vertex(
+    doc: &ProfileDoc,
+    ev: &Evaluation<f64>,
+    revolution: sweep::Revolution<f64>,
+) -> Vec<bool> {
+    let profile = *doc
+        .order()
+        .iter()
+        .find(|id| matches!(doc.node(**id), Some(Node::Profile(_))))
+        .expect("the doc's profile node");
+    let ValuePayload::Profile(vp) = &ev.value(profile).expect("the profile evaluated").payload
+    else {
+        panic!("node {profile:?} is not a profile");
+    };
+    let built = sweep::revolve(
+        &vp.validated,
+        sweep::RevolveAxis {
+            origin: geom_core::Point2::new(0.0, 0.0),
+            dir: geom_core::Vec2::new(0.0, 1.0),
+        },
+        revolution,
+        Tol::witness(),
+    )
+    .expect("the revolve the evaluation already ran");
+    let anchor = vp.naming.loops[0];
+    let mut by_program = vec![false; built.poles[0].len()];
+    for (k, p) in built.poles[0].iter().enumerate() {
+        by_program[anchor.vertex(u32::try_from(k).expect("a loop index")) as usize] = p.is_some();
+    }
+    by_program
+}
+
+/// **FULL revolve of a subdivided axis run: the interior on-axis vertex
+/// is named nothing, and the table is still total.** The full case
+/// deletes the axis run outright, so no body entity stands at the
+/// interior vertex and the pole export's `None` is the whole answer;
+/// the two run TIPS survive as poles. `check_total` is the gate: the
+/// evaluation carries a name table only when every live vertex of the
+/// body has a name, so a `None` covering a LIVE vertex could not reach
+/// these assertions.
+#[test]
+fn full_subdivided_axis_run_names_no_vertex_for_the_interior() {
+    let (doc, rev) = subdivided_axis_run(std::f64::consts::TAU);
+    let ev = run(&doc);
+    let t = table(&ev, rev);
+    assert!(t.lookup(&pole(rev, 0)).is_some(), "run tip v0 unnamed");
+    assert!(
+        t.lookup(&pole(rev, 1)).is_none(),
+        "the deleted interior vertex must have no name"
+    );
+    assert!(t.lookup(&pole(rev, 2)).is_some(), "run tip v2 unnamed");
+    assert_eq!(
+        export_poles_by_program_vertex(&doc, &ev, sweep::Revolution::Full),
+        vec![true, false, true],
+        "the export's arm must agree with what the emitter named"
+    );
+}
+
+/// **PARTIAL revolve of the same run: the interior on-axis vertex IS a
+/// pole.** The partial case keeps the axis run, the rotation fixes
+/// every point of it, and both meridian chains meet at the interior
+/// vertex — structurally what the run tips are — so it takes
+/// `Pole(v1)` and the export says `Some`.
+#[test]
+fn partial_subdivided_axis_run_names_the_interior_vertex_a_pole() {
+    let (doc, rev) = subdivided_axis_run(std::f64::consts::FRAC_PI_2);
+    let ev = run(&doc);
+    let t = table(&ev, rev);
+    for v in 0..3 {
+        assert!(t.lookup(&pole(rev, v)).is_some(), "pole {v} unnamed");
+    }
+    // The interior vertex is the run's midpoint, not a third tip.
+    let at = |v| vertex_position(&ev, rev, &pole(rev, v)).expect("a named pole has a position");
+    let (a, b, c) = (at(0), at(1), at(2));
+    for (mid, ends) in [(b.x, a.x + c.x), (b.y, a.y + c.y), (b.z, a.z + c.z)] {
+        assert!(
+            (2.0 * mid - ends).abs() < 1e-12,
+            "the interior pole is off the run's midpoint"
+        );
+    }
+    assert_eq!(
+        export_poles_by_program_vertex(
+            &doc,
+            &ev,
+            sweep::Revolution::Partial(std::f64::consts::FRAC_PI_2)
+        ),
+        vec![true, true, true],
+        "the export's arm must agree with what the emitter named"
+    );
 }

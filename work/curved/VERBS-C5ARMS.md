@@ -1,10 +1,10 @@
 ---
 id: VERBS-C5ARMS
-kind: issue
+kind: unit
 title: the two C5 section arms — cone×cylinder remains
-status: open
+status: dispatched
 opened: 2026-09-01
-branch: verbs/c5arms-2
+branch: curved/c5arms-2
 refs: [1057]
 ---
 
@@ -19,6 +19,10 @@ evidenced by git history. PR-2 not yet dispatched.
 
 **VERBS closed** (exit walk ratified, PR #1793); re-homed to
 `work/issues/` awaiting an owner.
+
+**Adopted by CURVED** at its opening for dispatch (2026-09-04, Ev's
+in-chat direction): the plan's lane that carries this item is in
+`work/curved/plan.md`.
 
 **Remaining scope at re-home:** PR-2 only — the cone×cylinder section
 arm, specced and small in `docs/VERBS-C5ARMS-SPEC.md` (its consumers,

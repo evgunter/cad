@@ -26,10 +26,11 @@ use common::{ang, body_volume, insert, len, len2, len3, near, scl2, scl3, shape}
 use pncad::document::SplitSide;
 use pncad::document::{
     Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, Expr, LoopProgram, Node, NodeError,
-    NodeErrorKind, NodeResult, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
+    NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
+use pncad::select::SplitHalf;
 use viewer::combine::{
     BooleanTool, PatternOutputChoice, PatternTool, SplitTool, TransformTool, denotes_body,
 };
@@ -1796,15 +1797,17 @@ fn a_tool_closes_on_its_own_committed_edit() {
 /// refused. That is asserted here in the same shape, so the day the
 /// frontier moves this row notices.
 ///
-/// **What it does not reach**, stated rather than implied: four of the
-/// eighteen node kinds are absent. `Mate`, `Measure` and `Assertion`
+/// **What it does not reach**, stated rather than implied: six of the
+/// twenty-two node kinds are absent. `Mate`, `Measure` and `Assertion`
 /// need substrate this row does not build (a solved assembly, a
 /// measured expression) and are all answered `false` by the seat;
 /// `InstantiatePart` is answered `true` and needs a resolver with a
 /// sibling document on disk, so its evaluates-to-a-body path is
-/// exercised by the assembly suites instead. The fourteen that ARE
-/// here include every kind whose classification is load-bearing for
-/// this unit.
+/// exercised by the assembly suites instead; the two tube kinds are
+/// answered `true` and evaluate through their own doors, exercised by
+/// `lib_tube_node`. The sixteen that ARE here — `Part` counted once
+/// for its two selectors — include every kind whose classification is
+/// load-bearing for this unit.
 #[test]
 fn the_body_seat_tracks_the_evaluators_operand_door() {
     let tol = Tol::witness();
@@ -1917,6 +1920,31 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         tol,
     );
     doc = next;
+    // A split and a pattern for the two Part candidates to read: each
+    // is SEVERAL bodies (refused at the seat below, as candidates in
+    // their own right), and a Part of either is one.
+    let (next, split_of_body) = common::inserted(
+        &doc,
+        Node::Split {
+            target: body,
+            tool: plane,
+        },
+        tol,
+    );
+    doc = next;
+    let (next, pattern_of_body) = common::inserted(
+        &doc,
+        Node::Pattern {
+            input: body,
+            count: Expr::count(2),
+            kind: PatternKind::Linear {
+                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
+                spacing: common::len(0.05),
+            },
+        },
+        tol,
+    );
+    doc = next;
 
     // A real edge of the box, for the two blends: an empty blend
     // selection is an AUTHORING refusal, so a minimal fillet has to
@@ -2009,6 +2037,22 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                     direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
                     spacing: common::len(0.05),
                 },
+            },
+        ),
+        // ONE body out of a split or a pattern: the projection is
+        // what makes one of several bodies a body at a seat.
+        (
+            "part of a split",
+            Node::Part {
+                of: split_of_body,
+                select: PartSelect::SplitHalf(SplitHalf::Above),
+            },
+        ),
+        (
+            "part of a pattern",
+            Node::Part {
+                of: pattern_of_body,
+                select: PartSelect::Instance(Expr::count(1)),
             },
         ),
         (

@@ -16,6 +16,10 @@ No spec; queued behind CYLSPH and the C5ARMS remainder.
 **VERBS closed** (exit walk ratified, PR #1793); re-homed to
 `work/issues/` awaiting an owner.
 
+**Adopted by CURVED** at its opening for dispatch (2026-09-04, Ev's
+in-chat direction): the plan's lane that carries this item is in
+`work/curved/plan.md`.
+
 **Remaining scope at re-home:** the cone and torus OPERAND lanes —
 never cut as a spec; the C5-section half was executed by TORAX +
 C5ARMS PR-1. A candidate seed for a successor program.
