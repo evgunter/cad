@@ -359,14 +359,28 @@ question with its own item.
 
 ### One open tool, not seven optional ones
 
-`Tools` holds one `Option<…Tool>` field per tool kind, so a state with
-two tools open is representable and excluded only by the code that
-maintains it. It becomes `Option<OpenTool>`, an enum: the invariant
-stops being maintained and starts being unrepresentable, and the two
-surviving hand-lists over the tool set — the fixed-length `ToolKind::ALL`,
-which `Tools::open_kind` scans, and the `seated!` invocation — collapse
-into matches the compiler completes. Today an eighth tool omitted from
-`ALL` compiles clean and is permanently unreachable.
+`Tools` holds one `Option<OpenTool>`, an enum with one variant per tool
+kind carrying that tool's state. Two tools open is not a state the door
+avoids, it is a state with no spelling: the invariant is unrepresentable
+rather than maintained. Each of the four per-tool rules is an arm of a
+match the compiler completes: the pick routing and the survival step
+match over the open value itself, the cursor narrowing
+(`ToolKind::pick_kinds`) and the close-on-commit edit
+(`ToolKind::commits`) over its kind. The read door
+is not one of the four — each typed accessor matches its own variant
+and answers `None` to every other, so a tool that never gets an
+accessor compiles. The `Seated` trait and its `seated!` invocation,
+which named five tool types by hand to erase them again, are gone with
+the erasure they existed for.
+
+`ToolKind::ALL` remains for the test suites that sweep the kinds, which
+are now its only readers: `Tools::open_kind` asks the open value which
+kind it is instead of scanning the list for the first field that is set,
+and the chrome names each kind it offers literally rather than
+iterating. A kind missing from `ALL` therefore narrows those sweeps
+rather than making its tool permanently unreachable. `ALL` is still the
+one list a compiler cannot force, and `ToolKind::ordinal` is still what
+makes its completeness checkable by a row.
 
 ### What the boundary does not decide
 
