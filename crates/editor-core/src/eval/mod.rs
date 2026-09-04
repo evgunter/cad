@@ -2276,11 +2276,11 @@ where
             // The frame the profile is drawn on, at f64 and from the
             // DOCUMENT — `wire::profile_plane_f64` carries why that is
             // the right scalar and the right source.
-            let plane = match wire::profile_plane_f64(doc, program.plane, tol) {
-                Ok(plane) => plane,
+            let placement = match wire::profile_plane_f64(doc, program.plane, tol) {
+                Ok(placement) => placement,
                 Err(kind) => return fail(kind),
             };
-            match wire::prepare_profile(plane, resolved, tol) {
+            match wire::prepare_profile(placement, resolved, tol) {
                 Ok(pre) => Some(pre),
                 Err(kind) => return fail(kind),
             }
@@ -2348,34 +2348,12 @@ where
         _ => None,
     };
 
-    // DM1c: a profile on a DERIVED frame is placed at the lane scalar
-    // under every lift, so its placement is T-valued frame data the
-    // key must state — PP5's rule, the same channel the lane program
-    // feeds through. An authored frame's placement is `f64` from the
-    // document and is already carried by the frame's own upstream
-    // key; a derived frame's key carries the face and the body, and
-    // the placement is READ off the body's value at T, which is what
-    // this feed pins so a widened or seeded frame cannot alias the
-    // nominal memo entry.
-    let derived_plane = match node {
-        crate::node::Node::Profile(program) => match wire::frame_kind(doc, program.plane) {
-            Ok(wire::FrameKind::Derived) => match wire::frame_plane_lane(results, program.plane) {
-                Ok(plane) => Some(plane),
-                Err(kind) => return fail(kind),
-            },
-            Ok(wire::FrameKind::Authored) => None,
-            Err(kind) => return fail(kind),
-        },
-        _ => None,
-    };
-
     let content_key = content_key(
         node,
         &slot_values,
         payload_values.as_deref(),
         resolved_program.as_deref(),
         lane_program.as_deref(),
-        derived_plane.as_ref(),
         &upstream_keys,
         doc.witness(id),
         op_env.poses.placement(doc, id).ok(),
@@ -2503,7 +2481,6 @@ fn content_key<T>(
     payload_values: Option<&[T]>,
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     lane_program: Option<&[Vec<profile::Step<T>>]>,
-    derived_plane: Option<&profile::SketchPlane<T>>,
     upstream_keys: &[ContentKey],
     witness: Option<&crate::witness::WitnessDatum>,
     placement: Option<crate::placement::Frame>,
@@ -2724,19 +2701,6 @@ where
                     for step in steps {
                         feed_lane_step(&mut h, step);
                     }
-                }
-            }
-            // A derived frame's placement, at T, through the same
-            // channel: tag 42 opens it, so a profile on an authored
-            // frame keys exactly as it always has, and a profile on a
-            // derived frame cannot alias one.
-            if let Some(plane) = derived_plane {
-                h.write_tag(42);
-                let a = &plane.placement;
-                for v in [a.linear.c0, a.linear.c1, a.linear.c2, a.translation] {
-                    v.x.feed(&mut h);
-                    v.y.feed(&mut h);
-                    v.z.feed(&mut h);
                 }
             }
         }

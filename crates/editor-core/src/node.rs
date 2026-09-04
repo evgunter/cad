@@ -1799,7 +1799,7 @@ impl<P> Node<P> {
         P: crate::ProfilePayload,
     {
         match self {
-            // **The one datum that is not a leaf**: an in-plane axis's
+            // **Two datums are not leaves.** An in-plane axis's
             // two coordinate pairs MEAN something only against the
             // frame they are written in, so the frame is an input, not
             // a note. Ahead of the leaf arm below, which is every

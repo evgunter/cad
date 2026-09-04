@@ -31,6 +31,8 @@ const BOX_H: f64 = 1.0;
 const BOSS_HALF: f64 = 0.5;
 /// The boss's height, meters.
 const BOSS_H: f64 = 0.5;
+/// The sketch's turn about the face's outward normal, radians.
+const SPIN: f64 = 0.3;
 
 /// The face-sketch corpus document.
 pub fn document() -> CorpusDoc {
@@ -54,16 +56,18 @@ pub fn document() -> CorpusDoc {
 
     // ---- "sketch on this face": the frame derived from the top cap ----
     // The face is NAMED, not measured: the extrude's top cap, in the
-    // vocabulary every selection uses. No spin — sketch +x is the
-    // carrier's own u-reference.
+    // vocabulary every selection uses. The sketch is TURNED on the
+    // face (a non-zero spin), so the corpus rows walk the rotation
+    // about the outward normal rather than the identity.
     let top = r.insert(Node::Datum(editor_core::Datum::FaceFrame {
         at: cube,
         face: fname(cube, RoleSeg::Cap(CapEnd::End)),
-        spin: ang(0.0),
+        spin: ang(SPIN),
     }));
     // The boss profile, centred on the frame's origin (the carrier's
     // own distinguished point, which for an extrude cap is the
-    // sketch origin lifted to the cap).
+    // sketch origin lifted to the cap). A square about its centre, so
+    // the turn moves its corners and not its mass.
     let boss_p = r.insert(Node::Profile(desc(
         top,
         vec![vec![

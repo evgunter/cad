@@ -1,13 +1,16 @@
-//! **DOCM-1 — the sense beside the pose and the carrier-kind read, at
-//! the name door** (DOCM-REFERENCES-DESIGN DM1a, DM2).
+//! **DOCM-1 — the derived sketch frame at f64** (DOCM-REFERENCES-DESIGN
+//! DM1, DM1a, DM1b, DM2): acceptance rows A1–A9, the DM1c f64 half,
+//! and the read doors' document-layer twins.
 //!
-//! The kernel half is pinned in `topo`'s own suite; what is pinned
-//! HERE is the document-layer twin: the `StableName` door answers
-//! exactly what the arena-key door answers on the same face, the
-//! refusal ladder is `face_frame`'s, and the pose's sense matches the
-//! stored flag on EVERY face of every corpus body — the row that would
-//! catch a door copying the wrong bit on a face kind the seed-face
-//! rows never mint.
+//! The kernel half of the read doors is pinned in `topo`'s own suite;
+//! what is pinned HERE is everything a document exercises — the
+//! `StableName` door answers exactly what the arena-key door answers
+//! on the same face, the pose's sense matches the stored flag on
+//! EVERY face of every corpus body, and `Datum::FaceFrame` moves with
+//! its face, turns right-handed about the OUTWARD normal on both
+//! senses, refuses typed through the N5 ladder and the carrier tag,
+//! serves a profile and an in-plane axis by value, and round-trips
+//! the wire. The Interval-lane rows are `docm1_face_frame_interval`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -488,6 +491,46 @@ fn a3_spin_rotates_about_the_outward_normal_and_is_a_continuous_angle_slot() {
         set(len(1.0)),
         Err(EditError::SlotDimensionMismatch { .. })
     ));
+}
+
+/// **A3b — spin turns RIGHT-HANDED about the OUTWARD normal, on a
+/// reversed face.** The oracle is not the formula: `(u_ref × u)·n =
+/// +sin θ` on BOTH senses, and on a `sense = false` face
+/// `(u_ref × u)·axis = −sin θ` — the row that separates "about the
+/// outward normal" from "about the chart axis", which every
+/// `sense = true` fixture cannot see because there `n == axis`.
+#[test]
+fn a3b_spin_turns_right_handed_about_the_outward_normal_on_a_reversed_face() {
+    let theta = 0.3_f64;
+    let (doc, node) = washer_doc();
+    let ev = eval(&doc);
+    let mut seen = [false, false];
+    for (name, sense, pose) in planar_faces(&ev, node) {
+        let (doc2, frame) = fixture::insert(doc.clone(), face_frame_node(node, name, theta));
+        let (_, u, v) = frame_of(&eval(&doc2), frame);
+        let n = u.cross(v);
+        let u_ref = pose.u_ref.expect("a plane fixes u_ref");
+        let want_n = if sense { pose.axis } else { -pose.axis };
+        near3(n, want_n, "n = sense · axis");
+        assert!(
+            (u.dot(u_ref) - theta.cos()).abs() <= 1e-12,
+            "u·u_ref = cos θ"
+        );
+        let s = u_ref.cross(u);
+        assert!(
+            (s.dot(n) - theta.sin()).abs() <= 1e-12,
+            "sense={sense}: (u_ref × u)·n = {} want +sin θ",
+            s.dot(n)
+        );
+        if !sense {
+            assert!(
+                (s.dot(pose.axis) + theta.sin()).abs() <= 1e-12,
+                "on a reversed face the turn is the other way about the CHART axis"
+            );
+        }
+        seen[usize::from(sense)] = true;
+    }
+    assert_eq!(seen, [true, true], "both senses exercised");
 }
 
 /// **A4 — the fillet's failure mode.** `Rebind` the face to a name the

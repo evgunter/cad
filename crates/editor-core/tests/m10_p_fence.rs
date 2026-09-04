@@ -229,7 +229,10 @@
 //!   the tree it landed on, and both rows came back GREEN against
 //!   them (the probe row is `f64` bitwise and takes the `f64` pair).
 //!   `lib_g16_corpus_name_digests` agrees the finer way — every
-//!   pre-existing per-document row unchanged, one row added.
+//!   pre-existing per-document row unchanged, one row added. The
+//!   pairs moved once more within the same unit when `face_sketch`
+//!   gained a non-zero spin (its review's A3 finding): the document's
+//!   own geometry, the removal returning to the same constants.
 //!
 //! The M10-2, SEAT-5 and LIB-TUBE measurements are the strongest of
 //! the five, for a reason worth stating: in each, the roster minus the
@@ -567,7 +570,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0xbb3a_475c_a0b3_6446, 0xfc64_4067_666b_cae2),
+        (0xd4fd_1ccc_2e6d_8886, 0x8d78_a693_0d6c_9102),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -594,7 +597,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x9cf2_c415_5fe4_c9f5, 0xf6e7_d5dd_7962_8ab1),
+        (0x0cf7_de91_f6a4_1015, 0xeb28_17ba_a67d_6be1),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -618,7 +621,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0xbb3a_475c_a0b3_6446, 0xfc64_4067_666b_cae2),
+        (0xd4fd_1ccc_2e6d_8886, 0x8d78_a693_0d6c_9102),
         "the corpus's Probe evaluation moved"
     );
 }

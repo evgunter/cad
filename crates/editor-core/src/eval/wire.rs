@@ -153,7 +153,7 @@ where
             names::empty(),
         )),
         Node::Profile(program) => Ok(OpOut::plain(
-            wire_profile(program, doc, results, profile_pre, env.lane, tol)?,
+            wire_profile(program, results, profile_pre, env.lane, tol)?,
             names::empty(),
         )),
         Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals, tol),
@@ -595,46 +595,40 @@ fn datum_unit<T: Decide>(
     })
 }
 
-/// **The sketch plane a profile is drawn on, at f64** — the frame node
-/// its payload names, resolved and orthonormalized.
+/// **A profile's `f64` placement, where the document HOLDS one** — an
+/// authored frame's nine expressions, resolved and orthonormalized;
+/// `None` for a frame derived from a face, which the document does not
+/// elaborate at any scalar.
 ///
-/// # Why f64 and not the frame's landed value
-///
-/// The placement feeds C6 STRUCTURE selection, which must be
-/// lane-identical: the same document has to select the same structure
-/// at `f64` and at the interval scalar, or the lift's two passes are
-/// deciding different questions. That is the rule the profile's own
-/// program already follows — `eval_node` resolves it "at f64 because
-/// it feeds C6 structure selection" — and the frame is now part of the
-/// same input, so it follows the same rule rather than a new one. The
-/// frame's LANDED value is at the lane scalar and is the right answer
-/// to a different question (what a reader sees, what a measure
-/// measures); reading it here would make structure lane-dependent.
-///
-/// So the frame is read twice, at two scalars, for two purposes —
-/// exactly as the profile's own program is, and not a second opinion
-/// about one question.
-///
-/// # The two frame kinds (DM1c)
+/// # The two frame kinds (DM1c), and why the authored one is read here
 ///
 /// This is the site that reads the plane, and it forks ONCE on the
 /// frame node's kind, because the two kinds differ in where their
-/// numbers come from. An AUTHORED frame ([`Datum::Frame`]) is nine
-/// document expressions, and this read at `f64` IS its placement
-/// under `Pinned`. A DERIVED frame ([`Datum::FaceFrame`]) has no
-/// document elaboration at all — its placement is read off an
-/// upstream body's value, at whatever scalar that body was evaluated
-/// at — so there is nothing here to read at `f64`, and the profile's
-/// placement into 3-D comes from the lane instead
-/// ([`frame_plane_lane`], under every lift). What this function hands
-/// back for a derived frame is the CONVENTIONAL placement
-/// ([`profile::SketchPlane::xy`]) the `f64` STRUCTURE record is
-/// assembled in: validation is 2-D and the naming anchor is derived
-/// from the loops, so the record's placement is conventional data
-/// that no decision reads — and it is never the placement any
-/// consumer sees, because the two readers of `pre.profile_f64.plane`
-/// ([`wire_profile`]'s `Pinned` arm and [`section_of`]) fork on the
-/// same kind and take the lane's value for a derived frame.
+/// numbers come from.
+///
+/// An AUTHORED frame ([`Datum::Frame`]) is document expressions, and
+/// they are read at `f64` rather than at the lane scalar for the C6
+/// reason: the placement feeds STRUCTURE selection, which must be
+/// lane-identical — the same document has to select the same structure
+/// at `f64` and at the interval scalar, or the lift's two passes are
+/// deciding different questions. That is the rule the profile's own
+/// program already follows (`eval_node` resolves it "at f64 because it
+/// feeds C6 structure selection"), and the frame's LANDED value is the
+/// right answer to a different question (what a reader sees, what a
+/// measure measures). So an authored frame is read twice, at two
+/// scalars, for two purposes — `Pinned` places with THIS read,
+/// `Guided` with [`frame_plane_lane`]'s.
+///
+/// A DERIVED frame ([`Datum::FaceFrame`]) has no document elaboration
+/// at all: its placement is read off an upstream body's value, at
+/// whatever scalar that body was evaluated at, so there is nothing
+/// here to read and the answer is `None`. The profile's placement into
+/// 3-D then comes from the lane under every lift
+/// ([`frame_plane_lane`]), and its 2-D structure record is assembled
+/// in the conventional `SketchPlane::xy()` ([`prepare_profile`]),
+/// which no decision reads. `ProfilePre::placement_f64` carries the
+/// same `Option`, so a consumer that places with a derived frame's
+/// record has nothing to mistake for a placement.
 ///
 /// # Errors
 ///
@@ -645,10 +639,10 @@ pub(crate) fn profile_plane_f64(
     doc: &crate::doc::Doc<ProfileProgram>,
     plane: RecipeNodeId,
     tol: Tol,
-) -> Result<profile::SketchPlane<f64>, NodeErrorKind> {
+) -> Result<Option<profile::SketchPlane<f64>>, NodeErrorKind> {
     match frame_kind(doc, plane)? {
         FrameKind::Authored => {}
-        FrameKind::Derived => return Ok(profile::SketchPlane::xy()),
+        FrameKind::Derived => return Ok(None),
     }
     let node = doc
         .node(plane)
@@ -666,11 +660,11 @@ pub(crate) fn profile_plane_f64(
     };
     let origin = read(SlotId::Origin)?;
     let (u, v) = frame_axes(read(SlotId::U)?, read(SlotId::V)?, band(tol)?)?;
-    Ok(profile::SketchPlane::from_frame(
+    Ok(Some(profile::SketchPlane::from_frame(
         Point3::new(origin.x, origin.y, origin.z),
         u.get(),
         v.get(),
-    ))
+    )))
 }
 
 /// Which kind of frame node a profile's `plane` names — the ONE fork
@@ -756,22 +750,15 @@ pub(crate) fn frame_plane_lane<T: Decide>(
 /// A lane-scalar placement carried across to `f64`, exactly, where the
 /// scalar is the `f64` lane — every component through
 /// [`super::SectionScalar::pinned_f64`] — and `None` on any analysis
-/// scalar. No component is inspected: the answer is the type's.
-fn pinned_plane<T: super::SectionScalar>(
+/// scalar. No component is inspected: the answer is the type's. The
+/// walk itself is [`anchor::map_affine`], the same walk
+/// [`anchor::embed_affine`] runs the other way.
+pub(crate) fn pinned_plane<T: super::SectionScalar>(
     plane: &profile::SketchPlane<T>,
 ) -> Option<profile::SketchPlane<f64>> {
-    let v = |w: Vec3<T>| -> Option<Vec3<f64>> {
-        Some(Vec3::new(
-            w.x.pinned_f64()?,
-            w.y.pinned_f64()?,
-            w.z.pinned_f64()?,
-        ))
-    };
-    let a = &plane.placement;
-    Some(profile::SketchPlane::new(geom_core::Affine3::from_parts(
-        geom_core::Mat3::from_cols(v(a.linear.c0)?, v(a.linear.c1)?, v(a.linear.c2)?),
-        v(a.translation)?,
-    )))
+    anchor::map_affine(&plane.placement, |x| x.pinned_f64().ok_or(()))
+        .ok()
+        .map(profile::SketchPlane::new)
 }
 
 /// **A frame's authored pair, made orthonormal** — the one spelling of
@@ -920,12 +907,11 @@ fn wire_datum<T: Decide>(
         Datum::FaceFrame { at, face, .. } => {
             let body = body_operand(results, *at)?;
             let table = &value_of(results, *at)?.name_table;
-            // The fillet's ladder, verbatim: rung 1 against the
-            // document, rungs 2 and 3 against the body's own table.
-            let refused = |error| NodeErrorKind::FaceFrameResolve { error };
-            let live = ladder::live(face, doc).map_err(refused)?;
-            let landing = ladder::landing(&live, table);
-            let ent = ladder::resolve(live, landing).map_err(refused)?;
+            // The fillet's ladder: rung 1 against the document, rungs
+            // 2 and 3 against the body's own table.
+            let ent = ladder::resolve_in(face, doc, table, |error| {
+                NodeErrorKind::FaceFrameResolve { error }
+            })?;
             let names::EntityKey::Face(key) = ent.key else {
                 return Err(NodeErrorKind::FaceFrameKind {
                     name: Box::new(face.clone()),
@@ -984,10 +970,16 @@ fn wire_datum<T: Decide>(
 /// replay-time junction checks and both validations run under the
 /// SAME `Tolerance::get()` the evaluation pins.
 pub(crate) fn prepare_profile(
-    plane: profile::SketchPlane<f64>,
+    placement: Option<profile::SketchPlane<f64>>,
     resolved: &[Vec<profile::Step<f64>>],
     tol: Tol,
 ) -> Result<ProfilePre, NodeErrorKind> {
+    // The 2-D record's assembly frame: the placement where there is
+    // one, the conventional frame where there is not (a derived
+    // frame's profile, DM1c). Validation is 2-D and the naming anchor
+    // is loop-derived, so no decision below reads it; what places the
+    // profile is `placement_f64`, carried through as the same Option.
+    let plane = placement.unwrap_or_else(profile::SketchPlane::xy);
     let mut loops = Vec::with_capacity(resolved.len());
     let mut replay_records = Vec::with_capacity(resolved.len());
     for (li, steps) in resolved.iter().enumerate() {
@@ -1012,6 +1004,7 @@ pub(crate) fn prepare_profile(
     })?;
     Ok(ProfilePre {
         profile_f64,
+        placement_f64: placement,
         naming,
         structure: profile::ProfileStructure {
             replay: replay_records,
@@ -1083,7 +1076,6 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
 
 fn wire_profile<T: Decide + geom_core::Bounds>(
     program: &ProfileProgram,
-    doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     pre: Option<&ProfilePre>,
     lane: LaneEnv<'_, T>,
@@ -1110,9 +1102,12 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
         // the ones already computed.
         super::ProfileLift::Pinned => {
             let mut embedded = anchor::embed_profile::<T>(&pre.profile_f64);
-            if frame_kind(doc, program.plane)? == FrameKind::Derived {
-                embedded.plane = frame_plane_lane(results, program.plane)?;
-            }
+            embedded.plane = match &pre.placement_f64 {
+                Some(placement) => {
+                    profile::SketchPlane::new(anchor::embed_affine::<T>(&placement.placement))
+                }
+                None => frame_plane_lane(results, program.plane)?,
+            };
             embedded.validate(tol).map_err(NodeErrorKind::Profile)?
         }
         super::ProfileLift::Guided => lane_profile::<T>(
@@ -1694,6 +1689,24 @@ mod ladder {
         }
     }
 
+    /// **The single-table walk**, all three rungs: rung 1 against the
+    /// document, rungs 2 and 3 against ONE table, every refusal
+    /// through `refuse` in the caller's own vocabulary. The three
+    /// one-table doors (a blend's selection, a measure's reference, a
+    /// derived frame's face) are this function; the declare door
+    /// walks the rungs itself because it reads TWO tables between
+    /// rung 1 and rung 3 and picks a side in between.
+    pub(super) fn resolve_in(
+        name: &StableName,
+        doc: &crate::doc::Doc<ProfileProgram>,
+        table: &NameTable,
+        refuse: impl Fn(Box<ResolveError>) -> super::NodeErrorKind,
+    ) -> Result<EntityRef, super::NodeErrorKind> {
+        let live = live(name, doc).map_err(&refuse)?;
+        let landing = landing(&live, table);
+        resolve(live, landing).map_err(refuse)
+    }
+
     /// Rungs 2 and 3: the entity, or the refusal its landing earns.
     pub(super) fn resolve(
         live: Live<'_>,
@@ -1740,10 +1753,9 @@ fn resolve_selection(
     }
     let mut keys = Vec::with_capacity(selection.len());
     for name in selection {
-        let refused = |error| NodeErrorKind::BlendSelectionResolve { verb, error };
-        let live = ladder::live(name, doc).map_err(refused)?;
-        let landing = ladder::landing(&live, target);
-        let ent = ladder::resolve(live, landing).map_err(refused)?;
+        let ent = ladder::resolve_in(name, doc, target, |error| {
+            NodeErrorKind::BlendSelectionResolve { verb, error }
+        })?;
         let EntityKey::Edge(k) = ent.key else {
             return Err(NodeErrorKind::BlendSelectionKind {
                 verb,
@@ -1863,11 +1875,10 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
             continue;
         }
         let name = &r.name;
-        let refused = |error| NodeErrorKind::MeasureRefResolve { error };
-        let live = ladder::live(name, doc).map_err(refused)?;
         let value = value_of(results, r.at)?;
-        let landing = ladder::landing(&live, &value.name_table);
-        let ent = ladder::resolve(live, landing).map_err(refused)?;
+        let ent = ladder::resolve_in(name, doc, &value.name_table, |error| {
+            NodeErrorKind::MeasureRefResolve { error }
+        })?;
         let body =
             crate::names::interrogate::output_body(&value.payload, ent.body).map_err(|error| {
                 NodeErrorKind::MeasureRefUnreadable {
@@ -3013,9 +3024,9 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // (`SectionScalar`, decided by the type); anywhere else the
     // section refuses typed, naming itself and the frame, rather than
     // placing on a fabricated point of the frame's bracket.
-    let plane = match frame_kind(doc, program.plane)? {
-        FrameKind::Authored => profile_plane_f64(doc, program.plane, tol)?,
-        FrameKind::Derived => {
+    let plane = match profile_plane_f64(doc, program.plane, tol)? {
+        Some(authored) => authored,
+        None => {
             let lane_plane = frame_plane_lane(results, program.plane)?;
             pinned_plane(&lane_plane).ok_or(NodeErrorKind::DerivedFrameSection {
                 profile: id,
@@ -3023,7 +3034,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
             })?
         }
     };
-    let pre = prepare_profile(plane, &resolved, tol)?;
+    let pre = prepare_profile(Some(plane), &resolved, tol)?;
     // The lift's second pass runs HERE TOO, as a GATE. A loft's or a
     // sweep's section stays f64 — the skinned surface's knots, degrees
     // and control bits must be identical in every lane, which is the
@@ -3040,7 +3051,17 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
             tol,
         )?;
     }
-    let place = pre.profile_f64.plane.placement;
+    // Both arms above handed `prepare_profile` a placement, so the
+    // typed one is `Some` here by construction; a `None` would be an
+    // internal break, refused typed rather than placed at a
+    // convention.
+    let place = pre
+        .placement_f64
+        .ok_or(NodeErrorKind::DerivedFrameSection {
+            profile: id,
+            frame: program.plane,
+        })?
+        .placement;
     // The sections are the REPLAYED loops (program order — exactly
     // the stored-loop handoff LIB-U3 established, one derivation
     // earlier): positions, bulges, declared joints verbatim.

@@ -128,13 +128,15 @@ fn a_section_on_a_derived_frame_refuses_derived_frame_section_at_interval() {
 /// value then carries, and a boss profile sketched on the lifted
 /// body's top face.
 ///
-/// The widened parameter enters through the TRANSFORM rather than the
-/// extrude's height: an interval extrude re-certifies its carriers
-/// against a band scaled to the row's ε, and a height bracket of any
-/// width leaves that band — a fact about the extrude's certification,
-/// not about the frame. A rigid transform is key-stable and carries
-/// the bracket into the body's placement, which is exactly the fact
-/// the frame reads.
+/// The widened parameter enters through the TRANSFORM here so the
+/// row measures the placement alone; the direct spelling — the
+/// widened parameter IS the extrude's height — is
+/// [`a_widened_extrude_height_carries_the_frame_at_one_tenth_eps`],
+/// and the width at which a plain-`Interval` extrude of a widened
+/// height certifies is measured by
+/// [`an_interval_extrude_of_a_widened_height`] (green at ε/10,
+/// refused at ε/8: a floor near ε/16, the one
+/// `m10_3_driver_interval.rs` documents).
 fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
@@ -178,10 +180,10 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
         spin: ang(0.0),
     }));
     // The document ends at the boss PROFILE: the row below measures the
-    // profile's memo and its carried placement, and an interval
-    // extrude of a profile whose placement carries width refuses its
-    // own endpoint certification at the witness ε — a fact about the
-    // extrude's certification, not about the frame.
+    // profile's memo and its carried placement. An extrude ABOVE a
+    // derived frame whose placement carries width is the open DM1c
+    // asymmetry on the symbolic lane (PR #1829's item-1 diagnosis),
+    // and is not what this row pins.
     let boss_p = r.insert(Node::Profile(fixture::desc(
         frame,
         vec![fixture::square(0.0, 0.0, 0.5)],
@@ -189,16 +191,19 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     (r.doc, boss_p)
 }
 
-/// **PP5 for the derived placement**: widening the parameter the
-/// frame's body reads recomputes the profile on the frame — the
-/// widened placement cannot be served from the nominal memo entry.
+/// **The memo recomputes a profile on a derived frame through the
+/// UPSTREAM KEY**: widening the parameter the frame's body reads
+/// re-keys the body, hence the frame, hence the profile
+/// (`Node::inputs` of a profile names its frame, and a profile's
+/// content key folds every input's key in), so the widened placement
+/// cannot be served from the nominal memo entry. No placement feed of
+/// its own is needed for that, and none exists.
 ///
-/// The widening is hair-thin and SCALED TO THE ROW'S ε (±ε/8): the
-/// interval extrude's own endpoint certification refuses a height
-/// bracket whose enclosure (about four times the width) leaves the
-/// zero band, and the hosted matrix runs this row at every ε. What
-/// the row measures is the memo and the carried width, not how wide
-/// a box the lane can build.
+/// The widening is SCALED TO THE ROW'S ε (±ε/8) because the hosted
+/// matrix runs this row at every ε and the transform-lifted box must
+/// certify at each: ε/8 is a width the lifted box's own certification
+/// admits on plain `Interval` (the extrude's height is exact here),
+/// not the extrude-height floor the ladder row measures.
 #[test]
 fn widening_the_frames_body_parameter_recomputes_the_profile() {
     let width = Tol::witness().eps() / 8.0;
@@ -233,4 +238,153 @@ fn widening_the_frames_body_parameter_recomputes_the_profile() {
         z.hi() - z.lo() >= 1.9 * width,
         "the placement carries the widened height: {z:?}"
     );
+}
+
+/// **The measurement of record for a plain-`Interval` extrude of a
+/// WIDENED height** (no frame anywhere): certifies at ε/10 and every
+/// narrower width, refuses at ε/8 — a floor near ε/16, at every ε
+/// row. The ladder is printed in full; the assertion is the floor.
+#[test]
+fn an_interval_extrude_of_a_widened_height() {
+    let e = Tol::witness().eps();
+    let at = |width: f64| -> bool {
+        let mut r = Recorder::new();
+        r.push(DocEdit::SetDocParam {
+            name: ParamName::new("hh"),
+            value: DocParam::Continuous {
+                dim: Dimension::Length,
+                value: 1.0,
+                display_unit: UnitSym::canonical_for(Dimension::Length),
+                distribution: if width > 0.0 {
+                    Some(Distribution::Uniform {
+                        lo: -width,
+                        hi: width,
+                    })
+                } else {
+                    None
+                },
+            },
+        });
+        let profile = r.profile(
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![fixture::square(0.0, 0.0, 1.0)],
+        );
+        r.insert(Node::Extrude {
+            profile,
+            distance: Expr::param(ParamName::new("hh"), Dimension::Length),
+        });
+        let doc = r.doc;
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let opts = EvalOptions {
+            param_box: Some(Arc::new(ParamBox::of(&analyzed))),
+            ..EvalOptions::default()
+        };
+        let ev = run(&doc, None, &opts);
+        let fails = corpus::failures(&ev);
+        println!(
+            "widened extrude height: eps={e:e} width={width:e} green={} {}",
+            fails.is_empty(),
+            fails.first().map(String::as_str).unwrap_or("")
+        );
+        fails.is_empty()
+    };
+    for div in [8.0, 10.0, 30.0, 100.0, 300.0, 1.0e3, 1.0e4, 1.0e6] {
+        let green = at(e / div);
+        if div >= 10.0 {
+            assert!(
+                green,
+                "a widened extrude height of ε/{div} certifies on plain Interval"
+            );
+        } else {
+            assert!(
+                !green,
+                "a widened extrude height of ε/{div} refuses on plain Interval"
+            );
+        }
+    }
+    assert!(at(0.0), "the exact height certifies");
+}
+
+/// **The direct spelling**: the widened parameter IS the extrude's
+/// height, the derived frame sits on the cap it moves, the boss
+/// profile is on the frame — green at every ε row at ε/10, the
+/// placement carries the width, and the profile recomputes through
+/// the upstream key.
+#[test]
+fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
+    let width = Tol::witness().eps() / 10.0;
+    let mut r = Recorder::new();
+    r.push(DocEdit::SetDocParam {
+        name: ParamName::new("h"),
+        value: DocParam::Continuous {
+            dim: Dimension::Length,
+            value: 1.0,
+            display_unit: UnitSym::canonical_for(Dimension::Length),
+            distribution: Some(Distribution::Uniform {
+                lo: -width,
+                hi: width,
+            }),
+        },
+    });
+    let profile = r.profile(
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(0.0, 0.0, 1.0)],
+    );
+    let cube = r.insert(Node::Extrude {
+        profile,
+        distance: Expr::param(ParamName::new("h"), Dimension::Length),
+    });
+    let frame = r.insert(Node::Datum(Datum::FaceFrame {
+        at: cube,
+        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
+        spin: ang(0.0),
+    }));
+    let boss_p = r.insert(Node::Profile(fixture::desc(
+        frame,
+        vec![fixture::square(0.0, 0.0, 0.25)],
+    )));
+    let doc = r.doc;
+
+    let nominal = run(&doc, None, &EvalOptions::default());
+    assert!(
+        corpus::failures(&nominal).is_empty(),
+        "nominal: {:?}",
+        corpus::failures(&nominal)
+    );
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let opts = EvalOptions {
+        param_box: Some(Arc::new(ParamBox::of(&analyzed))),
+        ..EvalOptions::default()
+    };
+    let widened = run(&doc, Some(&nominal), &opts);
+    assert!(
+        corpus::failures(&widened).is_empty(),
+        "a widened EXTRUDE HEIGHT of eps/10 certifies green: {:?}",
+        corpus::failures(&widened)
+    );
+    let ValuePayload::Profile(p) = &widened.value(boss_p).expect("the boss profile").payload else {
+        panic!("a profile");
+    };
+    let z = p.validated.plane().placement.translation.z;
+    assert!(
+        z.hi() - z.lo() >= 1.9 * width,
+        "the placement carries the widened height: {z:?}"
+    );
+    assert_eq!(widened.reused, 2, "the two parameter-free leaves");
+    assert_eq!(widened.recomputed, doc.len() - 2);
+}
+
+/// **`SectionScalar` answers by type**: `f64` hands its value across,
+/// an interval and a dual answer `None` — decided by the impl, no
+/// number inspected (an exact interval is still an interval).
+#[test]
+fn section_scalar_is_decided_by_the_type() {
+    use editor_core::SectionScalar;
+    assert_eq!(1.5_f64.pinned_f64(), Some(1.5));
+    assert_eq!(Interval::from_bounds(1.0, 1.0).pinned_f64(), None);
+    assert_eq!(geom_core::Dual64::constant(1.0).pinned_f64(), None);
 }
