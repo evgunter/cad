@@ -1,5 +1,5 @@
 //! `MetaValue` — the format's own self-describing value tree (M4 PR 6
-//! spec D7, Evan's #92 ask banked at the schema-v1 freeze).
+//! spec D7, Ev's #92 ask banked at the schema-v1 freeze).
 //!
 //! The appearance record carries `metadata: BTreeMap<String,
 //! MetaValue>`; the kernel NEVER interprets it (black-box for

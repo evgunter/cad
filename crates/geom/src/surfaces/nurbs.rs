@@ -382,6 +382,40 @@ impl<T: Real> NurbsSurface<T> {
         )
     }
 
+    /// The same surface with every control point carried through `f`,
+    /// the knot vectors and the weights verbatim. Construction goes
+    /// through [`Self::from_validated_parts`], which states why no
+    /// re-validation is run.
+    ///
+    /// # What the caller owes
+    ///
+    /// The result is the POINTWISE IMAGE of this surface — `f(S(u, v))`
+    /// at every `(u, v)` — exactly when `f` is **affine**, and nothing
+    /// here checks that. Why an affine `f` suffices, and why the
+    /// weights are therefore untouched, is the Euclidean-storage
+    /// section of [`crate::curves::nurbs`]'s data model, which is the
+    /// one home for that rule.
+    ///
+    /// The consequence worth repeating at the call site: were the net
+    /// stored WEIGHTED (`wᵢⱼPᵢⱼ`, homogeneous), this call would be
+    /// wrong — an affine map's translation limb has to be scaled by
+    /// `wᵢⱼ` there, and applying it unscaled bends the surface. Read
+    /// the storage before reaching for this door.
+    ///
+    /// A non-affine `f` is not refused and not meaningless — it is a
+    /// map of the CONTROL NET, whose surface is some other surface —
+    /// but it is not this surface's image, and calling it one is the
+    /// error this paragraph exists to name.
+    #[must_use]
+    pub fn map_points(&self, f: impl Fn(Point3<T>) -> Point3<T>) -> Self {
+        Self::from_validated_parts(
+            self.knots_u.clone(),
+            self.knots_v.clone(),
+            self.control.iter().map(|p| f(*p)).collect(),
+            self.weights.clone(),
+        )
+    }
+
     /// The [`SurfaceWindow`] for a span pair already validated against
     /// THIS surface's own knot vectors — the one primitive
     /// constructor, behind [`Self::window`] and [`Self::window_at`].

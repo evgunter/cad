@@ -121,7 +121,7 @@
 //! `sector_straight` — **one name each, spelled here, for both
 //! lanes**. Until #652 they were six, `bool_sector_*` and
 //! `split_sector_*`, handed in as a `SectorPredicates` parameter so
-//! that #647's merge of the two bodies could be K-neutral; Evan ruled
+//! that #647's merge of the two bodies could be K-neutral; Ev ruled
 //! the two populations one (2026-08-19, #652), so the parameter is
 //! gone — there is nothing left for it to vary. **The evidence for
 //! that ruling, and the two-way precedent it weighed, live in

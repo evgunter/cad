@@ -12,10 +12,11 @@
 //! `CurvedSectorSideUnsupported`, issue 1455's frontier — while the
 //! curved unions below are the supported boss class. The story stays
 //! on what the kernel ships. Stacked discs stand in for the revolved
-//! silhouette a rook naturally is: `ProfileShape` spells no revolvable
-//! silhouette — issue 1457.) On the way
+//! silhouette a rook naturally is: this scene predates
+//! `ProfileShape`'s `Path` arm, which can now spell one.) On the way
 //! the user mis-picks a boolean (typed refusals), tries to crown the
 //! rook with a circular pattern and learns instances are not a body,
+//! fuses the same rule into ONE body and unions THAT onto the crown,
 //! deletes that experiment (the cascade, priced by the affordance
 //! first), undoes it back, walks the history both ways, edits AFTER an
 //! undo (the sibling branch, nothing destroyed), and saves — reopening
@@ -36,15 +37,14 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use core::f64::consts::{FRAC_PI_2, PI};
 
 use common::{ang, body_volume, insert, len, len3, near, scl3, shape};
 use pncad::document::{BooleanOp, Doc, DocEdit, RecipeNodeId, SlotId};
-use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
-use pncad::profile::SketchPlane;
 use viewer::props::SlotValue;
 use viewer::session::{
     DatumSpec, DocSession, NodeKindWanted, PatternRuleSpec, ProfileShape, Refusal, SessionOp,
@@ -86,11 +86,22 @@ const CUT_H: f64 = 0.008;
 const CUT2_LIFT: f64 = 0.0004;
 /// The taller drum the user edits in after the undo walk.
 const DRUM_H2: f64 = 0.009;
+/// The merlon block the user patterns round the crown: side, and how
+/// far its sketch plane is sunk into the crown's top so the union has
+/// no coplanar operand faces. Its four placements sit in the crown's
+/// CORNER quadrants, clear of both slots.
+const MERLON_S: f64 = 0.006;
+const MERLON_H: f64 = 0.004;
+const MERLON_SINK: f64 = 0.001;
+/// How far each merlon's centre is from the axis on each of x and y.
+const MERLON_OFF: f64 = 0.009;
 
 /// History states from `NewDocument` to the carved rook: the root
-/// plus seventeen committed edits.
-const CARVED_STATES: usize = 18;
-/// Edits on the FINAL saved path: the seventeen carving edits
+/// plus twenty-two committed edits. Five of those are sketch FRAMES:
+/// the rook is drawn on five different heights up its axis, and a
+/// profile names the plane it sits on.
+const CARVED_STATES: usize = 23;
+/// Edits on the FINAL saved path: the twenty-two carving edits
 /// (`CARVED_STATES` less the root) plus the taller-drum edit. Equal to
 /// `CARVED_STATES` only because one root and one drum edit cancel —
 /// the two constants count different quantities (states vs edits).
@@ -126,16 +137,28 @@ fn carved_volume(v_plinth: f64, drum_h: f64) -> f64 {
 
 // --- session helpers ------------------------------------------------
 
+/// The sketch frame at `origin`, spanned by world +x and +y — the
+/// plane a profile is drawn on, minted through the datum door.
+fn frame_at(session: &mut DocSession, origin: [f64; 3]) -> RecipeNodeId {
+    insert(
+        session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Frame {
+                origin: len3(origin),
+                u: scl3([1.0, 0.0, 0.0]),
+                v: scl3([0.0, 1.0, 0.0]),
+            },
+        },
+    )
+}
+
 /// A circle profile of `radius` on the plane `z` up the rook's axis.
 fn circle_at(session: &mut DocSession, radius: f64, z: f64) -> RecipeNodeId {
+    let plane = frame_at(session, [0.0, 0.0, z]);
     insert(
         session,
         SessionOp::AddProfile {
-            plane: SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, z),
-                Vec3::unit_x(),
-                Vec3::unit_y(),
-            ),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius,
@@ -160,10 +183,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     assert_eq!(session.history().len(), 1, "a fresh root, no edits yet");
 
     // ── The plinth: a square pad, then all twelve edges chamfered ───
+    let plane = common::xy_frame_in(&mut session);
     let plinth_profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: PLINTH_SIDE,
                 height: PLINTH_SIDE,
@@ -281,14 +305,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // is the boolean's curved-sector frontier, issue 1455 — the module
     // docs carry the ruling), so its slots stay in the crossing-slots
     // class.
+    let plane = frame_at(&mut session, [0.0, 0.0, DRUM_Z]);
     let drum_profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, DRUM_Z),
-                Vec3::unit_x(),
-                Vec3::unit_y(),
-            ),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: DRUM_S,
                 height: DRUM_S,
@@ -322,14 +343,11 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     // ── The crown: two crossing slots, the second the first cutter
     //    quarter-turned about the axis (one cutter body, consumed by
     //    both the subtract and the transform — the DAG's sharing) ────
+    let plane = frame_at(&mut session, [0.0, 0.0, CUT_Z]);
     let cutter_profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, CUT_Z),
-                Vec3::unit_x(),
-                Vec3::unit_y(),
-            ),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: CUT_W,
                 height: CUT_T,
@@ -387,8 +405,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     );
     let carved_doc = session.committed_doc().clone();
 
-    // ── The pattern experiment: a merlon block, patterned round the
-    //    axis — and the discovery that instances are not a body ──────
+    // ── The crenellation experiment: a merlon block, patterned round
+    //    the axis — instances are not a body, and the fused door is
+    //    what the refusal points at ─────────────────────────────────
     let axis = insert(
         &mut session,
         SessionOp::AddDatum {
@@ -398,17 +417,20 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
             },
         },
     );
+    // In a CORNER quadrant of the crown, clear of both slots, and its
+    // plane sunk a little into the crown's top: the story's no-
+    // coplanar-operands rule holds for this union too.
+    let plane = frame_at(
+        &mut session,
+        [MERLON_OFF, MERLON_OFF, DRUM_Z + DRUM_H - MERLON_SINK],
+    );
     let block_profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::from_frame(
-                Point3::new(0.010, 0.0, DRUM_Z + DRUM_H),
-                Vec3::unit_x(),
-                Vec3::unit_y(),
-            ),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
-                width: 0.006,
-                height: 0.006,
+                width: MERLON_S,
+                height: MERLON_S,
             })],
         },
     );
@@ -416,7 +438,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         &mut session,
         SessionOp::AddExtrude {
             profile: block_profile,
-            distance: len(0.004),
+            distance: len(MERLON_H),
         },
     );
     let pattern = insert(
@@ -440,12 +462,9 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         };
         assert_eq!(instances.len(), 4, "four blocks round the crown");
     }
-    // Fusing them onto the rook is refused at the door, typed: a
+    // Fusing THESE onto the rook is refused at the door, typed: a
     // pattern's value is several bodies, not the ONE a boolean seat
-    // consumes (the F4 division the heatsink demo documents). No
-    // session op wraps `Node::PlacedUnion`, so the vocabulary has no
-    // door that fuses a pattern — issue 1456 — which is why this
-    // experiment can only end in the delete below.
+    // consumes (the F4 division the heatsink demo documents).
     let states = session.history().len();
     let refused = session.perform(SessionOp::AddBoolean {
         op: BooleanOp::Union,
@@ -464,31 +483,80 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     assert!(refused.committed.is_empty(), "a refusal commits nothing");
     assert_eq!(session.history().len(), states, "and mints no state");
 
+    // The door that refusal points at: the same prototype and the
+    // same rule, said FUSED — one body out instead of four, which the
+    // boolean seat takes without complaint.
+    let merlons = insert(
+        &mut session,
+        SessionOp::AddPlacedUnion {
+            input: block,
+            count: 4,
+            rule: PatternRuleSpec::Circular {
+                axis,
+                step: ang(FRAC_PI_2),
+            },
+        },
+    );
+    session.pump();
+    {
+        let eval = session.evaluation().expect("the fused group landed");
+        let value = eval.value(merlons).expect("the group evaluated");
+        assert!(
+            matches!(value.payload, ValuePayload::Body(_)),
+            "the fused group is ONE body where the pattern was four"
+        );
+    }
+    let v_merlons = body_volume(&mut session, merlons, tol);
+    assert!(
+        near(v_merlons, 4.0 * MERLON_S * MERLON_S * MERLON_H),
+        "four disjoint merlons as one body: {v_merlons}"
+    );
+    let crenellated = insert(
+        &mut session,
+        SessionOp::AddBoolean {
+            op: BooleanOp::Union,
+            a: carved,
+            b: merlons,
+        },
+    );
+    // Each merlon meets the crown in its sunk slab and nowhere else,
+    // so the crenellated rook closes in the same arithmetic the rest
+    // of the story does.
+    let v_crenellated = body_volume(&mut session, crenellated, tol);
+    assert!(
+        near(
+            v_crenellated,
+            carved_volume(v_plinth, DRUM_H) + 4.0 * MERLON_S * MERLON_S * (MERLON_H - MERLON_SINK)
+        ),
+        "the rook with four merlons fused onto its crown: {v_crenellated}"
+    );
+
     // ── Deleting the experiment: the affordance prices the cascade
     //    BEFORE the click, the delete takes the cone as one action ───
     let affordance = session.delete_affordance(block);
     assert_eq!(
         affordance.label,
-        "Delete feature 'Extrude' and 1 dependent feature"
+        "Delete feature 'Extrude' and 3 dependent features"
     );
     assert!(
-        affordance
-            .hover
-            .as_deref()
-            .is_some_and(|hover| hover.contains("1 × Pattern")),
-        "the hover names the dependent by kind: {:?}",
+        affordance.hover.as_deref().is_some_and(|hover| {
+            ["1 × Pattern", "1 × PlacedUnion", "1 × Boolean"]
+                .iter()
+                .all(|kind| hover.contains(kind))
+        }),
+        "the hover names each dependent by kind: {:?}",
         affordance.hover
     );
     assert_eq!(
         affordance.cascade,
-        vec![pattern, block],
+        vec![crenellated, merlons, pattern, block],
         "consumers first, the target last"
     );
     let deleted = session.perform(SessionOp::DeleteNode { node: block });
     assert!(deleted.refusal.is_none(), "{:?}", deleted.refusal);
     assert_eq!(
         deleted.committed.len(),
-        2,
+        4,
         "one delete per doomed node, recorded as ONE action"
     );
     for (edit, want) in deleted.committed.iter().zip(&affordance.cascade) {
@@ -498,20 +566,28 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         );
     }
     let doc = session.committed_doc();
-    assert!(doc.node(block).is_none() && doc.node(pattern).is_none());
+    assert!(
+        doc.node(block).is_none()
+            && doc.node(pattern).is_none()
+            && doc.node(merlons).is_none()
+            && doc.node(crenellated).is_none()
+    );
     assert!(
         doc.node(axis).is_some() && doc.node(block_profile).is_some(),
         "nodes that only FED the target survive as roots of their own"
     );
-    assert_eq!(session.history().len(), CARVED_STATES + 5);
+    assert_eq!(session.history().len(), CARVED_STATES + 8);
 
     // One undo brings the WHOLE cone back — the cascade was one
     // action, so it is one step.
     assert!(session.perform(SessionOp::Undo).refusal.is_none());
     let doc = session.committed_doc();
     assert!(
-        doc.node(block).is_some() && doc.node(pattern).is_some(),
-        "the block and its pattern are back together"
+        doc.node(block).is_some()
+            && doc.node(pattern).is_some()
+            && doc.node(merlons).is_some()
+            && doc.node(crenellated).is_some(),
+        "the block and everything downstream of it are back together"
     );
     session.pump();
     {
@@ -528,14 +604,16 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
 
     // ── The undo/redo walk: back to the carved rook, part-way
     //    forward, back again — the tree keeps every state ────────────
-    for _ in 0..4 {
+    // Seven: the branch is axis, sketch frame, profile, extrude,
+    // pattern, fused group, union.
+    for _ in 0..7 {
         assert!(session.perform(SessionOp::Undo).refusal.is_none());
     }
     assert!(
         session.committed_doc().bit_eq(&carved_doc),
-        "four undos land exactly on the carved rook"
+        "seven undos land exactly on the carved rook"
     );
-    for _ in 0..2 {
+    for _ in 0..3 {
         assert!(session.perform(SessionOp::Redo).refusal.is_none());
     }
     let doc = session.committed_doc();
@@ -544,13 +622,13 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         "redo walks forward along the branch it left"
     );
     assert!(doc.node(block).is_none(), "…but only as far as asked");
-    for _ in 0..2 {
+    for _ in 0..3 {
         assert!(session.perform(SessionOp::Undo).refusal.is_none());
     }
     assert!(session.committed_doc().bit_eq(&carved_doc));
     assert_eq!(
         session.history().len(),
-        CARVED_STATES + 5,
+        CARVED_STATES + 8,
         "the walk destroyed nothing"
     );
 
@@ -572,7 +650,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let history = session.history();
     assert_eq!(
         history.len(),
-        CARVED_STATES + 6,
+        CARVED_STATES + 9,
         "a sibling, not a truncation"
     );
     assert_eq!(

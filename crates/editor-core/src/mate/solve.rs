@@ -54,8 +54,17 @@ pub enum MateRole {
 }
 
 /// The document's solved poses (D-5's compose-outward input).
-#[derive(Debug, Clone, Default)]
+///
+/// A solve is a solve OF a document, and it says so: `document` is the
+/// id [`solve_document`] read, and [`SolvedPoses::placement`] — the one
+/// door that takes a `Doc` back — refuses a mispairing with it (DI3).
+/// No `Default`, for that reason: a poses value with no document is a
+/// value that cannot answer which document it is about.
+#[derive(Debug, Clone)]
 pub struct SolvedPoses {
+    /// **Which document this is a solve OF** (DI3), stamped by
+    /// [`solve_document`].
+    document: crate::ident::DocumentId,
     /// Each live instance's pose RELATIVE TO ITS CLUSTER GAUGE. The
     /// gauge's own entry is the identity, bit-exactly.
     relative: BTreeMap<RecipeNodeId, Frame>,
@@ -69,6 +78,24 @@ pub struct SolvedPoses {
 }
 
 impl SolvedPoses {
+    /// An empty solve OF `document`: no poses, no roles, no faults.
+    fn empty(document: crate::ident::DocumentId) -> Self {
+        Self {
+            document,
+            relative: BTreeMap::new(),
+            gauge: BTreeMap::new(),
+            roles: BTreeMap::new(),
+            faults: BTreeMap::new(),
+        }
+    }
+
+    /// **Which document this solve is of** (DI3). A caller holding a
+    /// solve and a document can check the pairing itself; every door
+    /// here that takes a `Doc` checks it already.
+    pub fn document(&self) -> crate::ident::DocumentId {
+        self.document
+    }
+
     /// A node's recorded fault, if the solve refused for it.
     pub fn fault(&self, node: RecipeNodeId) -> Option<&MateFault> {
         self.faults.get(&node)
@@ -96,14 +123,28 @@ impl SolvedPoses {
     /// returns its recorded frame VERBATIM — the mate-less document's
     /// evaluation is bit-for-bit what it was before mates existed.
     ///
+    /// `doc` is read for its cluster frames, and it must be the
+    /// document this solve is OF: composing this document's relative
+    /// poses onto another one's recorded frames is a pose of neither.
+    /// The pairing is CHECKED here (DI3) — the solve carries the id it
+    /// was built from — rather than left to the caller.
+    ///
     /// # Errors
     ///
-    /// The cluster's own refusal, when it did not solve.
+    /// [`MateFault::PosesOfAnotherDocument`] when `doc` is not the
+    /// document this solve is of, and the cluster's own refusal when it
+    /// did not solve.
     pub fn placement<P>(
         &self,
         doc: &Doc<P>,
         instance: RecipeNodeId,
     ) -> Result<Frame, Box<MateFault>> {
+        if let Some(m) = crate::ident::mispaired(doc.id(), self.document) {
+            return Err(Box::new(MateFault::PosesOfAnotherDocument {
+                expected: m.expected,
+                found: m.found,
+            }));
+        }
         if let Some(fault) = self.faults.get(&instance) {
             return Err(Box::new(fault.clone()));
         }
@@ -144,24 +185,29 @@ pub struct Member {
     pub copy: Option<(RecipeNodeId, u32)>,
 }
 
-/// The member a mate reference's HEAD names, or the typed
-/// dangling-head refusal (N5).
+/// **The member a reference's HEAD names**, or `None` for a head
+/// outside A11's member vocabulary.
+///
+/// This is the vocabulary's one home — the admission rule the solve
+/// reads and any authoring door must gate on, so a door cannot admit
+/// a head the solve will refuse (or refuse one it would place).
 ///
 /// Structural only — no expression is evaluated here, so the cluster
-/// partition never depends on a slot value. A head outside the member
-/// vocabulary (a non-instance node; a pattern whose name carries no
-/// `Instance(i)` qualifier; a pattern whose input is not itself a live
-/// instance — a patterned boolean, a nested pattern) resolves to no
-/// member and refuses.
-fn head_of<P>(
-    doc: &Doc<P>,
-    mate: RecipeNodeId,
-    side: MateSide,
-    name: &crate::names::StableName,
-) -> Result<Member, MateFault> {
+/// partition never depends on a slot value. Outside the vocabulary: a
+/// non-instance node; a pattern whose name carries no `Instance(i)`
+/// qualifier; a pattern whose input is not itself a live instance — a
+/// patterned boolean, a nested pattern.
+///
+/// [`crate::refactor::split`]'s interface-crossing collector is one of
+/// those gates: a collector admitting a head the cluster graph does
+/// not weld would mint a record for a mate that never solved, which is
+/// what AQ8 option (b) SKIP refuses (ruled at the ASM-R2b review;
+/// recorded in `asm_r2b_assembly.rs`'s rows-5-and-6 header, not in
+/// `ASSEMBLY.md`'s AQ8 clause).
+pub fn member_of<P>(doc: &Doc<P>, name: &crate::names::StableName) -> Option<Member> {
     let head = name.node;
     match doc.node(head) {
-        Some(Node::InstantiatePart { .. }) => Ok(Member {
+        Some(Node::InstantiatePart { .. }) => Some(Member {
             instance: head,
             copy: None,
         }),
@@ -169,15 +215,31 @@ fn head_of<P>(
             Some(RoleSeg::Instance { i, .. })
                 if matches!(doc.node(*input), Some(Node::InstantiatePart { .. })) =>
             {
-                Ok(Member {
+                Some(Member {
                     instance: *input,
                     copy: Some((head, *i)),
                 })
             }
-            _ => Err(MateFault::DanglingHead { mate, side, head }),
+            _ => None,
         },
-        _ => Err(MateFault::DanglingHead { mate, side, head }),
+        _ => None,
     }
+}
+
+/// The member a mate reference's HEAD names, or the typed
+/// dangling-head refusal (N5) — [`member_of`] with the mate and side
+/// that attribute the refusal.
+fn head_of<P>(
+    doc: &Doc<P>,
+    mate: RecipeNodeId,
+    side: MateSide,
+    name: &crate::names::StableName,
+) -> Result<Member, MateFault> {
+    member_of(doc, name).ok_or(MateFault::DanglingHead {
+        mate,
+        side,
+        head: name.node,
+    })
 }
 
 /// **The pattern-derived offset** of a pattern-placed member: the
@@ -200,12 +262,22 @@ fn head_of<P>(
 /// A head whose derived pose does not exist resolves to no member of
 /// the vocabulary and refuses [`MateFault::DanglingHead`] — an index
 /// at or beyond the count, a rule whose slots do not evaluate, a
-/// degenerate direction, an explicit-rule pattern (whose count
-/// spelling the pattern node itself refuses). The pattern node's own
-/// evaluation names the underlying cause in its own voice; this door's
-/// job is only to refuse rather than guess a pose. An in-band
+/// degenerate or non-finite direction, an explicit-rule pattern
+/// (whose count spelling the pattern node itself refuses). This
+/// door's job is to refuse rather than guess a pose. An in-band
 /// direction-norm decision escalates [`MateFault::Indeterminate`], as
 /// every decided predicate here does.
+///
+/// **The direction refusals say less than they know, and the
+/// difference is not recoverable elsewhere.** A rule whose direction
+/// has zero or non-finite length is announced as a dangling head for
+/// a head that resolves; the pattern node that could name the length
+/// does not, because a mate fault poisons the document and that node
+/// evaluates to `Poisoned` rather than to its own
+/// `DegenerateDirection`/`NonFiniteDirection`. Carrying the
+/// evaluation layer's typed refusal into [`MateFault`] instead is
+/// proposed to this module's owner, filed as
+/// `mate-dangling-head-is-a-catch-all-that-reports-a-false-cause`.
 fn derived_offset<P>(
     doc: &Doc<P>,
     mate: RecipeNodeId,
@@ -249,11 +321,14 @@ fn derived_offset<P>(
     // normalized the same triple under `datum_unit_norm`. So one datum
     // direction is decided under two predicate names depending on
     // which road reaches it — same arithmetic, same refusal shape,
-    // different name in the K census. Whether the two roads should
-    // meet is a family question, homed at issue 1570; nothing is
-    // migrated here.
-    let unit = |v: Vec3<f64>| -> Result<Vec3<f64>, Box<MateFault>> {
-        crate::eval::unit_direction(v, "pattern direction", band).map_err(|e| match e {
+    // different name in the K census. The ROLE word is the one thing
+    // the two roads do agree on: each rule names the vector it
+    // actually normalized, so a circular rule's refusal says "datum
+    // axis direction" here exactly as it does on the eval road.
+    // Whether the two roads should meet is a family question, homed at
+    // issue 1570; nothing is migrated here.
+    let unit = |v: Vec3<f64>, role: &'static str| -> Result<Vec3<f64>, Box<MateFault>> {
+        crate::eval::unit_direction(v, role, band).map_err(|e| match e {
             crate::eval::NodeErrorKind::Escalated { source, .. } => {
                 Box::new(MateFault::Indeterminate {
                     mate,
@@ -265,7 +340,7 @@ fn derived_offset<P>(
     };
     let ops = match kind {
         PatternKind::Linear { direction, spacing } => SteppedOperands::Linear {
-            direction: unit(triple(direction)?)?,
+            direction: unit(triple(direction)?, "pattern direction")?,
             spacing: scalar(spacing)?,
         },
         PatternKind::Circular { axis, step } => {
@@ -274,7 +349,7 @@ fn derived_offset<P>(
             };
             SteppedOperands::Circular {
                 origin: Point3::origin() + triple(origin)?,
-                dir: unit(triple(direction)?)?,
+                dir: unit(triple(direction)?, "datum axis direction")?,
                 step: scalar(step)?,
             }
         }
@@ -322,7 +397,9 @@ pub fn reading_edges<P>(doc: &Doc<P>) -> Vec<(RecipeNodeId, RecipeNodeId)> {
 /// is the whole content of A9. Mates couple components precisely
 /// because their reading edges count here (A12) even though A10's
 /// invariants never see them.
-pub fn relative_freedom_components<P>(doc: &Doc<P>) -> Vec<Vec<RecipeNodeId>> {
+pub fn relative_freedom_components<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+) -> Vec<Vec<RecipeNodeId>> {
     let mut adjacency: BTreeMap<RecipeNodeId, BTreeSet<RecipeNodeId>> = BTreeMap::new();
     let mut edges: Vec<(RecipeNodeId, RecipeNodeId)> = Vec::new();
     for &id in doc.order() {
@@ -471,7 +548,9 @@ fn mate_coset(
     band: Band,
     tol: Tol,
 ) -> Result<Coset, Box<MateFault>> {
-    let arm = alignment.lever_arm();
+    let arm = alignment
+        .lever_arm()
+        .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal }))?;
     let frame = |side: MateSide, f: &super::MateFrame| {
         f.placement(tol)
             .map_err(|error| Box::new(MateFault::Frame { mate, side, error }))
@@ -497,6 +576,7 @@ fn mate_coset(
             // agree with is zero.
             if let Some(theta) = alignment.clocking {
                 let margin = geom_core::predicate::Margin::levered(theta, arm);
+                let deviation = margin.value();
                 let sign = geom_core::k_stats::decide("mate_clocking_redundant", margin, band)
                     .map_err(|diag| {
                         Box::new(MateFault::Indeterminate {
@@ -509,7 +589,8 @@ fn mate_coset(
                         held: mate,
                         added: mate,
                         predicate: "mate_clocking_redundant",
-                        clash: theta * arm,
+                        clash: deviation,
+                        lever: Some((theta, arm)),
                     }));
                 }
             }
@@ -614,7 +695,11 @@ pub fn fold_pair<P>(
 ) -> Result<Coset, Box<MateFault>> {
     let mut held = Coset::unconstrained();
     let mut held_mate = None;
-    let mut arm = 1.0_f64;
+    // The fold's lever is the largest of the mates' own, and it starts
+    // at nothing: the constant, where one is still needed, is
+    // [`Alignment::lever_arm`]'s own and is argued there rather than
+    // seeded here.
+    let mut arm = 0.0_f64;
     for &mate in mates {
         let Some(Node::Mate {
             a,
@@ -638,7 +723,11 @@ pub fn fold_pair<P>(
                 instance: ha.instance,
             }));
         }
-        arm = arm.max(alignment.lever_arm());
+        arm = arm.max(
+            alignment
+                .lever_arm()
+                .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal }))?,
+        );
         let mut coset = mate_coset(mate, alignment, band, tol)?;
         // The authored order is `a`'s coordinates from `b`'s; the tree
         // may need the other direction.
@@ -656,6 +745,7 @@ pub fn fold_pair<P>(
                     added: mate,
                     predicate,
                     clash: margin,
+                    lever: None,
                 }));
             }
         };
@@ -663,8 +753,9 @@ pub fn fold_pair<P>(
             return Err(Box::new(MateFault::Contradictory {
                 held: held_mate.unwrap_or(mate),
                 added: mate,
-                predicate: "mate_member_empty",
+                predicate: super::MATE_MEMBER_EMPTY,
                 clash: f64::INFINITY,
+                lever: None,
             }));
         }
         held_mate.get_or_insert(mate);
@@ -731,7 +822,7 @@ fn pair_left_factor<P>(
 /// Total by construction — a refusing cluster records its fault against
 /// its own mates and instances and leaves every other cluster solved.
 pub fn solve_document<P>(doc: &Doc<P>, tol: Tol) -> SolvedPoses {
-    let mut out = SolvedPoses::default();
+    let mut out = SolvedPoses::empty(doc.id());
     let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => {

@@ -340,7 +340,7 @@ const TANGENT_SECOND_ORDER_ZERO: &str = "tangent_second_order) is exactly zero a
 /// round — and what it runs out of is the FIXED round budget, inside a
 /// factor of two. Named specifically so the gate's preamble (which a
 /// tier-1/2 regression would also match) cannot stand in.
-const RATIONAL_FLUX_STALL: &str = "the certified quadrature enclosure stalled at";
+const RATIONAL_FLUX_STALL: &str = "the certified quadrature enclosure cannot reach the";
 /// dm1's coarse-band sub-reason: the convergence predicate declines to
 /// decide, by name, so a regression that turned this into a silent
 /// answer (or into a different door) fails the cell.
@@ -968,17 +968,38 @@ fn every_corpus_import_passes_the_shared_gate() {
     }
 }
 
-/// The reader touches the kernel's validator at exactly ONE place (the
-/// #260 ask: make skipping it structurally hard). The gate is asked
-/// about several subjects — each solid alone, then the assembled body
-/// — but always through `lib.rs`'s `gate`, which maps the verdicts to
-/// a typed refusal and does nothing else. Import owns no validation
-/// logic of its own: no second entry, no kind predicate deciding who
-/// is asked, no verdict filter deciding which failures count. This
-/// counts the validator calls in the crate's sources and pins the
-/// count at one; a second call is not automatically wrong, but it is
-/// exactly the shape the old band-only backstop had, so it must be
-/// argued for here rather than appear.
+/// The reader touches the kernel's at-rest validators at exactly TWO
+/// places (the #260 ask: make skipping them structurally hard). The
+/// gate is asked about several subjects — each solid alone, then the
+/// assembled body — but always through `lib.rs`'s `gate` (per-solid,
+/// tier 3) and `gate3` (the aggregate, tier 3′), each of which maps the
+/// verdicts to a typed refusal and does nothing else. Import owns no
+/// validation logic of its own: no third entry, no kind predicate
+/// deciding who is asked, no verdict filter deciding which failures
+/// count. This counts the validator call sites in the crate's sources
+/// and pins the count at two; a third is not automatically wrong, but
+/// it is exactly the shape the old band-only backstop had, so it must
+/// be argued for here rather than appear.
+///
+/// # What the needle covers, and what it does not
+///
+/// COVERS the tier-3 and tier-3′ door FAMILIES by name — every
+/// spelling of `validate_geometric` and `validate_pseudomanifold`
+/// (structural, `_declared`, `_certificate`) — and `contact_marks`,
+/// which is not one of those doors but runs the SAME tier-3 battery
+/// over the same body, so a reader that grew a gate there would be
+/// growing exactly the second entry this row exists to refuse.
+///
+/// DOES NOT COVER a battery composed by hand out of parts that are not
+/// gates: `validate_closed` (tier 2) followed by `mass_properties` is
+/// two public doors, neither of them an at-rest validator, and a reader
+/// that spelled its gate that way would read as zero sites here. That
+/// is a real hole and it is named rather than papered over — the needle
+/// is a name census, so it can only see doors that exist and are
+/// called by name. What closes it is not a wider pattern but the
+/// refusal rows below, which assert the reader's typed verdicts ARE the
+/// kernel's: a hand-rolled battery does not produce
+/// `StepImportError::TierInvalid` carrying `topo::ValidationError`s.
 #[test]
 fn exactly_one_validation_call_site_in_the_reader() {
     let src = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
@@ -987,10 +1008,30 @@ fn exactly_one_validation_call_site_in_the_reader() {
     // blanked: a commented-out door must not answer for a live one,
     // and prose naming the validator must not manufacture a site. The
     // blanked view keeps line structure, so the line number is real.
+    //
+    // It matches the door FAMILY, not one spelling. Each tier has more
+    // than one entry — `validate_geometric` and
+    // `validate_geometric_certificate`, `validate_pseudomanifold` and
+    // `validate_pseudomanifold_certificate`, plus the structural and
+    // `_declared` forms — and they are the same door with the same
+    // verdicts. A needle pinned to one spelling would let the reader
+    // grow a second entry by taking a sibling, which is exactly the
+    // shape this row exists to catch.
+    //
+    // `contact_marks` is in the set for the same reason and it is NOT a
+    // sibling spelling: it is a different door that runs the same
+    // tier-3 battery over the same body (its own product is the marks
+    // channel). A gate grown there would be a third entry wearing a
+    // fourth name.
+    const DOORS: [&str; 3] = [
+        "validate_geometric",
+        "validate_pseudomanifold",
+        "contact_marks",
+    ];
     for path in test_utils::source::rust_sources(&src) {
         let text = std::fs::read_to_string(&path).unwrap();
         for (i, line) in test_utils::source::code_only(&text).lines().enumerate() {
-            if line.contains("validate_geometric(") || line.contains("validate_pseudomanifold(") {
+            if DOORS.iter().any(|door| line.contains(door)) {
                 sites.push(format!("{}:{}", path.display(), i + 1));
             }
         }
@@ -1002,8 +1043,11 @@ fn exactly_one_validation_call_site_in_the_reader() {
     assert_eq!(
         sites.len(),
         2,
-        "the reader must call the kernel's at-rest validators at exactly the two \
-         named doors (per-solid tier 3, aggregate tier 3′): {sites:?}"
+        "the reader must call the kernel's at-rest validators at exactly the two named \
+         doors — per-solid tier 3 (`gate`) and aggregate tier 3′ (`gate3`). Every \
+         spelling of both door families is counted, and so is `contact_marks`, which \
+         runs the same battery; what is NOT counted is a battery hand-composed out of \
+         non-gate parts (see this row's docs): {sites:?}"
     );
 }
 

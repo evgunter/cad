@@ -6,18 +6,16 @@
 // `-D warnings`. Nothing else in this file is this lane's.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::ring::pt;
+use crate::shared::tol::band;
 use core::num::NonZeroUsize;
 use geom_brep::props::quad::{RVec3, nurbs_patch_face};
+use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Tol, ring_interval::RingInterval};
-
-fn pt(x: f64) -> RingInterval {
-    RingInterval::point(x)
-}
 
 #[test]
 fn r2_quad_raw_digit_probe() {
-    let band = Band::linear(Tol::witness()).unwrap();
+    let band = band();
     let kv_v = KnotVector::unit_segment(NonZeroUsize::MIN);
     let (pu, nv, height) = (3usize, 2usize, 2.0f64);
     for mult in [2usize, 3] {

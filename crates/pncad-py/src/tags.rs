@@ -1,4 +1,15 @@
-//! Stable discriminant tags for the document layer's refusals.
+//! Stable discriminant tags for the document layer's refusals — and
+//! for the one VERDICT that needs one.
+//!
+//! [`resolution_status_tag`] is that one, and it is deliberately not
+//! a refusal: a resolution is a TOTAL answer, one of three states for
+//! every name asked, and it crosses as a value rather than a raise.
+//! What it shares with everything else in this file is the reason a
+//! tag exists at all — a caller branches on the discriminant, prose
+//! is not a stable interface — and the reason this file is its home:
+//! the exhaustive match is a drift alarm that fires in hosted CI,
+//! because this module compiles without Python and the `#[pyclass]`
+//! it feeds does not.
 //!
 //! Typed exceptions carry the structured error, never strings. The
 //! exception's machine payload is a stable **tag** — a discriminant
@@ -24,17 +35,37 @@
 //! which forces a wildcard arm and takes the compile-time alarm away
 //! with nothing that fires in its place — see that function for what
 //! the crossing does instead.
+//!
+//! **This file is READ as data.** The exhaustive matches guard the
+//! existence of a tag; nothing in the compiler guards its VALUE, and
+//! the values are the Python-facing contract. So
+//! `src/tests.rs`'s `the_whole_tag_table_matches_its_committed_inventory`
+//! parses this source at test time and compares every function's
+//! literals against an inventory committed there — a rename, an
+//! addition, a deletion or a new tag function reds on the default
+//! no-interpreter row. Its reader ENUMERATES rather than approximates:
+//! every top-level line here must be a comment, a `use` item, a
+//! `pub fn NAME(..) -> &'static str {` closed by a `}` in column 0, or
+//! a `pub const NAME: &str = "..";`, and every match arm's body must
+//! be a literal, a nested `match`, a block around one of those, or a
+//! call to another tag function. Anything else fails that test with
+//! *I do not understand this* rather than being skipped — so an
+//! attribute, a helper, or a cleverer arm added here is a deliberate
+//! diff that teaches the reader too, never a silent hole.
 
 use pncad::document::{
-    AssemblyError, CheckEvidence, ChecksError, DimensionError, EditError, InlineError, MateFault,
-    NodeErrorKind, PersistError, PlacementRuleFault, RecordedProgramError, RefusedRef, RootFault,
-    SplitError, UpdateError,
+    AssemblyError, CheckEvidence, ChecksError, DimensionError, EditError, EvalError, InlineError,
+    MateFault, NodeErrorKind, ParseError, PersistError, PlacementRuleFault, RecordedProgramError,
+    RefusedRef, RootFault, SplitError, UpdateError,
 };
 use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
 use pncad::prelude::BlendKind;
 use pncad::profile::{PathError, PathErrorKind};
-use pncad::select::{DanglingRef, InterrogateError, ReadbackError};
+use pncad::quantity::FmtQuantityError;
+use pncad::select::{
+    DanglingRef, HitTestError, InterrogateError, NodePickError, ReadbackError, Resolution,
+};
 use pncad::step_import::StepImportError;
 // All three STL refusals are prelude-curated; the module path is the
 // spelling this file uses throughout, not a reach past the façade.
@@ -59,7 +90,8 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::JunctionTangent => "junction_tangent",
         PathErrorKind::JunctionCusp => "junction_cusp",
         PathErrorKind::SeamTangent => "seam_tangent",
-        PathErrorKind::SameCarrierJunction => "same_carrier_junction",
+        PathErrorKind::SeamArrivalOffDirection => "seam_arrival_off_direction",
+        PathErrorKind::SeamArrivalLeverTooShort => "seam_arrival_lever_too_short",
         PathErrorKind::ContinuationTargetOffRay => "continuation_target_off_ray",
         PathErrorKind::NoCornerForFillet => "no_corner_for_fillet",
         PathErrorKind::AnchorOutsideTrimmedExtent => "anchor_outside_trimmed_extent",
@@ -96,7 +128,6 @@ pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
         RecordedProgramError::Literal(inner) => expr_dimension_error_tag(inner),
         RecordedProgramError::SubdivisionCount(_) => "subdivision_count",
         RecordedProgramError::CarrierInChain => "carrier_in_chain",
-        RecordedProgramError::VerbNotInDocumentVocabulary(_) => "verb_not_in_document_vocabulary",
     }
 }
 
@@ -137,6 +168,13 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::ProfileProgramRefused { .. } => "profile_program_refused",
         EditError::UnresolvedInput { .. } => "unresolved_input",
         EditError::WouldCycle { .. } => "would_cycle",
+        // The list-input door's three (DM4/DM5). Tags only: the Python
+        // SURFACE for `Node.union` and `SetMembers` is LIB's build,
+        // and this match is exhaustive, so the crate's compile is what
+        // requires these rows and nothing else here changes.
+        EditError::DuplicateInput { .. } => "duplicate_input",
+        EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
+        EditError::TooFewMembers { .. } => "too_few_members",
         EditError::DeleteWouldDangle { .. } => "delete_would_dangle",
         EditError::UnknownSlot { .. } => "unknown_slot",
         EditError::SlotDimensionMismatch { .. } => "slot_dimension_mismatch",
@@ -253,6 +291,14 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::ProfileAnchor { .. } => "profile_anchor",
         NodeErrorKind::Extrude { .. } => "extrude",
         NodeErrorKind::Revolve { .. } => "revolve",
+        // ONE tag for both tube kinds, matching every other op on
+        // this map (`revolve` covers ten `RevolveError` arms the
+        // same way): the tag names the OP that refused, and the
+        // refusal is already attributed to a node whose kind says
+        // solid or hollow. Per-arm tags would be worth having, but
+        // for every op at once — not for the one op whose unit
+        // happened to be written last.
+        NodeErrorKind::Tube { .. } => "tube",
         NodeErrorKind::Split { .. } => "split",
         // The two blends share one kernel error type, so the tag is
         // read off the VERB the node is: a chamfer's refusal must not
@@ -273,6 +319,14 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::MeasureNotParallel { .. } => "measure_not_parallel",
         NodeErrorKind::MeasureNonFinite { .. } => "measure_non_finite",
         NodeErrorKind::MeasureMalformed(_) => "measure_malformed",
+        // Its own tag rather than `measure_unsupported`'s: the
+        // recourse is "select a body or a face", not "this carrier
+        // pair has no closed form".
+        NodeErrorKind::MeasureSelectionKind { .. } => "measure_selection_kind",
+        // And its own again: the clearance engine refused, so the
+        // recourse is the engine's — a wider budget, an admitted
+        // carrier — and not the measurement vocabulary's.
+        NodeErrorKind::MeasureClearanceRefused(_) => "measure_clearance_refused",
         NodeErrorKind::PayloadExpr { .. } => "payload_expr",
         NodeErrorKind::AssertionDimension { .. } => "assertion_dimension",
         NodeErrorKind::ToleranceConflict { .. } => "tolerance_conflict",
@@ -281,14 +335,24 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         // — one is "replay in a process whose ε matches", the other is
         // "ask for the box at a scalar that can carry it".
         NodeErrorKind::ParamBox { .. } => "param_box",
+        // The box arm's twin, and its own tag for the same reason: the
+        // recourse is "seed at a scalar with a tangent channel" (or
+        // name a continuous parameter), not the box's.
+        NodeErrorKind::Seed { .. } => "seed",
+        // The seed stopped at a C6/D9-pinned section: its own tag,
+        // because the recourse ("this parameter cannot be seeded
+        // through a loft or sweep section") is neither the box's nor
+        // the scalar's.
+        NodeErrorKind::SeedPinnedSection { .. } => "seed_pinned_section",
         NodeErrorKind::WrongOperand { .. } => "wrong_operand",
         NodeErrorKind::EmptyOperand { .. } => "empty_operand",
         NodeErrorKind::DegenerateDirection { .. } => "degenerate_direction",
         NodeErrorKind::NonFiniteDirection { .. } => "non_finite_direction",
         NodeErrorKind::Band { .. } => "band",
         NodeErrorKind::MissingSlot { .. } => "missing_slot",
+        NodeErrorKind::VerbArity { .. } => "verb_arity",
         NodeErrorKind::Escalated { .. } => "escalated",
-        NodeErrorKind::AxisNotInSketchPlane { .. } => "axis_not_in_sketch_plane",
+        NodeErrorKind::AxisInDifferentPlane { .. } => "axis_in_different_plane",
         NodeErrorKind::NonPositiveCount { .. } => "non_positive_count",
         NodeErrorKind::PlacementsUncertified { .. } => "placements_uncertified",
         NodeErrorKind::PlacementRule(fault) => placement_rule_fault_tag(fault),
@@ -314,6 +378,21 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
             BlendKind::Fillet => "fillet_selection_empty",
             BlendKind::Chamfer => "chamfer_selection_empty",
         },
+        // The derived sketch frame's refusals (DOCM-1): the fillet's
+        // ladder and kind refusals, one carrier-kind refusal, one
+        // read-back refusal, and the section refusal DM1c adds.
+        NodeErrorKind::FaceFrameResolve { .. } => "face_frame_resolve",
+        NodeErrorKind::FaceFrameKind { .. } => "face_frame_kind",
+        NodeErrorKind::FaceFrameNotPlanar { .. } => "face_frame_not_planar",
+        NodeErrorKind::FaceFrameReadback { .. } => "face_frame_readback",
+        NodeErrorKind::DerivedFrameSection { .. } => "derived_frame_section",
+        // The projection node's two refusals (DOCM-2): a half with no
+        // material, and an instance index outside the pattern's count.
+        // Tags only — the Python surface for `Node.part` is LIB's
+        // build, and this match is exhaustive, so the crate's compile
+        // is what requires these rows.
+        NodeErrorKind::EmptyHalf { .. } => "empty_half",
+        NodeErrorKind::InstanceOutOfRange { .. } => "instance_out_of_range",
         NodeErrorKind::WitnessBifurcation { .. } => "witness_bifurcation",
         // The seam faults stay separable at the tag level:
         // "the pin does not hold" and "the tolerances disagree" are
@@ -334,6 +413,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
 /// primitive, or move the geometry out of the band.
 pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
     match fault {
+        MateFault::PosesOfAnotherDocument { .. } => "mate_poses_of_another_document",
         MateFault::Frame { .. } => "mate_frame_degenerate",
         MateFault::ClassNotAdmitted { .. } => "mate_class_not_admitted",
         MateFault::TableLacks { .. } => "mate_table_lacks",
@@ -343,6 +423,7 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
         MateFault::Under { .. } => "mate_under",
         MateFault::DanglingHead { .. } => "mate_dangling_head",
         MateFault::SelfMate { .. } => "mate_self",
+        MateFault::Unleverable { .. } => "mate_datum_too_small_to_lever",
     }
 }
 
@@ -509,6 +590,7 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
 pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
     use pncad::document::ProductError as E;
     match err {
+        E::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
         E::UnknownNode { .. } => "unknown_node",
         E::RootFailed { .. } => "root_failed",
         E::RootPoisoned { .. } => "root_poisoned",
@@ -536,6 +618,71 @@ pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
         DimensionError::NonFiniteLiteral => "non_finite",
         DimensionError::DisplayUnitMismatch { .. } => "display_unit_mismatch",
         DimensionError::UnknownDisplayUnit { .. } => "unknown_display_unit",
+    }
+}
+
+/// The stable tag for a display-formatter refusal (`Length.format` /
+/// `Angle.format`).
+///
+/// One arm today, and the map exists anyway for the reason every
+/// other one does: the tag is the branchable interface, and a SECOND
+/// arm arriving must break this build rather than reach a caller
+/// untagged. A one-arm `match` with no wildcard IS that alarm, at the
+/// size this refusal happens to be.
+///
+/// The tag is `non_finite`, deliberately the same string
+/// [`expr_dimension_error_tag`] uses for `NonFiniteLiteral`. Two
+/// layers refuse the same fact — a float that is NaN or ±∞ — on
+/// opposite doors (one on the way INTO a recipe, one on the way OUT
+/// to a human), and a caller branching on the tag is asking what went
+/// wrong, not which layer said so; the exception CLASS already
+/// answers the second question.
+pub fn fmt_quantity_error_tag(err: &FmtQuantityError) -> &'static str {
+    match err {
+        FmtQuantityError::NonFinite { .. } => "non_finite",
+    }
+}
+
+/// The stable tag for an expression TEXT-door refusal (`parse_expr`).
+///
+/// The `Dimension` arm keeps a tag of its OWN rather than borrowing
+/// the inner refusal's: what refused is the parse, at a byte offset
+/// the inner `DimensionError` does not carry. The inner tag crosses
+/// beside it as the exception's `kind`
+/// ([`expr_dimension_error_tag`]), so a caller who wants to branch on
+/// WHICH reduction was refused still can.
+pub fn parse_error_tag(err: &ParseError) -> &'static str {
+    match err {
+        ParseError::UnexpectedChar { .. } => "unexpected_char",
+        ParseError::UnexpectedEnd { .. } => "unexpected_end",
+        ParseError::UnexpectedToken { .. } => "unexpected_token",
+        ParseError::TrailingInput { .. } => "trailing_input",
+        ParseError::MalformedNumber { .. } => "malformed_number",
+        ParseError::IntegerOverflow { .. } => "integer_overflow",
+        ParseError::UnknownUnit { .. } => "unknown_unit",
+        ParseError::UnknownFunction { .. } => "unknown_function",
+        ParseError::WrongArity { .. } => "wrong_arity",
+        ParseError::UnknownParam { .. } => "unknown_param",
+        ParseError::Dimension { .. } => "dimension",
+    }
+}
+
+/// The stable tag for an evaluation refusal (`eval` / `eval_count`).
+///
+/// Note what is NOT here: division by zero and out-of-domain trig.
+/// The evaluator has no branches to hide a numeric domain behind, so
+/// those follow the kernel's poison-value policy through the scalar
+/// and reach a caller as `non_finite_result` — on the finished VALUE,
+/// at the end of the evaluation, rather than at the operation.
+pub fn eval_error_tag(err: &EvalError) -> &'static str {
+    match err {
+        EvalError::UnknownParam(_) => "unknown_param",
+        EvalError::ParamDimensionMismatch { .. } => "param_dimension_mismatch",
+        EvalError::CountExprInContinuousEval => "count_expr_in_continuous_eval",
+        EvalError::ContinuousExprInCountEval { .. } => "continuous_expr_in_count_eval",
+        EvalError::CountOverflow => "count_overflow",
+        EvalError::CountToScalarOutOfRange(_) => "count_to_scalar_out_of_range",
+        EvalError::NonFiniteResult => "non_finite_result",
     }
 }
 
@@ -726,6 +873,120 @@ pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
         InterrogateError::NoBodies { .. } => "no_bodies",
         InterrogateError::NoSuchBody { .. } => "no_such_body",
         InterrogateError::Readback(err) => readback_error_tag(err),
+    }
+}
+
+/// **The standing ladder's "this run has no result for that node"
+/// word, as a NAME rather than a repeated literal.**
+///
+/// The read-back and picking doors reach this spelling through a
+/// `match` on a kernel arm ([`interrogate_error_tag`],
+/// [`hit_test_error_tag`]), so a rename there is loud. The EVALUATION
+/// door has no kernel arm to match on — `Evaluation::result` answers
+/// `None` for a node a canceled run never reached, and the reason tag
+/// beside it is this crate's own decision — so it spelled the word by
+/// hand, and a hand-spelled copy of a shared vocabulary is exactly
+/// the divergence `tests::dimension_tags_match_the_kernel_prose`
+/// exists for one file over.
+///
+/// Naming it here makes the copy a reference, and
+/// `tests::the_evaluation_door_speaks_the_standing_ladder` pins it
+/// against the two doors that DO match, in both directions. (Both
+/// named as text rather than as intra-doc links: `tests` is
+/// `#[cfg(test)]`, so a link to either would not render.)
+pub const NODE_NOT_EVALUATED: &str = "node_not_evaluated";
+
+/// The stable tag for a hit-test refusal — the ray door's own.
+///
+/// The three standing arms are the SAME vocabulary
+/// [`interrogate_error_tag`] speaks for the read-back doors, spelled
+/// identically on purpose: "node 7 has no result in this evaluation"
+/// is one fact about the run, and a caller that already branches on
+/// `node_not_evaluated` from a frame read should not have to learn a
+/// second word for it at the pick.
+///
+/// `unnamed` is the BUG arm (spec D4): the node evaluated and the
+/// entity has no name in its table. Its payload is an `EntityRef`,
+/// which is an arena key plus a body index — the key does not cross
+/// (G1), so what the Python side projects beside this tag is the
+/// entity's KIND and its body index, which is the whole of the
+/// diagnostic a bug report can act on.
+pub fn hit_test_error_tag(err: &HitTestError) -> &'static str {
+    match err {
+        HitTestError::NodeNotEvaluated { .. } => "node_not_evaluated",
+        HitTestError::NodeFailed { .. } => "node_failed",
+        HitTestError::NodePoisoned { .. } => "node_poisoned",
+        HitTestError::Unnamed { .. } => "unnamed",
+    }
+}
+
+/// The stable tag for a pick-index build refusal.
+///
+/// Three arms FORWARD rather than wrap, the
+/// [`interrogate_error_tag`] / [`assembly_error_tag`] convention: the
+/// standing ladder arrives under [`hit_test_error_tag`]'s words (it is
+/// literally that type), and a tessellation refusal arrives under the
+/// tessellator's own tag, because "the chordal budget was not finite"
+/// is that fact whether it is reached through `Body.tessellate` or
+/// through a pick index.
+///
+/// The `Index` arm is the one that cannot forward. Its payload is
+/// `MeshPickError`, which CUR3 recorded DECIDED absent from the façade
+/// (`crates/pncad/tests/all.rs`'s `NOT_CARRIED`, argued in
+/// `crates/pncad/src/select.rs`): the type is not nameable here, so
+/// its arms cannot be matched and there is no per-arm tag to forward.
+/// The whole arm therefore crosses as ONE tag plus the kernel's own
+/// prose, which states the offending patch, triangle and index. That
+/// is a knowingly unprojected payload — `work/lib/mesh-pick-error-is-
+/// unmatchable-under-node-pick-error.md` records it — and not a lane
+/// this crate can close without a façade decision.
+pub fn node_pick_error_tag(err: &NodePickError) -> &'static str {
+    match err {
+        NodePickError::Standing(err) => hit_test_error_tag(err),
+        NodePickError::NotABody { .. } => "not_a_body",
+        NodePickError::NoSuchBody { .. } => "no_such_body",
+        NodePickError::Tessellate(err) => tessellate_error_tag(err),
+        NodePickError::Index(_) => "mesh_index",
+    }
+}
+
+/// The stable status tag of a resolution VERDICT — a stored name's
+/// standing at the next evaluation.
+///
+/// Not a refusal, and the only entry in this file that is not: every
+/// name asked gets exactly one of these three, never a raise. The tag
+/// is here anyway for the reason the header states — it is the
+/// discriminant a caller branches on, and this file compiles in
+/// hosted CI where `py/resolve.rs` does not, so the exhaustive match
+/// is where the drift alarm can actually fire.
+///
+/// **The three words carry the RECOURSE, which is the whole point of
+/// keeping them three.** `resolved` needs none. `failed` means the
+/// name does not denote in this evaluation and will not come back on
+/// its own — the repair is an explicit rebind. `indeterminate` means
+/// the NAME is fine and the RUN is not: the minting node failed, was
+/// poisoned, or never evaluated, so the reference is unanswerable
+/// right now and resolves again when that node does. Collapsing the
+/// last two would tell a user to rebind a name that never broke.
+///
+/// Lower-case snake, the spelling every other tag in this file uses.
+/// `Verdict.status` — the other value-carried discriminant in these
+/// bindings — capitalizes instead; that divergence predates this and
+/// is not repaired here, because a shipped tag value is an interface.
+///
+/// **What this tag does NOT reach is the failure's own arm.**
+/// `ResolveError`, `ResolutionFailure` and `ResolveIndeterminate` are
+/// DECIDED absent from the façade (`crates/pncad/tests/all.rs`'s
+/// `NOT_CARRIED`, "Naming interior"), so there is no `vanished` /
+/// `ambiguous` / `node_gone` tag to forward and none is invented
+/// here: what crosses beside this word is the kernel's own `Display`.
+/// Banked as `work/lib/resolution-failure-arms-are-unmatchable-under-
+/// resolution.md`, the `MeshPickError` shape one family along.
+pub fn resolution_status_tag(verdict: &Resolution) -> &'static str {
+    match verdict {
+        Resolution::Resolved(_) => "resolved",
+        Resolution::Failed(_) => "failed",
+        Resolution::Indeterminate(_) => "indeterminate",
     }
 }
 

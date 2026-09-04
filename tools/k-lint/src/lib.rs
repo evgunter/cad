@@ -223,9 +223,35 @@
 /// that: the failure would be silent, an exact row quietly answering to
 /// the ratio rules. That is the residue, stated rather than guarded,
 /// because the guard would have to live in the recorder.
+///
+/// **The separation itself IS checked**, in
+/// `tests/threshold_provenance.rs`: the M7 era's `band_zero`
+/// population is bimodal with an 88-decade gap, and every value inside
+/// that gap classifies every recorded row identically. The same
+/// derivation over all four committed eras is there too, `#[ignore]`d
+/// because M7 dominates them and they are frozen. So the digit is
+/// a choice within the gap and carries no information — which is what
+/// the paragraph above claims, now stated where it can fail. It does
+/// not reach the residue: these are past snapshots, and a future band
+/// construction is invisible to all of them.
 pub const AMBIENT_BAND_MIN: f64 = 1e-13;
 
 /// "Within 10^2 of the band": the spec's proximity factor (D3).
+///
+/// **A policy choice, and the only one of this crate's four constants
+/// that is** — nothing derives 1e2 and no re-measurement could. What
+/// bounds it is derived instead, in `tests/threshold_provenance.rs`:
+/// below the structural edge the rule-2 cap stops binding at the
+/// loosest supported row, and above the corpus's own largest zero-side
+/// ratio the baseline starts flagging itself under rule (2)-below.
+/// **That measured ceiling is the binding one of the two** — well
+/// under the structural edge, and under 2x above the shipped factor,
+/// at the 1e-12 row where a fixed rounding-scale coincidence is
+/// closest to `band_zero`. Both halves of that sentence are the
+/// assertions the test makes, in that order. It is NOT the crate's
+/// narrowest headroom: this one is 1.88x of a policy digit, while
+/// `EPS_COUPLED_FLOOR_RATIO` sits 8.9% below its P0 and this floor
+/// 16.6% below its datum — different quantities, not a ranking.
 pub const PROXIMITY_FACTOR: f64 = 1e2;
 
 /// The baseline distribution's bottom edge (provenance in the module
@@ -292,6 +318,15 @@ pub const EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
 /// minimum of 108 draws, so a firing here is likelier to be the
 /// threshold than the distribution, and the runbook rather than this
 /// line is where that gets decided.
+///
+/// **The derivation is executable**, in `tests/threshold_provenance.rs`:
+/// the population is re-cut from the committed M7 era on every
+/// `cargo test` and this constant re-checked against its P0 and the
+/// headroom above. The distinction the paragraph above draws survives
+/// intact — what is re-run is the CUT, over a fixed committed era;
+/// what nothing re-takes is the SWEEP that produced the era. When a
+/// later era supersedes M7 the constant is re-cut against it, and that
+/// test is where the move happens.
 pub const EPS_COUPLED_FLOOR_RATIO: f64 = 1.5e2;
 
 /// Whether `predicate` is one of the [`EPS_COUPLED_PREDICATES`].
@@ -328,6 +363,42 @@ pub enum Reason {
     BelowEpsCoupledFloor,
 }
 
+impl Reason {
+    /// **Which RULE of the module's three this reason belongs to.**
+    ///
+    /// The distinction is load-bearing since M10-6: rule 1 detects a
+    /// margin the run could not decide at all (`indeterminate`) or a
+    /// poisoned one (`invalid`) — a defect wherever it appears, and
+    /// the trigger ERROR-DESIGN E6 names for re-opening the K
+    /// question. Rules 2 and 3 detect margins that are DECIDED but sit
+    /// near a threshold or below a calibrated floor — a statement
+    /// about the distribution, which a population that refines margins
+    /// toward zero by construction will make in bulk without anything
+    /// being wrong.
+    ///
+    /// A consumer may demote 2 and 3 with a recorded justification
+    /// (`docs/K-REPORT.md`'s recourse 2). Demoting rule 1 would demote
+    /// the trigger, so nothing offers that.
+    pub fn rule(self) -> u8 {
+        match self {
+            Self::InBand | Self::Invalid => 1,
+            Self::NearBandAbove | Self::NearBandBelow => 2,
+            Self::BelowBaselineFloor | Self::BelowEpsCoupledFloor => 3,
+        }
+    }
+
+    /// Every reason, for tallying — so a per-rule count cannot silently
+    /// omit a variant the enum grows.
+    pub const ALL: [Self; 6] = [
+        Self::InBand,
+        Self::Invalid,
+        Self::NearBandAbove,
+        Self::NearBandBelow,
+        Self::BelowBaselineFloor,
+        Self::BelowEpsCoupledFloor,
+    ];
+}
+
 impl core::fmt::Display for Reason {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let s = match self {
@@ -361,6 +432,11 @@ pub struct Flag {
 pub struct Scan {
     /// Samples considered (every non-header, non-empty line).
     pub scanned: usize,
+    /// How many of [`Scan::scanned`] were `symbolic_zero` — decisions
+    /// the symbolic identity tier answered, which answer to no rule
+    /// here ([`lint_sample`]'s arm says why) and are reported as their
+    /// own number rather than folded into the clean count.
+    pub symbolic: usize,
     pub flags: Vec<Flag>,
     /// `Some((10²·Kε, floor))` when this file's ambient rows are loose
     /// enough that rule (2)'s definite arm was capped at the baseline
@@ -372,6 +448,31 @@ pub struct Scan {
 /// The sweep's CSV header: the column order this file's rules are
 /// stated against, and the only header [`lint_csv`] accepts.
 const EXPECTED_HEADER: &str = "shape,predicate,margin,band_zero,band_escalate,outcome";
+
+/// **Every outcome token the recorder can write** — this lint's half of
+/// a vocabulary whose other half is `geom_core::k_stats::SampleOutcome`.
+///
+/// One list rather than a `matches!` arm, because the two halves have
+/// already drifted once and the drift was invisible. `SampleOutcome`
+/// grew a `SymbolicZero` variant serialized as `symbolic_zero`; this
+/// list did not; and every driver row the E6 sweep wrote from then on
+/// was refused as harness breakage, so the driver population was linted
+/// ZERO times while the CI row still reported success. The tool was
+/// right to refuse a token it did not know — that refusal is
+/// deliberate, review MIN-2 — and being right is not the same as being
+/// noticed.
+///
+/// `tests::the_accepted_outcomes_are_exactly_the_recorders` pins this
+/// list against `SampleOutcome::ALL` variant by variant, so the next
+/// variant reds a test here instead of silently disarming a gate.
+pub const ACCEPTED_OUTCOMES: [&str; 6] = [
+    "zero",
+    "positive",
+    "negative",
+    "indeterminate",
+    "invalid",
+    "symbolic_zero",
+];
 
 /// What a numeric column of the sweep may say.
 ///
@@ -495,6 +596,19 @@ pub fn lint_sample(
                 reasons.push(Reason::NearBandBelow);
             }
         }
+        // **Never a rule sample, and not because it is uninteresting.**
+        // A `symbolic_zero` row is a decision the symbolic identity tier
+        // answered (ERROR-DESIGN E12): the margin's expression is
+        // identically zero in the document's parameters, so `Zero` was a
+        // theorem and the margin was never CLASSIFIED against the band
+        // at all. Every rule here is a statement about where a decided
+        // margin sits relative to a threshold; there is no such
+        // position to report, so rule 1 cannot fire (nothing landed
+        // in-band) and rules 2 and 3 have no threshold comparison to
+        // make. The row still counts — in its own column, `Scan::
+        // symbolic` — because the ratio of symbolic to numeric
+        // decisions is the evidence the tier exists to produce.
+        "symbolic_zero" => {}
         "positive" | "negative" if band_zero >= AMBIENT_BAND_MIN => {
             if is_eps_coupled(predicate) {
                 if m < EPS_COUPLED_FLOOR_RATIO * band_zero {
@@ -527,6 +641,7 @@ pub fn lint_sample(
 pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     let mut flags = Vec::new();
     let mut scanned = 0usize;
+    let mut symbolic = 0usize;
     let mut proximity_capped = None;
     for (i, line) in text.lines().enumerate() {
         if i == 0 {
@@ -539,6 +654,23 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
             continue;
         }
         if line.is_empty() {
+            continue;
+        }
+        // **A `#` line is a COMMENT, not a sample.** The E6 driver
+        // sweep writes one census line per fixture ahead of that
+        // fixture's rows — `# census driver/<shape> eps=… certified=N
+        // samples=M` — because an empty population is a legitimate
+        // outcome there and a bare header would leave a reader unable
+        // to tell it from a harness that died. Skipping the line rather
+        // than parsing it keeps this lint's subject exactly what it has
+        // always been (a sample distribution) while letting the file it
+        // reads say what produced it.
+        //
+        // It is not a hole in the malformed-row alarm: a row that DROPS
+        // a field or misspells an outcome still fails, because a `#` is
+        // never the first character of a sample row (a shape is
+        // namespaced `corpus/`, `demo/` or `driver/`).
+        if line.starts_with('#') {
             continue;
         }
         let err = || ParseError {
@@ -562,10 +694,7 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         // sweep-format drift disarm the whole lint (review MIN-2). It
         // is checked FIRST because the margin's policy is stated
         // against it (`Admissible::Margin`).
-        if !matches!(
-            out,
-            "zero" | "positive" | "negative" | "indeterminate" | "invalid"
-        ) {
+        if !ACCEPTED_OUTCOMES.contains(&out) {
             return Err(err());
         }
         // An unreadable measurement is harness breakage too, and for
@@ -604,6 +733,9 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
             });
         }
         scanned += 1;
+        if out == "symbolic_zero" {
+            symbolic += 1;
+        }
         // Record (once) that rule (2)-above is running capped on this
         // file's ambient rows, so the CLI can say so out loud.
         if band_zero >= AMBIENT_BAND_MIN && proximity_capped.is_none() {
@@ -626,6 +758,7 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     }
     Ok(Scan {
         scanned,
+        symbolic,
         flags,
         proximity_capped,
     })
@@ -832,6 +965,23 @@ mod tests {
             )
             .is_err()
         );
+        // A `#` census line is skipped, and skipping it does not
+        // disarm the malformed-row alarm one line over: the E6 driver
+        // sweep writes those lines, and a dropped field in a real row
+        // still fails.
+        let censused = "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+                        # census driver/slab eps=1e-9 certified=0 samples=0\n\
+                        demo/x,p1,2e0,1e-9,1e-8,positive\n";
+        let scan = lint_csv(censused).expect("a census line is a comment");
+        assert_eq!(scan.scanned, 1, "the comment is not a sample");
+        assert!(
+            lint_csv(
+                "shape,predicate,margin,band_zero,band_escalate,outcome\n\
+                 # census driver/slab eps=1e-9 certified=1 samples=1\n\
+                 x,y,2e0,1e-9,1e-8\n"
+            )
+            .is_err()
+        );
     }
 
     /// One row, with each float column settable.
@@ -983,5 +1133,53 @@ mod tests {
         assert_eq!(e.line, 2);
         assert!(e.text.contains("band_zero"), "{}", e.text);
         assert!(e.text.contains("above zero"), "{}", e.text);
+    }
+    /// **Every reason is on exactly one rule, and `Reason::ALL` is
+    /// complete** (M10-6). The driver row demotes rules 2 and 3 and
+    /// cannot demote rule 1, so a variant that fell off the partition
+    /// — or off `ALL`, which the CLI's tally iterates — would silently
+    /// stop being counted or stop gating.
+    #[test]
+    fn every_reason_lands_on_one_rule_and_all_lists_them() {
+        for r in Reason::ALL {
+            let rule = r.rule();
+            assert!(
+                (1..=3).contains(&rule),
+                "{r:?} claims rule {rule}, which is not one of the module's three"
+            );
+        }
+        // Rule 1 is exactly the two undecided outcomes: the trigger E6
+        // names. If this pair ever grows, the driver row's recorded
+        // justification has to be re-read, so it is pinned here.
+        let rule1: Vec<Reason> = Reason::ALL.into_iter().filter(|r| r.rule() == 1).collect();
+        assert_eq!(rule1, vec![Reason::InBand, Reason::Invalid]);
+        // And `ALL` really is every variant: a missing one would make
+        // the tally under-count without failing anything.
+        let mut seen = std::collections::BTreeSet::new();
+        for r in Reason::ALL {
+            assert!(seen.insert(format!("{r:?}")), "{r:?} listed twice in ALL");
+        }
+        assert_eq!(seen.len(), 6, "Reason::ALL must list every variant");
+    }
+
+    /// An `indeterminate` row is rule 1 and a merely-near-threshold row
+    /// is not — the discriminator the driver row's gate turns on, read
+    /// off a parsed CSV rather than off the enum alone.
+    #[test]
+    fn an_indeterminate_row_is_rule_one_and_a_near_threshold_row_is_not() {
+        let scan = lint_csv(&row("0.0", "1e-9", "1e-8", "indeterminate")).expect("parses");
+        let rules: Vec<u8> = scan.flags[0].reasons.iter().map(|r| r.rule()).collect();
+        assert!(
+            rules.contains(&1),
+            "an indeterminate margin is rule 1: {rules:?}"
+        );
+        // A definite margin sitting just above the escalation
+        // threshold: flagged, but never rule 1.
+        let scan = lint_csv(&row("1.05e-8", "1e-9", "1e-8", "positive")).expect("parses");
+        for f in &scan.flags {
+            for r in &f.reasons {
+                assert_ne!(r.rule(), 1, "a DECIDED margin must not be rule 1: {r:?}");
+            }
+        }
     }
 }

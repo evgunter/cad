@@ -121,7 +121,7 @@ use crate::tolerance::Tol;
 /// `zero` threshold (K·ε for [`Band::linear`], K·(ε/r) for
 /// [`Band::angular_at`] at lever arm r).
 ///
-/// Since M2 PR 7 (Evan-directed) K is an ε-style once-per-run
+/// Since M2 PR 7 (Ev-directed) K is an ε-style once-per-run
 /// configured value — [`Tol::k`](crate::tolerance::Tol), overridable
 /// via [`crate::tolerance::ENV_K`] — exactly the growth path this
 /// constant's original doc anticipated ("piggyback on the tolerance
@@ -568,7 +568,7 @@ impl<T: crate::real::Real> Margin<T> {
     /// when the measure is exactly zero, so non-strict pass directions
     /// are unmoved.
     ///
-    /// What this door deliberately does NOT serve (Evan's #213
+    /// What this door deliberately does NOT serve (Ev's #213
     /// layering ruling): the **consistency backstops** — inequalities
     /// between integral RESULTS, the `volume_backstop` family. Those
     /// are outside the length seam by design: they decide on bare `T`

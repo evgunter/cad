@@ -34,10 +34,10 @@ probe = [
 # The lane trait the blend doors take (`PcurveFittedLane`).
 geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }
-# The ops this crate's `run` dispatches to. `Verb` names the kernel's
-# verbs, so it depends on every crate that hosts one; today that is the
-# blend pair in `sweep`, and the boolean/split verbs in `topo` join at
-# their own migrations.
+# The ops this crate's run doors dispatch to. `Verb` names the
+# kernel's verbs, so it depends on every crate that hosts one; today
+# that is the blend pair in `sweep` and the boolean in `topo` (the
+# split joins at its own migration).
 sweep = { path = "../sweep" }
 topo = { path = "../topo" }
 

@@ -12,24 +12,32 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     EntityKind, Node, PersistError, ProfileDoc, RecipeNodeId, RimSupport, RoleSeg, StableName,
     load, save,
 };
-use fixture::{desc, insert, len};
+use fixture::{insert, len, on_frame};
 use geom_core::Tol;
+
+/// The block a band trimline is carved out of: the extrude, which
+/// this document reaches after its sketch frame and the profile drawn
+/// on it.
+const BLOCK: RecipeNodeId = RecipeNodeId(2);
+
+/// The fillet over that block.
+const FILLET: RecipeNodeId = RecipeNodeId(3);
 
 /// A band trimline's name, on the support role `support`.
 fn trim_name(support: RimSupport) -> StableName {
     StableName {
         kind: EntityKind::Edge,
-        node: RecipeNodeId(0),
+        node: BLOCK,
         path: vec![RoleSeg::BandTrim {
             edge: Box::new(StableName {
                 kind: EntityKind::Edge,
-                node: RecipeNodeId(0),
+                node: BLOCK,
                 path: vec![RoleSeg::OutputBody],
             }),
             support,
@@ -46,14 +54,12 @@ fn trim_name(support: RimSupport) -> StableName {
 /// Nothing here is evaluated: these rows are about the WIRE.
 fn both_roles() -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("blend5-schema-v18", Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let (doc, block) = insert(
         doc,
@@ -88,7 +94,7 @@ fn both_rim_roles_round_trip() {
         "the retired kind vocabulary is gone: {text}"
     );
     let back = load(&text, Tol::witness()).expect("its own bytes load").doc;
-    let selection = match back.node(RecipeNodeId(2)) {
+    let selection = match back.node(FILLET) {
         Some(Node::Fillet { selection, .. }) => selection.clone(),
         other => panic!("expected the fillet, got {other:?}"),
     };

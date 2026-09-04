@@ -29,8 +29,11 @@ use core::fmt;
 
 use geom::Surface;
 use geom_brep::props::quad::FaceCutBounds;
-use geom_brep::props::{FaceContribution, LoopEdge, PropsError, curved_face, planar_face};
+use geom_brep::props::{
+    CarrierId, FaceContribution, LoopEdge, PropsError, curved_face, planar_face,
+};
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
+use slotmap::Key;
 
 use crate::body::Body;
 use crate::boolean::ContactRecords;
@@ -397,8 +400,10 @@ fn face_flux<T: Decide>(
     })
 }
 
-/// Flatten one loop's half-edge cycle into key-free [`LoopEdge`]s
-/// (traversal order; vertex tags are loop-local first-seen indices),
+/// Flatten one loop's half-edge cycle into [`LoopEdge`]s (traversal
+/// order; vertex tags are loop-local first-seen indices; each edge's
+/// carrier identity is the root of its split lineage, minted from this
+/// body's own keys and comparable only within this flattening),
 /// alongside the half-edge keys walked (the PR 11 quadrature lane
 /// reads stored pcurve caches through them).
 ///
@@ -456,6 +461,17 @@ pub fn loop_edges<T: Decide>(
         let (t0, t1) = curve.params();
         edges.push(LoopEdge {
             carrier: curve.carrier().clone(),
+            // A lineage that cycles is one a graft aliased (issue 1597:
+            // records are copied with their source keys, which in the
+            // destination chain into strangers); the flattening then
+            // stamps NO identity, so no two such edges are ever folded
+            // into one — the fold declines rather than trusting a
+            // record it cannot read, and a split meridian on such a
+            // body refuses at the far rim as it did before any fold.
+            carrier_id: body
+                .split_root(he.edge, |_| false)
+                .ok()
+                .map(|root| CarrierId::minted(root.data().as_ffi())),
             t0,
             t1,
             forward: he_key == edge.he_plus,
@@ -676,7 +692,7 @@ pub fn classify_shells<T: PropsQuadLane>(
     Ok(out)
 }
 
-/// The certified-quadrature **lane split** (M5 PR 11; Evan's ruling at
+/// The certified-quadrature **lane split** (M5 PR 11; Ev's ruling at
 /// this PR, superseding a runtime-`Option` bracket seam): certification
 /// is the f64 / Probe / Interval lanes' business; derivative transport
 /// is the dual lane's — and that split lives in the TYPES. Each
@@ -933,6 +949,56 @@ impl PropsQuadLane for geom_core::interval::Interval {
     }
 }
 
+/// **The symbolic tier over a certifying scalar** (`geom_core::sym`):
+/// every lane door is the BASE scalar's, run at `Sym<T>` itself.
+///
+/// The tier changes exactly one thing — how a margin whose expression
+/// is identically zero decides — and it changes it inside the scalar.
+/// Everything a quadrature lane does is arithmetic, so it runs here
+/// unaltered; wrapping the base scalar must not silently demote a
+/// certifying lane to a refusing one, or the driver's leaf replay would
+/// stop validating the bodies it certifies.
+impl<T> PropsQuadLane for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: Decide + geom_core::Bounds,
+    T: geom_core::CertifiedBounds,
+{
+    // No re-derivation lane, for the base scalar's reason: the offset
+    // fit is derived at `f64` only. This is about the DERIVATION, not
+    // about which values can arrive.
+    fn recertify_approx(
+        _approx: &geom::ApproxSurface<Self>,
+        _tolerance: f64,
+        _band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
+        None
+    }
+
+    fn approx_offset_surface(
+        _base: std::sync::Arc<geom::NurbsSurface<Self>>,
+        _d: Self,
+        _tolerance: f64,
+        _band: Band,
+    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
+        None
+    }
+
+    fn datum_lo(self) -> f64 {
+        geom_core::Bounds::lo(self)
+    }
+
+    fn quad_cut_face(
+        body: &Body<Self>,
+        surface: &Surface<Self>,
+        outer: &[LoopEdge<Self>],
+        hes: &[HalfEdgeKey],
+        band: Band,
+        tol: Tol,
+    ) -> Result<Option<FaceCutBounds>, PropsError> {
+        quad_lane::cut_face(body, surface, outer, hes, band, tol).map(Some)
+    }
+}
+
 /// The dual lane: STATICALLY no quadrature — this impl instantiates
 /// none of the certified machinery (trait docs).
 impl<T> PropsQuadLane for geom_core::Dual<T>
@@ -1099,6 +1165,30 @@ impl AtRestPolicy for geom_core::interval::Interval {
     }
 }
 
+/// **The symbolic tier over a certifying scalar**: the gates are the
+/// base scalar's, run at `Sym<T>`. A leaf the driver certifies is
+/// validated at rest exactly as it was before the tier existed —
+/// demoting to the dual's `NotRunAtThisScalar` arm here would quietly
+/// drop the validator from the one replay that certifies.
+impl<T> AtRestPolicy for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: PropsQuadLane,
+    T: geom_core::CertifiedBounds,
+{
+    fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
+    }
+
+    fn gate_at_rest_declared(
+        body: &Body<Self>,
+        contacts: &ContactRecords,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        crate::validate::validate_pseudomanifold(body, contacts, tol)
+            .map(|()| AtRestOutcome::Validated)
+    }
+}
+
 /// The dual arm: STRUCTURALLY ABSENT — no validation door is named,
 /// so nothing runs, nothing refuses, and no error exists to swallow;
 /// the success arm is [`AtRestOutcome::NotRunAtThisScalar`], never a
@@ -1230,7 +1320,7 @@ mod quad_lane {
     use geom_core::Tol;
     use geom_core::ring_interval::RingInterval;
     // The compound `Decide + Bounds` bound below is a RATIFIED seam
-    // (M5 PR 11, Evan's lane-split ruling; discipline allowlist row):
+    // (M5 PR 11, Ev's lane-split ruling; discipline allowlist row):
     // this module is the certified lanes' plumbing and never
     // instantiates for duals. TWO things enforce that, and since #643
     // the second is the load-bearing one: [`super::PropsQuadLane`]'s

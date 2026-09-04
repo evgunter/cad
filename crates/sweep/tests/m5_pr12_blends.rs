@@ -43,7 +43,7 @@ fn plane_plane_blend_on_a_right_dihedral_is_the_quarter_cylinder() {
         v(-1.0, 0.0, 0.0),
         v(0.0, -1.0, 0.0),
         r,
-        true,
+        Convexity::Convex,
     );
     let Surface::Cylinder {
         origin,
@@ -80,7 +80,14 @@ fn plane_plane_setback_is_r_times_tan_half_the_normal_angle() {
         let phi = phi_deg.to_radians();
         let n_a = v(-1.0, 0.0, 0.0);
         let n_b = v(-phi.cos(), -phi.sin(), 0.0);
-        let b = plane_plane_blend(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), n_a, n_b, r, true);
+        let b = plane_plane_blend(
+            p(0.0, 0.0, 0.0),
+            v(0.0, 0.0, 1.0),
+            n_a,
+            n_b,
+            r,
+            Convexity::Convex,
+        );
         let want = r * (phi / 2.0).tan();
         assert!(
             (b.trim_a.1 - want).abs() < 1e-12,
@@ -98,8 +105,22 @@ fn plane_plane_setback_is_r_times_tan_half_the_normal_angle() {
 fn a_concave_chain_rolls_the_ball_on_the_other_side_and_reverses_sense() {
     let r = 0.15;
     let (n_a, n_b) = (v(-1.0, 0.0, 0.0), v(0.0, -1.0, 0.0));
-    let convex = plane_plane_blend(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), n_a, n_b, r, true);
-    let concave = plane_plane_blend(p(0.0, 0.0, 0.0), v(0.0, 0.0, 1.0), n_a, n_b, r, false);
+    let convex = plane_plane_blend(
+        p(0.0, 0.0, 0.0),
+        v(0.0, 0.0, 1.0),
+        n_a,
+        n_b,
+        r,
+        Convexity::Convex,
+    );
+    let concave = plane_plane_blend(
+        p(0.0, 0.0, 0.0),
+        v(0.0, 0.0, 1.0),
+        n_a,
+        n_b,
+        r,
+        Convexity::Concave,
+    );
     let (Surface::Cylinder { origin: oc, .. }, Surface::Cylinder { origin: ok, .. }) =
         (convex.surface, concave.surface)
     else {
@@ -119,7 +140,7 @@ fn the_corner_ball_is_the_point_at_depth_r_inside_all_three_planes() {
         [p(0.0, 0.0, 0.0); 3],
         [v(-1.0, 0.0, 0.0), v(0.0, -1.0, 0.0), v(0.0, 0.0, -1.0)],
         r,
-        true,
+        Convexity::Convex,
     );
     assert!((ball.center - p(r, r, r)).norm() < 1e-15);
     assert!((ball.independence - 1.0).abs() < 1e-15);
@@ -142,14 +163,21 @@ fn the_corner_ball_is_the_point_at_depth_r_inside_all_three_planes() {
 fn the_corner_ball_centre_lies_on_every_incident_cylinder_axis() {
     let r = 0.15;
     let normals = [v(-1.0, 0.0, 0.0), v(0.0, -1.0, 0.0), v(0.0, 0.0, -1.0)];
-    let ball = corner_ball([p(0.0, 0.0, 0.0); 3], normals, r, true);
+    let ball = corner_ball([p(0.0, 0.0, 0.0); 3], normals, r, Convexity::Convex);
     // The three edges at the corner, each between a pair of planes.
     for (i, j, tau) in [
         (0usize, 1usize, v(0.0, 0.0, 1.0)),
         (1, 2, v(1.0, 0.0, 0.0)),
         (2, 0, v(0.0, 1.0, 0.0)),
     ] {
-        let b = plane_plane_blend(p(0.0, 0.0, 0.0), tau, normals[i], normals[j], r, true);
+        let b = plane_plane_blend(
+            p(0.0, 0.0, 0.0),
+            tau,
+            normals[i],
+            normals[j],
+            r,
+            Convexity::Convex,
+        );
         let Surface::Cylinder {
             origin,
             axis,
@@ -185,6 +213,8 @@ fn plane_sphere_blend_is_the_rim_torus_and_it_widens_the_flat_face() {
         r,
         // The pip's dimple: material OUTSIDE the ball.
         false,
+        // A CONVEX chain: the ball rests on the material side of both.
+        Convexity::Convex,
     );
     let h = c + r;
     let s = ((big_r + r).powi(2) - h * h).sqrt();
@@ -253,6 +283,8 @@ fn plane_sphere_blend_takes_the_inner_offset_against_a_convex_sphere() {
         big_r,
         r,
         true,
+        // A CONVEX chain: the ball rests on the material side of both.
+        Convexity::Convex,
     );
     let h = r;
     let s = ((big_r - r).powi(2) - h * h).sqrt();
@@ -333,6 +365,8 @@ fn the_rim_trimlines_are_tangency_loci_with_definite_second_order_separation() {
         r,
         // The pip's dimple: material OUTSIDE the ball.
         false,
+        // A CONVEX chain: the ball rests on the material side of both.
+        Convexity::Convex,
     );
     for (support, trim, want) in [
         (&plane, &b.trim_a.0, 1.0 / r),

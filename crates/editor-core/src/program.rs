@@ -35,10 +35,11 @@
 //! gains the segments. D9 makes the load-time rebuild exact.
 
 use geom_core::{Decide, Point2};
-use profile::{ArcSweep, SketchPlane, Step, Target};
+use profile::{ArcSweep, Step, Target};
 
+use crate::doc::ParamName;
 use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, eval};
-use crate::node::{SlotId, StepArg};
+use crate::node::{RecipeNodeId, SlotId, StepArg};
 use geom_core::Tol;
 
 /// Where a target-taking step ends: an authored point (two Length
@@ -50,6 +51,10 @@ pub enum ProgramTarget {
     Point([Expr; 2]),
     /// The entry vertex: this step closes the loop.
     Start,
+    /// The entry vertex with the seam's TANGENT JOINT declared — a
+    /// structural tag, no expressions (so it contributes no slots) and
+    /// no payload: there is exactly one declaration to make there.
+    StartArriving,
 }
 
 /// One Expr-bearing recorded verb — the document-layer mirror of
@@ -95,6 +100,9 @@ pub enum ProgramStep {
     Line(Expr),
     /// `line_to(target)`.
     LineTo(ProgramTarget),
+    /// `continue_to(target)` — the declared point-target straight
+    /// continuation; `Start` targets close the loop.
+    ContinueTo(ProgramTarget),
     /// `arc_to(spec)` — the sharp arc leg, every §2c mode in the one
     /// unified spec record (derived quantities re-derived at replay).
     ArcTo(ProgramArcData),
@@ -234,22 +242,51 @@ pub enum LoopProgram {
     },
 }
 
-/// The profile node's payload: plane placement (stored `f64`, its own
-/// struct — VQ8's visible seam) plus the loop programs, outer first
-/// then holes in description order.
+/// The profile node's payload: the sketch frame it is drawn on, named
+/// as a document NODE, plus the loop programs, outer first then holes
+/// in description order.
+///
+/// # The plane is a reference, not a placement
+///
+/// This field held a `SketchPlane<f64>` — twelve placement floats
+/// inline, unshared and unnameable. It now names a frame node — a
+/// [`crate::Datum::Frame`], or a [`crate::Datum::FaceFrame`] derived
+/// from a face — which is the whole of what the frame
+/// datum was added for: two profiles on one face are two references to
+/// one frame rather than two copies of a placement that can silently
+/// drift apart, an axis can be declared to lie IN a named frame, and a
+/// plane a person can see in the viewport is the plane they draw on.
+///
+/// The consequence to know when reading the rest of this crate: a
+/// profile is no longer a DAG leaf. [`crate::Node::inputs`] reports
+/// the frame, so evaluation orders it first, poison propagates through
+/// it, the content key takes it as an upstream key rather than as
+/// inline bits, and `roots::on_insert` transfers the frame's tip when
+/// a profile consumes it.
 ///
 /// # Equality is BIT equality
 ///
-/// `PartialEq` compares plane floats by BITS and expressions by
+/// `PartialEq` compares the frame by NODE IDENTITY and expressions by
 /// [`Expr::bit_eq`] — the canonical payload's equality IS the D7
-/// replay-identity comparator, exactly the retired payload's contract
-/// (`Node::bit_eq` inherits it). Display units are invisible to it
+/// replay-identity comparator. Comparing the id rather than the
+/// placement it resolves to is the same claim the rest of the DAG
+/// makes about its edges: two profiles on two frames that happen to
+/// coincide today are two different documents, because editing one
+/// frame moves only one of them. Display units are invisible to it
 /// (they are invisible to `bit_eq` itself, D7).
 #[derive(Debug, Clone)]
 pub struct ProfileProgram {
-    /// The sketch-plane placement (stored `f64`; Expr-izing placement
-    /// is the U4 pose conversation, not this switch — VQ8).
-    pub plane: SketchPlane<f64>,
+    /// The frame node this profile is drawn on — a
+    /// [`crate::Datum::Frame`] or a [`crate::Datum::FaceFrame`], either
+    /// of which lands the same frame value: sketch (0, 0) and the
+    /// directions sketch +x and +y point.
+    ///
+    /// Typed as a plain node reference rather than a frame-only
+    /// newtype for the reason every other operand reference here is:
+    /// what a reference DENOTES is the evaluator's question, answered
+    /// once at the door with a typed refusal, not the recipe
+    /// vocabulary's.
+    pub plane: RecipeNodeId,
     /// The loop programs.
     pub loops: Vec<LoopProgram>,
 }
@@ -285,6 +322,21 @@ pub trait ProfilePayload {
     /// binding that is ever evaluated.
     fn check(&self, _env: &ParamEnv<f64>, _tol: Tol) -> Result<(), ProgramRefusal> {
         Ok(())
+    }
+    /// **The document node this payload is drawn ON**, if it names one
+    /// — the profile's one DAG edge.
+    ///
+    /// It rides the payload trait rather than [`crate::Node::Profile`]
+    /// because that is where the plane already lived: the variant
+    /// stays a one-field tuple, and the payload answers for its own
+    /// content. [`crate::Node::inputs`] reads this, so a payload that
+    /// names a node and does not report it here would be a node the
+    /// evaluator never waits for and the cascade never deletes.
+    ///
+    /// `None` by default, which is the honest answer for `Doc<P>`'s
+    /// slot-free test payloads: they carry no plane at all.
+    fn plane_input(&self) -> Option<crate::RecipeNodeId> {
+        None
     }
 }
 
@@ -393,21 +445,21 @@ impl core::error::Error for ProgramRefusal {}
 fn target_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
     match t {
         ProgramTarget::Point(_) => out.extend([StepArg::TargetX, StepArg::TargetY]),
-        ProgramTarget::Start => {}
+        ProgramTarget::Start | ProgramTarget::StartArriving => {}
     }
 }
 
 /// The argument roles of one arc spec; `second` selects the arrival
 /// (spec₂) role twins.
 ///
-/// The twins cover the positional roles only. `Bulge`, `Sweep` and
-/// `ArcLen` have none, because none of them is an arrival mode (§2c:
-/// `family::ArrivalSpec` is implemented for `Radius`, `Via` and
-/// `Center` alone), so no recording surface can put one in second
-/// position. Enumeration stays total over the data type regardless,
-/// and for a HAND-BUILT step whose two specs are the SAME one of
-/// those three the reused role addresses the incoming spec's argument
-/// twice and the arrival's not at all — issue #829.
+/// EVERY role has a twin, including the three whose modes are not
+/// arrival modes (§2c: `family::ArrivalSpec` is implemented for
+/// `Radius`, `Via` and `Center` alone, so no recording surface can put
+/// a `Bulge`, `Sweep` or `ArcLen` in second position). Enumeration is
+/// total over the data type, and a hand-built step may carry one:
+/// without its own twin such a spec's argument would share the
+/// incoming spec's role, which addresses the incoming argument twice
+/// and the arrival's not at all.
 fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
     use ProgramArcData as S;
     use StepArg as A;
@@ -418,10 +470,9 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
             target_slots(target, out);
             out.push(A::Bulge);
         }
-        // No `Bulge2`: see the twin note above.
         (S::Bulge { target, .. }, true) => {
             target2_slots(target, out);
-            out.push(A::Bulge);
+            out.push(A::Bulge2);
         }
         (S::Via { target, .. }, false) => {
             out.extend([A::ViaX, A::ViaY]);
@@ -440,9 +491,9 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
             target2_slots(target, out);
         }
         (S::Sweep { .. }, false) => out.extend([A::CarrierRadius, A::SweepVal]),
-        (S::Sweep { .. }, true) => out.extend([A::CarrierRadius2, A::SweepVal]),
+        (S::Sweep { .. }, true) => out.extend([A::CarrierRadius2, A::SweepVal2]),
         (S::ArcLen { .. }, false) => out.extend([A::CarrierRadius, A::ArcLenVal]),
-        (S::ArcLen { .. }, true) => out.extend([A::CarrierRadius2, A::ArcLenVal]),
+        (S::ArcLen { .. }, true) => out.extend([A::CarrierRadius2, A::ArcLenVal2]),
     }
 }
 
@@ -450,7 +501,7 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
 fn target2_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
     match t {
         ProgramTarget::Point(_) => out.extend([StepArg::Target2X, StepArg::Target2Y]),
-        ProgramTarget::Start => {}
+        ProgramTarget::Start | ProgramTarget::StartArriving => {}
     }
 }
 
@@ -466,7 +517,7 @@ fn step_slots(step: &ProgramStep, out: &mut Vec<StepArg>) {
         P::Tangent | P::Cusp | P::CloseTo => {}
         P::Turn(_) => out.push(A::TurnVal),
         P::Line(_) => out.push(A::Length),
-        P::LineTo(t) | P::TangentArcTo(t) => target_slots(t, out),
+        P::LineTo(t) | P::ContinueTo(t) | P::TangentArcTo(t) => target_slots(t, out),
         P::ArcContinue(_) => out.extend([A::TargetX, A::TargetY]),
         P::ArcTo(spec) => spec_slots(spec, false, out),
         P::Fillet(_) => out.push(A::Radius),
@@ -499,9 +550,12 @@ macro_rules! spec_arg_access {
             | (S::Sweep { r, .. }, A::CarrierRadius2, true)
             | (S::ArcLen { r, .. }, A::CarrierRadius, false)
             | (S::ArcLen { r, .. }, A::CarrierRadius2, true) => Some(r),
-            (S::Bulge { b, .. }, A::Bulge, _) => Some(b),
-            (S::Sweep { angle, .. }, A::SweepVal, _) => Some(angle),
-            (S::ArcLen { len, .. }, A::ArcLenVal, _) => Some(len),
+            (S::Bulge { b, .. }, A::Bulge, false)
+            | (S::Bulge { b, .. }, A::Bulge2, true) => Some(b),
+            (S::Sweep { angle, .. }, A::SweepVal, false)
+            | (S::Sweep { angle, .. }, A::SweepVal2, true) => Some(angle),
+            (S::ArcLen { len, .. }, A::ArcLenVal, false)
+            | (S::ArcLen { len, .. }, A::ArcLenVal2, true) => Some(len),
             (S::Via { q, .. }, A::ViaX, false) | (S::Via { q, .. }, A::Via2X, true) => {
                 Some($($ref_kw)* q[0])
             }
@@ -566,8 +620,10 @@ macro_rules! step_arg_access {
             (P::Turn(e), A::TurnVal) => Some(e),
             (P::Line(e), A::Length) => Some(e),
             (P::LineTo(ProgramTarget::Point(p)), A::TargetX)
+            | (P::ContinueTo(ProgramTarget::Point(p)), A::TargetX)
             | (P::TangentArcTo(ProgramTarget::Point(p)), A::TargetX) => Some($($ref_kw)* p[0]),
             (P::LineTo(ProgramTarget::Point(p)), A::TargetY)
+            | (P::ContinueTo(ProgramTarget::Point(p)), A::TargetY)
             | (P::TangentArcTo(ProgramTarget::Point(p)), A::TargetY) => Some($($ref_kw)* p[1]),
             (P::ArcTo(spec), a) => $spec_fn(spec, a, false),
             (P::Fillet(e), A::Radius)
@@ -714,6 +770,7 @@ fn res_target<T: Decide>(
 ) -> Result<profile::Target<T>, (SlotId, EvalError)> {
     Ok(match t {
         ProgramTarget::Start => profile::Target::Start,
+        ProgramTarget::StartArriving => profile::Target::StartArriving,
         ProgramTarget::Point(p) => profile::Target::Point(Point2::new(
             res(&p[0], env, loop_, step, StepArg::TargetX)?,
             res(&p[1], env, loop_, step, StepArg::TargetY)?,
@@ -752,6 +809,7 @@ fn res_step<T: Decide>(
         ProgramStep::Turn(e) => Step::Turn(res(e, env, loop_, i, A::TurnVal)?),
         ProgramStep::Line(e) => Step::Line(res(e, env, loop_, i, A::Length)?),
         ProgramStep::LineTo(t) => Step::LineTo(res_target(t, env, loop_, i)?),
+        ProgramStep::ContinueTo(t) => Step::ContinueTo(res_target(t, env, loop_, i)?),
         ProgramStep::ArcTo(spec) => Step::ArcTo(res_spec(spec, env, loop_, i, false)?),
         ProgramStep::TangentArcTo(t) => Step::TangentArcTo(res_target(t, env, loop_, i)?),
         ProgramStep::ArcContinue(p) => Step::ArcContinue(pt(p, A::TargetX, A::TargetY)?),
@@ -809,6 +867,7 @@ fn res_spec<T: Decide>(
     let tgt = |t: &ProgramTarget| -> Result<profile::Target<T>, (SlotId, EvalError)> {
         Ok(match t {
             ProgramTarget::Start => profile::Target::Start,
+            ProgramTarget::StartArriving => profile::Target::StartArriving,
             ProgramTarget::Point(p) => profile::Target::Point(pt2(
                 p,
                 pick(A::TargetX, A::Target2X),
@@ -823,7 +882,7 @@ fn res_spec<T: Decide>(
         },
         ProgramArcData::Bulge { target, b } => profile::ArcData::Bulge {
             target: tgt(target)?,
-            b: res(b, env, loop_, i, A::Bulge)?,
+            b: res(b, env, loop_, i, pick(A::Bulge, A::Bulge2))?,
         },
         ProgramArcData::Via { q, target } => profile::ArcData::Via {
             q: pt2(q, pick(A::ViaX, A::Via2X), pick(A::ViaY, A::Via2Y))?,
@@ -841,12 +900,12 @@ fn res_spec<T: Decide>(
         ProgramArcData::Sweep { r, side, angle } => profile::ArcData::Sweep {
             r: res(r, env, loop_, i, pick(A::CarrierRadius, A::CarrierRadius2))?,
             side: *side,
-            angle: res(angle, env, loop_, i, A::SweepVal)?,
+            angle: res(angle, env, loop_, i, pick(A::SweepVal, A::SweepVal2))?,
         },
         ProgramArcData::ArcLen { r, side, len } => profile::ArcData::ArcLen {
             r: res(r, env, loop_, i, pick(A::CarrierRadius, A::CarrierRadius2))?,
             side: *side,
-            len: res(len, env, loop_, i, A::ArcLenVal)?,
+            len: res(len, env, loop_, i, pick(A::ArcLenVal, A::ArcLenVal2))?,
         },
     })
 }
@@ -900,9 +959,50 @@ impl LoopProgram {
 // ProfileProgram: resolution, equality, the payload impl
 // ------------------------------------------------------------------
 
+/// **Resolves a list of loop programs**, the evaluation pipeline's
+/// first stage (then `profile::replay` per loop, then embed +
+/// validate).
+///
+/// Free of [`ProfileProgram`] on purpose: resolution reads the LOOPS
+/// and nothing else, and a caller that has loops in hand and no
+/// document — a form previewing what it is about to author, a lattice
+/// question about which verbs a chain admits — should not have to
+/// invent a plane node to ask. Before the plane became a reference
+/// those callers built a throwaway program around a world-XY constant;
+/// that shortcut would now be a fabricated node id in a value nobody
+/// commits.
+///
+/// # Errors
+///
+/// The failing slot plus the evaluator's refusal, unaltered.
+pub fn resolve_loops<T: Decide>(
+    loops: &[LoopProgram],
+    env: &ParamEnv<T>,
+) -> Result<Vec<Vec<Step<T>>>, (SlotId, EvalError)> {
+    loops
+        .iter()
+        .enumerate()
+        .map(|(li, lp)| lp.resolve(env, li as u32))
+        .collect()
+}
+
 impl ProfileProgram {
-    /// Resolves every loop at f64 — the evaluation pipeline's first
-    /// stage (then `profile::replay` per loop, then embed + validate).
+    /// Whether any expression of this program reads the document
+    /// parameter `name` — the question a C6/D9-pinned consumer of the
+    /// program (a loft's or a sweep's section) asks before a seed on
+    /// that parameter is silently embedded as a constant.
+    pub fn references(&self, name: &ParamName) -> bool {
+        let mut refs = Vec::new();
+        for slot in ProfilePayload::slots(self) {
+            if let Some(e) = ProfilePayload::expr(self, slot) {
+                e.param_refs(&mut refs);
+            }
+        }
+        refs.iter().any(|(n, _)| n == name)
+    }
+
+    /// Resolves every loop at f64 — [`resolve_loops`] over this
+    /// program's own loops.
     ///
     /// # Errors
     ///
@@ -911,11 +1011,7 @@ impl ProfileProgram {
         &self,
         env: &ParamEnv<T>,
     ) -> Result<Vec<Vec<Step<T>>>, (SlotId, EvalError)> {
-        self.loops
-            .iter()
-            .enumerate()
-            .map(|(li, lp)| lp.resolve(env, li as u32))
-            .collect()
+        resolve_loops(&self.loops, env)
     }
 
     /// The authoring-time check's body (VQ9): resolve under `env`,
@@ -947,7 +1043,16 @@ impl ProfileProgram {
             })?;
             loops.push(lp);
         }
-        profile::Profile::new(self.plane, loops)
+        // **The identity plane, and the check is honest about why.**
+        // Validation is 2-D — `profile::validate` says so itself, and
+        // the plane rides through it as conventional data — so what
+        // this door checks is the LOOPS: closure, orientation, no
+        // self-intersection. It could not read the real frame anyway:
+        // this runs at the insert door with a payload in hand and no
+        // document, and the frame is a node in one. A profile whose
+        // frame reference does not denote a frame is refused where
+        // every other operand's kind is, at evaluation.
+        profile::Profile::new(profile::SketchPlane::xy(), loops)
             .validate(tol)
             .map(|_| ())
             .map_err(ProgramRefusal::Validate)
@@ -955,10 +1060,10 @@ impl ProfileProgram {
 }
 
 impl PartialEq for ProfileProgram {
-    /// BIT equality (struct docs): plane floats by bits, expressions by
-    /// [`Expr::bit_eq`], structure structurally.
+    /// BIT equality (struct docs): the frame by node identity,
+    /// expressions by [`Expr::bit_eq`], structure structurally.
     fn eq(&self, other: &Self) -> bool {
-        plane_bits(&self.plane) == plane_bits(&other.plane)
+        self.plane == other.plane
             && self.loops.len() == other.loops.len()
             && self
                 .loops
@@ -966,27 +1071,6 @@ impl PartialEq for ProfileProgram {
                 .zip(&other.loops)
                 .all(|(a, b)| loop_bit_eq(a, b))
     }
-}
-
-/// The 12 placement floats as bits, deterministic column order — also
-/// the content key's plane feed (crate-internal).
-pub(crate) fn plane_key_bits(p: &SketchPlane<f64>) -> [u64; 12] {
-    plane_bits(p)
-}
-
-/// The 12 placement floats, as bits.
-fn plane_bits(p: &SketchPlane<f64>) -> [u64; 12] {
-    let a = &p.placement;
-    let mut out = [0u64; 12];
-    for (i, v) in [a.linear.c0, a.linear.c1, a.linear.c2, a.translation]
-        .iter()
-        .enumerate()
-    {
-        out[3 * i] = v.x.to_bits();
-        out[3 * i + 1] = v.y.to_bits();
-        out[3 * i + 2] = v.z.to_bits();
-    }
-    out
 }
 
 /// Structural equality with Exprs compared by bits.
@@ -1041,8 +1125,9 @@ fn pair_bit_eq(a: &[Expr; 2], b: &[Expr; 2]) -> bool {
 fn target_bit_eq(a: &ProgramTarget, b: &ProgramTarget) -> bool {
     match (a, b) {
         (ProgramTarget::Start, ProgramTarget::Start) => true,
+        (ProgramTarget::StartArriving, ProgramTarget::StartArriving) => true,
         (ProgramTarget::Point(x), ProgramTarget::Point(y)) => pair_bit_eq(x, y),
-        (ProgramTarget::Start | ProgramTarget::Point(_), _) => false,
+        (ProgramTarget::Start | ProgramTarget::StartArriving | ProgramTarget::Point(_), _) => false,
     }
 }
 
@@ -1116,9 +1201,9 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
             xa.bit_eq(xb) && ya.bit_eq(yb)
         }
         (P::Tangent, P::Tangent) | (P::Cusp, P::Cusp) | (P::CloseTo, P::CloseTo) => true,
-        (P::LineTo(x), P::LineTo(y)) | (P::TangentArcTo(x), P::TangentArcTo(y)) => {
-            target_bit_eq(x, y)
-        }
+        (P::LineTo(x), P::LineTo(y))
+        | (P::ContinueTo(x), P::ContinueTo(y))
+        | (P::TangentArcTo(x), P::TangentArcTo(y)) => target_bit_eq(x, y),
         (P::ArcContinue(x), P::ArcContinue(y)) => pair_bit_eq(x, y),
         (P::ArcTo(x), P::ArcTo(y)) => spec_bit_eq(x, y),
         (
@@ -1162,6 +1247,7 @@ fn step_bit_eq(a: &ProgramStep, b: &ProgramStep) -> bool {
             | P::Turn(_)
             | P::Line(_)
             | P::LineTo(_)
+            | P::ContinueTo(_)
             | P::ArcTo(_)
             | P::TangentArcTo(_)
             | P::ArcContinue(_)
@@ -1208,6 +1294,9 @@ impl ProfilePayload for ProfileProgram {
     fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
         ProfileProgram::check(self, env, tol)
     }
+    fn plane_input(&self) -> Option<crate::RecipeNodeId> {
+        Some(self.plane)
+    }
 }
 
 // ------------------------------------------------------------------
@@ -1242,11 +1331,17 @@ fn target_lit(t: &Target<f64>) -> Result<ProgramTarget, DimensionError> {
     Ok(match t {
         Target::Point(p) => ProgramTarget::Point(pt_lit(p)?),
         Target::Start => ProgramTarget::Start,
+        Target::StartArriving => ProgramTarget::StartArriving,
     })
 }
 
 /// Why a recorded PATHS program could not be lifted
 /// ([`LoopProgram::from_recorded`]).
+///
+/// Every verb the transition table declares now has a document
+/// spelling, so there is no vocabulary arm: `from_recorded` is
+/// exhaustive on [`profile::Step`], and a verb the table gains breaks
+/// this file at compile rather than reaching a typed refusal.
 ///
 /// Two of the three arms are unreachable through the authoring
 /// algebra — they exist because the door takes a `&[Step<f64>]`, which
@@ -1263,21 +1358,6 @@ pub enum RecordedProgramError {
     /// Unreachable from the algebra: `circle` and `circle_split` are
     /// one-step programs that bind nothing and continue into nothing.
     CarrierInChain,
-    /// **A verb the DOCUMENT vocabulary does not spell yet.** The
-    /// authoring algebra and this crate's document form are separate
-    /// vocabularies (G1 layering: `profile` has neither expressions nor
-    /// serde), and the hop back from a recorded program is where the
-    /// difference becomes visible. A verb the table gains reaches this
-    /// arm until the document form — and, with it, the persisted form —
-    /// grows to match.
-    ///
-    /// One verb sits here today: `continue_to`, the declared
-    /// point-target continuation. Spelling it in the document is a WIRE
-    /// change (the checked-in corpus regenerates; the format carries no
-    /// schema version), which is its own unit; the census in
-    /// `tests/switch_program_vocabulary.rs` carries the gap as a named
-    /// exception so it stays loud rather than quiet.
-    VerbNotInDocumentVocabulary(profile::Verb),
 }
 
 impl From<DimensionError> for RecordedProgramError {
@@ -1296,12 +1376,6 @@ impl core::fmt::Display for RecordedProgramError {
             Self::CarrierInChain => {
                 write!(f, "a complete-loop carrier step appears inside a chain")
             }
-            Self::VerbNotInDocumentVocabulary(verb) => write!(
-                f,
-                "the authoring verb {verb:?} has no document spelling: the document and \
-                 persisted vocabularies grow by a format change that regenerates the \
-                 corpus, and this one has not landed yet"
-            ),
         }
     }
 }
@@ -1342,18 +1416,21 @@ fn spec_lit(spec: &profile::ArcData<f64>) -> Result<ProgramArcData, RecordedProg
 }
 
 impl LoopProgram {
-    /// A literal polygon: `At(p0)`, `LineTo(p1)`, …, `LineTo(Start)` —
-    /// the VQ5 expansion of the polygon builder, at literal points
-    /// (corpus/fixture authoring; parametric authors write the steps
-    /// with their own Exprs).
+    /// A polygon over EXPRESSION corners: `At(p0)`, `LineTo(p1)`, …,
+    /// `LineTo(Start)` — the VQ5 expansion of the polygon builder, at
+    /// arbitrary points, so a document whose corners are driven by
+    /// document parameters reaches the builder rather than spelling
+    /// the expansion out.
     ///
-    /// # Errors
+    /// Infallible: every coordinate is already an [`Expr`], so there
+    /// is no literal left to refuse.
     ///
-    /// A non-finite coordinate (the literal door's refusal).
-    pub fn polygon(points: impl IntoIterator<Item = (f64, f64)>) -> Result<Self, DimensionError> {
+    /// This is the ONE expansion. [`LoopProgram::polygon`] is this
+    /// door at literal corners, so the two spellings of a polygon
+    /// cannot drift apart.
+    pub fn polygon_expr(points: impl IntoIterator<Item = [Expr; 2]>) -> Self {
         let mut steps = Vec::new();
-        for (i, (x, y)) in points.into_iter().enumerate() {
-            let p = [len_lit(x)?, len_lit(y)?];
+        for (i, p) in points.into_iter().enumerate() {
             steps.push(if i == 0 {
                 ProgramStep::At(p)
             } else {
@@ -1361,7 +1438,21 @@ impl LoopProgram {
             });
         }
         steps.push(ProgramStep::LineTo(ProgramTarget::Start));
-        Ok(LoopProgram::Chain(steps))
+        LoopProgram::Chain(steps)
+    }
+
+    /// A literal polygon — [`LoopProgram::polygon_expr`] at literal
+    /// corners (corpus/fixture authoring).
+    ///
+    /// # Errors
+    ///
+    /// A non-finite coordinate (the literal door's refusal).
+    pub fn polygon(points: impl IntoIterator<Item = (f64, f64)>) -> Result<Self, DimensionError> {
+        let corners = points
+            .into_iter()
+            .map(|(x, y)| Ok([len_lit(x)?, len_lit(y)?]))
+            .collect::<Result<Vec<_>, DimensionError>>()?;
+        Ok(Self::polygon_expr(corners))
     }
 
     /// Lift a RECORDED PATHS program to its document form — the
@@ -1429,11 +1520,7 @@ impl LoopProgram {
                 Step::Turn(delta) => ProgramStep::Turn(ang_lit(*delta)?),
                 Step::Line(len) => ProgramStep::Line(len_lit(*len)?),
                 Step::LineTo(t) => ProgramStep::LineTo(target_lit(t)?),
-                Step::ContinueTo(_) => {
-                    return Err(RecordedProgramError::VerbNotInDocumentVocabulary(
-                        profile::Verb::ContinueTo,
-                    ));
-                }
+                Step::ContinueTo(t) => ProgramStep::ContinueTo(target_lit(t)?),
                 Step::ArcTo(spec) => ProgramStep::ArcTo(spec_lit(spec)?),
                 Step::TangentArcTo(t) => ProgramStep::TangentArcTo(target_lit(t)?),
                 Step::ArcContinue(p) => ProgramStep::ArcContinue(pt_lit(p)?),

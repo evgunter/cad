@@ -79,7 +79,7 @@ every call site in the workspace constructs its margin through a
 blessed door (`of` / `levered`+`sagitta`+`levered_inv` /
 `norm3`+`norm2` / `metered` / `over_lever`; an unused `rooted` door
 was dropped at the fix pass — dead surface, and `per_boundary` was
-RENAMED and re-scoped to `over_lever` when Evan's layering ruling moved
+RENAMED and re-scoped to `over_lever` when Ev's layering ruling moved
 the consistency backstops out of the seam, see below), and each row's
 "comparand" column is the door's justification (out-of-ledger crates —
 profile, sweep, editor-core's eval/naming, geom-curves — argue their
@@ -89,9 +89,8 @@ seam by `geom_core::k_stats::decide_flagged(name, margin, band, row)`
 — the finding lane: no `Margin` is constructed, the row id is a
 compile-time argument at the site, and grepping `decide_flagged`
 enumerates the clause-(i) debt exactly (F2 ×4,
-F10 ×1 — one loop over seven rigidity residuals — F13 ×1, F14 ×1,
-F15 ×1 —
-8 shipped sites, tracked as issue #214 and pinned by
+F10 ×1 — one loop over seven rigidity residuals — F13 ×1, F14 ×1 —
+7 shipped sites, tracked as issue #214 and pinned by
 `geom-core/tests/flagged_census.rs`: no new site ships without a row
 here, and the count only moves together with this section).
 
@@ -121,7 +120,7 @@ performs exactly the operation the bare site performed); the
 probe-census diff row is the executed proof. F12 stays OUTSIDE the
 seam by its unchanged disposition (below).
 
-**The invariant lane (Evan's #213 layering ruling).** The consistency
+**The invariant lane (Ev's #213 layering ruling).** The consistency
 backstops — `volume_backstop` / `volume_backstop_operand` /
 `volume_backstop_violation`, inequalities between integral RESULTS
 (wrong-component detectors, never accuracy gates) — are outside the
@@ -295,6 +294,7 @@ which is what actually moves the number.
 | intersect.rs:705 | ps_center_gap | r − center-plane distance | m | OK |
 | intersect.rs:834–882 | cc_* (radius eq, axes parallel, coaxial, gap, coplanar) | lengths / sin×extent / common-perpendicular | m | OK |
 | intersect.rs:1000/1006/1043 | pn_apex_*, pn_axis_normal | m·unit; trig diff×extent; sin×rim r | m | OK |
+| intersect.rs:1480/1484/1498/1504/1535/1544 | pt_tube_guard / ring_guard / axis_in_plane / axis_plane_gap / axis_normal / cap_gap | r; R−r; sin×extent; centre-plane gap; sin×R; r−station depth | m | OK — with the axis_in_plane lever CONDITION on record: just inside the Zero band the raw sine reaches ε/extent, so the minted meridian circles sit off their own PLANE by up to r·ε/extent (27ε measured at extent = 0.01; the torus residual stays machine-zero). Cannot bite with a real operand: extent ≥ R + r for any plane that reaches the torus, so the planarity error stays under ε |
 | pcurve_cache.rs:1225/1233 | pcurve_chart_azimuth_affine / winding | (rad coeff)×radius | m | OK |
 | pcurve_cache.rs:1268 | pcurve_map_residual | mapped point distance | m | OK |
 | pcurve_cache.rs:1964 | pcurve_interval_forward (harmonic) | span × param_rate | m | OK |
@@ -327,7 +327,8 @@ which is what actually moves the number.
 | props/curved.rs (`cone_boundary`'s line arm) | props_meridian_apex | apex-line distance | m | OK |
 | props/curved.rs (`cone`'s single-nappe check) | props_cone_nappe | slant levels (m) bare | m | OK |
 | props/curved.rs (`sphere_boundary`'s meridian arm, `torus_boundary`, `torus_meridian_orient`) | props_meridian_great / props_band_coplanar / props_meridian_orient | lengths / sin×R / cos×minor | m | OK |
-| props/curved.rs (`sphere_meridian_span_levels`) | props_meridian_pole | chord from the pole's span-relative direction to the nearer span endpoint, carrying the membership sign (`copysign` of a midpoint dot test) × R — the point deviation of moving the pole onto the span boundary | m | OK (added with the span-derived sphere extent, issue 723 / S-CERT: Negative = pole outside the span, nothing folds; **everything else folds the pole latitude — Positive, Zero, and the indeterminate band alike**. Near a span end the endpoint latitude is within band² of the pole's, so the fold choices agree far inside tolerance, the folded extent is continuous across the decision, and an in-band margin carries no information a refusal could report — refusing there flipped certify-exactly into an import escalation for a split vertex 1e-6 rad off the pole. The site still RECORDS through `decide` like any classify site; it just never escalates, so its in-band population is expected (issue 1251 schedules the K-baseline fold-in). Total over every positive span: ≥ 2π covers the whole circle, both poles fold. Direction arithmetic throughout — no `atan2`, no mod-2π `floor`: either is wide at its cut/step for an interval enclosure of an arc anchored at a pole, forcing an escalation the scalar lane does not have, live on the die-fillet corpus) |
+| props/curved.rs (`sphere_meridian_pole_margins`, decided by `sphere_meridian_span_levels` AND by `require_one_chart_branch`) | props_meridian_pole | chord from the pole's span-relative direction to the nearer span endpoint, carrying the membership sign (`copysign` of a midpoint dot test) × R — the point deviation of moving the pole onto the span boundary | m | OK (added with the span-derived sphere extent, issue 723 / S-CERT. ONE margin, TWO dispositions since issue 1571, which is why the arithmetic has its own home: the EXTENT FOLD takes everything but a definite Negative — **Positive, Zero and the indeterminate band alike fold the pole latitude** — while the BRANCH DOOR refuses only a definite Positive, so the gap between them is exactly the arc that ENDS at the pole, which both admit. Neither disposition escalates, so the note below holds for both. Near a span end the endpoint latitude is within band² of the pole's, so the fold choices agree far inside tolerance, the folded extent is continuous across the decision, and an in-band margin carries no information a refusal could report — refusing there flipped certify-exactly into an import escalation for a split vertex 1e-6 rad off the pole. The site still RECORDS through `decide` like any classify site; it just never escalates, so its in-band population is expected (issue 1251 schedules the K-baseline fold-in). **RETRACTED for saturated spans (issue 1601, pre-existing, flux-lane side, NOT fixed by MESH-11)**: "≥ 2π covers the whole circle, both poles fold" needed the clamped edge cosine to have an EMPTY zero set, and it does not — at `c_edge = −1` the test is `f = ⟨P, M⟩ + 1`, which vanishes at the one direction antipodal to the span midpoint, where `f` is a rounding residual whose sign `copysign` puts on the chord; a `2π + 2δ` span with its pole there folds short by `(1 − cos δ)/2` in the dot value. The BRANCH door is unaffected: it refuses only a definite Positive, so a residual Negative there admits. Direction arithmetic throughout — no `atan2`, no mod-2π `floor`: either is wide at its cut/step for an interval enclosure of an arc anchored at a pole, forcing an escalation the scalar lane does not have, live on the die-fillet corpus) |
+| props/curved.rs (`require_one_chart_branch`'s cone arm) | props_cone_apex | the apex's own line parameter against the nearer span end, bare (a line's `t` IS arc length on the unit `dir` the parse certifies — the same argument `props_meridian_apex` makes one row up) | m | OK (added with the arc-branch door, issue 1571. Positive = the apex strictly inside the generator's stored span, where the chart `u` jumps to the mirror nappe and a walk reading one `u` per edge cannot read the edge; Zero and the indeterminate band ADMIT, so a generator ENDING at the apex — every `revolve` cone cap — passes. Signed as `min(t_apex − t0, t1 − t_apex)`: positive exactly on interior membership, and its magnitude is the metres to the nearer end, i.e. the point deviation of moving the apex onto the span boundary) |
 | props/curved.rs (`require_rims_at_extremes`, through `level_coincides`) | props_rim_level | per-kind: bare level difference (cylinder/cone `Length`) / rooted (sin,cos) chord × `RimArms::level` (sphere ×R, torus ×minor) | m | **FIXED — N7 RETIRED** (N1 RETIRED earlier. Generalised from the torus-only site to all four kinds by S58/#649, and unified with its sibling `props_rim_level_group` by S81 — ONE rule (`level_coincides`), one metric (the chord), one arm (`RimArms::level`), one fail direction; the two names are the funnel's recording channels, not two rules, and the metering is still carried by [`RimLevel`]. N7's near-polar sphere understatement — an axial-only `(sin v, 0)` pair whose chord collapsed by `cos v̄`, merging distinct near-polar rims in the ACCEPTING direction on both names, this refusing one included — is retired by the full `(sin v, cos v)` pair (issue 893 / S-CERT; this verdict column previously said `OK` while N7's own prose recorded the collapse). Pinned as scale twins by `geom-brep/tests/rim_dim_scale_twins.rs` and, in suites CI runs, by `geom-brep/tests/s81_one_rim_level_rule.rs` and the near-polar rows of `geom-brep/tests/cert1_sphere_polar.rs`.) |
 | props/quad.rs:453 | props_quad_converged | ε·F − flux-width(m³)/(3·area(m²)) | m | OK |
 | props/quad.rs:461 | props_quad_face_extent | area/perimeter (mean width) | m | OK |
@@ -350,7 +351,7 @@ which is what actually moves the number.
 | boolean/join.rs:743/744 | bool_join_facing | unit germ dir · chord (cos × separation) | m | FIXED (was bare cosine, `/dist`) |
 | boolean/join.rs:750/751 | bool_join_arc_facing | axis·((p−c)×dir) — radius-metered sine | m | OK |
 | boolean/join.rs:1093 | bool_ring_run_winding | (n̂ · Newell sum) / run perimeter — 2A/P, the run's mean width | m | FIXED (F4; was a bare **m² AREA**) |
-| boolean/ops.rs (`bounded`) | volume_backstop_operand | V/A — the operand's mean thickness | m | FIXED (F3); on the INVARIANT LANE since Evan's #213 layering ruling — bare `T`, outside the length seam by design |
+| boolean/ops.rs (`bounded`) | volume_backstop_operand | V/A — the operand's mean thickness | m | FIXED (F3); on the INVARIANT LANE since Ev's #213 layering ruling — bare `T`, outside the length seam by design |
 | boolean/ops.rs (`check`, arm 2) | volume_backstop | ΔV/(A_got + A_bound) — mean boundary displacement | m | FIXED (F3); INVARIANT LANE (see above) |
 | boolean/ops.rs (`check`, arm 1) | volume_backstop_violation | the same length, against the EXACT bit-hairline band — a sign question, not a magnitude one | m (band-free) | OK by design (note N6's category; #200 review MAJ-1); INVARIANT LANE (see above) |
 | boolean/ops.rs:1194–1480 | bool_sphere_* | radius/gap differences; sin × radius | m | OK |
@@ -431,6 +432,12 @@ which is what actually moves the number.
 | boolean/rest.rs (M9-2 PR-2) | tangent_locus_gap / tangent_locus_side | axis-to-plane (or axis-to-axis) distance minus radius sum/difference; signed height / radius difference — all metre data of the carriers | m | OK (new in M9-2 PR-2) |
 | census.rs (M9-2 PR-2 fix pass) | census_backstop_gap | per-axis gap between two faces' SOUND reach boxes (plane hull ⊕ boundary-arc radius; cylinder axial span ⊕ radius; sphere ball — coordinate differences and radii, metres); only a DEFINITE positive clears the pair | m | OK (new in the union fix; boxes tightened to the face_box construction in the delta) |
 | census.rs (M9-2 PR-2 fix pass) | census_backstop_containment | per-axis extent margin between two solids' vertex hulls (coordinate differences — metres); containment = all six definitely positive, clearance = any definitely negative | m | OK (new in the union fix) |
+| offset_axial.rs (VERBS-RIMCAP) | offset_axial_cap_pair | sine between the two moved meridian caps' cross-section normals × each of the corner's own edge arc lengths — the length a near-parallel pair's solve error would move the corner by (the `offset_axial_corner` idiom on the derived pair) | m | OK (new in VERBS-RIMCAP) |
+| offset_axial.rs (VERBS-RIMCAP) | offset_axial_cap_line | the moved caps' meeting line's own distance from the axis (`ρ_L`, a norm of metre coordinates) — `Zero` routes to the pole arm rather than refusing | m | OK (new in VERBS-RIMCAP) |
+| offset_axial.rs (VERBS-RIMCAP) | offset_axial_datum_arm | the old corner's distance from its own profile circle's centre (2-D norm in the meridian half-plane, metres) — the carried-datum direction's lever, dead exactly when no direction exists | m | OK (new in VERBS-RIMCAP) |
+| offset_axial.rs (VERBS-RIMCAP) | offset_axial_rim_concentric / offset_axial_rim_great | rim-carrier centre to sphere centre distance; carrier radius minus operand sphere radius — both metre data of the stored geometry | m | OK (new in VERBS-RIMCAP) |
+| offset_axial.rs (VERBS-RIMCAP) | offset_axial_rim_plane | sin(carrier axis, moved cap normal) × the body's radial extent — the length the tilt would move a rim point by (the `offset_axial_latitude_tilt` idiom) | m | OK (new in VERBS-RIMCAP) |
+| offset_axial.rs (VERBS-RIMCAP) | offset_axial_rim_reach | moved sphere radius minus the moved cap's stand-off `\|t\|` — the length the section circle dies by at tangency, decided before the root `√(r² − t²)` is taken | m | OK (new in VERBS-RIMCAP) |
 
 Funnel bypasses found: **boolean/ops.rs:634/649** (`sign_within`
 called directly on volume margins — was FLAG F3, **FIXED**: the gates
@@ -647,21 +654,34 @@ Flagged, NOT fixed here (dispositions):
   typed). Carried as `decide_flagged(.., "F13")`; the honest lever (a
   slant/extent datum) is a design question for the
   structure-selection-funnel conversation N5 banks.
-- **F15** (added by the clause-(i) fix pass, from the #213 review's
-  MAJ-1 — the review's scale-blindness probe EXECUTED it)
+- **F15 — RETIRED (the predicate is gone, not levered).**
+  (added by the clause-(i) fix pass, from the #213 review's MAJ-1 —
+  the review's scale-blindness probe EXECUTED it)
   `editor-core/eval/wire.rs` `revolve_axis_dir_in_plane`: `dir·n̂` with
-  BOTH vectors unit is a bare **sine** against the metre band — the
+  BOTH vectors unit was a bare **sine** against the metre band — the
   audit's class-(c) shape, wrapped in `of` by the first migration pass
   with no argument (the sibling `revolve_axis_origin_in_plane`
-  comparand `rel·n̂` IS metres and keeps `of`). Executed consequence
+  comparand `rel·n̂` IS metres and kept `of`). Executed consequence
   (review probe, adopted on merge as this row's pin,
   `geom-core/tests/review_margin_probe.rs`): a tilt of θ = 5e-10
-  classifies Zero at every model scale while the induced deviation θ·r
-  crosses the band between a 1 mm and a 10 m profile. The honest form
-  levers the sine at the profile's radial extent, which lives
-  kernel-side (`revolve/mod.rs` computes exactly that arm for
-  `revolve_angle`) — that fix is F15's own unit, byte-identity forbids
-  it here. Carried as `decide_flagged(.., "F15")`.
+  classified Zero at every model scale while the induced deviation θ·r
+  crossed the band between a 1 mm and a 10 m profile.
+  
+  This row proposed levering the sine at the profile's radial extent,
+  kernel-side. What happened instead is that the QUESTION was deleted.
+  A revolve's axis is now a `Datum::AxisInPlane` — written in the
+  profile's own frame, in that frame's two coordinates — so it cannot
+  have an out-of-plane component to classify, and the only thing left
+  to decide is whether it is the same frame the profile is drawn on:
+  an equality of node ids, with no band and no scale. Both in-plane
+  predicates went with it, this one and the metre-valued
+  `revolve_axis_origin_in_plane` beside it.
+  
+  The row stays here, struck through rather than deleted, because it is
+  the executed evidence for why the shape mattered — and because
+  `flagged_census.rs` reads these headings and would call a citation to
+  a vanished row a string. Nothing cites it now: the count above went
+  from 8 to 7, and `LEDGER_FLAGGED_SITES` with it.
 - **F14** (added by the clause-(i) migration)
   `editor-core/eval/wire.rs` `revolve_full_vs_partial`: `|θ| − τ` is
   **radians** against the linear band — the full-circle coincidence
@@ -719,6 +739,29 @@ Flagged, NOT fixed here (dispositions):
   — no gate, no geometry, no downstream outcome reads it), and its
   band arm is `Unevaluated`, which reports the indeterminacy rather
   than picking a side. Carried as `decide_flagged(.., "F16")`.
+
+- **F17** (added by M10-5, the clearance engine)
+  `editor-core/src/clearance.rs` `clearance_margin` and
+  `self_intersection_gap`: the two compares the E7 inner subdivision
+  makes. Both comparands are `d − c`, the interval enclosure of the
+  Euclidean separation between two geometry-domain cells minus the
+  requested clearance, in METRES against the linear band; the second is
+  the same shape at `c = 0`. Honest metres on both sides, so **neither
+  site is flagged** and neither takes `decide_flagged` — this row is
+  the disposition, and `LEDGER_FLAGGED_SITES` does not move. It is
+  written here rather than left implicit because the two sites are new
+  names in the K roster and a reader asking "what dimension is a
+  clearance margin" should find the answer in the ledger.
+
+  The two names exist rather than one because they read a definite
+  `Sign::Zero` differently, and each reading is a claim about a
+  different question: under `clearance_margin` the bound is non-strict
+  (`min-clearance ≥ c`, the assertion lane's convention) so a
+  separation equal to `c` at the run's tolerance DISCHARGES, while
+  under `self_intersection_gap` E7 asks for a strictly positive
+  distance between non-adjacent faces, so a coincidence at the run's
+  tolerance is the violation the check exists to find. One name with
+  two readings would put two populations under one K row.
 
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a

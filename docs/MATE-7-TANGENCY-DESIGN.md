@@ -1,6 +1,6 @@
 # Torus×torus rim tangency (issue 968 item 3) — design conversation
 
-**STATUS: RATIFIED (Evan, in-chat, 2026-09-01 — all three
+**STATUS: RATIFIED (Ev, in-chat, 2026-09-01 — all three
 questions answered). Q1: the THIRD option — the ROUTING is ratified
 (the material-wedge table decides which treatment a rim gets: π →
 the smooth-seam zip; 0/2π → the declared-Tangent cusp family with a
@@ -12,7 +12,7 @@ under Q1's ruling that growth banks WITH the kissing arm it serves
 (the permission and the demo rider are recorded here for whenever
 it builds). Q3 (follows from Q1): MATE-7 splits — unit one is the
 operand gate + the `carrier_eq` torus rung + the π-arm join wiring,
-with the lily's stem as its demo (`docs/MATE-7A-SPEC.md`); the
+with the lily's stem as its demo (MATE-7a, merged); the
 kissing arm banks with its ruling of record.** The pre-implementation ruling MATE-7
 needs (the Q4 ruling scheduled the torus declared-Rest lane last
 and sent this disposition back separately, per the issue-966
@@ -81,7 +81,7 @@ refused typed) is the cheaper first ruling and loses only the
 kissing-pair class. And the demand signal (the lily's stem) is a π
 seam — the (a) arm has no demo behind it yet.
 
-## Questions for Evan
+## Questions for Ev
 
 1. Rule the CASE SPLIT (the table decides; both shapes are arms),
    or the cheaper (b)-only first ruling with kissing tori staying
@@ -99,7 +99,7 @@ split into two units with gate+rung first (3) — the lily's stem
 retires on the (b) arm, which the first unit's gate and rung
 already unblock.
 
-## The design considerations, in full (added 2026-09-01, answering Evan)
+## The design considerations, in full (added 2026-09-01, answering Ev)
 
 **The geometry.** Two tori sharing a rim circle are two physically
 different situations wearing one description:

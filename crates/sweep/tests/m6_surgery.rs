@@ -11,9 +11,10 @@
 use core::f64::consts::PI;
 use profile::RawLoop;
 
+use crate::common::approx::band;
 use geom_brep::SurfaceKind;
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
+use geom_core::{Affine3, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::cube;
@@ -34,11 +35,6 @@ const PIP_H: f64 = 0.05;
 const PIP_D: f64 = 0.22;
 /// The pip-rim blend radius, meters.
 const RIM_R: f64 = 0.02;
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -225,6 +221,12 @@ fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
         .collect()
 }
 
+/// Deliberately NOT `common::oracles::rounded_box_volume`: the die
+/// family spells the twelve quarter-cylinders as `12·(πr²/4)·core`
+/// where that form sums them as `3πlr²`. At `(1.0, 0.12)` the two are
+/// bit-identical, so this is conservatism, not a bit-level necessity —
+/// see `common::oracles`' module doc for the measurement.
+///
 /// The blank's closed-form volume (Steiner: core + 6 slabs + 12
 /// quarter-cylinders + 8 octants).
 fn blank_volume() -> f64 {
@@ -435,7 +437,7 @@ fn the_composed_die_replays_bit_identically() {
 /// is pinned at its three outcomes, the S2/S9 trio idiom.
 #[test]
 fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
-    use sweep::blend::surgery::ring_clearance;
+    use sweep::test_support::ring_clearance;
     let (pipped, _) = pipped_and_box_edges();
     let face = pipped.faces().next().unwrap().0;
     let tol = Tol::witness().get();
@@ -445,7 +447,8 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
     let err = ring_clearance(face, -0.05, band()).expect_err("a consumed ring refuses");
     match err {
         sweep::blend::BlendError::RingClearance { margin, .. } => {
-            assert!((margin - -0.05).abs() < 1e-15)
+            assert_eq!(margin.predicate, "fillet3_ring_clearance");
+            assert!(margin.value().is_some_and(|m| (m - -0.05).abs() < 1e-15));
         }
         other => panic!("expected RingClearance, got {other}"),
     }

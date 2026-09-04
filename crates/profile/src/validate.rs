@@ -72,7 +72,7 @@
 //! | `fillet_offset_circles_external` | \|ρ₁\|+\|ρ₂\| − d | linear band; offset-carrier intersection (M5 S2) |
 //! | `fillet_offset_circles_internal` | d − \|\|ρ₁\|−\|ρ₂\|\| | linear band; offset-carrier intersection (M5 S2) |
 //! | `fillet_offset_lever` | \|ρ₂\| − C·R₂·scale²/(d·ε) | linear band; the arc×arc offset intersection's conditioning (M8) |
-//! | `fillet_enclosing_carrier` | ρ = R − σ·τ·r, one per circular leg | linear band; Negative is the permanently refused enclosing class (`docs/ENCLOSING-TANGENCY-DESIGN.md`) |
+//! | `fillet_enclosing_carrier` | ρ = R − σ·τ·r, one per circular leg | linear band; Negative is the permanently refused enclosing class (`crates/profile/README.md`) |
 //!
 //! Every `fillet_*` row above fires in
 //! the arc-carrier fillet construction (construction sugar's one
@@ -266,16 +266,11 @@ pub enum NoCornerReason {
     /// the legs do not actually reach (the branch rule's corner-side
     /// extent test).
     ///
-    /// **No construction is known to reach this arm** since the
-    /// enclosing (ρ < 0) class became a refusal of its own
-    /// (`docs/ENCLOSING-TANGENCY-DESIGN.md`): every request that used to
-    /// land here was one whose blend circle swallowed the leg carriers,
-    /// and those now refuse earlier and more precisely. Four searches
-    /// across three lanes (1.24M ordinary arc×arc corners, 400k random
-    /// draws, and two reviewers' sweeps) found no replacement — a
-    /// negative result with stated blind spots, not a proof. Whether the
-    /// variant keeps a producer at all is issue #1280; nothing here
-    /// decides it.
+    /// The reach gate's own failure arm, kept deliberately (Ev's ruling,
+    /// PR 1733): no known producer since the enclosing (ρ < 0) class
+    /// refuses first (`crates/profile/README.md`), but the branch it
+    /// names is real, so it stays typed rather than folded into a wrong
+    /// reason or a panic.
     NoCornerSideCandidate,
 }
 
@@ -304,7 +299,27 @@ impl fmt::Display for NoCornerReason {
 /// "this corner is degenerate and which kind is below the tolerance" —
 /// rendering either single-class sentence would assert the very thing
 /// the escalation declined to decide.
-const FILLET_TURN_INBAND_RECOURSE: &str = "this corner is degenerate at any precision you could care about, and which kind is below \
+///
+/// **No caller reads this sentence.** It is written by one Display arm
+/// — [`ProfileError::Escalated`] at [`EscalationSite::Fillet`] — that
+/// nothing constructs, and the gate's own in-band verdict leaves
+/// through `PathError::Escalated`, which has no fillet arm. The same is
+/// true of all six `FILLET_*_RECOURSE` sentences here;
+/// `profile/tests/fillet_recourse_followability.rs` measures each one
+/// at its own door, follows the request it endorses, and pins the
+/// render rule against the day a producer lands. This one's row is
+/// `the_turn_in_band_recourse_is_followed_by_moving_the_geometry`,
+/// which also records that the near-degenerate turn escalates under
+/// `path_corner_turn`, not the `fillet_corner_turn` this arm keys on.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const FILLET_TURN_INBAND_RECOURSE: &str = "this corner is degenerate at any precision you could care about, and which kind is below \
      the tolerance: if the legs run smoothly into each other, keep them and declare the \
      tangency (the joint's index in the loop's tangent_joints); if they double back, that is a cusp and the \
      kernel refuses it; otherwise move the geometry so a real corner exists (or lower \
@@ -317,7 +332,19 @@ const FILLET_TURN_INBAND_RECOURSE: &str = "this corner is degenerate at any prec
 /// Also carries `fillet_leg_reach`, whose situation is the same one:
 /// whether a corner of this radius exists on the corner side at all
 /// (review MINOR-1).
-const FILLET_NO_CORNER_RECOURSE: &str =
+///
+/// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]);
+/// followed to a build by the row named
+/// `the_no_corner_recourse_reduces_to_a_radius_that_builds`.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const FILLET_NO_CORNER_RECOURSE: &str =
     "use a smaller radius, or move the legs so a circle of that radius can sit in the corner";
 
 /// The recourse for a corner whose offset lever is too short to place a
@@ -330,7 +357,20 @@ const FILLET_NO_CORNER_RECOURSE: &str =
 /// when the fillet radius approaches the leg's own carrier radius on the
 /// side the corner turns toward, and everything else in the threshold is
 /// the corner's scale, which the author usually cannot trade.
-const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered by projecting the fillet's centre back onto that leg's \
+///
+/// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]),
+/// and the gate itself has no default-tolerance witness; both are
+/// recorded by the row named
+/// `the_offset_lever_recourse_has_no_default_tolerance_witness`.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered by projecting the fillet's centre back onto that leg's \
      carrier, and the projection divides by the offset radius rho = R - sigma*tau*r, so a \
      fillet radius this close to the leg's carrier radius cannot place the tangent point \
      within tolerance: move the fillet radius away from that leg's carrier radius, or bring \
@@ -340,7 +380,7 @@ const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered by pr
 /// own carrier radius, where the sign of ρ = R − σ·τ·r — and with it
 /// whether the requested fillet would SWALLOW that carrier, the
 /// permanently refused enclosing class
-/// (`docs/ENCLOSING-TANGENCY-DESIGN.md`) — is below the tolerance.
+/// (`crates/profile/README.md`) — is below the tolerance.
 ///
 /// One sentence for the in-band escalation of `fillet_enclosing_carrier`
 /// and for its definite sibling [`crate::PathError::FilletEnclosesLegCarrier`]
@@ -348,7 +388,19 @@ const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered by pr
 /// move as the conditioning gate's recourse does, because at ρ ≈ 0 the
 /// two situations are the same degenerate one: a fillet radius equal to
 /// the leg's carrier radius.
-const FILLET_ENCLOSING_RECOURSE: &str = "on the side the corner turns toward, a fillet radius above the leg's own carrier radius \
+///
+/// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]);
+/// the bound it endorses is followed to a build by the row named
+/// `the_enclosing_recourse_endorses_a_bound_that_builds`.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const FILLET_ENCLOSING_RECOURSE: &str = "on the side the corner turns toward, a fillet radius above the leg's own carrier radius \
      puts that carrier INSIDE the fillet circle, and the corner with it, so the arc could not \
      touch the corner it would round — and whether this radius is above or below that carrier \
      radius is itself below the tolerance here: move the radius clearly away from the leg's \
@@ -357,11 +409,35 @@ const FILLET_ENCLOSING_RECOURSE: &str = "on the side the corner turns toward, a 
 
 /// The recourse for a radius whose tangent points fall outside their
 /// legs — shared by the definite refusal and the in-band escalation.
-const FILLET_FIT_RECOURSE: &str =
+///
+/// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]);
+/// both its clauses are followed by the row named
+/// `the_fit_recourse_is_followed_by_a_smaller_radius_and_by_longer_legs`.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const FILLET_FIT_RECOURSE: &str =
     "the arc would never approach the requested corner; use a smaller radius or longer legs";
 
 /// The recourse for a fillet leg with no extent to round against.
-const FILLET_LEG_EXTENT_RECOURSE: &str = "give the leg a real extent (a non-degenerate chord, or an arc carrier with a positive \
+///
+/// Unreachable as rendered prose (see [`FILLET_TURN_INBAND_RECOURSE`]);
+/// followed to a build by the row named
+/// `the_leg_extent_recourse_is_followed_by_giving_the_leg_an_extent`.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const FILLET_LEG_EXTENT_RECOURSE: &str = "give the leg a real extent (a non-degenerate chord, or an arc carrier with a positive \
      radius and a non-zero sweep) — a leg with no extent has no direction to be tangent to";
 
 /// Typed validation failure — the closed error enum of
@@ -449,10 +525,6 @@ pub enum ProfileError {
         second: SegmentRef,
         /// The joint's vertex index (input chain).
         joint: usize,
-        /// `true` if the adjacent segments share one carrier
-        /// (collinear/cocircular continuation — not a tangency);
-        /// `false` if their distinct carriers meet transversally.
-        same_carrier: bool,
     },
     /// A loop's area-per-perimeter width classified as zero: a sliver
     /// loop (unreachable for loops that passed simplicity — kept total).
@@ -556,27 +628,13 @@ impl fmt::Display for ProfileError {
                 first,
                 second,
                 joint,
-                same_carrier,
-            } => {
-                if *same_carrier {
-                    write!(
-                        f,
-                        "joint {joint} between {first} and {second} is declared tangent, \
-                         but the segments continue on one shared carrier \
-                         (collinear/cocircular) — continuation is not a tangency; remove \
-                         the declaration (declared tangency is verified, never trusted)"
-                    )
-                } else {
-                    write!(
-                        f,
-                        "joint {joint} between {first} and {second} is declared tangent, \
-                         but the carriers definitely meet transversally — remove the \
-                         declaration or make the tangency exact \
-                         (the PATHS .fillet(r) door computes it); declared tangency is \
-                         verified, never trusted"
-                    )
-                }
-            }
+            } => write!(
+                f,
+                "joint {joint} between {first} and {second} is declared tangent, but the \
+                 carriers definitely meet transversally — remove the declaration or make \
+                 the tangency exact (the PATHS .fillet(r) door computes it); declared \
+                 tangency is verified, never trusted"
+            ),
             Self::SliverLoop { loop_index } => write!(
                 f,
                 "loop {loop_index} has zero width at tolerance (sliver loop)"
@@ -1020,7 +1078,7 @@ impl<T: Decide> Profile<T> {
         tol: Tol,
         guide: &mut CanonGuide,
     ) -> Result<ValidatedProfile<T>, ProfileError> {
-        let band = Band::new(tol.eps(), tol.k() * tol.eps()).map_err(ProfileError::Band)?;
+        let band = Band::linear(tol).map_err(ProfileError::Band)?;
         // The exact-order band for canonical-start selection (module
         // docs): no representable f64 lies strictly inside it.
         let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;
@@ -1416,15 +1474,22 @@ fn judge_joints<T: Decide>(
                     ),
                 });
             }
-            (seg::JointClass::Transversal | seg::JointClass::SameCarrier, true) => {
+            (seg::JointClass::Transversal, true) => {
                 return Err(ProfileError::TangencyContradicted {
                     first,
                     second,
                     joint,
-                    same_carrier: class == seg::JointClass::SameCarrier,
                 });
             }
-            (seg::JointClass::Tangent, true)
+            // A declared joint whose two segments continue on ONE
+            // carrier is a declared TANGENT JOINT and nothing else
+            // (Ev, in-chat, 2026-09-02: every zero-turn joint is a
+            // declared tangent joint). The `same_carrier` arm that used
+            // to refuse it is retired: identity is a fact about the
+            // carriers, tangency is a fact about the directions, and the
+            // directions agree here.
+            (seg::JointClass::SameCarrier, true)
+            | (seg::JointClass::Tangent, true)
             | (seg::JointClass::Transversal | seg::JointClass::SameCarrier, false) => {}
         }
     }

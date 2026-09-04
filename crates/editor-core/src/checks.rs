@@ -35,7 +35,10 @@ use std::sync::Arc;
 use core::fmt;
 
 use geom_core::{BandError, CertifiedBounds, Decide, Tol};
-use topo::{AtRestPolicy, Body, PropsQuadLane, ShellClassifyError, ShellRole, classify_shells};
+use topo::{
+    AtRestPolicy, Body, ContactRecords, PropsQuadLane, ShellClassifyError, ShellRole,
+    classify_shells,
+};
 
 use crate::doc::Doc;
 use crate::eval::Evaluation;
@@ -169,7 +172,7 @@ pub struct ChecksConfig {
     /// [`Severity`], so `Error` is unrepresentable here.
     ///
     /// **DS6's waiver rule is an `iff`** (DISCIPLINES-DESIGN, round 3,
-    /// Evan): a check may offer `error` *iff* it ships a per-finding,
+    /// Ev): a check may offer `error` *iff* it ships a per-finding,
     /// stable-name-keyed acknowledgment record with a staleness
     /// direction. The connectedness resident satisfies it through
     /// `expected_components` + [`CheckEvidence::StaleExpectation`].
@@ -270,17 +273,38 @@ pub enum CheckEvidence {
     /// all — the box builder's typed refusal. The check has no verdict
     /// for ANY pair, which is a finding, never a silent pass (F6).
     SeparationUnavailable {
-        /// The kernel's own refusal, rendered.
+        /// Which arm of the kernel's refusal fired — the typed half,
+        /// and the one a consumer branches on.
         ///
-        /// The message and not the value because `topo::BooleanError`
-        /// is neither `Clone` nor `PartialEq` and a report is both.
+        /// `topo::BooleanError` itself is neither `Clone` nor
+        /// `PartialEq` and a report is both, so the error cannot ride
+        /// here; its class projection can, and does.
+        kind: topo::BooleanErrorKind,
+        /// The kernel's own refusal, rendered, for a reader — it
+        /// carries the arena keys and margins `kind` drops.
+        ///
         /// The payload's own `Display` is the vocabulary this module
-        /// forwards (the one-story rule at `crate::finding`), so
-        /// nothing about what the caller reads changes; what is lost
-        /// is matching on the arm, which no consumer of an advisory
-        /// report does.
+        /// forwards (the one-story rule at `crate::finding`), so what
+        /// a caller READS is the kernel's own sentence; `kind` beside
+        /// it is what a caller MATCHES on, so neither half is a
+        /// substring hunt through the other.
         reason: String,
     },
+}
+
+impl CheckEvidence {
+    /// [`CheckEvidence::SeparationUnavailable`] built from ONE refusal:
+    /// `kind` is the class a consumer matches, `reason` the kernel's
+    /// own sentence a reader reads. Both come off the same error, which
+    /// is the invariant the door holds and a hand-built literal does
+    /// not — so the door goes through here rather than writing the two
+    /// fields at the raise site.
+    fn separation_unavailable(source: &topo::BooleanError) -> Self {
+        Self::SeparationUnavailable {
+            kind: source.kind(),
+            reason: source.to_string(),
+        }
+    }
 }
 
 /// One finding of one check on one subject — a body-denoting root
@@ -364,7 +388,7 @@ impl crate::finding::Finding for CheckFinding {
                  product gathers both, so any space they share is gathered twice",
                 other_root.0
             ),
-            CheckEvidence::SeparationUnavailable { reason } => write!(
+            CheckEvidence::SeparationUnavailable { reason, .. } => write!(
                 f,
                 "no pair of this product's solids could be checked for separation: \
                  {reason}"
@@ -733,9 +757,7 @@ fn separation<P, T: Decide + AtRestPolicy + CertifiedBounds>(
                 check: CheckId::Separation,
                 root: first.node,
                 output_ix: first.output,
-                evidence: CheckEvidence::SeparationUnavailable {
-                    reason: source.to_string(),
-                },
+                evidence: CheckEvidence::separation_unavailable(&source),
             });
             return Ok(());
         }
@@ -819,22 +841,41 @@ fn declared_pairs<T: Decide>(
 }
 
 /// The door from a finding's attribution back to its subject: the body
-/// at `(root, output_ix)` in this evaluation — the same enumeration
-/// [`run_checks`] walks, so a [`CheckFinding`]'s attribution always
-/// resolves against the evaluation it was produced from. `None` when
-/// the root has no value, denotes no body, or has no output at that
-/// index (exactly the attributions a [`CheckEvidence::StaleExpectation`]
-/// finding names).
+/// at `(root, output_ix)` in this evaluation, AND the declared contact
+/// records that body carries — the same enumeration [`run_checks`]
+/// walks, so a [`CheckFinding`]'s attribution always resolves against
+/// the evaluation it was produced from. `None` when the root has no
+/// value, denotes no body, or has no output at that index (exactly the
+/// attributions a [`CheckEvidence::StaleExpectation`] finding names).
+///
+/// The two halves travel TOGETHER because a body without its
+/// declarations is a different subject from the one the check flagged.
+/// A record set has two homes — [`crate::eval::NodeValue::contacts`]
+/// for an instantiate's carried D-1 declarations, `BooleanValue::
+/// contacts` for a boolean's own — and reconciling those two is
+/// precisely what [`product::sources_of`] exists to do; it builds the
+/// pair, and this door hands the whole pair on rather than dropping
+/// half of it. Splitting them again downstream re-opens the failure
+/// this signature closes: a subject that IS a declared boolean result
+/// reporting its own certified seam as an UNDECLARED contact under the
+/// tier-3′ gate, while the identical body read through its value
+/// passes. (That direction fails loud, never silently — an absent
+/// record set can only make the gate refuse — but a loud wrong answer
+/// is still a wrong answer.)
+///
+/// A caller wanting only the body says so with a `.map(|(body, _)| …)`
+/// at its own site, where dropping the records is a visible decision
+/// rather than this door's silent narrowing.
 pub fn subject_body<T: Decide>(
     ev: &Evaluation<T>,
     root: RecipeNodeId,
     output_ix: u32,
-) -> Option<Arc<Body<T>>> {
+) -> Option<(Arc<Body<T>>, Arc<ContactRecords>)> {
     let sources = product::sources_of(ev.value(root)?)?;
     sources
         .into_iter()
         .find(|(ix, _, _)| *ix == output_ix)
-        .map(|(_, body, _)| body)
+        .map(|(_, body, contacts)| (body, contacts))
 }
 
 /// The ONE refusing path of the registry: refuses iff `report` carries
@@ -862,5 +903,46 @@ pub fn enforce_checks(report: &ChecksReport, cfg: &ChecksConfig) -> Result<(), C
         Ok(())
     } else {
         Err(CheckRefusal { findings })
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::CheckEvidence;
+
+    /// INVARIANT: the separation door's evidence carries the class and
+    /// the prose OF ONE REFUSAL — `kind` is the arm the error actually
+    /// is, not a class written down beside it.
+    ///
+    /// The refusing branch itself cannot be reached from `run_checks`
+    /// over a well-formed document: every refusal
+    /// `topo::SolidSeparation::of` can raise needs either a corrupt
+    /// body or an ε within a factor K of `f64::MAX`, and `Tol` is a
+    /// zero-sized witness for the run's committed tolerance, so a test
+    /// cannot hand it one. This row therefore pins the door's
+    /// CONSTRUCTION, which is the part a caller can get wrong, and says
+    /// so rather than implying the branch was executed.
+    #[test]
+    fn the_separation_door_carries_the_class_of_the_error_it_saw() {
+        let refusal = topo::BooleanError::ClassificationInvariant {
+            what: "solid separation: the ambient tolerance band is unusable",
+        };
+        let CheckEvidence::SeparationUnavailable { kind, reason } =
+            CheckEvidence::separation_unavailable(&refusal)
+        else {
+            panic!("the arm this row is about");
+        };
+        // The reader's half is the kernel's own sentence, whole.
+        assert_eq!(reason, refusal.to_string());
+        // The consumer's half is the arm the error IS — compared
+        // against the variant name `Debug` prints for the error, so a
+        // class hardcoded here would have to be the right one by
+        // accident to pass.
+        let variant: String = format!("{refusal:?}")
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        assert_eq!(format!("{kind:?}"), variant);
     }
 }

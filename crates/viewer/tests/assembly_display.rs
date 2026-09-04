@@ -13,12 +13,10 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::asm;
-use pncad::document::{
-    Alignment, AxisSense, Frame, MateFrame, MatePrimitive, RecipeNodeId, product,
-};
+use pncad::document::{Alignment, Frame, RecipeNodeId, product};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use viewer::display::DisplayFault;
@@ -26,28 +24,11 @@ use viewer::scene::SceneMesh;
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
-/// The mate the refusal rows author directly: post_a's top seated on
-/// the shelf's underside, frames in each part's own coordinates.
+/// The mate these rows author directly: a post's top seated under the
+/// shelf's middle, no rider — `asm::seat_alignment`'s one home, at the
+/// place along the shelf this suite wants.
 fn seat_alignment() -> Alignment {
-    Alignment {
-        a: MateFrame {
-            origin: [
-                asm::POST_SECTION / 2.0,
-                asm::POST_SECTION / 2.0,
-                asm::POST_HEIGHT,
-            ],
-            axis: [0.0, 0.0, 1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        b: MateFrame {
-            origin: [asm::SHELF_LENGTH / 2.0, asm::SHELF_DEPTH / 2.0, 0.0],
-            axis: [0.0, 0.0, -1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        primitive: MatePrimitive::FrameCoincidence,
-        sense: AxisSense::Opposed,
-        clocking: None,
-    }
+    asm::seat_alignment(asm::SHELF_LENGTH / 2.0, None)
 }
 
 /// Author the seat mate between `a_instance` and the shelf through
@@ -120,13 +101,7 @@ fn a_missing_part_document_refuses_typed_and_badges_the_row() {
         .expect("the post file removes");
     let session = asm::open_bench(&bench, tol);
     let rows = session.tree_rows();
-    let status_of = |id: RecipeNodeId| {
-        rows.iter()
-            .find(|row| row.id == id)
-            .expect("the row exists")
-            .status
-            .clone()
-    };
+    let status_of = |id: RecipeNodeId| common::status_of(&rows, id);
     for post in [bench.post_a, bench.post_b] {
         match status_of(post) {
             RowStatus::Failed { message } => assert!(

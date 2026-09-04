@@ -1,7 +1,7 @@
 //! Adversarial e2e review artifact for M1 PR 2 (2026-07-16). These are
 //! **independent derivations** — do not "simplify" them to match shipped
 //! fixtures; the independence is the regression value. Promoted per
-//! Evan's request (PR #17 thread).
+//! Ev's request (PR #17 thread).
 //!
 //! Independent fan-semantics verification (NOT the shipped valence-4
 //! fixture): a valence-5 star, hand-derived orbit, asymmetric split, the

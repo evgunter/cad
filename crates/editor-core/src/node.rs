@@ -3,6 +3,7 @@
 //! data against the kernel ops.
 
 use crate::expr::{Dimension, Expr};
+use crate::names::SplitHalf;
 // The contact vocabulary is the KERNEL's (CONTACT-DESIGN C4, M9-1
 // PR-1). Imported, never redefined: the boolean's own refusals must
 // carry the same words this node authors, and `crate::names::flush`
@@ -21,16 +22,25 @@ use topo::ContactClass;
 /// decision at one site.
 macro_rules! name_free_node {
     () => {
-        $crate::node::Node::Datum(_)
-            | $crate::node::Node::Profile(_)
+        $crate::node::Node::Datum(
+            $crate::node::Datum::Plane { .. }
+                | $crate::node::Datum::Axis { .. }
+                | $crate::node::Datum::Point { .. }
+                | $crate::node::Datum::Frame { .. }
+                | $crate::node::Datum::AxisInPlane { .. },
+        ) | $crate::node::Node::Profile(_)
             | $crate::node::Node::Extrude { .. }
             | $crate::node::Node::Revolve { .. }
+            | $crate::node::Node::Tube { .. }
+            | $crate::node::Node::HollowTube { .. }
             | $crate::node::Node::Loft { .. }
             | $crate::node::Node::Sweep { .. }
             | $crate::node::Node::Split { .. }
             | $crate::node::Node::Boolean { .. }
+            | $crate::node::Node::Union { .. }
             | $crate::node::Node::Transform { .. }
             | $crate::node::Node::Pattern { .. }
+            | $crate::node::Node::Part { .. }
             | $crate::node::Node::PlacedUnion { .. }
             | $crate::node::Node::InstantiatePart { .. }
             | $crate::node::Node::Assertion { .. }
@@ -139,6 +149,25 @@ pub enum StepArg {
     Target2Y,
     /// The arrival spec's carrier radius.
     CarrierRadius2,
+    /// The arrival spec's swept central angle.
+    ///
+    /// **This role and the two below it exist for HAND-BUILT
+    /// programs.** No recording surface can put a `Sweep`, `ArcLen` or
+    /// `Bulge` in a fused step's arrival position — `profile`'s
+    /// `family::ArrivalSpec` is implemented for `Center`, `Via` and
+    /// `Radius` alone — and the replay lattice refuses the shape, so
+    /// both document doors (`InsertNode`'s VQ9 check and the
+    /// persistence snapshot walk) reject a program carrying one.
+    /// [`crate::ProgramStep`]'s fields are public data by design (the
+    /// node-slot pattern), so such a program is nonetheless
+    /// REPRESENTABLE and is a supported construction; slot addressing
+    /// is total over the data type, so the arrival spec's argument
+    /// gets its own role rather than sharing the incoming spec's.
+    SweepVal2,
+    /// The arrival spec's arc length.
+    ArcLenVal2,
+    /// The arrival spec's bulge.
+    Bulge2,
 }
 
 impl StepArg {
@@ -179,6 +208,9 @@ impl StepArg {
             Self::Target2X => "arrival target x",
             Self::Target2Y => "arrival target y",
             Self::CarrierRadius2 => "arrival carrier radius",
+            Self::SweepVal2 => "arrival sweep",
+            Self::ArcLenVal2 => "arrival arc length",
+            Self::Bulge2 => "arrival bulge",
         }
     }
 
@@ -205,9 +237,12 @@ impl StepArg {
             | Self::Via2Y
             | Self::Target2X
             | Self::Target2Y
-            | Self::CarrierRadius2 => Dimension::Length,
-            Self::AngleVal | Self::TurnVal | Self::Phase | Self::SweepVal => Dimension::Angle,
-            Self::DirX | Self::DirY | Self::Bulge => Dimension::Scalar,
+            | Self::CarrierRadius2
+            | Self::ArcLenVal2 => Dimension::Length,
+            Self::AngleVal | Self::TurnVal | Self::Phase | Self::SweepVal | Self::SweepVal2 => {
+                Dimension::Angle
+            }
+            Self::DirX | Self::DirY | Self::Bulge | Self::Bulge2 => Dimension::Scalar,
         }
     }
 }
@@ -227,6 +262,12 @@ pub enum SlotId {
     Normal(Axis3),
     /// A datum axis's / linear pattern's direction component (Scalar).
     Direction(Axis3),
+    /// A datum frame's first in-plane direction component — sketch +x
+    /// (Scalar).
+    U(Axis3),
+    /// A datum frame's second in-plane direction component — sketch +y
+    /// (Scalar). Orthogonalized against `u` at evaluation.
+    V(Axis3),
     /// An extrude's distance (Length).
     Distance,
     /// A fillet's constant blend radius (Length).
@@ -239,6 +280,40 @@ pub enum SlotId {
     ChamferDistance,
     /// A revolve's sweep angle (Angle).
     RevolveAngle,
+    /// A derived frame's SPIN — the authored rotation of sketch +x
+    /// about the face's outward normal, from the carrier's own
+    /// u-reference (Angle). The one continuous slot a
+    /// [`Datum::FaceFrame`] carries: its origin and normal are read
+    /// off the face, so the spin is the whole of what an author
+    /// chooses.
+    Spin,
+    /// A tube's MAJOR radius — the spine circle's radius, from the
+    /// spine centre to the tube's own centreline (Length).
+    ///
+    /// Both tube kinds carry it: hollowness is spelled by node kind,
+    /// so the parameters the two artifacts share have one slot each.
+    TubeMajorRadius,
+    /// A tube's MINOR radius — the tube's own cross-sectional radius
+    /// (Length). On [`crate::Node::HollowTube`] this is the OUTER
+    /// minor radius, exactly as the kernel door reads it.
+    ///
+    /// Named apart from [`SlotId::Radius`] for the reason
+    /// [`SlotId::ChamferDistance`] is: a blend radius is a rolling
+    /// ball's, and a panel that spelled both "radius" would be lying
+    /// about one of them.
+    TubeMinorRadius,
+    /// A tube window's start angle about the spine axis, measured from
+    /// the reference direction (Angle). Present only on an
+    /// [`TubeWindow::Arc`] window — a full ring carries no window
+    /// slot, because there is no angle to drive.
+    TubeWindowStart,
+    /// A tube window's end angle, same frame and units
+    /// ([`SlotId::TubeWindowStart`]).
+    TubeWindowEnd,
+    /// A hollow tube's wall thickness (Length) — the one slot
+    /// [`crate::Node::Tube`] does not carry, because a solid tube has
+    /// no wall to drive.
+    TubeWall,
     /// A transform's translation component (Length).
     Translation(Axis3),
     /// A transform's rotation-axis component (Scalar).
@@ -252,6 +327,13 @@ pub enum SlotId {
     /// A pattern's instance count — the STRUCTURAL slot (spec D3/A8:
     /// Count-typed, edited only via `SetStructuralParam`).
     Count,
+    /// A [`crate::Node::Part`]'s INSTANCE INDEX into a pattern's
+    /// value — STRUCTURAL (Count-typed, edited only via
+    /// `SetStructuralParam`): which body the projection selects is
+    /// structure, not a continuous quantity. Its own slot rather than
+    /// a reuse of [`SlotId::Count`]: a panel that spelled an index
+    /// "count" would be lying about it.
+    Instance,
     /// A loft's / sweep's v-direction interpolation degree (Book
     /// §10.3) — STRUCTURAL: changing it changes the produced
     /// surface's knot vector, so it is Count-typed like every other
@@ -304,6 +386,10 @@ pub enum VectorSlot {
     /// A datum axis's / linear pattern's direction
     /// ([`SlotId::Direction`]).
     Direction,
+    /// A datum frame's first in-plane direction ([`SlotId::U`]).
+    U,
+    /// A datum frame's second in-plane direction ([`SlotId::V`]).
+    V,
     /// A transform's translation ([`SlotId::Translation`]).
     Translation,
     /// A transform's rotation axis ([`SlotId::RotationAxis`]).
@@ -313,10 +399,12 @@ pub enum VectorSlot {
 impl VectorSlot {
     /// Every vector family, in no significant order — for a consumer
     /// enumerating families rather than reading one off a slot.
-    pub const ALL: [VectorSlot; 5] = [
+    pub const ALL: [VectorSlot; 7] = [
         VectorSlot::Origin,
         VectorSlot::Normal,
         VectorSlot::Direction,
+        VectorSlot::U,
+        VectorSlot::V,
         VectorSlot::Translation,
         VectorSlot::RotationAxis,
     ];
@@ -328,6 +416,8 @@ impl VectorSlot {
             Self::Origin => SlotId::Origin(axis),
             Self::Normal => SlotId::Normal(axis),
             Self::Direction => SlotId::Direction(axis),
+            Self::U => SlotId::U(axis),
+            Self::V => SlotId::V(axis),
             Self::Translation => SlotId::Translation(axis),
             Self::RotationAxis => SlotId::RotationAxis(axis),
         }
@@ -345,6 +435,12 @@ impl VectorSlot {
             Self::Origin => "origin",
             Self::Normal => "normal",
             Self::Direction => "direction",
+            // The SKETCH's names for them, not the vocabulary's: a
+            // reader picking a frame's axes is thinking in the 2D
+            // coordinates they are about to draw, and "u" alone on a
+            // panel says nothing.
+            Self::U => "x axis",
+            Self::V => "y axis",
             Self::Translation => "translation",
             Self::RotationAxis => "rotation axis",
         }
@@ -371,11 +467,23 @@ impl SlotId {
             | Self::Distance
             | Self::Radius
             | Self::ChamferDistance
+            | Self::TubeMajorRadius
+            | Self::TubeMinorRadius
+            | Self::TubeWall
             | Self::Translation(_)
             | Self::Spacing => Dimension::Length,
-            Self::Normal(_) | Self::Direction(_) | Self::RotationAxis(_) => Dimension::Scalar,
-            Self::RevolveAngle | Self::RotationAngle | Self::Step => Dimension::Angle,
-            Self::Count | Self::VDegree | Self::Stations => Dimension::Count,
+            Self::Normal(_)
+            | Self::Direction(_)
+            | Self::U(_)
+            | Self::V(_)
+            | Self::RotationAxis(_) => Dimension::Scalar,
+            Self::RevolveAngle
+            | Self::Spin
+            | Self::RotationAngle
+            | Self::Step
+            | Self::TubeWindowStart
+            | Self::TubeWindowEnd => Dimension::Angle,
+            Self::Count | Self::VDegree | Self::Stations | Self::Instance => Dimension::Count,
             // Profile-program roles carry V2's per-role table; none is
             // Count, so `is_structural` stays false for every StepArg
             // (LIB-SWITCH §4c — program structure is the STEP LIST,
@@ -409,10 +517,17 @@ impl SlotId {
             Self::Radius => "radius".to_owned(),
             Self::ChamferDistance => "chamfer distance".to_owned(),
             Self::RevolveAngle => "revolve angle".to_owned(),
+            Self::Spin => "spin".to_owned(),
+            Self::TubeMajorRadius => "tube major radius".to_owned(),
+            Self::TubeMinorRadius => "tube minor radius".to_owned(),
+            Self::TubeWindowStart => "tube window start".to_owned(),
+            Self::TubeWindowEnd => "tube window end".to_owned(),
+            Self::TubeWall => "tube wall".to_owned(),
             Self::RotationAngle => "rotation angle".to_owned(),
             Self::Spacing => "spacing".to_owned(),
             Self::Step => "angular step".to_owned(),
             Self::Count => "count".to_owned(),
+            Self::Instance => "instance".to_owned(),
             Self::VDegree => "v degree".to_owned(),
             Self::Stations => "stations".to_owned(),
             Self::Profile { loop_, step, arg } => {
@@ -422,6 +537,8 @@ impl SlotId {
             Self::Origin(_)
             | Self::Normal(_)
             | Self::Direction(_)
+            | Self::U(_)
+            | Self::V(_)
             | Self::Translation(_)
             | Self::RotationAxis(_) => self.component().map_or_else(
                 || String::from("component"),
@@ -441,16 +558,25 @@ impl SlotId {
             Self::Origin(axis) => Some((VectorSlot::Origin, axis)),
             Self::Normal(axis) => Some((VectorSlot::Normal, axis)),
             Self::Direction(axis) => Some((VectorSlot::Direction, axis)),
+            Self::U(axis) => Some((VectorSlot::U, axis)),
+            Self::V(axis) => Some((VectorSlot::V, axis)),
             Self::Translation(axis) => Some((VectorSlot::Translation, axis)),
             Self::RotationAxis(axis) => Some((VectorSlot::RotationAxis, axis)),
             Self::Distance
             | Self::Radius
             | Self::ChamferDistance
             | Self::RevolveAngle
+            | Self::Spin
+            | Self::TubeMajorRadius
+            | Self::TubeMinorRadius
+            | Self::TubeWindowStart
+            | Self::TubeWindowEnd
+            | Self::TubeWall
             | Self::RotationAngle
             | Self::Spacing
             | Self::Step
             | Self::Count
+            | Self::Instance
             | Self::VDegree
             | Self::Stations
             | Self::Profile { .. } => None,
@@ -458,8 +584,10 @@ impl SlotId {
     }
 }
 
-/// A datum construction (F4: plane/axis/point), defined by expression
-/// slots — geometry is produced by PR 2's evaluation, never here.
+/// A datum construction (F4: plane/axis/point, plus the two sketch
+/// frames), defined by expression slots and — for the derived frame —
+/// a DAG edge and a frozen name; geometry is produced by PR 2's
+/// evaluation, never here.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum Datum {
@@ -482,6 +610,108 @@ pub enum Datum {
     Point {
         /// Position components, Length ([`SlotId::Origin`]).
         position: [Expr; 3],
+    },
+    /// **An oriented plane**: a plane through `origin` spanned by `u`
+    /// and `v`, with normal u × v — the sketch frame a 2D profile is
+    /// drawn on.
+    ///
+    /// [`Datum::Plane`] is origin plus normal, which pins five of a
+    /// placement's six rigid degrees of freedom. The sixth — the spin
+    /// about the normal — is what a sketch's x and y axes ARE, so a
+    /// plane cannot serve as a sketch frame and a frame is not a
+    /// dressed-up plane: a section cut wants the surface and would
+    /// have to ignore the spin. Both stay, named apart.
+    ///
+    /// `u` and `v` are authored as arbitrary expressions and
+    /// ORTHONORMALIZED at evaluation (PR 2's `wire`), which is also
+    /// where a degenerate or parallel pair refuses loudly. Nothing is
+    /// checked here — this vocabulary carries expression slots, never
+    /// geometry.
+    Frame {
+        /// Origin components, Length ([`SlotId::Origin`]) — sketch
+        /// (0, 0) in world space.
+        origin: [Expr; 3],
+        /// First in-plane direction, sketch +x, Scalar
+        /// ([`SlotId::U`]).
+        u: [Expr; 3],
+        /// Second in-plane direction, sketch +y, Scalar
+        /// ([`SlotId::V`]). Orthogonalized against `u`, so only its
+        /// component perpendicular to `u` is read.
+        v: [Expr; 3],
+    },
+    /// **An axis that lives IN a sketch frame**, authored in that
+    /// frame's own 2-D coordinates — a revolve's axis of revolution.
+    ///
+    /// [`Datum::Axis`] is a world-space line, and a revolve's axis has
+    /// to lie in the profile's plane. Spelling that axis in 3-D means
+    /// authoring six numbers whose legality is a *coincidence* the
+    /// evaluator then has to check, and checking it is a tolerance
+    /// decision on a direction residual — the audit's F15 row, whose
+    /// executed consequence is that a tilt classifies in-plane at
+    /// every model scale while the deviation it induces crosses the
+    /// band between a millimetre and a ten-metre profile.
+    ///
+    /// Four numbers in the frame's own coordinates cannot be out of
+    /// plane. So this variant does not make the check cheaper — it
+    /// makes the error **unrepresentable**, and the residual question
+    /// ("is this the SAME plane the profile is drawn on?") is answered
+    /// by comparing `plane` against the profile's, an identity of node
+    /// ids with no band and no scale.
+    ///
+    /// Nothing is lost by it: every 3-D axis a revolve could legally
+    /// have taken lay in the profile's plane by definition, so it was
+    /// always expressible here — and here it is expressible only in
+    /// the ways that are legal.
+    AxisInPlane {
+        /// The [`Datum::Frame`] node this axis lives in. A DAG input,
+        /// exactly as a profile's plane is: the frame is the meaning
+        /// of the two coordinate pairs below, so an axis without it is
+        /// four numbers about nothing.
+        plane: RecipeNodeId,
+        /// A point on the axis, in the frame's 2-D coordinates —
+        /// Length, [`SlotId::Origin`]`(X | Y)`. There is no `Z` slot:
+        /// the third coordinate of a point in a plane is not a number
+        /// somebody may type.
+        origin: [Expr; 2],
+        /// The axis direction in the frame's 2-D coordinates — Scalar,
+        /// [`SlotId::Direction`]`(X | Y)`. Normalized at evaluation,
+        /// where a degenerate pair refuses loudly.
+        direction: [Expr; 2],
+    },
+    /// **A sketch frame DERIVED from a face** (DOCM-REFERENCES-DESIGN
+    /// DM1): a [`Datum::Frame`] whose pose is computed at evaluation
+    /// from a named face of an upstream body — origin the carrier's
+    /// own distinguished point, normal the face's OUTWARD normal,
+    /// sketch +x the carrier's u-reference rotated by `spin`. It
+    /// evaluates to the same value an authored frame does, so every
+    /// reader of a frame takes it unchanged.
+    ///
+    /// It is derived, not frozen: a frame read off a face and written
+    /// into nine literals would reintroduce the placement snapshot the
+    /// profile-plane migration deleted, one node out, and lie about
+    /// why it sits where it sits. As a DAG input the face's body is
+    /// upstream, the frame moves when the face moves, and it
+    /// participates in the memo and content key like every node.
+    ///
+    /// The failure mode is the fillet's: a face name that stops
+    /// resolving fails the frame typed and poisons the sketch above
+    /// it, exactly as a blend's selection does, and the repair is
+    /// `Rebind`. It is the first datum with an N5 failure mode.
+    ///
+    /// The normal is the OUTWARD one: the face's orientation sense
+    /// times the carrier's chart axis, both read off the face, so a
+    /// sketch on the underside of a plate faces out of the plate.
+    FaceFrame {
+        /// The body-denoting node the face is read out of — a DAG
+        /// input, exactly as [`Datum::AxisInPlane::plane`] is.
+        at: RecipeNodeId,
+        /// The face, as a frozen name resolved through `at`'s value
+        /// under the N5 ladder ([`Node::payload_names`] lists it, so
+        /// the insert door's liveness check and `Rebind` reach it).
+        face: StableName,
+        /// The rotation of sketch +x about the outward normal, from
+        /// the carrier's u-reference — Angle, [`SlotId::Spin`].
+        spin: Expr,
     },
 }
 
@@ -553,6 +783,85 @@ impl InterfaceRecord {
     }
 }
 
+/// The traversed window of a tube's spine arc, as RECIPE DATA — the
+/// document's spelling of [`sweep::TubeWindow`].
+///
+/// Two spellings, not one with an optional pair: an exactly full ring
+/// must SAY [`TubeWindow::Full`], which is the kernel door's own
+/// contract (a window reaching one period refuses
+/// `FullRangeWindow`). Carrying `Full` as a distinguished variant is
+/// what makes that contract expressible in the recipe rather than
+/// re-derived from two angles at every reader.
+///
+/// The variant is STRUCTURAL: it decides whether the node has window
+/// slots at all, so it changes by re-authoring the node, never through
+/// a slot edit. An `Arc`'s two angles are ordinary continuous slots
+/// ([`SlotId::TubeWindowStart`] / [`SlotId::TubeWindowEnd`]).
+///
+/// **Not canonicalized.** `t1 ≤ t0` is a REVERSED window, which the
+/// kernel refuses typed (`DegenerateWindow`); swapping the two here
+/// would silently author a different tube than the caller asked for.
+///
+/// **And so neither tube kind gets a canonicalizing construction
+/// door**, which the spec asked for and which is satisfied VACUOUSLY
+/// here — measured, not skipped. A canonicalizing door exists where a
+/// payload is SET-SHAPED and two spellings denote one artifact:
+/// [`Node::fillet`]/[`Node::chamfer`] sort and dedupe a selection,
+/// `PlacedUnion` orders its placements. Every field either tube kind
+/// carries is a scalar, a bare direction, a node id, or this
+/// two-variant window — nothing set-shaped, nothing with a second
+/// spelling to fold — so a door could only re-wrap the struct
+/// literal. The one place canonicalization could have applied is the
+/// window's angle pair, and the paragraph above is why it must not.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum TubeWindow {
+    /// The full ring — the donut.
+    Full,
+    /// The arc from `t0` to `t1`, radians about the spine axis from the
+    /// reference direction, right-handed. Wedge caps close the ends.
+    Arc {
+        /// The window's start angle ([`SlotId::TubeWindowStart`]).
+        t0: Expr,
+        /// The window's end angle ([`SlotId::TubeWindowEnd`]).
+        t1: Expr,
+    },
+}
+
+impl TubeWindow {
+    /// This window's slots, deterministic order — empty for a full
+    /// ring, the two angles for an arc.
+    ///
+    /// The one door every "which window slots" question goes through,
+    /// so the two node kinds cannot come to disagree about it
+    /// ([`PatternKind::placements`] is the same shape for the same
+    /// reason).
+    pub fn slots(&self) -> Vec<SlotId> {
+        match self {
+            TubeWindow::Full => Vec::new(),
+            TubeWindow::Arc { .. } => vec![SlotId::TubeWindowStart, SlotId::TubeWindowEnd],
+        }
+    }
+
+    /// The expression in one of this window's slots.
+    pub fn expr(&self, slot: SlotId) -> Option<&Expr> {
+        match (self, slot) {
+            (TubeWindow::Arc { t0, .. }, SlotId::TubeWindowStart) => Some(t0),
+            (TubeWindow::Arc { t1, .. }, SlotId::TubeWindowEnd) => Some(t1),
+            (TubeWindow::Full | TubeWindow::Arc { .. }, _) => None,
+        }
+    }
+
+    /// Mutable access to one of this window's slots.
+    pub fn expr_mut(&mut self, slot: SlotId) -> Option<&mut Expr> {
+        match (self, slot) {
+            (TubeWindow::Arc { t0, .. }, SlotId::TubeWindowStart) => Some(t0),
+            (TubeWindow::Arc { t1, .. }, SlotId::TubeWindowEnd) => Some(t1),
+            (TubeWindow::Full | TubeWindow::Arc { .. }, _) => None,
+        }
+    }
+}
+
 /// A pattern's replication rule (F4: LinearPattern/CircularPattern;
 /// the count lives on [`Node::Pattern`] as the structural slot).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -587,6 +896,24 @@ pub enum PatternKind {
     Explicit(Vec<crate::placement::Frame>),
 }
 
+/// **Which body of a multi-body value a [`Node::Part`] selects**
+/// (DOCM-REFERENCES-DESIGN DM3): the named half of a split, or one
+/// instance of a pattern by index.
+///
+/// The two are one enum because the node is one sentence — "this
+/// body, out of those" — and the value it reads decides which arm is
+/// well-typed: a half against a split, an index against a pattern's
+/// instances, and any other pairing refuses at evaluation.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum PartSelect {
+    /// The named half of a [`Node::Split`] value.
+    SplitHalf(SplitHalf),
+    /// The `i`-th instance of a [`Node::Pattern`] value — a
+    /// Count-typed STRUCTURAL slot ([`SlotId::Instance`]).
+    Instance(Expr),
+}
+
 /// **The `Expr`s a node carries OUTSIDE its slots**, in deterministic
 /// order — `None` for the nodes that carry none, which is every node
 /// but the two the measurement vocabulary adds.
@@ -614,14 +941,18 @@ pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
         | Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Fillet { .. }
         | Node::Chamfer { .. }
         | Node::Split { .. }
         | Node::Boolean { .. }
+        | Node::Union { .. }
         | Node::Transform { .. }
         | Node::Pattern { .. }
+        | Node::Part { .. }
         | Node::PlacedUnion { .. }
         | Node::Declare { .. }
         | Node::InstantiatePart { .. }
@@ -667,6 +998,48 @@ impl MeasureRef {
     /// A reference read at `at`.
     pub fn new(at: RecipeNodeId, name: StableName) -> Self {
         Self { at, name }
+    }
+}
+
+/// **What makes a node's INPUT LIST invalid** ([`Node::input_fault`];
+/// DM5) — one vocabulary for the two edit doors and the load door's
+/// re-check, so the rule has one definition and three callers rather
+/// than three copies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputFault {
+    /// One node is reached twice through this node's edges. It covers
+    /// a boolean or a split whose two operands coincide and a list
+    /// with a repeated entry alike: what "the same body twice" means
+    /// does not change with the node kind.
+    Duplicate {
+        /// The input reached twice.
+        input: RecipeNodeId,
+    },
+    /// A LIST input ([`Node::list_input`]) left with fewer than two
+    /// entries. A union of one body is that body and a loft through
+    /// one section is not a skin: either is a node whose meaning is
+    /// its own input, spelled as an operator.
+    TooFew {
+        /// How many entries it has.
+        found: usize,
+    },
+}
+
+// The ONE prose vocabulary for this fault, forwarded by every door
+// that renders it rather than restated.
+impl core::fmt::Display for InputFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Duplicate { input } => write!(
+                f,
+                "node {} is taken as an input twice — a node's inputs are pairwise distinct",
+                input.0
+            ),
+            Self::TooFew { found } => write!(
+                f,
+                "a list input takes two or more entries, and this has {found}"
+            ),
+        }
     }
 }
 
@@ -803,6 +1176,113 @@ pub enum Node<P> {
         axis: RecipeNodeId,
         /// Sweep angle ([`SlotId::RevolveAngle`]).
         angle: Expr,
+    },
+    /// **A solid tube** — a ring torus, or an elbow of it, from its
+    /// INTENT parameters (RECIPE-DOORS D4 as revised): the op is
+    /// [`sweep::tube_along_arc`], whose whole reason to exist is that
+    /// the numbers the caller gives are the numbers the body stores.
+    ///
+    /// # Why this is not a revolve of a circle
+    ///
+    /// It could be authored that way, and the result would be a
+    /// different body: a revolve reconstructs its minor radius through
+    /// profile→bulge→radius arithmetic, which is where the review
+    /// donut's 56 ulps came from. This node reaches the door that
+    /// stores the intent verbatim, so a caller recovers
+    /// `minor_radius` bit for bit from the body it authored.
+    ///
+    /// # The anchoring, and why it is spelled this way
+    ///
+    /// `spine` is a datum-AXIS node, consumed whole: its origin is the
+    /// tube's centre and its direction is the spine axis. That is
+    /// [`Node::Revolve`]'s precedent verbatim — one datum reference,
+    /// both of its parts used.
+    ///
+    /// `u_ref` is a BARE DIRECTION, which no datum node denotes on its
+    /// own, so it is carried as components on
+    /// [`SlotId::Direction`] — the spelling `Datum::Plane`'s normal,
+    /// `PatternKind::Linear`'s direction and `Node::Transform`'s
+    /// rotation axis all use. A second datum-axis reference would
+    /// carry an origin nothing reads.
+    ///
+    /// # The two directions are NOT treated alike, and that asymmetry
+    /// is the datum's doing
+    ///
+    /// `spine` is a datum NODE, and a datum axis normalizes its own
+    /// direction when it evaluates ([`mod@crate::eval`]'s `wire_datum`
+    /// builds a `UnitVec3`, which is what `Node::Revolve` gets too), so
+    /// a spine authored `(0, 0, 2)` is silently the unit z axis and
+    /// builds. Only a degenerate or non-finite direction refuses
+    /// there, one node upstream, and it refuses as a DATUM fault. The
+    /// tube door's own non-unit-axis verdict is therefore unreachable
+    /// along the recipe path; it still guards the kernel-direct
+    /// caller.
+    ///
+    /// `u_ref` is a BARE TRIPLE that passes through no datum, so it
+    /// reaches the door exactly as written: a non-unit reference, or
+    /// one not perpendicular to the axis, refuses TYPED from the door
+    /// ([`crate::eval::NodeErrorKind::Tube`]). Nothing normalizes it
+    /// here — a silent normalization would be exactly the invention
+    /// this door exists to avoid.
+    Tube {
+        /// The datum-axis node giving the spine's centre (its origin)
+        /// and axis (its direction).
+        spine: RecipeNodeId,
+        /// The reference direction the window's angles are measured
+        /// from, components ([`SlotId::Direction`], Scalar).
+        u_ref: [Expr; 3],
+        /// The spine circle's radius ([`SlotId::TubeMajorRadius`]).
+        major_radius: Expr,
+        /// The traversed window — a full ring or an arc.
+        window: TubeWindow,
+        /// The tube's cross-sectional radius
+        /// ([`SlotId::TubeMinorRadius`]).
+        minor_radius: Expr,
+    },
+    /// **A hollow tube** — [`Node::Tube`]'s sibling with a WALL: the op
+    /// is [`sweep::tube_along_arc_hollow`], and `minor_radius` is the
+    /// OUTER minor radius.
+    ///
+    /// # Why a second kind rather than an optional wall
+    ///
+    /// A solid tube and a hollow one are different artifacts — a
+    /// full-disc cross-section against an annular one — and the
+    /// vocabulary says so where callers read (RECIPE-DOORS D4 as
+    /// revised by the #1205 ruling). `Option` never appears in the
+    /// recipe vocabulary: hollowness is spelled by node kind, which is
+    /// the distinction the artifacts already have. The kernel's PUBLIC
+    /// DOORS split the same way; that the two share a private
+    /// implementation is implementation.
+    ///
+    /// # The wall is validated KERNEL-SIDE, entirely
+    ///
+    /// Three separate verdicts stand between a wall and a body — the
+    /// thickness is positive, `minor_radius − wall` is a bore, and the
+    /// REALIZED gap between the two stored radii is positive — and
+    /// none of them is re-derived here. They are decided before
+    /// anything is minted and they are what the full ring's cavity
+    /// insertion carries as its containment evidence, so a recipe-side
+    /// pre-check could only be a second, weaker opinion. Every one of
+    /// them crosses as [`crate::eval::NodeErrorKind::Tube`].
+    HollowTube {
+        /// The datum-axis node giving the spine's centre and axis.
+        spine: RecipeNodeId,
+        /// The reference direction's components
+        /// ([`SlotId::Direction`], Scalar).
+        u_ref: [Expr; 3],
+        /// The spine circle's radius ([`SlotId::TubeMajorRadius`]).
+        major_radius: Expr,
+        /// The traversed window — a full ring (a torus shell, whose
+        /// cavity is a void) or an arc (an open elbow of annular
+        /// section).
+        window: TubeWindow,
+        /// The OUTER cross-sectional radius
+        /// ([`SlotId::TubeMinorRadius`]).
+        minor_radius: Expr,
+        /// The wall thickness ([`SlotId::TubeWall`]). REQUIRED: the
+        /// inner wall stores `minor_radius − wall`, one IEEE
+        /// subtraction of the caller's own two numbers.
+        wall: Expr,
     },
     /// **Loft** — a skinned solid through two or more section
     /// profiles (The NURBS Book §10.3; C11, M5 PR 10). An ORDINARY op
@@ -972,6 +1452,42 @@ pub enum Node<P> {
         /// Optional coincidence-intent input (a `Declare` node).
         declare: Option<RecipeNodeId>,
     },
+    /// **The n-ary union** (DOCM-REFERENCES-DESIGN DM4): two or more
+    /// member bodies, ONE body out — the same value shape a pair
+    /// union yields, so every consumer of a union is unchanged.
+    ///
+    /// It sits beside [`Node::Boolean`], which stays for a pair, and
+    /// beside [`Node::PlacedUnion`], which fuses instances of one
+    /// prototype and is a different sentence.
+    ///
+    /// # Why the list, and what the list buys
+    ///
+    /// A pairwise chain records JOIN DEPTH in every name it mints:
+    /// boolean naming wraps each operand's names in `FromA`/`FromB`,
+    /// so the twentieth member of a chain is twenty segments deep and
+    /// removing one link renames every member that joined before it.
+    /// A member of this node is named by IDENTITY —
+    /// [`crate::RoleSeg::FromMember`] wrapping the member's own name,
+    /// one wrapper whatever the fold's depth — so a member's names
+    /// depend on neither its position in the list nor on how many
+    /// members precede it, and [`crate::DocEdit::SetMembers`] can drop
+    /// one without disturbing the rest.
+    ///
+    /// # No `declare` field
+    ///
+    /// A declared-contact union is spelled with [`Node::Boolean`],
+    /// which carries the `Declare` input, and stays so: a declaration
+    /// is a statement about ONE pair of operands, and a field here
+    /// would have to say which fold step it applies to — a position,
+    /// which is the one thing this node exists not to record.
+    Union {
+        /// The member bodies, in fold order (D9: the order is the
+        /// list's, and the list is data). Two or more, pairwise
+        /// distinct — both held at the edit door
+        /// ([`crate::EditError::TooFewMembers`],
+        /// [`crate::EditError::DuplicateInput`]).
+        members: Vec<RecipeNodeId>,
+    },
     /// A rigid placement of an upstream body (F4: Transform).
     Transform {
         /// The body placed.
@@ -992,6 +1508,32 @@ pub enum Node<P> {
         count: Expr,
         /// The replication rule.
         kind: PatternKind,
+    },
+    /// **One body out of a multi-body value** (DOCM-REFERENCES-DESIGN
+    /// DM3): the named half of a [`Node::Split`] value or the `i`-th
+    /// instance of a [`Node::Pattern`] value, as a `Body` value every
+    /// body-consuming node takes. The recipe's way of saying "union
+    /// the upper half of that split into this block" or "subtract
+    /// instance 3 of that pattern".
+    ///
+    /// A projection, not an operation: the selected body is the
+    /// half's or the instance's own (the same `Arc`, no clone, no
+    /// re-stamp), and the node's name table is the input's table
+    /// restricted to that body with every name VERBATIM — a
+    /// pass-through in `Transform`'s sense, contributing no role
+    /// segment, so every selector already spelled against that half
+    /// or that instance resolves here unchanged.
+    ///
+    /// A node rather than a selector inside every consumer's operand:
+    /// one meaning, one node, and every consumer's operand door stays
+    /// as it is ([`Node::PlacedUnion`]'s ruling). A bare split or
+    /// pattern is still refused at a body seat; this node is how a
+    /// user says which body they meant.
+    Part {
+        /// The split or pattern whose value is read.
+        of: RecipeNodeId,
+        /// Which body of it.
+        select: PartSelect,
     },
     /// **The group boolean** (GROUP-BOOLEAN-DESIGN, ratified A′): ONE
     /// prototype, a placement rule, ONE BODY OUT — the union of the
@@ -1253,6 +1795,17 @@ fn comp_mut(v: &mut [Expr; 3], axis: Axis3) -> &mut Expr {
     &mut v[axis.index()]
 }
 
+/// [`comp`] for a pair authored in a sketch frame's 2-D coordinates:
+/// `Z` names no component, because a point in a plane has two.
+fn comp2(v: &[Expr; 2], axis: Axis3) -> Option<&Expr> {
+    v.get(axis.index())
+}
+
+/// [`comp2`]'s mutable twin.
+fn comp2_mut(v: &mut [Expr; 2], axis: Axis3) -> Option<&mut Expr> {
+    v.get_mut(axis.index())
+}
+
 /// A placement-rule node's slot lookup, shared by [`Node::Pattern`] and
 /// [`Node::PlacedUnion`] — one rule vocabulary, one slot mapping, so
 /// the two nodes can never drift apart on what a slot means.
@@ -1293,12 +1846,27 @@ fn rule_expr_mut<'a>(
 impl<P> Node<P> {
     /// The upstream node references — the recipe DAG's edges (spec
     /// D3). Deterministic order (field order).
-    pub fn inputs(&self) -> Vec<RecipeNodeId> {
+    ///
+    /// The payload bound is the profile's: its plane is a node, and
+    /// the reference lives in the payload, so answering this question
+    /// means asking the payload for it.
+    pub fn inputs(&self) -> Vec<RecipeNodeId>
+    where
+        P: crate::ProfilePayload,
+    {
         match self {
+            // **Two datums are not leaves.** An in-plane axis's
+            // two coordinate pairs MEAN something only against the
+            // frame they are written in, so the frame is an input, not
+            // a note. Ahead of the leaf arm below, which is every
+            // OTHER datum.
+            Node::Datum(Datum::AxisInPlane { plane, .. }) => vec![*plane],
+            // The derived frame reads its face out of `at`'s value, so
+            // that body is an input for the same reason.
+            Node::Datum(Datum::FaceFrame { at, .. }) => vec![*at],
             // A leaf whose material crosses the document seam has no
             // DAG edge to offer (A3).
             Node::Datum(_)
-            | Node::Profile(_)
             | Node::Declare { .. }
             // A mate is a leaf: its references are NAMES, not edges
             // (A12's reading edges are recomputed, never stored here).
@@ -1317,9 +1885,20 @@ impl<P> Node<P> {
                 v.dedup();
                 v
             }
+            // **A profile is not a leaf any more**: it is drawn ON a
+            // frame node, and that is a DAG edge like any other. The
+            // reference lives in the payload (where the plane always
+            // did), so it is read through the payload trait — a
+            // payload with no plane, which is every `Doc<P>` test
+            // payload, still answers with no edge.
+            Node::Profile(p) => p.plane_input().into_iter().collect(),
             Node::Assertion { measure, .. } => vec![*measure],
             Node::Extrude { profile, .. } => vec![*profile],
             Node::Revolve { profile, axis, .. } => vec![*profile, *axis],
+            // A tube has no profile operand at all — its cross-section
+            // is the door's own intent parameters — so the spine datum
+            // is its only DAG edge.
+            Node::Tube { spine, .. } | Node::HollowTube { spine, .. } => vec![*spine],
             Node::Loft { profiles, .. } => profiles.clone(),
             Node::Sweep { profile, path, .. } => vec![*profile, *path],
             Node::Fillet { target, .. } | Node::Chamfer { target, .. } => vec![*target],
@@ -1329,7 +1908,12 @@ impl<P> Node<P> {
                 v.extend(declare.iter().copied());
                 v
             }
+            // In LIST ORDER, not sorted: the order is the fold's (D9),
+            // so it is what the DAG edge list has to report. The list
+            // is pairwise distinct at the edit door, so no edge repeats.
+            Node::Union { members } => members.clone(),
             Node::Transform { input, .. } => vec![*input],
+            Node::Part { of, .. } => vec![*of],
             // The two placement-rule nodes take the same edges: the
             // body, plus the datum a circular rule turns about.
             Node::Pattern { input, kind, .. } | Node::PlacedUnion { input, kind, .. } => {
@@ -1339,6 +1923,152 @@ impl<P> Node<P> {
                 }
                 v
             }
+        }
+    }
+
+    /// **The node's LIST input**, where it has one — the whole of it,
+    /// in order.
+    ///
+    /// A list input is an input the recipe spells as a sequence rather
+    /// than as named slots, so the only edit that can change it is one
+    /// that names the WHOLE new sequence
+    /// ([`crate::DocEdit::SetMembers`]) — there is no position to
+    /// address and no per-entry edit. Two nodes have one: a union's
+    /// members and a loft's sections. Everything else answers `None`,
+    /// which is what makes `SetMembers` at a boolean or a split a
+    /// typed refusal rather than a silent no-op.
+    ///
+    /// The match is EXHAUSTIVE on purpose: a future node whose inputs
+    /// are a list must be classified here or the compile breaks,
+    /// rather than defaulting to "has no list" and being unreachable
+    /// from the edit that exists for exactly it.
+    pub fn list_input(&self) -> Option<&[RecipeNodeId]> {
+        match self {
+            Node::Union { members } => Some(members),
+            Node::Loft { profiles, .. } => Some(profiles),
+            Node::Datum(_)
+            | Node::Profile(_)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Sweep { .. }
+            | Node::Fillet { .. }
+            | Node::Chamfer { .. }
+            | Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Transform { .. }
+            | Node::Pattern { .. }
+            | Node::Part { .. }
+            | Node::PlacedUnion { .. }
+            | Node::Declare { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Mate { .. }
+            | Node::Measure { .. }
+            | Node::Assertion { .. } => None,
+        }
+    }
+
+    /// **DM5, stated once**: what is wrong with this node's inputs, if
+    /// anything — one node reached twice, or a list left under two.
+    ///
+    /// One structural rule over [`Node::inputs`] rather than a rule per
+    /// node kind, and ONE definition with three callers: `InsertNode`,
+    /// [`crate::DocEdit::SetMembers`] on the rewritten node, and the
+    /// load door's `validate_document`. The two edit doors render it in
+    /// [`crate::EditError`]'s vocabulary and the load door in
+    /// `SnapshotError`'s, because a refusal names the door it came
+    /// from — but the question is asked in exactly one place, which is
+    /// what stops the three from drifting.
+    ///
+    /// The order is deliberate. The list's floor answers first, so a
+    /// one-entry list is reported as short rather than as whatever its
+    /// single entry happens to collide with; liveness is NOT asked
+    /// here at all, because it needs the document and the callers
+    /// check it before they call.
+    ///
+    /// # What the rule covers, and why that is sound
+    ///
+    /// Both clauses read [`Node::inputs`], so they apply to EVERY node
+    /// kind — not only the union, the list-input kinds and the boolean.
+    /// That is wider than DM5's text, and deliberately:
+    ///
+    /// - The duplicate clause is sound everywhere because no node kind
+    ///   in this crate has a meaning for the same input twice. A
+    ///   boolean with `a == b` is a self-operation whose result is one
+    ///   of its own operands; a `Split` cutting a body by itself is the
+    ///   same; a `Mate` between a part and itself has no relative
+    ///   frame. The one kind that could plausibly want a repeat is
+    ///   [`Node::Measure`], and it does not: its edges come from the
+    ///   measurement's own node set, which DEDUPS before `inputs`
+    ///   returns, so a measurement over one body twice presents one
+    ///   edge here and is untouched by this rule.
+    /// - The floor clause only ever fires where [`Node::list_input`]
+    ///   answers `Some`, which is [`Node::Union`] and [`Node::Loft`].
+    ///   For the loft this is NEW — a one-section loft was accepted
+    ///   before this unit and is refused now, at the insert door and at
+    ///   the load door alike. A single section has nothing to loft
+    ///   between and the sweep refused it downstream anyway; the change
+    ///   is that it is refused where it is authored, naming the list,
+    ///   instead of at evaluation naming the sweep.
+    ///   (`a_one_section_loft_is_refused_at_the_insert_door` and its
+    ///   load-door twin pin both.)
+    pub fn input_fault(&self) -> Option<InputFault>
+    where
+        P: crate::ProfilePayload,
+    {
+        if let Some(list) = self.list_input()
+            && list.len() < 2
+        {
+            return Some(InputFault::TooFew { found: list.len() });
+        }
+        let mut seen: std::collections::BTreeSet<RecipeNodeId> = std::collections::BTreeSet::new();
+        self.inputs()
+            .into_iter()
+            .find(|input| !seen.insert(*input))
+            .map(|input| InputFault::Duplicate { input })
+    }
+
+    /// Writes a whole new list into [`Node::list_input`]'s slot,
+    /// answering whether this node has one. The edit door validates
+    /// against the REWRITTEN node, so the write happens first and the
+    /// checks run on the result — which is what makes `SetMembers`
+    /// share `InsertNode`'s checks rather than mirror them.
+    pub(crate) fn set_list_input(&mut self, list: Vec<RecipeNodeId>) -> bool {
+        match self {
+            Node::Union { members } => {
+                *members = list;
+                true
+            }
+            Node::Loft { profiles, .. } => {
+                *profiles = list;
+                true
+            }
+            // Exhaustive, and it names the same variants
+            // [`Node::list_input`] answers `None` for: the read and
+            // the write are one answer read two ways, and a variant
+            // one of them treats as list-free while the other writes
+            // it is a list nothing can read back.
+            Node::Datum(_)
+            | Node::Profile(_)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Sweep { .. }
+            | Node::Fillet { .. }
+            | Node::Chamfer { .. }
+            | Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Transform { .. }
+            | Node::Pattern { .. }
+            | Node::Part { .. }
+            | Node::PlacedUnion { .. }
+            | Node::Declare { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Mate { .. }
+            | Node::Measure { .. }
+            | Node::Assertion { .. } => false,
         }
     }
 
@@ -1365,11 +2095,29 @@ impl<P> Node<P> {
                 s
             }
             Node::Datum(Datum::Point { .. }) => vec3(SlotId::Origin).to_vec(),
+            // X and Y only: the frame supplies the third coordinate,
+            // and a slot for it would be a number nobody may set.
+            Node::Datum(Datum::AxisInPlane { .. }) => vec![
+                SlotId::Origin(Axis3::X),
+                SlotId::Origin(Axis3::Y),
+                SlotId::Direction(Axis3::X),
+                SlotId::Direction(Axis3::Y),
+            ],
+            Node::Datum(Datum::Frame { .. }) => {
+                let mut s = vec3(SlotId::Origin).to_vec();
+                s.extend(vec3(SlotId::U));
+                s.extend(vec3(SlotId::V));
+                s
+            }
+            // Origin and normal come off the face; the spin is the
+            // one number an author chooses.
+            Node::Datum(Datum::FaceFrame { .. }) => vec![SlotId::Spin],
             Node::Profile(p) => p.slots(),
             // AQ4: an instance takes no arguments in v1 — the
             // referenced document evaluates at its OWN parameters.
             Node::Split { .. }
             | Node::Boolean { .. }
+            | Node::Union { .. }
             | Node::Declare { .. }
             // A11: the alignment datum is authored geometry, not a
             // continuous slot — a mate has no expression to drive.
@@ -1389,6 +2137,21 @@ impl<P> Node<P> {
             Node::Fillet { .. } => vec![SlotId::Radius],
             Node::Chamfer { .. } => vec![SlotId::ChamferDistance],
             Node::Revolve { .. } => vec![SlotId::RevolveAngle],
+            // The two kinds enumerate the SAME shared head — the
+            // reference direction, then the two radii, then whatever
+            // the window carries — and the hollow kind appends its
+            // wall. Written as one arm plus one push, so the shared
+            // half cannot drift between them.
+            Node::Tube { window, .. } | Node::HollowTube { window, .. } => {
+                let mut s = vec3(SlotId::Direction).to_vec();
+                s.push(SlotId::TubeMajorRadius);
+                s.push(SlotId::TubeMinorRadius);
+                s.extend(window.slots());
+                if matches!(self, Node::HollowTube { .. }) {
+                    s.push(SlotId::TubeWall);
+                }
+                s
+            }
             Node::Loft { .. } => vec![SlotId::VDegree],
             Node::Sweep { .. } => vec![SlotId::Stations, SlotId::VDegree],
             Node::Transform { .. } => {
@@ -1410,6 +2173,12 @@ impl<P> Node<P> {
                 // (the frames are structural data, D8).
                 PatternKind::Explicit(_) => Vec::new(),
             },
+            // A half is recipe payload, not a number anyone sets; an
+            // index is the one structural slot the projection carries.
+            Node::Part { select, .. } => match select {
+                PartSelect::SplitHalf(_) => Vec::new(),
+                PartSelect::Instance(_) => vec![SlotId::Instance],
+            },
         }
     }
 
@@ -1424,6 +2193,7 @@ impl<P> Node<P> {
             (Node::Profile(p), S::Profile { .. }) => p.expr(slot),
             (Node::Datum(Datum::Plane { origin, .. }), S::Origin(ax))
             | (Node::Datum(Datum::Axis { origin, .. }), S::Origin(ax))
+            | (Node::Datum(Datum::Frame { origin, .. }), S::Origin(ax))
             | (Node::Datum(Datum::Point { position: origin }), S::Origin(ax)) => {
                 Some(comp(origin, ax))
             }
@@ -1431,10 +2201,35 @@ impl<P> Node<P> {
             (Node::Datum(Datum::Axis { direction, .. }), S::Direction(ax)) => {
                 Some(comp(direction, ax))
             }
+            (Node::Datum(Datum::Frame { u, .. }), S::U(ax)) => Some(comp(u, ax)),
+            (Node::Datum(Datum::Frame { v, .. }), S::V(ax)) => Some(comp(v, ax)),
+            (Node::Datum(Datum::FaceFrame { spin, .. }), S::Spin) => Some(spin),
+            // `comp2` answers None for `Z`, which is the honest
+            // "this node does not carry that slot" this match is open
+            // on — not a panic and not a silent zero.
+            (Node::Datum(Datum::AxisInPlane { origin, .. }), S::Origin(ax)) => comp2(origin, ax),
+            (Node::Datum(Datum::AxisInPlane { direction, .. }), S::Direction(ax)) => {
+                comp2(direction, ax)
+            }
             (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
             (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
             (Node::Chamfer { distance, .. }, S::ChamferDistance) => Some(distance),
             (Node::Revolve { angle, .. }, S::RevolveAngle) => Some(angle),
+            (Node::Tube { u_ref, .. } | Node::HollowTube { u_ref, .. }, S::Direction(ax)) => {
+                Some(comp(u_ref, ax))
+            }
+            (
+                Node::Tube { major_radius, .. } | Node::HollowTube { major_radius, .. },
+                S::TubeMajorRadius,
+            ) => Some(major_radius),
+            (
+                Node::Tube { minor_radius, .. } | Node::HollowTube { minor_radius, .. },
+                S::TubeMinorRadius,
+            ) => Some(minor_radius),
+            (Node::HollowTube { wall, .. }, S::TubeWall) => Some(wall),
+            // The window answers for its own two slots, so "which
+            // angle is which" has one home ([`TubeWindow::expr`]).
+            (Node::Tube { window, .. } | Node::HollowTube { window, .. }, s) => window.expr(s),
             (Node::Loft { v_degree, .. }, S::VDegree)
             | (Node::Sweep { v_degree, .. }, S::VDegree) => Some(v_degree),
             (Node::Sweep { stations, .. }, S::Stations) => Some(stations),
@@ -1447,12 +2242,19 @@ impl<P> Node<P> {
             (Node::Transform { rotation_angle, .. }, S::RotationAngle) => Some(rotation_angle),
             (Node::Pattern { count, kind, .. }, s) => rule_expr(Some(count), kind, s),
             (Node::PlacedUnion { count, kind, .. }, s) => rule_expr(count.as_ref(), kind, s),
+            (
+                Node::Part {
+                    select: PartSelect::Instance(index),
+                    ..
+                },
+                S::Instance,
+            ) => Some(index),
             // EXHAUSTIVE on the NODE axis, open on the slot axis: a new
             // node kind must be classified here or the compile breaks,
             // while "this node does not carry that slot" stays the
             // honest answer for a slot the listed arms did not claim.
-            // `Pattern` and `PlacedUnion` are absent because their arms
-            // above already bind every slot.
+            // `Pattern`, `PlacedUnion` and the two tube kinds are
+            // absent because their arms above already bind every slot.
             (
                 Node::Datum(..)
                 | Node::Profile(..)
@@ -1464,7 +2266,9 @@ impl<P> Node<P> {
                 | Node::Chamfer { .. }
                 | Node::Split { .. }
                 | Node::Boolean { .. }
+                | Node::Union { .. }
                 | Node::Transform { .. }
+                | Node::Part { .. }
                 | Node::Declare { .. }
                 | Node::InstantiatePart { .. }
                 | Node::Mate { .. }
@@ -1486,6 +2290,7 @@ impl<P> Node<P> {
             (Node::Profile(p), S::Profile { .. }) => p.expr_mut(slot),
             (Node::Datum(Datum::Plane { origin, .. }), S::Origin(ax))
             | (Node::Datum(Datum::Axis { origin, .. }), S::Origin(ax))
+            | (Node::Datum(Datum::Frame { origin, .. }), S::Origin(ax))
             | (Node::Datum(Datum::Point { position: origin }), S::Origin(ax)) => {
                 Some(comp_mut(origin, ax))
             }
@@ -1493,10 +2298,32 @@ impl<P> Node<P> {
             (Node::Datum(Datum::Axis { direction, .. }), S::Direction(ax)) => {
                 Some(comp_mut(direction, ax))
             }
+            (Node::Datum(Datum::Frame { u, .. }), S::U(ax)) => Some(comp_mut(u, ax)),
+            (Node::Datum(Datum::Frame { v, .. }), S::V(ax)) => Some(comp_mut(v, ax)),
+            (Node::Datum(Datum::FaceFrame { spin, .. }), S::Spin) => Some(spin),
+            (Node::Datum(Datum::AxisInPlane { origin, .. }), S::Origin(ax)) => {
+                comp2_mut(origin, ax)
+            }
+            (Node::Datum(Datum::AxisInPlane { direction, .. }), S::Direction(ax)) => {
+                comp2_mut(direction, ax)
+            }
             (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
             (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
             (Node::Chamfer { distance, .. }, S::ChamferDistance) => Some(distance),
             (Node::Revolve { angle, .. }, S::RevolveAngle) => Some(angle),
+            (Node::Tube { u_ref, .. } | Node::HollowTube { u_ref, .. }, S::Direction(ax)) => {
+                Some(comp_mut(u_ref, ax))
+            }
+            (
+                Node::Tube { major_radius, .. } | Node::HollowTube { major_radius, .. },
+                S::TubeMajorRadius,
+            ) => Some(major_radius),
+            (
+                Node::Tube { minor_radius, .. } | Node::HollowTube { minor_radius, .. },
+                S::TubeMinorRadius,
+            ) => Some(minor_radius),
+            (Node::HollowTube { wall, .. }, S::TubeWall) => Some(wall),
+            (Node::Tube { window, .. } | Node::HollowTube { window, .. }, s) => window.expr_mut(s),
             (Node::Loft { v_degree, .. }, S::VDegree)
             | (Node::Sweep { v_degree, .. }, S::VDegree) => Some(v_degree),
             (Node::Sweep { stations, .. }, S::Stations) => Some(stations),
@@ -1509,6 +2336,13 @@ impl<P> Node<P> {
             (Node::Transform { rotation_angle, .. }, S::RotationAngle) => Some(rotation_angle),
             (Node::Pattern { count, kind, .. }, s) => rule_expr_mut(Some(count), kind, s),
             (Node::PlacedUnion { count, kind, .. }, s) => rule_expr_mut(count.as_mut(), kind, s),
+            (
+                Node::Part {
+                    select: PartSelect::Instance(index),
+                    ..
+                },
+                S::Instance,
+            ) => Some(index),
             // EXHAUSTIVE on the NODE axis, open on the slot axis (the
             // `expr` rule).
             (
@@ -1522,7 +2356,9 @@ impl<P> Node<P> {
                 | Node::Chamfer { .. }
                 | Node::Split { .. }
                 | Node::Boolean { .. }
+                | Node::Union { .. }
                 | Node::Transform { .. }
+                | Node::Part { .. }
                 | Node::Declare { .. }
                 | Node::InstantiatePart { .. }
                 | Node::Mate { .. }
@@ -1549,6 +2385,10 @@ impl<P> Node<P> {
             Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
                 selection.iter().collect()
             }
+            // The derived frame's face is a frozen name like a blend's
+            // selection: the insert door checks its node is live, and
+            // `Rebind` is its repair.
+            Node::Datum(Datum::FaceFrame { face, .. }) => vec![face],
             // A12: a mate's two heads are the instance-qualified
             // references its reading edges are recomputed from.
             Node::Mate { a, b, .. } => vec![a, b],
@@ -1596,6 +2436,10 @@ impl<P> Node<P> {
             Node::Mate { a, b, .. } => {
                 hits += rewrite(a, from, to);
                 hits += rewrite(b, from, to);
+            }
+            // One name, no set to re-canonicalize.
+            Node::Datum(Datum::FaceFrame { face, .. }) => {
+                hits += rewrite(face, from, to);
             }
             // No re-canonicalization: the order IS argument order, and
             // a rebind onto an already-referenced entity must leave two
@@ -1686,13 +2530,17 @@ impl<P> Node<P> {
             | Node::Profile(..)
             | Node::Extrude { .. }
             | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
             | Node::Loft { .. }
             | Node::Sweep { .. }
             | Node::Fillet { .. }
             | Node::Chamfer { .. }
             | Node::Split { .. }
             | Node::Boolean { .. }
+            | Node::Union { .. }
             | Node::Transform { .. }
+            | Node::Part { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }
             | Node::Mate { .. }

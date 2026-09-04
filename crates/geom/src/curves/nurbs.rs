@@ -15,6 +15,34 @@
 //! construction goes through [`NurbsCurve3::new`] /
 //! [`NurbsCurve2::new`].
 //!
+//! ## Control points are EUCLIDEAN, and what follows from it
+//!
+//! The net stores Euclidean control points with the weights in a
+//! channel beside them — never the weighted (homogeneous) `wⱼPⱼ` form.
+//! That is a storage decision, and it is the premise of the whole
+//! affine-map story on this page and on the surface's:
+//!
+//! Evaluation normalizes, `sum(Nⱼ wⱼ Pⱼ) / sum(Nⱼ wⱼ)`, so the
+//! coefficients sum to one and every evaluated point is an **affine
+//! combination** of the control points. An affine map commutes with an
+//! affine combination. So for affine `f`, mapping the net **pointwise
+//! and leaving knots and weights alone** yields exactly the image of
+//! this curve — `f(C(t))` at every `t` — and not an approximation of
+//! it. `NurbsCurve3::map_points` and `NurbsSurface::map_points` are
+//! that map; `topo::transform_rigid` is its consumer, a rigid map
+//! being affine.
+//!
+//! It reaches the derivatives too, which is why nothing there needs a
+//! separate argument: the rational correction is
+//! `C′ = (A⁽¹⁾ − C·w⁽¹⁾)/w⁽⁰⁾` with `C` a position, so under
+//! `P ↦ RP + t` the translation cancels and `C̃′ = R·C′` exactly.
+//!
+//! **Were the storage weighted instead, that all fails**: an affine
+//! map's translation limb would have to be scaled by `wⱼ` per point,
+//! and applying it unscaled bends the geometry rather than moving it.
+//! Anyone changing the storage owes this section and both
+//! `map_points` doors a revisit.
+//!
 //! # Evaluation contract
 //!
 //! - **Core, generic** (`*_in_span`): rational evaluation restricted to
@@ -169,6 +197,43 @@ macro_rules! nurbs_curve {
                 $Curve::from_validated_parts(
                     self.knots.clone(),
                     self.control.iter().map(|p| p.map(&f)).collect(),
+                    self.weights.clone(),
+                )
+            }
+
+            /// The same curve with every control point carried
+            /// through `f`, the knots and the weights verbatim.
+            /// Construction goes through
+            /// [`Self::from_validated_parts`], which states why no
+            /// re-validation is run.
+            ///
+            /// # What the caller owes
+            ///
+            /// The result is the POINTWISE IMAGE of this curve —
+            /// `f(C(t))` at every `t` — exactly when `f` is
+            /// **affine**, and nothing here checks that. Why an affine
+            /// `f` suffices, and why the weights are therefore
+            /// untouched, is the Euclidean-storage section of this
+            /// module's data model, which is the one home for that
+            /// rule.
+            ///
+            /// The consequence worth repeating at the call site: were
+            /// the net stored WEIGHTED (`wj Pj`, homogeneous), this
+            /// call would be wrong — an affine map's translation limb
+            /// has to be scaled by `wj` there, and applying it
+            /// unscaled bends the curve. Read the storage before
+            /// reaching for this door.
+            ///
+            /// A non-affine `f` is not refused and not meaningless —
+            /// it is a map of the CONTROL NET, whose curve is some
+            /// other curve — but it is not this curve's image, and
+            /// calling it one is the error this paragraph exists to
+            /// name.
+            #[must_use]
+            pub fn map_points(&self, f: impl Fn($Point<T>) -> $Point<T>) -> Self {
+                Self::from_validated_parts(
+                    self.knots.clone(),
+                    self.control.iter().map(|p| f(*p)).collect(),
                     self.weights.clone(),
                 )
             }

@@ -38,15 +38,15 @@
 //!   site where the tag actually fires, the request its recourse names
 //!   is built and must succeed (the A3-2 correction's own standard).
 //! - **`the_waisted_bodys_convex_rims_carve_so_its_concave_row_is_not_vacuous`**
-//!   — the PR's concave fixture reaches this unit's door on its other
-//!   rims, so its concave refusal is about convexity and not about the
-//!   body.
+//!   — the waisted body's convex rims carve through this door beside
+//!   its concave waist (`fillet_h4_concave_rim`), so the two signs are
+//!   measured on one fixture.
 //! - **`the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`**
 //!   — the review's MAJOR, converted into its own regression pin: the
 //!   tag fires at a CONCAVE rim's seam vertex as readily as a convex
-//!   one, so the sentence must be true there too. The row now composes
-//!   the recourse and the whole-rim answer on BOTH material sides, so
-//!   neither half can drift alone.
+//!   one, so the sentence must be true there too. The row composes the
+//!   recourse and the whole-rim CARVE on BOTH material sides, so neither
+//!   half can drift alone.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -57,7 +57,7 @@ use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE};
-use sweep::test_support::{revolved_about_y, rim_arcs_at};
+use sweep::test_support::{assert_promises_either_side, revolved_about_y, rim_arcs_at, waisted};
 use topo::{Body, EdgeKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -536,30 +536,14 @@ fn the_seam_vertex_recourse_names_a_door_that_answers() {
 // Claim 8: is the rewritten recourse true at EVERY site the tag fires?
 // ------------------------------------------------------------------
 
-/// A waisted pole-touching revolve — the PR's own concave fixture. Two
-/// cones meeting at radius 0.5, so the waist rim is CONCAVE and
-/// seam-split; the base and top rims are convex and seam-split.
-fn waisted() -> Body<f64> {
-    revolved_about_y(
-        vec![
-            v(0.0, 0.0, 0.0),
-            v(1.0, 0.0, 0.0),
-            v(0.5, 0.5, 0.0),
-            v(1.0, 1.0, 0.0),
-            v(0.0, 1.0, 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    )
-}
-
-/// **Claim 7 support: the concave row's fixture DOES reach the door.**
-/// The waisted body's other rims carve through this unit's door, so the
-/// concave refusal at its waist is about convexity and not about the
-/// body being unreachable for some upstream reason.
+/// **Claim 7 support: the concave fixture's convex rims carve through
+/// this door too.** The waisted body's base and top rims carve beside
+/// its concave waist (`fillet_h4_concave_rim`), so the two signs are
+/// measured on one body and neither row is about the body being
+/// unreachable for some upstream reason.
 #[test]
 fn the_waisted_bodys_convex_rims_carve_so_its_concave_row_is_not_vacuous() {
-    let source = waisted();
+    let source = waisted(tol());
     for (name, ry) in [("base", 0.0), ("top", 1.0)] {
         let arcs = rim_arcs_at(&source, 1.0, ry);
         assert_eq!(arcs.len(), 2, "{name} rim is seam-split");
@@ -573,42 +557,33 @@ fn the_waisted_bodys_convex_rims_carve_so_its_concave_row_is_not_vacuous() {
 /// **The composed honesty pin: the recourse is TRUE at every site the
 /// tag fires.**
 ///
-/// This row began as the r2 review's MAJOR — the rewritten recourse
-/// promised "carves as one annulus" unconditionally, while
 /// `is_seam_vertex` classifies purely on INCIDENCE (two rim arcs on one
-/// support pair plus two co-surface seams) and never reads convexity.
-/// The tag therefore fires at a CONCAVE rim's seam vertex too, where
-/// the promised whole-rim request refuses `"a concave chain adds
-/// material"` — a recourse naming a door that cannot serve the caller
-/// who was just refused, which is the exact A3-2 defect.
-///
-/// The fix conditioned the SENTENCE rather than widening the carve
-/// (the concave closed-rim band is unbuilt and filed as issue 1244;
-/// widening a material gate is not the seam-split door's business).
-/// So this row now composes the two halves that must never drift
+/// support pair plus two co-surface seams) and never reads convexity,
+/// so the tag fires at a CONCAVE rim's seam vertex as readily as at a
+/// convex one. A recourse must be true at every site its tag can fire
+/// (A3-2), so this row composes the two halves that must never drift
 /// apart, on BOTH material sides:
 ///
-/// - the sentence still names the REQUEST unconditionally, and states
-///   the carve only for the convex side — asserted on the rendered
-///   refusal, not on the constant alone;
-/// - the whole-rim request then does what the sentence says it does:
-///   it CARVES at the convex rim, and answers with the material-side
-///   refusal at the concave one.
+/// - the sentence names the REQUEST and promises the carve on either
+///   side, conditioning on nothing — asserted on the rendered refusal,
+///   not on the constant alone;
+/// - the whole-rim request then does what the sentence says: it CARVES,
+///   one annulus, tier-3 valid, removing material at the convex rims
+///   and adding it at the concave one.
 ///
-/// Red if the hedge is dropped, red if the tag narrows to convex rims
-/// only without the sentence following, and red if issue 1244 lands
-/// without this sentence being re-widened.
+/// This row began as the r2 review's MAJOR — the sentence promised a
+/// carve the concave side then refused — and for a while pinned the
+/// hedge that fix put in; the material-adding band made the hedge false
+/// the other way round, so it is gone. Red if the sentence conditions
+/// on a side again, and red if either side's whole-rim request stops
+/// carving.
 #[test]
 fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
-    let source = waisted();
-    // The sentence conditions its carve half. Spelled against the
-    // constant so the assertion names what the hedge IS, not a
-    // substring of one phrasing of it.
-    assert!(
-        FILLET3_SEAM_VERTEX_RECOURSE.contains("CONVEX"),
-        "the carve half is conditioned on the side the door serves: \
-         {FILLET3_SEAM_VERTEX_RECOURSE}"
-    );
+    let source = waisted(tol());
+    // The sentence conditions on nothing — the one home of that pin
+    // names what a hedge WOULD be, not a substring of one phrasing.
+    assert_promises_either_side(FILLET3_SEAM_VERTEX_RECOURSE);
+    let v0 = volume(&source);
 
     for (name, rim_r, rim_y, convex) in [
         ("the concave waist", 0.5, 0.5, false),
@@ -618,7 +593,7 @@ fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
         let arcs = rim_arcs_at(&source, rim_r, rim_y);
         assert_eq!(arcs.len(), 2, "{name} is seam-split");
 
-        // Half one: the tag fires, and shows the conditioned sentence.
+        // Half one: the tag fires, and shows the sentence.
         let Err(one) = fillet_edges(&source, &arcs[..1], 0.05, tol()).map_err(|r| r.error) else {
             panic!("{name}: one arc stops at a seam vertex and must refuse")
         };
@@ -639,21 +614,23 @@ fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
             "{name}: the seam recourse is the one appended: {shown}"
         );
 
-        // Half two: the request that sentence names, answered.
-        let whole = fillet_edges(&source, &arcs, 0.05, tol()).map_err(|r| r.error);
+        // Half two: the request that sentence names, answered — with the
+        // carve it promises, on either side.
+        let out = fillet_edges(&source, &arcs, 0.05, tol())
+            .unwrap_or_else(|e| panic!("{name}: the promised carve happens, got {e:?}"));
+        assert_eq!(out.band_faces.len(), 1, "{name}: one annulus band");
+        validate_geometric(&out.body, tol())
+            .unwrap_or_else(|e| panic!("{name}: tier-3 valid, got {e:?}"));
+        let v1 = volume(&out.body);
         if convex {
-            let out =
-                whole.unwrap_or_else(|e| panic!("{name}: the promised carve happens, got {e:?}"));
-            assert_eq!(out.band_faces.len(), 1, "{name}: one annulus band");
-            validate_geometric(&out.body, tol())
-                .unwrap_or_else(|e| panic!("{name}: tier-3 valid, got {e:?}"));
-        } else {
-            let Err(BlendError::UnsupportedChain { detail, .. }) = whole else {
-                panic!("{name}: the whole-rim request meets the material-side refusal")
-            };
             assert!(
-                detail.contains("concave"),
-                "{name}: and it is the material side that refuses, got {detail}"
+                v1 < v0,
+                "{name}: a convex band removes material, {v1} vs {v0}"
+            );
+        } else {
+            assert!(
+                v1 > v0,
+                "{name}: a concave band adds material, {v1} vs {v0}"
             );
         }
     }

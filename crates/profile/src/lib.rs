@@ -131,9 +131,9 @@ pub use path::program::{
     replay, replay_guided, replay_recording,
 };
 pub use path::{
-    ArcCarrierScalar, ArcLen, ArcSide, Bulge, Center, ContinueTarget, LineTarget, Open,
-    PartialPath, PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, Start, Sweep,
-    TangentArcTarget, Via, circle, circle_split,
+    ArcCarrierScalar, ArcLen, ArcSide, ArrivesTangent, Bulge, Center, ContinueTarget, LineTarget,
+    Open, PartialPath, PathError, PathErrorKind, PathNoCornerReason, PointLeg, Radius, Start,
+    Sweep, TangentArcTarget, Via, circle, circle_split,
 };
 pub use structure::{
     CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical,
@@ -143,6 +143,20 @@ pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
 pub use validate::{
     BlendArc, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole, NoCornerReason,
     ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment,
+};
+/// The six fillet recourse sentences, under `test-support` only.
+///
+/// They are prose a caller reads, so a suite that pins what a caller
+/// reads has to spell them — and spelling them by restating the string
+/// makes the assertion agree with itself instead of with the code.
+/// This export is what lets `tests/fillet_recourse_followability.rs`
+/// name them; it is off in every build that is not this crate's own
+/// tests, so these six are not part of the production surface, and
+/// pncad's facade completeness guard does not see them.
+#[cfg(any(test, feature = "test-support"))]
+pub use validate::{
+    FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE, FILLET_LEG_EXTENT_RECOURSE,
+    FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE, FILLET_TURN_INBAND_RECOURSE,
 };
 
 /// One vertex of a profile loop: a position plus the bulge of the
@@ -239,7 +253,7 @@ pub struct ProfileLoop<T: Real> {
 }
 
 /// The raw loop-minting doors — **kernel vocabulary, off the presented
-/// surface** (Evan's ruling on #413, executed by LIB-RETTAIL).
+/// surface** (Ev's ruling on #413, executed by LIB-RETTAIL).
 ///
 /// The invariant this trait exists to hold: a caller who can NAME
 /// [`ProfileLoop`] cannot thereby MINT one from a vertex table. Inherent

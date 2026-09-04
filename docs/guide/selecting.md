@@ -65,9 +65,20 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
 let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
 let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
 
+// The frame the square is drawn on. A profile names a frame
+// NODE, so the plane is an authoring step of its own.
+let (next, frame) = insert(
+    &doc,
+    Node::Datum(Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    }),
+);
+doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: SketchPlane::xy(), loops: vec![square] }),
+    Node::Profile(ProfileProgram { plane: frame, loops: vec![square] }),
 );
 doc = next;
 let (next, cube) = insert(&doc, Node::Extrude { profile, distance: len(1.0) });
@@ -123,7 +134,7 @@ assert_eq!(
     top,
     select(&ev, cube, &Selector::of(
         NamePat::of_kind(EntityKind::Face)
-            .seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top)),
+            .seg(SegPat::tag(SegTag::Cap).side(CapEnd::End)),
     )),
 );
 
@@ -162,9 +173,22 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
+let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+// The frame the square is drawn on. A profile names a frame
+// NODE, so the plane is an authoring step of its own.
+let (next, frame) = insert(
+    &doc,
+    Node::Datum(Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    }),
+);
+doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: SketchPlane::xy(), loops: vec![square] }),
+    Node::Profile(ProfileProgram { plane: frame, loops: vec![square] }),
 );
 doc = next;
 let (next, cube) = insert(
@@ -186,7 +210,7 @@ assert_eq!(all_bodies(&ev, cube).len(), 1);
 
 // "The cap rim of the top face" — one segment pattern.
 let top_rim = Selector::of(
-    NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::RimEdge).side(CapEnd::Top)),
+    NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::RimEdge).side(CapEnd::End)),
 );
 let names = select(&ev, cube, &top_rim);
 assert_eq!(names.len(), 4);
@@ -212,27 +236,27 @@ let rim = |end| StableName {
 
 // `SegPat::tag` — the variant, arguments free.
 let any_rim = NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::RimEdge));
-assert!(Selector::of(any_rim.clone()).matches(&rim(CapEnd::Top)));
-assert!(Selector::of(any_rim).matches(&rim(CapEnd::Bottom)));
+assert!(Selector::of(any_rim.clone()).matches(&rim(CapEnd::End)));
+assert!(Selector::of(any_rim).matches(&rim(CapEnd::Start)));
 
 // `.side` — the end/side tag, taken by `From` so the role enum's
 // own types spell it.
-let top = NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::RimEdge).side(CapEnd::Top));
-assert!(Selector::of(top.clone()).matches(&rim(CapEnd::Top)));
-assert!(!Selector::of(top).matches(&rim(CapEnd::Bottom)));
+let top = NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::RimEdge).side(CapEnd::End));
+assert!(Selector::of(top.clone()).matches(&rim(CapEnd::End)));
+assert!(!Selector::of(top).matches(&rim(CapEnd::Start)));
 
 // `SegPat::group` — everything one op minted.
 let swept = NamePat::any().seg(SegPat::group(OpGroup::Extrude));
-assert!(Selector::of(swept).matches(&rim(CapEnd::Top)));
+assert!(Selector::of(swept).matches(&rim(CapEnd::End)));
 
 // `NamePat::node` — restrict to one recipe node; `SegPat::any` and
 // `NamePat::any` are the wildcards.
-assert!(Selector::of(NamePat::any().node(node).seg(SegPat::any())).matches(&rim(CapEnd::Top)));
-assert!(!Selector::of(NamePat::any().node(RecipeNodeId(8))).matches(&rim(CapEnd::Top)));
+assert!(Selector::of(NamePat::any().node(node).seg(SegPat::any())).matches(&rim(CapEnd::End)));
+assert!(!Selector::of(NamePat::any().node(RecipeNodeId(8))).matches(&rim(CapEnd::End)));
 
 // A constrained path matches length for length.
 assert!(!Selector::of(NamePat::any().path([SegPat::any(), SegPat::any()]))
-    .matches(&rim(CapEnd::Top)));
+    .matches(&rim(CapEnd::End)));
 ```
 
 ## Alternatives, and sub-name arguments
@@ -246,20 +270,20 @@ use pncad::prelude::*;
 
 let node = RecipeNodeId(3);
 let face = |path| StableName { kind: EntityKind::Face, node, path };
-// A boolean seam edge: the top cap of one operand crossing a
+// A boolean seam edge: the end cap of one operand crossing a
 // revolve band of the other.
 let seam = StableName {
     kind: EntityKind::Edge,
     node,
     path: vec![RoleSeg::Seam {
-        a: Box::new(face(vec![RoleSeg::Cap(CapEnd::Top)])),
+        a: Box::new(face(vec![RoleSeg::Cap(CapEnd::End)])),
         b: Box::new(face(vec![RoleSeg::Band(ProfileEdgeRef { loop_index: 0, segment: 0 })])),
     }],
 };
 
 // `.of` — both sides constrained: "every Seam{Cap, Band} edge".
 let cap_band = NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::Seam).of([
-    NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top)),
+    NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End)),
     NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Band)),
 ]));
 assert!(Selector::of(cap_band).matches(&seam));
@@ -318,9 +342,22 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     let id = applied.record.minted.expect("a minted id");
     (applied.doc, id)
 };
+let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+// The frame the square is drawn on. A profile names a frame
+// NODE, so the plane is an authoring step of its own.
+let (next, frame) = insert(
+    &doc,
+    Node::Datum(Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    }),
+);
+doc = next;
 let (next, profile) = insert(
     &doc,
-    Node::Profile(ProfileProgram { plane: SketchPlane::xy(), loops: vec![square] }),
+    Node::Profile(ProfileProgram { plane: frame, loops: vec![square] }),
 );
 doc = next;
 let (next, cube) = insert(
@@ -334,9 +371,9 @@ doc = next;
 
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 
-// Select the top cap by NAME, then ask where it is.
+// Select the end cap by NAME, then ask where it is.
 let top = Selector::of(
-    NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top)),
+    NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End)),
 );
 let names = select(&ev, cube, &top);
 assert_eq!(names.len(), 1);
@@ -396,20 +433,33 @@ let mut insert = |doc: &Doc<ProfileProgram>, node| {
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-// v4: the profile payload is its PROGRAM.
-let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, z: f64| ProfileProgram {
-    plane: SketchPlane::from_frame(p3(0.0, 0.0, z), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0)),
+let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
+// The frame a footprint is drawn on: the xy directions, at height z.
+let frame_at = |z: f64| {
+    Node::Datum(Datum::Frame {
+        origin: [len(0.0), len(0.0), len(z)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    })
+};
+// v4: the profile payload is its PROGRAM, drawn on a frame NODE.
+let footprint = |x0: f64, y0: f64, x1: f64, y1: f64, plane| ProfileProgram {
+    plane,
     loops: vec![
         LoopProgram::polygon([(x0, y0), (x1, y0), (x1, y1), (x0, y1)])
             .expect("finite corners"),
     ],
 };
 
-// A unit box, and a smaller box RESTING on its top cap.
+// A unit box, and a smaller box RESTING on its top cap. The second
+// frame IS that cap's height, so the resting relation is visible in
+// the tree before anything is evaluated.
 let doc = Doc::<ProfileProgram>::empty_derived("select-example", tol);
-let (doc, pf1) = insert(&doc, Node::Profile(footprint(0.0, 0.0, 1.0, 1.0, 0.0)));
+let (doc, ground) = insert(&doc, frame_at(0.0));
+let (doc, pf1) = insert(&doc, Node::Profile(footprint(0.0, 0.0, 1.0, 1.0, ground)));
 let (doc, base) = insert(&doc, Node::Extrude { profile: pf1, distance: len(1.0) });
-let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75, 1.0)));
+let (doc, cap) = insert(&doc, frame_at(1.0));
+let (doc, pf2) = insert(&doc, Node::Profile(footprint(0.25, 0.25, 0.75, 0.75, cap)));
 let (doc, block) = insert(&doc, Node::Extrude { profile: pf2, distance: len(0.5) });
 
 // Undeclared, the union refuses — coincidence is never inferred

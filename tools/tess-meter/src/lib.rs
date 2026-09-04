@@ -55,18 +55,19 @@
 //! `docs/tess-budget-data/tess-budget-baseline.csv` in
 //! `tessellation-budget lint (gate — a grown budget fails this row)`.
 //!
-//! **Those rows are SAMPLED, not unconditional.** Each carries an
-//! `if:` on the drawn `klint_row` — the sweep and its lint on
-//! `release-budget`, this crate's derivations on `dev-default`, one of
-//! five rows drawn per run from the head SHA. So the SIZING columns —
+//! **Those rows are UNCONDITIONAL since 2026-09-04.** Each carries an
+//! `if:` naming its `k-lint (gate)` matrix leg — the sweep and its lint
+//! on `release-budget`, this crate's derivations on `dev-default` — and
+//! every code-tier run has all five legs. From 2026-08-22 to that day
+//! one row was DRAWN per run from the head SHA, so the SIZING columns —
 //! triangle counts and `grid_cells / span_opt_cells`, which is what
-//! `compare` reads — are re-measured on about one merge in five, and
-//! so is the guard on the split scan's two constants below. Neither
+//! `compare` reads — were re-measured on about one merge in five, and so
+//! was the guard on the split scan's two constants below. Neither
 //! quantity drifts between merges: both are functions of this tree
-//! alone. What the sampling costs is therefore latency and not
-//! staleness — a retune can land unmeasured and be caught by a later
-//! draw — which is a weaker thing than the per-merge register the
-//! sizing columns have been read as.
+//! alone, which is why the sampling cost latency and not staleness — a
+//! retune could land unmeasured and be caught by a later draw. That was
+//! a weaker thing than the per-merge register the sizing columns had
+//! been read as, and the per-merge register is what they are again.
 //!
 //! **The deviation half is not.** CI runs that sweep with
 //! `--sizing-only`, which skips the |S - Pi| resample, so `worst_dev`
@@ -190,6 +191,11 @@
 //! it is the lane whose grid is Hessian-sized, and the one #320 is
 //! about. Non-NURBS rows leave those columns empty rather than
 //! reporting a zero that would read as a measurement.
+//!
+//! An empty tail is therefore a statement about the face's LANE, and
+//! it is typed as one ([`Sizing`]) so that a missing measurement
+//! cannot borrow it: a sized-lane face `measures` does not cover is a
+//! refusal, not a row.
 
 use std::collections::HashMap;
 
@@ -267,6 +273,27 @@ impl Chart {
             Chart::Approx => "approx",
         }
     }
+
+    /// Is a face of this chart one the meter measures — i.e. does its
+    /// row OWE the Hessian-sized columns?
+    ///
+    /// This is the meter's contract read from the chart alone, which
+    /// is all a row has: `mesh` hands a `FaceMeasure` over for exactly
+    /// the faces its trimmed lane took on the NURBS arm, and that arm
+    /// is chosen by surface kind — a described NURBS face, or an
+    /// approximating surface meshed on its fit. Every other chart is
+    /// measured by nothing, so its sizing columns are empty because
+    /// there is nothing to put in them.
+    ///
+    /// **No wildcard arm.** A chart added to this enum is a face kind
+    /// whose lane nobody has yet decided, and the compiler is the
+    /// right party to ask.
+    pub fn sized_lane(self) -> bool {
+        match self {
+            Chart::Plane | Chart::Cylinder | Chart::Cone | Chart::Sphere | Chart::Torus => false,
+            Chart::Nurbs | Chart::Approx => true,
+        }
+    }
 }
 
 /// The Hessian-sized lane's own columns (module docs).
@@ -339,6 +366,50 @@ pub struct NurbsColumns {
     pub realized_aspect: f64,
 }
 
+/// What a row says about the Hessian-sized lane's columns.
+///
+/// **The type has two states because only two of them are lane facts.**
+/// The CSV spells [`Self::OffLane`] as empty columns, and a reader —
+/// `tools/tess-lint` included — takes that as *"this face is not on
+/// the sized lane"*. An `Option` cannot hold that claim apart from
+/// *"nobody looked, or the lookup missed"*, and the two are opposite
+/// readings of the same row: the first says the budget has no sizing
+/// to account for here, the second says the accounting is short by a
+/// face nobody will notice. So the miss is not a state of this enum —
+/// it is refused rather than carried to a consumer that cannot tell it
+/// apart.
+///
+/// **The type is not itself the guarantee, and where the guarantee is
+/// matters.** Nothing here ties a variant to a [`Chart`]: both
+/// variants are `pub`, [`FaceRow`]'s fields are `pub`, and
+/// `FaceRow { chart: Chart::Nurbs, sizing: Sizing::OffLane, .. }` is a
+/// legal struct literal. The pairing is refused at the two sites that
+/// can see both halves — `sizing_of`, where [`face_rows`] DERIVES the
+/// state from a lookup, and [`FaceRow::csv_row`], where the state is
+/// WRITTEN. The second is what makes the claim about the CSV rather
+/// than about one constructor: a row assembled field by field never
+/// passes the first, and the writer is the last place the claim is
+/// still checkable.
+#[derive(Clone, Copy, Debug)]
+pub enum Sizing {
+    /// The face's chart is not the sized lane's ([`Chart::sized_lane`]),
+    /// so there is nothing to report and the CSV's sizing columns are
+    /// EMPTY — not zero, which would read as a measured zero.
+    OffLane,
+    /// The sized lane's columns, derived from that face's measurement.
+    Measured(NurbsColumns),
+}
+
+impl Sizing {
+    /// The columns, where there are any.
+    pub fn columns(self) -> Option<NurbsColumns> {
+        match self {
+            Sizing::OffLane => None,
+            Sizing::Measured(n) => Some(n),
+        }
+    }
+}
+
 /// One face's budget row.
 #[derive(Clone, Copy, Debug)]
 pub struct FaceRow {
@@ -351,8 +422,9 @@ pub struct FaceRow {
     pub delta: f64,
     /// Triangles the face contributed.
     pub triangles: usize,
-    /// The Hessian-sized lane's columns, when that is the lane.
-    pub nurbs: Option<NurbsColumns>,
+    /// The Hessian-sized lane's columns, or the lane fact that there
+    /// are none.
+    pub sizing: Sizing,
 }
 
 /// The CSV header the sweep writes and `tools/tess-lint` reads.
@@ -375,10 +447,36 @@ fn nurbs_column_count() -> usize {
 impl FaceRow {
     /// This row as CSV under `scene`, in [`CSV_HEADER`] order. NURBS
     /// columns are EMPTY (not zero) on a non-NURBS row — a zero there
-    /// would read as a measured zero.
+    /// would read as a measured zero, and an empty tail is a claim
+    /// about the LANE ([`Sizing`]), never about the lookup.
     ///
     /// Floats print `{:e}`, which round-trips through `str::parse`.
+    ///
+    /// # Panics
+    ///
+    /// On a row whose `chart` and `sizing` disagree about the lane —
+    /// the same 2×2 `sizing_of` refuses, checked again where the claim
+    /// is WRITTEN. This struct's fields are `pub`, so the pairing the
+    /// lookup cannot produce is still a legal struct literal and
+    /// reaches here: a `nurbs` chart carrying [`Sizing::OffLane`]
+    /// would print the empty tail — the spelling every consumer reads
+    /// as *"not on the sized lane"* — over a face that is on it.
     pub fn csv_row(&self, scene: &str) -> String {
+        match (self.chart.sized_lane(), self.sizing) {
+            (true, Sizing::OffLane) => panic!(
+                "face {} is chart `{}`, the Hessian-sized lane's, and carries no columns: \
+                 the empty tail this would write says the face is OFF that lane",
+                self.face,
+                self.chart.tag()
+            ),
+            (false, Sizing::Measured(_)) => panic!(
+                "face {} is chart `{}`, which the meter measures nothing about, and \
+                 carries the sized lane's columns anyway",
+                self.face,
+                self.chart.tag()
+            ),
+            (true, Sizing::Measured(_)) | (false, Sizing::OffLane) => {}
+        }
         let head = format!(
             "{scene},{},{},{:e},{}",
             self.face,
@@ -386,12 +484,12 @@ impl FaceRow {
             self.delta,
             self.triangles
         );
-        match self.nurbs {
+        match self.sizing {
             // The empty tail is COUNTED from the header rather than
             // written as a run of commas, so a new column cannot make
             // the two arms disagree about the row's width.
-            None => format!("{head}{}", ",".repeat(nurbs_column_count())),
-            Some(n) => format!(
+            Sizing::OffLane => format!("{head}{}", ",".repeat(nurbs_column_count())),
+            Sizing::Measured(n) => format!(
                 "{head},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{},\
                  {:e},{:e},{:e},{:e},{:e},{:e},{},{},{},{},{:e}",
                 n.u.0,
@@ -433,6 +531,16 @@ impl FaceRow {
 ///
 /// If `mesh` did not come from tessellating `body` — a patch naming a
 /// face the body does not have is harness breakage, not a measurement.
+///
+/// If `measures` names one face twice — two tessellations' output in
+/// one slice, where the row can carry one reading.
+///
+/// If `measures` and `body` disagree about which faces the sized lane
+/// took: a face on that lane no measurement covers, or a measurement
+/// naming a face that is not. Both are the same breakage one field
+/// over — a mesh, a body and a measurement slice that did not come
+/// from one armed tessellation — and [`sizing_of`] argues why neither
+/// may become a row instead.
 pub fn face_rows(
     delta: f64,
     body: &Body<f64>,
@@ -441,6 +549,19 @@ pub fn face_rows(
 ) -> Vec<FaceRow> {
     let by_face: HashMap<topo::FaceKey, &FaceMeasure> =
         measures.iter().map(|m| (m.face, m)).collect();
+    // A `collect` into a map DROPS a collision, and the collision it
+    // would drop here is a face measured twice: two readings of one
+    // face where the row carries one, picked by iteration order. The
+    // meter hands each face over exactly once per tessellation, so
+    // this is measurements from two of them in one slice.
+    assert_eq!(
+        by_face.len(),
+        measures.len(),
+        "{} measurements name only {} distinct faces: a face measured twice is two \
+         tessellations' measurements in one slice",
+        measures.len(),
+        by_face.len()
+    );
     mesh.patches
         .iter()
         .enumerate()
@@ -449,15 +570,63 @@ pub fn face_rows(
                 .get_face(patch.face)
                 .and_then(|f| body.get_surface(f.surface))
                 .expect("the mesh's patches name this body's faces");
+            let chart = Chart::of(surface);
             FaceRow {
                 face: ordinal,
-                chart: Chart::of(surface),
+                chart,
                 delta,
                 triangles: patch.triangles.len(),
-                nurbs: by_face.get(&patch.face).map(|m| columns(m)),
+                sizing: sizing_of(ordinal, chart, by_face.get(&patch.face).copied()),
             }
         })
         .collect()
+}
+
+/// One face's [`Sizing`], from the chart its row already carries and
+/// whatever measurement the lookup found for it.
+///
+/// **The 2×2 is the point, and two of its cells are refusals.** Only
+/// two of the four combinations are a state this crate can write down;
+/// the other two are the chart and the meter disagreeing about which
+/// lane a face took, and each would otherwise leave the CSV saying
+/// something false and saying it quietly:
+///
+/// - a sized-lane face no measurement covers would take the EMPTY
+///   sizing tail, which is [`Sizing::OffLane`]'s spelling and reads
+///   everywhere as *"this face is not on the sized lane"* — so the
+///   face would drop out of the budget's accounting without appearing
+///   anywhere as missing. **The reachable way in is an ARMED run whose
+///   measurements are not THIS tessellation's**: `mesh::budget::take`
+///   disarms as it drains, so a slice held across a second
+///   `tessellate`, or taken for another body or another δ, covers
+///   faces this mesh does not — and every face it misses reads as a
+///   plane's. A caller that armed nothing at all lands here too, over
+///   the whole corpus rather than a face. What CANNOT reach it is a
+///   build without the `budget` feature: `arm` and `take` do not exist
+///   there, so a caller of either does not compile.
+/// - an off-lane face WITH a measurement would hang the sized lane's
+///   columns on a chart nothing sizes that way.
+///
+/// A fallback cannot improve either, and the reason is the one stated
+/// once for every column (module docs, *Which columns may carry a
+/// fallback: none of them*): these columns are read by a DIFFERENTIAL
+/// gate, so a value this crate could not take has two ways to lie.
+fn sizing_of(ordinal: usize, chart: Chart, measure: Option<&FaceMeasure>) -> Sizing {
+    match (chart.sized_lane(), measure) {
+        (false, None) => Sizing::OffLane,
+        (true, Some(m)) => Sizing::Measured(columns(m)),
+        (true, None) => panic!(
+            "face {ordinal} is chart `{}`, the Hessian-sized lane's, and no measurement \
+             covers it: the meter was not armed for this tessellation, or these are not \
+             the measurements it took",
+            chart.tag()
+        ),
+        (false, Some(_)) => panic!(
+            "face {ordinal} is chart `{}`, which the meter measures nothing about, and a \
+             measurement names it anyway",
+            chart.tag()
+        ),
+    }
 }
 
 /// The whole CSV for one scene, header included.
@@ -706,11 +875,12 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 ///
 /// **The guard on this pair runs on the merge that moves it.** What
 /// boxes these two is this crate's own derivations suite, and the only
-/// k-lint unification that runs that suite is `dev-default` — one of
-/// five, drawn per run. A change anywhere under `tools/` now PINS that
-/// row rather than sampling it (`KLINT_PATH_ROWS` in
-/// `scripts/ci-filter.py`), so a retune here is gated by the guard it
-/// is about instead of by whichever row a hash picked.
+/// k-lint unification that runs that suite is `dev-default` — which
+/// every code-tier run gates, since the five unifications stopped being
+/// sampled on 2026-09-04 (`KLINT_ROWS` in `scripts/ci-filter.py`).
+/// Between 2026-08-22 and then the row was drawn 1 in 5 and a `tools/`
+/// change PINNED it instead, which was the narrower answer to the same
+/// question; that pin is retired with the draw it pre-empted.
 pub const SPLIT_SCAN_DECADES: f64 = 8.0;
 /// Samples per scan (fixed, so the answer is deterministic — D9).
 /// SAMPLES, not steps: a step in this crate's vocabulary is a UV
@@ -721,8 +891,8 @@ pub const SPLIT_SCAN_DECADES: f64 = 8.0;
 /// of the aspect-ratio scan), no derivation reaches either alone, and
 /// the boxing test asserts them together. Read that paragraph before
 /// retuning this: it also records why the cell count these constants
-/// feed cannot carry a guard, and that a change under `tools/` now
-/// forces the CI row that runs the box rather than sampling it. Stated
+/// feed cannot carry a guard, and that the CI row that runs the box is
+/// gated by every code-tier run. Stated
 /// as a pointer and not a second copy, because the two constants moving
 /// apart in their documentation is the first step to their moving apart
 /// in fact.
@@ -1087,13 +1257,13 @@ pub fn best_split_steps(bound: Bound, du: f64, dv: f64, delta_s: f64) -> (f64, f
 /// drifted — a sampling statistic over random bounds is not a property
 /// this crate exposes. What IS re-taken is the thing it argued for: the
 /// derivations suite pins the composition exactly, on a family chosen so
-/// each of the three retunes moves an assertion, and a change anywhere
-/// under `tools/` now PINS the k-lint row that runs that suite rather
-/// than sampling it (`KLINT_PATH_ROWS` in `scripts/ci-filter.py`). So
-/// the number is history and the guard is live, which is the right way
-/// round. The figure is stated HERE and nowhere else — the derivations
-/// row that holds this composition points at this paragraph rather than
-/// restating the pair, so the two cannot part.
+/// each of the three retunes moves an assertion, and the k-lint row that
+/// runs that suite (`dev-default`) is gated by every code-tier run since
+/// 2026-09-04 (`KLINT_ROWS` in `scripts/ci-filter.py`). So the number is
+/// history and the guard is live, which is the right way round. The
+/// figure is stated HERE and nowhere else — the derivations row that
+/// holds this composition points at this paragraph rather than restating
+/// the pair, so the two cannot part.
 ///
 /// So the derivations suite asserts this function EQUALS
 /// `split_scan(bound, du, dv, delta_s, shipped_split_scan_aspects(),

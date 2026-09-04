@@ -462,7 +462,7 @@ fundamental form. The options:
   ordinary measurement + re-cut.
 - (iii) **Status quo AM-GM** — forgoes the dominant factor.
 
-**RATIFIED: option (ii) with A = 16** (Evan's approval on the
+**RATIFIED: option (ii) with A = 16** (Ev's approval on the
 #568 thread, 2026-08-16, noting correctly that (ii) strictly
 generalizes both extremes — A is the dial). Executed by TESS-SPLIT
 (#951) over TESS-SPAN's sizing functions; `NurbsFaceBound::split_steps`

@@ -74,7 +74,7 @@
 //!   Smooth ⇒ the edge keeps its conventional `MappedCurve` description
 //!   (the ratified no-face-merging split, D2); Indeterminate ⇒
 //!   [`ExtrudeError::SliverJoin`] (escalate-never-guess).
-//! - **Cap–wall rims upgrade too** (the ratified rim decision — Evan,
+//! - **Cap–wall rims upgrade too** (the ratified rim decision — Ev,
 //!   M2-LOG 2026-07-19): after both cap planes are set, every rim edge
 //!   (bottom and top, outer and ring loops) re-describes as
 //!   `Intersection { cap plane, side surface, witness }` through the
@@ -153,8 +153,8 @@ pub use revolve::{
 pub use geom_brep::SketchSegment;
 pub use profile::{ProfileLoop, ProfileVertex};
 pub use skin::{
-    LoftGeometry, Section, SkinError, lift_surface, loft_geometry, loft_parameters,
-    make_compatible, segment_curve, skin, skin_on, skin_parameters, sweep_geometry, sweep_places,
+    LoftGeometry, Section, SkinError, loft_geometry, loft_parameters, make_compatible,
+    segment_curve, skin, skin_on, skin_parameters, sweep_geometry, sweep_places,
 };
 
 pub mod blend;

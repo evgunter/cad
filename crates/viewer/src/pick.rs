@@ -45,6 +45,12 @@
 //! whether the index still describes the run on screen, and a stale
 //! one is dropped and rebuilt whole. Re-pairing by hand is the
 //! failure #1098 exists to name.
+//!
+//! Module kind: **vocabulary**, with a recorded exception — it
+//! takes a `&DocSession` as a read-only argument at the sites
+//! `scripts/gates/viewer-module-kinds.sh` records, and names no
+//! other driver type and no `app`-only crate
+//! (`crates/viewer/README.md`, Two vocabularies that read the session).
 
 use std::collections::BTreeMap;
 
@@ -309,6 +315,19 @@ pub enum PickIndexError {
     },
     /// The patch ids did not form a bijection.
     Ids(IdMapError),
+    /// Two parts claimed one (node, body). Each drawn body owns one
+    /// window of each entity kind, and a second part for the same
+    /// address would leave one of them answering for the other's
+    /// entities — a plausible, confidently wrong name rather than a
+    /// failure. `NodePick::build_all` enumerates a node's bodies once
+    /// so this is unreachable; it is a refusal rather than an
+    /// assumption because of what it would cost to be wrong.
+    DrawnTwice {
+        /// The node drawn twice.
+        node: RecipeNodeId,
+        /// The output body drawn twice.
+        body: u32,
+    },
 }
 
 impl core::fmt::Display for IdMapError {
@@ -331,24 +350,334 @@ impl core::fmt::Display for IdMapError {
 impl core::error::Error for IdMapError {}
 
 impl core::fmt::Display for PickIndexError {
-    /// The [`PickIndexError::Ids`] arm forwards to [`IdMapError`]'s own
-    /// `Display`. The [`PickIndexError::Node`] arm cannot forward:
-    /// `editor-core`'s `NodePickError` has no `Display`, so its value
-    /// reaches a reader as a debug rendering until it grows one (issue
-    /// #1111). The root it names is this layer's own contribution.
+    /// The arms that carry somebody else's refusal forward to its own
+    /// `Display`: the layer that raised a failure names it, and this
+    /// one does not restate it. The root the [`PickIndexError::Node`]
+    /// arm reports is this layer's own contribution — the payload
+    /// names the body, not the root that owns it. The layout arm is
+    /// this layer's own finding and says so itself.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Node { node, error } => write!(
                 f,
-                "root {}'s bodies could not be tessellated or indexed: {error:?}",
+                "root {}'s bodies could not be tessellated or indexed: {error}",
                 node.0
             ),
             Self::Ids(error) => write!(f, "{error}"),
+            Self::DrawnTwice { node, body } => write!(
+                f,
+                "body {} of node {} is drawn by two parts; one drawn body is one part",
+                body, node.0
+            ),
         }
     }
 }
 
 impl core::error::Error for PickIndexError {}
+
+/// One kind of drawn entity, for [`PartWindows`]: where a part's names
+/// of that kind come from, and how one of them is addressed.
+///
+/// **This parameterises the WINDOW, not the ADDRESS.** The two shipped
+/// kinds address themselves differently on purpose. A patch's id is
+/// GLOBAL — assigned `1, 2, 3, …` across every part, so
+/// [`PickIndex::name_of`] is a flat lookup with no window to check and
+/// none needed. An edge's address is the `(node, body, boundary)`
+/// triple [`EdgeId`], whose position counts from the start of ITS OWN
+/// body, so [`PickIndex::edge_name_of`] must check the window: without
+/// it a boundary past the end of one body reads the NEXT body's name,
+/// a plausible and confidently wrong answer (#1098). [`Self::address`]
+/// is handed both coordinates and takes the one its kind speaks, which
+/// is where that difference is stated once instead of being spread
+/// across two parallel implementations.
+trait DrawnKind {
+    /// How one drawn entity of this kind is addressed.
+    type Id: Copy + PartialEq + core::fmt::Debug;
+
+    /// One part's names of this kind, in position order.
+    ///
+    /// **The window's length is the length of THIS list**, for both
+    /// kinds — the window indexes into the names, so the names are
+    /// what say how long it is. Pairing the kind with its own name
+    /// source here is also what stops a caller handing patch names to
+    /// the edge window.
+    fn names_of(part: &NodePick, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>>;
+
+    /// The address of the entity at `position` in the part drawing
+    /// `(node, body)`, which is at `flat` in the whole index.
+    fn address(node: RecipeNodeId, body: u32, position: usize, flat: usize) -> Self::Id;
+}
+
+/// The drawn face patches — addressed by the GLOBAL id an id buffer
+/// holds.
+#[derive(Debug)]
+struct Patches;
+
+impl DrawnKind for Patches {
+    type Id = u32;
+
+    fn names_of(part: &NodePick, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>> {
+        part.patch_names(eval)
+    }
+
+    fn address(_node: RecipeNodeId, _body: u32, _position: usize, flat: usize) -> u32 {
+        // The ids are `1..=n` in flat order — the assignment
+        // [`IdMap::build`] makes, taken here so the id map and the
+        // windows cannot disagree about which id is which patch.
+        // The cast cannot lose an id that anyone sees: `IdMap::build`
+        // refuses a count a `u32` cannot address, and it runs on these
+        // same windows before the index is returned.
+        flat as u32 + 1
+    }
+}
+
+/// The drawn edge polylines — addressed by the per-body triple.
+#[derive(Debug)]
+struct Edges;
+
+impl DrawnKind for Edges {
+    type Id = EdgeId;
+
+    fn names_of(part: &NodePick, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>> {
+        part.boundary_names(eval)
+    }
+
+    fn address(node: RecipeNodeId, body: u32, position: usize, _flat: usize) -> EdgeId {
+        EdgeId {
+            node,
+            body,
+            boundary: position,
+        }
+    }
+}
+
+/// One part's run of one entity kind, in the flat list.
+#[derive(Clone, Copy, Debug)]
+struct PartWindow {
+    /// The node the part draws for.
+    node: RecipeNodeId,
+    /// Which output body of it.
+    body: u32,
+    /// Where the run starts in the flat list.
+    start: usize,
+    /// How long the run is.
+    len: usize,
+}
+
+/// Why a per-part window answers no name at an address — the kind-free
+/// half of [`EdgeNameFault`], which is this plus the address asked for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WindowFault {
+    /// No part draws that (node, body).
+    NotDrawn,
+    /// The position is past the end of a window that IS drawn.
+    OutOfRange {
+        /// How many entities that window holds.
+        drawn: usize,
+    },
+    /// The entity is drawn but its node's table has no name for it.
+    Unnamed(HitTestError),
+}
+
+/// **Where one part's window of drawn entities lives** — the parts in
+/// order, each part's contiguous run of entity `K`, the flat names
+/// parallel to it, and the `(node, body)` narrowing.
+///
+/// One structure, instantiated once per entity kind, because the
+/// layout is the same idea each time and the failure it prevents is
+/// the same failure: every door below is TOTAL, so a window that
+/// reaches one entity too far does not fail, it answers the next
+/// body's name (#1098). Two hand-parallel copies of that reasoning
+/// are two chances to get it wrong and one place to notice.
+///
+/// **What this deliberately does not own.** The addresses stay
+/// different (see [`DrawnKind`]). So does the marking — a face is
+/// tinted by id and an edge is drawn as geometry, which is a renderer
+/// difference and not a window one. So does [`IdMap`]: the id buffer's
+/// bijection is the GPU's business, and this hands it its keys rather
+/// than becoming it.
+#[derive(Debug)]
+struct PartWindows<K: DrawnKind> {
+    /// The windows in part order — the order the parts are laid out
+    /// in, so a reader of one can predict the other.
+    windows: Vec<PartWindow>,
+    /// Which window each drawn (node, body) has, as a position in
+    /// [`Self::windows`]. One part per (node, body): `push` refuses a
+    /// second rather than overwriting the first.
+    by_target: BTreeMap<(RecipeNodeId, u32), usize>,
+    /// Every drawn entity, part by part.
+    entities: Vec<K::Id>,
+    /// Every drawn entity's name, parallel to [`Self::entities`] —
+    /// `Err` for the loud unnamed-entity bug arm, which is one
+    /// entity's problem and not the index's.
+    names: Vec<Result<StableName, HitTestError>>,
+    /// The inverse of [`Self::names`], across every part. A name can
+    /// be drawn under several (node, body) pairs — two `Transform`
+    /// roots over one extrude carry the extrude's names on both drawn
+    /// copies — which is why the value is a list and why
+    /// [`Self::of_target`] narrows it.
+    by_name: BTreeMap<StableName, Vec<K::Id>>,
+}
+
+impl<K: DrawnKind> PartWindows<K> {
+    /// An index over no parts at all.
+    fn new() -> Self {
+        Self {
+            windows: Vec::new(),
+            by_target: BTreeMap::new(),
+            entities: Vec::new(),
+            names: Vec::new(),
+            by_name: BTreeMap::new(),
+        }
+    }
+
+    /// Append one part's run, in part order.
+    ///
+    /// # Errors
+    ///
+    /// [`PickIndexError::DrawnTwice`] when a part for that
+    /// (node, body) is already here.
+    fn push(&mut self, part: &NodePick, eval: &Evaluation<f64>) -> Result<(), PickIndexError> {
+        self.push_names(part.node(), part.body(), K::names_of(part, eval))
+    }
+
+    /// [`Self::push`] over a name list directly — the seam a row can
+    /// hand a run of any length, including none.
+    fn push_names(
+        &mut self,
+        node: RecipeNodeId,
+        body: u32,
+        names: Vec<Result<StableName, HitTestError>>,
+    ) -> Result<(), PickIndexError> {
+        if self.by_target.contains_key(&(node, body)) {
+            // Two parts drawing one (node, body) would leave the
+            // second silently answering for the first's entities.
+            // `NodePick::build_all` enumerates each node's bodies
+            // once, so this cannot happen — said as a refusal rather
+            // than as an assumption, because the cost of it being
+            // wrong is a confidently wrong name.
+            return Err(PickIndexError::DrawnTwice { node, body });
+        }
+        let start = self.entities.len();
+        for (position, name) in names.into_iter().enumerate() {
+            let flat = start + position;
+            let id = K::address(node, body, position, flat);
+            if let Ok(name) = &name {
+                self.by_name.entry(name.clone()).or_default().push(id);
+            }
+            self.entities.push(id);
+            self.names.push(name);
+        }
+        self.by_target.insert((node, body), self.windows.len());
+        self.windows.push(PartWindow {
+            node,
+            body,
+            start,
+            len: self.entities.len() - start,
+        });
+        Ok(())
+    }
+
+    /// The window one (node, body) draws, or `None` when none does.
+    fn window(&self, node: RecipeNodeId, body: u32) -> Option<&PartWindow> {
+        self.windows.get(*self.by_target.get(&(node, body))?)
+    }
+
+    /// Every entity one (node, body) draws, in position order.
+    fn in_target(&self, node: RecipeNodeId, body: u32) -> &[K::Id] {
+        let Some(window) = self.window(node, body) else {
+            return &[];
+        };
+        self.entities
+            .get(window.start..window.start + window.len)
+            .unwrap_or_default()
+    }
+
+    /// Every entity one NODE draws, across all its output bodies.
+    ///
+    /// A node's windows are consecutive — the parts are laid out in
+    /// root-then-payload order — but this collects rather than
+    /// slicing, because "consecutive across bodies" is a property of
+    /// the build walk rather than a documented postcondition of the
+    /// layout, and a highlight is not worth resting on it.
+    fn of_node(&self, node: RecipeNodeId) -> Vec<K::Id> {
+        self.by_target
+            .iter()
+            .filter(|((drawn, _), _)| *drawn == node)
+            .flat_map(|(&(node, body), _)| self.in_target(node, body))
+            .copied()
+            .collect()
+    }
+
+    /// The name at a FLAT position — the door a GLOBAL address reads
+    /// through, which is why it takes no window.
+    fn name_at(&self, flat: usize) -> Option<&Result<StableName, HitTestError>> {
+        self.names.get(flat)
+    }
+
+    /// The name at a position WITHIN one part's window, or the typed
+    /// reason there is none — the door a PER-BODY address reads
+    /// through, and the window check is the whole point of it.
+    fn name_in(
+        &self,
+        node: RecipeNodeId,
+        body: u32,
+        position: usize,
+    ) -> Result<&StableName, WindowFault> {
+        let window = self.window(node, body).ok_or(WindowFault::NotDrawn)?;
+        if position >= window.len {
+            return Err(WindowFault::OutOfRange { drawn: window.len });
+        }
+        match self.names.get(window.start + position) {
+            Some(Ok(name)) => Ok(name),
+            Some(Err(error)) => Err(WindowFault::Unnamed(*error)),
+            // Unreachable: the window is a range of `names`, and the
+            // two are filled in one pass. Reported as the address
+            // fault it would be rather than degraded to a miss.
+            None => Err(WindowFault::OutOfRange { drawn: window.len }),
+        }
+    }
+
+    /// Every entity a name is drawn as, across every part.
+    fn of_name(&self, name: &StableName) -> &[K::Id] {
+        self.by_name.get(name).map_or(&[], Vec::as_slice)
+    }
+
+    /// The entities a name denotes ON ONE (node, body) — the
+    /// narrowing a selection means.
+    ///
+    /// **At most one**, by the name table's bidirectionality (N4) —
+    /// but answered as a list rather than an `Option` so a caller
+    /// reads the narrowing rather than trusting it, and so a
+    /// naming-emission bug that broke the bijection shows as a wider
+    /// answer instead of a silently chosen one.
+    fn of_target(&self, node: RecipeNodeId, body: u32, name: &StableName) -> Vec<K::Id> {
+        let scope = self.in_target(node, body);
+        self.of_name(name)
+            .iter()
+            .copied()
+            .filter(|id| scope.contains(id))
+            .collect()
+    }
+}
+
+impl PartWindows<Patches> {
+    /// The `PatchId` of every drawn patch, in id order — [`IdMap`]'s
+    /// input, derived from the windows themselves so the id map cannot
+    /// disagree with them about which patch is where.
+    fn patch_keys(&self) -> Vec<PatchId> {
+        self.windows
+            .iter()
+            .flat_map(|window| {
+                (0..window.len).map(|patch| PatchId {
+                    node: window.node,
+                    body: window.body,
+                    patch,
+                })
+            })
+            .collect()
+    }
+}
 
 /// The pick index for one evaluation generation.
 ///
@@ -361,45 +690,17 @@ pub struct PickIndex {
     delta: DisplayTolerance,
     parts: Vec<NodePick>,
     ids: IdMap,
-    /// The assigned ids in key order — `1, 2, 3, …`. Materialized
-    /// because [`PickIndex::scene`] hands each part a SLICE of its
-    /// own patches' ids, and a slice needs storage to point at.
-    id_slice: Vec<u32>,
-    /// Every drawn patch's stable name, parallel to the id map's
-    /// entries — `Err` for the loud unnamed-face bug arm, which is one
-    /// patch's problem and not the index's.
-    names: Vec<Result<StableName, HitTestError>>,
-    /// The inverse of `names`: which ids a name is drawn as.
+    /// The drawn face patches, part by part — the ids, their names,
+    /// and the windows the narrowing reads.
     ///
-    /// **A `Vec` because a name can be drawn under several
-    /// (node, body) pairs** — two `Transform` roots over one extrude is
-    /// legal, a transform contributes no role segment, so both drawn
-    /// copies carry the extrude's names. It is NOT a `Vec` because a
-    /// name can repeat WITHIN one (node, body): a node's name table is
-    /// bidirectional (N4), so one name denotes at most one entity of
-    /// one body, and [`PickIndex::ids_in`] therefore narrows this list
-    /// to at most one id. That is the whole reason a `FaceSelection`
-    /// carries its `node` and `body` beside the name.
-    by_name: BTreeMap<StableName, Vec<u32>>,
-    /// Which ids belong to each drawn (node, body), as a contiguous
-    /// window into `id_slice` — the parts are laid out in that order,
-    /// so a window is all the bookkeeping this needs.
-    ///
-    /// The primitive the highlight is built on. Without it the only
-    /// question this index could answer was "which ids share a name",
-    /// which is the wrong question whenever a name is drawn twice.
-    by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)>,
-    /// Every drawn edge polyline, in part order then boundary order —
-    /// the edge twin of the patch layout above, and laid out the same
-    /// way so one body's edges are a contiguous run.
-    edges: Vec<EdgeId>,
-    /// Every drawn edge's stable name, parallel to [`PickIndex::edges`]
-    /// — `Err` for the loud unnamed-entity bug arm, which is one
-    /// polyline's problem and not the index's.
-    edge_names: Vec<Result<StableName, HitTestError>>,
-    /// Which entries of [`PickIndex::edges`] belong to each drawn
-    /// (node, body), as a contiguous window.
-    edges_by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)>,
+    /// The primitive the highlight is built on. Without the windows
+    /// the only question this index could answer was "which ids share
+    /// a name", which is the wrong question whenever a name is drawn
+    /// twice.
+    patches: PartWindows<Patches>,
+    /// The drawn edge polylines, part by part — the same layout over
+    /// the same parts, in the same order, built in the same walk.
+    edges: PartWindows<Edges>,
 }
 
 impl PickIndex {
@@ -430,66 +731,24 @@ impl PickIndex {
                 Err(error) => return Err(PickIndexError::Node { node, error }),
             }
         }
-        let mut keys: Vec<PatchId> = Vec::new();
-        let mut names: Vec<Result<StableName, HitTestError>> = Vec::new();
+        // ONE walk over the parts, appending to both kinds' windows.
+        // The two layouts agreeing about part order is then a property
+        // of this loop existing once, rather than of two loops being
+        // written the same way.
+        let mut patches = PartWindows::<Patches>::new();
+        let mut edges = PartWindows::<Edges>::new();
         for part in &parts {
-            for (patch, name) in part.patch_names(eval).into_iter().enumerate() {
-                keys.push(PatchId {
-                    node: part.node(),
-                    body: part.body(),
-                    patch,
-                });
-                names.push(name);
-            }
+            patches.push(part, eval)?;
+            edges.push(part, eval)?;
         }
-        let ids = IdMap::build(keys).map_err(PickIndexError::Ids)?;
-        let mut by_name: BTreeMap<StableName, Vec<u32>> = BTreeMap::new();
-        for (index, name) in names.iter().enumerate() {
-            if let Ok(name) = name {
-                // `index + 1` is the id `IdMap::build` assigned to the
-                // key at the same position; the two lists are built in
-                // one pass above, which is what keeps them parallel.
-                by_name
-                    .entry(name.clone())
-                    .or_default()
-                    .push(index as u32 + 1);
-            }
-        }
-        let id_slice: Vec<u32> = ids.ids().collect();
-        let mut by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)> = BTreeMap::new();
-        let mut next = 0usize;
-        for part in &parts {
-            let patches = part.mesh().patches.len();
-            by_target.insert((part.node(), part.body()), (next, patches));
-            next += patches;
-        }
-        let mut edges: Vec<EdgeId> = Vec::new();
-        let mut edge_names: Vec<Result<StableName, HitTestError>> = Vec::new();
-        let mut edges_by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)> = BTreeMap::new();
-        for part in &parts {
-            let start = edges.len();
-            for (boundary, name) in part.boundary_names(eval).into_iter().enumerate() {
-                edges.push(EdgeId {
-                    node: part.node(),
-                    body: part.body(),
-                    boundary,
-                });
-                edge_names.push(name);
-            }
-            edges_by_target.insert((part.node(), part.body()), (start, edges.len() - start));
-        }
+        let ids = IdMap::build(patches.patch_keys()).map_err(PickIndexError::Ids)?;
         Ok(Self {
             generation,
             delta,
             parts,
             ids,
-            id_slice,
-            names,
-            by_name,
-            by_target,
+            patches,
             edges,
-            edge_names,
-            edges_by_target,
         })
     }
 
@@ -525,15 +784,21 @@ impl PickIndex {
     ///
     /// `None` for [`IdMap::NOTHING`] and for an id this index did not
     /// assign; `Some(Err(_))` for the loud unnamed-face bug arm.
+    /// **A flat lookup, with no window check and none needed**: a
+    /// patch id is a GLOBAL address, assigned across every part, so
+    /// there is no next body for it to run into. That is the
+    /// difference [`PickIndex::edge_name_of`] carries a window check
+    /// for.
     pub fn name_of(&self, id: u32) -> Option<&Result<StableName, HitTestError>> {
-        self.names.get(usize::try_from(id.checked_sub(1)?).ok()?)
+        self.patches
+            .name_at(usize::try_from(id.checked_sub(1)?).ok()?)
     }
 
     /// The ids a name is drawn as — **the id map's inverse**, across
     /// every drawn (node, body). A name drawn twice answers two ids;
     /// which of them a SELECTION means is [`PickIndex::ids_of_target`].
     pub fn ids_of(&self, name: &StableName) -> &[u32] {
-        self.by_name.get(name).map_or(&[], Vec::as_slice)
+        self.patches.of_name(name)
     }
 
     /// Every id drawn for one (node, body), ascending.
@@ -542,10 +807,7 @@ impl PickIndex {
     /// assigns ids in that same walk, so one body's ids are a
     /// contiguous run and this is a slice rather than a search.
     pub fn ids_in(&self, node: RecipeNodeId, body: u32) -> &[u32] {
-        let Some(&(start, len)) = self.by_target.get(&(node, body)) else {
-            return &[];
-        };
-        self.id_slice.get(start..start + len).unwrap_or_default()
+        self.patches.in_target(node, body)
     }
 
     /// Every id drawn for one NODE, across all its output bodies.
@@ -556,14 +818,7 @@ impl PickIndex {
     /// property of the build loop rather than a documented postcondition
     /// of the layout, and a highlight is not worth resting on it.
     pub fn ids_of_node(&self, node: RecipeNodeId) -> Vec<u32> {
-        self.by_target
-            .iter()
-            .filter(|((drawn, _), _)| *drawn == node)
-            .flat_map(|(_, &(start, len))| {
-                self.id_slice.get(start..start + len).unwrap_or_default()
-            })
-            .copied()
-            .collect()
+        self.patches.of_node(node)
     }
 
     /// The ids a face selection denotes: the ids of its NAME, narrowed
@@ -575,12 +830,7 @@ impl PickIndex {
     /// bug that broke the bijection would show as a wider answer
     /// instead of a silently chosen one.
     pub fn ids_of_target(&self, face: &FaceSelection) -> Vec<u32> {
-        let scope = self.ids_in(face.node, face.body);
-        self.ids_of(&face.name)
-            .iter()
-            .copied()
-            .filter(|id| scope.contains(id))
-            .collect()
+        self.patches.of_target(face.node, face.body, &face.name)
     }
 
     /// The drawable scene for this index: every part, carrying the ids
@@ -633,14 +883,12 @@ impl PickIndex {
         focus: &std::collections::BTreeSet<u32>,
     ) -> Result<SceneMesh, SceneError> {
         let mut parts: Vec<ScenePart<'_>> = Vec::with_capacity(self.parts.len());
-        let mut next = 0usize;
         for part in &self.parts {
-            let patches = part.mesh().patches.len();
-            // The id list is contiguous per part in `IdMap` order,
-            // because the keys were pushed part by part in exactly
-            // this order — the same loop that built `names`.
-            let ids = self.id_slice.get(next..next + patches).unwrap_or_default();
-            next += patches;
+            // The part's own window, looked up rather than recounted:
+            // a third walk over the parts, recomputing what the window
+            // index already holds, is a third chance to disagree with
+            // it about where a part's run starts.
+            let ids = self.patches.in_target(part.node(), part.body());
             if display.hidden_roots.contains(&part.node()) {
                 continue;
             }
@@ -806,10 +1054,7 @@ impl PickIndex {
     /// root-then-payload order and walks each part's boundaries in
     /// order, so one body's edges are a contiguous run.
     pub fn edges_in(&self, node: RecipeNodeId, body: u32) -> &[EdgeId] {
-        let Some(&(start, len)) = self.edges_by_target.get(&(node, body)) else {
-            return &[];
-        };
-        self.edges.get(start..start + len).unwrap_or_default()
+        self.edges.in_target(node, body)
     }
 
     /// The name of the edge `id` denotes, or the typed reason there is
@@ -830,34 +1075,21 @@ impl PickIndex {
     ///
     /// [`EdgeNameFault`], per arm.
     pub fn edge_name_of(&self, id: EdgeId) -> Result<&StableName, EdgeNameFault> {
-        let &(start, len) =
-            self.edges_by_target
-                .get(&(id.node, id.body))
-                .ok_or(EdgeNameFault::NotDrawn {
+        self.edges
+            .name_in(id.node, id.body, id.boundary)
+            .map_err(|fault| match fault {
+                WindowFault::NotDrawn => EdgeNameFault::NotDrawn {
                     node: id.node,
                     body: id.body,
-                })?;
-        if id.boundary >= len {
-            return Err(EdgeNameFault::OutOfRange {
-                node: id.node,
-                body: id.body,
-                boundary: id.boundary,
-                drawn: len,
-            });
-        }
-        match self.edge_names.get(start + id.boundary) {
-            Some(Ok(name)) => Ok(name),
-            Some(Err(error)) => Err(EdgeNameFault::Unnamed(*error)),
-            // Unreachable: the window is a range of `edge_names`, and
-            // the two are built in one pass. Reported as the address
-            // fault it would be rather than degraded to a miss.
-            None => Err(EdgeNameFault::OutOfRange {
-                node: id.node,
-                body: id.body,
-                boundary: id.boundary,
-                drawn: len,
-            }),
-        }
+                },
+                WindowFault::OutOfRange { drawn } => EdgeNameFault::OutOfRange {
+                    node: id.node,
+                    body: id.body,
+                    boundary: id.boundary,
+                    drawn,
+                },
+                WindowFault::Unnamed(error) => EdgeNameFault::Unnamed(error),
+            })
     }
 
     /// The drawn edges an edge selection denotes: the edges of its own
@@ -868,11 +1100,7 @@ impl PickIndex {
     /// is: a naming-emission bug that broke the bijection shows as a
     /// wider answer instead of a silently chosen one.
     pub fn edges_of_target(&self, edge: &EdgeSelection) -> Vec<EdgeId> {
-        self.edges_in(edge.node, edge.body)
-            .iter()
-            .copied()
-            .filter(|id| matches!(self.edge_name_of(*id), Ok(name) if *name == edge.name))
-            .collect()
+        self.edges.of_target(edge.node, edge.body, &edge.name)
     }
 
     /// The tessellated part drawing one (node, body).
@@ -1530,8 +1758,8 @@ pub enum EdgeNameFault {
 }
 
 impl core::fmt::Display for EdgeNameFault {
-    /// The `Unnamed` arm carries `editor-core`'s own value, which has
-    /// no `Display` yet (issue #1111) and so renders as a debug form.
+    /// The `Unnamed` arm forwards to the carried value's own
+    /// `Display`: the naming layer named that failure.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NotDrawn { node, body } => write!(
@@ -1549,7 +1777,7 @@ impl core::fmt::Display for EdgeNameFault {
                 "edge {boundary} of body {body} on node {}: that body draws {drawn} edges, so                  this address was not one this index handed out",
                 node.0
             ),
-            Self::Unnamed(error) => write!(f, "a drawn edge has no name: {error:?}"),
+            Self::Unnamed(error) => write!(f, "a drawn edge has no name: {error}"),
         }
     }
 }
@@ -1559,15 +1787,13 @@ impl core::error::Error for EdgeNameFault {}
 impl core::fmt::Display for PickError {
     /// The rule this crate follows is that the layer which raised a
     /// failure names it, never a sentence composed here about somebody
-    /// else's refusal. [`PickError::Camera`] forwards to
-    /// [`CameraError`]'s own `Display`. [`PickError::HitTest`] cannot:
-    /// `editor-core`'s `HitTestError` has no `Display`, so its value
-    /// reaches a reader as a debug rendering until it grows one (issue
-    /// #1111).
+    /// else's refusal. Every arm forwards to its payload's own
+    /// `Display` — [`CameraError`], `editor-core`'s `HitTestError`,
+    /// and [`EdgeNameFault`] each name their own failure.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Camera(error) => write!(f, "the cursor names no ray: {error}"),
-            Self::HitTest(error) => write!(f, "the hit test refused: {error:?}"),
+            Self::HitTest(error) => write!(f, "the hit test refused: {error}"),
             Self::EdgeName(fault) => write!(f, "the picked edge has no name: {fault}"),
         }
     }
@@ -2083,5 +2309,180 @@ impl PickCache {
     /// Why the last attempt refused, if it did.
     pub fn error(&self) -> Option<&PickIndexError> {
         self.error.as_ref()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! The window primitive at the addresses a document cannot reach.
+    //!
+    //! Everything a real document draws is checked against a second,
+    //! hand-walked implementation of the layout in the `pick_windows`
+    //! suite. What that cannot reach is a part drawing NONE of a kind
+    //! and two parts claiming one (node, body): the first is not
+    //! constructible through the tessellator, the second is what
+    //! `NodePick::build_all` exists to prevent. Both are properties of
+    //! this structure, so they are checked at it.
+
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use super::*;
+    use pncad::select::EntityKind;
+
+    /// A name, distinct per `tag`, with no derivation to read.
+    fn name(tag: u64) -> StableName {
+        StableName {
+            kind: EntityKind::Edge,
+            node: RecipeNodeId(tag),
+            path: Vec::new(),
+        }
+    }
+
+    /// `count` names, `tag`-distinct, as one part's run.
+    fn run(tag: u64, count: u64) -> Vec<Result<StableName, HitTestError>> {
+        (0..count).map(|i| Ok(name(tag * 100 + i))).collect()
+    }
+
+    /// A part that draws none of a kind still OWNS a window: it is
+    /// drawn, so an address into it is out of range rather than not
+    /// drawn, and the parts on either side keep their own runs.
+    #[test]
+    fn a_part_drawing_none_of_a_kind_owns_an_empty_window() {
+        let mut windows = PartWindows::<Edges>::new();
+        windows
+            .push_names(RecipeNodeId(1), 0, run(1, 2))
+            .expect("the first part");
+        windows
+            .push_names(RecipeNodeId(2), 0, Vec::new())
+            .expect("a part with no entities of this kind");
+        windows
+            .push_names(RecipeNodeId(3), 0, run(3, 2))
+            .expect("the last part");
+
+        assert!(windows.in_target(RecipeNodeId(2), 0).is_empty());
+        assert_eq!(
+            windows.name_in(RecipeNodeId(2), 0, 0),
+            Err(WindowFault::OutOfRange { drawn: 0 }),
+            "drawn, and holding nothing, is not the same as not drawn"
+        );
+        assert_eq!(
+            windows.name_in(RecipeNodeId(4), 0, 0),
+            Err(WindowFault::NotDrawn)
+        );
+        // The empty window moved nothing: the last part still answers
+        // its own two entities, at its own boundary positions.
+        assert_eq!(
+            windows.in_target(RecipeNodeId(3), 0),
+            &[
+                EdgeId {
+                    node: RecipeNodeId(3),
+                    body: 0,
+                    boundary: 0
+                },
+                EdgeId {
+                    node: RecipeNodeId(3),
+                    body: 0,
+                    boundary: 1
+                },
+            ]
+        );
+        assert_eq!(windows.name_in(RecipeNodeId(3), 0, 0), Ok(&name(300)));
+    }
+
+    /// **The #1098 shape, at the structure.** The entity one past the
+    /// end of a window IS in the flat list — it is the next part's
+    /// first — so the window check is the only thing between the
+    /// caller and a plausible, confidently wrong name.
+    #[test]
+    fn an_address_past_a_window_refuses_rather_than_reading_the_next_part() {
+        let mut windows = PartWindows::<Edges>::new();
+        windows
+            .push_names(RecipeNodeId(1), 0, run(1, 2))
+            .expect("the first part");
+        windows
+            .push_names(RecipeNodeId(1), 1, run(2, 2))
+            .expect("a second body of the same node");
+
+        assert_eq!(
+            windows.name_at(2),
+            Some(&Ok(name(200))),
+            "the flat position past the first window holds the second's"
+        );
+        assert_eq!(
+            windows.name_in(RecipeNodeId(1), 0, 2),
+            Err(WindowFault::OutOfRange { drawn: 2 }),
+            "and the window refuses it"
+        );
+        assert_eq!(windows.name_in(RecipeNodeId(1), 1, 0), Ok(&name(200)));
+    }
+
+    /// One drawn body is one part. A second claiming the same address
+    /// is refused, not overwritten.
+    #[test]
+    fn one_drawn_body_is_one_part() {
+        let mut windows = PartWindows::<Edges>::new();
+        windows
+            .push_names(RecipeNodeId(1), 0, run(1, 2))
+            .expect("the first part");
+        assert_eq!(
+            windows.push_names(RecipeNodeId(1), 0, run(9, 3)),
+            Err(PickIndexError::DrawnTwice {
+                node: RecipeNodeId(1),
+                body: 0,
+            })
+        );
+        assert_eq!(
+            windows.in_target(RecipeNodeId(1), 0).len(),
+            2,
+            "the refused part changed nothing"
+        );
+        assert_eq!(windows.name_in(RecipeNodeId(1), 0, 0), Ok(&name(100)));
+    }
+
+    /// The id map's keys are the windows' own entities, so the two
+    /// cannot disagree about which patch an id names.
+    #[test]
+    fn the_patch_keys_follow_the_windows() {
+        let mut windows = PartWindows::<Patches>::new();
+        windows
+            .push_names(RecipeNodeId(1), 0, run(1, 2))
+            .expect("the first part");
+        windows
+            .push_names(RecipeNodeId(2), 3, run(2, 1))
+            .expect("the second part");
+
+        let keys = windows.patch_keys();
+        assert_eq!(
+            keys,
+            vec![
+                PatchId {
+                    node: RecipeNodeId(1),
+                    body: 0,
+                    patch: 0
+                },
+                PatchId {
+                    node: RecipeNodeId(1),
+                    body: 0,
+                    patch: 1
+                },
+                PatchId {
+                    node: RecipeNodeId(2),
+                    body: 3,
+                    patch: 0
+                },
+            ]
+        );
+        // The ids the windows minted are the ids the map assigns to
+        // those keys, in that order.
+        let ids = IdMap::build(keys).expect("a bijection");
+        assert_eq!(windows.in_target(RecipeNodeId(1), 0), &[1, 2]);
+        assert_eq!(windows.in_target(RecipeNodeId(2), 3), &[3]);
+        for (flat, id) in ids.ids().enumerate() {
+            assert_eq!(
+                windows.entities[flat], id,
+                "the window's id is the map's id"
+            );
+        }
     }
 }

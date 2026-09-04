@@ -103,7 +103,7 @@
 //!
 //! # [`crate::Bounds`] yes, [`crate::CertifiedEnclosure`] no
 //!
-//! A dual **carries a bracket** and **may not certify** — ruled by Evan,
+//! A dual **carries a bracket** and **may not certify** — ruled by Ev,
 //! 2026-08-19: *a `Dual` may not certify — at least for now — but it may
 //! have `Bounds`* — separable only because #643 made those two traits
 //! instead of one.
@@ -731,7 +731,7 @@ where
 
 /// **The bracket is the value channel; the tangent is not in it.**
 ///
-/// Ruled by Evan, 2026-08-19: *a `Dual` may not certify — at least for
+/// Ruled by Ev, 2026-08-19: *a `Dual` may not certify — at least for
 /// now — but it may have [`Bounds`].* The two halves are separable only
 /// because #643 split them into two traits; this takes the first and
 /// leaves the second alone. ***At least for now* is part of the ruling**:
@@ -789,7 +789,7 @@ where
 /// boxes, pruning, the `f64` margin payloads a typed refusal reports,
 /// and **selections**, which are the ones with a condition on them: a
 /// frozen `f64` choice is free of the tangent only while the quantity
-/// chosen is locally constant in the input. `geom::projection::mid` is
+/// chosen is locally constant in the input. `geom::projection_policy::mid` is
 /// where that condition currently fails, and is issue **#874**.
 /// One `Decide + Bounds` door *grants* without that guard
 /// (`topo::separation`, sound at a dual by delegation); the scope rule in

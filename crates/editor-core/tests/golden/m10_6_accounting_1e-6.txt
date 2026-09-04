@@ -1,0 +1,16 @@
+== planted_flip
+basis priced
+certified 3fe3f80000000000
+refused budget 3fd0180000000037
+refused flip_crossing 3fbfe00000000000
+tail 0000000000000000
+unresolved 3fd8100000000037
+containment false
+== terminal_sliver
+basis priced
+certified 3feaaaaaa0000000
+refused budget 3e7000000015d000
+refused sliver_terminal 3fc55554fffffffc
+tail 0000000000000000
+unresolved 3fc555557ffffffd
+containment false

@@ -13,7 +13,7 @@ use sweep::loft_body;
 use sweep::test_support::swept_elbow;
 use topo::Body;
 
-mod common;
+use crate::common;
 use common::quad;
 use geom_core::Tol;
 
@@ -89,26 +89,24 @@ const Z1_DELTAS: [f64; 2] = [3e-2, 6e-3];
 /// ci.yml's "mesh budget meter + certificate falsifier
 /// (feature = budget)" row (mirrored by local-scripts/ci-local.sh).
 ///
-/// **FREQUENCY, corrected 2026-08-22 — this row is no longer
-/// unconditional.** That step rides `k-lint`'s `dev-budget` feature
-/// row, and `k-lint` now SAMPLES one of its five feature unifications
-/// per run, so the falsifier runs on an expected 1 run in 5 rather than
-/// on every build-triggering change. The draw is seeded from the head
-/// SHA under its own salt, so a re-run of one commit draws the same row
-/// and the draw is recoverable from the SHA without the logs;
-/// repetition covers the matrix at this repository's ~60 runs/hour of
-/// active work.
+/// **FREQUENCY: unconditional, which is M8-5 MIN-1's intent as it was
+/// written.** That step rides `k-lint`'s `dev-budget` feature row, and
+/// every code-tier run gates all five of that job's unifications as five
+/// matrix legs, so the falsifier runs on every build-triggering change.
 ///
-/// M8-5 MIN-1's intent survives the change, and the reason is specific
-/// rather than reassuring: this row is a PERSISTENCE detector. A
+/// **It was 1 run in 5 from 2026-08-22 to 2026-09-04**, when the row was
+/// drawn from the head SHA and this comment said MIN-1's intent was met
+/// in a weaker form. It is not weaker now. What licensed the draw while
+/// it lasted is worth keeping, because it is what a future draw would
+/// have to argue again: this row is a PERSISTENCE detector — a
 /// certificate that stopped dominating its own samples stays broken in
-/// the tree, so a later draw still finds it — the red is deferred, not
-/// lost. Sampling would NOT be sound for a detector of absence (a row
-/// deleted, or a gate sited where it cannot fire), because an absence
-/// merges silently once and leaves no future red; that class stays
-/// unconditional elsewhere in CI. What has moved, twice now, is which
-/// build the row rides in and how often it is drawn — never whether
-/// the claim is checked.
+/// the tree, so a later draw still found it, and the red was deferred
+/// rather than lost. Sampling would NOT be sound for a detector of
+/// absence (a row deleted, or a gate sited where it cannot fire),
+/// because an absence merges silently once and leaves no future red;
+/// that class stays unconditional elsewhere in CI. What has moved,
+/// three times now, is which build the row rides in and how often —
+/// never whether the claim is checked.
 ///
 /// The ASSERTION is here and not in the tessellation lane, which is
 /// what keeps `mesh::tessellate`'s typed-error contract out of reach

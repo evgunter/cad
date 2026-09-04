@@ -1,21 +1,25 @@
-//! **The dispatch adds nothing**: `Verb::run` and the op door it calls
-//! produce the same body, the same birth record and the same refusal.
+//! **The dispatch adds nothing**: the run doors and the op doors they
+//! call produce the same body, the same birth record and the same
+//! refusal.
 //!
 //! The point of the crate is that a caller can address an operation by
 //! its NAME and get exactly what the door gives. These rows are what
 //! makes that checkable: they run both paths on the same fixture and
 //! compare bit-for-bit, so a dispatch that reordered arguments, dropped
 //! a parameter or re-derived a band would red here rather than showing
-//! up as drifted geometry three layers up.
+//! up as drifted geometry three layers up. The arity rows at the end
+//! are the run doors' one own decision — refusing the operand count a
+//! verb does not declare — exercised in both directions so neither
+//! mismatch arm is untested code.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::fmt::Write as _;
 
-use geom_core::Tol;
+use geom_core::{Affine3, Tol, Vec3};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
-use topo::Body;
-use verbs::{Verb, VerbError};
+use topo::{Body, BooleanDeclarations, BooleanOp, BooleanResult, SweepStrategy, boolean_op_with};
+use verbs::{Arity, PairOut, Verb, VerbError, VerbKind, VerbRecord};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -48,6 +52,14 @@ fn dump(body: &Body<f64>) -> String {
     s
 }
 
+/// The blend channel of a run's record, or a loud failure.
+fn blend_record(record: VerbRecord) -> Option<sweep::blend::naming::BlendNaming> {
+    let VerbRecord::Blend(naming) = record else {
+        panic!("a blend run produced another family's record: {record:?}");
+    };
+    naming
+}
+
 #[test]
 fn the_fillet_dispatch_is_the_fillet_door() {
     let cube = sweep::test_support::cube(1.0, tol());
@@ -64,7 +76,7 @@ fn the_fillet_dispatch_is_the_fillet_door() {
     assert_eq!(dump(&door.body), dump(&via.body));
     assert_eq!(
         format!("{:?}", door.naming),
-        format!("{:?}", via.naming),
+        format!("{:?}", blend_record(via.record)),
         "the birth record is carried across, not rebuilt"
     );
 }
@@ -83,7 +95,10 @@ fn the_chamfer_dispatch_is_the_chamfer_door() {
     .unwrap();
 
     assert_eq!(dump(&door.body), dump(&via.body));
-    assert_eq!(format!("{:?}", door.naming), format!("{:?}", via.naming));
+    assert_eq!(
+        format!("{:?}", door.naming),
+        format!("{:?}", blend_record(via.record))
+    );
 }
 
 /// **A refusal crosses unaltered**, verb label included — the whole
@@ -103,7 +118,184 @@ fn a_refusal_crosses_the_dispatch_unaltered() {
     .run(&cube, tol())
     .unwrap_err();
 
-    let VerbError::Blend(carried) = via;
+    let VerbError::Blend(carried) = via else {
+        panic!("a blend refusal crossed as another family's: {via:?}");
+    };
     assert_eq!(format!("{door:?}"), format!("{carried:?}"));
     assert_eq!(door.to_string(), carried.to_string());
+}
+
+/// A unit cube translated by `d` — the boolean rows' second operand.
+fn shifted_cube(d: Vec3<f64>) -> Body<f64> {
+    let cube = sweep::test_support::cube(1.0, tol());
+    let map = Affine3::translation(d);
+    topo::transform_rigid(&cube, &map, tol()).expect("a translation is rigid")
+}
+
+#[test]
+fn the_boolean_dispatch_is_the_boolean_door() {
+    let a = sweep::test_support::cube(1.0, tol());
+    // A proper crossing: overlap in every axis, no face-on-face rest.
+    let b = shifted_cube(Vec3::new(0.5, 0.5, 0.5));
+
+    let decls = BooleanDeclarations::none();
+    let door = boolean_op_with(
+        BooleanOp::Union,
+        &a,
+        &b,
+        &decls,
+        SweepStrategy::Realized,
+        tol(),
+    )
+    .unwrap();
+    let via = Verb::Boolean {
+        op: BooleanOp::Union,
+        declare: BooleanDeclarations::none(),
+    }
+    .run_pair(&a, &b, SweepStrategy::Realized, tol())
+    .unwrap();
+
+    let BooleanResult::Body(door) = door else {
+        panic!("the fixture's union is a body");
+    };
+    let PairOut::Out(via) = via else {
+        panic!("the dispatch's union is a body: {via:?}");
+    };
+    assert_eq!(dump(&door.body), dump(&via.body));
+    let VerbRecord::Boolean {
+        kind,
+        contacts,
+        naming,
+    } = via.record
+    else {
+        panic!("a boolean run produced another family's record");
+    };
+    assert_eq!(door.kind, kind, "the result classification is carried");
+    assert_eq!(
+        door.contacts, contacts,
+        "the surviving contacts are carried"
+    );
+    assert_eq!(
+        format!("{:?}", door.naming),
+        format!("{naming:?}"),
+        "the birth record is carried across, not rebuilt"
+    );
+}
+
+/// **The typed empty success crosses as itself** (F8: ∅ is a value,
+/// not an error) — disjoint operands intersected.
+#[test]
+fn an_empty_boolean_result_crosses_as_the_typed_empty() {
+    let a = sweep::test_support::cube(1.0, tol());
+    let b = shifted_cube(Vec3::new(3.0, 0.0, 0.0));
+
+    let door = boolean_op_with(
+        BooleanOp::Intersect,
+        &a,
+        &b,
+        &BooleanDeclarations::none(),
+        SweepStrategy::Realized,
+        tol(),
+    )
+    .unwrap();
+    assert!(matches!(door, BooleanResult::Empty));
+
+    let via = Verb::Boolean {
+        op: BooleanOp::Intersect,
+        declare: BooleanDeclarations::none(),
+    }
+    .run_pair(&a, &b, SweepStrategy::Realized, tol())
+    .unwrap();
+    assert!(
+        matches!(via, PairOut::Empty),
+        "the dispatch turned the typed empty into {via:?}"
+    );
+}
+
+/// **A boolean refusal crosses unaltered.** The fixture is two cubes
+/// resting face on face with nothing declared — the undeclared-
+/// coincidence refusal, reached identically both ways.
+#[test]
+fn a_boolean_refusal_crosses_the_dispatch_unaltered() {
+    let a = sweep::test_support::cube(1.0, tol());
+    let b = shifted_cube(Vec3::new(1.0, 0.0, 0.0));
+
+    let door = boolean_op_with(
+        BooleanOp::Union,
+        &a,
+        &b,
+        &BooleanDeclarations::none(),
+        SweepStrategy::Realized,
+        tol(),
+    )
+    .unwrap_err();
+    let via = Verb::Boolean {
+        op: BooleanOp::Union,
+        declare: BooleanDeclarations::none(),
+    }
+    .run_pair(&a, &b, SweepStrategy::Realized, tol())
+    .unwrap_err();
+
+    let VerbError::Boolean(carried) = via else {
+        panic!("a boolean refusal crossed as another family's: {via:?}");
+    };
+    assert_eq!(format!("{door:?}"), format!("{carried:?}"));
+    assert_eq!(door.to_string(), carried.to_string());
+}
+
+/// One representative verb per vocabulary row, payload minimal.
+fn sample(kind: VerbKind) -> Verb<f64> {
+    match kind {
+        VerbKind::Fillet => Verb::Fillet {
+            edges: Vec::new(),
+            radius: 0.1,
+        },
+        VerbKind::Chamfer => Verb::Chamfer {
+            edges: Vec::new(),
+            distance: 0.1,
+        },
+        VerbKind::Boolean(op) => Verb::Boolean {
+            op,
+            declare: BooleanDeclarations::none(),
+        },
+    }
+}
+
+/// **Each door refuses exactly the verbs whose declared arity is not
+/// its own**, over the whole vocabulary — the typed mismatch refusal
+/// exercised in both directions, so neither door's cross-arity arms
+/// are untested. The declared-arity door's behavior is the dispatch
+/// rows above; what is pinned here is that the OTHER door answers
+/// `Arity` with the right verb and the right count, and never runs the
+/// op — proven by the returned variant itself: `Arity` is minted only
+/// at the doors' own mismatch arms, before any op door is reached, so
+/// its arrival IS the non-execution.
+#[test]
+fn each_door_refuses_the_undeclared_arity() {
+    let a = sweep::test_support::cube(1.0, tol());
+    let b = shifted_cube(Vec3::new(0.5, 0.5, 0.5));
+
+    for kind in VerbKind::ALL {
+        let verb = sample(*kind);
+        match kind.arity() {
+            Arity::One => {
+                let err = verb
+                    .run_pair(&a, &b, SweepStrategy::Realized, tol())
+                    .unwrap_err();
+                let VerbError::Arity { verb: who, given } = err else {
+                    panic!("{kind:?} at the pair door refused with {err:?}, not Arity");
+                };
+                assert_eq!(who, *kind);
+                assert_eq!(given, Arity::Two);
+            }
+            Arity::Two => {
+                let err = verb.run(&a, tol()).unwrap_err();
+                let VerbError::Arity { verb: who, given } = err else {
+                    panic!("{kind:?} at the one-operand door refused with {err:?}, not Arity");
+                };
+                assert_eq!(who, *kind);
+                assert_eq!(given, Arity::One);
+            }
+        }
+    }
 }

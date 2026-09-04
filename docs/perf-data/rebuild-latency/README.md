@@ -32,7 +32,7 @@ comparable across rows and across PRs, and **never release-
 representative**.
 
 Read the `±` spread before believing a delta. Each figure is the median
-of 5 runs in one process; a hosted 2-vCPU runner has a fat tail, and a
+of 5 runs in one process; a shared hosted runner has a fat tail, and a
 `vs base` move inside the spread is noise, not a regression.
 
 ## Why the history exists at all
@@ -43,6 +43,40 @@ own provenance: three developer-workstation refreshes disagreed by
 environment hypothesis nobody captured side by side, and
 `docs/PERF-SCAN-2026-08.md` §0 had to label every absolute-millisecond
 claim in the repo provisional as a result. Every entry here records its
-own `environment` block (runner, nproc, memory, toolchain, RUSTFLAGS,
-`CARGO_PROFILE_*` overrides, debug-assertions, ε), so two entries that
-disagree can be compared as environments rather than argued about.
+own `environment` block (runner, nproc, memory, `cpu_model`, `cpu_flags`,
+toolchain, RUSTFLAGS, `CARGO_PROFILE_*` overrides, debug-assertions, ε),
+so two entries that disagree can be compared as environments rather than
+argued about.
+
+**What the block can now tell you**: which host CPU produced an entry, by
+model string and by whether `avx2` / `avx512f` were available. Those two
+fields are the ones that vary inside a hosted runner class — `nproc`,
+memory, arch and toolchain are constant across the whole `ubuntu-latest`
+pool, which is why the block used to be readable and still say nothing.
+
+**Reading the pair.** `cpu_flags` is the field that says whether
+`/proc/cpuinfo` was read at all: `null` means it could not be, and ANY list
+— the empty one included — means it could. Three shapes, not two:
+
+| `cpu_model` | `cpu_flags` | what happened |
+|---|---|---|
+| a string | a list | read; the ordinary case, and `[]` there means neither extension was present |
+| `null` | `null` | `/proc/cpuinfo` unreadable — the box is unidentified, not featureless |
+| `null` | a list | read, but it carried no `model name` line (an aarch64 one spells its flags `Features` and names no model) |
+
+So `cpu_model: null` is not by itself a reading: pair it with `cpu_flags`
+before concluding anything about the host. The third row is not
+hypothetical — it is the case
+`crates/editor-core/tests/m4_pr8_latency.rs`'s
+`cpu_identity_degrades_rather_than_failing` pins.
+
+**What it still cannot.** *The two fields begin with the first entry
+written after they were added. Every earlier entry carries the old field
+set and stays unattributable — the history is append-only and nothing
+retro-fits it.* Two boxes of the same model are still one reading, and
+nothing here records what else the host was doing. One step change is
+only half-covered: the runner class moved from 2 vCPU / 7 GB to 4 vCPU /
+16 GB on 2026-09-03 (`.github/workflows/ci.yml`), so `nproc` separates
+the two eras and nothing separates the boxes within either. A `vs base`
+delta that straddles that date is a property of the runner, not of the
+tree.

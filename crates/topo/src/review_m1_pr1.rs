@@ -1,7 +1,7 @@
 //! Adversarial e2e review artifact for M1 PR 1 (2026-07-16). These are
 //! **independent derivations** — do not "simplify" them to match shipped
 //! fixtures; the independence is the regression value. Promoted per
-//! Evan's request (PR #17 thread).
+//! Ev's request (PR #17 thread).
 //!
 //! Adversarial e2e review consumer program for M1 PR 1. Builds real
 //! bodies through the raw builder + patching accessors only and attacks

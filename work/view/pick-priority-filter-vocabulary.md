@@ -1,0 +1,163 @@
+---
+id: pick-priority-filter-vocabulary
+kind: issue
+title: Pick-priority has no filter vocabulary - a tool states which entity kinds it takes, and only the mate tool's case is served
+status: deferred
+opened: 2026-08-31
+github: 1379
+refs: [1407]
+---
+
+## From GitHub issue 1379
+
+Opened 2026-08-31; 1 comment.
+
+**Corrected 2026-08-31 after review measured the original claim and found it understated. The mate-tool instance is now FIXED in the GAUTH-2 PR; what stays open is the vocabulary.**
+
+GAUTH-2 gave edges pick priority: a cursor within `viewer::pick::EDGE_PICK_RADIUS_PX` (6 physical pixels) of a drawn edge of the body under the cursor selects the EDGE rather than the face behind it. The rule lives in `PickIndex::hovered_for`, the one place hovering and clicking both read, deliberately so they cannot disagree.
+
+### What the original text of this issue got wrong
+
+It described the consequence as an aiming annoyance — "mating a narrow face now needs a click aimed away from its own edges". Measured on the shipped fixtures, that is not what happens. Faces become **entirely unreachable**, not merely awkward:
+
+- a shelf face of the assembly bench measured **13 pickable pixels out of 723** in its own screen footprint at default framing, and **0** one zoom step in;
+- a hole's cylindrical wall lost **100%** of its footprint one zoom step out — and that is exactly the face a coaxial mate wants to pick.
+
+The rule scales with the picture, the face does not: any face whose narrow dimension projects to under ~12 px is fully inside its own edges' catch band, and every face reaches that width at some zoom. So the defect was a shipped tool losing its input, not a user aiming more carefully.
+
+### What was done
+
+The minimal narrowing, adjudicated from two independent reviews that converged on the same shape: a kind filter threaded as a parameter through the one door that decides priority (`PickKinds` → `hovered_for` / `op_under`), with the mate tool asking faces-only while it is open. Default behaviour is unchanged — a bare cursor still gets edge-beats-face — and a tool cannot end up on a different rule, because it narrows the one rule rather than re-deciding it. Pinned by a headless row driving both filters at one cursor inside the radius.
+
+### What remains open (this issue)
+
+`PickKinds` is two answers to one question, not a vocabulary. `crates/viewer/README.md` GQ7 still owns:
+
+- **which filters are offered where** — per-tool, per-pane, or a user-visible filter control, and whether a filter is tool state or session state;
+- **how a tool states what it wants**, once there are more than two kinds. GAUTH-5's blend tool is the second data point and wants the opposite filter (edges only); a vertex-pick unit would be the third, at which point an enum of hand-written combinations stops paying;
+- **what the picture owes the user about an active filter.** Today a faces-only pick is silent: the hover simply stops marking edges, and nothing says why.
+
+Deferred to sketcher/tree design with GQ7's other clauses, per that section's own note.
+
+## Comments
+
+**2026-08-31** — comment:
+
+**Second data point for the filter-vocabulary question** (GAUTH-5, PR #1407).
+
+`PickKinds` gained a third variant, `EdgesOnly`, for the blend tool — the mate
+tool's case mirrored rather than a new kind of question.
+
+The measurement this time is the same shape as the mate tool's and points the
+other way. The mate tool needed `FacesOnly` because whole faces sit inside
+`EDGE_PICK_RADIUS_PX` of their own boundary, so edges winning globally made
+those faces unpickable. The blend tool consumes edges and nothing else, so
+unfiltered a cursor a few pixels off an edge answers the FACE behind it: the
+selection changes, the tool takes nothing, and the click did nothing the user
+can see. `EdgesOnly` makes that miss a miss — the edge test still runs, and a
+cursor no edge wins answers `None` exactly as a cursor over the background does.
+
+It is threaded through the same one door (`PickIndex::hovered_for`) and reached
+the same way (`ToolKind::pick_kinds`, the exhaustive per-tool match), so no tool
+gets a different priority rule by re-implementing it. `PickKinds` now has one
+private predicate per axis (`edges()`, `faces()`), each an exhaustive match, and
+`hovered_for` reads them in that order: edge if admitted and near, else face if
+admitted, else nothing.
+
+What this does and does not settle:
+
+- It does NOT turn the enum into a filter vocabulary. It is still three answers
+  to one question — one per shape of tool the GUI has actually shipped — and
+  each is a whole priority rule rather than a membership set. A tool wanting
+  "faces and vertices but not edges", or a per-tool cursor hint, still has
+  nowhere to say so.
+- It does suggest the eventual shape, if a third asymmetric case ever turns up:
+  the two predicates above are already a per-kind admission set in disguise, and
+  a `kinds: EnumSet<EntityKind>` with the priority order fixed at the door would
+  subsume all three variants without changing a single call site's meaning. Not
+  taken now — two tools do not justify the vocabulary, and GQ7 has not ruled on
+  where filters are offered.
+
+The row that pins the new arm is
+`edge_pick::an_edges_only_pick_answers_nothing_where_an_unfiltered_one_answers_the_face`
+(on the rim both rules answer the same edge; four radii inside it the bare
+cursor takes the face and the filtered one takes nothing, hover included), and
+`combine_ops::each_tool_narrows_the_cursor_to_what_it_can_use` is the
+per-tool sweep, now an exhaustive match so a further tool must state its side
+before the row compiles.
+
+
+---
+_Generated by [Claude Code](https://claude.ai/code)_
+
+## Parked, trigger unmet (2026-09-04)
+
+This item's own text sets the trigger: "a third asymmetric case", a
+vertex-pick tool, "at which point an enum of hand-written combinations
+stops paying". No such tool exists in the tree or on any program's
+slate. `crates/viewer/README.md` GQ7 ratifies the deferral in as many
+words — multi-select UX and the filter vocabulary wait on sketcher and
+tree design — so taking it now is not executing VIEW's plan, it is
+overturning ratified design for two tools that are already served
+correctly by the shipped `PickKinds`.
+
+**Corrected 2026-09-04, after 1d.** This item was parked on
+`viewer-session-god-module-split` on the rationale that
+`ToolKind::pick_kinds` is one of the hand-maintained lists over the
+tool set that the split's `Option<OpenTool>` step collapses into
+compiler-completed matches, so the shape it left would be the shape a
+per-kind admission set has to fit.
+
+**That premise was false and the 1d lane established it.**
+`pick_kinds` was ALREADY an exhaustive match on `ToolKind`; there was
+nothing hand-maintained there to collapse, and 1d leaves it
+byte-identical. `Tools::pick_kinds` still delegates through
+`open_kind`, whose only change is that it no longer scans
+`ToolKind::ALL`. So the split answered none of this item's question,
+and the blocker it named never gated it.
+
+**Status is therefore `open` again, and that is a worse fit than
+`parked` rather than a better one.** This item is NOT dispatchable: its
+own trigger is a third asymmetric tool (a vertex pick), which does not
+exist and is not scheduled, and `crates/viewer/README.md` GQ7 ratifies
+the deferral of the filter vocabulary to sketcher and tree design. But
+`work/README.md` requires a parked item's `blocked_on` to name an item
+or a PR number, and **no item names the trigger** — a tool nobody has
+scheduled, and a deferral that lives in ratified prose rather than on
+the board. Given the choice between a status that overstates
+availability and a `blocked_on` that names a blocker which does not
+gate it, this takes the first: a reader who opens the file learns the
+truth in its first paragraph, whereas a false `blocked_on` would have
+survived unread.
+
+The tracker has no vocabulary for *waits on a trigger no item names*.
+Recorded here rather than proposed as a rule; if a third instance turns
+up it is worth putting to Ev.
+
+The other half — where filters are offered, and what the picture owes
+the user about an active filter, which today is nothing — stays GQ7's
+and stays Ev's.
+
+## Home
+
+Viewer/GUI ground: GAUTH's closing entry names this issue as its residue and `crates/viewer/README.md` GQ7 owns the open question, but both GAUTH and GUI are closed programs, so it lands in `work/issues/`.
+
+## Deferred, and now sayable (2026-09-04)
+
+**Status `deferred`.** The section above records this row spending a day
+as `open` for want of a truer status, and says the tracker has no
+vocabulary for *waits on a trigger no item names*. Ev ruled on VIEW's
+PR #1857 that it should have one, distinct from `parked`: *"deferred and
+blocked do seem semantically different"*.
+
+The ratification this row cites is `crates/viewer/README.md` GQ7, which
+defers the filter vocabulary — which filters are offered where, and what
+the picture owes the user about an active filter — to sketcher and tree
+design. The trigger the row's own text names, a third asymmetric tool
+(a vertex pick), exists in no tree and on no program's slate.
+
+Nothing checks that citation and nothing pretends to: `work/README.md`
+says in as many words that a deferred row's ratification is prose,
+enforced by review. What lint does enforce is that the row carries no
+`blocked_on` — a row waiting on a named trigger is `parked`, and the two
+statuses stay distinct.

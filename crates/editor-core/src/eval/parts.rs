@@ -316,6 +316,12 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             // that crossed the seam would either name nothing there or,
             // worse, collide by name with an unrelated parameter.
             param_box: None,
+            // NOT inherited, by the same argument: a seed is a name of
+            // THIS document's parameters. A part's geometry is constant
+            // with respect to them (AQ4 — v1 instantiation takes no
+            // arguments), which the unseeded nested run states exactly:
+            // every tangent it carries is zero.
+            seed: None,
         };
         let mut chain = self.chain.to_vec();
         chain.push(*doc_ref);

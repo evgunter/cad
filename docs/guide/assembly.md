@@ -63,7 +63,7 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners]))
+    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, height * m))
     return doc
 
@@ -157,7 +157,7 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners]))
+    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, height * m))
     return doc
 
@@ -205,9 +205,9 @@ post_b = stand.insert(Node.instantiate_part(post_ref))
 # The mate references, SELECTED rather than spelled: evaluate against
 # the store, then ask each instantiate node for its face.
 ev = evaluate(stand, resolver=store)
-a_top = instance_cap(ev, post_a, CapEnd.Top)
-b_top = instance_cap(ev, post_b, CapEnd.Top)
-shelf_underside = instance_cap(ev, shelf_i, CapEnd.Bottom)
+a_top = instance_cap(ev, post_a, CapEnd.End)
+b_top = instance_cap(ev, post_b, CapEnd.End)
+shelf_underside = instance_cap(ev, shelf_i, CapEnd.Start)
 
 # Where each post's top meets the shelf's underside, each written in
 # its OWN part's coordinates. The posts sit flush with the shelf's
@@ -331,7 +331,7 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners]))
+    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, height * m))
     return doc
 
@@ -414,7 +414,7 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners]))
+    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, height * m))
     return doc
 
@@ -503,7 +503,7 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners]))
+    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, height * m))
     return doc
 
@@ -550,11 +550,11 @@ def bench(primitive=None, class_=ContactClass.Rest):
         return Alignment(x, y, fold, AxisSense.Aligned)
 
     m_a = doc.insert(
-        Node.mate(instance_cap(ev, a, CapEnd.Top), instance_cap(ev, s, CapEnd.Bottom),
+        Node.mate(instance_cap(ev, a, CapEnd.End), instance_cap(ev, s, CapEnd.Start),
                   class_, align(post_seat, seat_a))
     )
     m_b = doc.insert(
-        Node.mate(instance_cap(ev, s, CapEnd.Bottom), instance_cap(ev, b, CapEnd.Top),
+        Node.mate(instance_cap(ev, s, CapEnd.Start), instance_cap(ev, b, CapEnd.End),
                   class_, align(seat_b, post_seat))
     )
     return doc, (a, s, b), (m_a, m_b)
@@ -627,7 +627,7 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners]))
+    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, height * m))
     return doc
 
@@ -673,8 +673,8 @@ doc, post_i, shelf_i = two_instances()
 ev = evaluate(doc, resolver=store)
 mate = doc.insert(
     Node.mate(
-        instance_cap(ev, post_i, CapEnd.Top),
-        instance_cap(ev, shelf_i, CapEnd.Bottom),
+        instance_cap(ev, post_i, CapEnd.End),
+        instance_cap(ev, shelf_i, CapEnd.Start),
         ContactClass.Rest,
         Alignment(post_seat, seat_a, MatePrimitive.planar_rest(0 * m),
                   AxisSense.Aligned),
@@ -696,8 +696,8 @@ doc, post_i, shelf_i = two_instances()
 ev = evaluate(doc, resolver=store)
 mate = doc.insert(
     Node.mate(
-        instance_cap(ev, post_i, CapEnd.Top),
-        instance_cap(ev, shelf_i, CapEnd.Bottom),
+        instance_cap(ev, post_i, CapEnd.End),
+        instance_cap(ev, shelf_i, CapEnd.Start),
         ContactClass.Tangent,
         Alignment(post_seat, seat_a, MatePrimitive.frame_coincidence(),
                   AxisSense.Aligned),
@@ -720,7 +720,7 @@ edge = sorted(ev.all_edges(post_i))[0]
 mate = doc.insert(
     Node.mate(
         edge,
-        instance_cap(ev, shelf_i, CapEnd.Bottom),
+        instance_cap(ev, shelf_i, CapEnd.Start),
         ContactClass.Rest,
         Alignment(post_seat, seat_a, MatePrimitive.frame_coincidence(),
                   AxisSense.Aligned),
@@ -808,7 +808,7 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners]))
+    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, height * m))
     return doc
 
@@ -916,7 +916,7 @@ def prism(label, width, depth, height):
     """One part: a rectangular block, rooted at its own origin."""
     doc = Doc(label)
     corners = [(0, 0), (width, 0), (width, depth), (0, depth)]
-    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners]))
+    profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in corners], plane=doc.sketch_frame()))
     doc.insert(Node.extrude(profile, height * m))
     return doc
 
