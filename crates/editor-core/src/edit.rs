@@ -336,8 +336,8 @@ pub enum EditError {
     /// It is one structural rule over [`Node::inputs`], not a rule per
     /// node kind, so it covers a boolean or a split whose two operands
     /// coincide and a list with a repeated entry alike — and it is
-    /// stated once, at [`check_inputs_distinct`], with the insert door
-    /// and [`DocEdit::SetMembers`] as its callers.
+    /// stated once, at `check_node_inputs`, with the insert door and
+    /// [`DocEdit::SetMembers`] as its two callers.
     DuplicateInput {
         /// The node whose input list repeats.
         node: RecipeNodeId,
