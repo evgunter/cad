@@ -1112,6 +1112,30 @@ mod tests {
         ));
     }
 
+    /// The rim door's OTHER `NotAnArc` payload: an edge whose curve
+    /// entry is null scaffolding carries no kind at all, and the arm
+    /// says so rather than guessing one. Rowed here because minting a
+    /// null curve is crate-internal; every other refusal is reachable
+    /// from outside and rowed there (`topo/tests/rim_of.rs`,
+    /// `sweep/tests/rim_of_rows.rs`).
+    #[test]
+    fn a_seed_with_no_certified_carrier_is_not_an_arc_and_names_no_kind() {
+        let mut body = mixed();
+        let e = all_edges(&body)[0];
+        let null = body.add_null_curve(crate::null::NullEdge {
+            below_end: VertexKey::default(),
+            above_end: VertexKey::default(),
+        });
+        body.get_edge_mut(e).expect("an edge just listed").curve = null;
+        assert_eq!(
+            rim_of(&body, e),
+            Err(RimError::NotAnArc {
+                edge: e,
+                kind: None
+            })
+        );
+    }
+
     #[test]
     fn an_empty_set_matches_nothing() {
         let body = mixed();

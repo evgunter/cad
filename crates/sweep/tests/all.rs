@@ -484,3 +484,9 @@ mod review_h4_r1_probes;
 
 #[path = "fillet_h4_r2_probes.rs"]
 mod fillet_h4_r2_probes;
+
+#[path = "rim_of_rows.rs"]
+mod rim_of_rows;
+
+#[path = "rim_of_rows_interval.rs"]
+mod rim_of_rows_interval;
