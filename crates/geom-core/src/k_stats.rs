@@ -370,22 +370,29 @@ fn record(margin: f64, band: Band, outcome: SampleOutcome) {
     });
 }
 
-/// Records one [`SampleOutcome::SymbolicZero`] if a sink is installed —
-/// the symbolic tier's own door into the SAME funnel population
-/// (`crate::sym`'s `Decide` impl calls it where it short-circuits).
+/// **Re-tags the sample just recorded as [`SampleOutcome::SymbolicZero`]**
+/// — the symbolic tier's door into the SAME funnel population
+/// (`crate::sym`'s `Decide` impl calls it where the tier overrides the
+/// numeric answer).
 ///
-/// `bracket` is the margin's certified bracket, which the caller has in
-/// hand because clause 1 of the theorem just read it; its low end is
-/// recorded as the margin so a reader sees what the numeric channel
-/// would have been handed. A `None` cannot occur on that path and is
-/// recorded as poison rather than fabricated.
+/// A re-tag rather than a second `record`, and that is the whole design:
+/// `Sym<T>` asks its base scalar first (its domain refusal is clause 1
+/// of the theorem), so at `Probe` the base scalar has ALREADY pushed the
+/// sample with the margin it classified. Re-tagging keeps that margin —
+/// a real number a reader can compare against the band — and keeps the
+/// count exact, where recording a second row would double-count one
+/// decision and inventing a margin would fabricate one.
+///
+/// No sink, or nothing recorded (every scalar but `Probe`): a no-op.
 #[cfg(feature = "probe")]
-pub(crate) fn record_symbolic_zero(bracket: Option<(f64, f64)>, band: Band) {
-    record(
-        bracket.map_or(f64::NAN, |(lo, _)| lo),
-        band,
-        SampleOutcome::SymbolicZero,
-    );
+pub(crate) fn retag_symbolic_zero() {
+    SINK.with(|s| {
+        if let Some(sink) = s.borrow_mut().as_mut()
+            && let Some(last) = sink.last_mut()
+        {
+            last.outcome = SampleOutcome::SymbolicZero;
+        }
+    });
 }
 
 /// A transparent `f64` wrapper that records every sign classification —

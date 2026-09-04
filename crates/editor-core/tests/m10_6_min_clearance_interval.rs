@@ -43,7 +43,7 @@ use std::collections::BTreeMap;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{MinSepSelection, MinSeparationConfig, min_separation};
-use editor_core::drive::{DriveConfig, drive, SymbolicDials};
+use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, DocParam,
@@ -68,7 +68,6 @@ fn numeric_lane() -> DriveConfig {
         ..DriveConfig::default()
     }
 }
-
 
 /// The true minimum separation between the neck walls, by construction.
 const NECK_GAP: f64 = 0.4;
@@ -528,8 +527,8 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
 fn a_stackup_over_a_min_clearance_forfeits_its_advisory_columns_and_still_gates() {
     let f = dumbbell();
     let analyzed = analyzed_box(&f.doc, &AnalysisPolicy::default());
-    let verdict = drive(&f.doc, &analyzed, &numeric_lane(), Tol::witness())
-        .expect("the nominal builds");
+    let verdict =
+        drive(&f.doc, &analyzed, &numeric_lane(), Tol::witness()).expect("the nominal builds");
     assert!(!verdict.certified().is_empty(), "the box certifies");
     let report = stackup(
         &f.doc,

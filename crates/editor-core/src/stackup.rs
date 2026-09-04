@@ -1796,7 +1796,7 @@ fn worst_case(
         tie(leaf, &readback.keys).map_err(StackupRefusal::Sensitivity)?;
         readback
             .measure
-            .unwrap_or_else(|| Ok(None))
+            .unwrap_or(Ok(None))
             .map_err(|(node, cause)| StackupRefusal::LeafDiverged {
                 leaf: leaf.box_.clone(),
                 node,

@@ -941,11 +941,12 @@ pub fn param_env_over<T: AxisScalar, P>(
                 // occurrences symbolically needs to know which parameter
                 // this is; every other scalar's default discards the
                 // name and binds exactly what it bound before.
-                let offset =
-                    T::axis_named(name, lo, hi).ok_or_else(|| ParamBoxError::AxisUnrepresentable {
-                    param: name.clone(),
-                    lo,
-                    hi,
+                let offset = T::axis_named(name, lo, hi).ok_or_else(|| {
+                    ParamBoxError::AxisUnrepresentable {
+                        param: name.clone(),
+                        lo,
+                        hi,
+                    }
                 })?;
                 crate::expr::ParamValue::Continuous {
                     dim,

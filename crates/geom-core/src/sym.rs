@@ -203,7 +203,7 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
-use crate::predicate::{Band, Decide, Indeterminate, Sign};
+use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
 use crate::real::{Bounds, CertifiedEnclosure, Real};
 use crate::spline::{KnotVector, SpanLocate, SpanSet};
 
@@ -508,9 +508,21 @@ impl Rat {
         let shift = u32::try_from(hi.checked_sub(lo)?).ok()?;
         let scale = 1i128.checked_shl(shift)?;
         let (a, b) = if self.exp2 <= other.exp2 {
-            (self, Self { num: other.num.checked_mul(scale)?, ..other })
+            (
+                self,
+                Self {
+                    num: other.num.checked_mul(scale)?,
+                    ..other
+                },
+            )
         } else {
-            (Self { num: self.num.checked_mul(scale)?, ..self }, other)
+            (
+                Self {
+                    num: self.num.checked_mul(scale)?,
+                    ..self
+                },
+                other,
+            )
         };
         let num = a
             .num
@@ -539,7 +551,9 @@ impl Rat {
 
     /// Feeds the coefficient to a content hash (the atom-keying digest).
     fn feed(self, h: Hash128) -> Hash128 {
-        h.wide(self.num as u128).wide(self.den as u128).word(u64::from(self.exp2 as u32))
+        h.wide(self.num as u128)
+            .wide(self.den as u128)
+            .word(u64::from(self.exp2 as u32))
     }
 }
 
@@ -946,10 +960,7 @@ impl Form {
             });
         }
         Some(Self {
-            num: self
-                .num
-                .mul(&other.den)?
-                .add(&other.num.mul(&self.den)?)?,
+            num: self.num.mul(&other.den)?.add(&other.num.mul(&self.den)?)?,
             den: self.den.mul(&other.den)?,
         })
     }
@@ -1049,10 +1060,10 @@ fn powi_form(base: &Form, n: u32, budget: SymBudget) -> Option<Form> {
 fn combine(node: &SymNode, kids: [&Form; 2], budget: SymBudget) -> Option<Form> {
     let (a, b) = (kids[0], kids[1]);
     let atom1 = |op: SymOp| {
-        if a.is_zero() {
-            if let Some(f) = unary_at_zero(op) {
-                return Some(f);
-            }
+        if a.is_zero()
+            && let Some(f) = unary_at_zero(op)
+        {
+            return Some(f);
         }
         Some(Form::poly(Poly::indet(indet_atom(
             op.tag(),
@@ -1069,8 +1080,9 @@ fn combine(node: &SymNode, kids: [&Form; 2], budget: SymBudget) -> Option<Form> 
     };
     match node.op {
         SymOp::Param => Some(Form::poly(Poly::indet(indet_param(node.payload)))),
-        SymOp::Lit => Rat::of_f64(f64::from_bits(node.payload))
-            .map(|c| Form::poly(Poly::constant(c))),
+        SymOp::Lit => {
+            Rat::of_f64(f64::from_bits(node.payload)).map(|c| Form::poly(Poly::constant(c)))
+        }
         SymOp::Pi => Some(Form::poly(Poly::indet(INDET_PI))),
         SymOp::Add => a.add(b),
         SymOp::Sub => a.add(&b.neg()?),
@@ -1420,10 +1432,7 @@ impl<T: Real> Real for Sym<T> {
 
     fn sin_cos(self) -> (Self, Self) {
         let (s, c) = self.value.sin_cos();
-        (
-            self.unary(s, SymOp::Sin, 0),
-            self.unary(c, SymOp::Cos, 0),
-        )
+        (self.unary(s, SymOp::Sin, 0), self.unary(c, SymOp::Cos, 0))
     }
 
     fn tan(self) -> Self {
@@ -1504,31 +1513,47 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 ///
 /// The two clauses of the theorem, in order:
 ///
-/// 1. `certified_bracket()` — the computation was defined on the whole
-///    input box. Without it `sqrt(-1) − sqrt(-1)` would decide `Zero`
-///    on an expression with no real value; this is the same door
-///    [`crate::Interval::sign_within`] refuses at, consulted for the
-///    same reason and BEFORE the identity test rather than after.
-/// 2. the node's normal form is the zero polynomial, computed with exact
-///    rational coefficients from the parameter symbols down. Nothing in
-///    that computation reads a value.
+/// 1. **the computation was defined on the whole input box.** Without it
+///    `sqrt(-1) − sqrt(-1)` would decide `Zero` on an expression with no
+///    real value at all, and `(a/b)·b − a` would decide it where `b`
+///    reaches zero. The question is asked of the DECIDE door rather than
+///    of a bracket one: [`MarginDiag::Invalid`] is exactly the arm every
+///    scalar returns for a domain violation —
+///    [`crate::Interval::sign_within`] for an uncertified enclosure,
+///    `f64` for NaN — so the numeric channel already answers it, and
+///    asking it there means this impl needs no bracket door and no
+///    compound bracket bound.
+/// 2. **the node's normal form is the zero polynomial**, computed with
+///    exact rational coefficients from the parameter symbols down.
+///    Nothing in that computation reads a value.
 ///
 /// Together they say: the margin is a real number, and that real number
 /// is zero at every parameter point of the box. `Sign::Zero` is then a
 /// theorem, not a measurement — which is why no band is consulted and
 /// why the answer does not depend on the box's width.
 ///
+/// **The numeric channel runs FIRST, always**, which costs one
+/// `sign_within` on the symbolic path and buys two things: clause 1 above
+/// and an honest K sample. At `Probe` the base scalar records the margin
+/// it classified before this impl overrides the answer, so the funnel's
+/// sample carries a real number and is merely RE-TAGGED
+/// ([`crate::k_stats`]'s `retag_symbolic_zero`) rather than replaced by
+/// one with no margin in it.
+///
 /// Everything else is `T::sign_within` verbatim.
-impl<T: Decide + CertifiedEnclosure> Decide for Sym<T> {
+impl<T: Decide> Decide for Sym<T> {
     fn sign_within(self, band: Band) -> Result<Sign, Indeterminate> {
-        if self.value.certified_bracket().is_some() && is_identically_zero(self.node) {
+        let numeric = self.value.sign_within(band);
+        let domain_violation =
+            matches!(&numeric, Err(e) if matches!(e.margin, MarginDiag::Invalid));
+        if !domain_violation && is_identically_zero(self.node) {
             count_decision(true);
             #[cfg(feature = "probe")]
-            crate::k_stats::record_symbolic_zero(self.value.certified_bracket(), band);
+            crate::k_stats::retag_symbolic_zero();
             return Ok(Sign::Zero);
         }
         count_decision(false);
-        self.value.sign_within(band)
+        numeric
     }
 }
 

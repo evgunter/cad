@@ -46,9 +46,7 @@ fn probe_the_tier_on_the_slab() {
 #[ignore = "evidence-only probe: names the surviving indeterminacies"]
 fn probe_which_predicate_still_widens() {
     use editor_core::analysis::{ParamBox, param_env_over};
-    use editor_core::{
-        CancelToken, EvalOptions, NodeResult, ProfileLift, evaluate,
-    };
+    use editor_core::{CancelToken, EvalOptions, NodeResult, ProfileLift, evaluate};
     use std::sync::Arc;
 
     let doc = slab(1.0, 0.05);
@@ -61,7 +59,10 @@ fn probe_which_predicate_still_widens() {
         ..EvalOptions::default()
     };
     let (ev, counts) = geom_core::sym::with_session(
-        geom_core::SymBudget { max_terms: 1_000_000, max_degree: 100_000 },
+        geom_core::SymBudget {
+            max_terms: 1_000_000,
+            max_degree: 100_000,
+        },
         || {
             let ev: editor_core::Evaluation<geom_core::Sym<geom_core::Interval>> =
                 evaluate(&doc, None, &CancelToken::new(), &opts, Tol::witness());

@@ -483,11 +483,7 @@ fn curve_reach<T: Decide>(c: &Curve3<T>, t0: T, t1: T, origin: Point3<T>) -> Opt
         Curve3::Line { .. } => Some(from(c.eval(t0)).max(from(c.eval(t1)))),
         Curve3::Circle { center, radius, .. } => Some(from(*center) + *radius),
         Curve3::Ellipse { center, major, .. } => Some(from(*center) + *major),
-        Curve3::Nurbs(n) => n
-            .control()
-            .iter()
-            .map(|p| from(*p))
-            .reduce(|a, b| a.max(b)),
+        Curve3::Nurbs(n) => n.control().iter().map(|p| from(*p)).reduce(|a, b| a.max(b)),
     }
 }
 
@@ -692,7 +688,13 @@ fn gap<T: Decide>(
                 ..
             },
         ) => {
-            if !parallel("carrier_cyl_axis_parallel", *ao, *ai, arm(outer, inner), band)? {
+            if !parallel(
+                "carrier_cyl_axis_parallel",
+                *ao,
+                *ai,
+                arm(outer, inner),
+                band,
+            )? {
                 return not_parallel("gap", "carrier_cyl_axis_parallel", outer, inner);
             }
             Ok(*r_bore - *r_pin - axis_offset(*oo, *ao, *oi))

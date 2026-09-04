@@ -35,7 +35,7 @@ use std::collections::BTreeMap;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box, sample_offset};
 use editor_core::clearance::{MinSepSelection, MinSeparationConfig, min_separation};
-use editor_core::drive::{DriveConfig, VerdictVector, drive, SymbolicDials};
+use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, drive};
 use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, report_key};
 use editor_core::{
@@ -61,7 +61,6 @@ fn numeric_lane() -> DriveConfig {
         ..DriveConfig::default()
     }
 }
-
 
 fn name(n: &str) -> ParamName {
     ParamName::new(n)
@@ -199,8 +198,8 @@ fn the_certifying_filter_changes_a_pre_m10_6_documents_drive() {
     );
 
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness())
-        .expect("the nominal builds");
+    let verdict =
+        drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("the nominal builds");
     assert!(
         !verdict.certified().is_empty(),
         "the ε-scaled box certifies"
@@ -814,8 +813,8 @@ fn guide(bound: f64) -> Guide {
 fn a_tolerance_study_end_to_end_through_the_public_doors() {
     let g = guide(2.0 - 1.0e-11);
     let analyzed = analyzed_box(&g.doc, &AnalysisPolicy::default());
-    let verdict = drive(&g.doc, &analyzed, &numeric_lane(), Tol::witness())
-        .expect("the nominal builds");
+    let verdict =
+        drive(&g.doc, &analyzed, &numeric_lane(), Tol::witness()).expect("the nominal builds");
     eprintln!("--- drive ---\n{}", verdict.render(&analyzed));
     assert!(
         !verdict.certified().is_empty(),

@@ -1589,3 +1589,84 @@ number a reader can check, not something read off the absence of a red.
 **What would re-open the K question here**: any rule-1 flag in this
 population. Changing geometry to move a margin out of the band remains
 the forbidden move, exactly as for every other row in this report.
+
+## M10-7 addendum (2026-09-04): the symbolic tier's own column, and the extent lever's non-move
+
+Two changes of M10-7 touch this report: the E12 symbolic identity tier
+adds an OUTCOME to the funnel, and E3's extent lever moves the arm two
+funnel predicates are metered at. Both are recorded here because the
+runbook asks a distribution change to be READ rather than restored.
+
+### The driver population, split
+
+`geom_core::k_stats::SampleOutcome::SymbolicZero` is a fourth outcome
+beside `Definite` / `Indeterminate` / `Invalid`. It records a decision
+the symbolic tier answered: the margin's expression is identically zero
+in the document's parameters, so `Zero` was a theorem and no enclosure
+was consulted. **It is never a rule-1 sample, and cannot be**: no margin
+was classified against the band at all, so there is nothing in-band to
+find. The K question — where do decided margins sit relative to the
+thresholds — is asked of the numeric column only, which is what the
+column split is for.
+
+**Measured (2026-09-04, M10-7's head, dev profile, `--features
+probe,interval`, ε = 1e-9), on the same
+`m10_3_driver_k_probe_interval::` sweep the M10 addendum above
+describes:**
+
+| shape | certified leaves | samples |
+| --- | --- | --- |
+| `driver/slab_narrow` | 1 | 1,227 |
+| `driver/slab_across_zero` | 65 | 534,763 |
+
+| outcome | samples | share |
+| --- | --- | --- |
+| `symbolic_zero` | 518,632 | 96.8% |
+| `positive` | 16,830 | 3.1% |
+| `zero` (numeric) | 528 | 0.1% |
+| `indeterminate` / `invalid` | **0** | — |
+
+The population more than doubled against the M10-6 reading (257,025
+samples): with the identities discharged, the drives certify many more
+leaves and each certified leaf is replayed. **Rule 1 still fires zero
+times**, so the M10 addendum's disposition — rule 1 gates, rules 2 and 3
+demoted with a recorded justification — is unchanged, and it is
+unchanged for the same measured reason rather than by inheritance.
+
+The largest symbolic columns are `segment_straightness` (206,450),
+`extrusion_normal_component` (71,190), `contact_at_shared_vertex` and
+`chord_side` (66,064 each), `carrier_matches_mapped_source` (36,756),
+`carrier_on_surface_1`/`_2` (20,844 each) and the two the M10-3 unit
+pinned, `carrier_endpoint_start`/`_end` (6,400 each).
+
+### The extent lever: the population did NOT move, and that is measured
+
+E3's amendment changes the arm `eval::measure` meters
+`bool_plane_parallel` and `carrier_cyl_axis_parallel` at, from
+`max(separation, 1 m)` to an upper bound on the operands' extent. The
+margin is `‖n̂_a × n̂_b‖ · L`, LINEAR in the arm, so any sample through
+that door scales by exactly `L_new / 1 m` — for a sub-metre part, a move
+DOWN by that factor, floor and all.
+
+Measured on the M2 corpus sweep at ε = 1e-9 (`m4_pr8_k_probe::`), the
+population this could move is:
+
+- `bool_plane_parallel` — 4,288 samples, every one of them through the
+  boolean verifier's and the flush detector's OWN arms
+  (`topo::boolean::carrier_eq`, `topo::chart_region`), which this unit
+  did not touch. No corpus document carries a plane-pair `distance` or
+  `gap` measure, so none of these come through the changed door.
+- `carrier_cyl_axis_parallel` — 3 samples, all from
+  `corpus/measured_web`, which is the only corpus document that measures
+  through the changed door. All three have margin **exactly `0e0`**: the
+  two hole axes are exactly parallel, so the cross product is exactly
+  zero and the arm multiplies zero.
+
+So the linted distribution is unchanged, and the reason is the fixtures
+rather than the change: nothing in either population exercises the
+changed arm at a nonzero tilt. What DOES exercise it is
+`editor-core/tests/m10_7_lever.rs`, whose rows are behavioural (a number
+or a typed refusal) rather than margins, and which is where the move
+would be seen if a fixture ever produced one. A future document that
+measures a distance across a tilted plane pair will land here scaled by
+`L_new / 1 m`, and this paragraph is the record of what that scaling is.

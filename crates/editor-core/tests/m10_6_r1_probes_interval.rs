@@ -54,7 +54,7 @@ use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::clearance::{
     ClearanceQuery, MinSepSelection, MinSeparationConfig, Selection, clearance_over, min_separation,
 };
-use editor_core::drive::{DriveConfig, VerdictVector, drive, SymbolicDials};
+use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, drive};
 use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, MassBasis, MassBudget, leaf_histogram, report_key};
 use editor_core::stackup::stackup;
@@ -81,7 +81,6 @@ fn numeric_lane() -> DriveConfig {
         ..DriveConfig::default()
     }
 }
-
 
 fn name(n: &str) -> ParamName {
     ParamName::new(n)
@@ -927,8 +926,7 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
         MassBasis::Forced { by } => assert_eq!(by, vec![name("lift")]),
         other => panic!("{other:?}"),
     }
-    let verdict =
-        drive(&r.doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
+    let verdict = drive(&r.doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
     let budget = MassBudget::of(verdict.accounting(), &analyzed);
     eprintln!("mixed:\n{}\n{}", budget.render(), budget.serialize());
     assert!(budget.render().contains("FORCED, not priced: lift"));

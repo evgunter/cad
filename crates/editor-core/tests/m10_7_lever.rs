@@ -60,20 +60,12 @@ fn cap(ev: &Evaluation<f64>, node: RecipeNodeId, end: CapEnd) -> MeasureRef {
 fn measures(half: f64, theta: f64) -> Result<f64, String> {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-7-lever"), Tol::witness());
     let (c, s) = (theta.cos(), theta.sin());
-    let square = LoopProgram::polygon([
-        (-half, -half),
-        (half, -half),
-        (half, half),
-        (-half, half),
-    ])
-    .expect("finite corners");
+    let square = LoopProgram::polygon([(-half, -half), (half, -half), (half, half), (-half, half)])
+        .expect("finite corners");
     let mut plates = Vec::new();
     for (z, v) in [
         (0.0, [scl(0.0), scl(1.0), scl(0.0)]),
-        (
-            THICKNESS + SEPARATION,
-            [scl(0.0), scl(c), scl(s)],
-        ),
+        (THICKNESS + SEPARATION, [scl(0.0), scl(c), scl(s)]),
     ] {
         let (next, plane) = mint(
             &doc,

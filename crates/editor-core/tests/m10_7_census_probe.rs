@@ -12,6 +12,17 @@
 //!   of the tour's own plate that certifies, and names what refuses
 //!   first beyond it.
 //!
+//! **NO TEST IN THIS FILE IS EXECUTED BY CI**, and that is deliberate
+//! rather than a filter's accident: both rows are `#[ignore]`d evidence
+//! probes that print and assert nothing a gate could read, and the whole
+//! file is behind `#![cfg(all(feature = "interval", feature = "probe"))]`
+//! besides. They are run by hand when the census or the ceiling has to be
+//! re-measured — which is a unit's act, not a per-run one — and their
+//! output is quoted where it is read: `geom_core::sym`'s module docs and
+//! M10-7's PR body. `scripts/k_probe_sweep.sh` deliberately does not
+//! roster them: neither writes a K CSV, so a sweep that ran them would
+//! collect nothing.
+//!
 //! Run them:
 //!
 //! ```sh
@@ -52,10 +63,7 @@ fn budget() -> SymBudget {
 /// it answers over a box: is this margin's expression identically zero
 /// in the parameters. What a point cannot show is the WIDENING, which
 /// is the driver's own rows' business.
-fn split(
-    doc: &editor_core::ProfileDoc,
-    tol: Tol,
-) -> BTreeMap<&'static str, (u64, u64)> {
+fn split(doc: &editor_core::ProfileDoc, tol: Tol) -> BTreeMap<&'static str, (u64, u64)> {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     let nominal = ParamBox::from_axes(
         ParamBox::of(&analyzed)
@@ -193,7 +201,10 @@ fn measure_the_ceiling_on_the_two_hole_plate() {
     println!("   at x{beyond:e} the leaf replay decides {counts:?}");
     for id in &ev.order {
         if let Some(editor_core::NodeResult::Failed(e)) = ev.result(*id) {
-            println!("   FIRST REFUSAL beyond the ceiling: node {} — {}", id.0, e.kind);
+            println!(
+                "   FIRST REFUSAL beyond the ceiling: node {} — {}",
+                id.0, e.kind
+            );
             break;
         }
     }

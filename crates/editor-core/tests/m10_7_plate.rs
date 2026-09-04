@@ -144,12 +144,10 @@ pub(crate) fn plate(
             let mut faces = select_where(
                 &ev,
                 node,
-                &Selector::of(NamePat::of_kind(
-                    EntityKind::Face,
-                )),
-                &[GeomPred::SurfaceKind(
-                    SurfaceKindSet::just(geom_brep::SurfaceKind::Cylinder),
-                )],
+                &Selector::of(NamePat::of_kind(EntityKind::Face)),
+                &[GeomPred::SurfaceKind(SurfaceKindSet::just(
+                    geom_brep::SurfaceKind::Cylinder,
+                ))],
                 &env,
                 tol,
             )

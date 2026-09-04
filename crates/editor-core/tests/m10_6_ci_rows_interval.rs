@@ -54,7 +54,7 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
-use editor_core::drive::{DriveConfig, VerdictVector, drive, SymbolicDials};
+use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, drive};
 use editor_core::report::{MassBasis, MassBudget};
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, DocParam,
@@ -765,8 +765,8 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
     // The band fixture is a `min_clearance` document (its measure is
     // the neck's), so it takes the numeric lane — see
     // [`drive_registered`].
-    let verdict = drive_registered(&band_placement(), &analyzed, Tol::witness())
-        .expect("the nominal builds");
+    let verdict =
+        drive_registered(&band_placement(), &analyzed, Tol::witness()).expect("the nominal builds");
     let rendered = MassBudget::of(verdict.accounting(), &analyzed).render();
     assert!(
         rendered.contains("FORCED, not priced"),

@@ -1087,10 +1087,10 @@ pub fn drive(
     if root.varying().next().is_none() {
         return Err(DriveRefusal::NothingVaries);
     }
-    if config.symbolic.enabled {
-        if let Some(node) = clearance_measure(doc) {
-            return Err(DriveRefusal::SymbolicClearanceUnsupported { node });
-        }
+    if config.symbolic.enabled
+        && let Some(node) = clearance_measure(doc)
+    {
+        return Err(DriveRefusal::SymbolicClearanceUnsupported { node });
     }
 
     // The WITNESS build: the document at its nominals, at f64, with the
@@ -1364,14 +1364,30 @@ fn classify(
             leaf
         });
         return (
-            classify_replay(doc, box_, &leaf, witness, witness_vector, witness_key, counts),
+            classify_replay(
+                doc,
+                box_,
+                &leaf,
+                witness,
+                witness_vector,
+                witness_key,
+                counts,
+            ),
             counts,
         );
     }
     let leaf: Evaluation<Interval> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
     let counts = SymCounts::default();
     (
-        classify_replay(doc, box_, &leaf, witness, witness_vector, witness_key, counts),
+        classify_replay(
+            doc,
+            box_,
+            &leaf,
+            witness,
+            witness_vector,
+            witness_key,
+            counts,
+        ),
         counts,
     )
 }
@@ -1389,7 +1405,6 @@ fn classify_replay<T: geom_core::Decide>(
     witness_key: VerdictVectorKey,
     decisions: SymCounts,
 ) -> LeafVerdict {
-
     // (i) Definiteness. An indeterminacy anywhere is the cue to
     // bisect — unless the enclosure that could not be classified sits
     // wholly inside the band, in which case refinement provably cannot
@@ -1682,12 +1697,7 @@ fn contained(root: &ParamBox, certified: &[CertifiedLeaf], refused: &[RefusedLea
 /// existing scalar, the existing sink — the driver only decides WHICH
 /// parameter points get sampled.
 #[cfg(feature = "probe")]
-fn probe_midpoint(
-    doc: &Doc<ProfileProgram>,
-    box_: &ParamBox,
-    symbolic: SymbolicDials,
-    tol: Tol,
-) {
+fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: SymbolicDials, tol: Tol) {
     // THE SAME MIDPOINT THE SPLIT RULE USES, through the same door
     // (`BoxAxis::midpoint`). Writing `0.5 * (lo + hi)` here as well
     // would let a change to the split rule silently detach the K

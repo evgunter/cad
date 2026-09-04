@@ -613,7 +613,10 @@ fn the_certification_width_threshold_is_no_longer_a_fraction_of_epsilon() {
             hi = mid;
         }
     }
-    println!("R2 MEASURED: the widest whole-certifying half-width is {lo:e} ({} eps)", lo / eps());
+    println!(
+        "R2 MEASURED: the widest whole-certifying half-width is {lo:e} ({} eps)",
+        lo / eps()
+    );
     assert!(
         lo >= 1.0e-3,
         "the largest box that certifies whole has half-width {lo} — the identity tier is not \
