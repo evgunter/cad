@@ -78,7 +78,15 @@ pub mod tree;
 #[cfg(feature = "app")]
 pub mod app;
 #[cfg(feature = "app")]
+pub mod drafts;
+#[cfg(feature = "app")]
+pub mod forms;
+#[cfg(feature = "app")]
 mod gpu;
+#[cfg(feature = "app")]
+pub mod pane;
+#[cfg(feature = "app")]
+pub mod widgets;
 
 /// **Loud skip.** The two modules above, and every unit test inside
 /// them, are absent from a default-feature build of this crate — the
