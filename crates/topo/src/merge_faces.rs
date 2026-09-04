@@ -2230,6 +2230,47 @@ mod winding_arm_tests {
         }
     }
 
+    /// The relative tolerance the two value-pinning rows assert to.
+    ///
+    /// Bounded from BELOW by the fixtures' arithmetic and from ABOVE by
+    /// the mutations they must catch, and both bounds are stated
+    /// because the gap is what makes the rows meaningful:
+    ///
+    /// - **Floor.** Each fixture's residue is a difference of two O(1)
+    ///   quantities, so it carries a few ulps of `~0.5` — about
+    ///   `1e-16` absolute. The residue itself is `√(ε·K·ε)·P`, which
+    ///   at the TIGHTEST gated row (ε = 1e-12) is `~1.6e-11`, giving a
+    ///   relative noise near `1e-5`.
+    /// - **Ceiling.** The smallest mutation these rows must redden is
+    ///   deleting the perimeter re-metering on the Circle fixture:
+    ///   arc-metered `5.117` against chord-metered `4.961`, a **3.2%**
+    ///   move.
+    ///
+    /// `1e-3` sits two orders above the floor and one and a half below
+    /// the ceiling.
+    const TOL_REL: f64 = 1e-3;
+
+    /// The residue to place a fixture's verdict on, so that the row
+    /// travels EVERY tolerance lane.
+    ///
+    /// The two rows below have to land their margin strictly inside the
+    /// ambiguity band, because that is the only place the deciding
+    /// scalar is observable. The band is `(ε, K·ε)` from the RUN's
+    /// tolerance, and CI gates several ε rows — so a hard-coded
+    /// residue that sits mid-band at ε = 1e-9 DECIDES at ε = 1e-12 and
+    /// the row stops testing what it is for. The geometric mean
+    /// `√(ε · K·ε)` is strictly inside `(ε, K·ε)` for every ε and
+    /// every K > 1; scaled by the loop's perimeter it is the `2A` that
+    /// puts the verdict there.
+    ///
+    /// `perimeter` is a nominal value — only good enough to aim with.
+    /// Each row recomputes its EXACT perimeter afterwards and asserts
+    /// against `residue / that`, so nothing here enters the pin.
+    fn band_centre_residue(tol: Tol, perimeter: f64) -> f64 {
+        let b = band(tol);
+        (b.zero() * b.escalate()).sqrt() * perimeter
+    }
+
     /// **The re-metering is the perimeter, and the perimeter is ARC
     /// LENGTH** — pinned on the value, not on a sign.
     ///
@@ -2241,12 +2282,12 @@ mod winding_arm_tests {
     ///
     /// The fixture: the `a → b` side is a unit quarter arc, whose
     /// bulge bites `π/2 − 1` out of the chord triangle; `d` is placed
-    /// so the chord area exceeds that bite by exactly `DELTA`. The
-    /// whole verdict is that residue over the loop's own perimeter —
-    /// `DELTA / P`, engineered into the ambiguity band so the value
-    /// comes back. Both terms are O(1) and cancel to ~2.6e-8, which is
-    /// still 8 orders above an f64 ulp of them, so the residue is
-    /// determined to ~1e-8 relative — far inside the assertion below.
+    /// so the chord area exceeds that bite by exactly `delta` —
+    /// [`band_centre_residue`], which aims the verdict at the middle of
+    /// the ambiguity band for whatever ε the run carries. The whole
+    /// verdict is then that residue over the loop's own perimeter,
+    /// `delta / P`, and the value comes back because it escalated.
+    /// [`TOL_REL`] states the arithmetic this survives.
     ///
     /// What it catches: `perimeter = metered` DELETED leaves the chord
     /// perimeter (√2 for the arc's side instead of π/2 — a 3% smaller
@@ -2256,9 +2297,10 @@ mod winding_arm_tests {
     fn the_conic_perimeter_is_re_metered_to_arc_length() {
         let tol = Tol::witness();
         // 2A = (chord Newell) + (bulge) = (y + 1) + (1 − π/2).
-        const DELTA: f64 = 2.56e-8;
+        // This triangle's perimeter is ≈ 5.12; aiming with 5 is ample.
+        let delta = band_centre_residue(tol, 5.0);
         let bulge_z = 1.0 - core::f64::consts::FRAC_PI_2; // R²(Δ − sin Δ), Δ = π/2
-        let y = DELTA - 1.0 - bulge_z;
+        let y = delta - 1.0 - bulge_z;
         let (a, b, d) = (
             Point3::new(0.0, 1.0, 0.0),
             Point3::new(1.0, 0.0, 0.0),
@@ -2287,17 +2329,17 @@ mod winding_arm_tests {
         let sides = (d - b).norm() + (a - d).norm();
         let metered = core::f64::consts::FRAC_PI_2 + sides;
         let chorded = (b - a).norm() + sides;
-        let expected = DELTA / metered;
+        let expected = delta / metered;
         assert!(
-            (expected - DELTA / chorded).abs() > 1e-3 * expected,
+            (expected - delta / chorded).abs() > TOL_REL * expected,
             "the pin has teeth only if the two levers differ by more than its tolerance"
         );
         let got = escalated_margin(t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)));
         assert!(
-            (got - expected).abs() <= 1e-6 * expected,
+            (got - expected).abs() <= TOL_REL * expected,
             "the margin is the residue over the ARC-LENGTH perimeter: \
              got {got:e}, expected {expected:e} (chord-metered would be {:e})",
-            DELTA / chorded
+            delta / chorded
         );
     }
 
@@ -2316,18 +2358,19 @@ mod winding_arm_tests {
     ///
     /// Same construction as the mixed row: a chord triangle with its
     /// `a → b` side retyped, `d` placed so the chord area exceeds the
-    /// arc's bite by `DELTA` and the verdict lands in the band.
+    /// arc's bite by `delta` and the verdict lands in the band.
     #[test]
     fn an_ellipse_arc_uses_its_major_to_meter_and_both_semi_axes_for_area() {
         let tol = Tol::witness();
-        const DELTA: f64 = 2.36e-8;
         const MAJOR: f64 = 1.0;
         const MINOR: f64 = 0.5;
+        // This triangle's perimeter is ≈ 4.72; aiming with 5 is ample.
+        let delta = band_centre_residue(tol, 5.0);
         // The arc runs a → b over Δ = π/2; its bulge is
         // `major·minor·(Δ − sin Δ)` about −ẑ, i.e. NEGATIVE about +ẑ.
         let bulge_z = MAJOR * MINOR * (1.0 - core::f64::consts::FRAC_PI_2);
         // 2A = (chord Newell) + (bulge) = (y + MINOR) + bulge_z.
-        let y = DELTA - MINOR - bulge_z;
+        let y = delta - MINOR - bulge_z;
         // `a` sits at the ellipse's own semi-minor tip, `b` at its
         // semi-major tip — the two points the arc below runs between.
         let (a, b, d) = (
@@ -2355,18 +2398,18 @@ mod winding_arm_tests {
             )
             .unwrap();
         let sides = (d - b).norm() + (a - d).norm();
-        let expected = DELTA / (core::f64::consts::FRAC_PI_2 * MAJOR + sides);
+        let expected = delta / (core::f64::consts::FRAC_PI_2 * MAJOR + sides);
         // What the two swaps would produce, and the proof that this
         // row's tolerance separates them: BOTH scale the margin by
         // `major/minor`, so one assertion covers both.
         let swapped = expected * (MAJOR / MINOR);
         assert!(
-            (swapped - expected).abs() > 1e-3 * expected,
+            (swapped - expected).abs() > TOL_REL * expected,
             "a major/minor swap must move the margin further than the tolerance below"
         );
         let got = escalated_margin(t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)));
         assert!(
-            (got - expected).abs() <= 1e-6 * expected,
+            (got - expected).abs() <= TOL_REL * expected,
             "the ellipse meters on `major` and takes its area from `major·minor`: \
              got {got:e}, expected {expected:e} (either swap gives {swapped:e})"
         );
