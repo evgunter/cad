@@ -984,3 +984,120 @@ shape as the stale-tree state-sync commit earlier today, and the same
 lesson: this branch is not a place work becomes durable. Resolved as a
 chronological union. **The orchestrator branch needs a PR of its own
 before this session ends**, or the day's whole record lives on a branch.
+
+## 1d built; a parking decision of mine was resting on a false premise (2026-09-04)
+
+`Tools`'s seven `Option<…Tool>` fields are one `Option<OpenTool>`
+(#1832). The lane answered the gating question by enumeration rather
+than assumption — **two tools open was already unreachable**: the
+fields were private, no struct literal for `Tools` exists anywhere in
+the repo, the only writers were `open` (reset, then one match arm) and
+`close`, and `feed`/`reconcile` reach contents through `as_mut()` and
+never touch a discriminant. So this is a representation change with no
+behaviour change, and `ALL`'s ordering inside `open_kind` was dead code
+resting on that same fact.
+
+**`seated!` and its `Seated` trait are gone. `ALL` could not go** — six
+uses in `crates/viewer/tests/`, CHROME's glob. What changed is the
+sharp edge: `open_kind` no longer routes through the array, so a kind
+missing from `ALL` now narrows a sweep instead of making its tool
+permanently unreachable. That was the failure shape this unit was for,
+and it is the same one as
+`revolve-tool-unreachable-no-axisinplane-form` one level up. Half the
+stated goal, disclosed as half.
+
+### The correction that matters
+
+`pick-priority-filter-vocabulary` was parked on the split because I
+wrote that `ToolKind::pick_kinds` is "one of the hand-maintained lists
+over the tool set that the split's `Option<OpenTool>` step collapses".
+**It was already an exhaustive match.** There was nothing to collapse,
+1d leaves it byte-identical, and the blocker I named never gated the
+item. The lane found this and correctly declined to edit the item —
+§6's duplicate-filing hazard cuts both ways, and an item carrying an
+orchestrator's rationale is the orchestrator's to fix.
+
+That is the **sixth** dispatcher correction in unit 1's chain and the
+second against a decision rather than a detail. The first was the
+`Refusal` four-arms framing on #1801; both were written from names and
+plausibility rather than from the raising sites, which is the same
+error twice.
+
+### And the tracker has no word for what this item actually is
+
+Un-parking it is not an improvement — it is the least bad of two wrong
+states. The item is not dispatchable: its trigger is a vertex-pick tool
+that does not exist and is not scheduled, and README GQ7 ratifies the
+deferral. But `parked` requires `blocked_on` to name an item or a PR,
+and **nothing on the board names either the absent tool or a ratified
+prose deferral**. Between a status that overstates availability and a
+`blocked_on` naming something that does not gate it, `open` loses less:
+a reader who opens the file meets the truth in its first paragraph,
+where a false `blocked_on` would have gone on being believed unread —
+as mine was, for a day.
+
+CHROME hit the adjacent shape when it parked nine items and had to
+argue in prose why. Two instances is not a rule; a third is worth
+putting to Ev.
+
+## Unit 1 is closed (2026-09-04)
+
+Four PRs: #1801 ratified the boundary rule, #1816 made gesture safety
+data, #1830 split both files, #1832 made the one-of-seven tool
+invariant unrepresentable. **`session.rs` 3,260 → 1,500 and `app.rs`
+5,696 → 1,752**, thirteen new modules, and across the whole chain **no
+test file was touched and no assertion changed**. CHROME's nine parked
+items are unblocked and told.
+
+### 1d's review, and the finding that should not be lost
+
+All four claims survived. Two things came out of it worth more than the
+diff:
+
+**The reviewer verified the no-behaviour-change argument leg by leg and
+then added a leg nobody had considered.** `Tools` derives `Debug`, and
+derived `Debug` output IS observable behaviour that the change alters.
+It holds only because nothing formats a `Tools`. So the claim survives
+**by luck rather than by the enumeration**, which covered constructors
+and writers and not observers. *Who can construct this* and *who can
+observe this* are different sweeps, and the second is the one that gets
+skipped.
+
+**`ToolKind::ALL` had exactly one production reader — `open_kind`'s
+scan — and 1d removed it, leaving zero.** `ordinal` had zero already.
+So they are a `pub` pair existing solely for a test to sweep a list only
+that test reads, guarded by a second test. Same class as
+`opoutcome-superseded-has-no-production-reader`, filed by this program
+this morning. And the reviewer's Q6 point landed exactly: **1c filed an
+item for this shape of CHROME-glob residue and 1d filed none.** Now
+filed as `tool-kind-all-and-ordinal-have-no-production-reader`.
+
+### The seventh correction, and it is the one I was warned about
+
+The fix-pass lane checked a claim I had passed through and found it
+false: `forms::BOOLEAN_OPS` and `MATE_PRIMITIVES` are **not** that
+class — both are `pub(crate)` and both have production readers
+(`pane/create.rs:129`, `:144`, `:876`). The reviewer had named them as
+unswept siblings; I relayed that into a dispatch brief as an
+instruction without checking it.
+
+`docs/REVIEW-STYLE-DISPATCH.md` §3 names this exactly: *"A lane's
+unverified observation, repeated back to it as an instruction, arrives
+carrying the dispatcher's authority and is one commit from a ratified
+doc. Check a lane's claim before you build a brief on it."* It says the
+rule "binds the dispatcher hardest", and it was right. The lane caught
+it because the brief also told it the brief was a hypothesis — the two
+halves of that posture are what saved it, not either alone.
+
+**Seven dispatcher corrections across unit 1's chain**, two against
+decisions rather than details. Every one improved the unit. The posture
+that produced them is cheap: state the dispatch's claims as claims, and
+say so.
+
+### Where the program stands
+
+Unit 1 closed. **Thirteen open items, one parked**, nothing dispatched,
+no lane running. The three items that gate other work are all waiting on
+other programs: `next-id-has-no-layer3-door` (DOCM), the focus map door
+(DOCM and S-BOOL), and the pick-index seam ruling (an `[ev]` PR nobody
+has opened). The plan's items 3–6 are all still ahead.
