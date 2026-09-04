@@ -46,3 +46,6 @@ https://claude.ai/code/session_016pYMaeU4woYZN8YGdTLfSK
 ## Home
 
 VERBS: this is the cyl×cyl germ lane's geometry-side acceptance — Wave 2's curved boolean breadth over analytic pairs, VERBS' charter and its `crates/geom-brep/src/ssi*` / `intersect.rs` territory — and the issue names itself as VERBS-GERMARMS' successor.
+
+**VERBS closed** (exit walk ratified, PR #1793); re-homed to
+`work/issues/` awaiting an owner.

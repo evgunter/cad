@@ -146,3 +146,6 @@ C5 table row rewritten to say what R1 says, since today they overclaim.
 ## Home
 
 VERBS: the change lands in `crates/geom-brep/src/intersect.rs` (VERBS territory) and is exactly the charter's curved-boolean breadth — the C5 section arms and the cone operand lanes (`VERBS-C5ARMS`, `VERBS-CONE`).
+
+**VERBS closed** (exit walk ratified, PR #1793); re-homed to
+`work/issues/` awaiting an owner.

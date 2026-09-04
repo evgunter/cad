@@ -4,7 +4,7 @@ kind: issue
 title: the winding assigner/checker divergence: merge_faces assigns arc-bounded roles validate check 6 cannot check
 status: open
 opened: 2026-09-03
-refs: [VERBS-1031B, m6-sense-gate-recorded-residuals]
+refs: [1671, m6-sense-gate-recorded-residuals]
 ---
 
 ## The divergence
@@ -93,3 +93,6 @@ meantime.
 Recorded against the fourth residual in
 `work/props/m6-sense-gate-recorded-residuals.md:20`, which owns the flip
 condition for the arc-bounded planar class.
+
+**VERBS closed** (exit walk ratified, PR #1793); re-homed to
+`work/issues/` awaiting an owner.
