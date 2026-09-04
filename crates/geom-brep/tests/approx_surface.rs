@@ -404,8 +404,8 @@ fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
         let s = approx_offset_surface(Arc::clone(&base), d, 1e-6, band()).unwrap();
         let fit = approx_of(&s).fit();
 
-        let mapped_base = base.map_affine(&map);
-        let mapped_fit = fit.map_affine(&map);
+        let mapped_base = base.map_points(|p| map.transform_point(p));
+        let mapped_fit = fit.map_points(|p| map.transform_point(p));
         // The map of the fit is a certified fit of the offset of the
         // map of the base — same d, same tolerance.
         let cert = certify_offset(&mapped_base, &mapped_fit, d, 1e-6, band()).unwrap_or_else(|e| {

@@ -124,7 +124,8 @@ fn two_chord_area(r: f64, t: f64) -> f64 {
 fn wall(what: &str, body: &Body<f64>) -> f64 {
     let tol = Tol::witness();
     let hollow = topo::shell(body, T, FIT_TOL, tol)
-        .unwrap_or_else(|e| panic!("{what}: the axial door must hollow this, got {e}"));
+        .unwrap_or_else(|e| panic!("{what}: the axial door must hollow this, got {e}"))
+        .body;
     assert_eq!(
         topo::validate_geometric(&hollow, tol),
         Ok(()),
@@ -254,8 +255,9 @@ fn the_axial_door_names_its_own_boundary() {
         ]),
         Revolution::Full,
     );
-    let hollow =
-        topo::shell(&torus_vase, T, FIT_TOL, tol).expect("a torus wall is inside the axial kinds");
+    let hollow = topo::shell(&torus_vase, T, FIT_TOL, tol)
+        .expect("a torus wall is inside the axial kinds")
+        .body;
     assert_eq!(
         topo::validate_geometric(&hollow, tol),
         Ok(()),

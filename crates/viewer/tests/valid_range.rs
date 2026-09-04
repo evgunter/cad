@@ -19,6 +19,7 @@ use crate::common;
 use pncad::document::{Dimension, Doc, Expr, Node, ProfileProgram, SlotId};
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
+use pncad::quantity::WrittenLength;
 use viewer::bounds::{Bound, Bounds, BoundsProbe, Verdict, probe};
 use viewer::props;
 use viewer::session::{BoundsTarget, DocSession, Refusal, SessionOp};
@@ -297,4 +298,125 @@ fn probing_a_field_that_is_not_there_refuses_typed() {
         },
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));
+}
+
+/// **A driven slot is refused, with the affordance.** The probe's
+/// answer would be a range of numbers for a field that takes no
+/// number, so the door refuses it exactly as the numeric write and the
+/// drag do — and the payload names the parameter to probe instead.
+#[test]
+fn probing_an_expression_driven_slot_refuses_with_the_affordance() {
+    let tol = Tol::witness();
+    let (doc, _profile, extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let outcome = session.perform(SessionOp::ProbeBounds {
+        target: BoundsTarget::Slot {
+            node: extrude,
+            slot: SlotId::Distance,
+        },
+    });
+    match outcome.refusal {
+        Some(Refusal::DrivenByExpression {
+            node,
+            slot,
+            ref params,
+            current,
+        }) => {
+            assert_eq!(node, extrude);
+            assert_eq!(slot, SlotId::Distance);
+            assert_eq!(
+                params,
+                &vec![common::thickness_param()],
+                "the affordance's navigation target: probe THIS instead"
+            );
+            assert_eq!(
+                current,
+                Some(props::SlotValue::Continuous(0.004)),
+                "and the value the expression computes today"
+            );
+        }
+        ref other => panic!("expected the driven refusal, got {other:?}"),
+    }
+    assert!(
+        session.bounds().is_none(),
+        "a refused probe lands no reading"
+    );
+    assert!(outcome.committed.is_empty(), "a refusal commits nothing");
+
+    // The parameter DRIVING it has no driver of its own and is probed
+    // freely — which is what the refusal above sends a user to.
+    let outcome = session.perform(SessionOp::ProbeBounds {
+        target: BoundsTarget::Param {
+            name: common::thickness_param(),
+        },
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(session.bounds().is_some(), "the parameter door answers");
+}
+
+/// **A parameter is searched at the scale it was written in.** A
+/// millimetre-authored length seeds at one millimetre, not at one
+/// canonical metre, so the search spends its budget on the decades the
+/// part lives in.
+///
+/// Both assertions are ones a metre seed CANNOT satisfy rather than
+/// ones it merely satisfies less well: the upward reach is twelve
+/// doublings of the seed, so a metre seed answers thousands of metres
+/// where a millimetre seed answers a couple; and the downward bracket
+/// closes to about a thousandth of the seed, so a metre seed cannot
+/// narrow past a millimetre.
+#[test]
+fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("valid-range-mm", tol);
+    let (doc, _) = common::edited(
+        &doc,
+        pncad::document::DocEdit::SetDocParam {
+            name: common::thickness_param(),
+            value: pncad::document::DocParam::written_length(WrittenLength::in_unit(8.0, MM)),
+        },
+        tol,
+    );
+    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, _extrude) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: Expr::param(common::thickness_param(), Dimension::Length),
+        },
+        tol,
+    );
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let outcome = session.perform(SessionOp::ProbeBounds {
+        target: BoundsTarget::Param {
+            name: common::thickness_param(),
+        },
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let (_, result) = session.bounds().expect("a probe landed").clone();
+    assert_eq!(result.origin, 0.008);
+
+    // Upward: a thicker plate never fails, so the search reaches its
+    // ceiling. Twelve doublings of one millimetre is about two metres;
+    // twelve doublings of one METRE would be about two kilometres.
+    assert!(
+        result.high.limit() < 10.0,
+        "a millimetre-seeded reach stops metres out, not kilometres: {:?}",
+        result.high
+    );
+    // Downward: a zero-height extrude is refused, so there is a floor,
+    // and the bracket around it closes to about a thousandth of the
+    // seed. A metre seed brackets [0, 1 m] and cannot refine below
+    // about a millimetre.
+    let Bound::Edge { valid, invalid } = result.low else {
+        panic!("a vanishing plate fails, so there is a floor: {result:?}");
+    };
+    assert!(invalid < valid, "a bracket straddles: {invalid}..{valid}");
+    assert!(
+        valid - invalid < 1.0e-4,
+        "a millimetre-seeded bracket closes far finer than a metre seed could: \
+         {invalid}..{valid}"
+    );
 }

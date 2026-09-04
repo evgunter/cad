@@ -40,7 +40,7 @@
 //! both directions, deterministic.
 
 use geom_core::spline::{self, KnotAlgebraError, KnotVector, Span, SpanLocate, SplineError};
-use geom_core::{Affine3, Point3, Real, Vec3};
+use geom_core::{Point3, Real, Vec3};
 
 use crate::net;
 
@@ -381,42 +381,36 @@ impl<T: Real> NurbsSurface<T> {
         )
     }
 
-    /// The same surface placed by an affine map: every control point
-    /// through `map`, both knot vectors and every weight carried over
-    /// verbatim.
+    /// The same surface with every control point carried through `f`,
+    /// the knot vectors and the weights verbatim. Construction goes
+    /// through [`Self::from_validated_parts`], which states why no
+    /// re-validation is run.
     ///
-    /// **Weights and knots are invariants of an affine map**, and the
-    /// mapped net is the map of the surface at the SAME `(u, v)` — no
-    /// reparameterization. The rational surface is
-    /// `S(u,v) = Σ R_ij(u,v)·P_ij` with `R_ij = N_i N_j w_ij / Σ N N w`
-    /// summing to one, so it is an AFFINE COMBINATION of the control
-    /// points; an affine map commutes with an affine combination
-    /// (`M(Σ λ_i P_i) = Σ λ_i M(P_i)` when `Σ λ_i = 1`), which leaves
-    /// the `R_ij` — hence the weights and the knots they are built
-    /// from — untouched. Rationality is not a special case: the
-    /// denominator never sees the map.
+    /// # What the caller owes
     ///
-    /// **This door decides nothing about `map`.** The identity above
-    /// holds for every affine map, so nothing here needs rigidity; what
-    /// needs it is what a CONSUMER goes on to claim about the mapped
-    /// net. `topo::transform_rigid` maps an offset description's base
-    /// and its fit through here and then re-derives the fit's
-    /// certificate, which is sound because a rigid map carries unit
-    /// normals to unit normals — and that map's rigidity is decided at
-    /// that door, against the linear band, before this one is reached.
+    /// The result is the POINTWISE IMAGE of this surface — `f(S(u, v))`
+    /// at every `(u, v)` — exactly when `f` is **affine**, and nothing
+    /// here checks that. Why an affine `f` suffices, and why the
+    /// weights are therefore untouched, is the Euclidean-storage
+    /// section of [`crate::curves::nurbs`]'s data model, which is the
+    /// one home for that rule.
     ///
-    /// Construction goes through [`Self::from_validated_parts`]: a
-    /// pointwise map of the control array changes no count, and the
-    /// weights are the same values.
+    /// The consequence worth repeating at the call site: were the net
+    /// stored WEIGHTED (`wᵢⱼPᵢⱼ`, homogeneous), this call would be
+    /// wrong — an affine map's translation limb has to be scaled by
+    /// `wᵢⱼ` there, and applying it unscaled bends the surface. Read
+    /// the storage before reaching for this door.
+    ///
+    /// A non-affine `f` is not refused and not meaningless — it is a
+    /// map of the CONTROL NET, whose surface is some other surface —
+    /// but it is not this surface's image, and calling it one is the
+    /// error this paragraph exists to name.
     #[must_use]
-    pub fn map_affine(&self, map: &Affine3<T>) -> Self {
+    pub fn map_points(&self, f: impl Fn(Point3<T>) -> Point3<T>) -> Self {
         Self::from_validated_parts(
             self.knots_u.clone(),
             self.knots_v.clone(),
-            self.control
-                .iter()
-                .map(|p| map.transform_point(*p))
-                .collect(),
+            self.control.iter().map(|p| f(*p)).collect(),
             self.weights.clone(),
         )
     }

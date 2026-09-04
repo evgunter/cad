@@ -332,8 +332,16 @@ fn an_approx_faced_body_moves_under_a_rigid_map() {
             before.window(),
             "d = {d}: the window is a parameter-space fact"
         );
-        same_net(b1, &b0.map_affine(&map), "the description's base");
-        same_net(after.fit(), &before.fit().map_affine(&map), "the fit");
+        same_net(
+            b1,
+            &b0.map_points(|p| map.transform_point(p)),
+            "the description's base",
+        );
+        same_net(
+            after.fit(),
+            &before.fit().map_points(|p| map.transform_point(p)),
+            "the fit",
+        );
 
         let (c0, c1) = (before.certificate(), after.certificate());
         assert_eq!(

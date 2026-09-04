@@ -467,6 +467,9 @@ manifest_selftest() {
 # (demos/hosted-render-guard.sh) and deliberately do not sniff for CI.
 # This row is a sanctioned automated render — renderer-free, and
 # `git diff --exit-code` un-does the question of drift by failing on it.
+# It declares the LOCAL sentence, not the hosted one render.yml declares:
+# this pass runs on a developer's box and its frames are not the
+# committed ones, which is exactly what that sentence says.
 #
 # The two markers below are the LANES this row reproduces, in render.yml
 # rather than in ci.yml: the same `cargo run --release -- ../out` and the same
@@ -1073,6 +1076,7 @@ run_row "rustfmt (benches)"            bash -c 'cd benches && cargo fmt --all --
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
 # HOSTED MIRROR: fmt / viewer toolkit rows - the filter's verdict
 # HOSTED MIRROR: fmt / clippy (viewer app feature - eframe + wgpu)
+# HOSTED MIRROR: fmt / viewer app-feature rows (chrome + gpu pipeline smoke)
 # HOSTED MIRROR: viewer-toolkit / clippy (viewer app feature - eframe + wgpu)
 # HOSTED MIRROR: viewer-toolkit / rustdoc (viewer, all features)
 #
@@ -1096,6 +1100,29 @@ run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D w
 # `RUN_VIEWER_TOOLKIT` is deliberately not consulted: the filter's
 # output is shared, but a local run has no reason to act on this axis.
 run_row "clippy (viewer app)"          cargo clippy -p viewer --features app --all-targets -- -D warnings
+# THE ROWS BEHIND THE FEATURE, EXECUTED. The clippy row above compiles
+# them; it does not run them, and everything under `#[cfg(feature =
+# "app")]` — the chrome labels, the `StartupError` arms, and
+# `viewer::gpu`'s pipeline-creation smoke row — is absent from the
+# nextest archive, which builds this crate at DEFAULT features. That is
+# the whole reason this row exists: the archive's own output announces
+# the absence by name (the `app_lane_skipped_*` markers) and this is
+# where the rows themselves gate.
+#
+# A SOFTWARE VULKAN ADAPTER IS REQUIRED and is NOT installed by this
+# script — it installs no system packages anywhere. The gpu smoke row
+# fails, loudly and by name, when there is no adapter, because a row
+# that skipped there would report the same green as a row that built
+# every pipeline. `apt-get install -y mesa-vulkan-drivers` supplies
+# lavapipe and needs no display; crates/viewer/README.md (headless) is
+# the fuller recipe.
+#
+# `--success-output immediate` for the same reason the hosted step has
+# it: the adapter line is prose meant to be read, not output to recover
+# from a failure. Not the skip markers — `--features app` compiles them
+# out of this row; they announce themselves by NAME in the default-
+# feature rows' PASS list.
+run_row "test (viewer app)"            cargo nextest run -p viewer --features app --success-output immediate
 # The same shape one crate over: `crates/pncad-py/src/py/` — the whole
 # PyO3 surface — compiles only under the crate's non-default `python`
 # feature, so the `clippy` row above, which runs at DEFAULT features,

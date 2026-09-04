@@ -107,3 +107,11 @@ The STEP gap (leg 4) is independent of both and blocks export whatever
 either does.
 
 Leg 1 is the cheaper of the two and is already scheduled.
+
+**Update at SHELL-2's merge (2026-09-04):** leg 1 lifted on main
+meanwhile — FIX's transform unit (`transform_rigid: gate on
+is_placeholder, map described nets`) maps a DESCRIBED `Curve3::Nurbs`
+carrier and refuses only the placeholder, so the OFF-C loft can now
+move. The three OFF-C rows marked "decorative until 1346 lifts" can
+be strengthened on the loft; the cache walls (legs 2–3) and the STEP
+printer stand. Not done at merge — Ev asked the session to close out.
