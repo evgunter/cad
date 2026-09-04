@@ -2,12 +2,13 @@
 id: interior-witness-budget-decline-untyped
 kind: issue
 title: interior_witness budget exhaustion: type the decline (it currently re-raises the carried refusal, indistinguishable from a thin overlap)
-status: review
+status: closed
 opened: 2026-09-01
 github: 1478
 refs: [1472, 1435]
 branch: fix/census-typed-declines
 pr: 1750
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1478

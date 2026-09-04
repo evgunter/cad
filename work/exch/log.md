@@ -21,3 +21,34 @@ directory at opening, by header edit and `git mv` only (ids unchanged):
 
 No unit is cut and no branch exists yet. The first dispatch claims its
 ordinal from the band above and records it in `docs/MODEL-AB-LOG.md`.
+
+## EXCH-H1 cut and dispatched (2026-09-03)
+
+First unit. `EXCH-H1` (`exch/h1-degree-one-line`) takes both halves
+of `step-import-degree-one-line-promotion`: the certified line limb
+in `recognize_curve` and the `ExtrudedPoint`/`PlacedSegment` rung in
+`nurbs_iso_derive` — one unit, because a rung with no promoted line
+has no witness and a promotion with no rung refuses strictly earlier
+than today (the #327-measured result). Spec `docs/EXCH-H1-SPEC.md`
+(M / NUMERIC, logged pre-draw). Recon corrections folded into the
+spec rather than the plan: the zero-radius composite is prose-only
+today (the limb builds it; `compose` needs no edit — radius 0 is
+exact), dm1's tier rows are three cells since the 2026-08-13 audit,
+and the "37 polyline carriers" is an uncommitted count Phase 1
+censuses.
+
+Seams, announced here since TRIM has no live orchestrator (opens at
+CURVED's exit): `topo/src/pcurves.rs` edited at the one-arm rung seam
+per both keep_outs (EXCH dispatched first; TRIM consumes the rung);
+no edit under `geom-core/src/spline/` (S-CERT's glob — unit 2's
+derivative channel will be filed as an S-CERT row when that unit is
+cut).
+
+Block EXCH-B1 drawn at dispatch; the draw record stays branch-side
+(`exch/b1-block`) until the block concludes. Ordinal 2100 to be
+claimed on main at review dispatch. Option-surface design (`[ev]`
+items 4–6) is in discussion with Ev in-chat; no `[ev]` PR opened yet.
+
+Cross-program note at dispatch: main's tour row was red from SHELL's
+`Shelled` return with the fix (#1770) in flight — inherited, not
+EXCH's; the lane merges main when it lands.
