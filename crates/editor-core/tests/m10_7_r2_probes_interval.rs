@@ -60,7 +60,7 @@ const BORE_B_X: f64 = 2.2e-3;
 /// user would actually ask for and a smaller number is a narrower one.
 fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let mut declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
+    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
             name: ParamName::new(n),
             value: DocParam::Continuous {

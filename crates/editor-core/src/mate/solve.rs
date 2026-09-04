@@ -507,7 +507,9 @@ fn mate_coset(
     band: Band,
     tol: Tol,
 ) -> Result<Coset, Box<MateFault>> {
-    let arm = alignment.lever_arm();
+    let arm = alignment
+        .lever_arm()
+        .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal }))?;
     let frame = |side: MateSide, f: &super::MateFrame| {
         f.placement(tol)
             .map_err(|error| Box::new(MateFault::Frame { mate, side, error }))
@@ -678,7 +680,11 @@ pub fn fold_pair<P>(
                 instance: ha.instance,
             }));
         }
-        arm = arm.max(alignment.lever_arm());
+        arm = arm.max(
+            alignment
+                .lever_arm()
+                .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal }))?,
+        );
         let mut coset = mate_coset(mate, alignment, band, tol)?;
         // The authored order is `a`'s coordinates from `b`'s; the tree
         // may need the other direction.

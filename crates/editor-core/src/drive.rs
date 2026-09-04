@@ -167,20 +167,35 @@ pub struct DriveConfig {
 /// narrower than its own ε is the state M10-3 pinned and E12 exists to
 /// leave; the tier off is the comparison lane, not the shipped one.
 ///
-/// `max_terms = 4096` and `max_degree = 16` are the FREEZING budget, and
-/// they are sized against what the identities actually are rather than
-/// against a machine limit. A certification identity on an analytic
-/// carrier is a low-degree polynomial in a handful of parameters — the
-/// plate's widest form is a squared distance in three symbols, degree 2
-/// per symbol — so degree 16 is an order of magnitude of headroom and
-/// term counts stay in the tens. What the budget defends against is the
-/// pathological product a NURBS-heavy recipe could build, where a form
-/// would grow multiplicatively with no identity at the end of it; there
-/// the freeze costs a cancellation that was never going to happen and
-/// saves the replay. The evidence for the numbers is the FROZEN COUNT on
-/// the verdict: a corpus that freezes nothing has budget to spare, and a
-/// corpus that freezes often is telling you to look at the forms rather
-/// than to raise the dial.
+/// [`DEFAULT_SYM_MAX_TERMS`] = 4096 and [`DEFAULT_SYM_MAX_DEGREE`] = 128
+/// are the FREEZING budget, and both were MEASURED on this kernel's own
+/// fixtures rather than picked.
+///
+/// **Degree is the binding dial; terms are not.** A certification
+/// identity on an analytic carrier looks low-degree written down — the
+/// plate's widest form is a squared distance in three symbols — but the
+/// form the tier actually builds is not the written one. It is a
+/// QUOTIENT of polynomials reached by repeated cross-multiplication, and
+/// a metered extrusion contributes `‖w‖` and its reciprocal to every
+/// term it touches, so the degree that matters is the degree AFTER
+/// those denominators have been carried up the DAG. Measured on the
+/// M10-3 slab, the endpoint identity the tier's headline row depends on
+/// needs **degree ≥ 32** to cancel; at 16 it freezes and the row does
+/// not move. 128 is the next power of two with real headroom above the
+/// measurement, and it freezes NOTHING on that fixture. Terms never
+/// bound anything measured: 64 sufficed at every degree tried, and 4096
+/// is headroom against a NURBS-heavy product rather than a number any
+/// fixture approached.
+///
+/// What the budget defends against is exactly that pathological product,
+/// where a form grows multiplicatively with no identity at the end of
+/// it; there the freeze costs a cancellation that was never going to
+/// happen and saves the replay. The evidence for the numbers is the
+/// FROZEN COUNT on the verdict: a corpus that freezes nothing has budget
+/// to spare, and a corpus that freezes often is telling you to look at
+/// the forms rather than to raise the dial. On curved geometry it
+/// freezes for a different reason — `i128` coefficient overflow, not the
+/// dials — and the unit's D6 carries that measurement.
 ///
 /// `SymbolicDials::off()` reproduces the numeric-only replay bit for
 /// bit: no session is installed, no node is minted, and the verdict's

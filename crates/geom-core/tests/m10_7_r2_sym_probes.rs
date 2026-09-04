@@ -481,16 +481,23 @@ fn r2_a_symbolic_zero_retags_rather_than_double_counting() {
     assert_eq!(counts.numeric, 1);
 }
 
-/// **THE RE-TAG IS NOT ADDRESSED TO ITS OWN SAMPLE.** `retag_symbolic_zero`
-/// rewrites whatever sits LAST in the thread-local sink, and the base
-/// scalar of the driver's own replay lane (`Sym<Interval>`) records
-/// nothing at all. A sample pushed by an earlier `Probe` decision on the
-/// same thread is therefore re-labelled by a decision that has nothing
-/// to do with it — including an `Indeterminate` sample, which is exactly
-/// the population k-lint's rule 1 gates on.
+/// **THE RE-TAG IS ADDRESSED TO ITS OWN SAMPLE**, and this row is what
+/// says so.
 ///
-/// Evidence-only: this row DOCUMENTS the behaviour rather than asserting
-/// the fix, so it goes red the day the re-tag is addressed.
+/// It was an EXPECTED-DEFECT row. `retag_symbolic_zero` rewrote whatever
+/// sat LAST in the thread-local sink, and the base scalar of the
+/// driver's own replay lane (`Sym<Interval>`) records nothing at all —
+/// so a sample pushed by an earlier `Probe` decision on the same thread
+/// was re-labelled by a decision that had nothing to do with it,
+/// including an `Indeterminate` sample, which is exactly the population
+/// k-lint's rule 1 gates on. Silently erasing a rule-1 landing is the
+/// worst shape this could take: the gate would report a clean run
+/// because the evidence had been relabelled out of it.
+///
+/// The re-tag now names its row by an INDEX read before the base scalar
+/// decides (`k_stats::sink_mark`), and applies only when exactly one
+/// sample arrived at that index. At `Sym<Interval>` no sample arrives,
+/// so nothing is re-tagged and the foreign row keeps its own outcome.
 #[test]
 fn r2_the_retag_rewrites_a_foreign_sample_from_another_scalar() {
     start_recording();
@@ -522,29 +529,33 @@ fn r2_the_retag_rewrites_a_foreign_sample_from_another_scalar() {
     );
     assert_eq!(
         s[0].outcome,
-        SampleOutcome::SymbolicZero,
-        "EXPECTED-DEFECT ROW: if this is now `Indeterminate`, the re-tag has \
-         been addressed to its own sample and this row should be deleted"
+        SampleOutcome::Indeterminate,
+        "PIN (was an EXPECTED-DEFECT row): the `Sym<Interval>` decision records \
+         no sample of its own, so it re-tags NOTHING — the in-band Probe sample \
+         beside it keeps the outcome it earned, and rule 1 can still see it"
     );
 }
 
-// ------------------------------------- the `opaque` door's shared id
+// -------------------------------- the `opaque` door mints its own id
 
-/// **`Sym::opaque` gives EVERY untracked value the same node id**
-/// (`SymId::UNRECORDED`), so two DIFFERENT untracked values cancel in
-/// the normal form and the tier answers `Zero` on a margin that is not
-/// zero.
+/// **`Sym::opaque` gives every untracked value its OWN indeterminate**,
+/// so two DIFFERENT untracked values do not cancel and the tier answers
+/// nothing about their difference.
+///
+/// It was an EXPECTED-DEFECT row. Every opaque value carried the
+/// reserved `SymId::UNRECORDED`, whose comment said "the mixer never
+/// produces it, so it can never collide with a node" — true of nodes,
+/// and false of the other OPAQUE values, all of which were that one id
+/// and therefore one indeterminate. `opaque(-1) − opaque(1)` was a
+/// difference of a node with itself, its form was the zero polynomial,
+/// and `Sign::Zero` came back as a theorem about two values that are
+/// two apart.
 ///
 /// `Sym::opaque` is the public door for "a lane that legitimately has no
 /// expression to track — a bracket handed back by an engine that ran at
 /// another scalar" (its own docs), and `AxisScalar::axis for Sym<T>`
-/// already calls it. The reserved id is documented as "the mixer never
-/// produces it, so it can never collide with a node" — which is true of
-/// nodes and false of the OTHER opaque values, all of which are that one
-/// id, hence one indeterminate.
-///
-/// Evidence-only: this row asserts the DEFECT, so it goes red the day
-/// the door mints a distinct id per untracked value.
+/// calls it, so the door was reachable from the analysis lane as well as
+/// directly.
 #[test]
 fn r2_two_distinct_opaque_values_cancel_to_a_false_theorem() {
     let (s, counts) = with_session(budget(), || {
@@ -564,37 +575,52 @@ fn r2_two_distinct_opaque_values_cancel_to_a_false_theorem() {
     );
     assert_eq!(
         s.0,
-        Ok(Sign::Zero),
-        "EXPECTED-DEFECT ROW: if this is now `Negative`, `Sym::opaque` \
-         mints distinct ids and the hole is closed"
+        Ok(Sign::Negative),
+        "PIN (was an EXPECTED-DEFECT row): `Sym::opaque` mints a fresh \
+         indeterminate per call, so two untracked reals are two unknowns and \
+         their difference is decided by the numeric channel, not by a \
+         cancellation the tier has no argument for"
     );
     assert_eq!(
-        counts.symbolic_zero, 1,
-        "and the false answer was the SYMBOLIC tier's, not the numeric one's"
+        counts.symbolic_zero, 0,
+        "and the tier answered NOTHING here: with distinct unknowns there is no \
+         identity to discharge, so the decision is numeric"
     );
 }
 
-/// The same hole one level up: an opaque value is indistinguishable from
-/// ANY other opaque value, so a comparison between two of them is a
-/// theorem the tier has no argument for.
+/// The same hole one level up, now closed: every opaque value is its OWN
+/// unknown, so a comparison between two of them falls to the numeric
+/// channel — while a comparison of one with ITSELF still cancels, because
+/// that is a real theorem about one real.
 #[test]
 fn r2_an_opaque_value_equals_every_other_opaque_value() {
-    let (out, _) = with_session(budget(), || {
+    let (out, counts) = with_session(budget(), || {
         let a = Sym::opaque(Interval::from_bounds(-5.0, -5.0));
         let b = Sym::opaque(Interval::from_bounds(7.0, 7.0));
         let c = Sym::opaque(Interval::from_bounds(0.5, 0.5));
         vec![
-            ("a−b", sign_of(a - b)),
-            ("b−c", sign_of(b - c)),
-            ("a·b−b·a", sign_of(a * b - b * a)),
+            // Two DIFFERENT unknowns: the numeric channel decides, and
+            // it decides correctly.
+            ("a−b", sign_of(a - b), Ok(Sign::Negative)),
+            ("b−c", sign_of(b - c), Ok(Sign::Positive)),
+            // Commutativity of one PAIR of unknowns is still a theorem:
+            // `a·b − b·a` is the zero polynomial in the two unknowns,
+            // whatever they are. The fix separates unknowns; it does not
+            // stop the algebra from working.
+            ("a·b−b·a", sign_of(a * b - b * a), Ok(Sign::Zero)),
+            // And one unknown against itself.
+            ("a−a", sign_of(a - a), Ok(Sign::Zero)),
         ]
     });
-    for (name, s) in &out {
+    for (name, got, want) in &out {
         assert_eq!(
-            *s,
-            Ok(Sign::Zero),
-            "EXPECTED-DEFECT ROW ({name}): opaque values are no longer one \
-             indeterminate"
+            got, want,
+            "PIN (was an EXPECTED-DEFECT row) at {name}: opaque values are no \
+             longer one indeterminate"
         );
     }
+    assert_eq!(
+        counts.symbolic_zero, 2,
+        "exactly the two rows that ARE identities were answered symbolically"
+    );
 }

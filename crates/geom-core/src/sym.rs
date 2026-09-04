@@ -119,61 +119,79 @@
 //!
 //! # The census: which identity-shaped predicates this tier reaches
 //!
-//! PR #1231's two sweeps re-run on this head find **66** predicate-shaped
-//! names of the identity/gap family (57 at that PR's merge base; the nine
-//! new ones are `carrier_torus_{axis_parallel,center,major_radius,
-//! minor_radius}`, `pt_axis_plane_gap`, `pt_cap_gap`,
-//! `self_intersection_gap`, `ss_carrier_{external,identity,internal}`).
-//! The commands are that PR's, verbatim, and so are their blind spots:
-//! sweep A misses a predicate named through a wrapper or a table, sweep
-//! B cannot tell a predicate name from any other string literal of that
-//! shape, and neither sees a name using none of the filtered words.
+//! Two greps over `crates/` and `demos/` — one for the names handed to a
+//! funnel door, one for identity/gap-shaped string literals — and their
+//! union minus the bare filter words and the test-harness names. **107
+//! names.** The rule is written out in
+//! `work/cert/symbolic-tier-census.md`, which also carries the full
+//! table: one row per name, with its bucket, its evidence and its site.
+//! Only the counts and the two families that matter are here.
 //!
-//! Every one of the 66 is in exactly one bucket.
+//! | bucket | count |
+//! | --- | --- |
+//! | IMPLICIT (S-CERT's frontier) | 4 |
+//! | NOT A PREDICATE | 8 |
+//! | EXPLICIT | 95 |
 //!
-//! **NOT A PREDICATE — 6.** `coincide` and `coincident` are prose inside
-//! module docs (`editor_core::mate`, `geom_core::tolerance`);
-//! `carrier_in_chain`, `rebind_identity` and `frame_coincidence` are
-//! `pncad-py` TAG strings for error and enum variants
-//! (`pncad-py/src/tags.rs`); `carrier_kind` is a diagnostic name on an
+//! **107 and not the 66 the previous sweep reported**, because that
+//! number is not re-derivable from a rule written down anywhere and this
+//! one states its own. The difference is filter width, not new
+//! predicates.
+//!
+//! **IMPLICIT — 4**, and this is the census's load-bearing claim:
+//! `ssi_on_locus` and `ssi_on_locus_foot` (a marched intersection
+//! point's residual and the foot of its projection),
+//! `plane_nurbs_on_locus` (a chart-image foot) and
+//! `offset_reanchor_on_carrier` (an offset carrier re-anchored through a
+//! solve) — EXACTLY the four S-CERT's frontier item already names, at
+//! either filter width. A quantity found by iteration has no expression
+//! in the parameters, so no normal form reaches it and its residual
+//! widens with the box whatever this tier does.
+//!
+//! **NOT A PREDICATE — 8.** Seven are `pncad-py` TAG strings for error
+//! and enum variants; `carrier_kind` is a diagnostic name on an
 //! `Indeterminate` carrying `MarginDiag::Invalid`
-//! (`topo/src/boolean/carrier_eq.rs:339`) — a structure contradiction,
-//! with no margin ever classified.
+//! (`topo/src/boolean/carrier_eq.rs`) — a structure contradiction, with
+//! no margin ever classified.
 //!
-//! **IMPLICIT — 4** (S-CERT's frontier, and its item lists these four by
-//! name): `ssi_on_locus` and `ssi_on_locus_foot`
-//! (`geom-brep/src/ssi/certify.rs`) are a MARCHED intersection point's
-//! residual and the foot of its projection; `plane_nurbs_on_locus`
-//! (`geom-brep/src/certify.rs`) is a chart-image foot;
-//! `offset_reanchor_on_carrier` (`topo/src/replace_face.rs`) re-anchors
-//! an offset carrier through a solve. A quantity found by iteration has
-//! no expression in the parameters, so no normal form reaches it and its
-//! residual widens with the box whatever this tier does.
+//! **EXPLICIT — 95.** Closed forms in the parameters over analytic
+//! carriers. Nine carry a MEASURED symbolic/numeric split from
+//! `editor-core/tests/m10_7_census_probe.rs` (at `Sym<Probe>`, through
+//! the same funnel, over the M10 fixtures and the tour's plate):
+//! `carrier_endpoint_start` and `carrier_endpoint_end` (56/16 each),
+//! `carrier_matches_mapped_source` (288/72), `carrier_on_surface_1` and
+//! `carrier_on_surface_2` (216/72 each), `carrier_circles_identity`
+//! (6/0), `side_cylinders_cosurface` (4/0), `carrier_cyl_axis_parallel`
+//! (3/0), and `side_planes_cosurface` at 0/8. The rest carry their site,
+//! and many run at `f64` over no parameter box at all — a fact about
+//! this repository's fixtures rather than about their margins.
 //!
-//! **EXPLICIT — 56.** The remaining names' margins are closed forms in
-//! the parameters — a distance, a dot, a cross, a radius difference, a
-//! levered sine — over analytic carriers, which is exactly what the
-//! normal form is made of. Eight are MEASURED discharging on the M10
-//! fixtures and the tour's plate (the run is
-//! `editor-core/tests/m10_7_census_probe.rs`, at `Sym<Probe>` through
-//! the same funnel): `carrier_endpoint_start` and `carrier_endpoint_end`
-//! (56 symbolic / 16 numeric each), `carrier_matches_mapped_source`
-//! (288/72), `carrier_on_surface_1` and `carrier_on_surface_2` (216/72
-//! each), `carrier_circles_identity` (6/0), `side_cylinders_cosurface`
-//! (4/0), `carrier_cyl_axis_parallel` (3/0). The rest are explicit by
-//! the SITE's construction rather than by measurement, and several of
-//! them — the `pncad-py` tags aside, the `mate`/`coset` family and the
-//! boolean contact verifier — sit on paths that run at `f64` over no
-//! parameter box at all, so no fixture can exercise them here.
-//!
-//! `side_planes_cosurface` is the one of M10-3's three OBSERVED names
-//! that decides 0/8 symbolic on these fixtures, and the reason is not a
-//! miss: consecutive walls of a rectangle are genuinely NOT cosurface,
-//! so all eight decisions are definite non-coincidences. Its margin,
+//! `side_planes_cosurface`'s 0/8 is not a miss: consecutive walls of a
+//! rectangle are genuinely NOT cosurface, so all eight are definite
+//! non-coincidences. Its margin,
 //! `perp_dot(normalize(prev.b − prev.a), next.b − prev.a)`
 //! (`sweep/src/swept.rs`), is a quotient of polynomials and the form
 //! reaches it wherever the walls really are cosurface — which is what
 //! `side_cylinders_cosurface` at 4/0 on the plate's holes shows.
+//!
+//! # What the census CANNOT see, and it is the expensive part
+//!
+//! Both sweeps filter on WORDS, so a predicate whose name contains none
+//! of them is invisible to the instrument however much it decides. Five
+//! such names appear in the driver's own K CSV:
+//! `newell_plane_residual` (1,584 symbolic decisions),
+//! `segment_straightness` (1,650), `witness_at_mid_parameter` (1,377),
+//! `dihedral_wedge`, and `arc_diameter_clearance`.
+//!
+//! Two of them are not a footnote. **`dihedral_wedge` is what sets the
+//! slab's certification ceiling** — it lands in the band over a wide box
+//! — and `newell_plane_residual`'s INVALID arm is what a one-leaf replay
+//! of a still wider box fails on. So the predicate that bounds
+//! certification today is one this census was structurally unable to
+//! name, which says the instrument answers "which identity-shaped
+//! predicates does the tier reach" and NOT "which predicates bound
+//! certification". Those are different populations and the second one is
+//! `work/m10/real-margin-dependency-widening.md`.
 //!
 //! # The family this tier MISSES, named (E12's reserve)
 //!
@@ -270,6 +288,22 @@ impl SymId {
 /// A 128-bit FNV-1a over the little-endian bytes of the words fed to it
 /// — a fixed, platform-independent mixer, which is what D9 asks of an
 /// identity that has to agree across builds.
+///
+/// **The third FNV in this tree, and deliberately not shared with the
+/// other two.** `editor_core::eval::memo` runs two 64-bit FNV lanes for
+/// evaluation CONTENT KEYS, and `editor_core::stackup`'s `Digest` runs
+/// one for a pairing COMPARISON. All three are FNV-1a because FNV-1a is
+/// a dozen lines with no dependency and a fixed spec, which is the
+/// property each of them wants; that is a shared REASON, not shared
+/// code. They are not one type because they answer to different
+/// contracts: this one is a node identity that must agree across
+/// processes and builds forever (a change to it changes every id and
+/// every memoized form), the memo's keys never leave the process, and
+/// the stackup digest is explicitly "never a content key". Hoisting
+/// them together would put the loosest contract and the strictest one
+/// behind one name, and `geom-core` cannot depend on `editor-core` in
+/// any case. Said here so the duplication is a decision rather than an
+/// oversight.
 struct Hash128(u128);
 
 impl Hash128 {
@@ -1740,16 +1774,31 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 ///
 /// The two clauses of the theorem, in order:
 ///
-/// 1. **the computation was defined on the whole input box.** Without it
-///    `sqrt(-1) − sqrt(-1)` would decide `Zero` on an expression with no
-///    real value at all, and `(a/b)·b − a` would decide it where `b`
-///    reaches zero. The question is asked of the DECIDE door rather than
-///    of a bracket one: [`MarginDiag::Invalid`] is exactly the arm every
-///    scalar returns for a domain violation —
+/// 1. **the computation was defined on the whole input box**, checked
+///    in TWO places because one scalar cannot see both halves of it.
+///
+///    *The value side.* [`MarginDiag::Invalid`] is the arm every scalar
+///    returns for a domain violation it can see —
 ///    [`crate::Interval::sign_within`] for an uncertified enclosure,
-///    `f64` for NaN — so the numeric channel already answers it, and
-///    asking it there means this impl needs no bracket door and no
-///    compound bracket bound.
+///    `f64` and [`crate::Probe`] for NaN — so the numeric channel
+///    already answers that question and this impl needs no bracket door
+///    of its own. Without it, `sqrt(-1) − sqrt(-1)` decides `Zero` on an
+///    expression with no real value.
+///
+///    *The form side*, and it is not decoration:
+///    **[`Form::poisoned`]**. At `f64` and `Probe` the only thing
+///    `Invalid` catches is NaN, and a violation can hide behind a
+///    perfectly finite value — `atan(1/(x−x)) − atan(1/(x−x))` is
+///    `atan(+inf) − atan(+inf)` = `π/2 − π/2` = a finite `0.0`, with no
+///    real behind it anywhere. So a form built through a division by the
+///    ZERO polynomial is poisoned, the poison propagates through every
+///    combinator, and a poisoned form is never zero. That is the half
+///    the value channel structurally cannot supply at a point scalar.
+///
+///    (At `Interval` the same expression violates the domain visibly —
+///    the division is empty and the decoration drops — so the value side
+///    catches it there. Both halves are present at every base scalar
+///    because neither one is sufficient at all of them.)
 /// 2. **the node's normal form is the zero polynomial**, computed with
 ///    exact rational coefficients from the parameter symbols down.
 ///    Nothing in that computation reads a value.
@@ -1817,10 +1866,14 @@ mod tests {
     use crate::predicate::Margin;
     use crate::tolerance::Tol;
 
+    /// **The SHIPPED budget**, so these rows exercise the dials a drive
+    /// actually runs at. They used to use `max_degree: 16` while the
+    /// shipped value was 128 — a unit test that never touched the
+    /// configuration it was defending.
     fn budget() -> SymBudget {
         SymBudget {
             max_terms: 4096,
-            max_degree: 16,
+            max_degree: 128,
         }
     }
 

@@ -54,7 +54,7 @@ use crate::fixture;
 use std::io::Write;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
-use editor_core::drive::{DriveConfig, KProbe, SymbolicDials, drive};
+use editor_core::drive::{DriveConfig, KProbe, drive};
 use editor_core::{
     Dimension, Distribution, DocEdit, DocParam, LoopProgram, Node, ParamName, ProfileDoc,
     ProfileProgram, UnitSym,
@@ -299,25 +299,30 @@ fn the_dial_puts_driver_path_margins_in_the_funnel_and_nothing_else_does() {
 /// What it asserts is the biconditional's other half: no certified
 /// leaves, no samples, no panic, and a census line that says which.
 ///
-/// **The symbolic identity tier is OFF here, and that is the plant's
-/// own requirement rather than a workaround** (ERROR-DESIGN E12, M10-7).
-/// The tier discharges the certification identities that used to widen
-/// with the box, so on this fixture it certifies a MACROSCOPIC leaf
-/// immediately: with it on, no leaf budget starves the drive — a
-/// smaller budget just means the one leaf that certifies is reached
-/// sooner (measured: 33 certified at `max_leaves: 256`). This row's
-/// subject is the REPORTING of an empty certified set, not which tier
-/// produced it, so it asks for the configuration in which the plant is
-/// still a plant. The tier-on drive's own emptiness rows live in
-/// `m10_3_driver_interval`.
+/// **The plant is a budget of ZERO, and the tier stays ON** (M10-7).
+///
+/// `max_leaves: 256` was the plant, and the symbolic identity tier took
+/// it away: the tier discharges the certification identities that used
+/// to widen with the box, so this fixture certifies a MACROSCOPIC leaf
+/// almost at once and a smaller leaf budget only reaches it sooner
+/// (measured on hosted CI: 33 certified at 256). A first repair here
+/// switched the tier OFF to keep the old plant working, and a reviewer
+/// was right that that traded the row's subject for its fixture: the
+/// population this row exists to describe is the DRIVER's, and the
+/// driver ships with the tier on.
+///
+/// `max_leaves: 0` starves it with the tier on, and it starves it for
+/// the honest reason — the driver may not certify a leaf it was never
+/// allowed to open, so the whole frontier is refused unexamined and the
+/// receipt still balances. That is the same empty-certified-set state,
+/// produced by the configuration the driver actually runs.
 #[test]
 fn an_empty_certified_set_is_reported_rather_than_panicked_over() {
     let (name, doc) = documents().remove(1);
     let starved = run_doc_with(
         &doc,
         &DriveConfig {
-            max_leaves: 256,
-            symbolic: SymbolicDials::off(),
+            max_leaves: 0,
             ..probing()
         },
     );

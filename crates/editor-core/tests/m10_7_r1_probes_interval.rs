@@ -288,9 +288,22 @@ fn r1_max_leaves_zero_with_the_tier_on() {
 
 // ------------------------------------------------------ D2: the mate lever
 
-/// The mate lever is the datum's own extent "wherever it has one": a
-/// datum a nanometre from the origin has one, and is levered at a
-/// nanometre.
+/// **The mate lever no longer falls off a cliff at zero extent** — the
+/// row that found it, kept as the pin.
+///
+/// It was an EXPECTED-DEFECT row: the lever was
+/// `if extent > 0.0 { extent } else { 1.0 }`, so a datum AT the origin
+/// was levered at 1 m and a datum ONE NANOMETRE from it at 1e-9 m —
+/// nine orders apart, chosen by a bit-exact test against zero, with the
+/// small side being exactly the "prices every tilt at zero" failure the
+/// function's own docs warn about.
+///
+/// Three cases now, and the middle one refuses rather than answering:
+/// a datum that names NO scale gets the session box's metre (D4 para 4,
+/// and the `Coaxial`-at-origin spelling users author constantly); a
+/// datum naming a scale at or above `MIN_LEVER_ARM` gets that scale; a
+/// datum naming a scale BELOW it is refused typed, because the author
+/// named a length and the length they named cannot decide a tilt.
 #[test]
 fn r1_mate_lever_is_discontinuous_at_zero_extent() {
     use editor_core::mate::{Alignment, AxisSense, MateFrame, MatePrimitive};
@@ -307,13 +320,31 @@ fn r1_mate_lever_is_discontinuous_at_zero_extent() {
         clocking: None,
     };
     println!(
-        "lever at origin 0: {}  at 1e-9: {}  at 1e-3: {}",
+        "lever at origin 0: {:?}  at 1e-9: {:?}  at 1e-3: {:?}",
         at(0.0).lever_arm(),
         at(1e-9).lever_arm(),
         at(1e-3).lever_arm()
     );
-    assert_eq!(at(0.0).lever_arm(), 1.0);
-    assert_eq!(at(1e-9).lever_arm(), 1e-9);
+    // Names no scale: the session box, unchanged, and the case the
+    // twelve `asm_r2a_mate_solve` rows live in.
+    assert_eq!(at(0.0).lever_arm(), Ok(editor_core::mate::SESSION_SCALE));
+    // Names a scale that cannot decide anything: REFUSED, where it used
+    // to answer 1e-9 and read every tilt as parallel.
+    assert_eq!(
+        at(1e-9).lever_arm(),
+        Err(editor_core::mate::LeverRefusal::DatumTooSmall {
+            extent: 1e-9,
+            floor: editor_core::mate::MIN_LEVER_ARM,
+        })
+    );
+    // Names a usable scale: its own, with no constant in sight.
+    assert_eq!(at(1e-3).lever_arm(), Ok(1e-3));
+    // And the floor itself is admitted rather than refused — the
+    // comparison is `<`, so the stated floor is a usable arm.
+    assert_eq!(
+        at(editor_core::mate::MIN_LEVER_ARM).lever_arm(),
+        Ok(editor_core::mate::MIN_LEVER_ARM)
+    );
 }
 
 // ------------------------------------------------------------ e2e
@@ -323,6 +354,11 @@ fn r1_mate_lever_is_discontinuous_at_zero_extent() {
 /// parameter) at `±w / 4`, extruded by `w / 10`; the web between the
 /// holes is measured and asserted. Arcs (the hole rims), a division, a
 /// macroscopic box.
+// Read only by `m10_7_r1_census_probe`, which is gated on `probe` as
+// well as `interval`; in an interval-only build the fixture is dead and
+// saying so is cheaper than gating the function to match a sibling
+// module's cfg.
+#[cfg_attr(not(feature = "probe"), allow(dead_code))]
 pub(crate) fn bracket_pub(
     half_width: f64,
     literal_plate: bool,

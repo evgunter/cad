@@ -162,3 +162,78 @@ fn probe_key_differential() {
         }
     }
 }
+
+// ------------------------------------------- what the tier COSTS (D12)
+
+/// EVIDENCE-ONLY, and the source of deviation D12's numbers: what one
+/// leaf replay and one drive cost with the tier on against with it off,
+/// and how many forms freeze on CURVED geometry.
+///
+/// Run it, do not read it: the numbers move with the machine. What the
+/// PR quotes is a RATIO measured in one process, which is the part that
+/// travels.
+#[test]
+#[ignore = "evidence-only: prints the tier's cost and freeze counts"]
+fn m10_7_what_the_tier_costs() {
+    use std::time::Instant;
+    let tol = Tol::witness();
+
+    let drive_cost = |name: &str, doc: &editor_core::ProfileDoc, leaves: usize| {
+        let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
+        for (lane, dials) in [
+            ("on", SymbolicDials::default()),
+            ("off", SymbolicDials::off()),
+        ] {
+            let cfg = DriveConfig {
+                max_leaves: leaves,
+                symbolic: dials,
+                ..DriveConfig::default()
+            };
+            let t0 = Instant::now();
+            let v = drive(doc, &analyzed, &cfg, tol);
+            let dt = t0.elapsed();
+            match v {
+                Ok(v) => println!(
+                    "COST {name} leaves={leaves} tier={lane}: {dt:?} certified={} refused={} \
+                     decisions={:?}",
+                    v.receipt().certified,
+                    v.receipt().refused,
+                    v.decisions()
+                ),
+                Err(e) => println!("COST {name} leaves={leaves} tier={lane}: {dt:?} refused {e}"),
+            }
+        }
+    };
+
+    // The slab, at the macroscopic box the unit's headline row uses.
+    let doc = slab(1.0, 0.05);
+    drive_cost("slab/macroscopic", &doc, 32);
+    drive_cost("slab/256", &doc, 256);
+
+    // CURVED geometry — where the freezes come from `i128` coefficient
+    // overflow rather than from the dials, which is D6's gap.
+    #[cfg(feature = "probe")]
+    {
+        let (bracket, _, _) = crate::m10_7_r1_probes_interval::bracket_pub(0.5e-3, false, tol);
+        drive_cost("bracket/curved", &bracket, 32);
+        for max_terms in [4096usize, 1 << 20] {
+            let analyzed = analyzed_box(&bracket, &AnalysisPolicy::default());
+            let cfg = DriveConfig {
+                max_leaves: 32,
+                symbolic: SymbolicDials {
+                    max_terms,
+                    max_degree: 4096,
+                    ..SymbolicDials::default()
+                },
+                ..DriveConfig::default()
+            };
+            match drive(&bracket, &analyzed, &cfg, tol) {
+                Ok(v) => println!(
+                    "FREEZE bracket/curved terms={max_terms} degree=4096: decisions={:?}",
+                    v.decisions()
+                ),
+                Err(e) => println!("FREEZE bracket/curved terms={max_terms}: refused {e}"),
+            }
+        }
+    }
+}

@@ -363,11 +363,15 @@ fn unsupported<T: geom_core::Real, X>(
 
 /// The parallelism trilean, at an EXISTING funnel predicate and its
 /// existing margin shape: the sine of two unit directions'
-/// disagreement, levered at the arm over which the verdict is
-/// consumed. The arm is the operands' own separation — the distance
-/// the misalignment is about to be quoted over — falling back to unit
-/// arm when the two carriers pass through one point, where there is
-/// no separation to price.
+/// disagreement, levered at the arm over which the verdict is consumed.
+///
+/// The arm is [`arm`]'s — an upper bound on the EXTENT of the two
+/// operands together, with no floor. This paragraph used to say
+/// "the operands' own separation … falling back to unit arm when the
+/// two carriers pass through one point", which was the pre-E3 reading
+/// and stopped being true when E3's amendment landed: there is no
+/// fallback constant here any more, and separation is one of three
+/// terms rather than the whole of it.
 fn parallel<T: Decide>(
     predicate: &'static str,
     u: Vec3<T>,
@@ -411,14 +415,33 @@ fn parallel<T: Decide>(
 ///
 /// **No floor, and no predicate minted to replace one.** A zero lever
 /// would price every tilt at zero and call it parallel — the direction
-/// that reports numbers instead of refusing them — so a carrier with no
-/// extent must not reach this function. It cannot: [`carrier_of`]
-/// refuses a face whose boundary it cannot walk
-/// ([`Carrier::Other`] → the measure's typed refusal), and a face that
-/// PASSES tier-3 validation has positive extent by construction. That
-/// is the argument for having no floor rather than a small one, and it
-/// is a structural refusal rather than a new metered predicate: nothing
-/// here decides anything, and no ε enters.
+/// that reports numbers instead of refusing them — so no carrier that
+/// reaches this function may have zero extent.
+///
+/// **Which carriers reach it, stated rather than assumed.** Only the
+/// four call sites below reach `arm`, and each one has already matched
+/// its operands to a shape with extent: `distance` and `gap` on a
+/// plane-face pair, and the two cylinder-axis sites on a cylinder pair.
+/// A [`Carrier::Plane`] or [`Carrier::Cylinder`] carries the `reach`
+/// [`carrier_of`] computed for it, and `carrier_of` answers
+/// [`Carrier::Other`] — the measure's typed refusal — for a face whose
+/// boundary it cannot walk, so a face that reaches a lever site has a
+/// walked boundary and a positive reach.
+///
+/// **What [`reference`] does for the OTHER carriers is a defined
+/// answer, not an invariant.** A [`Carrier::Line`], `Other` or `Unread`
+/// has no reference point at all, and `reference` answers the world
+/// origin with reach zero. That is not a claim that such a carrier
+/// cannot arrive; it is what the function returns if one does, and it
+/// would make the arm the distance between two world origins — zero for
+/// a pair of them. No v1 call site can produce that pairing (the line
+/// consumer is `angle`, which takes no arm), and this paragraph is the
+/// record of why, in place of an invariant nothing enforces. A fifth
+/// lever site would have to re-establish it; `reference`'s own comment
+/// says so at the arm.
+///
+/// It is a structural argument rather than a new metered predicate:
+/// nothing here decides anything, and no ε enters.
 fn arm<T: Decide>(a: &Carrier<T>, b: &Carrier<T>) -> T {
     let (pa, ra) = reference(a);
     let (pb, rb) = reference(b);
@@ -437,9 +460,13 @@ fn reference<T: Decide>(c: &Carrier<T>) -> (Point3<T>, T) {
         // A sphere's own radius IS its reach, exactly.
         Carrier::Sphere { center, radius } => (*center, *radius),
         // A line carries no origin (its type docs say why), so it has
-        // no reference point to measure a reach from. It never reaches
-        // this door: `angle` is the v1 table's only line consumer and
-        // takes no arm.
+        // no reference point to measure a reach from, and neither does
+        // an unread or unsupported carrier. The world origin with reach
+        // zero is the DEFINED answer for them, not a claim that they
+        // cannot arrive — see [`arm`]'s "which carriers reach it". No v1
+        // lever site can hand one here (`angle` is the only line
+        // consumer and takes no arm); a new lever site must check that
+        // again rather than inherit it.
         Carrier::Line { .. } | Carrier::Other(_) | Carrier::Unread => (Point3::origin(), T::zero()),
     }
 }
