@@ -4043,11 +4043,23 @@ jobs:
   # .github/actions/rebaseline-lane for why neutral rather than red.
   #
   # `push_to` is the BRANCH, while the render itself runs on
-  # `github.ref` — the PR's MERGE commit on a pull_request, main's tip
-  # on a push. Rendering the merge preview and committing to the head
+  # `github.sha` — the PR's MERGE commit on a pull_request, the pushed
+  # commit on a push. Rendering the merge preview and committing to the head
   # branch is self-consistent because this gate always compares against
   # that same merge preview, and main's own push run re-renders and
   # re-baselines again after the merge if the two ever part.
+  #
+  # THAT WAS `github.ref` AND IS NOW `github.sha`, WHICH MOVED TWO THINGS.
+  # The merge ref is transient — re-pointed on every push to the PR, deleted
+  # when it closes — and a lane that checked the NAME out died at
+  # `actions/checkout` saying nothing about the tree. It is an OBJECT now,
+  # and one consequence is worth meeting here rather than discovering: on a
+  # PUSH the lanes render the commit the run is about, not main's tip at the
+  # moment the checkout ran, so a main push whose tip has already moved on
+  # renders the older tree — which the re-baseline sentence above already
+  # covers, because the next push re-renders and re-baselines if they part.
+  # render.yml's `checkout target` job carries the whole argument, and the
+  # skip-with-a-stated-reason path for a merge commit gone outright.
   #
   # Scene concurrency is left to render.yml's own default (2, the
   # runner's core count) rather than restated here: this job renders the
