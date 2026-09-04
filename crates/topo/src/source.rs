@@ -12,8 +12,10 @@
 //! descriptions, by D9 determinism of expression evaluation. The
 //! converse is deliberately NOT claimed — equal bits without shared
 //! source stay unglued (the coincidence ladder's ratified rung (b)).
-//! The bit comparison survives only as the debug assertion
-//! [`plane_bits_agree`] behind the lookup.
+//! The bit comparison survives only as the debug assertions behind
+//! the lookup, read through [`plane_bits_witness`] — which answers
+//! nothing at a scalar with no bit channel, so the theorem is asserted
+//! exactly where its premise can be read.
 //!
 //! **Layering**: the recipe vocabulary (node ids, expression paths)
 //! lives in `editor-core`, which depends on this crate — so the
@@ -155,17 +157,26 @@ impl std::error::Error for SourceAttachError {}
 /// orients differ (a `revert` pair): the normal must then be the
 /// exact IEEE negation, the origin unchanged (see `revert`'s map).
 ///
+/// **Tri-state, because the theorem's premise is not readable at
+/// every scalar.** `eq_bits` answers `None` where the scalar has no
+/// bit channel (`Dual`, `Sym`), and that is the right never-equal
+/// DEFAULT for a verdict that must decide — but an ASSERTION reading
+/// `None` as "the bits disagree" asserts the unknowable, and fires on
+/// a same-source pair whose bits are identical at `f64`. So this
+/// answers `None` there: no evidence, nothing to assert. The
+/// assertion sites assert only on `Some`.
+///
 /// This is the ONE remaining bit-identity call site in this crate:
 /// `cfg(debug_assertions)`-gated, never a production consumer (the
 /// CI tripwire allowlists this file on exactly that justification).
 #[cfg(debug_assertions)]
-pub(crate) fn plane_bits_agree<T: geom_core::Real>(
+pub(crate) fn plane_bits_witness<T: geom_core::Real>(
     o1: geom_core::Point3<T>,
     n1: geom_core::Vec3<T>,
     o2: geom_core::Point3<T>,
     n2: geom_core::Vec3<T>,
     opposite: bool,
-) -> bool {
+) -> Option<bool> {
     let n2 = if opposite { -n2 } else { n2 };
     let pairs = [
         (o1.x, o2.x),
@@ -175,19 +186,26 @@ pub(crate) fn plane_bits_agree<T: geom_core::Real>(
         (n1.y, n2.y),
         (n1.z, n2.z),
     ];
-    pairs
-        .into_iter()
-        .all(|(a, b)| geom_core::bit_identity::eq_bits(&a, &b) == Some(true))
+    bits_witness(pairs)
 }
 
 /// Debug-only bit agreement of two vectors (the `u_ref` leg of the
-/// merge-site assertion; same posture as [`plane_bits_agree`]).
+/// merge-site assertion; same posture and same tri-state as
+/// [`plane_bits_witness`]).
 #[cfg(debug_assertions)]
-pub(crate) fn vec3_bits_agree<T: geom_core::Real>(
+pub(crate) fn vec3_bits_witness<T: geom_core::Real>(
     a: geom_core::Vec3<T>,
     b: geom_core::Vec3<T>,
-) -> bool {
-    [(a.x, b.x), (a.y, b.y), (a.z, b.z)]
-        .into_iter()
-        .all(|(x, y)| geom_core::bit_identity::eq_bits(&x, &y) == Some(true))
+) -> Option<bool> {
+    bits_witness([(a.x, b.x), (a.y, b.y), (a.z, b.z)])
+}
+
+/// `Some(all pairs bit-equal)` where the scalar has a bit channel,
+/// `None` where it has none — the one fold both witnesses share, so
+/// a channel-less scalar cannot read as disagreement at either.
+#[cfg(debug_assertions)]
+fn bits_witness<T: geom_core::Real, const N: usize>(pairs: [(T, T); N]) -> Option<bool> {
+    pairs.into_iter().try_fold(true, |agree, (a, b)| {
+        geom_core::bit_identity::eq_bits(&a, &b).map(|eq| agree && eq)
+    })
 }

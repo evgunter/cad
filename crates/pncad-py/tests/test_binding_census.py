@@ -734,6 +734,15 @@ FAMILIES = {
         "carries a derived frame, and cannot author one or ask a face "
         "its kind"
     ),
+    "B-PART": (
+        "the projection node's Python surface (DOCM-2, "
+        "DOCM-REFERENCES-DESIGN DM3); closing it binds `Node.part` (a "
+        "`PartSelect` constructor pair: a split's half by `SplitHalf`, "
+        "a pattern's instance by a Count expression) and the "
+        "`SlotId.Instance` structural slot it carries. Today Python can "
+        "evaluate and read a document that carries a Part — its value "
+        "is a plain body — and cannot author one"
+    ),
 }
 
 #: Curated names with no Python spelling at all, by family.
@@ -1515,6 +1524,10 @@ NOT_BOUND = {
     # The Rust door is DOCM-1's; its Python twin, with `Datum.face_frame`
     # and `Pose.sense`, is LIB's and the family charters all three.
     "face_carrier_kind": f"{GAP}: B-FACE-FRAME the derived frame's surface",
+    # --- gap: the projection node's selector (census-owned) --
+    # The Rust node is DOCM-2's; its Python twin, `Node.part`, is
+    # LIB's and the family charters it.
+    "PartSelect": f"{GAP}: B-PART the projection node's surface",
     "WrittenAngle": f"{GAP}: B-NOTATION authored notation",
     "WrittenLength": f"{GAP}: B-NOTATION authored notation",
     "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",

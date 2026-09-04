@@ -36,7 +36,8 @@ with `i` recipe-structural. Role arguments are themselves names; profile locator
 (`ProfileEdgeRef`, `ProfileVertexRef`) are the profile crate's canonical
 combinatorial identities, never enumeration indices.
 Names contain no floats and no arena keys; a pass-through op (Transform,
-split-intact entity) adds no segment, so `node` stays the original minter. Names
+split-intact entity, a `Part`'s projection of one half or one instance) adds no
+segment, so `node` stays the original minter. Names
 are document-local; assembly wrapping is `ASSEMBLY.md`'s.
 
 **N1, the revolve poles.** `Pole(v)` names the ONE body vertex an on-axis
