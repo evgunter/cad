@@ -3645,3 +3645,28 @@ VERBS-1031B review ordinal fixed at dispatch (2026-09-03, PR
 band; the #1095 shape). v6 DUAL, parity byte 208 ⇒ R1 OPUS +
 R2 FABLE, concurrent, briefs symmetric. Sample number AT MERGE
 in main's order. Row at merge.
+
+## SHELL program rows (work/shell/; band 2300–2399; blocks named SHELL-B<n>)
+
+SHELL-1 review ordinal fixed at dispatch (2026-09-04, PR #1756 open —
+frozen head `f59f021e`): **ordinal 2300** (SHELL band; first claimant).
+Protocol v6 dual: draw = `/dev/urandom` byte **99**, parity 1 ⇒
+**R1 = FABLE, R2 = OPUS**. Method, recorded before either review runs:
+CONCURRENT same-head on frozen `f59f021e`, both briefs authored and
+STORED with sha256 before either dispatches (979a2c3a9fdbcb8e… r1 /
+6b6a8366851f1ea8… r2 — identical text modulo lane names, verified by
+diff), neither reviewer sees the other's report, v6 item 5 isolation
+in both briefs; the implementer's unit log entry is not written until
+the dual concludes. Method note applying to BOTH arms equally (not a
+relaxation): the pair runs beside SHELL-2's pair on one 4-core cloud
+box, every lane at `-j2`.
+
+SHELL-2 review ordinal fixed at dispatch (2026-09-04, PR #1758 open —
+frozen head `b58274d8`): **ordinal 2301** (SHELL band). Protocol v6
+dual: draw = `/dev/urandom` byte **96**, parity 0 ⇒ **R1 = OPUS,
+R2 = FABLE**. Method as above: concurrent same-head on frozen
+`b58274d8`, briefs stored with sha256 before dispatch
+(de48cd29815990db… r1 / c159d6ebaf852b8a… r2 — identical modulo lane
+names), isolation in both briefs, the same shared-box note applying to
+both arms. The block SHELL-B1 draw record (slot arms) stays
+branch-side on the orchestrator branch until the block concludes.
