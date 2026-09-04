@@ -43,3 +43,6 @@ The NaN-propagating fold the chart-speed guard now uses (`ssi.rs:981-986`), appl
 ## Home
 
 `crates/geom-brep/src/ssi.rs` and `ssi/*` are in VERBS' `paths:` territory, and the C5 table retirements that would make this live are its charter.
+
+**VERBS closed** (exit walk ratified, PR #1793); re-homed to
+`work/issues/` awaiting an owner.

@@ -49,3 +49,6 @@ Note the D2-addendum row-0 question is live here: `Surface::Plane` admits a non-
 ## Home
 
 `crates/geom-brep/src/ssi.rs` and `ssi/*` are in VERBS' `paths:` territory; the finding was measured by a SMELL Track Q lane whose fence is tests-only.
+
+**VERBS closed** (exit walk ratified, PR #1793); re-homed to
+`work/issues/` awaiting an owner.

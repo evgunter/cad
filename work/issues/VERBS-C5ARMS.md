@@ -1,6 +1,6 @@
 ---
 id: VERBS-C5ARMS
-kind: unit
+kind: issue
 title: the two C5 section arms — cone×cylinder remains
 status: open
 opened: 2026-09-01
@@ -16,3 +16,11 @@ coaxial-circles variant and the `(Cylinder, Cone)` table arm — is the
 remaining half. Spec: `docs/VERBS-C5ARMS-SPEC.md` (its PR-2 section). The
 log's tail (ordinal 111 claimed) predates the PR-1 merge; the merge is
 evidenced by git history. PR-2 not yet dispatched.
+
+**VERBS closed** (exit walk ratified, PR #1793); re-homed to
+`work/issues/` awaiting an owner.
+
+**Remaining scope at re-home:** PR-2 only — the cone×cylinder section
+arm, specced and small in `docs/VERBS-C5ARMS-SPEC.md` (its consumers,
+rows 5/6/7/7b, verified unmoved by PR-1). A candidate seed for a
+successor program.
