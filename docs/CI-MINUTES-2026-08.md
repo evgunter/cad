@@ -2108,9 +2108,37 @@ rebuild is heavier than on 33895150877's diff. The `+78` is therefore
 indicative of the setup overhead's ORDER, not a measurement of it; the `623 s`
 is the robust half, since it is `sum − max` over five rows either way.
 
+### A second run, and what it changes
+
+Run **33896480044** (the same PR's final head, TIER=all, **green**): 33 jobs,
+**68.5 job-min**, 577 s span. Its five legs, and the first run's beside them:
+
+| row | 33895150877 | 33896480044 |
+|---|---:|---:|
+| `dev-default` | 83 s | 95 s |
+| `dev-budget` | 119 s | 117 s |
+| `release-budget` | 139 s | 134 s |
+| `release-default` | 413 s | 388 s |
+| `dev-probe` | 360 s | **473 s** |
+| **sum** | **1114 s** | **1207 s** |
+| **cost vs the expected draw** | **+14.9 job-min** | **+16.1 job-min** |
+
+Two things move. The two heavy legs **trade places** — `dev-probe` and
+`release-default` are within ~20 % of each other and either can be the longest,
+so "the longest leg" is not a fixed row and no wall figure here should be
+attributed to one. And **k-lint was not the tail on either run**: run 2's tail
+was `test (interval, eps = default, 1/2)` at 16:50:26, 79 s after the longest
+k-lint leg (run 1: 85 s). On TIER=all runs the interval archive and its test
+legs dominate; the run where k-lint tailed (33894413395) was a smaller tier.
+
+The two job-minute figures average **+15.5**, against the lane/ε change's
+**+15.6**. That the two un-samplings cost the same to within 1 % is a
+coincidence of this tree's shape and not a law, but it is the number to carry.
+
 ### What is not measured here
 
-One run of the new shape (n=1), on a branch whose cache was warm from `main`'s
-primer, at TIER=all. A cold-cache run pays more in every leg, and the two
-release legs — `release-default` (413 s) and `release-budget` (139 s) — are the
-ones a cold `--release` profile moves most. Nothing re-takes any of this.
+Two runs of the new shape (n=2), both on one branch whose cache was warm from
+`main`'s primer, both at TIER=all. A cold-cache run pays more in every leg, and
+the release legs are the ones a cold `--release` profile moves most. The
+counterfactual is arithmetic, not a measurement: no run of the drawn shape
+exists on this tree to subtract. Nothing re-takes any of this.
