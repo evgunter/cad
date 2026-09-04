@@ -9,12 +9,12 @@ use std::collections::BTreeMap;
 
 use topo::{EdgeKey, FaceKey, VertexKey};
 
-use super::emit::NamingError;
 use super::role::{EntityKind, StableName};
 
 /// One named entity: which output body of the node, and what in it.
-/// (`body` indexes the node's output bodies — 0 for single-body ops;
-/// split: 0 = above, 1 = below; pattern: the instance index.)
+/// (`body` indexes the node's output bodies — 0 for single-body ops; a
+/// split's halves by [`crate::names::SplitHalf::output_body`]; a
+/// pattern's instances by instance index.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EntityRef {
     /// Output-body index within the node's value.
@@ -179,17 +179,23 @@ impl NameTable {
     /// than a congruent one.
     ///
     /// A tie keeps the candidates in the selected body and is dropped
-    /// when none is. A tie's candidates share their qualifier, and a
-    /// qualifier fixes the body, so a tie straddling two bodies is an
-    /// emission bug and refuses as one rather than being narrowed
-    /// into a name that was never recorded unique.
+    /// when none is; the survivors narrow exactly as an op's do — one
+    /// survivor is `Unique`, several stay `Tied` — through the ONE
+    /// narrowing rule the emitter's flush also writes by
+    /// (`defer::narrow_into`). A tie CAN straddle two output bodies:
+    /// a pass-through entity keeps its upstream name with no side
+    /// tag, so a split that separates two tied candidates without
+    /// cutting either holds one in each half. The projection is what
+    /// separates them, and the split's own table stays `Tied`.
     ///
     /// # Errors
     ///
-    /// [`NamingError::Emission`] for the straddling tie above, and
-    /// [`NamingError::Duplicate`] if the re-keyed rows collide — both
-    /// emission bugs of the table projected, never valid states.
-    pub fn project(&self, body: u32) -> Result<NameTable, NamingError> {
+    /// [`DuplicateName`], the insert doors' own. Not reachable by
+    /// construction — the source rows are distinct names over
+    /// distinct entities within one body, and re-keying one body's
+    /// rows keeps both distinct — but carried as the typed result
+    /// rather than unwrapped: this crate has no panic paths.
+    pub fn project(&self, body: u32) -> Result<NameTable, DuplicateName> {
         let rekey = |e: &EntityRef| EntityRef {
             body: 0,
             key: e.key,
@@ -205,15 +211,9 @@ impl NameTable {
                 Entry::Tied(es) => {
                     let kept: Vec<EntityRef> =
                         es.iter().filter(|e| e.body == body).map(rekey).collect();
-                    if kept.is_empty() {
-                        continue;
+                    if !kept.is_empty() {
+                        super::defer::narrow_into(&mut out, name.clone(), kept)?;
                     }
-                    if kept.len() != es.len() {
-                        return Err(NamingError::Emission {
-                            what: "a tie row's candidates straddle two output bodies",
-                        });
-                    }
-                    out.insert_tied(name.clone(), kept)?;
                 }
             }
         }

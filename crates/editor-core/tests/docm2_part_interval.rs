@@ -136,21 +136,70 @@ fn widened_runs(width: f64) -> (ProfileDoc, Evaluation<Interval>, Evaluation<Int
     (doc, nominal, widened)
 }
 
-/// **The width ladder, printed in full** — the measurement behind the
-/// row below. A plain-`Interval` extrude of a widened height certifies
-/// at ε/10 (DOCM-1's measurement of record); the SPLIT of that box
-/// does not: at the default ε its section-edge carrier certification
-/// against the mapped source escalates at ε/10
-/// (`carrier_matches_mapped_source`, an enclosure a few parts per
-/// million over the band's zero), and at ε/16 the union of the two
-/// halves escalates (`point_in_loop_arm`); ε/32 and every narrower
-/// rung certify. Every rung's outcome is printed so the floor is read,
-/// not inferred, at each ε row the matrix runs.
+/// The node of `doc` matching `pick`, by evaluation order.
+fn node_where(
+    doc: &ProfileDoc,
+    pick: impl Fn(&Node<editor_core::ProfileProgram>) -> bool,
+) -> RecipeNodeId {
+    *doc.order()
+        .iter()
+        .find(|id| doc.node(**id).is_some_and(&pick))
+        .expect("the document carries the node")
+}
+
+/// What one rung of the width ladder must show.
+enum Rung {
+    /// Every node green.
+    Green,
+    /// Exactly this node fails, escalating on this predicate (the
+    /// rest poisoned through it or green).
+    Escalates {
+        node: RecipeNodeId,
+        predicate: &'static str,
+    },
+}
+
+/// **The width ladder, asserted rung by rung** — the measurement
+/// behind the row below, held at every ε row the matrix runs
+/// (enclosures scale with ε, so the rungs are the same at each). A
+/// plain-`Interval` extrude of a widened height certifies at ε/10
+/// (DOCM-1's measurement of record); the SPLIT of that box does not:
+/// at ε/10 its section-edge carrier certification against the mapped
+/// source escalates (`carrier_matches_mapped_source`, an enclosure a
+/// few parts per million over the band's zero); at ε/16 the split
+/// certifies and the UNION of the two halves escalates
+/// (`point_in_loop_arm`); ε/32 and every narrower rung certify. Each
+/// rung is asserted, so a floor that moves — up or down — reds this
+/// row naming the rung.
 #[test]
 fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
     let e = Tol::witness().eps();
-    let mut certified_at: Vec<u32> = Vec::new();
-    for divisor in [10u32, 16, 32, 64, 128, 256, 1024, 4096] {
+    let doc = widened_document(e);
+    let split = node_where(&doc, |n| matches!(n, Node::Split { .. }));
+    let union = node_where(&doc, |n| matches!(n, Node::Boolean { .. }));
+    let ladder: [(u32, Rung); 8] = [
+        (
+            10,
+            Rung::Escalates {
+                node: split,
+                predicate: "carrier_matches_mapped_source",
+            },
+        ),
+        (
+            16,
+            Rung::Escalates {
+                node: union,
+                predicate: "point_in_loop_arm",
+            },
+        ),
+        (32, Rung::Green),
+        (64, Rung::Green),
+        (128, Rung::Green),
+        (256, Rung::Green),
+        (1024, Rung::Green),
+        (4096, Rung::Green),
+    ];
+    for (divisor, want) in ladder {
         let width = e / f64::from(divisor);
         let (_, _, widened) = widened_runs(width);
         let bad = corpus::failures(&widened);
@@ -162,14 +211,26 @@ fn a7_the_width_ladder_of_the_split_of_a_widened_box() {
                 bad.join(" | ")
             }
         );
-        if bad.is_empty() {
-            certified_at.push(divisor);
+        match want {
+            Rung::Green => assert!(bad.is_empty(), "eps/{divisor} certifies: {bad:?}"),
+            Rung::Escalates { node, predicate } => {
+                let failed: Vec<&String> = bad.iter().filter(|s| s.contains("FAILED")).collect();
+                assert_eq!(
+                    failed.len(),
+                    1,
+                    "eps/{divisor}: exactly one node fails, the rest poisoned: {bad:?}"
+                );
+                assert!(
+                    failed[0].starts_with(&format!("{node:?} FAILED"))
+                        && failed[0].contains("Escalated")
+                        && failed[0].contains(predicate),
+                    "eps/{divisor}: node {} escalates on {predicate}: {}",
+                    node.0,
+                    failed[0]
+                );
+            }
         }
     }
-    assert!(
-        !certified_at.is_empty(),
-        "no rung of the ladder certifies — the row below has no floor to sit on"
-    );
 }
 
 /// The divisor of ε the assertion row is pinned at — two rungs under
@@ -201,7 +262,7 @@ fn a7_the_corpus_document_evaluates_at_interval_with_a_widened_height() {
     let widened = run(&doc, Some(&nominal), &opts);
     assert!(
         corpus::failures(&widened).is_empty(),
-        "widened by eps/10: {:?}",
+        "widened by eps/{A7_DIVISOR}: {:?}",
         corpus::failures(&widened)
     );
     assert_parts_are_their_bodies(&widened, &doc, "widened");

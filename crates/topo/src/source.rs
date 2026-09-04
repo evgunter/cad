@@ -202,10 +202,12 @@ pub(crate) fn vec3_bits_witness<T: geom_core::Real>(
 
 /// `Some(all pairs bit-equal)` where the scalar has a bit channel,
 /// `None` where it has none — the one fold both witnesses share, so
-/// a channel-less scalar cannot read as disagreement at either. A
-/// slice rather than a const-generic array: the debug-only gate reads
-/// an item's extent from its attribute to its first brace, and the
-/// `;` inside an array type would end that read before the use.
+/// a channel-less scalar cannot read as disagreement at either.
+///
+/// The signature carries no `;` before its brace: the debug-only gate
+/// (`scripts/gates/bit-identity-debug-only.sh`) ends a gated item's
+/// read at one, so a `[T; N]` parameter here would report this use
+/// ungated (`work/issues/bit-identity-debug-only-gate-ends-an-item-at-a-semicolon`).
 #[cfg(debug_assertions)]
 fn bits_witness<T: geom_core::Real>(pairs: &[(T, T)]) -> Option<bool> {
     pairs.iter().try_fold(true, |agree, (a, b)| {

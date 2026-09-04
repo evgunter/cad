@@ -218,6 +218,8 @@ where
         ),
         Node::Transform { input, .. } => wire_transform(id, *input, results, vals, tol),
         Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals, tol),
+        // No `id`: the projection mints no description and no name, so
+        // nothing it produces is stamped or keyed by this node.
         Node::Part { of, select } => wire_part(*of, select, results, vals),
         Node::PlacedUnion { input, kind, .. } => wire_placed_union(
             id,
@@ -2185,22 +2187,26 @@ fn wire_part<T: Decide>(
             let index = slots::count(vals, SlotId::Instance).ok_or(NodeErrorKind::MissingSlot {
                 slot: SlotId::Instance,
             })?;
-            // A negative index fails the conversion and lands on the
-            // same refusal as one past the end: neither names a body.
-            let at = usize::try_from(index)
-                .ok()
-                .filter(|i| *i < instances.len())
-                .ok_or(NodeErrorKind::InstanceOutOfRange {
+            // The count is a u32 quantity in every table row (a name's
+            // output-body index), so a value past that is the
+            // pattern's own emission bug, refused typed before any
+            // index is judged against it.
+            let count = u32::try_from(instances.len()).map_err(|_| {
+                NodeErrorKind::Naming(names::NamingError::Emission {
+                    what: "a pattern's instance count exceeds u32",
+                })
+            })?;
+            // ONE refusal, one fold: a negative index and one past the
+            // end fail the same way, and an index the fold admits is
+            // in range by construction.
+            let ix = u32::try_from(index).ok().filter(|i| *i < count).ok_or(
+                NodeErrorKind::InstanceOutOfRange {
                     input: of,
                     index,
                     count: instances.len(),
-                })?;
-            let ix = u32::try_from(at).map_err(|_| NodeErrorKind::InstanceOutOfRange {
-                input: of,
-                index,
-                count: instances.len(),
-            })?;
-            (Arc::clone(&instances[at]), ix)
+                },
+            )?;
+            (Arc::clone(&instances[ix as usize]), ix)
         }
         (PartSelect::SplitHalf(_), other) => {
             return Err(NodeErrorKind::WrongOperand {
@@ -2220,7 +2226,7 @@ fn wire_part<T: Decide>(
     let table = value
         .name_table
         .project(index)
-        .map_err(NodeErrorKind::Naming)?;
+        .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
     names::check_total(&table, &body, 0).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(ValuePayload::Body(body), Arc::new(table)))
 }

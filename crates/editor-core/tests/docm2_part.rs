@@ -530,7 +530,12 @@ fn a4_every_refusal_is_typed() {
         "{:?}",
         error_of(&ev, live)
     );
-    assert!(ev.recomputed >= 2, "the pattern and the Parts recompute");
+    // The pattern (its count moved) and all three Parts — the two that
+    // failed before are not in the memo and the live one reads the
+    // pattern — recompute; the frame, the profile and the box are
+    // served.
+    assert_eq!(ev.recomputed, 4, "the pattern and its three Parts");
+    assert_eq!(ev.reused, lowered.len() - 4);
 
     // The selector and the value must agree in kind.
     let mut r = Recorder::new();
@@ -710,4 +715,218 @@ fn the_part_select_document_evaluates_at_dual64() {
         "{:?}",
         corpus::failures(&ev)
     );
+}
+
+/// A prism from a polygon at height `z0`, extruded `dz`.
+fn prism(r: &mut Recorder, pts: Vec<(f64, f64)>, z0: f64, dz: f64) -> RecipeNodeId {
+    let p = r.profile([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![pts]);
+    r.insert(Node::Extrude {
+        profile: p,
+        distance: len(dz),
+    })
+}
+
+/// `lib_g14_split_walls::u_cutter_tie`, the reviewers' fixture: a
+/// 4×4×4 block minus a U-shaped cutter whose two prongs cross one wall
+/// — a body whose table carries genuine N2 ties, symmetric about
+/// `y = 2`.
+fn u_cutter_tie(r: &mut Recorder) -> RecipeNodeId {
+    let a = prism(
+        r,
+        vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
+        0.0,
+        4.0,
+    );
+    let b = prism(
+        r,
+        vec![
+            (2.0, 1.0),
+            (6.0, 1.0),
+            (6.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 2.5),
+            (5.0, 2.5),
+            (5.0, 1.5),
+            (2.0, 1.5),
+        ],
+        1.0,
+        2.0,
+    );
+    r.insert(Node::Boolean {
+        op: BooleanOp::Subtract,
+        a,
+        b,
+        declare: None,
+    })
+}
+
+/// The tie rows of a table: name and candidates.
+fn ties(
+    ev: &Evaluation<f64>,
+    node: RecipeNodeId,
+) -> Vec<(StableName, Vec<editor_core::EntityRef>)> {
+    ev.value(node)
+        .expect("a value")
+        .name_table
+        .iter()
+        .filter_map(|(n, e)| match e {
+            Entry::Tied(c) => Some((n.clone(), c.clone())),
+            Entry::Unique(_) => None,
+        })
+        .collect()
+}
+
+/// **A tie the split separates, and what each Part makes of it.** A
+/// split at `y = 2` puts the U-cutter tie's two candidates in different
+/// halves WITHOUT cutting either: each passes through intact under its
+/// upstream name, so the split's table holds one `Tied` row straddling
+/// body 0 and body 1. Both Parts evaluate; in each half's table the
+/// name is `Unique` — the projection separated the candidates as an op
+/// would, by the one narrowing rule the emitter's flush uses — and a
+/// selector spelled against the tied name resolves on each Part to
+/// that half's own entity. The split's table stays tied.
+#[test]
+fn a_tie_the_split_separates_is_unique_in_each_parts_table() {
+    let mut r = Recorder::new();
+    let sub = u_cutter_tie(&mut r);
+    let tool = r.insert(Node::Datum(Datum::Plane {
+        origin: [len(0.0), len(2.0), len(0.0)],
+        normal: [scl(0.0), scl(1.0), scl(0.0)],
+    }));
+    let split = r.insert(Node::Split { target: sub, tool });
+    let above = part(&mut r, split, half(SplitHalf::Above));
+    let below = part(&mut r, split, half(SplitHalf::Below));
+    let ev = eval(&r.doc);
+    assert!(
+        corpus::failures(&ev).is_empty(),
+        "{:?}",
+        corpus::failures(&ev)
+    );
+    let straddling: Vec<_> = ties(&ev, split)
+        .into_iter()
+        .filter(|(_, c)| {
+            let bodies: std::collections::BTreeSet<u32> = c.iter().map(|e| e.body).collect();
+            bodies.len() > 1
+        })
+        .collect();
+    assert!(
+        !straddling.is_empty(),
+        "the premise: the split's table holds a tie straddling its two halves"
+    );
+    for (name, candidates) in &straddling {
+        for (p, h) in [(above, SplitHalf::Above), (below, SplitHalf::Below)] {
+            let mine: Vec<_> = candidates
+                .iter()
+                .filter(|e| e.body == h.output_body())
+                .collect();
+            assert_eq!(mine.len(), 1, "{name}: one candidate per half");
+            assert_eq!(
+                denotation(&ev, p, name),
+                Ok(Denotation::Unique),
+                "{name} is unique on Part({h:?})"
+            );
+            let table = &ev.value(p).expect("the Part").name_table;
+            assert_eq!(
+                table.lookup(name),
+                Some(&Entry::Unique(editor_core::EntityRef {
+                    body: 0,
+                    key: mine[0].key
+                })),
+                "{name} resolves on Part({h:?}) to that half's own entity"
+            );
+        }
+        // The split's own table is untouched: still tied there.
+        assert!(
+            ev.value(split).expect("the split").name_table.is_tied(name),
+            "{name} stays tied on the split"
+        );
+    }
+}
+
+/// **The contrast: a pattern of a tied master.** The pattern wraps the
+/// master's tie per instance, every candidate in that instance's body,
+/// so no row straddles and the Part of an instance is simply that
+/// instance's tie, still tied.
+#[test]
+fn a_part_of_an_instance_of_a_tied_master_keeps_the_tie() {
+    let mut r = Recorder::new();
+    let sub = u_cutter_tie(&mut r);
+    let pat = r.insert(Node::Pattern {
+        input: sub,
+        count: Expr::count(3),
+        kind: PatternKind::Linear {
+            direction: [scl(1.0), scl(0.0), scl(0.0)],
+            spacing: len(20.0),
+        },
+    });
+    let p1 = part(&mut r, pat, instance(1));
+    let ev = eval(&r.doc);
+    assert!(
+        corpus::failures(&ev).is_empty(),
+        "{:?}",
+        corpus::failures(&ev)
+    );
+    let master_ties = ties(&ev, sub);
+    assert!(!master_ties.is_empty(), "the fixture carries a tie");
+    for (_, c) in ties(&ev, pat) {
+        let bodies: std::collections::BTreeSet<u32> = c.iter().map(|e| e.body).collect();
+        assert_eq!(
+            bodies.len(),
+            1,
+            "a pattern's tie lives in one instance: {c:?}"
+        );
+    }
+    let projected = ties(&ev, p1);
+    assert_eq!(
+        projected.len(),
+        master_ties.len(),
+        "one tie per master tie, still tied"
+    );
+    for (name, c) in &projected {
+        assert!(
+            matches!(name.path.first(), Some(RoleSeg::Instance { i: 1, .. })),
+            "{name}"
+        );
+        assert!(c.iter().all(|e| e.body == 0), "re-keyed to body 0: {c:?}");
+    }
+}
+
+/// **`project`'s three tie shapes, as a unit row.** A tie inside the
+/// selected body survives as a tie; one entirely outside is dropped;
+/// one that straddles narrows to the selected body's survivor —
+/// `Unique` when one, as the flush rule says.
+#[test]
+fn project_narrows_a_tie_by_the_flush_rule() {
+    use editor_core::{EntityRef, NameTable};
+    let mut r = Recorder::new();
+    let cube = unit_box(&mut r, 0.0);
+    let ev = eval(&r.doc);
+    let keys: Vec<topo::FaceKey> = body_of(&ev, cube).faces().map(|(k, _)| k).take(4).collect();
+    assert_eq!(keys.len(), 4);
+    let face = |k: usize| EntityKey::Face(keys[k]);
+    let ent = |body: u32, key: EntityKey| EntityRef { body, key };
+    let name = |h: SplitHalf| StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(7),
+        path: vec![RoleSeg::SplitBody(h)],
+    };
+    let (inside, outside) = (name(SplitHalf::Above), name(SplitHalf::Below));
+
+    let mut t = NameTable::new();
+    t.insert_tied(inside.clone(), vec![ent(0, face(0)), ent(0, face(1))])
+        .expect("a tie inside body 0");
+    t.insert_tied(outside.clone(), vec![ent(1, face(2)), ent(1, face(3))])
+        .expect("a tie inside body 1");
+    let p = t.project(0).expect("projects");
+    assert!(matches!(p.lookup(&inside), Some(Entry::Tied(c)) if c.len() == 2));
+    assert!(p.lookup(&outside).is_none());
+
+    let mut t = NameTable::new();
+    t.insert_tied(inside.clone(), vec![ent(0, face(0)), ent(1, face(1))])
+        .expect("a straddling tie is a legal table");
+    let p0 = t.project(0).expect("projects");
+    assert_eq!(p0.lookup(&inside), Some(&Entry::Unique(ent(0, face(0)))));
+    let p1 = t.project(1).expect("projects");
+    assert_eq!(p1.lookup(&inside), Some(&Entry::Unique(ent(0, face(1)))));
+    assert!(t.project(2).expect("projects").is_empty());
 }

@@ -396,8 +396,9 @@ fn entity_of<'a, T: Decide>(
 }
 
 /// The node's output body at `index` — the same body ordering the
-/// naming emission used (single-body ops: 0; split: 0 above, 1 below;
-/// pattern: the instance index).
+/// naming emission used (single-body ops: 0; a split's halves by
+/// [`SplitHalf::output_body`]; a pattern's instances by instance
+/// index).
 pub(crate) fn output_body<T: Decide>(
     payload: &ValuePayload<T>,
     index: u32,

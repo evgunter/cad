@@ -174,7 +174,11 @@ pub(crate) fn name_split<T: Decide>(
                 });
             }
         };
-        let slot = usize::from(half == SplitHalf::Below);
+        // The per-side counter is indexed by the half's OUTPUT-BODY
+        // index — the one mapping, not a second one.
+        let slot = usize::try_from(half.output_body()).map_err(|_| NamingError::Emission {
+            what: "a split half's output-body index exceeds usize",
+        })?;
         let section = per_side_ix[slot];
         per_side_ix[slot] += 1;
         // The face is live in exactly the side that kept it.
