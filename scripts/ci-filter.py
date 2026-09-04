@@ -175,7 +175,9 @@ was, until 2026-09-04, is a cost with something on the other side of it.
 
 WHAT PUT SOMETHING ON THE OTHER SIDE: `#1756` -> `#1775`. On run 33834607784,
 `k-lint (gate)` concluded SUCCESS with `demos tour fmt + clippy` SKIPPED — the
-run drew `release-budget`, and 17 of that job's 19 row steps did not execute.
+run drew `release-budget`, and 12 of that job's 14 row steps did not execute.
+(14 is the row-gated set; 19 was the highest step NUMBER in that job's step
+list, which also counts checkout, the prune, the toolchain and the cache.)
 The clippy break that step would have caught reached main and stayed there
 until a separate PR repaired it, and three lanes read the identical green in
 three different ways, one of them concluding main had been fixed when it had

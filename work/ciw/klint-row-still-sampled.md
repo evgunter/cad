@@ -7,6 +7,7 @@ opened: 2026-09-04
 parent: reinstate-full-configuration-runs
 pr: 1850
 branch: ciw/unsample-klint
+refs: [1855]
 ---
 
 ## The finding
@@ -80,3 +81,25 @@ five unifications cost on the 4-vCPU public runner, in job-minutes and in
 critical-path wall clock, against a `k-lint` row that currently draws one.
 The answer may still be that sampling is right here — the cost shape
 argument was not wrong, it was just uncontested. It is contested now.
+
+## Two things this unit found on the way, disclosed rather than buried (2026-09-04)
+
+**1. The five legs shared TWO rust-cache lanes, and the two heaviest could
+never write to theirs.** `Swatinem/rust-cache`'s key carries `GITHUB_JOB`
+(the job *id*, `k-lint`) and not the matrix value, so a key of
+`k-lint-<dev|release>` gave the three dev legs one identical key and the two
+release legs another. The first leg to reach its post step reserves the key;
+the rest log `Failed to save: Unable to reserve cache with key …`. The
+winner is decided by duration, so it was deterministic rather than a race:
+the two CHEAPEST legs won the lanes every run and `dev-probe` /
+`release-default` restored a sibling's `target/`. Fixed in the same PR
+(`key: k-lint-${{ matrix.row }}`) and written up in
+`docs/CI-MINUTES-2026-08.md`. No residue.
+
+**2. The `memories/` correction this change requires is NOT in PR 1850.**
+`memories/agent-lane-operations.md` says the k-lint row is a sampled axis,
+in three places. Per `CLAUDE.md` a PR that changes `memories/` waits for
+Ev, so it is split out to an `[ev]` PR (1855) with its own item,
+`klint-memory-false-after-unsampling`. **Between 1850's merge and 1855's,
+that memory is false and is read at the start of every session.** Stated
+here so the gap is a decision on the record rather than an oversight.
