@@ -119,14 +119,21 @@ What a caller reads, measured through the door:
     backed by a declared-contact record, never blessed from discovery;
     declare the named contact class, or move the geometry
 
-**Three pins turned, not deleted.** The two the filing unit armed —
+**Four pins turned, not deleted.** The two the filing unit armed —
 `pncad-py/src/tests.rs` and `test_validate.py::TestTheRefusalsShape` —
 now assert the findings DO read as prose, and each still checks that the
 prose kept the entities and the witness, so a rewording that reads well
-and says nothing fails them. The third was not named in the brief and
-the sweep found it: `crates/topo/tests/mate4a_ef_bound_rung.rs` pins the
-straddle seat's whole census through `Debug`, witness strings included,
-so the coordinate change moved six of them.
+and says nothing fails them. Two more were not named in the brief.
+`crates/topo/tests/mate4a_ef_bound_rung.rs` pins the straddle seat's
+whole census through `Debug`, witness strings included, so the
+coordinate change moved six of them; the grep for the OLD spelling
+found it. `crates/topo/tests/review_mate9_r1_probes.rs` matched the
+same witnesses by FIELD FRAGMENT — `w.contains("x: 0.45,")` and
+`w.contains("z: 0.5 ")` — so it never contained the string `Point3 {`
+and no grep for either spelling could see it. **Hosted CI caught it,
+not the sweep**, and the local runs missed it because they were scoped
+to the rows the change was predicted to touch instead of the suite.
+The predicates now match inside the coordinate triple.
 
 **The sweep.** Resolver over every `impl fmt::Display` in `crates/`,
 matching `{ident:?}` and resolving `ident` to its declared field type,
