@@ -3734,3 +3734,4 @@ claim at review dispatch goes to main on its own.
 
 Block DOCM-B2 slot record (branch-side, appended as each slot concludes):
 slot 0 pre-draw fields (2026-09-04, at dispatch; arm fixed by the draw above): DOCM-2 (docs/DOCM-2-SPEC.md) — difficulty M, task-class STRUCTURAL. Dispatched after DOCM-1 merged (#1829), so its content-key tags are chosen against a tree that already holds 32.
+slot 0 = DOCM-2 (FABLE; pre-draw M / STRUCTURAL at `docs/DOCM-2-SPEC.md`, re-logged unchanged at the stop-clause amendment) — concluded 2026-09-04 at merge of PR #1860, ordinal 1803, sample #129 (three phases: a stop at the split's stamping and topo's channel-less same-source assertions, amended and resumed as the same arm; the union fix pass under a bilateral MAJOR). Slots 1–2 (OPUS, OPUS) remain: the next kernel units in dispatch order take them, pre-draw fields at their specs.
