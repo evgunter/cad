@@ -4,7 +4,6 @@ kind: issue
 title: Reviewer-pair rebuilds: two test-support trees now state opposite rules
 status: closed
 opened: 2026-09-03
-needs_ev: false
 closed: 2026-09-04
 ---
 
