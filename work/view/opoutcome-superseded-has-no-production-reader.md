@@ -4,7 +4,7 @@ kind: issue
 title: OpOutcome::superseded has no production reader — a discarded free-move probe is silent in the GUI
 status: review
 opened: 2026-09-04
-refs: [viewer-session-god-module-split, rank-one-discards-the-frames-other-news]
+refs: [viewer-session-god-module-split, rank-one-discards-the-frames-other-news, prune-discards-the-fault-that-explains-the-supersession, prune-drops-a-hidden-instance-silently, frame-module-has-eight-concerns-and-no-holds-row, the-news-vocabulary-has-no-expiry]
 branch: view/superseded-reaches-the-user
 pr: 1872
 ---
@@ -16,19 +16,25 @@ Found by the whole-file read that opened
 ## What happens
 
 `OpOutcome` carries four fields
-(`crates/viewer/src/session/op.rs:633`, `superseded` at `:646`).
-The application reads exactly one of them: `app.rs:800` takes
-`.refusal` and nothing else. `committed` is read by 21 test files;
-`previewed` likewise; **`superseded` has no reader in `src/` at all**
-— its only observers are `crates/viewer/tests/assembly_display.rs:607`
-and `crates/viewer/tests/assembly_walk.rs:212`.
+(`crates/viewer/src/session/op.rs:634`, `superseded` at `:644`).
+The application reads exactly one of them: `app.rs` `perform_batch`
+takes `.refusal` and nothing else. `committed` is read by 21 test
+files; `previewed` likewise; **`superseded` has no reader in `src/` at
+all** — its only observers are seven test files
+(`instance_authoring.rs:178`, `story_assembly.rs:492`, `:634`, `:693`,
+`review_gui4_r1.rs:446`, `:816`, `review_gui4_r2.rs:506`,
+`assembly_display.rs:607`, `assembly_walk.rs:212`).
 
-It is set on the paths where a free-move probe is discarded — an undo
-(`session.rs:1056`) and a commit (`session.rs:1418`), both through
-`self.display.prune`. So the one thing
-the field exists to report, that the user's in-flight probe was thrown
-away by something else they did, reaches the tests and never reaches
-the user.
+It is set on the paths where a **committed** free-move placement is
+discarded — an undo or redo (`session.rs:1062`) and a commit
+(`session.rs:1424`), both through `self.display.prune`. So the one
+thing the field exists to report, that a placement the user made by
+hand was thrown away by something else they did, reaches the tests and
+never reaches the user.
+
+A gesture in flight when the transition lands dies too and is
+deliberately NOT in this list (`review_gui4_r1.rs:816` pins it), so
+this finding is about committed placements only.
 
 ## Why this is a finding and not a nit
 
@@ -81,18 +87,35 @@ would be erased by its own cause, before anything painted.
 site is `perform_batch`, on `ViewerApp`, which owns `notices`. Nothing
 was threaded.
 
-**Correction to this item's own text.** "The user's in-flight probe was
-thrown away" is wrong about the field. `DisplayState::prune` returns
-only the instances whose **committed** placements it discarded; a
-gesture in flight when the transition lands dies too and is
-deliberately not in the list (`crates/viewer/tests/review_gui4_r1.rs`
-pins that). The paths are therefore a mate, a delete or a redo landing
-on an instance whose placement the user had already committed — not an
-undo taken during a drag. The type now says so.
+**Corrected in place above**, per this file's own convention, so a
+reader top to bottom does not meet the wrong claim first:
 
-**Also corrected**: the field had seven observing test files, not two
-(`instance_authoring`, `story_assembly`, `review_gui4_r1`,
-`review_gui4_r2`, `assembly_display`, `assembly_walk`, and now
-`frame_policy`). The `src/` claim — no production reader — was exact.
+- "the user's **in-flight** probe was thrown away" — wrong about the
+  field. `DisplayState::prune` returns only the instances whose
+  COMMITTED placements it discarded; a gesture in flight when the
+  transition lands dies too and is deliberately not in the list. The
+  discarding paths are a mate, a fuse, a delete or a redo landing on an
+  instance whose placement was already committed — **not** an undo
+  taken during a drag.
+- **two** observing test files — there are seven (nine call sites),
+  now eight with `frame_policy`. The `src/` claim, no production
+  reader, was exact and was the load-bearing one.
+- `session.rs:1056`/`:1418` and `op.rs:633`/`:646` — off by a few
+  lines each.
 
-Residue, filed: `rank-one-discards-the-frames-other-news`.
+Residue and follow-on, filed with this PR:
+
+- `rank-one-discards-the-frames-other-news` — a refusal in the same
+  frame drops the notice, and this is the case where the dropped
+  message reports something unrecoverable.
+- `prune-discards-the-fault-that-explains-the-supersession` — the
+  sentence the user gets names the instance but not the cause, because
+  the typed value carrying the cause is thrown away one layer down.
+- `prune-drops-a-hidden-instance-silently` — the same class as this
+  item, in the same function, on the `hidden` set.
+- `frame-module-has-eight-concerns-and-no-holds-row` — where a ninth
+  belongs is unwritten.
+
+`the-news-vocabulary-has-no-expiry` gained this notice as a named
+instance: "true of nothing after this frame" is a lifetime nothing
+implements.

@@ -977,12 +977,16 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         panic!("a discarded placement is news, not silence: {update:?}");
     };
     assert!(
-        message.contains(&format!("node {}", bench.post_b.0)),
-        "the line names the instance whose placement is gone: {message}"
+        message.contains(&format!("instance {}", bench.post_b.0)),
+        "the line names which of the user's placements went: {message}"
     );
 
-    // And it had to come through the ranking to get there: the mate is
-    // an acting op the document ACCEPTED, so the batch's own verdict
-    // would clear the line the supersession is written on.
-    assert_eq!(frame::batch_status(&[mate], None), StatusUpdate::Clear);
+    // The counterfactual, so this row is not asserting about a frame
+    // where nothing had to survive anything: the SAME frame, with the
+    // supersession dropped on the floor as it used to be, clears the
+    // line instead of saying any of that.
+    assert_eq!(
+        frame::frame_status(&[], core::slice::from_ref(&mate), outcome.refusal.as_ref()),
+        StatusUpdate::Clear,
+    );
 }

@@ -363,12 +363,10 @@ pub struct ViewerApp {
     /// they happen and applied with the batch verdict rather than
     /// before it.
     ///
-    /// They cannot be written straight to [`ViewerApp::status`]: the
-    /// batch of the same frame is performed afterwards, and a clean
-    /// acting batch clears the line, so a notice assigned early lives
-    /// for zero frames (`frame::frame_status` carries the argument).
-    /// Drained every frame by `perform_batch`, so nothing here
-    /// survives into the next one.
+    /// They cannot be written straight to [`ViewerApp::status`] —
+    /// `frame::frame_status` carries that argument, and it is the one
+    /// place it is made. Drained every frame by `perform_batch`, so
+    /// nothing here survives into the next one.
     notices: Vec<String>,
     /// Whether the environment can show a file dialog at all — probed
     /// once at startup ([`frame::chooser_backend`]); the Open/Save As
@@ -780,13 +778,10 @@ impl ViewerApp {
             let opened = matches!(op, SessionOp::Open(_));
             let tool_edit = self.tools.commits_open_tool(&op);
             let outcome = self.session.perform(op);
-            // **Where a supersession reaches the user.** The session
-            // reports which free-move placements its document
-            // transition discarded; this is the one read of that field
-            // outside the test suite, and it goes onto the frame's
-            // notices rather than onto the line, because the accepted
-            // edit that caused it is about to answer `Clear`
-            // (`frame::supersession_notice` carries the argument).
+            // **Where a supersession reaches the user**: the free-move
+            // placements this operation's document transition
+            // discarded, onto the frame's notices like every other
+            // one (`frame::frame_status` carries the argument).
             notices.extend(frame::supersession_notice(&outcome.superseded));
             match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),

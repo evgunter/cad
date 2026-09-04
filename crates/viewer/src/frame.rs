@@ -190,44 +190,70 @@ pub const NOTICE_SEPARATOR: &str = "; ";
 /// It is NEWS by this module's test. It HAPPENED on the frame that
 /// carries it, provoked by the act the user just took — the mate that
 /// landed on their probed instance, the delete that took it, the redo
-/// that stepped back over the constraint — and after that frame it is
-/// true of nothing. The standing fact it leaves behind is the instance
-/// drawn at its landed placement, which the picture already says; a
-/// badge would keep saying it about a document the user has moved on
-/// from.
+/// that stepped forward over the mate again — and after that frame it
+/// is true of nothing. The standing fact it leaves behind is the
+/// instance drawn at its landed placement, which the picture already
+/// says; a badge would keep saying it about a document the user has
+/// moved on from.
 ///
-/// It also has to reach the line THROUGH the ranking. The transition
-/// that supersedes is an accepted edit, so its own batch answers
-/// [`StatusUpdate::Clear`] — a supersession assigned straight to the
-/// field is erased by the very operation that caused it, on the same
-/// frame, before anything paints.
+/// That lifetime is the ARGUMENT for the line and not yet a mechanism:
+/// nothing removes a notice when its frame ends, so this sentence
+/// survives on the line until an acting batch clears it, exactly like
+/// every other message. Tracked as
+/// `work/view/the-news-vocabulary-has-no-expiry.md`, which this is now
+/// a named instance of.
 ///
-/// The wording is composed here because the payload is a bare list of
-/// ids with no `Display` of its own to defer to. That is the same
-/// exception [`crate::session::Refusal`]'s affordance arm states, and
-/// this is its single home.
+/// It reaches the line through the frame's NOTICES rather than by
+/// assignment, for the reason [`frame_status`] states: the transition
+/// that supersedes is an edit the document accepted, so the same
+/// frame's batch verdict is [`StatusUpdate::Clear`].
 ///
 /// A refusal in the same frame outranks it and it is then not shown,
 /// which rank 1 already says. The two cannot come from one operation:
 /// a refused op returns before the prune that fills this list.
+///
+/// # What this sentence cannot say, and why
+///
+/// **It names the instance and not the cause.** The cause exists as a
+/// typed value one call frame away —
+/// [`crate::display::free_move_check`] answers
+/// `Err(DisplayFault::MateConstrained { .. })`, whose `Display` names
+/// the mates and tells the user to delete them if free relative motion
+/// was intended — and `DisplayState::prune` tests it with `.is_ok()`
+/// and drops it. The payload reaching here is a bare list of ids
+/// **because of that discard**, not because no rendering exists: the
+/// value with the better sentence is thrown away one layer down. That
+/// is scheduled as `work/view/prune-discards-the-fault-that-explains-the-supersession.md`,
+/// and this wording is what can honestly be said until it lands.
+///
+/// **It names an instance that may be gone.** The condition is
+/// `free_move_check` failing, which covers a mate landing, a fuse, and
+/// the instance being deleted outright. In the delete arm the id names
+/// nothing the user can now look at — but it is the id their placement
+/// was on, and the alternative is a sentence that does not say which
+/// of their placements went.
 pub fn supersession_notice(superseded: &[RecipeNodeId]) -> Option<String> {
-    let nodes = match superseded {
+    let instances = match superseded {
         [] => return None,
-        nodes => nodes
+        instances => instances
             .iter()
-            .map(|node| node.0.to_string())
+            .map(|instance| instance.0.to_string())
             .collect::<Vec<_>>()
             .join(", "),
     };
+    // "instance N" and not "node N": these are part instances, which
+    // is what the properties panel the probe came from calls them and
+    // what `DisplayFault` calls them in the refusal for the same
+    // predicate.
     Some(if superseded.len() == 1 {
         format!(
-            "free move: the placement on node {nodes} was discarded — \
+            "free move: the placement on instance {instances} was discarded — \
              the document no longer admits one there"
         )
     } else {
         format!(
-            "free move: the placements on nodes {nodes} were discarded — \
-             the document no longer admits one there"
+            "free move: the placements on instances {instances} were discarded — \
+             the document no longer admits them there"
         )
     })
 }
@@ -914,15 +940,19 @@ mod tests {
         // line instead of to the notices is erased by its own cause.
         let notice = supersession_notice(&[RecipeNodeId(7)]).expect("a supersession is news");
         assert!(
-            notice.contains("node 7"),
-            "the notice names the instance the user has to look at: {notice}"
+            notice.contains("instance 7"),
+            "the notice names which of the user's placements went, in the \
+             vocabulary the properties panel and `DisplayFault` use for a \
+             part instance: {notice}"
         );
 
         let acting = [SessionOp::Undo];
         assert_eq!(
             batch_status(&acting, None),
             StatusUpdate::Clear,
-            "the cause is an accepted edit, which is what makes this hard"
+            "the frame this row is about CLEARS the line on its own — without \
+             that, the composition below would be asserting about a case \
+             where nothing had to survive anything"
         );
         let update = frame_status(core::slice::from_ref(&notice), &acting, None);
         assert_eq!(update, StatusUpdate::Show(notice.clone()));
@@ -938,15 +968,21 @@ mod tests {
         // several probes (a mate lands on two probed instances, a
         // delete takes a subtree), and each is an instance the user
         // placed by hand and no longer has.
+        let one = supersession_notice(&[RecipeNodeId(3)]).expect("one supersession is news");
+        assert_eq!(
+            one,
+            "free move: the placement on instance 3 was discarded — \
+             the document no longer admits one there"
+        );
+
         let both = supersession_notice(&[RecipeNodeId(3), RecipeNodeId(11)])
             .expect("two supersessions are still news");
-        assert!(
-            both.contains('3') && both.contains("11"),
-            "both instances are named: {both}"
-        );
-        assert!(
-            both.contains("placements"),
-            "and the sentence agrees with itself in number: {both}"
+        assert_eq!(
+            both,
+            "free move: the placements on instances 3, 11 were discarded — \
+             the document no longer admits them there",
+            "both instances named, and every word of the sentence agreeing \
+             with itself in number — subject, verb, noun and object"
         );
 
         // Silence has exactly one meaning here: nothing was discarded.

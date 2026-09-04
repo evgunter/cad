@@ -652,9 +652,7 @@ pub struct OpOutcome {
     /// a caller learns that from `DisplayState::probing` and from the
     /// typed refusal the next gesture op gives it.
     ///
-    /// The chrome renders this through `frame::supersession_notice`,
-    /// onto the frame's notices — which is what keeps it from being
-    /// erased by the accepted edit that caused it.
+    /// The chrome renders this through `frame::supersession_notice`.
     pub superseded: Vec<RecipeNodeId>,
 }
 
