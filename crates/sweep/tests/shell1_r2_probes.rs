@@ -112,7 +112,10 @@ fn assert_covers(what: &str, source: &Body<f64>, body: &Body<f64>, record: &Shel
     for (edge, _) in body.edges() {
         let twin = twins.contains(&edge);
         let survivor = source.get_edge(edge).is_some();
-        assert!(twin != survivor, "{what}: {edge:?} is not exactly one of a twin/survivor");
+        assert!(
+            twin != survivor,
+            "{what}: {edge:?} is not exactly one of a twin/survivor"
+        );
     }
     let vtwins: Vec<VertexKey> = record.inner_vertices.iter().map(|&(r, _)| r).collect();
     for (vertex, _) in body.vertices() {
@@ -124,10 +127,16 @@ fn assert_covers(what: &str, source: &Body<f64>, body: &Body<f64>, record: &Shel
         );
     }
     for &face in &record.dead.faces {
-        assert!(body.get_face(face).is_none(), "{what}: a retired face resolves");
+        assert!(
+            body.get_face(face).is_none(),
+            "{what}: a retired face resolves"
+        );
     }
     for &edge in &record.dead.edges {
-        assert!(body.get_edge(edge).is_none(), "{what}: a retired edge resolves");
+        assert!(
+            body.get_edge(edge).is_none(),
+            "{what}: a retired edge resolves"
+        );
     }
     for &vertex in &record.dead.vertices {
         assert!(
@@ -138,11 +147,21 @@ fn assert_covers(what: &str, source: &Body<f64>, body: &Body<f64>, record: &Shel
     // Ring rows: on the ring, live twins, sources in the operand.
     for rim in &record.rims {
         let on_ring = loop_edges(body, rim.ring);
-        assert_eq!(rim.ring_edges.len(), on_ring.len(), "{what}: one row per ring edge");
+        assert_eq!(
+            rim.ring_edges.len(),
+            on_ring.len(),
+            "{what}: one row per ring edge"
+        );
         let bounding = boundary_edges(source, &rim.sources);
         for &(result, src) in &rim.ring_edges {
-            assert!(on_ring.contains(&result), "{what}: a ring row's edge is off the ring");
-            assert!(twins.contains(&result), "{what}: a ring edge is not an inner twin");
+            assert!(
+                on_ring.contains(&result),
+                "{what}: a ring row's edge is off the ring"
+            );
+            assert!(
+                twins.contains(&result),
+                "{what}: a ring edge is not an inner twin"
+            );
             assert!(
                 bounding.contains(&src),
                 "{what}: a ring row's source {src:?} did not bound the designated chart"
@@ -265,7 +284,10 @@ fn q1_holes_second_column_key_space() {
     );
     // The operand's own loop keys, for contrast.
     let operand_loops: Vec<LoopKey> = source.faces().map(|(_, f)| f.outer).collect();
-    println!("[q1] a sample of operand loop keys: {:?}", &operand_loops[..2.min(operand_loops.len())]);
+    println!(
+        "[q1] a sample of operand loop keys: {:?}",
+        &operand_loops[..2.min(operand_loops.len())]
+    );
     assert!(
         in_operand,
         "[q1] `RimNaming::holes`' second column is documented as a SOURCE key \
@@ -295,7 +317,11 @@ fn q3_two_holed_charts_at_once() {
             println!(
                 "[q3] BUILT: rims {}, holes {:?}, dead f/e/v {}/{}/{}",
                 record.rims.len(),
-                record.rims.iter().map(|r| r.holes.len()).collect::<Vec<_>>(),
+                record
+                    .rims
+                    .iter()
+                    .map(|r| r.holes.len())
+                    .collect::<Vec<_>>(),
                 record.dead.faces.len(),
                 record.dead.edges.len(),
                 record.dead.vertices.len()
@@ -361,7 +387,12 @@ fn q5_designation_order_picks_the_rim() {
     );
     println!(
         "[q5] forward outer {:?}",
-        forward.naming.outer.iter().map(|&(a, _)| a).collect::<Vec<_>>()
+        forward
+            .naming
+            .outer
+            .iter()
+            .map(|&(a, _)| a)
+            .collect::<Vec<_>>()
     );
     println!(
         "[q5] dead faces forward {:?} reversed {:?}",
@@ -430,7 +461,10 @@ fn assert_dead_is_exact(what: &str, source: &Body<f64>, body: &Body<f64>, record
     got.sort();
     got.dedup();
     assert_eq!(n, got.len(), "{what}: dead.faces has a duplicate");
-    assert_eq!(got, want, "{what}: dead.faces is not exactly the retired set");
+    assert_eq!(
+        got, want,
+        "{what}: dead.faces is not exactly the retired set"
+    );
 
     let mut ever_e: Vec<EdgeKey> = source.edges().map(|(k, _)| k).collect();
     ever_e.extend(record.inner_edges.iter().map(|&(t, _)| t));
@@ -446,7 +480,10 @@ fn assert_dead_is_exact(what: &str, source: &Body<f64>, body: &Body<f64>, record
     got.sort();
     got.dedup();
     assert_eq!(n, got.len(), "{what}: dead.edges has a duplicate");
-    assert_eq!(got, want, "{what}: dead.edges is not exactly the retired set");
+    assert_eq!(
+        got, want,
+        "{what}: dead.edges is not exactly the retired set"
+    );
 
     let mut ever_v: Vec<VertexKey> = source.vertices().map(|(k, _)| k).collect();
     ever_v.extend(record.inner_vertices.iter().map(|&(t, _)| t));
@@ -462,7 +499,10 @@ fn assert_dead_is_exact(what: &str, source: &Body<f64>, body: &Body<f64>, record
     got.sort();
     got.dedup();
     assert_eq!(n, got.len(), "{what}: dead.vertices has a duplicate");
-    assert_eq!(got, want, "{what}: dead.vertices is not exactly the retired set");
+    assert_eq!(
+        got, want,
+        "{what}: dead.vertices is not exactly the retired set"
+    );
 
     for rim in &record.rims {
         let data = body.get_face(rim.rim).expect("the rim resolves");

@@ -109,12 +109,12 @@ mod sf2b_interval_probe;
 mod sf2b_r1_probes;
 #[path = "sf2b_r2_probes.rs"]
 mod sf2b_r2_probes;
+#[path = "shell1_r2_probes.rs"]
+mod shell1_r2_probes;
 #[path = "shellfix1_bitdump.rs"]
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]
 mod shellfix1_r1_probes;
-#[path = "shell1_r2_probes.rs"]
-mod shell1_r2_probes;
 #[path = "torax_axial.rs"]
 mod torax_axial;
 #[path = "torax_interval.rs"]
