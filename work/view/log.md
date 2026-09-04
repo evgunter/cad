@@ -687,7 +687,7 @@ loses only the local pre-check.
 | file | was | now |
 |---|---|---|
 | `session.rs` | 3,260 | **1,484** |
-| `app.rs` | 5,696 | **1,746** |
+| `app.rs` | 5,696 | **1,754** |
 
 Thirteen new modules. `view/1c-module-split` merges both lanes' branches
 (they merge clean — the session lane declared its submodules inside
@@ -728,8 +728,56 @@ The pattern is now clear enough to name: **I write the design from the
 inventory, and the inventory is a snapshot.** Every one of the three
 was a sentence that was true when written about a tree that then
 moved — and none was caught by a gate, because no gate reads prose for
-accuracy. `tip-mark-doc-duplicates-its-own-first-sentence`, filed
-today, is the same hole seen from the other side: a doc comment that
-renders literal `///` and passes every check. The countermeasure that
+accuracy. Item #1 of CHROME's `app-rs-doc-comment-merge-scars` is the
+same hole seen from the other side: a doc comment that renders literal
+`///` and passes every check. The countermeasure that
 has actually worked all day is a reader with the tree open — three
 lanes and one reviewer caught all four instances between them.
+
+## 1c fix pass: the style review's findings (2026-09-04)
+
+**The review falsified the README's boundary rule on the very module
+the split had just added.** `widgets` sat in the table headed *The
+app's vocabularies* while naming `egui` (`widgets.rs:13`) and taking a
+`&DocSession` (`delete_button`) — the crate's newest module fitting
+neither side of a binary rule whose selling point is that it is
+mechanically checkable. The rule is right; the classification was
+wrong. `widgets` and `pane::*` are the `app` driver **split for
+size**, and splitting a driver across modules does not make the pieces
+vocabularies. The README says that under its own heading now, and
+`widgets.rs`'s header says it of itself.
+
+`session.rs` gained the declaration its other half already had: that
+it is a driver, and which six vocabularies sit beside it. Thirteen of
+the fourteen modules in this unit opened by declaring their kind;
+`session.rs` was the one that did not, and a reader learned of its
+vocabularies only from the `pub mod` lines.
+
+Three prose defects fixed: `drag_tick`'s "three constants" against its
+four-arm match; the `datum_view` shim in `app.rs`, a dead `pub use`
+kept alive by a comment asserting a caller that does not exist (no
+`viewer::app::datum_view` anywhere in the workspace — `datum_draw.rs`
+imports `viewer::datums`); and `FieldWriting`'s "a third home … filed
+rather than fixed here", which stopped being true the moment `forms`
+became the one home. Sizes after the pass: `app.rs` 1,752,
+`session.rs` 1,500.
+
+**Two of this program's own tracker files were wrong.**
+`tip-mark-doc-duplicates-its-own-first-sentence` duplicated item #1 of
+CHROME's `app-rs-doc-comment-merge-scars`, filed the same day, parked
+on this same split, and explicit that its three scars are one class of
+defect with one fix. I filed it without reading the board — the exact
+failure `docs/prompts/implementer-discipline.md` §6 names, committed
+by the party who is supposed to be able to see the whole board.
+Deleted. `session-shims-and-test-imports` claimed its whole list was
+already re-exported at the crate root; `AtRestBadge` and `admits` are
+not, and `admits` is imported by no test at all, so the scheduled
+sweep is less mechanical than it advertised.
+
+Two items filed: `boundary-rule-has-no-mechanical-check` — nothing
+reads a `use` block, so the ratified rule's "mechanically checkable"
+rests on a mechanism that does not exist — and
+`stale-file-citations-after-the-split`, roughly twenty open files
+citing `app.rs:NNNN` or `session.rs:NNNN` for items this PR moved,
+green under the rustdoc gate because every one of them is an
+unbracketed code span.

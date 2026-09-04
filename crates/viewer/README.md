@@ -273,18 +273,27 @@ state.
 |---|---|
 | `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — are hand-maintained mirrors of a kernel or sketch enum; the field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts` and `CommitFault`: the in-flight form state, its defaults, and its lowering of typed field values to `Expr` and `LoopProgram` — the same layer as `session::author`, and today the larger half of it |
-| `widgets` | The free helpers over `egui::Ui` that take plain data (`vec3_row`, `unit_field`, `named_field`, the pickers, `delete_button` and the rest) |
 
-and the pane bodies, one module per pane, each holding the `*_ui`
-functions that draw it: `pane::viewport`, `pane::features`,
-`pane::properties`, `pane::create` (the tool and creation forms, the
-largest of them), `pane::view`.
+### The app driver, split for size
 
-`app` itself keeps `ViewerApp`, `ViewerBehavior`, the frame loop,
+`app` is a driver, and a driver too large to read is still a driver.
+`app.rs` keeps `ViewerApp`, `ViewerBehavior`, the frame loop,
 `perform_batch`, `sync_scene`, `apply_status`, `Pane`,
-`initial_layout` and the entry points. Its header's claim — *toolkit
-adaptation, and nothing else* — becomes true of the file for the first
-time, rather than being a claim the file has outgrown.
+`initial_layout` and the entry points; `pane::{viewport, features,
+properties, create, view}` hold the `*_ui` functions that draw each
+pane, one module per pane; and `widgets` holds the free helpers over
+`egui::Ui` that those panes share.
+
+**Splitting a driver across modules does not make the pieces
+vocabularies.** The test is a module's ROLE, not its size or its file:
+each of these names `egui`, and `widgets::delete_button` takes a
+`&DocSession` because the wording it draws is the session's own
+answer. That is the driver side of the rule behaving normally. Reading
+the `use` block still decides it — the check says what a module IS,
+not merely whether it is a vocabulary.
+
+`app.rs`'s header claim — *toolkit adaptation, and nothing else* — is
+true of the file rather than a claim it has outgrown.
 
 Three items move out of `app` to modules that already own their
 subject rather than to new ones: `datum_view` to `datums`, and

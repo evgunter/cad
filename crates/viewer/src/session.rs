@@ -1,6 +1,22 @@
 //! The document session: everything the panels operate on, and the
 //! typed operations that operate on it.
 //!
+//! # What this module is allowed to contain
+//!
+//! The driver, and nothing else. `session` owns [`DocSession`] and
+//! dispatches [`SessionOp`]; what stays here is that state, its
+//! `Gesture`, [`Landing`], [`AtRestBadge`], [`DocSession::perform`]
+//! and the operation doors — every door mutates the session, and
+//! `perform`'s dispatch is the one place an operation becomes state.
+//!
+//! The values those doors speak in are vocabularies beside it, six of
+//! them: what is selected is [`select`], the refusal ladder with its
+//! recourse wording is [`refuse`], the operation vocabulary itself is
+//! [`op`], the authoring specs and their lowering to nodes are
+//! [`author`], the delete cascade's wording is [`delete`], and the
+//! range probe is [`probe`] (`crates/viewer/README.md`, Module
+//! boundaries). None of their `use` blocks names [`DocSession`].
+//!
 //! # One shape, from the toolkit and from a test
 //!
 //! G1's rule is that every operation the GUI performs is itself API.

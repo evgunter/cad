@@ -73,11 +73,9 @@ use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::{Polarity, Theme};
 use crate::tools::Tools;
 
-// Two items this module used to define and that readers outside the
-// crate still reach by this path: the field-writing value
-// `tests/panel_display.rs` asserts the unit/tick pair on, and the
-// datum view `tests/datum_draw.rs` quotes its numbers from.
-pub use crate::datums::datum_view;
+// The one re-export this module carries: `tests/panel_display.rs`
+// reaches the field-writing value by the `viewer::app::FieldWriting`
+// path to assert the unit/tick pair on it.
 pub use crate::forms::FieldWriting;
 
 /// Where this build keeps preferences.

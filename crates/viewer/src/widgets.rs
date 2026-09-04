@@ -1,9 +1,14 @@
-//! **The free helpers over `egui::Ui` that take plain data.**
+//! **The free helpers over `egui::Ui` that the panes share.**
 //!
-//! Every function here draws one row or one field from values the
-//! caller already holds, and returns what the user did with it. None
-//! of them borrows the application or the session's mutable half: the
-//! pane modules own that, and hand these numbers, units and labels.
+//! This module is part of the `app` driver rather than a vocabulary —
+//! it names `egui`, and [`delete_button`] reads a
+//! [`crate::session::DocSession`] because the wording it draws is the
+//! session's own answer.
+//!
+//! Every other function here draws one row or one field from values
+//! the caller already holds, and returns what the user did with it.
+//! None of the others reads the application or the session: the pane
+//! modules own that, and hand these numbers, units and labels.
 //!
 //! [`drag_ops`] is the exception worth naming — it is the one mapping
 //! from a `DragValue` to session operations, and the whole reason a

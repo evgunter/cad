@@ -389,7 +389,7 @@ pub(crate) const UNIT_DRAG_SPEED: f64 = 0.01;
 pub(crate) const COUNT_DRAG_SPEED: f64 = 0.1;
 
 /// **The drag tick a slot of `dimension` is scrubbed at**, in
-/// CANONICAL units — the property panel's pick from the same three
+/// CANONICAL units — the property panel's pick from the same four
 /// constants the creation forms choose between by hand.
 ///
 /// A dimension branch and not one number, because the useful range of
@@ -424,9 +424,11 @@ pub(crate) fn drag_tick(dimension: Dimension) -> f64 {
 /// two a user drags to move the same kind of number. It is not the
 /// creation forms' answer: those hold canonical drafts and pick their
 /// tick from the four constants by hand at each field
-/// (`named_field`), which is a third home for the same rule and is
-/// filed rather than fixed here
-/// (`work/chrome/drag-tick-has-three-homes.md`).
+/// (`widgets::named_field` and its callers). The RULE has one home,
+/// this module, which holds the four constants and [`drag_tick`]
+/// beside this type; what is still open is those hand-picked call
+/// sites, which sit in `widgets`, `pane::create` and
+/// `pane::properties` (`work/chrome/drag-tick-has-three-homes.md`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FieldWriting {
     /// The unit the field shows and authors in — [`props::rendering_unit`]'s
