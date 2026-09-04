@@ -18,15 +18,20 @@
 //! property the timings are evidence *about*, and it is cheap and
 //! deterministic to check.
 //!
-//! **Two rows, and only one of them is `#[ignore]`d.**
+//! **Three rows, and only one of them is `#[ignore]`d.**
 //! [`rebuild_latency_manifest_pins_the_corpus_structure`] is an
 //! ordinary test: it checks the manifest pins and nothing else, costs
 //! no evaluation and no repeats, and therefore gates every PR through
-//! the nextest archive. [`rebuild_latency_table`] is the `#[ignore]`d
+//! the nextest archive. [`cpu_identity_degrades_rather_than_failing`]
+//! is the second, and equally cheap: it pins the shapes
+//! [`cpu_identity`] must survive, because a box that cannot answer
+//! `/proc/cpuinfo` still owes a complete [`environment`] block.
+//! [`rebuild_latency_table`] is the `#[ignore]`d
 //! REPORTING row — the wall-clock measurement, the [`EMIT`] artifact
-//! and the history comparison — run by its own scheduled job. Both
-//! check the pins, via the shared [`assert_manifest_pins`], so the
-//! reporting row cannot silently disagree with the gate.
+//! and the history comparison — run by its own scheduled job. The
+//! first and last both check the pins, via the shared
+//! [`assert_manifest_pins`], so the reporting row cannot silently
+//! disagree with the gate.
 //!
 //! # Two files, split along the rot line
 //!
@@ -57,7 +62,7 @@
 //! Variance: each figure is the MEDIAN OF [`REPS`] runs in one
 //! process, and the table's `±` column is the half-range over those
 //! runs as a percentage of the median. Read the `vs base` column
-//! against that spread before believing it — a hosted 2-vCPU runner
+//! against that spread before believing it — a shared hosted runner
 //! has a fat tail, and a delta inside the spread is noise.
 //!
 //! Reading the numbers: they come from the `dev` profile (opt-level 0
@@ -94,7 +99,7 @@ const COMMIT: &str = "CAD_LATENCY_COMMIT";
 const RUNNER: &str = "CAD_LATENCY_RUNNER";
 /// Repetitions per figure — MUST BE ODD (the median is taken by
 /// indexing the midpoint). Raised 3 -> 5 when the producer moved to
-/// hosted CI: a shared 2-vCPU runner has a fatter tail than the
+/// hosted CI: a shared runner has a fatter tail than the
 /// verified-quiet workstation this used to run on, and the `±` column
 /// is only meaningful with enough samples to show it.
 const REPS: usize = 5;
@@ -434,18 +439,149 @@ fn mem_total_kb() -> u64 {
         .unwrap_or(0)
 }
 
+/// The flag subset that actually moves these rows. Not the whole `flags`
+/// line: the opt-0/opt-2 ratio measured 30% apart between an AVX-512 guest
+/// and CI (2026-08-22 census), which is the discrimination worth recording,
+/// and the same two names the lane's other emitters probe
+/// (`scripts/criterion-emit.py`, `scripts/opt-level-calibrate.py`).
+const HOST_CPU_FLAGS: [&str; 2] = ["avx2", "avx512f"];
+
+/// Where host identity is read from. Passed to [`cpu_identity`] rather than
+/// read inline, so the path is a seam a test can point at nothing.
+const CPUINFO: &str = "/proc/cpuinfo";
+
+/// Which box this is, as far as `/proc/cpuinfo` can say.
+///
+/// `runner`, `nproc`, `mem_total_kb` and `arch` are constant across a hosted
+/// runner pool while the CPU generation underneath it is not, so without this
+/// pair a sample cannot be attributed to a host at all — only to a class of
+/// host.
+///
+/// PARITY OBLIGATION: two more copies of this parser exist, in
+/// `scripts/criterion-emit.py` and `scripts/opt-level-calibrate.py`. They
+/// are copies rather than one reader because no cheap home is shared across
+/// Rust and Python, so the obligation is manual: a change to the field
+/// names, to [`HOST_CPU_FLAGS`], or to what a null means here is owed to
+/// both of them in the same diff.
+///
+/// `(None, None)` means the file could not be read; an empty flag list means
+/// the flags are genuinely absent. A reader must be able to tell those apart,
+/// and a box without `/proc` must not cost the whole environment block.
+fn cpu_identity(path: &str) -> (Option<String>, Option<Vec<String>>) {
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return (None, None);
+    };
+    cpu_identity_of(&text)
+}
+
+/// The parse half of [`cpu_identity`], split off so the shapes a
+/// `/proc/cpuinfo` can take are testable without one.
+fn cpu_identity_of(text: &str) -> (Option<String>, Option<Vec<String>>) {
+    let mut model: Option<String> = None;
+    let mut flags: Option<Vec<String>> = None;
+    for line in text.lines() {
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        match key.trim() {
+            "model name" if model.is_none() => {
+                let v = value.trim();
+                if !v.is_empty() {
+                    model = Some(v.to_string());
+                }
+            }
+            "flags" if flags.is_none() => {
+                let mut found: Vec<String> = Vec::new();
+                for flag in HOST_CPU_FLAGS {
+                    if value.split_whitespace().any(|f| f == flag) {
+                        found.push(flag.to_string());
+                    }
+                }
+                flags = Some(found);
+            }
+            _ => {}
+        }
+    }
+    (model, Some(flags.unwrap_or_default()))
+}
+
+/// Host identity degrades rather than failing: a box whose `/proc/cpuinfo`
+/// cannot be read still writes a complete environment block, and a reader can
+/// tell "the file was not there" from "the flags were not set".
+#[test]
+fn cpu_identity_degrades_rather_than_failing() {
+    assert_eq!(cpu_identity("/nonexistent/cpuinfo"), (None, None));
+
+    // THE WHOLE POINT OF THE NULLS: the rest of the block survives them. Read
+    // back the VALUES, not the keys — `serde_json`'s `get` answers
+    // `Some(Null)` for a null field, so key presence would hold even if the
+    // block had collapsed to nulls entirely.
+    let degraded = environment_from("/nonexistent/cpuinfo");
+    assert!(degraded["cpu_model"].is_null() && degraded["cpu_flags"].is_null());
+    assert_eq!(degraded["os"], std::env::consts::OS);
+    assert_eq!(degraded["arch"], std::env::consts::ARCH);
+    assert!(
+        degraded["nproc"].as_u64().is_some_and(|n| n > 0),
+        "an unreadable /proc/cpuinfo cost the block its core count: {degraded}"
+    );
+    assert!(degraded["runner"].is_string() && degraded["rustflags"].is_string());
+    assert!(degraded["cargo_profile_overrides"].is_array());
+    assert_eq!(degraded["debug_assertions"], cfg!(debug_assertions));
+    // `/proc`-derived, so asserted only where `/proc` is — this test must not
+    // red on a developer's box for being a developer's box.
+    if std::path::Path::new("/proc/meminfo").exists() {
+        assert!(
+            degraded["mem_total_kb"].as_u64().is_some_and(|m| m > 0),
+            "an unreadable /proc/cpuinfo cost the block its memory reading: {degraded}"
+        );
+    }
+
+    // And the real path fills the pair in on a box that has the file, so the
+    // nulls above are the degradation and not the only thing this can produce.
+    if std::path::Path::new(CPUINFO).exists() {
+        assert!(!environment()["cpu_model"].is_null());
+    }
+
+    // Readable but shaped differently — an aarch64 `/proc/cpuinfo` carries
+    // `Features`, not `flags`, and no `model name`. The flag list is then
+    // EMPTY rather than absent, which is what says the file WAS read.
+    let (model, flags) = cpu_identity_of("processor\t: 0\nFeatures\t: fp asimd\n");
+    assert_eq!(model, None);
+    assert_eq!(flags, Some(Vec::new()));
+
+    // The ordinary case: first `model name` only, probed flag subset only.
+    let (model, flags) =
+        cpu_identity_of("model name\t: A\nflags\t: fpu avx2 sse\nmodel name\t: B\n");
+    assert_eq!(model.as_deref(), Some("A"));
+    assert_eq!(flags, Some(vec!["avx2".to_string()]));
+}
+
 /// The build/host provenance that the `disputed_measurement` argument
 /// went unresolved for want of. Recorded on EVERY entry so two
 /// entries that disagree can be compared as environments, not just as
 /// numbers.
 fn environment() -> serde_json::Value {
+    environment_from(CPUINFO)
+}
+
+/// [`environment`] with the host-identity path as a seam, so a test can
+/// build the block a box with no `/proc/cpuinfo` would write and read the
+/// OTHER fields back out of it. Without the seam the claim that a missing
+/// file costs only its own two fields is untestable in this emitter, which
+/// is the one whose output reaches `docs/perf-data/rebuild-latency/`.
+fn environment_from(cpuinfo: &str) -> serde_json::Value {
     let var = |k: &str| std::env::var(k).unwrap_or_default();
+    let (cpu_model, cpu_flags) = cpu_identity(cpuinfo);
     serde_json::json!({
         "runner": std::env::var(RUNNER).unwrap_or_else(|_| "local".to_string()),
         "os": std::env::consts::OS,
         "arch": std::env::consts::ARCH,
         "nproc": std::thread::available_parallelism().map_or(0, std::num::NonZero::get),
         "mem_total_kb": mem_total_kb(),
+        // Which box, not just which class of box: every field above is
+        // constant across a hosted runner pool. See `cpu_identity`.
+        "cpu_model": cpu_model,
+        "cpu_flags": cpu_flags,
         "cargo_rustc_procs": build_proc_count(),
         "rustflags": var("RUSTFLAGS"),
         "rustup_toolchain": var("RUSTUP_TOOLCHAIN"),

@@ -846,6 +846,31 @@ jobs:
       # above turns on WHERE the check runs, not on what it costs.
       - name: change filter selftest (the docs tier fails open)
         run: python3 scripts/ci-filter.py --selftest
+      # THE PIN READER'S OWN TESTS. `scripts/ci-pin.py` is what nightly.yml's
+      # four pin-reading steps call to get a tool version out of THIS file's
+      # workflow-level `env:` block, and what it is FOR is refusing an
+      # ambiguous read rather than picking one — behaviour no real run
+      # exercises, because this file sets each pin exactly once and the happy
+      # path is all any lane ever takes. A reader whose refusals nothing
+      # executes is the defect it replaced: the retired `sed` idiom's sixth
+      # copy had unbalanced quotes and never ran, and a person reading a log
+      # found it, not CI.
+      #
+      # SITED HERE AND NOT IN nightly.yml, which is where the callers are. A
+      # self-test belongs on the run that can red the PR that broke it. Every
+      # nightly job carries `if: needs.gate.outputs.run == 'true'`, so a
+      # failure in that workflow's first job does not red a row — it SKIPS ten
+      # measurement jobs and the record step, costing a night of
+      # rebuild-latency, opt-level and criterion samples, hours after the
+      # author who broke it saw green.
+      #
+      # NOT IN `TIER_BLIND`, deliberately: that list is for checks whose
+      # inputs are prose or `local-scripts/`, and this one's inputs are this
+      # workflow file and the script, neither of which reaches the docs tier.
+      # It sits in this job anyway because the job carries no `if:` and needs
+      # no toolchain — stdlib python against temp fixtures.
+      - name: pin reader selftest (ci.yml's env block is read, not guessed)
+        run: scripts/ci-pin.py --selftest
       # THE WORK TRACKER'S LINT (work/README.md is the contract). Its inputs
       # are `work/` and `docs/` — markdown, TIER=docs — so it is sited here for
       # the same reason as every row above. Stdlib python and git; the
