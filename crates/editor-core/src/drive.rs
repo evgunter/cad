@@ -10,10 +10,10 @@
 //!
 //! # The leaf protocol, and what "certified" is allowed to mean
 //!
-//! A leaf replays the recipe at [`geom_core::Interval`] over the leaf's
-//! own parameter environment (E8: the committed witness verbatim; the
-//! profile lift GUIDED, so profile geometry is a function of the
-//! leaf's parameters and every consumed structure decision is
+//! A leaf replays the recipe at `geom_core::Sym<`[`geom_core::Interval`]`>`
+//! over the leaf's own parameter environment (E8: the committed witness
+//! verbatim; the profile lift GUIDED, so profile geometry is a function
+//! of the leaf's parameters and every consumed structure decision is
 //! re-verified there). It certifies when, and only when:
 //!
 //! 1. **every predicate was definite** — no `k_stats` escalation, no
@@ -25,6 +25,23 @@
 //!    named at [`VerdictVector::certifying`]: an `Assertion` node
 //!    reports and gates nothing (E10 v1), and certification is a gate,
 //!    so its rows are not in the comparison.
+//!
+//! **What the wrapper adds, and what it does not** (ERROR-DESIGN E12).
+//! The numeric channel is `Interval`'s, verbatim and bit for bit —
+//! `Sym<T>` computes every operation at `T` and mints a DAG node beside
+//! it. One thing changes: a margin whose expression is identically zero
+//! in the document's parameters decides `Zero` before any enclosure is
+//! consulted, at any box width. That is what lets a MACROSCOPIC box
+//! certify at all; before it, the certification identities' enclosures
+//! widened as `[0, c·w]` and a leaf went definite only below a fraction
+//! of ε. `DriveConfig::symbolic` is the dial, and
+//! [`SymbolicDials::off`] replays at plain `Interval` — the pre-E12
+//! driver, reproduced rather than approximated.
+//!
+//! **The f64 witness pass is untouched**, deliberately: a point residual
+//! is tight, so it still catches a constructor that does not build what
+//! it claims — the failure an expression that is identically zero on
+//! paper could otherwise hide.
 //!
 //! Clause 2 is an equality of [`geom_core::k_stats::Verdict`] rows,
 //! which are float-free and scalar-independent by construction: the
@@ -1293,6 +1310,16 @@ fn clearance_measure(doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
 /// query whose lift setting drifted from the driver's would be
 /// certifying a body other than the one the leaf's verdict vector is
 /// about.
+///
+/// The SCALAR is the other half of "the way this driver certified it",
+/// and it does not ride here: it rides on the verdict
+/// ([`ParamBoxVerdict::symbolic`]) and reaches a consumer through
+/// `crate::eval::replay_leaf`. The clearance engine is the one consumer
+/// that cannot take it — its selection type is written at `Interval`
+/// concretely — which is why a document carrying a `min_clearance`
+/// measure refuses the symbolic tier up front
+/// ([`DriveRefusal::SymbolicClearanceUnsupported`]) rather than
+/// certifying leaves the engine could not then read.
 pub(crate) fn lane_opts() -> EvalOptions {
     // `EvalOptions::default()` already mints an epoch; minting a second
     // one to overwrite it burnt a process-global counter per leaf, and

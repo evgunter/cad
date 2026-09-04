@@ -1596,13 +1596,16 @@ impl core::error::Error for StackupRefusal {}
 /// and the per-leaf worst-case evaluations under rayon idiom 1; the
 /// report is schedule-independent (D9).
 ///
-/// The worst case re-evaluates the measure at `Interval` over each
-/// certified leaf's environment (the guided lift on, exactly as the
-/// drive replayed it), ties every leaf's keys to the drive's record
-/// on the way, and hulls the certified brackets. One interval
-/// evaluation per certified leaf, bounded above by the drive's own
-/// cost — that is the v1 cost decision, taken over a recording dial on
-/// `DriveConfig`.
+/// The worst case re-evaluates the measure over each certified leaf's
+/// environment ON THE LANE THE DRIVE RAN — the guided lift on, and the
+/// symbolic tier on or off exactly as `ParamBoxVerdict::symbolic` says,
+/// because a leaf the tier certified can carry a node a numeric-only
+/// replay refuses. The numeric channel is the same either way, so the
+/// hulled brackets are the same bits; what the lane decides is which
+/// leaves have one. It ties every leaf's keys to the drive's record on
+/// the way and hulls the certified brackets. One evaluation per
+/// certified leaf, bounded above by the drive's own cost — the v1 cost
+/// decision, taken over a recording dial on `DriveConfig`.
 ///
 /// # Errors
 ///

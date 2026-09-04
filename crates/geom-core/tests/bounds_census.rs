@@ -159,6 +159,16 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
+        path: "crates/geom-core/src/sym.rs",
+        subject: "impl<T: Bounds> Bounds for Sym<T>",
+        why: Impl(
+            "the symbolic tier's bracket delegation (ERROR-DESIGN E12): a `Sym<T>` \
+             carries `T`'s bracket verbatim because the DAG holds no numbers of its \
+             own, and nothing in this impl reads one — the two accessors forward and \
+             return",
+        ),
+    },
+    Site {
         path: "crates/geom-core/src/real.rs",
         subject: "impl<T: Bounds> Enclosure for T",
         why: Impl(

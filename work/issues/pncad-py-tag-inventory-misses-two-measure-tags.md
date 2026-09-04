@@ -2,8 +2,9 @@
 id: pncad-py-tag-inventory-misses-two-measure-tags
 kind: issue
 title: main is red at the code tier: TAG_INVENTORY does not list two node_error_tag values tags.rs already ships
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-04
 ---
 
 
@@ -39,3 +40,18 @@ a public Python contract. Neither new value appears in any `.pyi` or
 that absence is correct surface or a missing binding, and that is the
 owner of the measure work's call, not a passing lane's. A lane that
 refreshed the receipt would launder the question away.
+
+
+---
+
+**Closed by M10-7** (2026-09-04). `TAG_INVENTORY`'s `node_error_tag`
+list gains `measure_clearance_refused` and `measure_selection_kind`, in
+sorted position beside the other `measure_*` values, which is what the
+row asked for: the two tags `tags.rs` already ships are now listed.
+Nothing in `pncad.pyi` or `tests/*.py` branches on either string — they
+are new M10-6 surface no Python caller has met — so the fix is the
+inventory line alone.
+
+Fixed here rather than in its own PR because it is red on `main` at the
+code tier, so it fails on every head: M10-7 could not have shown a green
+run of its own without it.
