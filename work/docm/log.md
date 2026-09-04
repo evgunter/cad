@@ -178,3 +178,13 @@ than rewritten in place. Filed: the sweep crate's `top` field docs
 (`work/issues/`). Noted for CIW's ground, not filed: the k-lint job's
 byte-for-byte die-corpus step is SKIPPED on the tier this PR drew, so
 hosted CI did not re-derive the regenerated corpus itself.
+
+## DOCM-1 dual review dispatched (2026-09-04, PR 1829 frozen at 20f04189)
+
+Implementer lane reported the PR non-draft and green at `20f04189`
+(35 files, +2244/−79); the head predates the CapEnd rename now on main,
+so the fix pass carries that conflict. Ordinal 1802 claimed on main at
+dispatch (PR 1853); parity byte 83 ⇒ R1 = FABLE, R2 = OPUS; briefs
+hashed and diff-identical modulo lane names; private build AND private
+scratch directories per lane. Both lanes running concurrently on the
+frozen head. The unit's log entry waits for the dual's conclusion.
