@@ -98,6 +98,8 @@ mod cert3r1_dump;
 mod display_contract;
 #[path = "docm3_union.rs"]
 mod docm3_union;
+#[path = "docm3_r1_probes.rs"]
+mod docm3_r1_probes;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
