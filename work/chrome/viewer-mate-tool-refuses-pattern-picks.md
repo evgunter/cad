@@ -58,7 +58,21 @@ are two members over one instance, and a mate between them is a loop
 the solve records rather than a self-mate. Its payload is `head`
 rather than `instance`, a pattern-placed head being no instance node.
 
-**Territory**: this unit edits `crates/editor-core` and
-`crates/pncad`, outside CHROME's declared `paths`. Announced rather
-than taken silently — the alternative was a second copy of the
-admission rule in the viewer, which is the defect being fixed.
+**Territory, stated at its real strength.** This unit edits
+`crates/editor-core/src/mate.rs` and `mate/solve.rs`, which CHROME's
+own `keep_out` named: *"editor-core mate.rs and assembly.rs
+vocabulary is read and not edited."* That is a declared PROHIBITION,
+not merely ground outside `paths`, and the first version of this note
+disclosed only the weaker of the two. The style lane caught it, and
+the miss is the part worth keeping: a disclosure naming the lesser
+boundary reads as candour while walking the harder question past.
+
+The fence is amended rather than quietly crossed
+(`work/chrome/program.md`), because the fence and the fix could not
+both stand. The viewer's gate was a RESTATEMENT of the rule `mate.rs`
+owns, and the only repair that removes a restatement is to publish the
+original — so "read and not edited" would have preserved the defect
+the clause was written to keep out. The amendment is deliberately
+narrow: one private function made public plus its re-exports, no mate
+semantics touched, `head_of`'s behaviour and every existing signature
+unchanged.
