@@ -7,6 +7,7 @@ opened: 2026-08-31
 github: 1408
 refs: [1399]
 branch: fix/band-linear-sweep
+pr: 1732
 ---
 
 ## From GitHub issue 1408

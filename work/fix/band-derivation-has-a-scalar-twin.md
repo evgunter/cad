@@ -4,6 +4,7 @@ kind: issue
 title: the linear band's derivation has a scalar twin: ~15 sites compute (eps, K*eps) as bare f64s and never build a Band
 status: open
 opened: 2026-09-04
+refs: [1732]
 ---
 
 
