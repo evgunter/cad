@@ -126,3 +126,38 @@ Recorded here, not fixed by unit 5, because a 43-file sweep inside a
 two-field emitter change would have buried the change it was reviewed
 for — and because the first sub-class is a re-costing question, which is
 this unit's whole subject.
+
+
+## Evidence: the sharpest observed instance of F3's residue (2026-09-04)
+
+`work/lib/pncad-py-tag-inventory-misses-two-measure-tags` is not merely
+an example of "the landed main commit is never itself tested". It is
+that residue producing a red that **no PR run anywhere could have
+caught**, which is a stronger claim and is established rather than
+argued:
+
+- M10 (PR 1685) added two `node_error_tag` values, merged 17:48 UTC on
+  2026-09-03. Its run had the values and no gate reading them: green,
+  correctly.
+- LIB (PR 1696) added the `TAG_INVENTORY` gate that reads them, merged
+  17:55 UTC — seven minutes later. It last merged `main` at 16:31, so
+  its branch never contained M10's values (`461e0f9a` is not an
+  ancestor of its final head). Its run had the gate and no values:
+  green, correctly.
+
+The composition existed for the first time on `main`, and `main`'s push
+run classified docs-tier and skipped both test rows. So the first tree
+to execute the composed state was an unrelated branch's merge ref, and
+the cost has been billed to every code-tier PR since — seven branches
+in one night, measured, before anyone routed it.
+
+**What this is worth to this unit.** F3's written cost is "when main
+moves between a PR's last run and its merge — frequent at this repo's
+merge rate — that exact combination went untested", with the next PR's
+merge ref named as the compensating control. This instance shows the
+control working exactly as designed and still being the wrong shape:
+it detects, but it detects on a third party's branch, days late, with
+no route back to either author, and it charges the triage to whoever
+happens to draw the point. Any proposal this unit makes about what a
+`main` push run should re-gate has to be measured against this case,
+not against the abstract residue.

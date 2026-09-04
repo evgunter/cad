@@ -32,3 +32,44 @@ directory at opening, by header edit and `git mv` only (ids unchanged):
 
 No unit is cut and no branch exists yet. The first dispatch claims its
 ordinal from the band above and records it in `docs/MODEL-AB-LOG.md`.
+
+## Orchestrator picked up (2026-09-04)
+
+Session takes the program with no unit cut and no branch existing.
+Two items arrived already closed (`pin-mismatch-recourse-emitted-twice`
+finding 1, `subject-body-drops-the-declared-contacts`), both by the
+lanes that filed them, before this program opened.
+
+**Decisions taken unilaterally at pickup**, all recorded in `plan.md`:
+
+1. **No A/B row on any unit** (Ev, in-chat, 2026-09-04). The 1700-1799
+   band stays unclaimed; `docs/MODEL-AB-LOG.md` is not touched by this
+   program. Review posture is one style lane per unit, plus a second
+   correctness-focused reviewer on the three units that move a kernel
+   answer rather than its rendering.
+
+2. **No unit here carries a full adversarial review.** Ev's framing at
+   handoff is the rule this program adopts: a one-PR item that would
+   need an adversarial arm is an item cut wrong. Two items failed that
+   test on reading and were re-cut rather than dispatched (below).
+
+3. **`error-types-with-no-display-class` is cut into three PRs by
+   fence** — viewer, editor-core, kernel-crate remainder. As one unit
+   it is ~18 types across five crates and four `keep_out` fences, and
+   the item's own text asks its taker to re-sweep rather than trust the
+   list; one lane cannot own four announcements and one honest blind-
+   spot sentence at that width.
+
+4. **`unify-discipline-machinery-onto-registry` is held.** It is the
+   one item on the slate whose body does not contain the fix: it names
+   a seam and an order, not a diff. It gets its own spec pass or it
+   leaves the program; it is not dispatched as a one-PR item.
+
+5. **Branch convention.** Unit branches keep the program's ratified
+   `fix/` prefix (#396). The orchestrator's own branch this session is
+   `claude/program-fix-orchestration-caoqwh`, set by the session
+   harness rather than by the #396 convention; `fix/orchestrator` is
+   unused.
+
+`nested-pattern-mate-heads-refuse` is the program's one ruling and
+goes out as an `[ev]` PR, not a unit.
