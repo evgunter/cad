@@ -3658,5 +3658,5 @@ reaches main only when the block's last slot's reviews conclude; each
 ordinal claim at review dispatch goes to main on its own.
 
 Block SHELL-B1 slot record (branch-side, appended as each slot concludes):
-slot 0 = SHELL-1 (OPUS; pre-draw M / STRUCTURAL at `docs/SHELL-1-SPEC.md`) — dispatched 2026-09-04.
-slot 1 = SHELL-2 (OPUS; pre-draw S–M / STRUCTURAL-NUMERIC at `docs/SHELL-2-SPEC.md`, on branch `shell/2-transform-approx`) — dispatched 2026-09-04, concurrently with slot 0 on the same box.
+slot 0 = SHELL-1 (OPUS; pre-draw M / STRUCTURAL at `docs/SHELL-1-SPEC.md`) — dispatched 2026-09-04; delivered PR #1756 at 02:2x UTC, dual dispatched as ordinal 2300.
+slot 1 = SHELL-2 (OPUS; pre-draw S–M / STRUCTURAL-NUMERIC at `docs/SHELL-2-SPEC.md`, on branch `shell/2-transform-approx`) — dispatched 2026-09-04, concurrently with slot 0 on the same box; delivered PR #1758, dual dispatched as ordinal 2301.

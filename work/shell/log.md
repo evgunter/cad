@@ -111,3 +111,41 @@ M10-7 (#1725) recorded in the spec: it adds `Sym` impls to the same
 trait; whichever lands second adds the arm. Block SHELL-B1 slot 1 =
 OPUS per the draw. Two implementer lanes now share this 4-core box;
 briefs say so and ask for narrow build targets.
+
+## Both units delivered; two duals dispatched (2026-09-04)
+
+**SHELL-2 delivered first** (PR #1758, head `b58274d8`, interval lane
+asked for, green): the lane on `PcurveFittedLane` as specced, four
+explicit arms, `geom::NurbsSurface::map_affine` as the net door,
+`ApproxSurface` retired for `ApproxLaneUnsupported` /
+`ApproxRecertify`. **The spec's fixture premise was wrong** (mine):
+the OFF-C lofted prism cannot be moved at all — its wall seams carry
+`Curve3::Nurbs`, refused by the same door (issue record 1346) — and
+no Approx-faced body in the tree is both movable and tier-3 clean
+(the lane filed `no-approx-faced-body-is-both-movable-and-valid` with
+three measurements). Rows 1/2/3/6 landed on a new `box_with_approx_cap`
+fixture reading tier 3 as a finding-set difference. Also wrong in the
+spec: the proposed `NurbsPlaceholder` wording and the KERNEL-VERBS
+row (none exists). Lesson for the next spec: measure the fixture
+MOVES before naming it as the acceptance body.
+
+**SHELL-1 delivered** (PR #1756, head `f59f021e`, interval lane asked
+for, green): `Shelled<T>` + `ShellNaming` / `RimNaming` /
+`ShellRetired`, 142 call sites in 22 files re-spelled (the spec's
+"25 files" counted files, not sites), `ring_edges` ⊆ `inner_edges` by
+construction (the spec's edge partition was unsatisfiable as written
+— corrected by the lane to the true statement), the counterbored drum
+refuses `OpenFacesDisconnect` before any rim so a holed extrusion
+stands in for the second-hole fixture, and `KfmrhResult::killed_shell`
+is the one retirement the record does not carry (flagged for LIB's
+emitter). **SEAT's census delivered:** all 142 sites pass a
+compile-time literal for `tolerance` (140 × `1e-6`, 2 × `1e-9`);
+nothing derives it — recorded for `shell-doors-take-tolerance-beside-tol`.
+
+**Duals dispatched** concurrently on this box (four review lanes,
+`-j2` each, the shared-box note recorded as a method note applying to
+both arms of each pair): SHELL-1 = ordinal 2300 (byte 99 ⇒ R1 fable,
+R2 opus), SHELL-2 = ordinal 2301 (byte 96 ⇒ R1 opus, R2 fable);
+claims on main via #1760; briefs hashed under the lane-private
+`ab/briefs/`. Implementer wall-clock: SHELL-2 ~1 h 15 m, SHELL-1
+~1 h 47 m, no restarts.
