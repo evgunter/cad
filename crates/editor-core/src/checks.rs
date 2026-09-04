@@ -273,15 +273,21 @@ pub enum CheckEvidence {
     /// all — the box builder's typed refusal. The check has no verdict
     /// for ANY pair, which is a finding, never a silent pass (F6).
     SeparationUnavailable {
-        /// The kernel's own refusal, rendered.
+        /// Which arm of the kernel's refusal fired — the typed half,
+        /// and the one a consumer branches on.
         ///
-        /// The message and not the value because `topo::BooleanError`
-        /// is neither `Clone` nor `PartialEq` and a report is both.
+        /// `topo::BooleanError` itself is neither `Clone` nor
+        /// `PartialEq` and a report is both, so the error cannot ride
+        /// here; its class projection can, and does.
+        kind: topo::BooleanErrorKind,
+        /// The kernel's own refusal, rendered, for a reader — it
+        /// carries the arena keys and margins `kind` drops.
+        ///
         /// The payload's own `Display` is the vocabulary this module
-        /// forwards (the one-story rule at `crate::finding`), so
-        /// nothing about what the caller reads changes; what is lost
-        /// is matching on the arm, which no consumer of an advisory
-        /// report does.
+        /// forwards (the one-story rule at `crate::finding`), so what
+        /// a caller READS is the kernel's own sentence; `kind` beside
+        /// it is what a caller MATCHES on, so neither half is a
+        /// substring hunt through the other.
         reason: String,
     },
 }
@@ -367,7 +373,7 @@ impl crate::finding::Finding for CheckFinding {
                  product gathers both, so any space they share is gathered twice",
                 other_root.0
             ),
-            CheckEvidence::SeparationUnavailable { reason } => write!(
+            CheckEvidence::SeparationUnavailable { reason, .. } => write!(
                 f,
                 "no pair of this product's solids could be checked for separation: \
                  {reason}"
@@ -737,6 +743,7 @@ fn separation<P, T: Decide + AtRestPolicy + CertifiedBounds>(
                 root: first.node,
                 output_ix: first.output,
                 evidence: CheckEvidence::SeparationUnavailable {
+                    kind: source.kind(),
                     reason: source.to_string(),
                 },
             });

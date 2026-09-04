@@ -13,7 +13,10 @@
 //!   produce the identical report, `Error` refuses at
 //!   `enforce_checks` (the ONLY refusing path), `Off` is VISIBLY
 //!   skipped;
-//! - the report is deterministic (D9): two runs, identical reports.
+//! - the report is deterministic (D9): two runs, identical reports;
+//! - the separation resident's unavailable-evidence carries the
+//!   kernel refusal's CLASS beside its prose, so the class survives
+//!   into a `Clone + PartialEq` finding the error itself cannot enter.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -530,4 +533,47 @@ fn separation_findings_are_certified_and_deterministic() {
     let (doc, _, _) = two_roots(0.0);
     let cfg = ChecksConfig::default();
     assert_eq!(checks(&doc, &cfg), checks(&doc, &cfg));
+}
+
+/// INVARIANT: the separation resident's unavailable-evidence carries
+/// the kernel refusal's CLASS beside its prose, so a consumer that
+/// wants the class reads a field rather than searching the sentence.
+///
+/// The two halves come off one error: `Display` for what a reader
+/// reads, [`topo::BooleanError::kind`] for what a consumer matches.
+/// The finding record is `Clone + PartialEq` and the error is neither,
+/// which is why the class travels as its projection and not as itself
+/// — and why two findings whose kernel refusals differ in class must
+/// compare unequal even when their prose is byte-identical.
+#[test]
+fn separation_unavailable_carries_the_kernel_class_beside_its_prose() {
+    let refusal = topo::BooleanError::ClassificationInvariant {
+        what: "solid separation: the ambient tolerance band is unusable",
+    };
+    let evidence = CheckEvidence::SeparationUnavailable {
+        kind: refusal.kind(),
+        reason: refusal.to_string(),
+    };
+    let finding = CheckFinding {
+        check: CheckId::Separation,
+        root: RecipeNodeId(0),
+        output_ix: 0,
+        evidence: evidence.clone(),
+    };
+    // One story: the kernel's own sentence, forwarded whole.
+    assert!(
+        finding.to_string().contains(&refusal.to_string()),
+        "{finding}"
+    );
+    // The class, recovered by pattern rather than by substring.
+    let CheckEvidence::SeparationUnavailable { kind, .. } = &evidence else {
+        panic!("the arm this row is about");
+    };
+    assert_eq!(*kind, topo::BooleanErrorKind::ClassificationInvariant);
+    // Same prose, different class: the record distinguishes them.
+    let other = CheckEvidence::SeparationUnavailable {
+        kind: topo::BooleanErrorKind::UnrepresentableResult,
+        reason: refusal.to_string(),
+    };
+    assert_ne!(evidence, other);
 }
