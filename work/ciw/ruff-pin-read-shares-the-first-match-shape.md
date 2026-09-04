@@ -45,6 +45,42 @@ have to accept unchanged or the fixtures move with it.
 
 `.claude/hooks/session-start.sh:104,123,124` is a THIRD thing and not
 this: it restates the pins as literals rather than misreading them, and
-`.claude/` is deleted at checkout by every hosted job by design. That is
-a duplication, with its own argument for existing, and it is named here
-only so the next sweep does not have to find it again.
+`.claude/` is deleted at checkout by every hosted job by design. That
+whole class — a pin's VALUE retyped where nothing reconciles it — is
+`local-half-restates-ci-pins-as-literals`, which carries those three
+lines and five more in `local-scripts/`.
+
+## The sweep this came out of, and what it could not see
+
+Recorded here rather than in a PR body, because a PR body is not where
+the next author looks.
+
+**Pattern swept** (merge base `59c461c`): `sed -n 's/^ *NAME:` and
+`head -1` / `.group(1)` over every path under `.github/workflows/`, plus
+every `_VERSION` reference outside `ci.yml` itself. Hits: five in
+`nightly.yml` (fixed by that unit), `check-python-lint.py:68` (this
+item), `session-start.sh` (above). `render.yml`, `work-status.yml` and
+`ci-local.sh` returned nothing.
+
+**What the pattern could not match, in order of how badly it missed:**
+
+1. **Restated VALUES, which is the big one and it fired immediately.**
+   Both arms of the sweep look for a pin being READ — an idiom, or a
+   `NAME:` key. Neither asks where a version's digits have simply been
+   retyped. A bare `0.9.140` in a comment or an `echo` carries no
+   `NAME:` and no `_VERSION` token, so it was invisible to both arms
+   even in files the sweep had already opened. Five such sites were
+   sitting in `local-scripts/`, and the sweep walked past all of them —
+   then the unit wrote a `MIRROR_EXEMPT` sentence asserting the local
+   half had no pin to read, which the review falsified from those exact
+   lines. The blind spot did not stay hypothetical for one PR.
+2. A pin read written some third way — `grep -m1`, an inline `yq` or
+   `python -c`, `awk '/NAME:/'` — matches neither arm.
+3. The `_VERSION` arm is name-based, so it covers only names ending
+   `_VERSION`. A pin named otherwise in `ci.yml`'s `env:` block, read
+   anywhere, is outside both arms.
+
+A sweep for this class wants to start from **`ci.yml`'s `env:` block as
+the population** — for each pinned name AND each pinned value, find every
+other occurrence in the tree — rather than from the shape of the idiom
+that happened to be in front of it.

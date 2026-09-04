@@ -143,14 +143,19 @@ MIRROR_EXEMPT = {
     "scripts/ci-pin.py": (
         "hosted",
         "the reader for ci.yml's workflow-level tool pins. The asymmetry is "
-        "not a lane's: local-scripts/ci-local.sh HAS no pin to read, because "
-        "it installs nothing from ci.yml's `env:` block — it runs whatever "
-        "nextest, maturin, ty and ruff the developer's box already has, and "
-        "the one place the local half cares which version that is, "
-        "scripts/check-python-lint.py, reads the ruff pin itself and reports "
-        "the disagreement. What is hosted-only here is therefore the reading, "
-        "not the check: mirroring this path into ci-local.sh would name a "
-        "script whose answer that half has nowhere to put",
+        "not a lane's: nothing in the local half INSTALLS from ci.yml's `env:` "
+        "block, so there is no step there whose input a programmatic read of "
+        "that block would be. ci-local.sh runs whatever nextest the "
+        "developer's box already has and refuses if there is none; the one "
+        "place the local half acts on a pinned version, "
+        "scripts/check-python-lint.py, reads the ruff pin for itself and "
+        "reports the disagreement. What is hosted-only here is the reading, "
+        "not the check. NOTE WHAT THIS DOES NOT SAY: the local half does "
+        "restate pins, as literals a human reads — ci-local.sh's prereq note "
+        "and its cargo-nextest error text, and gate.sh's sccache line. Those "
+        "are copies nothing reconciles, which is this reader's own defect one "
+        "layer out; work/ciw/local-half-restates-ci-pins-as-literals carries "
+        "them, and mirroring this path would not touch one of them",
     ),
     "scripts/criterion-emit.py": (
         "hosted",

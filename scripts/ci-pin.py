@@ -40,6 +40,20 @@ refusal goes to stderr and exits 2, so `set -euo pipefail` plus
 `test -n` guard each site used to carry is now this script's job and does not
 need restating at the call site.
 
+WHAT THIS DOES NOT REACH, AND IT IS MORE THAN IT LOOKS. This closes the copies
+that READ the pin. It does nothing about the copies that RESTATE its VALUE:
+`local-scripts/ci-local.sh` names `0.9.140` in its prereq note, in its
+`nextest_check()` error text and in a comment, `local-scripts/gate.sh` names
+sccache `0.16.0`, and `.claude/hooks/session-start.sh` names three pins as
+shell literals. Nothing reconciles any of them with this file's `env:` block,
+so they drift the day a pin is bumped and no gate says a word —
+`work/ciw/local-half-restates-ci-pins-as-literals` carries that population.
+It is worth knowing how they were missed: the sweep that produced this script
+looked for the READING IDIOM and for `_VERSION` names, and a bare `0.9.140` in
+an `echo` carries neither. **A sweep for this class starts from the `env:`
+block — each pinned name and each pinned value — and asks where else in the
+tree they appear.** Not from the shape of whichever idiom is in front of you.
+
     ci-pin.py NAME [--file PATH]
     ci-pin.py --selftest
 """
@@ -123,6 +137,10 @@ def read_pin(text: str, name: str, path: str) -> str:
         raise Refuse(f"{name!r} is not an env-key name this reader will look for")
 
     lines = text.splitlines()
+    # TEXTUAL, NOT STRUCTURAL, and knowingly so: a `NAME:`-shaped line inside a
+    # `run: |` block or a comment counts as a setting here. That over-counts
+    # towards a refusal, never towards a wrong value, which is the direction
+    # this reader is allowed to be wrong in.
     key_re = re.compile(rf"^[ \t]*{re.escape(name)}:")
     hits = [i + 1 for i, ln in enumerate(lines) if key_re.match(ln)]
     if len(hits) > 1:
@@ -138,13 +156,18 @@ def read_pin(text: str, name: str, path: str) -> str:
 
     tops = [i for i, ln in enumerate(lines) if TOP_ENV_RE.match(ln)]
     if len(tops) != 1:
-        raise Refuse(f"{path} has {len(tops)} workflow-level `env:` blocks (a mapping key at column "
+        raise Refuse(f"{path} has {len(tops)} workflow-level `env:` block(s) (a mapping key at column "
                      "0). This reader is anchored to exactly one, because 'the version this "
                      "workflow declares' is only a well-formed question when there is one")
     start = tops[0]
     end = len(lines)
     for i in range(start + 1, len(lines)):
         ln = lines[i]
+        # A COLUMN-0 COMMENT INSIDE THE BLOCK ENDS IT EARLY, for this scan.
+        # YAML would keep reading; this stops. The consequence is a refusal
+        # with the wrong diagnosis ("OUTSIDE the workflow-level `env:` block")
+        # rather than a wrong value, so it fails closed — but a reader who
+        # meets that message should check for a flush-left `#` first.
         if ln.strip() and not ln.startswith((" ", "\t")):
             end = i
             break
@@ -256,6 +279,7 @@ def selftest() -> int:
         wf = write(FIXTURE + '\nsomething:\n  env:\n    NEXTEST_VERSION: "0.9.98"\n', "below.yml")
         rc, out, err = _run(["NEXTEST_VERSION", "--file", wf], t)
         check(rc != 0 and out == "", f"a later duplicate was resolved by position: {out!r} {err!r}")
+        check("set 2 times" in err, f"the later duplicate refused for another reason: {err!r}")
 
         # 3. A NAME THAT IS ABSENT. The old idiom returned empty here and each
         # caller carried its own `test -n`; this refuses centrally.
@@ -274,23 +298,48 @@ def selftest() -> int:
 
         # 5. NO WORKFLOW-LEVEL BLOCK AT ALL, and TWO of them: both are
         # structure this reader does not recognise, and neither is a value.
-        wf = write("jobs:\n  b:\n    steps:\n      - run: echo hi\n", "noenv.yml")
-        rc, out, _ = _run(["NEXTEST_VERSION", "--file", wf], t)
+        #
+        # THE NAME IS SET IN THE no-block FIXTURE, and that is the case, not
+        # decoration: with no setting anywhere the ABSENT-name refusal fires
+        # first and this arm passes without reaching the block count at all —
+        # which is how it was written, and is the shape of defect this whole
+        # unit is about. Every arm below asserts the refusal's REASON, because
+        # a nonzero exit alone cannot tell a case that fired from a case that
+        # was never reached.
+        wf = write('jobs:\n  b:\n    env:\n      NEXTEST_VERSION: "9.9.9"\n', "noenv.yml")
+        rc, out, err = _run(["NEXTEST_VERSION", "--file", wf], t)
         check(rc != 0 and out == "", f"a file with no env block yielded {out!r}")
+        check("0 workflow-level" in err,
+              f"the no-env-block refusal was not the one that fired: {err!r}")
         wf = write('env:\n  A: "1"\nenv:\n  NEXTEST_VERSION: "2"\n', "twoenv.yml")
         rc, out, err = _run(["NEXTEST_VERSION", "--file", wf], t)
         check(rc != 0 and out == "", f"two workflow-level env blocks yielded {out!r}")
         check("2 workflow-level" in err, f"the refusal did not count the blocks: {err!r}")
 
-        # 6. AN EMPTY VALUE. The pin is written but sets nothing, which is the
-        # one failure the old `test -n` guards did catch; it stays caught.
-        for body, why in (("env:\n  NEXTEST_VERSION:\n", "an empty pin"),
-                          ('env:\n  NEXTEST_VERSION: ""\n', "an empty quoted pin")):
+        # 6. A VALUE THAT SETS NOTHING. The two spellings reach two DIFFERENT
+        # refusals — the bare one is unreadable as a pin, the quoted one is a
+        # pin that is empty — and each is asserted by its own words so neither
+        # can quietly start answering for the other.
+        for body, want, why in (
+            ("env:\n  NEXTEST_VERSION:\n", "does not recognise", "an empty bare pin"),
+            ('env:\n  NEXTEST_VERSION: ""\n', "is empty", "an empty quoted pin"),
+        ):
             wf = write(body, "empty.yml")
-            rc, out, _ = _run(["NEXTEST_VERSION", "--file", wf], t)
+            rc, out, err = _run(["NEXTEST_VERSION", "--file", wf], t)
             check(rc != 0 and out == "", f"{why} yielded {out!r}")
+            check(want in err, f"{why} did not refuse with {want!r}: {err!r}")
 
-        # 7. A MISSING FILE is a refusal, not an empty string. The callers run
+        # 7. A NAME THIS READER WILL NOT LOOK FOR. `NAME_RE` is the narrowness
+        # of the contract — an env key, not a YAML path — and an unasserted
+        # guard is a guard nobody has run.
+        wf = write(FIXTURE)
+        for bad in ("nextest_version", "jobs.build.env", "9LIVES"):
+            rc, out, err = _run([bad, "--file", wf], t)
+            check(rc != 0 and out == "", f"{bad!r} was accepted as an env-key name: {out!r}")
+            check("not an env-key name" in err,
+                  f"{bad!r} was refused for the wrong reason: {err!r}")
+
+        # 8. A MISSING FILE is a refusal, not an empty string. The callers run
         # under `set -e`, so this is what stops them installing from PATH.
         rc, out, err = _run(["NEXTEST_VERSION", "--file", "nope.yml"], t)
         check(rc != 0 and out == "", f"a missing workflow yielded {out!r}")
