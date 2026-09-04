@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-04
 refs: [viewer-session-god-module-split, save-is-not-gesture-guarded, gesture-drags-have-no-cancel-door]
 branch: view/two-gestures
+pr: 1873
 ---
 
 
