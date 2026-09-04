@@ -358,3 +358,27 @@ M10's acknowledgement on the channel.
 - **Q3** Whether refutation 8's finding — `WINDOW_TIGHTENING` names a
   recourse this item cannot deliver — wants an item for the
   exact-region subdivision, or the const's doc simply stops promising.
+
+## 9. Rulings at ratification (TRIM orchestrator, 2026-09-04)
+
+Ratified as written, with these answers to §8 and the sequencing:
+
+- **Q1 — keep `ClearanceReport::windows`.** A phantom `Violated` on a
+  loose window must be readable as such; the pair of counts is the
+  cheapest honest instrument.
+- **Q2 — new file `topo/src/chart_bound.rs`** for `ChartBound`, its
+  metring and `certifies_outside`; `chart_boundary` (the walk) stays
+  in `pcurves.rs`.
+- **Q3 — the const stops promising, AND the recourse gets a file.**
+  `WINDOW_TIGHTENING`'s doc is corrected to what this unit delivers;
+  the implementer files `work/trim/exact-region-cells-for-lower-bound-only.md`
+  (kind issue) recording that `Certified::LowerBoundOnly` retires only
+  with exact-region cells, with the measurement from refutation 8.
+- **Sequencing with SHELL-3.** PR-1 is `topo`-only and dispatches now.
+  PR-2 opens after PR-1 merges; the seam is announced to SHELL and M10
+  on the away channel at PR-2's opening, and STOP 5 stands. SHELL-3 is
+  not dispatched at this writing (it waits on M10-7); if it dispatches
+  first, PR-2 targets the moved functions in `topo` and the fence
+  sentence in §5 names the new file.
+- **Branches.** PR-1 `trim/3-chart-bound`, PR-2 `trim/3-window-seam`.
+- **Pre-log stands**: PR-1 **M-low / NUMERIC**, PR-2 **L / NUMERIC**.
