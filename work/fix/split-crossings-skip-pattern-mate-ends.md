@@ -7,6 +7,7 @@ branch: fix/split-pattern-mate-ends
 opened: 2026-08-31
 github: 1405
 refs: [1400]
+pr: 1749
 ---
 
 ## From GitHub issue 1405
