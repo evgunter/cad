@@ -44,7 +44,8 @@ from dataclasses import dataclass, field
 WORK = "work"
 STATUS_FILE = "work/STATUS.md"
 ISSUES_DIR = "issues"
-FREE_FILES = {"README.md", "STATUS.md"}       # top level of work/, unparsed
+FREE_FILES = {"README.md", "STATUS.md"}       # unparsed: top of work/, and
+                                              # README.md inside work/issues/
 NARRATIVE = {"plan.md", "log.md", "process-observations.md"}   # inside a program, unparsed
 LOG_EXEMPT = {"docs/MODEL-AB-LOG.md"}         # the one non-program log in docs/
 STALE_DAYS = 14
@@ -232,6 +233,13 @@ def load_tree(root: str) -> tuple[list[Item], list[str]]:
                 p = os.path.join(full, name)
                 if os.path.isdir(p) or not name.endswith(".md"):
                     errors.append(f"{rel}/{name}: only `.md` items belong under {WORK}/{ISSUES_DIR}/")
+                    continue
+                # The directory's own signpost, not an item: it says what
+                # belongs here (issues with no owner yet) so a lane reading
+                # the directory does not have to infer the rule from the
+                # files already in it. Unparsed for the same reason
+                # `work/README.md` is.
+                if name in FREE_FILES:
                     continue
                 _load_item(p, f"{rel}/{name}", None, items, errors)
             continue
@@ -688,6 +696,9 @@ def _fixture(root: str) -> None:
            "---\nid: T-1\nkind: unit\ntitle: done\nstatus: closed\nopened: 2026-08-01\nclosed: 2026-08-19\n---\n")
     _write(root, "work/issues/stray-thing.md",
            "---\nid: stray-thing\nkind: issue\ntitle: unowned\nstatus: open\nopened: 2026-09-02\n---\n")
+    # The directory's signpost, carrying no front matter. `clean fixture`
+    # below is what proves it is skipped rather than parsed as an item.
+    _write(root, "work/issues/README.md", "# issues with no owner yet\n")
     subprocess.run(["git", "-C", root, "add", "-A"], check=True)
     subprocess.run(["git", "-C", root, "commit", "-q", "-m", "fixture"], check=True)
 
@@ -731,6 +742,16 @@ def selftest() -> int:
             failures.append(f"set round-trip: {it.fields}")
         expect("after set", lint(root))
         os.remove(os.path.join(root, rel))
+
+        # THE EXEMPTION IS README.md ALONE, not "prose under issues/". Without
+        # this, a skip that widened to any un-parsed .md would let a malformed
+        # item sit in the directory unread, which is the failure the whole
+        # front-matter contract exists to prevent.
+        _write(root, "work/issues/NOTES.md", "loose prose, no front matter\n")
+        expect("a non-README .md in issues/ is still an item",
+               lint(root), "front matter")
+        os.remove(os.path.join(root, "work/issues/NOTES.md"))
+        expect("issues/ clean again", lint(root))
 
         # one mutation per rule, each restored
         cases: list[tuple[str, str, str, str]] = [
