@@ -654,6 +654,7 @@ area `kernel`; prefix `trim/`; tag `(TRIM orchestrator)`; ab_band `2500-2599`.
 | `mate-fault-accessors-wildcard-into-silence` | 2026-09-04 | Ten MateFault accessors in pncad-py wildcard into None, so a new fault arm that names a mate is silently invisible |
 | `mate-member-vocabulary-restated-in-refactor` | 2026-09-04 | refactor.rs restates the member vocabulary the same way the viewer did, and says so in its own comment |
 | `mate-memo-key-does-not-carry-the-solve` | 2026-09-04 | A mate's memo key omits the solve, so a mate can read Ok in the evaluation that blames it |
+| `nobodyroots-classification-has-two-homes` | 2026-09-04 | The empty-document-is-not-a-fault rule is argued twice, in two crates, and ProductError carries no predicate for it |
 | `point-in-solid-refusal-names-faces-zero` | 2026-09-04 | point_in_solid's body-scoped refusals carry faces[0] under a payload doc that says 'the face being tested' |
 | `probe-interval-lane-has-no-clippy-row` | 2026-09-04 | the probe+interval feature combination has no clippy row anywhere, and four unused imports have accumulated in it |
 | `run-on-whitespace-in-message-literals` | 2026-09-04 | Five user-facing message literals carry a run of spaces from a lost line continuation |
