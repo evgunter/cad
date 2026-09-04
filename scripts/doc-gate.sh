@@ -365,10 +365,16 @@
 # `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"` over the whole graph
 # precisely so those halves compile, which is what makes the axis a
 # COMPILE-ROT question that job already owns rather than a doc-coverage
-# question this gate can own. The prose axis stays latent: nothing in
-# the tree documents an item behind this cfg, and if something ever
-# does, no gate will say so. Both selftest arms below pin the mechanism
-# so that stays a decision rather than a forgetting.
+# question this gate can own. THE LATENCY IS NOT "no prose behind the
+# cfg", and the earlier reading said that: items behind this cfg DO
+# carry prose, `review_d18`'s tear enumeration among them, with
+# intra-doc links in it. What makes it latent is that every one of them
+# is inside `#[cfg(test)]`, which rustdoc does not read for a SECOND
+# reason, and the single site outside `cfg(test)` documents nothing.
+# An item outside `cfg(test)` growing prose behind this cfg is the
+# case no gate would say anything about, and it does not exist today.
+# Both selftest arms below pin the mechanism so that stays a decision
+# rather than a forgetting.
 #
 # WHAT PASS 3 COSTS, so the next reader prices it rather than
 # rediscovers it. It is a DISTINCT FEATURE UNIFICATION, which is F6's
