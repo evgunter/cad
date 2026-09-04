@@ -209,6 +209,54 @@ pub fn pulled_back(wall: &NurbsSurface<f64>, d: f64) -> NurbsSurface<f64> {
     .expect("a translated net is a valid surface")
 }
 
+/// **A box whose top cap wears a certified `Approx` surface** — the
+/// `Approx`-faced body with ANALYTIC carriers throughout, and the only
+/// shape of one this tree can build today.
+///
+/// The lofted [`prism`] cannot be moved by `topo::transform_rigid` and
+/// never could: its four vertical wall seams carry `Curve3::Nurbs`,
+/// which that pass refuses (`NurbsPlaceholder`) whether or not any face
+/// is `Approx`. A box's carriers are all `Line`, so this fixture is
+/// what reaches the map's `Approx` arm.
+///
+/// **What it deliberately is not: a re-described face.** The cap's four
+/// edges keep the descriptions they were built with — the intersection
+/// of the ORIGINAL cap plane with each wall — because neither
+/// re-description this tree offers is available on an `Approx` chart:
+///
+/// - remapping them to `Intersection { approx, wall }` does not
+///   certify. An approximating surface's implicit layer is poison (the
+///   fit is the geometry, and a fit has no implicit form), so the
+///   attach gate refuses the pair the way it refuses every NURBS-side
+///   conventional description;
+/// - re-describing them as `Chart` iso lines does not mint. Two of a
+///   quad cap's four edges hold `u` constant while `v` traverses — the
+///   iso lane's SEAM class — whose control-hull bound compares the
+///   carrier against the chart's own boundary row and therefore
+///   requires a spline carrier. A straight line is refused there,
+///   correctly.
+///
+/// So tier 3 reports `DescriptionNotAdjacent` on those four edges, on
+/// this body and on any rigid image of it. That is the
+/// face-replacement gap OFF-D owns, held constant: a row that reads
+/// tier 3 here compares the finding SET before and after, which is the
+/// honest claim a map can make about a body whose validity it did not
+/// create.
+pub fn box_with_approx_cap(d: f64, tolerance: f64) -> (Body<f64>, FaceKey) {
+    let mut body = unit_box();
+    let face = top_face(&body);
+    let approx = geom_brep::approx_offset_surface(
+        Arc::new(pulled_back(&planar_patch(1.0), d)),
+        d,
+        tolerance,
+        band(),
+    )
+    .unwrap_or_else(|e| panic!("d = {d}: the cap's offset must fit: {e}"));
+    body.set_face_surface(face, FaceSurface::New(approx))
+        .expect("the attach-layer door accepts a live face");
+    (body, face)
+}
+
 /// Every non-placeholder spline wall of `body`, keyed.
 pub fn nurbs_walls(body: &Body<f64>) -> Vec<(FaceKey, Arc<NurbsSurface<f64>>)> {
     body.faces()
