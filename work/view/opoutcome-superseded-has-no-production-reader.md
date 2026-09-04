@@ -13,15 +13,17 @@ Found by the whole-file read that opened
 
 ## What happens
 
-`OpOutcome` carries four fields (`crates/viewer/src/session.rs:1469`).
-The application reads exactly one of them: `app.rs:1745` takes
+`OpOutcome` carries four fields
+(`crates/viewer/src/session/op.rs:633`, `superseded` at `:646`).
+The application reads exactly one of them: `app.rs:800` takes
 `.refusal` and nothing else. `committed` is read by 21 test files;
 `previewed` likewise; **`superseded` has no reader in `src/` at all**
 — its only observers are `crates/viewer/tests/assembly_display.rs:607`
 and `crates/viewer/tests/assembly_walk.rs:212`.
 
 It is set on the paths where a free-move probe is discarded — an undo
-(`session.rs:2700`) and a commit (`session.rs:3081`). So the one thing
+(`session.rs:1056`) and a commit (`session.rs:1418`), both through
+`self.display.prune`. So the one thing
 the field exists to report, that the user's in-flight probe was thrown
 away by something else they did, reaches the tests and never reaches
 the user.
@@ -46,3 +48,12 @@ split must not lose it.
 VIEW's: `crates/viewer/src/session.rs` and `app.rs`. Rides unit 1's
 ground; not unit 1's fix, since deciding what a supersession is worth
 is a chrome question rather than a module-boundary one.
+
+
+## Citations re-pointed after the 1c split (VIEW orchestrator, 2026-09-04)
+
+This file was written against the pre-split tree. The `file:line`
+citations above are corrected in place; this note exists so a reader
+who remembers the old ones can tell a correction from a claim change.
+Nothing about the finding moved — `stale-file-citations-after-the-split`
+is the general case, and this is VIEW's own half of it being paid.
