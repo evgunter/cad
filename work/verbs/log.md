@@ -3244,3 +3244,46 @@ the blinded coding confirms all; the coding session remains the
 decider). Pair COUNTS (R2's resume flagged). Union fix pass out
 (fable, implementer-inherited). Spec item-1 wording re-cut folded
 into the fix-pass instructions.
+## Ordinal 114 returned and adjudicated (2026-09-04)
+
+R1 (opus) 1 MAJ / 6 MIN, 4/3/5, MERGEABLE-AFTER-ONE-FIX. R2
+(fable, resumed once across a limit death — lane pristine)
+1 MAJ / 4 MIN, 4/4/4, APPROVE WITH FINDINGS. Every measured
+claim reproduced verbatim BOTH arms (opening trace
+byte-for-byte, port character-identical, census/roles/boolean
+payloads exact, the mutation table reproduced with each column
+landing on its named row).
+
+- PRINCIPAL BILATERAL (dedup single; no tally candidate): the
+  introduced assigner/checker divergence — roles now assigned by
+  a functional tier-3 check 6 cannot check (both arms
+  independently re-proved MUT-2: the merge succeeds with
+  inverted roles and validate_geometric is GREEN) — has NO
+  committed schedule artifact: the follow-up lives only in PR
+  prose; work/verbs/VERBS-1031B.md never mentions check 6; the
+  M6 register items that own the flip condition are neither
+  cited nor updated. Both arms judged the FENCE right (porting
+  the arm into the validator changes its refusal surface on
+  existing corpora — its own measurement pass) and the omission
+  cheap to fix. R1's sharper find: the validator's stated reason
+  for the line-only scope (chord windings can disagree on >π
+  sectors) is EXACTLY the defect the bulge term dissolves — the
+  unit removed the reason at one site and left it standing
+  unqualified at the other.
+- MINOR union: the Ellipse arm dead to the whole battery (both
+  arms' mutations survive — R1 by axis-swap flipping the
+  metering bound direction, R2 by major/major; one retyped-
+  ellipse row closes it); the perimeter re-metering unpinned
+  (both, same shape: the escalation lever has no red half); the
+  committed module doc still carries the spec's refuted
+  three-pairs composition while the same file's test doc says
+  two (R2); a THIRD undeclared divergence (fail-loud on torn
+  lookup vs run_term's degrade — stricter, stated at the site,
+  undercounted in the table; R2); duplicated comment paragraph +
+  stale identifier (R1); acceptance rows pin variants where the
+  PR quotes payloads (R1); Zero-sign fold divergence framed
+  stronger than holds (R1).
+
+TALLY: no new candidates (the principal bilateral) — still 7
+pending the blinded coding. Pair COUNTS (R2's resume flagged).
+Union fix pass out (opus, implementer-inherited).
