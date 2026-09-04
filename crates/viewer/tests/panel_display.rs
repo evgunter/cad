@@ -9,7 +9,9 @@
 //! * a value is shown in the unit its literal — or, for a document
 //!   parameter, its DECLARATION — remembers, and authored back through
 //!   the same factor (`rendering_unit` / `in_written` / `from_written`),
-//!   at a drag tick in that same unit (`app::field_drag_tick`),
+//!   at a drag tick in that same unit (`app::FieldWriting`),
+//! * a range probe's reading is written in the unit the SEARCH ran in
+//!   (`BoundsReading`),
 //! * changing the unit and changing the number are separate operations,
 //!   and neither performs the other (`SetSlotUnit` vs `SetSlot`),
 //! * and the ONE value field says the number without the unit, shows a
@@ -35,7 +37,7 @@ use pncad::quantity::{UnitDef, WrittenLength, unit_by_symbol};
 use viewer::props::{
     self, SlotGroup, SlotUnitFault, SlotValue, from_written, in_written, rendering_unit,
 };
-use viewer::session::{DocSession, Refusal, Selection, SessionOp};
+use viewer::session::{BoundsTarget, DocSession, Refusal, Selection, SessionOp};
 
 /// A document holding one datum plane — six slots, two vector families.
 fn plane_doc(tol: Tol) -> (Doc<ProfileProgram>, pncad::document::RecipeNodeId) {
@@ -612,6 +614,12 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
 /// `0.05` is the panel saying metres about a parameter nobody wrote in
 /// metres. The value that CROSSES `props` stays canonical either way —
 /// the conversion is the field's, the same one a slot's does.
+///
+/// What is asserted HERE is the half `props` answers: the row carries
+/// the declaration's notation, and writing a number through the
+/// value-only door does not rewrite it. The field's arithmetic over
+/// that row is `viewer::app`'s and is asserted in
+/// `a_parameter_field_is_written_the_way_its_declaration_says` below.
 #[test]
 fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     let tol = Tol::witness();
@@ -640,16 +648,14 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
         "mm",
         "the row is written in what declared it"
     );
-    // What the field shows: 50, not 0.05.
-    assert_eq!(in_written(before.value.as_f64(), unit), 50.0);
     assert_eq!(
         before.value,
         SlotValue::Continuous(0.05),
         "stored canonical"
     );
 
-    // What the field authors: 60 typed into it is sixty MILLIMETRES,
-    // and it comes back out of the document as sixty millimetres.
+    // A value edit through the panel's own door: the number moves, the
+    // notation beside it does not.
     let outcome = session.perform(SessionOp::SetParam {
         name: name.clone(),
         value: SlotValue::of(before.dimension, from_written(60.0, unit)),
@@ -661,7 +667,6 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
         Some("mm"),
         "writing a number does not rewrite how the number is written"
     );
-    assert_eq!(in_written(after.value.as_f64(), unit), 60.0);
     assert_eq!(after.value, SlotValue::Continuous(0.06));
 }
 
@@ -689,98 +694,110 @@ fn a_count_parameter_has_no_written_unit() {
     assert_eq!(row.value, SlotValue::Count(6));
 }
 
-/// **Loud skip.** The two rows below need `viewer::app`, which is not
-/// in a default-feature build; say so rather than letting the run
-/// report two fewer tests and nothing else. Their seat is the hosted
-/// row `cargo nextest run -p viewer --features app`
+/// **A parameter's range reading is written in the unit the search
+/// used**, and this row establishes that by RUNNING the search: it
+/// probes, then reads the sentence the panel would draw.
+///
+/// A reading in any other unit describes a search that did not happen —
+/// the panel saying metres about a range found in millimetres. The
+/// agreement is not two reads of one document that happen to match: the
+/// probe stores the unit it stepped by (`BoundsReading::unit`) and the
+/// reading is written in that stored unit, so a hand-built `Bounds`
+/// beside a hand-picked unit would assert nothing about the pairing.
+/// Both parameters below drive the same feature and differ only in the
+/// notation they were DECLARED in.
+#[test]
+fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
+    let reading = |value: DocParam| {
+        let tol = Tol::witness();
+        let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-range", tol);
+        let name = ParamName::new("thickness");
+        let (doc, _) = common::edited(
+            &doc,
+            DocEdit::SetDocParam {
+                name: name.clone(),
+                value,
+            },
+            tol,
+        );
+        let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+        let (doc, _) = common::inserted(
+            &doc,
+            Node::Extrude {
+                profile,
+                distance: Expr::param(name.clone(), Dimension::Length),
+            },
+            tol,
+        );
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let outcome = session.perform(SessionOp::ProbeBounds {
+            target: BoundsTarget::Param { name },
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        let reading = session.bounds().expect("a probe landed").clone();
+        (reading.unit.map(|u| u.symbol()), reading.wording())
+    };
+
+    // Declared in millimetres: the search stepped by one millimetre and
+    // the sentence says millimetres.
+    let (unit, mm) = reading(DocParam::written_length(WrittenLength::in_unit(8.0, MM)));
+    assert_eq!(unit, Some("mm"), "the search ran in the declared unit");
+    assert!(mm.contains(" mm"), "{mm}");
+    assert!(!mm.contains(" m,") && !mm.contains(" m "), "{mm}");
+
+    // The same parameter declared canonically: same document, same
+    // search, a different sentence — so the reading follows the
+    // DECLARATION and not the dimension.
+    let (unit, m) = reading(DocParam::continuous(Dimension::Length, 0.008));
+    assert_eq!(unit, Some("m"));
+    assert!(m.contains(" m"), "{m}");
+    assert!(!m.contains(" mm"), "{m}");
+}
+
+/// **Loud skip.** The row below needs `viewer::app`, which is not in a
+/// default-feature build; say so rather than letting the run report one
+/// fewer test and nothing else. Its seat is the hosted row
+/// `cargo nextest run -p viewer --features app`
 /// (`.github/workflows/ci.yml`).
 ///
 /// **This row closes no gate and cannot fail** — its payload is its
-/// NAME in the PASS list. It names the rows by hand, so a third
+/// NAME in the PASS list. It names the row by hand, so a second
 /// `app`-gated row added to this file leaves the marker quietly
 /// incomplete.
 #[cfg(not(feature = "app"))]
 #[test]
 fn app_lane_skipped_parameter_field_units_not_checked_here() {
     println!(
-        "SKIPPED (no --features app): a_parameters_range_reads_in_the_unit_it_was_searched_in \
-         and a_parameter_field_is_dragged_at_the_tick_its_dimensions_slot_is do not run - \
-         the parameter field's reading unit and its drag tick are unchecked in this build."
+        "SKIPPED (no --features app): a_parameter_field_is_written_the_way_its_declaration_says \
+         does not run - the parameter field's shown number, its authored number and its drag \
+         tick are unchecked in this build."
     );
 }
 
-/// **A parameter's range reading is written in the unit the search
-/// used** — the unit the parameter was declared in, because that is
-/// what the probe seeds one step of.
+/// **A parameter field is shown, scrubbed and authored in the unit its
+/// DECLARATION names** — `app::FieldWriting`, the value the panel
+/// builds one field from.
 ///
-/// A reading in the canonical unit describes a search that did not
-/// happen: the panel would say metres about a range found in
-/// millimetres.
+/// Every assertion here can fail for the reason this unit was filed
+/// about. A writing that ignored the declaration shows `0.05`; one that
+/// inverted the conversion authors `60000`; one that picked its tick
+/// before its unit steps a millimetre field by half a metre; one that
+/// took the length constant for every dimension moves an angle field a
+/// quarter turn per three thousand pixels.
+///
+/// **What no value test in this crate reaches** is the widget itself:
+/// the panel's `DragValue` lives inside a private `ViewerBehavior`
+/// method over an `egui::Ui`, and this crate carries no headless egui
+/// harness, so "the field calls this" is held by the two call sites
+/// being one line each rather than by a row here.
 #[cfg(feature = "app")]
 #[test]
-fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
-    use viewer::app::param_range_wording;
-    use viewer::bounds::{Bound, Bounds};
+fn a_parameter_field_is_written_the_way_its_declaration_says() {
+    use viewer::app::FieldWriting;
 
     let tol = Tol::witness();
-    let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-range", tol);
-    let (doc, _) = common::edited(
-        &doc,
-        DocEdit::SetDocParam {
-            name: ParamName::new("in_mm"),
-            value: DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
-        },
-        tol,
-    );
-    // Declared in metres beside it, so the assertion below is about the
-    // DECLARATION and not about parameters in general.
-    let (doc, _) = common::edited(
-        &doc,
-        DocEdit::SetDocParam {
-            name: ParamName::new("in_m"),
-            value: DocParam::continuous(Dimension::Length, 0.05),
-        },
-        tol,
-    );
-    // One found range, read by both rows.
-    let found = Bounds {
-        origin: 0.05,
-        low: Bound::Edge {
-            valid: 0.04,
-            invalid: 0.039,
-        },
-        high: Bound::Edge {
-            valid: 0.06,
-            invalid: 0.061,
-        },
-        samples: 12,
-    };
-    let rows = props::param_rows(&doc);
-    let reading = |name: &str| {
-        let row = rows
-            .iter()
-            .find(|row| row.name == ParamName::new(name))
-            .expect("the parameter row");
-        param_range_wording(row, found)
-    };
-    let mm = reading("in_mm");
-    assert!(mm.contains("40.0000 mm"), "{mm}");
-    assert!(mm.contains("60.0000 mm"), "{mm}");
-    let m = reading("in_m");
-    assert!(m.contains("0.0400 m"), "{m}");
-}
-
-/// **A parameter's field is scrubbed at the tick its dimension's SLOT
-/// field is** — one gesture over a length means one step, whichever
-/// field it is over — and the tick is in the unit the field is written
-/// in, so a millimetre field steps by half a millimetre.
-#[cfg(feature = "app")]
-#[test]
-fn a_parameter_field_is_dragged_at_the_tick_its_dimensions_slot_is() {
-    use viewer::app::field_drag_tick;
-
-    let tol = Tol::witness();
-    let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-tick", tol);
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-field", tol);
     let (doc, _) = common::edited(
         &doc,
         DocEdit::SetDocParam {
@@ -789,6 +806,48 @@ fn a_parameter_field_is_dragged_at_the_tick_its_dimensions_slot_is() {
         },
         tol,
     );
+    let (doc, _) = common::edited(
+        &doc,
+        DocEdit::SetDocParam {
+            name: ParamName::new("in_metres"),
+            value: DocParam::continuous(Dimension::Length, 0.008),
+        },
+        tol,
+    );
+    let rows = props::param_rows(&doc);
+    let writing = |name: &str| {
+        let row = rows
+            .iter()
+            .find(|row| row.name == ParamName::new(name))
+            .expect("the parameter row");
+        FieldWriting::of(row.dimension, row.unit)
+    };
+
+    // The millimetre declaration: 8, dragged half a millimetre at a
+    // time, authored back into metres.
+    let mm = writing("thickness");
+    assert_eq!(mm.unit.map(|u| u.symbol()), Some("mm"));
+    assert_eq!(mm.shown(0.008), 8.0);
+    assert_eq!(mm.authored(60.0), 0.06);
+    assert_eq!(mm.tick, 0.5, "half a millimetre, in what the field says");
+
+    // The same dimension declared canonically: the SAME half
+    // millimetre, spelled in metres because that is what this field
+    // says.
+    let m = writing("in_metres");
+    assert_eq!(m.unit.map(|u| u.symbol()), Some("m"));
+    assert_eq!(m.shown(0.008), 0.008);
+    assert_eq!(m.tick, 0.0005);
+    assert_eq!(
+        m.authored(m.tick),
+        mm.authored(mm.tick),
+        "one gesture over a length is one step, however the field is written"
+    );
+
+    // A slot field written the same way is written the SAME way — the
+    // two rows reach `FieldWriting` from different documents' facts (a
+    // literal's remembered unit, a declaration's) and must not come to
+    // two answers.
     let (doc, profile) = common::framed_square(&doc, 0.04, tol);
     let (doc, extrude) = common::inserted(
         &doc,
@@ -803,42 +862,14 @@ fn a_parameter_field_is_dragged_at_the_tick_its_dimensions_slot_is() {
         .into_iter()
         .find(|row| row.slot == SlotId::Distance)
         .expect("the distance row");
-    let param = props::param_rows(&doc)
-        .into_iter()
-        .next()
-        .expect("the parameter row");
-    let slot_tick = field_drag_tick(
-        slot.dimension,
-        slot.structural,
-        rendering_unit(slot.dimension, slot.unit),
-    );
-    let param_tick = field_drag_tick(
-        param.dimension,
-        param.dimension == Dimension::Count,
-        rendering_unit(param.dimension, param.unit),
-    );
-    assert_eq!(
-        param_tick, slot_tick,
-        "the same dimension, written the same way, moves at the same speed"
-    );
-    // In WRITTEN units: half a millimetre is 0.5 of what this field
-    // says, not 0.0005 of it.
-    assert_eq!(param_tick, 0.5);
+    assert_eq!(FieldWriting::of(slot.dimension, slot.unit), mm);
 
-    // Each dimension gets its own tick — the length one over an angle
-    // field is the mistake `drag_tick`'s branch exists to answer, and a
-    // parameter row inherits the answer rather than restating it.
-    let canonical = |dimension| {
-        field_drag_tick(
-            dimension,
-            dimension == Dimension::Count,
-            rendering_unit(dimension, None),
-        )
-    };
+    // Each dimension keeps its own tick, and a count keeps whole
+    // numbers: the mistakes `drag_tick`'s branch and the `Count` arm
+    // exist to answer.
+    let canonical = |dimension| FieldWriting::of(dimension, None).tick;
     let length = canonical(Dimension::Length);
     assert_ne!(canonical(Dimension::Angle), length);
     assert_ne!(canonical(Dimension::Scalar), length);
-    // A count is whole: structural fields step by one, slot and
-    // parameter alike.
     assert_eq!(canonical(Dimension::Count), 1.0);
 }

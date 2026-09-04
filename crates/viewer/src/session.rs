@@ -1633,7 +1633,41 @@ pub struct DocSession {
     /// document, and showing yesterday's range beside today's number is
     /// the class of stale-confident answer this crate's staleness rules
     /// exist to prevent.
-    bounds: Option<(BoundsTarget, bounds::Bounds)>,
+    bounds: Option<BoundsReading>,
+}
+
+/// **One locally-valid-range probe's answer**, with everything a panel
+/// needs to say it: the field it was taken for, the range found, and
+/// the NOTATION the search ran in.
+///
+/// The unit is carried rather than looked up again at the reading, and
+/// that is the whole reason this is a struct rather than a pair. The
+/// probe seeds one step of the unit the field is WRITTEN in
+/// ([`DocSession::probe_seed`]), so a reading in any other unit
+/// describes a search that did not happen — it would say metres about
+/// a range found in millimetres. A panel that re-read the unit off the
+/// row it is drawing would agree with the search only for as long as
+/// nothing came between the two reads; carrying it makes the agreement
+/// the same value read twice.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BoundsReading {
+    /// The field the probe was taken for.
+    pub target: BoundsTarget,
+    /// The range the search established.
+    pub bounds: bounds::Bounds,
+    /// The unit the search ran in — one of it is the probe's step.
+    /// `None` is the field that names no notation at all (a count, a
+    /// bare scalar), whose step is 1.
+    pub unit: Option<UnitDef>,
+}
+
+impl BoundsReading {
+    /// The reading as one line, in the unit the search used — the one
+    /// place a probe's result becomes a sentence, for a slot field and
+    /// a document parameter's alike.
+    pub fn wording(&self) -> String {
+        self.bounds.wording(self.unit)
+    }
 }
 
 /// The field a locally-valid-range probe was taken for.
@@ -1861,9 +1895,9 @@ impl DocSession {
     }
 
     /// The last locally-valid-range probe, with the field it was taken
-    /// for. `None` before any probe, and after every document change
-    /// (`request_eval`'s discard).
-    pub fn bounds(&self) -> Option<&(BoundsTarget, bounds::Bounds)> {
+    /// for and the unit it was searched in. `None` before any probe,
+    /// and after every document change (`request_eval`'s discard).
+    pub fn bounds(&self) -> Option<&BoundsReading> {
         self.bounds.as_ref()
     }
 
@@ -2323,10 +2357,16 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         let base = self.doc().clone();
-        let (origin, seed, integral) = match self.probe_scale(&target) {
+        // Read off `base` — the document the samples below are applied
+        // to — and not off the session again. One document answers
+        // where the search starts, what it steps by, and what every
+        // candidate is judged against, so a probe cannot seed from one
+        // document and search another.
+        let (origin, unit, integral) = match Self::probe_scale(&base, &target) {
             Ok(scale) => scale,
             Err(refusal) => return OpOutcome::refused(refusal),
         };
+        let seed = Self::probe_seed(unit);
         let tol = self.tol;
         let prior = self.landed.clone();
         let resolver = self
@@ -2357,7 +2397,13 @@ impl DocSession {
                 }
             },
         );
-        self.bounds = Some((target, result));
+        // The unit stored here is the one `probe_seed` above stepped
+        // by: the reading and the search are one value read twice.
+        self.bounds = Some(BoundsReading {
+            target,
+            bounds: result,
+            unit,
+        });
         OpOutcome::default()
     }
 
@@ -2370,18 +2416,32 @@ impl DocSession {
         unit.map_or(1.0, |unit| props::from_written(1.0, unit))
     }
 
-    /// The probe's three inputs, read off the field: where it is now,
-    /// the step to search by, and whether its answer is an integer.
+    /// The probe's three inputs, read off the field **in `doc`**: where
+    /// it is now, the unit it is written in, and whether its answer is
+    /// an integer.
     ///
-    /// The seed is ONE of whatever unit the field is written in — one
-    /// millimetre for a slot written in millimetres, one radian for one
-    /// written canonically, 1 for a count or a bare scalar. That is the
-    /// scale a user thinks in, which is the scale a range should be
-    /// searched and reported at.
-    fn probe_scale(&self, target: &BoundsTarget) -> Result<(f64, f64, bool), Refusal> {
+    /// The unit rather than the step, so that the number the search
+    /// walks by ([`Self::probe_seed`]) and the number the reading is
+    /// written in ([`BoundsReading::unit`]) come from one answer to one
+    /// question. One of that unit is the step — one millimetre for a
+    /// field written in millimetres, one radian for one written
+    /// canonically, 1 for a count or a bare scalar. That is the scale a
+    /// user thinks in, which is the scale a range should be searched
+    /// and reported at.
+    ///
+    /// **An associated function over the document the probe searches**,
+    /// not a method that reads the session again: the two arms below
+    /// once read two different documents (the shown one and the
+    /// committed one), which agreed only because a probe refuses while
+    /// a gesture is in flight. Taking the document as an argument makes
+    /// that agreement structural instead of circumstantial.
+    fn probe_scale(
+        doc: &Doc<ProfileProgram>,
+        target: &BoundsTarget,
+    ) -> Result<(f64, Option<UnitDef>, bool), Refusal> {
         match target {
             BoundsTarget::Slot { node, slot } => {
-                let rows = props::slot_rows(self.doc(), *node);
+                let rows = props::slot_rows(doc, *node);
                 // One refusal for both misses — the node does not carry
                 // the slot, and the slot carries no readable value —
                 // because a probe needs a place to search FROM and
@@ -2397,15 +2457,15 @@ impl DocSession {
                     });
                 };
                 let value = value.as_f64();
-                // One of whatever unit the field is written in —
-                // through `rendering_unit`, so a computed slot's step
-                // is the same unit the panel shows it in rather than a
-                // second answer to the same question.
-                let step = Self::probe_seed(props::rendering_unit(dimension, remembered));
-                Ok((value, step, dimension == Dimension::Count))
+                // Whatever unit the field is written in — through
+                // `rendering_unit`, so a computed slot's step is the
+                // same unit the panel shows it in rather than a second
+                // answer to the same question.
+                let unit = props::rendering_unit(dimension, remembered);
+                Ok((value, unit, dimension == Dimension::Count))
             }
             BoundsTarget::Param { name } => {
-                let Some(param) = self.committed_doc().params().get(name) else {
+                let Some(param) = doc.params().get(name) else {
                     return Err(Refusal::NoSuchParam(name.clone()));
                 };
                 // Same rule as a slot's: one of whatever unit the
@@ -2416,7 +2476,7 @@ impl DocSession {
                 // a millimetre parameter is searched in millimetres. A
                 // `Count` is a number rather than a quantity, has no
                 // unit to name, and steps by 1.
-                let (value, unit) = match param {
+                let (value, remembered) = match param {
                     DocParam::Continuous {
                         value,
                         display_unit,
@@ -2424,11 +2484,12 @@ impl DocSession {
                     } => (*value, Some(display_unit.def())),
                     DocParam::Count { value } => (*value as f64, None),
                 };
-                Ok((
-                    value,
-                    Self::probe_seed(unit),
-                    param.dim() == Dimension::Count,
-                ))
+                // Through `rendering_unit` for the slot arm's reason:
+                // one function answers "what unit is this field written
+                // in" for both fields, so the panel row and the probe
+                // cannot come to two answers.
+                let unit = props::rendering_unit(param.dim(), remembered);
+                Ok((value, unit, param.dim() == Dimension::Count))
             }
         }
     }

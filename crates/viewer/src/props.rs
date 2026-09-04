@@ -1,5 +1,7 @@
-//! The property panel's model: a node's slots, their current values,
-//! and what an edit to each one is allowed to be.
+//! The property panel's model: the two things it draws rows for — a
+//! node's SLOTS ([`slot_rows`]) and the document's PARAMETERS
+//! ([`param_rows`]) — their current values, the notation each is
+//! written in, and what an edit to each one is allowed to be.
 //!
 //! # Canonical inside, written units outside
 //!
@@ -31,12 +33,13 @@
 //!   `SessionOp::SetSlotUnit`, which rewrites the display unit and
 //!   leaves the canonical bits alone.
 //!
-//! A document parameter follows the same two rules, through the same
-//! functions: [`ParamRow::unit`] is the notation its DECLARATION names
-//! ([`DocParam::Continuous`]'s `display_unit`), the panel divides and
-//! multiplies by it exactly as it does for a slot, and a value edit
-//! leaves it alone for free — [`param_edit`] spells the value-only
-//! door, which reads the declaration off the document.
+//! **A document parameter keeps the FIRST of those rules and has no
+//! door for the second.** [`ParamRow::unit`] is the notation its
+//! DECLARATION names ([`DocParam::Continuous`]'s `display_unit`), the
+//! panel divides and multiplies by it exactly as it does for a slot
+//! ([`shown_in`] / [`authored_in`], through `app::FieldWriting`), and a
+//! value edit leaves it alone for free — [`param_edit`] spells the
+//! value-only door, which writes a number into a standing declaration.
 //!
 //! What a parameter has no door for is CHANGING that notation. A
 //! slot's is `SessionOp::SetSlotUnit`, which works because a literal's
@@ -45,10 +48,19 @@
 //! `Distribution`, and the edit vocabulary offers create-or-replace
 //! (`DocEdit::SetDocParam`, which would drop the annotation) or
 //! value-only (`DocEdit::SetDocParamValue`, which leaves the unit
-//! alone, deliberately) — and nothing in between. So the
-//! create-parameter affordance still authors the canonical unit, and
-//! there is no unit picker on a parameter row. Stated rather than
-//! papered over.
+//! alone, deliberately) — and nothing in between. Three consequences,
+//! each with a file rather than a sentence:
+//!
+//! * no unit picker on a parameter row, and no way to add one until
+//!   the kernel door exists
+//!   (`work/issues/doc-param-unit-edit-has-no-door.md`);
+//! * the create-parameter form authors the canonical unit, which it
+//!   need NOT — `DocParam::written_length`/`written_angle` are total
+//!   authoring doors and the form could offer a picker today
+//!   (`work/chrome/add-parameter-form-authors-canonical-only.md`);
+//! * a parameter row's value field is a bare drag field, where a
+//!   slot's is the text door below
+//!   (`work/chrome/parameter-row-field-has-no-text-door.md`).
 //!
 //! # Structural is not continuous
 //!
@@ -77,6 +89,14 @@
 //! parameter.
 //!
 //! # One field for numbers and expressions
+//!
+//! **A SLOT's field, and only a slot's.** A parameter row's field is a
+//! plain drag field with no `custom_parser` on it, so none of the three
+//! rules below reaches it: typed text is a number or nothing, `50 mm`
+//! authors no unit, and re-typing what the field already says still
+//! costs an undo step. That gap is
+//! `work/chrome/parameter-row-field-has-no-text-door.md`; what follows
+//! describes the slot field as it stands.
 //!
 //! A slot has ONE value field, and what a user types into it decides
 //! which door the edit takes ([`field_edit`]):
@@ -198,6 +218,25 @@ pub fn in_written(canonical: f64, unit: UnitDef) -> f64 {
 /// expression field land on the same bits.
 pub fn from_written(written: f64, unit: UnitDef) -> f64 {
     written * unit.factor()
+}
+
+/// [`in_written`] over a field that may name NO unit — one canonical
+/// value as such a field shows it.
+///
+/// `None` is not a missing answer here: it is the field that is a
+/// number rather than a quantity (a count, a bare scalar), whose shown
+/// number is its canonical one. Spelled once because both panel fields
+/// need it and a hand-written `map_or` at each is the same identity
+/// written twice, free to become two.
+pub fn shown_in(unit: Option<UnitDef>, canonical: f64) -> f64 {
+    unit.map_or(canonical, |unit| in_written(canonical, unit))
+}
+
+/// [`from_written`] over a field that may name no unit — one number
+/// read out of such a field, canonical. [`shown_in`]'s inverse, and
+/// `None` means what it means there.
+pub fn authored_in(unit: Option<UnitDef>, written: f64) -> f64 {
+    unit.map_or(written, |unit| from_written(written, unit))
 }
 
 /// What decides a slot's value.
