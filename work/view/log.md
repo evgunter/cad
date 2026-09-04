@@ -730,3 +730,62 @@ checkout, which is what `memories/agent-lane-operations.md`'s branch-ref
 rules assume exists and what the remote-session default does not
 provide. It is the structural fix rather than a discipline one, which
 is the preference this project states everywhere else.
+
+## 1c-session landed; two dispatcher errors and one of mine (2026-09-04)
+
+**`session.rs` is 3,260 → 1,484 lines** across the six vocabularies the
+README names, on `view/1c-session-split`. No test file touched, no
+assertion changed, 466 + 467 rows green, clippy and the real doc gate
+clean, remote ref verified equal to local. The lane audited it
+line-by-line rather than trusting the compiler: every non-blank
+non-comment line of the old file accounted for in the new set.
+
+One restructuring, disclosed: `probe_bounds` split into a free search
+function and a driver method that keeps the guard-then-store order, so
+the driven-slot guard still runs before anything and every refusal
+still returns before `self.bounds` is written. Eighteen intra-doc links
+repointed — as predicted, that was the unit's main breakage source.
+
+### The briefs told both 1c lanes to do the wrong thing
+
+Both briefs said to put `CI-Config: lane=default` on the head commit.
+**That instruction was stale by two hours when I wrote it.** `ci.yml`
+and `docs/prompts/implementer-discipline.md` changed on main at ~08:22
+(`bb17cfbc7`): an un-narrowed run now gates the whole
+`{default, interval} × {default, 1e-6, 1e-12}` matrix as twelve test
+jobs, and the trailer **narrows** rather than requests. Following the
+brief would have bought these units strictly less gate than doing
+nothing.
+
+The session lane caught it, declined, and quoted the new text back.
+That is the **third** dispatcher error the 1b/1c lanes have corrected —
+after the missing `AddPlacedUnion` and the three gesture ops with no
+row — which is the reviewer brief's "a dispatch is a hypothesis" rule
+earning its place three times in one unit chain. The app lane has been
+told directly, mid-flight.
+
+**And the same staleness reached a merged PR body.** #1816's
+Verification section claims the run was "drawn, not asked for" and that
+interval and the other tolerance rows "were not seen". True of the
+07:37 run, false of the 10:07 run it merged on — which gated *more*
+than the body claims. Corrected in a comment beneath rather than by
+rewriting merged history, because that paragraph exists precisely so a
+reader need not assume what the gate saw.
+
+### The disk finding is mine, not a missing rule
+
+The root filesystem hit 100% of 252 G during the session lane's run;
+its doc gate aborted with ENOSPC and the harness's own tmpfs went
+unwritable. Reclaimed ~10 G by removing the merged VIEW-1b lanes'
+target directories.
+
+The lane reported this as a gap — "the missing half is a teardown step
+rather than a rule change". **It is not a gap.**
+`memories/agent-lane-operations.md` already says to reclaim a lane's
+target **"when a review returns, not when a lane runs out of disk — a
+review lane's `target/` is pure waste the moment its report is in
+hand, and review lanes are the biggest consumers."** `view1b-review-target`
+should have gone when the style review came back hours earlier, and
+`view1b-target` when #1816 merged. I ran three lanes without doing
+either. No memory is added for this, because a second copy of a rule
+nobody followed is not the fix.
