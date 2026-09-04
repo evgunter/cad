@@ -2254,9 +2254,11 @@ fn cone_cylinder_coaxial_cut_is_two_exact_circles_zero_residual() {
         u_ref: axis.cross(u_ref),
     };
     let s = cone_cylinder_section(&cone, &cyl, 1.0, band()).unwrap();
-    let ConeCylinderSection::CoaxialCircles { c1, c2 } = s else {
-        panic!("expected the coaxial circles, got {s:?}");
-    };
+    // `CoaxialCircles` is the arm's only live variant, so this pattern
+    // is irrefutable — the classification's other outcomes are typed
+    // ERRORS, not variants, and the refusal rows below are where they
+    // are pinned.
+    let ConeCylinderSection::CoaxialCircles { c1, c2 } = s;
     let station = big_r * 0.75;
     for (which, c, sign) in [("c1", &c1, 1.0), ("c2", &c2, -1.0)] {
         let Curve3::Circle {
@@ -2348,10 +2350,9 @@ fn cone_cylinder_tilted_and_offset_route_to_rung_3() {
     refusal_is_grounded(why, "cone×cylinder parallel-offset");
     // Antiparallel and coaxial: the same configuration, and it cuts.
     let anti = cyl_at(apex - axis * 2.0, axis * -1.0);
-    let s = cone_cylinder_section(&cone, &anti, 1.0, band()).unwrap();
-    let ConeCylinderSection::CoaxialCircles { c1, .. } = s else {
-        panic!("an antiparallel coaxial cylinder still cuts, got {s:?}");
-    };
+    let ConeCylinderSection::CoaxialCircles { c1, .. } =
+        cone_cylinder_section(&cone, &anti, 1.0, band())
+            .expect("an antiparallel coaxial cylinder still cuts");
     let Curve3::Circle { center, .. } = c1 else {
         panic!("carrier is a circle");
     };
@@ -2474,15 +2475,18 @@ fn cone_cylinder_parallel_lever_is_live_at_a_non_unit_arm() {
         matches!(err, SectionError::RoutesToGeneralRung { .. }),
         "the large arm reads the same sine as definite: got {err:?}"
     );
-    // And 0.03ε of a radian is Zero at extent 0.01 — the same pose the
-    // unit arm would escalate on.
-    let t = 3.0 * eps();
-    let cyl = Surface::Cylinder {
-        origin: apex,
-        axis: (axis * (1.0 - t * t).sqrt() + u_ref * t).normalize(),
-        radius: 0.5,
-        u_ref: axis.cross(u_ref),
-    };
-    let s = cone_cylinder_section(&cone, &cyl, 0.01, band()).unwrap();
-    assert!(matches!(s, ConeCylinderSection::CoaxialCircles { .. }));
+    // The SAME pose at extent 0.01 levers to 0.03ε, which is Zero: the
+    // arm reads it as coaxial and mints, and the circles it mints are
+    // the exact ones — a lever that changed the verdict without
+    // changing the construction would pass the line above and fail
+    // here.
+    let ConeCylinderSection::CoaxialCircles { c1, c2 } =
+        cone_cylinder_section(&cone, &cyl, 0.01, band())
+            .expect("the small arm reads the same sine as Zero");
+    for c in [&c1, &c2] {
+        let Curve3::Circle { radius, .. } = *c else {
+            panic!("carrier is a circle");
+        };
+        assert!((radius - 0.5).abs() < 1e-15, "the cylinder's own radius");
+    }
 }
