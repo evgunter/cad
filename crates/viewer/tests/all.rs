@@ -95,6 +95,8 @@ mod input_mapping;
 mod instance_authoring;
 #[path = "landing_gathers.rs"]
 mod landing_gathers;
+#[path = "docm5_r1_probes.rs"]
+mod docm5_r1_probes;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
 #[path = "panel_display.rs"]
