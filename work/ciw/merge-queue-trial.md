@@ -661,13 +661,24 @@ honest and a claimed demonstration is not.
    run, itself excluded. That is the first claim (every job terminal)
    and the second (every conclusion acceptable) both executing against a
    real 12-`test`-job code-tier run, with `actions: read` sufficing for
-   the API read. That receipt predates the extraction — the same logic is
-   now `scripts/check-run-jobs.py` and the job passes it `--tier` and
-   `--run-build`, so the green line has one more row than the receipt
-   shows. **Its other six decision paths are re-driven by anything that
-   runs `scripts/check-run-jobs.py --selftest`**, which both halves of CI
-   do; they used to be driven once, by hand, before the logic went into
-   the file, and by nothing after.
+   the API read.
+
+   **RE-TAKEN AFTER THE EXTRACTION**, because that receipt was of the
+   inline heredoc. Run **33899974568** (head `2aa873c7`), job
+   **101114375223**: green, `total_count` 33, the same 32-row table, and
+
+   ```
+   gate ok: 32 jobs, all success, skipped or neutral.
+     tier: all   run_build: true   (29 success, 3 skipped)
+   ```
+
+   — so the extracted reader, the checkout and prune it now needs, the
+   `contents: read` scope and the tier line are all exercised on a real
+   code-tier run. `discipline` on the same run is green, which is the new
+   `--selftest` step executing hosted. **The other six decision paths are
+   re-driven by anything that runs `scripts/check-run-jobs.py
+   --selftest`**, which both halves of CI do; they used to be driven once,
+   by hand, before the logic went into the file, and by nothing after.
    What has **not** been exercised is `gate ok` under `merge_group`, for
    the same reason as 1.
 3. **The latency table is a simulation**, on 138 real arrivals and two
