@@ -3425,14 +3425,33 @@ fn root_declared_pub_names(src: &str) -> std::collections::BTreeSet<String> {
 }
 
 /// The profile layer's interior: root exports the façade's curated
-/// `profile` module does not carry, by family. One family, one name.
+/// `profile` module does not carry, by family. One family, one entry.
 ///
 /// - **The minting tier** (`RawLoop`): the one name whose absence is
 ///   the module's entire reason for existing. It carries `new` and
 ///   `polygon`; leaving the trait unnameable is what makes
 ///   `ProfileLoop::polygon(…)` fail to resolve while `ProfileLoop`
 ///   itself stays nameable. Carrying it here would undo the curation.
-const PROFILE_NOT_CARRIED: [&str; 1] = ["RawLoop"];
+/// - **The fillet recourse sentences** (`FILLET_*_RECOURSE`): the
+///   prose one Display arm appends to an in-band fillet escalation.
+///   They are public so the layer's own suite can spell them —
+///   `profile/tests/fillet_recourse_followability.rs` asserts each
+///   against what a caller actually reads — and no consumer names
+///   them: today NOTHING renders them at all, because the arm that
+///   writes them (`ProfileError::Escalated` at
+///   `EscalationSite::Fillet`) has no producer. Carrying six sentences
+///   through the façade would advertise a diagnostic surface that
+///   reaches nobody. When a producer lands, the decision to carry them
+///   is worth re-taking here.
+const PROFILE_NOT_CARRIED: [&str; 7] = [
+    "RawLoop",
+    "FILLET_ENCLOSING_RECOURSE",
+    "FILLET_FIT_RECOURSE",
+    "FILLET_LEG_EXTENT_RECOURSE",
+    "FILLET_NO_CORNER_RECOURSE",
+    "FILLET_OFFSET_LEVER_RECOURSE",
+    "FILLET_TURN_INBAND_RECOURSE",
+];
 
 /// **The document layer's guard, for the other layer curated the same
 /// way.**

@@ -35,6 +35,17 @@
 //! [`the_six_sentences_render_off_the_one_display_arm_that_has_no_producer`]
 //! pins the render rule itself, so a producer landing finds the wiring
 //! already held.
+//!
+//! **The advice a caller DOES read here is inline, not a constant.**
+//! Every definite fillet refusal this file provokes ends in a second
+//! request written into its own Display arm — `NoCornerForFillet`'s
+//! "use a smaller radius", `AnchorOutsideTrimmedExtent`'s "reduce the
+//! radius or move the anchor", `FilletEnclosesLegCarrier`'s "try a
+//! radius below that". Those are recourses by every working definition
+//! this unit uses, and the rows below execute them: it is the same
+//! second request in each case, so following the dead constant and
+//! following the live prose are one act here, not two. Named as a
+//! class because a sweep keyed on `RECOURSE: &str` cannot see it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

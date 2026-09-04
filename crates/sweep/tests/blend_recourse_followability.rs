@@ -28,6 +28,18 @@
 //! (`FILLET3_SEAM_VERTEX_RECOURSE`) and
 //! `blend_tworims::colliding_bands_on_a_shared_wall_refuse_upfront`
 //! (`FILLET3_CLEARANCE_SPLIT_RECOURSE`).
+//!
+//! **A recourse constant is not the only place a recourse lives.** Two
+//! refusals map to `Recourse::None` in the recourse table — the row
+//! that says an invalid-input variant "has no fillet advice to give" —
+//! and then end their own sentence with advice anyway. Those two are
+//! rowed here on the same terms as the named constants
+//! ([`a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of`],
+//! [`a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of`]):
+//! no named constant is appended, the advice IS given, and the request
+//! it names is executed. The table is not changed — what it routes is
+//! which CONSTANT gets appended, and both rows assert that routing is
+//! honoured.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -35,10 +47,11 @@ use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
-    BlendError, CornerConfig, FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE,
-    FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
-    FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE,
-    FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
+    BlendError, CHAMFER_ARM_RECOURSE, CornerConfig, FILLET3_ASSEMBLY_RECOURSE,
+    FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
+    FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_RECOURSE,
+    FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
+    FILLET3_SEAM_VERTEX_RECOURSE, FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
     FILLET3_TANGENTIAL_RECOURSE,
 };
 use sweep::test_support::{closed_plane_sphere_rim, cube, dome, revolved_about_y, rim_arcs_at};
@@ -460,11 +473,7 @@ fn the_chamfer_arm_recourse_names_a_plane_plane_pair_that_chamfers() {
         matches!(err, BlendError::ChamferArmUnsupported { .. }),
         "the chamfer's own arm table refuses, got {err:?}"
     );
-    carries(
-        &err,
-        sweep::blend::CHAMFER_ARM_RECOURSE,
-        "chamfer arm unsupported",
-    );
+    carries(&err, CHAMFER_ARM_RECOURSE, "chamfer arm unsupported");
 
     let boxy = cube(1.0, tol());
     chamfers(
@@ -473,6 +482,104 @@ fn the_chamfer_arm_recourse_names_a_plane_plane_pair_that_chamfers() {
         0.1,
         "a both-planes chamfer request",
     );
+}
+
+// ------------------------------------------------------------------
+// Advice that is NOT a named constant. `Recourse::None` routes these
+// two away from every constant above and they advise anyway.
+// ------------------------------------------------------------------
+
+/// Every recourse constant this module can append. Restated here
+/// rather than imported as the crate's own private array, exactly as
+/// `review_d2_recourse_at_the_site.rs` restates it: a constant dropped
+/// from that array must not silently weaken the two rows below, whose
+/// whole content is that NONE of these appears.
+const EVERY_NAMED_RECOURSE: [(&str, &str); 15] = [
+    ("radius", FILLET3_RADIUS_RECOURSE),
+    ("clearance", FILLET3_CLEARANCE_RECOURSE),
+    ("clearance-split", FILLET3_CLEARANCE_SPLIT_RECOURSE),
+    ("tangential", FILLET3_TANGENTIAL_RECOURSE),
+    ("spine", FILLET3_SPINE_RECOURSE),
+    ("chain", FILLET3_CHAIN_RECOURSE),
+    ("convexity", FILLET3_CONVEXITY_RECOURSE),
+    ("corner", FILLET3_CORNER_RECOURSE),
+    ("seam-vertex", FILLET3_SEAM_VERTEX_RECOURSE),
+    ("assembly", FILLET3_ASSEMBLY_RECOURSE),
+    ("body", FILLET3_BODY_RECOURSE),
+    ("geometry", FILLET3_GEOMETRY_RECOURSE),
+    ("ring", FILLET3_RING_RECOURSE),
+    ("spine-kind", FILLET3_SPINE_KIND_RECOURSE),
+    ("chamfer-arm", CHAMFER_ARM_RECOURSE),
+];
+
+/// The refusal appends no named recourse constant — what the table
+/// routes as `Recourse::None` — and still says something.
+fn carries_no_named_recourse(err: &BlendError, what: &str) {
+    let shown = err.to_string();
+    for (name, sentence) in EVERY_NAMED_RECOURSE {
+        assert!(
+            !shown.contains(sentence),
+            "{what}: the `{name}` constant was appended, which the recourse table \
+             routes away from this variant.\n  got: {shown}"
+        );
+    }
+}
+
+/// **`NonpositiveSize` advises "supply a positive radius or setback",
+/// and the request it names builds.**
+///
+/// The recourse TABLE routes this variant to `Recourse::None`, and the
+/// table's own doc calls it a variant with no advice to give — yet the
+/// Display arm ends in a second request, which is a recourse by every
+/// working definition this unit uses. So the sentence is followed here
+/// on the same terms as a named one: the positive setback chamfers and
+/// validates.
+///
+/// Reached through the CHAMFER door, which is where the check lives.
+/// Whether the fillet door grows one is a separate unit's business and
+/// this row does not assert either way.
+#[test]
+fn a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of() {
+    let body = cube(1.0, tol());
+    let edges = query::all_edges(&body);
+    for size in [0.0, -0.1] {
+        let err = refusal(&body, &edges, size, "a nonpositive setback", true);
+        assert!(
+            matches!(err, BlendError::NonpositiveSize { .. }),
+            "a nonpositive size is refused at the door, got {err:?}"
+        );
+        carries_no_named_recourse(&err, "a nonpositive setback");
+        assert!(
+            err.to_string()
+                .contains("supply a positive radius or setback"),
+            "and it advises anyway: {err}"
+        );
+    }
+    chamfers(&body, &edges, 0.1, "the positive setback it names");
+}
+
+/// **`RepeatedEdge` advises "request each edge once", and the request
+/// it names builds.**
+///
+/// Same shape as the row above and the same table row: no constant is
+/// appended, advice is given, and the deduplicated request carves.
+#[test]
+fn a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of() {
+    let body = cube(1.0, tol());
+    let edges = query::all_edges(&body);
+    let mut repeated = edges.clone();
+    repeated.push(edges[0]);
+    let err = refusal(&body, &repeated, 0.1, "a repeated edge", false);
+    assert!(
+        matches!(err, BlendError::RepeatedEdge { edge } if edge == edges[0]),
+        "the repeat is named, got {err:?}"
+    );
+    carries_no_named_recourse(&err, "a repeated edge");
+    assert!(
+        err.to_string().contains("request each edge once"),
+        "and it advises anyway: {err}"
+    );
+    builds(&body, &edges, 0.1, "each edge requested once");
 }
 
 // ------------------------------------------------------------------
