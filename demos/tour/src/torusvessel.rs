@@ -43,6 +43,15 @@
 //!    on their perpendicular bisector. The bellied twin is what the
 //!    scene ships; the waisted twin is built and measured beside it,
 //!    because a sense claim needs both signs.
+//!
+//!    `tests/verbs_torus_vessel.rs` is the CLASS behind those two
+//!    bodies: both senses over four wall thicknesses and two scales,
+//!    the corner asserted at the closed form AND absent at the
+//!    quadratic's other root, plus one body carrying BOTH bands whose
+//!    hollow moves each chart its own way in a single `shell` call —
+//!    which is the row neither single-sense body can make, since a
+//!    door reading the surface KIND would move both the same way and
+//!    still leave a tier-3 solid.
 //! 2. **The bellied sense cannot reach the floor TORAX brackets, and
 //!    the reason is arithmetic rather than luck.** The waisted arm's
 //!    own floor is the ring convention closing — `r + t` climbing to
