@@ -147,7 +147,7 @@ fn r1p2_a_sliver_wedge_with_no_cavity_must_refuse() {
             r - T
         );
         match topo::shell(&body, T, FIT_TOL, tol) {
-            Ok(hollow) => {
+            Ok(topo::Shelled { body: hollow, .. }) => {
                 let props = topo::mass_properties(&hollow, tol).expect("props");
                 let outer = topo::mass_properties(&body, tol).expect("props").volume;
                 println!(
@@ -206,7 +206,7 @@ fn r1p4_a_bare_ball_hollows_to_its_closed_form() {
     .expect("the ball revolves")
     .body;
     match topo::shell(&ball, T, FIT_TOL, tol) {
-        Ok(hollow) => {
+        Ok(topo::Shelled { body: hollow, .. }) => {
             let got = topo::mass_properties(&hollow, tol).expect("props").volume;
             let want = 4.0 / 3.0 * core::f64::consts::PI * (r.powi(3) - (r - T).powi(3));
             println!("[r1p4] ball wall volume {got} vs closed form {want}");
