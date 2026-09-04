@@ -149,3 +149,48 @@ R2 opus), SHELL-2 = ordinal 2301 (byte 96 ⇒ R1 opus, R2 fable);
 claims on main via #1760; briefs hashed under the lane-private
 `ab/briefs/`. Implementer wall-clock: SHELL-2 ~1 h 15 m, SHELL-1
 ~1 h 47 m, no restarts.
+
+## Both duals adjudicated; fix passes dispatched (2026-09-04)
+
+**SHELL-2 (ordinal 2301):** R1 opus APPROVE-WITH-FIXES 0/5/5, R2
+fable APPROVE-WITH-FIXES 0/4/3. Convergent: the certificate-agreement
+assertion is vacuous at the 1e-9 fixture and rests on a false
+sentence (`hull_sup` is NOT a rigid invariant — measured 7.4e-9 under
+an oblique rotation; `on_locus_max` is), the window rule has three
+copies and `recertify_approx` lacks it (a narrowed-window body passes
+tier 3 and refuses at the map), and the fixture's stated reason is
+wrong (Chart+IsoLine re-description IS accepted; the one real wall
+is check 7's cache need). Unilateral: none demonstrated at MAJOR.
+Fix pass: ten items, implementer-inherited.
+
+**SHELL-1 (ordinal 2300):** R1 fable APPROVE-WITH-FIXES 1/2/4, R2
+opus APPROVE-WITH-FIXES 2/2/2. Convergent MAJOR: `holes.1` is
+documented as a source key and is a result key on every revolve cap
+(the spec's own site table carried the wrong key space — mine).
+**Unilateral MAJOR, tally candidate:** R2's "the ring rows'
+correspondence is unpinned" — a source column rotated by one leaves
+all 41 shell rows green (class test-gap, demonstrated by a surviving
+mutant); R1 pinned the exact correspondence in its own audit but did
+not raise the shipped rows' gap. Fix pass: eleven items,
+implementer-inherited.
+
+**Method notes (both arms of each pair equally; no relaxation):** the
+briefs named a verdict term v4 §2 does not define ("MERGEABLE WITH
+FIXES" for NOT-MERGEABLE-AS-IS) — every reviewer used the doc's
+terms; the box hit ENOSPC during three of the four reviews (four
+review lanes plus two 5–12 GB implementer targets on a fixed
+allowance) — each lane reclaimed only its own tree; SHELL-2 R1 lost
+its local C9 check to it and relied on CI's clippy/k-lint rows. Rule
+adopted: reclaim a lane's target the moment its report is in, and
+drop implementer `incremental/` before dispatching a dual.
+
+**Class findings given a home:** the STEP writer has no
+`OFFSET_SURFACE` printer (filed to EXCH:
+`approx-face-has-no-step-printer`); `mesh::tessellate` refuses an
+`Approx` face without caches (filed to MESH:
+`tessellate-refuses-approx-face-without-caches`); a naming record
+that re-lists the graft map with the columns swapped and drops its
+lookup shape is plausibly `BooleanNaming`'s shape too (both SHELL-1
+reviewers, Q1) — logged here for LIB/S-BOOL, not filed: the shell
+record gains lookup doors in its fix pass, and whether the boolean's
+should is that record's owner's read.
