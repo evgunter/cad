@@ -56,12 +56,14 @@ Not this program's: `offset_fit.rs` (S-CERT, then PROPS),
    the composition law is pinned.
 5. `shell-offset-three-followups` item 1 — the props inventory's
    curved-face-with-ring reading.
-6. `shell-curved-clearance-consumer` (D→H, joint with M10 and PROPS: a
-   verb-layer report above editor-core versus a `Body<Interval>` engine
-   in topo; then a cheaper pair filter) and
-   `shell-curved-wall-clearance-window` (its build; M10-5 landed, the
-   park is stale). The design conversation opens as an `[ev]` PR as
-   soon as SHELL-1 is dispatched — it does not queue behind items 2–5.
+6. RULED B (Ev, #1737, 2026-09-04): **SHELL-3** — the clearance
+   engine's body-level half moves into `topo` behind `interval`
+   (joint with M10; no behaviour change, the M10-5/6 suites are the
+   differential) — then **SHELL-4** — `shell` runs E7's
+   self-intersection question on the cavity clone at certifying
+   scalars and refuses typed; `shell-curved-wall-clearance-window`
+   closes on SHELL-4's refusing row. `shell-curved-clearance-consumer`
+   closes when both land.
 7. `tour-hollow-tube-scene` — E; the tess-budget re-baseline by the
    runbook.
 8. `tier3-approx-regrid-per-face-cost` (PERF's) stays parked on an

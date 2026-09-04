@@ -312,7 +312,13 @@ component-aware E–P form found and corrected in M1 PR 4).**
    topological one. Global self-intersection / minimum clearance stays
    deferred (M3 partial via booleans — tier 3′ below discharges the
    coincidence census, exactly on the planar inventory and by named
-   class elsewhere; M10 interval clearance).
+   class elsewhere; M10 interval clearance). The interval clearance
+   engine's body-level half — the cell subdivision over
+   `Body<Interval>` — lives in `topo` behind `interval`, with the
+   parameter-box outer half above it in editor-core, so a verb that
+   must certify a boundary embedded (`shell`'s cavity clone) runs the
+   same engine at a certifying scalar and refuses typed at the door
+   (Ev, #1737).
 4. **Tier 3′ "pseudomanifold" (`validate_pseudomanifold`; ratified at
    the M3 exit sweep per M3-PLAN F1/F2, resolved with Ev #42;
    implemented M3 PR 6a, #75)** — the honest at-rest tier for boolean
