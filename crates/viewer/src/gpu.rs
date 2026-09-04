@@ -1462,9 +1462,9 @@ mod tests {
     /// one side only would otherwise pass silently).
     ///
     /// Runs only under `--features app`, this module's own gate, so
-    /// its gating seat is the app-feature test row rather than the
-    /// workspace archive — see `lib.rs`'s loud-skip marker for what a
-    /// build without the feature is not checking.
+    /// its seat is the hosted step `viewer app-feature rows` rather
+    /// than the workspace archive — see `lib.rs`'s loud-skip marker
+    /// for what a build without the feature is not checking.
     #[test]
     fn every_shader_token_is_substituted() {
         let source = shader_source(wgpu::TextureFormat::Bgra8Unorm);

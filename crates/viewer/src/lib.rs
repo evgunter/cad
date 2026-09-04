@@ -86,9 +86,8 @@ mod gpu;
 /// kernel PR's four `--workspace` jobs off the toolkit. What that
 /// costs is stated here rather than left to be inferred from a test
 /// count: the modules' own rows, including `gpu`'s pipeline-creation
-/// smoke row, gate in the app-feature test job
-/// (`.github/workflows/ci.yml`, `viewer app-feature rows`) and nowhere
-/// else.
+/// smoke row, gate in the hosted step `viewer app-feature rows`
+/// (`.github/workflows/ci.yml`) and nowhere else.
 #[cfg(all(test, not(feature = "app")))]
 #[test]
 fn app_lane_skipped_no_chrome_or_gpu_coverage_here() {

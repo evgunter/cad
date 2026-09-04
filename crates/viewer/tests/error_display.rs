@@ -206,8 +206,8 @@ fn replay_error_names_the_log_position_and_forwards_the_refusal() {
 
 /// **Loud skip.** The row below needs `viewer::app`, which is not in a
 /// default-feature build; say so rather than letting the run report
-/// one fewer test and nothing else. Its seat is the app-feature test
-/// job (`.github/workflows/ci.yml`, `viewer app-feature rows`).
+/// one fewer test and nothing else. Its seat is the hosted step
+/// `viewer app-feature rows` (`.github/workflows/ci.yml`).
 #[cfg(not(feature = "app"))]
 #[test]
 fn app_lane_skipped_startup_error_arms_not_checked_here() {
