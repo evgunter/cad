@@ -280,6 +280,44 @@ const ROSTER: &[Site] = &[
         why: Selection("the C6 inventory gate's `is the trig channel exactly 0.0` read"),
     },
     Site {
+        path: "crates/topo/src/query.rs",
+        subject: "rim_of",
+        why: Selection(
+            "the rim selector: which stored circle edges carry the SAME circle as the seed, \
+             read bit for bit (both bracket ends, so two enclosures that merely overlap are \
+             different values) — an exact-f64 structure read, locally constant by \
+             construction. It chooses edges for a request and decides nothing about them; \
+             its one other read is the refusal's gap parameter, a payload (DL5(a))",
+        ),
+    },
+    Site {
+        path: "crates/topo/src/query.rs",
+        subject: "order_rim",
+        why: Selection(
+            "`rim_of`'s chain walk, on its bound: the tiling test is vertex-key equality and the one bracket read is the refusal's gap parameter (DL5(a))",
+        ),
+    },
+    Site {
+        path: "crates/topo/src/query.rs",
+        subject: "impl<T: Bounds> CircleId<T>",
+        why: Impl("`rim_of`'s circle-identity comparison, whose bound is the bracket door itself"),
+    },
+    Site {
+        path: "crates/topo/src/query.rs",
+        subject: "same_bits",
+        why: Selection("the bitwise same-stored-value test `rim_of`'s circle match is built from"),
+    },
+    Site {
+        path: "crates/topo/src/query.rs",
+        subject: "same_point_bits",
+        why: Selection("[`same_bits`] over a point"),
+    },
+    Site {
+        path: "crates/topo/src/query.rs",
+        subject: "same_vec_bits",
+        why: Selection("[`same_bits`] over a vector"),
+    },
+    Site {
         path: "crates/sweep/src/test_support.rs",
         subject: "rim_arcs_at",
         why: Selection(
