@@ -67,16 +67,31 @@ Carried by the same PR, from its style review:
   direction door"), and `query.rs`'s header names it as the second
   non-selection thing in the seat.
 
-**What is NOT closed by this PR.** On the mate road
+**What is NOT closed by this PR, deliberately.** On the mate road
 (`mate/solve.rs`), the direction door's refusal does not survive the
-translation into `MateFault`: a catch-all arm reports every non-
-escalation refusal as `DanglingHead`, so a 1e200 pattern direction is
-announced as a dangling head for a head that resolves perfectly well.
-Measured: the mate fault poisons the document, so the pattern node
-that would have named the true cause reports `Poisoned` and the true
-cause appears NOWHERE in the evaluation. The same is true of a
-decided-zero direction, which predates this unit. Disposition pending
-the FIX orchestrator's ruling; `MateFault` is S-MATE's vocabulary.
+translation into `MateFault`: a catch-all arm reports every
+non-escalation refusal as `DanglingHead`, so a pattern direction with
+no finite length is announced as a dangling head for a head that
+resolves perfectly well. This is not new here — the door's own
+`# Errors` block lists a degenerate direction among its `DanglingHead`
+causes, so the mislabel predates this unit and already applied to the
+decided-zero case; the non-finite refusal joined an existing bucket
+through the catch-all arm.
+
+What this unit measured is that the door's stated MITIGATION does not
+hold: it defended the catch-all with "the pattern node's own
+evaluation names the underlying cause in its own voice", and a mate
+fault poisons the document, so that node evaluates to `Poisoned` and
+the length is named nowhere. That rationale is corrected here rather
+than extended — a disproved mitigation left standing tells the next
+reader the compensation exists.
+
+The fix itself is not taken here (FIX orchestrator's ruling, at the
+review): one variant carrying the evaluation layer's typed refusal
+verbatim and closing the catch-all is the proposed end state, but it
+reverses a documented S-MATE decision on S-MATE's charter ground, and
+a one-PR item needing another program's design assent is an item cut
+wrong. Filed to S-MATE with this unit's measurement as the argument.
 
 **What was swept for.** The class — a caller-supplied direction
 normalized, or its length decided, without the finiteness question

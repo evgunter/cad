@@ -200,12 +200,22 @@ fn head_of<P>(
 /// A head whose derived pose does not exist resolves to no member of
 /// the vocabulary and refuses [`MateFault::DanglingHead`] — an index
 /// at or beyond the count, a rule whose slots do not evaluate, a
-/// degenerate direction, an explicit-rule pattern (whose count
-/// spelling the pattern node itself refuses). The pattern node's own
-/// evaluation names the underlying cause in its own voice; this door's
-/// job is only to refuse rather than guess a pose. An in-band
+/// degenerate or non-finite direction, an explicit-rule pattern
+/// (whose count spelling the pattern node itself refuses). This
+/// door's job is to refuse rather than guess a pose. An in-band
 /// direction-norm decision escalates [`MateFault::Indeterminate`], as
 /// every decided predicate here does.
+///
+/// **The direction refusals say less than they know, and the
+/// difference is not recoverable elsewhere.** A rule whose direction
+/// has zero or non-finite length is announced as a dangling head for
+/// a head that resolves; the pattern node that could name the length
+/// does not, because a mate fault poisons the document and that node
+/// evaluates to `Poisoned` rather than to its own
+/// `DegenerateDirection`/`NonFiniteDirection`. Carrying the
+/// evaluation layer's typed refusal into [`MateFault`] instead is
+/// proposed to this module's owner (FIX's slate, from PR 1738's
+/// review).
 fn derived_offset<P>(
     doc: &Doc<P>,
     mate: RecipeNodeId,
