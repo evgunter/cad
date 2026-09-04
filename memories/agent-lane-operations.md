@@ -127,11 +127,15 @@ raw `cargo` invocations yourself.
   the next lane): "parent dead, lock still held" is the failure mode
   that looks identical to success from outside.
 - **A `CI-Config:` trailer is read from the PR-HEAD commit only — any
-  subsequent commit or merge VOIDS it silently back to sampling**
-  (met twice in one fix pass, ordinal 104). The filter reports
-  `CONFIG_SOURCE=...sampled` instead of `commit-trailer` — check that
-  field, and put the trailer on the FINAL head (an empty trailer-only
-  commit that says so in its message is the clean spelling).
+  subsequent commit or merge VOIDS it silently** (met twice in one fix
+  pass, ordinal 104). The filter reports `CONFIG_SOURCE=...unsampled` (or
+  `...sampled` for `klint`) instead of `commit-trailer` — check that field,
+  and put the trailer on the FINAL head (an empty trailer-only commit that
+  says so in its message is the clean spelling). **Since 2026-09-04 a voided
+  lane or eps trailer fails SAFE**: those two dimensions are no longer
+  sampled, so losing the trailer gives the run the whole matrix rather than
+  a different drawn point. A voided `klint=` trailer still falls back to a
+  draw.
 - **A CONFLICTING PR gets NO CI run — silently, and none retroactively
   once resolved.** GitHub skips the pull_request trigger while a PR is
   CONFLICTING; pushes during that window produce nothing, and merging
@@ -230,11 +234,13 @@ origin/main immediately before opening a PR and whenever main moves;
 after any push, confirm jobs are actually RUNNING by reading the
 workflow **runs** list, not the PR's checks list; re-roll with a real
 code commit (an empty commit classifies docs-only); and verify coverage
-at the STEP level (`gh api .../jobs`, step conclusions). A missing row
+at the STEP level (`gh api .../jobs`, step conclusions). A missing k-lint row
 can be ASKED FOR rather than re-rolled for: a `CI-Config:
 klint=dev-probe` trailer on the head commit, or ci.yml's
-`workflow_dispatch` inputs, pin lane/eps/klint for one run
-(`docs/CI-MINUTES-2026-08.md`). **The run record is the instrument; the
+`workflow_dispatch` inputs, pin it for one run. **The same two spellings
+NARROW the lane and the eps rows rather than adding them** — since
+2026-09-04 a run gates all six lane/eps points by default, so
+`CI-Config: lane=interval` buys less gate, not more. **The run record is the instrument; the
 workflow source is not.**
 
 **Merging is destructive to checks — four rules, each guarding a silent

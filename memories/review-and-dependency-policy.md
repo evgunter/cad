@@ -55,9 +55,11 @@ row's own subject.** Merging a row whose declared purpose is X, on
 evidence that never exercised X, buys nothing — the row is decorative
 until the axis it names is drawn, and an accepted gap of that shape is
 usually a liveness bug in disguise rather than a scoping decision.
-Hosted CI draws ONE eps per run from the seed, so a row parameterised
-on eps must be run locally at every eps it claims to cover, before
-merge. When an implementer names a gap, ask whether the untested axis
+Hosted CI drew ONE eps per run from 2026-08-22 to 2026-09-04, which made
+"run it locally at every eps it claims to cover" the only way to close
+that axis; it now gates all three eps rows on both compile modes, so the
+hosted run is the evidence and what to check is that the job list carries
+twelve `test (…)` jobs rather than a narrowed two. When an implementer names a gap, ask whether the untested axis
 is the row's subject or merely adjacent: adjacent is a follow-up, the
 subject is a blocker.
 
