@@ -31,12 +31,24 @@
 //!   `SessionOp::SetSlotUnit`, which rewrites the display unit and
 //!   leaves the canonical bits alone.
 //!
-//! Document parameters are the remaining asymmetry, and it is now the
-//! PANEL's rather than the storage's: `DocParam::Continuous` carries an
-//! authored unit, and nothing here reads it — a parameter
-//! row still shows the canonical unit, and the create-parameter
-//! affordance still authors one. Stated rather than papered over; the
-//! storage is ready for the row that renders it.
+//! A document parameter follows the same two rules, through the same
+//! functions: [`ParamRow::unit`] is the notation its DECLARATION names
+//! ([`DocParam::Continuous`]'s `display_unit`), the panel divides and
+//! multiplies by it exactly as it does for a slot, and a value edit
+//! leaves it alone for free — [`param_edit`] spells the value-only
+//! door, which reads the declaration off the document.
+//!
+//! What a parameter has no door for is CHANGING that notation. A
+//! slot's is `SessionOp::SetSlotUnit`, which works because a literal's
+//! whole state is its value and its unit, so [`slot_unit_edit`] can
+//! rebuild one and lose nothing. A parameter's unit rides beside its
+//! `Distribution`, and the edit vocabulary offers create-or-replace
+//! (`DocEdit::SetDocParam`, which would drop the annotation) or
+//! value-only (`DocEdit::SetDocParamValue`, which leaves the unit
+//! alone, deliberately) — and nothing in between. So the
+//! create-parameter affordance still authors the canonical unit, and
+//! there is no unit picker on a parameter row. Stated rather than
+//! papered over.
 //!
 //! # Structural is not continuous
 //!
@@ -451,8 +463,19 @@ pub struct ParamRow {
     pub name: ParamName,
     /// Its declared dimension.
     pub dimension: Dimension,
-    /// Its exact stored value.
+    /// Its exact stored value, canonical.
     pub value: SlotValue,
+    /// The display unit the parameter was AUTHORED in — `None` only for
+    /// a `Count`, which is a number rather than a quantity and has no
+    /// notation to name.
+    ///
+    /// Unlike [`SlotRow::unit`] there is no computed case: a
+    /// parameter's notation rides with its DECLARATION, beside the
+    /// dimension, so a continuous parameter always names one. It is
+    /// also why no value edit has to carry it — `SetDocParamValue`
+    /// leaves the declaration alone ([`param_edit`]) where a slot's
+    /// literal has to be rebuilt around its unit.
+    pub unit: Option<UnitDef>,
 }
 
 /// Every document parameter, name order.
@@ -465,6 +488,10 @@ pub fn param_rows(doc: &Doc<ProfileProgram>) -> Vec<ParamRow> {
             value: match param {
                 DocParam::Continuous { value, .. } => SlotValue::Continuous(*value),
                 DocParam::Count { value } => SlotValue::Count(*value),
+            },
+            unit: match param {
+                DocParam::Continuous { display_unit, .. } => Some(display_unit.def()),
+                DocParam::Count { .. } => None,
             },
         })
         .collect()

@@ -1508,6 +1508,16 @@ enum GestureTarget {
         unit: Option<UnitDef>,
     },
     /// A document parameter, with the dimension it is declared at.
+    ///
+    /// **No unit, and it is not the slot arm's omission.** A slot's
+    /// edit rebuilds the literal, so the notation has to be carried
+    /// into it or the drag rewrites it; a parameter's edit is the
+    /// value door (`DocEdit::SetDocParamValue`), which writes a number
+    /// into the standing declaration and leaves the authored unit
+    /// beside it untouched. There is nothing here for a captured unit
+    /// to protect. The panel still SHOWS the drag in the parameter's
+    /// written unit — it converts before the value crosses into this
+    /// layer, which is canonical throughout.
     Param {
         name: ParamName,
         dimension: Dimension,
