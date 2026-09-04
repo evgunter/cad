@@ -56,13 +56,13 @@ fn seeds() -> Vec<BlendError> {
         BlendError::FaceClearanceUncertified {
             face: FaceKey::default(),
             margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
-            gap: 0.2,
+            gap: MarginDiag::Value(0.2),
             cross_chain: false,
         },
         BlendError::FaceClearanceUncertified {
             face: FaceKey::default(),
             margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
-            gap: 0.2,
+            gap: MarginDiag::Value(0.2),
             cross_chain: true,
         },
         BlendError::TangentialEdge {
@@ -76,7 +76,7 @@ fn seeds() -> Vec<BlendError> {
         BlendError::ChainNotG1 {
             vertex: VertexKey::default(),
             margin: decided("fillet3_chain_g1", 1e-3, Sign::Positive),
-            arm: 0.5,
+            arm: MarginDiag::Value(0.5),
         },
         BlendError::ConvexitySignFlip {
             edge: EdgeKey::default(),

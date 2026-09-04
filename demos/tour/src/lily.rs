@@ -2247,7 +2247,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         // meridian, not a near-tangency that a tolerance could split.
         |e| {
             matches!(&e.error, BlendError::TangentialEdge { margin, .. }
-                if margin.value() == Some(0.0))
+                if margin.predicate == "fillet3_convexity_sign"
+                    && margin.value() == Some(0.0))
         },
         "soften the tepal-tip rim",
     );

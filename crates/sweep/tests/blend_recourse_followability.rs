@@ -53,7 +53,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
+use geom_core::{Affine3, Point2, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
@@ -286,7 +286,13 @@ fn the_tangential_recourse_names_a_definite_angle_edge_that_builds() {
     assert!(!seams.is_empty(), "the full revolve mints chart seams");
     let err = refusal(&body, &seams[..1], 0.05, "a chart seam", false);
     assert!(
-        matches!(err, BlendError::TangentialEdge { margin, .. } if margin == 0.0),
+        matches!(
+            err,
+            BlendError::TangentialEdge { margin, .. }
+                if margin.predicate == "fillet3_convexity_sign"
+                    && margin.sign == Sign::Zero
+                    && margin.value() == Some(0.0)
+        ),
         "a co-surface seam is the zero-margin wedge, got {err:?}"
     );
     carries(&err, FILLET3_TANGENTIAL_RECOURSE, "tangential edge");

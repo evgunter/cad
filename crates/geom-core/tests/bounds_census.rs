@@ -223,17 +223,6 @@ const ROSTER: &[Site] = &[
         why: HandedOff("Track V's; a refusal-payload door S88's handoff names"),
     },
     Site {
-        path: "crates/sweep/src/blend/battery.rs",
-        subject: "classified",
-        why: Payload(
-            "the edge-blend battery's one margin-payload constructor: both ends of a \
-             decided margin's bracket into a `ClassifiedMargin` and stop, so the refusal \
-             reports the enclosure the classifier judged instead of one endpoint of it. \
-             The `lo`/`hi` comparison chooses how to PRINT the bracket, never what was \
-             decided — every `Ok`/`Err` in that file comes from a `decide(...)` call",
-        ),
-    },
-    Site {
         path: "crates/sweep/src/blend/build.rs",
         subject: "nonpositive_size_gate",
         why: Selection(

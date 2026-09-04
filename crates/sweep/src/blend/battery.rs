@@ -46,37 +46,93 @@ use super::arms::{
 };
 use super::{BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, decide};
 
-/// The bracket a definite decision saw, as the payload shape that says
-/// what it is — the one place this lane turns a `T` margin into a
-/// refusal payload.
+/// **What `MarginDiag` shape does this scalar's own classifier speak?**
+/// Asked, never inferred.
 ///
-/// Both ends are read, so an interval margin arrives as the enclosure
-/// it was rather than as one endpoint of it; a point bracket (every
-/// `f64` margin, and an interval one that happens to be thin) is the
-/// [`MarginDiag::Value`] the `f64` classifier would have reported. The
-/// read is the M5 PR 12 seam's own — a bracket read feeding an error
-/// payload, decided nothing, `Bounds`' delegation rule (a) — and the
-/// `lo`/`hi` comparison here chooses how to PRINT the bracket, never
-/// what the predicate decided.
-pub(crate) fn classified<T: Bounds>(
+/// `f64` and `Interval` both present a thin reading as `lo == hi`, so
+/// the bracket cannot say which spelling its scalar uses — only the
+/// scalar can, and the two disagree: `f64` classification reports a
+/// [`MarginDiag::Value`], interval classification reports a
+/// [`MarginDiag::Enclosure`] even when the enclosure is a point
+/// (`geom-core`'s `dual.rs` pins exactly that, and its interval suite
+/// pins the pair `Value(m)` / `Enclosure { lo: m, hi: m }` for one
+/// margin at the two scalars).
+///
+/// So the question goes to [`Decide::sign_within`] itself — the same
+/// door the decision came through, and the only code that knows the
+/// answer. The input is the one value every band makes indeterminate
+/// for every scalar: the midpoint of the band's own ambiguity
+/// interval, strictly inside `(zero, escalate)` by
+/// [`Band`]'s constructor, which can therefore never decide and always
+/// comes back as an [`Indeterminate`] carrying that scalar's spelling.
+/// Nothing is branched on the margin, and no projection helper is
+/// added to `geom-core` (#990) — the scalar answers for itself.
+///
+/// An `Enclosure` is the answer whenever the probe does not say
+/// otherwise: it states both ends and so can never claim a point the
+/// scalar did not see.
+fn diag_spelling<T: Decide + Real>(band: Band) -> Spelling {
+    let midpoint = T::from_f64((band.zero() + band.escalate()) / 2.0);
+    match midpoint.sign_within(band) {
+        Err(Indeterminate {
+            margin: MarginDiag::Value(_),
+            ..
+        }) => Spelling::Value,
+        _ => Spelling::Enclosure,
+    }
+}
+
+/// Which [`MarginDiag`] arm a scalar's classifier speaks. A two-state
+/// answer to a two-state question, so the question can be asked
+/// without minting a `MarginDiag` that carries no reading yet.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Spelling {
+    /// This scalar reports a reading as one number.
+    Value,
+    /// This scalar reports a reading as an enclosure, point or not.
+    Enclosure,
+}
+
+/// A quantity a refusal reports, in the shape its own scalar's
+/// classifier would have reported it.
+///
+/// Both ends are read, so an interval quantity arrives as the
+/// enclosure it is rather than as one endpoint of it, and a thin
+/// interval enclosure stays an enclosure — because that is what
+/// `Interval::sign_within` calls it. The read is the M5 PR 12 seam's
+/// own (a bracket read feeding an error payload, deciding nothing,
+/// `Bounds`' delegation rule (a)); which VARIANT carries it is not
+/// read off the bracket at all but asked of the scalar, by
+/// [`diag_spelling`].
+pub(crate) fn measured<T: Bounds + Decide + Real>(value: T, band: Band) -> MarginDiag {
+    let (lo, hi) = (value.lo(), value.hi());
+    if lo.is_nan() || hi.is_nan() {
+        return MarginDiag::Invalid;
+    }
+    match diag_spelling::<T>(band) {
+        Spelling::Value => MarginDiag::Value(lo),
+        Spelling::Enclosure => MarginDiag::Enclosure { lo, hi },
+    }
+}
+
+/// The reading a definite decision saw, as the payload shape that says
+/// what it is — the one place this lane turns a classified `T` margin
+/// into a refusal payload.
+///
+/// The reading is [`measured`]'s; the predicate, band and sign are the
+/// decision's. Poison is reported rather than asserted away: it is
+/// unreachable behind a definite `Sign` (the classifier escalates
+/// poison instead of deciding it), and a payload that cannot be
+/// printed is worse than one that prints an impossibility.
+pub(crate) fn classified<T: Bounds + Decide + Real>(
     predicate: &'static str,
     margin: T,
     band: Band,
     sign: Sign,
 ) -> ClassifiedMargin {
-    let (lo, hi) = (margin.lo(), margin.hi());
-    let reading = if lo.is_nan() || hi.is_nan() {
-        // Unreachable behind a definite `Sign`: poison escalates. Kept
-        // total rather than asserted — the payload's job is to report.
-        MarginDiag::Invalid
-    } else if lo == hi {
-        MarginDiag::Value(lo)
-    } else {
-        MarginDiag::Enclosure { lo, hi }
-    };
     ClassifiedMargin {
         predicate,
-        reading,
+        reading: measured(margin, band),
         band,
         sign,
     }
@@ -546,7 +602,7 @@ pub fn convexity_at<T: Decide + Bounds>(
 /// # Errors
 ///
 /// [`BlendError::ChainNotG1`] / [`BlendError::Escalated`].
-pub fn chain_g1<T: Decide + Bounds>(
+pub fn chain_g1<T: Decide + Bounds + Real>(
     tau_in: Vec3<T>,
     tau_out: Vec3<T>,
     arm: T,
@@ -578,7 +634,7 @@ pub fn chain_g1<T: Decide + Bounds>(
         sign => Err(BlendError::ChainNotG1 {
             vertex,
             margin: classified("fillet3_chain_g1", margin.value(), band, sign),
-            arm: arm.lo(),
+            arm: measured(arm, band),
         }),
     }
 }
@@ -702,7 +758,7 @@ pub fn corner_config<T: Decide + Bounds>(
 /// rides into the refusal, whose recourse then names the SPLIT that
 /// re-meters each chain against the face the previous carve actually
 /// left (#935's boundary).
-pub fn face_clearance<T: Decide + Bounds>(
+pub fn face_clearance<T: Decide + Bounds + Real>(
     face: FaceKey,
     gap: T,
     setback_here: T,
@@ -718,7 +774,7 @@ pub fn face_clearance<T: Decide + Bounds>(
         sign => Err(BlendError::FaceClearanceUncertified {
             face,
             margin: classified("fillet3_face_clearance", margin, band, sign),
-            gap: gap.lo(),
+            gap: measured(gap, band),
             cross_chain,
         }),
     }

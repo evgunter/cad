@@ -44,10 +44,27 @@
 //! `geom_core::Indeterminate` whole through
 //! [`BlendError::Escalated`]. Neither is projected to a single
 //! endpoint, because at the scalar the banked payoff runs on, one
-//! endpoint of an enclosure is a number nothing measured. A payload
-//! field holding some OTHER quantity — a lever arm, a gap, a radius,
-//! a requested size — is a bare `f64` under its own name, and only a
+//! endpoint of an enclosure is a number nothing measured. Only a
 //! `ClassifiedMargin` is rendered as "the margin".
+//!
+//! **Which SHAPE a reading takes is the scalar's own answer**, asked
+//! of `Decide::sign_within` at the payload site rather than inferred
+//! from the bracket: `f64` and `Interval` present a thin reading
+//! identically (`lo == hi`) and spell it differently (`Value(m)` vs
+//! `Enclosure { lo: m, hi: m }`), so a payload that guessed from the
+//! width would disagree with its own escalated twin about one reading.
+//! `battery::measured` puts the question; `battery::diag_spelling`
+//! is the question.
+//!
+//! **The companion fields split two ways, and the split is the point.**
+//! A quantity the refusal MEASURED and states as a fact — a gap
+//! between two features, a folded lever arm — is a `MarginDiag` for
+//! the same reason the margin is: it is an enclosure at the interval
+//! scalar and stating one end of it as the distance is the same defect
+//! one field over. A quantity the caller REQUESTED — a blend radius, a
+//! chamfer size — stays a bare `f64`: it is thin by construction at
+//! every scalar, there is no enclosure of it to report, and
+//! [`BlendError::NonpositiveSize`]'s `size` has said so all along.
 //!
 //! Beside them sits one **routing** decision, which is not a validity
 //! predicate and is named apart for that reason:
@@ -245,11 +262,17 @@ impl ClassifiedMargin {
 }
 
 impl fmt::Display for ClassifiedMargin {
+    /// Rendered as `geom_core::IndeterminatePayload` renders its twin:
+    /// the same `{:e}` spelling for the reading and for both band
+    /// thresholds, so the definite and the indeterminate halves of one
+    /// predicate's vocabulary read alike in a log (E3 review item 3 —
+    /// they had diverged, this side printing `0.000000001` where the
+    /// sibling printed `1e-9`).
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let (zero, escalate) = (self.band.zero(), self.band.escalate());
         match self.reading {
-            MarginDiag::Value(m) => write!(f, "margin {m} m")?,
-            MarginDiag::Enclosure { lo, hi } => write!(f, "margin enclosure [{lo}, {hi}] m")?,
+            MarginDiag::Value(m) => write!(f, "margin {m:e} m")?,
+            MarginDiag::Enclosure { lo, hi } => write!(f, "margin enclosure [{lo:e}, {hi:e}] m")?,
             // Unreachable from a definite decision — the classifier
             // escalates poison instead of deciding it — and rendered
             // rather than asserted, because a payload that cannot be
@@ -258,9 +281,30 @@ impl fmt::Display for ClassifiedMargin {
         }
         write!(
             f,
-            " ({} decided {}; band zero = {zero}, escalate = {escalate})",
+            " ({} decided {}; band zero = {zero:e}, escalate = {escalate:e})",
             self.predicate, self.sign
         )
+    }
+}
+
+/// A companion quantity a refusal states as a FACT beside the margin —
+/// a gap, a lever arm — rendered as the measurement it is.
+///
+/// A display adapter, not a payload type: the fields themselves stay
+/// [`MarginDiag`], which is geom-core's own shape for "what a reading
+/// looks like at this scalar". Plain (non-`{:e}`) numbers here on
+/// purpose — these read inside an English sentence ("are 0.1 m
+/// apart"), whereas the classified margin's `{:e}` belongs to the
+/// predicate vocabulary it shares with its twin.
+struct Measured(MarginDiag);
+
+impl fmt::Display for Measured {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            MarginDiag::Value(m) => write!(f, "{m}"),
+            MarginDiag::Enclosure { lo, hi } => write!(f, "[{lo}, {hi}]"),
+            MarginDiag::Invalid => f.write_str("an invalid (NaN or poisoned)"),
+        }
     }
 }
 
@@ -719,7 +763,11 @@ pub enum BlendError {
         /// `(1 − r·κ_max)·r`, meters (the headroom at lever arm `r`),
         /// as `fillet3_radius_headroom` classified it.
         margin: ClassifiedMargin,
-        /// The blend radius, meters — the lever arm.
+        /// The blend radius, meters — the lever arm. A bare `f64`
+        /// deliberately, as [`BlendError::NonpositiveSize`]'s `size`
+        /// is: this is the REQUEST, the number the caller handed in,
+        /// thin by construction at every scalar. It is not a
+        /// measurement and there is no enclosure of it to report.
         radius: f64,
     },
     /// **Predicate 2**: two boundary features of a support face are
@@ -745,8 +793,12 @@ pub enum BlendError {
         /// `fillet3_face_clearance` classified it.
         margin: ClassifiedMargin,
         /// The straight-line gap between the two boundary features,
-        /// meters.
-        gap: f64,
+        /// meters — the MEASUREMENT, in the shape its scalar reports
+        /// readings in. Nothing classified it (it is stated as a fact
+        /// beside the margin that WAS classified), so it carries no
+        /// predicate and no sign; at the interval scalar it is the
+        /// enclosure the measurement produced, never one end of it.
+        gap: MarginDiag,
         /// Whether the two setbacks belong to two DIFFERENT requested
         /// chains. When they do the request is SPLITTABLE: the screen
         /// metered both setbacks against the SOURCE face at once, and
@@ -777,7 +829,9 @@ pub enum BlendError {
         /// `(1 − r·κ_spine)·r`, meters, as
         /// `fillet3_spine_regularity` classified it.
         margin: ClassifiedMargin,
-        /// The blend radius, meters — the lever arm.
+        /// The blend radius, meters — the lever arm, and the REQUEST
+        /// quantity, so a bare `f64` for the reason
+        /// [`BlendError::RadiusHeadroom`]'s `radius` is.
         radius: f64,
     },
     /// **Predicate 4**: consecutive links do not meet tangentially, so
@@ -789,12 +843,36 @@ pub enum BlendError {
         /// The polarity is inverted here: a definitely POSITIVE margin
         /// is the corner this refuses on, and only a `Zero` one passes.
         margin: ClassifiedMargin,
-        /// The folded lever arm, meters.
-        arm: f64,
+        /// The folded lever arm, meters — the MEASUREMENT, as
+        /// [`BlendError::FaceClearanceUncertified`]'s `gap`: computed
+        /// from the carrier rather than requested, so at the interval
+        /// scalar it is an enclosure and is carried as one.
+        arm: MarginDiag,
     },
     /// **Predicate 5**: the dihedral's convexity sign is not constant
     /// along the chain. (An edge whose sign decided Zero is not a
     /// flip — it refuses as [`BlendError::TangentialEdge`].)
+    ///
+    /// # No fixture reaches this arm through a `Body`, and why
+    ///
+    /// Stated rather than left for the next reader to rediscover (E3
+    /// review, item 6). A chain whose links differ in convexity has a
+    /// non-tangential junction between them, so **predicate 4
+    /// (`fillet3_chain_g1`) refuses first**: it runs ahead of
+    /// predicate 5 over the same chain, and a sign flip between two
+    /// links implies the kink it tests for. Every route that would
+    /// reach this arm on a real body is therefore intercepted, and
+    /// the arm is exercised by constructing the payload directly
+    /// (`recourse_tests::seeds`, `review_blend6_r1_probes::seeds`).
+    ///
+    /// It is kept because the ordering is a property of today's
+    /// battery, not of the geometry: predicate 4 is skipped for a
+    /// single-link chain and for a closed chain whose junctions are
+    /// all tangent, and a future arm that resolves links without the
+    /// G1 screen would reach here. What is NOT done is inventing a
+    /// body-shaped fixture for it — a fixture that cannot be built out
+    /// of the geometry it claims to test would pin the constructor,
+    /// not the refusal.
     ConvexitySignFlip {
         /// The edge whose sign disagrees with the chain's.
         edge: EdgeKey,
@@ -1048,10 +1126,11 @@ impl fmt::Display for BlendError {
                 write!(
                     f,
                     "the clearance screen cannot certify that support face {face:?} \
-                     survives — two of its boundary features are {gap} m apart and their \
+                     survives — two of its boundary features are {} m apart and their \
                      blends set back further than that, {margin}. The screen is \
                      conservative by direction and does not assert the face IS consumed; \
-                     {recourse}"
+                     {recourse}",
+                    Measured(*gap)
                 )
             }
             Self::TangentialEdge { edge, margin } => write!(
@@ -1072,7 +1151,8 @@ impl fmt::Display for BlendError {
             } => write!(
                 f,
                 "the chain's links at {vertex:?} are not tangent-continuous — \
-                 {margin} at lever arm {arm} m; {FILLET3_CHAIN_RECOURSE}"
+                 {margin} at lever arm {} m; {FILLET3_CHAIN_RECOURSE}",
+                Measured(*arm)
             ),
             Self::ConvexitySignFlip {
                 edge,
@@ -1368,13 +1448,13 @@ mod recourse_tests {
             BlendError::FaceClearanceUncertified {
                 face: FaceKey::default(),
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
-                gap: 0.2,
+                gap: MarginDiag::Value(0.2),
                 cross_chain: false,
             },
             BlendError::FaceClearanceUncertified {
                 face: FaceKey::default(),
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
-                gap: 0.2,
+                gap: MarginDiag::Value(0.2),
                 cross_chain: true,
             },
             BlendError::TangentialEdge {
@@ -1388,7 +1468,7 @@ mod recourse_tests {
             BlendError::ChainNotG1 {
                 vertex: VertexKey::default(),
                 margin: decided("fillet3_chain_g1", 1e-3, Sign::Positive),
-                arm: 0.5,
+                arm: MarginDiag::Value(0.5),
             },
             BlendError::ConvexitySignFlip {
                 edge: EdgeKey::default(),

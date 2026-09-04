@@ -7,9 +7,12 @@
 //! a payload that reports one endpoint of it says something the
 //! classifier never saw — the shape this lane exists to catch. The rows
 //! below take one predicate through each of its two definite outcomes
-//! at `T = Interval` and read the payload back: a thin enclosure
-//! reports as the value it is, a wide one reports as the bracket it is,
-//! and neither is ever silently projected.
+//! at `T = Interval` and read the payload back. Both report as the
+//! ENCLOSURE they are — a thin one included, because that is what this
+//! scalar's own `sign_within` calls a point bracket (E3 review item 1:
+//! the spelling is the scalar's, not the bracket's width's), and a
+//! wide one because no single endpoint of it is a number anything
+//! measured.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -40,19 +43,38 @@ mod certified {
     }
 
     /// A THIN enclosure — a point bracket, which is what an exact
-    /// datum is at this scalar — reports as the value it is. Same
-    /// payload the `f64` lane produces, because the classifier saw the
-    /// same thing.
+    /// datum is at this scalar — still reports as an ENCLOSURE, with
+    /// `lo == hi`.
+    ///
+    /// This is the scalar's own spelling, not a width test:
+    /// `Interval::sign_within` reports a point bracket it cannot
+    /// classify as `Enclosure { lo: m, hi: m }` while `f64`'s reports
+    /// it as `Value(m)`, and a definite payload has to say what its
+    /// own scalar would have said or the two halves of one predicate's
+    /// vocabulary disagree about one reading (E3 review item 1, and
+    /// `review_fillet_e3_probes`'s first row is the same property from
+    /// the other side).
     #[test]
-    fn a_point_bracket_margin_reports_as_a_value() {
+    fn a_point_bracket_margin_reports_as_a_thin_enclosure() {
         let err = ring_clearance(FaceKey::default(), Interval::from_f64(-0.05), band())
             .expect_err("a ring inside the trimline refuses");
         match err {
             BlendError::RingClearance { margin, .. } => {
                 assert_eq!(margin.predicate, "fillet3_ring_clearance");
                 assert_eq!(margin.sign, Sign::Negative);
-                assert_eq!(margin.reading, MarginDiag::Value(-0.05));
-                assert_eq!(margin.value(), Some(-0.05));
+                assert_eq!(
+                    margin.reading,
+                    MarginDiag::Enclosure {
+                        lo: -0.05,
+                        hi: -0.05
+                    },
+                    "the interval scalar spells a point bracket as a thin enclosure"
+                );
+                assert_eq!(
+                    margin.value(),
+                    None,
+                    "and the accessor answers for the shape, not for the width"
+                );
             }
             other => panic!("expected RingClearance, got {other}"),
         }
@@ -85,7 +107,7 @@ mod certified {
                 );
                 let text = margin.to_string();
                 assert!(
-                    text.contains("enclosure [-0.2, -0.05]"),
+                    text.contains("enclosure [-2e-1, -5e-2]"),
                     "the rendering names the bracket: {text}"
                 );
             }

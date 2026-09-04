@@ -73,9 +73,20 @@ a distance and nothing else.
 
 ## Home
 
-`crates/geom-brep/src/pcurve_cache.rs` is PCURVE's ground (closed), the
-same home #934's third row (`edge_nurbs.rs`) has, so this lands under
-`work/issues/` beside it and goes to whichever unit next opens the
-file. FILLET-E3 did not touch it: its brief scopes it to
+TRIM's. `crates/geom-brep/src/pcurve_cache.rs` is one of the five paths
+`work/trim/program.md` lists as its territory, and
+`crates/geom-brep/src/edge_nurbs.rs` — the file that raises the
+`FootPointInconclusive` this arm translates — is another, so the fix
+and the refusal it renders are inside one program's fence.
+
+**A correction to how this was first filed.** It was opened under
+`work/issues/` on the premise that PCURVE is closed and the file
+therefore belongs to no open program. That premise was wrong: PCURVE's
+P-2 residue is exactly what TRIM was opened to carry, and this file
+came with it. Filed to `work/issues/` and moved here in the same PR
+(E3 review, item 4).
+
+FILLET-E3 did not touch the file: its brief scopes it to
 `crates/sweep/src/blend/*` and names `geom-brep` explicitly out of
-scope.
+scope. What E3 owes it is the citation above and this home, not the
+edit.

@@ -200,6 +200,7 @@ fn a_co_surface_seam_meridian_still_refuses_tangential_at_exactly_zero() {
     );
     match fillet_edges(&ball, &[seam], 0.05, tol()).map_err(|r| r.error) {
         Err(BlendError::TangentialEdge { margin, .. }) => {
+            assert_eq!(margin.predicate, "fillet3_convexity_sign");
             assert_eq!(
                 margin.value(),
                 Some(0.0),

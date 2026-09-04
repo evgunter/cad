@@ -11,8 +11,8 @@
 
 use crate::common::approx::band;
 use geom_brep::SurfaceKind;
-use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec2, Vec3};
+use geom_core::{MarginDiag, Tol};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::arms::BlendArm;
@@ -242,6 +242,9 @@ fn p2_face_clearance_refuses_when_two_blends_meet_across_a_face() {
         Err(e @ BlendError::FaceClearanceUncertified { margin, gap, .. }) => {
             assert_eq!(margin.predicate, "fillet3_face_clearance");
             assert!(margin.value().is_some_and(|m| m < 0.0));
+            let MarginDiag::Value(gap) = gap else {
+                panic!("this lane classifies at f64, so the gap is one number: {gap:?}")
+            };
             assert!((gap - 1.0).abs() < 1e-9, "the gap is the box side");
             // The box's opposite cap edges are PARALLEL with opposed
             // inward normals, which is exactly the configuration in
@@ -343,6 +346,9 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
                 margin.value().is_some_and(|m| m > 0.0),
                 "a 90° kink has a definitely positive margin"
             );
+            let MarginDiag::Value(arm) = arm else {
+                panic!("this lane classifies at f64, so the arm is one number: {arm:?}")
+            };
             assert!(arm > 0.0);
         }
         other => panic!("expected a G1 refusal, got {other:?}"),
