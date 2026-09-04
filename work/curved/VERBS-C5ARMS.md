@@ -1,10 +1,10 @@
 ---
 id: VERBS-C5ARMS
-kind: issue
+kind: unit
 title: the two C5 section arms — cone×cylinder remains
-status: open
+status: dispatched
 opened: 2026-09-01
-branch: verbs/c5arms-2
+branch: curved/c5arms-2
 refs: [1057]
 ---
 
