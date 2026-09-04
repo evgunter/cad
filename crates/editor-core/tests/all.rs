@@ -175,6 +175,10 @@ mod m10_7_census_probe;
 mod m10_7_lever;
 #[path = "m10_7_plate.rs"]
 mod m10_7_plate;
+#[path = "m10_7_r1_probes_interval.rs"]
+mod m10_7_r1_probes_interval;
+#[path = "m10_7_r1_census_probe.rs"]
+mod m10_7_r1_census_probe;
 #[path = "m10_7_probe_interval.rs"]
 mod m10_7_probe_interval;
 #[path = "m10_di_dual_corpus.rs"]
