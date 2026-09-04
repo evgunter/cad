@@ -75,7 +75,7 @@ use pncad::document::{
     Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, Datum, Dimension,
     DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame,
     InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind,
-    ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, apply, assemble,
+    ProfileDoc, ProfileProgram, RecipeNodeId, apply, assemble,
     content_pin, evaluate, inline, load, mixed_pins, parse_expr, product_named, save,
     solve_document, split,
 };
@@ -176,23 +176,14 @@ fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol) {
     *doc = applied.doc;
 }
 
-/// A rectangle in the sketch plane from two Expr corners — the
-/// parametric spelling of `LoopProgram::polygon`, which only takes
-/// literals.
-///
-/// GAP (#948): a parametric author writes the five steps by hand. The
-/// document's own doc comment says so ("parametric authors write the
-/// steps with their own Exprs"), and this function is what every
-/// parametric consumer will write until the loop vocabulary grows an
-/// Expr-bearing rectangle.
+/// A rectangle in the sketch plane, its width and height carried as
+/// document expressions: the polygon builder at Expr corners.
 fn rect(w: &Expr, h: &Expr, zero: &Expr) -> LoopProgram {
-    let pt = |x: &Expr, y: &Expr| ProgramTarget::Point([x.clone(), y.clone()]);
-    LoopProgram::Chain(vec![
-        ProgramStep::At([zero.clone(), zero.clone()]),
-        ProgramStep::LineTo(pt(w, zero)),
-        ProgramStep::LineTo(pt(w, h)),
-        ProgramStep::LineTo(pt(zero, h)),
-        ProgramStep::LineTo(ProgramTarget::Start),
+    LoopProgram::polygon_expr([
+        [zero.clone(), zero.clone()],
+        [w.clone(), zero.clone()],
+        [w.clone(), h.clone()],
+        [zero.clone(), h.clone()],
     ])
 }
 
