@@ -16,9 +16,12 @@
 
 use crate::common;
 
-use pncad::document::{CancelToken, EvalOptions, NodeResult, evaluate};
+use pncad::document::{
+    Alignment, AxisSense, CancelToken, EvalOptions, MateFrame, MatePrimitive, NodeResult, evaluate,
+};
 use pncad::geom_core::Tol;
-use viewer::session::DocSession;
+use pncad::select::ContactClass;
+use viewer::session::{DocSession, SessionOp};
 use viewer::tree::{self, RowStatus};
 
 #[test]
@@ -153,4 +156,140 @@ fn the_tree_marks_the_documents_product_roots() {
             .map(|row| row.kind),
         Some("Profile")
     );
+}
+
+/// **A refused mate solve badges the MATE as the cause and everything
+/// else it reached as downstream.**
+///
+/// The kernel records one cluster refusal against every instance in
+/// the cluster and every mate holding it together, each as that node's
+/// own `Failed` — mates and instances are DAG leaves, so the placement
+/// solve poisons across a graph the result DAG has no edges for. The
+/// tree must not read that verbatim: the fault names the mate it is
+/// about, so that mate's row is the cause and every other row it
+/// reached — including instances the mate does not touch, and the
+/// other mate in the cluster — reads as downstream of it.
+#[test]
+fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("badge-refusal", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+
+    // Two seat mates joining all three instances into ONE cluster:
+    // post_a under the shelf's middle, post_b under its quarter point.
+    // The second carries a clocking rider on a frame coincidence,
+    // which the coset table decides against (`mate_clocking_redundant`
+    // — a coincidence has already pinned the roll).
+    let seat = |b_x: f64, clocking: Option<f64>| Alignment {
+        a: MateFrame {
+            origin: [
+                common::asm::POST_SECTION / 2.0,
+                common::asm::POST_SECTION / 2.0,
+                common::asm::POST_HEIGHT,
+            ],
+            axis: [0.0, 0.0, 1.0],
+            reference: [1.0, 0.0, 0.0],
+        },
+        b: MateFrame {
+            origin: [b_x, common::asm::SHELF_DEPTH / 2.0, 0.0],
+            axis: [0.0, 0.0, -1.0],
+            reference: [1.0, 0.0, 0.0],
+        },
+        primitive: MatePrimitive::FrameCoincidence,
+        sense: AxisSense::Opposed,
+        clocking,
+    };
+    let add_mate = |session: &mut DocSession, post, alignment| {
+        common::insert(
+            session,
+            SessionOp::AddMate {
+                a: common::asm::in_part(post, &bench.post_top),
+                b: common::asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+                class: ContactClass::Rest,
+                alignment,
+            },
+        )
+    };
+    let sound = add_mate(
+        &mut session,
+        bench.post_a,
+        seat(common::asm::SHELF_LENGTH / 2.0, None),
+    );
+    let offender = add_mate(
+        &mut session,
+        bench.post_b,
+        seat(common::asm::SHELF_LENGTH / 4.0, Some(0.3)),
+    );
+    // ONE evaluation over both mates. Pumping between them leaves the
+    // sound mate's row reading `Ok` off the memo — a mate's key does
+    // not carry the solve, so a cluster that breaks around it does not
+    // re-run it. That is kernel behaviour this row neither exercises
+    // nor endorses; what it pins is the attribution.
+    session.pump();
+
+    let rows = session.tree_rows();
+    assert!(tree::has_faults(&rows), "the cluster refused: {rows:?}");
+    let status_of = |id| {
+        rows.iter()
+            .find(|row| row.id == id)
+            .map(|row| row.status.clone())
+            .unwrap_or_else(|| panic!("node {id:?} has a row"))
+    };
+
+    // The offending mate is the cause, and the only row that is.
+    let RowStatus::Failed { message } = status_of(offender) else {
+        panic!(
+            "the offending mate carries the cause: {:?}",
+            status_of(offender)
+        );
+    };
+    assert_eq!(status_of(offender).badge(), "FAILED");
+    assert!(
+        message.contains("mate_clocking_redundant"),
+        "the kernel's own words on the mate's row: {message}"
+    );
+    let causes: Vec<_> = rows
+        .iter()
+        .filter(|row| matches!(row.status, RowStatus::Failed { .. }))
+        .map(|row| row.id)
+        .collect();
+    assert_eq!(
+        causes,
+        vec![offender],
+        "exactly one actionable row, and it is the mate the fault names"
+    );
+
+    // Every other row the refusal reached reads as downstream of it —
+    // the two posts, the shelf, and the sound mate. `post_a` is the
+    // row the issue is about: the offending mate does not touch it.
+    for (id, what) in [
+        (
+            bench.post_a,
+            "an instance the offending mate does not touch",
+        ),
+        (bench.post_b, "an instance the offending mate does touch"),
+        (bench.shelf_i, "the shelf the cluster hangs from"),
+        (sound, "the sound mate in the refused cluster"),
+    ] {
+        match status_of(id) {
+            RowStatus::Poisoned { through, message } => {
+                assert_eq!(through, offender, "{what} points at the offending mate");
+                assert_eq!(
+                    message,
+                    Some(format!("node {} failed: {}", offender.0, {
+                        let (_, ev) = session.landed_pair().expect("landed");
+                        match ev.result(offender) {
+                            Some(NodeResult::Failed(error)) => error.kind.to_string(),
+                            other => panic!("the offending mate failed, got {other:?}"),
+                        }
+                    })),
+                    "{what} shows the CAUSE's own rendering"
+                );
+            }
+            other => panic!("{what} must read as downstream, got {other:?}"),
+        }
+        assert_eq!(status_of(id).badge(), "POISONED", "{what}");
+    }
+
+    std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
 }

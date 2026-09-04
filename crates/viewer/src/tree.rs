@@ -16,6 +16,23 @@
 //! which order, at what indentation, and which of them the selection
 //! is on.
 //!
+//! # A mate refusal poisons across the placement graph, not the DAG
+//!
+//! Mates and instances are DAG LEAVES — a mate's references are names,
+//! not edges — so the placement solve is one shared computation the
+//! result DAG has no edges for. When a cluster refuses, the kernel
+//! records the SAME typed fault against every instance in that cluster
+//! and every mate holding it together, and each of those nodes reports
+//! it as its own `Failed`. Read verbatim that draws four identical
+//! FAILED badges and sends the eye nowhere.
+//!
+//! The fault itself resolves that: every `MateFault` arm names its
+//! subject, and the subject is a mate node. So a row whose id the fault
+//! NAMES is the cause and stays `Failed`; a row the same fault merely
+//! reached is [`RowStatus::Poisoned`] through the mate that is named.
+//! This is still the payload's own opinion, not one invented here — the
+//! only thing read is which node the kernel's own words point at.
+//!
 //! # Order and depth
 //!
 //! Rows follow `Evaluation::order` — the evaluation's own
@@ -41,7 +58,10 @@
 
 use std::collections::BTreeMap;
 
-use pncad::document::{Datum, Doc, Evaluation, Node, NodeResult, ProfileProgram, RecipeNodeId};
+use pncad::document::{
+    Datum, Doc, Evaluation, MateFault, Node, NodeError, NodeErrorKind, NodeResult, ProfileProgram,
+    RecipeNodeId,
+};
 
 /// A node's status, as the tree draws it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -54,14 +74,26 @@ pub enum RowStatus {
         /// `NodeError`'s `Display`.
         message: String,
     },
-    /// An ancestor failed, so this node was never run.
+    /// The failure this row shows is not its own: it is downstream of
+    /// a failure at `through`.
+    ///
+    /// Two things arrive here. A DAG descendant of a failed node, which
+    /// the evaluation itself reports as poisoned and never ran; and an
+    /// instance or mate the placement solve left without a pose because
+    /// some OTHER mate in its cluster refused (the module header's
+    /// second section), which the evaluation reports as its own
+    /// `Failed` because the placement graph is not the DAG.
     Poisoned {
-        /// The nearest failed ancestor.
+        /// The node whose failure this row is downstream of: the
+        /// nearest failed DAG ancestor, or the mate a solve refusal
+        /// names as its subject. Either way it is a node the
+        /// evaluation reports as `Failed`, so the chain is walkable in
+        /// one hop.
         through: RecipeNodeId,
-        /// That ancestor's error, rendered by the payload itself.
-        /// `None` only if the evaluation's poison chain does not end
-        /// at a failure — a broken invariant this reports as absence
-        /// rather than papering over with an invented cause.
+        /// That node's error, rendered by the payload itself.
+        /// `None` only if the chain does not end at a failure — a
+        /// broken invariant this reports as absence rather than
+        /// papering over with an invented cause.
         message: Option<String>,
     },
     /// The node has no entry in this evaluation: past a cancelation's
@@ -224,9 +256,11 @@ fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatu
     match ev.result(id) {
         None => RowStatus::Unevaluated,
         Some(NodeResult::Ok(_)) => RowStatus::Ok,
-        Some(NodeResult::Failed(error)) => RowStatus::Failed {
-            message: error.to_string(),
-        },
+        Some(NodeResult::Failed(error)) => {
+            downstream_of_mate(id, error, ev).unwrap_or_else(|| RowStatus::Failed {
+                message: error.to_string(),
+            })
+        }
         Some(NodeResult::Poisoned { through }) => RowStatus::Poisoned {
             through: *through,
             // `node_error` walks the one `through` hop to the failed
@@ -236,6 +270,74 @@ fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatu
             message: ev.node_error(id).map(ToString::to_string),
         },
     }
+}
+
+/// The mates a solve refusal BLAMES — the nodes the fault's own words
+/// point the user at.
+///
+/// Exhaustive on purpose: a fault arm the kernel grows must decide
+/// here whether it names a mate, rather than falling into a wildcard
+/// and silently drawing every reached row as downstream of nothing.
+/// [`MateFault::Band`] names none — no band, no decisions, so no mate
+/// is more at fault than any other — and a fault that names none
+/// leaves every row it reached reading as its own failure, which is
+/// the honest rendering of a cause that is the run's tolerance.
+fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
+    match fault {
+        MateFault::Frame { mate, .. }
+        | MateFault::ClassNotAdmitted { mate }
+        | MateFault::TableLacks { mate, .. }
+        | MateFault::Indeterminate { mate, .. }
+        | MateFault::Under { mate, .. }
+        | MateFault::DanglingHead { mate, .. }
+        | MateFault::SelfMate { mate, .. } => vec![*mate],
+        MateFault::Band { .. } => Vec::new(),
+        // A contradiction is a claim about a PAIR of mates: neither is
+        // the wrong one on the fault's own telling, so both read as
+        // causes and the user picks which to relax. When one mate
+        // contradicts itself the pair collapses to one row.
+        MateFault::Contradictory { held, added, .. } => {
+            if held == added {
+                vec![*held]
+            } else {
+                vec![*held, *added]
+            }
+        }
+    }
+}
+
+/// The downstream reading of a node's own `Failed`, when a mate
+/// refusal reached it without naming it.
+///
+/// `None` — so the row keeps its own `Failed` — when the failure is
+/// not a mate refusal, when the fault names no mate at all, or when
+/// this row IS one of the mates it names.
+fn downstream_of_mate(
+    id: RecipeNodeId,
+    error: &NodeError,
+    ev: &Evaluation<f64>,
+) -> Option<RowStatus> {
+    let NodeErrorKind::Mate(fault) = &error.kind else {
+        return None;
+    };
+    let blamed = blamed_mates(fault);
+    if blamed.contains(&id) {
+        return None;
+    }
+    // The first named mate, which is document order: the solve names
+    // `held` before `added`, and every other arm names one.
+    let through = *blamed.first()?;
+    Some(RowStatus::Poisoned {
+        through,
+        // The CAUSE's own rendering, not this row's copy of the fault:
+        // the message a user reads under a downstream badge is the
+        // failed mate's error, exactly as a DAG-poisoned row shows its
+        // ancestor's.
+        message: ev
+            .result(through)
+            .and_then(NodeResult::error)
+            .map(ToString::to_string),
+    })
 }
 
 /// Whether any row reports a failure or a poisoning — what a chrome

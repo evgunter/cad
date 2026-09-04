@@ -2780,10 +2780,16 @@ impl ViewerBehavior<'_> {
             }
             match &row.status {
                 RowStatus::Ok => {}
-                RowStatus::Unevaluated => {
+                // A row the user cannot act on draws quiet: nothing
+                // ran here, and nothing here is the thing to fix.
+                RowStatus::Unevaluated | RowStatus::Poisoned { .. } => {
                     ui.weak(row.status.badge());
                 }
-                RowStatus::Failed { .. } | RowStatus::Poisoned { .. } => {
+                // The ACTIONABLE row — the node whose own operation
+                // refused — is the only one that takes the colour, so
+                // a document with one broken feature and six rows
+                // downstream of it sends the eye to the one.
+                RowStatus::Failed { .. } => {
                     ui.colored_label(chrome(self.theme.unresolved), row.status.badge());
                 }
             }
