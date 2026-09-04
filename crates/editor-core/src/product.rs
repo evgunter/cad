@@ -85,7 +85,7 @@ use topo::{AtRestPolicy, Body, ContactRecords, ValidationError};
 
 use crate::doc::Doc;
 use crate::eval::{BooleanValue, Evaluation, NodeResult, NodeValue, SplitSide, ValuePayload};
-use crate::names::{EntityKey, EntityRef, Entry, NameTable, StableName};
+use crate::names::{EntityKey, EntityRef, Entry, NameTable, SplitHalf, StableName};
 use crate::node::RecipeNodeId;
 use geom_core::Tol;
 
@@ -268,6 +268,12 @@ impl core::error::Error for ProductError {}
 /// (the `BooleanBody` contract, which predates the channel), every
 /// other op's ride [`crate::eval::NodeValue::contacts`]. Downstream
 /// therefore never asks which op put records where.
+///
+/// A [`crate::Node::Part`] is a `Body` value and contributes exactly
+/// the body it selected. The half or instance it did NOT select is in
+/// no product through it: a split or a pattern consumed by a Part is
+/// no longer a sink, so it is no longer a root, and the product of a
+/// document whose only root is a `Part(Above)` is that one half.
 pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
     let carried = || Arc::clone(&value.contacts);
     let none = || Arc::new(ContactRecords::default());
@@ -293,15 +299,16 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
                 })
                 .collect(),
         ),
-        // Split's halves are output bodies 0 (above) and 1 (below);
-        // an EMPTY half contributes nothing but does not shift the
-        // other half's index — the index is the value's layout, not a
-        // position in this list.
+        // Split's halves are output bodies by `SplitHalf::output_body`
+        // (the one definition of that mapping); an EMPTY half
+        // contributes nothing but does not shift the other half's
+        // index — the index is the value's layout, not a position in
+        // this list.
         ValuePayload::Split { above, below } => Some(
-            [(0u32, above), (1u32, below)]
+            [(SplitHalf::Above, above), (SplitHalf::Below, below)]
                 .into_iter()
-                .filter_map(|(ix, side)| match side {
-                    SplitSide::Body(body) => Some((ix, Arc::clone(body), none())),
+                .filter_map(|(half, side)| match side {
+                    SplitSide::Body(body) => Some((half.output_body(), Arc::clone(body), none())),
                     SplitSide::Empty => None,
                 })
                 .collect(),

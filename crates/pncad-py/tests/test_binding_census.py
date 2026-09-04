@@ -720,6 +720,29 @@ FAMILIES = {
         "B-DISTRIBUTIONS records, and without B-DISTRIBUTIONS's sharp "
         "edge, because no existing write door silently drops a measure"
     ),
+    "B-FACE-FRAME": (
+        "the derived sketch frame's Python surface (DOCM-1, "
+        "DOCM-REFERENCES-DESIGN DM1/DM1a/DM2); closing it binds "
+        "`Datum.face_frame` (a `FaceFrame` constructor taking the body "
+        "node, a face `StableName` and a spin angle), `Pose.sense` (the "
+        "face's orientation sense the read-back now carries beside its "
+        "axis, so a Python caller forms the outward normal as "
+        "`sense * axis` exactly as Rust does), and the carrier-kind read "
+        "`face_carrier_kind` (a face name in, its stored `SurfaceKind` "
+        "tag out — the value \"is this face planar\" is a comparison "
+        "of). Today Python can evaluate and read a document that "
+        "carries a derived frame, and cannot author one or ask a face "
+        "its kind"
+    ),
+    "B-PART": (
+        "the projection node's Python surface (DOCM-2, "
+        "DOCM-REFERENCES-DESIGN DM3); closing it binds `Node.part` (a "
+        "`PartSelect` constructor pair: a split's half by `SplitHalf`, "
+        "a pattern's instance by a Count expression) and the "
+        "`SlotId.Instance` structural slot it carries. Today Python can "
+        "evaluate and read a document that carries a Part — its value "
+        "is a plain body — and cannot author one"
+    ),
 }
 
 #: Curated names with no Python spelling at all, by family.
@@ -1497,6 +1520,14 @@ NOT_BOUND = {
     "MinClearanceRefusal": f"{GAP}: B-MEASURES measurement authoring",
     "MeasureUnavailableAt": f"{GAP}: B-MEASURES measurement authoring",
     "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
+    # --- gap: the derived sketch frame's read door (census-owned) --
+    # The Rust door is DOCM-1's; its Python twin, with `Datum.face_frame`
+    # and `Pose.sense`, is LIB's and the family charters all three.
+    "face_carrier_kind": f"{GAP}: B-FACE-FRAME the derived frame's surface",
+    # --- gap: the projection node's selector (census-owned) --
+    # The Rust node is DOCM-2's; its Python twin, `Node.part`, is
+    # LIB's and the family charters it.
+    "PartSelect": f"{GAP}: B-PART the projection node's surface",
     "WrittenAngle": f"{GAP}: B-NOTATION authored notation",
     "WrittenLength": f"{GAP}: B-NOTATION authored notation",
     "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",

@@ -51,7 +51,7 @@ fn face_name() -> StableName {
     StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId(7),
-        path: vec![RoleSeg::Cap(CapEnd::Top)],
+        path: vec![RoleSeg::Cap(CapEnd::End)],
     }
 }
 
@@ -629,7 +629,7 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
     let edge_name = StableName {
         kind: EntityKind::Edge,
         node: RecipeNodeId(7),
-        path: vec![RoleSeg::Cap(CapEnd::Top)],
+        path: vec![RoleSeg::Cap(CapEnd::End)],
     };
 
     let reference = AssemblyError::Reference {

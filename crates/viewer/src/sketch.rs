@@ -30,6 +30,9 @@
 //! layer's questions, asked at replay — by the edit door on commit,
 //! and by [`preview`] before it, which is the same ladder run for the
 //! picture instead of for the verdict.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
     Datum, DatumValue, Dimension, DimensionError, Doc, Evaluation, Expr, LoopProgram, Node,
@@ -481,7 +484,12 @@ pub fn frame_placement(
     evaluation: &Evaluation<f64>,
     frame: RecipeNodeId,
 ) -> Option<SketchPlane<f64>> {
-    if !matches!(doc.node(frame), Some(Node::Datum(Datum::Frame { .. }))) {
+    // Either frame kind: what is drawn is the landed VALUE, which both
+    // produce.
+    if !matches!(
+        doc.node(frame),
+        Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
+    ) {
         return None;
     }
     let ValuePayload::Datum(DatumValue::Frame { origin, u, v }) = &evaluation.value(frame)?.payload
@@ -501,7 +509,12 @@ pub fn frames(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
     doc.order()
         .iter()
         .copied()
-        .filter(|id| matches!(doc.node(*id), Some(Node::Datum(Datum::Frame { .. }))))
+        .filter(|id| {
+            matches!(
+                doc.node(*id),
+                Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
+            )
+        })
         .collect()
 }
 

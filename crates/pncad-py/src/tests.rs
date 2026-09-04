@@ -1661,14 +1661,21 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_resolve",
             "declare_unsupported_pair",
             "degenerate_direction",
+            "derived_frame_section",
+            "empty_half",
             "empty_operand",
             "escalated",
             "expr",
             "extrude",
+            "face_frame_kind",
+            "face_frame_not_planar",
+            "face_frame_readback",
+            "face_frame_resolve",
             "fillet",
             "fillet_selection_empty",
             "fillet_selection_kind",
             "fillet_selection_resolve",
+            "instance_out_of_range",
             "loft",
             "measure_clearance_refused",
             "measure_malformed",
@@ -2501,8 +2508,8 @@ fn read_tag_table(source: &str) -> TagTable {
 /// `part_fault`, `placement_rule_fault`, `product`,
 /// `recorded_program`, `refused_ref`, `resolve_fault`, `root_fault`,
 /// `solid_name`, `split`, `stl`, `update` — have none, and between
-/// them hold 192 of the table's 354 literals, `edit_error_tag`'s
-/// fifty and `node_error_tag`'s fifty-four included. For those the
+/// them hold 199 of the table's 361 literals, `edit_error_tag`'s
+/// fifty and `node_error_tag`'s sixty-one included. For those the
 /// inventory below is the ONLY thing between a rename and a broken
 /// caller. That is a large gain over nothing; it is not the same claim
 /// as "the tag table is verified", and this comment refuses to make
@@ -2539,7 +2546,7 @@ fn the_whole_tag_table_matches_its_committed_inventory() {
 
     // The floors: a reader that came back with nothing, or with a
     // plausible-looking handful, must red rather than pass vacuously.
-    // They are set well under the real numbers (37 functions, 354
+    // They are set well under the real numbers (37 functions, 361
     // literal occurrences) so ordinary churn does not touch them.
     assert!(
         table.functions.len() >= 30,

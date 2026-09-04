@@ -12,8 +12,9 @@ use topo::{EdgeKey, FaceKey, VertexKey};
 use super::role::{EntityKind, StableName};
 
 /// One named entity: which output body of the node, and what in it.
-/// (`body` indexes the node's output bodies — 0 for single-body ops;
-/// split: 0 = above, 1 = below; pattern: the instance index.)
+/// (`body` indexes the node's output bodies — 0 for single-body ops; a
+/// split's halves by [`crate::names::SplitHalf::output_body`]; a
+/// pattern's instances by instance index.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EntityRef {
     /// Output-body index within the node's value.
@@ -167,5 +168,55 @@ impl NameTable {
     /// Iterates rows in name order (deterministic).
     pub fn iter(&self) -> impl Iterator<Item = (&StableName, &Entry)> {
         self.forward.iter()
+    }
+
+    /// **The table of ONE output body, as a single-body table**: the
+    /// rows whose [`EntityRef::body`] is `body`, each re-keyed to body
+    /// 0 — a `Body` value is body 0 to every reader — with every name
+    /// VERBATIM. Nothing is minted and no segment is added, so a name
+    /// that resolved in the whole table resolves here to the same
+    /// entity, and a name of another body finds no row at all rather
+    /// than a congruent one.
+    ///
+    /// A tie keeps the candidates in the selected body and is dropped
+    /// when none is; the survivors narrow exactly as an op's do — one
+    /// survivor is `Unique`, several stay `Tied` — through the ONE
+    /// narrowing rule the emitter's flush also writes by
+    /// (`defer::narrow_into`). A tie CAN straddle two output bodies:
+    /// a pass-through entity keeps its upstream name with no side
+    /// tag, so a split that separates two tied candidates without
+    /// cutting either holds one in each half. The projection is what
+    /// separates them, and the split's own table stays `Tied`.
+    ///
+    /// # Errors
+    ///
+    /// [`DuplicateName`], the insert doors' own. Not reachable by
+    /// construction — the source rows are distinct names over
+    /// distinct entities within one body, and re-keying one body's
+    /// rows keeps both distinct — but carried as the typed result
+    /// rather than unwrapped: this crate has no panic paths.
+    pub fn project(&self, body: u32) -> Result<NameTable, DuplicateName> {
+        let rekey = |e: &EntityRef| EntityRef {
+            body: 0,
+            key: e.key,
+        };
+        let mut out = NameTable::new();
+        for (name, entry) in &self.forward {
+            match entry {
+                Entry::Unique(e) => {
+                    if e.body == body {
+                        out.insert(name.clone(), rekey(e))?;
+                    }
+                }
+                Entry::Tied(es) => {
+                    let kept: Vec<EntityRef> =
+                        es.iter().filter(|e| e.body == body).map(rekey).collect();
+                    if !kept.is_empty() {
+                        super::defer::narrow_into(&mut out, name.clone(), kept)?;
+                    }
+                }
+            }
+        }
+        Ok(out)
     }
 }

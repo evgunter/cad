@@ -175,8 +175,8 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
         post_b,
         post: post_ref,
         shelf: shelf_ref,
-        post_top: cap_of(&post, CapEnd::Top, tol),
-        shelf_bottom: cap_of(&shelf, CapEnd::Bottom, tol),
+        post_top: cap_of(&post, CapEnd::End, tol),
+        shelf_bottom: cap_of(&shelf, CapEnd::Start, tol),
     }
 }
 
