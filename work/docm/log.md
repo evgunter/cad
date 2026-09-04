@@ -251,3 +251,24 @@ directories per lane. Both lanes running concurrently on the frozen
 head. The unit's log entry waits for the dual's conclusion. Filed at
 merge, not before: `LIB-B-PART` (the census family the unit chartered)
 and the bit-identity gate reader's finding.
+
+## DOCM-2 MERGED (2026-09-04, PR 1860, ordinal 1803, sample #129)
+
+Block DOCM-B2 slot 0 (FABLE), concluded; slots 1–2 (OPUS, OPUS) remain
+for the next kernel units. Three phases: the stop at `wire_split`'s
+one-source stamping (fixed in-fence — a latent kernel defect
+unreachable before a Part could take two pieces of one split) and at
+topo's two channel-less same-source assertions (ruled no evidence;
+fence widened to those two sites); the build under the amendment; then
+the v6 dual (R1 fable NOT-MERGEABLE-AS-IS 1/2/3, R2 opus
+APPROVE-WITH-FIXES 1/4/4) and its union fix pass. One MAJOR, bilateral,
+reproduced by the orchestrator: the table projection refused a tie
+straddling the two halves, which a pass-through tie carried into a
+split produces; ruled that the projection narrows survivors by the one
+rule the emitter's flush already writes by. No unilateral MAJOR — the
+pair adds nothing to the tally. Filed: `LIB-B-PART`; by the fix pass,
+the bit-identity gate's reader (`work/issues/`) and the two-Parts-at-
+one-boolean diagnosis (DOCM's slate). The spec is deleted into the
+ledger. Next: the remaining slate needs rulings before the next kernel
+unit — the union declaration channel (Ev's), then the instantiation
+seam, the check-registry subject and the certified range query.
