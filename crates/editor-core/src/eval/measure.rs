@@ -428,7 +428,7 @@ fn parallel<T: Decide>(
 /// boundary it cannot walk, so a face that reaches a lever site has a
 /// walked boundary and a positive reach.
 ///
-/// **What [`reference`] does for the OTHER carriers is a defined
+/// **What [`reference()`] does for the OTHER carriers is a defined
 /// answer, not an invariant.** A [`Carrier::Line`], `Other` or `Unread`
 /// has no reference point at all, and `reference` answers the world
 /// origin with reach zero. That is not a claim that such a carrier

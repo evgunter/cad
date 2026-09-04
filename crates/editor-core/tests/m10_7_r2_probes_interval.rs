@@ -12,6 +12,13 @@
 //! Most rows are `#[ignore]`d evidence probes ([[test-suite-cost]]: a
 //! row that only prints cannot gate). The rows that ASSERT are named so
 //! and carry the claim they falsify.
+//!
+//! ITS PROBE-GATED CODE IS NOT EXECUTED BY CI — the disposition this reviewer's suite asks for. Its
+//! `probe`-gated rows are evidence: an end-to-end study printed for a
+//! reader, a ceiling re-derived, a per-predicate breakdown. None of
+//! them has a threshold to cross, so none of them can gate; what they
+//! produce is quoted in the unit's deviations with this file named. The
+//! rows that ASSERT are NOT probe-gated and run on every merge.
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]

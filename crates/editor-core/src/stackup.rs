@@ -777,7 +777,8 @@ impl ValueChannel for Dual64 {
 /// FNV-1a 64 over value-channel bits — a comparison digest for the
 /// pairing, never a content key (it hashes OUTPUTS, keyed by nothing).
 ///
-/// Its own mixer rather than [`crate::eval::memo`]'s, and the sentence
+/// Its own mixer rather than `crate::eval::memo`'s (a private module,
+/// so it is named rather than linked), and the sentence
 /// above is the reason: that one builds CONTENT KEYS, whose whole job is
 /// to be the identity of an evaluation, and reusing the key type here
 /// would make a digest that must never be treated as an identity share a

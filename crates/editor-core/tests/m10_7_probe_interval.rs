@@ -1,6 +1,15 @@
 //! Scratch probe for the M10-7 lane: what the symbolic tier does on the
 //! M10-3 fixtures. Evidence-only — it prints and asserts nothing that
 //! gates.
+//!
+//! ITS PROBE-GATED CODE IS NOT EXECUTED BY CI — and that is the disposition this file wants. Its
+//! `probe`-gated half is the CURVED-geometry freeze count that D6's
+//! measurement rests on, which needs a document big enough to be worth
+//! a minute of somebody's attention and is worth nothing as a gate: it
+//! has no threshold to cross. The numbers it prints are quoted at
+//! `SymbolicDials` and in the unit's deviations, with this file named,
+//! so a reader who doubts them re-runs it. Its ungated tests DO run on
+//! every merge.
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
