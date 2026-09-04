@@ -361,6 +361,44 @@ pub enum RoleSeg {
     FromA(Box<StableName>),
     /// An entity surviving from operand B.
     FromB(Box<StableName>),
+    /// **An entity surviving from one MEMBER of an n-ary union**
+    /// ([`crate::Node::Union`]; DM4 as amended): which member, and
+    /// which entity of it.
+    ///
+    /// The union's value is a fold of the pair verb, so the fold's own
+    /// tables carry `FromA`/`FromB` descent chains whose depth is the
+    /// member's POSITION in the list. This segment is what the union's
+    /// emitter mints instead: one wrapper, whatever the depth. A
+    /// member's names are therefore a function of the member's
+    /// identity alone — neither its position nor how many members
+    /// precede it — which is what lets a member be dropped without
+    /// renaming the rest.
+    ///
+    /// # Why the member EDGE and not just the inner name
+    ///
+    /// Because an inner name does not say which member it came from.
+    /// A pass-through op mints no name of its own (N1: a transform
+    /// adds no segment and `node` stays the original minter), so N
+    /// placements of one prototype carry N IDENTICAL tables — which
+    /// is the die's twenty-one pips exactly. Keying on the inner name
+    /// alone collapses them onto one name and the emitter refuses.
+    /// The member's own node id is the list edge, and it is the only
+    /// thing that distinguishes one member from another.
+    ///
+    /// It is a bare [`RecipeNodeId`] rather than a name, which is new
+    /// in this vocabulary, and it is the honest shape: what is being
+    /// recorded IS a recipe edge, not another entity. `Instance { i,
+    /// of }` is the precedent — a recipe-structural discriminator
+    /// beside the name it qualifies — with an id where that one has an
+    /// index, because a union's members are named by the DAG and a
+    /// pattern's instances are counted.
+    FromMember {
+        /// The member node this entity came from — a DAG edge of the
+        /// union, and the identity that makes the name position-free.
+        member: RecipeNodeId,
+        /// The entity's name in that member's own table.
+        of: Box<StableName>,
+    },
     /// A zip-minted seam entity: the crossing of an A-operand entity
     /// and a B-operand entity (edges: face × face; vertices:
     /// edge × face / face × edge), by their operand names.
@@ -533,6 +571,51 @@ pub enum RoleSeg {
         /// The master entity this instance copy corresponds to.
         of: Box<StableName>,
     },
+}
+
+/// **The bare recipe-node id a segment carries, if any** — the third
+/// question about a segment's payload, beside "which names does it
+/// embed" and "which side does it name".
+///
+/// One variant answers today: [`RoleSeg::FromMember`]'s member edge.
+/// It matters because such an id is a LOCAL node reference like the
+/// minting one — it must be re-mapped when a subgraph is copied into
+/// another document, fed to the naming key, and held to the document's
+/// mint counter when a file is read — and a walk that only visits
+/// embedded NAMES cannot see it.
+///
+/// The match is EXHAUSTIVE on purpose (the `walk_names` rule): a
+/// future variant carrying a node id must be classified here or the
+/// compile breaks, rather than defaulting to "carries none" and
+/// crossing a re-map with an id from another document's space.
+pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
+    match seg {
+        RoleSeg::FromMember { member, .. } => Some(*member),
+        name_free_seg!() => None,
+        RoleSeg::FromA(_)
+        | RoleSeg::FromB(_)
+        | RoleSeg::Seam { .. }
+        | RoleSeg::Merged(_)
+        | RoleSeg::Fragment(_)
+        | RoleSeg::SectionEdge { .. }
+        | RoleSeg::SplitFragment { .. }
+        | RoleSeg::CrossingVertex { .. }
+        | RoleSeg::OnToolVertex { .. }
+        | RoleSeg::FromTarget(_)
+        | RoleSeg::BlendFace(_)
+        | RoleSeg::CornerFace(_)
+        | RoleSeg::TrimEdge { .. }
+        | RoleSeg::FootVertex { .. }
+        | RoleSeg::CornerArc { .. }
+        | RoleSeg::BandFace(_)
+        | RoleSeg::BandTrim { .. }
+        | RoleSeg::BandFoot(_)
+        | RoleSeg::BandCross(_)
+        | RoleSeg::BandCut(_)
+        | RoleSeg::BandSlit(_)
+        | RoleSeg::InPart { .. }
+        | RoleSeg::Instance { .. } => None,
+    }
 }
 
 /// The [`RoleSeg`] variants that embed no [`StableName`], as a

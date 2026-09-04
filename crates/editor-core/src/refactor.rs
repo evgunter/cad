@@ -571,6 +571,14 @@ fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
         name_free_seg!() => seg.clone(),
         R::FromA(n) => R::FromA(one(n)?),
         R::FromB(n) => R::FromB(one(n)?),
+        // BOTH halves cross: the member edge is a local node id like
+        // the minting one, so a subgraph copied into another document
+        // carries a member reference that names a node HERE unless it
+        // is re-mapped too.
+        R::FromMember { member, of } => R::FromMember {
+            member: map.get(member).copied().ok_or(*member)?,
+            of: one(of)?,
+        },
         R::Seam { a, b } => R::Seam {
             a: one(a)?,
             b: one(b)?,
@@ -800,6 +808,9 @@ fn remap_node(
             a: id(*a)?,
             b: id(*b)?,
             declare: declare.map(id).transpose()?,
+        },
+        Node::Union { members } => Node::Union {
+            members: members.iter().map(|&m| id(m)).collect::<Result<_, _>>()?,
         },
         Node::Transform {
             input,

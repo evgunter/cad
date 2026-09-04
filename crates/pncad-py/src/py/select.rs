@@ -116,6 +116,7 @@ pub(crate) enum SegTag {
     // Boolean
     FromA,
     FromB,
+    FromMember,
     Seam,
     Merged,
     Fragment,
@@ -165,6 +166,7 @@ impl SegTag {
             Self::AxisEdge => s::SegTag::AxisEdge,
             Self::FromA => s::SegTag::FromA,
             Self::FromB => s::SegTag::FromB,
+            Self::FromMember => s::SegTag::FromMember,
             Self::Seam => s::SegTag::Seam,
             Self::Merged => s::SegTag::Merged,
             Self::Fragment => s::SegTag::Fragment,
@@ -813,6 +815,7 @@ mod growth_tripwire {
             s::SegTag::AxisEdge => SegTag::AxisEdge,
             s::SegTag::FromA => SegTag::FromA,
             s::SegTag::FromB => SegTag::FromB,
+            s::SegTag::FromMember => SegTag::FromMember,
             s::SegTag::Seam => SegTag::Seam,
             s::SegTag::Merged => SegTag::Merged,
             s::SegTag::Fragment => SegTag::Fragment,

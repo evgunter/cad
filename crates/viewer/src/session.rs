@@ -3039,8 +3039,11 @@ impl DocSession {
     /// so deleting one pip's boolean out of a die leaves that pip's
     /// body in the document, unconsumed. Reconnecting a deleted node's
     /// consumers to its input instead — splice, the CAD-conventional
-    /// delete — needs an edit that rewires a live node's inputs, which
-    /// this vocabulary does not have; it is open as issue #1324.
+    /// delete — needs an edit that rewires a live node's inputs. The
+    /// vocabulary has ONE such edit now, `DocEdit::SetMembers`, and it
+    /// reaches only the LIST inputs (a `Union`'s members, a `Loft`'s
+    /// sections): a splice has to rewire a NAMED operand, which nothing
+    /// here does. Still open as issue #1324.
     ///
     /// An id the document does not hold takes the single-edit path so
     /// the typed refusal comes from the door rather than from here.

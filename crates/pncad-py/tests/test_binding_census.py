@@ -561,6 +561,13 @@ BOUND_AS = {
     # `EditError` arms that share the tag namespace, so binding it
     # changed nothing about this entry except who noticed.
     #
+    # `InputFault` (DM5) is the same shape one door further: the rule
+    # is stated once on the node and rendered by three doors, and the
+    # two a Python caller can reach are edit doors, so it crosses as
+    # `EditError.variant` — `duplicate_input` and `too_few_members`.
+    # The third renderer is the load validator's `SnapshotError`, which
+    # this façade does not carry at all.
+    "InputFault": "EditError.variant",
     "NodeMap": "SplitOutcome.node_map",
     "PlacementRuleFault": "EditError.variant",
     "RootFault": "EditError.variant",
