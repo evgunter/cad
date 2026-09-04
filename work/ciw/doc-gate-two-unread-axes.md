@@ -2,10 +2,12 @@
 id: doc-gate-two-unread-axes
 kind: issue
 title: The two axes the rustdoc gate still cannot read after pass 3: an in-half broken link, and the not(debug_assertions) profile axis
-status: open
+status: review
 opened: 2026-08-31
 github: 1317
 refs: [1313, rustdoc-gate-disagrees-with-workspace-doc]
+pr: 1847
+branch: ciw/doc-gate-axes
 ---
 
 ## From GitHub issue 1317
