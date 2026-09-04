@@ -6,7 +6,6 @@ status: open
 opened: 2026-08-31
 github: 1411
 refs: [1400]
-needs_ev: true
 ---
 
 ## From GitHub issue 1411
@@ -86,3 +85,79 @@ a one-PR fix program cannot.
 
 Ev's call either way — and if (a) and (b) should be split into two
 rulings, that is also an answer.
+
+## RULED (Ev, PR 1731, 2026-09-04)
+
+**Both in.** The member vocabulary extends through identity-transparent
+nodes — nested patterns and pattern-of-transform alike. The
+single-level fence is NOT ratified.
+
+Ev's words, on the sequencing this orchestrator proposed: *"sounds
+good"*, against the plan below.
+
+### One rule, not two
+
+Resolve a mate head through identity-transparent nodes to the minting
+instance, composing each level's static map. That covers both cases the
+title names. What made this one question rather than two is that
+`wire_transform` is an identity-preserving pass-through by spec D2 — a
+`Transform` contributes **no `RolePath` segment** — so the head resolves
+through it exactly as it resolves through a nested pattern's chain.
+
+The natural case that decided it: **a mate onto a transformed,
+unpatterned instance is accepted today.** Add a pattern and it refuses.
+Nothing in the user's model changed between those two.
+
+### The gate, and it is not optional
+
+**`work/issues/mate-solve-is-transform-blind.md` must be fixed first or
+alongside — never after.**
+
+Measured, through ordinary doors: the solve is transform-blind and
+silent. A `Node::Transform` between an instance and mate-named material
+gives a **string-identical solved frame** with and without the
+transform, `fault = None`, `product = Ok`, and mated faces 10 apart — a
+green document with a gap where the author declared contact.
+
+The patterned form of that same shape is **loud**: it refuses
+`DanglingHead`. So the refusal this ruling retires is currently **the
+only guard on the silent half's patterned twin.** Extending the
+vocabulary without composing the transform's map converts one silent
+wrong answer into two.
+
+The characterization rows for it are on main (PR 1773) and are written
+to go **red when the bug is fixed**; their header says the fix deletes
+them rather than updating them.
+
+### The order of work
+
+1. A `derived_offset` sibling that walks the input chain and composes
+   **every pose-bearing node's map** — not just the pattern's. This is
+   the transform-blindness fix and it is the unit's first task, not a
+   follow-on.
+2. Then the vocabulary extension rides on it.
+
+The measured cost of (2), unchanged from this file's opening: `Member`
+grows from `Option<(RecipeNodeId, u32)>` to a chain, loses `Copy`, and
+it is the `BTreeMap` key for `by_pair` and `edge_of` and the thing the
+spanning tree selects its edges by. Bounded to `mate/solve.rs`, but it
+is the member-identity type the pair keying and spanning tree are built
+on, and it owes loop-closure rows for a nested member that nothing in
+the suite has today.
+
+### The coupling worth carrying
+
+From the measurement lane, and it reframes the whole question:
+
+> `member_of` decides admission on **naming** transparency; correctness
+> needs **pose** transparency. They coincide today by accident.
+
+`Transform` is the unique production node that moves geometry while
+contributing no `RolePath` segment. So the vocabulary question was
+never really about naming.
+
+### Re-homed
+
+S-MATE closed while this ruling was open. `crates/editor-core/src/mate*`
+is now **DOCM's** territory glob, so this item and its gate move there.
+Not a FIX one-PR item under any reading.
