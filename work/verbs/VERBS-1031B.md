@@ -2,7 +2,8 @@
 id: VERBS-1031B
 kind: unit
 title: the full-valence coplanar pair — issue 1031's remaining half
-status: review
+status: closed
+closed: 2026-09-04
 opened: 2026-09-03
 github: 1031
 refs: [VERBS-C5ARMS]
