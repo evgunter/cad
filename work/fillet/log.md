@@ -178,3 +178,21 @@ to the merge base by the dump; two mutants red only on concave rows;
 dispatched concurrently on the frozen head (the draw and method are in
 `docs/MODEL-AB-LOG.md`'s claim entry). The implementer's unit entry
 waits for the dual.
+
+**E2 reviewed (2026-09-04): MERGEABLE-AFTER-FIXES**, single style review
+on frozen `804aa72f` of PR [#1753](https://github.com/evgunter/cad/pull/1753).
+Twenty of twenty-two rows hold; two "unreachable" verdicts were
+falsified by executed witnesses: `FILLET3_RING_RECOURSE` reaches the
+front door off the 9-sample lattice (a 30°-turned prism with a dimple)
+and is followable; `FILLET3_GEOMETRY_RECOURSE` reaches it at a
+polygonal pocket ring and is DEAD — the class the unit exists to find.
+The headline (six `profile` sentences dead, `EscalationSite::Fillet`
+never minted) is confirmed and predates the PR; the reviewer filed it,
+with the door/validator tangency disagreement on small bends, as
+issues. Adjudicated: fix pass implementer-inherited — the two rows flip
+to the reviewer's witnesses, the geometry sentence made true, the
+fixture copies homed in `test_support` (matching H4's spellings), the
+`profile` constants behind a `test-support` feature instead of a root
+re-export, one home for the constant list, the "no witness" docs
+worded as suite facts not invariants; the under-describing recourses
+filed as their own issue.
