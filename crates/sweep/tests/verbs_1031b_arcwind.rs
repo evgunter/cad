@@ -2,13 +2,18 @@
 //! teapot cup.
 //!
 //! The cup is the live consumer of `merge_coplanar_faces`' coplanar
-//! pair: `shell_open` on the teapot's own stepped meridian leaves three
-//! full-valence coplanar pairs per side (the shoulders and their cavity
-//! twins, each seam two disjoint collinear Line segments with all four
-//! endpoints at valence 4) plus two pole-split base caps. The merge's
-//! surgery completes on all of them; what refused was the ROLE pass,
-//! because the merged annulus is bounded by circles and the winding
-//! functional was line-bounded only.
+//! pair. MEASURED composition, which is not the one the spec predicted:
+//! `shell_open` on the teapot's own stepped meridian leaves TWO
+//! full-valence coplanar pairs per side — FOUR latitude annuli in all
+//! (the two shoulders and their cavity twins, each seam two disjoint
+//! collinear Line segments with all four endpoints at valence 4) —
+//! plus two pole-split base caps: six groups, not the spec's eight.
+//! The spec's "three pairs per side" is REFUTED by the run; the
+//! remaining coplanar-adjacent pairs are the six `PeriodClosure`
+//! skips, a different refusal and not this unit's business. The
+//! merge's surgery completes on all six groups; what refused was the
+//! ROLE pass, because the merged annulus is bounded by circles and the
+//! winding functional was line-bounded only.
 //!
 //! Both rows here are measurements of doors, not of a shape: one names
 //! what the merge does, one names what the boolean gate says about the
@@ -81,7 +86,9 @@ fn teapot_cup(tol: Tol) -> Body<f64> {
     let body = teapot_pot(tol);
     let chart = plane_chart_at(&body, TOP);
     assert_eq!(chart.len(), 2, "a full revolve's cap is two half-discs");
-    topo::shell_open(&body, 1.0 / 128.0, &chart, FIT_TOL, tol).expect("the cup opens")
+    topo::shell_open(&body, 1.0 / 128.0, &chart, FIT_TOL, tol)
+        .expect("the cup opens")
+        .body
 }
 
 /// A cutter box: `x in [0.02, 0.2]`, `y in [-0.01, 0.1]`, `z in [0, 0.3]`.
@@ -113,19 +120,23 @@ fn cutter(tol: Tol) -> Body<f64> {
 /// planar branch. This row does not move with the winding arm — it is
 /// the statement that the cup's coplanar pairs are real, read by a
 /// second door that never consults `loop_winding`.
+///
+/// The PAYLOAD is pinned, not just the variant: the register cites this
+/// file as the pin for the refusals the unit's PR quotes, and a variant
+/// match alone would let the door move to a different edge silently.
 #[test]
 fn the_unmerged_cup_is_a_non_maximal_operand() {
     let tol = Tol::witness();
     let cup = teapot_cup(tol);
-    assert!(
-        matches!(
-            topo::boolean::subtract(&cup, &cutter(tol), tol),
-            Err(topo::BooleanError::NonMaximalFaces {
-                operand: topo::Operand::A,
-                ..
-            })
-        ),
-        "the unmerged cup's own coplanar pairs are what F7 refuses"
+    let out = topo::boolean::subtract(&cup, &cutter(tol), tol);
+    let Err(topo::BooleanError::NonMaximalFaces { operand, edge }) = out else {
+        panic!("the unmerged cup's own coplanar pairs are what F7 refuses, got {out:?}");
+    };
+    assert_eq!(operand, topo::Operand::A, "the cup is operand A");
+    assert_eq!(
+        format!("{edge:?}"),
+        "EdgeKey(3v1)",
+        "the same shared edge the PR quotes"
     );
 }
 
@@ -320,9 +331,22 @@ fn the_boolean_after_the_merge_reaches_the_curved_pierce_door() {
     let tol = Tol::witness();
     let (cup, _) = merge_the_cup(teapot_cup(tol), tol);
     let out = topo::boolean::subtract(&cup, &cutter(tol), tol);
-    assert!(
-        matches!(out, Err(topo::BooleanError::CurvedPierceUnsupported { .. })),
-        "the merged cup clears F7 and stops at the curved-pierce substrate, got {:?}",
-        out.map(|_| "Ok")
-    );
+    let Err(topo::BooleanError::CurvedPierceUnsupported {
+        operand,
+        face,
+        edge,
+        ..
+    }) = out
+    else {
+        panic!(
+            "the merged cup clears F7 and stops at the curved-pierce substrate, got {:?}",
+            out.map(|_| "Ok")
+        );
+    };
+    // The payload the PR quotes, pinned: it is the CUTTER's edge (B)
+    // meeting a curved face of the cup, which is what makes this the
+    // pierce lane's door and not the coplanar pair's.
+    assert_eq!(operand, topo::Operand::B, "the cutter's edge pierces");
+    assert_eq!(format!("{face:?}"), "FaceKey(3v1)", "the cup's curved face");
+    assert_eq!(format!("{edge:?}"), "EdgeKey(8v1)", "the cutter's edge");
 }

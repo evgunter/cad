@@ -75,3 +75,20 @@ base caps; six period-closure skips; tier 3 green; the re-posed twin
 identical. Neither STOP fired. The boolean after the merge is measured
 and lands on `CurvedPierceUnsupported` — the same substrate the
 gate-admission deferral closes on, reached from the other end.
+
+**The divergence this unit INTRODUCES, filed rather than carried in a
+PR description:** the port makes `merge_faces` decide conic-bounded
+cycles while `validate.rs`'s tier-3 check 6 — the same
+`bool_ring_run_winding` predicate's third site — still skips them, so a
+merged face's outer/ring roles are ASSIGNED by a functional the
+validator cannot CHECK. The unit's own MUT-2 measures the consequence:
+with the bulge correction applied backwards the cup's merge SUCCEEDS
+with every annulus inside out and `validate_geometric` stays `Ok(())`.
+Nothing regressed (check 6 skipped those loops before too) — what is
+new is that a PRODUCER now feeds the class. The divergence, that
+evidence, and the flip condition (port the arm into
+`validate.rs:3529`'s check-6 site, whose refusal-surface-change cost is
+why this unit's fence deferred it) are owned by
+`work/verbs/verbs-1031b-assigner-checker-divergence.md`, cross-recorded
+at `work/props/m6-sense-gate-recorded-residuals.md:20` — the register
+line that already owned the arc-bounded planar class's flip condition.

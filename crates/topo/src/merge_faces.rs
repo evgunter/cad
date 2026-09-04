@@ -1507,11 +1507,6 @@ impl<T: Decide> Body<T> {
             return Ok(None);
         };
         let cycle = self.loop_cycle(first).ok_or_else(corrupt)?;
-        // The carrier this half-edge rides, or `None` when anything on
-        // the way to it fails to resolve. Both guards below read the
-        // same lookup, so a torn half-edge, edge or curve leaves the
-        // cycle undecidable exactly as it did when the guard was
-        // line-only.
         // What this half-edge's carrier is to the winding sum: a chord,
         // a chord plus a closed-form bulge, or nothing this can answer
         // about. `None` when anything on the way to the carrier fails
@@ -1581,9 +1576,14 @@ impl<T: Decide> Body<T> {
             };
             let zero = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
             // `(bulge, boundary length)`. Every lookup here already
-            // resolved for `decidable` above; announcing rather than
+            // resolved for `carrier_of` above; announcing rather than
             // discarding is what keeps a body torn under us from
-            // answering a role question anyway.
+            // answering a role question anyway. That is the third
+            // divergence from `run_term`, which degrades a failed
+            // lookup to a chord — stricter here, deliberately: this
+            // site's answer decides a ROLE, and a role derived from a
+            // silently-shortened boundary is the silent-corrupt-export
+            // class the winding pass exists to close.
             let arc_term = |he| -> Result<(geom_core::Vec3<T>, T), MergeCoplanarError> {
                 let chord = || -> Result<T, MergeCoplanarError> {
                     Ok((end_point_of(he)? - point_of(he)?).norm())
@@ -2205,6 +2205,170 @@ mod winding_arm_tests {
             t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)),
             Ok(Some(Sign::Positive)),
             "chord 2A = 1 minus the bite the arc takes out of it"
+        );
+    }
+
+    /// The margin an escalation carries back, as an `f64`.
+    ///
+    /// **This is the module's one test-visible seam onto the deciding
+    /// scalar.** `loop_winding` hands back a [`Sign`] and nothing else
+    /// when it decides, so `2A/P` is unobservable from outside on the
+    /// deciding path — but an IN-BAND margin escalates typed, and
+    /// [`geom_core::MarginDiag::Value`] then carries the exact quantity
+    /// that was classified. The two rows below aim their fixtures into
+    /// that band deliberately: it is the only place the numerator and
+    /// the DENOMINATOR can both be pinned, and the denominator — the
+    /// re-metered arc-length perimeter — is otherwise invisible to any
+    /// sign assertion, because scaling a lever cannot change a sign.
+    fn escalated_margin(r: Result<Option<Sign>, MergeCoplanarError>) -> f64 {
+        match r {
+            Err(MergeCoplanarError::Escalated { diag }) => match diag.margin {
+                geom_core::MarginDiag::Value(v) => v,
+                other => panic!("expected a classified f64 margin, got {other:?}"),
+            },
+            other => panic!("expected an in-band escalation carrying its margin, got {other:?}"),
+        }
+    }
+
+    /// **The re-metering is the perimeter, and the perimeter is ARC
+    /// LENGTH** — pinned on the value, not on a sign.
+    ///
+    /// `perimeter = metered` replaces the chord perimeter wholesale on
+    /// a conic cycle. No sign assertion can see that: the lever is a
+    /// positive divisor, so doubling it, halving it or deleting the
+    /// replacement outright leaves every verdict's SIGN untouched. The
+    /// pin therefore has to read the margin itself.
+    ///
+    /// The fixture: the `a → b` side is a unit quarter arc, whose
+    /// bulge bites `π/2 − 1` out of the chord triangle; `d` is placed
+    /// so the chord area exceeds that bite by exactly `DELTA`. The
+    /// whole verdict is that residue over the loop's own perimeter —
+    /// `DELTA / P`, engineered into the ambiguity band so the value
+    /// comes back. Both terms are O(1) and cancel to ~2.6e-8, which is
+    /// still 8 orders above an f64 ulp of them, so the residue is
+    /// determined to ~1e-8 relative — far inside the assertion below.
+    ///
+    /// What it catches: `perimeter = metered` DELETED leaves the chord
+    /// perimeter (√2 for the arc's side instead of π/2 — a 3% smaller
+    /// lever, asserted below to be outside the tolerance), and the
+    /// lever DOUBLED halves the margin. Both red.
+    #[test]
+    fn the_conic_perimeter_is_re_metered_to_arc_length() {
+        let tol = Tol::witness();
+        // 2A = (chord Newell) + (bulge) = (y + 1) + (1 − π/2).
+        const DELTA: f64 = 2.56e-8;
+        let bulge_z = 1.0 - core::f64::consts::FRAC_PI_2; // R²(Δ − sin Δ), Δ = π/2
+        let y = DELTA - 1.0 - bulge_z;
+        let (a, b, d) = (
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(2.0, y, 0.0),
+        );
+        let mut t = tri(a, b, d, tol);
+        t.body
+            .set_edge_curve(
+                t.ab,
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::chart(t.surface),
+                    carrier: geom::Curve3::Circle {
+                        center: Point3::new(0.0, 0.0, 0.0),
+                        axis: -Vec3::unit_z(),
+                        radius: 1.0,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    param_start: -core::f64::consts::FRAC_PI_2,
+                    param_end: 0.0,
+                },
+                tol,
+            )
+            .unwrap();
+        // The lever, stated as the arm states it: the conic edge
+        // contributes |Δ|·R, every Line edge its chord.
+        let sides = (d - b).norm() + (a - d).norm();
+        let metered = core::f64::consts::FRAC_PI_2 + sides;
+        let chorded = (b - a).norm() + sides;
+        let expected = DELTA / metered;
+        assert!(
+            (expected - DELTA / chorded).abs() > 1e-3 * expected,
+            "the pin has teeth only if the two levers differ by more than its tolerance"
+        );
+        let got = escalated_margin(t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)));
+        assert!(
+            (got - expected).abs() <= 1e-6 * expected,
+            "the margin is the residue over the ARC-LENGTH perimeter: \
+             got {got:e}, expected {expected:e} (chord-metered would be {:e})",
+            DELTA / chorded
+        );
+    }
+
+    /// **The Ellipse arm, and both of its constants.**
+    ///
+    /// The `Ellipse` match arm reads `(axis, major, minor)`, and that
+    /// tuple is used TWICE with different meanings: `sa·sb` is the
+    /// affine area factor of the bulge, and `sa` alone is the metering
+    /// bound. Two swaps therefore go undetected by any sign row —
+    /// `(axis, minor, major)` leaves `sa·sb` alone and silently turns
+    /// the metering bound into a LOWER bound, and `(axis, major,
+    /// major)` changes only the area. This row reds under both,
+    /// because both scale the margin by exactly `major/minor` (the
+    /// first through the denominator, the second through the
+    /// numerator) and the margin itself is what is asserted.
+    ///
+    /// Same construction as the mixed row: a chord triangle with its
+    /// `a → b` side retyped, `d` placed so the chord area exceeds the
+    /// arc's bite by `DELTA` and the verdict lands in the band.
+    #[test]
+    fn an_ellipse_arc_uses_its_major_to_meter_and_both_semi_axes_for_area() {
+        let tol = Tol::witness();
+        const DELTA: f64 = 2.36e-8;
+        const MAJOR: f64 = 1.0;
+        const MINOR: f64 = 0.5;
+        // The arc runs a → b over Δ = π/2; its bulge is
+        // `major·minor·(Δ − sin Δ)` about −ẑ, i.e. NEGATIVE about +ẑ.
+        let bulge_z = MAJOR * MINOR * (1.0 - core::f64::consts::FRAC_PI_2);
+        // 2A = (chord Newell) + (bulge) = (y + MINOR) + bulge_z.
+        let y = DELTA - MINOR - bulge_z;
+        // `a` sits at the ellipse's own semi-minor tip, `b` at its
+        // semi-major tip — the two points the arc below runs between.
+        let (a, b, d) = (
+            Point3::new(0.0, MINOR, 0.0),
+            Point3::new(MAJOR, 0.0, 0.0),
+            Point3::new(2.0, y, 0.0),
+        );
+        let mut t = tri(a, b, d, tol);
+        t.body
+            .set_edge_curve(
+                t.ab,
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::chart(t.surface),
+                    carrier: geom::Curve3::Ellipse {
+                        center: Point3::new(0.0, 0.0, 0.0),
+                        axis: -Vec3::unit_z(),
+                        major: MAJOR,
+                        minor: MINOR,
+                        u_ref: Vec3::unit_x(),
+                    },
+                    param_start: -core::f64::consts::FRAC_PI_2,
+                    param_end: 0.0,
+                },
+                tol,
+            )
+            .unwrap();
+        let sides = (d - b).norm() + (a - d).norm();
+        let expected = DELTA / (core::f64::consts::FRAC_PI_2 * MAJOR + sides);
+        // What the two swaps would produce, and the proof that this
+        // row's tolerance separates them: BOTH scale the margin by
+        // `major/minor`, so one assertion covers both.
+        let swapped = expected * (MAJOR / MINOR);
+        assert!(
+            (swapped - expected).abs() > 1e-3 * expected,
+            "a major/minor swap must move the margin further than the tolerance below"
+        );
+        let got = escalated_margin(t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)));
+        assert!(
+            (got - expected).abs() <= 1e-6 * expected,
+            "the ellipse meters on `major` and takes its area from `major·minor`: \
+             got {got:e}, expected {expected:e} (either swap gives {swapped:e})"
         );
     }
 
