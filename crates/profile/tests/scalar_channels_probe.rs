@@ -54,6 +54,13 @@ fn probe_records_margin_distributions_without_changing_decisions() {
                 assert!(s.margin.abs() > s.band_zero && s.margin.abs() < s.band_escalate);
             }
             SampleOutcome::Invalid => assert!(s.margin.is_nan()),
+            // The symbolic identity tier (ERROR-DESIGN E12) decides
+            // inside `geom_core::Sym`, which this suite never
+            // instantiates: it records at bare `Probe`, so no sample
+            // here can carry that outcome.
+            SampleOutcome::SymbolicZero => {
+                panic!("no symbolic tier is installed on this path: {s:?}")
+            }
         }
     }
     // The suite's expected predicates all fired.

@@ -264,7 +264,7 @@ logged pre-draw per the protocol.
   (its third door in `geom/src/curves/boxes.rs` is outside the fence
   — filed on N's owner, not edited), S234, D95, D280, D66 (the unit
   decides sentence-vs-row; if the row, `sweep/tests` is Track T's to
-  file), D284, D287, D288; the ledger rows D57/D46/D281 (D281 is a
+  file), D284, D287; the ledger rows D57/D46/D281 (D281 is a
   per-row read, the row's own bold). Carve-outs per Substrate: D283
   (Ev's), S83/D36 (wait on P-2). Rows land per §D's conventions.
 

@@ -207,9 +207,14 @@ pub struct BooleanNaming {
     /// `merge_coplanar_faces` absorption groups `(kept, absorbed…)`,
     /// result keys.
     pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
-    /// Declared-licensed merge groups the output stage SKIPPED as
-    /// outside the never-elide inventory (M4 PR 5): faces + the
-    /// actual refusing diagnostics. The skip is visible HERE — a
+    /// Merge groups the output stage did NOT glue, as outside the
+    /// never-elide inventory (M4 PR 5) — the group's faces plus the
+    /// typed [`MergeCoplanarError`](crate::merge_faces::MergeCoplanarError)
+    /// that stopped each, carried whole. WHICH groups are recorded
+    /// here rather than refusing the whole call is the regime's own
+    /// statement, at
+    /// [`MergeCoplanarOutcome::skipped`](crate::merge_faces::MergeCoplanarOutcome::skipped),
+    /// and is not restated here. The skip is visible HERE — a
     /// consumer can see what was not glued and why; the skipped
     /// faces' in-plane descriptions are re-checked against the
     /// actual adjacency before the result ships (review F1/F2).
