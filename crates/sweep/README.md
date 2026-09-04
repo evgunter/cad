@@ -92,11 +92,14 @@ line through the centres, so the pair is coaxial by construction and
 `coaxial_arm` maps `(Sphere, Sphere)` to `BlendArm::SphereSphereTorus`;
 the centre is the crossing of the two offset circles in the meridian
 sheet through the rim (`Meridian::trace`), material sides read from
-each face's stored sense bit. A tangential pair poisons the spine
-radius and escalates at predicate 3 (`spine_regularity`). The band
-carves only on a CONVEX closed rim; a concave one (a two-sphere
-snowman's waist) refuses in `surgery::resolve_rim`, since a concave
-band adds material (`work/issues/concave-closed-rim-has-no-band.md`).
+each face's stored sense bit folded with the chain's convexity verdict
+(the ball rests on the material side of each support on a convex
+chain and in the void on a concave one — S10/S11, the one fold every
+arm spells, `plane_plane_blend`'s `signed` its precedent). A
+tangential pair poisons the spine radius and escalates at predicate 3
+(`spine_regularity`). The band carves on either material side: a
+lentil's convex equator loses material to it, a two-sphere snowman's
+waist gains it, through one surgery.
 
 **A3-2 — a valence-4 seam vertex is not a corner.** Where a chart seam
 (the `u = 0` meridian of a revolved wall) crosses an otherwise smooth
@@ -110,11 +113,12 @@ so a payload cannot disagree with its tag. `battery::is_seam_vertex`
 reads pure incidence, never convexity, which fixes the rule: **a
 recourse must be true at every site its tag can fire**.
 `FILLET3_SEAM_VERTEX_RECOURSE` therefore names the REQUEST (ask for the
-rim whole, every arc the seam split it into) and conditions the carve:
-on a convex rim the closed-rim surgery takes that multi-link closed
-chain as one annulus (`AnnulusRim::crossings`, one `SeamCrossing` per
-arc, each side's support several faces of one surface); on a concave
-rim the same request meets the material-side refusal. A pole-touching
+rim whole, every arc the seam split it into), and the closed-rim
+surgery serves it on either material side: it takes that multi-link
+closed chain as one annulus (`AnnulusRim::crossings`, one
+`SeamCrossing` per arc, each side's support several faces of one
+surface), removing material on a convex rim and adding it on a concave
+one, so the sentence conditions on nothing. A pole-touching
 body with merged caps (`merge_coplanar_faces`) hosts both arcs on one
 plane face and routes to the ladder rim, which refuses on its ring
 gate; the tag does not fire there
