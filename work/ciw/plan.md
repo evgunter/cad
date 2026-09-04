@@ -14,7 +14,29 @@ Branch prefix (the #396 convention): **`ciw/`** — unit branches
 
 Hosted CI that reports what it ran and runs what it reports. The
 territory is retired code-quality Track J's ground plus the render
-lanes and the perf emitters — files no live program owns.
+lanes and the perf emitters.
+
+**Two of those overlap live programs, and the charter said otherwise
+until 2026-09-04.** It read "files no live program owns", which is false
+and was found false by unit 5's lane when `work.py territory` warned on
+its own diff:
+
+- `docs/perf-data/*` is **PERF's** (`work/perf/program.md`, open). PERF
+  has *no orchestrator and no units* — it is a register that ranks cost
+  centres and keeps `benches/` and `docs/perf-data/` as the measurement
+  record. So it holds the record and does not do the work, which is why
+  `perf-history-cannot-identify-its-host` was re-homed here at CIW's
+  opening. CIW edits those READMEs; PERF owns what they say about
+  ranking.
+- `crates/*/tests/*` is **S-TCOST's**, and the third perf emitter lives
+  at `crates/editor-core/tests/m4_pr8_latency.rs`. Checked at unit 5's
+  merge: no open S-TCOST branch touches that file.
+
+Territory warns and does not block (`work/README.md`), and neither of
+these is a claim on the other program's work — CIW touches these paths
+only where a unit's own item sends it. A unit whose diff widens either
+overlap says so in its PR rather than letting the warning stand
+unexplained.
 
 ## Review posture
 
