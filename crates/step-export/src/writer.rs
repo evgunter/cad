@@ -80,6 +80,31 @@ pub(crate) fn certified_carrier<'a>(
     }
 }
 
+/// The subset's carrier gate: `carrier` back for anything the curve
+/// printers emit, the typed refusal for the "no description yet" NURBS
+/// placeholder — the curve-side twin of the mvfs surface placeholder,
+/// and the one live [`StepExportError::UnsupportedCurve`] case. A
+/// DESCRIBED NURBS carrier prints as `B_SPLINE_CURVE_WITH_KNOTS` and
+/// passes.
+///
+/// The gate is a function of the carrier alone, so the arm it guards
+/// is drivable without a body: no certification admits a placeholder
+/// carrier, so no `Body` in this build reaches it through the emitter.
+pub(crate) fn printable_carrier<'a>(
+    carrier: &'a Curve3<f64>,
+    edge_key: EdgeKey,
+) -> Result<&'a Curve3<f64>, StepExportError> {
+    if let Curve3::Nurbs(payload) = carrier
+        && payload.is_placeholder()
+    {
+        return Err(StepExportError::UnsupportedCurve {
+            edge: edge_key,
+            kind: "nurbs placeholder",
+        });
+    }
+    Ok(carrier)
+}
+
 /// The Part 21 emitter: id allocation and record accumulation.
 struct Writer<'a> {
     body: &'a Body<f64>,
@@ -254,7 +279,7 @@ impl<'a> Writer<'a> {
                 what: "edge he_plus end does not resolve",
             })?;
         let end = self.vertex_point(end_vertex)?;
-        let carrier = certified_carrier(self.body, edge_key, edge)?;
+        let carrier = printable_carrier(certified_carrier(self.body, edge_key, edge)?, edge_key)?;
         // The curve printers — one closed match over `Curve3`, every
         // arm an EXACT native AP214 entity (crate docs, "the analytic
         // subset"). Everything around this match is carrier-agnostic.
@@ -319,16 +344,10 @@ impl<'a> Writer<'a> {
                 let b = fmt_real(minor, "ellipse semi-minor axis")?;
                 self.emit(&format!("ELLIPSE('', #{placement}, {a}, {b})"))
             }
+            // The placeholder is already refused by
+            // `printable_carrier` above, so what reaches here is a
+            // described net.
             Curve3::Nurbs(ref payload) => {
-                if payload.is_placeholder() {
-                    // The "no description yet" carrier placeholder —
-                    // the curve-side twin of the mvfs surface
-                    // placeholder. Mid-surgery, never exportable.
-                    return Err(StepExportError::UnsupportedCurve {
-                        edge: edge_key,
-                        kind: "nurbs placeholder",
-                    });
-                }
                 self.b_spline_curve(payload.knots(), payload.control(), payload.weights())?
             }
         };
@@ -781,15 +800,20 @@ impl<'a> Writer<'a> {
                 what: "shell key does not resolve",
             })?;
         let face_keys = shell.faces.clone();
+        // `closed_shell`'s face set has a 1..* cardinality, so a
+        // faceless shell has no conformant record and refuses here
+        // rather than emitting one. The refusal precedes the face
+        // walk: nothing is emitted for a shell the writer will not
+        // finish.
+        if face_keys.is_empty() {
+            return Err(StepExportError::Corrupt {
+                what: "a shell carries no faces (CLOSED_SHELL's face set is 1..*)",
+            });
+        }
         let mut faces = Vec::with_capacity(face_keys.len());
         for face_key in face_keys {
             faces.push(self.advanced_face(face_key)?);
         }
-        // A faceless CLOSED_SHELL would violate the schema (its face
-        // set has a 1..* cardinality). Currently unreachable — an
-        // empty body refuses NothingToExport and mvfs-grade skeletons
-        // refuse in the face walk — but a latent door if a future op
-        // ever mints a shell with an empty face list.
         Ok(self.emit(&format!("CLOSED_SHELL('', ({}))", refs(&faces))))
     }
 
@@ -1119,6 +1143,14 @@ mod tests {
     /// The "no description yet" NURBS carrier refuses typed rather
     /// than printing poison — the curve-side twin of the mvfs surface
     /// placeholder, and the one live `UnsupportedCurve` case.
+    ///
+    /// The refusal is DRIVEN here, not described: `printable_carrier`
+    /// is the gate [`Writer::edge_curve`] runs, on the same carrier,
+    /// and this reaches around nothing. No body can supply the
+    /// witness instead — a placeholder carrier fails
+    /// `EdgeCurve::certify` with `CertifyError::Unimplemented`, so no
+    /// certified curve in any build holds one — which is why the gate
+    /// is a function of the carrier alone.
     #[test]
     fn the_carrier_placeholder_refuses_typed() {
         let placeholder = Curve3::<f64>::nurbs_placeholder();
@@ -1127,5 +1159,30 @@ mod tests {
         };
         assert!(payload.is_placeholder());
         assert_eq!(carrier_kind(&placeholder), "nurbs curve");
+
+        let edge = EdgeKey::default();
+        match printable_carrier(&placeholder, edge) {
+            Err(StepExportError::UnsupportedCurve { edge: named, kind }) => {
+                assert_eq!(named, edge, "the refusal names the edge it was asked about");
+                assert_eq!(kind, "nurbs placeholder");
+            }
+            other => panic!("expected UnsupportedCurve, got {other:?}"),
+        }
+
+        // The DESCRIBED twin passes the same gate: what refuses is the
+        // placeholder, never every NURBS carrier — the described net
+        // prints as B_SPLINE_CURVE_WITH_KNOTS.
+        let described = Curve3::Nurbs(
+            NurbsCurve3::new(
+                KnotVector::unit_segment(1),
+                vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
+                vec![1.0, 1.0],
+            )
+            .expect("a validated degree-1 net"),
+        );
+        assert!(
+            printable_carrier(&described, edge).is_ok(),
+            "a described NURBS carrier is printable"
+        );
     }
 }

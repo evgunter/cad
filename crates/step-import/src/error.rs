@@ -452,13 +452,13 @@ impl fmt::Display for StepImportError {
             Self::Placement { transform, source } => write!(
                 f,
                 "step import: the assembly placement stated at #{transform} refused \
-                 at the kernel’s transform door: {source:?}"
+                 at the kernel’s transform door: {source}"
             ),
             Self::Instance { solid, source } => write!(
                 f,
                 "step import: an assembly instance of the solid at #{solid} refused \
                  to graft into the result body at the kernel’s disjoint-graft door: \
-                 {source:?}"
+                 {source}"
             ),
         }
     }
