@@ -2,10 +2,11 @@
 id: transform-rigid-refuses-described-nurbs
 kind: issue
 title: transform_rigid refuses every NURBS-walled body - the arm matches the Nurbs VARIANT while its reason describes only the placeholder
-status: open
+status: review
 opened: 2026-08-31
 github: 1346
 refs: [1020]
+branch: fix/transform-rigid-nurbs
 ---
 
 ## From GitHub issue 1346
@@ -100,3 +101,82 @@ comment citing this issue — recorded, not hidden, per
 ## Home
 
 `crates/topo/src/transform.rs` is in no open program's territory glob (VERBS owns `offset_*`/`shell`/`replace_face`, S-BOOL the boolean and splitting modules, S-MATE the assembly and rest files), so this lands in `work/issues/` until a program claims the transform door.
+
+## Closed
+
+**What landed.** Both arms of `crates/topo/src/transform.rs` gate on
+`is_placeholder()` instead of on the `Nurbs` variant, and a described net
+maps by its control points with the knot vectors and the weight channel
+carried over verbatim. The refusal keeps `TransformError::NurbsPlaceholder`
+and its existing text, which is now accurate. The point map itself is
+`map_points` on `NurbsSurface` and on the `nurbs_curve!` macro (so both
+curve dimensions) — `crates/geom/src/*` is S-CERT's ground and the row is
+filed there as `work/cert/nurbs-net-point-map-helper.md`, per this
+program's `keep_out`.
+
+The nets are stored **Euclidean** with the weights in a separate channel,
+so evaluation is an affine combination of the control points and a rigid
+map — being affine — commutes with it. That is what makes the weights
+untouched and the mapped net the exact image rather than a re-fit; the
+argument, and the converse for a weighted/homogeneous storage, is written
+at both doors.
+
+`Surface::Approx` is untouched: #1020 owns that arm and its certificate
+re-derivation problem.
+
+**Tests.** `crates/sweep/tests/transform_nurbs_walls.rs` (new suite,
+registered in the existing aggregated `all.rs` binary) transforms a real
+loft body under a quarter turn plus a dyadic translation and asserts the
+commuting square — `S'(u,v) = M(S(u,v))` on a 9x9 grid per wall and
+`C'(t) = M(C(t))` at 17 parameters per carrier, agreement 1e-12 — plus
+bitwise-equal knots and weights, plus tiers 1-3 on the mapped body. Both
+rows fail on the pre-change kernel with `NurbsPlaceholder` (verified by
+reverting `transform.rs` alone and re-running). Five gate pins in
+`transform.rs`'s own `#[cfg(test)]` module hold both directions: the
+surface and carrier placeholders refuse, described nets of each map by
+their control points, and the public door refuses one and admits the other
+— so the gate cannot silently invert.
+
+**The demo.** `demos/tour/src/skinned.rs` no longer authors the second
+loft's placements at the offset. It builds the body at the origin, like its
+twin, and moves it with `pncad::topo::transform_rigid`; the gap comment and
+the three narration strings that cited this issue are gone.
+
+**What I swept for.** The class is *a refusal gated on the `Nurbs` VARIANT
+whose stated reason is the placeholder STATE*. Three patterns over
+`crates/*/src`, `demos/*/src`, `tools/*/src`:
+
+- `Surface::Nurbs(_)` / `Curve3::Nurbs(_)` / `Curve2::Nurbs(_)` literal
+  matches — ~40 hits, all variant-level facts that are true of a described
+  net too (no implicit form, no canonical frame, no analytic quadrature, the
+  trimmed tessellation lane, `SurfaceKind` classification). None fixed, none
+  wrong.
+- the same with `(..)` instead of `(_)` — no hits.
+- any of `poison` / `placeholder` / `no description yet` /
+  `unimplemented geometry` within eight lines of such a match — the only
+  hits outside `transform.rs` are `geom-brep/src/implicit.rs`'s four
+  `poison()` returns, which are correct: no NURBS surface has an implicit
+  form, described or not.
+
+No second instance of the class exists at this merge base.
+
+**What the sweep could not match.** A gate spelled through an intermediary
+(`geom_brep::SurfaceKind::Nurbs`, `topo::query`'s `Self::Nurbs`), where the
+refusal and its reason sit arbitrarily far from the match. A justification
+carried in a doc comment more than eight lines from the match it justifies.
+The mirror defect — a site gating on `is_placeholder()` where the whole
+variant should be refused — which none of the three patterns is shaped to
+find. And the sweep is accurate as of this branch's merge base.
+
+**A finding, filed not taken.**
+`work/fix/transform-recertifies-through-the-narrow-lane.md`:
+`transform_rigid` re-certifies through the plain `EdgeCurve::certify`, which
+refuses a described `Surface::Nurbs` operand of an `Intersection`, while
+tier 3 re-certifies through `recertify_nurbs_lane`, which admits it. Loft,
+sweep and skin bodies are unaffected — their wall edges are `Chart`
+descriptions, which resolve through the iso resolver that admits described
+nets — and the new acceptance row proves that path end to end. What is now
+reachable and refuses is the M7-8 plane x described-NURBS `Intersection`
+class: a body tier 3 calls valid that `transform_rigid` cannot move. The
+fix is a `T: EdgeNurbsLane` bound and the lane-wired door, a public generic
+signature change out of this unit's scope.

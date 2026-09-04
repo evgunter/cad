@@ -115,10 +115,10 @@ mod shellfix1_bitdump;
 mod shellfix1_r1_probes;
 #[path = "torax_axial.rs"]
 mod torax_axial;
-#[path = "transform_nurbs_walls.rs"]
-mod transform_nurbs_walls;
 #[path = "torax_interval.rs"]
 mod torax_interval;
+#[path = "transform_nurbs_walls.rs"]
+mod transform_nurbs_walls;
 #[path = "verbs_offc_consumer.rs"]
 mod verbs_offc_consumer;
 #[path = "verbs_offd.rs"]

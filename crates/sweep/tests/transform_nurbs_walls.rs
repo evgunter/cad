@@ -129,8 +129,12 @@ fn a_nurbs_carrier_maps_to_its_exact_image() {
 
     let mut carriers = 0usize;
     for (key, before) in body.curves() {
-        let (Some(b), Some(a)) = (before.certified(), moved.get_curve_geom(key).and_then(topo::CurveGeom::certified))
-        else {
+        let (Some(b), Some(a)) = (
+            before.certified(),
+            moved
+                .get_curve_geom(key)
+                .and_then(topo::CurveGeom::certified),
+        ) else {
             continue;
         };
         let (Curve3::Nurbs(b), Curve3::Nurbs(a)) = (b.carrier(), a.carrier()) else {
