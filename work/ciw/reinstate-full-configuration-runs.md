@@ -69,7 +69,9 @@ from the jobs API; nothing is billed, the repository is public.
   TIER=all, green, twelve `test (…)` jobs) came in at **54.0 job-minutes
   against a TIER=all sampled median of 30.1 — +23.9**, above even the
   per-tier derivation, and n=1 against a median is not like-for-like but the
-  derivation is a floor rather than a forecast.
+  derivation is a floor rather than a forecast. A second un-sampled run
+  (`33854219517`, also green, also twelve legs) came in at 44.4 job-minutes,
+  so the two bracket the derivation: +23.9 and +14.3, mean +19.1.
 * **+283 job-minutes/hour** at this window's 18.4 code-tier runs/hour;
   **+161/hour** at PR 1796's 10.3/hour over a 14.45-hour window. The two
   lanes agree on the per-run figure (+15.4 against +15.6) and differ only in

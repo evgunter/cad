@@ -1033,6 +1033,13 @@ but the honest reading is that the derivation is a floor and the first
 un-sampled run landed above it. Whether twelve concurrent legs slow each other
 is **not measured**; one run cannot tell that from ordinary variance.
 
+**Second data point, and it moves the reading toward the derivation.** Run
+`33854219517` (`b2159cf5`, green, 32 jobs, twelve `test (…)`) is the same
+TIER=all un-sampled shape at **44.4 job-minutes and 596 s wall**. So the two
+un-sampled runs are 54.0 and 44.4 against a 30.1 sampled median: **+23.9 and
++14.3, mean +19.1**, and the +18.9 derivation sits between them. n=2 is still
+n=2; no further runs are being chased, and the derivation is what to quote.
+
 **What survives unchanged**: TIER=closure is 86 % of code-tier runs and its
 **+14.9** still agrees with PR 1796's independently derived **+15.6** (that
 figure is tier-blind too, in the same way this one's first version was). The
