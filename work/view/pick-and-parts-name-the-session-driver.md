@@ -4,6 +4,7 @@ kind: issue
 title: pick and parts are vocabularies that name DocSession, so the boundary rule is false at two sites
 status: open
 opened: 2026-09-04
+refs: [1848]
 ---
 
 
