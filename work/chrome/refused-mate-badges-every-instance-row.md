@@ -7,6 +7,7 @@ opened: 2026-09-01
 github: 1463
 refs: [1461]
 branch: chrome/refused-mate-badges-every-instance-row
+pr: 1769
 ---
 
 ## From GitHub issue 1463
