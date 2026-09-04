@@ -30,7 +30,9 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
-use viewer::combine::{BooleanTool, PatternTool, SplitTool, TransformTool, denotes_body};
+use viewer::combine::{
+    BooleanTool, PatternOutputChoice, PatternTool, SplitTool, TransformTool, denotes_body,
+};
 use viewer::pick::PickKinds;
 use viewer::seats::{Seat, SeatError, SeatEvent, seat_line};
 use viewer::session::{
@@ -596,6 +598,288 @@ fn the_pattern_door_spells_its_count_structurally() {
     );
 }
 
+/// **The fused door is the affordance the boolean's refusal points
+/// at**: the same form as the pattern door — same prototype, same
+/// count, same rule — minting `Node::PlacedUnion`, whose ONE body a
+/// boolean seat consumes where a pattern's several instances are
+/// refused.
+#[test]
+fn the_fused_door_mints_one_body_a_boolean_seat_takes() {
+    let tol = Tol::witness();
+    let (mut session, part, proto) = two_boxes(tol);
+    let fused = insert(
+        &mut session,
+        SessionOp::AddPlacedUnion {
+            input: proto,
+            count: 2,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(0.05),
+            },
+        },
+    );
+    // The count slot is PRESENT and structural — the parametric
+    // spelling, which is the only one this door can mint.
+    let count = session
+        .committed_doc()
+        .node(fused)
+        .and_then(|node| node.expr(SlotId::Count))
+        .expect("a parametric placed union has a count slot");
+    assert_eq!(count.dim(), Dimension::Count);
+    assert!(count.bit_eq(&Expr::count(2)));
+    assert!(matches!(
+        session.committed_doc().node(fused),
+        Some(Node::PlacedUnion {
+            count: Some(_),
+            kind: PatternKind::Linear { .. },
+            ..
+        })
+    ));
+
+    // ONE body out, and it is the union of the prototype at both
+    // placements — where the same form's other door answers with two
+    // separate instances.
+    session.pump();
+    {
+        let eval = session.evaluation().expect("the inline seam landed");
+        let value = eval.value(fused).expect("the placed union evaluated");
+        assert!(
+            matches!(value.payload, ValuePayload::Body(_)),
+            "a placed union evaluates to one body, not to instances"
+        );
+    }
+    let vb = B[0] * B[1] * B[2];
+    let fused_volume = body_volume(&mut session, fused, tol);
+    assert!(
+        near(fused_volume, 2.0 * vb),
+        "two disjoint copies of the prototype: {fused_volume}"
+    );
+
+    // And the seat that refuses a pattern takes this: the fused group
+    // merges into the part through the ordinary boolean door.
+    let union = insert(
+        &mut session,
+        SessionOp::AddBoolean {
+            op: BooleanOp::Union,
+            a: part,
+            b: fused,
+        },
+    );
+    let va = A[0] * A[1] * A[2];
+    let volume = body_volume(&mut session, union, tol);
+    assert!(
+        near(volume, va + 2.0 * vb - OVERLAP),
+        "the part with the group fused into it: {volume}"
+    );
+}
+
+/// **Overlapping placements refuse on the fused node's own badge**,
+/// typed and named — the door authors what was asked for, and the
+/// certificate is evaluation's to issue or withhold.
+///
+/// This is the case the unfused door does not have: a `Node::Pattern`
+/// over the same rule builds regardless, because instances that
+/// overlap are still instances. It is also why the two doors are not
+/// interchangeable for a user — choosing `fused` is choosing to be
+/// told.
+#[test]
+fn overlapping_placements_refuse_on_the_fused_nodes_own_badge() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let proto = boxed(&mut session, B);
+    // A step shorter than the prototype is wide: every pair of copies
+    // meets.
+    let crowded = insert(
+        &mut session,
+        SessionOp::AddPlacedUnion {
+            input: proto,
+            count: 3,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(B[0] / 4.0),
+            },
+        },
+    );
+    // The unfused door over the SAME rule lands a value: the
+    // difference is the certificate, not the placements.
+    let loose = insert(
+        &mut session,
+        SessionOp::AddPattern {
+            input: proto,
+            count: 3,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(B[0] / 4.0),
+            },
+        },
+    );
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
+    assert!(
+        eval.value(crowded).is_none(),
+        "a group that cannot be certified disjoint has no value"
+    );
+    assert!(
+        eval.value(loose).is_some(),
+        "the unfused pattern over the same rule still evaluates"
+    );
+    let badge = tree::rows(session.committed_doc(), Some(eval))
+        .into_iter()
+        .find(|row| row.id == crowded)
+        .map(|row| row.status);
+    let Some(RowStatus::Failed { message }) = badge else {
+        panic!("the tree badge carries the node's own refusal: {badge:?}");
+    };
+    assert!(
+        message.contains("not certified disjoint"),
+        "and the refusal names what it could not certify: {message}"
+    );
+}
+
+/// **The new op round-trips**: authored, saved, reopened through the
+/// session's own doors, the document is the same one bit for bit and
+/// the same solid comes back out of it.
+///
+/// A `SessionOp` joins the REPLAY vocabulary, so this is the row that
+/// says the file carries the fused node rather than only the session
+/// that authored it.
+#[test]
+fn a_fused_pattern_round_trips_through_save_and_open() {
+    let tol = Tol::witness();
+    let mut authoring = session(tol);
+    let proto = boxed(&mut authoring, B);
+    let fused = insert(
+        &mut authoring,
+        SessionOp::AddPlacedUnion {
+            input: proto,
+            count: 3,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(0.05),
+            },
+        },
+    );
+    let volume = body_volume(&mut authoring, fused, tol);
+    let authored = authoring.committed_doc().clone();
+    let edits = authoring.history().path_edits().len();
+
+    let dir = common::tempdir("gauth4-placed-union");
+    let path = dir.join("fused.pncad");
+    assert!(
+        authoring
+            .perform(SessionOp::Save(path.clone()))
+            .refusal
+            .is_none(),
+        "save"
+    );
+    // A FRESH session, so nothing of the authoring one is carried
+    // into the answer.
+    let mut reopened = session(tol);
+    assert!(
+        reopened.perform(SessionOp::Open(path)).refusal.is_none(),
+        "open"
+    );
+    assert!(
+        reopened.committed_doc().bit_eq(&authored),
+        "the reopened document is the authored one, bit for bit"
+    );
+    assert_eq!(
+        reopened.history().path_edits().len(),
+        edits,
+        "the reopened history replays exactly the saved log"
+    );
+    let reloaded = body_volume(&mut reopened, fused, tol);
+    assert_eq!(
+        volume.to_bits(),
+        reloaded.to_bits(),
+        "same solid after reload"
+    );
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **Undo then redo returns the document to the same state**, bit for
+/// bit, with the fused node in it and its solid unchanged — the other
+/// half of joining the replay vocabulary.
+#[test]
+fn undo_and_redo_walk_the_fused_pattern_out_and_back() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let proto = boxed(&mut session, B);
+    let before = session.committed_doc().clone();
+    let states = session.history().len();
+    let fused = insert(
+        &mut session,
+        SessionOp::AddPlacedUnion {
+            input: proto,
+            count: 3,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(0.05),
+            },
+        },
+    );
+    let after = session.committed_doc().clone();
+    let volume = body_volume(&mut session, fused, tol);
+    assert_eq!(session.history().len(), states + 1, "one op, one state");
+
+    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    assert!(
+        session.committed_doc().node(fused).is_none(),
+        "the undo took the fused node out"
+    );
+    assert!(
+        session.committed_doc().bit_eq(&before),
+        "and left the document it was inserted into, bit for bit"
+    );
+    assert!(session.perform(SessionOp::Redo).refusal.is_none());
+    assert!(
+        session.committed_doc().bit_eq(&after),
+        "the redo puts back exactly what the op committed"
+    );
+    let again = body_volume(&mut session, fused, tol);
+    assert_eq!(volume.to_bits(), again.to_bits(), "the same solid, redone");
+    assert_eq!(
+        session.history().len(),
+        states + 1,
+        "the walk destroyed nothing and minted nothing"
+    );
+}
+
+/// The pattern form's output choice read as a value: both labels, the
+/// default, and which op each one commits — the chrome's radio row
+/// checked without a window.
+#[test]
+fn the_output_choice_names_both_doors_and_defaults_to_instances() {
+    assert_eq!(
+        PatternOutputChoice::ALL.map(|(output, label)| (output, label)),
+        [
+            (PatternOutputChoice::Instances, "instances"),
+            (PatternOutputChoice::Fused, "fused"),
+        ]
+    );
+    assert_eq!(
+        PatternOutputChoice::default(),
+        PatternOutputChoice::Instances
+    );
+
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = boxed(&mut session, B);
+    let mut tool = PatternTool::new();
+    tool.pick(session.committed_doc(), body);
+    for (output, label) in PatternOutputChoice::ALL {
+        let op = tool
+            .linear_op(output, 2, scl3([1.0, 0.0, 0.0]), len(0.05))
+            .expect("the body seat is filled");
+        let minted = matches!(
+            (output, &op),
+            (PatternOutputChoice::Instances, SessionOp::AddPattern { .. })
+                | (PatternOutputChoice::Fused, SessionOp::AddPlacedUnion { .. })
+        );
+        assert!(minted, "{label} commits its own op: {op:?}");
+    }
+}
+
 /// Every door that takes an existing BODY refuses mid-gesture and
 /// records nothing when it refuses — the creation vocabulary's rule,
 /// held by GAUTH-4's four arms and GAUTH-5's two.
@@ -670,6 +954,14 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
                 spacing: len(0.05),
             },
         },
+        SessionOp::AddPlacedUnion {
+            input: body,
+            count: 2,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(0.05),
+            },
+        },
         SessionOp::AddFillet {
             target: body,
             radius: len(0.001),
@@ -727,6 +1019,22 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             },
         },
         SessionOp::AddPattern {
+            input: body,
+            count: 2,
+            rule: PatternRuleSpec::Circular {
+                axis: body,
+                step: ang(1.0),
+            },
+        },
+        SessionOp::AddPlacedUnion {
+            input: plane,
+            count: 2,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(0.05),
+            },
+        },
+        SessionOp::AddPlacedUnion {
             input: body,
             count: 2,
             rule: PatternRuleSpec::Circular {
@@ -900,11 +1208,34 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     let mut pattern = PatternTool::new();
     pattern.pick(session.committed_doc(), a);
     assert!(matches!(
-        pattern.linear_op(3, scl3([1.0, 0.0, 0.0]), len(0.05)),
+        pattern.linear_op(
+            PatternOutputChoice::Instances,
+            3,
+            scl3([1.0, 0.0, 0.0]),
+            len(0.05)
+        ),
         Ok(SessionOp::AddPattern { count: 3, .. })
     ));
     assert!(matches!(
-        pattern.circular_op(3, ang(1.0)),
+        pattern.circular_op(PatternOutputChoice::Instances, 3, ang(1.0)),
+        Err(SeatError::Empty {
+            seat: Seat::PatternAxis
+        })
+    ));
+    // The output choice picks the op and changes nothing else: the
+    // same seats, the same count, the same rule — so an empty seat is
+    // still the error whichever node the form would have minted.
+    assert!(matches!(
+        pattern.linear_op(
+            PatternOutputChoice::Fused,
+            3,
+            scl3([1.0, 0.0, 0.0]),
+            len(0.05)
+        ),
+        Ok(SessionOp::AddPlacedUnion { count: 3, .. })
+    ));
+    assert!(matches!(
+        pattern.circular_op(PatternOutputChoice::Fused, 3, ang(1.0)),
         Err(SeatError::Empty {
             seat: Seat::PatternAxis
         })
