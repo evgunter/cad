@@ -238,3 +238,48 @@ S-TCOST item assumed the draw; one parked one —
 `skip-eps-battery-by-observing-oncelock` — has its premise RESTORED,
 since "the ε battery runs the whole suite at three ambient ε values" is
 true again.
+
+### 2026-09-04, the style review's fix pass
+
+Six findings, all taken. Two are the standing warning firing again on this
+lane's own work.
+
+**The wall-clock claim was wrong and it was the number that made the trade
+look free.** "The added ε legs cost ~0 wall" reasoned from the legs starting
+together; **wall follows their MAXIMUM**, and six legs have a larger maximum
+than two. Measured on TIER=all runs: **+20 s** on a run that would have drawn
+`interval` (the ε legs' own cost), **+172 s** on one that would have drawn
+`default` (mostly the interval archive), **≈ +96 s in expectation** — not the
++28 s published. The last job on the path is
+`test (interval, eps = default, 1/2)`, the first ε row's shard 1, at
+156/151/135 s across three un-sampled runs, ending at each run's wall exactly.
+
+**The trailer is now additive-only; the dispatch still narrows.** The review
+found a cut neither this lane nor the orchestrator had: the two spellings were
+one applier only while either could merely substitute one drawn point for
+another. Once one can SUBTRACT they are opposites, and `ci-filter.py`'s own
+argument decides which — a dispatch is typed by whoever is standing there, a
+trailer is copied and rides one push. So a trailer may never gate less than no
+trailer at all, and it keeps the k-lint row, which it never subtracted from. A
+narrowed run also gets a `::warning::` run-page annotation, keyed on the VALUE
+rather than on `CONFIG_SOURCE`.
+
+**Two miscounts of this lane's own.** `ci-local.sh` said "three sampled
+dimensions rather than two" where there is one — in a file this lane's own
+disposition table listed as fixed, a hundred lines below a hunk it wrote. And
+the stated sweep blind spot was wrong about itself: the survivors were not
+prose "without any of those words", they were prose the two sweep passes never
+crossed — one pass used a narrow phrase list over a broad path set, the other a
+broad pattern over ONE file — and `drawn|the draw` never matched `draws` /
+`drew` / `drawing`.
+
+**Population re-derived on a closed window: 156 runs, 72 code-tier**, against
+155/71 here and 154/72 from the review. Both were snapshots of a window still
+open. Per-tier: **+14.9** job-min TIER=closure, **+19.4** TIER=all, **+15.6**
+run-weighted — which is what the pooled figure had been measuring silently.
+
+**Filed rather than reported**: `work/issues/fillet-specs-require-a-narrowing-ci-config`
+— two live FILLET specs require `CI-Config: lane=interval` under `## Acceptance`,
+which now narrows the gate AND, since the trailer became additive-only, reds
+the classify step. Filed in `work/issues/` rather than on FILLET's slate,
+which is that program's to claim by moving.

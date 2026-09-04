@@ -1272,8 +1272,9 @@ run_row_if "$RUN_INTERVAL_ORACLE" "interval oracle (certify vs inari+MPFR)" orac
 # precisely because those five compile the tour and the kernel five times
 # over. Nothing bills this script by the minute, so it keeps running the
 # whole product, exactly as it keeps running every lane and every ε: local
-# is a strict superset of any hosted run, and that is now true of three
-# sampled dimensions rather than two.
+# is a strict superset of any hosted run, and since 2026-09-04 the k-lint
+# row is the ONE dimension that superset is about — hosted runs every lane
+# and every ε itself.
 run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
 run_row_if "$RUN_K_LINT" "demos tour suite (#99 ε pin + probes)" demos_eps_pin
 run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift

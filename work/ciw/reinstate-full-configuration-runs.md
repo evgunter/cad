@@ -41,6 +41,16 @@ ci.yml fans the three eps rows out as matrix legs over each archive — twelve
 `test (…)` jobs against today's two. `_forces_interval` (the
 `interval-transcendentals/` lane pin) goes with the draw it pre-empted.
 
+**Also in, after the style review (2026-09-04):** the `CI-Config:` trailer
+became **additive-only** — it may never gate less than no trailer at all — while
+the `workflow_dispatch` inputs keep narrowing. The two spellings were one
+applier while either could only substitute one drawn point for another; they
+are opposites once one of them can subtract, and `ci-filter.py`'s own argument
+is why: a dispatch is typed by whoever is standing there, a trailer is copied
+and rides one push. A narrowed run also emits a `::warning::` run-page
+annotation, which is the one channel that reaches a reader who never opens a
+job log.
+
 **Out, and stated rather than left to be noticed:**
 
 * **The k-lint unification row is still drawn 1-in-5.** That dimension is
@@ -55,33 +65,41 @@ ci.yml fans the three eps rows out as matrix legs over each archive — twelve
   `interval-only-selection-premise-restored`.
 * **Un-sampling does nothing about a composition no run ever compiles** (PR
   1796's subject), and nothing about a check that runs nowhere.
+* **Two live FILLET specs require the trailer this change refuses**, in a
+  clause under `## Acceptance` that also promises "the drawn point". Another
+  program's slate: filed in `work/issues/fillet-specs-require-a-narrowing-ci-config`
+  for FILLET to claim by moving.
 
 ## The measured cost
 
-Population: every `CI` run created 2026-09-04T04:00Z–07:52Z with
-`conclusion` ∈ {success, failure}: 155 runs, 71 code-tier. Per-job wall time
-from the jobs API; nothing is billed, the repository is public.
+Population: every `CI` run created 2026-09-04T04:00:00Z–07:52:14Z with
+`conclusion` ∈ {success, failure}: **156 runs, 72 code-tier**, re-derived once
+every run in the window had concluded (a first count of 155/71 was taken while
+one was still in flight). Per-job wall time from the jobs API; nothing is
+billed, the repository is public.
 
-* **+14.9 job-minutes on a TIER=closure run** (61 of 71) and **+18.9 on a
-  TIER=all run** (10 of 71), derived by summing the configuration-dependent
-  jobs at their per-tier medians. A pooled, tier-blind +15.4 was published
-  first and is corrected here: this unit's own gate run (`33853141826`,
-  TIER=all, green, twelve `test (…)` jobs) came in at **54.0 job-minutes
-  against a TIER=all sampled median of 30.1 — +23.9**, above even the
-  per-tier derivation, and n=1 against a median is not like-for-like but the
-  derivation is a floor rather than a forecast. A second un-sampled run
-  (`33854219517`, also green, also twelve legs) came in at 44.4 job-minutes,
-  so the two bracket the derivation: +23.9 and +14.3, mean +19.1.
+* **+14.9 job-minutes on a TIER=closure run** (61 of 72) and **+19.4 on a
+  TIER=all run** (11 of 72), derived by summing the configuration-dependent
+  jobs at their per-tier medians; run-weighted, **+15.6**. A pooled,
+  tier-blind figure was published first and is corrected in the document. The
+  three un-sampled runs measured directly — `33853141826`, `33854219517`,
+  `33855086594`, all green, all twelve `test (…)` jobs — came in at 54.0 /
+  44.4 / 49.7 job-minutes against a TIER=all sampled median of 30.6, so the
+  derivation is a floor rather than a forecast.
 * **+283 job-minutes/hour** at this window's 18.4 code-tier runs/hour;
   **+161/hour** at PR 1796's 10.3/hour over a 14.45-hour window. The two
   lanes agree on the per-run figure (+15.4 against +15.6) and differ only in
   how busy an hour is.
-* **Critical path**: every run now takes the interval archive's path (366 s
-  median against 273 s scoped), so a run that would have drawn `default`
-  gains the difference and one that would have drawn `interval` gains ~0. The
-  added eps legs start together behind an archive already being built. The
-  gate run's wall was **619 s against a TIER=all sampled median of 437 s
-  (+182 s)** — again above the derivation, and again n=1.
+* **Critical path, and the first version of this bullet was wrong.** It said
+  the added eps legs cost ~0 wall because they start together. They do start
+  together — but **wall follows their MAXIMUM**, and six legs have a larger
+  maximum than two. Measured on TIER=all runs: a run that would have drawn
+  `interval` goes **576 s → 596 s (+20 s, the eps legs' own cost)**; one that
+  would have drawn `default` goes **424 s → 596 s (+172 s, mostly the
+  interval archive)**; **≈ +96 s in expectation**. The last job on that path
+  is `test (interval, eps = default, 1/2)` — the first eps row's shard 1,
+  which also carries the two editor-core steps — at 156 / 151 / 135 s across
+  the three runs, ending at each run's wall exactly.
 
 The derivation, the population and the confound that rules out a
 run-total comparison are in `docs/CI-MINUTES-2026-08.md`, in the block that

@@ -970,20 +970,30 @@ consumed faster than the work justified — died when the repository went
 public on 2026-09-03.
 
 **The measurement.** Population: every `CI` workflow run created
-`2026-09-04T04:00Z`–`2026-09-04T07:52Z` with `conclusion` ∈ {success,
+`2026-09-04T04:00:00Z`–`2026-09-04T07:52:14Z` with `conclusion` ∈ {success,
 failure} (cancelled excluded — a cancelled run's job set is a truncation, not
-a sample): **155 runs, 71 code-tier** (a code-tier run is one carrying a
-`build + archive` job). Durations are per-job wall time from the jobs API;
-nothing here is a BILLED minute, because a public repository's standard-runner
-minutes are not billed.
+a sample): **156 runs, 72 code-tier** (a code-tier run is one carrying a
+non-skipped `build + archive` job). Durations are per-job wall time from the
+jobs API; nothing here is a BILLED minute, because a public repository's
+standard-runner minutes are not billed.
+
+**That population was re-derived after two readers disagreed with it**, and
+both earlier counts were wrong. This document first said 155/71 and a review
+said 154/72. The window was re-fetched once every run in it had CONCLUDED:
+**156/72**, with `build + archive (interval)` appearing on **39** runs and
+`(default)` on 38. The 155 came from a snapshot taken while one run in the
+window was still in flight, so it had no conclusion yet and was dropped. **A
+population counted from a window that is still open is a different population
+five minutes later**, which is the only interesting thing about the
+disagreement.
 
 | | today (sampled) | un-sampled |
 |---|---|---|
-| job-minutes, median code-tier run | **24.5** (n=71) | **~40** |
-| critical path, median code-tier run | **399 s** default draw / **456 s** interval draw | **~456 s**, every run |
-| `build + archive (default)` | 278 s (n=38) | unchanged |
-| `build + archive (interval)` | 368 s (n=38) | unchanged |
-| one `test (…)` leg | 46-48 s default lane, 56 s interval | unchanged |
+| job-minutes, median code-tier run | **24.7** (n=72) | **~40** |
+| critical path, median code-tier run | **399 s** default draw / **456 s** interval draw (pooled tiers) | see CORRECTION 2 — this row understates it |
+| `build + archive (default)` | 273 s scoped (n=31) / 322 s tier=all (n=7) | unchanged |
+| `build + archive (interval)` | 366 s scoped (n=34) / 400 s tier=all (n=5) | unchanged |
+| one `test (…)` leg | 42 s / 55 s scoped (n=54 / 60); 46 s / 94 s tier=all (n=14 / 8) | unchanged |
 | `clippy` / `clippy + doc-tests (interval)` | 72 s / 100 s | unchanged |
 
 **It is not a 6x multiplier, and the reason is the archive.** ε is runtime
@@ -993,8 +1003,10 @@ above: un-sampled = 646 s of builds + 172 s of lint + 618 s of test legs =
 **1436 s**; today's expectation over the 50/50 draw = **512 s**. So
 **+924 s = +15.4 job-minutes per code-tier run**, on a median run of 24.5 —
 so **24.5 → ~40**. **That pooled figure is superseded by the per-tier split in
-the CORRECTION below**, which the gate run forced; it is left standing so the
-correction has something to correct.
+CORRECTION 1 below**, which the gate run forced; it is left standing so the
+correction has something to correct. Its inputs are also the first,
+still-open-window population (155/71) rather than the closed-window one
+(156/72) the measurement paragraph now states.
 
 **Why the component sum and not a run-total comparison.** The observed
 medians split by drawn lane are 21.1 (default, n=33) and 25.4 (interval,
@@ -1006,8 +1018,8 @@ rows for reasons that have nothing to do with the lane. Summing the jobs the
 lane actually decides avoids that; comparing run totals does not.
 
 **CORRECTION, 2026-09-04, from this unit's own gate run.** The figure first
-published here was **+15.4 job-minutes per code-tier run**, derived from
-per-job medians pooled across both tiers. **The gate run falsified it for the
+published here was **+15.4 job-minutes per code-tier run** (run-weighted, it
+is +15.6), derived from per-job medians pooled across both tiers. **The gate run falsified it for the
 tier the gate run is in, and the measurement wins.** Run `33853141826`
 (`dc415acf`, green, 32 jobs, twelve `test (…)`) is a TIER=all un-sampled run
 at **54.0 job-minutes and 619 s wall**, against a TIER=all sampled median of
@@ -1018,8 +1030,11 @@ Re-derived per tier, which is what the pooled figure was hiding:
 
 | | n (sampled) | un-sampled config jobs | sampled expectation | delta |
 |---|---|---|---|---|
-| **TIER=closure** (61 of 71 code-tier runs) | 61 | 1394 s | 502 s | **+14.9 job-min** |
-| **TIER=all** (10 of 71) | 10 | 1724 s | 591 s | **+18.9 job-min** |
+| **TIER=closure** (61 of 72 code-tier runs) | 61 | 1394 s | 502 s | **+14.9 job-min** |
+| **TIER=all** (11 of 72) | 11 | 1756 s | 592 s | **+19.4 job-min** |
+
+Run-weighted: (61·14.9 + 11·19.4)/72 = **+15.6 job-min**, which is what the
+pooled figure was measuring without saying so.
 
 The tiers differ because TIER=all builds and runs unscoped: its interval test
 legs median 89 s against 55 s scoped, and its archives 322/386 s against
@@ -1037,7 +1052,7 @@ is **not measured**; one run cannot tell that from ordinary variance.
 `33854219517` (`b2159cf5`, green, 32 jobs, twelve `test (…)`) is the same
 TIER=all un-sampled shape at **44.4 job-minutes and 596 s wall**. So the two
 un-sampled runs are 54.0 and 44.4 against a 30.1 sampled median: **+23.9 and
-+14.3, mean +19.1**, and the +18.9 derivation sits between them. n=2 is still
++14.3, mean +19.1**, and the +19.4 derivation sits between them. n=2 is still
 n=2; no further runs are being chased, and the derivation is what to quote.
 
 **What survives unchanged**: TIER=closure is 86 % of code-tier runs and its
@@ -1047,21 +1062,23 @@ shape of the argument — two builds and twelve test legs, not six builds — is
 what the gate run confirms.
 
 **Two currencies, and the second one depends on the window.** At this
-window's **18.4 code-tier runs/hour** that is **+283 job-minutes/hour**
-against a measured 485 job-min/h of all CI. The rate is not a constant: PR
+window's **18.6 code-tier runs/hour** that is **+290 job-minutes/hour**
+against a measured 494 job-min/h of all CI. The rate is not a constant: PR
 1796's population (2026-09-03T15:20Z–2026-09-04T05:47Z, 14.45 h) has 10.3
 code-tier runs/hour and prices the same change at +161 job-min/h. **The two
-lanes agree on the per-run figure — +15.4 here against +15.6 there — and
-disagree only on how busy an hour is.** Quote the per-run number; derive the
-hourly one from the window you care about.
+figures agree on the per-run number — +15.6 run-weighted here against +15.6
+there — and differ only on how busy an hour is.** That is agreement, not
+independent confirmation: same derivation shape, same jobs API, same
+infrastructure, two windows, with component medians differing by up to ~30 s
+in both directions in a way that happens to cancel. Quote the per-run number;
+derive the hourly one from the window you care about.
 
-**Critical path: +57 s on half the runs, +0 on the other half.** Every run
-now takes the interval lane's path, because that archive is the slower of the
-two (368 s against 278 s). A run that would have drawn `interval` is
-unchanged; one that would have drawn `default` gains the difference. The
-added ε legs cost ~0 wall: they start together behind an archive that was
-already being built (run `33848247472`: both default legs at t+370 s, both
-interval legs at t+432 s). Expected over the draw: **+28 s, about +7%**.
+**Critical path: superseded by CORRECTION 2 below, which the un-sampled runs
+forced.** What stood here: every run now takes the interval lane's path
+because that archive is the slower of the two, a run that would have drawn
+`interval` is unchanged, and *"the added ε legs cost ~0 wall: they start
+together behind an archive that was already being built"* — expected **+28 s,
+about +7%**. The first clause holds. The ε-leg clause does not.
 
 **A cross-check, and why it is not the headline.** Five runs in the window
 already carried `CI-Config: lane=both` — the un-sampled lane at one ε — and
@@ -1081,6 +1098,32 @@ red**: of the five recorded main-reds PR 1796 enumerated, zero are
 attributable to the lane/ε draw — and that population is biased against
 exactly this class, because a defect at an undrawn point leaves no record
 until something draws it. The argument is price and exposure, not history.
+
+### CORRECTION 2, 2026-09-04 — the wall-clock claim was wrong, and the ε legs are why
+
+**The sentence "the added ε legs cost ~0 wall" was false and is withdrawn.**
+The legs do start together — verified on run `33848247472` — but **wall follows
+the max over them, not the overlap**, and six legs have a larger maximum than
+two. The critical path's last job is named and it is the same one in all three
+un-sampled runs: **`test (interval, eps = default, 1/2)`** — the first ε row's
+shard 1, which also carries the two `editor-core` steps — at **156 / 151 /
+135 s**, ending at **t+619 / t+596 / t+519 s**, which is each run's wall exactly.
+
+Measured, against TIER=all runs of the same window split by the lane they drew:
+
+| | sampled | un-sampled (n=3) | delta |
+|---|---|---|---|
+| would have drawn `interval` | **576 s** (n=4) | **596 s** (median) | **+20 s** — this is the ε legs' own cost, the archive being common to both |
+| would have drawn `default` | **424 s** (n=6) | **596 s** | **+172 s** — mostly the interval archive |
+| expectation over the 50/50 | ~500 s | **596 s** | **≈ +96 s** |
+
+So the honest figure for a TIER=all run is **about +96 s of critical path in
+expectation, of which ~20 s is the ε legs and the rest is the interval
+archive** — not the "+28 s, and ~0 from the ε legs" first published here. The
+n on every cell is small (3 un-sampled runs against 4 and 6 sampled ones) and
+the ε-leg term is the smallest and least certain of them; what is not
+uncertain is that it is **not zero**, and that the trade was described as
+free on the strength of the overlap when the overlap was never the question.
 
 **One consequence beyond coverage**: a GitHub merge queue's required checks
 are named, so un-sampling is a precondition for the queue PR 1796 recommends

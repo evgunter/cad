@@ -195,11 +195,12 @@ concurrency:
 # get.nexte.st prebuilt at the pinned URL — no third-party action — via
 # the in-repo composite `.github/actions/install-nextest`, which caches
 # the binary by version and retries the cold-path fetch. Read that
-# action's header for why: fifteen jobs on a full run need this binary —
-# five `uses:` sites in this file, three of them one job each (`fmt`,
-# `build`, `build-interval`) and two of them the 3-eps x 2-shard test
-# matrices — and an unretried per-job fetch made one host's bad minute a
-# whole-gate failure.
+# action's header for why, and note that it forbids restating the COUNT
+# here — an extracted number nothing re-takes is the shape this repository
+# keeps finding, and this line put one back once already. What the argument
+# rests on is that MORE THAN ONE job fetches concurrently on the critical
+# path, which every matrix this workflow has ever had satisfies. An unretried
+# per-job fetch made one host's bad minute a whole-gate failure.
 # Nextest semantics vs `cargo test`, audited at adoption:
 #   * process-per-test — strictly safer for the tolerance OnceLock
 #     (every test gets a fresh global; nothing relied on shared init);
@@ -624,12 +625,34 @@ jobs:
           printf 'source: %s\n' "$CONFIG_SOURCE"
           case "$CONFIG_SOURCE" in
             *requested*|*commit-trailer*)
-              echo "NARROWED BY HAND: at least one dimension above was chosen by hand" \
+              echo "CHOSEN BY HAND: at least one dimension above was named" \
                    "(a workflow_dispatch input, or a CI-Config: trailer in the head commit)."
-              echo "An un-narrowed run gates every lane and every eps row, so this run gates" \
-                   "LESS than one; a re-run of the same commit without the request gates all of it."
               ;;
           esac
+          # A NARROWED RUN GETS A RUN-PAGE ANNOTATION, and this is the only
+          # `::warning::` in this file. The reason it earns one is that every
+          # other channel this workflow has — a step log line, a job name, a
+          # step summary — is read by someone who already suspects something.
+          # A narrowing is the opposite case: the run looks ordinary, its
+          # checks are green, and what is missing is six of its twelve test
+          # legs. An annotation is rendered on the run page and on the PR's
+          # checks tab without anyone opening a job.
+          #
+          # KEYED ON THE VALUE, NOT ON `CONFIG_SOURCE`. A trailer can no
+          # longer narrow the lane or the eps rows at all (ci-filter.py's
+          # `WHOLE_BY_DEFAULT` refuses it), so a source-keyed test would fire
+          # on `lane:commit-trailer` — which can only be `lane=both`, a
+          # narrowing of nothing — and stay silent on any future path that
+          # narrows some other way. What matters is what the run GATES.
+          if [ "$LANE" != both ] || [ "$EPS" != all ]; then
+            echo "::warning title=CI narrowed: this run does NOT gate the whole matrix::lane=$LANE eps=$EPS (source: $CONFIG_SOURCE). An un-narrowed run gates {default,interval} x {default,1e-6,1e-12} as twelve test jobs; this one gates fewer. Re-run without the dispatch input, or drop the CI-Config: trailer, to gate all of it."
+            {
+              echo "### CI narrowed by hand"
+              echo
+              echo "This run gates \`lane=$LANE eps=$EPS\` — **not** the whole {default, interval} x {default, 1e-6, 1e-12} matrix."
+              echo "Source: \`$CONFIG_SOURCE\`."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
           # THE FILTER'S OWN NOTICES, WHERE A READER OF THE RUN IS ALREADY
           # LOOKING — the k-lint row's `tools/` pin, the gated suites this run
           # does not execute, or the interval advisory that replaced the
@@ -1146,11 +1169,13 @@ jobs:
           python3 scripts/pr-added-tests.py --selftest
           scripts/base-test-listing.sh --selftest
       # The `interval` feature must stay PURELY ADDITIVE. This is not a
-      # style rule: on an interval draw the default lane does not run at
-      # all, so this lane stands in for it (see `test-interval`'s header),
-      # and the wasm32 guard below runs the interval leg ONLY on the same
-      # premise. Both hold while enabling the feature cannot change what
-      # the default build compiles.
+      # style rule: it is what lets the wasm32 guard below run the interval
+      # leg ONLY, and it is what made this lane a stand-in for the default
+      # one while a run gated one of them (see `test-interval`'s header —
+      # both lanes run on every run since 2026-09-04, and a run NARROWED by
+      # hand to `lane=interval` is the case that still leans on it). It
+      # holds while enabling the feature cannot change what the default
+      # build compiles.
       #
       # WHAT ACTUALLY FAILS HERE, at the scope the script walks
       # (crates/*/{src,tests}): in `src`, a gated item that is not an
@@ -1516,8 +1541,8 @@ jobs:
             echo '     output, by name: the `app_lane_skipped_*` rows.'
             echo 'The nightly lane re-takes both ungated; viewer default-feature rows still ran in the closure.'
           fi
-      # Sited here rather than in `clippy` so a lane draw cannot take it
-      # away. The toolkit graph is already built in this job by the
+      # Sited here rather than in `clippy` so no lane gate can take it away
+      # — a hand-narrowed `lane=interval` run included. The toolkit graph is already built in this job by the
       # rustdoc pass when the axis is true, so the marginal cost is the
       # lint itself.
       - name: clippy (viewer app feature - eframe + wgpu)
@@ -1910,8 +1935,8 @@ jobs:
   # WHAT THE EXCLUSION GIVES UP, stated rather than implied: on an
   # axis-false run nothing in THIS workflow lints `viewer` at
   # `--all-features` (`app` + `interval` together). `viewer` at DEFAULT
-  # features is still linted by `clippy` on a default draw and by
-  # `lint-interval` on an interval one, both scoped; `viewer --features
+  # features is still linted by `clippy` and by `lint-interval`, both of
+  # which run on every un-narrowed run, both scoped; `viewer --features
   # app` is the `fmt` job's row under this same axis. All of that is
   # re-taken by nightly.yml's `viewer-toolkit` job, ungated, once a day —
   # the ruling's second clause, and what makes the skip a deferral rather
@@ -2217,7 +2242,7 @@ jobs:
     # keep their teeth — this is the same configuration
     # local-scripts/test-fast.sh has used locally since M6.
     #
-    # RE-ASKED UNDER CONFIGURATION SAMPLING (2026-08-22), because the
+    # RE-ASKED WHEN THE CONFIGURATION SAMPLING LANDED (2026-08-22), because the
     # verdict above rests on amortising ONE compile over TEN run legs and a
     # sampled run has one. Ev's question was the right one — "if we run at
     # one eps instead of 3 that's plausibly enough to shift the balance". It
@@ -3103,8 +3128,8 @@ jobs:
       # lane's copy of this step and for the same reason. It is the SAME
       # expression: the markers are a property of the tree, not of a compile
       # mode, so a suite whose paths this diff did not touch is skipped on
-      # whichever lane the run drew — and the nightly's re-take runs the set
-      # once, ungated, rather than once per lane.
+      # both lanes alike — and the nightly's re-take runs the set once,
+      # ungated, rather than once per lane.
       - name: run archived tests
         env:
           TEST_FILTER: ${{ needs.filter.outputs.test_filter }}
