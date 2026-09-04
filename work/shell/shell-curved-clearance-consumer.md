@@ -5,7 +5,6 @@ title: where a curved wall-clearance gate can call the E7 engine from (the shell
 status: open
 opened: 2026-09-03
 refs: [shell-curved-wall-clearance-window, M10-5, 1055, 1191]
-needs_ev: true
 ---
 
 ## The valve M10-5 left open
@@ -176,3 +175,11 @@ permanently.
 otherwise; the item and DESIGN.md's roadmap line on M10 clearance
 (`docs/DESIGN.md` §validate tier 3, "M10 interval clearance") update
 in place with the ruling.
+
+## Ruling (Ev, `[ev]` #1737, 2026-09-04): B
+
+"i think B makes sense?" — recorded as the ruling. Cut into two units:
+`SHELL-3` (the engine's body-level half moves into `topo` behind
+`interval`, joint with M10) and `SHELL-4` (the gate at the shell door
+at certifying scalars). `shell-curved-wall-clearance-window` is
+re-parked on SHELL-4. `docs/DESIGN.md`'s tier-3 note names the home.
