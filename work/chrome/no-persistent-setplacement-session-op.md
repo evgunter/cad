@@ -2,10 +2,9 @@
 id: no-persistent-setplacement-session-op
 kind: issue
 title: SessionOp vocabulary gap - no persistent SetPlacement, free-move cannot be committed as a document edit
-status: parked
+status: open
 opened: 2026-08-28
 github: 1120
-blocked_on: [viewer-session-god-module-split]
 ---
 
 ## From GitHub issue 1120
@@ -19,3 +18,19 @@ Not a v1 defect — G3's scope deliberately excludes it and no ratified item dem
 ## Home
 
 The session vocabulary is `crates/viewer/src/session.rs` — GUI ground, and that program is closed and may hold only closed items, so it lands under `work/issues/`.
+
+## Un-parked — the trigger fired (2026-09-04)
+
+`viewer-session-god-module-split` closed on 2026-09-04, so this row's
+only blocker is gone and the row is dispatchable. Un-parked here, from
+VIEW's PR #1857, rather than by CHROME: on Ev's ruling there, `work.py
+lint` now REFUSES a `parked` row whose every blocker is closed, and a
+program cannot un-park another program's rows in the PR that closes
+their trigger — `work/README.md`'s one-file-one-item rule makes that a
+merge conflict by design.
+
+Whether `open` is the right status is CHROME's call, not this PR's: the
+finding above argues the gap is *deliberately* out of v1 scope, which is
+what the new `deferred` status is for. `open` overstates availability
+and is the lesser error; re-classifying another program's row into a
+status they have never used would be the greater one.

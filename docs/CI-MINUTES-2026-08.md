@@ -951,15 +951,16 @@ demotion argument rests on — stated with a number rather than assumed.
 
 ## 2026-08-22 — configuration sampling, and the draft skip (F5)
 
-### SUPERSEDED for the lane and ε, 2026-09-04 — full runs reinstated
+### SUPERSEDED IN FULL, 2026-09-04 — full runs reinstated on every dimension
 
 **Everything in this section below this block describes the regime that ran
 from 2026-08-22 to 2026-09-04.** The lane and ε draws are gone: a code-tier
 run gates every point of {default, `interval`} x {default, 1e-6, 1e-12}, as
 two archives and twelve `test (…)` jobs. **The k-lint unification draw is
-NOT affected and is still one row of five per run** — it is five compiles
-sharing almost no artifacts, not one archive replayed, and it was not
-re-costed here (`work/ciw/klint-row-still-sampled.md`).
+gone too, later the same day**: all five unifications run as five
+`k-lint (gate, <row>)` matrix legs. The first version of this block said the
+k-lint draw was NOT affected, and it was not — for about eighteen hours. Its
+measurement is in the 2026-09-04 section at the foot of this file.
 
 **Ev's authorisation, in chat, 2026-09-04**: *"feel free to reinstate full
 runs instead of sampling"*, on the reasoning that *"CI is weakened right now
@@ -2007,3 +2008,302 @@ inheritance.)
 
 `work/tcost/rust-cache-never-restores-across-branches` still says no PR
 can inherit one; that item is S-TCOST's to update.
+
+## 2026-09-04 — the k-lint unification draw retired, and what five legs cost
+
+**Ev, in chat: *"you can un-sample k-lint"*.** This is the measurement the
+2026-09-04 un-sampling of the lane and ε deferred: `k-lint (gate)`'s five
+feature unifications were the last drawn dimension, and the section above
+scoped them out on cost shape without pricing them. Priced here, from this
+repository's own runs, on the public 4-vCPU runner.
+
+**What was measured, and what a run id means here.** Every figure below is
+derived from the jobs API's `started_at`/`completed_at` per job — *not* from
+the billing API, which returns `total_ms: 0` on a public repository because
+standard-runner minutes are not billed. "Job-minutes" therefore means wall time
+summed over the jobs that actually ran (`skipped` excluded), and it is a
+resource figure, not a bill. Per this document's 2026-08-31 addendum, each
+number is true as of the run it names and nothing re-takes it.
+
+### The five legs, on one run
+
+Run **33895150877** (PR 1850, `ciw/unsample-klint`, TIER=all, **green**): 33
+jobs ran, **72.7 job-min**, first job start to last job finish **667 s**. The
+five `k-lint (gate, <row>)` jobs:
+
+| row | duration | row steps executed |
+|---|---:|---:|
+| `dev-default` | 83 s | 5 |
+| `dev-budget` | 119 s | 1 |
+| `release-budget` | 139 s | 2 |
+| `dev-probe` | 360 s | 4 |
+| `release-default` | 413 s | 2 |
+| **all five** | **1114 s = 18.6 job-min** | **14** |
+
+The 14 is the whole of the job's `if:`-gated step set, each step executed
+exactly once across the legs; `demos tour fmt + clippy` — the step `#1756`'s
+run skipped — is one of `dev-default`'s five.
+
+### Job-minutes: +14.9 per code-tier run, in expectation
+
+A drawn run paid ONE row. Which one is a hash, so the counterfactual is the
+mean of the five, 222.8 s. Five legs cost 1114 s, so the change costs
+
+> **+891 s = +14.9 job-min per code-tier run in expectation**, over a range of
+> +11.7 (had the draw picked `release-default`) to +17.2 (had it picked
+> `dev-default`).
+
+Against this run's 72.7 job-min that is a sampled counterfactual of 57.8, so
+**+26 %**. For scale, the lane/ε un-sampling four hours earlier came to
+**+15.6 job-min/run** — the two changes cost very nearly the same, which the
+cost-shape argument did not predict and is the most useful thing this
+measurement says.
+
+### Wall clock: zero on three runs in four, ~+213 s on a run k-lint tails
+
+**On run 33895150877 the change cost no wall clock at all.** The critical path
+was `build + archive (interval)` (417 s, ends 16:35:33) → `test (interval, eps =
+default, 1/2)` (143 s, ends 16:37:59). The longest k-lint leg,
+`release-default`, ended 16:36:34 — **85 s inside** that tail. All five legs
+started within 64 s of each other, so the runner pool served the fan-out
+without queueing against itself.
+
+**TWO UNITS, AND AN EARLIER REVISION OF THIS SECTION MIXED THEM.** A job's
+DURATION (`completed_at − started_at`) and its COMPLETION TIME are different
+quantities here, because these jobs do not start together: they queue behind
+`needs: filter` and are picked up as the runner pool frees. "k-lint is the
+tail" is a claim about completion times and about nothing else. The table
+below used to report k-lint's duration MINUS the next-longest job's duration
+and label it a tail margin; on these runs the two figures differ by up to 5x.
+Every "tail by" number below is now a completion-time margin, with the
+duration delta kept in a column of its own where it is still worth having.
+
+That is not general, and the baselines say so. Three post-un-sampling runs with
+ONE drawn row:
+
+| run | jobs | job-min | span | `k-lint (gate)` | longest OTHER job | duration delta | tail? (completion margin) |
+|---|---:|---:|---:|---:|---:|---:|---|
+| 33894413395 | 26 | 31.1 | 416 s | 391 s | 331 s | +60 s | **yes**, by **11 s** |
+| 33889715837 | 27 | 44.8 | 532 s | 357 s | 395 s | −38 s | no, 150 s of slack |
+| 33860088305 | 29 | 48.6 | 601 s | 301 s | 432 s | −131 s | no, 268 s of slack |
+
+Row 1 is the correction: `k-lint (gate)` ran 60 s longer than the longest
+other job and finished **11 s** after the last one to finish
+(`render lanes / freecad montages`, 16:25:55 against 16:26:06). It was the
+tail, and the margin was a sixth of what this row claimed. Rows 2 and 3 said
+"slack", which was a completion margin already and is unchanged.
+
+On a run where k-lint IS the tail, the wall cost is `max(rows) − drawn(row)`.
+Per run, over the four runs of the new shape this branch produced:
+
+| run | max | mean | min | expectation `max − mean` | worst case `max − min` |
+|---|---:|---:|---:|---:|---:|
+| 33895150877 | 413 s | 222.8 s | 83 s | 190 s | 330 s |
+| 33896480044 | 473 s | 241.4 s | 95 s | 232 s | 378 s |
+| 33897525485 | 379 s | 193.6 s | 83 s | 185 s | 296 s |
+| 33898569530 | 478 s | 232.6 s | 76 s | 245 s | 402 s |
+| **mean of the four** | | | | **~213 s** | **~352 s** |
+
+**`+190 s / +330 s` was run 33895150877's pair alone.** It was published at
+n=1 and carried unchanged through the n=2 and n=3 revisions while every
+job-minute figure beside it was re-derived. At **n=4 the expectation is
+~213 s and the largest worst case seen is 402 s**; +330 s was the SMALLEST of
+the four worst cases and was never a bound. On a run where another chain
+tails the wall cost is zero, so the honest statement is still a range and
+still not a single number: **0 to ~400 s of critical path, ~+213 s when it
+bites at n=4**, and it bites on the smaller-tier runs where the interval
+archive and its test legs do not dominate.
+
+### Why a matrix and not one job running five rows
+
+The old shape could already run all five: `CI-Config: klint=all` put them in
+ONE job, in sequence. Measured, run **33877832538**: `k-lint (gate)` **1036 s**
+in a 1068 s span. It was the run's tail: 689 s longer than the longest other
+job (`build + archive (default)`, 347 s) and — the figure that is a wall-clock
+margin — finishing **566 s** after the last other job to finish
+(`test (interval, eps = 1e-6, 1/2)`, 13:32:21 against 13:41:47). An earlier
+revision gave the 689 s alone, which is a duration delta and not a margin.
+
+| shape | k-lint job-seconds | k-lint contribution to wall |
+|---|---:|---:|
+| five parallel legs (33895150877) | 1114 | 413 s |
+| one serial job (33877832538) | 1036 | 1036 s |
+
+The matrix pays **+78 job-seconds** — four extra checkouts, toolchain installs
+and cache restores — and buys back **623 s of wall**. That is exactly the trade
+the job header used to refuse ("a matrix would pay this job's setup and cache
+restore five times to run one row's worth of work"), and it refused it
+correctly while one row was drawn: five setups for one row's work is waste,
+five setups for five rows' work is parallelism.
+
+**The comparison is across two runs, not a controlled pair**, and it is worth
+saying which way that cuts: 33877832538 was a `demos/` change, where the tour
+rebuild is heavier than on 33895150877's diff. The `+78` is therefore
+indicative of the setup overhead's ORDER, not a measurement of it; the `623 s`
+is the robust half, since it is `sum − max` over five rows either way.
+
+### Four runs, and the spread is the finding
+
+The branch ran four times before the cache fix below. All four green, all four
+TIER=all, 33 jobs run and 3 skipped in each:
+
+| row | 33895150877 | 33896480044 | 33897525485 | 33898569530 |
+|---|---:|---:|---:|---:|
+| `dev-default` | 83 s | 95 s | 83 s | 76 s |
+| `dev-budget` | 119 s | 117 s | 118 s | 111 s |
+| `release-budget` | 139 s | 134 s | 120 s | 122 s |
+| `release-default` | 413 s | 388 s | 379 s | 376 s |
+| `dev-probe` | 360 s | **473 s** | 268 s | **478 s** |
+| **sum** | **1114 s** | **1207 s** | **968 s** | **1163 s** |
+| **run total** | 72.7 job-min | 68.5 | 60.5 | 63.6 |
+| **cost vs the expected draw** | **+14.9** | **+16.1** | **+12.9** | **+15.5** |
+
+**The mean is +14.8 job-min per code-tier run, over +12.9 to +16.1.** The three
+cheap legs are stable to within ~19 s; the whole spread is `dev-probe`, which
+ran 268, 360, 473 and 478 s on the same tree — a factor of 1.8 between its own
+extremes, wider than its gap to `release-default`. So the two heavy legs **trade
+places between runs**, "the longest leg" is not a fixed row, and no figure here
+should be attributed to one. The section after next names a mechanism for that
+spread and removes it.
+
+**A sentence written at n=2 is corrected here rather than left standing.** With
+two runs the mean was +15.5, against the lane/ε un-sampling's +15.6, and this
+section said the two changes cost the same "to within 1 %". The third run
+falsified that (mean +14.6) and the fourth moved it again, to **+14.8, about
+5 % under** the lane/ε figure. The order is what survives — these two
+un-samplings cost the same to within a sixth, not to within a hundredth — and
+that is all the comparison was ever able to support. The lesson repeats
+below: a figure taken once here does not stay taken.
+
+**k-lint tailed one of the four, and it was the last one.** On the first
+three runs the last job was `test (interval, eps = default, 1/2)`, finishing
+85 s, 79 s and 187 s after the longest k-lint leg. On the fourth —
+**33898569530**, this branch's final-head receipt — `k-lint (gate, dev-probe)`
+(478 s) WAS the run's last job, finishing 26 s after the last
+`test (interval, eps = 1e-12, 2/2)`. So "the interval archive and its test
+legs are the critical path at TIER=all and k-lint does not touch it" is true
+of three runs in four and not of the shape: at TIER=all it went 1-in-4 here,
+and the baseline where the drawn row tailed (33894413395) was a smaller tier
+again. The 26 s is small, and the point is that the sign changed on an
+unchanged tree.
+
+### The five legs shared two cache lanes, and the two heaviest could never write
+
+**Found in review of PR 1850, after the four runs above were measured.** The
+job kept the draw-era cache key — `k-lint-<dev|release>`, one lane per
+profile — and the header claimed the five legs therefore ran in "the same two
+lanes the draw had and warmer". That was false, and measurably so.
+
+`Swatinem/rust-cache` composes its key as
+`v0-rust-<key input>-<GITHUB_JOB>-<os>-<env hash>-<lockfile hash>`, and
+`GITHUB_JOB` is the job ID (`k-lint`) rather than the matrix value. So the
+three dev legs computed one identical key and the two release legs another.
+Under the draw that was harmless: one row ran per run and saved its own
+`target/`. With five concurrent legs the first to reach its post step reserves
+the key and the rest cannot save at all. Read off run **33895150877**'s job
+logs:
+
+| leg | duration | post-step outcome |
+|---|---:|---|
+| `dev-default` | 83 s | `... Saving cache ... Sent 222368525 of 222368525 (100.0%)` under `v0-rust-k-lint-dev-k-lint-Linux-x64-b9db5ddf-c2f4f44c` |
+| `release-budget` | 139 s | saved, on the `-release-` key |
+| `dev-probe` | 360 s | `Failed to save: Unable to reserve cache with key v0-rust-k-lint-dev-k-lint-Linux-x64-b9db5ddf-c2f4f44c, another job may be creating this cache.` |
+| `release-default` | 413 s | the same failure on the `-release-` key |
+
+**Deterministic, not a race.** The winner is whichever leg finishes first, and
+the legs' durations are stable and ordered, so the two CHEAPEST legs won the
+two lanes on every run and the two most expensive — between them about 70 % of
+this job's seconds — persisted nothing and restored a sibling's `target/`,
+which holds none of their `--features probe` / `--release` artifacts.
+
+Three things follow, and all three are corrections to figures above:
+
+1. **"and warmer" was wrong**, and so is any reading of the four runs as a
+   steady state. They ran on a branch whose `k-lint-dev` / `k-lint-release`
+   entries were still primed by `main`'s pre-matrix runs. As those age out the
+   steady state under the old key is two legs warm and three cold.
+2. **The +14.8 job-min figure is therefore optimistic**, not pessimistic —
+   the direction worth stating, since the whole section is a cost argument.
+3. **It is a candidate mechanism for `dev-probe`'s 268 → 478 s spread**, which
+   the section above flagged as an open question and could not explain. Under
+   the old key `dev-probe`'s warmth depended on what `dev-default` last
+   managed to write for a given lockfile hash — an unrelated leg — rather than
+   on its own history.
+
+**The fix** is `key: k-lint-${{ matrix.row }}`: five entries, each written and
+read by exactly one leg. The trade is five cache entries where there were two,
+and it is a trade rather than a free win — written down here as one.
+
+#### Re-measured on hosted runs, per row, with the post-step outcome
+
+**Run 33902561110** (`3768a039`, TIER=all, green; 33 jobs run, 3 skipped) is
+the first full run under the per-row key. Every leg's own post step, read off
+its job log:
+
+| row | duration | post-step outcome |
+|---|---:|---|
+| `dev-budget` | 79 s | `Cache up-to-date.` — exact hit on its own key, nothing to save |
+| `dev-default` | 80 s | `Cache up-to-date.` |
+| `release-budget` | 121 s | `Cache up-to-date.` |
+| `release-default` | 397 s | **saved**, `Sent 207715597 of 207715597 (100.0%)` |
+| `dev-probe` | 471 s | **saved**, `Sent 324718500 of 324718500 (100.0%)` |
+| | **1148 s** | **no leg logged `Failed to save` — the first run of the five in which that is true** |
+
+The two legs that had never once persisted their `target/` now do: 198 MB and
+310 MB, on keys nothing else writes. Under the old key those two failed to
+reserve on every run measured.
+
+**The durations did not fall on this run, and that is expected rather than
+disappointing.** Changing the key invalidates every entry, so `release-default`
+and `dev-probe` were cold here — they were writing their lanes for the first
+time. 397 s and 471 s against the four-run pre-fix range of 376–413 s and
+268–478 s is a cold run landing inside it. What the fix buys is a warm run
+whose warmth is its own, and the read of that is the next run, below.
+
+**Job-minutes on this run: +15.3**, against the pre-fix four-run mean of +14.8
+— inside the observed spread and not a regression, on a run where two legs paid
+a cold compile.
+
+**Wall clock: k-lint did not tail.** The longest leg (`dev-probe`, ends
+17:57:57) finished 82 s inside `test (interval, eps = 1e-12, 2/2)`
+(17:59:19).
+
+**Run 33903485143** (`689d2ee5`, TIER=all, green; 34 jobs run, 3 skipped) is
+the warm read — every leg now restoring an entry it wrote itself:
+
+| row | duration | pre-fix range over four runs | post-step outcome |
+|---|---:|---:|---|
+| `dev-default` | 78 s | 76–95 s | `Cache up-to-date.` |
+| `dev-budget` | 109 s | 111–119 s | `Cache up-to-date.` |
+| `release-budget` | 110 s | 120–139 s | `Cache up-to-date.` |
+| `dev-probe` | 362 s | 268–478 s | `Cache up-to-date.` |
+| `release-default` | 403 s | 376–413 s | `Cache up-to-date.` |
+| | **1062 s** | 968–1207 s | **all five hit their own key; none saved because none needed to** |
+
+**All five legs exact-hit and none logged `Failed to save`.** That is the
+property the fix was for, and it is the one the old key made impossible: two
+legs failed to reserve on every run before, deterministically.
+
+**Job-minutes: +14.2**, against the pre-fix four-run mean of +14.8. The three
+cheap legs each came in at or below their pre-fix minimum. Not a large
+movement and not claimed as one — it is one run.
+
+**On the `dev-probe` swing, which is NOT settled here.** The pre-fix spread
+was 268 / 360 / 473 / 478 s and the cache lanes were named above as a
+candidate mechanism. Post-fix there is **one cold sample (471 s) and one warm
+sample (362 s)**, and 362 s sits inside the pre-fix range. So: the mechanism
+is real and is removed, and **whether removing it narrows the spread is not
+demonstrated** — one warm run cannot show a variance change, and it would
+take several. Stated as not-yet-known rather than as resolved.
+
+**Wall clock: k-lint did not tail this run either.** The longest leg
+(`release-default`, ends 18:06:53) finished 172 s inside the run's last job.
+
+### What is not measured here
+
+Three runs of the new shape, all on one branch whose cache was warm from
+`main`'s primer, all at TIER=all — so the tier that most often puts k-lint on
+the critical path is the one with no sample here. A cold-cache run pays more in
+every leg, and the release legs are the ones a cold `--release` profile moves
+most. The counterfactual is arithmetic, not a measurement: no run of the drawn
+shape exists on this tree to subtract. Nothing re-takes any of this.
