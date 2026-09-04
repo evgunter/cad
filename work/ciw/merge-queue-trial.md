@@ -459,13 +459,19 @@ honest and a claimed demonstration is not.
    no `if:` edit: it is verified by reading every guard in the parsed
    workflow, which is a proof about the conditions, not an observation of
    a run.
-2. **`gate ok` IS exercised**, on this pull request's own `pull_request`
-   run and on every one after it, and its seven decision paths were
-   driven against fixture job lists before it was written into the file
-   (green, a failed job, a job missing from `needs:` still running, a
-   paged job list, an empty population, `neutral`, an unreadable API).
-   What has not been exercised is `gate ok` under `merge_group`, for the
-   same reason as 1.
+2. **`gate ok` IS exercised, on a hosted run.** Run **33894380300**
+   (head `0e16cc62`), job **101096934393**: green, and its log carries
+   the whole job table and the line
+   `gate ok: 32 jobs, all success, skipped or neutral.` — 33 jobs in the
+   run, itself excluded. That is the first claim (every job terminal)
+   and the second (every conclusion acceptable) both executing against a
+   real 12-`test`-job code-tier run, with `actions: read` sufficing for
+   the API read. Its seven decision paths were additionally driven
+   against fixture job lists before it went into the file (green, a
+   failed job, a job missing from `needs:` still running, a paged job
+   list, an empty population, `neutral`, an unreadable API).
+   What has **not** been exercised is `gate ok` under `merge_group`, for
+   the same reason as 1.
 3. **The latency table is a simulation**, on 138 real arrivals and two
    measured service times, with a server model taken from GitHub's
    documentation. Its assumptions: one median service time per tier
