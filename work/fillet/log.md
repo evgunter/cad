@@ -289,3 +289,21 @@ review and the fix pass: `blend-payloads-outside-the-margin-family`
 `work/trim/`, `blamed-mates-lost-its-exhaustive-arm` (VIEW; main did
 not compile at `--features interval`, fixed on main independently).
 **All three E openers are closed.** RIM (slot 1) is in flight.
+
+**H5 dispatched (2026-09-04)** into block FILLET-B1's slot 2 on
+`fillet/h5-hostless-rim` under `docs/FILLET-H5-SPEC.md` (pre-draw M /
+STRUCTURAL at the spec): a closed rim whose arcs one plane face hosts
+in its outer cycle is the annulus band with hostless crossings — the
+host foot minted by the ladder's strut, the mate side the seam-split
+walk unchanged; the shape arises both from `merge_coplanar_faces` and
+natively (a pole-touching dome on a wider flat top). Runs beside RIM
+(slot 1, `fillet/rim-selector`); they touch different files.
+
+**Specs written while slots 1–2 run (2026-09-04):** `docs/FILLET-H6-SPEC.md`
+(S / STRUCTURAL: measure whether extrude's cap-rim `Smooth` arm is
+reachable; either way the must-carry rule gets one home its three
+sibling arms call) and `docs/FILLET-H7-SPEC.md` (L / NUMERIC: the ruled
+band with the transverse cut-off, out as an `[ev]` PR because it
+proposes `CornerConfig::TransverseCap` / `RunOutPolicy::CutOffAtTransverseCap`
+for ratification; `needs_ev` set on the item for that alone). Block
+FILLET-B2 opens with ATTR, H6 and H7 once slot 2 concludes.
