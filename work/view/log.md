@@ -774,10 +774,17 @@ already re-exported at the crate root; `AtRestBadge` and `admits` are
 not, and `admits` is imported by no test at all, so the scheduled
 sweep is less mechanical than it advertised.
 
-Two items filed: `boundary-rule-has-no-mechanical-check` — nothing
+Three items filed. `boundary-rule-has-no-mechanical-check`: nothing
 reads a `use` block, so the ratified rule's "mechanically checkable"
-rests on a mechanism that does not exist — and
-`stale-file-citations-after-the-split`, roughly twenty open files
-citing `app.rs:NNNN` or `session.rs:NNNN` for items this PR moved,
-green under the rustdoc gate because every one of them is an
-unbracketed code span.
+rests on a mechanism that does not exist.
+`stale-file-citations-after-the-split`: 24 open files cite
+`app.rs:NNNN` or `session.rs:NNNN` for items this PR moved, green
+under the rustdoc gate because every one is an unbracketed code span.
+And `loud-skip-marker-says-two-modules-and-there-are-six` — **a fifth
+prose claim this crate outran in one day**, found while checking the
+fourth: `lib.rs:90`'s loud-skip marker says "the two modules above"
+over six `#[cfg(feature = "app")]` modules, having predicted its own
+staleness in the next paragraph. Not fixed here because its payload is
+a `println!` naming two modules and a test named after them, which is
+a decision rather than a typo; this pass was scoped to prose with no
+decision in it.
