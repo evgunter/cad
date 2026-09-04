@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-04
 refs: [viewer-session-god-module-split, rank-one-discards-the-frames-other-news]
 branch: view/superseded-reaches-the-user
+pr: 1872
 ---
 
 
