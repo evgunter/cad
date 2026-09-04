@@ -6,6 +6,7 @@ status: open
 opened: 2026-08-25
 github: 987
 refs: [962]
+needs_ev: true
 ---
 
 ## From GitHub issue 987

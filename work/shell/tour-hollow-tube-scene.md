@@ -2,10 +2,11 @@
 id: tour-hollow-tube-scene
 kind: issue
 title: tour - hollow tube scene
-status: open
+status: closed
 opened: 2026-08-25
 github: 986
 refs: [960]
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 986
@@ -25,3 +26,19 @@ Costs a tess-budget baseline row (four faces at the window, four at the full per
 ## Home
 
 The tube door is VERBS' own (`docs/KERNEL-VERBS.md` is in its `paths:`, VERBS-TUBEWALL shipped it), and the tour scenes are how that register's claims become receipts; the tess-budget re-baseline needs S-CERT's coordination.
+
+## Closed (SHELL orchestrator, 2026-09-04)
+
+Already delivered on main before this program opened, found at the
+SHELL opening survey: `demos/tour/src/tubewall.rs` (first commit
+38cb556f) renders both scenes this item asked for — the windowed
+hollow elbow (`hollowelbow`, opaque, the bore visible into a cap)
+and the full-period hollow torus (`hollowtorus`, translucent, the
+hollow-ring precedent) — registered in `demos/tour/src/main.rs`;
+the tess-budget baseline carries their rows
+(`docs/tess-budget-data/tess-budget-baseline.csv`, `hollowelbow`
+and `hollowtorus`); and `docs/KERNEL-VERBS.md`'s "joins the STEP
+row" sentence is now a receipt — the `hollowtorus` scene declares
+the writer's frontier at the body and pins
+`CurvedShellClassification` as the third self-retiring probe of
+that gate. Nothing remains to build.
