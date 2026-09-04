@@ -2,9 +2,10 @@
 id: klint-memory-false-after-unsampling
 kind: issue
 title: memories/agent-lane-operations.md says the k-lint row is sampled; PR 1850 makes that false
-status: open
+status: review
 opened: 2026-09-04
-needs_ev: true
+pr: 1855
+branch: ciw/klint-memory-correction
 ---
 
 
@@ -71,3 +72,37 @@ Merge order does not matter for correctness — this PR's text is true only
 once 1850 has merged, and 1850's merge is what makes the current text
 false. So: merge this one as soon as Ev signs off, and prefer that to be
 after 1850 rather than before.
+
+## THE RULING (Ev, 2026-09-04)
+
+> "for 1855 probably just delete those comments that were only there
+> because of the sampling"
+
+Taken as the sign-off `CLAUDE.md` requires, and as a direction on
+*shape*: the first draft replaced each sampling passage with a longer
+one explaining that sampling is gone. That is the wrong move for a file
+read at the start of every session — it grows the thing every lane pays
+to read, to record a fact no lane needs.
+
+So the sampling material is **cut**, not rewritten. Net **−9 lines**
+(16 added, 25 removed) against the draft's +7. Four sites:
+
+1. The "green job NAME over a SKIPPED step" bullet keeps the class and
+   the TEAPOT dual that evidences it; the `klint_row` instance and the
+   "the drawn row didn't carry it" parenthetical go. The class never
+   depended on sampling — any step `if:` can do it — so nothing is
+   lost, and the bullet no longer teaches a mechanism that is gone.
+2. The `CI-Config:` trailer bullet loses the per-dimension
+   sampled/unsampled bookkeeping. One live rule replaces it: a voided
+   trailer fails safe, a trailer may only ADD, and narrowing is
+   `workflow_dispatch`'s alone.
+3. The prose restatement loses its `(k-lint's demos rows are their own
+   sampled axis)` parenthetical outright.
+4. "A missing k-lint row can be ASKED FOR rather than re-rolled for"
+   is deleted entire. It was advice that existed only because rows were
+   drawn; with all five always running there is no missing row to ask
+   for, and the `CI-Config: klint=dev-probe` spelling it taught now
+   reds.
+
+`grep -rn "sampl\|klint_row\|klint=" memories/` leaves only the three
+lines in point 2, which are the intended ones.
