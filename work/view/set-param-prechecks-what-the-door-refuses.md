@@ -2,11 +2,12 @@
 id: set-param-prechecks-what-the-door-refuses
 kind: issue
 title: set_param pre-checks a parameter's existence, which DocEdit::SetDocParamValue already refuses typed
-status: review
+status: closed
 opened: 2026-09-04
 refs: [viewer-session-god-module-split, self-boolean-precheck-duplicates-the-doors-duplicate-input, sweep-blind-spots-the-precheck-sweep-could-not-see, refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake]
 branch: view/set-param-precheck
 pr: 1846
+closed: 2026-09-04
 ---
 
 
