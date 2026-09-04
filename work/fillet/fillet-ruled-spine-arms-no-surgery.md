@@ -1,12 +1,11 @@
 ---
 id: fillet-ruled-spine-arms-no-surgery
-kind: issue
+kind: unit
 title: fillet - the ruled-spine arms classify but no surgery carves their band
 status: open
 opened: 2026-08-25
 github: 987
 refs: [962]
-needs_ev: true
 ---
 
 ## From GitHub issue 987
@@ -98,3 +97,12 @@ conversation before it is built.
 
 A 👍 on 1 unblocks the spec; 2 or 3 parks the item with its trigger
 named.
+
+**Ruled (Ev, PR 1736, 2026-09-04): option 1.** The ruled band's
+termination is the transverse cut-off at a cap perpendicular to the
+ruling — the cap plane's section of the cylinder band, an exact stored
+arc; every other end refuses typed. Its `CornerConfig` / `RunOutPolicy`
+name is proposed in the unit's spec for ratification, as `SeamVertex`
+was. The mid-curve run-out taxonomy (A3-3) stays reserved and is not
+touched by this. This item is now the unit that builds it (H7, last in
+order); the spec follows.
