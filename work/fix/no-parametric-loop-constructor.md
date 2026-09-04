@@ -64,7 +64,10 @@ load-bearing rather than incidental), and the expansion keeps its
 `At` … `LineTo(Start)` shape at a corner no literal door can take (a
 document parameter reference).
 
-**Swept for.** Two patterns, both at merge base `main`.
+**Swept for.** Two patterns, and pattern 1 re-run on the merged tree
+after `origin/main` moved: the seventeen untaken hits are unchanged,
+main added no new hand-rolled polygon, and it touched neither
+`program.rs` nor `assembly.rs`.
 
 1. *The shape, not the symbol*: every `ProgramStep::At(` in the tree,
    read forward for a run of `LineTo` closed by
