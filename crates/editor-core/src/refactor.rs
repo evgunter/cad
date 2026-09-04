@@ -844,6 +844,12 @@ fn remap_node(
             count: count.clone(),
             kind: remap_rule(kind, &id)?,
         },
+        // The selector is payload with no id in it (a half, or an
+        // index expression); only the edge remaps.
+        Node::Part { of, select } => Node::Part {
+            of: id(*of)?,
+            select: select.clone(),
+        },
         Node::PlacedUnion { input, count, kind } => Node::PlacedUnion {
             input: id(*input)?,
             count: count.clone(),

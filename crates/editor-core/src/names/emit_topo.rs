@@ -146,19 +146,14 @@ pub(crate) fn name_split<T: Decide>(
     let frag_rows: BTreeMap<FaceKey, FaceKey> = naming.face_fragments.iter().copied().collect();
     let section_keys: BTreeSet<FaceKey> = naming.sections.iter().map(|&(f, _)| f).collect();
     let mut sides: Vec<Side<'_, T>> = Vec::new();
-    if let Some(body) = above {
-        sides.push(Side {
-            body,
-            ix: 0,
-            half: SplitHalf::Above,
-        });
-    }
-    if let Some(body) = below {
-        sides.push(Side {
-            body,
-            ix: 1,
-            half: SplitHalf::Below,
-        });
+    for (half, body) in [(SplitHalf::Above, above), (SplitHalf::Below, below)] {
+        if let Some(body) = body {
+            sides.push(Side {
+                body,
+                ix: half.output_body(),
+                half,
+            });
+        }
     }
     for s in &sides {
         t.insert(

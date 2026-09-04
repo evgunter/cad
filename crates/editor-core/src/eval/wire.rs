@@ -23,8 +23,8 @@ use topo::{
 use super::anchor::{self, ProfileNaming, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
 use super::{BooleanValue, DatumValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
-use crate::names::{self, NameTable};
-use crate::node::{Axis3, BooleanOp, Datum, Node, PatternKind, RecipeNodeId, SlotId};
+use crate::names::{self, NameTable, SplitHalf};
+use crate::node::{Axis3, BooleanOp, Datum, Node, PartSelect, PatternKind, RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
 
 type Results<T> = BTreeMap<RecipeNodeId, NodeResult<T>>;
@@ -218,6 +218,7 @@ where
         ),
         Node::Transform { input, .. } => wire_transform(id, *input, results, vals, tol),
         Node::Pattern { input, kind, .. } => wire_pattern(id, *input, kind, results, vals, tol),
+        Node::Part { of, select } => wire_part(*of, select, results, vals),
         Node::PlacedUnion { input, kind, .. } => wire_placed_union(
             id,
             *input,
@@ -382,7 +383,19 @@ where
 /// arrived with). Per-evaluation identity — exactly the scope N6's
 /// binding caveat allows.
 fn stamp_minted<T: Decide>(body: &mut Body<T>, node: RecipeNodeId) {
-    let mut idx: u32 = 0;
+    let _ = stamp_minted_from(body, node, 0);
+}
+
+/// [`stamp_minted`] continuing an index space: stamps `body`'s
+/// unsourced descriptions from `first` up and returns the next free
+/// index. A node that mints SEVERAL bodies stamps them all through
+/// this, threading the index, because the same-source theorem (N6:
+/// same `GeomSource` ⇒ bit-identical descriptions) is stated per
+/// NODE — two bodies of one node carrying `minted(node, 0)` on two
+/// different descriptions would be one source over two geometries,
+/// which the boolean's rung 1 reads as identity.
+fn stamp_minted_from<T: Decide>(body: &mut Body<T>, node: RecipeNodeId, first: u32) -> u32 {
+    let mut idx: u32 = first;
     let surfaces: Vec<_> = body
         .surfaces()
         .map(|(k, _)| k)
@@ -411,6 +424,7 @@ fn stamp_minted<T: Decide>(body: &mut Body<T>, node: RecipeNodeId) {
         let _ = body.set_point_source(k, GeomSource::minted(node.0, idx));
         idx += 1;
     }
+    idx
 }
 
 /// Re-stamps `placed`'s descriptions with `input`'s sources wrapped
@@ -2082,10 +2096,16 @@ fn wire_split<T: Decide + geom_brep::PcurveFittedLane>(
     };
     let result = split(&body, &plane, tol).map_err(NodeErrorKind::Split)?;
     // Pass-through descriptions keep their sources (the clone carried
-    // them); the split's fresh section planes get THIS node's (D1).
-    let side = |part: SplitPart<T>| match part {
+    // them); the split's fresh section planes get THIS node's (D1) —
+    // in ONE index space across both halves. Each half's section
+    // plane is its own description with its own outward normal, and
+    // the two are the operands of any boolean that joins the halves
+    // back together: a source shared between them would read as one
+    // plane at that boolean's rung 1 while the bits say two.
+    let mut next = 0u32;
+    let mut side = |part: SplitPart<T>| match part {
         SplitPart::Body(mut b) => {
-            stamp_minted(&mut b, id);
+            next = stamp_minted_from(&mut b, id, next);
             SplitSide::Body(Arc::new(b))
         }
         SplitPart::Empty => SplitSide::Empty,
@@ -2111,6 +2131,98 @@ fn wire_split<T: Decide + geom_brep::PcurveFittedLane>(
     )
     .map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(ValuePayload::Split { above, below }, table))
+}
+
+/// **The projection node** (DM3): ONE body out of a split's or a
+/// pattern's value, as the `Body` value every consumer already takes.
+///
+/// The selector and the value must agree in kind — a half against a
+/// `Split`, an index against `Instances` — and any other pairing
+/// refuses `WrongOperand` through the same door `body_operand` uses.
+/// A single body is NOT admitted as its own instance 0: nothing is
+/// several bodies until a node says so ("wire, don't invent", D3).
+///
+/// The body handed on is the half's or the instance's own `Arc` — no
+/// clone, no re-stamp, no transform — so every consumer sees exactly
+/// the body the split or the pattern minted. The table is the input's
+/// PROJECTED onto that body ([`NameTable::project`]): the selected
+/// body's rows, re-keyed to body 0, names verbatim. The projection
+/// mints nothing and adds no segment (`wire_transform`'s
+/// identity-preserving rule), so a selector spelled against the
+/// split's `SplitBody(half)` rows or the pattern's `Instance { i, .. }`
+/// rows resolves here unchanged — and one spelled for another instance
+/// finds no row and refuses through the N5 ladder as absent, never
+/// re-anchored. Totality is re-checked against the projected body:
+/// `check_total` stays the tripwire that the projection dropped
+/// nothing the body still has.
+///
+/// No number is compared to decide anything here: the half is a tag,
+/// and the index is a structural count checked against a length.
+fn wire_part<T: Decide>(
+    of: RecipeNodeId,
+    select: &PartSelect,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+) -> OpResult<T> {
+    let value = value_of(results, of)?;
+    let (body, index) = match (select, &value.payload) {
+        (PartSelect::SplitHalf(half), ValuePayload::Split { above, below }) => {
+            let side = match half {
+                SplitHalf::Above => above,
+                SplitHalf::Below => below,
+            };
+            match side {
+                SplitSide::Body(b) => (Arc::clone(b), half.output_body()),
+                SplitSide::Empty => {
+                    return Err(NodeErrorKind::EmptyHalf {
+                        input: of,
+                        half: *half,
+                    });
+                }
+            }
+        }
+        (PartSelect::Instance(_), ValuePayload::Instances(instances)) => {
+            let index = slots::count(vals, SlotId::Instance).ok_or(NodeErrorKind::MissingSlot {
+                slot: SlotId::Instance,
+            })?;
+            // A negative index fails the conversion and lands on the
+            // same refusal as one past the end: neither names a body.
+            let at = usize::try_from(index)
+                .ok()
+                .filter(|i| *i < instances.len())
+                .ok_or(NodeErrorKind::InstanceOutOfRange {
+                    input: of,
+                    index,
+                    count: instances.len(),
+                })?;
+            let ix = u32::try_from(at).map_err(|_| NodeErrorKind::InstanceOutOfRange {
+                input: of,
+                index,
+                count: instances.len(),
+            })?;
+            (Arc::clone(&instances[at]), ix)
+        }
+        (PartSelect::SplitHalf(_), other) => {
+            return Err(NodeErrorKind::WrongOperand {
+                input: of,
+                expected: "split",
+                found: other.kind_name(),
+            });
+        }
+        (PartSelect::Instance(_), other) => {
+            return Err(NodeErrorKind::WrongOperand {
+                input: of,
+                expected: "instances",
+                found: other.kind_name(),
+            });
+        }
+    };
+    let table = value
+        .name_table
+        .project(index)
+        .map_err(NodeErrorKind::Naming)?;
+    names::check_total(&table, &body, 0).map_err(NodeErrorKind::Naming)?;
+    Ok(OpOut::plain(ValuePayload::Body(body), Arc::new(table)))
 }
 
 // `Bounds` rides along for the boolean lane only (M5 PR 8): the sweep's

@@ -38,7 +38,7 @@ use topo::Body;
 use topo::readback::{self, Pose, ReadbackError};
 
 use crate::eval::{BooleanValue, Evaluation, NodeResult, SplitSide, ValuePayload};
-use crate::names::{EntityKey, EntityKind, Entry, StableName};
+use crate::names::{EntityKey, EntityKind, Entry, SplitHalf, StableName};
 use crate::node::RecipeNodeId;
 
 /// **What a name denotes**, without the keys it denotes — the
@@ -420,11 +420,19 @@ pub(crate) fn output_body<T: Decide>(
             }
         }
         ValuePayload::Boolean(BooleanValue::Empty) => none("empty boolean"),
-        ValuePayload::Split { above, below } => match (index, above, below) {
-            (0, SplitSide::Body(b), _) | (1, _, SplitSide::Body(b)) => Ok(b),
-            (0 | 1, _, _) => Err(missing()),
-            _ => Err(missing()),
-        },
+        // The half that owns `index` by `SplitHalf::output_body` (the
+        // one definition of that mapping), if either does.
+        ValuePayload::Split { above, below } => {
+            let side = match SplitHalf::of_output_body(index) {
+                Some(SplitHalf::Above) => above,
+                Some(SplitHalf::Below) => below,
+                None => return Err(missing()),
+            };
+            match side {
+                SplitSide::Body(b) => Ok(b),
+                SplitSide::Empty => Err(missing()),
+            }
+        }
         ValuePayload::Instances(v) => v.get(index as usize).map(AsRef::as_ref).ok_or_else(missing),
         ValuePayload::Datum(_) => none("datum"),
         ValuePayload::Profile(_) => none("profile"),
