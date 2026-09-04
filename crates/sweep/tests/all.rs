@@ -457,6 +457,9 @@ mod verbs_shell_r2_probes;
 #[path = "verbs_shell_r2b.rs"]
 mod verbs_shell_r2b;
 
+#[path = "cert_m3r2_probes.rs"]
+mod cert_m3r2_probes;
+
 #[path = "r1_p2_probes.rs"]
 mod r1_p2_probes;
 

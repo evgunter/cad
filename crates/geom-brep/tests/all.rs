@@ -83,6 +83,9 @@ mod m5_pr12_circle_certificate;
 mod m5_pr7_ssi;
 #[path = "m5_pr9_tangent.rs"]
 mod m5_pr9_tangent;
+#[path = "cert_m3r2_lane_probes.rs"]
+mod cert_m3r2_lane_probes;
+
 #[path = "m7_8_plane_nurbs_edge.rs"]
 mod m7_8_plane_nurbs_edge;
 #[path = "m8_f67_r1_probes.rs"]
