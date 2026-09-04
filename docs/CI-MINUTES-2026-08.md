@@ -992,7 +992,9 @@ TWELVE test legs. Summing the configuration-dependent jobs at the medians
 above: un-sampled = 646 s of builds + 172 s of lint + 618 s of test legs =
 **1436 s**; today's expectation over the 50/50 draw = **512 s**. So
 **+924 s = +15.4 job-minutes per code-tier run**, on a median run of 24.5 —
-so **24.5 → ~40**.
+so **24.5 → ~40**. **That pooled figure is superseded by the per-tier split in
+the CORRECTION below**, which the gate run forced; it is left standing so the
+correction has something to correct.
 
 **Why the component sum and not a run-total comparison.** The observed
 medians split by drawn lane are 21.1 (default, n=33) and 25.4 (interval,
@@ -1002,6 +1004,40 @@ n=33), a gap of 4.3 job-minutes where the per-job medians account for only
 set is enriched in runs that are `TIER=all` and carry the oracle and backend
 rows for reasons that have nothing to do with the lane. Summing the jobs the
 lane actually decides avoids that; comparing run totals does not.
+
+**CORRECTION, 2026-09-04, from this unit's own gate run.** The figure first
+published here was **+15.4 job-minutes per code-tier run**, derived from
+per-job medians pooled across both tiers. **The gate run falsified it for the
+tier the gate run is in, and the measurement wins.** Run `33853141826`
+(`dc415acf`, green, 32 jobs, twelve `test (…)`) is a TIER=all un-sampled run
+at **54.0 job-minutes and 619 s wall**, against a TIER=all sampled median of
+**30.1 job-minutes and 437 s** (n=10 in the same window): **+23.9 job-minutes
+and +182 s**.
+
+Re-derived per tier, which is what the pooled figure was hiding:
+
+| | n (sampled) | un-sampled config jobs | sampled expectation | delta |
+|---|---|---|---|---|
+| **TIER=closure** (61 of 71 code-tier runs) | 61 | 1394 s | 502 s | **+14.9 job-min** |
+| **TIER=all** (10 of 71) | 10 | 1724 s | 591 s | **+18.9 job-min** |
+
+The tiers differ because TIER=all builds and runs unscoped: its interval test
+legs median 89 s against 55 s scoped, and its archives 322/386 s against
+273/366 s.
+
+**The gate run is 5.0 job-minutes above even the TIER=all derivation, and I am
+not explaining that away.** Its own `build + archive (interval)` took 425 s
+against that group's 386 s median and its `rustfmt + rustdoc` 370 s against
+~133 s on a typical run, so **n=1 against a median is not like-for-like** —
+but the honest reading is that the derivation is a floor and the first
+un-sampled run landed above it. Whether twelve concurrent legs slow each other
+is **not measured**; one run cannot tell that from ordinary variance.
+
+**What survives unchanged**: TIER=closure is 86 % of code-tier runs and its
+**+14.9** still agrees with PR 1796's independently derived **+15.6** (that
+figure is tier-blind too, in the same way this one's first version was). The
+shape of the argument — two builds and twelve test legs, not six builds — is
+what the gate run confirms.
 
 **Two currencies, and the second one depends on the window.** At this
 window's **18.4 code-tier runs/hour** that is **+283 job-minutes/hour**

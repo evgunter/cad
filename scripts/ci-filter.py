@@ -145,15 +145,16 @@ WHY THIS IS AFFORDABLE, AND IT IS NOT A 6x MULTIPLIER. The nextest archive is
 built once per COMPILE MODE, and eps is RUNTIME env (CAD_TOLERANCE_EPS) read
 by bit-identical binaries — so six points are TWO builds and TWELVE test jobs,
 not six builds. Builds dominate; test legs are the cheap half. Measured on the
-4-vCPU runner, over the 71 code-tier runs of one 3.9-hour window: the second
-archive and its lint cost ~7.8 job-minutes, and each added eps leg 46-56 s.
-The whole matrix is about +15 job-minutes on a ~24 job-minute code-tier run,
-and about +28 s of expected critical path — the added eps legs run in
-parallel behind an archive that was already being built, so what lengthens a
-run is the interval archive on the half of runs that would have drawn
-default. The population and the arithmetic are in
-`docs/CI-MINUTES-2026-08.md`, under the 2026-08-22 sampling section this
-supersedes.
+4-vCPU runner, over the 71 code-tier runs of one 3.9-hour window: the whole
+matrix costs about **+15 job-minutes on a TIER=closure run and +19 on a
+TIER=all one**, against medians of 22 and 30. What lengthens a run is the
+interval archive on the runs that would have drawn `default`; the added eps
+legs start together behind an archive already being built. THOSE ARE FLOORS,
+NOT FORECASTS: the first un-sampled run (`33853141826`, TIER=all) came in at
+54 job-minutes against a 30-minute median, above the derivation, and one run
+cannot separate contention from ordinary variance. The population, the
+arithmetic and that correction are in `docs/CI-MINUTES-2026-08.md`, under the
+2026-08-22 sampling section this supersedes.
 
 THE K-LINT ROW IS STILL SAMPLED, and it is now the whole of what remains of
 the draw. `k-lint (gate)`'s five FEATURE UNIFICATIONS (see `KLINT_ROWS`) are

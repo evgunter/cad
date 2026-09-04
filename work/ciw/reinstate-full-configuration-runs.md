@@ -62,17 +62,24 @@ Population: every `CI` run created 2026-09-04T04:00Z–07:52Z with
 `conclusion` ∈ {success, failure}: 155 runs, 71 code-tier. Per-job wall time
 from the jobs API; nothing is billed, the repository is public.
 
-* **+15.4 job-minutes per code-tier run** (24.5 → ~40), derived by summing
-  the configuration-dependent jobs at their medians: 1436 s un-sampled
-  against 512 s expected over the 50/50 draw.
+* **+14.9 job-minutes on a TIER=closure run** (61 of 71) and **+18.9 on a
+  TIER=all run** (10 of 71), derived by summing the configuration-dependent
+  jobs at their per-tier medians. A pooled, tier-blind +15.4 was published
+  first and is corrected here: this unit's own gate run (`33853141826`,
+  TIER=all, green, twelve `test (…)` jobs) came in at **54.0 job-minutes
+  against a TIER=all sampled median of 30.1 — +23.9**, above even the
+  per-tier derivation, and n=1 against a median is not like-for-like but the
+  derivation is a floor rather than a forecast.
 * **+283 job-minutes/hour** at this window's 18.4 code-tier runs/hour;
   **+161/hour** at PR 1796's 10.3/hour over a 14.45-hour window. The two
   lanes agree on the per-run figure (+15.4 against +15.6) and differ only in
   how busy an hour is.
-* **Critical path +57 s on the half of runs that would have drawn `default`,
-  +0 on the other half** — every run now takes the interval archive's path
-  (368 s median against 278 s). The added eps legs cost ~0 wall: they start
-  together behind an archive already being built.
+* **Critical path**: every run now takes the interval archive's path (366 s
+  median against 273 s scoped), so a run that would have drawn `default`
+  gains the difference and one that would have drawn `interval` gains ~0. The
+  added eps legs start together behind an archive already being built. The
+  gate run's wall was **619 s against a TIER=all sampled median of 437 s
+  (+182 s)** — again above the derivation, and again n=1.
 
 The derivation, the population and the confound that rules out a
 run-total comparison are in `docs/CI-MINUTES-2026-08.md`, in the block that
