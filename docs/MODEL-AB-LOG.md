@@ -3689,3 +3689,10 @@ reaches main when the block's last slot's reviews conclude; each
 ordinal claim at review dispatch goes to main on its own.
 
 Block CURVED-B1 slot record (branch-side, appended as each slot concludes):
+Reorder (2026-09-04, before any slot-1 dispatch): slot 1 = CURVED-TORUS
+PR-1 (`docs/CURVED-TORUS-SPEC.md` §PR-1, `torus-operand-boxes-span-whole-ring`;
+pre-draw **M / NUMERIC**, logged at the spec), slot 2 = the merge-door
+unit (`cylindrical-rest-pair-hits-planar-merge`, spec pending). Reason:
+the torus spec ratified first (#1874) while the merge-door spec lane
+was still measuring. The draw is untouched — a slot's arm does not
+depend on which unit takes it.
