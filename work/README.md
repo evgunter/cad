@@ -129,9 +129,13 @@ with **`[ev]`**, and the item that asked sets `needs_ev: true`. The PR
 is not named in the item: which PR carries the question is one
 `git log` away, and the item usually exists before the PR does. Ev
 answers in the PR's comments; the agent edits the item and the docs,
-merges, and clears the flag. `STATUS.md` lists every open `needs_ev`
-oldest first, so the two views (the PR list filtered on `[ev]`, and
-the tracker) always name the same set.
+merges, and clears the flag. Whoever opens an `[ev]` PR arranges to be
+woken by comments on it — the away-channel monitor locally, a PR
+subscription on a remote box — because the answer arrives as a comment
+and a question nobody is listening to has not been asked.
+`STATUS.md` lists every open `needs_ev` oldest first, so the two views
+(the PR list filtered on `[ev]`, and the tracker) always name the same
+set.
 
 State-sync rides the unit's PR as before (item header updates, log
 entries); conversations for Ev get their own `[ev]` PR.
