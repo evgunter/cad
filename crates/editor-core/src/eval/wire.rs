@@ -2221,7 +2221,7 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 /// OPERAND tables it is handed. From the second fold step on the `a`
 /// side is the ACCUMULATED table — the pair emitter's, whose rows are
 /// `FromA`/`FromB`-headed — so the name it finds is in the fold's
-/// internal space: no published table holds it, [`crate::resolve`]
+/// internal space: no published table holds it, [`mod@crate::resolve`]
 /// cannot look it up, and a selector written against it matches
 /// nothing. Every name the refusal carries is therefore put through
 /// [`names::collapse_name`], the same rewrite the node's own table gets
