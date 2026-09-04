@@ -2,9 +2,10 @@
 id: session-gesture-guard-spelled-thirteen-times
 kind: issue
 title: session.rs spells the gesture-in-flight guard thirteen times in two styles
-status: open
+status: closed
 opened: 2026-09-04
-refs: [1386]
+refs: [1386, 1816]
+closed: 2026-09-04
 ---
 
 Found by CHROME's style lane on PR 1746, answering the brief's Q8 —
@@ -66,3 +67,35 @@ lint` now REFUSES a `parked` row whose every blocker is closed, and a
 program cannot un-park another program's rows in the PR that closes
 their trigger — `work/README.md`'s one-file-one-item rule makes that a
 merge conflict by design.
+
+## Claimed by VIEW and CLOSED — VIEW-1b dissolved it (VIEW orchestrator, 2026-09-04)
+
+Claimed by `git mv` into `work/view/`, which is what
+`work/README.md` requires of a program taking another's item, and
+which this item's own last paragraph asked for: *"re-home it to VIEW
+at CHROME's close rather than treating it as a CHROME unit."* CHROME
+has not closed, but its slate has landed and it has been dormant since
+07:00; VIEW now holds `crates/viewer/src/*` alone.
+
+**Closed as dissolved, not fixed.** VIEW-1b (#1816) answered both of
+the two questions this item said a fix had to answer, and the tree
+carries the answers today:
+
+1. *Does the guard belong in a dispatcher-level table?* Yes, and it is
+   one: `SessionOp::permitted_during_value_gesture`
+   (`crates/viewer/src/session/op.rs:650`) is an exhaustive match over
+   the whole vocabulary, so a new op cannot be added without answering
+   it. The rule is checked **once**, at `session.rs:675`.
+2. *Which ops legitimately have no guard, and is that recorded?* Every
+   op's answer is a row in that match, with the argument beside it.
+
+The thirteen (later counted at 23) hand-written guards are gone: the
+only two `self.gesture.is_some()` reads left in the crate are the
+single dispatch check at `session.rs:675` and a `Debug` impl's field
+at `:1553`, and `Refusal::GestureInFlight` is constructed at exactly
+one site.
+
+The residual question this item raised — whether one particular row's
+answer is *right* — is not this item's; it is
+`save-is-not-gesture-guarded`, which is open and states what survives
+of it.

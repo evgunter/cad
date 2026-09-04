@@ -1234,3 +1234,90 @@ this session changes that**: the focus map door straddles DOCM and
 S-BOOL, `next-id-has-no-layer3-door` is DOCM's, and 6a is an `[ev]` PR
 that gates 6b and 6c. 6a is the one this program can act on alone and
 it is the next orchestrator build, not a lane's.
+
+## Third orchestrator; six merges nobody logged; the glob widened (2026-09-04, evening)
+
+Picked the program up from `work/view/plan.md` and this log's tail, and
+**the tail was false**. It described three lanes as running. All three
+had merged, along with three more:
+
+| PR | what | logged? |
+|---|---|---|
+| #1846 | `set-param-prechecks-what-the-door-refuses` | no |
+| #1848 | the module-kind gate + the loud-skip marker | no |
+| #1849 | `camera-fold-clears-status-line` | no |
+| #1857 | Ev's `deferred` ruling + the fired-trigger lint check | no |
+| #1872 | `opoutcome-superseded-has-no-production-reader` | no |
+| #1873 | `two-gestures-can-be-in-flight-together` | no |
+
+Every item file was closed correctly and `lint` was green, so the board
+was true and only the narrative was not. **That is the eighth instance
+of this program's standing hazard and the first where the stale prose
+is the log itself** — the file whose whole job is to be the thing a
+successor reads. The item files saved it: reconstructing what happened
+took one `git log` over `work/view/` and five minutes, because the
+per-item record is where `work/README.md` puts the state and the log is
+only the story. Worth stating as the reason that split exists.
+
+No countermeasure filed. A gate cannot tell a session that merged six
+PRs to write about them, and the honest instrument is a successor who
+reads `git log` before believing the tail — which is now written into
+`plan.md` where the next one will meet it.
+
+### CHROME is dormant, and the wait clause is spent
+
+`work/view/program.md` has said since 2026-09-03 that this program
+waits on CHROME's slate. Measured rather than assumed:
+
+- CHROME's last self-authored commit is `e59f43dc`, **06:53**. The two
+  later touches of `work/chrome/` are DOCM's fix pass and VIEW's own
+  #1857.
+- Its one open PR, **#1813** (tracker-only, 26 lines), has
+  `updated_at == created_at` at 07:09 — untouched for sixteen hours
+  while VIEW, DOCM, CIW, CURVED and CERT all committed.
+- Its own closing log entry says the slate is complete: *"All nine
+  units are answered. CHROME does NOT close with them"* — what holds
+  the directory open is residue parked on **this** program's split,
+  which is the dependency pointing the other way.
+
+Put to Ev with that evidence; **the glob is widened**
+(`crates/viewer/tests/*` into `paths`) and three CHROME rows are
+claimed by `git mv`, which is what `work/README.md` requires of a
+claim. Not all of them — the ones claimed are the ones where VIEW holds
+the ground or the dependency:
+
+- `session-gesture-guard-spelled-thirteen-times`, **claimed and closed
+  as dissolved**. Its own text asked for exactly this re-home, and
+  VIEW-1b answered both questions it said a fix had to answer: the
+  table exists (`session/op.rs:650`), it is exhaustive, and it is
+  checked once (`session.rs:675`). Two `gesture.is_some()` reads
+  survive in the crate and neither is a guard.
+- `viewer-const-all-tables-have-no-exhaustiveness-guard` — three of
+  its five citations were pre-split and are corrected in the claim
+  note. Held, to be taken with
+  `tool-kind-all-and-ordinal-have-no-production-reader`: "delete two of
+  them" and "guard five of them" are one question.
+- `no-persistent-setplacement-session-op` — DI5's build, which
+  `two-hand-written-copies-of-the-g1-gesture-machine` waits on. Both
+  halves now sit on one slate.
+
+Left with CHROME: the forms rows, the GPU and pixel rows, the mate and
+badge attribution rows, and the coverage rows. Those are that
+program's word, not this one's, and a dormant orchestrator is not a
+departed one.
+
+### Ev's four rulings, taken in chat
+
+1. **Wave shape** — the small units *and* 6b together, 6b being the
+   long pole worth starting early.
+2. **Test glob** — take `crates/viewer/tests/*`, and re-home the CHROME
+   rows worth re-homing, "which may not be all of them".
+3. **The editor-core halves** — reach in narrowly rather than
+   announcing and waiting. `EditError`'s user-facing `Display` wording
+   only: the `edit: ` prefix and the `{:?}`-quoted payloads. The
+   precedent is CHROME's `mate.rs` amendment (#1748). Recorded in
+   `program.md`'s `keep_out` so it is a fence with an exception rather
+   than a fence that was ignored.
+4. **The three design forks** — one `[ev]` PR carrying all three,
+   opened while the build lanes run so the answers arrive without
+   blocking anything.

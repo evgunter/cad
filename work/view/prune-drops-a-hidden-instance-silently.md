@@ -2,9 +2,11 @@
 id: prune-drops-a-hidden-instance-silently
 kind: issue
 title: prune discards a user's hide choice with no report, the same class as superseded and in the same function
-status: open
+status: dispatched
 opened: 2026-09-04
 refs: [opoutcome-superseded-has-no-production-reader, prune-discards-the-fault-that-explains-the-supersession]
+branch: view/prune-report
+rides_with: prune-discards-the-fault-that-explains-the-supersession
 ---
 
 Found by the VIEW-6 review (2026-09-04).

@@ -2,9 +2,10 @@
 id: session-clearing-walk-is-hand-maintained-three-times
 kind: issue
 title: the constructor, open, new_document and land hand-maintain the same clearing walk, so a new landed_* field is silently missed
-status: open
+status: dispatched
 opened: 2026-09-04
 refs: [viewer-session-god-module-split]
+branch: view/clearing-walk
 ---
 
 

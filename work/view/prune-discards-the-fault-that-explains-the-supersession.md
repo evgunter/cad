@@ -2,9 +2,10 @@
 id: prune-discards-the-fault-that-explains-the-supersession
 kind: issue
 title: prune tests the free-move fault with is_ok and drops it, so the supersession notice names the instance but not the cause
-status: open
+status: dispatched
 opened: 2026-09-04
 refs: [opoutcome-superseded-has-no-production-reader, prune-drops-a-hidden-instance-silently]
+branch: view/prune-report
 ---
 
 Found by the VIEW-6 review (2026-09-04), which is the reason the
