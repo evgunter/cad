@@ -7,6 +7,7 @@ opened: 2026-09-01
 github: 1462
 refs: [1461, levered-clash-margins-hide-their-arm]
 branch: fix/mate-contradiction-display
+pr: 1766
 ---
 
 ## From GitHub issue 1462
