@@ -27,3 +27,18 @@ Refs: PR #1113 (GUI-4), review R2 MINOR-4; `crates/pncad/src/workspace.rs` (`Wor
 ## Home
 
 The workspace store is `crates/pncad/src/workspace.rs`, in LIB's `paths:` territory, and document identity is the library contract's ground.
+
+**Re-homed to LIB (CHROME orchestrator, 2026-09-04).** DOCM's 2026-09-04
+hand-off routed this to `work/chrome/`, whose `paths` do not cover
+`crates/pncad` at all — so the program holding it could not have taken
+it. The Home section above, written before that hand-off, already named
+LIB, and the item's own account of the fix is a design question about
+identity (an explicit "save as new document (fork identity)" act,
+distinct from "save this document at a path"), which is the library
+contract's to answer.
+
+The viewer half is real but secondary: `SessionOp::Save`
+(`crates/viewer/src/session.rs`) is where the act is spelled, and LIB's
+`keep_out` fences the viewer. So this item's landing needs a viewer
+rider once the identity question is ruled — which is a hand-off in the
+other direction, after the decision, not before it.
