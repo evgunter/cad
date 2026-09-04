@@ -3,7 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::print_stdout)]
 
 use geom_core::Tol;
-use step_import::{import_step, ImportOptions};
+use step_import::{ImportOptions, import_step};
 
 fn main() {
     let path = concat!(
@@ -15,7 +15,10 @@ fn main() {
     println!("ambient eps = {:e}", tol.get().eps);
     match import_step(&text, &ImportOptions::default(), tol) {
         Ok(imported) => {
-            println!("IMPORTED ok; promotions: {}", imported.curve_promotions().len());
+            println!(
+                "IMPORTED ok; promotions: {}",
+                imported.curve_promotions().len()
+            );
         }
         Err(e) => {
             println!("REFUSED (debug): {e:?}");

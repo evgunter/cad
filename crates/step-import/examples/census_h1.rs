@@ -3,12 +3,17 @@
 //! Enumerates dm1's degree-1 / .POLYLINE_FORM. carriers and computes,
 //! for each, the zero-radius cylinder composite's certified sup
 //! (√sup metres) and the control-point chord-projection excursions.
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::print_stdout, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::print_stdout,
+    clippy::panic
+)]
 
 use geom::NurbsCurve3;
-use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
-use geom_core::spline::KnotVector;
 use geom_core::Point3;
+use geom_core::spline::KnotVector;
+use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
 
 const INCH: f64 = 0.0254;
 
@@ -19,7 +24,10 @@ fn main() {
     );
     let text = std::fs::read_to_string(path).unwrap();
     // Flatten records: join lines, split on ';'.
-    let flat: String = text.chars().filter(|c| *c != '\n' && *c != '\r' && *c != ' ').collect();
+    let flat: String = text
+        .chars()
+        .filter(|c| *c != '\n' && *c != '\r' && *c != ' ')
+        .collect();
     let mut points: std::collections::BTreeMap<u64, Point3<f64>> = Default::default();
     let mut carriers: Vec<(u64, Vec<u64>, Vec<f64>)> = Vec::new(); // (id, ctrl refs, knots)
     for rec in flat.split(';') {
@@ -40,7 +48,10 @@ fn main() {
                 .map(|s| s.parse().unwrap())
                 .collect();
             assert_eq!(nums.len(), 3, "#{id}");
-            points.insert(id, Point3::new(nums[0] * INCH, nums[1] * INCH, nums[2] * INCH));
+            points.insert(
+                id,
+                Point3::new(nums[0] * INCH, nums[1] * INCH, nums[2] * INCH),
+            );
         } else if let Some(rest) = body.strip_prefix("QUASI_UNIFORM_CURVE(") {
             // QUASI_UNIFORM_CURVE('name',1,(#a,#b),.POLYLINE_FORM.,...)
             let d_start = rest.find("',").unwrap() + 2;
@@ -93,7 +104,10 @@ fn main() {
             carriers.push((id, refs, knots));
         }
     }
-    println!("degree-1 .POLYLINE_FORM. carriers found: {}", carriers.len());
+    println!(
+        "degree-1 .POLYLINE_FORM. carriers found: {}",
+        carriers.len()
+    );
     println!(
         "{:>6} {:>4} {:>13} {:>13} {:>13} {:>13}",
         "id", "n", "sup(m^2)", "sqrt_sup(m)", "chord_len(m)", "excursion(m)"
@@ -141,5 +155,7 @@ fn main() {
         worst_exc = worst_exc.max(excursion);
         println!("{id:>6} {n:>4} {sup:>13.3e} {root:>13.3e} {len:>13.6e} {excursion:>13.3e}");
     }
-    println!("worst sqrt_sup: {worst_res:e} m; worst excursion: {worst_exc:e} m; eps_in(file) = 1e-5 m");
+    println!(
+        "worst sqrt_sup: {worst_res:e} m; worst excursion: {worst_exc:e} m; eps_in(file) = 1e-5 m"
+    );
 }

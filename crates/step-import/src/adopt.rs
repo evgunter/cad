@@ -425,7 +425,15 @@ fn adopt_edges(
         // them as cylinders — with no candidate description AT ALL
         // (the ladder reported zero attempts, which is the shape of a
         // gap rather than of a refusal).
-        iso_curve_candidates(body, spec, p_start, p_end, fs_plus, fs_minus, &mut candidates);
+        iso_curve_candidates(
+            body,
+            spec,
+            p_start,
+            p_end,
+            fs_plus,
+            fs_minus,
+            &mut candidates,
+        );
         if fs_plus != fs_minus {
             // The IsoCurve rung (M7-3): a NURBS-carried edge between
             // two described NURBS walls is the loft/sweep wall–wall
@@ -785,7 +793,10 @@ fn line_column_match(
     let control = iso.control();
     if iso.knots().degree() != 1
         || control.len() != 2
-        || iso.weights().iter().any(|w| w.to_bits() != 1.0f64.to_bits())
+        || iso
+            .weights()
+            .iter()
+            .any(|w| w.to_bits() != 1.0f64.to_bits())
     {
         return None;
     }
