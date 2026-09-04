@@ -143,11 +143,10 @@ pub enum SceneError {
 }
 
 impl core::fmt::Display for SceneError {
-    /// [`SceneError::NoProduct`] forwards to [`ProductError`]'s own
-    /// `Display`: the layer that raised a failure names it.
-    /// [`SceneError::NotTessellated`] cannot — `mesh`'s
-    /// `TessellateError` has no `Display`, so its value reaches a
-    /// reader as a debug rendering until it grows one (issue #1111).
+    /// The payload-carrying arms forward to their payload's own
+    /// `Display` — [`ProductError`] and `mesh`'s `TessellateError`
+    /// each name their own failure, and this layer does not restate
+    /// it.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::InvalidDisplayTolerance { delta } => write!(
@@ -158,7 +157,7 @@ impl core::fmt::Display for SceneError {
             Self::NotTessellated(error) => {
                 write!(
                     f,
-                    "the body did not tessellate at this display tolerance: {error:?}"
+                    "the body did not tessellate at this display tolerance: {error}"
                 )
             }
             Self::EmptyMesh => f.write_str(

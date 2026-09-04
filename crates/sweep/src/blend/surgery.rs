@@ -51,9 +51,11 @@
 //! cap). The rim edges are replaced by a torus BAND:
 //! struts and trim `mef`s on both supports carve the two annular
 //! strips (the plane's hole widens from the rim circle to the trim
-//! circle — the fillet eats into the FLAT face, which is what makes it
-//! a fillet and not a gouge; the curved side splits its MERIDIAN seam
-//! edges at the trim circle instead of strutting into the cap),
+//! circle on EITHER material side — on a convex rim the band replaces
+//! a strip of the flat face, on a concave one it rests on the flat face
+//! beyond the rim and adds material; the curved side splits its
+//! MERIDIAN seam edges at the trim circle instead of strutting into the
+//! cap),
 //! rim-edge `kef`s merge them and strut `kef`s fuse the pieces around
 //! the ring. The band is an annulus and a curved face must be
 //! RING-FREE (`props`' closed-form inventory; the donut's own
@@ -100,9 +102,7 @@
 //!
 //! # Out of scope, refused typed
 //!
-//! Multi-link open chains (junction carry-through), open chains whose
-//! material-adding side the requested BAND does not build (the rolling
-//! ball's; the ruled strip carves either),
+//! Multi-link open chains (junction carry-through),
 //! partially-requested corners (run-outs),
 //! closed rims that are neither a circle-carried ring of a PLANE
 //! against ring-free caps nor a rim between two revolution walls (of
@@ -704,8 +704,7 @@ fn corner_plan<'a, T: Decide + Bounds>(
     let convexity = links.first().convexity();
     let (arc, feet, surface) = match kind {
         BlendKind::Fillet => {
-            let convex = matches!(convexity, Convexity::Convex);
-            let ball = corner_ball([p; 3], normals, radius, convex);
+            let ball = corner_ball([p; 3], normals, radius, convexity);
             // The ball at rest is at distance `radius` from every
             // support — inside the material at a convex corner, in the
             // void at a concave one — so its foot on each is the
@@ -715,13 +714,15 @@ fn corner_plan<'a, T: Decide + Bounds>(
             // support's trimlines, because the centre is on both
             // incident spines.
             //
-            // ONE fold, two named spellings, cross-cited so neither
-            // drifts alone: this `toward` is the same sign the band
-            // arm folds into its feet (`plane_plane_blend`'s
-            // `signed`), and the NEGATIVE of `corner_ball`'s `signed`
-            // — which is the rest DEPTH (`c·n = p·n + signed`), the
-            // displacement's opposite by definition of tangency.
-            let toward = if convex { radius } else { -radius };
+            // ONE fold, ONE home: `Convexity::signed` — the value the
+            // plane–plane band arm folds into its feet and the
+            // plane–sphere arm into its spine, and (as the side bit
+            // `Convexity::ball_side`) what the shared sheet reduction
+            // hands each trace (`battery::curved_arm`). `corner_ball`
+            // alone needs its NEGATIVE, the rest DEPTH
+            // (`c·n = p·n − toward`), the displacement's opposite by
+            // definition of tangency, and spells it as `-signed(..)`.
+            let toward = convexity.signed(radius);
             let mut feet = [ball.center; 3];
             for (foot, &n) in feet.iter_mut().zip(normals.iter()) {
                 *foot = ball.center + n * toward;
@@ -830,8 +831,15 @@ fn chamfer_feet<T: Decide + Bounds>(
 /// chain is an annulus by shape (a ring of one face has a link count
 /// greater than one whenever it is a ring at all).
 ///
-/// The CONCAVE gate stays for both: a concave chain adds material, which
-/// no closed-rim carve in this module builds.
+/// **Neither shape asks which material side the rim is on.** The band
+/// is a torus about the rim's own spine whichever side the ball rests
+/// on; the walk below is struts or seam splits to the feet, a trimline
+/// `mef` per support, a `kef` per arc and the crossing merges, none of
+/// which is a material-side fact. A convex rim's carve REMOVES the two
+/// support strips between the rim and the trimlines and a concave rim's
+/// identical carve ADDS them; the one sense the band carries is its
+/// face bit, folded from the chain's stored verdict at the door
+/// ([`Convexity::blend_sense`]).
 fn resolve_rim<'a, T: Decide + Bounds>(
     body: &Body<T>,
     chain: &'a Chain<T>,
@@ -850,13 +858,6 @@ fn resolve_rim<'a, T: Decide + Bounds>(
                 link.edge,
                 "a closed chain's blend is not a torus (the torus band is the only \
                  closed blend built)",
-            ));
-        }
-        if !matches!(link.convexity, Convexity::Convex) {
-            return Err(unbuilt_chain(
-                link.edge,
-                "a concave chain adds material, which no closed-rim carve builds — \
-                 not implemented",
             ));
         }
     }
@@ -1049,8 +1050,9 @@ fn resolve_rim<'a, T: Decide + Bounds>(
 /// starts from this list). They are not
 /// shared because each answers a different question at a different
 /// phase; the intended relation is that the battery's ADMITS every site
-/// these two do and more, which is why the seam tag's recourse
-/// conditions its carve half.
+/// these two do and more, which is why the seam tag's recourse has to
+/// be true at every site the tag fires — and is, on either material
+/// side, since the closed-rim band carves on both.
 ///
 /// # Why this is not merged with the other annulus resolver
 ///
@@ -1740,23 +1742,36 @@ fn rim_trim_circles<T: Real>(
 /// carries the ring through; zero/negative refuses
 /// [`BlendError::RingClearance`]; an in-band margin escalates with
 /// the SAME recourse (two-tolerance, D4 ¶1 addendum — this arm is
-/// trio-pinned like every `fillet3_*` predicate). Public for exactly
-/// that trio: the margins themselves are derived inside the surgery
-/// from stored trimlines and ring carriers, never sampled.
+/// trio-pinned like every `fillet3_*` predicate). Crate-visible, and
+/// reached from outside the crate only through the test-support door
+/// ([`ring_clearance_for_tests`], re-exported as
+/// `test_support::ring_clearance`) for exactly that trio: the margins
+/// themselves are derived inside the surgery from stored trimlines and
+/// ring carriers, never sampled, so no production caller exists.
 ///
-/// In practice predicate 2's sampled screen usually fires first on
-/// the same configuration (for a straight edge the two margins are
-/// the same length); this check is the EXACT form of it, and the one
-/// the ring carry-through soundness argument actually rests on —
-/// sampling can overestimate a gap, the closed form cannot. The
-/// refuse arm is therefore FRONT-DOOR-SCREENED by predicate 2: it is
-/// exercised directly by the trio pins, not through `fillet_edges`'
-/// live assemblies.
+/// Predicate 2's sampled screen meters the same gap first, and this
+/// check is the EXACT form of it — the one the ring carry-through
+/// soundness argument rests on, because sampling can overestimate a
+/// gap and the closed form cannot.
+///
+/// **What that ordering does and does not give.** The screen samples
+/// each boundary edge at `CHAIN_SAMPLES` places, so it reads a gap
+/// that is never SMALLER than the true one. The invariant is therefore
+/// one-sided: no request this check would pass is refused by the
+/// screen, and any request the screen refuses would be refused here
+/// too. It is NOT that the screen always answers first — when the
+/// ring's closest approach to a requested edge lands between samples,
+/// the sampled gap is strictly larger, and a setback in between passes
+/// the screen and is refused HERE, at the front door. A 30°-turned
+/// dimpled prism does exactly that
+/// (`sweep/tests/review_fillet_e2_probes.rs`); the axis-aligned
+/// fixtures this doc was written against do not, which is why it read
+/// as "front-door screened".
 ///
 /// # Errors
 ///
 /// [`BlendError::RingClearance`] / [`BlendError::Escalated`].
-pub fn ring_clearance<T: Decide + Bounds>(
+pub(crate) fn ring_clearance<T: Decide + Bounds>(
     face: FaceKey,
     margin: T,
     band: Band,
@@ -1771,6 +1786,21 @@ pub fn ring_clearance<T: Decide + Bounds>(
             margin: margin.lo(),
         }),
     }
+}
+
+/// The test-support door to [`ring_clearance`]: the same function, made
+/// nameable from this crate's `tests/` binaries for its two-tolerance
+/// trio pin (`tests/m6_surgery.rs`) and compiled into no shipped build.
+/// It lives here rather than in `test_support` because its signature
+/// carries the surgery's own `Decide + Bounds` compound, which the
+/// `Bounds` scope rule ratifies for this file and no other in the crate.
+#[cfg(any(test, feature = "test-support"))]
+pub fn ring_clearance_for_tests<T: Decide + Bounds>(
+    face: FaceKey,
+    margin: T,
+    band: Band,
+) -> Result<(), BlendError> {
+    ring_clearance(face, margin, band)
 }
 
 /// The pre-mutation honesty pass (module docs): every ring of every
@@ -3664,6 +3694,7 @@ mod tests {
             0.09,
             0.02,
             false,
+            Convexity::Convex,
         );
         let mut swapped = blend.clone();
         core::mem::swap(&mut swapped.trim_a, &mut swapped.trim_b);

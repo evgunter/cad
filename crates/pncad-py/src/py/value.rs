@@ -35,7 +35,7 @@ use pyo3::types::PyString;
 
 use crate::errors::ErrorClass;
 use crate::py::quantity::Length;
-use crate::py::{doc::NodeId, typed_err, typed_err_kernel_authored};
+use crate::py::{doc::NodeId, typed_err};
 use crate::tags::{NODE_NOT_EVALUATED, export_error_tag, node_error_tag, step_import_error_tag};
 use pncad::document as d;
 use pncad::tolerance::Tol;
@@ -329,12 +329,9 @@ impl Body {
     /// are the same mechanical work `crate::tags` does for edits,
     /// deferred with the rest of the read-back surface.
     ///
-    /// It raises through [`typed_err_kernel_authored`] rather than
-    /// [`typed_err`]: three of the tier-3′ census arms are worded by
-    /// the KERNEL out of `Debug`, so the prose assertion — which is a
-    /// rule about text this crate composes — would panic on a
-    /// perfectly honest refusal. That function carries the argument
-    /// and names the filed kernel item; this is its only caller.
+    /// It raises through [`typed_err`] like every other door: the
+    /// kernel words each tier-3′ census finding through `Display`, so
+    /// the joined message is prose the assertion accepts.
     fn run_validator(
         &self,
         py: Python<'_>,
@@ -345,7 +342,7 @@ impl Body {
             return Ok(());
         };
         let count = failures.len().into_pyobject(py)?.unbind().into_any();
-        Err(typed_err_kernel_authored(
+        Err(typed_err(
             py,
             ErrorClass::Validation,
             format!(

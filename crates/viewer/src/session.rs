@@ -48,7 +48,7 @@ use pncad::workspace::WorkspaceError;
 
 use crate::blend::BlendKindChoice;
 use crate::bounds;
-use crate::combine;
+use crate::combine::{self, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, DocIoError};
 use crate::evalseam::{EvalRequest, EvalService, Generation, InlineEvaluator};
@@ -1006,6 +1006,12 @@ pub enum SessionOp {
     ///
     /// It changes no document, commits nothing and enters no history:
     /// every candidate is applied to a scratch copy that is dropped.
+    ///
+    /// A slot driven by an expression is refused, exactly as
+    /// [`SessionOp::SetSlot`] and [`SessionOp::BeginGesture`] refuse
+    /// it: the range would be a range of numbers for a field that
+    /// takes no number. The affordance names the driving parameters,
+    /// which are the fields to probe instead.
     ProbeBounds {
         /// The field to probe.
         target: BoundsTarget,
@@ -1175,13 +1181,14 @@ pub enum SessionOp {
     /// commit door as every other edit: one apply, one history state,
     /// one re-evaluation, and the free-move supersession prune.
     AddMate {
-        /// The `a` reference (instance-qualified).
+        /// The `a` reference — the head names a member of A11's
+        /// vocabulary (`pncad::document::member_of`).
         a: StableName,
-        /// The `b` reference (instance-qualified).
+        /// The `b` reference, same vocabulary.
         b: StableName,
         /// The declared contact class.
         class: ContactClass,
-        /// The alignment datum (frames in each instance's own part
+        /// The alignment datum (frames in each member's own part
         /// coordinates).
         alignment: Alignment,
     },
@@ -1345,6 +1352,41 @@ pub enum SessionOp {
         /// picked with.
         rule: PatternRuleSpec,
     },
+    /// Insert one FUSED pattern of an existing body — the pattern
+    /// tool's other committed edit, and the door a boolean's refusal
+    /// of a pattern points at.
+    ///
+    /// [`SessionOp::AddPattern`]'s twin, seat for seat and slot for
+    /// slot, because `Node::PlacedUnion` takes exactly what
+    /// `Node::Pattern` takes: a PROTOTYPE body, a count, a rule. What
+    /// differs is the result — ONE body, the union of the prototype at
+    /// every placement, which every downstream body seat consumes
+    /// where a pattern's several instances are refused.
+    ///
+    /// **The prototype, not a pattern node.** The fused node replicates
+    /// a body itself rather than consuming a `Node::Pattern`, so this
+    /// door's seat wants a BODY and refuses
+    /// [`Refusal::WrongNodeKind`] for a pattern exactly as the
+    /// unfused door does. A user who already authored the unfused
+    /// pattern re-commits over the same prototype and deletes the
+    /// pattern; there is no edit that converts one node into the
+    /// other, and inventing one here would be a second spelling of a
+    /// rule the document already has.
+    ///
+    /// **Disjointness is the node's question, not this door's.**
+    /// Placements that overlap refuse typed at evaluation on the
+    /// node's own badge, the same division of labour a non-positive
+    /// count takes: the door authors what the user asked for and the
+    /// node says whether it can be built.
+    AddPlacedUnion {
+        /// The prototype placed at every placement.
+        input: RecipeNodeId,
+        /// Placement count.
+        count: i64,
+        /// The placement rule, with the axis a circular rule was
+        /// picked with.
+        rule: PatternRuleSpec,
+    },
     /// Insert one constant-radius fillet on a SET of an existing
     /// body's edges — the blend tool's one committed edit, as a
     /// fillet.
@@ -1466,6 +1508,16 @@ enum GestureTarget {
         unit: Option<UnitDef>,
     },
     /// A document parameter, with the dimension it is declared at.
+    ///
+    /// **No unit, and it is not the slot arm's omission.** A slot's
+    /// edit rebuilds the literal, so the notation has to be carried
+    /// into it or the drag rewrites it; a parameter's edit is the
+    /// value door (`DocEdit::SetDocParamValue`), which writes a number
+    /// into the standing declaration and leaves the authored unit
+    /// beside it untouched. There is nothing here for a captured unit
+    /// to protect. The panel still SHOWS the drag in the parameter's
+    /// written unit — it converts before the value crosses into this
+    /// layer, which is canonical throughout.
     Param {
         name: ParamName,
         dimension: Dimension,
@@ -1581,7 +1633,41 @@ pub struct DocSession {
     /// document, and showing yesterday's range beside today's number is
     /// the class of stale-confident answer this crate's staleness rules
     /// exist to prevent.
-    bounds: Option<(BoundsTarget, bounds::Bounds)>,
+    bounds: Option<BoundsReading>,
+}
+
+/// **One locally-valid-range probe's answer**, with everything a panel
+/// needs to say it: the field it was taken for, the range found, and
+/// the NOTATION the search ran in.
+///
+/// The unit is carried rather than looked up again at the reading, and
+/// that is the whole reason this is a struct rather than a pair. The
+/// probe seeds one step of the unit the field is WRITTEN in
+/// ([`DocSession::probe_seed`]), so a reading in any other unit
+/// describes a search that did not happen — it would say metres about
+/// a range found in millimetres. A panel that re-read the unit off the
+/// row it is drawing would agree with the search only for as long as
+/// nothing came between the two reads; carrying it makes the agreement
+/// the same value read twice.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BoundsReading {
+    /// The field the probe was taken for.
+    pub target: BoundsTarget,
+    /// The range the search established.
+    pub bounds: bounds::Bounds,
+    /// The unit the search ran in — one of it is the probe's step.
+    /// `None` is the field that names no notation at all (a count, a
+    /// bare scalar), whose step is 1.
+    pub unit: Option<UnitDef>,
+}
+
+impl BoundsReading {
+    /// The reading as one line, in the unit the search used — the one
+    /// place a probe's result becomes a sentence, for a slot field and
+    /// a document parameter's alike.
+    pub fn wording(&self) -> String {
+        self.bounds.wording(self.unit)
+    }
 }
 
 /// The field a locally-valid-range probe was taken for.
@@ -1809,9 +1895,9 @@ impl DocSession {
     }
 
     /// The last locally-valid-range probe, with the field it was taken
-    /// for. `None` before any probe, and after every document change
-    /// (`request_eval`'s discard).
-    pub fn bounds(&self) -> Option<&(BoundsTarget, bounds::Bounds)> {
+    /// for and the unit it was searched in. `None` before any probe,
+    /// and after every document change (`request_eval`'s discard).
+    pub fn bounds(&self) -> Option<&BoundsReading> {
         self.bounds.as_ref()
     }
 
@@ -2117,7 +2203,12 @@ impl DocSession {
                 rotation_axis,
                 rotation_angle,
             } => self.add_transform(input, translation, rotation_axis, rotation_angle),
-            SessionOp::AddPattern { input, count, rule } => self.add_pattern(input, count, rule),
+            SessionOp::AddPattern { input, count, rule } => {
+                self.add_pattern(input, count, rule, PatternOutputChoice::Instances)
+            }
+            SessionOp::AddPlacedUnion { input, count, rule } => {
+                self.add_pattern(input, count, rule, PatternOutputChoice::Fused)
+            }
             SessionOp::AddFillet {
                 target,
                 radius,
@@ -2254,11 +2345,28 @@ impl DocSession {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
+        // A driven slot is not a field the user can put a number into,
+        // so a range of numbers for it is not an answer to any question
+        // they can act on: the probe refuses it with the same
+        // affordance the write and the drag do, which names the
+        // parameters to probe instead. A parameter has no driver and
+        // reaches this door unguarded.
+        if let BoundsTarget::Slot { node, slot } = target
+            && let Err(refusal) = self.guard_driven(node, slot)
+        {
+            return OpOutcome::refused(refusal);
+        }
         let base = self.doc().clone();
-        let (origin, seed, integral) = match self.probe_scale(&target) {
+        // Read off `base` — the document the samples below are applied
+        // to — and not off the session again. One document answers
+        // where the search starts, what it steps by, and what every
+        // candidate is judged against, so a probe cannot seed from one
+        // document and search another.
+        let (origin, unit, integral) = match Self::probe_scale(&base, &target) {
             Ok(scale) => scale,
             Err(refusal) => return OpOutcome::refused(refusal),
         };
+        let seed = Self::probe_seed(unit);
         let tol = self.tol;
         let prior = self.landed.clone();
         let resolver = self
@@ -2289,22 +2397,51 @@ impl DocSession {
                 }
             },
         );
-        self.bounds = Some((target, result));
+        // The unit stored here is the one `probe_seed` above stepped
+        // by: the reading and the search are one value read twice.
+        self.bounds = Some(BoundsReading {
+            target,
+            bounds: result,
+            unit,
+        });
         OpOutcome::default()
     }
 
-    /// The probe's three inputs, read off the field: where it is now,
-    /// the step to search by, and whether its answer is an integer.
+    /// One written `unit`, in canonical terms — the probe's step, and
+    /// the one place that arithmetic is spelled, so a slot's seed and a
+    /// parameter's seed are the same answer to the same question.
+    /// `None` is the field that names no unit at all (a count, a bare
+    /// scalar), whose step is 1.
+    fn probe_seed(unit: Option<UnitDef>) -> f64 {
+        unit.map_or(1.0, |unit| props::from_written(1.0, unit))
+    }
+
+    /// The probe's three inputs, read off the field **in `doc`**: where
+    /// it is now, the unit it is written in, and whether its answer is
+    /// an integer.
     ///
-    /// The seed is ONE of whatever unit the field is written in — one
-    /// millimetre for a slot written in millimetres, one radian for one
-    /// written canonically, 1 for a count or a bare scalar. That is the
-    /// scale a user thinks in, which is the scale a range should be
-    /// searched and reported at.
-    fn probe_scale(&self, target: &BoundsTarget) -> Result<(f64, f64, bool), Refusal> {
+    /// The unit rather than the step, so that the number the search
+    /// walks by ([`Self::probe_seed`]) and the number the reading is
+    /// written in ([`BoundsReading::unit`]) come from one answer to one
+    /// question. One of that unit is the step — one millimetre for a
+    /// field written in millimetres, one radian for one written
+    /// canonically, 1 for a count or a bare scalar. That is the scale a
+    /// user thinks in, which is the scale a range should be searched
+    /// and reported at.
+    ///
+    /// **An associated function over the document the probe searches**,
+    /// not a method that reads the session again: the two arms below
+    /// once read two different documents (the shown one and the
+    /// committed one), which agreed only because a probe refuses while
+    /// a gesture is in flight. Taking the document as an argument makes
+    /// that agreement structural instead of circumstantial.
+    fn probe_scale(
+        doc: &Doc<ProfileProgram>,
+        target: &BoundsTarget,
+    ) -> Result<(f64, Option<UnitDef>, bool), Refusal> {
         match target {
             BoundsTarget::Slot { node, slot } => {
-                let rows = props::slot_rows(self.doc(), *node);
+                let rows = props::slot_rows(doc, *node);
                 // One refusal for both misses — the node does not carry
                 // the slot, and the slot carries no readable value —
                 // because a probe needs a place to search FROM and
@@ -2320,26 +2457,39 @@ impl DocSession {
                     });
                 };
                 let value = value.as_f64();
-                // One of whatever unit the field is written in —
-                // through `rendering_unit`, so a computed slot's step
-                // is the same unit the panel shows it in rather than a
-                // second answer to the same question.
-                let step = props::rendering_unit(dimension, remembered)
-                    .map_or(1.0, |unit| props::from_written(1.0, unit));
-                Ok((value, step, dimension == Dimension::Count))
+                // Whatever unit the field is written in — through
+                // `rendering_unit`, so a computed slot's step is the
+                // same unit the panel shows it in rather than a second
+                // answer to the same question.
+                let unit = props::rendering_unit(dimension, remembered);
+                Ok((value, unit, dimension == Dimension::Count))
             }
             BoundsTarget::Param { name } => {
-                let Some(param) = self.committed_doc().params().get(name) else {
+                let Some(param) = doc.params().get(name) else {
                     return Err(Refusal::NoSuchParam(name.clone()));
                 };
-                let value = match param {
-                    DocParam::Continuous { value, .. } => *value,
-                    DocParam::Count { value } => *value as f64,
+                // Same rule as a slot's: one of whatever unit the
+                // field is WRITTEN in. A continuous parameter names the
+                // notation it was authored in
+                // (`DocParam::Continuous::display_unit`, which rides
+                // with the declaration and no value edit disturbs), so
+                // a millimetre parameter is searched in millimetres. A
+                // `Count` is a number rather than a quantity, has no
+                // unit to name, and steps by 1.
+                let (value, remembered) = match param {
+                    DocParam::Continuous {
+                        value,
+                        display_unit,
+                        ..
+                    } => (*value, Some(display_unit.def())),
+                    DocParam::Count { value } => (*value as f64, None),
                 };
-                // A parameter stores no display unit (`props`' module
-                // docs name the asymmetry), so its seed is one CANONICAL
-                // unit.
-                Ok((value, 1.0, param.dim() == Dimension::Count))
+                // Through `rendering_unit` for the slot arm's reason:
+                // one function answers "what unit is this field written
+                // in" for both fields, so the panel row and the probe
+                // cannot come to two answers.
+                let unit = props::rendering_unit(param.dim(), remembered);
+                Ok((value, unit, param.dim() == Dimension::Count))
             }
         }
     }
@@ -2783,9 +2933,21 @@ impl DocSession {
         })
     }
 
-    /// Insert one pattern of an existing body
-    /// ([`SessionOp::AddPattern`]).
-    fn add_pattern(&mut self, input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> OpOutcome {
+    /// Insert one pattern of an existing body, fused or not
+    /// ([`SessionOp::AddPattern`], [`SessionOp::AddPlacedUnion`]).
+    ///
+    /// **One function for the two ops**, for `add_blend`'s reason: the
+    /// gesture guard, the prototype seat, the axis seat a circular
+    /// rule adds and the commit are the same move for both, and the
+    /// only difference — which node is minted — is one match below
+    /// where a reader can see the pair side by side.
+    fn add_pattern(
+        &mut self,
+        input: RecipeNodeId,
+        count: i64,
+        rule: PatternRuleSpec,
+        output: PatternOutputChoice,
+    ) -> OpOutcome {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
@@ -2797,9 +2959,11 @@ impl DocSession {
         {
             return OpOutcome::refused(refusal);
         }
-        self.commit(DocEdit::InsertNode {
-            node: combine::pattern_node(input, count, rule),
-        })
+        let node = match output {
+            PatternOutputChoice::Instances => combine::pattern_node(input, count, rule),
+            PatternOutputChoice::Fused => combine::placed_union_node(input, count, rule),
+        };
+        self.commit(DocEdit::InsertNode { node })
     }
 
     /// Insert one blend — fillet or chamfer — on a set of an existing

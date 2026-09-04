@@ -987,25 +987,39 @@ fn the_shared_prior_does_not_move_the_hull() {
     )
     .unwrap_or_else(|e| panic!("{e}"));
     let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+    let dials = verdict.symbolic();
     for leaf in verdict.certified() {
-        let ev: Evaluation<Interval> = evaluate(
-            &s.doc,
-            None,
-            &CancelToken::new(),
-            &EvalOptions {
-                profile_lift: ProfileLift::Guided,
-                param_box: Some(Arc::new(leaf.box_.clone())),
-                ..EvalOptions::default()
+        // The re-derivation runs on the LANE the drive certified on
+        // (E12): a leaf the symbolic tier certified can carry a node a
+        // numeric-only replay refuses, so a prior-free re-derivation at
+        // plain `Interval` would be re-deriving a different build.
+        let (bracket, _) = geom_core::sym::with_session(
+            geom_core::SymBudget {
+                max_terms: dials.max_terms,
+                max_degree: dials.max_degree,
             },
-            Tol::witness(),
+            || {
+                let ev: Evaluation<geom_core::Sym<Interval>> = evaluate(
+                    &s.doc,
+                    None,
+                    &CancelToken::new(),
+                    &EvalOptions {
+                        profile_lift: ProfileLift::Guided,
+                        param_box: Some(Arc::new(leaf.box_.clone())),
+                        ..EvalOptions::default()
+                    },
+                    Tol::witness(),
+                );
+                let Some(NodeResult::Ok(v)) = ev.result(s.measure) else {
+                    panic!("a certified leaf measures")
+                };
+                let ValuePayload::Measure { value, .. } = &v.payload else {
+                    panic!("a measure")
+                };
+                CertifiedEnclosure::certified_bracket(*value).expect("certified")
+            },
         );
-        let Some(NodeResult::Ok(v)) = ev.result(s.measure) else {
-            panic!("a certified leaf measures")
-        };
-        let ValuePayload::Measure { value, .. } = &v.payload else {
-            panic!("a measure")
-        };
-        let (l, h) = CertifiedEnclosure::certified_bracket(*value).expect("certified");
+        let (l, h) = bracket;
         lo = lo.min(l);
         hi = hi.max(h);
     }

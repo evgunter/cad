@@ -159,6 +159,16 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
+        path: "crates/geom-core/src/sym.rs",
+        subject: "impl<T: Bounds> Bounds for Sym<T>",
+        why: Impl(
+            "the symbolic tier's bracket delegation (ERROR-DESIGN E12): a `Sym<T>` \
+             carries `T`'s bracket verbatim because the DAG holds no numbers of its \
+             own, and nothing in this impl reads one — the two accessors forward and \
+             return",
+        ),
+    },
+    Site {
         path: "crates/geom-core/src/real.rs",
         subject: "impl<T: Bounds> Enclosure for T",
         why: Impl(
@@ -223,6 +233,20 @@ const ROSTER: &[Site] = &[
         why: HandedOff("Track V's; a refusal-payload door S88's handoff names"),
     },
     Site {
+        path: "crates/sweep/src/blend/build.rs",
+        subject: "nonpositive_size_gate",
+        why: Selection(
+            "both blend doors' size gate: the read decides whether the REQUEST is \
+             admissible at all — `lo() > 0` refuses, anything else proceeds — and that \
+             classification is value-channel-decided (a dual's bracket is its value \
+             channel's, so the door answers exactly what the f64 lane answers). The \
+             selected quantity is locally constant in the choice: on either side of the \
+             boundary the whole neighbourhood takes the same branch, and the branch it \
+             takes when refusing carries no geometry, only the low end as an f64 payload \
+             in `BlendError::NonpositiveSize`",
+        ),
+    },
+    Site {
         path: "crates/topo/src/boolean/boxes.rs",
         subject: "bracket_point",
         why: Payload("the C10 span-box reader: brackets into an f64 `SpanBox`"),
@@ -255,6 +279,18 @@ const ROSTER: &[Site] = &[
         subject: "exact_zero",
         why: Selection("the C6 inventory gate's `is the trig channel exactly 0.0` read"),
     },
+    Site {
+        path: "crates/sweep/src/test_support.rs",
+        subject: "rim_arcs_at",
+        why: Selection(
+            "a test-side fixture SELECTOR, generic so the interval lane picks its rims \
+             through the same door as f64: which stored circle edges sit at a named \
+             radius and station, both enclosure ends compared against a fixed 1e-9 — a \
+             fixture-selection tolerance, not a kernel predicate. It chooses edges for a \
+             request and decides nothing about them; at a dual it reads the value \
+             channel's bracket and selects the edges the f64 lane selects",
+        ),
+    },
 ];
 
 /// The repository root: this crate's directory, two levels up. The
@@ -281,35 +317,43 @@ fn is_sole_bracket(bound: &str) -> bool {
     )
 }
 
-/// The end of the `<…>` opened at `open`, by angle depth.
+/// The end of the `<…>` opened at `open`.
 ///
-/// **A list this cannot close stops the census** rather than being
-/// skipped: angle brackets are not reliably balanced in Rust (a `->` or a
-/// comparison inside a bound breaks the count), and a site the walk
-/// cannot read is a site it must not drop — `flagged_census.rs`'s
-/// turbofish scan takes the same asymmetry for the same reason.
+/// **The reading is [`test_utils::source::angle_end`]'s**, not a copy
+/// of it: the census already walks a `code_only` view, which is that
+/// helper's precondition, and a copy of a lexer's postcondition at a
+/// call site is how this tree grew its readers in the first place.
+///
+/// **A list the reader cannot close stops the census** rather than
+/// being skipped: a site the walk cannot read is a site it must not
+/// drop — `flagged_census.rs`'s turbofish scan takes the same
+/// asymmetry for the same reason.
+///
+/// **That asymmetry is only half of the exposure, and the other half
+/// is silent.** Refusing to close is the LOUD failure and this panic
+/// covers it. A list closed at the WRONG `>` — a genuine comparison
+/// inside a const generic argument — answers a list that is too SHORT,
+/// and a short list still parses, so the census would undercount with
+/// no signal at all. Nothing in the tree is written that way today;
+/// the shared reader states the same residue at its own definition.
 fn angle_end(code: &str, open: usize) -> usize {
-    let mut depth = 0i32;
-    for (i, ch) in code[open..].char_indices() {
-        match ch {
-            '<' => depth += 1,
-            '>' => {
-                depth -= 1;
-                if depth == 0 {
-                    return open + i;
-                }
-            }
-            '{' | ';' => break,
-            _ => {}
-        }
-    }
-    panic!(
-        "a generic parameter list at byte {open} does not close before its item's body: {:.120}",
-        &code[open..]
-    )
+    test_utils::source::angle_end(code, open).unwrap_or_else(|| {
+        panic!(
+            "a generic parameter list at byte {open} does not close before its item's body: {:.120}",
+            &code[open..]
+        )
+    })
 }
 
 /// Split at top-level commas, ignoring commas nested in any bracket.
+///
+/// **A private copy of [`test_utils::source::top_level_split`], kept
+/// deliberately.** The shared helper CLAMPS its depth at zero where
+/// this one lets it go negative, so on a fragment carrying an
+/// unbalanced closer the two disagree about which commas are
+/// top-level. Swapping it in is a behaviour change to what this census
+/// reads, which is not the repair this file came here for; it is its
+/// own unit, with its own evidence.
 fn top_level_params(inner: &str) -> Vec<&str> {
     let (mut out, mut depth, mut start) = (Vec::new(), 0i32, 0usize);
     for (i, ch) in inner.char_indices() {

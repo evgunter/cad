@@ -41,8 +41,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::approx::band;
 use geom::Surface;
-use geom_core::{Band, Point2, Point3, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::battery::{BlendRequest, run_battery};
@@ -53,10 +54,6 @@ use topo::{Body, EdgeKey, SurfaceKey, VertexKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
@@ -74,9 +71,10 @@ const RIM_R: f64 = 0.8;
 /// `(0, ∓0.6)`, bored on-axis at `0.6` so the profile stays ANNULAR and
 /// every latitude rim is one closed edge.
 ///
-/// Its equator at radius `0.8` is the sphere×sphere rim — CONVEX, which
-/// is the configuration the composition surgery carves (a concave rim's
-/// blend adds material, and that door is elsewhere). Every crossing is
+/// Its equator at radius `0.8` is the sphere×sphere rim — CONVEX, so its
+/// band removes material (a concave sphere×sphere rim, a snowman's
+/// waist, carves through the same door and adds it —
+/// `review_arms2_r1_probes`). Every crossing is
 /// exact in binary: both `(0.6, ±0.2)` and `(0.8, 0)` are 3-4-5 points
 /// of their own sphere.
 fn lentil() -> Body<f64> {

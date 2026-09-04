@@ -2,10 +2,11 @@
 id: shell-needs-shellnaming-birth-channel
 kind: issue
 title: kernel ask from RECIPE-DOORS D5 - shell/shell_open need a ShellNaming birth channel before Node::Shell can exist
-status: open
+status: closed
 opened: 2026-08-29
 github: 1202
 refs: [LIB-G17]
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1202
@@ -29,3 +30,12 @@ Node payload decided already (D5) so this is the only blocker: `Node::Shell { ta
 ## Home
 
 The ask is kernel-side in `crates/topo/src/shell.rs`, VERBS' `paths:` territory and its shell-verb ground; the recipe door it unblocks is LIB's unit LIB-G17.
+
+## Closed
+
+`shell` / `shell_open` return `Shelled<T> { body, naming }`; the
+`ShellNaming` record is written by the doors' own steps as they run
+(`crates/topo/src/shell.rs`), and its rows are audited against the body
+on seven operands in `crates/sweep/tests/verbs_shell.rs`. The body of
+this item is the ask AS FILED and its `shell.rs:472/:494` citations are
+the pre-change line numbers; the record's own docs are the live reading.

@@ -128,11 +128,11 @@ fn line_contact_seat() -> (Body<f64>, FaceKey, FaceKey) {
 /// Since #1063 this is no longer what a CHART-divergent pair earns —
 /// the world carrier answers those (`census_g2_carrier.rs`) — so a row
 /// reaching it now says something about the GEOMETRY.
-fn pair_declined(errors: &[ValidationError], face_a: FaceKey) {
+fn pair_declined(errors: &[ValidationError], face_a: FaceKey, face_b: FaceKey) {
     assert_eq!(
         errors,
         [ValidationError::CensusUnsupported {
-            entity: topo::EntityId::Face(face_a)
+            subject: topo::CensusSubject::FacePair(face_a, face_b)
         }],
         "the declared pair's own confirmation is the whole residue: \
          every event the seat induces is backed, and the pair itself \
@@ -250,7 +250,7 @@ fn the_rung_backs_an_event_outside_the_declared_pairs_overlap_region() {
         "the pair holds the entities, so it backs the event — even \
          where the pair's own regions share no area: {errors:?}"
     );
-    pair_declined(&errors, post_top);
+    pair_declined(&errors, post_top, shelf_bottom);
 }
 
 /// The same configuration undeclared: one cap corner on the shelf

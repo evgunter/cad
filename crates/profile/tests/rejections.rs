@@ -10,7 +10,7 @@ use common::{
 use geom_core::MarginDiag;
 use geom_core::Point2;
 use geom_core::Tol;
-use geom_core::{Band, Indeterminate};
+
 use profile::{
     ArcSweep, Center, ContactKind, EscalationSite, Open, PathError, ProfileError, SegmentRef,
     SketchPlane, Start,
@@ -535,15 +535,8 @@ fn a_radius_within_the_band_of_a_carrier_radius_escalates_the_enclosing_gate() {
     // The rider: the in-band arm renders the same recourse as the
     // definite refusal, and — like that refusal — it endorses no radius
     // it cannot vouch for.
-    let rendered = ProfileError::Escalated {
-        site: EscalationSite::Fillet,
-        source: Indeterminate {
-            margin: MarginDiag::Value(-5.0 * eps),
-            band: Band::new(eps, tol().k() * eps).expect("the run's band forms"),
-            predicate: Some("fillet_enclosing_carrier"),
-        },
-    }
-    .to_string();
+    let rendered =
+        crate::common::fillet_escalation_rendered("fillet_enclosing_carrier", Tol::witness());
     assert!(
         rendered.contains("puts that carrier INSIDE the fillet circle"),
         "the enclosing recourse is missing: {rendered}"
