@@ -391,8 +391,10 @@ order O1 → O3 meters and fit → O2 storage → face replacement and shell.
 Live gates, each named where it refuses: a multi-shell curved solid
 refuses STEP export (`CurvedShellClassification`, the outward/void
 classifier is planar-only); the area enclosure is unmetered; rational
-pcurve quadrature refuses typed; the Klein bottle's hand-built wall
-pairs wait on the cone×cylinder and tilted plane×torus arms.
+pcurve quadrature refuses typed; the Klein bottle's BULB wall pairs wait on
+the `cylinder × torus` and `cone × torus` arms — its own two rims. Its
+elbows' `plane × torus` and its flare's coaxial `cone × cylinder` are
+routed.
 
 ## Open
 
