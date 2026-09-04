@@ -7,6 +7,7 @@ opened: 2026-08-23
 github: 948
 refs: [938]
 branch: fix/loop-polygon-expr
+pr: 1765
 ---
 
 ## From GitHub issue 948
