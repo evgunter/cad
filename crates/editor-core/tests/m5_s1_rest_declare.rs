@@ -62,8 +62,8 @@ fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
     // sides the output stage merges).
     let pairs = vec![
         (
-            fname(a, RoleSeg::Cap(CapEnd::Top)),
-            fname(b, RoleSeg::Cap(CapEnd::Bottom)),
+            fname(a, RoleSeg::Cap(CapEnd::End)),
+            fname(b, RoleSeg::Cap(CapEnd::Start)),
         ),
         (fname(a, wall(0)), fname(b, wall(0))),
         (fname(a, wall(1)), fname(b, wall(1))),

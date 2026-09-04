@@ -118,16 +118,22 @@ impl core::fmt::Display for StableName {
 /// (`[FromA(..), Fragment(..)]`) grows it.
 pub type RolePath = Vec<RoleSeg>;
 
-/// An extrude/revolve cap end.
+/// Which end of the sweep vector a cap face closes. The sweep vector
+/// is the signed extrusion (or the stacking from first section to
+/// last), so both variants hold whichever way it points; the derived
+/// `Ord` is the name table's key order and the declaration order is
+/// that key order alone.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
 pub enum CapEnd {
-    /// On the sketch plane translated by the extrusion vector.
-    Top,
-    /// On the sketch plane.
-    Bottom,
+    /// Where the sweep vector ends: on the sketch plane translated by
+    /// it.
+    End,
+    /// Where the sweep vector starts: on the sketch plane it is
+    /// measured from.
+    Start,
 }
 
 /// A profile edge (segment) by canonical combinatorial identity

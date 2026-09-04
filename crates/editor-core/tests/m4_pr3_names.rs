@@ -6,7 +6,7 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, CapEnd, Datum, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
+    CancelToken, CapEnd, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
     MeridianEnd, NameTable, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef,
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SplitHalf, StableName,
     evaluate,
@@ -93,7 +93,7 @@ fn extrude_names_every_boundary_entity_with_the_d2_roles() {
         t.lookup(&name1(EntityKind::Body, ext, RoleSeg::OutputBody))
             .is_some()
     );
-    for end in [CapEnd::Top, CapEnd::Bottom] {
+    for end in [CapEnd::End, CapEnd::Start] {
         assert!(
             t.lookup(&name1(EntityKind::Face, ext, RoleSeg::Cap(end)))
                 .is_some()
@@ -106,7 +106,7 @@ fn extrude_names_every_boundary_entity_with_the_d2_roles() {
             t.lookup(&name1(EntityKind::Face, ext, RoleSeg::Lateral(pe(0, s))))
                 .is_some()
         );
-        for end in [CapEnd::Top, CapEnd::Bottom] {
+        for end in [CapEnd::End, CapEnd::Start] {
             assert!(
                 t.lookup(&name1(
                     EntityKind::Edge,
@@ -140,6 +140,61 @@ fn extrude_names_every_boundary_entity_with_the_d2_roles() {
             Entry::Tied(_) => panic!("unexpected tie in an extrude table: {n:?}"),
         }
     }
+}
+
+/// The cap names track the SWEEP VECTOR, not the world's up: an
+/// extrude distance is signed (`sweep::extrude` takes "a signed
+/// distance along the sketch plane's normal"), and under a negative
+/// one the vector points against that normal, so `Cap(End)` — the cap
+/// on the sketch plane translated by the vector — lies strictly below
+/// `Cap(Start)`, the cap on the sketch plane itself. Both names stay
+/// true; a spatial reading of them would not.
+#[test]
+fn a_negative_extrudes_end_cap_lies_below_its_start_cap() {
+    let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
+    let (doc, _plane, profile) = on_frame_keeping(
+        doc,
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    let (doc, block) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            // The sketch plane's normal is u x v = +z; a NEGATIVE
+            // distance extrudes against it.
+            distance: len(-1.0),
+        },
+    );
+    let ev = run(&doc);
+    let t = table(&ev, block);
+    let body = crate::corpus::body_of(&ev, block);
+    let cap_height = |end: CapEnd| -> f64 {
+        let n = name1(EntityKind::Face, block, RoleSeg::Cap(end));
+        let f = match t.lookup(&n) {
+            Some(Entry::Unique(r)) => match r.key {
+                EntityKey::Face(k) => k,
+                other => panic!("{n:?} names {other:?}"),
+            },
+            other => panic!("{n:?} is not uniquely named: {other:?}"),
+        };
+        let s = body
+            .get_surface(body.get_face(f).expect("a live face").surface)
+            .expect("a carrier");
+        match s {
+            geom::Surface::Plane { origin, .. } => origin.z,
+            other => panic!("a cap is planar, got {other:?}"),
+        }
+    };
+    let end = cap_height(CapEnd::End);
+    let start = cap_height(CapEnd::Start);
+    assert!(
+        end < start,
+        "extruded by -1 along +z, the end cap should lie BELOW the start cap; \
+         measured end={end} start={start}"
+    );
 }
 
 // ---- Revolve: the M2 band/pole/seam taxonomy, all four shapes. ----
@@ -543,10 +598,10 @@ fn split_names_sections_fragments_and_crossings() {
     // the split contributes no segment): Top lives in the above body
     // (index 0), Bottom below (index 1).
     let top = t
-        .lookup(&name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top)))
+        .lookup(&name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End)))
         .expect("top cap passes through");
     let bottom = t
-        .lookup(&name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Bottom)))
+        .lookup(&name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Start)))
         .expect("bottom cap passes through");
     match (top, bottom) {
         (Entry::Unique(a), Entry::Unique(b)) => {
@@ -649,7 +704,7 @@ fn transform_passes_names_through_and_pattern_wraps_instances() {
     // Pattern: every master entry wrapped per instance, body = i.
     let tp = table(&ev, pat);
     assert_eq!(tp.len(), 27 * 3);
-    let master_top = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Top));
+    let master_top = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     for i in 0..3u32 {
         let wrapped = name1(
             EntityKind::Face,
@@ -677,8 +732,8 @@ fn declare_pairs_resolve_in_the_named_nodes_tables() {
     );
     let (doc, b) = cube(doc, 0.5, 1.0);
     let pair = (
-        name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::Top)),
-        name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::Bottom)),
+        name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End)),
+        name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::Start)),
     );
     let (doc, _decl) = insert(doc, Node::declare_rest(vec![pair.clone()]));
     let ev = run(&doc);

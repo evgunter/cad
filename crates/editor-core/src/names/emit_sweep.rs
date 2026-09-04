@@ -87,7 +87,7 @@ fn name_swept_topology<T: Decide>(
         name1(EntityKind::Body, node, RoleSeg::OutputBody),
         ent(0, EntityKey::Body),
     )?;
-    for (end, face) in [(CapEnd::Top, top), (CapEnd::Bottom, bottom)] {
+    for (end, face) in [(CapEnd::End, top), (CapEnd::Start, bottom)] {
         t.insert(
             name1(EntityKind::Face, node, RoleSeg::Cap(end)),
             ent(0, EntityKey::Face(face)),
@@ -106,7 +106,7 @@ fn name_swept_topology<T: Decide>(
                 name1(EntityKind::Face, node, RoleSeg::Lateral(pe)),
                 ent(0, EntityKey::Face(wall)),
             )?;
-            for (end, cap) in [(CapEnd::Top, top), (CapEnd::Bottom, bottom)] {
+            for (end, cap) in [(CapEnd::End, top), (CapEnd::Start, bottom)] {
                 let rim = unique_shared_edge(body, wall, cap)?;
                 t.insert(
                     name1(EntityKind::Edge, node, RoleSeg::RimEdge(end, pe)),
@@ -130,7 +130,7 @@ fn name_swept_topology<T: Decide>(
                 ent(0, EntityKey::Edge(strut)),
             )?;
             let (s0, s1) = edge_ends(body, strut)?;
-            for (end, cap) in [(CapEnd::Top, top), (CapEnd::Bottom, bottom)] {
+            for (end, cap) in [(CapEnd::End, top), (CapEnd::Start, bottom)] {
                 let wall = side_faces[l][j];
                 let rim = unique_shared_edge(body, wall, cap)?;
                 let (r0, r1) = edge_ends(body, rim)?;

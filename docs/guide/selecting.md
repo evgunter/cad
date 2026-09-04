@@ -134,7 +134,7 @@ assert_eq!(
     top,
     select(&ev, cube, &Selector::of(
         NamePat::of_kind(EntityKind::Face)
-            .seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top)),
+            .seg(SegPat::tag(SegTag::Cap).side(CapEnd::End)),
     )),
 );
 
@@ -210,7 +210,7 @@ assert_eq!(all_bodies(&ev, cube).len(), 1);
 
 // "The cap rim of the top face" — one segment pattern.
 let top_rim = Selector::of(
-    NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::RimEdge).side(CapEnd::Top)),
+    NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::RimEdge).side(CapEnd::End)),
 );
 let names = select(&ev, cube, &top_rim);
 assert_eq!(names.len(), 4);
@@ -236,27 +236,27 @@ let rim = |end| StableName {
 
 // `SegPat::tag` — the variant, arguments free.
 let any_rim = NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::RimEdge));
-assert!(Selector::of(any_rim.clone()).matches(&rim(CapEnd::Top)));
-assert!(Selector::of(any_rim).matches(&rim(CapEnd::Bottom)));
+assert!(Selector::of(any_rim.clone()).matches(&rim(CapEnd::End)));
+assert!(Selector::of(any_rim).matches(&rim(CapEnd::Start)));
 
 // `.side` — the end/side tag, taken by `From` so the role enum's
 // own types spell it.
-let top = NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::RimEdge).side(CapEnd::Top));
-assert!(Selector::of(top.clone()).matches(&rim(CapEnd::Top)));
-assert!(!Selector::of(top).matches(&rim(CapEnd::Bottom)));
+let top = NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::RimEdge).side(CapEnd::End));
+assert!(Selector::of(top.clone()).matches(&rim(CapEnd::End)));
+assert!(!Selector::of(top).matches(&rim(CapEnd::Start)));
 
 // `SegPat::group` — everything one op minted.
 let swept = NamePat::any().seg(SegPat::group(OpGroup::Extrude));
-assert!(Selector::of(swept).matches(&rim(CapEnd::Top)));
+assert!(Selector::of(swept).matches(&rim(CapEnd::End)));
 
 // `NamePat::node` — restrict to one recipe node; `SegPat::any` and
 // `NamePat::any` are the wildcards.
-assert!(Selector::of(NamePat::any().node(node).seg(SegPat::any())).matches(&rim(CapEnd::Top)));
-assert!(!Selector::of(NamePat::any().node(RecipeNodeId(8))).matches(&rim(CapEnd::Top)));
+assert!(Selector::of(NamePat::any().node(node).seg(SegPat::any())).matches(&rim(CapEnd::End)));
+assert!(!Selector::of(NamePat::any().node(RecipeNodeId(8))).matches(&rim(CapEnd::End)));
 
 // A constrained path matches length for length.
 assert!(!Selector::of(NamePat::any().path([SegPat::any(), SegPat::any()]))
-    .matches(&rim(CapEnd::Top)));
+    .matches(&rim(CapEnd::End)));
 ```
 
 ## Alternatives, and sub-name arguments
@@ -276,14 +276,14 @@ let seam = StableName {
     kind: EntityKind::Edge,
     node,
     path: vec![RoleSeg::Seam {
-        a: Box::new(face(vec![RoleSeg::Cap(CapEnd::Top)])),
+        a: Box::new(face(vec![RoleSeg::Cap(CapEnd::End)])),
         b: Box::new(face(vec![RoleSeg::Band(ProfileEdgeRef { loop_index: 0, segment: 0 })])),
     }],
 };
 
 // `.of` — both sides constrained: "every Seam{Cap, Band} edge".
 let cap_band = NamePat::of_kind(EntityKind::Edge).seg(SegPat::tag(SegTag::Seam).of([
-    NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top)),
+    NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End)),
     NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Band)),
 ]));
 assert!(Selector::of(cap_band).matches(&seam));
@@ -373,7 +373,7 @@ let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(
 
 // Select the top cap by NAME, then ask where it is.
 let top = Selector::of(
-    NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top)),
+    NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End)),
 );
 let names = select(&ev, cube, &top);
 assert_eq!(names.len(), 1);

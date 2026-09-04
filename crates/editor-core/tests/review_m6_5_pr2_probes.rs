@@ -87,8 +87,8 @@ fn p1_shrunk_supports_wrap_exactly_the_targets_face_names() {
     let got: BTreeSet<_> = inner.iter().cloned().collect();
     assert_eq!(got.len(), 6, "each support wraps a distinct upstream face");
     let expected: BTreeSet<StableName> = [
-        fixture::fname(cube, RoleSeg::Cap(CapEnd::Bottom)),
-        fixture::fname(cube, RoleSeg::Cap(CapEnd::Top)),
+        fixture::fname(cube, RoleSeg::Cap(CapEnd::Start)),
+        fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
         fixture::fname(cube, fixture::wall(0)),
         fixture::fname(cube, fixture::wall(1)),
         fixture::fname(cube, fixture::wall(2)),

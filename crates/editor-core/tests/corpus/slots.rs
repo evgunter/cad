@@ -92,11 +92,11 @@ pub fn document() -> CorpusDoc {
     let cavity_floor = StableName {
         kind: EntityKind::Face,
         node: sub1,
-        path: vec![RoleSeg::FromB(Box::new(cap(slot1, CapEnd::Bottom)))],
+        path: vec![RoleSeg::FromB(Box::new(cap(slot1, CapEnd::Start)))],
     };
     let decl = r.insert(Node::declare_rest(vec![(
         cavity_floor,
-        cap(slot2, CapEnd::Bottom),
+        cap(slot2, CapEnd::Start),
     )]));
     let sub2 = r.insert(Node::Boolean {
         op: BooleanOp::Subtract,

@@ -100,7 +100,7 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
             RoleSeg::FromA(Box::new(name1(
                 EntityKind::Face,
                 a,
-                RoleSeg::Cap(CapEnd::Top),
+                RoleSeg::Cap(CapEnd::End),
             ))),
         ),
         name1(
@@ -109,7 +109,7 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
             RoleSeg::FromB(Box::new(name1(
                 EntityKind::Face,
                 b,
-                RoleSeg::Cap(CapEnd::Top),
+                RoleSeg::Cap(CapEnd::End),
             ))),
         ),
     ];
@@ -200,7 +200,7 @@ fn slot_subtract_discriminates_cap_fragments_by_side_of_vectors() {
     );
     let ev = run(&doc);
     let t = table(&ev, sub);
-    let top = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::Top));
+    let top = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
     // Exactly two fragments of A's top cap, SideOf-qualified, with
     // DISTINCT vectors (each Unique — no tie: the slot walls
     // discriminate).

@@ -116,7 +116,7 @@ pub fn selection(cube: RecipeNodeId, ball: RecipeNodeId, pipped: RecipeNodeId) -
     let cap_top = StableName {
         kind: EntityKind::Face,
         node: cube,
-        path: vec![RoleSeg::Cap(CapEnd::Top)],
+        path: vec![RoleSeg::Cap(CapEnd::End)],
     };
     let ball_face = |seg: RoleSeg| StableName {
         kind: EntityKind::Face,
@@ -170,7 +170,7 @@ pub fn selector() -> Selector {
     let edge = || NamePat::of_kind(EntityKind::Edge);
     let face = |tag: SegTag| NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(tag));
     let cap_top =
-        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top));
+        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End));
     let pip_rim =
         |band: SegTag| edge().seg(SegPat::tag(SegTag::Seam).of([cap_top.clone(), face(band)]));
     Selector::any_of([
