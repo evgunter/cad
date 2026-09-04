@@ -2,10 +2,12 @@
 id: pickindex-per-part-window-twins
 kind: issue
 title: PickIndex has no home for one part's window of entity X - seven hand-parallel edge/patch twins
-status: open
+status: review
 opened: 2026-08-31
 github: 1395
 refs: [1098]
+branch: chrome/pickindex-per-part-window-twins
+pr: 1768
 ---
 
 ## From GitHub issue 1395
