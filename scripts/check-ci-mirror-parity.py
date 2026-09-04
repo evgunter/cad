@@ -67,11 +67,19 @@ allowlist is not read. And ENVIRONMENT IS NOT A FLAG: render.yml's
 `CAD_RENDER_LOCAL_OVERRIDE=i-am-the-hosted-renderer` while ci-local.sh's
 `uv_sheet_drift` sets `i-accept-local-render-drift`, and `scene-inputs` is a
 pair this claim reads — so that divergence is live, deliberate, correct, and
-passes here in silence rather than through an exemption. That is the scope
-line, not an oversight: an env variable is read by the program under test and
-a flag is read by cargo, and one vocabulary spanning both would be a table of
-exceptions with a check hidden in it. Env parity, if it is ever wanted, is a
-claim of its own with its own declarations. Claim 6 reads
+passes here in silence rather than through an exemption.
+
+THAT SCOPE LINE IS A CHOICE, NOT AN ABSENCE OF TOOLING, and saying otherwise
+would be the sort of sentence this file exists to catch: comparing `env:`
+blocks between two halves is already done next door, by
+`scripts/check-cache-prime-parity.py`, which reads a job's whole `env:` block
+as text and requires it to match its primer's. So env parity is a claim
+someone could write today with a vocabulary that exists. It is not written
+here because it is a different question with different declarations — a
+divergence like `CAD_RENDER_LOCAL_OVERRIDE` is deliberate and permanent, and
+folding it into a table whose subject is cargo flags would make that table a
+place to put exceptions. **Nothing checks it in the meantime**, and that hole
+is filed as its own item rather than left in this paragraph. Claim 6 reads
 `.github/workflows/*.yml` and nothing else that can trigger a checkout, so a
 composite action under `.github/actions/` is outside it. And, as everywhere,
 wiring is not execution: a step disabled by an `if:` on the STEP still satisfies
@@ -231,6 +239,13 @@ GATE_MODE_EXEMPT: dict[str, tuple[str, str]] = {}
 #     either half. Neither is passed by a live row. They are listed anyway:
 #     this is an absence detector, and the population it is about is flags that
 #     are not there yet.
+#
+# `--` IS NOT HONOURED, deliberately. The reader keeps scanning past it, which
+# matters precisely for `--test-threads`: on `cargo test` that flag reaches the
+# harness and so can only ever appear AFTER `--`, and a reader that stopped
+# there would list a flag it could never see. The cost is that an argument to
+# the test binary which happens to spell an allowlisted flag is read as one —
+# a false red, and the direction to be wrong in.
 #   * `--all-features` and `--no-default-features` are not in the issue's list
 #     and are the same knob as `--features` — a selection that narrows or
 #     widens under an unchanged row name.
@@ -842,18 +857,39 @@ def local_call_sites(lines: list[str], want: str) -> list[int]:
 # nothing after it, or a quote that never closes, is not a value this reader
 # declines to evaluate: it is an argv it cannot read, and that is a refusal.
 GH_EXPR_RE = re.compile(r"\$\{\{.*?\}\}")
-# Where one simple command ends and the next begins. Only outside quotes.
+# Where one simple command ends and the next begins. Only outside quotes, and
+# only after the maskings below.
 #
-# NO BRACES, and they were in this set until the QA-2 reconstruction caught
-# them. Both halves hide the gated-suite filter in an array and splice it as
-# `${GATED[@]+"${GATED[@]}"}`; read as a group command that ends the argv, the
-# `--no-fail-fast` AFTER the splice fell into a chunk with no `cargo` in it and
-# vanished from BOTH sides at once — which reads as agreement. A brace is a
-# parameter expansion here far more often than a group, and a group's commands
-# are separated by `;` anyway.
-CMD_BREAK = frozenset("&|;()`")
+# THIS SET IS THE FILE'S OWN FAILURE MODE, MET TWICE. Splitting a command in
+# the wrong place drops every flag AFTER the split into a chunk with no `cargo`
+# in it — and a flag that vanishes from BOTH halves at once reads as agreement,
+# which is the one direction an absence detector must not fail in.
+#
+#   * BRACES were in this set until the QA-2 reconstruction caught them: both
+#     halves splice the gated-suite filter as `${GATED[@]+"${GATED[@]}"}`, and
+#     the `--no-fail-fast` after the splice was being lost on both sides.
+#   * `&` IS NOT A BREAK IN A REDIRECTION. `2>&1` sits on every one of the five
+#     rows claim 10 reads, and bites only because the redirection happens to
+#     come last today. `_simple_commands` breaks on `&&` and on a background
+#     `&`, and treats `>&`, `<&` and `&>` as text.
+#   * `$( … )`, `$(( … ))` AND BACKTICKS ARE MASKED to `$SUB` in the argv they
+#     sit in, so a substitution in the middle of a command does not saw it in
+#     half — and their contents are then split ON THEIR OWN, so a `cargo`
+#     invocation inside one is still read. Dropping the contents instead was
+#     tried and is wrong: `listing=$(cargo test … --test all -- --list)` is a
+#     live local row, and losing it made a correct pair look like a pair whose
+#     halves run a different number of commands.
+#
+# What the tokenizer still does not survive: a here-document, an `eval`ed
+# string, and a cargo invocation built by string concatenation. All three are
+# absent from both halves today, and all three would need a `Bail` rather than
+# a wider guess.
+CMD_BREAK = frozenset("|;()`")
 ATTACHED_J_RE = re.compile(r"-j\d+")
 OPAQUE = "*"
+# What a masked substitution leaves behind: a token carrying `$`, so that if it
+# lands where a flag's value goes it is OPAQUE rather than compared as text.
+SUB_MASK = "$SUB"
 
 
 def _join_continuations(lines: list[str]) -> list[str]:
@@ -874,6 +910,36 @@ def _join_continuations(lines: list[str]) -> list[str]:
     return out
 
 
+def _skip_substitution(text: str, at: int) -> int:
+    """Index just past the `)` closing the `(` at `at`, counting nesting and
+    ignoring parens inside quotes. Unclosed runs to end of line, which leaves
+    the rest of the argv masked rather than sawn in half."""
+    depth = 0
+    i = at
+    in_single = in_double = False
+    while i < len(text):
+        c = text[i]
+        if in_single:
+            in_single = c != "'"
+        elif in_double:
+            if c == "\\":
+                i += 2
+                continue
+            in_double = c != '"'
+        elif c == "'":
+            in_single = True
+        elif c == '"':
+            in_double = True
+        elif c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    return len(text)
+
+
 def _simple_commands(where: str, text: str) -> list[str]:
     """Split one logical line into simple commands, quote-aware.
 
@@ -883,9 +949,15 @@ def _simple_commands(where: str, text: str) -> list[str]:
     `bash -c 'cd benches && cargo fmt --all --check'`, where the `&&` is text.
     A `#` that starts a word ends the line for the same reason: a comment is
     not argv, and this repo's prose is full of apostrophes.
+
+    EVERY OTHER BRANCH HERE EXISTS TO NOT SPLIT: a redirection's `&`, a command
+    substitution and a backtick are consumed as text so that the flags after
+    them stay on the command they belong to. See `CMD_BREAK`'s comment for why
+    that direction is the one that matters.
     """
     out: list[str] = []
     cur: list[str] = []
+    nested: list[str] = []
     i = 0
     in_single = in_double = False
     while i < len(text):
@@ -916,6 +988,32 @@ def _simple_commands(where: str, text: str) -> list[str]:
             continue
         elif c == "#" and (i == 0 or text[i - 1].isspace()):
             break
+        elif c == "$" and text[i + 1:i + 2] == "(":
+            end = _skip_substitution(text, i + 1)
+            cur.append(SUB_MASK)
+            nested.append(text[i + 2:max(i + 2, end - 1)])
+            i = end
+            continue
+        elif c == "`":
+            end = text.find("`", i + 1)
+            cur.append(SUB_MASK)
+            nested.append(text[i + 1:] if end < 0 else text[i + 1:end])
+            i = len(text) if end < 0 else end + 1
+            continue
+        elif c == "&":
+            if text[i + 1:i + 2] == "&":          # `&&`, an and-list
+                out.append("".join(cur))
+                cur = []
+                i += 2
+                continue
+            if "".join(cur).rstrip()[-1:] in (">", "<") or text[i + 1:i + 2] == ">":
+                cur.append(c)                     # `2>&1`, `<&0`, `&>log` — text
+                i += 1
+                continue
+            out.append("".join(cur))              # a background `&`
+            cur = []
+            i += 1
+            continue
         elif c in CMD_BREAK:
             out.append("".join(cur))
             cur = []
@@ -930,18 +1028,25 @@ def _simple_commands(where: str, text: str) -> list[str]:
                    "dropped flag reads as agreement. Close the quote, or if the line is not a command,"
                    + teach("`_simple_commands`"))
     out.append("".join(cur))
+    for inner in nested:
+        out.extend(_simple_commands(where, inner))
     return out
 
 
-def cargo_flags(where: str, lines: list[str]) -> dict[str, dict[str, set[str | None]]]:
-    """`cargo <sub>` (and `cargo nextest <sub>`) -> flag -> the values seen.
+def cargo_flags(where: str, lines: list[str]) -> dict[str, list[dict[str, str | None]]]:
+    """`cargo <sub>` (and `cargo nextest <sub>`) -> ONE ENTRY PER INVOCATION,
+    each mapping an allowlisted flag to its value.
 
     A boolean flag's value is `None`; a value this reader cannot evaluate is
     `OPAQUE`. Only `cargo` is read: every flag in `SEMANTIC_FLAGS` is a cargo
     or nextest flag, and widening to `scripts/` invocations would put this
     claim on top of claim 2's ground with none of its exemption vocabulary.
+
+    PER INVOCATION, NOT UNIONED HERE, because the union is where this claim
+    fails silently — see `_presence`. Collapsing two `cargo test` rows into one
+    flag set is what lets a flag present on one of them stand in for the other.
     """
-    out: dict[str, dict[str, set[str | None]]] = {}
+    out: dict[str, list[dict[str, str | None]]] = {}
     for line in _join_continuations(lines):
         line = GH_EXPR_RE.sub("$GHEXPR", line)
         if "cargo" not in line:
@@ -967,7 +1072,8 @@ def cargo_flags(where: str, lines: list[str]) -> dict[str, dict[str, set[str | N
                 nsub = next((t for t in after if not t.startswith("-")), None)
                 if nsub is not None:
                     key = f"cargo nextest {nsub}"
-            flags = out.setdefault(key, {})
+            flags: dict[str, str | None] = {}
+            out.setdefault(key, []).append(flags)
             i = 0
             while i < len(rest):
                 tok = rest[i]
@@ -987,10 +1093,31 @@ def cargo_flags(where: str, lines: list[str]) -> dict[str, dict[str, set[str | N
                                        f"value." + teach("`SEMANTIC_FLAGS` and `cargo_flags`"))
                         value = rest[i + 1]
                         i += 1
-                    flags.setdefault(name, set()).add(
-                        OPAQUE if (value is not None and "$" in value) else value)
+                    flags[name] = OPAQUE if (value is not None and "$" in value) else value
                 i += 1
     return out
+
+
+def _presence(invocations: list[dict[str, str | None]], flag: str) -> tuple[bool, bool, set[str | None]]:
+    """`(on any invocation, on every invocation, the values seen)`.
+
+    TWO PRESENCE RULES, AND BOTH ARE COMPARED, because the obvious one is
+    biased the wrong way. Flags aggregate as a union, and `marker_row`'s
+    closure is biased LARGE — so a row whose own `cargo` line lost a flag still
+    reports the flag as present the moment any sibling folded into that row
+    carries it. More extent makes AGREEMENT easier, which for an absence
+    detector is precisely the direction that must not fail: the flag is gone
+    and the checker says the halves match. The same union hides a second
+    invocation inside one row.
+
+    The `every` rule closes both. In the masking case the losing side goes
+    any=True / every=False while the other stays every=True, and the pair reds.
+    Its cost is a pair where one half legitimately splits a command into two
+    invocations and flags only one — that reds, and reding is the direction to
+    be wrong in here; the fix is a `FLAG_EXEMPT` sentence saying so.
+    """
+    hits = [inv for inv in invocations if flag in inv]
+    return bool(hits), len(hits) == len(invocations), {inv[flag] for inv in hits}
 
 
 def marker_row(raw: list[str], at: int, funcs: dict[str, tuple[int, int]]) -> list[str]:
@@ -1010,21 +1137,36 @@ def marker_row(raw: list[str], at: int, funcs: dict[str, tuple[int, int]]) -> li
     would read it as a pair with no cargo command in it — a pass, for the
     reason this claim exists to refuse.
 
-    THE FAILURE DIRECTION. That closure matches function names against the
-    row's code, so it is biased LARGE: it can fold in a function the row does
-    not really call, which shows up as a flag on one side that the other does
-    not have — a false red, not a false pass. It is the expensive direction and
-    it is the safe one, which is the trade this whole file makes.
+    THE FAILURE DIRECTION, CORRECTED. The closure matches function names
+    against the row's code, so it is biased LARGE — and a first version of this
+    comment said that therefore fails toward a false RED. It does not, and the
+    error is worth keeping written down because it is the same species as the
+    defect this claim exists for: a true mechanism with a false sentence over
+    it. Flags aggregate as a union, so a bigger extent can only ADD flags to a
+    side, which makes the two sides AGREE more easily. The bias is toward a
+    false pass — a flag deleted from the row's own command, still reported
+    present because a folded-in sibling carries one. Measured: strip
+    `--no-fail-fast` from the demoted row and add one live line naming a
+    sibling that has it, and an any-presence rule returns OK.
+    `_presence`'s second rule is what answers that, and it is why there is one.
     """
     i = at + 1
     while i < len(raw) and (not raw[i].strip() or COMMENT_RE.match(raw[i])):
         i += 1
     if i >= len(raw):
-        # A marker with nothing under it. NOT a refusal: there is no argv here
-        # to misread, and whether a citation still sits above a live row is
-        # claim 8's disclosed gap ("a marker is a comment, and deleting the row
-        # under it leaves the citation resolving perfectly well"), not this
-        # claim's. An empty row simply has no cargo command to compare.
+        # WHAT THIS GUARD CATCHES, exactly: a marker with no code line ANYWHERE
+        # below it — the end of the file. It is not a check that the row under
+        # a marker still exists, and it must not be read as one: delete a row
+        # in the MIDDLE of the file and this walks past the blank line to the
+        # next code line and adopts it, silently, as that marker's row.
+        #
+        # That is claim 8's disclosed gap ("a marker is a comment, and deleting
+        # the row under it leaves the citation resolving perfectly well"), not
+        # this claim's, and closing it here is not free: making the absence a
+        # refusal fails on a marker written at the foot of the file, which the
+        # self-test's own `confession_expired` case plants. Returning an empty
+        # row is the honest reading — there is no argv to compare — and the gap
+        # is stated rather than papered over.
         return []
     opens = next((nm for nm, (a, _b) in funcs.items() if a == i), None)
     if opens is not None:
@@ -1454,18 +1596,45 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
         h_cmds = cargo_flags(f"{job_file[job_name]} job `{job_name}` step `{step_name}`", step.run)
         l_cmds = cargo_flags(f"{LOCAL_HALF}:{at + 1} (the row citing `{marker}`)",
                              marker_row(local_raw, at, local_funcs))
-        for cmd in sorted(set(h_cmds) & set(l_cmds)):
-            h_flags, l_flags = h_cmds[cmd], l_cmds[cmd]
-            for flag in sorted(set(h_flags) | set(l_flags)):
+        shared = sorted(set(h_cmds) & set(l_cmds))
+        # THE THIRD EXPIRY DIRECTION, and the one MIRROR_EXEMPT has had all
+        # along at its "NEITHER half names it" branch. Without it an exemption
+        # is not a watched asymmetry but an UNWATCHED ABSENCE: delete
+        # `--features interval` from the local interval row and the entry
+        # excusing that flag simply stops matching anything, so the flag is
+        # gone from both halves and nothing says a word. That is this unit's
+        # own headline defect, reintroduced by its own exemption table, on the
+        # one pair whose confession is about `--features`.
+        for flag in sorted(f for (m, f) in FLAG_EXEMPT if m == marker):
+            want, reason = FLAG_EXEMPT[(marker, flag)]
+            if any(_presence(h_cmds[c], flag)[0] or _presence(l_cmds[c], flag)[0] for c in shared):
+                continue
+            err(f"`{flag}` is declared {want}-only for the pair `{marker}` in FLAG_EXEMPT and NEITHER "
+                "half passes it on a command they both run. The confession has nothing left to excuse: "
+                "either the flag was dropped — which is the absence this claim exists to catch, and it "
+                f'is now hidden behind the entry — or ("{reason}") describes a row that changed shape. '
+                "Delete the entry, or say in it which command the flag moved to")
+        for cmd in shared:
+            h_inv, l_inv = h_cmds[cmd], l_cmds[cmd]
+            for flag in sorted({f for inv in h_inv + l_inv for f in inv}):
                 declared = FLAG_EXEMPT.get((marker, flag))
-                h_vals, l_vals = h_flags.get(flag), l_flags.get(flag)
-                if h_vals is not None and l_vals is not None:
+                h_any, h_all, h_vals = _presence(h_inv, flag)
+                l_any, l_all, l_vals = _presence(l_inv, flag)
+                if h_any and l_any:
                     if declared is not None:
                         want, reason = declared
                         err(f"`{flag}` on `{cmd}` is declared {want}-only for the pair `{marker}` in "
                             f'FLAG_EXEMPT and BOTH halves now pass it. The reason ("{reason}") has '
                             "expired — delete the entry, so the list stays a record of asymmetries "
                             "that exist rather than of ones that once did")
+                        continue
+                    if h_all != l_all:
+                        side = "hosted" if h_all else "local"
+                        err(f"the pair `{marker}` passes `{flag}` on EVERY `{cmd}` in the {side} half and "
+                            "on only some of them in the other. Both halves name the flag, so a union "
+                            "over the row would call that agreement — and it is how a flag dropped from "
+                            "the row's own command hides behind a sibling that still carries it. Put it "
+                            "on every invocation, or declare the pair in FLAG_EXEMPT")
                         continue
                     if OPAQUE in h_vals or OPAQUE in l_vals or h_vals == l_vals:
                         continue
@@ -1474,7 +1643,7 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
                         "runs fewer tests under the same row name, and nothing else here would say so: "
                         "mirror the value, or declare the pair in FLAG_EXEMPT with the reason it differs")
                     continue
-                side = "hosted" if h_vals is not None else "local"
+                side = "hosted" if h_any else "local"
                 if declared is not None:
                     want, reason = declared
                     if want != side:
@@ -1891,6 +2060,34 @@ def selftest() -> None:
              f"run: {FIXTURE_CARGO_ROW} --features ${{{{ matrix.feats }}}}\n")
         _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n", f"{FIXTURE_CARGO_ROW} --features two\n")
 
+    # The union's blind spot: the row's own command loses the flag and a
+    # SECOND invocation beside it still carries one.
+    def flag_on_only_some(t):
+        _sub(t, HOSTED_HALF, f"run: {FIXTURE_CARGO_ROW}\n", f"run: {FIXTURE_CARGO_ROW} --no-fail-fast\n")
+        _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n",
+             f"{FIXTURE_CARGO_ROW} --no-fail-fast && {FIXTURE_CARGO_ROW}\n")
+
+    # THE TOKENIZER, in the direction that fails silently: a redirection or a
+    # substitution BEFORE the flags must not saw the argv in half. Both halves
+    # carry the flag, so the only way these red is if one side lost it.
+    def redirection_before_flags(t):
+        _sub(t, HOSTED_HALF, f"run: {FIXTURE_CARGO_ROW}\n",
+             f"run: {FIXTURE_CARGO_ROW} 2>&1 --no-fail-fast\n")
+        _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n", f"{FIXTURE_CARGO_ROW} --no-fail-fast\n")
+
+    def substitution_before_flags(t):
+        _sub(t, HOSTED_HALF, f"run: {FIXTURE_CARGO_ROW}\n",
+             f"run: {FIXTURE_CARGO_ROW} $(echo x) --no-fail-fast\n")
+        _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n", f"{FIXTURE_CARGO_ROW} --no-fail-fast\n")
+
+    # …and its other half: a masked substitution's CONTENTS are still read.
+    # Dropping them instead is what made a correct pair look like two halves
+    # running a different number of commands.
+    def substitution_contents_read(t):
+        _sub(t, HOSTED_HALF, f"run: {FIXTURE_CARGO_ROW}\n",
+             f"run: echo $({FIXTURE_CARGO_ROW} --features one)\n")
+        _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n", f"{FIXTURE_CARGO_ROW} --features two\n")
+
     # THE TWO REFUSALS. An argv this cannot read is never a pass.
     def flag_missing_value(t):
         _sub(t, HOSTED_HALF, f"run: {FIXTURE_CARGO_ROW}\n", f"run: {FIXTURE_CARGO_ROW} --features\n")
@@ -1921,6 +2118,15 @@ def selftest() -> None:
 
         def flag_exemption_orphaned(t):
             _sub(t, LOCAL_HALF, f"# HOSTED MIRROR: {_fx_marker}\n", "# was a pair: \n")
+
+        def flag_exemption_unwatched(t):
+            """The declared flag DROPPED from the half that carried it. The
+            entry then excuses nothing and hides the absence behind itself —
+            MIRROR_EXEMPT's "NEITHER half names it" branch, which this table
+            went without until a review measured what that cost."""
+            path, argv = ((HOSTED_HALF, _fx_hosted) if _fx_side == "hosted"
+                          else (LOCAL_HALF, _fx_local))
+            _sub(t, path, f"{argv}\n", f"{argv.replace(' ' + _flag_spelling(_fx_flag), '')}\n")
 
     _case("and local-scripts/ci-local.sh does not", hosted_only)
     _case("and no workflow in .github/workflows/ does", local_only)
@@ -1974,13 +2180,18 @@ def selftest() -> None:
     _case("passes `--no-fail-fast` on `cargo nextest run` in the local half only", flag_local_only)
     _case("passes `--all-targets` on `cargo clippy` in the local half only", flag_through_function)
     _case("with different values", flag_value_diverges)
+    _case("on only some of them in the other", flag_on_only_some)
+    _case("with different values", substitution_contents_read)
     _case("takes a value", flag_missing_value)
     _case("never closes", unclosed_quote)
     _ok_case(flag_value_opaque)
+    _ok_case(redirection_before_flags)
+    _ok_case(substitution_before_flags)
     if _flag_exempt:
         _case("BOTH halves now pass it", flag_exemption_expired)
         _case("FLAG_EXEMPT and is passed by the", flag_exemption_inverted)
         _case("carries no such HOSTED MIRROR marker", flag_exemption_orphaned)
+        _case("NEITHER half passes it on a command they both run", flag_exemption_unwatched)
     print("check-ci-mirror-parity selftest OK: every Bail names the symbol to extend or says there is "
           "none; passes a clean fixture, and refuses the fixture's own `--root` on the gate of "
           "record; fires on a one-sided row, a "
@@ -1996,9 +2207,11 @@ def selftest() -> None:
           "neither a citation nor a reason, one job name defined in two files, EVERY flag in "
           "SEMANTIC_FLAGS passed by one half of a mirrored pair and not the other (in each direction, "
           "and through a shell function the local row only names), a flag both halves pass with "
-          "different values, an argv whose flag has no value or whose quote never closes, and a "
-          "FLAG_EXEMPT entry that expired, inverted or lost its pair — while accepting a value only a "
-          "runner can expand")
+          "different values, a flag one half passes on every invocation and the other on only some, a "
+          "flag read out of a command substitution, an argv whose flag has no value or whose quote never "
+          "closes, and a FLAG_EXEMPT entry that expired, inverted, lost its pair or lost the flag it "
+          "excused — while accepting a value only a runner can expand, and a redirection or a "
+          "substitution sitting between a cargo command and its flags")
 
 
 def _sub(t: str, path: str, a: str, b: str) -> None:
@@ -2093,7 +2306,8 @@ def main() -> int:
           "skip and above the local half's docs exit, all hosted-mirror citations resolve against every "
           f"workflow in {WORKFLOW_DIR}/, every job in every one of them is either cited by the local "
           "half or says at its own key, in a sentence, why it has no local half, and no mirrored pair "
-          "passes a semantics-bearing cargo flag on one half only")
+          "passes an undeclared semantics-bearing flag on one half only, or on only some of one half's "
+          "invocations, of a cargo subcommand both halves run")
     return 0
 
 
