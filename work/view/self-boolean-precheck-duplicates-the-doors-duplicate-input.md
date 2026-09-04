@@ -4,6 +4,7 @@ kind: issue
 title: add_boolean pre-checks a==b, which DocEdit::InsertNode already refuses as EditError::DuplicateInput
 status: open
 opened: 2026-09-04
+refs: [set-param-prechecks-what-the-door-refuses, refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake, 1846]
 ---
 
 
@@ -38,38 +39,60 @@ Verified, not assumed: applying `InsertNode` with a `Boolean` whose two
 seats hold one extrude yields
 `DuplicateInput { node: RecipeNodeId(3), input: RecipeNodeId(2) }`.
 
-## A test comment says the opposite
+## Two documents state the false version of this
 
-`crates/viewer/tests/combine_ops.rs:279-280` asserts the layer-3
+`crates/viewer/README.md`'s ratified list of what a flat `Refusal` arm
+is named *"this boolean's operands are the same node"* as an example of
+a fact that exists only at layer 3 — fifteen lines above the clause
+*"a flat arm must not restate a refusal a door already gives"* that
+this item quotes. #1846 corrected that example; the rule was right and
+the example was false.
+
+`crates/viewer/tests/combine_ops.rs:279-280` still asserts the layer-3
 refusal under the comment *"One body in both seats: the DAG would take
-it, the door does not."* The DAG would **not** take it. Whatever else
-is decided here, that sentence is wrong and is the reason the arm
-reads as flat.
+it, the door does not."* The DAG would **not** take it. That sentence
+is wrong and is the reason the arm reads as flat; fix it whatever else
+is decided.
 
-## Why it is not the `set_param` fix
+`crates/viewer/src/session/op.rs:369-370` says *"one node in both seats
+refuses `Refusal::SelfBoolean`"*, which is a true statement of what the
+op does today rather than a claim about which layer owns the fact — so
+it is not false, but it is a third place to update if the arm goes.
 
-Two things make it a separate decision rather than the same deletion:
+## Why it is a separate decision from the `set_param` fix
 
-- **The wording is not equivalent.** `SelfBoolean` renders "a boolean
-  needs two different bodies; node N is in both operand seats"
-  (`crates/viewer/src/session/refuse.rs`); `DuplicateInput` renders
-  "edit: node N would be left invalid — …". Deleting the pre-check
-  hands the user the second sentence. That may be right — the fix for
-  a weak door message is to fix the door — but it is a user-visible
-  wording decision, not a mechanical deletion, and
-  `crates/viewer/README.md` ratifies the affordance-wording rule that
-  bears on it.
-- **The ordering is a ratified decision.** The check is placed AFTER
-  `require_kind` deliberately, so two profiles in both seats are
-  reported as "that is not a body" rather than as the narrower
-  complaint (`session.rs:1223-1225`, and the test's second half).
-  `DuplicateInput` at the door is raised after the kind gate too, so
-  the order survives — but that has to be stated, not assumed.
+**The door's sentence is worse than the pre-check's, and improving the
+door is the work.** `SelfBoolean` renders "a boolean needs two
+different bodies; node N is in both operand seats"
+(`crates/viewer/src/session/refuse.rs`); `DuplicateInput` renders
+"edit: node N would be left invalid — …", which names no recourse and
+does not say what a boolean needs. Deleting the pre-check today hands
+the user the second sentence, so the deletion is blocked on the door's
+wording being fixed first — not on the pre-check being defensible.
+
+**That is not a carve-out and must not be read as one.** The rule has
+no "unless ours is nicer" exception, and the argument above is exactly
+the one that would have kept the `set_param` pre-check #1846 deleted if
+it had been allowed to stand on its own. It is a sequencing claim: fix
+`DuplicateInput`'s wording, then delete the arm. If the door's sentence
+is left alone, the arm still goes.
+
+One dependent fact, stated so it is not rediscovered: the check sits
+AFTER `require_kind` deliberately, so two profiles in both seats are
+reported as "that is not a body" rather than as the narrower complaint
+(`session.rs:1223-1225`, and the test's second half). `DuplicateInput`
+is raised after the door's own kind-free input checks, so that ordering
+survives the deletion — verified, not assumed.
+
+The wording half is DOCM's: `EditError`'s `Display` lives in
+`crates/editor-core/src/edit.rs` and the same arm's rendering is one of
+the sides of `refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake`.
 
 ## What resolving it looks like
 
-Either delete the arm and let `DuplicateInput` speak (fixing its
-wording first if it is not good enough for a user), or keep it and say
-in `crates/viewer/README.md`'s "A flat arm must not restate a refusal a
-door already gives" clause why this one is the exception. Fix the
-`combine_ops.rs` comment either way.
+Fix `DuplicateInput`'s wording (DOCM), then delete the layer-3 arm
+(VIEW), then fix `combine_ops.rs:279-280`'s comment and
+`session/op.rs:369-370`'s sentence. Keeping the arm is the other
+branch, and it costs a written exception in
+`crates/viewer/README.md` saying why this one fact is layer 3's when
+the door refuses it — which is the clause #1846 just had to correct.

@@ -4,7 +4,7 @@ kind: issue
 title: set_param pre-checks a parameter's existence, which DocEdit::SetDocParamValue already refuses typed
 status: review
 opened: 2026-09-04
-refs: [viewer-session-god-module-split]
+refs: [viewer-session-god-module-split, self-boolean-precheck-duplicates-the-doors-duplicate-input, sweep-blind-spots-the-precheck-sweep-could-not-see, refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake]
 branch: view/set-param-precheck
 pr: 1846
 ---
@@ -123,7 +123,19 @@ lines: `begin_param_gesture` (`session.rs:977`), the probe's param arm
 `editor-core/src/edit.rs:1144`), and both `NoSuchSlot` sites
 (`session.rs:837` in `driver_of`, `session/probe.rs:181`).
 
-The sweep's hit list is in the PR. Its one other hit —
-`add_boolean`'s `a == b` pre-check, which `DocEdit::InsertNode` refuses
-as `EditError::DuplicateInput` — is
-`self-boolean-precheck-duplicates-the-doors-duplicate-input`.
+`crates/viewer/README.md`'s ratified list of what a flat `Refusal` arm
+is named *"this boolean's operands are the same node"* as a fact
+existing only at layer 3. This unit proved by execution that
+`DocEdit::InsertNode` refuses it as `EditError::DuplicateInput`, so the
+example was false — corrected here, with the rule left standing and a
+sentence added saying that an entry in that list names a fact `apply`
+has been read for.
+
+The sweep's hit list is in the PR; what it could NOT see is
+`sweep-blind-spots-the-precheck-sweep-could-not-see`. Its one other hit
+— `add_boolean`'s `a == b` pre-check — is
+`self-boolean-precheck-duplicates-the-doors-duplicate-input`. The
+message the change now shows a user is
+`refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake`. The
+whole-file finding the review turned up alongside it is
+`session-clearing-walk-is-hand-maintained-three-times`.
