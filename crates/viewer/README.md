@@ -259,7 +259,19 @@ Boundary rules, each a type-level discipline:
   rendering is a pure view of what those operations produce. Nothing
   is expressible only as a widget interaction.
 - **Layer 3 is headless-testable.** `tests/` replays event streams and
-  asserts on the emitted edits; only pixel painting escapes.
+  asserts on the emitted edits; only pixel painting escapes. Pipeline
+  CREATION is not pixel painting and does not escape: `src/gpu.rs`'s
+  smoke row builds a device on a software adapter and constructs every
+  render pipeline in the viewport, asserting nothing about a pixel.
+
+  **What still escapes is more than pixels, and naming only the one
+  exception would overstate the seat.** Buffer and texture allocation,
+  render-pass encoding and the id pass's readback are all
+  device-validated and none of them is pixel painting either; the
+  smoke row reaches none of them, because each needs a frame rather
+  than a constructor. So the honest line is that CONSTRUCTION is
+  gated and everything downstream of a frame is not — which is what
+  `work/chrome/viewer-first-light-on-real-hardware` still holds open.
 
 The edit vocabulary is the one API surface shared by the GUI, the
 Python bindings, macro recording and headless tests; each is a
@@ -376,6 +388,22 @@ deterministic `Bvh::ray` query, authoritative, with the GPU id-buffer
 pass advisory. Docking is `egui_tiles`, a `Tree<Pane>` value the app
 owns. All of it sits behind the non-default `app` feature; without it
 the crate is renderer-free and headless-tested.
+
+**Where the `app` feature gates.** The workspace nextest archive builds
+this crate at DEFAULT features, so nothing behind the feature is in it.
+The seat is a hosted row that runs
+`cargo nextest run -p viewer --features app` in the `fmt` job, beside
+the app-feature clippy row that already compiles the toolkit graph, on
+the same seed-keyed `run_viewer_toolkit` axis and with a lavapipe
+adapter installed for the pipeline smoke row. Archiving with
+`--features app` was the alternative and was refused: the archive is
+built once and downloaded by every leg of the `test` matrix, so the
+toolkit graph's extra weight is paid per leg for rows that already
+gate. The measured figures, and why they carry no guard, are stated at
+that step in `.github/workflows/ci.yml` and only there. What the
+default-feature lane is therefore NOT checking is printed there by
+name, by the `app_lane_skipped_*` rows in `src/lib.rs`,
+`tests/chrome_labels.rs` and `tests/error_display.rs`.
 
 **wasm.** The whole kernel plus `editor-core` compiles to
 `wasm32-unknown-unknown`, `--features interval` included, and CI

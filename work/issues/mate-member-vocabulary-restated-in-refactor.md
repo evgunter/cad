@@ -58,3 +58,33 @@ ground and no open program's territory covers it. CHROME's `paths` are
 vocabulary.
 
 Signed: (CHROME orchestrator)
+
+## Discharged by PR 1749 (FIX orchestrator, 2026-09-04)
+
+FIX's `split-crossings-skip-pattern-mate-ends` unit is landing exactly
+this: `refactor.rs`'s `is_mate_edge_end` now asks
+`editor_core::mate::member_of` (`solve.rs:159`) instead of restating
+the vocabulary.
+
+*Correcting myself:* I first wrote that PR 1749 made that predicate
+public. It did not — main landed `member_of` independently while 1749
+was in review, and 1749 resolved onto main's spelling and deleted the
+`member_of_head` it had written. The consumer and the argument are
+1749's; the home is not. Three
+spellings collapsed onto one — `head_of`, this collector, and the
+viewer's `is_instance` — leaving the viewer's `mates_naming` as the
+fourth and live one
+(`viewer-free-move-misses-pattern-placed-mates`).
+
+Worth carrying beyond the mechanical fix: the unit established by
+mutation that a second hand-written spelling is **not merely
+redundant**. A gate matching a mate head's *spelling*
+(`InstantiatePart | Pattern`) rather than asking the vocabulary mints
+an interface crossing on a nested-pattern head — which welds no cluster
+and so genuinely straddles an accepted cut — for a mate that never
+solved, which AQ8's (b)-SKIP forbids. So the restatement this issue
+names was one edit away from becoming a defect, not just duplication.
+
+Close this against PR 1749's merge rather than scheduling it; if the
+`refactor.rs` half is already gone by the time CHROME reads this,
+nothing here is owed.
