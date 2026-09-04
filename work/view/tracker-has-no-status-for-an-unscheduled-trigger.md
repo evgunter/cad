@@ -2,10 +2,10 @@
 id: tracker-has-no-status-for-an-unscheduled-trigger
 kind: ruling
 title: A row whose trigger is neither an item nor a PR has no honest status: parked lies and open overstates
-status: open
-needs_ev: true
+status: closed
 opened: 2026-09-04
 refs: [pick-priority-filter-vocabulary, session-shims-and-test-imports]
+closed: 2026-09-04
 ---
 
 ## The question
@@ -99,3 +99,36 @@ Only these factual claims are corrected. The four candidate shapes
 above are unchanged: they are the question, and they are Ev's.
 
 Signed: (VIEW orchestrator)
+
+## Ruled — Ev, 2026-09-04, on PR #1857
+
+Both halves answered, verbatim:
+
+> 1.2 sounds good; deferred and blocked do seem semantically different.
+>
+> for 2, how about make it blocking but fix the things that are already
+> stale?
+
+**The vocabulary: shape 2, a `deferred` status.** Distinct from
+`parked`: ratified as not-now, the ratification cited in the body, no
+`blocked_on` — and lint refuses a `blocked_on` on a deferred row, which
+is the one mechanical thing that keeps the two statuses apart. The
+citation itself is prose and nothing checks it; `work/README.md` says
+so rather than adding a field that would look like the resolving
+pointers beside it and verify nothing.
+
+**The check: blocking.** A `parked` row whose every blocker is closed
+is a lint ERROR. The objection this item raised — that blocking would
+red `main` on rows another program owns, which one-file-one-item makes
+unfixable in the closing PR — is answered by fixing the stale rows,
+which #1857 does: the nine CHROME rows behind
+`viewer-session-god-module-split` are un-parked in it. A fired entry
+BESIDE a live blocker stays a warning, because there the status is
+still true and only the entry is stale.
+
+The three rows this item named: `pick-priority-filter-vocabulary` is
+`deferred` (GQ7 ratifies it); `session-shims-and-test-imports` stays
+`open`, since what it waits on is a cross-program decision and not a
+ratified not-now; CHROME's nine are `open`, bar
+`parameter-row-field-has-no-text-door`, which stays `parked` on its
+live blocker with the fired entry pruned.
