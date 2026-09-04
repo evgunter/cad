@@ -122,3 +122,74 @@ direction (2026-09-04) this program runs **no A/B protocol at all**:
 one subagent style review per unit, and a second reviewer for
 correctness only where a unit earns it, named in its PR with the
 reason.
+
+## First three units dispatched (2026-09-04)
+
+Three implementers ran concurrently in isolated worktrees, on
+non-overlapping territory: `ciw/render-lane-merge-ref`,
+`ciw/one-pin-reader`, `ciw/perf-host-identity`. One style review each,
+per the posture Ev set; no A/B row and no dual on any of them. PRs 1724,
+1723, 1722.
+
+**PR 1723 merged** (`nightly-pin-reading-idiom-four-copies`): one
+`scripts/ci-pin.py` replaces five `sed` sites, anchored to `ci.yml`'s
+workflow-level `env:` block and refusing on ambiguity rather than
+picking. The lane demonstrated the defect rather than asserting it —
+with a job-level `NEXTEST_VERSION: "0.9.999"` planted above the
+workflow block in a copy of the real `ci.yml`, the retired idiom
+silently answers `0.9.999` and the reader refuses, naming both lines.
+
+**What the reviews were worth.** Both style reviews found the same
+species of defect, and it is worth naming because it is not a typo
+class: **a true mechanism written up as a claim slightly stronger than
+it supports.**
+
+- 1723's `MIRROR_EXEMPT` entry, written to justify the new reader,
+  claimed the local half "has no pin to read". It has five, as
+  hand-restated literals — including `local-scripts/ci-local.sh:588-589`,
+  an executable error message telling a developer to install
+  `--version 0.9.140`. The exemption written to justify fixing five
+  machine-read copies of a pin walked past five human-read ones, on the
+  same PR. Filed as `local-half-restates-ci-pins-as-literals`; no site
+  converted, because `ci-local.sh`'s error text may want its literal on
+  purpose and that is a different unit's call.
+- 1724's sweep receipt, committed into `render.yml`, said these two
+  lanes were the only checkouts under `.github/workflows/` naming a
+  `ref:`. Thirteen do; all twelve of nightly's name one, eleven spelled
+  `${{ inputs.ref || github.sha }}`. The conclusion survived — every
+  other one names an *object*, so none could produce the 103 reds — but
+  a false receipt in the file is worse than none, because the next
+  author trusts it.
+- 1724 also claimed "a lane log exists ⇔ this lane had the tree",
+  which is false in exactly the case the unit is about: a lane whose
+  checkout fails has a log and no tree.
+- 1722's `criterion/README.md` turned the PR's own hedge into a rule —
+  "two samples whose `cpu_model` differs are not comparable at the ~10%
+  resolution below" — with nothing measured behind it. The 21.6%
+  excursion has an unknown host, which is why the unit exists.
+
+All four were repaired in fix passes rather than waved through.
+
+**Two lanes independently re-filed a tracked issue.** The `pncad-py`
+`TAG_INVENTORY` red (`work/issues/pncad-py-tag-inventory-misses-two-measure-tags`,
+filed 2026-09-03) was re-filed by unit 5 and unit 1 as new items;
+`work.py lint` catches neither, because each file is individually
+well-formed. Both copies were withdrawn and their new evidence folded
+into the original, which now carries a triage guard telling the next
+lane to append rather than file. The evidence that accumulated is worth
+more than the duplicates cost: the red is **shard `2/2` only**, green on
+`1/2` in every run, across both compile modes and all three tolerance
+rows, on seven branches — and no run on `main` has drawn a point that
+executes the test since the two tag values landed, because main's push
+runs classify docs-tier. It is a merge-base property, not a draw.
+
+That last fact is F3's accepted residue caught in the wild, and it is
+now evidence in `f3-recosting-on-a-public-repo`: the compensating
+control works, but it bills the cost to whichever unrelated lane draws
+the point, and nothing routes it back.
+
+**The charter was wrong about its own territory** and is corrected
+above. `docs/perf-data/*` is PERF's and `crates/*/tests/*` is S-TCOST's;
+"files no live program owns" was false for both. Found by unit 5's lane
+reading `work.py territory`'s warning on its own diff rather than
+ignoring it.

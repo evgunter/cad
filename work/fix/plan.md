@@ -23,9 +23,17 @@ owning program told on the away channel.
 
 ## Review posture
 
-Batched style review, no A/B row for a doc/Display/rename unit; the
-standard row where a unit changes a kernel answer
-(`transform-rigid-refuses-described-nurbs`, the census declines).
+**No A/B row on any unit of this program** (Ev, in-chat, 2026-09-04,
+at the orchestrator handoff): the band 1700-1799 stays unclaimed and
+`docs/MODEL-AB-LOG.md` is not touched. Every unit gets one style
+review (`docs/prompts/reviewer-style-lane.md`). A unit that moves a
+kernel ANSWER rather than its rendering gets a second, correctness-
+focused reviewer alongside the style lane — the three named at
+handoff are `transform-rigid-refuses-described-nurbs`, the two census
+declines taken in one sitting, and
+`split-crossings-skip-pattern-mate-ends` (a node-map remap, not a
+match arm). No unit here carries a full adversarial review; a unit
+that would need one is a unit cut wrong, and gets re-cut instead.
 
 ## Unit order
 
@@ -52,17 +60,26 @@ that touch the same match.
 - `mate-contradiction-names-one-mate-twice` and
   `pin-mismatch-recourse-emitted-twice` — Display-only; the demo pin
   and the Python pin flip in the same change.
-- `error-types-with-no-display-class` — `Display`+`Error` on the flagged
-  types across viewer, editor-core, topo, mesh and quantity; delete the
-  consumer `{:?}` renderings.
+- `error-types-with-no-display-class` — **three PRs, not one**: the
+  item is a class across five crates and four fences and asks its taker
+  for a re-sweep, so it is cut by fence — (a) `viewer`'s eight types
+  and the consumer status lines, (b) `editor-core`'s seven stragglers,
+  (c) the kernel-crate remainder (`topo::ContactRefusal`,
+  `topo::ReadbackError`, `mesh::TessellateError`,
+  `quantity::FmtQuantityError`). Each carries its own re-sweep and its
+  own blind-spot sentence; the item closes when the third lands.
 - `no-parametric-loop-constructor` — `LoopProgram::polygon_expr`, the
   literal `polygon` delegating to it.
 - `coherence-findings-have-no-consumer` — `CheckId::ChartCoherence`
   reading `examine_chart_coherence`; the step-import diagnostics half
   is EXCH's.
-- `unify-discipline-machinery-onto-registry` — step 1 only (the
-  finding/menu sink through the registry); step 2 waits on the
-  parameter-coincidence unit per DS8 and is DOCM's to schedule.
+- `unify-discipline-machinery-onto-registry` — **held, not dispatched.**
+  Step 1 (the finding/menu sink through the registry) is the one item
+  on the slate whose fix is NOT written in its body: it names a seam
+  and an order, not a diff, and it is a refactor of two rendering
+  doors. It gets a spec pass of its own before any lane sees it, or it
+  moves off this program. Step 2 waits on the parameter-coincidence
+  unit per DS8 and is DOCM's to schedule either way.
 - `split-crossings-skip-pattern-mate-ends` — `is_mate_edge_end` learns
   `Pattern`+`Instance(i)` heads; take the ASM-XSPLIT view alongside.
 - `mate-clocking-has-no-gui-path` half (1) — refuse a nonzero clocking
