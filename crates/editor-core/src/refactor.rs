@@ -712,7 +712,23 @@ fn remap_node(
             origin: origin.clone(),
             direction: direction.clone(),
         }),
-        Node::Datum(_) => node.clone(),
+        // A derived frame is not a leaf either: its body is an input
+        // and its face is a frozen name, and both cross the cut or
+        // the remap misses loudly — exactly a blend's target and
+        // selection.
+        Node::Datum(crate::Datum::FaceFrame { at, face, spin }) => {
+            Node::Datum(crate::Datum::FaceFrame {
+                at: id(*at)?,
+                face: nm(face)?,
+                spin: spin.clone(),
+            })
+        }
+        Node::Datum(
+            crate::Datum::Plane { .. }
+            | crate::Datum::Axis { .. }
+            | crate::Datum::Point { .. }
+            | crate::Datum::Frame { .. },
+        ) => node.clone(),
         // A profile's PLANE is an input like any other: it crosses the
         // cut with the profile or the remap misses loudly. (Before the
         // sketch frame became a node this arm cloned, because a

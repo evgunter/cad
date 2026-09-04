@@ -178,3 +178,47 @@ than rewritten in place. Filed: the sweep crate's `top` field docs
 (`work/issues/`). Noted for CIW's ground, not filed: the k-lint job's
 byte-for-byte die-corpus step is SKIPPED on the tier this PR drew, so
 hosted CI did not re-derive the regenerated corpus itself.
+
+## DOCM-1 dual review dispatched (2026-09-04, PR 1829 frozen at 20f04189)
+
+Implementer lane reported the PR non-draft and green at `20f04189`
+(35 files, +2244/−79); the head predates the CapEnd rename now on main,
+so the fix pass carries that conflict. Ordinal 1802 claimed on main at
+dispatch (PR 1853); parity byte 83 ⇒ R1 = FABLE, R2 = OPUS; briefs
+hashed and diff-identical modulo lane names; private build AND private
+scratch directories per lane. Both lanes running concurrently on the
+frozen head. The unit's log entry waits for the dual's conclusion.
+
+## DOCM-1 MERGED (2026-09-04, PR 1829, ordinal 1802, sample #128)
+
+Block DOCM-B1 slot 2 (FABLE), concluded; the block is concluded with
+it and its record is on main. Three phases: the Phase-1 stop at PP6's
+f64 sketch-plane fence (Ev ruled option A; PP6/DM1c amended, #1837),
+the build under the amendment, then the v6 dual (R1 fable
+NOT-MERGEABLE-AS-IS 1/2/4, R2 opus APPROVE-WITH-FIXES 2/4/4) and its
+union fix pass. Adjudicated: one bilateral MAJOR (the tag-42 key-guard
+row could not fail — the feed was redundant and is gone) and two
+unilateral MAJORs by execution, one per slot: R1's symbolic-lane
+asymmetry (a derived frame's placement does not certify on
+`Sym<Interval>` under a widened upstream parameter; the fix pass
+diagnosed it to the kernel's symbolic budget and stopped at its
+clause — filed for M10 as
+`derived-frame-placement-freezes-on-the-symbolic-lane`) and R2's A3
+handedness gap (a surviving mutant, now caught by A3b). Both reviewers
+falsified the PR's "any width refuses" kernel claim; the measured
+floor (plain `Interval`, near ε/16) is the record now. Filed at merge:
+`LIB-B-FACE-FRAME` (the Python surface), the two issues the fix pass
+filed, and — from the tally read this merge required —
+`ab-log-v6-stream-is-past-its-stopping-rule-unadjudicated` (Ev's).
+The spec is deleted into the ledger. Next: DOCM-2 (`Node::Part`,
+spec written) under a fresh block draw, DOCM-B2.
+
+## DOCM-2 dispatched (2026-09-04, block DOCM-B2 slot 0)
+
+Block DOCM-B2 drawn after DOCM-1's merge: pre-draw fields at the spec
+(M / STRUCTURAL, committed before the draw), byte 39 ⇒ fable at slot 0,
+so DOCM-2 = FABLE; slots 1–2 bank for the next kernel units once the
+open questions are ruled. Record branch-side on `docm/b2-block`. Unit
+branch `docm/2-part` cut from the orchestrator branch (it carries the
+spec and DOCM-1's state-sync, both headed to main in PR 1856). The
+implementer lane is running on it.

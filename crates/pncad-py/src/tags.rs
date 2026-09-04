@@ -378,6 +378,14 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
             BlendKind::Fillet => "fillet_selection_empty",
             BlendKind::Chamfer => "chamfer_selection_empty",
         },
+        // The derived sketch frame's refusals (DOCM-1): the fillet's
+        // ladder and kind refusals, one carrier-kind refusal, one
+        // read-back refusal, and the section refusal DM1c adds.
+        NodeErrorKind::FaceFrameResolve { .. } => "face_frame_resolve",
+        NodeErrorKind::FaceFrameKind { .. } => "face_frame_kind",
+        NodeErrorKind::FaceFrameNotPlanar { .. } => "face_frame_not_planar",
+        NodeErrorKind::FaceFrameReadback { .. } => "face_frame_readback",
+        NodeErrorKind::DerivedFrameSection { .. } => "derived_frame_section",
         NodeErrorKind::WitnessBifurcation { .. } => "witness_bifurcation",
         // The seam faults stay separable at the tag level:
         // "the pin does not hold" and "the tolerances disagree" are

@@ -70,6 +70,11 @@
       "nodes": 9,
       "cone": 2
     },
+    "face_sketch": {
+      "about": "DOCM-1: a boss sketched ON a box's top face through a derived frame (Datum::FaceFrame)",
+      "nodes": 6,
+      "cone": 4
+    },
     "heat_sink": {
       "about": "parametric fin strip: Pattern instances + explicit union chain",
       "nodes": 17,

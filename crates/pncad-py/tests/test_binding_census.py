@@ -720,6 +720,20 @@ FAMILIES = {
         "B-DISTRIBUTIONS records, and without B-DISTRIBUTIONS's sharp "
         "edge, because no existing write door silently drops a measure"
     ),
+    "B-FACE-FRAME": (
+        "the derived sketch frame's Python surface (DOCM-1, "
+        "DOCM-REFERENCES-DESIGN DM1/DM1a/DM2); closing it binds "
+        "`Datum.face_frame` (a `FaceFrame` constructor taking the body "
+        "node, a face `StableName` and a spin angle), `Pose.sense` (the "
+        "face's orientation sense the read-back now carries beside its "
+        "axis, so a Python caller forms the outward normal as "
+        "`sense * axis` exactly as Rust does), and the carrier-kind read "
+        "`face_carrier_kind` (a face name in, its stored `SurfaceKind` "
+        "tag out — the value \"is this face planar\" is a comparison "
+        "of). Today Python can evaluate and read a document that "
+        "carries a derived frame, and cannot author one or ask a face "
+        "its kind"
+    ),
 }
 
 #: Curated names with no Python spelling at all, by family.
@@ -1497,6 +1511,10 @@ NOT_BOUND = {
     "MinClearanceRefusal": f"{GAP}: B-MEASURES measurement authoring",
     "MeasureUnavailableAt": f"{GAP}: B-MEASURES measurement authoring",
     "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
+    # --- gap: the derived sketch frame's read door (census-owned) --
+    # The Rust door is DOCM-1's; its Python twin, with `Datum.face_frame`
+    # and `Pose.sense`, is LIB's and the family charters all three.
+    "face_carrier_kind": f"{GAP}: B-FACE-FRAME the derived frame's surface",
     "WrittenAngle": f"{GAP}: B-NOTATION authored notation",
     "WrittenLength": f"{GAP}: B-NOTATION authored notation",
     "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
