@@ -734,17 +734,27 @@ pub enum RimError {
 impl core::fmt::Display for RimError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotAnArc {
-                edge,
-                kind: Some(k),
-            } => write!(
-                f,
-                "edge {edge:?} carries a {k:?}, and a rim is named by an arc of a circle"
-            ),
-            Self::NotAnArc { edge, kind: None } => write!(
-                f,
-                "edge {edge:?} has no certified carrier, so it names no circle"
-            ),
+            Self::NotAnArc { edge, kind } => {
+                // The kind is NAMED, not `Debug`-rendered: a payload
+                // reaching a message through `Debug` is what the prose
+                // census hunts, and words read better in a refusal. The
+                // match is exhaustive with no wildcard arm, so a new
+                // `CurveKind` fails to compile here; the circle arm is
+                // unreachable through the door and is stated rather
+                // than folded into a catch-all.
+                let carries = match kind {
+                    None => "no certified carrier",
+                    Some(CurveKind::Line) => "a line",
+                    Some(CurveKind::Circle) => "a circle",
+                    Some(CurveKind::Ellipse) => "an ellipse",
+                    Some(CurveKind::Nurbs) => "a NURBS curve",
+                };
+                write!(
+                    f,
+                    "edge {edge:?} carries {carries}, and a rim is named by an \
+                     arc of a circle"
+                )
+            }
             Self::CoSurface { edge, surface } => write!(
                 f,
                 "edge {edge:?} has surface {surface:?} on both sides: a chart-seam \
