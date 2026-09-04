@@ -613,3 +613,78 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
     topo::validate_geometric(&body, Tol::witness())
         .expect("and the reparameterized body is valid at rest");
 }
+
+/// **The LINE re-export witness (#388).** A native arc prism's four
+/// straight ruling seams carry the walls' own boundary-column carriers
+/// — the writer states them as degree-1 `B_SPLINE_CURVE_WITH_KNOTS`
+/// records, alongside the cap rims it already writes as `LINE`. The
+/// import promotes each ruling to `Curve3::Line` (verified by the
+/// zero-radius-cylinder certificate, reported as data), so the
+/// RE-export writes exact `LINE(...)` where the incoming text spelled
+/// a spline — no writer change, the promotion is what moved.
+///
+/// The fixture is ε-scaled like `tcost_k3`'s prism, so the row
+/// compares the same thing at every ε draw.
+#[test]
+fn promoted_ruling_seams_reexport_as_line() {
+    let tol = Tol::witness();
+    let s = 1.0e5 * tol.get().eps;
+    let native = loft_body::<f64>(
+        &[common::arc_section(s), common::arc_section(s)],
+        &common::stacked(&[0.0, 1.0], s),
+        1,
+        tol,
+    )
+    .expect("the arc prism lofts")
+    .body;
+    let text1 = step_export::step_string(&native, &step_export::StepOptions::default(), tol)
+        .expect("the prism exports");
+    let bs1 = |text: &str| {
+        text.matches("B_SPLINE_CURVE_WITH_KNOTS('', 1,").count()
+            + text.matches("B_SPLINE_CURVE_WITH_KNOTS('',1,").count()
+    };
+    let lines = |text: &str| text.matches("LINE('").count();
+    assert_eq!(
+        bs1(&text1),
+        4,
+        "the four ruling seams state degree-1 splines"
+    );
+    let native_lines = lines(&text1);
+    assert!(native_lines > 0, "the cap rims are LINE records already");
+
+    let import = import_step(&text1, &ImportOptions::default(), tol)
+        .expect("the ε-scaled prism imports first-class");
+    let line_promotions = import
+        .curve_promotions()
+        .iter()
+        .filter(|p| p.kind == step_import::PromotedCurveKind::Line)
+        .count();
+    assert_eq!(
+        line_promotions,
+        4,
+        "each ruling's carrier is reported promoted: {:?}",
+        import.curve_promotions()
+    );
+    assert_eq!(
+        step_import::PromotedCurveKind::Line.to_string(),
+        "line",
+        "the report names the kind"
+    );
+    for p in import.curve_promotions() {
+        assert!(
+            p.residual <= import.eps_in(),
+            "a reported promotion certified at ε_in: {p:?}"
+        );
+    }
+    let step_import::StepImport::Solid { body, .. } = import else {
+        panic!("the prism is a solid");
+    };
+    let text2 = step_export::step_string(&body, &step_export::StepOptions::default(), tol)
+        .expect("the re-imported prism re-exports");
+    assert_eq!(bs1(&text2), 0, "no degree-1 spline survives the round trip");
+    assert_eq!(
+        lines(&text2),
+        native_lines + 4,
+        "the four rulings re-export as exact LINE records"
+    );
+}

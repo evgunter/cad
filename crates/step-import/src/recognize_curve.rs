@@ -968,6 +968,235 @@ mod tests {
         assert!(tight_checks >= 3, "the tightness arm must actually run");
     }
 
+    /// The line pins' budget. The composite's certified sup carries
+    /// the ring arithmetic's rounding slack, and the `√sup` metre
+    /// conversion (INV-C3) turns a few-ulp slack on a centimetre-scale
+    /// `dist²` into a ~2.5e-9 m FLOOR — an exact chord's certified
+    /// residual is that floor, not zero (the dm1 census's measured
+    /// range, 1.9e-10..6.2e-9 m over 3–100 mm chords). So the line
+    /// pins run at a realistic import band (dm1's own declared ε_in is
+    /// 1e-5 m) and L1 pins the floor's ORDER rather than pretending to
+    /// zero; the circle pins keep their 1e-9 because INV-C1's `/r`
+    /// conversion has no square root to amplify the slack.
+    const EPS_LINE: f64 = 1e-6;
+
+    /// L1: the unit — a two-point degree-1 chord certifies as a Line,
+    /// the frame is the carrier's own (origin at its start, `dir`
+    /// start → end), and the reversed carrier promotes to the opposite
+    /// direction — orientation survives the promotion, which is what
+    /// keeps `endpoint_params`' forward-projection rule meaning what
+    /// the file meant.
+    #[test]
+    fn l1_a_two_point_chord_certifies_as_a_line() {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let (a, b) = (Point3::new(0.01, 0.02, 0.03), Point3::new(0.05, 0.02, 0.03));
+        let chord = NurbsCurve3::new(knots.clone(), vec![a, b], vec![1.0, 1.0]).unwrap();
+        let CurveRecognition::Promoted {
+            curve: Curve3::Line { origin, dir },
+            residual,
+            kind,
+        } = recognize(&chord, EPS_LINE)
+        else {
+            panic!("a chord must certify as a line");
+        };
+        assert_eq!(kind, PromotedCurveKind::Line);
+        assert!(
+            residual < 1e-8,
+            "an exact chord's residual is the ring-slack floor: {residual:e}"
+        );
+        assert!(origin.distance(a) < 1e-15);
+        assert!((dir.x - 1.0).abs() < 1e-15, "dir {dir:?}");
+        let reversed = NurbsCurve3::new(knots, vec![b, a], vec![1.0, 1.0]).unwrap();
+        let CurveRecognition::Promoted {
+            curve: Curve3::Line { dir: rdir, .. },
+            ..
+        } = recognize(&reversed, EPS_LINE)
+        else {
+            panic!("the reversed chord certifies too");
+        };
+        assert!((rdir.x + 1.0).abs() < 1e-15, "reversed dir {rdir:?}");
+    }
+
+    /// L2: **the SEGMENT obligation (INV-C4), pinned at its value.** A
+    /// carrier lying EXACTLY on the line whose control net overshoots
+    /// the chord (the locus certificate has nothing to refuse) folds
+    /// the excursion into the residual: with controls at x =
+    /// {0, 0.06, 0.04} the excursion past the 0.04 chord is 0.02, and
+    /// the budget decides AT hypot(δ≈0, 0.02) — certifying just above
+    /// it and refusing just below. Dropping the excursion channel
+    /// (residual → ~0) or inflating the fold both go red here.
+    #[test]
+    fn l2_a_control_excursion_beyond_the_chord_is_the_residual() {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let curve = NurbsCurve3::new(
+            knots,
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.06, 0.0, 0.0),
+                Point3::new(0.04, 0.0, 0.0),
+            ],
+            vec![1.0; 3],
+        )
+        .unwrap();
+        assert!(
+            matches!(recognize(&curve, EPS_IN), CurveRecognition::StaysNurbs),
+            "an overshooting net must not certify at the module budget"
+        );
+        let CurveRecognition::Promoted { residual, kind, .. } = recognize(&curve, 0.03) else {
+            panic!("the overshoot is 0.02, inside a 0.03 budget");
+        };
+        assert_eq!(kind, PromotedCurveKind::Line);
+        assert!(
+            (residual - 0.02).abs() < 1e-12,
+            "the residual IS the excursion fold: {residual:e}"
+        );
+        assert!(
+            matches!(recognize(&curve, 0.015), CurveRecognition::StaysNurbs),
+            "and the budget decides at it"
+        );
+    }
+
+    /// L3: a doubling-back carrier that stays WITHIN the chord
+    /// promotes, and that is sound by the module docs' coverage
+    /// argument (INV-C4): the projection is continuous from 0 to ℓ and
+    /// the control hull keeps it inside [0, ℓ], so the locus IS the
+    /// whole segment — no proper sub-segment, no overshoot — and the
+    /// adopted edge states exactly that locus with the file's own
+    /// endpoints. (The circle's out-and-back refuses because its locus
+    /// can be a proper sub-arc; a line's cannot.)
+    #[test]
+    fn l3_a_within_chord_doubling_back_covers_the_segment_and_promotes() {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0], 1).unwrap();
+        let curve = NurbsCurve3::new(
+            knots,
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.03, 0.0, 0.0),
+                Point3::new(0.01, 0.0, 0.0),
+                Point3::new(0.04, 0.0, 0.0),
+            ],
+            vec![1.0; 4],
+        )
+        .unwrap();
+        let CurveRecognition::Promoted {
+            curve: Curve3::Line { dir, .. },
+            residual,
+            ..
+        } = recognize(&curve, EPS_LINE)
+        else {
+            panic!("a within-chord polyline covers its chord and certifies");
+        };
+        assert!((dir.x - 1.0).abs() < 1e-15);
+        assert!(
+            residual < 1e-8,
+            "on the line, inside the chord: {residual:e}"
+        );
+    }
+
+    /// L4: the NEGATIVE control at every tested ε — a genuinely curved
+    /// open carrier (a centimetre chord with a millimetre bulge) never
+    /// promotes to Line.
+    #[test]
+    fn l4_a_curved_open_carrier_never_promotes_at_any_tested_eps() {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let curve = NurbsCurve3::new(
+            knots,
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.02, 0.01, 0.0),
+                Point3::new(0.04, 0.0, 0.0),
+            ],
+            vec![1.0; 3],
+        )
+        .unwrap();
+        for eps in [1e-6, 1e-9, 1e-12] {
+            assert!(
+                matches!(recognize(&curve, eps), CurveRecognition::StaysNurbs),
+                "a bulged quadratic is not a line at eps {eps:e}"
+            );
+        }
+    }
+
+    /// L5: **the line certificate's SCALE, pinned from both sides**
+    /// (C8's shape for the line kind): the certified residual is a
+    /// true upper bound on the densely measured distance to the
+    /// SEGMENT (soundness), and within a stated factor of it
+    /// (tightness) — so neither channel of the fold can be quietly
+    /// weakened or inflated.
+    #[test]
+    fn l5_the_certified_residual_brackets_the_true_segment_deviation() {
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let (a, b) = (Point3::new(0.0, 0.0, 0.0), Point3::new(0.04, 0.0, 0.0));
+        let mut tight_checks = 0;
+        // Deltas sit ABOVE the ring-slack floor (EPS_LINE's doc), so
+        // the tightness half measures the certificate and not the
+        // slack; below the floor only the soundness half is meaningful.
+        for delta in [1e-8f64, 1e-7, 5e-7] {
+            let curve = NurbsCurve3::new(
+                knots.clone(),
+                vec![a, Point3::new(0.02, delta, 0.0), b],
+                vec![1.0; 3],
+            )
+            .unwrap();
+            let CurveRecognition::Promoted {
+                curve: Curve3::Line { origin, dir },
+                residual,
+                ..
+            } = recognize(&curve, EPS_LINE)
+            else {
+                panic!("delta {delta:e} is inside the budget");
+            };
+            let len = (b - a).norm();
+            let (d0, d1) = curve.domain();
+            let mut worst = 0.0f64;
+            for k in 0..=4096 {
+                let p = curve.eval(d0 + (d1 - d0) * f64::from(k) / 4096.0);
+                let t = (p - origin).dot(dir).clamp(0.0, len);
+                worst = worst.max(p.distance(origin + dir * t));
+            }
+            assert!(
+                worst <= residual,
+                "UNSOUND at delta {delta:e}: certified {residual:e} < true {worst:e}"
+            );
+            assert!(
+                residual <= worst * 10.0,
+                "LOOSE at delta {delta:e}: certified {residual:e} vs true {worst:e}"
+            );
+            tight_checks += 1;
+        }
+        assert!(tight_checks == 3);
+    }
+
+    /// L6: the two kinds' scopes are DISJOINT at the one closure gate
+    /// — the closed rational circle never reaches the line limb (it
+    /// promotes as the circle it is), and C5's collinear CLOSED
+    /// carrier keeps its `IllConditioned` answer rather than being
+    /// claimed by the line kind (its chord is inside ε_in, which
+    /// determines no direction).
+    #[test]
+    fn l6_the_closure_gate_keeps_the_kinds_disjoint() {
+        assert!(matches!(
+            recognize(&rational_circle(0.005, false), EPS_IN),
+            CurveRecognition::Promoted {
+                kind: PromotedCurveKind::Circle,
+                ..
+            }
+        ));
+        let control = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.01, 0.0, 0.0),
+            Point3::new(0.02, 0.0, 0.0),
+            Point3::new(0.01, 0.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+        ];
+        let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 3.0, 3.0], 2).unwrap();
+        let closed = NurbsCurve3::new(knots, control, vec![1.0; 5]).unwrap();
+        assert!(matches!(
+            recognize(&closed, EPS_IN),
+            CurveRecognition::IllConditioned { .. }
+        ));
+    }
+
     /// C9: **the budget decides AT the residual**, pinned either side
     /// — a carrier certifying at `residual·1.5` must stay NURBS at
     /// `residual/1.5`, so no arm may quietly widen or narrow the

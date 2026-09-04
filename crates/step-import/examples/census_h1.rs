@@ -39,8 +39,6 @@ fn main() {
         let body = &rec[eq + 1..];
         if let Some(rest) = body.strip_prefix("CARTESIAN_POINT(") {
             // CARTESIAN_POINT('name',(x,y,z))
-            let open = rest.find("(,").map(|_| 0).unwrap_or(0);
-            let _ = open;
             let coords_start = rest.find("',(").unwrap() + 3;
             let coords_end = rest[coords_start..].find(')').unwrap() + coords_start;
             let nums: Vec<f64> = rest[coords_start..coords_end]

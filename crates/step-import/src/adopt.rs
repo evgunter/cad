@@ -880,10 +880,13 @@ fn mapped_self_description(
 }
 
 /// The import-side residual gate for an **ARC rim against its NURBS
-/// wall** (M7-3 fix pass, review F1). On a RATIONAL wall nothing else
-/// ever checks the rim: no pcurve mints (`chart_mints` = false), the
-/// tier-3 dihedral is Nurbs-exempt by kind, and the conventional
-/// `RevolvedPoint` description certifies only against itself — the
+/// wall** (M7-3 fix pass, review F1). This is the ADOPTION-side check
+/// — it runs before any candidate is certified and its refusal names
+/// the residual. The described-NURBS chart's own mint re-certifies an
+/// arc rim later (`Pcurve::IsoArc`, rational walls included), but at
+/// this gate the tier-3 dihedral is Nurbs-exempt by kind and the
+/// conventional `RevolvedPoint` description certifies only against
+/// itself, so without it a wrong-circle rim ADOPTS cleanly — the
 /// review's executed attack (a different circle through the same two
 /// endpoints) imported t1/t2-valid with the verbatim native tier-3
 /// refusal, indistinguishable from a correct body. This gate closes
@@ -1205,6 +1208,58 @@ mod tests {
         ];
         let payload = NurbsSurface::new(ku, kv, control, vec![1.0; 6]).unwrap();
         Surface::Nurbs(std::sync::Arc::new(payload))
+    }
+
+    /// **The promoted-LINE column match's selection table** (the
+    /// IsoCurve rung's Line arm, #388): forward vertex order answers
+    /// the column's OWN knot domain, reversed answers it swapped —
+    /// never a `[0, 1]` literal — and every structural miss withholds
+    /// the candidate: a curved (three-point) column, a non-unit
+    /// weight, an unmatched vertex. The certify door is the check;
+    /// this table is only the selection, so a wrong answer here must
+    /// be a withheld candidate, not a guessed one.
+    #[test]
+    fn line_column_match_answers_by_vertex_bits_on_the_columns_own_domain() {
+        let (a, b) = (Point3::new(0.1, 0.2, 0.3), Point3::new(0.1, 0.2, 0.9));
+        let column = |d0: f64, d1: f64, w: f64| {
+            let knots = KnotVector::clamped(vec![d0, d0, d1, d1], 1).unwrap();
+            geom::NurbsCurve3::new(knots, vec![a, b], vec![w, w]).unwrap()
+        };
+        assert_eq!(
+            line_column_match(&column(0.0, 1.0, 1.0), a, b),
+            Some((0.0, 1.0))
+        );
+        assert_eq!(
+            line_column_match(&column(2.0, 5.0, 1.0), a, b),
+            Some((2.0, 5.0)),
+            "the answer is the column's own knot domain"
+        );
+        assert_eq!(
+            line_column_match(&column(2.0, 5.0, 1.0), b, a),
+            Some((5.0, 2.0)),
+            "a reversed vertex order runs the v map backwards"
+        );
+        assert_eq!(
+            line_column_match(&column(0.0, 1.0, 0.5), a, b),
+            None,
+            "a non-unit column weight withholds"
+        );
+        let off = Point3::new(0.1, 0.2, 0.9 + 1e-15);
+        assert_eq!(
+            line_column_match(&column(0.0, 1.0, 1.0), a, off),
+            None,
+            "the match is bitwise — an ulp off is not this column"
+        );
+        let curved = {
+            let knots = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
+            geom::NurbsCurve3::new(knots, vec![a, Point3::new(0.4, 0.2, 0.6), b], vec![1.0; 3])
+                .unwrap()
+        };
+        assert_eq!(
+            line_column_match(&curved, a, b),
+            None,
+            "a three-point column is not a straight ruling claim"
+        );
     }
 
     /// **The M7-3 surface_sig pin (spec §1 item 2).** Two DISTINCT

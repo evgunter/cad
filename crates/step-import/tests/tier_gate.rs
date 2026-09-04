@@ -345,16 +345,13 @@ const RATIONAL_FLUX_STALL: &str = "the certified quadrature enclosure cannot rea
 /// decide, by name, so a regression that turned this into a silent
 /// answer (or into a different door) fails the cell.
 const QUAD_CONVERGED_ESCALATED: &str = "predicate 'props_quad_converged' indeterminate";
-/// dm1's coarse-band sub-reason: the ladder's own refusal on edge
-/// `#389`, a two-point `QUASI_UNIFORM_CURVE` polyline that stays NURBS
-/// and is offered zero candidates.
-/// dm1's `#389` polyline gap. **No cell reaches it any more**: it was
-/// the coarse band's first refusal until the patch-flux enclosure
-/// tightened enough to escalate ahead of it. Kept, not deleted — the
-/// gap is real, unfixed, and would become reachable again the moment
-/// anything at the gate moves.
-#[allow(dead_code)]
-const LADDER_NO_DESCRIPTION: &str = "edge #389: no intensional description certifies";
+// dm1's `#389` polyline gap ("edge #389: no intensional description
+// certifies", with an empty attempt list) is RETIRED, by execution and
+// not by unreachability: degree-1 carriers promote to `Curve3::Line`
+// (#388) and a promoted slit holds its wall's boundary-column
+// candidate in either traversal order —
+// `r1_dm1_probe::the_l_bracket_alone_adopts_its_reversed_slit` imports
+// the component that carries `#389` and gets past every polyline edge.
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 
 /// The S58 iso-rectangle predicate, by name: *every rim sits at one of
