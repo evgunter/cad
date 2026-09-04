@@ -289,3 +289,12 @@ review and the fix pass: `blend-payloads-outside-the-margin-family`
 `work/trim/`, `blamed-mates-lost-its-exhaustive-arm` (VIEW; main did
 not compile at `--features interval`, fixed on main independently).
 **All three E openers are closed.** RIM (slot 1) is in flight.
+
+**H5 dispatched (2026-09-04)** into block FILLET-B1's slot 2 on
+`fillet/h5-hostless-rim` under `docs/FILLET-H5-SPEC.md` (pre-draw M /
+STRUCTURAL at the spec): a closed rim whose arcs one plane face hosts
+in its outer cycle is the annulus band with hostless crossings — the
+host foot minted by the ladder's strut, the mate side the seam-split
+walk unchanged; the shape arises both from `merge_coplanar_faces` and
+natively (a pole-touching dome on a wider flat top). Runs beside RIM
+(slot 1, `fillet/rim-selector`); they touch different files.
