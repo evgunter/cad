@@ -229,6 +229,21 @@ fn pick_index_error_forwards_its_node_arm() {
     prose(&outer, "NotABody");
 }
 
+/// The layout arm is this layer's OWN finding — no payload to forward
+/// — so it names the address it refused, which is the only thing a
+/// reader can act on.
+#[test]
+fn pick_index_error_names_the_body_drawn_twice() {
+    let drawn_twice = PickIndexError::DrawnTwice {
+        node: RecipeNodeId(7),
+        body: 2,
+    }
+    .to_string();
+    assert!(drawn_twice.contains('7'), "{drawn_twice}");
+    assert!(drawn_twice.contains('2'), "{drawn_twice}");
+    prose(&drawn_twice, "DrawnTwice");
+}
+
 #[test]
 fn pick_error_forwards_its_camera_arm() {
     let inner = CameraError::UnusableBounds;
@@ -290,6 +305,26 @@ fn indeterminate_wording_forwards_the_causes_own_words() {
     assert!(shown.contains("face"), "{shown}");
     assert!(shown.contains(&cause.to_string()), "{shown}");
     prose(&shown, "TargetFailed");
+}
+
+/// **Loud skip.** The row below needs `viewer::app`, which is not in a
+/// default-feature build; say so rather than letting the run report
+/// one fewer test and nothing else. Its seat is the hosted row
+/// `cargo nextest run -p viewer --features app`
+/// (`.github/workflows/ci.yml`).
+///
+/// **This row closes no gate and cannot fail** — its payload is its
+/// NAME in the PASS list. It names ONE row, so a second `app`-gated
+/// row added to this file leaves the marker quietly incomplete;
+/// nothing mechanical says so.
+#[cfg(not(feature = "app"))]
+#[test]
+fn app_lane_skipped_startup_error_arms_not_checked_here() {
+    println!(
+        "SKIPPED (no --features app): startup_error_forwards_every_payload_arm \
+         does not run - `StartupError`'s forwarding of the camera, scene and \
+         document arms is unchecked in this build."
+    );
 }
 
 #[cfg(feature = "app")]
