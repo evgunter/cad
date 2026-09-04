@@ -172,6 +172,49 @@ macro_rules! nurbs_curve {
                 )
             }
 
+            /// The same curve with every control point carried
+            /// through `f`, the knots and the weights verbatim.
+            /// Construction goes through
+            /// [`Self::from_validated_parts`], which states why no
+            /// re-validation is run.
+            ///
+            /// # What the caller owes, and why the net alone is enough
+            ///
+            /// The result is the POINTWISE IMAGE of this curve —
+            /// `f(C(t))` at every `t` — exactly when `f` is
+            /// **affine**, and nothing here checks that. The reason it
+            /// suffices is the storage convention (module docs, and
+            /// [`Self::eval_in_span`]): control points are EUCLIDEAN,
+            /// with the weights held beside them in a separate
+            /// channel, so evaluation forms the normalized ratio
+            /// `sum(Nj wj Pj) / sum(Nj wj)` — coefficients summing to
+            /// one, i.e. an AFFINE combination of the control points.
+            /// An affine `f` commutes with an affine combination, so
+            /// mapping the net and leaving the weights alone
+            /// reproduces the image exactly; the mapped curve is that
+            /// image, never a re-fit of it.
+            ///
+            /// The convention is what makes the weights untouched.
+            /// Were the net stored WEIGHTED (`wj Pj`, in homogeneous
+            /// coordinates), the same call would be wrong: an affine
+            /// map's translation limb has to be scaled by `wj` there,
+            /// and applying it unscaled bends the curve. Read the
+            /// storage before reaching for this door.
+            ///
+            /// A non-affine `f` is not refused and not meaningless —
+            /// it is a map of the CONTROL NET, whose curve is some
+            /// other curve — but it is not this curve's image, and
+            /// calling it one is the error this paragraph exists to
+            /// name.
+            #[must_use]
+            pub fn map_points(&self, f: impl Fn($Point<T>) -> $Point<T>) -> Self {
+                Self::from_validated_parts(
+                    self.knots.clone(),
+                    self.control.iter().map(|p| f(*p)).collect(),
+                    self.weights.clone(),
+                )
+            }
+
             /// The point at `t`, evaluated **in the given span** — the
             /// generic core (module docs: the span contract; the fixed
             /// single-ascending-pass association).

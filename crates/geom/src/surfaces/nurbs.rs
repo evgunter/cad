@@ -381,6 +381,45 @@ impl<T: Real> NurbsSurface<T> {
         )
     }
 
+    /// The same surface with every control point carried through `f`,
+    /// the knot vectors and the weights verbatim. Construction goes
+    /// through [`Self::from_validated_parts`], which states why no
+    /// re-validation is run.
+    ///
+    /// # What the caller owes, and why the net alone is enough
+    ///
+    /// The result is the POINTWISE IMAGE of this surface — `f(S(u, v))`
+    /// for every `(u, v)` — exactly when `f` is **affine**, and nothing
+    /// here checks that. The reason it suffices is the storage
+    /// convention (module docs, and [`Self::eval_in_span`]): control
+    /// points are EUCLIDEAN `Point3`s with the weights held beside them
+    /// in a separate channel, so evaluation forms
+    /// `Σ Nᵢⱼ wᵢⱼ Pᵢⱼ ⁄ Σ Nᵢⱼ wᵢⱼ` — normalized coefficients summing to
+    /// one, i.e. an AFFINE combination of the `Pᵢⱼ`. An affine `f`
+    /// commutes with an affine combination, so mapping the net and
+    /// leaving the weights alone reproduces the image exactly; the
+    /// mapped surface is that image, never a re-fit of it.
+    ///
+    /// The convention is what makes the weights untouched. Were the net
+    /// stored WEIGHTED (`wᵢⱼPᵢⱼ` in homogeneous coordinates), the same
+    /// call would be wrong: an affine map's translation limb has to be
+    /// scaled by `wᵢⱼ` there, and applying it unscaled bends the
+    /// surface. Read the storage before reaching for this door.
+    ///
+    /// A non-affine `f` is not refused and not meaningless — it is a
+    /// map of the CONTROL NET, whose surface is some other surface —
+    /// but it is not this surface's image, and calling it one is the
+    /// error this paragraph exists to name.
+    #[must_use]
+    pub fn map_points(&self, f: impl Fn(Point3<T>) -> Point3<T>) -> Self {
+        Self::from_validated_parts(
+            self.knots_u.clone(),
+            self.knots_v.clone(),
+            self.control.iter().map(|p| f(*p)).collect(),
+            self.weights.clone(),
+        )
+    }
+
     /// The [`SurfaceWindow`] for a span pair already validated against
     /// THIS surface's own knot vectors — the one primitive
     /// constructor, behind [`Self::window`] and [`Self::window_at`].

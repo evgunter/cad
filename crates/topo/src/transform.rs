@@ -49,8 +49,19 @@
 //!   [`MappedCurve`] pre-composes the isometry into its rigid
 //!   placement (`place ↦ map ∘ place`) and maps its world-space
 //!   vectors/axis data — sketch-space payloads are untouched;
-//! - the `Nurbs` placeholders are refused typed (their evaluation is
-//!   all-poison; transforming one would launder poison as geometry).
+//! - a DESCRIBED `Nurbs` surface or carrier maps by its CONTROL
+//!   POINTS, with knots and weights carried over verbatim. The nets
+//!   are stored Euclidean with the weights in a channel beside them,
+//!   so evaluation is an affine combination of the control points; a
+//!   rigid map is affine and therefore commutes with it, making the
+//!   mapped net the exact IMAGE of the original rather than a re-fit.
+//!   No certificate rides on a net, so nothing has to be re-derived —
+//!   which is the whole of why this arm maps where `Approx` refuses;
+//! - the `Nurbs` PLACEHOLDER — and only it — is refused typed (its
+//!   evaluation is all-poison; transforming one would launder poison
+//!   as geometry).
+
+use std::sync::Arc;
 
 use geom::Curve3;
 use geom::Surface;
@@ -305,7 +316,22 @@ fn map_surface<T: Real>(map: &Affine3<T>, s: &Surface<T>) -> Result<Surface<T>, 
             minor_radius,
             u_ref: map_vec(map, u_ref),
         },
-        Surface::Nurbs(_) => return Err(TransformError::NurbsPlaceholder),
+        // A DESCRIBED net maps by its control points, weights and
+        // knots untouched: the net is stored Euclidean with the
+        // weights beside it, so evaluation is an affine combination of
+        // the control points and a rigid map — being affine — commutes
+        // with it. The mapped surface is the exact IMAGE of this one,
+        // not a re-fit, so there is no certificate to re-derive and no
+        // fit door to reach. The PLACEHOLDER is the state this
+        // refusal's text describes and the only state it refuses: its
+        // net is all-poison, so mapping it would launder poison as
+        // geometry.
+        Surface::Nurbs(ref n) => {
+            if n.is_placeholder() {
+                return Err(TransformError::NurbsPlaceholder);
+            }
+            Surface::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p))))
+        }
         // The composition law HOLDS: a rigid map carries unit normals
         // to unit normals, so `M(S + d·n) = M(S) + d·n_M` — the map of
         // an offset IS the offset of the map, and the description is
@@ -355,7 +381,15 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
             minor,
             u_ref: map_vec(map, u_ref),
         },
-        Curve3::Nurbs(_) => return Err(TransformError::NurbsPlaceholder),
+        // The surface arm's argument, one dimension down: a described
+        // net maps by its control points (weights and knots verbatim)
+        // and the placeholder alone is refused.
+        Curve3::Nurbs(ref n) => {
+            if n.is_placeholder() {
+                return Err(TransformError::NurbsPlaceholder);
+            }
+            Curve3::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p))))
+        }
     })
 }
 
@@ -565,5 +599,124 @@ fn map_mapped_curve<T: Real>(map: &Affine3<T>, mc: &MappedCurve<T>) -> MappedCur
             axis_dir: map_vec(map, axis_dir),
             angle,
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! The NURBS gate: the discriminator is the placeholder STATE, not
+    //! the `Nurbs` variant. These rows pin both directions, so the gate
+    //! cannot silently invert — a described net refusing and a
+    //! placeholder mapping are each one edit away from each other, and
+    //! only one of them is loud on its own.
+
+    #![allow(clippy::unwrap_used, clippy::expect_used)]
+
+    use super::*;
+    use geom::{NurbsCurve3, NurbsSurface};
+    use geom_core::spline::KnotVector;
+
+    /// A translation: rigid, with exact entries.
+    fn aside() -> Affine3<f64> {
+        Affine3::translation(Vec3::new(3.0, -1.5, 0.25))
+    }
+
+    /// A described bilinear patch on the unit square — four live
+    /// corners, unit weights. The minimal counterexample to "a `Nurbs`
+    /// payload evaluates to poison".
+    fn described_surface() -> Surface<f64> {
+        let corners = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.5),
+        ];
+        Surface::Nurbs(Arc::new(
+            NurbsSurface::new(
+                KnotVector::unit_segment(1),
+                KnotVector::unit_segment(1),
+                corners,
+                vec![1.0; 4],
+            )
+            .expect("the bilinear patch validates"),
+        ))
+    }
+
+    /// A described segment as a degree-1 rational curve.
+    fn described_carrier() -> Curve3<f64> {
+        Curve3::Nurbs(Arc::new(
+            NurbsCurve3::new(
+                KnotVector::unit_segment(1),
+                vec![Point3::new(0.0, 0.0, 0.0), Point3::new(2.0, 1.0, 0.0)],
+                vec![1.0, 2.0],
+            )
+            .expect("the segment validates"),
+        ))
+    }
+
+    #[test]
+    fn the_surface_placeholder_is_what_refuses() {
+        assert!(matches!(
+            map_surface(&aside(), &Surface::nurbs_placeholder()),
+            Err(TransformError::NurbsPlaceholder)
+        ));
+    }
+
+    #[test]
+    fn the_carrier_placeholder_is_what_refuses() {
+        assert!(matches!(
+            map_carrier(&aside(), &Curve3::nurbs_placeholder()),
+            Err(TransformError::NurbsPlaceholder)
+        ));
+    }
+
+    #[test]
+    fn a_described_surface_maps_by_its_control_points() {
+        let map = aside();
+        let before = described_surface();
+        let after = map_surface(&map, &before).expect("a described net maps");
+        let (Surface::Nurbs(b), Surface::Nurbs(a)) = (&before, &after) else {
+            panic!("the variant changed under the map");
+        };
+        assert_eq!(a.weights(), b.weights(), "weights are rigid-invariant");
+        assert_eq!(a.knots_u(), b.knots_u(), "knots are rigid-invariant");
+        assert_eq!(a.knots_v(), b.knots_v(), "knots are rigid-invariant");
+        for (p, q) in b.control().iter().zip(a.control()) {
+            let want = map.transform_point(*p);
+            assert_eq!((q.x, q.y, q.z), (want.x, want.y, want.z));
+        }
+    }
+
+    #[test]
+    fn a_described_carrier_maps_by_its_control_points() {
+        let map = aside();
+        let before = described_carrier();
+        let after = map_carrier(&map, &before).expect("a described net maps");
+        let (Curve3::Nurbs(b), Curve3::Nurbs(a)) = (&before, &after) else {
+            panic!("the variant changed under the map");
+        };
+        assert_eq!(a.weights(), b.weights(), "weights are rigid-invariant");
+        assert_eq!(a.knots(), b.knots(), "knots are rigid-invariant");
+        for (p, q) in b.control().iter().zip(a.control()) {
+            let want = map.transform_point(*p);
+            assert_eq!((q.x, q.y, q.z), (want.x, want.y, want.z));
+        }
+    }
+
+    /// The gate as the public door reports it: a body whose only
+    /// geometry is a placeholder surface refuses, and the same body
+    /// carrying a described patch instead maps.
+    #[test]
+    fn the_body_door_refuses_the_placeholder_and_admits_the_description() {
+        let mut placeheld: Body<f64> = Body::new();
+        placeheld.add_surface(Surface::nurbs_placeholder());
+        assert!(matches!(
+            transform_rigid(&placeheld, &aside(), Tol::witness()),
+            Err(TransformError::NurbsPlaceholder)
+        ));
+
+        let mut described: Body<f64> = Body::new();
+        described.add_surface(described_surface());
+        assert!(transform_rigid(&described, &aside(), Tol::witness()).is_ok());
     }
 }
