@@ -317,6 +317,18 @@ pub enum SampleOutcome {
     /// about is the ratio of symbolic to numeric decisions, which is
     /// what the tier exists to move.
     SymbolicZero,
+    /// **The symbolic tier answered through a clause-3 fold**
+    /// (`crate::sym::SymRules::signed_root`): the margin's expression
+    /// is identically zero in the parameters GIVEN a sign the funnel
+    /// certified over the leaf's box — `sqrt(r²) = r` for a radius
+    /// whose enclosure is definitely positive. A theorem conditional on
+    /// a read value, so it is its own outcome beside
+    /// [`Self::SymbolicZero`] rather than folded into it: the ratio
+    /// between the two is the receipt for how much of a document's
+    /// discharge rests on that one value read. Like `SymbolicZero`,
+    /// never a rule sample — the margin was never classified against
+    /// the band.
+    SignGated,
 }
 
 #[cfg(feature = "probe")]
@@ -328,13 +340,14 @@ impl SampleOutcome {
     /// prove the list is complete, so adding one without listing it
     /// here reds a test rather than leaving a silent hole in whatever
     /// derives from it.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Definite(Sign::Negative),
         Self::Definite(Sign::Zero),
         Self::Definite(Sign::Positive),
         Self::Indeterminate,
         Self::Invalid,
         Self::SymbolicZero,
+        Self::SignGated,
     ];
 
     /// **The one spelling of this outcome**, and the K sweep's CSV
@@ -358,6 +371,7 @@ impl SampleOutcome {
             Self::Indeterminate => "indeterminate",
             Self::Invalid => "invalid",
             Self::SymbolicZero => "symbolic_zero",
+            Self::SignGated => "sign_gated",
         }
     }
 }
@@ -413,10 +427,10 @@ fn record(margin: f64, band: Band, outcome: SampleOutcome) {
     });
 }
 
-/// **Re-tags the sample just recorded as [`SampleOutcome::SymbolicZero`]**
-/// — the symbolic tier's door into the SAME funnel population
-/// (`crate::sym`'s `Decide` impl calls it where the tier overrides the
-/// numeric answer).
+/// **Re-tags the sample just recorded as `outcome`** —
+/// [`SampleOutcome::SymbolicZero`] or [`SampleOutcome::SignGated`], the
+/// symbolic tier's door into the SAME funnel population (`crate::sym`'s
+/// `Decide` impl calls it where the tier overrides the numeric answer).
 ///
 /// A re-tag rather than a second `record`, and that is the whole design:
 /// `Sym<T>` asks its base scalar first (its domain refusal is clause 1
@@ -439,7 +453,7 @@ fn record(margin: f64, band: Band, outcome: SampleOutcome) {
 /// when the base scalar actually filled it ties the two together by
 /// construction.
 #[cfg(feature = "probe")]
-pub(crate) fn retag_symbolic_zero_at(mark: Option<usize>) {
+pub(crate) fn retag_at(mark: Option<usize>, outcome: SampleOutcome) {
     let Some(at) = mark else { return };
     SINK.with(|s| {
         if let Some(sink) = s.borrow_mut().as_mut()
@@ -453,9 +467,15 @@ pub(crate) fn retag_symbolic_zero_at(mark: Option<usize>) {
             && sink.len() == at + 1
             && let Some(mine) = sink.get_mut(at)
         {
-            mine.outcome = SampleOutcome::SymbolicZero;
+            mine.outcome = outcome;
         }
     });
+}
+
+/// The predicate name of the decision in flight — what [`Probe`]
+/// records a sample under, read here by `crate::sym`'s shape report.
+pub(crate) fn current_predicate() -> &'static str {
+    CURRENT.with(Cell::get)
 }
 
 /// **Where the next recorded sample will land**, or `None` when no sink
@@ -693,7 +713,8 @@ mod tests {
                 | SampleOutcome::Definite(Sign::Positive)
                 | SampleOutcome::Indeterminate
                 | SampleOutcome::Invalid
-                | SampleOutcome::SymbolicZero => true,
+                | SampleOutcome::SymbolicZero
+                | SampleOutcome::SignGated => true,
             };
             assert!(seen, "{o:?} is listed in ALL");
         }

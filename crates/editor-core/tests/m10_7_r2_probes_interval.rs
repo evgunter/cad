@@ -65,7 +65,7 @@ const BORE_B_X: f64 = 2.2e-3;
 ///
 /// `scale` multiplies every tolerance together, so `1.0` is the study a
 /// user would actually ask for and a smaller number is a narrower one.
-fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
@@ -463,6 +463,7 @@ fn r2_a_zero_term_budget_reproduces_the_tier_off_verdict() {
             enabled: true,
             max_terms: 0,
             max_degree: 0,
+            ..SymbolicDials::default()
         },
         tol,
     )

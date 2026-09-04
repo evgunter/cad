@@ -279,7 +279,6 @@ fn r2_the_kink_atoms_never_claim_a_cancellation() {
         vec![
             ("min(x,x)−x", sign_of(x.min(x) - x)),
             ("max(x,x)−x", sign_of(x.max(x) - x)),
-            ("abs(x)−abs(−x)", sign_of(x.abs() - (-x).abs())),
             ("floor(n)−n", sign_of(n.floor() - n)),
             ("copysign(x,x)−x", sign_of(x.copysign(x) - x)),
         ]
@@ -288,10 +287,27 @@ fn r2_the_kink_atoms_never_claim_a_cancellation() {
     // degenerate box is a legitimate NUMERIC zero, so the sign alone
     // cannot carry the row.
     assert_eq!(
-        counts.symbolic_zero, 0,
+        counts.symbolic_zero + counts.sign_gated,
+        0,
         "an atom keyed by its arguments claimed an identity it has no \
          argument for, among {out:?}"
     );
+    // `abs` HAS an argument now — rule C's: over `[1, 2]` the sign is
+    // certified, both atoms fold to `x`, and the zero is sign-gated;
+    // over a box that straddles zero nothing folds and the residual is
+    // the numeric channel's, at its width.
+    let (folded, counts) = with_session(budget(), || {
+        let x = p("x", 1.0, 2.0);
+        sign_of(x.abs() - (-x).abs())
+    });
+    assert_eq!(folded, Ok(Sign::Zero));
+    assert_eq!(counts.sign_gated, 1, "{counts:?}");
+    let (straddle, counts) = with_session(budget(), || {
+        let x = p("x", -1.0, 2.0);
+        sign_of(x.abs() - (-x).abs())
+    });
+    assert_ne!(straddle, Ok(Sign::Zero), "a straddling |x| widens with the box");
+    assert_eq!(counts.sign_gated + counts.symbolic_zero, 0, "{counts:?}");
     // The one fold these DO license: min/max/copysign of zero forms.
     let (folds, _) = with_session(budget(), || {
         let x = p("x", 1.0, 2.0);

@@ -277,6 +277,15 @@ use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
 use crate::real::{Bounds, CertifiedEnclosure, Real};
 use crate::spline::{KnotVector, SpanLocate, SpanSet};
 
+/// The atom algebra: the polynomial square root, the rule A/B
+/// reductions and the clause-3 evaluation of a form at a lane scalar.
+#[path = "sym/algebra.rs"]
+mod algebra;
+/// The shape report — the instrument that says, per decide site that
+/// stayed numeric, what blocked it.
+#[path = "sym/report.rs"]
+pub mod report;
+
 // ---------------------------------------------------------------- ids
 
 /// A DAG node's identity: the 128-bit structural content hash of
@@ -556,6 +565,26 @@ fn gcd(mut a: u128, mut b: u128) -> u128 {
     a
 }
 
+/// The integer square root of `v` when `v` is a perfect square, else
+/// `None`. Newton's iteration from above, then an exact check — the
+/// check is what makes it a perfect-square TEST rather than a floor.
+fn exact_isqrt(v: u128) -> Option<u128> {
+    if v < 2 {
+        return Some(v);
+    }
+    // A start no smaller than the root: 2^ceil(bits/2).
+    let bits = 128 - v.leading_zeros();
+    let mut x = 1u128 << bits.div_ceil(2);
+    loop {
+        let y = (x + v / x) / 2;
+        if y >= x {
+            break;
+        }
+        x = y;
+    }
+    (x.checked_mul(x)? == v).then_some(x)
+}
+
 /// Strips factors of two out of `v`, answering the odd part and how many
 /// were removed. `v == 0` keeps zero and removes none.
 fn strip_twos(v: i128) -> (i128, u32) {
@@ -679,6 +708,31 @@ impl Rat {
             self.den.checked_mul(other.den)?,
             self.exp2.checked_add(other.exp2)?,
         )
+    }
+
+    /// The reciprocal; `None` for zero.
+    fn recip(self) -> Option<Self> {
+        if self.is_zero() {
+            return None;
+        }
+        Self::new(self.den, self.num, self.exp2.checked_neg()?)
+    }
+
+    /// The POSITIVE square root, or `None` when the coefficient is not
+    /// the square of a rational: the odd part of the numerator and the
+    /// denominator must both be perfect squares and the power of two
+    /// even. Exact, like everything else on this type — the polynomial
+    /// square root (`algebra::poly_sqrt`) rests on it being so.
+    fn sqrt(self) -> Option<Self> {
+        if self.num < 0 || self.exp2 % 2 != 0 {
+            return None;
+        }
+        if self.is_zero() {
+            return Some(Self::ZERO);
+        }
+        let num = exact_isqrt(self.num.unsigned_abs())?;
+        let den = exact_isqrt(self.den.unsigned_abs())?;
+        Self::new(i128::try_from(num).ok()?, i128::try_from(den).ok()?, self.exp2 / 2)
     }
 
     /// Feeds the coefficient to a content hash (the atom-keying digest).
@@ -901,8 +955,16 @@ impl SymBudget {
 /// against `numeric`) and the honesty column beside it (`frozen`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct SymCounts {
-    /// Decisions answered `Zero` by the symbolic tier.
+    /// Decisions answered `Zero` by the symbolic tier as unconditional
+    /// theorems — the normal form read no value.
     pub symbolic_zero: u64,
+    /// Decisions answered `Zero` by the symbolic tier through a
+    /// clause-3 fold ([`SymRules::signed_root`]): a theorem CONDITIONAL
+    /// on a sign the funnel certified over this leaf's box. Counted
+    /// apart from `symbolic_zero` because the two claims differ in
+    /// kind, and the ratio between them is the receipt for how much of
+    /// the arc family rests on a read value.
+    pub sign_gated: u64,
     /// Decisions handed to the numeric channel.
     pub numeric: u64,
     /// Nodes frozen into indeterminates (a budget or an overflow).
@@ -910,18 +972,112 @@ pub struct SymCounts {
 }
 
 impl SymCounts {
-    /// The two decision counts added together.
+    /// The three decision counts added together.
     #[must_use]
     pub fn decisions(&self) -> u64 {
-        self.symbolic_zero + self.numeric
+        self.symbolic_zero + self.sign_gated + self.numeric
     }
 
     /// Adds another session's counts into this one.
     pub fn absorb(&mut self, other: Self) {
         self.symbolic_zero += other.symbolic_zero;
+        self.sign_gated += other.sign_gated;
         self.numeric += other.numeric;
         self.frozen += other.frozen;
     }
+}
+
+/// **The atom-algebra dials** — the three rewrite rules the normal form
+/// applies to its opaque atoms, each switchable so that its effect on
+/// a document is a measurement rather than an assumption, and so that
+/// all three off is the plain quotient form bit for bit.
+///
+/// Every rule is an equality of reals under clause 1 of the theorem
+/// ([`Decide::sign_within`]'s docs), so a zero reached through any of
+/// them is still a zero of the real margin; what a rule can cost is
+/// only a cancellation it fails to find. The rules are named A, B and C
+/// where the tier's module docs discuss them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SymRules {
+    /// **A — `sqrt(X)² = X`.** An even power of a `sqrt` atom reduces
+    /// to the power of its argument form. Pure algebra: sound for every
+    /// real `X ≥ 0`, and `X ≥ 0` holds wherever the atom has a real
+    /// value, which clause 1 guarantees before the identity test is
+    /// ever asked.
+    pub sqrt_square: bool,
+    /// **B — `sin(θ)² + cos(θ)² = 1`** for atoms of ONE argument form.
+    /// An even power of a `sin` atom rewrites to the same power of
+    /// `1 − cos²` of the same argument, so any polynomial in the two
+    /// that lies in the ideal of the Pythagorean identity reduces to
+    /// zero. Unconditional.
+    pub pythagoras: bool,
+    /// **C — `sqrt(Q²) = Q` and `|Q| = Q` when `Q > 0` over the box**
+    /// (clause 3). The ONE place the normal form reads a value: `Q` is
+    /// evaluated over the leaf's parameter box in the lane's own
+    /// arithmetic and the fold is taken only if the funnel's own
+    /// `sign_within` certifies its sign. A zero reached through it is
+    /// counted as [`SymCounts::sign_gated`].
+    pub signed_root: bool,
+}
+
+impl SymRules {
+    /// Every rule on — the full set, for measuring what each rule can
+    /// reach. NOT the shipped default: rule B ([`Self::shipped`]'s docs)
+    /// moved nothing on the M10-8 documents and is filed, so the shipped
+    /// set leaves it off.
+    #[must_use]
+    pub const fn all() -> Self {
+        Self {
+            sqrt_square: true,
+            pythagoras: true,
+            signed_root: true,
+        }
+    }
+
+    /// **The shipped set: rules A and C, rule B OFF.** The §1
+    /// measurement justified each: rule A (`sqrt(X)²=X`) raised the
+    /// filleted bracket's whole-certifying box by ~10× by discharging
+    /// the normalized frame's `sqrt(v·v)²`, and rule C (`sqrt(Q²)=Q`
+    /// by a certified sign) discharges the arc sites A cannot reach
+    /// (a radius sign) as sign-gated theorems. Rule B (`sin²+cos²=1`)
+    /// moved NOTHING on any of the three documents — none carries a
+    /// revolve's `sin_cos` pair — so it is filed, present behind the
+    /// dial for a document that needs it but not paid for by default.
+    #[must_use]
+    pub const fn shipped() -> Self {
+        Self {
+            sqrt_square: true,
+            pythagoras: false,
+            signed_root: true,
+        }
+    }
+
+    /// Every rule off: the quotient normal form with every atom opaque,
+    /// which is the tier exactly as it stood before the atom algebra.
+    #[must_use]
+    pub const fn none() -> Self {
+        Self {
+            sqrt_square: false,
+            pythagoras: false,
+            signed_root: false,
+        }
+    }
+}
+
+impl Default for SymRules {
+    fn default() -> Self {
+        Self::shipped()
+    }
+}
+
+/// How a symbolic `Zero` was reached: which of the two counts it lands
+/// in, and which K outcome it is recorded as.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Discharge {
+    /// The normal form is the zero polynomial with no value read.
+    Theorem,
+    /// The normal form is the zero polynomial after a clause-3 fold.
+    SignGated,
 }
 
 /// A hasher for keys that ARE hashes: it takes the low 64 bits verbatim.
@@ -948,12 +1104,46 @@ impl core::hash::Hasher for IdHasher {
 
 type IdMap<V> = HashMap<SymId, V, core::hash::BuildHasherDefault<IdHasher>>;
 
+/// A map keyed by an INDETERMINATE id (a 128-bit digest, so the same
+/// verbatim hasher serves).
+type IndetMap<V> = HashMap<u128, V, core::hash::BuildHasherDefault<IdHasher>>;
+
+/// What one opaque atom is: its op and the forms of its arguments —
+/// what rule A needs (`sqrt`'s argument), what rule B needs (a `sin`'s
+/// argument digest names its `cos` twin), and what the shape report
+/// renders.
+struct AtomInfo {
+    op: SymOp,
+    args: [Option<Rc<Form>>; 2],
+}
+
+/// The value one document parameter was bound to in this session — the
+/// lane scalar `T`, type-erased because the session is not generic in
+/// it and only the clause-3 sign oracle ([`SignOracle`]), which IS,
+/// ever reads it back.
+type ParamValue = Box<dyn core::any::Any>;
+
 /// One leaf replay's DAG: the hash-consing table, the memoized forms and
 /// the counts. Dropped with the leaf; nothing is shared across leaves.
 struct Session {
     budget: SymBudget,
+    rules: SymRules,
     nodes: IdMap<SymNode>,
+    /// The PLAIN quotient forms — every atom opaque, no rule applied.
     forms: IdMap<Rc<Form>>,
+    /// The UNCONDITIONAL ruled forms — rules A and B applied, no value
+    /// read — the second tier of the identity test.
+    forms_uncond: IdMap<Rc<Form>>,
+    /// The SIGN-FOLDED ruled forms — rules A, B and C — the third tier.
+    /// Both ruled memos are rebuilt per session and rest on the band
+    /// being fixed within one leaf replay (`form_in`'s docs).
+    forms_signed: IdMap<Rc<Form>>,
+    /// Every opaque atom minted so far, by its indeterminate id.
+    atoms: IndetMap<AtomInfo>,
+    /// Every parameter bound so far, by its indeterminate id
+    /// ([`Sym::param`] records it) — the values the clause-3 sign read
+    /// evaluates over.
+    params: IndetMap<ParamValue>,
     counts: SymCounts,
 }
 
@@ -1000,6 +1190,16 @@ impl Drop for OpaqueSeqGuard {
 /// refused rather than silently flattened — an inner session would count
 /// a different leaf's decisions into the outer one's receipt.
 pub fn with_session<R>(budget: SymBudget, f: impl FnOnce() -> R) -> (R, SymCounts) {
+    with_session_rules(budget, SymRules::all(), f)
+}
+
+/// [`with_session`] with the atom-algebra dials chosen ([`SymRules`]);
+/// `with_session` is this at [`SymRules::all`].
+pub fn with_session_rules<R>(
+    budget: SymBudget,
+    rules: SymRules,
+    f: impl FnOnce() -> R,
+) -> (R, SymCounts) {
     let nested = SESSION.with(|s| s.borrow().is_some());
     // The opaque sequence is per-replay state, restored on the way out
     // so a nested or sequential call cannot inherit a partial count
@@ -1015,8 +1215,13 @@ pub fn with_session<R>(budget: SymBudget, f: impl FnOnce() -> R) -> (R, SymCount
     SESSION.with(|s| {
         *s.borrow_mut() = Some(Session {
             budget,
+            rules,
             nodes: IdMap::default(),
             forms: IdMap::default(),
+            forms_uncond: IdMap::default(),
+            forms_signed: IdMap::default(),
+            atoms: IndetMap::default(),
+            params: IndetMap::default(),
             counts: SymCounts::default(),
         });
     });
@@ -1156,6 +1361,19 @@ struct Form {
     /// `atan(+inf)` is `pi/2`, and the difference is an honest zero.
     /// The two halves catch different things and both are needed.
     poisoned: bool,
+    /// **This form's derivation read a value** — a clause-3 fold
+    /// ([`SymRules::signed_root`]) folded `sqrt(Q²)` or `|Q|` to `±Q`
+    /// on the strength of `Q`'s certified sign over this leaf's box.
+    ///
+    /// The flag propagates through every combinator like poison does,
+    /// so a zero reached through such a fold is a theorem CONDITIONAL
+    /// on that sign and is counted as [`SymCounts::sign_gated`], never
+    /// as a `symbolic_zero`. It is deliberately NOT part of the digest:
+    /// the digest names the real function the form denotes, and under
+    /// the certified sign that function is the same one a plain
+    /// derivation would name — so the two key one indeterminate, and
+    /// any form built from either carries the flag.
+    gated: bool,
 }
 
 impl Form {
@@ -1164,6 +1382,7 @@ impl Form {
             num,
             den: Poly::one(),
             poisoned: false,
+            gated: false,
         }
     }
 
@@ -1179,6 +1398,7 @@ impl Form {
             num: Poly::one(),
             den: Poly::one(),
             poisoned: true,
+            gated: false,
         }
     }
 
@@ -1192,10 +1412,17 @@ impl Form {
         !self.poisoned && self.num.is_zero()
     }
 
+    /// The same form, marked as depending on a clause-3 sign fact.
+    fn gated(mut self, gated: bool) -> Self {
+        self.gated |= gated;
+        self
+    }
+
     fn add(&self, other: &Self, budget: SymBudget) -> Option<Self> {
         if self.tainted(other) {
             return Some(Self::poison());
         }
+        let gated = self.gated || other.gated;
         // A shared denominator adds numerators, which is both cheaper
         // and tighter against the budget than cross-multiplying two
         // copies of the same polynomial.
@@ -1204,6 +1431,7 @@ impl Form {
                 num: self.num.add(&other.num)?,
                 den: self.den.clone(),
                 poisoned: false,
+                gated,
             });
         }
         Some(Self {
@@ -1213,6 +1441,7 @@ impl Form {
                 .add(&other.num.mul(&self.den, budget)?)?,
             den: self.den.mul(&other.den, budget)?,
             poisoned: false,
+            gated,
         })
     }
 
@@ -1224,6 +1453,7 @@ impl Form {
             num: self.num.neg()?,
             den: self.den.clone(),
             poisoned: false,
+            gated: self.gated,
         })
     }
 
@@ -1235,6 +1465,7 @@ impl Form {
             num: self.num.mul(&other.num, budget)?,
             den: self.den.mul(&other.den, budget)?,
             poisoned: false,
+            gated: self.gated || other.gated,
         })
     }
 
@@ -1248,6 +1479,7 @@ impl Form {
             num: self.den.clone(),
             den: self.num.clone(),
             poisoned: false,
+            gated: self.gated,
         })
     }
 
@@ -1256,6 +1488,7 @@ impl Form {
     /// indeterminate. The poison flag is part of it, so an atom over a
     /// poisoned argument is never keyed as one over a clean argument;
     /// the atom itself is poisoned too, which is the load-bearing half.
+    /// The gated flag is not (its docs say why).
     fn digest(&self) -> u128 {
         Hash128::new()
             .word(0x464f_524d_5f4e_4652)
@@ -1322,12 +1555,50 @@ fn powi_form(base: &Form, n: u32, budget: SymBudget) -> Option<Form> {
     Some(acc)
 }
 
+/// **The clause-3 sign read** ([`SymRules::signed_root`]): the one
+/// door through which the normal form reads a value, and it is generic
+/// in the lane scalar so that the value it reads is the lane's own.
+///
+/// `sign_of(q)` evaluates the rational function `q` over the session's
+/// parameter values — the SAME `T` values [`Sym::param`] bound, so at
+/// `Interval` this is an enclosure of `q` over the leaf's box — and
+/// classifies it through the funnel's own [`Decide::sign_within`] at
+/// the band of the decide site that asked. `None` where `q` mentions
+/// anything but parameters and π (an atom, a frozen node, an opaque
+/// value): the fold is then simply not taken, which is the conservative
+/// direction.
+trait SignOracle {
+    fn sign_of(&self, q: &Form, params: &IndetMap<ParamValue>, band: Band) -> Option<Sign>;
+}
+
+/// [`SignOracle`] at one lane scalar.
+struct Lane<T>(core::marker::PhantomData<T>);
+
+impl<T: Real + Decide> SignOracle for Lane<T> {
+    fn sign_of(&self, q: &Form, params: &IndetMap<ParamValue>, band: Band) -> Option<Sign> {
+        let value = algebra::eval_form::<T>(q, params)?;
+        value.sign_within(band).ok()
+    }
+}
+
 /// The form of one node, given its children's forms — `None` for
 /// anything the caller must freeze (an overflow, a budget, an
 /// unrepresentable literal, a reciprocal of the zero form).
-fn combine(node: &SymNode, kids: [&Form; 2], budget: SymBudget) -> Option<Form> {
+///
+/// Every atom this mints is recorded in the session
+/// ([`Session::atoms`]) so the reductions of rules A and B, which run
+/// over the result in [`form_in`], can look its argument back up.
+fn combine(
+    node: &SymNode,
+    kids: [&Form; 2],
+    sess: &mut Session,
+    rules: SymRules,
+    oracle: &dyn SignOracle,
+    band: Band,
+) -> Option<Form> {
     let (a, b) = (kids[0], kids[1]);
-    let atom1 = |op: SymOp| {
+    let budget = sess.budget;
+    let atom1 = |op: SymOp, sess: &mut Session| {
         // A function OF an expression with no value has no value
         // either, and `a.is_zero()` is already false for a poisoned
         // argument, so the at-zero fold cannot fire on one.
@@ -1337,23 +1608,33 @@ fn combine(node: &SymNode, kids: [&Form; 2], budget: SymBudget) -> Option<Form> 
         if a.is_zero()
             && let Some(f) = unary_at_zero(op)
         {
-            return Some(f);
+            return Some(f.gated(a.gated));
         }
-        Some(Form::poly(Poly::indet(indet_atom(
-            op.tag(),
-            node.payload,
-            &[a.digest()],
-        ))))
+        let id = indet_atom(op.tag(), node.payload, &[a.digest()]);
+        sess.atoms.entry(id).or_insert_with(|| AtomInfo {
+            op,
+            args: [Some(Rc::new(a.clone())), None],
+        });
+        Some(Form::poly(Poly::indet(id)).gated(a.gated))
     };
-    let atom2 = |op: SymOp| {
-        if a.tainted(b) {
-            return Some(Form::poison());
+    // **Rule C.** `sqrt(X)` where `X` is the exact square of a rational
+    // function `Q`, and `|Q|` outright, fold to `Q` when the oracle
+    // certifies `Q > 0` over the box and to `−Q` when it certifies
+    // `Q < 0`; every other answer (a straddle, an `Indeterminate`, a
+    // `Q` the oracle cannot evaluate) leaves the atom opaque. The fold
+    // is a theorem — `sqrt(Q²) = |Q|` unconditionally, `|Q| = ±Q` by
+    // the sign — CONDITIONAL on the certified sign, and the result
+    // carries the `gated` flag so the decision it reaches is counted
+    // as such.
+    let signed_fold = |q: Form, sess: &Session| -> Option<Form> {
+        if q.poisoned || q.is_zero() {
+            return None;
         }
-        Some(Form::poly(Poly::indet(indet_atom(
-            op.tag(),
-            node.payload,
-            &[a.digest(), b.digest()],
-        ))))
+        match oracle.sign_of(&q, &sess.params, band)? {
+            Sign::Positive => Some(q.gated(true)),
+            Sign::Negative => Some(q.neg()?.gated(true)),
+            Sign::Zero => None,
+        }
     };
     match node.op {
         SymOp::Param => Some(Form::poly(Poly::indet(indet_param(node.payload)))),
@@ -1376,65 +1657,126 @@ fn combine(node: &SymNode, kids: [&Form; 2], budget: SymBudget) -> Option<Form> 
                 Err(_) => powi_form(&a.recip()?, n.unsigned_abs(), budget),
             }
         }
-        SymOp::Sqrt
-        | SymOp::Abs
-        | SymOp::Sin
+        SymOp::Sqrt => {
+            if rules.signed_root
+                && !a.poisoned
+                && let Some(q) = algebra::form_sqrt(a, budget)
+                && let Some(f) = signed_fold(q, sess)
+            {
+                return Some(f);
+            }
+            atom1(node.op, sess)
+        }
+        SymOp::Abs => {
+            if rules.signed_root
+                && let Some(f) = signed_fold(a.clone(), sess)
+            {
+                return Some(f);
+            }
+            atom1(node.op, sess)
+        }
+        SymOp::Sin
         | SymOp::Cos
         | SymOp::Tan
         | SymOp::Asin
         | SymOp::Acos
         | SymOp::Atan
-        | SymOp::Floor => atom1(node.op),
-        // min(0, 0) and max(0, 0) are zero; a one-sided zero says
-        // nothing, so only the both-zero fold is taken.
-        SymOp::Min | SymOp::Max => {
-            if a.is_zero() && b.is_zero() {
-                Some(Form::zero())
-            } else {
-                atom2(node.op)
+        | SymOp::Floor => atom1(node.op, sess),
+        SymOp::Atan2 | SymOp::Min | SymOp::Max | SymOp::Copysign => {
+            if a.tainted(b) {
+                return Some(Form::poison());
             }
-        }
-        // copysign carries `a`'s MAGNITUDE, so a zero first argument is
-        // zero whatever the sign argument does (±0 is one real).
-        SymOp::Copysign => {
-            if a.is_zero() {
-                Some(Form::zero())
-            } else {
-                atom2(node.op)
+            let gated = a.gated || b.gated;
+            // min(0, 0) and max(0, 0) are zero; a one-sided zero says
+            // nothing, so only the both-zero fold is taken. copysign
+            // carries `a`'s MAGNITUDE, so a zero first argument is zero
+            // whatever the sign argument does (±0 is one real).
+            // atan2(0, x) is 0 or π depending on the sign of x — not a
+            // fold the form can take without reading a value.
+            let folds = match node.op {
+                SymOp::Min | SymOp::Max => a.is_zero() && b.is_zero(),
+                SymOp::Copysign => a.is_zero(),
+                _ => false,
+            };
+            if folds {
+                return Some(Form::zero().gated(gated));
             }
+            let id = indet_atom(node.op.tag(), node.payload, &[a.digest(), b.digest()]);
+            sess.atoms.entry(id).or_insert_with(|| AtomInfo {
+                op: node.op,
+                args: [Some(Rc::new(a.clone())), Some(Rc::new(b.clone()))],
+            });
+            Some(Form::poly(Poly::indet(id)).gated(gated))
         }
-        // atan2(0, x) is 0 or π depending on the sign of x — not a fold
-        // the form can take without reading a value.
-        SymOp::Atan2 => atom2(node.op),
         // Keyed by the CHILD IDS, never by their forms (the op's docs).
         // A hull of something with no value has none either, so the
         // poison crosses this door like every other.
         SymOp::Hull if a.tainted(b) => Some(Form::poison()),
-        SymOp::Hull => Some(Form::poly(Poly::indet(
-            Hash128::new()
-                .word(SymOp::Hull.tag())
-                .wide(node.kids[0].bits())
-                .wide(node.kids[1].bits())
-                .finish(),
-        ))),
+        SymOp::Hull => Some(
+            Form::poly(Poly::indet(
+                Hash128::new()
+                    .word(SymOp::Hull.tag())
+                    .wide(node.kids[0].bits())
+                    .wide(node.kids[1].bits())
+                    .finish(),
+            ))
+            .gated(a.gated || b.gated),
+        ),
     }
 }
 
 /// The normal form of `root`, computed and memoized inside `sess`.
+///
+/// **Two forms per node, and the distinction is the whole architecture
+/// of the atom algebra.** The PLAIN form (`ruled = false`, every atom
+/// opaque, no rule applied) is the quotient normal form exactly as the
+/// tier stood before this unit; it is what a decision is FIRST tested
+/// against, and a plain form that is zero is an unconditional theorem.
+/// The RULED form (`ruled = true`) applies rules A/B/C — but ONLY as a
+/// FALLBACK, on a node whose plain form was not already zero, so the
+/// algebra can never DOWNGRADE a result the plain form reached. That is
+/// why the rules live here and not in the pre-algebra construction: an
+/// eager `sqrt(X)²→X` reduction destroys the higher `sqrt(Xa)−sqrt(Xb)`
+/// cancellation the plain form gets for free, and an eager `sqrt(Q²)→Q`
+/// turns a straight edge's unconditional endpoint theorem into a
+/// sign-gated one; measured, both, before this split was made.
 ///
 /// Iterative rather than recursive: an evaluation's DAG is as deep as
 /// its expression tree, and a leaf replay's is thousands of nodes.
 /// Termination is structural — a node's id is a hash of its children's
 /// ids, so a cycle would need a hash preimage — and every popped id
 /// leaves a form behind, so each is visited at most twice.
-fn form_in(sess: &mut Session, root: SymId) -> Rc<Form> {
+///
+/// `band` is the decide site's, handed to the clause-3 oracle. A ruled
+/// form is memoized under the band of the FIRST site that asked for it,
+/// which is sound — a sign certified under any band is a sign — and
+/// deterministic, because the order a leaf's sites ask in is the fixed
+/// single-threaded walk the node ids already rest on (D9); every decide
+/// site in one leaf replay carries the same leaf tolerance, so the band
+/// does not in fact vary within a session.
+fn form_in(
+    sess: &mut Session,
+    memo: &mut IdMap<Rc<Form>>,
+    root: SymId,
+    ruled: bool,
+    rules: SymRules,
+    oracle: &dyn SignOracle,
+    band: Band,
+) -> Rc<Form> {
+    // Freezes are counted only in the PLAIN pass — the canonical,
+    // memoized derivation. The ruled passes are scratch fallbacks that
+    // re-walk the same DAG, and counting their freezes would multiply
+    // one node's freeze by the number of passes that touched it and
+    // turn the receipt into noise.
     let frozen = |sess: &mut Session, id: SymId| -> Rc<Form> {
-        sess.counts.frozen += 1;
+        if !ruled {
+            sess.counts.frozen += 1;
+        }
         Rc::new(Form::poly(Poly::indet(id.bits())))
     };
     let mut stack = vec![(root, false)];
     while let Some((id, expanded)) = stack.pop() {
-        if sess.forms.contains_key(&id) {
+        if memo.contains_key(&id) {
             continue;
         }
         let Some(node) = sess.nodes.get(&id).copied() else {
@@ -1442,7 +1784,7 @@ fn form_in(sess: &mut Session, root: SymId) -> Rc<Form> {
             // minted before the session was installed. An unknown
             // function of the parameters is exactly an indeterminate.
             let f = frozen(sess, id);
-            sess.forms.insert(id, f);
+            memo.insert(id, f);
             continue;
         };
         let arity = node.op.arity();
@@ -1450,7 +1792,7 @@ fn form_in(sess: &mut Session, root: SymId) -> Rc<Form> {
             let pending: Vec<SymId> = node.kids[..arity]
                 .iter()
                 .copied()
-                .filter(|k| !sess.forms.contains_key(k))
+                .filter(|k| !memo.contains_key(k))
                 .collect();
             if !pending.is_empty() {
                 stack.push((id, true));
@@ -1460,12 +1802,12 @@ fn form_in(sess: &mut Session, root: SymId) -> Rc<Form> {
         }
         let empty = Form::zero();
         let fa = if arity >= 1 {
-            sess.forms.get(&node.kids[0]).cloned()
+            memo.get(&node.kids[0]).cloned()
         } else {
             None
         };
         let fb = if arity >= 2 {
-            sess.forms.get(&node.kids[1]).cloned()
+            memo.get(&node.kids[1]).cloned()
         } else {
             None
         };
@@ -1475,48 +1817,156 @@ fn form_in(sess: &mut Session, root: SymId) -> Rc<Form> {
                 fa.as_deref().unwrap_or(&empty),
                 fb.as_deref().unwrap_or(&empty),
             ];
-            combine(&node, kids, budget).filter(|f| within(budget, f))
+            let combined = combine(&node, kids, sess, rules, oracle, band);
+            // Rules A and B reduce only in the ruled pass; the plain
+            // pass leaves every atom opaque (`algebra::reduce` is a
+            // no-op when neither rule is on, but the plain pass does not
+            // even ask).
+            let combined = if ruled {
+                combined.and_then(|f| algebra::reduce(f, sess))
+            } else {
+                combined
+            };
+            combined.filter(|f| within(budget, f))
         };
         drop((fa, fb));
         let f = match made {
             Some(p) => Rc::new(p),
             None => frozen(sess, id),
         };
-        sess.forms.insert(id, f);
+        memo.insert(id, f);
     }
-    sess.forms
-        .get(&root)
+    memo.get(&root)
         .cloned()
         .unwrap_or_else(|| Rc::new(Form::poly(Poly::indet(root.bits()))))
 }
 
+/// The plain quotient form of `root` — every atom opaque, no rule
+/// applied, no value read. Memoized in the session's persistent table.
+fn plain_form(sess: &mut Session, root: SymId) -> Rc<Form> {
+    let mut memo = core::mem::take(&mut sess.forms);
+    let out = form_in(
+        sess,
+        &mut memo,
+        root,
+        false,
+        SymRules::none(),
+        &NoOracle,
+        root_band(),
+    );
+    sess.forms = memo;
+    out
+}
+
+/// The ruled form of `root` under `rules`, memoized across a session in
+/// the `signed`-selected table. `signed` picks BOTH the memo and the
+/// oracle: the unconditional tier (rules with `signed_root` off) reads
+/// no value and takes [`NoOracle`]; the sign-folded tier takes the lane
+/// oracle. Memoizing rather than re-walking is what keeps the fallback
+/// O(dag) per session instead of O(dag) per decide site — the shipped
+/// tier depends on it (D17).
+fn ruled_form<T: Real + Decide>(
+    sess: &mut Session,
+    root: SymId,
+    rules: SymRules,
+    signed: bool,
+    band: Band,
+) -> Rc<Form> {
+    let mut memo = if signed {
+        core::mem::take(&mut sess.forms_signed)
+    } else {
+        core::mem::take(&mut sess.forms_uncond)
+    };
+    let out = if signed {
+        form_in(
+            sess,
+            &mut memo,
+            root,
+            true,
+            rules,
+            &Lane::<T>(core::marker::PhantomData),
+            band,
+        )
+    } else {
+        form_in(sess, &mut memo, root, true, rules, &NoOracle, band)
+    };
+    if signed {
+        sess.forms_signed = memo;
+    } else {
+        sess.forms_uncond = memo;
+    }
+    out
+}
+
+/// A band the plain pass never consults (it reads no sign); a fixed
+/// value keeps the signature uniform.
+fn root_band() -> Band {
+    Band::linear(crate::tolerance::Tol::witness()).unwrap_or_else(|_| unreachable!())
+}
+
+/// The oracle the plain pass is handed and never calls.
+struct NoOracle;
+impl SignOracle for NoOracle {
+    fn sign_of(&self, _q: &Form, _params: &IndetMap<ParamValue>, _band: Band) -> Option<Sign> {
+        None
+    }
+}
+
 /// **The identity test**: is this node's expression identically zero in
-/// the parameters?
+/// the parameters — and if so, unconditionally (the plain quotient form
+/// is zero) or through a clause-3 fold (a rule discharged what the plain
+/// form could not)?
 ///
-/// `false` outside a session, and `false` at a zero-term budget — which
+/// The plain form is tried FIRST, so a rule can only ever ADD a
+/// discharge: a margin the quotient form already proves zero stays an
+/// unconditional theorem, and the ruled fallback runs only where the
+/// plain form is not zero.
+///
+/// `None` outside a session, and `None` at a zero-term budget — which
 /// is the tier switched off inside the scalar, so nothing is asked of
 /// the DAG and every decision is the numeric one.
-fn is_identically_zero(id: SymId) -> bool {
+fn is_identically_zero<T: Real + Decide>(id: SymId, band: Band) -> Option<Discharge> {
     SESSION.with(|s| {
         let mut slot = s.borrow_mut();
-        let Some(sess) = slot.as_mut() else {
-            return false;
-        };
+        let sess = slot.as_mut()?;
         if sess.budget.max_terms == 0 {
-            return false;
+            return None;
         }
-        form_in(sess, id).is_zero()
+        if plain_form(sess, id).is_zero() {
+            return Some(Discharge::Theorem);
+        }
+        let rules = sess.rules;
+        if rules == SymRules::none() {
+            return None;
+        }
+        // **Unconditional rules FIRST** (A and B read no value), so a
+        // margin they discharge is a Theorem — never downgraded to a
+        // sign-gated one just because rule C could also have folded it.
+        let ab = SymRules {
+            signed_root: false,
+            ..rules
+        };
+        if ab != SymRules::none() && ruled_form::<T>(sess, id, ab, false, band).is_zero() {
+            return Some(Discharge::Theorem);
+        }
+        // **Then rule C** (the one place a value is read): whatever
+        // remains, discharged only through a certified sign, is
+        // sign-gated.
+        if rules.signed_root && ruled_form::<T>(sess, id, rules, true, band).is_zero() {
+            return Some(Discharge::SignGated);
+        }
+        None
     })
 }
 
 /// Records how one decision was answered, for the session's receipt.
-fn count_decision(symbolic: bool) {
+fn count_decision(discharge: Option<Discharge>) {
     SESSION.with(|s| {
         if let Some(sess) = s.borrow_mut().as_mut() {
-            if symbolic {
-                sess.counts.symbolic_zero += 1;
-            } else {
-                sess.counts.numeric += 1;
+            match discharge {
+                Some(Discharge::Theorem) => sess.counts.symbolic_zero += 1,
+                Some(Discharge::SignGated) => sess.counts.sign_gated += 1,
+                None => sess.counts.numeric += 1,
             }
         }
     });
@@ -1584,8 +2034,24 @@ impl<T> Sym<T> {
 
     /// A value bound as the document PARAMETER `symbol` — the one door
     /// that introduces an indeterminate.
+    ///
+    /// The session also keeps the VALUE, keyed by the symbol's
+    /// indeterminate: it is what the clause-3 sign oracle evaluates a
+    /// candidate `Q` over ([`SignOracle`]). One symbol is one box per
+    /// session — the evaluator binds each parameter once per leaf — so
+    /// the first binding stands and a repeat is the same value.
     #[must_use]
-    pub fn param(symbol: ParamSymbol, value: T) -> Self {
+    pub fn param(symbol: ParamSymbol, value: T) -> Self
+    where
+        T: Real,
+    {
+        SESSION.with(|s| {
+            if let Some(sess) = s.borrow_mut().as_mut() {
+                sess.params
+                    .entry(indet_param(symbol.0))
+                    .or_insert_with(|| Box::new(value));
+            }
+        });
         Self {
             value,
             node: intern(SymNode {
@@ -1868,7 +2334,7 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 /// soundness bug in one of them, not a fast path to take quietly.
 ///
 /// Everything else is `T::sign_within` verbatim.
-impl<T: Decide> Decide for Sym<T> {
+impl<T: Decide + Real> Decide for Sym<T> {
     fn sign_within(self, band: Band) -> Result<Sign, Indeterminate> {
         // Where this decision's own K sample will land, read before the
         // base scalar records it (`k_stats::sink_mark`).
@@ -1880,19 +2346,38 @@ impl<T: Decide> Decide for Sym<T> {
         let definitely_nonzero = matches!(&numeric, Ok(Sign::Positive | Sign::Negative));
         if definitely_nonzero {
             debug_assert!(
-                !is_identically_zero(self.node),
+                is_identically_zero::<T>(self.node, band).is_none(),
                 "the numeric channel proved this margin nonzero and the form says it is                  identically zero: the two channels contradict each other"
             );
-            count_decision(false);
+            count_decision(None);
+            report::record(&numeric, None, None);
             return numeric;
         }
-        if !domain_violation && is_identically_zero(self.node) {
-            count_decision(true);
+        let discharge = if domain_violation {
+            None
+        } else {
+            is_identically_zero::<T>(self.node, band)
+        };
+        count_decision(discharge);
+        if let Some(d) = discharge {
             #[cfg(feature = "probe")]
-            crate::k_stats::retag_symbolic_zero_at(mark);
+            crate::k_stats::retag_at(
+                mark,
+                match d {
+                    Discharge::Theorem => crate::k_stats::SampleOutcome::SymbolicZero,
+                    Discharge::SignGated => crate::k_stats::SampleOutcome::SignGated,
+                },
+            );
+            report::record(&numeric, Some(d), None);
             return Ok(Sign::Zero);
         }
-        count_decision(false);
+        // The shape report wants the residual that BLOCKED — rendered
+        // only when the instrument is installed, so an ordinary replay
+        // never pays for it.
+        if report::active() {
+            let text = report::render_node(self.node);
+            report::record(&numeric, None, text);
+        }
         numeric
     }
 }
@@ -2009,19 +2494,117 @@ mod tests {
     }
 
     /// The documented limits, pinned as limits: no factoring past the
-    /// quotient, and no trigonometric identity. `sin² + cos² − 1` is not
-    /// the zero form and never will be — both are opaque atoms.
+    /// quotient, and no trigonometric identity beyond rule B. `sin(2θ)
+    /// − 2·sinθ·cosθ` is not the zero form — `sin(2θ)` is an atom of
+    /// another argument and nothing relates it to the pair — and with
+    /// the rules OFF the Pythagorean pair is not either, which is what
+    /// makes `SymRules::none` the pre-algebra tier.
     #[test]
     fn the_opaque_atoms_are_opaque() {
         let (_, counts) = with_session(budget(), || {
             let x = p("w", 3.0);
             let (s, c) = x.sin_cos();
-            decides_zero(s * s + c * c - Sym::from_f64(1.0))
+            let (s2, _) = (x + x).sin_cos();
+            decides_zero(s2 - Sym::from_f64(2.0) * s * c)
         });
         // Numerically zero at this point — the numeric channel answers
         // it, as it always did. What is pinned is that the TIER claims
-        // nothing: no form of a trigonometric pair is the zero form.
-        assert_eq!(counts.symbolic_zero, 0, "no trigonometric identities");
+        // nothing: the double-angle identity is outside every rule.
+        assert_eq!(counts.symbolic_zero, 0, "no double-angle identity");
+        assert_eq!(counts.sign_gated, 0);
+        assert_eq!(counts.numeric, 1);
+        let (_, counts) = with_session_rules(budget(), SymRules::none(), || {
+            let x = p("w", 3.0);
+            let (s, c) = x.sin_cos();
+            decides_zero(s * s + c * c - Sym::from_f64(1.0))
+        });
+        assert_eq!(counts.symbolic_zero, 0, "rule B off: both atoms opaque");
+        assert_eq!(counts.numeric, 1);
+    }
+
+    /// **Rule B**: the Pythagorean pair of ONE argument form is the zero
+    /// form, whatever the argument; of two different arguments it is
+    /// not.
+    #[test]
+    fn the_pythagorean_pair_of_one_argument_is_a_theorem() {
+        let (out, counts) = with_session(budget(), || {
+            let x = p("w", 3.0);
+            let y = p("h", 0.25);
+            let (s, c) = (x * y + Sym::from_f64(2.0)).sin_cos();
+            let same = decides_zero(s * s + c * c - Sym::from_f64(1.0));
+            let (s2, _) = y.sin_cos();
+            let mixed = decides_zero(s2 * s2 + c * c - Sym::from_f64(1.0));
+            (same, mixed)
+        });
+        assert!(out.0, "sin²θ + cos²θ − 1 is the zero form");
+        assert_eq!(counts.symbolic_zero, 1, "{counts:?}");
+        assert_eq!(counts.sign_gated, 0);
+        // The mixed pair decides NUMERICALLY (it is not a theorem, and
+        // at this point it is not zero either).
+        assert_eq!(counts.numeric, 1, "{counts:?}");
+    }
+
+    /// **Rule A**: an even power of a `sqrt` atom is its argument, so
+    /// `sqrt(X)·sqrt(X) − X` and `sqrt(X)³ − X·sqrt(X)` are theorems.
+    #[test]
+    fn a_square_root_squared_is_its_argument() {
+        let (out, counts) = with_session(budget(), || {
+            let (x, y) = (p("w", 3.0), p("h", 0.25));
+            let arg = x * x + y * y + Sym::from_f64(1.0);
+            let s = arg.sqrt();
+            let a = decides_zero(s * s - arg);
+            let b = decides_zero(s * s * s - arg * s);
+            let c = decides_zero(s.powi(2) - arg);
+            (a, b, c)
+        });
+        assert_eq!(out, (true, true, true));
+        assert_eq!(counts.symbolic_zero, 3, "{counts:?}");
+        assert_eq!(counts.sign_gated, 0, "rule A reads no value");
+    }
+
+    /// **Rule C is a theorem CONDITIONAL on a certified sign**:
+    /// `sqrt(r²) − r` decides Zero when `r` is definitely positive at
+    /// the funnel's band, `sqrt(r²) + r` when it is definitely negative,
+    /// and neither when `r` is zero or inside the band — and every such
+    /// decision lands in `sign_gated`, never in `symbolic_zero`.
+    #[test]
+    fn a_signed_root_folds_by_a_certified_sign_and_is_counted_apart() {
+        let (out, counts) = with_session(budget(), || {
+            let r = p("r", 1.25e-3);
+            let plus = decides_zero((r * r).sqrt() - r);
+            let abs = decides_zero(r.abs() - r);
+            (plus, abs)
+        });
+        assert_eq!(out, (true, true));
+        assert_eq!(counts.sign_gated, 2, "{counts:?}");
+        assert_eq!(counts.symbolic_zero, 0, "a clause-3 fold is never an unconditional theorem");
+        let (out, counts) = with_session(budget(), || {
+            let r = p("r", -2.0);
+            decides_zero((r * r).sqrt() + r)
+        });
+        assert!(out, "sqrt(r²) = −r for a definitely negative r");
+        assert_eq!(counts.sign_gated, 1, "{counts:?}");
+        // At r = 0 the sign is `Zero`, not definite: no fold, and the
+        // decision is the numeric channel's own.
+        let (_, counts) = with_session(budget(), || {
+            let r = p("r", 0.0);
+            decides_zero((r * r).sqrt() - r)
+        });
+        assert_eq!(counts.sign_gated, 0, "{counts:?}");
+        assert_eq!(counts.numeric, 1);
+        // And with rule C off the atom is opaque.
+        let (_, counts) = with_session_rules(
+            budget(),
+            SymRules {
+                signed_root: false,
+                ..SymRules::all()
+            },
+            || {
+                let r = p("r", 1.25e-3);
+                decides_zero((r * r).sqrt() - r)
+            },
+        );
+        assert_eq!(counts.sign_gated, 0);
         assert_eq!(counts.numeric, 1);
     }
 

@@ -9,8 +9,8 @@
 
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, Margin, Sign};
-use geom_core::sym::with_session;
-use geom_core::{ParamSymbol, Real, Sym, SymBudget, Tol};
+use geom_core::sym::{with_session, with_session_rules};
+use geom_core::{ParamSymbol, Real, Sym, SymBudget, SymRules, Tol};
 
 fn budget() -> SymBudget {
     SymBudget {
@@ -109,11 +109,13 @@ fn r1_coincidence_radius_equals_distance_at_nominal_only() {
 }
 
 /// D4's family, reproduced at the scalar: `c + r·(q−c)/‖q−c‖ − q` with
-/// `q = c + (r, 0)` is zero for every `r > 0` and the tier cannot see it
-/// (`sqrt(r²) = r` needs the sign of `r`). Pins the miss as a miss.
+/// `q = c + (r, 0)` is zero for every `r > 0`. The quotient form alone
+/// cannot see it (`sqrt(r²) = r` needs the sign of `r`); rule C reads
+/// that sign through the funnel and folds, so the decision is a
+/// SIGN-GATED zero — counted apart, and never an unconditional one.
 #[test]
-fn r1_the_arc_endpoint_family_is_not_reached_pinned() {
-    let (ok, s, _) = sym(|| {
+fn r1_the_arc_endpoint_family_is_reached_by_a_certified_sign() {
+    let family = || {
         let r = p("r", 1.25e-3);
         let (cx, cy) = (p("cx", 1.55e-3), lit(0.0));
         let (qx, qy) = (cx + r, cy);
@@ -122,24 +124,41 @@ fn r1_the_arc_endpoint_family_is_not_reached_pinned() {
         let ex = cx + r * dx / n - qx;
         let ey = cy + r * dy / n - qy;
         (ex * ex + ey * ey).sqrt()
-    });
-    // Numerically zero at the point; symbolically NOT discharged.
-    assert!(ok, "at a point the numeric channel answers Zero");
-    assert_eq!(
-        s, 0,
-        "the arc-endpoint family is the tier's disclosed miss (D4)"
+    };
+    let (ok, counts) = with_session(budget(), || zero(family()));
+    assert!(ok, "the residual decides Zero");
+    assert_eq!(counts.sign_gated, 1, "through rule C: {counts:?}");
+    assert_eq!(counts.symbolic_zero, 0, "and not as an unconditional theorem");
+    // With rule C off the family is the disclosed miss it was.
+    let (ok, counts) = with_session_rules(
+        budget(),
+        SymRules {
+            signed_root: false,
+            ..SymRules::all()
+        },
+        || zero(family()),
     );
+    assert!(ok, "at a point the numeric channel still answers Zero");
+    assert_eq!(counts.sign_gated + counts.symbolic_zero, 0, "{counts:?}");
 }
 
 /// The same family with the norm written as `sqrt(r·r)` where the
-/// argument's FORM is exactly `r²`: still an atom, still not `r`.
+/// argument's FORM is exactly `r²`: `r` by rule C, and `−r` when `r`
+/// is definitely negative.
 #[test]
-fn r1_sqrt_of_r_squared_is_not_r() {
-    let (_, s, _) = sym(|| {
+fn r1_sqrt_of_r_squared_is_r_by_its_sign() {
+    let (ok, counts) = with_session(budget(), || {
         let r = p("r", 2.0);
-        (r * r).sqrt() - r
+        zero((r * r).sqrt() - r)
     });
-    assert_eq!(s, 0);
+    assert!(ok);
+    assert_eq!(counts.sign_gated, 1, "{counts:?}");
+    let (ok, counts) = with_session(budget(), || {
+        let r = p("r", -2.0);
+        zero((r * r).sqrt() + r)
+    });
+    assert!(ok);
+    assert_eq!(counts.sign_gated, 1, "{counts:?}");
 }
 
 // --------------------------------------------- claim 2: the quotient (D1)
@@ -271,19 +290,18 @@ fn r1_atoms_over_the_zero_form_fold_to_their_values() {
     assert!(ok && s == 1, "{ok} {s}");
 }
 
-/// Atoms keyed by arguments: `min(x, x) − x`, `abs(x) − abs(−x)`,
-/// `floor(1) − 1`, `max(x, y) − max(y, x)` — none is reached (the
-/// conservative direction); pinned so a future fold is a visible move.
+/// Atoms keyed by arguments: `min(x, x) − x`, `floor(1) − 1`,
+/// `max(x, y) − max(y, x)`, `copysign(x, 1) − |x|` — none is reached
+/// (the conservative direction); pinned so a future fold is a visible
+/// move. `abs(x) − abs(−x)` is no longer among them: `abs` is rule C's
+/// second shape, and at a definitely positive `x` both atoms fold to
+/// `x` — a SIGN-GATED zero, pinned as such beside the rest.
 #[test]
 fn r1_argument_keyed_atoms_stay_conservative() {
-    let cases: [fn() -> Sym<f64>; 5] = [
+    let cases: [fn() -> Sym<f64>; 4] = [
         || {
             let x = p("x", 0.4);
             x.min(x) - x
-        },
-        || {
-            let x = p("x", 0.4);
-            x.abs() - (-x).abs()
         },
         || lit(1.0).floor() - lit(1.0),
         || {
@@ -296,9 +314,20 @@ fn r1_argument_keyed_atoms_stay_conservative() {
         },
     ];
     for (i, f) in cases.into_iter().enumerate() {
-        let (_, s, _) = sym(f);
-        assert_eq!(s, 0, "case {i} decided symbolically");
+        let (_, counts) = with_session(budget(), || zero(f()));
+        assert_eq!(
+            counts.symbolic_zero + counts.sign_gated,
+            0,
+            "case {i} decided symbolically: {counts:?}"
+        );
     }
+    let (ok, counts) = with_session(budget(), || {
+        let x = p("x", 0.4);
+        zero(x.abs() - (-x).abs())
+    });
+    assert!(ok);
+    assert_eq!(counts.sign_gated, 1, "{counts:?}");
+    assert_eq!(counts.symbolic_zero, 0);
 }
 
 /// `copysign(0, s)` folds to zero for ANY sign argument — including a
