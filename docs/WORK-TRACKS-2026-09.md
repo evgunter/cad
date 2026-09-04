@@ -535,9 +535,9 @@ with S-CERT) → `tier3-approx-regrid-per-face-cost` stays parked on an
 Every S-CERT issue is residue: its slate is CERT-M3/N3 then exit, and
 none of the 20 is on a unit. Territory is S-CERT's today
 (`geom-brep/props/*`, `offset_fit.rs`, `patch_bound.rs`,
-`geom-core/src/*`) plus `geom-core/k_stats.rs` (Track M) and the R and
-N rows on the same files (`C3`/`D30` takeable since CERT-10; `D244`,
-`D31`, `S235`, `C24`). If S-CERT prefers, this is its own second slate.
+`geom-core/src/*`) plus `geom-core/k_stats.rs` (Track M) and the R
+rows on the same files (`C3`/`D30` takeable since CERT-10). If S-CERT
+prefers, this is its own second slate.
 
 - *offset_fit*: `budgetexhausted-conflates-three-terminations` (E) →
   `offset-fit-mignitude-floor-on-norm-e` (H; the micron row is the
