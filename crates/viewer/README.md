@@ -451,9 +451,14 @@ than inferred from every dispatch target.
 
 It says nothing about the free-move gesture, which is a different value
 with a different owner (`display::DisplayState`) and carries its own
-in-flight refusal. The name carries that limit deliberately: both
-fields are spelled `self.gesture`, and a predicate reading as a general
-guarantee would be a table that looks complete and is not.
+in-flight refusal. The name carries that limit: a predicate reading as
+a general guarantee would be a table that looks complete and is not.
+The two fields are spelled apart for the same reason — `DocSession`
+holds `gesture` and `DisplayState` holds `free_move` — so a reader who
+greps `self.gesture` gets one concept back. What the table's four
+`*FreeMove` rows permit, and the identity that makes the overlap sound,
+is stated at `permitted_during_value_gesture` itself, scoped to the
+tree DI5 has not yet changed.
 
 The table records behaviour rather than deciding it — `save` is
 permitted mid-gesture and `open` is refused, which is what the code did
