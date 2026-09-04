@@ -110,12 +110,12 @@ pub fn document() -> CorpusDoc {
     let kiss_a = StableName {
         kind: EntityKind::Vertex,
         node: u1,
-        path: vec![RoleSeg::FromA(Box::new(cap_vertex(a, CapEnd::Top, 2)))],
+        path: vec![RoleSeg::FromA(Box::new(cap_vertex(a, CapEnd::End, 2)))],
     };
     let kiss_b = StableName {
         kind: EntityKind::Vertex,
         node: u1,
-        path: vec![RoleSeg::FromB(Box::new(cap_vertex(b, CapEnd::Bottom, 0)))],
+        path: vec![RoleSeg::FromB(Box::new(cap_vertex(b, CapEnd::Start, 0)))],
     };
     let decl = r.insert(Node::declare_rest(vec![(kiss_a, kiss_b)]));
     let u2 = r.insert(Node::Boolean {
