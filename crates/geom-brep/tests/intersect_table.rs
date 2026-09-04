@@ -2280,7 +2280,10 @@ fn cone_cylinder_coaxial_cut_is_two_exact_circles_zero_residual() {
             c_axis.dot(axis) > 0.999_999_999,
             "{which}: axis is the cone's"
         );
-        assert!(c_u.dot(u_ref) > 0.999_999_999, "{which}: u_ref is the cone's");
+        assert!(
+            c_u.dot(u_ref) > 0.999_999_999,
+            "{which}: u_ref is the cone's"
+        );
         // The nappe: `v = (p − apex)·a / cos α` is positive on the
         // opening nappe and negative on its mirror.
         assert!(
@@ -2318,13 +2321,19 @@ fn cone_cylinder_tilted_and_offset_route_to_rung_3() {
         u_ref: (u_ref - b * u_ref.dot(b)).normalize(),
     };
     // Tilted: 0.3 rad off the shared axis.
-    let tilted = cyl_at(apex, (axis * 0.3_f64.cos() + u_ref * 0.3_f64.sin()).normalize());
+    let tilted = cyl_at(
+        apex,
+        (axis * 0.3_f64.cos() + u_ref * 0.3_f64.sin()).normalize(),
+    );
     let err = cone_cylinder_section(&cone, &tilted, 1.0, band()).expect_err("tilted cylinder");
     let SectionError::RoutesToGeneralRung { pair, why } = err else {
         panic!("expected the routing refusal, got {err:?}");
     };
     assert_eq!(pair, "cone×cylinder");
-    assert!(why.contains("tilted"), "the tilt refusal names the pose: {why}");
+    assert!(
+        why.contains("tilted"),
+        "the tilt refusal names the pose: {why}"
+    );
     refusal_is_grounded(why, "cone×cylinder tilted");
     // Parallel but 0.1 m off the axis.
     let off = cyl_at(apex + u_ref * 0.1, axis);

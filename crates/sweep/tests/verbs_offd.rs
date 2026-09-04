@@ -392,11 +392,7 @@ fn the_routed_cone_reaches_past_c5_and_refuses_at_the_rims() {
         (gap - 0.03).abs() < 1e-12,
         "the corner error is d·cos alpha: got {gap}"
     );
-    assert_eq!(
-        circle_radii(&body),
-        before,
-        "the body is untouched on Err"
-    );
+    assert_eq!(circle_radii(&body), before, "the body is untouched on Err");
 }
 
 /// **The apex window.** The cone's `v`-window, shifted by the offset's
