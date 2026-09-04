@@ -71,7 +71,9 @@ Ev's standing instructions for implementation work:
   the doc to state the question, update in place with the answer) with
   `needs_ev: true` on the asking item in `work/` — NEVER comments on
   merged PRs, he doesn't scan them. Watch 👍 reactions only on comments
-  you explicitly requested sign-off on.
+  you explicitly requested sign-off on. Arrange to be woken by comments
+  on every `[ev]` PR you open (the away-channel monitor locally, a PR
+  subscription on a remote box) — the answer arrives as a comment.
 - **State-sync records RIDE THE UNIT'S OWN PR (Ev, 2026-08-27)** — a
   unit's ledger row and log entries go on as one more commit to that
   unit's branch. Two conditions: **LAST, after both reviews are

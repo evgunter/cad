@@ -157,6 +157,7 @@ RUN_FLOOR=(
   plain:profile:validate_ok_probe:1
   plain:sweep:k_report:0
   plain:sweep:review_chamfer_r1_probes:7
+  plain:sweep:review_fillet_e1_probes:4
   plain:topo:probe_census:1
   plain:topo:probe_s5_sectors:1
   plain:topo:review_m3_pr2:9

@@ -51,7 +51,16 @@ permission classifier blocks batch loops.
 
 **Reclaiming a finished lane is the ORCHESTRATOR's job**, not a lane's:
 only the orchestrator knows which agents have reported, and a lane
-cannot judge whether a sibling directory is live. Do it **when a review
+cannot judge whether a sibling directory is live. That reclaim is a
+GLOB, so a target at a path the brief did not name is invisible to it:
+one lane put 4.8 GB at `/root/<lane>-target` while the sweep globbed
+`/home/user/*-target`, and it surfaced only at 2.4 GB free with five
+concurrent builds live — every one of them unsafe to touch. Before
+concluding the box is out of space, `du -sh /root/* /home/user/*` for
+a target that wandered. And check each target for writes in the last
+few minutes before deleting one: a running build's target is never
+reclaimable, so a lane that ignores the agreed path can strand
+gigabytes behind builds nobody may interrupt. Do it **when a review
 returns**, not when a lane runs out of disk — a review lane's `target/`
 is pure waste the moment its report is in hand, and review lanes are
 the biggest consumers.
