@@ -1720,13 +1720,18 @@ provenance` step prints `nproc` = **4** and `free -g` total **15**.
 
 **Every timing above this section predates that runner.** They are an
 ordering of costs, not a budget. What follows re-takes the ones a
-decision now rests on. The population is **220 completed `pull_request`
-runs created between `2026-09-03T15:20Z` and `2026-09-04T05:47Z`**, of
-which **149 are code-tier**, read from the jobs API.
+decision now rests on. The population is `pull_request` runs created
+between `2026-09-03T15:20Z` and `2026-09-04T05:47Z` with
+`status=completed` **and `conclusion` in {`success`, `failure`} —
+cancelled runs excluded**, since a cancelled run's job set is a
+truncation rather than a sample: **220 runs, 149 of them code-tier**,
+read from the jobs API. (Keeping the cancelled ones in gives 268 / 195
+and moves every duration; the exclusion is part of the frame, not a
+filter applied afterwards.)
 
 | what | 2 vCPU (above) | 4 vCPU (this section) |
 |---|---|---|
-| code-tier critical path | 13.75 min | **7.4 min** median (442 s, run created → last job end); **7.9 min** at `tier=all` (n=66) |
+| code-tier run, created → last job end | 13.75 min (critical path) | **7.4 min** median (442 s); **8.03 min** (482 s) at `tier=all`, n=66 |
 | `build + archive (default)`, `--workspace` | 820 s cold / 603–639 s warm | **336 s** median (n=23) |
 | `build + archive (interval)`, `--workspace` | 840 s cold / 606–677 s warm | **388 s** median (n=43) |
 | a code-tier run's total job time | ~87 billed min, then ~62, then ~40 derived | **24.4 job-minutes** median (1462 job-s over 15 live jobs) |
@@ -1764,10 +1769,20 @@ statements this document makes:
    'push'` guard, not by the tier.
 3. **A restored push run would be cancelled more often than not.**
    Median gap between pushes on `main` is **308 s** and only **36 %** of
-   code-tier pushes have ≥442 s before the next one; 67 of 200 push runs
-   are already `cancelled` at today's 40-second job set. Restoring jobs
-   without also giving push runs their own concurrency group buys a gate
-   that does not finish.
+   code-tier pushes have ≥442 s before the next one. It is not
+   speculative: **51 of the 90 code-tier push runs (57 %) are already
+   cancelled today**, at a job set whose median is 259 s, against 15 %
+   of docs-tier pushes at a 40 s median. The longer the run, the more of
+   them die, and a 442 s run sits above both readings. Restoring jobs
+   without also stopping the cancellation buys a gate that does not
+   finish — and stopping it is **three interacting mechanisms**, not one
+   line: `render.yml:268–275`'s own gate-mode group keyed on the
+   caller's ref (which *starts* firing once the run-level group goes
+   per-SHA), the `cache-on-failure: false` argument at 1830–1840 above,
+   which is argued *from* push runs being cancelled, and `renders`'
+   `push_to` commit to `main` at 4203, which assumes serialisation.
+   Priced in `work/ciw/f3-recosting-on-a-public-repo`, which does not
+   price the design pass and says so.
 
 ### The scheduled full run: still declined, and now for a better reason
 
@@ -1775,17 +1790,37 @@ Priced at today's rates it is **9.8 job-hours a day hourly** or 24.4
 job-minutes a day nightly — *cheaper* than a per-merge run, since it does
 not scale with the merge rate. It stays declined anyway, and the price
 change is not why: measured on the one instance in evidence, the next
-PR's merge-ref discovered the composed defect in **11 m 41 s** (run
-`33788618577`), so a scheduled run buys a slower copy of a discovery
-that already happens, and names a window of ~4.4 merges instead of one.
-What the residue costs is attribution, and a scheduled run does not
-supply it.
+PR's merge-ref run was created **11 m 41 s** after the composing merge
+and went red **17 m 29 s** after it (run `33788618577`, job
+`100761051102`, +348 s into its own run). So a scheduled run buys a
+slower copy of a discovery that already happens, and names a window of
+~4.4 merges instead of one. What the residue costs is attribution, and a
+scheduled run does not supply it.
+
+**For the same reason a per-merge run is not a slower copy: it is a
+faster one.** At the same 348 s in-run offset a push run on that merge
+reds at `18:01:30Z` — **11 m 41 s before** the PR run did, because it
+starts 11 m 41 s earlier. Any comparison that puts the PR run first is
+subtracting a run *duration* from a run *creation* time.
 
 ### The cache section's first reading owed, taken
 
-That section asks for "the first PR opened after this merges, first run,
-`build + archive`'s restore line". Job **100893490483** on a PR branch
-prints `Cache hit for: v0-rust-build-default-Linux-x64-fa41882e-fd5fb1c1`,
-263 MB, `full match: true`. **The primer works and a branch now inherits
-`main`'s entry.** `work/tcost/rust-cache-never-restores-across-branches`
-still says no PR can inherit one; that item is S-TCOST's to update.
+That section asks for "the first PR opened after this merges, **first
+run**, `build + archive`'s restore line", and the first-run half is the
+half that carries it. Run **33827576986** is the **first-ever** `ci.yml`
+run on branch `m10/hotfix-tag-inventory`; its job **100883473006**
+compiled the workspace crates and a handful of registry crates,
+`Finished 'test' profile … in 54.22s`, and its post step printed `Cache
+up-to-date.` — rust-cache's exact-hit, nothing-to-save line. A cold
+build of that scope recompiles ~225 registry crates, and this branch had
+saved nothing of its own, so the entry came from `main`'s scope.
+**The primer works and a branch now inherits `main`'s entry.**
+
+(Job **100893490483** shows the key and the hit —
+`Cache hit for: v0-rust-build-default-Linux-x64-fa41882e-fd5fb1c1`,
+263 MB, `full match: true` — but it is that branch's fourth run and
+could have restored its own save, so it is not the evidence for
+inheritance.)
+
+`work/tcost/rust-cache-never-restores-across-branches` still says no PR
+can inherit one; that item is S-TCOST's to update.

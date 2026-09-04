@@ -229,3 +229,42 @@ this program talks:
 
 Units 9 and 10 may now quote figures from
 `docs/CI-MINUTES-2026-08.md`'s **2026-09-04 section** and only that one.
+
+### Unit 8, fix pass after verification (2026-09-04)
+
+A verification lane re-derived every load-bearing figure from 760
+`ci.yml` runs and they reproduce, most to the digit. What did not
+survive was prose, in the two shapes this program has been losing lanes
+to all night:
+
+- **A number stated backwards.** "PR runs still red first, by about four
+  minutes" compared a run *creation* time (11 m 41 s) with a run
+  *duration* (7.4 min). Measured: the PR run reds **17 m 29 s** after
+  the merge (job `100761051102`, +348 s into run `33788618577`); a push
+  run reaches the same offset **5 m 48 s** after it. **The push run reds
+  first, by 11 m 41 s.** The error ran *against* the unit's own
+  recommendation, which is why self-review missed it — a figure that
+  weakens your case does not trigger the reflex that checks it. Worth
+  keeping as a rule.
+- **A scope stated too small.** The concurrency half was priced as "one
+  line". It is three mechanisms: `render.yml:268–275`'s own gate-mode
+  group on the caller's ref, which **starts** firing once the run-level
+  group goes per-SHA and cancels `renders` on exactly the merges the
+  change exists for; the `cache-on-failure: false` argument at
+  ci.yml:1830–1840, argued *from* push runs being cancelled; and
+  `renders`' `push_to` write to `main` at ci.yml:4203. The unit now says
+  it does not price that and names it a second design pass.
+
+Two more corrections, both self-inconsistencies rather than new facts:
+"A without the concurrency half is measurably worthless" (it degrades to
+burst-level attribution, ~2 merges — *better* than the ~4.4-merge window
+the same document rejects option C for), and a population definition
+that omitted the exclusion of cancelled runs, so nobody could rebuild
+the frame (220/149 with them excluded, 268/195 with them in).
+
+And one confirmation the unit had and did not use: **51 of 90 code-tier
+push runs (57 %) are already cancelled**, at a 259 s median job set,
+against 15 % of docs-tier pushes at 40 s. The aggregate 34 % was quoted
+with its causality backwards.
+
+Nothing in the measurement moved and the recommendation is unchanged.
