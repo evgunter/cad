@@ -2,11 +2,12 @@
 id: opoutcome-superseded-has-no-production-reader
 kind: issue
 title: OpOutcome::superseded has no production reader — a discarded free-move probe is silent in the GUI
-status: review
+status: closed
 opened: 2026-09-04
 refs: [viewer-session-god-module-split, rank-one-discards-the-frames-other-news, prune-discards-the-fault-that-explains-the-supersession, prune-drops-a-hidden-instance-silently, frame-module-has-eight-concerns-and-no-holds-row, the-news-vocabulary-has-no-expiry]
 branch: view/superseded-reaches-the-user
 pr: 1872
+closed: 2026-09-04
 ---
 
 
