@@ -234,3 +234,54 @@ verbatim plus `docs/prompts/reviewer-style-lane.md` by path):
   that now exists (A6, A7).
 - **C6** The Interval-lane rows hold at two ε and the product row holds
   (A7); nothing in the diff compares a number to decide anything.
+
+## Amendment at the stop clause (2026-09-04, orchestrator — recorded BEFORE the lane resumes)
+
+**Two findings, both accepted.**
+
+1. **The `wire_split` stamping defect is in-fence and the fix stands.**
+   Both halves' section planes were stamped `GeomSource::minted(split, 0)`
+   over opposed descriptions, so a boolean of the two halves read them
+   as one source — a same-source-theorem violation the debug assertion
+   caught and, in release, a wrong `SameOriented` verdict at rung 1.
+   Unreachable before `Node::Part` (nothing could take two pieces of one
+   split). `stamp_minted_from` threading one index space across both
+   halves is the fix; it is a kernel-facing defect found by this unit,
+   so it gets its own row (a boolean of the two halves of one split at
+   f64 succeeds and the two section planes carry distinct sources — the
+   assertion's own words), and the PR body names it as a finding, not
+   only a fix.
+
+2. **The same-source assertions at a channel-less scalar: option (a),
+   fence widened to exactly the two sites.** `crates/topo/src/merge_faces.rs`
+   (~:1016) and `crates/topo/src/boolean/plane_eq.rs` (~:170) assert
+   "same source ⇒ descriptions bit-agree" through `plane_bits_agree`,
+   which maps `eq_bits`'s `None` (no bit channel: `Dual`, `Sym`) to
+   `false` — the never-equal branch is the right DEFAULT for a verdict
+   and the wrong reading for an ASSERTION, whose premise cannot be
+   checked at such a scalar. Rung 1 is syntactic (source identity
+   decides; the bits are the assertion's evidence, not the rung's), so
+   the change alters no verdict. Make the two assertions read a
+   channel-less scalar as NO EVIDENCE — a tri-state sibling of
+   `plane_bits_agree`/`vec3_bits_agree` (or the `Option` from `eq_bits`
+   carried through), asserted only when `Some`; the doc at each site
+   says why `None` is not `false` there. Pin it: the `part_select`
+   corpus document evaluates at `Dual64` (the existing
+   `every_document_evaluates_at_dual64_with_the_f64_value_channel` row
+   is the acceptance — the Dual value channel equals f64's, which is the
+   proof the relaxed assertion hid no wrong merge) and, under
+   `--features interval`, at `Sym<Interval>` on the exact document. Do
+   not touch anything else under `crates/topo/*`; `crates/geom-core/*`
+   stays closed (no `Dual` channel is added to `repr_bits`). Disclose
+   both sites in the PR body under "forced edits outside the fence".
+
+3. **Everything else stands as specified**: the corpus premise (the
+   halves unioned back together) stays; A1–A7 are built now; the fence
+   re-bless follows its own removal procedure and the roster censuses
+   count both sub-kinds; the `m10_p_fence` constants are blessed from
+   the measurement once the Dual row is green.
+
+4. Merge `main` into the branch first (never rebase): DOCM-1's
+   state-sync landed (#1856) and the spec is on main now. Undraft when
+   the rows are green locally; ask for the interval lane with the
+   `CI-Config:` trailer (A7). Pre-draw fields stand (M / STRUCTURAL).
