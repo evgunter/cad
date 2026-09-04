@@ -2,9 +2,11 @@
 id: reinstate-full-configuration-runs
 kind: unit
 title: Reinstate full configuration runs in place of the lane/eps sampling draw
-status: open
+status: review
 opened: 2026-09-04
 refs: [1796]
+pr: 1823
+branch: ciw/reinstate-full-runs
 ---
 
 ## The ask, and who authorised it
