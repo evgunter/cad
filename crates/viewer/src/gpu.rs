@@ -1622,11 +1622,18 @@ mod tests {
         // file's `create_render_pipeline` calls are reached from
         // `ViewportRenderer::new`, and a fourth built lazily in a
         // frame path this row never enters would leave the row green
-        // and its name unchanged. The needle is split so this line is
-        // not one of its own hits.
+        // and its name unchanged.
+        //
+        // Read through the SHARED lexer, which is what
+        // `crates/test-utils/tests/reader_census.rs` exists to make
+        // the only way: a raw `matches` over the text counts the
+        // needle in comments and in this row's own literals too, so it
+        // would answer about prose rather than about calls. The code
+        // view strips both, which is also why the needle needs no
+        // splitting trick to avoid counting itself.
         assert_eq!(
-            include_str!("gpu.rs")
-                .matches(concat!(".create_", "render_pipeline("))
+            test_utils::source::code_only(include_str!("gpu.rs"))
+                .matches(".create_render_pipeline(")
                 .count(),
             3,
             "this module no longer builds exactly the three pipelines `ViewportRenderer::new` \
