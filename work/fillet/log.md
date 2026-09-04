@@ -147,3 +147,14 @@ with a characterization row rather than widening E1; the order change
 The inline-Display-advice class the review surfaced (`NonpositiveSize`,
 `RepeatedEdge` map to `Recourse::None` yet advise) is routed to E2's
 inventory. E3 dispatched on `fillet/e3-margin-payloads`.
+
+**E2 landed (2026-09-04)** as PR [#1753](https://github.com/evgunter/cad/pull/1753),
+head `804aa72f`, green at the drawn point (default, ε 1e-6). Twenty-two
+composed rows follow every recourse constant and two inline-advice
+sites to their promised outcome: eleven followable, ten pinned
+unreachable with the reason at the constant, two wording fixes
+(`FILLET3_CHAIN_RECOURSE`, `FILLET3_CORNER_RECOURSE`: a corner left
+partly requested runs out wherever it sits). Headline claim, to be
+falsified by the review before it gets an issue: all six `profile`
+fillet recourse sentences are dead because `EscalationSite::Fillet`
+has no producer. Style review dispatched on the frozen head.
