@@ -120,7 +120,7 @@ fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
         describe_cones(what, &body);
         let v_out = topo::mass_properties(&body, tol).expect("props").volume;
         match topo::shell(&body, T, FIT_TOL, tol) {
-            Ok(hollow) => {
+            Ok(topo::Shelled { body: hollow, .. }) => {
                 assert_eq!(
                     topo::validate_geometric(&hollow, tol),
                     Ok(()),
@@ -203,7 +203,7 @@ fn r2_a_conical_wedge_meridian_edge() {
         );
         let v0 = topo::mass_properties(&body, tol).expect("props").volume;
         match topo::shell(&body, T, FIT_TOL, tol) {
-            Ok(hollow) => {
+            Ok(topo::Shelled { body: hollow, .. }) => {
                 let v = topo::mass_properties(&hollow, tol).expect("props").volume;
                 println!(
                     "[r2] conical wedge {what}: HOLLOWS operand {v0} wall {v} tier3 {:?} shells {}",
@@ -252,7 +252,7 @@ fn r2_wedge_at_degenerate_turns() {
         );
         let v0 = topo::mass_properties(&body, tol).expect("props").volume;
         match topo::shell(&body, T, FIT_TOL, tol) {
-            Ok(hollow) => {
+            Ok(topo::Shelled { body: hollow, .. }) => {
                 let v = topo::mass_properties(&hollow, tol).expect("props").volume;
                 let valid = topo::validate_geometric(&hollow, tol);
                 println!(
@@ -310,7 +310,9 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
         .filter_map(|(_, vd)| pot.get_point(vd.point).copied())
         .map(|p| p.z.atan2(p.x))
         .collect();
-    let hollow = topo::shell(&pot, T, FIT_TOL, tol).expect("the bellied pot hollows");
+    let hollow = topo::shell(&pot, T, FIT_TOL, tol)
+        .expect("the bellied pot hollows")
+        .body;
     let after: Vec<f64> = hollow
         .vertices()
         .filter_map(|(_, vd)| hollow.get_point(vd.point).copied())
@@ -335,7 +337,7 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
         .map(|(k, _)| k)
         .collect();
     match topo::shell_open(&pot, T, &mouth, FIT_TOL, tol) {
-        Ok(cup) => {
+        Ok(topo::Shelled { body: cup, .. }) => {
             let props = topo::mass_properties(&cup, tol).expect("props");
             println!(
                 "[r2] the opened cup: V {} shells {} tier3 {:?}",
@@ -377,7 +379,7 @@ fn r2_stepped_vase_lift_branch() {
         .map(|(k, _)| k)
         .collect();
     match topo::shell_open(&body, t, &mouth, FIT_TOL, tol) {
-        Ok(cup) => println!(
+        Ok(topo::Shelled { body: cup, .. }) => println!(
             "[r2] stepped vase OPENED: ok, shells {} tier3 {:?}",
             cup.shells().count(),
             topo::validate_geometric(&cup, tol).is_ok()
