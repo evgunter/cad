@@ -1750,14 +1750,24 @@ fn rim_trim_circles<T: Real>(
 /// themselves are derived inside the surgery from stored trimlines and
 /// ring carriers, never sampled, so no production caller exists.
 ///
-/// In practice predicate 2's sampled screen usually fires first on
-/// the same configuration (for a straight edge the two margins are
-/// the same length); this check is the EXACT form of it, and the one
-/// the ring carry-through soundness argument actually rests on —
-/// sampling can overestimate a gap, the closed form cannot. The
-/// refuse arm is therefore FRONT-DOOR-SCREENED by predicate 2: it is
-/// exercised directly by the trio pins, not through `fillet_edges`'
-/// live assemblies.
+/// Predicate 2's sampled screen meters the same gap first, and this
+/// check is the EXACT form of it — the one the ring carry-through
+/// soundness argument rests on, because sampling can overestimate a
+/// gap and the closed form cannot.
+///
+/// **What that ordering does and does not give.** The screen samples
+/// each boundary edge at `CHAIN_SAMPLES` places, so it reads a gap
+/// that is never SMALLER than the true one. The invariant is therefore
+/// one-sided: no request this check would pass is refused by the
+/// screen, and any request the screen refuses would be refused here
+/// too. It is NOT that the screen always answers first — when the
+/// ring's closest approach to a requested edge lands between samples,
+/// the sampled gap is strictly larger, and a setback in between passes
+/// the screen and is refused HERE, at the front door. A 30°-turned
+/// dimpled prism does exactly that
+/// (`sweep/tests/review_fillet_e2_probes.rs`); the axis-aligned
+/// fixtures this doc was written against do not, which is why it read
+/// as "front-door screened".
 ///
 /// # Errors
 ///

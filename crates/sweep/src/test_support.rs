@@ -286,6 +286,49 @@ pub fn ball_poled_z(r: f64, c: Vec3<f64>, tol: Tol) -> Body<f64> {
     topo::transform_rigid(&poled, &Affine3::translation(c), tol).unwrap()
 }
 
+/// **The toroidal spool**: an annular meridian whose outer wall is an
+/// off-axis 60° ARC, revolved about the sketch y-axis by `rev`.
+///
+/// That wall is a TORUS, and a torus support is outside every analytic
+/// arm's table — the canal-surface lane's front door, where the rolling
+/// ball's spine is neither a line nor a circle. It is what
+/// `FILLET3_SPINE_KIND_RECOURSE` is refused on.
+///
+/// The arc is 60° about `(1.5, 0)` of radius `0.5`, so it meets the base
+/// at a square corner and the top at a 30° one — neither joint tangent,
+/// which is what keeps the profile's own validator out of the way. The
+/// bore is on-axis at `0.5`. Takes `rev` because the partial revolve is
+/// a different refusal's fixture.
+pub fn spool(rev: crate::Revolution<f64>, tol: Tol) -> Body<f64> {
+    let bulge = (core::f64::consts::FRAC_PI_6 / 2.0).tan();
+    let (ex, ey) = (1.75, 0.25 * 3.0f64.sqrt());
+    revolved_about_y(
+        vec![
+            ProfileVertex::new(Point2::new(0.5, 0.0), 0.0),
+            ProfileVertex::new(Point2::new(2.0, 0.0), bulge),
+            ProfileVertex::new(Point2::new(ex, ey), 0.0),
+            ProfileVertex::new(Point2::new(0.5, ey), 0.0),
+        ],
+        rev,
+        tol,
+    )
+}
+
+/// **A prism**: one closed profile loop extruded `h` along `+z`.
+///
+/// The twelfth copy of this four-line helper in the crate's suites was
+/// what got it homed. Takes the vertices rather than a shape so the
+/// L-prism, the arc-sided prism and the turned box are all one door;
+/// panics on an invalid loop, which is a fixture bug, not an outcome.
+pub fn prism(verts: Vec<ProfileVertex<f64>>, h: f64, tol: Tol) -> Body<f64> {
+    let pf = Profile::new(SketchPlane::xy(), vec![ProfileLoop::new(verts)])
+        .validate(tol)
+        .expect("the fixture's profile is a valid loop");
+    extrude(&pf, Extrusion::Distance(h), tol)
+        .expect("the fixture's profile extrudes")
+        .body
+}
+
 /// **The #935 zone**: a sphere zone off the equator — sphere `R = 2`
 /// about the origin, sliced at `y = −0.5` and `y = 1`, bored on-axis
 /// at `bore` — the body issue 935 was filed on. Annular, so the full

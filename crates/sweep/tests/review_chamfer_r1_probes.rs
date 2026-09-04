@@ -435,14 +435,13 @@ fn an_overrunning_sliver_corner_refuses_or_stays_valid() {
 
 /// **A nonpositive setback refuses as the invalid INPUT it is.**
 ///
-/// There is no rolling ball, so the predicate that caught a
-/// nonpositive size for the FILLET (radius headroom) is correctly not
-/// metered here — which is what left `d = 0` and `d < 0` falling
-/// through to corner-independence, whose margin is levered by the
-/// setback itself. The consumer then read "VertexKey(..) is a
-/// trihedron with DEPENDENT support normals" about a cube corner whose
-/// normals are exactly orthonormal: fail-loud held, but the kernel
-/// asserted a false fact about the BODY.
+/// Before the door screened it, `d = 0` and `d < 0` fell through to
+/// corner-independence, whose margin is levered by the setback itself,
+/// and the consumer read "VertexKey(..) is a trihedron with DEPENDENT
+/// support normals" about a cube corner whose normals are exactly
+/// orthonormal: fail-loud held, but the kernel asserted a false fact
+/// about the BODY. Both doors now screen the size before anything is
+/// metered, through the one gate they share.
 ///
 /// **This row's expectation was amended when the finding was adopted**
 /// (review r1, MINOR-1): the door now refuses `BlendError::

@@ -54,6 +54,7 @@ use pncad::quantity::{self, AngleUnit, LengthUnit, UnitDef, WrittenAngle, Writte
 
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
 use crate::camera::{self, Camera, CameraOp};
+use crate::combine::PatternOutputChoice;
 use crate::datums;
 use crate::display::{DisplayView, free_move_check};
 use crate::evalseam::Generation;
@@ -478,6 +479,10 @@ struct Drafts {
     transform_angle: f64,
     /// The pattern tool's rule choice.
     pattern_kind: PatternKindChoice,
+    /// Its output choice — which of the two doors the commit button
+    /// calls, and so whether the placements come out as separate
+    /// instances or as one fused body.
+    pattern_output: PatternOutputChoice,
     /// Its instance count — an INTEGER all the way from the field,
     /// because the slot it lands in is Count-typed and a number that
     /// was rounded on the way could differ from the one on screen.
@@ -544,6 +549,7 @@ impl Default for Drafts {
             transform_axis: [0.0, 0.0, 1.0],
             transform_angle: 0.0,
             pattern_kind: PatternKindChoice::Linear,
+            pattern_output: PatternOutputChoice::Instances,
             pattern_count: 3,
             pattern_direction: [1.0, 0.0, 0.0],
             pattern_spacing: 0.02,
@@ -2780,20 +2786,45 @@ impl ViewerBehavior<'_> {
             }
             match &row.status {
                 RowStatus::Ok => {}
-                RowStatus::Unevaluated => {
+                // Nothing to act on HERE: the row was never run, or it
+                // shows someone else's failure and points at the row
+                // that owns it. Quiet, so the eye passes over it.
+                RowStatus::Unevaluated | RowStatus::Poisoned { .. } => {
                     ui.weak(row.status.badge());
                 }
-                RowStatus::Failed { .. } | RowStatus::Poisoned { .. } => {
+                // The ACTIONABLE rows — the nodes whose own operation
+                // refused — are the ones that take the colour, so a
+                // document with six rows downstream of one broken
+                // feature sends the eye to the one. There can be more
+                // than one: a `MateFault::Contradictory` naming two
+                // different mates blames both, and both go red
+                // (`tree::blamed_mates`).
+                RowStatus::Failed { .. } => {
                     ui.colored_label(chrome(self.theme.unresolved), row.status.badge());
                 }
             }
         });
-        // The typed payload's own message, indented under the row it
-        // belongs to. Never a sentence this module wrote.
+        // The line under the row: the payload's own words where the
+        // row failed, and where it did not, the pointer at the row
+        // that has them — which is a CLICK, so "that row" is one
+        // gesture away rather than an id to hunt for.
         if let Some(message) = row.status.message() {
+            let through = match &row.status {
+                RowStatus::Poisoned { through, .. } => Some(*through),
+                _ => None,
+            };
             ui.horizontal(|ui| {
                 ui.add_space(indent(row.depth) + INDENT_STEP);
-                ui.weak(message);
+                match through {
+                    Some(through) => {
+                        if ui.link(message).clicked() {
+                            self.ops.push(SessionOp::Select(Selection::Node(through)));
+                        }
+                    }
+                    None => {
+                        ui.weak(message);
+                    }
+                }
             });
         }
         // The node's standing caveat (a mate class with no at-rest
@@ -3962,8 +3993,13 @@ impl ViewerBehavior<'_> {
     }
 
     /// The pattern tool's panel: a body pick, a rule choice with its
-    /// fields, the axis pick the circular rule needs, and the one
-    /// committed edit.
+    /// fields, the axis pick the circular rule needs, the output
+    /// choice, and the one committed edit.
+    ///
+    /// The output row is what fuses a pattern into the part: `fused`
+    /// commits `Node::PlacedUnion`, whose ONE body every downstream
+    /// seat consumes, where `instances` commits the several bodies a
+    /// boolean seat refuses.
     fn pattern_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.pattern() else {
             if ui.button("Pattern tool…").clicked() {
@@ -3980,6 +4016,12 @@ impl ViewerBehavior<'_> {
             ui.label("rule");
             for (kind, label) in PatternKindChoice::ALL {
                 ui.radio_value(&mut self.drafts.pattern_kind, kind, label);
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label("output");
+            for (output, label) in PatternOutputChoice::ALL {
+                ui.radio_value(&mut self.drafts.pattern_output, output, label);
             }
         });
         ui.horizontal(|ui| {
@@ -4031,13 +4073,16 @@ impl ViewerBehavior<'_> {
             ToolKind::Pattern,
             |drafts| match drafts.pattern_kind {
                 PatternKindChoice::Linear => Ok(tool.linear_op(
+                    drafts.pattern_output,
                     drafts.pattern_count,
                     scalars(drafts.pattern_direction)?,
                     drafts.length(drafts.pattern_spacing)?,
                 )?),
-                PatternKindChoice::Circular => {
-                    Ok(tool.circular_op(drafts.pattern_count, drafts.angle(drafts.pattern_step)?)?)
-                }
+                PatternKindChoice::Circular => Ok(tool.circular_op(
+                    drafts.pattern_output,
+                    drafts.pattern_count,
+                    drafts.angle(drafts.pattern_step)?,
+                )?),
             },
         );
     }

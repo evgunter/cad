@@ -12,7 +12,7 @@
 
 use geom_core::{Band, Indeterminate, MarginDiag};
 use topo::readback::{DanglingRef, ReadbackError};
-use topo::{ContactRefusal, EntityId, FaceKey, GeomRef, SurfaceKey};
+use topo::{ContactRefusal, EdgeKey, EntityId, FaceKey, GeomRef, ReplaceFaceError, SurfaceKey};
 
 /// An in-band margin with a named predicate — the shape a contact
 /// refusal actually carries out of the verification ladder.
@@ -140,5 +140,57 @@ fn readback_error_display_names_its_content_not_its_struct() {
     ];
     for (err, wants) in cases {
         assert_f6(&err, &wants, &dumps);
+    }
+}
+
+/// **`TogetherEdgeDisagreement`'s sentence is true at every meter that
+/// raises it** (VERBS-RIMCAP fix pass). THREE sites raise the variant:
+/// `offset_together_edge_agreement` and `offset_axial_edge_agreement`
+/// meter an independently solved ENDPOINT against the edge's carrier,
+/// while `offset_axial_edge_on_surface` meters the minted carrier's
+/// own MIDPOINT against a moved surface — no endpoint pair is compared
+/// there at all. The pre-fix text asserted the endpoint mechanism
+/// unconditionally ("two ends were solved {gap} m apart — the far
+/// corner's own solve did not land on the carrier…"), which was FALSE
+/// at the midpoint meter — the very site the sphere lune raised
+/// through, and the sentence that originally misled `torax_axial`'s
+/// module doc. The errors are CONSTRUCTED with each site's payload
+/// (the payloads mean different lengths: an endpoint's miss off the
+/// carrier; the lune's measured midpoint residual `gap = t = 0.05`)
+/// and the rendering is pinned to carry the payload's own fields and
+/// to name BOTH mechanisms rather than asserting one of them for all
+/// three sites.
+#[test]
+fn together_edge_disagreement_display_is_true_at_all_three_meters() {
+    // As `offset_axial_edge_agreement` (param_on) raises it: the
+    // endpoint's distance off the minted carrier.
+    let endpoint_meter = ReplaceFaceError::<f64>::TogetherEdgeDisagreement {
+        edge: EdgeKey::default(),
+        gap: 1.25e-9,
+    };
+    // As `offset_axial_edge_on_surface` raises it: the carrier
+    // midpoint's residual to a moved surface — the lune's old door,
+    // gap = the whole wall thickness.
+    let midpoint_meter = ReplaceFaceError::<f64>::TogetherEdgeDisagreement {
+        edge: EdgeKey::default(),
+        gap: 0.05,
+    };
+    for (err, gap) in [(endpoint_meter, "1.25e-9"), (midpoint_meter, "0.05")] {
+        // The payload's own fields render, no struct dump, and the
+        // sentence covers the endpoint AND the carrier-off-surface
+        // mechanisms.
+        assert_f6(
+            &err,
+            &["carrier", "moved surface", "endpoint", "midpoint", gap],
+            &["TogetherEdgeDisagreement"],
+        );
+        // The wrong mechanism stays gone: a sentence that asserts the
+        // endpoint story unconditionally is false at the midpoint
+        // meter, one of this variant's own raising sites.
+        let shown = err.to_string();
+        assert!(
+            !shown.contains("two ends") && !shown.contains("far corner"),
+            "the Display asserts the endpoint mechanism for every site again: {shown:?}"
+        );
     }
 }

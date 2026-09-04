@@ -389,15 +389,48 @@ pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet
 /// The recourse for a spine the rolling ball's own envelope folds on.
 /// Ball language kept deliberately: spine regularity is a rolling-ball
 /// fact, metered on no chamfer run.
+///
+/// **No fixture in the followability suite reaches this sentence** —
+/// which is a fact about those fixtures, not about the door. On the
+/// one closed-form curved spine they build, a plane–sphere rim, the
+/// clearance screen answers at every radius from the one that builds
+/// to the one that poisons. The PREMISE that does the work is that a
+/// plane–sphere rim's spine curvature and its clearance run out
+/// together; a spine that folds while clearance is ample would be
+/// handed this sentence, and nothing here shows there is no such body.
+/// Measured in `sweep/tests/blend_recourse_followability.rs`, by the
+/// row named
+/// `the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first`.
 pub const FILLET3_SPINE_RECOURSE: &str =
     "reduce the fillet radius below the spine's own curvature radius";
 /// The recourse for a chain that is not G1 (closed) / not classified
 /// (open).
+///
+/// **The corner clause is scoped to EVERY terminating corner, and the
+/// scope is not decoration.** A corner left partly requested refuses as
+/// a run-out wherever it sits, so a request covering one corner's three
+/// edges is still refused — at the three corners those edges run to.
+/// Endorsing "every edge of the corner" named a door that cannot serve
+/// the caller who was just refused, which is the A3-2 defect. Held to
+/// it by
+/// `sweep/tests/blend_recourse_followability.rs::the_chain_recourse_is_followed_by_requesting_every_terminating_corner`,
+/// which executes the one-corner request and the whole-body one
+/// together, so the hedge cannot drift from the door.
 pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected, tangent-continuous chain. Splitting the request at the break \
      helps only where the break is a genuine tangent break between two blendable runs; \
      where it is a CORNER, splitting leaves that corner partly requested and refuses \
-     again as a run-out — request every edge of the corner instead";
+     again as a run-out — request every edge of EVERY corner the chain terminates at \
+     instead, since one corner's edges alone still run out at the corners they reach";
 /// The recourse for a convexity sign flip along a chain.
+///
+/// **No fixture in the followability suite reaches this sentence.**
+/// Its PREMISE: every G1 chain the doors express is a rim, and a rim's
+/// convexity is uniform, so a body that mixes convexity mixes it at a
+/// CORNER — which answers with [`FILLET3_CORNER_RECOURSE`] first. The
+/// premise is about what the DOORS can express today; a chain door that
+/// admitted a non-rim G1 run would be where the witness comes from.
+/// Measured in `sweep/tests/blend_recourse_followability.rs`, by the
+/// row named `the_convexity_recourse_has_no_witness_in_this_suite`.
 pub const FILLET3_CONVEXITY_RECOURSE: &str =
     "split the chain at the convexity flip and blend each run separately";
 /// The recourse for a corner the corner patch does not cover — it
@@ -407,11 +440,22 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// Both clauses are true of either verb: the fully-requested UNIFORM
 /// trivalent corner carves on both material sides (the rolling ball's
 /// octant rests inside the material or in the void with its ball; the
-/// flat patch never had a side), so the sentence names the uniform
-/// configuration and conditions on nothing.
-pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates in a trivalent vertex whose three edges are all \
-     convex or all concave (over plane\u{2013}plane supports); mixed-convexity corners \
-     and general run-outs are not implemented";
+/// flat patch never had a side), so the sentence conditions on the
+/// configuration and not on the verb.
+///
+/// **What it DOES condition on is that every terminating corner is
+/// wholly requested**, which its sibling
+/// [`FILLET3_ASSEMBLY_RECOURSE`] already said and this one did not. The
+/// uniform configuration is necessary and not sufficient: the three
+/// edges at one all-convex cube corner terminate in exactly the
+/// endorsed vertex and still refuse — as a run-out, with this same
+/// sentence — at the corners they run to. Held to it by
+/// `sweep/tests/blend_recourse_followability.rs::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`,
+/// beside the chain row that pins the partly-requested outcome.
+pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates only in FULLY REQUESTED trivalent vertices whose \
+     three edges are all convex or all concave (over plane\u{2013}plane supports) — a \
+     corner left partly requested refuses as a run-out wherever it sits; \
+     mixed-convexity corners and general run-outs are not implemented";
 /// The recourse for a chain that stops at a CHART SEAM on an otherwise
 /// smooth rim.
 ///
@@ -452,6 +496,12 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — every 
 /// both corner patches and the closed-rim band all fold the chain's
 /// stored convexity verdict, and a concave rim's band adds material
 /// through the same carve that removes a convex rim's.
+///
+/// **Under-describes its door**, filed rather than reworded here: it
+/// names "circular plane-sphere rims" as the closed chains that carve,
+/// and a plane-CYLINDER top rim carves too
+/// (`review_fillet_e2_probes::open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves`).
+/// `work/fillet/blend-recourses-under-describe-their-doors.md`.
 pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open chains are single plane\u{2013}plane links ending at \
      fully-requested trivalent corners, on either material side; for a fillet, closed \
      chains that are circular rims between two coaxial revolution surfaces (a pip's \
@@ -467,11 +517,47 @@ pub const FILLET3_BODY_RECOURSE: &str = "blend a body that is a single solid wit
 /// not cover. Everything this unit decides is exact and stored — never
 /// sampled — so a carrier outside the covered shapes refuses rather
 /// than approximating.
-pub const FILLET3_GEOMETRY_RECOURSE: &str = "blend edges whose supports are planes (for a fillet's rim, also a sphere cap) and \
-     whose stored carriers are lines and circles; the surgery's exact forms cover no \
-     other stored shape, and approximating one is not implemented";
+///
+/// **A caller reaches this at a support face's non-circular ring.**
+/// Cut a square pocket through a cube's top face and request the twelve
+/// OUTER edges: `ring_circle` refuses at every radius, because the ring
+/// the pocket leaves is carried by lines. Witnessed by
+/// `sweep/tests/review_fillet_e2_probes.rs`, row
+/// `the_geometry_recourse_reaches_the_front_door_at_a_line_ring_and_cannot_be_followed`,
+/// and followed to its build by `blend_recourse_followability.rs`, row
+/// `the_geometry_recourse_names_a_ring_and_an_order_that_builds`.
+///
+/// That witness is why the sentence reads as it does. The shape the
+/// surgery objects to is not always a shape the caller REQUESTED — a
+/// support face's own ring has to be carried through the blend too —
+/// so a sentence that only described the request endorsed exactly what
+/// the caller had already done (issue 1278's dead-recourse class,
+/// `work/fillet/geometry-recourse-dead-at-line-ring.md`).
+pub const FILLET3_GEOMETRY_RECOURSE: &str = "the shape named above is outside the surgery's exact forms, which read planes (for a \
+     fillet's rim, also a sphere cap) carried by lines and circles; approximating any \
+     other stored shape is not implemented. It need not be a shape you requested — a \
+     support face's own ring is carried through the blend as well, and only a CIRCLE ring \
+     is, so a ring left by some other feature blocks every blend on the face it sits on, \
+     at every size. Request edges whose supports and carriers are covered, and cut a \
+     feature that leaves a non-circular ring AFTER the blend rather than before it";
 /// The recourse for a ring the blend's trimline would consume (the
 /// surgery's ring carry-through check).
+///
+/// **A caller reaches this when the ring's closest approach to a
+/// requested edge lands OFF the screen's sample lattice.** The
+/// battery's clearance screen meters the same gap first, but it samples
+/// each boundary edge at nine places; a sampled gap is never smaller
+/// than the true one, so a setback between the two passes the screen
+/// and meets this exact check. Witnessed on a 30°-turned dimpled prism
+/// by `sweep/tests/review_fillet_e2_probes.rs`, row
+/// `the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_followable`,
+/// which also follows the sentence: the reduced size builds.
+///
+/// On a lattice-aligned fixture the screen does answer first, and
+/// `blend_recourse_followability.rs`'s
+/// `the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple`
+/// keeps that measured — as a property of that fixture, not of the
+/// door. See `work/fillet/ring-clearance-reaches-front-door-off-lattice.md`.
 pub const FILLET3_RING_RECOURSE: &str =
     "reduce the blend size, or move the feature whose ring sits inside the blend's setback";
 /// The recourse for a support pair outside the analytic-arm table —
@@ -479,6 +565,12 @@ pub const FILLET3_RING_RECOURSE: &str =
 /// chamfer's arm table is its own early return
 /// ([`BlendError::ChamferArmUnsupported`]), taken before any
 /// analytic-arm classification.
+///
+/// **Under-describes its door**, and is filed rather than reworded
+/// here: the refusal's own payload rosters nine more admitted pairs
+/// than the two this names. Following the sentence succeeds, so it is
+/// not a dead recourse — the wording is a door-inventory question.
+/// `work/fillet/blend-recourses-under-describe-their-doors.md`.
 pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use a chain whose support pairs have analytic blend arms (plane–plane or \
      plane–sphere); other pairs need the canal-surface approximating blend, which is \
      not implemented";
@@ -671,9 +763,9 @@ pub enum BlendError {
     /// **The band's size is not definitely positive** (D2 addendum row
     /// 1: invalid input, checked at the door before anything resolves).
     ///
-    /// A zero or negative setback is not a small chamfer, and neither
-    /// is one whose bracket straddles zero: there is no band to build
-    /// and no margin to meter. It is refused at the door because a
+    /// A zero or negative size is not a small blend, and neither is
+    /// one whose bracket straddles zero: there is no band to build and
+    /// no margin to meter. It is refused at the door because a
     /// nonpositive size silently LEVERS the margins that quote it —
     /// `fillet3_corner_independence`'s `|det(n₁,n₂,n₃)|·d` collapses
     /// to zero at `d = 0`, so the consumer would read "a trihedron
@@ -997,6 +1089,38 @@ impl fmt::Display for BlendError {
 
 impl core::error::Error for BlendError {}
 
+/// **Every recourse sentence this module can append, with the short
+/// name assertions use.** The ONE home for that list.
+///
+/// It had three. This module's own table checked its rows against a
+/// private copy, and two integration suites restated the list because
+/// a `tests/` file cannot name a `#[cfg(test)]` item — each with a
+/// written rationale for restating ("an independent derivation"). The
+/// rationale did not hold: `review_d2_recourse_at_the_site.rs`'s copy
+/// had drifted to twelve of fifteen, so the three it had dropped were
+/// exactly the three its "no foreign recourse" half could no longer
+/// see. Behind `test-support` for the same reason `test_support` is,
+/// so every consumer reads this array and a constant added below is
+/// added once.
+#[cfg(any(test, feature = "test-support"))]
+pub const ALL_RECOURSES: [(&str, &str); 15] = [
+    ("radius", FILLET3_RADIUS_RECOURSE),
+    ("clearance", FILLET3_CLEARANCE_RECOURSE),
+    ("clearance-split", FILLET3_CLEARANCE_SPLIT_RECOURSE),
+    ("tangential", FILLET3_TANGENTIAL_RECOURSE),
+    ("spine", FILLET3_SPINE_RECOURSE),
+    ("chain", FILLET3_CHAIN_RECOURSE),
+    ("convexity", FILLET3_CONVEXITY_RECOURSE),
+    ("corner", FILLET3_CORNER_RECOURSE),
+    ("seam-vertex", FILLET3_SEAM_VERTEX_RECOURSE),
+    ("assembly", FILLET3_ASSEMBLY_RECOURSE),
+    ("body", FILLET3_BODY_RECOURSE),
+    ("geometry", FILLET3_GEOMETRY_RECOURSE),
+    ("ring", FILLET3_RING_RECOURSE),
+    ("spine-kind", FILLET3_SPINE_KIND_RECOURSE),
+    ("chamfer-arm", CHAMFER_ARM_RECOURSE),
+];
+
 #[cfg(test)]
 #[allow(clippy::panic)]
 #[allow(clippy::expect_used)]
@@ -1009,28 +1133,9 @@ mod recourse_tests {
         FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE,
         FILLET3_CLEARANCE_RECOURSE, FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
         FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE,
-        FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
-        FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
-    };
-
-    /// Every recourse sentence this module can append.
-    const ALL: [&str; 15] = [
-        CHAMFER_ARM_RECOURSE,
-        FILLET3_RADIUS_RECOURSE,
-        FILLET3_CLEARANCE_RECOURSE,
-        FILLET3_CLEARANCE_SPLIT_RECOURSE,
+        FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
         FILLET3_TANGENTIAL_RECOURSE,
-        FILLET3_SPINE_RECOURSE,
-        FILLET3_CHAIN_RECOURSE,
-        FILLET3_CONVEXITY_RECOURSE,
-        FILLET3_CORNER_RECOURSE,
-        FILLET3_ASSEMBLY_RECOURSE,
-        FILLET3_BODY_RECOURSE,
-        FILLET3_GEOMETRY_RECOURSE,
-        FILLET3_RING_RECOURSE,
-        FILLET3_SPINE_KIND_RECOURSE,
-        FILLET3_SEAM_VERTEX_RECOURSE,
-    ];
+    };
 
     /// What a variant's `Display` is allowed to append.
     enum Recourse {
@@ -1049,8 +1154,20 @@ mod recourse_tests {
     /// **The recourse contract, as one exhaustive table.**
     ///
     /// A recourse is advice, so it must be TRUE of the variant that
-    /// appends it, and a variant reporting invalid input has no fillet
-    /// advice to give.
+    /// appends it.
+    ///
+    /// **What `Recourse::None` means, exactly.** It says the variant
+    /// appends no named CONSTANT — not that it offers the caller
+    /// nothing. `NonpositiveSize` and `RepeatedEdge` both route here
+    /// and both end their own `Display` arm in a second request
+    /// ("supply a positive radius or setback", "request each edge
+    /// once"), which is a recourse by the definition issue 1278 uses.
+    /// That advice is owed a followability pin exactly like a named
+    /// sentence, and has one: `blend_recourse_followability.rs` rows
+    /// `a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of`
+    /// and `a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of`
+    /// execute both requests. Reading this row as "no advice" is what
+    /// made an inventory keyed on the constants miss them.
     ///
     /// **What the match enforces, and what it does not.** The match is
     /// exhaustive, so a new variant is a compile error here: no
@@ -1061,10 +1178,11 @@ mod recourse_tests {
     /// against this one: a variant added here and not there loses its
     /// rendering silently.
     ///
-    /// **The blind spot this module cannot close from inside**: `ALL`
+    /// **The blind spot this module cannot close from inside**:
+    /// [`ALL_RECOURSES`]
     /// is hand-written for the same reason (Rust cannot enumerate a
     /// module's constants), so a recourse constant that appears in
-    /// neither `ALL` nor any `Display` arm is invisible to every row
+    /// neither [`ALL_RECOURSES`] nor any `Display` arm is invisible to every row
     /// here. `tests/review_d2_recourse_at_the_site.rs` restates the
     /// list independently and reaches refusals through `fillet_edges`,
     /// which is the check on whether a SITE picks the right class;
@@ -1112,7 +1230,7 @@ mod recourse_tests {
     /// variant is caught by `contract`'s exhaustive match, adding it
     /// HERE is not. Every row below is rendered by
     /// `a_recourse_is_appended_only_where_the_table_allows_it`, and
-    /// the sentences they render are checked against `ALL` by
+    /// the sentences they render are checked against [`ALL_RECOURSES`] by
     /// `every_recourse_sentence_is_rendered_by_some_variant`.
     ///
     /// `UnsupportedCorner` appears twice on purpose: the recourse
@@ -1232,9 +1350,13 @@ mod recourse_tests {
         ]
     }
 
-    /// How many of `ALL` appear in `text`.
+    /// How many of [`ALL_RECOURSES`] appear in `text`.
     fn recourses_in(text: &str) -> Vec<&'static str> {
-        ALL.into_iter().filter(|r| text.contains(r)).collect()
+        super::ALL_RECOURSES
+            .into_iter()
+            .map(|(_, r)| r)
+            .filter(|r| text.contains(r))
+            .collect()
     }
 
     /// **The tag's two maps agree.** A corner tag names a run-out policy
@@ -1288,7 +1410,7 @@ mod recourse_tests {
         }
     }
 
-    /// **Every sentence in `ALL` is appended by some variant.** A
+    /// **Every sentence in [`ALL_RECOURSES`] is appended by some variant.** A
     /// recourse constant no refusal renders is advice the kernel never
     /// gives, and a seed list that reaches only some of the constants
     /// leaves the rest asserted by nothing anywhere: the row above
@@ -1296,7 +1418,7 @@ mod recourse_tests {
     /// appended at all.
     ///
     /// This is the completeness the suites in `tests/` defer to, and
-    /// it is completeness over `ALL` — not over the module's
+    /// it is completeness over [`ALL_RECOURSES`] — not over the module's
     /// constants, which nothing enumerates (see `contract`).
     #[test]
     fn every_recourse_sentence_is_rendered_by_some_variant() {
@@ -1304,7 +1426,7 @@ mod recourse_tests {
             .iter()
             .flat_map(|seed| recourses_in(&seed.to_string()))
             .collect();
-        for sentence in ALL {
+        for (_, sentence) in super::ALL_RECOURSES {
             assert!(
                 rendered.contains(&sentence),
                 "no seeded variant appends {sentence:?} — either the constant is dead or \

@@ -607,3 +607,31 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         split,
     ]
 }
+
+/// **The one home for the `EscalationSite::Fillet` value the kernel
+/// does not build.**
+///
+/// Six recourse sentences are written by a single `Display` arm —
+/// `ProfileError::Escalated { site: EscalationSite::Fillet, .. }`,
+/// dispatched on the escalation's predicate name — and nothing in the
+/// kernel constructs that value
+/// (`work/fillet/fillet-escalation-site-has-no-producer.md`). Two
+/// suites therefore hand-build it to pin the render rule, and they had
+/// hand-built it twice; when a producer lands, the thing to delete is
+/// this function and its callers, and one home is what makes that a
+/// single edit.
+///
+/// Returns what a caller would read: the arm rendered at an in-band
+/// margin for `predicate`.
+pub fn fillet_escalation_rendered(predicate: &'static str, tol: geom_core::Tol) -> String {
+    let eps = tol.eps();
+    profile::ProfileError::Escalated {
+        site: profile::EscalationSite::Fillet,
+        source: geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::Value(-5.0 * eps),
+            band: geom_core::Band::linear(tol).expect("the run's band forms"),
+            predicate: Some(predicate),
+        },
+    }
+    .to_string()
+}

@@ -1,11 +1,14 @@
 ---
 id: recourse-sentences-owe-followability-pin
-kind: issue
+kind: unit
 title: Recourse sentences owe a followability pin: the dead-recourse class recurred in consecutive units
-status: open
+status: closed
 opened: 2026-08-30
 github: 1278
 refs: [1222, 1267]
+branch: fillet/e2-recourse-followability
+pr: 1753
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1278

@@ -99,6 +99,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/editor-core/tests/fix_loop_polygon_expr.rs",
+        disposition: Shared, // polygon-close uniqueness census, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/gui1_pick_r2.rs",
         disposition: Shared, // public-surface scan, code view
     },
@@ -233,6 +237,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/verbs/tests/layer_guard.rs",
         disposition: Shared, // the crate's src/ directory walk, for the file-list pin
+    },
+    Entry {
+        path: "crates/viewer/src/gpu.rs",
+        disposition: Shared, // pipeline census over its own source, code view
     },
     Entry {
         path: "crates/viewer/tests/all.rs",

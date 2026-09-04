@@ -97,7 +97,13 @@ must be non-empty). A ruling is `open` or `closed`. A program is
   SHA they are recoverable at, and that ledger entry is the program's
   done-state of record. Residue is re-homed to a live program or to
   `work/issues/` before the sweep, not left behind in the closed
-  directory.
+  directory. **That sweep sees items, not sentences**: a residue a
+  lane discloses inside its own item's `## Closed` prose reads as a
+  record of work done, not as an open thread, so it is invisible to
+  the re-homing and dies with the directory. Disclosing a residue is
+  therefore not scheduling it — **give it its own file at the moment
+  you disclose it**, on this program's slate or in `work/issues/`, and
+  let the Closed section point at that file.
 - **A rides-along is its own file** with `rides_with:` naming its
   carrier. Closing the carrier does not close the passenger; lint
   refuses a live passenger on a closed carrier.

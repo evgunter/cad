@@ -117,6 +117,8 @@ mod shellfix1_r1_probes;
 mod torax_axial;
 #[path = "torax_interval.rs"]
 mod torax_interval;
+#[path = "transform_nurbs_walls.rs"]
+mod transform_nurbs_walls;
 #[path = "verbs_offc_consumer.rs"]
 mod verbs_offc_consumer;
 #[path = "verbs_offd.rs"]
@@ -268,6 +270,8 @@ mod review_d2_adv_probes;
 mod review_d2_recourse_at_the_site;
 #[path = "review_d8_consumer_differential.rs"]
 mod review_d8_consumer_differential;
+#[path = "review_fillet_e1_probes.rs"]
+mod review_fillet_e1_probes;
 #[path = "review_m2_pr4.rs"]
 mod review_m2_pr4;
 #[path = "review_m2_pr4_interval.rs"]
@@ -466,3 +470,9 @@ mod tcost_k3_certificate;
 mod fillet_h4_concave_rim;
 #[path = "fillet_h4_concave_rim_interval.rs"]
 mod fillet_h4_concave_rim_interval;
+
+#[path = "blend_recourse_followability.rs"]
+mod blend_recourse_followability;
+
+#[path = "review_fillet_e2_probes.rs"]
+mod review_fillet_e2_probes;

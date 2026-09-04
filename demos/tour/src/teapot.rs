@@ -709,7 +709,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     // ---- the sealed hollow: the body the scene SHIPS ----
     let pot = pncad::topo::shell(&bellied, WALL, FIT_TOL, tol)
-        .unwrap_or_else(|e| panic!("the pot hollows, got {e}"));
+        .unwrap_or_else(|e| panic!("the pot hollows, got {e}"))
+        .body;
     let (pv, pe, pf) = (
         pot.vertices().count(),
         pot.edges().count(),
@@ -783,7 +784,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // OPENED pot, because a teapot has a mouth.
     let mouth = plane_chart_at(&bellied, Y_MOUTH);
     let cup = pncad::topo::shell_open(&bellied, WALL, &mouth, FIT_TOL, tol)
-        .unwrap_or_else(|e| panic!("the pot opens at its mouth, got {e}"));
+        .unwrap_or_else(|e| panic!("the pot opens at its mouth, got {e}"))
+        .body;
 
     // ---- the lid ----
     let plain_lid = revolved(lid_meridian(tol), tol);
@@ -1104,7 +1106,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         tol,
     );
     let torus_pot = pncad::topo::shell(&torus_belly, WALL, FIT_TOL, tol)
-        .expect("a pot bellied about a centre off the axis hollows through the axial door");
+        .expect("a pot bellied about a centre off the axis hollows through the axial door")
+        .body;
     assert_eq!(
         pncad::topo::validate_geometric(&torus_pot, tol),
         Ok(()),
