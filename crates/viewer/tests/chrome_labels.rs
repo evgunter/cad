@@ -16,9 +16,10 @@
 /// suite as absent — a green lane over rows that were never compiled
 /// says the same thing as a green lane over rows that passed.
 ///
-/// The rows below run in the hosted step `viewer app-feature rows`
-/// (`.github/workflows/ci.yml`); the workspace archive builds this
-/// crate at default features and so carries this marker instead.
+/// The rows below gate under `cargo nextest run -p viewer --features
+/// app` (`.github/workflows/ci.yml`) and nowhere else; the workspace
+/// archive builds this crate at default features and so carries this
+/// marker instead.
 #[cfg(not(feature = "app"))]
 #[test]
 fn app_lane_skipped_no_chrome_coverage_here() {

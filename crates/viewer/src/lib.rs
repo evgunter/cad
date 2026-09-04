@@ -82,12 +82,13 @@ mod gpu;
 
 /// **Loud skip.** The two modules above, and every unit test inside
 /// them, are absent from a default-feature build of this crate — the
-/// eframe/wgpu graph is not compiled there, which is what keeps a
-/// kernel PR's four `--workspace` jobs off the toolkit. What that
-/// costs is stated here rather than left to be inferred from a test
-/// count: the modules' own rows, including `gpu`'s pipeline-creation
-/// smoke row, gate in the hosted step `viewer app-feature rows`
-/// (`.github/workflows/ci.yml`) and nowhere else.
+/// eframe/wgpu graph is not compiled there, which is what keeps every
+/// `--workspace` job a kernel PR runs off the toolkit — how many there
+/// are is `.github/workflows/ci.yml`'s to say. What that costs is
+/// stated here rather than left to be inferred from a test count: the
+/// modules' own rows, including `gpu`'s pipeline-creation smoke row,
+/// gate under `cargo nextest run -p viewer --features app` (same file)
+/// and nowhere else.
 #[cfg(all(test, not(feature = "app")))]
 #[test]
 fn app_lane_skipped_no_chrome_or_gpu_coverage_here() {

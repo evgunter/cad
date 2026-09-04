@@ -1497,12 +1497,24 @@ jobs:
       # like coverage and were none. The alternative shape was to archive
       # with `--features app`; it was measured and refused. The archive
       # is built ONCE and DOWNLOADED BY EVERY LEG of the `test` matrix,
-      # so the toolkit graph's ~180 MB of extra archive is paid per leg
-      # and buys nothing for the rows that already gate — while THIS job
+      # so the toolkit graph's extra archive weight is paid per leg and
+      # buys nothing for the rows that already gate — while THIS job
       # already compiles that exact graph, in an every-lane seat, for the
       # clippy row above. So the marginal cost of gating the rows is
-      # sited where the graph is already being built. The measurement is
-      # in the PR that added this step.
+      # sited where the graph is already being built.
+      #
+      # THE WEIGHT, AND WHY IT CARRIES NO GUARD. Adding `--features app`
+      # to the whole-workspace archive grew it by 179 MB. A viewer-scoped
+      # archive measured +224.6 MB; that is a DIFFERENT delta — one
+      # crate's archive against one crate's archive, not this archive
+      # against this archive — so it is a second reading and not a
+      # confirmation of the first. Neither is guarded and neither can
+      # be: a guard would have to build a second archive at
+      # `--features app` on every run, which is exactly the cost this
+      # paragraph refuses to pay. Nor does the siting turn on the
+      # figure — it holds for any per-leg weight that buys no gate.
+      # Stated once, here; crates/viewer/README.md points at this
+      # comment rather than carrying a second copy.
       #
       # WHAT IS NOT FREE, stated because the siting argument above is
       # easy to overstate: clippy is `cargo check` semantics, so the row

@@ -382,14 +382,16 @@ the crate is renderer-free and headless-tested.
 
 **Where the `app` feature gates.** The workspace nextest archive builds
 this crate at DEFAULT features, so nothing behind the feature is in it.
-The hosted step `viewer app-feature rows` is the seat: it runs
+The seat is a hosted row that runs
 `cargo nextest run -p viewer --features app` in the `fmt` job, beside
 the app-feature clippy row that already compiles the toolkit graph, on
 the same seed-keyed `run_viewer_toolkit` axis and with a lavapipe
 adapter installed for the pipeline smoke row. Archiving with
 `--features app` was the alternative and was refused: the archive is
-built once and downloaded by every leg of the `test` matrix, so its
-extra ~180 MB is paid per leg for rows that already gate. What the
+built once and downloaded by every leg of the `test` matrix, so the
+toolkit graph's extra weight is paid per leg for rows that already
+gate. The measured figures, and why they carry no guard, are stated at
+that step in `.github/workflows/ci.yml` and only there. What the
 default-feature lane is therefore NOT checking is printed there by
 name, by the `app_lane_skipped_*` rows in `src/lib.rs`,
 `tests/chrome_labels.rs` and `tests/error_display.rs`.

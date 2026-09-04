@@ -1450,8 +1450,10 @@ fn fs_id(in: IdOut) -> @location(0) u32 {
 
 #[cfg(test)]
 // Panicking is a test's failure mechanism (workspace lint note).
-#[allow(clippy::expect_used)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod tests {
+    use eframe::egui_wgpu;
+
     use super::*;
 
     /// Every `{{TOKEN}}` in [`SHADER`] must be substituted by
@@ -1463,9 +1465,10 @@ mod tests {
     /// one side only would otherwise pass silently).
     ///
     /// Runs only under `--features app`, this module's own gate, so
-    /// its seat is the hosted step `viewer app-feature rows` rather
-    /// than the workspace archive — see `lib.rs`'s loud-skip marker
-    /// for what a build without the feature is not checking.
+    /// its seat is the hosted row `cargo nextest run -p viewer
+    /// --features app` (`.github/workflows/ci.yml`) rather than the
+    /// workspace archive — see `lib.rs`'s loud-skip marker for what a
+    /// build without the feature is not checking.
     #[test]
     fn every_shader_token_is_substituted() {
         let source = shader_source(wgpu::TextureFormat::Bgra8Unorm);
@@ -1537,7 +1540,7 @@ mod tests {
         }
     }
 
-    /// **Every pipeline this module builds, built on a real device.**
+    /// **Every pipeline in this module, built on a real device.**
     ///
     /// Device acquisition, shader-module compilation and each
     /// `create_render_pipeline` call are pure construction under
@@ -1557,10 +1560,12 @@ mod tests {
     /// [`ViewportRenderer::new`] built the shaded pipeline, the id
     /// pipeline and their 1x1 targets, and the edge pipeline.
     ///
-    /// **Both target formats**, because [`shader_source`] emits
-    /// different WGSL for each: the sRGB surface and the gamma-space
-    /// one are two shader modules and two sets of pipelines, and only
-    /// building both compiles both.
+    /// **Two formats, one axis.** [`shader_source`] branches on
+    /// `is_srgb()`, not on the format, so `Bgra8Unorm` and
+    /// `Bgra8UnormSrgb` sample both sides of the only branch it has —
+    /// two shader modules and two sets of pipelines. The channel order
+    /// is NOT sampled: `Rgba8Unorm`/`Rgba8UnormSrgb`, which a surface
+    /// may well prefer, build no pipeline here.
     ///
     /// **No adapter is a FAILURE here, never a skip.** A row that
     /// goes green where no GPU exists reports the same thing whether
@@ -1592,13 +1597,42 @@ mod tests {
             info.backend, info.name, info.device_type, info.driver
         );
 
+        // THE APP'S DEVICE, NOT A PERMISSIVE ONE. This crate never
+        // builds a `DeviceDescriptor`: `NativeOptions`' default
+        // `wgpu_options` carries `egui_wgpu`'s own closure, and that
+        // is what the running app requests. So the row ASKS THAT
+        // CLOSURE rather than restating its limits or handing itself
+        // `adapter.limits()` — at the adapter's limits a pipeline that
+        // fits the hardware and exceeds what egui asks for builds
+        // green here and panics at startup, which is the one failure
+        // this row exists to close.
+        let egui_wgpu::WgpuSetup::CreateNew(setup) =
+            egui_wgpu::WgpuConfiguration::default().wgpu_setup
+        else {
+            panic!(
+                "egui_wgpu's default setup is no longer `CreateNew`, so this row can no longer                  ask it for the device descriptor the app requests"
+            );
+        };
         let (device, _queue) =
-            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-                label: Some("viewer_pipeline_smoke"),
-                required_limits: adapter.limits(),
-                ..Default::default()
-            }))
-            .expect("the adapter above must yield a device at its own reported limits");
+            pollster::block_on(adapter.request_device(&(setup.device_descriptor)(&adapter)))
+                .expect("the adapter above must yield a device at the limits egui_wgpu asks for");
+
+        // THE CENSUS, BOUND TO THE SOURCE. "Every pipeline" is a claim
+        // only if something notices a new one: all three of this
+        // file's `create_render_pipeline` calls are reached from
+        // `ViewportRenderer::new`, and a fourth built lazily in a
+        // frame path this row never enters would leave the row green
+        // and its name unchanged. The needle is split so this line is
+        // not one of its own hits.
+        assert_eq!(
+            include_str!("gpu.rs")
+                .matches(concat!(".create_", "render_pipeline("))
+                .count(),
+            3,
+            "this module no longer builds exactly the three pipelines `ViewportRenderer::new` \
+             builds. Route the new one through `new` so this row covers it, or narrow this \
+             row's claim and its count together."
+        );
 
         for target_format in [
             wgpu::TextureFormat::Bgra8Unorm,
