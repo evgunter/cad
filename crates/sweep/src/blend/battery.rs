@@ -81,6 +81,40 @@ impl Convexity {
     pub fn blend_sense(self) -> bool {
         matches!(self, Self::Convex)
     }
+
+    /// **The ONE sign fold, homed.** `+radius` on a convex chain,
+    /// `−radius` on a concave one: the displacement of a rest ball's
+    /// FOOT from the ball's centre along its support's outward normal —
+    /// into the material on a convex chain, where the ball is inside the
+    /// material, out of it on a concave one, where the ball rolls in the
+    /// void. Every arm that displaces by `±r` spells its side through
+    /// this — [`super::arms::plane_plane_blend`]'s feet,
+    /// [`super::arms::plane_sphere_blend`]'s spine depth,
+    /// `surgery::corner_plan`'s `toward` — and
+    /// [`super::arms::corner_ball`] alone needs the rest DEPTH, which is
+    /// this value's NEGATIVE by definition of tangency and is spelled
+    /// there as `-signed(..)`, the one negation the fold keeps.
+    #[must_use]
+    pub fn signed<T: Real>(self, radius: T) -> T {
+        match self {
+            Self::Convex => radius,
+            Self::Concave => -radius,
+        }
+    }
+
+    /// **The same fold as a SIDE.** A support's stored sense bit says
+    /// which side of its chart its material is on; the ball rests on
+    /// that side exactly when the chain is convex, on the far side when
+    /// it is concave — `sense == blend_sense()`, the identity on a
+    /// convex chain. The shared sheet reduction hands each trace this
+    /// bit (`curved_arm`), and the plane–sphere arm reads it against the
+    /// sphere's sense to pick the offset sphere (the ball centre is
+    /// INSIDE the sphere exactly when it rests on the sphere's material
+    /// side).
+    #[must_use]
+    pub fn ball_side(self, sense: bool) -> bool {
+        sense == self.blend_sense()
+    }
 }
 
 /// The request the battery judges: a body, the edges to blend, and
@@ -841,7 +875,6 @@ fn classify_arm<T: Decide + Bounds>(
     kind: BlendKind,
     band: Band,
 ) -> Result<(BlendArm, EdgeBlend<T>), BlendError> {
-    let convex = matches!(convexity, Convexity::Convex);
     if matches!(kind, BlendKind::Chamfer) {
         return match (sa, sb) {
             (Surface::Plane { .. }, Surface::Plane { .. }) => Ok((
@@ -857,7 +890,7 @@ fn classify_arm<T: Decide + Bounds>(
     match (sa, sb) {
         (Surface::Plane { .. }, Surface::Plane { .. }) => Ok((
             BlendArm::PlanePlaneCylinder,
-            plane_plane_blend(p, tau.normalize(), n_a, n_b, radius, convex),
+            plane_plane_blend(p, tau.normalize(), n_a, n_b, radius, convexity),
         )),
         (
             Surface::Plane { origin, .. },
@@ -866,7 +899,16 @@ fn classify_arm<T: Decide + Bounds>(
             },
         ) => Ok((
             BlendArm::PlaneSphereTorus,
-            plane_sphere_blend(*origin, n_a, plane_u(sa), *center, *r, radius, senses.1),
+            plane_sphere_blend(
+                *origin,
+                n_a,
+                plane_u(sa),
+                *center,
+                *r,
+                radius,
+                senses.1,
+                convexity,
+            ),
         )),
         (
             Surface::Sphere {
@@ -874,12 +916,22 @@ fn classify_arm<T: Decide + Bounds>(
             },
             Surface::Plane { origin, .. },
         ) => {
-            let mut b =
-                plane_sphere_blend(*origin, n_b, plane_u(sb), *center, *r, radius, senses.0);
+            let mut b = plane_sphere_blend(
+                *origin,
+                n_b,
+                plane_u(sb),
+                *center,
+                *r,
+                radius,
+                senses.0,
+                convexity,
+            );
             core::mem::swap(&mut b.trim_a, &mut b.trim_b);
             Ok((BlendArm::PlaneSphereTorus, b))
         }
-        _ => curved_arm(sa, sb, senses, carrier, p, extent, radius, edge, band),
+        _ => curved_arm(
+            sa, sb, senses, convexity, carrier, p, extent, radius, edge, band,
+        ),
     }
 }
 
@@ -934,11 +986,29 @@ fn ruling_arm<T: Real>(sa: &Surface<T>, sb: &Surface<T>) -> Option<BlendArm> {
 /// `(Cylinder, Plane)` pair takes the torus row when it meets in a
 /// latitude circle and the cylinder row when it meets along a ruling,
 /// with no orientation guessed anywhere.
+///
+/// **The side each trace rests the ball on folds the chain's stored
+/// convexity verdict** (S10/S11): a support's stored sense bit says
+/// which side of its chart its material is on, and the ball sits on
+/// that side exactly when the chain is CONVEX — on a concave chain it
+/// rolls in the void, the far side of every support — so the side
+/// handed to the trace is [`Convexity::ball_side`] of that bit, the
+/// identity on a convex chain. ONE fold with ONE home, `Convexity`:
+/// `signed` for the arms that displace by `±r` ([`plane_plane_blend`],
+/// [`super::arms::plane_sphere_blend`], `surgery::corner_plan`),
+/// `ball_side` for the ones that pick a side, and
+/// [`super::arms::corner_ball`]'s rest depth its one negation. The
+/// `Ruling` row folds it too, for parity — no fixture
+/// reaches a concave ruled band today (a ruled pair meets along an
+/// open edge, which the open-chain door admits for plane–plane
+/// supports only), so that arm of the fold is stated here and pinned
+/// nowhere.
 #[allow(clippy::too_many_arguments)]
 fn curved_arm<T: Decide + Bounds>(
     sa: &Surface<T>,
     sb: &Surface<T>,
     senses: (bool, bool),
+    convexity: Convexity,
     carrier: &Curve3<T>,
     p: Point3<T>,
     extent: T,
@@ -955,9 +1025,10 @@ fn curved_arm<T: Decide + Bounds>(
                 axis,
                 rim: p,
             };
-            let (Some((ta, da)), Some((tb, db))) =
-                (sheet.trace(sa, senses.0), sheet.trace(sb, senses.1))
-            else {
+            let (Some((ta, da)), Some((tb, db))) = (
+                sheet.trace(sa, convexity.ball_side(senses.0)),
+                sheet.trace(sb, convexity.ball_side(senses.1)),
+            ) else {
                 return Err(unsupported(ARM_ROSTER));
             };
             support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
@@ -970,9 +1041,10 @@ fn curved_arm<T: Decide + Bounds>(
                 rim: p,
                 lever: extent,
             };
-            let (Some((ta, da)), Some((tb, db))) =
-                (sheet.trace(sa, senses.0), sheet.trace(sb, senses.1))
-            else {
+            let (Some((ta, da)), Some((tb, db))) = (
+                sheet.trace(sa, convexity.ball_side(senses.0)),
+                sheet.trace(sb, convexity.ball_side(senses.1)),
+            ) else {
                 return Err(unsupported(ARM_ROSTER));
             };
             support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
@@ -1357,9 +1429,10 @@ fn edge_surfaces<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(SurfaceKey
 ///   support-face resolution. It is the WEAKEST of the three, and that
 ///   is load-bearing rather than incidental — a tag that fired only
 ///   where the carve succeeds could not name a door in its recourse at
-///   all, and the price is that the recourse's carve half must be
-///   CONDITIONED (see `FILLET3_SEAM_VERTEX_RECOURSE`, whose hedge exists
-///   exactly because this predicate is blind to convexity);
+///   all, and the price is that the recourse must be TRUE ON BOTH
+///   material sides, since this predicate is blind to convexity — which
+///   `FILLET3_SEAM_VERTEX_RECOURSE` is: the closed-rim band carves a
+///   concave rim through the same walk as a convex one;
 /// - `surgery::resolve_seam_split_rim` — the multi-arc ADMISSION,
 ///   which adds everything this one omits (one support pair for the
 ///   whole rim, ring-free half-band supports each carrying one arc, the
