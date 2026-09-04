@@ -1313,6 +1313,7 @@ fn check_registry_tags_are_stable() {
     );
     assert_eq!(
         check_evidence_tag(&CheckEvidence::SeparationUnavailable {
+            kind: pncad::topo::BooleanErrorKind::ClassificationInvariant,
             reason: "boxes refused".into()
         }),
         "separation_unavailable"
