@@ -7,6 +7,7 @@ opened: 2026-08-31
 github: 1412
 refs: [1400]
 branch: chrome/viewer-mate-tool-refuses-pattern-picks
+pr: 1748
 ---
 
 ## From GitHub issue 1412
