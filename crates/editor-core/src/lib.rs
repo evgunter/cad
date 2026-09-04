@@ -121,7 +121,7 @@ pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, UnitSym, eval,
     eval_count, unparse,
 };
-pub use ident::{ContentPin, DocRef, DocumentId};
+pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use mate::{
     Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, ClusterMaintenance, Coset, MateFault,
     MateFrame, MatePrimitive, MateRole, MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE,

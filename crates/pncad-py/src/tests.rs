@@ -1634,6 +1634,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_datum_too_small_to_lever",
             "mate_frame_degenerate",
             "mate_indeterminate",
+            "mate_poses_of_another_document",
             "mate_self",
             "mate_table_lacks",
             "mate_under",
@@ -1808,6 +1809,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "product_error_tag",
         values: &[
             "contact_lineage",
+            "evaluation_of_another_document",
             "graft_refused",
             "no_body_roots",
             "product_invalid",

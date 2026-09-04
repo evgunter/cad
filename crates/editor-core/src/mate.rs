@@ -524,9 +524,22 @@ impl core::fmt::Display for LeverRefusal {
 }
 
 /// A typed mate refusal (D9: fail loud, never a guess). Every arm names
-/// its subject — the mate, the pair, the predicate, or the residual.
+/// its subject — the mate, the pair, the predicate, the residual, or
+/// the two documents a mispaired read named.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MateFault {
+    /// The solve is a solve of ANOTHER document (DI3): one of the two
+    /// arms whose subject is not a mate at all — `Band`, whose subject
+    /// is the constructor, is the other. Raised by
+    /// [`crate::SolvedPoses::placement`], never recorded against a
+    /// node — a solve records no fault about a document it never read,
+    /// which is why `viewer::tree` blames no row for it.
+    PosesOfAnotherDocument {
+        /// The document whose placement was asked for.
+        expected: crate::ident::DocumentId,
+        /// The document the solve is of.
+        found: crate::ident::DocumentId,
+    },
     /// A mate frame's authored data has no definite frame.
     Frame {
         /// The mate whose datum refused.
@@ -652,6 +665,10 @@ pub(crate) const MATE_MEMBER_EMPTY: &str = "mate_member_empty";
 impl core::fmt::Display for MateFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            Self::PosesOfAnotherDocument { expected, found } => write!(
+                f,
+                "the solve is of document {found}, not of document {expected}"
+            ),
             Self::Frame { mate, side, error } => write!(
                 f,
                 "mate {}'s {} frame has no definite placement: {error}",
