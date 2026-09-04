@@ -6,6 +6,9 @@ status: open
 opened: 2026-08-27
 github: 1097
 refs: [1094, 1106, 1110]
+needs_ev: true
+branch: chrome/viewer-first-light-on-real-hardware
+pr: 1771
 ---
 
 ## From GitHub issue 1097

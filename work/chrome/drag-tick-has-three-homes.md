@@ -2,9 +2,10 @@
 id: drag-tick-has-three-homes
 kind: issue
 title: The drag tick has three homes and a count field has two answers — the creation forms pick from the four constants by hand
-status: open
+status: parked
 opened: 2026-09-04
 refs: [1776]
+blocked_on: [viewer-session-god-module-split]
 ---
 
 
