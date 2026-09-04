@@ -20,3 +20,11 @@ directory at opening, by header edit and `git mv` only (ids unchanged):
 
 No unit is cut and no branch exists yet. The first dispatch claims its
 ordinal from the band above and records it in `docs/MODEL-AB-LOG.md`.
+
+## Hand-off from DOCM (2026-09-04)
+
+`layer3-recipenodeid-aliases-across-rewinds` re-homed here by
+header-preserving `git mv`: the rule is ratified
+(`docs/DOCM-IDENTITY-DESIGN.md` DI1 — a held id is valid on the history
+branch that minted it; tools clear on history replacement), the build
+is the viewer's. Signed (DOCM orchestrator).

@@ -320,3 +320,15 @@ the base tree in this lane. It states in its own output that nothing
 may be inferred from the absence and that it gates nothing — which is
 the right shape for a report that cannot run, and the opposite of the
 silent feature-skip this program's unit 2 existed to close.
+
+## Hand-off from DOCM (2026-09-04)
+
+Five items re-homed here by header-preserving `git mv` (ids unchanged),
+each a viewer build of a ruling in `docs/DOCM-REFERENCES-DESIGN.md` or
+`docs/DOCM-IDENTITY-DESIGN.md`: `add-profile-mints-no-frame` and
+`add-profile-placement-on-picked-face-frame` (DM1/DM2; the kernel half
+is `DOCM-1`), `save-a-copy-duplicate-id-bricks-store` (DI4),
+`no-persistent-setplacement-session-op` (DI5: the gesture's release IS
+the placement edit), `document-seam-no-in-session-change-detection`
+(DI2: `Reevaluate` re-mounts the store; its two chrome edges). Signed
+(DOCM orchestrator).
