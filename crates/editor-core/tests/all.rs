@@ -100,6 +100,8 @@ mod display_contract;
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
 mod e4_dual_door;
+#[path = "fix_pattern_mate_crossing.rs"]
+mod fix_pattern_mate_crossing;
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]

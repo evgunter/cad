@@ -1205,24 +1205,33 @@ pub fn split(
     // order, which is what makes the record D9-deterministic.
     //
     // **Only a mate EDGE can cross** (AQ8, RULED — option (b), SKIP).
-    // A4 says "every mate EDGE crossing the cut". An A12 reading edge
-    // exists when both heads resolve to live MEMBERS — a live
-    // instance, or a pattern-placed instance (A11's member
-    // vocabulary) — but this collector still gates on plain
-    // `InstantiatePart` heads only: a mate whose edge end is a
-    // pattern-placed head contributes no crossing record, and so loses
-    // the pin-move re-verification the record buys (issue 1405 —
-    // split/refactor ground). A mate with a DANGLING head — one
-    // resolving to no member at all — is not an edge and contributes
-    // NO crossing, however its names fall across the cut.
-    // The ruling's reason is the one that matters here: such a mate
-    // never solved, so a record minted from it would be
-    // trusted-at-rest state, which AQ8's ratification condition
-    // forbids. The mate itself stays in the document (N5) and its
-    // names rebind like any other; it simply says nothing about the
-    // seam.
-    let is_mate_edge_end =
-        |name: &StableName| matches!(doc.node(name.node), Some(Node::InstantiatePart { .. }));
+    // A4 says "every mate EDGE crossing the cut", and an A12 reading
+    // edge exists exactly when both heads resolve to live MEMBERS of
+    // A11's vocabulary — a live instance, or a pattern-placed instance
+    // (`Pattern` node + `Instance(i)`). The gate is therefore
+    // `crate::mate::member_of_head` ITSELF, not a re-spelling of it:
+    // this collector, A12's reading edges and A11's clusters ask ONE
+    // predicate, so no head can be an edge end here that the cluster
+    // graph does not weld.
+    //
+    // That identity is what makes AQ8's unreachability argument total.
+    // A mate that is an edge welds its two member instances into one
+    // placement cluster, and `TornCluster` above refuses any cut that
+    // is not a union of whole clusters — so a mate edge's two ends are
+    // never on opposite sides of an accepted cut, and this loop mints
+    // nothing for one. It holds for a pattern-placed end for the same
+    // reason it holds for a plain one, because the weld lands on the
+    // pattern's INPUT instance. The conversion door that would make a
+    // crossing reachable is banked as ASM-XSPLIT.
+    //
+    // A mate with a DANGLING head — one resolving to no member at all
+    // — is not an edge and contributes NO crossing, however its names
+    // fall across the cut. Such a mate never solved, so a record
+    // minted from it would be trusted-at-rest state, which AQ8's
+    // ratification condition forbids. The mate itself stays in the
+    // document (N5) and its names rebind like any other; it simply
+    // says nothing about the seam.
+    let is_mate_edge_end = |name: &StableName| crate::mate::member_of_head(doc, name).is_some();
     let mut crossings: Vec<InterfaceCrossing> = Vec::new();
     for &id in doc.order() {
         if cut.contains(&id) {

@@ -144,24 +144,26 @@ pub struct Member {
     pub copy: Option<(RecipeNodeId, u32)>,
 }
 
-/// The member a mate reference's HEAD names, or the typed
-/// dangling-head refusal (N5).
+/// **A11's member vocabulary as a predicate**: the member `name`'s
+/// head names, or `None` when the head is outside the vocabulary (a
+/// non-instance node; a pattern whose name carries no `Instance(i)`
+/// qualifier; a pattern whose input is not itself a live instance — a
+/// patterned boolean, a nested pattern).
 ///
 /// Structural only — no expression is evaluated here, so the cluster
-/// partition never depends on a slot value. A head outside the member
-/// vocabulary (a non-instance node; a pattern whose name carries no
-/// `Instance(i)` qualifier; a pattern whose input is not itself a live
-/// instance — a patterned boolean, a nested pattern) resolves to no
-/// member and refuses.
-fn head_of<P>(
-    doc: &Doc<P>,
-    mate: RecipeNodeId,
-    side: MateSide,
-    name: &crate::names::StableName,
-) -> Result<Member, MateFault> {
+/// partition never depends on a slot value.
+///
+/// This is the SINGLE home of the question "is this reference a member
+/// reference": [`head_of`] adds the refusal context for the solve, and
+/// [`crate::refactor::split`]'s crossing collector asks it directly.
+/// A12's reading edges, A11's clusters and A4's interface record must
+/// all admit exactly the same heads — a collector admitting a head the
+/// cluster graph does not weld would mint a record for a mate that
+/// never solved, which is what AQ8's ratification condition forbids.
+pub(crate) fn member_of_head<P>(doc: &Doc<P>, name: &crate::names::StableName) -> Option<Member> {
     let head = name.node;
     match doc.node(head) {
-        Some(Node::InstantiatePart { .. }) => Ok(Member {
+        Some(Node::InstantiatePart { .. }) => Some(Member {
             instance: head,
             copy: None,
         }),
@@ -169,15 +171,31 @@ fn head_of<P>(
             Some(RoleSeg::Instance { i, .. })
                 if matches!(doc.node(*input), Some(Node::InstantiatePart { .. })) =>
             {
-                Ok(Member {
+                Some(Member {
                     instance: *input,
                     copy: Some((head, *i)),
                 })
             }
-            _ => Err(MateFault::DanglingHead { mate, side, head }),
+            _ => None,
         },
-        _ => Err(MateFault::DanglingHead { mate, side, head }),
+        _ => None,
     }
+}
+
+/// The member a mate reference's HEAD names, or the typed
+/// dangling-head refusal (N5) — [`member_of_head`] with the mate and
+/// side the refusal names.
+fn head_of<P>(
+    doc: &Doc<P>,
+    mate: RecipeNodeId,
+    side: MateSide,
+    name: &crate::names::StableName,
+) -> Result<Member, MateFault> {
+    member_of_head(doc, name).ok_or(MateFault::DanglingHead {
+        mate,
+        side,
+        head: name.node,
+    })
 }
 
 /// **The pattern-derived offset** of a pattern-placed member: the
