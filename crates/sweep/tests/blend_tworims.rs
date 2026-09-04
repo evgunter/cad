@@ -399,8 +399,9 @@ fn colliding_bands_on_a_shared_wall_refuse_upfront() {
                     ..
                 },
             ) => {
+                assert_eq!(margin.predicate, "fillet3_face_clearance");
                 assert!(
-                    margin < 0.0,
+                    margin.value().is_some_and(|m| m < 0.0),
                     "the metering names a real interference at r = {r}"
                 );
                 assert!(

@@ -1781,9 +1781,9 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
         source: e,
     })? {
         Sign::Positive => Ok(()),
-        _ => Err(BlendError::RingClearance {
+        sign => Err(BlendError::RingClearance {
             face,
-            margin: margin.lo(),
+            margin: super::battery::classified(RING_CLEARANCE, margin, band, sign),
         }),
     }
 }
