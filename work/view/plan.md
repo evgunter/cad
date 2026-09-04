@@ -30,7 +30,8 @@ concurrency unit.
 
 ## Order
 
-1. `viewer-session-god-module-split`, in four. The boundary rule —
+1. `viewer-session-god-module-split` — **1a, 1b and 1c are done**
+   (#1801, #1816, #1830); **1d remains**. In four: The boundary rule —
    every module is a vocabulary or a driver, and its `use` block says
    which — is stated in `crates/viewer/README.md` under *Module
    boundaries*, and ratified in an `[ev]` PR before anything is cut.
@@ -42,7 +43,11 @@ concurrency unit.
    **1c** the mechanical move, `session` into six vocabularies and
    `app` into its panes, vocabularies and widgets, with `pub use`
    shims so no test changes;
-   **1d** `Option<OpenTool>` for the one-of-seven invariant.
+   **1d** `Option<OpenTool>` for the one-of-seven invariant — the only
+   part left. `Tools` still holds seven `Option<…Tool>` fields, and
+   `Tools::open_kind` still scans the fixed-length `ToolKind::ALL`, so
+   an eighth tool omitted from that array compiles clean and is
+   permanently unreachable.
    Representation changes are separate from the move on purpose: the
    move's whole safety property is that the compiler checks it, and a
    representation change bundled into it destroys that.

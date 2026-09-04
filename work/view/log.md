@@ -896,3 +896,91 @@ staleness in the next paragraph. Not fixed here because its payload is
 a `println!` naming two modules and a test named after them, which is
 a decision rather than a typo; this pass was scoped to prose with no
 decision in it.
+
+## Unit 1 is done but for 1d, and the review found the rule wrong about its own newest module (2026-09-04)
+
+#1830 merged. `session.rs` 3,260 → **1,500** and `app.rs` 5,696 →
+**1,752** (the fix pass's own edits moved both slightly from the
+figures the PR table carries). Unit 1's remaining part is **1d**,
+`Option<OpenTool>`.
+
+**The style review audited differently from both lanes, and that is
+why it found things.** Both lanes had diffed sorted or multiset line
+sets; the reviewer extracted all 237 `fn`/`const` items and every type
+definition by brace-matching and diffed each body **in order**, which
+sees a moved line or a reordered statement that a multiset cannot.
+Three independent audits of one mechanical move, each shaped
+differently, and only the third could have caught a reordering. Worth
+keeping as method the next time a unit's safety rests on "the compiler
+checks it".
+
+Claims 1–3 survived. **Claim 4 did not.**
+
+### `widgets` obeyed neither side of the ratified rule
+
+The README filed `widgets` under *The app's vocabularies*; the rule
+says a vocabulary names no `DocSession`, no `ViewerApp` and no `egui`.
+`widgets.rs` names `egui` at `:13` and `DocSession` at `:20`, used at
+`:518` where `delete_button` takes `&DocSession`. It is not a driver
+either. So the crate's newest 525-line module fitted **neither side of
+a binary rule whose selling point is that reading a `use` block decides
+it** — a harder failure than the day's other four, which were stale
+sentences rather than a hole in the classification.
+
+The rule survives; the classification was wrong. `app` is a driver, and
+a driver too large to read is still a driver: `app.rs`, `pane::*` and
+`widgets` are one driver split for size, and splitting a driver does
+not make the pieces vocabularies. The README says so under **The app
+driver, split for size**, and the check now reports what a module IS
+rather than only whether it is a vocabulary.
+
+### Two of my claims, and one item I should not have filed
+
+The PR body said 1c "closes the substance of" CHROME's
+`drag-tick-has-three-homes`. The code contradicted me —
+`forms.rs` still said the rule had a third home — the item's two
+questions are untouched, and 1c made one half **worse**: the hand-picked
+constant call sites went from one file to three. 1c gave the RULE one
+home, which is not what that item is about. The "two residues" in
+`app.rs` also undercounted, and `app.rs` was 1,754 lines and not the
+1,746 the PR, this log and my brief all carried.
+
+And `tip-mark-doc-duplicates-its-own-first-sentence`, which I filed
+this morning, was **item #1 of CHROME's `app-rs-doc-comment-merge-scars`**
+— filed the same day, parked on this very split, explicit that its
+three scars are one class with one fix. I wrote that mine was "the one
+instance found of a shape nothing in this repo checks"; it had already
+been found. `implementer-discipline.md` §6 tells lanes to report rather
+than file *because they cannot see the whole board*. The orchestrator
+is the party who can, and I did not look. Deleted.
+
+### A fifth stale claim, found while fixing the fourth
+
+The fix pass found `lib.rs:90`'s loud-skip marker saying "The two
+modules above" over **six** `#[cfg(feature = "app")]` modules — and
+that marker's own next paragraph predicts exactly this: *"a marker that
+silently went stale would look exactly like this one."* It declined to
+fix it, correctly: the sentence is one word but the payload is a
+`println!` naming two modules and a test named after them, so which
+modules get named is a decision. Filed as
+`loud-skip-marker-says-two-modules-and-there-are-six`.
+
+**That is five prose claims outrunning the tree in one day, four of
+them mine.** The two items filed today are the two halves of the
+countermeasure: `boundary-rule-has-no-mechanical-check` (the README
+calls the rule mechanically checkable and nothing reads a `use` block)
+and `stale-file-citations-after-the-split` (24 open files cite moved
+lines; the rustdoc gate sees only BRACKETED intra-doc links, which is
+precisely why every survivor is an unbracketed code span and the gate
+is green). Until one of those lands, the only thing that has caught any
+of the five is a reader with the tree open.
+
+### Recovered, again: two log entries that never left this branch
+
+The merge of main after #1830 conflicted because **`1b merged; an
+inherited item swept…` and `1c-session landed…` were never on main** —
+they were committed here while 1c branched straight from main. Same
+shape as the stale-tree state-sync commit earlier today, and the same
+lesson: this branch is not a place work becomes durable. Resolved as a
+chronological union. **The orchestrator branch needs a PR of its own
+before this session ends**, or the day's whole record lives on a branch.

@@ -2,10 +2,10 @@
 id: viewer-session-god-module-split
 kind: issue
 title: viewer::session is accreting into a god-module - split conversation before more units land in it
-status: dispatched
+status: review
 opened: 2026-08-31
 github: 1386
-branch: view/1b-gesture-as-data
+branch: view/1c-module-split
 refs: [session-shims-and-test-imports, save-is-not-gesture-guarded, two-gestures-can-be-in-flight-together, revolve-tool-unreachable-no-axisinplane-form, opoutcome-superseded-has-no-production-reader, set-param-prechecks-what-the-door-refuses]
 ---
 
