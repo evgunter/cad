@@ -266,8 +266,7 @@ fn a_snapshot_carrying_a_refused_node_does_not_load() {
     let (doc, boxes, u) = three_boxes([0, 1, 2]);
     // The document is valid as saved; the corruption is introduced in
     // the SNAPSHOT afterwards, which is what a tampered file is.
-    let text = editor_core::persist::save(&doc, &[], tol)
-        .expect("the document saves");
+    let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
     // The member list is rewritten in place, whatever whitespace the
     // writer used around it, so the fixture is about the LIST and not
     // about the formatting.
@@ -519,7 +518,10 @@ fn two_placements_of_one_prototype_are_two_members() {
     assert_eq!(faces.len(), 12, "two boxes fuse to twelve faces: {faces:?}");
     for member in [left, right] {
         assert_eq!(
-            faces.iter().filter(|n| member_of(n) == Some(member)).count(),
+            faces
+                .iter()
+                .filter(|n| member_of(n) == Some(member))
+                .count(),
             6,
             "member {member:?} contributes its six faces"
         );
