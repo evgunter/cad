@@ -466,3 +466,5 @@ mod tcost_k3_certificate;
 mod fillet_h4_concave_rim;
 #[path = "fillet_h4_concave_rim_interval.rs"]
 mod fillet_h4_concave_rim_interval;
+#[path = "fillet_h4_r2_probes.rs"]
+mod fillet_h4_r2_probes;
