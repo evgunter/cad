@@ -398,6 +398,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
 /// primitive, or move the geometry out of the band.
 pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
     match fault {
+        MateFault::PosesOfAnotherDocument { .. } => "mate_poses_of_another_document",
         MateFault::Frame { .. } => "mate_frame_degenerate",
         MateFault::ClassNotAdmitted { .. } => "mate_class_not_admitted",
         MateFault::TableLacks { .. } => "mate_table_lacks",
@@ -574,6 +575,7 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
 pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
     use pncad::document::ProductError as E;
     match err {
+        E::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
         E::UnknownNode { .. } => "unknown_node",
         E::RootFailed { .. } => "root_failed",
         E::RootPoisoned { .. } => "root_poisoned",

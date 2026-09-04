@@ -2,8 +2,10 @@
 id: prose-gate-has-no-mechanical-guard
 kind: issue
 title: the prose gate is enforced only where someone remembered: no row renders every Display-reachable refusal at its struct-shaped payload variants
-status: open
+status: review
+branch: fix/prose-gate-guard
 opened: 2026-09-04
+pr: 1809
 ---
 
 
@@ -77,3 +79,106 @@ ground and `step-import` is EXCH's, filed together at
 `work/issues/debug-in-prose-at-blend-and-step-import.md` and routed. A
 live panic on a public door should not wait on a test. This unit is what
 stops the fourth one.
+
+## Closed
+
+`crates/pncad-py/src/prose_census.rs` — a source census, not a roster
+of samples. It reads every `impl Display` in the tree, resolves each
+`{binding:?}` in each format string to the field type the binding is
+declared at, and asks whether that type's `Debug` can carry the
+field-brace fingerprint. A site is judged for the TYPE it renders, so
+which variant a sampler would have constructed cannot change the
+answer — the `blend/mod.rs` `seeds()` hole is structurally absent
+rather than avoided.
+
+Three rows over the tree:
+
+- `no_display_impl_renders_a_brace_shaped_payload_through_debug` —
+  deny by default. `KNOWN_BRACED` holds the ten brace-shaped sites,
+  each with its reason and **its count**; every one is a known-live or
+  undischarged defect on another program's ground, none is accepted
+  behaviour. The roster is compared for equality, so an entry that
+  stops naming a site reds, and so does a partial repair that moves a
+  count.
+- `every_site_this_census_cannot_decide_is_named_with_its_reason` —
+  `UNDECIDED` names all 28 undecided sites **with the reason each could
+  not be decided**, compared for equality in both directions.
+- `no_raise_site_composes_a_debug_rendering_into_its_message` — the
+  other route into the message, over this crate's `typed_err` calls,
+  following the message through a local `let`. The allowance is keyed
+  on the SITE (file plus message expression), not the file.
+
+### The style review round
+
+The design survived review; the hand-written item and type grammar did
+not. Three executed breaks of the "cannot silently miss a variant"
+claim, each now a permanent row:
+
+- an **or-pattern** was resolved at its last alternative only, so a
+  brace-shaped payload written anywhere but last was cleared as prose —
+  a silent miss of a variant, which is this item's own constraint;
+- the item-head scanner counted angle brackets with no bracket
+  tracking and no arrow exception, so `Fn(u32) -> bool` in a bound and
+  a `where` clause both made it answer **prose** over a named-field
+  payload. It now uses `test_utils::source::angle_end`, whose own
+  documentation names both cases — a third hand-rolled angle scanner
+  in this tree was the defect, and importing the shared one is the fix;
+- **every string literal** in a `Display` body was read as a format
+  string, inventing rendering sites out of ordinary prose. The scan is
+  now keyed on formatting-macro calls.
+
+Four more, all executed and all fixed: a `Display` matching on a
+`kind` field typed none of its bindings (every error type with such a
+field shared the hole); generic arguments were never substituted;
+rival declarations of one name produced a verdict from the collision
+rather than from the type — which had put **two phantom defects** in
+`KNOWN_BRACED` whose stated cause was false, both now correctly
+undecided; and `pub(crate)` visibility was not stripped, pushing real
+sites into the blind spot.
+
+The rule the module is now written against: **Undecided is never a
+pass, and no arm that cannot answer may guess prose.** An unparseable
+item and a disagreement between rival declarations both answer
+undecided rather than "no fields, so prose".
+
+### Evidence
+
+On the real tree, not only on fixtures: planting a struct variant on
+`SeamSide` (`crates/geom/src/curves/compose.rs`, whose `ComposeError`
+renders `{side:?}`) reds the first row naming that site — with no value
+of the planted variant ever constructed — and reverting greens it.
+Adding a seventh `{slot:?}` to `EditError` reds it on the count alone.
+A `Debug` rendering behind a local `let` at a `typed_err` call, and a
+second `Debug` raise appended to the one allowed file, each red the
+third row. Twelve further rows run planted one-file trees on every
+invocation, including the or-pattern, arrow-in-bound, `where Fn()`,
+non-format-literal, `kind`-field, generic-substitution and
+rival-name shapes; one renders a real struct-variant value and asserts
+`reads_as_prose` rejects it, pinning the static verdict to the runtime
+gate.
+
+### What the guard cannot see
+
+- **Reachability.** It over-approximates to every `Display` in the tree
+  rather than tracing raise paths, deliberately: a reachability
+  analysis is the half that goes stale silently when a door is added.
+  A flagged site may be cosmetic rather than a live panic, and the
+  reason string records that where it is unknown.
+- **The 28 undecided sites**, whose reduction is filed as
+  `work/fix/prose-census-undecided-residue.md` — positional `{:?}`
+  over expressions it does not type, the `Real` scalar (lane-dependent:
+  `Interval` wraps a named-field struct), and names with rival
+  declarations.
+- **A message bound by anything other than a local `let`** at a raise
+  site; **`macro_rules!` bodies and `include!`d text**; **type aliases
+  and re-exports**, which resolve to no declaration and answer
+  undecided.
+
+The two live point fixes stay FILLET's and EXCH's
+(`work/issues/debug-in-prose-at-blend-and-step-import.md`); the
+`editor-core` family stays DOCM's
+(`work/docm/debug-in-prose-residue-after-finding-sink.md`). Two sites
+this census found that were not previously filed —
+`geom-brep/src/offset_fit.rs` (`SplineError`) and
+`topo/src/boolean/voids.rs` (`RevertError`) — were reported to the
+orchestrator, who is filing them.

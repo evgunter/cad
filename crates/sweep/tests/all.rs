@@ -142,6 +142,8 @@ mod blend4_concave_fillet;
 mod blend4_r1_probes;
 #[path = "blend6_verb_vocab.rs"]
 mod blend6_verb_vocab;
+#[path = "blend_margin_payload_interval.rs"]
+mod blend_margin_payload_interval;
 #[path = "blend_seam_split_rim.rs"]
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]
@@ -272,6 +274,8 @@ mod review_d2_recourse_at_the_site;
 mod review_d8_consumer_differential;
 #[path = "review_fillet_e1_probes.rs"]
 mod review_fillet_e1_probes;
+#[path = "review_fillet_e3_probes.rs"]
+mod review_fillet_e3_probes;
 #[path = "review_m2_pr4.rs"]
 mod review_m2_pr4;
 #[path = "review_m2_pr4_interval.rs"]
@@ -468,8 +472,19 @@ mod r1_area_gauge_probes;
 #[path = "tcost_k3_certificate.rs"]
 mod tcost_k3_certificate;
 
+#[path = "fillet_h4_concave_rim.rs"]
+mod fillet_h4_concave_rim;
+#[path = "fillet_h4_concave_rim_interval.rs"]
+mod fillet_h4_concave_rim_interval;
+
 #[path = "blend_recourse_followability.rs"]
 mod blend_recourse_followability;
 
 #[path = "review_fillet_e2_probes.rs"]
 mod review_fillet_e2_probes;
+
+#[path = "review_h4_r1_probes.rs"]
+mod review_h4_r1_probes;
+
+#[path = "fillet_h4_r2_probes.rs"]
+mod fillet_h4_r2_probes;

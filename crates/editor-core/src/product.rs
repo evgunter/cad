@@ -93,6 +93,17 @@ use geom_core::Tol;
 /// the roots or none of them — there are no partial products.
 #[derive(Debug)]
 pub enum ProductError {
+    /// The evaluation is an evaluation of ANOTHER document (DI3).
+    /// Raised before the first root is read: node ids are minted per
+    /// document, so a foreign evaluation can carry entries for these
+    /// very ids and gather a product out of another document's
+    /// geometry without a single lookup missing.
+    EvaluationOfAnotherDocument {
+        /// The document whose product was asked for.
+        expected: crate::ident::DocumentId,
+        /// The document the handed evaluation is of.
+        found: crate::ident::DocumentId,
+    },
     /// A root has no entry in this evaluation (never scheduled, or
     /// past a cancelation's completed prefix).
     UnknownNode {
@@ -174,6 +185,11 @@ impl core::fmt::Display for ProductError {
             Ok(())
         };
         match self {
+            Self::EvaluationOfAnotherDocument { expected, found } => write!(
+                f,
+                "product: the evaluation is of document {found}, not of \
+                 document {expected}",
+            ),
             Self::UnknownNode { node } => {
                 write!(
                     f,
@@ -315,10 +331,11 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
 ///
 /// # Errors
 ///
-/// Every arm of [`ProductError`]: a root that failed, was poisoned, or
-/// is absent from this evaluation; a document whose roots denote no
-/// body ([`ProductError::NoBodyRoots`]); the kernel's graft and
-/// at-rest validity refusals.
+/// Every arm of [`ProductError`]: an evaluation of another document
+/// ([`ProductError::EvaluationOfAnotherDocument`]); a root that
+/// failed, was poisoned, or is absent from this evaluation; a document
+/// whose roots denote no body ([`ProductError::NoBodyRoots`]); the
+/// kernel's graft and at-rest validity refusals.
 pub fn product<P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
@@ -400,9 +417,11 @@ pub struct SolidOrigin {
 ///
 /// # Errors
 ///
-/// Every arm of [`ProductError`], including [`ProductError::Naming`]
-/// when two roots' rows would name one aggregate entity or collide on
-/// one name — an aliasing bug surfaced, never resolved silently.
+/// Every arm of [`ProductError`], including
+/// [`ProductError::EvaluationOfAnotherDocument`] when `evaluation` is
+/// not an evaluation of `doc`, and [`ProductError::Naming`] when two
+/// roots' rows would name one aggregate entity or collide on one name
+/// — an aliasing bug surfaced, never resolved silently.
 pub fn product_named<P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
@@ -428,13 +447,26 @@ pub fn product_named<P, T: Decide + AtRestPolicy>(
 /// # Errors
 ///
 /// Every arm of [`ProductError`], including
-/// [`ProductError::ContactLineage`] when the graft's bridge has no
-/// image for a record's entity.
+/// [`ProductError::EvaluationOfAnotherDocument`] — `evaluation` must
+/// be an evaluation OF `doc`, and this is the door all three read it
+/// through — and [`ProductError::ContactLineage`] when the graft's
+/// bridge has no image for a record's entity.
 pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
 ) -> Result<Product<T>, ProductError> {
+    // The pairing door (DI3), before the first root is read: this
+    // gather is a statement about `doc`, and an evaluation of another
+    // document answers about other geometry — silently, whenever the
+    // two documents' node ids overlap, which two documents built from
+    // one recipe always do.
+    if let Some(m) = crate::ident::mispaired(doc.id(), evaluation.document) {
+        return Err(ProductError::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        });
+    }
     // Pass 1: every root's value, refused whole. "No partial products"
     // means a FAILED root refuses even when a later root would have
     // supplied a body, so the whole list is read before anything is

@@ -323,6 +323,8 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     );
     let ev = Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
+        document: doc.id(),
+        prior_refused: None,
         order: vec![node],
         nodes,
         outcome: EvalOutcome::Completed,
@@ -1334,7 +1336,11 @@ fn sideof_frag(
 
 /// One-node hand-built evaluation whose table is `t` (the over-tie
 /// pin's construction, reused).
-fn one_node_eval(node: RecipeNodeId, t: NameTable) -> Evaluation<f64> {
+fn one_node_eval(
+    document: editor_core::DocumentId,
+    node: RecipeNodeId,
+    t: NameTable,
+) -> Evaluation<f64> {
     let mut nodes = std::collections::BTreeMap::new();
     nodes.insert(
         node,
@@ -1350,6 +1356,8 @@ fn one_node_eval(node: RecipeNodeId, t: NameTable) -> Evaluation<f64> {
     );
     Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
+        document,
+        prior_refused: None,
         order: vec![node],
         nodes,
         outcome: EvalOutcome::Completed,
@@ -1394,8 +1402,8 @@ fn qualifier_delta_yields_predicate_flip_without_any_flip_set_evidence() {
     t_new.insert(new_name.clone(), body_ent(0)).unwrap();
     t_new.insert(f.clone(), body_ent(1)).unwrap();
     t_new.insert(p.clone(), body_ent(2)).unwrap();
-    let prior_ev = one_node_eval(n, t_prior);
-    let new_ev = one_node_eval(n, t_new);
+    let prior_ev = one_node_eval(doc.id(), n, t_prior);
+    let new_ev = one_node_eval(doc.id(), n, t_new);
 
     let expect_flip = |res: Resolution| {
         let Resolution::Failed(fail) = res else {
