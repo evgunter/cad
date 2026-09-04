@@ -34,12 +34,12 @@
 //! which is.
 
 use core::cmp::Ordering;
-use std::rc::Rc;
 
 use super::{
-    AtomInfo, Form, INDET_PI, IndetMap, Mono, ParamValue, Poly, Rat, Session, SymBudget, SymOp,
-    indet_atom, powi_form, within,
+    AtomInfo, Form, INDET_PI, IndetMap, Mono, ParamValue, Poly, Rat, SignOracle, SymBudget, SymOp,
+    SymRules, indet_atom, powi_form, within,
 };
+use crate::predicate::{Band, Sign};
 use crate::real::Real;
 
 /// Graded lexicographic order on monomials: total degree first, then
@@ -160,109 +160,197 @@ pub(super) fn form_sqrt(f: &Form, budget: SymBudget) -> Option<Form> {
     })
 }
 
-/// What the square of atom `id` equals, under the session's dials, or
-/// `None` when no rule reaches it. The `cos` twin rule B introduces is
-/// recorded as an atom so the shape report can render it.
-fn square_of(id: u128, sess: &mut Session) -> Option<Form> {
-    let rules = sess.rules;
-    let (op, arg) = {
-        let info = sess.atoms.get(&id)?;
-        (info.op, info.args[0].clone()?)
-    };
-    match op {
-        SymOp::Sqrt if rules.sqrt_square => Some((*arg).clone()),
-        SymOp::Sin if rules.pythagoras => {
-            // `sin` and `cos` nodes carry a zero payload, so the twin's
-            // key is the same digest under the other tag.
-            let cos = indet_atom(SymOp::Cos.tag(), 0, &[arg.digest()]);
-            sess.atoms.entry(cos).or_insert_with(|| AtomInfo {
-                op: SymOp::Cos,
-                args: [Some(Rc::clone(&arg)), None],
-            });
-            let mut cos2 = Poly::zero();
-            cos2.insert(vec![(cos, 2)], Rat::new(-1, 1, 0)?)?;
-            Some(Form::poly(Poly::one().add(&cos2)?).gated(arg.gated))
-        }
-        _ => None,
-    }
+/// One reduction the atom algebra can apply to a form.
+enum Rewrite {
+    /// `id² → x` (rules A and B): an even power of the atom becomes a
+    /// power of `x`, one factor left where the power is odd. Reads no
+    /// value.
+    Square { id: u128, x: Form },
+    /// `id → q` (rule C): the atom equals `q` outright, over EVERY
+    /// power, on the strength of a certified sign. The result is
+    /// gated.
+    Whole { id: u128, q: Form },
 }
 
-/// One term of `p` carrying an even-or-higher power of a reducible
-/// atom: `(monomial, coefficient, atom id, exponent, what the square
-/// equals)`.
-fn find_square(p: &Poly, sess: &mut Session) -> Option<(Mono, Rat, u128, u32, Form)> {
-    for (m, c) in &p.terms {
-        for &(id, e) in m {
-            if e >= 2
-                && let Some(sq) = square_of(id, sess)
-            {
-                return Some((m.clone(), *c, id, e, sq));
+/// The `cos²` of the same argument, as a form: `1 − cos(θ)²` — rule B's
+/// substitution for `sin(θ)²`. The `cos` twin's id is
+/// `indet_atom(Cos, 0, [arg.digest()])`, the same key a `cos(θ)` node
+/// mints, so a `sin` and a `cos` of one argument reduce into one
+/// indeterminate and cancel.
+fn one_minus_cos_squared(arg: &Form) -> Option<Form> {
+    let cos = indet_atom(SymOp::Cos.tag(), 0, &[arg.digest()]);
+    let mut cos2 = Poly::zero();
+    cos2.insert(vec![(cos, 2)], Rat::new(-1, 1, 0)?)?;
+    Some(Form::poly(Poly::one().add(&cos2)?))
+}
+
+/// The first reduction any rule can apply to `f`, tried A and B before
+/// C so an unconditional rewrite is always preferred to the sign fold.
+/// `None` when no rule reaches any atom of `f`.
+fn find_rewrite(
+    f: &Form,
+    rules: SymRules,
+    budget: SymBudget,
+    atoms: &IndetMap<AtomInfo>,
+    oracle: &dyn SignOracle,
+    params: &IndetMap<ParamValue>,
+    band: Band,
+) -> Option<Rewrite> {
+    // A and B act on EVEN powers, so scan the monomials for one.
+    if rules.sqrt_square || rules.pythagoras {
+        for poly in [&f.num, &f.den] {
+            for mono in poly.terms.keys() {
+                for &(id, e) in mono {
+                    if e < 2 {
+                        continue;
+                    }
+                    let Some(info) = atoms.get(&id) else { continue };
+                    let Some(arg) = info.args[0].as_ref() else {
+                        continue;
+                    };
+                    match info.op {
+                        SymOp::Sqrt if rules.sqrt_square => {
+                            return Some(Rewrite::Square {
+                                id,
+                                x: (**arg).clone(),
+                            });
+                        }
+                        SymOp::Sin if rules.pythagoras => {
+                            return Some(Rewrite::Square {
+                                id,
+                                x: one_minus_cos_squared(arg)?,
+                            });
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+    // C acts at ANY power, and reads the sign, so it is last.
+    if rules.signed_root {
+        for poly in [&f.num, &f.den] {
+            for mono in poly.terms.keys() {
+                for &(id, _e) in mono {
+                    let Some(info) = atoms.get(&id) else { continue };
+                    let Some(arg) = info.args[0].as_ref() else {
+                        continue;
+                    };
+                    // `sqrt(Q²) = |Q|`, then `|Q| = ±Q` by the sign;
+                    // `|X| = ±X` directly. The candidate `Q` (or `X`)
+                    // must be a rational function the oracle can read.
+                    let candidate = match info.op {
+                        SymOp::Sqrt => form_sqrt(arg, budget)?,
+                        SymOp::Abs => (**arg).clone(),
+                        _ => continue,
+                    };
+                    if candidate.poisoned || candidate.is_zero() {
+                        continue;
+                    }
+                    match oracle.sign_of(&candidate, params, band) {
+                        Some(Sign::Positive) => return Some(Rewrite::Whole { id, q: candidate }),
+                        Some(Sign::Negative) => {
+                            return Some(Rewrite::Whole {
+                                id,
+                                q: candidate.neg()?,
+                            });
+                        }
+                        _ => {}
+                    }
+                }
             }
         }
     }
     None
 }
 
-/// **Rules A and B** over one form (module docs): every even power of
-/// a `sqrt` or `sin` atom is substituted out, in both halves of the
-/// quotient, until none remains. Answers the input untouched when no
-/// rule is on or none applies, and `None` — a freeze — when the
-/// substitution runs past the budget.
-pub(super) fn reduce(mut f: Form, sess: &mut Session) -> Option<Form> {
-    let rules = sess.rules;
-    if !(rules.sqrt_square || rules.pythagoras) || f.poisoned {
-        return Some(f);
-    }
-    let budget = sess.budget;
-    // Every step removes one square; a form within budget holds at
-    // most `max_terms` terms of degree at most `max_degree`, so this is
-    // the most squares one could ever hold. Standing behind the
-    // termination argument, not replacing it.
-    let cap = budget.max_terms.saturating_mul(budget.max_degree as usize);
-    for _ in 0..=cap {
-        let in_den;
-        let found = if let Some(x) = find_square(&f.num, sess) {
-            in_den = false;
-            x
-        } else if let Some(x) = find_square(&f.den, sess) {
-            in_den = true;
-            x
-        } else {
-            return Some(f);
-        };
-        let (mono, coeff, id, e, sq) = found;
-        let target = if in_den { &f.den } else { &f.num };
-        let mut rest = target.clone();
-        rest.terms.remove(&mono);
-        // The term with the square stripped out: an odd exponent keeps
-        // one factor of the atom, in its sorted slot.
-        let m: Mono = mono
-            .iter()
-            .filter_map(|&(i, k)| {
-                if i != id {
-                    Some((i, k))
-                } else {
-                    (e % 2 == 1).then_some((i, 1))
-                }
-            })
-            .collect();
-        let mut t = Poly::zero();
-        t.insert(m, coeff)?;
-        let t = Form::poly(t).mul(&powi_form(&sq, e / 2, budget)?, budget)?;
-        let replaced = Form::poly(rest).add(&t, budget)?;
-        f = if in_den {
-            Form::poly(f.num.clone())
-                .gated(f.gated)
-                .mul(&replaced.recip()?, budget)?
-        } else {
-            replaced
-                .gated(f.gated)
-                .mul(&Form::poly(f.den.clone()).recip()?, budget)?
-        };
-        if f.poisoned {
-            return Some(f);
+/// Substitutes `id` in one polynomial by `repl` — as a SQUARE
+/// (`id^e → repl^(e/2)·id^(e%2)`) or WHOLE (`id^e → repl^e`) — folding
+/// each term into the quotient `Form` the substitution produces (a
+/// `repl` that is itself a quotient makes the result one).
+fn poly_subst(
+    poly: &Poly,
+    id: u128,
+    repl: &Form,
+    square: bool,
+    budget: SymBudget,
+) -> Option<Form> {
+    let mut acc = Form::zero();
+    for (mono, coeff) in &poly.terms {
+        let e = mono.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e);
+        let rest: Mono = mono.iter().filter(|(i, _)| *i != id).copied().collect();
+        let mut rp = Poly::zero();
+        rp.insert(rest, *coeff)?;
+        let mut term = Form::poly(rp);
+        if e > 0 {
+            let mut factor = powi_form(repl, if square { e / 2 } else { e }, budget)?;
+            if square && e % 2 == 1 {
+                let mut idp = Poly::zero();
+                idp.insert(vec![(id, 1)], Rat::new(1, 1, 0)?)?;
+                factor = factor.mul(&Form::poly(idp), budget)?;
+            }
+            term = term.mul(&factor, budget)?;
         }
-        if !within(budget, &f) {
+        acc = acc.add(&term, budget)?;
+    }
+    Some(acc)
+}
+
+/// Applies one [`Rewrite`] to a form: substitute in numerator and
+/// denominator, re-form the quotient, and carry the gated flag (a
+/// `Whole` rewrite is rule C's, so its result is gated).
+fn apply(f: &Form, rw: &Rewrite, budget: SymBudget) -> Option<Form> {
+    let (id, repl, square, gated) = match rw {
+        Rewrite::Square { id, x } => (*id, x, true, false),
+        Rewrite::Whole { id, q } => (*id, q, false, true),
+    };
+    let num = poly_subst(&f.num, id, repl, square, budget)?;
+    let den = poly_subst(&f.den, id, repl, square, budget)?;
+    let mut out = num.mul(&den.recip()?, budget)?;
+    out.gated = f.gated || gated || repl.gated;
+    Some(out)
+}
+
+/// The most substitutions [`reduce`] takes before it FREEZES. Each step
+/// removes one atom occurrence (a `Whole` erases the atom; a `Square`
+/// lowers its power by two and can only reintroduce strictly-older
+/// atoms), so a real residual reduces in a handful; a form that needs
+/// more than this is a pathological product the budget would freeze
+/// anyway, and freezing early bounds the cost.
+const REDUCE_STEPS: usize = 256;
+
+/// **The atom algebra over one residual** (module docs): apply rules
+/// A, B and C — as chosen by `rules` — to `f` until no rule reaches an
+/// atom, and answer the reduced form. Runs ONCE per near-zero margin,
+/// over the top residual only, never per DAG node — so its cost is
+/// bounded and paid only where the plain form did not already decide.
+///
+/// `None` is a FREEZE (the reduction ran past the step or size budget);
+/// the untouched form otherwise. The `gated` flag on the result says
+/// whether a clause-3 fold participated, which is what separates a
+/// sign-gated discharge from an unconditional one.
+pub(super) fn reduce(
+    f: &Form,
+    rules: SymRules,
+    budget: SymBudget,
+    atoms: &IndetMap<AtomInfo>,
+    oracle: &dyn SignOracle,
+    params: &IndetMap<ParamValue>,
+    band: Band,
+) -> Option<Form> {
+    if f.poisoned || rules == SymRules::none() {
+        return Some(f.clone());
+    }
+    let mut cur = f.clone();
+    for _ in 0..REDUCE_STEPS {
+        let Some(rw) = find_rewrite(&cur, rules, budget, atoms, oracle, params, band) else {
+            return Some(cur);
+        };
+        cur = apply(&cur, &rw, budget)?;
+        if cur.poisoned {
+            return Some(cur);
+        }
+        if !within(budget, &cur) {
             return None;
         }
     }

@@ -1034,21 +1034,33 @@ impl SymRules {
         }
     }
 
-    /// **The shipped set: rules A and C, rule B OFF.** The §1
-    /// measurement justified each: rule A (`sqrt(X)²=X`) raised the
-    /// filleted bracket's whole-certifying box by ~10× by discharging
-    /// the normalized frame's `sqrt(v·v)²`, and rule C (`sqrt(Q²)=Q`
-    /// by a certified sign) discharges the arc sites A cannot reach
-    /// (a radius sign) as sign-gated theorems. Rule B (`sin²+cos²=1`)
-    /// moved NOTHING on any of the three documents — none carries a
-    /// revolve's `sin_cos` pair — so it is filed, present behind the
-    /// dial for a document that needs it but not paid for by default.
+    /// **The shipped set: rule A ONLY.** The §1 measurement justified
+    /// A and filed B and C:
+    ///
+    /// - **A (`sqrt(X)²=X`)** raised the filleted bracket's
+    ///   whole-certifying box by ~10× (3.75e-8 → 3.87e-7) by discharging
+    ///   the normalized frame's `sqrt(v·v)²` unconditionally — the arc
+    ///   family (`carrier_on_surface`, `witness_on_surface`, the moving
+    ///   radial frame) as theorems, no value read. It ships.
+    /// - **B (`sin²+cos²=1`)** moved NOTHING on any of the three
+    ///   documents — none carries a revolve's `sin_cos` pair — so it is
+    ///   filed.
+    /// - **C (`sqrt(Q²)=Q` by a certified sign, clause 3)** fires only
+    ///   at the degenerate nominal of a box that does NOT certify (the
+    ///   plate's `newell_plane_residual`); on every certifiable box, and
+    ///   at every certified leaf's midpoint the driver samples, rule A
+    ///   already discharges what it would, so it moved no ceiling and
+    ///   produced ZERO `sign_gated` decisions in the driver population.
+    ///   It is filed — built and dial-selectable, its receipt and K
+    ///   token wired and tested, but not paid for by default, per E12's
+    ///   own rule that a door nobody consumes is machinery for zero
+    ///   certificate content.
     #[must_use]
     pub const fn shipped() -> Self {
         Self {
             sqrt_square: true,
             pythagoras: false,
-            signed_root: true,
+            signed_root: false,
         }
     }
 
@@ -1130,14 +1142,9 @@ struct Session {
     rules: SymRules,
     nodes: IdMap<SymNode>,
     /// The PLAIN quotient forms — every atom opaque, no rule applied.
+    /// The atom algebra is applied afterwards over the top residual
+    /// ([`algebra::reduce`]), so no ruled form is memoized here.
     forms: IdMap<Rc<Form>>,
-    /// The UNCONDITIONAL ruled forms — rules A and B applied, no value
-    /// read — the second tier of the identity test.
-    forms_uncond: IdMap<Rc<Form>>,
-    /// The SIGN-FOLDED ruled forms — rules A, B and C — the third tier.
-    /// Both ruled memos are rebuilt per session and rest on the band
-    /// being fixed within one leaf replay (`form_in`'s docs).
-    forms_signed: IdMap<Rc<Form>>,
     /// Every opaque atom minted so far, by its indeterminate id.
     atoms: IndetMap<AtomInfo>,
     /// Every parameter bound so far, by its indeterminate id
@@ -1218,8 +1225,6 @@ pub fn with_session_rules<R>(
             rules,
             nodes: IdMap::default(),
             forms: IdMap::default(),
-            forms_uncond: IdMap::default(),
-            forms_signed: IdMap::default(),
             atoms: IndetMap::default(),
             params: IndetMap::default(),
             counts: SymCounts::default(),
@@ -1412,12 +1417,6 @@ impl Form {
         !self.poisoned && self.num.is_zero()
     }
 
-    /// The same form, marked as depending on a clause-3 sign fact.
-    fn gated(mut self, gated: bool) -> Self {
-        self.gated |= gated;
-        self
-    }
-
     fn add(&self, other: &Self, budget: SymBudget) -> Option<Self> {
         if self.tainted(other) {
             return Some(Self::poison());
@@ -1581,21 +1580,26 @@ impl<T: Real + Decide> SignOracle for Lane<T> {
     }
 }
 
-/// The form of one node, given its children's forms — `None` for
-/// anything the caller must freeze (an overflow, a budget, an
-/// unrepresentable literal, a reciprocal of the zero form).
+/// The oracle the unconditional reduction (rules A and B) is handed and
+/// never calls — those rules read no value.
+pub(super) struct NoOracle;
+impl SignOracle for NoOracle {
+    fn sign_of(&self, _q: &Form, _params: &IndetMap<ParamValue>, _band: Band) -> Option<Sign> {
+        None
+    }
+}
+
+/// The PLAIN form of one node, given its children's forms — every atom
+/// opaque, no rule applied — `None` for anything the caller must freeze
+/// (an overflow, a budget, an unrepresentable literal, a reciprocal of
+/// the zero form).
 ///
-/// Every atom this mints is recorded in the session
-/// ([`Session::atoms`]) so the reductions of rules A and B, which run
-/// over the result in [`form_in`], can look its argument back up.
-fn combine(
-    node: &SymNode,
-    kids: [&Form; 2],
-    sess: &mut Session,
-    rules: SymRules,
-    oracle: &dyn SignOracle,
-    band: Band,
-) -> Option<Form> {
+/// The atom algebra is NOT here: it runs later, once, over the top
+/// residual ([`algebra::reduce`]), so it can never disturb a
+/// cancellation the plain form already reaches. Every atom this mints
+/// is recorded in the session ([`Session::atoms`]) so that reduction
+/// can look its argument form back up.
+fn combine(node: &SymNode, kids: [&Form; 2], sess: &mut Session) -> Option<Form> {
     let (a, b) = (kids[0], kids[1]);
     let budget = sess.budget;
     let atom1 = |op: SymOp, sess: &mut Session| {
@@ -1608,33 +1612,14 @@ fn combine(
         if a.is_zero()
             && let Some(f) = unary_at_zero(op)
         {
-            return Some(f.gated(a.gated));
+            return Some(f);
         }
         let id = indet_atom(op.tag(), node.payload, &[a.digest()]);
         sess.atoms.entry(id).or_insert_with(|| AtomInfo {
             op,
             args: [Some(Rc::new(a.clone())), None],
         });
-        Some(Form::poly(Poly::indet(id)).gated(a.gated))
-    };
-    // **Rule C.** `sqrt(X)` where `X` is the exact square of a rational
-    // function `Q`, and `|Q|` outright, fold to `Q` when the oracle
-    // certifies `Q > 0` over the box and to `−Q` when it certifies
-    // `Q < 0`; every other answer (a straddle, an `Indeterminate`, a
-    // `Q` the oracle cannot evaluate) leaves the atom opaque. The fold
-    // is a theorem — `sqrt(Q²) = |Q|` unconditionally, `|Q| = ±Q` by
-    // the sign — CONDITIONAL on the certified sign, and the result
-    // carries the `gated` flag so the decision it reaches is counted
-    // as such.
-    let signed_fold = |q: Form, sess: &Session| -> Option<Form> {
-        if q.poisoned || q.is_zero() {
-            return None;
-        }
-        match oracle.sign_of(&q, &sess.params, band)? {
-            Sign::Positive => Some(q.gated(true)),
-            Sign::Negative => Some(q.neg()?.gated(true)),
-            Sign::Zero => None,
-        }
+        Some(Form::poly(Poly::indet(id)))
     };
     match node.op {
         SymOp::Param => Some(Form::poly(Poly::indet(indet_param(node.payload)))),
@@ -1657,25 +1642,9 @@ fn combine(
                 Err(_) => powi_form(&a.recip()?, n.unsigned_abs(), budget),
             }
         }
-        SymOp::Sqrt => {
-            if rules.signed_root
-                && !a.poisoned
-                && let Some(q) = algebra::form_sqrt(a, budget)
-                && let Some(f) = signed_fold(q, sess)
-            {
-                return Some(f);
-            }
-            atom1(node.op, sess)
-        }
-        SymOp::Abs => {
-            if rules.signed_root
-                && let Some(f) = signed_fold(a.clone(), sess)
-            {
-                return Some(f);
-            }
-            atom1(node.op, sess)
-        }
-        SymOp::Sin
+        SymOp::Sqrt
+        | SymOp::Abs
+        | SymOp::Sin
         | SymOp::Cos
         | SymOp::Tan
         | SymOp::Asin
@@ -1686,7 +1655,6 @@ fn combine(
             if a.tainted(b) {
                 return Some(Form::poison());
             }
-            let gated = a.gated || b.gated;
             // min(0, 0) and max(0, 0) are zero; a one-sided zero says
             // nothing, so only the both-zero fold is taken. copysign
             // carries `a`'s MAGNITUDE, so a zero first argument is zero
@@ -1699,29 +1667,26 @@ fn combine(
                 _ => false,
             };
             if folds {
-                return Some(Form::zero().gated(gated));
+                return Some(Form::zero());
             }
             let id = indet_atom(node.op.tag(), node.payload, &[a.digest(), b.digest()]);
             sess.atoms.entry(id).or_insert_with(|| AtomInfo {
                 op: node.op,
                 args: [Some(Rc::new(a.clone())), Some(Rc::new(b.clone()))],
             });
-            Some(Form::poly(Poly::indet(id)).gated(gated))
+            Some(Form::poly(Poly::indet(id)))
         }
         // Keyed by the CHILD IDS, never by their forms (the op's docs).
         // A hull of something with no value has none either, so the
         // poison crosses this door like every other.
         SymOp::Hull if a.tainted(b) => Some(Form::poison()),
-        SymOp::Hull => Some(
-            Form::poly(Poly::indet(
-                Hash128::new()
-                    .word(SymOp::Hull.tag())
-                    .wide(node.kids[0].bits())
-                    .wide(node.kids[1].bits())
-                    .finish(),
-            ))
-            .gated(a.gated || b.gated),
-        ),
+        SymOp::Hull => Some(Form::poly(Poly::indet(
+            Hash128::new()
+                .word(SymOp::Hull.tag())
+                .wide(node.kids[0].bits())
+                .wide(node.kids[1].bits())
+                .finish(),
+        ))),
     }
 }
 
@@ -1747,31 +1712,15 @@ fn combine(
 /// ids, so a cycle would need a hash preimage — and every popped id
 /// leaves a form behind, so each is visited at most twice.
 ///
-/// `band` is the decide site's, handed to the clause-3 oracle. A ruled
-/// form is memoized under the band of the FIRST site that asked for it,
-/// which is sound — a sign certified under any band is a sign — and
-/// deterministic, because the order a leaf's sites ask in is the fixed
-/// single-threaded walk the node ids already rest on (D9); every decide
-/// site in one leaf replay carries the same leaf tolerance, so the band
-/// does not in fact vary within a session.
-fn form_in(
-    sess: &mut Session,
-    memo: &mut IdMap<Rc<Form>>,
-    root: SymId,
-    ruled: bool,
-    rules: SymRules,
-    oracle: &dyn SignOracle,
-    band: Band,
-) -> Rc<Form> {
-    // Freezes are counted only in the PLAIN pass — the canonical,
-    // memoized derivation. The ruled passes are scratch fallbacks that
-    // re-walk the same DAG, and counting their freezes would multiply
-    // one node's freeze by the number of passes that touched it and
-    // turn the receipt into noise.
+/// There is ONE form per node — the plain quotient form, memoized in
+/// the session. The atom algebra is applied afterwards, once, over the
+/// residual a decide site tests ([`algebra::reduce`]), never during
+/// this walk — so this walk stays the O(dag) construction it was before
+/// the algebra, and a ruled reduction cannot cost a cancellation the
+/// plain form reaches.
+fn form_in(sess: &mut Session, memo: &mut IdMap<Rc<Form>>, root: SymId) -> Rc<Form> {
     let frozen = |sess: &mut Session, id: SymId| -> Rc<Form> {
-        if !ruled {
-            sess.counts.frozen += 1;
-        }
+        sess.counts.frozen += 1;
         Rc::new(Form::poly(Poly::indet(id.bits())))
     };
     let mut stack = vec![(root, false)];
@@ -1817,17 +1766,7 @@ fn form_in(
                 fa.as_deref().unwrap_or(&empty),
                 fb.as_deref().unwrap_or(&empty),
             ];
-            let combined = combine(&node, kids, sess, rules, oracle, band);
-            // Rules A and B reduce only in the ruled pass; the plain
-            // pass leaves every atom opaque (`algebra::reduce` is a
-            // no-op when neither rule is on, but the plain pass does not
-            // even ask).
-            let combined = if ruled {
-                combined.and_then(|f| algebra::reduce(f, sess))
-            } else {
-                combined
-            };
-            combined.filter(|f| within(budget, f))
+            combine(&node, kids, sess).filter(|f| within(budget, f))
         };
         drop((fa, fb));
         let f = match made {
@@ -1845,86 +1784,31 @@ fn form_in(
 /// applied, no value read. Memoized in the session's persistent table.
 fn plain_form(sess: &mut Session, root: SymId) -> Rc<Form> {
     let mut memo = core::mem::take(&mut sess.forms);
-    let out = form_in(
-        sess,
-        &mut memo,
-        root,
-        false,
-        SymRules::none(),
-        &NoOracle,
-        root_band(),
-    );
+    let out = form_in(sess, &mut memo, root);
     sess.forms = memo;
     out
 }
 
-/// The ruled form of `root` under `rules`, memoized across a session in
-/// the `signed`-selected table. `signed` picks BOTH the memo and the
-/// oracle: the unconditional tier (rules with `signed_root` off) reads
-/// no value and takes [`NoOracle`]; the sign-folded tier takes the lane
-/// oracle. Memoizing rather than re-walking is what keeps the fallback
-/// O(dag) per session instead of O(dag) per decide site — the shipped
-/// tier depends on it (D17).
-fn ruled_form<T: Real + Decide>(
-    sess: &mut Session,
-    root: SymId,
-    rules: SymRules,
-    signed: bool,
-    band: Band,
-) -> Rc<Form> {
-    let mut memo = if signed {
-        core::mem::take(&mut sess.forms_signed)
-    } else {
-        core::mem::take(&mut sess.forms_uncond)
-    };
-    let out = if signed {
-        form_in(
-            sess,
-            &mut memo,
-            root,
-            true,
-            rules,
-            &Lane::<T>(core::marker::PhantomData),
-            band,
-        )
-    } else {
-        form_in(sess, &mut memo, root, true, rules, &NoOracle, band)
-    };
-    if signed {
-        sess.forms_signed = memo;
-    } else {
-        sess.forms_uncond = memo;
-    }
-    out
-}
-
-/// A band the plain pass never consults (it reads no sign); a fixed
-/// value keeps the signature uniform.
-fn root_band() -> Band {
-    Band::linear(crate::tolerance::Tol::witness()).unwrap_or_else(|_| unreachable!())
-}
-
-/// The oracle the plain pass is handed and never calls.
-struct NoOracle;
-impl SignOracle for NoOracle {
-    fn sign_of(&self, _q: &Form, _params: &IndetMap<ParamValue>, _band: Band) -> Option<Sign> {
-        None
-    }
-}
-
 /// **The identity test**: is this node's expression identically zero in
 /// the parameters — and if so, unconditionally (the plain quotient form
-/// is zero) or through a clause-3 fold (a rule discharged what the plain
-/// form could not)?
+/// is zero, or the unconditional rules A/B reduce it to zero) or through
+/// a clause-3 fold (rule C discharged what A/B could not)?
 ///
-/// The plain form is tried FIRST, so a rule can only ever ADD a
-/// discharge: a margin the quotient form already proves zero stays an
-/// unconditional theorem, and the ruled fallback runs only where the
-/// plain form is not zero.
+/// Three tiers, in increasing strength of assumption, each on the SAME
+/// memoized plain form so no extra DAG walk is paid:
 ///
-/// `None` outside a session, and `None` at a zero-term budget — which
-/// is the tier switched off inside the scalar, so nothing is asked of
-/// the DAG and every decision is the numeric one.
+/// 1. the plain form is the zero polynomial → a Theorem (the pre-algebra
+///    tier);
+/// 2. [`algebra::reduce`] with rules A and B (which read no value) makes
+///    it zero → still a Theorem;
+/// 3. reduce with rule C as well (a certified sign, the one value read)
+///    makes it zero → a sign-gated theorem.
+///
+/// The unconditional tiers run first, so a rule can only ADD a discharge
+/// and rule C never downgrades to sign-gated what A or B prove outright.
+///
+/// `None` outside a session, and `None` at a zero-term budget — the tier
+/// switched off inside the scalar.
 fn is_identically_zero<T: Real + Decide>(id: SymId, band: Band) -> Option<Discharge> {
     SESSION.with(|s| {
         let mut slot = s.borrow_mut();
@@ -1932,28 +1816,40 @@ fn is_identically_zero<T: Real + Decide>(id: SymId, band: Band) -> Option<Discha
         if sess.budget.max_terms == 0 {
             return None;
         }
-        if plain_form(sess, id).is_zero() {
+        let plain = plain_form(sess, id);
+        if plain.is_zero() {
             return Some(Discharge::Theorem);
         }
         let rules = sess.rules;
         if rules == SymRules::none() {
             return None;
         }
-        // **Unconditional rules FIRST** (A and B read no value), so a
-        // margin they discharge is a Theorem — never downgraded to a
-        // sign-gated one just because rule C could also have folded it.
+        let budget = sess.budget;
+        // **Unconditional rules FIRST** (A and B read no value): reduce
+        // the residual once. A margin they discharge is a Theorem —
+        // never downgraded to a sign-gated one just because rule C could
+        // also have folded it.
         let ab = SymRules {
             signed_root: false,
             ..rules
         };
-        if ab != SymRules::none() && ruled_form::<T>(sess, id, ab, false, band).is_zero() {
-            return Some(Discharge::Theorem);
+        if ab != SymRules::none() {
+            let reduced = algebra::reduce(&plain, ab, budget, &sess.atoms, &NoOracle, &sess.params, band);
+            if reduced.as_ref().is_some_and(|f| f.is_zero()) {
+                return Some(Discharge::Theorem);
+            }
         }
-        // **Then rule C** (the one place a value is read): whatever
-        // remains, discharged only through a certified sign, is
+        // **Then rule C** (the one place a value is read): reduce again
+        // with the sign fold enabled, on the lane's own oracle. What
+        // remains that goes zero only through a certified sign is
         // sign-gated.
-        if rules.signed_root && ruled_form::<T>(sess, id, rules, true, band).is_zero() {
-            return Some(Discharge::SignGated);
+        if rules.signed_root {
+            let oracle = Lane::<T>(core::marker::PhantomData);
+            let reduced =
+                algebra::reduce(&plain, rules, budget, &sess.atoms, &oracle, &sess.params, band);
+            if reduced.is_some_and(|f| f.is_zero() && f.gated) {
+                return Some(Discharge::SignGated);
+            }
         }
         None
     })

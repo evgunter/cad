@@ -109,6 +109,19 @@ fn documents() -> Vec<(&'static str, ProfileDoc)> {
     vec![
         ("slab_narrow", slab(1.0, eps / 16.0)),
         ("slab_across_zero", slab(20.0 * eps, 40.0 * eps)),
+        // **An ARC-bearing fixture**, so the driver population carries
+        // the M10-8 atom family: the tour's two-hole plate scaled well
+        // below its whole-certifying ceiling (7.81e-7 of the real
+        // study) so the driver certifies leaves, and their
+        // certified-midpoint replay exercises rules A and C on the
+        // holes' cylindrical carriers — the only path by which a
+        // `symbolic_zero` or `sign_gated` sample reaches a LINTED
+        // driver CSV (the slabs above are straight-walled and produce
+        // neither).
+        (
+            "two_hole_plate_narrow",
+            crate::m10_7_plate::plate(5.0e-5 * 1.0e-6, 1.0e-5 * 1.0e-6, Tol::witness()).0,
+        ),
     ]
 }
 

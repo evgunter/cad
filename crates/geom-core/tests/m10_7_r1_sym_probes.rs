@@ -108,13 +108,18 @@ fn r1_coincidence_radius_equals_distance_at_nominal_only() {
     }
 }
 
-/// D4's family, reproduced at the scalar: `c + r·(q−c)/‖q−c‖ − q` with
-/// `q = c + (r, 0)` is zero for every `r > 0`. The quotient form alone
-/// cannot see it (`sqrt(r²) = r` needs the sign of `r`); rule C reads
-/// that sign through the funnel and folds, so the decision is a
-/// SIGN-GATED zero — counted apart, and never an unconditional one.
+/// **The DISCLOSED LIMIT of the top-residual fold** — the arc rim's
+/// full endpoint residual `c + r·(q−c)/‖q−c‖ − q` with `q = c + (r, 0)`.
+/// The radius fact it needs — `sqrt(r²) = r` — is on the norm `‖q−c‖`
+/// buried INSIDE the outer distance sqrt's argument, and the atom
+/// algebra folds atoms that appear in the residual, not atoms nested
+/// inside another atom's argument. So this decides NUMERICALLY, at a
+/// point where the numeric channel answers Zero — which is exactly what
+/// the real two-hole plate shows: `carrier_endpoint_start` is not
+/// discharged by any rule and remains the plate's ceiling. The clean
+/// `sqrt(r²) − r` shape (next test) IS reached; this nested one is not.
 #[test]
-fn r1_the_arc_endpoint_family_is_reached_by_a_certified_sign() {
+fn r1_the_nested_arc_endpoint_residual_is_not_reached_pinned() {
     let family = || {
         let r = p("r", 1.25e-3);
         let (cx, cy) = (p("cx", 1.55e-3), lit(0.0));
@@ -126,20 +131,13 @@ fn r1_the_arc_endpoint_family_is_reached_by_a_certified_sign() {
         (ex * ex + ey * ey).sqrt()
     };
     let (ok, counts) = with_session(budget(), || zero(family()));
-    assert!(ok, "the residual decides Zero");
-    assert_eq!(counts.sign_gated, 1, "through rule C: {counts:?}");
-    assert_eq!(counts.symbolic_zero, 0, "and not as an unconditional theorem");
-    // With rule C off the family is the disclosed miss it was.
-    let (ok, counts) = with_session_rules(
-        budget(),
-        SymRules {
-            signed_root: false,
-            ..SymRules::all()
-        },
-        || zero(family()),
+    assert!(ok, "at a point the numeric channel answers Zero");
+    assert_eq!(
+        counts.sign_gated + counts.symbolic_zero,
+        0,
+        "the nested radius sqrt is buried in the outer sqrt's argument, \
+         out of the top-residual fold's reach: {counts:?}"
     );
-    assert!(ok, "at a point the numeric channel still answers Zero");
-    assert_eq!(counts.sign_gated + counts.symbolic_zero, 0, "{counts:?}");
 }
 
 /// The same family with the norm written as `sqrt(r·r)` where the
