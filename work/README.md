@@ -86,6 +86,14 @@ must be non-empty). A ruling is `open` or `closed`. A program is
 - **One file, one item.** Two programs editing one item is a merge
   conflict, and that is the cross-program handoff surfacing, not a
   bug. Re-parent or re-home by editing the header, never by copying.
+  **An item's directory is the program that owns it** — `work.py` reads
+  ownership from nowhere else — so a program claiming another's item
+  MOVES the file into its own directory in the PR that claims it,
+  keeping the id, and sets `parent:` to the unit that carries it. This
+  is what `work/code-quality/` is for: findings wait there until a
+  program claims them, and a claim empties that row out of it. A
+  `keep_out` clause saying a claimed row stays where it was is the
+  thing to delete.
 - **Ids are stable.** An item keeps its id for life; a program keeps
   its directory for as long as it is open. Migrated code-quality rows
   keep the row ids they were cited by (`D102`, `S330`, `C15`).

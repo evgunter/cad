@@ -5,41 +5,46 @@
 //! `analyzed_box` for the box, `drive` for the verdict, the verdict's
 //! own accessors for the answer. Nothing reaches past them.
 //!
-//! # The widths are in ε, and that is the unit's headline finding
+//! # The widths were in ε, and the symbolic tier moved them
 //!
-//! Every box below is sized as a multiple of the run's ε. That is not
-//! tidiness: the certification predicates the kernel runs on a replayed
-//! body are *identities* — an edge's endpoint lies ON its carrier, a
-//! side plane is cosurface with its neighbour — whose margin is exactly
-//! zero in real arithmetic and whose INTERVAL enclosure is `[0, c·w]`
-//! for a box of width `w`, because the two sides of the identity share
-//! the parameter and interval arithmetic cannot see that they cancel.
-//! An enclosure that straddles the coincidence threshold is
-//! indeterminate, so a leaf becomes fully definite only once its own
-//! width is a fraction of ε. The fraction is FIXTURE-DEPENDENT — `c`
-//! counts the parameter-dependent terms one identity accumulates — and
-//! `the_certification_width_is_a_small_fraction_of_epsilon` measures
-//! it rather than asserting it: `ε/8` of width on the one-extrude slab
-//! here, about half that on the two-extrude chamber the review suites
-//! drive.
+//! Until ERROR-DESIGN E12 every box below was sized as a multiple of the
+//! run's ε, and that was the M10-3 unit's headline finding. The reason:
+//! the certification predicates the kernel runs on a replayed body are
+//! *identities* — an edge's endpoint lies ON its carrier, a side plane is
+//! cosurface with its neighbour — whose margin is exactly zero in real
+//! arithmetic and whose INTERVAL enclosure is `[0, c·w]` for a box of
+//! width `w`, because the two sides of the identity share the parameter
+//! and interval arithmetic cannot see that they cancel. A leaf became
+//! fully definite only once its own width was a fraction of ε, so a
+//! MACROSCOPIC tolerance box — a ±0.05 band on a 1.0 nominal, `10^8 ε`
+//! wide — needed about 30 bisections against a shipped per-axis depth
+//! budget of 24, and came back as priced `Budget` mass.
 //!
-//! Refinement gets there, and the driver is correct at every step; what
-//! it costs is that a MACROSCOPIC tolerance box (a ±0.05 band on a 1.0
-//! nominal is `10^8 ε` wide) needs about 30 bisections on that axis to
-//! reach its first certified leaf — `log2(0.05 / (ε/16))` at the
-//! default ε — against a shipped per-axis depth budget of 24. On
-//! such a box today's verdict is `Budget`-refused mass, priced and
-//! reported — never a silent partial and never a false certificate,
-//! but not yet the "2.1% of the tolerance mass has no valid build"
-//! sentence either.
+//! **The symbolic identity tier discharges those identities as
+//! identities** (`geom_core::sym`): a margin whose expression is
+//! identically zero in the document's parameters decides `Zero` before
+//! any enclosure is consulted, at any width. So the widening they caused
+//! is gone, the two rows that pinned it are re-cut the other way round
+//! (`a_macroscopic_box_certifies_at_the_shipped_depth_budget` and
+//! `the_certification_width_is_no_longer_bounded_by_epsilon`), and what
+//! bounds a box now is real geometry — a flip, a genuine sliver — rather
+//! than an enclosure that could not see through an identity.
 //!
-//! This is the same widening class as **issue #1191**, observed on a
+//! **The ε-scaled boxes below are kept where they are still the
+//! subject.** A planted flip at `20ε ± 40ε` is about the flip, and
+//! sizing it in ε is what puts the flip inside the box; a terminal
+//! sliver is a statement about the band and has no other scale to be
+//! stated at. Only the rows whose subject WAS the widening moved.
+//!
+//! `the_tier_off_reproduces_the_pre_e12_refusal` keeps the old answer
+//! visible: the same document and box with `SymbolicDials::off()` comes
+//! back exactly as this unit pinned it.
+//!
+//! The `[0, c·w]` widening class is issue #1191's, observed on a
 //! different family of predicates; that issue is the class's home and
-//! this unit consumes it rather than fixing it. The by-shape sweep for
-//! its siblings, its commands and its blind spots are recorded in this
-//! unit's PR — 57 identity- and gap-shaped funnel names, of which the
-//! fixtures here observe three (`carrier_endpoint_start`,
-//! `carrier_endpoint_end`, `side_planes_cosurface`).
+//! this file consumes it. The by-shape sweep for its siblings, its
+//! commands and its blind spots are in M10-3's PR and re-run in M10-7's,
+//! where the 57 names it published are classified.
 //!
 //! The file's basename carries `interval` deliberately: the driver is
 //! gated on that feature (there is no leaf to certify without the
@@ -55,15 +60,17 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::UnitSym;
-use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box, param_env_over};
+use editor_core::analysis::{
+    AnalysisPolicy, AnalyzedBox, BoxAxis, ParamBox, analyzed_box, param_env_over,
+};
 use editor_core::drive::{
     BudgetKind, DEFAULT_MAX_DEPTH, DriveConfig, DriveRefusal, FlipEvidence, ReasonClass,
-    RefusalReason, VerdictVector, drive,
+    RefusalReason, SymbolicDials, VerdictVector, drive,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node,
-    NodeErrorKind, NodeResult, ParamName, ParamValue, ProfileDoc, ProfileLift, ProfileProgram,
-    evaluate,
+    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Evaluation, Expr,
+    LoopProgram, Node, NodeErrorKind, NodeResult, ParamName, ParamValue, ProfileDoc, ProfileLift,
+    ProfileProgram, evaluate,
 };
 use geom_core::{Bounds, Interval, Tol};
 
@@ -363,29 +370,70 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
 
 // -------------------------------------------------------------- e2e
 
-/// **The certification width, measured rather than asserted.** The
-/// largest box that certifies WHOLE — in one leaf, with no bisection —
-/// is a small fraction of ε, and this row finds it by bisection
-/// instead of hard-coding a power of two.
+/// **The certification width, measured rather than asserted** — and
+/// since E12 the measurement is of a box that is not a fraction of ε at
+/// all.
 ///
-/// It is the load-bearing constant behind the limit row below, so it
-/// is measured here and quoted there rather than stated twice. The
-/// bracket is deliberately wide (`ε/4096` to `ε`): what the row pins is
-/// the ORDER — a leaf goes fully definite only once its own width is a
+/// The row finds the largest box that certifies WHOLE (one leaf, no
+/// bisection) by bisecting a bracket, rather than hard-coding a
+/// constant. Before the symbolic tier the answer was `ε/16` on this
+/// fixture — a leaf went definite only once its own width was a
 /// fraction of the coincidence threshold, because the certification
 /// predicates are checked identities whose interval enclosure widens
-/// with the box. If the widening ever closes, this row fails on its
-/// upper bound and the limit row below fails with it, which is the
-/// point of both.
+/// with the box. The tier discharges those identities as identities, so
+/// the widening they caused is gone and the bracket has to be searched
+/// upward instead of downward.
 ///
-/// The exact fraction is FIXTURE-DEPENDENT and no single number should
-/// be quoted as the kernel's: this one-extrude slab certifies at a
-/// half-width of `ε/16`, while the two-extrude chamber the review
-/// suites drive needs about twice the refinement. The dependence is
-/// itself the finding — the constant is `c` in `[0, c·w]`, and `c`
-/// counts how many parameter-dependent terms the identity accumulates.
+/// **What bounds it now, MEASURED — and it is not the flip.** An earlier
+/// version of this row said the ceiling was "the distance to the flip":
+/// the slab's extrusion distance is `1.0 ± half`, so at `half = 1.0` the
+/// far side of the box extrudes the other way, a genuine topology flip
+/// the driver refuses as `FlipCrossing` mass. That is true about
+/// `half = 1.0` and it is not what the ceiling is. Beyond the ceiling
+/// the box still CERTIFIES; it just stops certifying in ONE leaf. Three
+/// regimes, all measured through the doors this row uses:
+///
+/// | `half` | what happens, with bisection allowed |
+/// | --- | --- |
+/// | up to the ceiling | certifies WHOLE — one leaf, no split |
+/// | ceiling … under 1.0 | certifies AFTER bisection, nothing refused |
+/// | 1.0 | the flip: refused |
+///
+/// So the ceiling is a ONE-LEAF property, and the flip is a different
+/// question with a different answer three regimes away. What ends the
+/// one-leaf regime is a SINGLE-LEAF evaluation over the whole box
+/// failing, and what fails there is named:
+///
+/// | `half`, at one leaf | the predicate that stops it |
+/// | --- | --- |
+/// | just past the ceiling | `dihedral_wedge` — INDETERMINATE |
+/// | 0.5 and up | `newell_plane_residual` — INVALID |
+///
+/// `dihedral_wedge` straddles the corner/smooth decision over a box this
+/// wide (at the ceiling its enclosure is `[9.99e-12, 7.52e10]` against a
+/// band of `(1e-12, 1e-11)` at ε = 1e-12). Past 0.5 the side wall's
+/// Newell normal has an enclosure that REACHES ZERO, normalization drops
+/// the decoration to `Trv`, and the residual is invalid rather than
+/// in-band. Bisection escapes both, because a narrower sub-box has a
+/// narrower enclosure — which is exactly what says these are WIDENING
+/// and not geometry.
+///
+/// **Both are dependency widening in the numeric channel of margins that
+/// are NOT identities**, which is the thing E12 assumed away ("plain
+/// intervals suffice for the real margins"). The symbolic tier
+/// discharges the identities and hands the ceiling to the next mechanism
+/// along; naming it is the point of this row, and the class is tracked
+/// as `work/m10/real-margin-dependency-widening.md`.
+///
+/// **The ceiling is ε-DEPENDENT**, which is the second thing the earlier
+/// version got wrong by quoting one number. It rises as ε tightens —
+/// 0.4390 at 1e-6, 0.4883 at 1e-9, 0.4979 at 1e-12 — because what ends
+/// the first regime is a band-straddle, and a narrower band is escaped
+/// by a wider box. So the row asserts a BAND around the measurement at
+/// the ε it is running at, not a single constant and not a
+/// three-decade-wide floor.
 #[test]
-fn the_certification_width_is_a_small_fraction_of_epsilon() {
+fn the_certification_width_is_no_longer_bounded_by_epsilon() {
     let e = eps();
     let certifies_whole = |half: f64| {
         let doc = slab(1.0, half);
@@ -394,10 +442,13 @@ fn the_certification_width_is_a_small_fraction_of_epsilon() {
         v.receipt().splits == 0 && v.receipt().certified == 1
     };
     // A bracket, then bisect it: `lo` certifies whole, `hi` does not.
-    let (mut lo, mut hi) = (e / 4096.0, e);
+    let (mut lo, mut hi) = (e, 1.0);
     assert!(certifies_whole(lo), "the bracket's floor must certify");
-    assert!(!certifies_whole(hi), "the bracket's ceiling must not");
-    for _ in 0..12 {
+    assert!(
+        !certifies_whole(hi),
+        "a box reaching a zero extrusion distance must not certify whole"
+    );
+    for _ in 0..24 {
         let mid = 0.5 * (lo + hi);
         if certifies_whole(mid) {
             lo = mid
@@ -405,44 +456,143 @@ fn the_certification_width_is_a_small_fraction_of_epsilon() {
             hi = mid
         }
     }
+
+    // (1) THE NUMBER, within a band around the measurement at this ε.
+    // Measured 2026-09-04 on this fixture; a move outside the band is
+    // the mechanism moving, which is what this row is here to notice.
+    let (want, tol_rel) = ceiling_at(e);
     assert!(
-        lo >= e / 4096.0 && hi <= e,
-        "the certification half-width settled at {lo}..{hi}, outside the bracket"
+        (lo - want).abs() <= tol_rel * want,
+        "the whole-certifying half-width settled at {lo} (bracket {lo}..{hi}); this ε row \
+         measured {want} +/- {}%. A move DOWN says the tier stopped discharging an \
+         identity; a move UP says the numeric channel's widening changed. Either way the \
+         mechanism moved and the doc above needs re-reading, not the band widening.",
+        tol_rel * 100.0
+    );
+
+    // (2) IT IS NOT A FRACTION OF ε, which is the claim the row's name
+    // makes. Before the tier this same search settled at ε/8.
+    assert!(
+        lo / e > 1.0e4,
+        "the ceiling is {} ε — that is the pre-tier regime, where a leaf went definite \
+         only once its own width was a fraction of the coincidence threshold",
+        lo / e
+    );
+
+    // (3) BEYOND IT THE BOX STILL CERTIFIES, after bisection: the
+    // ceiling is about certifying WHOLE, not about the driver failing.
+    // This is what makes "the flip" the wrong account of it.
+    let doc = slab(1.0, hi * 1.01);
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let v = drive(&doc, &analyzed, &config(64), Tol::witness()).unwrap();
+    assert!(
+        v.receipt().splits > 0 && v.refused().is_empty(),
+        "just past the ceiling the box must certify after bisection with nothing refused, \
+         which is what says the ceiling is a one-leaf property: {:?} refused={:?}",
+        v.receipt(),
+        v.refused().iter().map(|l| &l.reason).collect::<Vec<_>>()
+    );
+
+    // (4) AND WHAT ENDS THE ONE-LEAF REGIME IS NAMED. A single-leaf
+    // evaluation over a box past the ceiling fails on `dihedral_wedge`,
+    // and one over a box past 0.5 fails on `newell_plane_residual` —
+    // the two mechanisms the docs above describe. Naming them is what
+    // makes this row notice a change of mechanism rather than only a
+    // change of number.
+    // `hi` itself, not a multiple of it: the bisection leaves `hi`
+    // within a part in 10^10 of the ceiling, and the two mechanisms are
+    // only a few percent apart at the tightest ε — probing 1% past the
+    // ceiling at ε = 1e-12 lands in the SECOND regime and reads the
+    // other predicate.
+    let past = slab(1.0, hi);
+    let why = node_failures(&past, &analyzed_box(&past, &AnalysisPolicy::default()));
+    assert!(
+        why.iter().any(|f| f.contains("dihedral_wedge")),
+        "just past the ceiling a ONE-LEAF replay must fail on `dihedral_wedge`; a \
+         different predicate means the mechanism that sets the ceiling moved, and the \
+         doc above is then wrong rather than the number: {why:?}"
+    );
+    let wide = slab(1.0, 0.5);
+    let why = node_failures(&wide, &analyzed_box(&wide, &AnalysisPolicy::default()));
+    assert!(
+        why.iter().any(|f| f.contains("newell_plane_residual")),
+        "at half = 0.5 a ONE-LEAF replay must fail on `newell_plane_residual` — the \
+         wall normal's enclosure reaching zero: {why:?}"
     );
 }
 
-/// **The limit, pinned rather than described.** A MACROSCOPIC tolerance
-/// box — the ±0.05 band on a 1.0 nominal a real study would ask for —
-/// certifies nothing, and the whole of it comes back as priced `Budget`
-/// mass.
+/// The whole-certifying half-width measured on the slab at each ε row,
+/// with the relative band this row admits.
 ///
-/// **Run at the shipped per-axis depth budget**, which is the binding
-/// one: reaching a certifying leaf from a half-width of 0.05 means
-/// bisecting down to the width the row above measures, and
-/// `log2(0.05 / (ε/16))` is about 29.6 at the default ε — call it 30
-/// bisections, against a shipped [`DEFAULT_MAX_DEPTH`] of 24. The leaf
-/// budget is set small here only so the row costs a second rather than
-/// tens of thousands of evaluations; the depth budget is what makes
-/// the answer inevitable, and it is the shipped one.
+/// Three numbers rather than one because the ceiling is ε-dependent (the
+/// row's docs say why). The band is 2%: wide enough to absorb the last
+/// bits of a bisection search, far too narrow to absorb a change of
+/// mechanism.
+fn ceiling_at(eps: f64) -> (f64, f64) {
+    // `Tol` admits exactly the rows CI draws from.
+    if eps >= 1.0e-7 {
+        (0.438_988, 0.02)
+    } else if eps >= 1.0e-10 {
+        (0.488_315, 0.02)
+    } else {
+        (0.497_892, 0.02)
+    }
+}
+
+/// Every node failure of a `Sym<Interval>` evaluation over `analyzed`'s
+/// WHOLE box in ONE leaf, as text — the public evaluation door, used to
+/// NAME the predicate that stops a box certifying whole.
 ///
-/// This is the honest state of the deliverable and it is a regression
-/// pin in both directions: the day the certification predicates stop
-/// widening with the box, this row fails and the number it is
-/// asserting becomes a real answer.
+/// The driver's own leaf reason says `Budget` or nothing at all: it
+/// reports what the SUBDIVISION did, and a box that certifies after one
+/// split leaves no trace of what the unsplit box could not decide. This
+/// reads the unsplit evaluation directly, which is the question the
+/// ceiling is about.
+fn node_failures(doc: &ProfileDoc, analyzed: &AnalyzedBox) -> Vec<String> {
+    let opts = EvalOptions {
+        param_box: Some(std::sync::Arc::new(ParamBox::of(analyzed))),
+        profile_lift: ProfileLift::Guided,
+        ..EvalOptions::default()
+    };
+    let dials = SymbolicDials::default();
+    let budget = geom_core::SymBudget {
+        max_terms: dials.max_terms,
+        max_degree: dials.max_degree,
+    };
+    let (out, _) = geom_core::sym::with_session(budget, || {
+        let ev: Evaluation<geom_core::Sym<geom_core::Interval>> =
+            evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness());
+        ev.order
+            .iter()
+            .filter_map(|id| match ev.result(*id) {
+                Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    });
+    out
+}
+
+/// **The macroscopic box certifies** — the row that was the limit, cut
+/// the other way round.
 ///
-/// **What the widening here IS, said precisely, because the obvious
-/// candidate has been ruled out.** It is not a period fold enclosing
-/// two integers: the floor-based folds that did that were closed
-/// (issue 1191, and the fold now folds a raw difference once through a
-/// window whose jump is at a half period), and this row did not move
-/// when they were. What remains is the dependency problem — a
-/// certification identity mentions its parameter several times, and an
-/// interval evaluation cannot see that the occurrences are the same
-/// number, so the enclosure grows with the box whatever the algebra
-/// says. Closing THAT is a different deliverable from closing a fold,
-/// and this row is the pin that says so.
+/// A ±0.05 band on a 1.0 nominal is `10^8 ε` wide and is what a real
+/// tolerance study asks for. Before E12 the whole of it came back as
+/// priced `Budget` mass: reaching a certifying leaf meant bisecting
+/// down to `ε/16`, about 30 halvings against a shipped
+/// [`DEFAULT_MAX_DEPTH`] of 24, so the answer was inevitable and the
+/// MVP's own sentence — "2.1% of the tolerance mass has no valid build"
+/// — was not sayable about any macroscopic box.
+///
+/// It certifies now, in ONE leaf, at the shipped depth budget, because
+/// the identities the enclosure could not see through are discharged
+/// symbolically. The row is a regression pin in both directions: it
+/// fails if the tier stops discharging them, and it fails if a
+/// refusal ever comes back `Budget` at the depth floor, which is the
+/// shape that says the driver ran out of refinement rather than found
+/// something.
 #[test]
-fn a_macroscopic_box_refuses_all_of_its_mass_as_budget_today() {
+fn a_macroscopic_box_certifies_at_the_shipped_depth_budget() {
     let doc = slab(1.0, 0.05);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let shipped_depth = DriveConfig::default().max_depth;
@@ -459,23 +609,72 @@ fn a_macroscopic_box_refuses_all_of_its_mass_as_budget_today() {
     .unwrap();
     assert_eq!(shipped_depth, DEFAULT_MAX_DEPTH);
     assert!(v.receipt().holds());
-    assert!(
-        v.certified().is_empty(),
-        "a macroscopic box certified {} leaves — the widening limit moved, and this row's \
-         number is now a real answer",
-        v.certified().len()
+    assert_eq!(
+        v.receipt().certified,
+        1,
+        "the whole macroscopic box certifies in one leaf: {:?}",
+        v.receipt()
     );
+    assert!(
+        v.refused().is_empty(),
+        "nothing is refused: {:?}",
+        v.refused().iter().map(|l| &l.reason).collect::<Vec<_>>()
+    );
+    // Priced, not silent: the certificate covers the whole box.
+    let certified = v.accounting().certified.clone().unwrap();
+    assert!(
+        (certified - 1.0).abs() <= 1e-9,
+        "certified mass {certified}"
+    );
+    assert!((v.accounting().total().unwrap() - 1.0).abs() <= 1e-9);
+    // And the E12 receipt says HOW it certified: identities decided
+    // symbolically, everything else numerically.
+    let d = v.decisions();
+    assert!(
+        d.symbolic_zero > 0 && d.numeric > 0,
+        "both tiers are live on this drive: {d:?}"
+    );
+}
+
+/// **The tier off reproduces the pre-E12 driver, bit for bit** — the
+/// differential behind review claim 1, on the row that moved most.
+///
+/// Same document, same box, same budgets, `symbolic.enabled = false`:
+/// the macroscopic box comes back exactly as M10-3 pinned it — nothing
+/// certified, every refusal `Budget`, the whole mass priced — and the
+/// verdict's serialization carries no symbolic line at all, so a
+/// consumer keying on it sees the pre-E12 text.
+#[test]
+fn the_tier_off_reproduces_the_pre_e12_refusal() {
+    let doc = slab(1.0, 0.05);
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let v = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig {
+            max_leaves: 32,
+            symbolic: SymbolicDials::off(),
+            ..DriveConfig::default()
+        },
+        Tol::witness(),
+    )
+    .unwrap();
+    assert!(v.receipt().holds());
+    assert!(v.certified().is_empty());
     assert!(
         v.refused()
             .iter()
             .all(|l| matches!(l.reason, RefusalReason::Budget(_)))
     );
-    // Priced, not silent: the refusal covers the whole box.
     let budget = v.accounting().refused[&ReasonClass::Budget]
         .clone()
         .unwrap();
     assert!((budget - 1.0).abs() <= 1e-9, "budget mass {budget}");
-    assert!((v.accounting().total().unwrap() - 1.0).abs() <= 1e-9);
+    assert_eq!(v.decisions(), geom_core::SymCounts::default());
+    assert!(
+        !v.serialize().contains("decisions "),
+        "the tier-off serialization is the pre-E12 text"
+    );
 }
 
 /// **The worked example's driver half**, on the two-parameter document:

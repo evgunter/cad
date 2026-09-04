@@ -1319,29 +1319,32 @@ fn check_registry_tags_are_stable() {
     );
 }
 
-/// **The tier-3′ census findings do not read as prose, and that is a
-/// KERNEL rendering, not a binding one.**
+/// **The tier-3′ census findings read as prose, and that is a KERNEL
+/// rendering, not a binding one.**
 ///
 /// `crate::py::typed_err` asserts every message it raises satisfies
 /// [`reads_as_prose`], and every door in this crate obeys the rule the
 /// assertion stands for — the binding never authors a `Debug` dump.
-/// Three `ValidationError` arms are worded by the kernel out of
-/// `Debug` anyway: `UndeclaredContact` renders its `CensusContact` as
-/// `{contact:?}` and carries a `witness` the kernel builds with
-/// `format!("{p:?}")`, and `StaleContactDeclaration` renders its
-/// `DeclaredContact` the same way. Only tier 3′ produces those arms,
-/// so `Body::validate_pseudomanifold` is the first door to reach them
-/// — and reach them it does, on an ordinary call: two touching solids
-/// gathered by `product`, which declares nothing.
+/// Three `ValidationError` arms once broke that rule from the OTHER
+/// side, the kernel wording them out of `Debug`: `UndeclaredContact`
+/// rendered its `CensusContact` as `{contact:?}`, `StaleContactDeclaration`
+/// its `StaleDeclaration` the same way, and the `witness` the kernel
+/// built with `format!("{p:?}")` carried a `Point3`'s field braces.
+/// Each now renders through `Display`, so `Body::run_validator` raises
+/// through `typed_err` like every other door and needs no exemption.
 ///
-/// This pin is the reason `run_validator` raises through
-/// `typed_err_kernel_authored`. It is deliberately an assertion that
-/// the message is NOT prose, so the day the kernel renders these arms
-/// through `Display` (filed at
-/// `work/lib/tier-3-prime-findings-render-through-debug.md`) this row
-/// goes red and the exemption can go with it.
+/// **What this row does and does not cover.** Both findings are built
+/// here with a hand-written `witness`, so the assertion is that the
+/// ARMS' format strings interpolate through `Display` — it says nothing
+/// about `census::witness`, which no code path in this crate reaches.
+/// The witness rendering is guarded in the kernel, by
+/// `topo/tests/mate4a_ef_bound_rung.rs` (a `Debug` golden over the
+/// whole finding list) and `topo/tests/review_mate9_r1_probes.rs`
+/// (which reads coordinates out of the witness text). What this row
+/// adds is that the check runs in the no-interpreter CI row, where the
+/// Python suite cannot.
 #[test]
-fn the_census_findings_are_not_prose_by_this_crate_s_own_rule() {
+fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
     use pncad::topo::{CensusContact, StaleDeclaration, ValidationError};
 
     // Both arms are built here rather than by evaluating a document:
@@ -1352,9 +1355,9 @@ fn the_census_findings_are_not_prose_by_this_crate_s_own_rule() {
             vertex: VertexKey::default(),
             face: FaceKey::default(),
         },
-        // The kernel builds this field with `format!("{p:?}")`
-        // (`census::witness`), so it carries braces of its own.
-        witness: format!("{:?}", pncad::geom_core::Point3::<f64>::origin()),
+        // The kernel builds this field as a coordinate triple
+        // (`census::witness`), so it carries no braces of its own.
+        witness: "(0.0, 0.0, 0.0)".to_owned(),
     };
     let stale = ValidationError::StaleContactDeclaration {
         declaration: StaleDeclaration::VertexOnFace {
@@ -1366,27 +1369,29 @@ fn the_census_findings_are_not_prose_by_this_crate_s_own_rule() {
     for finding in [&census, &stale] {
         let message = finding.to_string();
         assert!(
-            !reads_as_prose(&message),
-            "a tier-3′ census finding reads as prose now — the kernel \
-             rendering was fixed. Drop `typed_err_kernel_authored` and \
-             its exemption, let `run_validator` raise through \
-             `typed_err` again, and close the filed item. Message: \
-             {message}"
+            reads_as_prose(&message),
+            "a tier-3′ census finding must read as prose: it is raised \
+             through `typed_err`, whose assertion is live in every \
+             profile. Message: {message}"
         );
         assert!(
-            message.contains(" { "),
+            !message.contains(" { "),
             "the struct-brace fingerprint is exactly what \
-             `reads_as_prose` rejects; without it the arm was \
-             reworded: {message}"
+             `reads_as_prose` rejects, and a payload that regained a \
+             `Debug` rendering is how it comes back: {message}"
         );
     }
 
-    // The recourse survives the Debug guts: what a Python caller
-    // reads is unusable as a TAG but is still the kernel's whole
-    // diagnosis, which is why the binding pastes it rather than
-    // inventing a second wording.
+    // The payload survives the rewording: an arena key still names
+    // each entity, so the prose is a diagnosis a caller can act on
+    // rather than a sentence that dropped its subject.
+    let message = census.to_string();
     assert!(
-        census.to_string().contains("never blessed from discovery"),
+        message.contains("vertex") && message.contains("(0.0, 0.0, 0.0)"),
+        "the finding still names its entities and its witness: {message}"
+    );
+    assert!(
+        message.contains("never blessed from discovery"),
         "the undeclared-contact recourse is the actionable half"
     );
 }
@@ -1625,6 +1630,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_class_not_admitted",
             "mate_contradictory",
             "mate_dangling_head",
+            "mate_datum_too_small_to_lever",
             "mate_frame_degenerate",
             "mate_indeterminate",
             "mate_self",

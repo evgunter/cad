@@ -305,8 +305,11 @@ mated one.
 - Dragging an expression-driven dimension refuses, with an affordance
   offering to edit the expression.
 - Failures are typed values the GUI renders (the offending entity
-  highlighted, the failing feature marked in the tree); never
-  exceptions or strings. Presentation is decided case by case.
+  highlighted, the feature to act on marked in the tree); never
+  exceptions or strings. Presentation is decided case by case. Which
+  feature that is, is the payload's own answer: a row a failure merely
+  reached draws POISONED and quiet, pointing at the row that carries
+  the cause (`crate::tree`).
 - Preview fidelity may degrade the chordal display tolerance, never ε,
   so preview cannot disagree with commit.
 
@@ -341,6 +344,10 @@ line is refused rather than defaulted.
 - **GQ2, partial builds.** Evaluation returns a per-node result DAG; a
   failure poisons only its descendants and independent subgraphs
   complete (`editor_core::eval`, `NodeResult::{Ok, Failed, Poisoned}`).
+  The tree's POISONED badge is wider than that DAG relation: a mate
+  solve refuses across the placement graph, which the result DAG has
+  no edges for, and those rows draw as downstream of the mate the
+  fault names (`crate::tree`).
   Progress reporting and in-op yield points are absent; v1 shows a busy
   indicator over the shipped `CancelToken`.
 - **GQ3, persistence.** Every `DocEdit` is persisted: the on-disk form

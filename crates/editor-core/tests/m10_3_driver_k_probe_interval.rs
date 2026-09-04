@@ -59,8 +59,8 @@ use editor_core::{
     Dimension, Distribution, DocEdit, DocParam, LoopProgram, Node, ParamName, ProfileDoc,
     ProfileProgram, UnitSym,
 };
+use geom_core::Tol;
 use geom_core::k_stats::{self, MarginSample, SampleOutcome};
-use geom_core::{Sign, Tol};
 
 use fixture::Recorder;
 
@@ -298,13 +298,31 @@ fn the_dial_puts_driver_path_margins_in_the_funnel_and_nothing_else_does() {
 ///
 /// What it asserts is the biconditional's other half: no certified
 /// leaves, no samples, no panic, and a census line that says which.
+///
+/// **The plant is a budget of ZERO, and the tier stays ON** (M10-7).
+///
+/// `max_leaves: 256` was the plant, and the symbolic identity tier took
+/// it away: the tier discharges the certification identities that used
+/// to widen with the box, so this fixture certifies a MACROSCOPIC leaf
+/// almost at once and a smaller leaf budget only reaches it sooner
+/// (measured on hosted CI: 33 certified at 256). A first repair here
+/// switched the tier OFF to keep the old plant working, and a reviewer
+/// was right that that traded the row's subject for its fixture: the
+/// population this row exists to describe is the DRIVER's, and the
+/// driver ships with the tier on.
+///
+/// `max_leaves: 0` starves it with the tier on, and it starves it for
+/// the honest reason — the driver may not certify a leaf it was never
+/// allowed to open, so the whole frontier is refused unexamined and the
+/// receipt still balances. That is the same empty-certified-set state,
+/// produced by the configuration the driver actually runs.
 #[test]
 fn an_empty_certified_set_is_reported_rather_than_panicked_over() {
     let (name, doc) = documents().remove(1);
     let starved = run_doc_with(
         &doc,
         &DriveConfig {
-            max_leaves: 256,
+            max_leaves: 0,
             ..probing()
         },
     );
@@ -325,13 +343,11 @@ fn an_empty_certified_set_is_reported_rather_than_panicked_over() {
 }
 
 fn outcome_str(o: SampleOutcome) -> &'static str {
-    match o {
-        SampleOutcome::Definite(Sign::Negative) => "negative",
-        SampleOutcome::Definite(Sign::Zero) => "zero",
-        SampleOutcome::Definite(Sign::Positive) => "positive",
-        SampleOutcome::Indeterminate => "indeterminate",
-        SampleOutcome::Invalid => "invalid",
-    }
+    // The ONE spelling of the sweep's outcome vocabulary lives
+    // on the enum, because `tools/k-lint` has to read what this
+    // writes and a hand-kept copy on each side of that boundary
+    // silently disarmed the E6 driver gate once already.
+    o.token()
 }
 
 /// The K-REPORT dump: every driver-path sample as CSV, in the M2 file

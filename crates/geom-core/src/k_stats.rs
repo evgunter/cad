@@ -305,6 +305,61 @@ pub enum SampleOutcome {
     Indeterminate,
     /// The margin was poisoned (NaN).
     Invalid,
+    /// **The symbolic tier answered** (`crate::sym`, ERROR-DESIGN E12):
+    /// the margin's expression is identically zero in the document's
+    /// parameters, so `Zero` was a theorem and no enclosure was
+    /// consulted.
+    ///
+    /// A separate outcome rather than a `Definite(Sign::Zero)` row, and
+    /// the distinction is the whole E12 evidence: this sample's margin
+    /// was never CLASSIFIED against the band, so it is never a rule-1
+    /// in-band landing and never evidence about K. What it is evidence
+    /// about is the ratio of symbolic to numeric decisions, which is
+    /// what the tier exists to move.
+    SymbolicZero,
+}
+
+#[cfg(feature = "probe")]
+impl SampleOutcome {
+    /// **Every outcome, once** — the roster a consumer enumerates
+    /// instead of writing its own `match`.
+    ///
+    /// `tests::all_lists_every_variant` matches on each variant to
+    /// prove the list is complete, so adding one without listing it
+    /// here reds a test rather than leaving a silent hole in whatever
+    /// derives from it.
+    pub const ALL: [Self; 6] = [
+        Self::Definite(Sign::Negative),
+        Self::Definite(Sign::Zero),
+        Self::Definite(Sign::Positive),
+        Self::Indeterminate,
+        Self::Invalid,
+        Self::SymbolicZero,
+    ];
+
+    /// **The one spelling of this outcome**, and the K sweep's CSV
+    /// vocabulary.
+    ///
+    /// It exists because there were five hand-kept copies of this
+    /// `match` — four in Rust test harnesses that write the CSV, one in
+    /// `tools/k-lint` that reads it — and when `SymbolicZero` arrived
+    /// the writers learned it and the reader did not. The reader was
+    /// right to refuse a token it did not know; nobody noticed, because
+    /// the CI row that would have said so could not fail. A vocabulary
+    /// that must agree across a tool boundary gets ONE definition and a
+    /// test that pins the boundary
+    /// (`k-lint`'s `tests/outcome_vocabulary.rs`).
+    #[must_use]
+    pub fn token(self) -> &'static str {
+        match self {
+            Self::Definite(Sign::Negative) => "negative",
+            Self::Definite(Sign::Zero) => "zero",
+            Self::Definite(Sign::Positive) => "positive",
+            Self::Indeterminate => "indeterminate",
+            Self::Invalid => "invalid",
+            Self::SymbolicZero => "symbolic_zero",
+        }
+    }
 }
 
 /// One recorded classification: the raw material of a margin
@@ -356,6 +411,61 @@ fn record(margin: f64, band: Band, outcome: SampleOutcome) {
             });
         }
     });
+}
+
+/// **Re-tags the sample just recorded as [`SampleOutcome::SymbolicZero`]**
+/// — the symbolic tier's door into the SAME funnel population
+/// (`crate::sym`'s `Decide` impl calls it where the tier overrides the
+/// numeric answer).
+///
+/// A re-tag rather than a second `record`, and that is the whole design:
+/// `Sym<T>` asks its base scalar first (its domain refusal is clause 1
+/// of the theorem), so at `Probe` the base scalar has ALREADY pushed the
+/// sample with the margin it classified. Re-tagging keeps that margin —
+/// a real number a reader can compare against the band — and keeps the
+/// count exact, where recording a second row would double-count one
+/// decision and inventing a margin would fabricate one.
+///
+/// No sink, or nothing recorded (every scalar but `Probe`): a no-op.
+///
+/// **The sample is named by INDEX, taken before the base scalar ran**,
+/// never by position afterwards. `sink.last_mut()` was the first
+/// spelling and it was wrong: at `Sym<Interval>` the base scalar records
+/// nothing, so "the last sample" was whatever some earlier `Probe`
+/// decision had left there — an unrelated row, and re-labelling an
+/// `Indeterminate` one would have erased a rule-1 landing from the
+/// population that exists to count them. [`sink_mark`] answers where
+/// this decision's own sample WOULD go; re-tagging that index and only
+/// when the base scalar actually filled it ties the two together by
+/// construction.
+#[cfg(feature = "probe")]
+pub(crate) fn retag_symbolic_zero_at(mark: Option<usize>) {
+    let Some(at) = mark else { return };
+    SINK.with(|s| {
+        if let Some(sink) = s.borrow_mut().as_mut()
+            // Exactly one sample since the mark, and it is at `at`: the
+            // base scalar recorded this decision and nothing else did.
+            // Any other length means the base recorded nothing (a
+            // non-`Probe` base, so there is no row of ours to re-tag)
+            // or more than one, which no single `sign_within` can do —
+            // and in either case the honest move is to leave the
+            // population alone.
+            && sink.len() == at + 1
+            && let Some(mine) = sink.get_mut(at)
+        {
+            mine.outcome = SampleOutcome::SymbolicZero;
+        }
+    });
+}
+
+/// **Where the next recorded sample will land**, or `None` when no sink
+/// is installed — the index [`retag_symbolic_zero_at`] re-tags.
+///
+/// Read BEFORE the base scalar decides, so the index names this
+/// decision's own row rather than whatever happens to be last later.
+#[cfg(feature = "probe")]
+pub(crate) fn sink_mark() -> Option<usize> {
+    SINK.with(|s| s.borrow().as_ref().map(Vec::len))
 }
 
 /// A transparent `f64` wrapper that records every sign classification —
@@ -565,6 +675,37 @@ mod tests {
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// [`SampleOutcome::ALL`] lists every variant, proven by matching on
+    /// each one: a variant added without a roster entry stops compiling
+    /// here rather than leaving whatever derives from `ALL` silently
+    /// short — which is exactly how `tools/k-lint`'s accepted-token list
+    /// came to be missing `symbolic_zero`.
+    #[cfg(feature = "probe")]
+    #[test]
+    fn all_lists_every_variant_and_every_token_is_distinct() {
+        for o in SampleOutcome::ALL {
+            // Exhaustive by construction: a new variant reds here.
+            let seen = match o {
+                SampleOutcome::Definite(Sign::Negative)
+                | SampleOutcome::Definite(Sign::Zero)
+                | SampleOutcome::Definite(Sign::Positive)
+                | SampleOutcome::Indeterminate
+                | SampleOutcome::Invalid
+                | SampleOutcome::SymbolicZero => true,
+            };
+            assert!(seen, "{o:?} is listed in ALL");
+        }
+        let mut tokens: Vec<&str> = SampleOutcome::ALL.iter().map(|o| o.token()).collect();
+        let before = tokens.len();
+        tokens.sort_unstable();
+        tokens.dedup();
+        assert_eq!(
+            tokens.len(),
+            before,
+            "two outcomes share a token, so a CSV reader cannot tell them apart: {tokens:?}"
+        );
     }
 
     #[test]

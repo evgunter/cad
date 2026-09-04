@@ -432,6 +432,11 @@ pub struct Flag {
 pub struct Scan {
     /// Samples considered (every non-header, non-empty line).
     pub scanned: usize,
+    /// How many of [`Scan::scanned`] were `symbolic_zero` — decisions
+    /// the symbolic identity tier answered, which answer to no rule
+    /// here ([`lint_sample`]'s arm says why) and are reported as their
+    /// own number rather than folded into the clean count.
+    pub symbolic: usize,
     pub flags: Vec<Flag>,
     /// `Some((10²·Kε, floor))` when this file's ambient rows are loose
     /// enough that rule (2)'s definite arm was capped at the baseline
@@ -443,6 +448,31 @@ pub struct Scan {
 /// The sweep's CSV header: the column order this file's rules are
 /// stated against, and the only header [`lint_csv`] accepts.
 const EXPECTED_HEADER: &str = "shape,predicate,margin,band_zero,band_escalate,outcome";
+
+/// **Every outcome token the recorder can write** — this lint's half of
+/// a vocabulary whose other half is `geom_core::k_stats::SampleOutcome`.
+///
+/// One list rather than a `matches!` arm, because the two halves have
+/// already drifted once and the drift was invisible. `SampleOutcome`
+/// grew a `SymbolicZero` variant serialized as `symbolic_zero`; this
+/// list did not; and every driver row the E6 sweep wrote from then on
+/// was refused as harness breakage, so the driver population was linted
+/// ZERO times while the CI row still reported success. The tool was
+/// right to refuse a token it did not know — that refusal is
+/// deliberate, review MIN-2 — and being right is not the same as being
+/// noticed.
+///
+/// `tests::the_accepted_outcomes_are_exactly_the_recorders` pins this
+/// list against `SampleOutcome::ALL` variant by variant, so the next
+/// variant reds a test here instead of silently disarming a gate.
+pub const ACCEPTED_OUTCOMES: [&str; 6] = [
+    "zero",
+    "positive",
+    "negative",
+    "indeterminate",
+    "invalid",
+    "symbolic_zero",
+];
 
 /// What a numeric column of the sweep may say.
 ///
@@ -566,6 +596,19 @@ pub fn lint_sample(
                 reasons.push(Reason::NearBandBelow);
             }
         }
+        // **Never a rule sample, and not because it is uninteresting.**
+        // A `symbolic_zero` row is a decision the symbolic identity tier
+        // answered (ERROR-DESIGN E12): the margin's expression is
+        // identically zero in the document's parameters, so `Zero` was a
+        // theorem and the margin was never CLASSIFIED against the band
+        // at all. Every rule here is a statement about where a decided
+        // margin sits relative to a threshold; there is no such
+        // position to report, so rule 1 cannot fire (nothing landed
+        // in-band) and rules 2 and 3 have no threshold comparison to
+        // make. The row still counts — in its own column, `Scan::
+        // symbolic` — because the ratio of symbolic to numeric
+        // decisions is the evidence the tier exists to produce.
+        "symbolic_zero" => {}
         "positive" | "negative" if band_zero >= AMBIENT_BAND_MIN => {
             if is_eps_coupled(predicate) {
                 if m < EPS_COUPLED_FLOOR_RATIO * band_zero {
@@ -598,6 +641,7 @@ pub fn lint_sample(
 pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     let mut flags = Vec::new();
     let mut scanned = 0usize;
+    let mut symbolic = 0usize;
     let mut proximity_capped = None;
     for (i, line) in text.lines().enumerate() {
         if i == 0 {
@@ -650,10 +694,7 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         // sweep-format drift disarm the whole lint (review MIN-2). It
         // is checked FIRST because the margin's policy is stated
         // against it (`Admissible::Margin`).
-        if !matches!(
-            out,
-            "zero" | "positive" | "negative" | "indeterminate" | "invalid"
-        ) {
+        if !ACCEPTED_OUTCOMES.contains(&out) {
             return Err(err());
         }
         // An unreadable measurement is harness breakage too, and for
@@ -692,6 +733,9 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
             });
         }
         scanned += 1;
+        if out == "symbolic_zero" {
+            symbolic += 1;
+        }
         // Record (once) that rule (2)-above is running capped on this
         // file's ambient rows, so the CLI can say so out loud.
         if band_zero >= AMBIENT_BAND_MIN && proximity_capped.is_none() {
@@ -714,6 +758,7 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     }
     Ok(Scan {
         scanned,
+        symbolic,
         flags,
         proximity_capped,
     })

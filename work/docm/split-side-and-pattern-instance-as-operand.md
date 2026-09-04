@@ -2,9 +2,10 @@
 id: split-side-and-pattern-instance-as-operand
 kind: issue
 title: A split's side and a pattern's instance cannot be an operand - the recipe has no way to name one
-status: open
+status: closed
 opened: 2026-08-31
 github: 1394
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1394
@@ -49,3 +50,8 @@ GAUTH-4 authors the four combining doors as the plan specifies them ("two sequen
 ## Home
 
 GAUTH's closing entry names this issue as its residue; the fix is a recipe-vocabulary decision above `editor_core::eval::wire::body_operand`, which sits in no open program's territory (M10 fences editor-core eval outside its analysis lane), so it lands in `work/issues/`.
+
+## Closed (2026-09-04)
+
+Ruled a projection node: `docs/DOCM-REFERENCES-DESIGN.md` DM3. The
+build is `DOCM-2`; the pinned rows named above move with it.
