@@ -139,9 +139,10 @@ const R_BELLIED: f64 = 6.0 / 64.0;
 /// material faces the axis. `torax_axial`'s two fixtures' sense.
 const R_WAISTED: f64 = 12.0 / 64.0;
 
-/// The wall thickness. An eighth of the tube radius and an eighth of
-/// the narrowest wall the shell has to survive (the foot's), so every
-/// junction below is transversal by a wide margin rather than a hair.
+/// The wall thickness. A TENTH of the band's tube radius and a tenth
+/// of the foot's — the narrowest run the cavity has to fit inside — so
+/// every junction below is transversal by a wide margin rather than by
+/// a hair, and the clearance gate is nowhere near it.
 const WALL: f64 = 1.0 / 128.0;
 
 /// The NURBS fit tolerance `shell` would hand its approximating lane.
@@ -149,9 +150,12 @@ const WALL: f64 = 1.0 / 128.0;
 /// are closed forms and nothing is fitted.
 const FIT_TOL: f64 = 1e-6;
 
-/// The chord budget. The vessel is 3/8 m tall and its belly is a torus
-/// of `11/64` m outer radius, so this is the ring scene's budget on a
-/// body of the ring scene's size.
+/// The chord budget: an absolute sagitta, half the hollow ring's on a
+/// body of about the ring's size. The vessel is `3/8` m tall and its
+/// belly reaches `11/64` m, and the wall this scene is about is
+/// `1/128` m thick — so the budget has to be small against the WALL
+/// and not just against the body, or the two boundaries' meshes would
+/// read as one surface at the rim.
 const DELTA: f64 = 1e-3;
 
 /// **Finding 2's premise, checked where it is authored.** The floor
@@ -272,9 +276,11 @@ fn boundary(centre_rho: f64, t: f64) -> (f64, f64) {
     let theta0 = (a / r).asin();
 
     let (foot, neck) = (R_FOOT - t, R_NECK - t);
-    // The band's own junction radius — the corner the closed forms
-    // below are asserted at.
-    let junction = big_r + s * (r * r - a * a).sqrt();
+    // The band's own junction radius — the SAME closed form the corner
+    // rows below assert against, called rather than re-typed, so an
+    // area that agreed with a corner nobody had is not a thing this
+    // scene can produce.
+    let junction = junction_rho(centre_rho, t);
 
     let v_band = PI
         * (2.0 * a * big_r * big_r
@@ -805,11 +811,19 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 Y_FOOT + WALL,
                 Y_SHOULDER - WALL,
             )),
-            // The vessel's axis is +y. 24 degrees up is enough that the
-            // two shoulder annuli read as ellipses rather than lines —
-            // they are the pair the clearance gate names — while the
-            // belly's silhouette still shows the band bulging PAST
-            // both of them, which is the whole shape.
+            // The vessel's axis is +y, and 24 degrees up is where the
+            // TRANSPARENT read is best: the cavity's own neck and foot
+            // are visible through the wall, which is the only thing a
+            // sealed hollow has to show.
+            //
+            // Stated because it is easy to want otherwise: the two
+            // shoulder annuli — the pair the clearance gate names — are
+            // NOT visible at this camera or any other. The band bulges
+            // to 11/64 past both of their 9/64 rims, so they sit under
+            // its overhang from every direction. That is the shape
+            // being what it is rather than the camera being wrong, and
+            // it is why the gate's payload is asserted as two numbers
+            // above instead of being pointed at in the picture.
             view: View {
                 elev: 24.0,
                 azim: -58.0,
@@ -852,12 +866,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                   CIRCLES take its role",
             delta: DELTA,
             note: Some(format!(
-                "{cv} vertices, {ce} edges, {cf} faces in ONE shell, one ring, genus 0, \
-                 tier 3 — after the merge; {} / {} / {} before it. THE CODA, MEASURED: \
-                 25 → 19 faces, 26 → 24 vertices, 48 → 36 edges. Four full-valence \
-                 latitude annuli close (the two shoulders and their cavity twins, each \
-                 seam two disjoint collinear Line segments with all four endpoints at \
-                 valence 4), two pole-split base caps close with them, and six pairs \
+                "{cv} vertices, {ce} edges, {cf} faces in ONE shell, genus 0, tier 3 — \
+                 after the merge; {} / {} / {} before it. The rings go the OTHER way, \
+                 1 -> 5: the mouth's annular rim, plus the four the merge mints as it \
+                 closes each latitude annulus back up. THE CODA, MEASURED: \
+                 25 → 19 faces, 26 → 24 vertices, 48 → 36 edges. Four groups mint a \
+                 RING — the merge's own full-valence class, which on this meridian is \
+                 the two shoulders and their cavity twins — two pole-split base caps \
+                 close beside them, and six pairs \
                  are declined as PeriodClosure — a curved run that would close its \
                  chart's full period is a seam the merge refuses by design, and that is \
                  not a failure. THOSE ARE THE TEAPOT CUP'S OWN NUMBERS, on a body whose \
