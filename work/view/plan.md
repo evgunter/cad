@@ -30,18 +30,29 @@ concurrency unit.
 
 ## Order
 
-1. `viewer-session-god-module-split`, in four. The boundary rule —
+1. `viewer-session-god-module-split` — **DONE** (#1801 ratified the
+   boundary, #1816 gesture safety as data, #1830 the module split,
+   #1832 `Option<OpenTool>`). `session.rs` 3,260 → 1,500 and `app.rs`
+   5,696 → 1,752, thirteen new modules, no test touched and no
+   assertion changed across the chain. It was cut in four: The boundary rule —
    every module is a vocabulary or a driver, and its `use` block says
    which — is stated in `crates/viewer/README.md` under *Module
    boundaries*, and ratified in an `[ev]` PR before anything is cut.
    Then, in this order, because each step shrinks the next:
-   **1b** gesture safety as data (`SessionOp::gesture_safe`, one
-   exhaustive match checked once in `perform`, the 23 guards deleted,
-   no operation's current answer changed);
+   **1b** gesture safety as data
+   (`SessionOp::permitted_during_value_gesture`, one exhaustive match
+   checked once in `perform`, the 23 guards deleted, no operation's
+   current answer changed);
    **1c** the mechanical move, `session` into six vocabularies and
    `app` into its panes, vocabularies and widgets, with `pub use`
    shims so no test changes;
-   **1d** `Option<OpenTool>` for the one-of-seven invariant.
+   **1d** `Option<OpenTool>`: the one-of-seven invariant is
+   unrepresentable rather than maintained, `seated!` and its trait are
+   gone, and `open_kind` no longer routes through `ToolKind::ALL`, so a
+   kind missing from that array narrows a sweep instead of making its
+   tool permanently unreachable. `ALL` itself survives — six uses in
+   CHROME's test glob — with no production reader, which is
+   `tool-kind-all-and-ordinal-have-no-production-reader`.
    Representation changes are separate from the move on purpose: the
    move's whole safety property is that the compiler checks it, and a
    representation change bundled into it destroys that.

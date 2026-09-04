@@ -271,20 +271,29 @@ state.
 
 | Module | Holds |
 |---|---|
-| `forms` | The authoring vocabularies the panels offer — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — each a hand-maintained mirror of a kernel or sketch enum, and each a product decision rather than a toolkit one |
+| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — are hand-maintained mirrors of a kernel or sketch enum; the field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts` and `CommitFault`: the in-flight form state, its defaults, and its lowering of typed field values to `Expr` and `LoopProgram` — the same layer as `session::author`, and today the larger half of it |
-| `widgets` | The free helpers over `egui::Ui` that take plain data (`vec3_row`, `unit_field`, `named_field`, the pickers, `delete_button` and the rest) |
 
-and the pane bodies, one module per pane, each holding the `*_ui`
-functions that draw it: `pane::viewport`, `pane::features`,
-`pane::properties`, `pane::create` (the tool and creation forms, the
-largest of them), `pane::view`.
+### The app driver, split for size
 
-`app` itself keeps `ViewerApp`, `ViewerBehavior`, the frame loop,
+`app` is a driver, and a driver too large to read is still a driver.
+`app.rs` keeps `ViewerApp`, `ViewerBehavior`, the frame loop,
 `perform_batch`, `sync_scene`, `apply_status`, `Pane`,
-`initial_layout` and the entry points. Its header's claim — *toolkit
-adaptation, and nothing else* — becomes true of the file for the first
-time, rather than being a claim the file has outgrown.
+`initial_layout` and the entry points; `pane::{viewport, features,
+properties, create, view}` hold the `*_ui` functions that draw each
+pane, one module per pane; and `widgets` holds the free helpers over
+`egui::Ui` that those panes share.
+
+**Splitting a driver across modules does not make the pieces
+vocabularies.** The test is a module's ROLE, not its size or its file:
+each of these names `egui`, and `widgets::delete_button` takes a
+`&DocSession` because the wording it draws is the session's own
+answer. That is the driver side of the rule behaving normally. Reading
+the `use` block still decides it — the check says what a module IS,
+not merely whether it is a vocabulary.
+
+`app.rs`'s header claim — *toolkit adaptation, and nothing else* — is
+true of the file rather than a claim it has outgrown.
 
 Three items move out of `app` to modules that already own their
 subject rather than to new ones: `datum_view` to `datums`, and
@@ -305,11 +314,14 @@ values the receiving module already defines, and none names `egui`.
   the same node, this instance is itself, the seat wanted a different
   node kind.
 
-`rank` stays a separate axis and stays exhaustive, so a new arm is
-compiler-caught. What the ladder cannot catch is a new arm ranked
-*wrongly*, and that is the discipline's real cost; it is accepted
-because the alternative — a rank derived from the arm's shape — would
-make the ordering unstateable, and the ordering is the part users see.
+`rank` stays a separate axis, and it is exhaustive over `Refusal`'s own
+arms, so a new arm is compiler-caught. It is not exhaustive one level
+down: `Display(_)` is a catch-all beneath its two named cases, so a new
+`DisplayFault` variant is ranked by default rather than by decision.
+Both costs — an arm ranked wrongly, and a delegated fault ranked by
+default — are accepted, because the alternative of deriving a rank from
+the arm's shape would make the ordering unstateable, and the ordering is
+the part users see.
 
 **A flat arm must not restate a refusal a door already gives.** That is
 where the rule bites, and `delete_node` already states it in the code:
@@ -327,35 +339,48 @@ own.
 
 ### Gesture safety is data
 
-The mid-gesture guard is one spelling repeated at 23 doors, and the
-consequence is that **the set of gesture-safe operations cannot be
-read off the code** — answering "is this operation safe mid-gesture"
-means reading every dispatch target. It also lets the question go
-unasked: `open` guards and `save` does not.
+The mid-gesture policy is one exhaustive value,
+`SessionOp::permitted_during_value_gesture`, checked once in `perform`
+before dispatch: 26 operations refuse while a value gesture is open and
+13 are permitted. A fortieth operation cannot be added without
+answering for it, and the whole policy is readable in one place rather
+than inferred from every dispatch target.
 
-So it becomes a value: `SessionOp::gesture_safe`, one exhaustive
-match, checked once in `perform` before dispatch. A fortieth operation
-cannot be added without answering for it, and the answer is in one
-place a reader can see whole.
+It says nothing about the free-move gesture, which is a different value
+with a different owner (`display::DisplayState`) and carries its own
+in-flight refusal. The name carries that limit deliberately: both
+fields are spelled `self.gesture`, and a predicate reading as a general
+guarantee would be a table that looks complete and is not.
 
-Two things this deliberately does not do. It does not change any
-operation's current answer — the table states today's behaviour,
-`save` included, and whether `save`'s answer is right is a separate
-question with its own item. And it is not one flag for two gestures:
-the free-move gesture is a different value with a different owner, so
-the predicate says which gesture it is about rather than reading as a
-guarantee it does not give.
+The table records behaviour rather than deciding it — `save` is
+permitted mid-gesture and `open` is refused, which is what the code did
+before the table existed. Whether that asymmetry is right is a separate
+question with its own item.
 
 ### One open tool, not seven optional ones
 
-`Tools` holds one `Option<…Tool>` field per tool kind, so a state with
-two tools open is representable and excluded only by the code that
-maintains it. It becomes `Option<OpenTool>`, an enum: the invariant
-stops being maintained and starts being unrepresentable, and the two
-surviving hand-lists over the tool set — the fixed-length `ToolKind::ALL`,
-which `Tools::open_kind` scans, and the `seated!` invocation — collapse
-into matches the compiler completes. Today an eighth tool omitted from
-`ALL` compiles clean and is permanently unreachable.
+`Tools` holds one `Option<OpenTool>`, an enum with one variant per tool
+kind carrying that tool's state. Two tools open is not a state the door
+avoids, it is a state with no spelling: the invariant is unrepresentable
+rather than maintained. Each of the four per-tool rules is an arm of a
+match the compiler completes: the pick routing and the survival step
+match over the open value itself, the cursor narrowing
+(`ToolKind::pick_kinds`) and the close-on-commit edit
+(`ToolKind::commits`) over its kind. The read door
+is not one of the four — each typed accessor matches its own variant
+and answers `None` to every other, so a tool that never gets an
+accessor compiles. The `Seated` trait and its `seated!` invocation,
+which named five tool types by hand to erase them again, are gone with
+the erasure they existed for.
+
+`ToolKind::ALL` remains for the test suites that sweep the kinds, which
+are now its only readers: `Tools::open_kind` asks the open value which
+kind it is instead of scanning the list for the first field that is set,
+and the chrome names each kind it offers literally rather than
+iterating. A kind missing from `ALL` therefore narrows those sweeps
+rather than making its tool permanently unreachable. `ALL` is still the
+one list a compiler cannot force, and `ToolKind::ordinal` is still what
+makes its completeness checkable by a row.
 
 ### What the boundary does not decide
 

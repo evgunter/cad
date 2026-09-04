@@ -951,6 +951,188 @@ demotion argument rests on — stated with a number rather than assumed.
 
 ## 2026-08-22 — configuration sampling, and the draft skip (F5)
 
+### SUPERSEDED for the lane and ε, 2026-09-04 — full runs reinstated
+
+**Everything in this section below this block describes the regime that ran
+from 2026-08-22 to 2026-09-04.** The lane and ε draws are gone: a code-tier
+run gates every point of {default, `interval`} x {default, 1e-6, 1e-12}, as
+two archives and twelve `test (…)` jobs. **The k-lint unification draw is
+NOT affected and is still one row of five per run** — it is five compiles
+sharing almost no artifacts, not one archive replayed, and it was not
+re-costed here (`work/ciw/klint-row-still-sampled.md`).
+
+**Ev's authorisation, in chat, 2026-09-04**: *"feel free to reinstate full
+runs instead of sampling"*, on the reasoning that *"CI is weakened right now
+because of sampling only certain configurations to run … undoing that
+sampling now that actions minutes are much cheaper is probably a good idea"*.
+The premise this whole document opens with — an Actions allowance being
+consumed faster than the work justified — died when the repository went
+public on 2026-09-03.
+
+**The measurement.** Population: every `CI` workflow run created
+`2026-09-04T04:00:00Z`–`2026-09-04T07:52:14Z` with `conclusion` ∈ {success,
+failure} (cancelled excluded — a cancelled run's job set is a truncation, not
+a sample): **156 runs, 72 code-tier** (a code-tier run is one carrying a
+non-skipped `build + archive` job). Durations are per-job wall time from the
+jobs API; nothing here is a BILLED minute, because a public repository's
+standard-runner minutes are not billed.
+
+**That population was re-derived after two readers disagreed with it**, and
+both earlier counts were wrong. This document first said 155/71 and a review
+said 154/72. The window was re-fetched once every run in it had CONCLUDED:
+**156/72**, with `build + archive (interval)` appearing on **39** runs and
+`(default)` on 38. The 155 came from a snapshot taken while one run in the
+window was still in flight, so it had no conclusion yet and was dropped. **A
+population counted from a window that is still open is a different population
+five minutes later**, which is the only interesting thing about the
+disagreement.
+
+| | today (sampled) | un-sampled |
+|---|---|---|
+| job-minutes, median code-tier run | **24.7** (n=72) | **~40** |
+| critical path, median code-tier run | **399 s** default draw / **456 s** interval draw (pooled tiers) | see CORRECTION 2 — this row understates it |
+| `build + archive (default)` | 273 s scoped (n=31) / 322 s tier=all (n=7) | unchanged |
+| `build + archive (interval)` | 366 s scoped (n=34) / 400 s tier=all (n=5) | unchanged |
+| one `test (…)` leg | 42 s / 55 s scoped (n=54 / 60); 46 s / 94 s tier=all (n=14 / 8) | unchanged |
+| `clippy` / `clippy + doc-tests (interval)` | 72 s / 100 s | unchanged |
+
+**It is not a 6x multiplier, and the reason is the archive.** ε is runtime
+env, read by bit-identical binaries, so the six points are TWO builds and
+TWELVE test legs. Summing the configuration-dependent jobs at the medians
+above: un-sampled = 646 s of builds + 172 s of lint + 618 s of test legs =
+**1436 s**; today's expectation over the 50/50 draw = **512 s**. So
+**+924 s = +15.4 job-minutes per code-tier run**, on a median run of 24.5 —
+so **24.5 → ~40**. **That pooled figure is superseded by the per-tier split in
+CORRECTION 1 below**, which the gate run forced; it is left standing so the
+correction has something to correct. Its inputs are also the first,
+still-open-window population (155/71) rather than the closed-window one
+(156/72) the measurement paragraph now states.
+
+**Why the component sum and not a run-total comparison.** The observed
+medians split by drawn lane are 21.1 (default, n=33) and 25.4 (interval,
+n=33), a gap of 4.3 job-minutes where the per-job medians account for only
+2.3. The rest is CONFOUNDED, not measurement error: a diff under
+`interval-transcendentals/` PINNED the interval lane, so the interval-drawn
+set is enriched in runs that are `TIER=all` and carry the oracle and backend
+rows for reasons that have nothing to do with the lane. Summing the jobs the
+lane actually decides avoids that; comparing run totals does not.
+
+**CORRECTION, 2026-09-04, from this unit's own gate run.** The figure first
+published here was **+15.4 job-minutes per code-tier run** (run-weighted, it
+is +15.6), derived from per-job medians pooled across both tiers. **The gate run falsified it for the
+tier the gate run is in, and the measurement wins.** Run `33853141826`
+(`dc415acf`, green, 32 jobs, twelve `test (…)`) is a TIER=all un-sampled run
+at **54.0 job-minutes and 619 s wall**, against a TIER=all sampled median of
+**30.1 job-minutes and 437 s** (n=10 in the same window): **+23.9 job-minutes
+and +182 s**.
+
+Re-derived per tier, which is what the pooled figure was hiding:
+
+| | n (sampled) | un-sampled config jobs | sampled expectation | delta |
+|---|---|---|---|---|
+| **TIER=closure** (61 of 72 code-tier runs) | 61 | 1394 s | 502 s | **+14.9 job-min** |
+| **TIER=all** (11 of 72) | 11 | 1756 s | 592 s | **+19.4 job-min** |
+
+Run-weighted: (61·14.9 + 11·19.4)/72 = **+15.6 job-min**, which is what the
+pooled figure was measuring without saying so.
+
+The tiers differ because TIER=all builds and runs unscoped: its interval test
+legs median 89 s against 55 s scoped, and its archives 322/386 s against
+273/366 s.
+
+**The gate run is 5.0 job-minutes above even the TIER=all derivation, and I am
+not explaining that away.** Its own `build + archive (interval)` took 425 s
+against that group's 386 s median and its `rustfmt + rustdoc` 370 s against
+~133 s on a typical run, so **n=1 against a median is not like-for-like** —
+but the honest reading is that the derivation is a floor and the first
+un-sampled run landed above it. Whether twelve concurrent legs slow each other
+is **not measured**; one run cannot tell that from ordinary variance.
+
+**Second data point, and it moves the reading toward the derivation.** Run
+`33854219517` (`b2159cf5`, green, 32 jobs, twelve `test (…)`) is the same
+TIER=all un-sampled shape at **44.4 job-minutes and 596 s wall**. So the two
+un-sampled runs are 54.0 and 44.4 against a 30.1 sampled median: **+23.9 and
++14.3, mean +19.1**, and the +19.4 derivation sits between them. n=2 is still
+n=2; no further runs are being chased, and the derivation is what to quote.
+
+**What survives unchanged**: TIER=closure is 86 % of code-tier runs and its
+**+14.9** still agrees with PR 1796's independently derived **+15.6** (that
+figure is tier-blind too, in the same way this one's first version was). The
+shape of the argument — two builds and twelve test legs, not six builds — is
+what the gate run confirms.
+
+**Two currencies, and the second one depends on the window.** At this
+window's **18.6 code-tier runs/hour** that is **+290 job-minutes/hour**
+against a measured 494 job-min/h of all CI. The rate is not a constant: PR
+1796's population (2026-09-03T15:20Z–2026-09-04T05:47Z, 14.45 h) has 10.3
+code-tier runs/hour and prices the same change at +161 job-min/h. **The two
+figures agree on the per-run number — +15.6 run-weighted here against +15.6
+there — and differ only on how busy an hour is.** That is agreement, not
+independent confirmation: same derivation shape, same jobs API, same
+infrastructure, two windows, with component medians differing by up to ~30 s
+in both directions in a way that happens to cancel. Quote the per-run number;
+derive the hourly one from the window you care about.
+
+**Critical path: superseded by CORRECTION 2 below, which the un-sampled runs
+forced.** What stood here: every run now takes the interval lane's path
+because that archive is the slower of the two, a run that would have drawn
+`interval` is unchanged, and *"the added ε legs cost ~0 wall: they start
+together behind an archive that was already being built"* — expected **+28 s,
+about +7%**. The first clause holds. The ε-leg clause does not.
+
+**A cross-check, and why it is not the headline.** Five runs in the window
+already carried `CI-Config: lane=both` — the un-sampled lane at one ε — and
+their median is 34.8 job-minutes and 516 s wall (run `33848247472` is one).
+Median-to-median that is +11.5 job-min for the lane alone, against the +8.5
+the per-job medians derive; n=5, not a random sample (a lane asks for
+`lane=both` when it is doing something unusual), so the component derivation
+above is the one to quote.
+
+**What this does and does not buy.** It closes the gap where a defect at an
+undrawn point merges green and surfaces on a stranger's branch — each point
+gated ~1 run in 6, or 9-31% of code-tier runs by PR 1796's count. It does
+NOT address a composition that no run ever compiles (PR 1796's subject: two
+independently-green PRs whose merge is red), and it does not add a check that
+runs nowhere. **No claim is made that it would have caught a specific past
+red**: of the five recorded main-reds PR 1796 enumerated, zero are
+attributable to the lane/ε draw — and that population is biased against
+exactly this class, because a defect at an undrawn point leaves no record
+until something draws it. The argument is price and exposure, not history.
+
+### CORRECTION 2, 2026-09-04 — the wall-clock claim was wrong, and the ε legs are why
+
+**The sentence "the added ε legs cost ~0 wall" was false and is withdrawn.**
+The legs do start together — verified on run `33848247472` — but **wall follows
+the max over them, not the overlap**, and six legs have a larger maximum than
+two. The critical path's last job is named and it is the same one in all three
+un-sampled runs: **`test (interval, eps = default, 1/2)`** — the first ε row's
+shard 1, which also carries the two `editor-core` steps — at **156 / 151 /
+135 s**, ending at **t+619 / t+596 / t+519 s**, which is each run's wall exactly.
+
+Measured, against TIER=all runs of the same window split by the lane they drew:
+
+| | sampled | un-sampled (n=3) | delta |
+|---|---|---|---|
+| would have drawn `interval` | **576 s** (n=4) | **596 s** (median) | **+20 s** — this is the ε legs' own cost, the archive being common to both |
+| would have drawn `default` | **424 s** (n=6) | **596 s** | **+172 s** — mostly the interval archive |
+| expectation over the 50/50 | ~500 s | **596 s** | **≈ +96 s** |
+
+So the honest figure for a TIER=all run is **about +96 s of critical path in
+expectation, of which ~20 s is the ε legs and the rest is the interval
+archive** — not the "+28 s, and ~0 from the ε legs" first published here. The
+n on every cell is small (3 un-sampled runs against 4 and 6 sampled ones) and
+the ε-leg term is the smallest and least certain of them; what is not
+uncertain is that it is **not zero**, and that the trade was described as
+free on the strength of the overlap when the overlap was never the question.
+
+**One consequence beyond coverage**: a GitHub merge queue's required checks
+are named, so un-sampling is a precondition for the queue PR 1796 recommends
+trialling.
+
+**`local-scripts/ci-local.sh` is no longer "the only lane that runs every
+point on one tree"** — the sentence below saying so was true for thirteen
+days. Local still runs all five k-lint unifications and its opt-in
+`--nightly` row; hosted now matches it on the lane and ε.
 Ev's proposal, and the reason it is a separate section rather than a
 finding: the audit above tuned what each job costs, and this changes
 **what a run gates**. A code-tier run used to execute every point of
@@ -1052,9 +1234,10 @@ one caller — `local-scripts/ci-local.sh`, which still runs both lanes on
 one tree — and is declared in that script's `MIRROR_EXEMPT` with the
 reason.
 
-**`local-scripts/ci-local.sh` is now the only lane that runs every point
+**`local-scripts/ci-local.sh` WAS then the only lane that runs every point
 on one tree**, and is deliberately not sampled: nothing bills it by the
-minute. Local is a strict superset of any hosted run.
+minute. (Superseded 2026-09-04 — hosted runs every lane and ε point too;
+local still adds all five k-lint rows and its `--nightly` row.)
 
 ### Expected cost, derived not measured
 
@@ -1706,3 +1889,121 @@ samples swamps a single pair — read several.
 lanes: `shared-key` changes the key string, so the old entries are
 unreachable. That run is not the verdict, the same trap the OPT LEVEL
 note in ci.yml warns about.
+
+## 2026-09-04 — the re-take on the public 4-vCPU runner (CIW unit 8)
+
+**This document's opening premise is dead.** *"The Actions allowance was
+being consumed faster than the work justified"* was true of a private
+repository. `evgunter/cad` went public on 2026-09-03 (`5cc16e81` …
+`483212ef`; the repository record read `visibility: public`,
+`private: false` on 2026-09-04), standard-runner minutes are not billed,
+and the runner is **4 vCPU / 16 GB** — read first-hand off run
+**33830873453**, job **100893490483**, whose `runner + linker
+provenance` step prints `nproc` = **4** and `free -g` total **15**.
+
+**Every timing above this section predates that runner.** They are an
+ordering of costs, not a budget. What follows re-takes the ones a
+decision now rests on. The population is `pull_request` runs created
+between `2026-09-03T15:20Z` and `2026-09-04T05:47Z` with
+`status=completed` **and `conclusion` in {`success`, `failure`} —
+cancelled runs excluded**, since a cancelled run's job set is a
+truncation rather than a sample: **220 runs, 149 of them code-tier**,
+read from the jobs API. (Keeping the cancelled ones in gives 268 / 195
+and moves every duration; the exclusion is part of the frame, not a
+filter applied afterwards.)
+
+| what | 2 vCPU (above) | 4 vCPU (this section) |
+|---|---|---|
+| code-tier run, created → last job end | 13.75 min (critical path) | **7.4 min** median (442 s); **8.03 min** (482 s) at `tier=all`, n=66 |
+| `build + archive (default)`, `--workspace` | 820 s cold / 603–639 s warm | **336 s** median (n=23) |
+| `build + archive (interval)`, `--workspace` | 840 s cold / 606–677 s warm | **388 s** median (n=43) |
+| a code-tier run's total job time | ~87 billed min, then ~62, then ~40 derived | **24.4 job-minutes** median (1462 job-s over 15 live jobs) |
+
+Two changes are inside that difference — the core count and the cache
+priming landed the same day — and this reading does not separate them.
+It is what a run costs today, which is what the decisions need.
+
+**The billing model at the top of this file no longer applies.** Per-job
+round-up is not a cost when minutes are not billed; the currency is
+**wall clock** (latency to a verdict) and **runner load** (job-minutes an
+hour, against concurrency). Quote those, not billed minutes, in any new
+argument.
+
+### What this changes for F3, and what it does not
+
+The re-costing of F3 itself, its options and a recommendation are in
+`work/ciw/f3-recosting-on-a-public-repo` and go to Ev on an `[ev]` PR.
+Three results from it belong here, because they correct or complete
+statements this document makes:
+
+1. **F3's push-run saving is now 24.4 job-minutes per code-tier merge
+   and zero dollars.** At the measured merge rate (200 push runs over
+   45.66 h = 4.36/h, of which 90 are code-tier = 1.97/h) restoring the
+   full set would cost **+48 job-minutes an hour**, or **+0.80 mean
+   concurrent jobs** against a measured mean of 4.3, a p90 of 12 and a
+   peak of 36 from PR runs alone. Queue delay today is 3 s median, 25 s
+   at p99: there is no queue for it to join.
+2. **"main's push runs classify docs-tier" is false, and this document
+   is not where that claim lives, but its readers act on it.** 90 of 200
+   push runs (45 %) ran `renders`, which requires `RUN_K_LINT=true`,
+   which `scripts/ci-filter.py:1730` sets for every tier but `docs`;
+   `RUN_BUILD` follows the same rule at `:1713`. The test rows are
+   skipped on **100 %** of push runs by F3's `github.event_name !=
+   'push'` guard, not by the tier.
+3. **A restored push run would be cancelled more often than not.**
+   Median gap between pushes on `main` is **308 s** and only **36 %** of
+   code-tier pushes have ≥442 s before the next one. It is not
+   speculative: **51 of the 90 code-tier push runs (57 %) are already
+   cancelled today**, at a job set whose median is 259 s, against 15 %
+   of docs-tier pushes at a 40 s median. The longer the run, the more of
+   them die, and a 442 s run sits above both readings. Restoring jobs
+   without also stopping the cancellation buys a gate that does not
+   finish — and stopping it is **three interacting mechanisms**, not one
+   line: `render.yml:268–275`'s own gate-mode group keyed on the
+   caller's ref (which *starts* firing once the run-level group goes
+   per-SHA), the `cache-on-failure: false` argument at 1830–1840 above,
+   which is argued *from* push runs being cancelled, and `renders`'
+   `push_to` commit to `main` at 4203, which assumes serialisation.
+   Priced in `work/ciw/f3-recosting-on-a-public-repo`, which does not
+   price the design pass and says so.
+
+### The scheduled full run: still declined, and now for a better reason
+
+Priced at today's rates it is **9.8 job-hours a day hourly** or 24.4
+job-minutes a day nightly — *cheaper* than a per-merge run, since it does
+not scale with the merge rate. It stays declined anyway, and the price
+change is not why: measured on the one instance in evidence, the next
+PR's merge-ref run was created **11 m 41 s** after the composing merge
+and went red **17 m 29 s** after it (run `33788618577`, job
+`100761051102`, +348 s into its own run). So a scheduled run buys a
+slower copy of a discovery that already happens, and names a window of
+~4.4 merges instead of one. What the residue costs is attribution, and a
+scheduled run does not supply it.
+
+**For the same reason a per-merge run is not a slower copy: it is a
+faster one.** At the same 348 s in-run offset a push run on that merge
+reds at `18:01:30Z` — **11 m 41 s before** the PR run did, because it
+starts 11 m 41 s earlier. Any comparison that puts the PR run first is
+subtracting a run *duration* from a run *creation* time.
+
+### The cache section's first reading owed, taken
+
+That section asks for "the first PR opened after this merges, **first
+run**, `build + archive`'s restore line", and the first-run half is the
+half that carries it. Run **33827576986** is the **first-ever** `ci.yml`
+run on branch `m10/hotfix-tag-inventory`; its job **100883473006**
+compiled the workspace crates and a handful of registry crates,
+`Finished 'test' profile … in 54.22s`, and its post step printed `Cache
+up-to-date.` — rust-cache's exact-hit, nothing-to-save line. A cold
+build of that scope recompiles ~225 registry crates, and this branch had
+saved nothing of its own, so the entry came from `main`'s scope.
+**The primer works and a branch now inherits `main`'s entry.**
+
+(Job **100893490483** shows the key and the hit —
+`Cache hit for: v0-rust-build-default-Linux-x64-fa41882e-fd5fb1c1`,
+263 MB, `full match: true` — but it is that branch's fourth run and
+could have restored its own save, so it is not the evidence for
+inheritance.)
+
+`work/tcost/rust-cache-never-restores-across-branches` still says no PR
+can inherit one; that item is S-TCOST's to update.

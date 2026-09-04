@@ -998,3 +998,63 @@ fn arc_points(radius: f64, theta: f64, chord: f64) -> usize {
     }
     ((theta.abs() / step).ceil() as usize).clamp(1, MAX_ARC_POINTS)
 }
+
+/// **How big the tip marks in a profile preview are**/// **How big the tip marks in a profile preview are**, in sketch-plane
+/// metres: a fraction of the whole preview's extent.
+///
+/// Relative rather than absolute because a preview has no fixed scale
+/// — a 2 mm boss and a 2 m plate go through this same form — and
+/// relative to the WHOLE preview rather than to each loop, so a bore's
+/// marks match its outer's. A preview with no extent at all (a single
+/// authored point, nothing yet) has nothing to take a fraction of and
+/// gets no marks; a cross of size zero would be no mark anyway.
+pub fn tip_mark(loops: &[PreviewLoop]) -> f64 {
+    let points = loops.iter().flat_map(|drawn| drawn.points.iter());
+    let mut lo = [f64::INFINITY; 2];
+    let mut hi = [f64::NEG_INFINITY; 2];
+    for point in points {
+        for axis in 0..2 {
+            lo[axis] = lo[axis].min(point[axis]);
+            hi[axis] = hi[axis].max(point[axis]);
+        }
+    }
+    let diagonal = (hi[0] - lo[0]).hypot(hi[1] - lo[1]);
+    if diagonal.is_finite() && diagonal > 0.0 {
+        diagonal * TIP_MARK_FRACTION
+    } else {
+        0.0
+    }
+}
+
+/// The share of a preview's diagonal one tip mark spans — small enough
+/// that a dense chain does not become a field of crosses, large enough
+/// to read against the geometry it sits on. The heading tick is twice
+/// this again, because a direction has to be long enough to have one.
+///
+/// Set by looking: at 0.025 it was under a pixel on a profile filling
+/// a third of the viewport, which is a mark nobody can see — and a
+/// sketch plane seen at a grazing angle foreshortens whatever is left.
+const TIP_MARK_FRACTION: f64 = 0.07;
+
+/// **Which way the chain leaves the vertex at `at`** — a unit vector,
+/// or `None` where there is no next point to take one from.
+///
+/// The next flattened point, which is the tangent to within the chord
+/// tolerance the preview was flattened at. At the LAST vertex of an
+/// open chain there is no leaving direction, so the INCOMING one is
+/// answered instead: that tip is where the chain currently ends, and
+/// the heading a reader wants there is the one it arrived on.
+pub fn heading(points: &[[f64; 2]], at: usize, closed: bool) -> Option<[f64; 2]> {
+    let (from, to) = if at + 1 < points.len() {
+        (points[at], points[at + 1])
+    } else if closed && points.len() > 1 {
+        (points[at], points[0])
+    } else if at > 0 {
+        (points[at - 1], points[at])
+    } else {
+        return None;
+    };
+    let (dx, dy) = (to[0] - from[0], to[1] - from[1]);
+    let length = dx.hypot(dy);
+    (length > 0.0).then(|| [dx / length, dy / length])
+}
