@@ -318,3 +318,8 @@ LANE-PRIVATE paths (`~/.local/share/cad-work/<lane>-*.md`,
 `cad-work/<lane>/`), never the scratchpad — filenames alone leak, which
 makes it a blinding channel as well as a confusion one. Orchestrator
 briefs state this.
+- **The session scratchpad is SHARED across every lane a session spawns**
+  (`/tmp/claude-0/<project>/<session>/scratchpad/`): two concurrent
+  reviewer lanes writing `build.sh` there overwrote each other, and one
+  ran the other's script — a v6 item 5 glimpse. Every lane brief names
+  a private scratch directory of its own beside its private target dir.
