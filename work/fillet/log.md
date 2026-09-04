@@ -307,3 +307,18 @@ band with the transverse cut-off, out as an `[ev]` PR because it
 proposes `CornerConfig::TransverseCap` / `RunOutPolicy::CutOffAtTransverseCap`
 for ratification; `needs_ev` set on the item for that alone). Block
 FILLET-B2 opens with ATTR, H6 and H7 once slot 2 concludes.
+
+**H5 stopped at Phase 1 and was re-scoped, same lane (2026-09-04).** The
+lane measured that the spec's "native instance" does not exist (a full
+revolve splits the whole loop at its seam, so the plane-hosted rim
+arises only after `merge_coplanar_faces`), that the repaired boss and
+dimple route to the LADDER and refuse on a FALSE ring clearance (a
+nested trim circle judged by external separation — filed as
+`ring-clearance-refuses-a-nested-trim-circle`, its own numeric unit),
+and that the seam-split resolution refuses the shape at its half-band
+gate rather than at `wall_seam`. Six repaired fixtures carry the defect
+on both material sides (the bowl floor is the concave one). Spec
+amended §"Re-scope at Phase 1"; the Phase 2 design stands; PR
+[#1824](https://github.com/evgunter/cad/pull/1824) is the unit's PR.
+`D323`/`D324` turn out closed by code-quality (PR 1783) — this log's
+opening note that they land as FILLET riders is superseded.
