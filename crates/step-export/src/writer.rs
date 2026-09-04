@@ -1178,7 +1178,8 @@ mod tests {
                 vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
                 vec![1.0, 1.0],
             )
-            .expect("a validated degree-1 net"),
+            .expect("a validated degree-1 net")
+            .into(),
         );
         assert!(
             printable_carrier(&described, edge).is_ok(),
