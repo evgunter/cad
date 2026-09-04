@@ -636,7 +636,7 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — every 
 /// spine-kind sentence, stays open there) — PROVIDED each support face
 /// carries one arc of the rim: a pole-touching body whose merged cap
 /// hosts both arcs on one plane face routes to the ladder and refuses on
-/// its ring gate (README A3-2, `work/issues/repaired-pole-rim-serves-no-closed-door.md`),
+/// its ring gate (README A3-2, `work/fillet/repaired-pole-rim-serves-no-closed-door.md`),
 /// so the sentence says so rather than over-promise at that body.
 /// `blend_recourse_followability` follows the clause to a carve.
 pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open chains are single plane\u{2013}plane links ending at \

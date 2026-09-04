@@ -122,7 +122,7 @@ one, so the sentence conditions on nothing. A pole-touching
 body with merged caps (`merge_coplanar_faces`) hosts both arcs on one
 plane face and routes to the ladder rim, which refuses on its ring
 gate; the tag does not fire there
-(`work/issues/repaired-pole-rim-serves-no-closed-door.md`).
+(`work/fillet/repaired-pole-rim-serves-no-closed-door.md`).
 
 **A3-3 — the genuine mid-curve run-out is named and not implemented.**
 Stopping a band part-way along a smooth rim, at a station with no
