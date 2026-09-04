@@ -2,8 +2,11 @@
 id: f3-recosting-on-a-public-repo
 kind: unit
 title: F3 and the nightly demotions rest on an Actions allowance this repo no longer has: re-cost them on a public repo
-status: open
+status: review
 opened: 2026-09-04
+pr: 1796
+branch: ciw/f3-recosting
+needs_ev: true
 ---
 
 
