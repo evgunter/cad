@@ -139,3 +139,49 @@ repaired). PR 1746 is GREEN on the same base, so that item's "billed
 to every code-tier PR" is too strong: it is billed to every PR whose
 closure REACHES `pncad-py`. 1748 does only because it re-exports
 through `crates/pncad`.
+
+## Four of nine landed (2026-09-04)
+
+Merged: `probe-bounds-lacks-driven-slot-guard` (1746),
+`viewer-mate-tool-refuses-pattern-picks` (1748),
+`viewer-render-pipeline-creation-untested` and
+`viewer-chrome-not-in-nextest-archive` (1755). In review:
+`placed-union-has-no-session-op` (1762, green),
+`pickindex-per-part-window-twins` (1768). Dispatched:
+`refused-mate-badges-every-instance-row`.
+
+**The session's worst near-miss, recorded because nothing red it.**
+PR 1755 sat CONFLICTING against main for three commits, and a
+conflicting PR gets NO check runs at all — silently. Two pushes went
+into the void; the PR looked fine, its last green run pointing at an
+older head. What found it was ruling the alternatives out: other
+programs' runs were healthy in the same minutes, and this program's
+OTHER PR was gating normally, which left something specific to the
+branch. `git merge-tree` against main then named the file.
+
+Two lessons worth more than the fix. **The standard ways to force a
+run are both forbidden here and would both have failed anyway** — an
+empty commit and a close/reopen do not resolve a conflict. What
+unblocked it was doing work that was genuinely owed (two filed style
+findings), which forced a legitimate run attempt. And **the conflict
+resolution was a UNION, not a side**: both branches had ADDED
+different tests at one location, so taking either would have deleted a
+test in a file the taker never edited — invisible to any diff review.
+
+**A guard caught a guard.** The fix that bound the pipeline census
+mechanically introduced a site reading Rust source as text, and
+`reader_census` exists so such a site cannot arrive silently. Its own
+docs gave the disposition: a new hand-rolled reader owes the SHARED
+LEXER, not a ledger line. Routing through `test_utils::source::code_only`
+also repaired a sensitivity the row already carried — the raw
+`matches` counted the needle in comments and in the row's own
+literals, so it answered about prose rather than calls. Both
+directions controlled: a planted comment no longer reds it, and the
+three real calls still count.
+
+**Twice this session a green PR nearly merged without its style
+review**, both times because green-and-mergeable reads as done. The
+first catch was worth it immediately: that review found a PR body
+claiming a record its own diff did not contain, and an item scheduling
+work that was already finished. The posture costs a round trip and has
+paid for itself every time.
