@@ -303,8 +303,7 @@ fn r2_stepped_meridian_vase_mints_one_annular_rim() {
     // offset now succeeds** — the axial door solves those corners — and
     // that half is asserted here rather than skipped.
     topo::shell(&body, t, FIT_TOL, tol)
-        .expect("the stepped vase's SEALED hollow is inside the axial door")
-        .body;
+        .expect("the stepped vase's SEALED hollow is inside the axial door");
 
     // **And the OPENED arm succeeds too**, which this row asserts
     // rather than tolerating. An earlier cut of this change carried an

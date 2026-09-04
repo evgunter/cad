@@ -1145,6 +1145,9 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
     Ok(Shelled { body: out, naming })
 }
 
+/// A rim ring's two row lists: its edge rows and its vertex rows.
+type RingRows = (Vec<(EdgeKey, EdgeKey)>, Vec<(VertexKey, VertexKey)>);
+
 /// The rim ring's edge and vertex rows, in ring cycle order: each
 /// result entity paired with the source entity it is the inward twin
 /// of, looked up in the inner-twin rows the graft map wrote.
@@ -1157,7 +1160,7 @@ fn ring_rows<T: Real>(
     body: &Body<T>,
     ring: LoopKey,
     naming: &ShellNaming,
-) -> Result<(Vec<(EdgeKey, EdgeKey)>, Vec<(VertexKey, VertexKey)>), ShellError<T>> {
+) -> Result<RingRows, ShellError<T>> {
     let corrupt = |key| ShellError::Corrupt { key };
     let LoopBoundary::Cycle { first } = body
         .get_loop(ring)
