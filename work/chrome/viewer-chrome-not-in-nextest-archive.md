@@ -7,6 +7,7 @@ opened: 2026-08-31
 github: 1385
 refs: [1375]
 branch: chrome/viewer-app-feature-ci-coverage
+pr: 1755
 ---
 
 ## From GitHub issue 1385
@@ -38,7 +39,7 @@ built once and downloaded by every leg of the `test` matrix
 buys nothing for rows that already gate. The row instead sits beside
 the app-feature clippy step under the same `run_viewer_toolkit` axis
 Ev's viewer-CI-posture ruling put there. Numbers and their blind spots
-are in PR 1752.
+are in PR 1755.
 
 **The item's premise was incomplete: there were THREE silent skips in
 `viewer`, not one.** `chrome_labels.rs` was the one this item names;

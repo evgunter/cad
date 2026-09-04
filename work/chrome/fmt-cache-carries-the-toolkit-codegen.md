@@ -4,7 +4,7 @@ kind: issue
 title: The app-feature test row makes fmt's rust-cache carry toolkit codegen on every run, including runs that skip it
 status: open
 opened: 2026-09-04
-refs: [1752]
+refs: [1755]
 ---
 
 Raised by CHROME's implementer lane against the CHROME orchestrator's

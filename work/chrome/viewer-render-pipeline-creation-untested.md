@@ -6,6 +6,7 @@ status: review
 opened: 2026-09-01
 github: 1451
 branch: chrome/viewer-app-feature-ci-coverage
+pr: 1755
 ---
 
 ## From GitHub issue 1451
