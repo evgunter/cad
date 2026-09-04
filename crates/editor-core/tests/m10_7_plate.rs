@@ -10,6 +10,11 @@
 //! under the ε matrix.
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+// A `tests/` fixture door whose only consumer is the probe-gated census
+// suite, so a default-feature build sees it unused. The workspace lint
+// note on `unreachable_pub` covers this shape: a test binary has no
+// external API, so nothing is hidden by the allow.
+#![allow(dead_code)]
 
 use crate::fixture;
 

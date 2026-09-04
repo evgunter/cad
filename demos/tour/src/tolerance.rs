@@ -8,15 +8,35 @@
 //!
 //! # What the two stops are for
 //!
-//! **Stop 1 is what a user gets today.** ±0.05 mm on the hole spacing
-//! and σ = 0.01 mm on each radius — a real study — and the answer is
-//! `NothingCertified`: no leaf of that box replays at the interval
-//! scalar, because every certification identity the kernel runs widens
-//! with the box (issue 1191). The refusal is not silence: it carries
-//! the nominal, every sensitivity marked `LocalOnly`, the coverage
-//! saying where the mass went, and the drive's receipt. Beside it the
-//! Monte-Carlo lane answers the same question the only way anything
-//! can at that box — advisorily, labeled, with its count and seed.
+//! **Stop 1 is what a user gets today, and E12 moved WHY.** ±0.05 mm
+//! on the hole spacing and σ = 0.01 mm on each radius — a real study —
+//! and the answer is still `NothingCertified`. What changed is the
+//! reason, and it is now a single named family rather than "every
+//! certification identity widens".
+//!
+//! The symbolic identity tier (`geom_core::sym`, ERROR-DESIGN E12)
+//! discharges a margin whose expression is identically zero in the
+//! parameters, at any box width. On this plate it discharges most of
+//! them — the drive's own receipt says how many — and the box still
+//! refuses on ONE: an arc rim's endpoint pinning. A swept arc's carrier
+//! is `Circle { u_ref: (q − c).normalize(), radius: r }`, so the
+//! endpoint residual is zero iff `‖q − c‖ = r`, which is true of the
+//! geometry and is not a rational-function identity — it needs the sign
+//! of the radius, not algebra. MEASURED: the widest box of this plate
+//! that certifies whole is 7.81e-7 of the real study with the tier on
+//! and 7.81e-7 with it off, unmoved, and the first refusal beyond it is
+//! `carrier_endpoint_start`. On a straight-walled extrude, where no
+//! normalization stands between a carrier and its endpoint, the same
+//! measurement moves by a factor of about 8·10^9.
+//!
+//! So the ε-scale ceiling is not gone from THIS document, and the cell
+//! says so rather than reporting a win it did not get. E12's reserved
+//! recourse for exactly this family is a provenance token; it is not
+//! built. The refusal is not silence either way: it carries the
+//! nominal, every sensitivity marked `LocalOnly`, the coverage saying
+//! where the mass went, and the drive's receipt. Beside it the
+//! Monte-Carlo lane answers the same question the only way anything can
+//! at that box — advisorily, labeled, with its count and seed.
 //!
 //! **Stop 2 is the MVP's reason to exist, at the scale where it
 //! works.** The same plate with every tolerance scaled to the box the
@@ -315,12 +335,13 @@ fn plate(
 /// **Stop 1's leaf budget, and why it is not the default.**
 ///
 /// At ±0.05 mm nothing certifies at ANY budget — the box is six orders
-/// wider than the width a certification identity survives — so the
-/// default 65,536 leaves spends about a minute subdividing its way to
-/// the same `NothingCertified` a thousand reach in a second. The cell
-/// caps it and says so, which is a statement about the COST of a
-/// refusal rather than a thumb on the answer: a reader who doubts it
-/// can raise the number and watch the report not change.
+/// wider than the width the arc-rim endpoint identity survives (the
+/// module header names the family) — so the default 65,536 leaves
+/// spends about a minute subdividing its way to the same
+/// `NothingCertified` a thousand reach in a second. The cell caps it
+/// and says so, which is a statement about the COST of a refusal rather
+/// than a thumb on the answer: a reader who doubts it can raise the
+/// number and watch the report not change.
 fn starved() -> DriveConfig {
     DriveConfig {
         max_leaves: 1024,
@@ -351,8 +372,9 @@ fn real_study(tol: Tol) {
     println!("{}", indent(&verdict.render(&analyzed)));
     match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
         Ok(report) => {
-            // Not the expected answer today; if the widening class ever
-            // closes (issue 1191) this is what a reader should see.
+            // Not the expected answer today; if the arc-rim family the
+            // header names is ever discharged, this is what a reader
+            // should see.
             println!("{}", indent(&report.render(&analyzed)));
         }
         Err(StackupRefusal::NothingCertified {
@@ -383,9 +405,13 @@ fn real_study(tol: Tol) {
             );
             println!("{}", indent(&MassBudget::of(&coverage, &analyzed).render()));
             println!(
-                "     WHY: every certification identity the kernel runs widens with the \
-                 box, so at ±0.05 mm no leaf replays at the interval scalar at all. That \
-                 is the ε-scale ceiling — issue 1191 — and it is this MVP's honest limit, \
+                "     WHY: the symbolic identity tier (E12) discharges most of this \
+                 plate's certification identities, and one it cannot reach — an arc \
+                 rim's endpoint pinning, whose residual is zero because ‖q − c‖ = r \
+                 rather than by algebra — still widens with the box. At ±0.05 mm no \
+                 leaf replays. MEASURED: the widest whole-certifying box is 7.81e-7 of \
+                 this study with the tier on AND off; on a straight-walled extrude the \
+                 same measurement moves by ~8e9. The ceiling is a named family now, \
                  not a property of the plate."
             );
         }
@@ -457,9 +483,9 @@ fn certified_study(tol: Tol) {
         Err(refusal) => {
             println!(
                 "   the certifiable box did not certify either: {refusal}\n     \
-                 That is a finding about the widening class (issue 1191), not about the \
-                 plate — the cell prints it rather than choosing a box that flatters the \
-                 kernel."
+                 That is a finding about the arc-rim endpoint family the module header \
+                 names, not about the plate — the cell prints it rather than choosing a \
+                 box that flatters the kernel."
             );
         }
     }
@@ -537,7 +563,9 @@ fn assertion_over_leaves(
 ) -> Decided {
     let mut seen: Option<Decided> = None;
     for leaf in verdict.certified() {
-        let one = match assertion_at(doc, assertion, &leaf.box_, tol) {
+        // On the lane the drive certified the leaf on — the verdict
+        // carries it, so a consumer never has to know which.
+        let one = match assertion_at(doc, assertion, &leaf.box_, verdict.symbolic(), tol) {
             Some(v) => match v.holds() {
                 Some(true) => Decided::Holds,
                 Some(false) => Decided::Violated,

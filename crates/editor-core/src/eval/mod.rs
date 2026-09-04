@@ -1348,7 +1348,12 @@ impl<T> EvalScalar for T where
 }
 
 // ------------------------------------------- the certified-leaf replay
+//
+// Gated on `interval` for the driver's own reason (`crate::drive`'s
+// module gate): a leaf replays at the certified scalar, so without it
+// there is no leaf and nothing to replay.
 
+#[cfg(feature = "interval")]
 /// **Which lane a certified leaf is replayed on** (ERROR-DESIGN E12).
 ///
 /// A leaf certified with the symbolic tier on can carry a node a
@@ -1364,6 +1369,7 @@ pub(crate) enum LeafLane {
     Symbolic(geom_core::SymBudget),
 }
 
+#[cfg(feature = "interval")]
 /// A shared memo prior over the nominal box, for the numeric lane.
 ///
 /// **The symbolic lane has none, deliberately.** A `Sym` value carries
@@ -1381,6 +1387,7 @@ pub(crate) enum LeafPrior {
     Numeric(Box<Evaluation<geom_core::Interval>>),
 }
 
+#[cfg(feature = "interval")]
 impl LeafPrior {
     /// The prior for `lane` over `nominal_box`.
     pub(crate) fn of(
@@ -1402,6 +1409,7 @@ impl LeafPrior {
     }
 }
 
+#[cfg(feature = "interval")]
 /// What a consumer wants read off a leaf's replay.
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct LeafRequest {
@@ -1413,6 +1421,7 @@ pub(crate) struct LeafRequest {
     pub assertion: Option<crate::node::RecipeNodeId>,
 }
 
+#[cfg(feature = "interval")]
 /// What came back.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct LeafReadback {
@@ -1429,6 +1438,7 @@ pub(crate) struct LeafReadback {
     pub assertion: Option<crate::measure::AssertionVerdict<geom_core::Interval>>,
 }
 
+#[cfg(feature = "interval")]
 /// **Replays one leaf on `lane` and reads back what `want` asks for** —
 /// the ONE door every certified-leaf consumer goes through
 /// ([`LeafLane`]).
@@ -1468,6 +1478,7 @@ pub(crate) fn replay_leaf(
     }
 }
 
+#[cfg(feature = "interval")]
 /// The reads themselves, at whatever scalar the lane ran — `project`
 /// takes the lane scalar down to the numeric channel, which is where
 /// every number a consumer sees is quoted from.

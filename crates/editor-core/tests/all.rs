@@ -169,6 +169,8 @@ mod m10_6_min_clearance_interval;
 mod m10_6_r1_probes_interval;
 #[path = "m10_6_reports_interval.rs"]
 mod m10_6_reports_interval;
+#[path = "m10_7_lever.rs"]
+mod m10_7_lever;
 #[path = "m10_7_census_probe.rs"]
 mod m10_7_census_probe;
 #[path = "m10_7_plate.rs"]
