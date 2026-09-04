@@ -2,12 +2,13 @@
 id: doc-params-carry-no-display-unit
 kind: issue
 title: The PANEL does not read a document parameter's display unit — the storage half landed, the authoring and readout halves did not
-status: review
+status: closed
 opened: 2026-09-01
 github: 1459
 refs: [1458]
 branch: chrome/doc-params-carry-no-display-unit
 pr: 1776
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1459

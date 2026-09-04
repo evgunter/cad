@@ -504,6 +504,33 @@ tracker paths and were re-pointed in this sweep rather than left:
   `work/pcurve/program.md` as PCURVE's done-state of record; it now points
   at `docs/PCURVE-EXIT-WALK.md`, which is what that record actually is.
 
+## Sweep 6 — 2026-09-04: S-MATE leaves the tracker
+
+Sweep SHA: `386e170f` (`main`'s tip immediately before the deletion),
+so every path below is recoverable at
+`git show 386e170f:work/mate/<FILE>` and
+`git show 386e170f:docs/S-MATE-EXIT-WALK.md`.
+
+Sweep 5's rule. The walk rode PR #1528 as PROPOSED and Ev merged it
+on 2026-09-01; the ratification it asked for was confirmed in-chat on
+2026-09-04 ("if S-MATE's exit walk is merged then it means I approved
+it"), and nothing had run the sweep in between. Four files, one
+program:
+
+- `work/mate/program.md`, `plan.md`, `log.md` — S-MATE's charter,
+  plan and narrative: nine units (ordinals 1300–1308), two in-program
+  ratifications (PRs #1440, #1469).
+- `work/mate/MATE-EXIT.md` — the ratification ruling, closed by this
+  sweep.
+
+Residue was re-homed before the sweep (the log's 2026-09-03 "Seam"
+entry): five issues to `work/fix/`, two to `work/docm/`, six to
+`work/curved/`; the walk's handoffs ledger names every other
+pointer's home. What opens with this sweep: `crates/editor-core/src/mate.rs`,
+`mate/*` and `assembly.rs` pass to DOCM's territory per its program
+header; `crates/topo/src/census.rs`, `boolean/rest.rs` and
+`boolean/carrier_eq.rs` are unowned until a program claims them.
+
 ## Per-merge deletion — M10's merged-unit specs (2026-09-03)
 
 Recoverable at `git show 08931277cf23c29d35daa41a15a4cecc6495022e:docs/<NAME>`
@@ -586,9 +613,8 @@ that lands here resolves without opening the walk:
 | `PCURVE-EXIT-WALK.md` | 2026-08-29 | in-chat | this row; `docs/PCURVE-UNIFY-DESIGN.md` stays (P-2 residue is S-CERT's) |
 | `S-BLEND-EXIT-WALK.md` | 2026-08-31 | PR #1370 | this row; vocabulary at `crates/sweep/README.md`, enclosing tangency at `crates/profile/README.md` |
 | `S-QA-EXIT-WALK.md` | 2026-08-31 | PR #1341 | this row |
+| `S-MATE-EXIT-WALK.md` | 2026-09-04 | PR #1528, merged by Ev 2026-09-01; ratification confirmed in-chat 2026-09-04 | this row; design at `crates/editor-core/ASSEMBLY.md`; sweep 6 below |
 
-`S-MATE-EXIT-WALK.md` is NOT here: it is PROPOSED, awaiting Ev
-(`work/mate/MATE-EXIT.md`), and goes when it is ratified.
 
 - `M5-EXIT-WALK.md` — M5 exit walk (PR 14) — criteria vs evidence
 - `M6-EXIT-WALK.md` — M6 exit walk — criteria vs evidence
@@ -600,6 +626,7 @@ that lands here resolves without opening the walk:
 - `PCURVE-EXIT-WALK.md` — PCURVE — exit walk
 - `S-BLEND-EXIT-WALK.md` — S-BLEND exit walk — criteria vs evidence
 - `S-QA-EXIT-WALK.md` — S-QA exit walk — criteria vs evidence
+- `S-MATE-EXIT-WALK.md` — S-MATE exit walk — criteria vs evidence
 
 ### Per-unit specs, unit merged (46 files)
 

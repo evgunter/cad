@@ -569,15 +569,32 @@ pub enum MateFault {
     /// CONTRADICTORY): names both mates, the predicate that failed,
     /// and the measured clash.
     Contradictory {
-        /// The mate already folded.
+        /// The mate already folded. **Equal to `added` when one mate
+        /// contradicts ITSELF**: a mate whose own datum and rider admit
+        /// no common pose dies by the same rule, and naming it on both
+        /// sides is how that shape reaches this variant.
         held: RecipeNodeId,
         /// The mate whose intersection died against it.
         added: RecipeNodeId,
         /// The predicate that decided against them.
         predicate: &'static str,
-        /// The measured clash, in metres (the margin that should have
-        /// been zero and was not).
+        /// The measured clash, in metres: the margin that should have
+        /// been zero and was not, or — for the predicate that decides
+        /// the empty intersection STRUCTURALLY — no measurement at all.
+        /// Which of those it is, is settled by `predicate`, never by
+        /// reading this number.
         clash: f64,
+        /// The lever, when the predicate measured a ROLL and an arm
+        /// carried it to `clash`: `(radians, arm in metres)`, in that
+        /// order, whose product is the deviation. `None` when the
+        /// predicate measured its margin without a lever.
+        ///
+        /// The arm is the solve's own scale surrogate
+        /// ([`Alignment::lever_arm`]) — the larger of the two frame
+        /// origins' distances and the authored lengths, floored at one
+        /// metre — and NOT a contact feature, so a message that names
+        /// it is naming that scale and nothing in the model.
+        lever: Option<(f64, f64)>,
     },
     /// A tree mate left a positive-dimensional residual (A11 rule 4's
     /// UNDER): names the pair, the residual subgroup, and its
@@ -625,6 +642,13 @@ pub enum MateFault {
     },
 }
 
+/// The predicate that decides the EMPTY intersection. It is the one
+/// name in the membership vocabulary that reports no measurement — the
+/// empty set holds nothing and no margin decides that — so it is a
+/// shared constant rather than a literal at each site, and every door
+/// that needs to know reads THIS rather than inspecting a margin.
+pub(crate) const MATE_MEMBER_EMPTY: &str = "mate_member_empty";
+
 impl core::fmt::Display for MateFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -658,12 +682,61 @@ impl core::fmt::Display for MateFault {
                 added,
                 predicate,
                 clash,
-            } => write!(
-                f,
-                "mates {} and {} cannot both hold: predicate `{predicate}` measured a clash of \
-                 {clash} m where their cosets would have had to meet",
-                held.0, added.0
-            ),
+                lever,
+            } => {
+                // One mate named on BOTH sides is a mate contradicting
+                // itself, and "mates 6 and 6" reads as an indexing
+                // fault rather than as the shape the payload states.
+                if held == added {
+                    write!(
+                        f,
+                        "mate {} contradicts itself — the constraints it declares admit no \
+                         common pose",
+                        held.0
+                    )?;
+                } else {
+                    write!(f, "mates {} and {} cannot both hold", held.0, added.0)?;
+                }
+                write!(f, ": predicate `{predicate}` ")?;
+                // WHETHER there is a measurement to report is the
+                // predicate's fact, settled where the refusal is
+                // raised. The margin's value never stands in for it:
+                // reading a sentinel back out of a number makes every
+                // other non-finite margin claim to be this case.
+                if *predicate == MATE_MEMBER_EMPTY {
+                    return write!(
+                        f,
+                        "found the cosets meet in the empty set — a structural refusal, with no \
+                         margin to measure"
+                    );
+                }
+                // A levered clash IS the product of its two halves, so
+                // the sentence prints the product it computes here.
+                // Stating a stored figure beside the halves would
+                // assert an identity nothing enforces.
+                if let Some((radians, arm)) = lever {
+                    return write!(
+                        f,
+                        "measured a roll of {radians} rad on a {arm} m arm, a deviation of {} m \
+                         where the cosets would have had to meet",
+                        radians * arm
+                    );
+                }
+                // Every other margin is a length measured outright —
+                // and a length that is not finite is not one.
+                if clash.is_finite() {
+                    write!(
+                        f,
+                        "measured a clash of {clash} m where the cosets would have had to meet"
+                    )
+                } else {
+                    write!(
+                        f,
+                        "measured a clash that is not a finite length ({clash}) where the cosets \
+                         would have had to meet"
+                    )
+                }
+            }
             Self::Under {
                 mate,
                 parent,

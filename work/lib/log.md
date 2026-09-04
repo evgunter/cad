@@ -2698,3 +2698,12 @@ kernel #1202; a LIB-13 block draw still owed before any full-protocol
 unit. Twenty-four issues open, and the mechanical feedstock is now
 spent: what remains is design questions, Ev rulings, kernel-crate prose
 and multi-unit surfaces. The next LIB unit is a substantive one.
+
+## Hand-off from DOCM (2026-09-04)
+
+`no-door-mints-mate-frame-from-face` re-homed here by header-preserving
+`git mv`: the frozen-at-authoring answer is ratified as the mate side's
+(`docs/DOCM-REFERENCES-DESIGN.md` DM1, the asymmetry paragraph), the
+viewer's mate tool already derives its frames that way, and what is
+left is the headless door — a `Pose` into a `MateFrame` from the façade
+— which is LIB's surface. Signed (DOCM orchestrator).

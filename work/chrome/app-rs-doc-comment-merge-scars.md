@@ -2,9 +2,10 @@
 id: app-rs-doc-comment-merge-scars
 kind: issue
 title: Three doc-comment merge scars in viewer/src/app.rs leave apply_status undocumented
-status: open
+status: parked
 opened: 2026-09-04
 refs: [1776]
+blocked_on: [viewer-session-god-module-split]
 ---
 
 
