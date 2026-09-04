@@ -15,10 +15,10 @@
 
 use editor_core::{
     AssemblyError, CapEnd, DeclareError, Diagnosis, Dimension, DimensionError, DocParamValue,
-    EditError, EntityKind, EvalError, HitTestError, InterrogateError, MateSide, MeshPickError,
-    NodeErrorKind, NodePickError, ParamName, ParseError, ProgramFault, RecipeNodeId, RefusedRef,
-    ResolveFault, ResolveIndeterminate, RoleSeg, SelectRefusal, SlotId, SnapshotError, StableName,
-    StepArg,
+    EditError, EntityKind, EvalError, HitTestError, InterrogateError, MateFault, MateSide,
+    MeshPickError, NodeErrorKind, NodePickError, ParamName, ParseError, ProgramFault, RecipeNodeId,
+    RefusedRef, ResolveFault, ResolveIndeterminate, RoleSeg, SelectRefusal, SlotId, SnapshotError,
+    StableName, StepArg,
 };
 
 /// Asserts the F6 shape over one rendering: the wanted content is
@@ -658,5 +658,144 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
     assert!(
         shown.contains(&format!("(a {})", face_name())) && shown.contains("it names a vertex"),
         "the consonant kinds must keep \"a\": {shown:?}"
+    );
+}
+
+/// A mate-solve contradiction states WHO is at fault. Two mates that
+/// cannot both hold are named as a pair; one mate that contradicts
+/// itself is named ONCE, because "mates 6 and 6" reads as an indexing
+/// fault and hides the shape the payload states.
+#[test]
+fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
+    let pair = MateFault::Contradictory {
+        held: RecipeNodeId(3),
+        added: RecipeNodeId(5),
+        predicate: "mate_member_translation_zero",
+        clash: 0.01,
+        lever: None,
+    };
+    assert_f6(
+        &pair,
+        &["mates 3 and 5 cannot both hold", "a clash of 0.01 m"],
+        &["Contradictory"],
+    );
+    assert!(
+        !pair.to_string().contains("contradicts itself"),
+        "two distinct mates are a PAIR: {pair}"
+    );
+
+    let itself = MateFault::Contradictory {
+        held: RecipeNodeId(6),
+        added: RecipeNodeId(6),
+        predicate: "mate_clocking_redundant",
+        clash: core::f64::consts::FRAC_PI_2,
+        lever: Some((core::f64::consts::FRAC_PI_2, 1.0)),
+    };
+    assert_f6(
+        &itself,
+        &["mate 6 contradicts itself", "mate_clocking_redundant"],
+        &["Contradictory"],
+    );
+    assert!(
+        !itself.to_string().contains("mates 6 and 6"),
+        "one mate at fault is named once: {itself}"
+    );
+}
+
+/// **A levered clash prints only a product that IS the product.** The
+/// metre figure is computed from the two halves the message shows, so
+/// the sentence cannot assert an identity the payload failed to keep:
+/// a `clash` field that disagrees with its own lever is not what the
+/// reader is told.
+#[test]
+fn a_levered_clash_prints_only_a_product_that_is_the_product() {
+    let honest = MateFault::Contradictory {
+        held: RecipeNodeId(6),
+        added: RecipeNodeId(6),
+        predicate: "mate_clocking_redundant",
+        clash: core::f64::consts::FRAC_PI_2 * 2.0,
+        lever: Some((core::f64::consts::FRAC_PI_2, 2.0)),
+    };
+    let shown = honest.to_string();
+    for want in [
+        "a roll of 1.5707963267948966 rad",
+        "on a 2 m arm",
+        "a deviation of 3.141592653589793 m",
+    ] {
+        assert!(shown.contains(want), "{shown:?} is missing {want:?}");
+    }
+
+    // The same lever, beside a stored figure that is not its product.
+    let inconsistent = MateFault::Contradictory {
+        held: RecipeNodeId(6),
+        added: RecipeNodeId(6),
+        predicate: "mate_clocking_redundant",
+        clash: 99.0,
+        lever: Some((0.25, 2.0)),
+    };
+    let shown = inconsistent.to_string();
+    assert!(
+        shown.contains("a deviation of 0.5 m") && !shown.contains("99"),
+        "the printed metre figure is the product of the halves shown, never a stored \
+         number that disagrees with them: {shown:?}"
+    );
+}
+
+/// **A non-finite clash that is not the empty set does not claim to
+/// be.** The structural refusal is the PREDICATE's fact, so a margin
+/// that merely fails to be finite — a NaN, a negative infinity, or an
+/// infinity under some other predicate — is reported as the
+/// non-measurement it is and never borrows the empty set's sentence.
+#[test]
+fn a_non_finite_clash_that_is_not_the_empty_set_does_not_claim_to_be() {
+    let empty = MateFault::Contradictory {
+        held: RecipeNodeId(3),
+        added: RecipeNodeId(5),
+        predicate: "mate_member_empty",
+        clash: f64::INFINITY,
+        lever: None,
+    };
+    let shown = empty.to_string();
+    assert!(
+        shown.contains("meet in the empty set") && !shown.contains("inf"),
+        "the structural refusal has no metre figure to print: {shown:?}"
+    );
+
+    for (what, clash) in [
+        ("NaN", f64::NAN),
+        ("-inf", f64::NEG_INFINITY),
+        ("+inf", f64::INFINITY),
+    ] {
+        let fault = MateFault::Contradictory {
+            held: RecipeNodeId(3),
+            added: RecipeNodeId(5),
+            predicate: "mate_member_translation_zero",
+            clash,
+            lever: None,
+        };
+        let shown = fault.to_string();
+        assert!(
+            !shown.contains("empty set"),
+            "a {what} margin under another predicate is not the empty set: {shown:?}"
+        );
+        assert!(
+            shown.contains("not a finite length"),
+            "a {what} margin says it is no measurement: {shown:?}"
+        );
+    }
+
+    // An infinity that carries a lever is still levered: the empty-set
+    // sentence must not swallow the halves.
+    let levered = MateFault::Contradictory {
+        held: RecipeNodeId(6),
+        added: RecipeNodeId(6),
+        predicate: "mate_clocking_redundant",
+        clash: f64::INFINITY,
+        lever: Some((core::f64::consts::FRAC_PI_2, 1.0)),
+    };
+    let shown = levered.to_string();
+    assert!(
+        shown.contains("a roll of") && !shown.contains("empty set"),
+        "a levered clash keeps its halves whatever the stored figure is: {shown:?}"
     );
 }
