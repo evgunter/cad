@@ -951,15 +951,16 @@ demotion argument rests on — stated with a number rather than assumed.
 
 ## 2026-08-22 — configuration sampling, and the draft skip (F5)
 
-### SUPERSEDED for the lane and ε, 2026-09-04 — full runs reinstated
+### SUPERSEDED IN FULL, 2026-09-04 — full runs reinstated on every dimension
 
 **Everything in this section below this block describes the regime that ran
 from 2026-08-22 to 2026-09-04.** The lane and ε draws are gone: a code-tier
 run gates every point of {default, `interval`} x {default, 1e-6, 1e-12}, as
 two archives and twelve `test (…)` jobs. **The k-lint unification draw is
-NOT affected and is still one row of five per run** — it is five compiles
-sharing almost no artifacts, not one archive replayed, and it was not
-re-costed here (`work/ciw/klint-row-still-sampled.md`).
+gone too, later the same day**: all five unifications run as five
+`k-lint (gate, <row>)` matrix legs. The first version of this block said the
+k-lint draw was NOT affected, and it was not — for about eighteen hours. Its
+measurement is in the 2026-09-04 section at the foot of this file.
 
 **Ev's authorisation, in chat, 2026-09-04**: *"feel free to reinstate full
 runs instead of sampling"*, on the reasoning that *"CI is weakened right now

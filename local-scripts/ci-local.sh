@@ -87,22 +87,21 @@
 # nothing here was ever sampled.
 #
 # WHAT THIS HALF STILL ADDS OVER A HOSTED RUN, stated as a list rather than
-# as a superlative, because the superlative was true for thirteen days and
-# is the kind of sentence that outlives its fact: all five k-lint feature
-# unifications (hosted draws one), and the opt-in `--nightly` row below.
-# Local is still a strict SUPERSET of any hosted run on the sampled axes, so
-# a tree this half calls green was gated everywhere hosted could have looked
-# — the difference is now two dimensions narrower than it was. The row
-# SEMANTICS are identical either way, which is what the mirror convention is
-# about.
+# as a superlative, because the superlative was true for thirteen days and is
+# the kind of sentence that outlives its fact: the opt-in `--nightly` row
+# below, and that is now the whole list. Hosted stopped sampling the lane and
+# the ε rows on 2026-09-04 and stopped sampling the k-lint unification the same
+# day, so the two halves gate the same configuration set. The row SEMANTICS
+# were always identical, which is what the mirror convention is about; what
+# changed is that the COVERAGE is too.
 #
 # HOSTED CAN BE NARROWED TO A POINT (2026-08-28; it aimed a DRAW until
 # 2026-09-04 and narrows a full run now) — ci.yml's `workflow_dispatch`
 # inputs, or a `CI-Config:` trailer in the head commit's message, both
 # landing in ci-filter.py's NARROWING A RUN path. That does not reach this
 # half and deliberately so: every value either spelling can name is one this
-# file already runs, so the superset claim above is untouched, and there is
-# nothing here for a request to buy.
+# file already runs, so a narrowing can only ever make hosted gate LESS than
+# this half, never more, and there is nothing here for a request to buy.
 #
 # NOT MIRRORED, deliberately (2026-08-04): ci.yml's two build jobs set
 # RUSTFLAGS=-C link-arg=-fuse-ld=mold and CARGO_PROFILE_{DEV,TEST}_DEBUG=
@@ -1266,15 +1265,14 @@ run_row_if "$RUN_INTERVAL_ORACLE" "interval oracle (certify vs inari+MPFR)" orac
 # records margins from every kernel crate — no minimal root set, so
 # these run whenever anything builds.
 #
-# ALL FIVE FEATURE UNIFICATIONS, EVERY TIME (2026-08-22). The hosted
-# `k-lint (gate)` job now draws ONE of {dev-default, release-default,
-# release-budget, dev-budget, dev-probe} per run — it bills 8-10 minutes
-# precisely because those five compile the tour and the kernel five times
-# over. Nothing bills this script by the minute, so it keeps running the
-# whole product, exactly as it keeps running every lane and every ε: local
-# is a strict superset of any hosted run, and since 2026-09-04 the k-lint
-# row is the ONE dimension that superset is about — hosted runs every lane
-# and every ε itself.
+# ALL FIVE FEATURE UNIFICATIONS, EVERY TIME, AND HOSTED DOES THE SAME NOW
+# (2026-09-04). From 2026-08-22 the hosted `k-lint (gate)` job DREW one of
+# {dev-default, release-default, release-budget, dev-budget, dev-probe} per run
+# and this half ran all five, which is what made local a strict superset. That
+# draw is retired — hosted fans the five out as five matrix legs — so the two
+# halves now gate the same configuration set on every axis. This half keeps
+# running the rows in sequence because nothing bills it by the minute and it
+# has one machine; hosted runs them in parallel because it has five.
 run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
 run_row_if "$RUN_K_LINT" "demos tour suite (#99 ε pin + probes)" demos_eps_pin
 run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift

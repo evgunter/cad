@@ -99,17 +99,20 @@ raw `cargo` invocations yourself.
   wait for long queues — a blocking wait can eat a Bash call's 10-min
   cap. Long rows that must survive the harness 590s timeout: launch
   under `setsid`, then poll the output file in the foreground.
-- **A green job NAME can sit over a SKIPPED step — k-lint's demos rows
-  are their own sampled axis (`klint_row`).** Third face of the
+- **A green job NAME can sit over a SKIPPED step.** Third face of the
   silent-coverage class (after CONFLICTING-no-run and
   queued-with-zero-jobs): the TEAPOT dual found the PR's junction
   tables had never executed hosted — both runs' k-lint jobs were green
-  while `demos tour suite` recorded `skipped` (the drawn klint_row
-  didn't carry it). One reviewer read ci.yml and concluded the steps
-  ran; the other read the RUN's jobs API and saw `skipped` — the run
-  record is the instrument, the workflow source is not. Verify
-  coverage at the STEP level (`gh api .../jobs`, step conclusions),
-  never by job-name green. (Ordinal 100, 2026-08-27.)
+  while `demos tour suite` recorded `skipped`, because `klint_row` was
+  a SAMPLED axis and the drawn row didn't carry it. One reviewer read
+  ci.yml and concluded the steps ran; the other read the RUN's jobs API
+  and saw `skipped` — the run record is the instrument, the workflow
+  source is not. **`klint_row` stopped being sampled on 2026-09-04**
+  (all five unifications run as five `k-lint (gate, <row>)` jobs), which
+  removes the instance and NOT the class: an `if:` on any step can still
+  skip it under a green job name. Verify coverage at the STEP level
+  (`gh api .../jobs`, step conclusions), never by job-name green.
+  (Ordinal 100, 2026-08-27; the k-lint instance closed 2026-09-04.)
 - **A detached job whose evidence is SUPERSEDED still takes the mutex
   (2026-08-27, PCURVE P-1a).** The `setsid` rule keeps a long job alive
   through a harness reap — but alive is not the same as useful. A P-1a
@@ -128,14 +131,15 @@ raw `cargo` invocations yourself.
   that looks identical to success from outside.
 - **A `CI-Config:` trailer is read from the PR-HEAD commit only — any
   subsequent commit or merge VOIDS it silently** (met twice in one fix
-  pass, ordinal 104). The filter reports `CONFIG_SOURCE=...unsampled` (or
-  `...sampled` for `klint`) instead of `commit-trailer` — check that field,
-  and put the trailer on the FINAL head (an empty trailer-only commit that
-  says so in its message is the clean spelling). **Since 2026-09-04 a voided
-  lane or eps trailer fails SAFE**: those two dimensions are no longer
-  sampled, so losing the trailer gives the run the whole matrix rather than
-  a different drawn point. A voided `klint=` trailer still falls back to a
-  draw.
+  pass, ordinal 104). The filter reports `CONFIG_SOURCE=...unsampled`
+  instead of `commit-trailer` — check that field, and put the trailer on the
+  FINAL head (an empty trailer-only commit that says so in its message is the
+  clean spelling). **Since 2026-09-04 a voided trailer always fails SAFE on
+  every dimension**: nothing is sampled, so losing the trailer gives the run
+  the whole matrix rather than a different drawn point. The same change makes
+  a NARROWING trailer illegal — `CI-Config:` may only say `lane=both`,
+  `eps=all` or `klint=all`, and any other value reds the classify step,
+  pointing at the `workflow_dispatch` inputs.
 - **A CONFLICTING PR gets NO CI run — silently, and none retroactively
   once resolved.** GitHub skips the pull_request trigger while a PR is
   CONFLICTING; pushes during that window produce nothing, and merging
@@ -212,7 +216,8 @@ main gets NO check runs at all — pushes during that window produce
 nothing and merging main afterwards fires nothing retroactively. A run
 can also queue with ZERO jobs behind a superseded run, `mergeable:
 CLEAN`, and never start. And a green job NAME can sit over a SKIPPED
-step (k-lint's demos rows are their own sampled axis). A step can also
+step (k-lint's demos rows were their own sampled axis until 2026-09-04;
+the class outlives the instance — any step `if:` can do it). A step can also
 be green having EXECUTED nothing: `cargo clippy --all-targets` and
 `cargo check --all-targets` compile the test targets and run none of
 them, so a root whose only gate row is one of those has its assertions
@@ -222,12 +227,13 @@ origin/main immediately before opening a PR and whenever main moves;
 after any push, confirm jobs are actually RUNNING by reading the
 workflow **runs** list, not the PR's checks list; re-roll with a real
 code commit (an empty commit classifies docs-only); and verify coverage
-at the STEP level (`gh api .../jobs`, step conclusions). A missing k-lint row
-can be ASKED FOR rather than re-rolled for: a `CI-Config:
-klint=dev-probe` trailer on the head commit, or ci.yml's
-`workflow_dispatch` inputs, pin it for one run. **The same two spellings
-NARROW the lane and the eps rows rather than adding them** — since
-2026-09-04 a run gates all six lane/eps points by default, so
+at the STEP level (`gh api .../jobs`, step conclusions). **A k-lint row can
+no longer be missing**: since 2026-09-04 every run gates all five as five
+`k-lint (gate, <row>)` jobs, and `CI-Config: klint=dev-probe` — which used
+to be how you asked for one — now REDS the classify step, because a trailer
+may only add. **Both spellings NARROW every dimension rather than adding to
+it**, and only the `workflow_dispatch` inputs may: a run gates all six
+lane/eps points and all five unifications by default, so
 `CI-Config: lane=interval` buys less gate, not more. **The run record is the instrument; the
 workflow source is not.**
 
