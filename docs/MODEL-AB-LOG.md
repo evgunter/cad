@@ -3645,3 +3645,17 @@ VERBS-1031B review ordinal fixed at dispatch (2026-09-03, PR
 band; the #1095 shape). v6 DUAL, parity byte 208 ⇒ R1 OPUS +
 R2 FABLE, concurrent, briefs symmetric. Sample number AT MERGE
 in main's order. Row at merge.
+
+## SHELL program rows (work/shell/; band 2300–2399; blocks named SHELL-B<n>)
+
+Block SHELL-B1 draw (2026-09-04T01:36:45Z, after the pre-draw fields
+in `work/shell/SHELL-1.md` and `work/shell/log.md`; v3 triple {opus,
+opus, fable}, one /dev/urandom byte, reject ≥252): byte **233**,
+233 mod 3 = 2 = fable's position ⇒ **fable at slot 2**. So: slot 0
+SHELL-1 = OPUS, slot 1 = OPUS, slot 2 = FABLE. Recorded branch-side on
+the SHELL orchestrator branch (the PCURVE/GUI shape); this record
+reaches main only when the block's last slot's reviews conclude; each
+ordinal claim at review dispatch goes to main on its own.
+
+Block SHELL-B1 slot record (branch-side, appended as each slot concludes):
+slot 0 = SHELL-1 (OPUS; pre-draw M / STRUCTURAL at `docs/SHELL-1-SPEC.md`) — dispatched 2026-09-04.
