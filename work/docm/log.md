@@ -127,3 +127,12 @@ and every later brief names a private scratch directory. Filed at
 adjudication: `n-ary-union-has-no-declaration-channel` (Ev's ruling).
 Spec `docs/DOCM-3-SPEC.md` deleted at merge (DOC-LEDGER). Both node-kind
 units (`DOCM-1`, `DOCM-2`) are now unblocked.
+
+## Third dispatch (2026-09-04)
+
+`DOCM-1` dispatched on `docm/1-face-frame` against `docs/DOCM-1-SPEC.md`
+(pre-draw L / STRUCTURAL at the spec; block DOCM-B1 slot 2, the last
+of the block), after `DOCM-3` merged so the new datum's content-key
+tag is chosen against a tree that holds tag 31. `DOCM-2` follows on a
+fresh block draw once `DOCM-1`'s tag is on main. Lane briefs now name a
+private scratch directory beside the private target dir.
