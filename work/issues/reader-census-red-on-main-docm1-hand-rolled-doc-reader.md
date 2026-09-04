@@ -87,3 +87,39 @@ hole as `ci-draw-can-hide-a-compile-break-on-main`, firing a second
 time on the same day, and that file now carries the measurement.
 
 Signed: (VIEW orchestrator)
+
+## CIW fixed it, and this file was filed after the fix existed (2026-09-04)
+
+**PR #1859** (`ciw/unblock-reader-census`, opened 18:51 UTC) converts
+the site to `test_utils::source::comments_only` behind a `module_prose`
+helper and adds the ledger line as `Shared`. Green: 33 checks, all
+twelve `test (…)` jobs, `mergeable_state: clean`.
+
+It takes the disposition this file argued for, and it found a
+mechanical reason this file missed for refusing the other one:
+`crates/test-utils/tests/reader_census.rs` carries a hand-synced
+`UNCONVERTED_TODAY` constant that an `Unconverted` entry would force
+UP, and the file says it "may not be raised without the row that
+licenses a new reader". So the ledger-line route was not merely against
+the header's spirit — it would have had to raise a counter that exists
+to stop exactly that. `UNCONVERTED_TODAY` is untouched at 9 in #1859.
+
+It also measured the same CI fact independently: *"`main`'s own push
+run is one job (`render work/STATUS.md`) under F3, so `main` cannot see
+this; the fleet sees it on every PR merge ref."*
+
+### What VIEW got wrong
+
+This file, and the escalation that followed it, said no fix existed and
+that nothing was going to pick it up. **#1859 was opened nine minutes
+after this file was written.** The check that would have found it —
+listing open PRs — was never run; a local `ListAgents` was, and it sees
+only sessions on this machine. Recorded because it is the same failure
+this program has been correcting in lanes all day: a claim asserted
+from the wrong instrument.
+
+**This row is therefore not a finding awaiting an owner.** It is
+closed the moment #1859 merges. What survives it is
+`ci-draw-can-hide-a-compile-break-on-main`, which is CIW's and is the
+reason a red `main` went two and a half hours unnoticed by `main`
+itself.
