@@ -94,8 +94,8 @@ Ev's standing instructions for implementation work:
 - **Reviews**: assign reviewers explicit claims to falsify AND point
   them at `docs/prompts/reviewer-style-lane.md` by path (dispatcher
   notes: `docs/REVIEW-STYLE-DISPATCH.md`) — the claims lane is strong on
-  soundness and blind to structure. Promote reviewer suites into CI
-  after the fix pass ([[review-and-dependency-policy]]).
+  soundness and blind to structure. A reviewer's useful rows go into
+  the suite as ordinary tests ([[review-and-dependency-policy]]).
 - **A finding with no durable home cannot warn anyone.** At
   ADJUDICATION time, as part of reading a report, any finding asserting
   a CLASS rather than an instance gets a log line or an issue. A report

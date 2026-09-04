@@ -11,21 +11,12 @@
 //! row measures, and a fixture that drifts here reddens every suite at
 //! once instead of silently splitting the corpus in two.
 //!
-//! **This tree takes the OPPOSITE line to
-//! `crates/geom-brep/tests/shared/mod.rs`, and a reader should know
-//! it.** That header's last not-absorbed bullet calls reviewer-pair
-//! rebuilds "the class this tree must never absorb even when the text
-//! is identical"; this module absorbs exactly that class — the vented
-//! cavity is shared with `blend3_r2_probes` and both `review_blend*`
-//! suites. The distinction claimed is what the rebuild IS. In
-//! `geom-brep` the paired rebuilds are DERIVATIONS (a basis seeding,
-//! a quadrature, an evaluator): two of them are two opinions, and
-//! merging them leaves one. Here they are the SUBJECT — the body under
-//! audit — and two of them are not two opinions but two experiments,
-//! only one of which anyone else measures. What stays independent in
-//! the probes is their derivations, which [`super::oracles`]'s own
-//! rule protects. Whether that reading is right is a question for Ev:
-//! `work/issues/reviewer-pair-rebuilds-two-trees-two-rules.md`.
+//! Shared by the unit suites and their review probes alike. A
+//! reviewer's rows are ordinary rows (Ev's ruling, 2026-09-04, closing
+//! `work/issues/reviewer-pair-rebuilds-two-trees-two-rules.md`), and a
+//! fixture builder carries no derivation, so nothing about authorship
+//! keeps a copy of one apart. What stays independent in the probes is
+//! their derivations, under [`super::oracles`]'s own rule.
 //!
 //! **Deliberately not absorbed**, and the whole of it:
 //!

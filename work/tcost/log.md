@@ -1358,3 +1358,16 @@ content unit; the kernel candidates are worth a second block only if
 Ev wants the A/B sample to grow — the suite's seconds are no longer
 where they were, and the next lever on the real program's cost (the
 area pass) is a kernel question more than a test-cost one.
+
+## Seam: Ev's ruling on reviewer-pair rebuilds (2026-09-04)
+
+Neither tree's rule survives. The policy memory was overstated — Ev
+had thought it revised to "reviewer tests are ordinary tests" and the
+revision had never reached the in-repo copy — so the memory is
+rewritten to that, geom-brep's "must never absorb even when identical"
+bullet is now the reason-at-the-copy rule (a claim that needs its own
+derivation keeps it; authorship is not a reason), and sweep's
+"opposite line" paragraph is the ruling. The orchestrator's own
+"fixture drift" argument for a compensating row was retracted as a
+nuisance change detector: the unit suites' pinned volumes and oracles
+already red on a changed body. Issue closed; nothing else moves.

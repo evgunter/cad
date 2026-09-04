@@ -45,13 +45,17 @@
 //!     (`review_m6_3_chart_probes.rs`, `pcurve_conic.rs`,
 //!     `review_m2_pr7_props.rs`, `offset_mint.rs`,
 //!     `review_m5_pr9_jet_probe.rs`'s `zcyl`);
-//!   - the reviewer-pair rebuilds, which are the class this tree must
-//!     never absorb even when the text is identical: `control` and
-//!     `tmer` across `iso_rectangle_door.rs` / `mesh10r1_probes.rs` /
+//!   - the helpers the review probes keep for their own derivations,
+//!     each with its reason AT the copy: `control` and `tmer` across
+//!     `iso_rectangle_door.rs` / `mesh10r1_probes.rs` /
 //!     `mesh10r2_probes.rs`, `wall_domain` across `m5_pr7_ssi.rs` /
 //!     `review_m5_pr7b_ssi.rs`, `width`/`point_width` across
 //!     `arc_eval_anchor.rs` / `review_arceval_r1_probes.rs`, and
-//!     `cone_dist` across `offa_r1_probes.rs` / `offset_mint.rs`.
+//!     `cone_dist` across `offa_r1_probes.rs` / `offset_mint.rs`. They
+//!     stay on the reason each copy states — a claim that needs its
+//!     own derivation keeps it — and not on who wrote them: a
+//!     reviewer's rows are ordinary rows (Ev, 2026-09-04), so a copy
+//!     whose only argument is authorship is absorbable like any other.
 //!
 //! The bar has a second half that only shows up on the small helpers.
 //! A one-line constructor carries no derivation, so nothing about
