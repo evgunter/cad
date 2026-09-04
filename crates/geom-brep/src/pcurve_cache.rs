@@ -1697,6 +1697,21 @@ where
         chart_foot_lane(point, wall)
     }
 
+    // No offset re-derivation lane, for the BASE scalar's reason: the
+    // offset fit is derived at `f64` only, so every non-`f64` lane
+    // answers `None` here and the caller reports the absence typed. The
+    // tier changes how a margin DECIDES, not which derivations exist, so
+    // wrapping a scalar cannot add one.
+    fn remap_certificate(
+        _description: &geom::SurfaceDescription<Self>,
+        _fit: &NurbsSurface<Self>,
+        _window: geom::ApproxWindow,
+        _tolerance: f64,
+        _band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, crate::OffsetFitError>> {
+        None
+    }
+
     fn lane_name() -> &'static str {
         "symbolic"
     }
