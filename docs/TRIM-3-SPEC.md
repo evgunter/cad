@@ -9,12 +9,11 @@ cite re-derived by symbol on that head.
 
 A *pcurve* is an edge's image in a face's chart `(u, v)`; the *carrier
 window* is the chart rectangle the E7 engine subdivides
-(`crates/editor-core/src/clearance.rs`, `window_of`, `:2060`). Today a
-window is a certified superset of the face and nothing more: an
-L-shaped cap's window is its bounding square, a cylindrical face's is
-the whole turn. This unit gives the engine a certified **outer bound of
-the trimmed region in the window's own chart** and lets it discard
-cells that bound certifies the face never reaches.
+(`crates/editor-core/src/clearance.rs`, `window_of`, `:2060`) — today
+a certified superset of the face and nothing more (an L-cap's bounding
+square, a cylinder face's whole turn). This unit gives the engine a
+certified **outer bound of the trimmed region in the window's own
+chart** and lets it discard cells that bound certifies empty of face.
 
 ## What the survey refuted (binding premise corrections)
 
@@ -43,28 +42,26 @@ cells that bound certifies the face never reaches.
    the L's notch. The phantom witness is minted before any cell is
    split. The consumer edit has a third site: station admission.
 4. **Extruded bodies carry no stored pcurves.** `sweep::extrude` is
-   `T: Decide` and never calls `mint_pcurves` (only revolve, loft,
-   blend surgery, boolean ops, transform and STEP import do). Every
-   fixture in the M10-5 suites is an extrude. The description must
-   DERIVE its images, which the loop walk already does: `walk_loop`
-   (`crates/topo/src/pcurves.rs:1401`) re-derives every half-edge
-   through `chart_pcurve` / `nurbs_iso_derive` and never reads a cache.
-5. **`chart_region.rs` cannot supply it.** Its `extract_face_uv`
-   (`:2502`) is private, reads STORED caches on curved charts
-   (`MissingCache` on every extruded cylinder wall), and refuses any
-   non-straight image (`NonPlanarTrim` on the bumped block's arc). Its
-   parity walk is `crate::ray_parity` — `pub(crate)` in `topo`
-   (`lib.rs:182`). So the outside test lives in `topo`, reusing that
-   walk; `chart_region.rs` is not touched.
+   `T: Decide` and never calls `mint_pcurves` (revolve, loft, blend
+   surgery, booleans, transform and STEP import do); every M10-5
+   fixture is an extrude. The description must DERIVE, which the loop
+   walk already does: `walk_loop` (`crates/topo/src/pcurves.rs:1401`)
+   re-derives every half-edge through `chart_pcurve` /
+   `nurbs_iso_derive` and never reads a cache.
+5. **`chart_region.rs` cannot supply it.** `extract_face_uv` (`:2502`)
+   is private, reads STORED caches on curved charts (`MissingCache` on
+   every extruded cylinder wall) and refuses non-straight images
+   (`NonPlanarTrim` on the bumped block's arc). Its parity walk,
+   `crate::ray_parity`, is `pub(crate)` in `topo` (`lib.rs:182`) — so
+   the outside test lives in `topo`; `chart_region.rs` is untouched.
 6. **`Fitted`/`General` pcurves never reach the consumer today.**
-   `PcurveCache::certify_fitted` has no shipped caller; `General` is
-   minted only by `nurbs_iso_derive` on NURBS charts, which `window_of`
-   refuses (`:2099`). The envelope arm below is specified and
-   unit-pinned in `topo`, and has no e2e row.
+   `certify_fitted` has no shipped caller; `General` is minted only by
+   `nurbs_iso_derive` on NURBS charts, which `window_of` refuses
+   (`:2099`). The envelope arm is specified and unit-pinned; no e2e row.
 7. **A box is not enough — measured on the fixtures.** The L's box is
-   `[0,1]²`, the U-channel cap's is `[0,3]×[0,2]`: each IS today's
-   window. Only the cylinder rows (bumped block, quarter annulus) move
-   on a box alone.
+   `[0,1]²`, the U-channel cap's `[0,3]×[0,2]`: each IS today's window.
+   Only the cylinder rows (bumped block, quarter annulus) move on a
+   box alone.
 8. **Tightening does not make `m = M`.** `measure::WINDOW_TIGHTENING`
    (`measure.rs:817`) says this item "retires" the
    `Certified::LowerBoundOnly` refusal. It does not: cells straddling
@@ -86,12 +83,12 @@ pub fn chart_boundary<T: PcurveFittedLane + SpanLocate + Bounds>(
 ) -> Result<ChartBound<T>, PcurveMintError>
 ```
 
-`chart` is the chart to describe in. Contract: its locus is the face's
+`chart` is the chart to describe in; its locus must be the face's
 carrier (the consumer passes the stored surface, or for a plane its
-re-chart, whose origin and normal are the stored ones). The function
-walks every loop (outer, then rings, D9 order) with `walk_loop`, which
-takes the surface as an argument and needs no change beyond
-`pub(crate)` visibility on it, `Walked` and `is_plus`.
+re-chart, whose origin and normal are the stored ones). Every loop
+(outer, then rings, D9 order) is walked by `walk_loop`, which already
+takes the surface as an argument and needs only `pub(crate)`
+visibility (with `Walked` and `is_plus`).
 
 **Value.** `ChartBound { loops: Vec<ChartLoop>, hull: ChartWindow<T>,
 period: Option<T> }`; `ChartLoop { edges: Vec<ChartEdge<T>>, ring:
@@ -104,19 +101,20 @@ bool }`; an edge in loop direction (entry → exit, `is_plus`) is one of
   here the same way). Line carriers arrive with `a = b = 0` exactly
   (`carrier_harmonic`, `pcurve_cache.rs:2109`); a rim on an
   axis-aligned cylinder does too.
-- `Envelope { a, b, image: Point2<T> }` — anything else. `image` is
-  the pcurve evaluated at the WHOLE span as one enclosure,
-  `pcurve.eval(t0.enclosure_hull(t1))`, which at the interval scalar
-  is a certified box around the image (interval `sin_cos` over a range
-  is exact-in-family); at a point scalar `enclosure_hull` is poison and
-  the box is poison, which the test below never certifies against. A
-  `Fitted`/`General` image takes `chart_box` (the control-hull box)
-  instead, widened per axis by the stored certificate's `envelope`
-  (`PcurveCertificate::envelope`, metres) divided by that axis's arm.
-  A derived `General` with no certificate refuses
-  (`PcurveMintError::Certify{ UnsupportedCarrier }`).
+- `Envelope { a, b, image: Point2<T>, slack: T }` — anything else.
+  `image` is the pcurve evaluated at the WHOLE span as one enclosure,
+  `pcurve.eval(t0.enclosure_hull(t1))`: at the interval scalar a
+  certified box around the image (interval `sin_cos` over a range is
+  exact-in-family); at a point scalar `enclosure_hull` is poison, the
+  box is poison, and the test below certifies nothing against it.
+  `slack` is zero, except for a `Fitted`/`General` image, which takes
+  `chart_box` (the control-hull box) and carries the stored
+  certificate's `envelope` (`PcurveCertificate::envelope`, metres) as
+  `slack`; `metred` widens the box by it. A `General` with no stored
+  certificate refuses `PcurveMintError::Certify{ UnsupportedCarrier }`.
 
-`hull` is the min/max box of every vertex and every envelope box.
+`hull` is the OUTER loop's min/max box over its vertices and envelope
+boxes; rings lie in it by construction.
 `period` is `Some(τ)` for `Cylinder | Cone | Sphere | Torus`, the
 knot-domain length for a spline chart that `chart_u_period` calls
 closed, `None` for a plane — decided by surface KIND here; note
@@ -133,30 +131,29 @@ branch, is contained in `(closure(int P_outer) ∪ E_outer)` minus
 curve lying in the arc's convex box, hence lies in that box.
 
 **Branches (the seam subtlety).** The walk pins each loop's branch from
-its first half-edge's principal azimuth and certifies closure. The
-description keeps that branch: an extruded arc's face is `[0, θ]`, a
-negative-angle revolve's band is `[θ, 0]` (`revolve/mod.rs:14-25`) —
-the azimuth is a real number, never folded into `[0, τ)`. Two rules:
+its first half-edge's principal azimuth and certifies closure; the
+description keeps that branch. An extruded arc's face is `[0, θ]`, a
+negative-angle revolve's band is `[θ, 0]` (`revolve/mod.rs:14-25`):
+azimuth is a real number, never folded into `[0, τ)`. Two rules:
 
-- a loop whose walk closes one whole period off (the `± τ` arm of
-  `loop_closes`, `:1174`) wraps the chart and bounds no chart polygon:
-  refuse `PcurveMintError::LoopWraps { face, loop }` (new variant).
-  No head constructor makes one (extruded and revolved closed walls
-  carry a wrap strut / seam chain), so this is a fence, not a path;
+- a loop whose walk closes one whole period off (`loop_closes`' `± τ`
+  arm, `:1174`) wraps the chart and bounds no chart polygon: refuse
+  `PcurveMintError::LoopWraps { face, loop }` (new variant). No head
+  constructor makes one (closed walls carry a wrap strut or seam
+  chain), so this is a fence, not a path;
 - a ring is emitted once per whole-period shift `k` at which its
-  shifted hull meets the outer's hull (at most two copies). Every copy
-  is a genuine lift of the ring, so parity over all copies is exact; a
-  missed copy could only make the test certify LESS.
+  shifted hull meets the outer's hull (at most two copies). Each copy
+  is a genuine lift, so parity over all copies is exact; a missed copy
+  could only make the test certify LESS.
 
-**Accuracy premise, stated once.** The plane arm of `chart_pcurve`
-(`pcurve_cache.rs:4096`) is affine and exact in interval arithmetic.
-The cylinder arm's axial channel is exact; its azimuth channel is the
-closed form of a carrier that lies on the chart, and a stored cache's
-`envelope` bounds the residual where one exists. Everything the test
-certifies is decided through the funnel at `escalate = K·ε ≥ 10ε`
-(`Interval::sign_within`, `interval.rs:600`), which is what absorbs
-an ε-scale image error: nothing closer than `K·ε` to the described
-boundary is ever dropped. No widening constant is minted.
+**Accuracy premise, stated once.** `chart_pcurve`'s plane arm
+(`pcurve_cache.rs:4096`) is affine and exact in interval arithmetic;
+the cylinder arm's axial channel is exact and its azimuth channel is
+the closed form of a carrier on the chart (a stored `envelope` bounds
+the residual where one exists). Every drop is decided through the
+funnel at `escalate = K·ε` (`Interval::sign_within`, `interval.rs:600`),
+which absorbs an ε-scale image error: nothing within `K·ε` of the
+described boundary is ever dropped, and no widening constant is minted.
 
 ## 2. The outside test — `ChartBound::metred(arms).certifies_outside`
 
@@ -164,7 +161,8 @@ The consumer meters the chart once per window: `arms = (a_u, a_v)`
 metres per chart unit — plane `(1, 1)`, cylinder `(r, 1)`, both EXACT
 (`chart_region.rs`'s `certified_arms` says why these two need no
 bound). A `MetredBound` is the description with every point scaled by
-the arms, so every margin below is metres and every row is a length.
+the arms and every envelope box widened by its `slack`, so every
+margin below is metres and every row is a length.
 
 `certifies_outside(rect) -> bool` for a metred rectangle `R` (its four
 `f64` bounds are exact structure; a point is `R` with zero extent):
@@ -210,7 +208,8 @@ sites, `split`, `combine`, `facet_restrict`, `LeafFold`,
 `Err(_)` ⇒ today's window, `bound = None`, and the report counts it
 (below). Root rule: `v ← v ∩ hull.v` (both certified supersets in one
 coordinate). `u`: plane ⇒ `u ∩ hull.u`; cylinder ⇒ `hull.u` verbatim
-when its extent is `≤ τ` (one ulp of slack, `full_turn`'s idiom), else
+(outer-rounded: `u_min.lo()`, `u_max.hi()`) when its extent is `≤ τ`
+(one ulp of slack, `full_turn`'s idiom), else
 `full_turn()` — NEVER `[0, τ] ∩ hull.u`, which is meaningless mod `τ`
 and empties a `[θ, 0]` band. `refines` runs on the tightened root.
 Cone, sphere and torus keep today's windows: their loops' region side
@@ -244,19 +243,17 @@ minus cells the description certifies empty of face" — a superset of
 the faces still, so the certificate about the faces is unchanged and
 the looseness runs the same way. `Violated` still carries an f64
 verified pair; its witness may still be a window point, but only in a
-cell not certified empty. The strictly-positive question is the same
-sweep at `c = 0` and changes with it.
+cell not certified empty. The strictly-positive question — its site,
+its `Zero` reading, its exhibit arm — is untouched; only which cell
+pairs reach it changes, exactly as for the bound question.
 
-**Report.** `ClearanceReport` gains `windows: (usize, usize)`
-(tightened, loose) so a phantom `Violated` can be read against a
-window the description refused. Serialized last; no golden pins the
-text. **Open question Q1** — drop it if the orchestrator prefers a
-smaller seam.
-
-**Riders on the seam (small, same PR).** `GeometryWitness::a_uv` doc:
-azimuth is on the walk's branch, not folded. `WINDOW_TIGHTENING`: path
-`work/trim/…`, doc sentence corrected per refutation 8.
-`clearance.rs:40,91` pointers to `work/curved/` and `work/trim/`.
+**Report and riders.** `ClearanceReport` gains `windows: (usize,
+usize)` (tightened, loose), serialized last, so a phantom `Violated`
+can be read against a window whose description refused (Q1). Riders
+in the same PR: `GeometryWitness::a_uv` doc (azimuth on the walk's
+branch, not folded); `WINDOW_TIGHTENING`'s path and doc sentence
+(refutation 8); `clearance.rs:40,91` pointers to `work/curved/` and
+`work/trim/`.
 
 ## 4. Rows, each red-first, with the mutant it kills
 
@@ -272,6 +269,7 @@ azimuth is on the walk's branch, not folded. `WINDOW_TIGHTENING`: path
 | T6 `General` pcurve on a NURBS chart | envelope box widened by `envelope / arm` | control hull used bare |
 | T7 wrapping loop (hand-built one-rim face) | `LoopWraps` | polygon of an open lift |
 | T8 grazing centre (edge at the cell's mid-`v`) | not certified; both children certified | single-ray delay hidden |
+| T9 plane face with a `Curve3::Nurbs` edge carrier | `Err(Certify{UnsupportedCarrier})` | refusal swallowed into an empty bound |
 
 e2e rows (PR-2), `crates/editor-core/tests/trim_3_windows_interval.rs`
 plus flips in place:
@@ -281,80 +279,74 @@ plus flips in place:
 | E1 (flip R2 `:641`) | L + block in notch, cap vs block, 0.3 | `Holds`, `outside > 0` | root probe not filtered (refutation 3) |
 | E2 (flip R1 `:293`) | L-plate + floating block, 0.52 | `Holds` at 0.52 and 0.45 | box-only description |
 | E3 (flip R1 `:833`) | U-channel whole-body, 0.3 | `Holds` | coplanar pair unaddressed |
-| E4 planted-tight | L + block at `x ∈ [0.45, 0.55]` in the notch, cap only, 0.3 | `Violated`, witness `a_uv.x ≤ 0.4 + K·ε` | a description too tight by any amount, an inverted parity, a dropped boundary cell |
+| E4 planted-tight | L + block at `x ∈ [0.45, 0.55]`, `y ∈ [0.85, 0.95]` (0.05 off the notch wall), cap only, 0.3 | `Violated`, `d ≈ 0.05`, cap `a_point.x ≤ 0.4 + K·ε` | inverted parity, drop-on-indeterminate, a description tight by `≥ 0.05` (T4 covers the ε scale) |
 | E5 (flip R1 `:392`) | bumped block, strict | `Holds`; `candidates` may be 0 | full-turn root kept |
 | E6 (flip R1 `:509`, +assert) | quarter annulus about ẑ, phantom quadrant, 1.0 | `Holds` | full-turn root kept |
-| E7 negative revolve | `ang(-π/2)`, block in the real quadrant at 0.12, 1.0 | `Violated`, `d ≈ 0.12` | root `= [0,τ] ∩ hull` (empties the band) |
-| E8 refusal is identity | body with a NURBS-carrier edge on an admitted plane (plane×torus split) | verdict equals today's; `windows.1 ≥ 1` | refusal turned into `Unsupported` |
+| E7 negative revolve | `ang(-π/2)` about ẑ, block in the real quadrant (`x ≥ 0, y ≤ 0`) at 0.12, 1.0 | `Violated`, `d ≈ 0.12`, both witness points in that quadrant | root `= [0,τ] ∩ hull` (empties the band) |
+| E8 refusal is identity | R1's y-axis quarter annulus (`:435`, hulled `u_ref`) | verdict label and receipt equal head's; `windows` printed | a description refusal turned into `Unsupported` |
 | E9 (re-express M10-6 R1 `:273`) | notch measure | `lo ≤ 0.269`, `hi ≥ 0.269 − K·ε`; `LowerBoundOnly` still refuses `AtMost` | `Certified` arms retired |
 
 `self_intersection_over_a_sound_body_examines_nothing_r2_finding`
-stays: `CellReceipt::default()` has `outside = 0`. R1's y-axis quarter
-annulus (`:435`) keeps its print-only shape: its hulled `u_ref` gives
-the walk wide azimuths, nothing certifies, and the root falls back to
-`full_turn` — the `interval-orthonormal-basis-sign-hull` issue's
-territory, not this unit's. `the_cost_curve_is_flat…` and the
+stays: `CellReceipt::default()` has `outside = 0`. E8's fixture is the
+`interval-orthonormal-basis-sign-hull` issue's territory: whether the
+walk refuses there or returns azimuths too wide to certify is
+unmeasured, and the row records which without asserting it. The
 `min_separation` width rows are re-measured, not re-asserted.
 
 ## 5. Fences
 
 - **`editor-core/src/clearance.rs` is SHELL's ground** (its
-  `program.md` paths) and M10's deliverable; `work/trim/program.md`
-  edits it by announced seam. The seam is exactly §3: `Window::bound`,
-  `window_of`, the task head of `Sweep::run` and `min_separation`,
-  `verify_witness`'s station admission, `CellReceipt::outside`,
-  `ClearanceReport::windows`, and the riders. Announced to SHELL and
-  M10 on the away channel before PR-2 opens. If SHELL-3 has moved the
-  functions, PR-2 targets `topo`'s copy and the announcement names
-  the new file.
-- **`chart_region.rs`, `ray_parity.rs`: read-only.** Track Q's
-  `chart_region.rs` is not edited; `ray_parity` is called as
-  `pub(crate)` with this unit's own rows.
-- **`predicate-dimension-audit.md`** (Track Q, `trim` an owner) gains
-  five rows, all `m`, under one F-row modelled on F17.
-- **`pcurves.rs`** (TRIM's): `chart_boundary`, the `LoopWraps`
-  variant, three visibilities. No change to the walk's decisions.
+  `program.md` paths) and M10's deliverable; TRIM edits it by announced
+  seam. The seam is exactly §3: `Window::bound`, `window_of`, the task
+  head of `Sweep::run` and `min_separation`, `verify_witness`'s station
+  admission, `CellReceipt::outside`, `ClearanceReport::windows`, the
+  riders. Announced to SHELL and M10 on the away channel before PR-2
+  opens; if SHELL-3 has moved the functions, PR-2 targets `topo`'s
+  copy and the announcement names the new file.
+- **Read-only:** Track Q's `chart_region.rs`; `ray_parity` (called
+  `pub(crate)` under this unit's own rows). **Edited, TRIM's:**
+  `pcurves.rs` (`chart_boundary`, `LoopWraps`, three visibilities; the
+  walk's decisions unchanged); `predicate-dimension-audit.md` (five
+  `m` rows under one F-row shaped like F17).
 - **Out:** cone/sphere/torus tightening (residue file), NURBS windows
   (`Unsupported` stands), exact-region cells (`m = M`), signed
   penetration, the sign-hull issue.
 
 ## 6. STOP conditions (pre-registered)
 
-1. The opening measurement (below) shows the R2 witness is minted in
-   an arm other than the exhibit probe or the `Negative` arm — the
-   third site is misidentified; re-survey before coding.
+1. The opening measurement shows the R2 witness minted in an arm other
+   than the exhibit probe or the `Negative` arm — the third site is
+   misidentified; re-survey before coding.
 2. `walk_loop` at `Interval` over the suites' `ε/64` boxes refuses
    (`Escalated`) on any fixture face — the description would be the
    identity everywhere; report the row and stop.
-3. E4 cannot be made to discriminate (the block's approach is
-   witnessed from a wall cell, not a cap cell) — the planted-tight
-   mutant has no gate; stop and re-cut the fixture with the
-   orchestrator.
-4. Any k-lint fires on a `pcurve_loop_*` or `pcurve_chart_*` row from
-   the new caller: distribution evidence, K-REPORT runbook, never a
-   geometry change.
-5. SHELL-3 dispatches while PR-2 is open: pause PR-2, announce, land
-   after the move.
+3. E4 cannot discriminate (the approach is witnessed from a wall cell,
+   not a cap cell) — the planted-tight mutant has no gate; re-cut the
+   fixture with the orchestrator before coding on.
+4. A k-lint fires on a `pcurve_loop_*` / `pcurve_chart_*` row from the
+   new caller: distribution evidence, K-REPORT runbook, never geometry.
+5. SHELL-3 dispatches while PR-2 is open: pause, announce, land after
+   the move.
 
 ## 7. PR shape, difficulty, task class
 
 **PR-1 (M-low, `topo` only):** `chart_bound.rs` (type, metring,
-`certifies_outside`, rows), `chart_boundary` in `pcurves.rs`, T1–T8,
-audit rows, K roster. No behaviour change anywhere. **PR-2 (L,
-the seam):** §3 (a)(b)(c), E1–E9, the riders, the residue file. PR-2
-opens only after PR-1 merges. Numeric class because every new decision
-is a metred margin through the funnel and the acceptance is ε-shaped;
-M overall because of the three-site consumer edit whose third site
-(refutation 3) is the one a box-only or cell-only reading misses, and
-the periodic-root rule (E7) that a natural spelling gets wrong.
+`certifies_outside`, rows), `chart_boundary` in `pcurves.rs`, T1–T9,
+audit rows, K roster; no behaviour change anywhere. **PR-2 (L, the
+seam):** §3 (a)(b)(c), E1–E9, the riders, the residue file; opens after
+PR-1 merges. Numeric because every new decision is a metred margin
+through the funnel and the acceptance is ε-shaped; M overall for the
+three-site consumer edit whose third site (refutation 3) a box-only or
+cell-only reading misses, and the periodic-root rule (E7) a natural
+spelling gets wrong.
 
 **Opening measurement (PR-2, before code):** run E1's fixture on head
-with a print of `pair.depth` and which arm minted the witness; quote it
-in the PR. **Lane obligations:** `docs/prompts/implementer-discipline.md`
+printing `pair.depth` and the arm that minted the witness; quote it in
+the PR. **Lane obligations:** `docs/prompts/implementer-discipline.md`
 binds; own `CARGO_TARGET_DIR` outside the worktree; hosted CI is the
 verification of record; no `CI-Config` trailer; no `-A` adds; announce
-the seam before opening PR-2; do not merge PR-2 without the SHELL/M10
-acknowledgement on the channel.
+the seam before opening PR-2 and do not merge it without SHELL's and
+M10's acknowledgement on the channel.
 
 ## 8. Open questions for a ruling
 
