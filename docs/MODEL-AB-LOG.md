@@ -2648,6 +2648,82 @@ land by the orchestrator mid-unit (fence widened to the allowlist line
 dual (ordinal 711), grounds file-disjoint. Sample number at merge. Row
 at merge.
 
+CERT-M3 (PR #1877) ordinal FIXED AT DISPATCH (2026-09-04):
+**ordinal 713** (S-CERT band; block CERT-B4 slot 2, drawn byte 123 —
+fable at position 3, so this slot's implementer arm OPUS). v6 dual:
+slot byte 115, parity 1 ⇒ **R1 FABLE + R2 OPUS**; SEQUENTIAL on frozen
+`19a775c0e` (run 33925337156: every job green except `test (eps =
+1e-6, 2/2)`, a red INHERITED from main — profile's fuzzed fillet
+radius 2.6e-7 off at eps=1e-6 under seed 0x063fda568e08fb0f, reproduced
+byte-identical on bare main b7f347254 and passing at the default eps
+on both trees; `crates/profile` is untouched by the diff; filed as
+`work/bool/profile-fillet-radius-off-at-eps-1e-6.md` and annotated on
+the PR per the inherited-red rule; trailer `lane=both eps=all`, the
+additive spelling the filter now requires). The frozen head is the
+delivered head 636745f39 plus TWO disclosed steps: the implementer's
+own merge of main 096efa3bd (six conflicts — main's M10-7 branch had
+added a `Sym<T>` impl of the trait this unit deletes, resolved by
+letting the bound serve the tier, pinned by a doctest at `Sym<f64>`;
+the tracker migration re-homing the row landings into `work/cert/H5.md`)
+and the orchestrator's docs-only state-sync commit 19a775c0e
+(`work/cert/CERT-M3.md` to review + the trailer re-spelt after the
+previous head's `eps=1e-12` failed the change filter) — no unit code
+moved after 096efa3bd; method note recorded pre-R1 at cert/ab-state.
+Implementer difficulty L (logged at spec pre-draw, docs/CERT-M3-SPEC.md
+at 1267e32c0), the spec NARROWED at dispatch by an orchestrator ruling
+to CERT-M2's census (one trait deleted, one argued-and-left, one's
+absence row fixed and its contract put to Ev as `[ev]` PR #1878);
+impl ~340k tokens, 214 tool uses, ~135m wall for the unit by the
+usage counter, plus ~427k / 86 / ~32m for the merge-of-main follow-up.
+Verification the lane disclosed: three-ε sweep on the moved rows in
+both lanes, full suites at both lanes, doctests, all gates, all seven
+excluded roots built as the gates build them. Unit shape for the
+reviewers' weighting: no arithmetic moved — one trait, four impls, two
+methods and one refusal variant deleted; the certified body made a
+public free function at the SAME bound; two doors re-bounded
+`Decide + CertifiedBounds` (allowlist +2 files); check 2's lane made an
+argument (`recertify_via`, `needs_nurbs_lane`, a coverage narrowing at
+two at-rest doors for one carrier class); one new `ValidationError`
+variant splitting a scalar-level absence from a geometric refusal.
+Where a wrong answer is reachable: the tightened pass (H-R3 — what
+`Body<Dual64>` can still do and what two at-rest doors now silently
+skip), the deletion's forced callers, and the new skip semantics.
+Sample number at merge. Row at merge.
+
+CERT-N3 (PR #1879) ordinal FIXED AT DISPATCH (2026-09-04):
+**ordinal 714** (S-CERT band; block CERT-B4 slot 3, drawn byte 123 —
+fable at position 3, so this slot's implementer arm FABLE). v6 dual:
+slot byte 89, parity 1 ⇒ **R1 FABLE + R2 OPUS**; SEQUENTIAL on frozen
+`b5a727c3b` (run 33927371220 ALL GREEN, lane=both eps=all by trailer).
+The frozen head is the lane's own: nine unit commits on the dispatch
+base 724c84927 plus the lane's merge of origin/main at the tracker-
+migration head (4d9b0cd9a; conflicts only in the D98 ripple and two
+callers main added) — no orchestrator-direct commits. The implementer
+session DIED mid-unit on a model rate limit (HTTP 429, during the D31
+bit-identity measurement, ~2026-09-02) and was RESUMED from its
+transcript on the same worktree and branch two days later; the D31
+evidence was re-taken after the resume. Implementer difficulty M
+(logged at spec pre-draw, docs/CERT-N3-SPEC.md at 1267e32c0); the
+usage counter records only the resumed half — ~498k tokens, 99 tool
+uses, ~68m wall — the pre-death half left no usage record (its wall
+was ~2h by the dispatch/death timestamps). Verification the lane
+disclosed: three-ε sweep (1e-6, 1e-9, 1e-12) on every moved row in
+both lanes; full suites of the five touched crates in both lanes plus
+the three ripple crates; every gate; excluded roots re-swept (no
+caller). Unit shape for the reviewers' weighting: one BEHAVIOUR change
+— the boolean lane's conic edge box becomes geom's exact extremal
+construction (S235), strictly tighter than the subdivision bound it
+replaces (36 candidate pairs stop being examined on the corpus, all
+with zero accepted events), plus a branch-cut fix inside the exact door
+itself (extremal angle exactly π now bounded) that is beyond "adopt";
+D31 claimed bit-identical (measured); D98 a D2 row-0 type change with
+a 53-site fixture ripple; D244 an inline; C24 closed on a measurement.
+Where a wrong answer is reachable: S235's soundness at every scalar
+the boolean reads it at (a too-tight box is a pruning hole), the
+branch-cut fix's own soundness, and the census/boolean lane gap pin.
+Sample number at merge. Row at merge. CERT-M3's dual (ordinal 713)
+runs CONCURRENTLY; grounds file-disjoint.
+
 ## GAUTH program rows (docs/GAUTH-PLAN.md; band 900–999; blocks named GAUTH-B<n>)
 
 Opened 2026-08-31 (`docs/GAUTH-LOG.md`); single-orchestrator remote
@@ -3710,6 +3786,27 @@ either ruling. Disclosed: one earlier red CI run on the head before
 carries a `Generated by Claude Code` footer the GitHub write path
 appends on every write; it names no model.
 
+DOCM-5 review ordinal fixed at dispatch (2026-09-04, PR #1871 open —
+frozen head `4c727c88`): **ordinal 1804** (DOCM band). Pre-draw fields
+at the spec (`docs/DOCM-5-SPEC.md`): difficulty **M**, task-class
+**STRUCTURAL**; implementer arm per block DOCM-B2 slot 1 (record
+branch-side on `docm/b2-block`). Protocol v6 dual: draw = `/dev/urandom`
+byte **123**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**. Method, recorded
+before either review runs: CONCURRENT same-head on frozen `4c727c88`,
+both briefs authored and STORED with sha256 before either dispatches
+(ff4c58f0f2d3501d… r1 / eff39ee466924bdd… r2 — identical text modulo lane names and lane
+paths, verified by diff), neither reviewer sees the other's report, v6
+item 5 isolation in both briefs, PRIVATE `CARGO_TARGET_DIR` AND private
+scratch directory per reviewer; the implementer's unit log entry is not
+written until the dual concludes. No stop clause fired; the spec is
+unamended. Disclosed: the spec cites `docs/PERF-PLAN.md`, which is not
+in the tree (the lane followed `memories/perf-measurement-lane.md` and
+said so); one earlier red on the head before (the binding census,
+fixed and pushed, not re-run); the PR body carries a `Generated by
+Claude Code` footer the GitHub write path appends on every write; it
+names no model.
+
+
 
 ## FILLET-RIM review ordinal fixed at dispatch (2026-09-04)
 
@@ -3748,6 +3845,10 @@ DOCM-1 RECORDED AT MERGE (2026-09-04, PR #1829, sample #128 — prior highest #1
 DOCM-2 RECORDED AT MERGE (2026-09-04, PR #1860, sample #129 — prior highest #128 on main at merge; block DOCM-B2 slot 0 concluded, the block record staying on `docm/b2-block` until the block concludes):
 
 | DOCM-2 | 2026-09-04 | DOCM-2 (PR #1860; spec docs/DOCM-2-SPEC.md + its stop-clause amendment, DM3 of DOCM-REFERENCES-DESIGN): `Node::Part { of, select }` with `PartSelect::{SplitHalf, Instance(Expr)}` — ONE body out of a split's or a pattern's value as the `Body` payload every consumer takes (tags 33/34; `SlotId::Instance` Count-typed and structural; the half fed to the key as a tag), `wire_part` handing on the half's/instance's own `Arc` with typed `EmptyHalf`/`InstanceOutOfRange`/`WrongOperand`, `NameTable::project` (the selected body's rows re-keyed to 0, names verbatim, ties narrowed by `defer::narrow_into` — the one rule `flush` also writes by), `SplitHalf::output_body` as the one half↔index definition with four callers, `denotes_body` true, the `part_select` corpus document (both halves unioned back, the middle instance lifted); the stop found `wire_split` stamping both halves' section planes with one source (fixed in-fence) and topo's two same-source assertions reading a channel-less scalar's missing bit channel as disagreement (ruled: no evidence; `plane_bits_witness`/`vec3_bits_witness`, fence widened to those two sites) | M / STRUCTURAL (pre-draw, at the spec; re-logged unchanged at the amendment) | FABLE (block DOCM-B2 slot 0; byte 39 → fable at slot 0) | **DUAL (ordinal 1803, v6 byte 67 parity 1: R1 fable, R2 opus, concurrent same-head on frozen b59b2203)**: R1 1/2/3 NOT-MERGEABLE-AS-IS, rubric 4/3/3 — MAJOR: `NameTable::project` refuses a tie straddling the two halves as an emission bug, and a pass-through tie carried into a split does exactly that (the U-cutter tie fixture split at y = 2: both Parts refuse; red probe, reproduced by the orchestrator); MINOR: the "in release" wrong-verdict claim is true of no build this workspace produces (release keeps debug assertions on); the orchestrator's amendment commit carries trailers undisclosed in the PR body. R2 1/4/4 APPROVE-WITH-FIXES, rubric 4/3/3 — MAJOR: the same straddling-tie defect (two red probes, the emitter sites named, `TieRows::flush` narrowing vs `project` refusing as the disagreement); MINOR: the "in release" claim, `names/README.md` naming the deleted `plane_bits_agree` (a Rust-only sweep's blind spot), the width ladder asserting only that some rung certifies, a second hand-written half→index in `name_split`. Convergent: the straddling tie (bilateral), the release claim (bilateral), the ladder's missing guard, the ε/10 string, the prose restating the mapping, the unfiled gate-reader defect. Adjudicated: 1 bilateral MAJOR (one defect, both by execution); NO unilateral MAJOR — **v6 tally after this pair: +0**. Pair FAIR (R2 disclosed a benign one-line grep glimpse of an unrelated unit's log line; both complete; private scratch dirs). | 0 silent by the orchestrator's count (the tie rule was disclosed with a false justification, counted as reported; the orchestrator's own trailers on the amendment commit, disclosed at the fix); R1 counted the tie rule silent against §4's letter | R1 4 / R2 4 | R1 3 / R2 3 | R1 3 / R2 3 | substantial — six gated items: the straddling tie narrowed by ONE rule (`defer::narrow_into`, emitter side, called by `flush` and `project`; the `Emission` refusal and the false comment gone; the U-cutter-tie-split rows, the pattern contrast and the three-shape unit row adopted); the "in release" claim corrected (release keeps debug assertions on); the width ladder asserted rung by rung at three ε; the half↔index mapping's prose restatements removed and `name_split`'s counter indexed through `output_body`; one `InstanceOutOfRange` construction behind a typed count bound; `names/README.md` naming the deleted helper fixed with the sweep re-run over `*.md`; exact recompute counts; two issues filed (the bit-identity gate's reader; two Parts of one body at one boolean refusing as `RayExhausted`); `LIB-B-PART` filed by the orchestrator | impl CI green (`CI-Config: lane=both`, the whole {default, interval} × {default, 1e-6, 1e-12} matrix, 33 jobs; one earlier red on a gate script's reader, fixed and pushed); fix CI green (same matrix, run 33917565871); local editor-core 1023 + 1257 interval, topo/viewer/pncad/pncad-py 1642 | impl ~700k self-reported over both phases (harness ~560k) / fix ~95k self-reported (harness ~58k) / reviews R1 ~266k + R2 ~294k (harness) | impl ~4h15m self-reported (Phase 1 ~2h10m to the stop, Phase 2 ~2h05m; harness ~1h25m) / fix ~1h35m self-reported (harness ~34 min) / reviews ~26 min + ~27 min concurrent (harness; each lane's own figure ~55 min) |
+
+DOCM-5 RECORDED AT MERGE (2026-09-04, PR #1871, sample #130 — prior highest #129 on main at merge; block DOCM-B2 slot 1 concluded, the block record staying on `docm/b2-block` until the block concludes):
+
+| DOCM-5 | 2026-09-04 | DOCM-5 (PR #1871; spec docs/DOCM-5-SPEC.md; the plan's ruled item 2, answering `check-registry-gathers-product-twice`): the check registry's subject — `Subject<'a, T>` = `Product(&Product) | NoBodyRoots | Unavailable { reason }` and `run_checks_on` as the door (pairing checked through `ident::mispaired` over `(doc, ev)` and the product's own `DocumentId`, refusing `ChecksError::EvaluationOfAnotherDocument`), `run_checks` the lazy wrapper (`ChecksConfig::needs_a_subject`, one definition beside the registry order — no gather when no enabled resident reads one), `assemble_gathered(product, tol)` holding everything below the gather with `assemble` a logic-free wrapper, `DocSession::land` gathering ONCE ordered fault → registry (borrow) → A5 badge (consumes), a `cfg(debug_assertions)` gather counter as the witness, the registry's cost measured with all four terms separated (gather ~241 ms, resident ~8 ms, wrapper ~251 ms, tier-3′ census ~11.4 s at 161 solids / 991 faces) and registered in the nightly latency lane with the size pinned by a test; no stop clause fired | M / STRUCTURAL (pre-draw, at the spec) | OPUS (block DOCM-B2 slot 1; byte 39 → fable at slot 0) | **DUAL (ordinal 1804, v6 byte 123 parity 1: R1 fable, R2 opus, concurrent same-head on frozen 4c727c88)**: R1 1/4/3 APPROVE-WITH-FIXES, rubric 4/3/3 — MAJOR: "release builds carry no counter" is false under this workspace's release profile (debug assertions on; the rlib carries it, `nm`-verified) and the row named for it pins source text; MINOR: the census figure re-attributed to a size it was never measured at (measured ~12 s there against the stated 1.1 s); the register's cadence overstated (nightly, not per merge); the wrapper hands the door `NoBodyRoots` on other refusals and a row says the opposite; A4's "not checked" unpinned for a real gather refusal (surviving mutant). R2 3/3/5 NOT-MERGEABLE-AS-IS, rubric 3/2/2 — MAJOR: the gather moved above the config read, so `Separation: Off` now gathers (45× the door) and a refusing gather raises where the base reported cleanly (red probes); `run_checks_on` binds nothing to nothing — a crossed `(doc, ev)` pair yields a measured WRONG finding through connectedness (red probes; the pair-doors issue's premise falsified); the release-profile claim (bilateral); MINOR: the cadence (bilateral), the grep guard blind to two gather spellings, the sweep overstating `scene.rs`'s gathers. Convergent: the release claim, the cadence, the source-text rows, the six disclosed deviations (all judged improvements by both). Adjudicated: 1 bilateral MAJOR (prose class) + 2 UNILATERAL MAJORs, both R2's, both code class by execution (the lazy-gather regression; document identity at the door), distinct defects — **v6 tally after this pair: +2 candidates** (both the R2/opus slot; coded at the blinded adjudication per the H4 precedent). Rulings: lazy gather by one `needed_by(cfg)`; a third `Subject::Unavailable` arm carried into the door; DI3 at the door through `ident::mispaired`. Pair FAIR (no glimpse, both complete, private scratch dirs). The spec's own premises corrected in this record: "release carries nothing" (item 4) and a fence over `product.rs` "Dual arms" the file does not have. | 3 silent by R2's count (the lazy-gather regression; the identity hole; the release claim — the first two code, both fixed; R1 counted the census re-attribution and the cadence silent) | R1 4 / R2 3 | R1 3 / R2 2 | R1 3 / R2 2 | substantial — the three rulings built (`needs_a_subject`/`reads_subject`, `Subject::Unavailable` carried into the door with the precedence kept and the discarded run gone, DI3 at the door with `Product::document`), R2's four red rows adopted, the naming-collision landing row verified red under its mutant, `gathers_in` over all three spellings plus the counter read across runs, the release-profile claim corrected at four sites and the row renamed to what it pins, the cadence corrected at six sites, the census MEASURED (~11.4 s, 125 findings) instead of re-attributed and added to the register, the pair-doors issue's false premise corrected, small prose; two issues filed (Python's doors gather twice, LIB; debug-only counters have no gate) | impl CI green (drawn full matrix, 37 jobs; one earlier red on the binding census, fixed and pushed); fix CI green (same matrix, run 33927923370); local editor-core/viewer/pncad/pncad-py 1612 rows | impl ~340k self-reported (harness ~348k) / fix ~300k self-reported (harness ~120k) / reviews R1 ~261k + R2 ~236k (harness) | impl ~2h10m self-reported (harness ~76 min) / fix ~1h05m self-reported (harness ~39 min) / reviews ~17 min + ~18 min concurrent (harness; the lanes' own ~25 and ~50 min) |
 
 ## EXCH-H1 review ordinal fixed at dispatch (2026-09-04)
 

@@ -1460,7 +1460,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "checks_error_tag",
-        values: &["band", "product_unavailable", "root_without_value"],
+        values: &[
+            "band",
+            "evaluation_of_another_document",
+            "product_unavailable",
+            "root_without_value",
+        ],
         delegates: &[],
     },
     TagEntry {
