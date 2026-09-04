@@ -331,16 +331,16 @@ impl core::fmt::Display for IdMapError {
 impl core::error::Error for IdMapError {}
 
 impl core::fmt::Display for PickIndexError {
-    /// The [`PickIndexError::Ids`] arm forwards to [`IdMapError`]'s own
-    /// `Display`. The [`PickIndexError::Node`] arm cannot forward:
-    /// `editor-core`'s `NodePickError` has no `Display`, so its value
-    /// reaches a reader as a debug rendering until it grows one (issue
-    /// #1111). The root it names is this layer's own contribution.
+    /// Both arms forward to their payload's own `Display`: the layer
+    /// that raised a failure names it, and this one does not restate
+    /// it. The root the [`PickIndexError::Node`] arm reports is this
+    /// layer's own contribution — the payload names the body, not the
+    /// root that owns it.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Node { node, error } => write!(
                 f,
-                "root {}'s bodies could not be tessellated or indexed: {error:?}",
+                "root {}'s bodies could not be tessellated or indexed: {error}",
                 node.0
             ),
             Self::Ids(error) => write!(f, "{error}"),
@@ -1530,8 +1530,8 @@ pub enum EdgeNameFault {
 }
 
 impl core::fmt::Display for EdgeNameFault {
-    /// The `Unnamed` arm carries `editor-core`'s own value, which has
-    /// no `Display` yet (issue #1111) and so renders as a debug form.
+    /// The `Unnamed` arm forwards to the carried value's own
+    /// `Display`: the naming layer named that failure.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NotDrawn { node, body } => write!(
@@ -1549,7 +1549,7 @@ impl core::fmt::Display for EdgeNameFault {
                 "edge {boundary} of body {body} on node {}: that body draws {drawn} edges, so                  this address was not one this index handed out",
                 node.0
             ),
-            Self::Unnamed(error) => write!(f, "a drawn edge has no name: {error:?}"),
+            Self::Unnamed(error) => write!(f, "a drawn edge has no name: {error}"),
         }
     }
 }
@@ -1559,15 +1559,13 @@ impl core::error::Error for EdgeNameFault {}
 impl core::fmt::Display for PickError {
     /// The rule this crate follows is that the layer which raised a
     /// failure names it, never a sentence composed here about somebody
-    /// else's refusal. [`PickError::Camera`] forwards to
-    /// [`CameraError`]'s own `Display`. [`PickError::HitTest`] cannot:
-    /// `editor-core`'s `HitTestError` has no `Display`, so its value
-    /// reaches a reader as a debug rendering until it grows one (issue
-    /// #1111).
+    /// else's refusal. Every arm forwards to its payload's own
+    /// `Display` — [`CameraError`], `editor-core`'s `HitTestError`,
+    /// and [`EdgeNameFault`] each name their own failure.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Camera(error) => write!(f, "the cursor names no ray: {error}"),
-            Self::HitTest(error) => write!(f, "the hit test refused: {error:?}"),
+            Self::HitTest(error) => write!(f, "the hit test refused: {error}"),
             Self::EdgeName(fault) => write!(f, "the picked edge has no name: {fault}"),
         }
     }

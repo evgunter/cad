@@ -272,7 +272,7 @@ impl core::fmt::Display for MateToolError {
             ),
             Self::Frame { side, error } => write!(
                 f,
-                "pick {}'s face frame cannot be derived: {error:?}",
+                "pick {}'s face frame cannot be derived: {error}",
                 side.name()
             ),
             Self::NoReference { side } => write!(

@@ -156,6 +156,13 @@ pub struct Member {
 /// non-instance node; a pattern whose name carries no `Instance(i)`
 /// qualifier; a pattern whose input is not itself a live instance — a
 /// patterned boolean, a nested pattern.
+///
+/// [`crate::refactor::split`]'s interface-crossing collector is one of
+/// those gates: a collector admitting a head the cluster graph does
+/// not weld would mint a record for a mate that never solved, which is
+/// what AQ8 option (b) SKIP refuses (ruled at the ASM-R2b review;
+/// recorded in `asm_r2b_assembly.rs`'s rows-5-and-6 header, not in
+/// `ASSEMBLY.md`'s AQ8 clause).
 pub fn member_of<P>(doc: &Doc<P>, name: &crate::names::StableName) -> Option<Member> {
     let head = name.node;
     match doc.node(head) {
@@ -214,12 +221,22 @@ fn head_of<P>(
 /// A head whose derived pose does not exist resolves to no member of
 /// the vocabulary and refuses [`MateFault::DanglingHead`] — an index
 /// at or beyond the count, a rule whose slots do not evaluate, a
-/// degenerate direction, an explicit-rule pattern (whose count
-/// spelling the pattern node itself refuses). The pattern node's own
-/// evaluation names the underlying cause in its own voice; this door's
-/// job is only to refuse rather than guess a pose. An in-band
+/// degenerate or non-finite direction, an explicit-rule pattern
+/// (whose count spelling the pattern node itself refuses). This
+/// door's job is to refuse rather than guess a pose. An in-band
 /// direction-norm decision escalates [`MateFault::Indeterminate`], as
 /// every decided predicate here does.
+///
+/// **The direction refusals say less than they know, and the
+/// difference is not recoverable elsewhere.** A rule whose direction
+/// has zero or non-finite length is announced as a dangling head for
+/// a head that resolves; the pattern node that could name the length
+/// does not, because a mate fault poisons the document and that node
+/// evaluates to `Poisoned` rather than to its own
+/// `DegenerateDirection`/`NonFiniteDirection`. Carrying the
+/// evaluation layer's typed refusal into [`MateFault`] instead is
+/// proposed to this module's owner, filed as
+/// `mate-dangling-head-is-a-catch-all-that-reports-a-false-cause`.
 fn derived_offset<P>(
     doc: &Doc<P>,
     mate: RecipeNodeId,
@@ -263,11 +280,14 @@ fn derived_offset<P>(
     // normalized the same triple under `datum_unit_norm`. So one datum
     // direction is decided under two predicate names depending on
     // which road reaches it — same arithmetic, same refusal shape,
-    // different name in the K census. Whether the two roads should
-    // meet is a family question, homed at issue 1570; nothing is
-    // migrated here.
-    let unit = |v: Vec3<f64>| -> Result<Vec3<f64>, Box<MateFault>> {
-        crate::eval::unit_direction(v, "pattern direction", band).map_err(|e| match e {
+    // different name in the K census. The ROLE word is the one thing
+    // the two roads do agree on: each rule names the vector it
+    // actually normalized, so a circular rule's refusal says "datum
+    // axis direction" here exactly as it does on the eval road.
+    // Whether the two roads should meet is a family question, homed at
+    // issue 1570; nothing is migrated here.
+    let unit = |v: Vec3<f64>, role: &'static str| -> Result<Vec3<f64>, Box<MateFault>> {
+        crate::eval::unit_direction(v, role, band).map_err(|e| match e {
             crate::eval::NodeErrorKind::Escalated { source, .. } => {
                 Box::new(MateFault::Indeterminate {
                     mate,
@@ -279,7 +299,7 @@ fn derived_offset<P>(
     };
     let ops = match kind {
         PatternKind::Linear { direction, spacing } => SteppedOperands::Linear {
-            direction: unit(triple(direction)?)?,
+            direction: unit(triple(direction)?, "pattern direction")?,
             spacing: scalar(spacing)?,
         },
         PatternKind::Circular { axis, step } => {
@@ -288,7 +308,7 @@ fn derived_offset<P>(
             };
             SteppedOperands::Circular {
                 origin: Point3::origin() + triple(origin)?,
-                dir: unit(triple(direction)?)?,
+                dir: unit(triple(direction)?, "datum axis direction")?,
                 step: scalar(step)?,
             }
         }
