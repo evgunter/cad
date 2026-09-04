@@ -238,3 +238,11 @@ The plan and this log moved here from `docs/SEAT-PLAN.md` /
 `docs/SEAT-LOG.md`. The program's slate now lives in this directory's
 item files and in `work/STATUS.md` (generated); this log stays the
 narrative. Items created at migration: SEAT-6 (dispatched, PR #1593).
+
+## Seam announced by FILLET (2026-09-04)
+
+FILLET enters `crates/topo/src/query.rs` for one door, `rim_of` (Ev's
+ruling on PR 1735; spec `docs/FILLET-RIM-SPEC.md`): the rim an arc
+belongs to, an EXACT door beside `edge_adjacent_matches`, with its own
+`RimError`. Nothing else in the module moves; SEAT's units touching the
+file merge as usual.
