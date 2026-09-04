@@ -387,6 +387,17 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane>(
 ///
 /// `rounds` is the exception, and it is not a limb: it is carried, for
 /// the reason [`geom::OffsetCertificate::rounds`] states once.
+///
+/// **The band is the RUN's while the tolerance is the SURFACE's**, and
+/// the pair is deliberate rather than an oversight. The band reaches
+/// only the fit door's degeneracy meters (the regularity floor and the
+/// collapse reach); the two limbs are classified against `tolerance`
+/// directly. So a tighter run band can make this door refuse a surface
+/// its mint accepted, which is the fail-loud direction, and the shape
+/// is exactly `geom_brep::recertify_approx`'s — the door tier 3 reaches
+/// per face, which likewise meters at the run's band and classifies at
+/// the caller's tolerance. The map and the validator therefore agree
+/// about any given surface, which is the property that matters.
 fn map_approx<T: Decide + geom_brep::PcurveFittedLane>(
     map: &Affine3<T>,
     a: &geom::ApproxSurface<T>,
