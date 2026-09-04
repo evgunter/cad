@@ -63,3 +63,12 @@ is branch-side on `docm/b1-block` until the block concludes). Chosen first
 because it retires the die's chain, which every later naming-sensitive
 unit would otherwise inherit. The review ordinal is claimed on main at
 review dispatch, per the log's standing rule.
+
+## Second dispatch (2026-09-04)
+
+PR 1789 merged on Ev's sign-off ("1789 looks good"), so DI5's stronger
+reading stands. `DOCM-4` dispatched on `docm/4-evaluation-identity`
+against `docs/DOCM-4-SPEC.md` (pre-draw M / STRUCTURAL at the spec),
+concurrently with `DOCM-3` on disjoint files; the fence is in the spec's
+Constraints. Node-kind units (`DOCM-1`, `DOCM-2`) wait for `DOCM-3` to
+land, so two lanes never mint content-key tags at once.
