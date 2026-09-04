@@ -4531,8 +4531,9 @@ jobs:
     # when the group merges. Meanwhile the PR run has already rendered this
     # merge preview and main's push run re-renders and re-baselines after the
     # merge, so a queue render is the one job here that could only agree with
-    # its neighbours. At the 2026-09-04 medians it is ~335 job-seconds of the
-    # ~2690 a code-tier run costs — about an eighth of what a queue would add.
+    # its neighbours. At the 2026-09-04 medians it is 330 job-seconds of the
+    # 2686 a code-tier run costs — about an eighth of what a queue would add.
+    #
     # WHAT IS GIVEN UP HERE IS NOTHING, AND THAT IS A CLAIM ABOUT THIS EVENT
     # ONLY. On the merge_group side the exclusion removes no gate: the PR run
     # and main's push run both render this tree, so a queue render could only
@@ -4542,10 +4543,11 @@ jobs:
     # FAILED render lane blocks the pull request, which no render lane has been
     # able to do before. That tightening is deliberate and is argued at
     # `gate-ok`'s own key, on a measurement of the post-PR-1724 failure rate.
-    # THE CONSEQUENCE TO KNOW is that no render check name
-    # reports on a merge_group run, so no render check may appear in the
-    # queue's required-check list — a required check that never reports
-    # stalls the queue until its status-check timeout.
+    #
+    # THE CONSEQUENCE TO KNOW is that no render check name reports on a
+    # merge_group run, so no render check may appear in the queue's
+    # required-check list — a required check that never reports stalls the
+    # queue until its status-check timeout.
     if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group' && needs.filter.outputs.run_k_lint == 'true'
     uses: ./.github/workflows/render.yml
     # A reusable workflow gets the CALLER's token scope, and this
