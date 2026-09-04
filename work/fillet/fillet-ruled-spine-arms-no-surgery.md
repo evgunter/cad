@@ -6,6 +6,7 @@ status: open
 opened: 2026-08-25
 github: 987
 refs: [962]
+needs_ev: true
 ---
 
 ## From GitHub issue 987
@@ -60,3 +61,40 @@ shape in the corpus asks for it yet.
 ## Home
 
 Fillet band and surgery were S-BLEND's, which is closed and may hold only closed items; VERBS ceded that ground explicitly, so this open residue lands under `work/issues/`.
+
+## For Ev — what terminates a ruled band (the OQ6 question this unit waits on)
+
+The arms exist (`BlendArm::CylinderCylinderCylinder`,
+`BlendArm::CylinderPlaneCylinder`: a `Surface::Cylinder` about a
+straight spine, both trimlines lines along the ruling). The surgery does
+not: a ruled pair meets along an OPEN edge, and the open-chain door
+(`AdmittedOpen::admit`, `crates/sweep/src/blend/admit.rs:97`) takes
+plane–plane supports ending in fully-requested trivalent corners only.
+A ruling on a finite cylinder ends at the cylinder's caps — transverse
+faces whose rim edges the caller has NOT requested — so the termination
+is a run-out against an unrequested transverse face, the "general
+run-outs are not implemented" clause of `FILLET3_CORNER_RECOURSE`.
+ARMS3 A3-3 (`crates/sweep/README.md`) names the MID-CURVE run-out
+(ball-cap stop; feather-out) and reserves the taxonomy for you. This
+is a different termination; the question is whether it needs the same
+conversation before it is built.
+
+1. **The transverse cut-off, for caps perpendicular to the ruling
+   (recommended).** Where the terminating face is a plane perpendicular
+   to the spine, the band's end is that plane's section of the cylinder
+   band: an exact circular arc, stored, no new surface kind. The cap
+   face's loop gains the arc (the old corner vertex splits into the two
+   feet); the two supports' trimlines end at the feet. Anything else at
+   an end — an oblique cap, a curved face, a chart seam — refuses typed
+   with its own sentence. This completes the flat-milled-rod and
+   parallel-cylinders shapes the arms were built for. The unit's spec
+   would propose the `CornerConfig` / `RunOutPolicy` name for it for
+   your ratification, as `SeamVertex` was.
+2. **Hold H7 until the whole run-out taxonomy is designed** — ball-cap,
+   feather-out and the transverse cut-off as one family. Consistent,
+   larger, and consumer-gated: no corpus shape asks for a ruled band.
+3. **Cut H7 from the program**: the arms stay classified-but-unbuilt
+   with their honest refusal, recorded as residue at the exit walk.
+
+A 👍 on 1 unblocks the spec; 2 or 3 parks the item with its trigger
+named.
