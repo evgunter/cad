@@ -812,9 +812,12 @@ pub(crate) fn carve<T: Decide>(
     for k in orphan_surfaces {
         body.surfaces.remove(k);
         // The side tables are parallel to the arena, so a raw removal
-        // has to reach them or a re-minted key inherits a stranger's
-        // identity (`Body::remove_surface_if_orphaned`'s rule, which
-        // this sweep is the batch spelling of).
+        // has to reach them (`Body::remove_surface_if_orphaned`'s
+        // rule, which this sweep is the batch spelling of). Hygiene,
+        // not a defect: generational keys mean a re-minted key can
+        // never read a stranded row, but the OLD key would go on
+        // answering for a surface the body no longer holds. Pinned
+        // from the split door in `sweep`'s `seat6_germ_channel`.
         body.surface_sources.remove(k);
         body.surface_field_sources.remove(k);
     }

@@ -72,8 +72,20 @@ use crate::entity::FaceKey;
 /// **Not a digest.** The lowering is injective, so token equality is
 /// expression equality outright rather than a hash-collision-shaped
 /// claim about it.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+///
+/// `Debug` is deliberately opaque — the length and nothing else. `Body`
+/// derives `Debug`, so a derived impl here would spell every token's
+/// bytes into every body dump, which is a door out of the payload this
+/// crate says it has none of. The module doc's claim is kept true
+/// rather than softened.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ParamSource(Arc<[u8]>);
+
+impl core::fmt::Debug for ParamSource {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "ParamSource(<{} bytes>)", self.0.len())
+    }
+}
 
 impl ParamSource {
     /// The token for an already-lowered expression identity.
@@ -106,6 +118,18 @@ pub enum SurfaceField {
     /// [`Surface::Cylinder`]'s `radius`.
     CylinderRadius,
     /// [`Surface::Cone`]'s `half_angle`.
+    ///
+    /// Declared because the description stores it, not because a flow
+    /// reaches it: this enum is the census of [`Surface`]'s stored
+    /// scalars, closed over the DESCRIPTION rather than over today's
+    /// verbs, so that a field a future verb parameterizes already has
+    /// its row. No row of any `verbs::ParamFlow` names it — nothing in
+    /// the vocabulary takes a half-angle as a scalar parameter, and a
+    /// cone a revolve mints derives its angle from the profile's
+    /// geometry — so no token is ever attached to it today, exactly as
+    /// none is to [`SurfaceField::TorusMajorRadius`]. A consumer that
+    /// ever reads it needs its own typed evidence (an angle is not a
+    /// `RadiusEvidence`); none exists, and none is invented here.
     ConeHalfAngle,
     /// [`Surface::Sphere`]'s `radius`.
     SphereRadius,
@@ -128,8 +152,10 @@ impl SurfaceField {
     ];
 
     /// How many fields the declaration holds — the width of one
-    /// surface's record row.
-    pub const COUNT: usize = 5;
+    /// surface's record row. Derived from [`SurfaceField::ALL`], so
+    /// there is one list to keep and the census below checks it
+    /// against the enum rather than against a hand-kept twin.
+    pub const COUNT: usize = Self::ALL.len();
 
     /// This field's position in a record row.
     const fn index(self) -> usize {
@@ -286,8 +312,8 @@ mod tests {
     /// the way the verb vocabulary's census is: the match below is
     /// exhaustive, so a field added to the enum fails this file until it
     /// is visited, and every arm names the same total, so visiting it
-    /// means writing the new count — which then reds until `ALL` and
-    /// `COUNT` have both grown.
+    /// means writing the new count — which then reds until `ALL` has
+    /// grown (`COUNT` follows it).
     #[test]
     fn all_is_the_whole_field_declaration() {
         let rows = match SurfaceField::CylinderRadius {
@@ -405,8 +431,12 @@ mod tests {
     }
 
     /// **A record dies with its surface.** The side table is parallel to
-    /// the arena, so orphan hygiene must reach it or a re-minted key
-    /// would inherit a stranger's identity.
+    /// the arena, so orphan hygiene must reach it. Not because a
+    /// re-minted key could inherit the record — `SecondaryMap::get` is
+    /// version-checked, so a NEW key at the old slot reads nothing — but
+    /// because the OLD key would go on answering for a surface the body
+    /// no longer holds: a stale key reading a dead record, and a side
+    /// table diverging from the arena it mirrors.
     #[test]
     fn a_record_dies_with_the_surface_it_names() {
         let (mut body, face, key) = cube_with_cylinder(1.0);

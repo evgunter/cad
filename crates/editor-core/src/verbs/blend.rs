@@ -89,18 +89,10 @@ pub(crate) struct BlendVerb<T: geom_core::Real> {
     /// (`NodeErrorKind::Blend`), and one vocabulary there is what keeps
     /// a refusal's verb from being rendered twice or differently.
     pub(crate) selection_label: BlendKind,
-    /// The slot whose evaluated scalar is the verb's size parameter:
-    /// the fillet's radius, the chamfer's setback.
-    pub(crate) size_slot: SlotId,
-    /// **Which kernel scalar parameter that slot IS.** The document
-    /// side names a slot, the kernel side names a parameter, and the
-    /// parameter -> field flow (`verbs::VerbKind::param_flow`) is keyed
-    /// on the latter — so the correspondence has to say which is which,
-    /// or the flow cannot be looked up for the value the slot produced.
-    /// This is the join that lets the lowering attach a slot's lowered
-    /// expression identity to exactly the fields the verb declares its
-    /// parameter reaches, without knowing which verb it is holding.
-    pub(crate) size_param: ScalarParam,
+    /// The size slot and the kernel parameter it is — the scalar-free
+    /// half of the correspondence, so the content key can read it
+    /// without a lane scalar in hand.
+    pub(crate) slots: BlendSlots,
     /// What a missing birth record is called when this verb's result
     /// arrives without one. A kernel bug either way; the sentence names
     /// the door that produced it.
@@ -113,6 +105,44 @@ pub(crate) struct BlendVerb<T: geom_core::Real> {
     /// the sentence names the door so the refusal does too.
     pub(crate) foreign_record: &'static str,
 }
+
+/// **The slot ↔ parameter join of one blend verb**, free of the lane
+/// scalar. The document side names a slot, the kernel side names a
+/// parameter, and the parameter → field flow
+/// (`verbs::VerbKind::param_flow`) is keyed on the latter — so the
+/// correspondence has to say which is which, or the flow cannot be
+/// looked up for the value the slot produced. This is the join that
+/// lets the lowering attach a slot's lowered expression identity to
+/// exactly the fields the verb declares its parameter reaches, and the
+/// content key feed the same slot's spelling, without either knowing
+/// which verb it is holding.
+///
+/// It is a join, not a restatement: `ScalarParam::verb` already says
+/// which verb a parameter belongs to (and the census below checks each
+/// correspondence names its own verb's), but no function of the verb
+/// alone can say which of the NODE's slots that parameter is — a slot
+/// is document vocabulary, and a verb that one day carries two scalars
+/// will need two of these.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct BlendSlots {
+    /// The slot whose evaluated scalar is the verb's size parameter:
+    /// the fillet's radius, the chamfer's setback.
+    pub(crate) size_slot: SlotId,
+    /// Which kernel scalar parameter that slot IS.
+    pub(crate) size_param: ScalarParam,
+}
+
+/// The fillet's join.
+pub(crate) const FILLET_SLOTS: BlendSlots = BlendSlots {
+    size_slot: SlotId::Radius,
+    size_param: ScalarParam::FilletRadius,
+};
+
+/// The chamfer's join.
+pub(crate) const CHAMFER_SLOTS: BlendSlots = BlendSlots {
+    size_slot: SlotId::ChamferDistance,
+    size_param: ScalarParam::ChamferDistance,
+};
 
 /// The fillet's kernel payload. A named function rather than a closure
 /// so it can be a plain `fn` pointer in the struct above.
@@ -135,8 +165,7 @@ pub(crate) fn fillet<T: geom_core::Real>() -> BlendVerb<T> {
         build: build_fillet,
         emitter: names::name_fillet,
         selection_label: BlendKind::Fillet,
-        size_slot: SlotId::Radius,
-        size_param: ScalarParam::FilletRadius,
+        slots: FILLET_SLOTS,
         no_records: "the fillet returned a body with no birth records",
         foreign_record: "the fillet returned a record that is not a blend's",
     }
@@ -148,8 +177,7 @@ pub(crate) fn chamfer<T: geom_core::Real>() -> BlendVerb<T> {
         build: build_chamfer,
         emitter: names::name_chamfer,
         selection_label: BlendKind::Chamfer,
-        size_slot: SlotId::ChamferDistance,
-        size_param: ScalarParam::ChamferDistance,
+        slots: CHAMFER_SLOTS,
         no_records: "the chamfer returned a body with no birth records",
         foreign_record: "the chamfer returned a record that is not a blend's",
     }
@@ -195,7 +223,7 @@ mod tests {
             (VerbKind::Chamfer, chamfer::<f64>()),
         ] {
             assert_eq!(
-                corr.size_param.verb(),
+                corr.slots.size_param.verb(),
                 verb,
                 "{verb:?}'s correspondence names another verb's scalar parameter"
             );
@@ -208,9 +236,10 @@ mod tests {
     fn the_two_correspondences_share_no_literal() {
         let f = fillet::<f64>();
         let c = chamfer::<f64>();
-        assert_ne!(f.size_slot, c.size_slot, "both verbs read one slot");
+        assert_ne!(f.slots, c.slots, "both verbs read one slot as one parameter");
+        assert_ne!(f.slots.size_slot, c.slots.size_slot, "both verbs read one slot");
         assert_ne!(
-            f.size_param, c.size_param,
+            f.slots.size_param, c.slots.size_param,
             "both verbs name one kernel scalar parameter"
         );
         assert_ne!(

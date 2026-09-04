@@ -18,52 +18,21 @@
 //! same geometry answers `None` and routes the general rung, whatever
 //! its radii read.
 //!
-//! The fixture is deliberately the germarms one, re-derived here rather
-//! than shared: that file is the germ lane's acceptance and this is a
-//! statement about the channel, so a change to either must not silently
-//! move the other.
+//! The fixture IS the germarms one, shared through
+//! `common::germ_pair`: both files read one pair at one door, and a
+//! pair that drifted between them would make the two statements about
+//! different geometry.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
 
+use crate::common::germ_pair::{cyl, repose, seams_off_the_pinch};
 use geom_brep::RadiusEvidence;
-use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError, ParamSource, SurfaceField};
-
-/// A cylinder about `z`, radius `r`, `z ∈ [−h, h]`, through the public
-/// extrude door.
-fn cyl(r: f64, h: f64) -> Body<f64> {
-    let tol = Tol::witness();
-    let lp = profile::circle(Point2::new(0.0, 0.0), r, tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -h)));
-    let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(2.0 * h), tol)
-        .unwrap()
-        .body
-}
-
-fn spin(b: &Body<f64>, axis: Vec3<f64>, angle: f64) -> Body<f64> {
-    topo::transform_rigid(
-        b,
-        &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), axis, angle),
-        Tol::witness(),
-    )
-    .unwrap()
-}
-
-/// The Steinmetz surfaces with both seams turned off the pinch — the
-/// pose that reaches the join.
-fn pair(h: f64, phi: f64) -> (Body<f64>, Body<f64>) {
-    let a = cyl(1.0, h);
-    let b = spin(&cyl(1.0, h), Vec3::new(1.0, 0.0, 0.0), PI / 2.0);
-    (
-        spin(&a, Vec3::new(0.0, 0.0, 1.0), phi),
-        spin(&b, Vec3::new(0.0, 1.0, 0.0), phi),
-    )
-}
 
 /// Stamps `token` on the operand's ONE cylinder wall — standing in for
 /// the recipe layer's attach-at-mint, which is exercised end to end
@@ -95,7 +64,7 @@ fn germ_evidence(a: &Body<f64>, b: &Body<f64>) -> RadiusEvidence {
 #[test]
 fn one_shared_radius_source_declares_at_the_germ() {
     let token = ParamSource::from_lowered(b"the-document's-r");
-    let (mut a, mut b) = pair(1.2, PI / 4.0);
+    let (mut a, mut b) = seams_off_the_pinch(1.2, PI / 4.0);
     declare(&mut a, &token);
     declare(&mut b, &token);
     assert_eq!(
@@ -113,7 +82,7 @@ fn one_shared_radius_source_declares_at_the_germ() {
 /// evaluation attaches these records.
 #[test]
 fn the_undeclared_pair_routes_the_general_rung() {
-    let (a, b) = pair(1.2, PI / 4.0);
+    let (a, b) = seams_off_the_pinch(1.2, PI / 4.0);
     assert_eq!(
         germ_evidence(&a, &b),
         RadiusEvidence::None,
@@ -126,7 +95,7 @@ fn the_undeclared_pair_routes_the_general_rung() {
 /// notices records exist".
 #[test]
 fn two_different_sources_are_not_a_declaration() {
-    let (mut a, mut b) = pair(1.2, PI / 4.0);
+    let (mut a, mut b) = seams_off_the_pinch(1.2, PI / 4.0);
     declare(&mut a, &ParamSource::from_lowered(b"r"));
     declare(&mut b, &ParamSource::from_lowered(b"s"));
     assert_eq!(
@@ -140,7 +109,7 @@ fn two_different_sources_are_not_a_declaration() {
 /// an imported one falls back exactly as an imported pair does.
 #[test]
 fn one_declared_side_is_not_a_declaration() {
-    let (mut a, b) = pair(1.2, PI / 4.0);
+    let (mut a, b) = seams_off_the_pinch(1.2, PI / 4.0);
     declare(&mut a, &ParamSource::from_lowered(b"r"));
     assert_eq!(germ_evidence(&a, &b), RadiusEvidence::None);
 }
@@ -154,22 +123,9 @@ fn one_declared_side_is_not_a_declaration() {
 #[test]
 fn a_rigid_re_pose_keeps_the_declaration() {
     let token = ParamSource::from_lowered(b"the-document's-r");
-    let (mut a, mut b) = pair(1.2, PI / 4.0);
+    let (mut a, mut b) = seams_off_the_pinch(1.2, PI / 4.0);
     declare(&mut a, &token);
     declare(&mut b, &token);
-    let repose = |body: &Body<f64>| {
-        let r = Affine3::rotation_about_axis(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 2.0, 3.0).normalize(),
-            0.7,
-        );
-        topo::transform_rigid(
-            body,
-            &Affine3::from_parts(r.linear, r.translation + Vec3::new(0.3, -0.45, 0.6)),
-            Tol::witness(),
-        )
-        .unwrap()
-    };
     assert_eq!(
         germ_evidence(&repose(&a), &repose(&b)),
         RadiusEvidence::Declared,
@@ -217,4 +173,71 @@ fn the_records_survive_into_a_boolean_result() {
             "a survivor kept its geometry and must keep its parameter identity with it"
         );
     }
+}
+
+/// **The split's batch orphan sweep reaches BOTH side tables.**
+///
+/// A split keeps one side's faces and drops the other's; a surface
+/// that only the dropped faces referenced is swept out of the arena in
+/// one batch (`splitting/finish.rs`'s `carve`), and the side tables
+/// keyed on it have to go with it. Generational keys make a stranded
+/// row unreachable through any NEW key, so this is not a wrong read
+/// waiting to happen; it is the OLD key still answering for a surface
+/// the body no longer holds — a stale key reading a dead record — and
+/// the parallel tables silently diverging from the arena they mirror.
+/// The row holds the pre-split key and asks the surviving half.
+///
+/// The fixture is the corpus's square-with-an-arc chain, extruded: its
+/// one arc wall is a cylinder at the far side of the profile, and a
+/// split plane parallel to the extrusion through the square leaves
+/// that wall a surface only the dropped faces referenced.
+///
+/// Two channels, two assertions: the field rows this unit added, and
+/// the description-level `GeomSource` row the same sweep now removes
+/// too — a change to the pre-existing channel folded in beside it, so
+/// it gets its own line rather than riding under the field rows'.
+#[test]
+fn the_split_orphan_sweep_drops_both_side_tables() {
+    let tol = Tol::witness();
+    let vp = Profile::new(SketchPlane::xy(), crate::common::chain(1.0))
+        .validate(tol)
+        .unwrap();
+    let mut body = extrude(&vp, Extrusion::Distance(1.0), tol)
+        .expect("the chain extrudes")
+        .body;
+    let token = ParamSource::from_lowered(b"the-document's-r");
+    // The arc wall: the one cylinder surface the chain's extrusion
+    // mints, which sits at x ≈ 2, wholly beyond the split plane.
+    let far_wall = {
+        let walls: Vec<_> = body
+            .surfaces()
+            .filter(|(_, s)| matches!(s, topo::Surface::Cylinder { .. }))
+            .map(|(k, _)| k)
+            .collect();
+        assert_eq!(walls.len(), 1, "the chain has one arc, so one cylinder wall");
+        walls[0]
+    };
+    body.set_surface_field_source(far_wall, SurfaceField::CylinderRadius, token)
+        .expect("a live cylinder key");
+    body.set_surface_source(far_wall, topo::GeomSource::minted(7, 0))
+        .expect("a live wall key");
+    let plane = topo::SplitPlane {
+        origin: Point3::new(1.0, 0.0, 0.0),
+        normal: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let halves = topo::split(&body, &plane, tol).expect("the square splits");
+    let near = halves.below.body().expect("the flat side is below");
+    assert!(
+        near.get_surface(far_wall).is_none(),
+        "the arc wall is not a surface of the near half"
+    );
+    assert!(
+        near.surface_field_source(far_wall, SurfaceField::CylinderRadius)
+            .is_none(),
+        "the field rows outlived the surface the split swept out"
+    );
+    assert!(
+        near.surface_source(far_wall).is_none(),
+        "the GeomSource row outlived the surface the split swept out"
+    );
 }

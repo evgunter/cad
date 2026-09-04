@@ -960,25 +960,58 @@ fn intersecting_cylinder_axes<T: Decide>(
     if evidence == geom_brep::RadiusEvidence::None {
         return FrameError::IntersectingCylinderAxes { evidence };
     }
-    // Metered at the larger radius, the same lever the parallelism gate
-    // above used — the section table re-decides the two axis margins
-    // this dispatch just decided, and it must reach the same verdicts
-    // from the same margins.
+    // `r1`/`r2` are NEVER compared here — equality is the channel's
+    // answer, not this function's — they only set the section
+    // table's EXTENT: metered at the larger radius, the same lever the
+    // parallelism gate above used, because the table re-decides the
+    // two axis margins this dispatch just decided and must reach the
+    // same verdicts from the same margins.
+    //
+    // Both matches are CLOSED (VERB-SEAT-DESIGN §0, D3): every section
+    // outcome and every refusal is named, so a variant added to either
+    // enum is a compile-time visit here rather than a silent desync.
     match geom_brep::cylinder_cylinder_section(sa, sb, evidence, r1.max(r2), band) {
         Ok(geom_brep::EqualCylinderSection::TwoEllipses { .. }) => {
             FrameError::IntersectingCylinderAxes { evidence }
         }
-        Ok(_) => FrameError::Desync(
+        // The three parallel-axes answers, from a table whose
+        // parallelism verdict this dispatch already took the other
+        // way on the same margin.
+        Ok(
+            geom_brep::EqualCylinderSection::ParallelLines { .. }
+            | geom_brep::EqualCylinderSection::TangentLine(_)
+            | geom_brep::EqualCylinderSection::Empty,
+        ) => FrameError::Desync(
             "the declared equal-radius section of an intersecting-axes cylinder pair \
-             classified as something other than the ellipse pair",
+             classified as a parallel-axes locus",
         ),
         Err(geom_brep::SectionError::Escalated(diag)) => FrameError::Escalated(diag),
         Err(geom_brep::SectionError::RadiusDeclarationContradicted) => FrameError::Desync(
             "two cylinder radii carrying the SAME lowered parameter source hold \
              different values — one expression evaluated to two numbers",
         ),
-        Err(_) => FrameError::Desync(
-            "the declared equal-radius cylinder section refused at the germ pair",
+        // The table's own routing verdict, honoured the way
+        // `cs_pair_frame` honours it: NOT a desync, since nothing is
+        // contradicted — the pair marches one rung down. Reachable only
+        // if the table's coplanarity verdict differed from this
+        // dispatch's on the same margin, and the general rung is the
+        // right home for a skew pair either way.
+        Err(geom_brep::SectionError::RoutesToGeneralRung { .. }) => FrameError::NoArm,
+        // Refusals that cannot come out of a cylinder pair this
+        // dispatch admitted: the kinds were matched above, the
+        // coaxial-equal-radius pose was refused at the parallelism
+        // gate, and no coaxiality, torus or conic-carrier question is
+        // asked of two cylinders with meeting axes.
+        Err(
+            geom_brep::SectionError::WrongLane { .. }
+            | geom_brep::SectionError::CoaxialDeclarationContradicted
+            | geom_brep::SectionError::DegenerateOperand { .. }
+            | geom_brep::SectionError::CoincidentSurfaces
+            | geom_brep::SectionError::DegenerateTorus
+            | geom_brep::SectionError::Carrier(_),
+        ) => FrameError::Desync(
+            "the declared equal-radius cylinder section refused at the germ pair \
+             with a refusal this pair cannot produce",
         ),
     }
 }

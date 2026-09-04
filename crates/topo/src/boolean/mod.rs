@@ -1018,10 +1018,15 @@ pub enum BooleanError {
     /// Which of the two holds is a RADIUS-equality question, and
     /// radius equality is structural or declared and never inferred
     /// from values (`geom_brep::RadiusEvidence`, the coincidence
-    /// ladder). No declaration channel reaches this dispatch, so it
-    /// refuses on the axis relation alone rather than reading the
-    /// radii. Recourse: a chord lane that can walk a self-intersecting
-    /// section, or geometry whose germ pairs are wired.
+    /// ladder). The germ site reads the answer off the lowered
+    /// parameter-identity channel (`crate::param_source`) and this
+    /// refusal carries it as `evidence`: `Declared` names the
+    /// equal-radius pinch as a PROVEN configuration — the closed form
+    /// was constructed and verified against the geometry on the way —
+    /// while `None` leaves the question open and refuses on the axis
+    /// relation alone. Neither reads the radii. Recourse: a chord lane
+    /// that can walk a self-intersecting section, or geometry whose
+    /// germ pairs are wired.
     GermFrameCylinderPinch {
         /// The A-side germ face.
         a_face: FaceKey,
