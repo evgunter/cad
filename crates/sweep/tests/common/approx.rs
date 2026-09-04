@@ -209,9 +209,9 @@ pub fn pulled_back(wall: &NurbsSurface<f64>, d: f64) -> NurbsSurface<f64> {
     .expect("a translated net is a valid surface")
 }
 
-/// **A box whose top cap wears a certified `Approx` surface** — the
-/// `Approx`-faced body with ANALYTIC carriers throughout, and the only
-/// shape of one this tree can build today.
+/// **A box whose top cap wears a certified `Approx` surface, described
+/// on its own chart** — the `Approx`-faced body with ANALYTIC carriers
+/// throughout, and the only shape of one this tree can build today.
 ///
 /// The lofted [`prism`] cannot be moved by `topo::transform_rigid` and
 /// never could: its four vertical wall seams carry `Curve3::Nurbs`,
@@ -219,29 +219,40 @@ pub fn pulled_back(wall: &NurbsSurface<f64>, d: f64) -> NurbsSurface<f64> {
 /// is `Approx`. A box's carriers are all `Line`, so this fixture is
 /// what reaches the map's `Approx` arm.
 ///
-/// **What it deliberately is not: a re-described face.** The cap's four
-/// edges keep the descriptions they were built with — the intersection
-/// of the ORIGINAL cap plane with each wall — because neither
-/// re-description this tree offers is available on an `Approx` chart:
+/// The surgery is the M6-1 order, one face wide: the cap's surface
+/// becomes the certified `Approx` of the cap plane pulled back by `d`
+/// ([`pulled_back`] of [`planar_patch`], exact on a plane, so
+/// `Offset { base, d }` describes the surface the face already had),
+/// and then its four edges are **re-described onto the new chart** —
+/// `FaceSurface::New` mints a fresh key, so a description naming the
+/// old plane goes stale.
 ///
-/// - remapping them to `Intersection { approx, wall }` does not
-///   certify. An approximating surface's implicit layer is poison (the
-///   fit is the geometry, and a fit has no implicit form), so the
-///   attach gate refuses the pair the way it refuses every NURBS-side
-///   conventional description;
-/// - re-describing them as `Chart` iso lines does not mint. Two of a
-///   quad cap's four edges hold `u` constant while `v` traverses — the
-///   iso lane's SEAM class — whose control-hull bound compares the
-///   carrier against the chart's own boundary row and therefore
-///   requires a spline carrier. A straight line is refused there,
-///   correctly.
+/// **The re-description is `Chart` + `Pcurve::IsoLine`, and the
+/// alternative is refused.** Remapping the edges to
+/// `Intersection { approx, wall }` does not certify: an approximating
+/// surface's implicit layer is poison (the fit is the geometry, and a
+/// fit has no implicit form), so the attach gate refuses the pair the
+/// way it refuses every NURBS-side conventional description. The chart
+/// image is exact — the fit's chart is `(u, v) ↦ (2u, 2v, z)`, so a cap
+/// edge's image is its own carrier line read in chart coordinates,
+/// halved — and the module's own row checks that against the fit
+/// rather than assuming it.
 ///
-/// So tier 3 reports `DescriptionNotAdjacent` on those four edges, on
-/// this body and on any rigid image of it. That is the
-/// face-replacement gap OFF-D owns, held constant: a row that reads
-/// tier 3 here compares the finding SET before and after, which is the
-/// honest claim a map can make about a body whose validity it did not
-/// create.
+/// **What this body still cannot do, and why it is left that way.**
+/// Its cap carries no stored pcurve cache: `mint_pcurves` refuses the
+/// two edges that hold `u` constant while `v` traverses, which is the
+/// iso lane's SEAM class, whose control-difference hull compares the
+/// carrier against the chart's own boundary ROW and therefore needs a
+/// spline carrier. So tier 3's check 7 reports `VolumeUncomputable`
+/// (the quadrature wants those caches) on this body and on any rigid
+/// image of it — one finding, held constant either side of a map, and
+/// the honest baseline a row here compares against. Nothing else is
+/// red: no `DescriptionNotAdjacent`, no `Approx` finding.
+///
+/// The pcurve pass is deliberately NOT run here. A fixture that ended
+/// in a refusal would be a fixture whose last step failed; the caches
+/// are what check 7 wants and what the seam class cannot mint, and
+/// that is one wall, recorded once.
 pub fn box_with_approx_cap(d: f64, tolerance: f64) -> (Body<f64>, FaceKey) {
     let mut body = unit_box();
     let face = top_face(&body);
@@ -252,8 +263,62 @@ pub fn box_with_approx_cap(d: f64, tolerance: f64) -> (Body<f64>, FaceKey) {
         band(),
     )
     .unwrap_or_else(|e| panic!("d = {d}: the cap's offset must fit: {e}"));
-    body.set_face_surface(face, FaceSurface::New(approx))
+    let surface = body
+        .set_face_surface(face, FaceSurface::New(approx))
         .expect("the attach-layer door accepts a live face");
+
+    let fit = match body.get_surface(surface) {
+        Some(Surface::Approx(a)) => a.fit().clone(),
+        other => panic!("the cap wears the approximating surface, got {other:?}"),
+    };
+    let outer = body.get_face(face).unwrap().outer;
+    let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+        panic!("the cap's outer loop is a cycle");
+    };
+    // Built first, attached second: attaching one edge does not change
+    // another's curve, and a single pass would stop at the first
+    // refusal with the others unexamined.
+    let mut specs = Vec::new();
+    for he in body.loop_cycle(first).unwrap() {
+        let edge = body.get_half_edge(he).unwrap().edge;
+        let curve = body
+            .get_curve_geom(body.get_edge(edge).unwrap().curve)
+            .and_then(CurveGeom::certified)
+            .expect("a box edge carries a certified curve");
+        let Curve3::Line { origin, dir } = *curve.carrier() else {
+            panic!("a box edge's carrier is a line");
+        };
+        let (param_start, param_end) = curve.params();
+        // `(x, y) = (2u, 2v)` on this chart, so the image of the
+        // carrier `o + t·w` is `o/2 + t·(w/2)` — exact in binary
+        // arithmetic, and CHECKED against the fit rather than assumed.
+        let p0 = Point2::new(origin.x * 0.5, origin.y * 0.5);
+        let pl = geom_core::Vec2::new(dir.x * 0.5, dir.y * 0.5);
+        for t in [param_start, 0.5 * (param_start + param_end), param_end] {
+            let uv = Point2::new(p0.x + pl.x * t, p0.y + pl.y * t);
+            let gap = fit.eval(uv.x, uv.y).distance(curve.carrier().eval(t));
+            assert!(
+                gap <= 1e-12,
+                "the chart image is off the carrier by {gap:e}"
+            );
+        }
+        specs.push((
+            edge,
+            EdgeCurveSpec {
+                description: geom_brep::EdgeDescriptionSpec::chart_image(
+                    surface,
+                    geom_brep::Pcurve::IsoLine { p0, pl },
+                ),
+                carrier: curve.carrier().clone(),
+                param_start,
+                param_end,
+            },
+        ));
+    }
+    for (edge, spec) in specs {
+        body.set_edge_curve(edge, spec, Tol::witness())
+            .unwrap_or_else(|e| panic!("re-describing {edge:?} on the Approx chart: {e}"));
+    }
     (body, face)
 }
 

@@ -372,13 +372,21 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane>(
 /// surface will store and therefore the claim it must be shown to
 /// honour; the run's ε is tier 3's to classify against, per call.
 ///
-/// `rounds` is the exception, and it is not a limb: it counts the
-/// refinement rounds the FIT took, no re-measurement can recompute it
-/// (its own field docs say so), and the mapped fit is the rigid image
-/// of a fit that took exactly that many. The storage door
-/// (`geom_brep::approx_offset_surface`) carries it across its own
-/// re-derivation for the same reason. It cannot make a bad surface look
-/// good: nothing classifies against it.
+/// **The re-derivation is not a formality, and the module docs'
+/// distance-preservation parenthetical does not cover it.** Only one
+/// limb of this certificate is a distance: `on_locus_max` is a sampled
+/// residual and survives a rigid map to rounding. `hull_sup` is a
+/// certified BOUND assembled from control-hull enclosures in the
+/// ambient frame, so a rotation re-splits the same geometry across the
+/// axes and the bound genuinely moves — measured at 7.4e-9 on a bowed
+/// base fitted at 1e-6, and `curvature_reach` moves further. That is
+/// why the mapped surface may not carry the operand's numbers: they
+/// are the wrong numbers, not merely unverified ones. What the map
+/// preserves is the CLAIM — the mapped pair certifies at the same
+/// tolerance — and re-deriving is what establishes it.
+///
+/// `rounds` is the exception, and it is not a limb: it is carried, for
+/// the reason [`geom::OffsetCertificate::rounds`] states once.
 fn map_approx<T: Decide + geom_brep::PcurveFittedLane>(
     map: &Affine3<T>,
     a: &geom::ApproxSurface<T>,

@@ -411,13 +411,28 @@ fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
         let cert = certify_offset(&mapped_base, &mapped_fit, d, 1e-6, band()).unwrap_or_else(|e| {
             panic!("d = {d}: the composition law must hold under certification: {e}")
         });
-        // And the two runs agree to well inside the tolerance: the
-        // residual is a DISTANCE, which a rigid map preserves.
-        let here = approx_of(&s).certificate().hull_sup;
+        // What a rigid map preserves is the SAMPLED residual: a
+        // distance between two points, computed the same way in either
+        // frame.
+        let here = approx_of(&s).certificate();
         assert!(
-            (cert.hull_sup - here).abs() <= 1e-9,
-            "d = {d}: sup bounds diverge under a rigid map: {} vs {here}",
-            cert.hull_sup
+            (cert.on_locus_max - here.on_locus_max).abs() <= 1e-12,
+            "d = {d}: the sampled residual is a distance and must survive the map: {} vs {}",
+            cert.on_locus_max,
+            here.on_locus_max
+        );
+        // `hull_sup` is NOT that. It is a certified BOUND assembled
+        // from control-hull enclosures in the AMBIENT frame, so a
+        // rotation re-splits the same geometry across the axes and the
+        // bound moves — measured at 7.4e-9 on this base under an
+        // oblique rotation, which is 7400x the slack this row used to
+        // assert. What survives the map is the CLAIM: the mapped pair
+        // certifies at the same tolerance.
+        assert!(
+            cert.hull_sup <= 1e-6 && here.hull_sup <= 1e-6,
+            "d = {d}: both runs certify at the tolerance: {} and {}",
+            cert.hull_sup,
+            here.hull_sup
         );
     }
 }
