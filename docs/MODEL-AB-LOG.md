@@ -3682,3 +3682,8 @@ FILLET-B2's first slot. Reason: Ev's ruling on the selector (PR 1735)
 arrived at opening, and the door unblocks the tour's consumers and the
 fixture-copy class. The draw is untouched — a slot's arm does not
 depend on which unit takes it.
+Slot 0 FILLET-H4 re-logged at its Phase 1 redirect (2026-09-04, before
+Phase 2 work began): the unit's substance moved from "gate + surgery
+audit" to "arm fold + gate + surgery audit" (`docs/FILLET-H4-SPEC.md`
+§"Re-scope at Phase 1"); difficulty **L** and task-class **NUMERIC**
+stand; same lane, same arm.
