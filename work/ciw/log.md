@@ -472,9 +472,17 @@ GitHub's documentation is explicit that *"merge limits do not combine
 `merge_group` builds"* — a group is built per queued pull request — so
 **batch size is not a CI-cost lever at all** and the queue costs one full
 gate per PR. Post-un-sampling that gate is **44.8 job-minutes** (was
-24.4) and the merge rate over 23.96 h is **5.76/h, 41 % code-tier**, so
-the queue costs **110 job-min/h = +1.84 mean concurrent jobs**, against a
-queue delay today of 3 s.
+24.4) and the merge rate over 23.96 h is **5.76/h, 41 % code-tier**.
+**A queue run is not a PR run**, though: it excludes the render lanes,
+which are 330 of a code-tier run's 2686 job-seconds, so what a merge
+group actually costs is **40.2 job-minutes** (median of the per-run
+difference, n = 9) and the queue costs **99 job-min/h = +1.66 mean
+concurrent jobs**, against a queue delay today of 3 s. (This entry said
+110 and +1.84 when it was written, on the PR-run figure; the 11 job-min/h
+of difference is render work no merge group will ever run.) The 528 s
+service time needs no such correction, and that was measured rather than
+assumed: dropping the render-lane jobs from each of the 9 runs' wall
+clock moves the median not at all.
 
 **The lever that matters is build concurrency, not batch size.**
 Simulated on the 138 observed arrivals at the measured 528 s / 42 s
@@ -490,12 +498,44 @@ out of a group head).
 runs on every event but `push`, `needs:` all twenty other jobs, and reads
 the run's own job list through the Actions API: it reds if any job is
 still running (which is how a stale `needs:` announces itself) or
-concluded anything but success/skipped/neutral. One name because most
-jobs are *skipped* on a docs-tier merge and this unit did not establish
-that a skipped check satisfies a required one — the failure that
-assumption would cause is a queue that never merges a docs change.
-Requiring it gates pull requests too, which is a real tightening of
-`CLAUDE.md`'s "agents merge their own PRs" and is called out as one.
+concluded anything but success/skipped/neutral. **One name because two of
+the twenty names are COMPUTED** — `test (eps = …)` interpolates
+`eps_rows`, and a required-check list is shared with the pull-request
+side where a `CI-Config:` trailer or a dispatch can still narrow the
+matrix — **and because a hand-kept list goes stale silently.** Requiring
+it gates pull requests too, which is a real tightening of `CLAUDE.md`'s
+"agents merge their own PRs" and is called out as one.
+
+**A third reason was led with and is withdrawn (2026-09-04, style
+review).** It read: most jobs are *skipped* on a docs-tier merge and this
+unit did not establish that a skipped check satisfies a required one.
+GitHub documents that it does —
+`content/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks.md`:
+*"A job is skipped by a conditional | The job reports 'Success'"*, and
+*"Successful check statuses are `success`, `skipped`, and `neutral`."*
+The pending-and-blocking row is the WORKFLOW-level skip (path or branch
+filtering, `[skip ci]`), which no job here is. The design stands on the
+two reasons above; the withdrawn one was a documented non-problem
+presented as an open question, and it was the one all three prose sites
+led with. The same page earns the job its `always()` and is now cited for
+it. Two more corrections out of the same review: the `neutral`
+accept-list entry's reason was "that is how a render lane reports drift"
+— false, and `rebaseline-lane/action.yml` says so (*"a workflow JOB
+cannot conclude `neutral`"*; the drift signal is a CHECK RUN, which this
+job's `/jobs` read cannot see) — the entry stays because those three are
+GitHub's definition of a pass; and the reader came **out of the YAML**
+into `scripts/check-run-jobs.py` with a `--selftest` over its seven
+decision paths, because six of them never execute on a real run and
+nothing in the tree re-drove them.
+
+**And requiring `gate ok` makes a failed render lane block a pull
+request**, which no render lane could do before. Kept deliberately, on a
+re-measured rate: the 103-reds-in-89-runs population is **pre-fix** — PR
+1724 landed as `a5d9f41a` — and since that merge there are **8 failed
+render-lane jobs in 259 render-bearing runs (777 jobs), none of them at
+checkout**, seven of the eight being one real break that also reddened
+`main`. Dropping `renders` from `needs:` would not have removed the
+blocking anyway: the sweep reads the run's job list, not `needs:`.
 
 **The k-lint finding, resolved to an ordering dependency.** The obvious
 version — "a sampled row cannot be a required check" — is **false**:

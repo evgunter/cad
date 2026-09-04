@@ -407,6 +407,15 @@ discipline() {
         && scripts/base-test-listing.sh --selftest); then
     rc=1
   fi
+  # The reader behind the hosted `gate ok` job — the one check a merge queue or
+  # a branch protection is meant to require. The READING has no local half and
+  # is not supposed to: its subject is a hosted run's own job list, and this box
+  # answers the same question by being one process (gate.sh's exit status IS
+  # that summary). What belongs in both halves, by exactly the base-test-listing
+  # argument above, is the SELFTEST: six of the reader's seven decision paths
+  # never execute on a real run, so nothing but this drives them.
+  # HOSTED MIRROR: discipline / run-job gate selftest (the one required check's seven paths)
+  python3 scripts/check-run-jobs.py --selftest || rc=1
   return $rc
 }
 

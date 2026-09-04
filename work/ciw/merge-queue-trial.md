@@ -4,7 +4,7 @@ kind: unit
 title: Design and prepare a GitHub merge queue trial: the trigger, the required check, the settings and the runbook
 status: review
 opened: 2026-09-04
-refs: [f3-recosting-on-a-public-repo, merge-order-semantic-break-reaches-main, klint-row-still-sampled, reinstate-full-configuration-runs, 1796, 1823]
+refs: [f3-recosting-on-a-public-repo, merge-order-semantic-break-reaches-main, klint-row-still-sampled, reinstate-full-configuration-runs, render-lanes-red-at-missing-merge-ref, 1796, 1823]
 blocked_on: [klint-row-still-sampled]
 pr: 1845
 branch: ciw/merge-queue-trial
@@ -53,7 +53,13 @@ the direction that fails safe"* — is the reason this unit costs a
 trigger rather than a sweep.
 
 **Three qualifications PR 1796's enumeration did not carry.** None of
-them changes the verdict; two are corrections to that document.
+them changes the verdict. All three are written back into that document
+as an addendum: `renders` and "degrades silently" as corrections to its
+verdicts, and the change filter as a closure of a question it left open.
+(It first carried two of them; the `renders` reversal was added on
+2026-09-04 after a style review pointed out that this unit overturned
+that document's "correct by default" and left the sentence standing
+there.)
 
 1. **`renders` would also have run**, because it is excluded from
    `workflow_dispatch` and not from everything but `pull_request`. This
@@ -62,9 +68,17 @@ them changes the verdict; two are corrections to that document.
    would post against a `gh-readonly-queue/…` sha that is deleted at the
    merge, while the PR run has already rendered this merge preview and
    `main`'s push run re-renders and re-baselines after it. At the
-   2026-09-04 medians that is **~335 job-seconds of the ~2690 a code-tier
-   run costs**, about an eighth of what the queue adds. Nothing is given
-   up: a render lane has never blocked a merge.
+   2026-09-04 medians that is **330 job-seconds of the 2686 a code-tier
+   run costs** (median over the same n = 9), about an eighth of what the
+   queue adds.
+
+   **What IS given up is on the other side, and this PR is what creates
+   it.** "Nothing is given up: a render lane has never blocked a merge"
+   was true of the merge_group side and false of the pull-request side of
+   the same change: `gate-ok` carries `- renders` in its `needs:`, so once
+   `gate ok` is a required check a FAILED render lane blocks the pull
+   request — the first time a render lane can. That is decided, kept and
+   argued in *the required-check list* below, on a measured rate.
 2. **The change filter's basis is correct under `merge_group` with no
    edit**, which PR 1796 left as "the open question". GitHub builds one
    merge group **per queued pull request** — group N contains the base
@@ -115,17 +129,42 @@ its 1.97 code-tier merges/h has become **2.38** on a busier window. The
 first is the un-sampling; the second is the window.
 
 **What a queue costs in runner time.** One full gate per enqueued pull
-request:
+request — **and a queue run is not a PR run.** The 44.8 job-minutes above
+is a `pull_request` run and it INCLUDES the render lanes, which this PR
+excludes from `merge_group`. Priced on what a merge group actually runs,
+per-run and then taken to the median rather than by subtracting one
+median from another (n = 9 code-tier runs, 10:10Z–15:45Z):
 
-> 2.38/h × 44.8 job-min + 3.38/h × 1.13 job-min = **110 job-minutes an
-> hour = +1.84 mean concurrent jobs**.
+| figure | value |
+|---|---|
+| code-tier `pull_request` run | 2686 s = **44.8 job-min** median |
+| its render lanes | 330 s = 5.5 job-min median |
+| **code-tier MERGE GROUP run** | **2411 s = 40.2 job-min** median (p25 1314 s, p75 2846 s, max 3457 s) |
+
+> 2.38/h × 40.2 job-min + 3.38/h × 1.13 job-min = **99.5 job-minutes an
+> hour = +1.66 mean concurrent jobs**.
+
+**That corrects a figure this unit published at 110 job-min/h**, which
+priced 2.38 render lanes an hour a merge group will never run — about
+13 job-min/h of it. The correction is conservative and moves no
+recommendation. (99.5 rather than the ~97 a flat subtraction gives:
+medians do not subtract, and the per-run difference is the quantity the
+queue pays.)
+
+**The service time does NOT need the same correction, and that was
+measured rather than assumed.** The 528 s wall is also a PR-run wall
+that included the render lanes — but recomputing each of the 9 runs'
+wall clock with the render-lane jobs dropped moves the median **not at
+all** (528 s → 528 s; one run of the nine moves at all, 369 → 350 s).
+The render lanes are not on the critical path, so the latency table
+below and ρ = 0.39 stand unchanged.
 
 For scale, the same post-un-sampling window's `pull_request` runs held
 **71 job-min/h** — but that window is quiet (4 runs/h against the 10.3/h
 PR 1796 measured over 14.45 h), so **that ratio is not a like-for-like
 comparison and must not be read as "the queue doubles CI"**. What is
 like-for-like: today's queue delay is 3 s at the median and there is no
-backlog for +1.84 to join.
+backlog for +1.66 to join.
 
 **PR 1796's queue figures do not carry forward, and one of them was
 wrong in mechanism, not only in magnitude.** It priced "merge queue,
@@ -133,7 +172,7 @@ batch ≤5" at **44 job-min/h against the push gate's 48**, from a
 simulation in which batching reduced the number of CI runs. GitHub's
 merge queue does not work that way — see the next section — so the
 queue's cost is one gate per PR at any batch size, and at today's job
-set that is **110 job-min/h**, not 44. The queue's *advantage* over the
+set that is **99 job-min/h**, not 44. The queue's *advantage* over the
 push gate is unchanged and is not about cost: it prevents rather than
 detects, and it needs no concurrency design pass.
 
@@ -157,7 +196,7 @@ whatever the merge limit is.** Raising the maximum-to-merge does not
 merge five PRs on one run; it merges five *already-built* groups in one
 push to `main`. So:
 
-**The runner cost of the queue is fixed at ~110 job-min/h and the batch
+**The runner cost of the queue is fixed at ~99 job-min/h and the batch
 size cannot move it.** What the levers do move is latency and waste.
 
 ### Latency, simulated on the 138 observed merge arrivals
@@ -212,6 +251,28 @@ which nothing in this repository has measured. Under a queue a flaky
 test stops being a red someone re-runs and becomes an ejection from the
 queue plus a rebuild of everyone behind.
 
+**A RECREATED GROUP IS A SECOND RUN, AND NOTHING CANCELS THE FIRST.**
+`ci.yml`'s run-level `concurrency:` group is per-ref, and a merge-group
+ref is distinct per group — which is why the queue needs no concurrency
+design pass, and which is exactly why this happens: when a group is
+recreated after an ejection, or rebuilt because a pull request *"jumping
+to the top of a merge queue will cause a full rebuild of all in-progress
+pull requests"*, the new group gets a **new ref**, hence a **new
+concurrency group**, so the superseded run is not cancelled by this key
+and runs to completion on the runners. On a pull request a superseded run
+IS cancelled; in a queue it is not.
+
+**Both figures in this unit are silent about that, and neither models
+it.** The cost figure prices one gate per enqueued pull request and no
+rebuilds; the latency table says in as many words that no failures are
+modelled. So the cost of an ejection is: 0–3 rebuilt groups at 40.2
+job-min each, **plus** whatever the superseded runs burn before they end
+on their own — and none of the three is in the 99 job-min/h. This is
+stated as a named limit of both numbers rather than modelled, because the
+quantity that drives it is the merge-group failure rate, which nothing
+here could measure. It is the second reason the runbook asks for a flake
+rate if the trial is kept.
+
 **What a reader sees, and it is the weak spot.** The failing run is a
 `merge_group` run on `refs/heads/gh-readonly-queue/main/pr-N-<sha>`. It
 is **not** on the pull request's own checks tab — the PR shows a
@@ -226,24 +287,48 @@ on besides latency.
 reports it.
 
 A required status check is required *by name*, and naming this
-workflow's gating jobs one by one fails here for three reasons:
+workflow's gating jobs one by one fails here for **two** reasons, both of
+which a name list cannot fix:
 
-1. **Most of them are skipped on a docs-tier change.** Every
-   `if: run_build` job reports `skipped` on a documentation-only merge.
-   Whether a skipped check satisfies a required check is **not something
-   this unit established** — and the failure it would cause is a queue
-   that never merges a documentation change and gives no reason. One name
-   that always reports removes the question rather than betting on the
-   answer.
-2. **Two of the names are computed.** `test (eps = …, …/2)` and
+1. **Two of the names are computed.** `test (eps = …, …/2)` and
    `test (interval, eps = …, …/2)` interpolate `eps_rows`. Neither a
    dispatch input nor a `CI-Config:` trailer can reach a merge_group run
    (a group head's commit message is GitHub's own, and a queue takes no
    inputs) — but a required-check list is **shared with pull requests**,
-   where both spellings can still narrow the matrix.
-3. **A list goes stale silently.** A job added to `ci.yml` and forgotten
+   where both spellings can still narrow the matrix. A gate whose names a
+   commit message can shrink is a gate a commit message can shrink.
+2. **A list goes stale silently.** A job added to `ci.yml` and forgotten
    in a branch-protection setting is a gate nobody removed and nobody
    runs.
+
+**A THIRD REASON WAS LED WITH UNTIL 2026-09-04 AND IS WITHDRAWN.** It
+read: most jobs here report `skipped` on a docs-tier merge, and whether a
+skipped check satisfies a required check is not something this unit
+established — so one name removes the question rather than betting on the
+answer. **The question was already answered, in GitHub's documentation,
+and reading was all it took.**
+`content/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks.md`
+(`github/docs`, `main`, read 2026-09-04), under *Handling skipped but
+required checks*, is a three-row table whose second row is:
+
+> | A job is skipped by a conditional | The job reports "Success" | |
+
+and one section above it:
+
+> Successful check statuses are `success`, `skipped`, and `neutral`.
+
+The row that *does* leave a check pending and block merging is the
+**workflow-level** skip — path filtering, branch filtering, a `[skip ci]`
+commit message — and no `if: run_build` job here is that shape. So the
+failure the reason feared (a queue that never merges a documentation
+change) is documented not to occur. The design does not change; the
+reason does, and the two above are what carry it. The same page also
+*earns* this job its `always()`, which is a citation this design deserves
+rather than a correction:
+
+> | A job depends on a failed job | The dependent job is skipped and may
+> not block merging | **Use `always()` with `needs` for required checks
+> that depend on other jobs.** |
 
 `gate ok` runs on every event but `push`, with `if: always()` and
 `needs:` naming all twenty other jobs, and asserts two things that fail
@@ -251,16 +336,56 @@ closed:
 
 * **every job of the run except itself reached a terminal state** — a job
   still running is a job missing from `needs:`, and it is a red naming
-  that job, not a pass. This is what keeps point 3 from happening: the
+  that job, not a pass. This is what keeps point 2 from happening: the
   list cannot go stale silently, because the check reads the run rather
   than trusting its own `needs:`;
-* **every one of them concluded `success`, `skipped` or `neutral`.**
-  `neutral` passes because that is how a render lane reports drift it
-  re-baselined; `failure`, `cancelled`, `timed_out` and
+* **every one of them concluded `success`, `skipped` or `neutral`** —
+  those three because they are **GitHub's own definition of a passing
+  check** (the sentence quoted above), not because of anything this
+  workflow emits. `failure`, `cancelled`, `timed_out` and
   `action_required` are reds.
+
+**The `neutral` entry's old reason was wrong and the tree said so.** It
+read "`neutral` passes because that is how a render lane reports drift it
+re-baselined". A render lane's drift signal is a **check run**, posted
+through `POST /check-runs`, precisely because — in
+`.github/actions/rebaseline-lane/action.yml`'s own words — *"a workflow
+JOB cannot conclude `neutral`"*. This job reads
+`/actions/runs/{id}/jobs`, so it can never see one: run 33894380300's
+listing shows all three `render lanes / …` rows as `success`. The entry
+stays, because the accept-list is GitHub's definition of a pass and not
+an enumeration of what this workflow happens to emit. **The second-order
+fact that reason was hiding is worth stating on its own: `gate ok`
+summarises JOBS AND NOT CHECK RUNS**, so the `render drift (…)` and
+`render re-baselined (…)` neutral checks are outside the one name
+entirely. That is intended and was nowhere written down.
 
 An unreadable jobs API, a paged job list, or a run in which no job but
 `gate ok` exists are each a red with the reason printed.
+
+**THE GREEN LINE SAYS WHAT IT GATED.** Once `gate ok` is the only
+required check, its output is the whole reading surface for *what did
+this run gate?*, and a count answers a different question — this
+repository elsewhere calls a green job name over a silent skip "the
+failure mode to avoid". So the summary prints the tier and `run_build`
+beside the tally, and on a run whose `RUN_*` flags were zeroed (a
+docs tier, a draft) it says in a sentence that every build row was
+skipped and that the green is about the rows that ran.
+
+**THE READER IS A SCRIPT, NOT A HEREDOC** (`scripts/check-run-jobs.py`).
+It went in as 56 lines of inline python and came back out on the same
+day, for the reason every other python in `ci.yml` is a `scripts/*.py`
+invocation with a `--selftest`: on a real run exactly ONE of its seven
+decision paths executes — the all-green one — and the other six are the
+ones that decide whether a red run can report green. Inline, nothing in
+the tree could re-drive them. Out here `--selftest` drives all seven
+against a stub `gh` (ten cases: green, green-with-nothing-built, a failed
+job, a job still running, a paged job list, an empty population,
+`neutral`, `gh` failing, a zero exit with a body that is not the listing,
+and a missing `$GITHUB_RUN_ID`), and it runs in `discipline` and in
+`local-scripts/ci-local.sh`'s `discipline()` — the
+`scripts/base-test-listing.sh` argument, arriving at the one job that is
+the entire required check.
 
 **The consequence to state plainly: requiring `gate ok` gates pull
 requests too.** GitHub couples them — *"Merge queue and pull requests
@@ -274,6 +399,53 @@ saying so.
 **No render check may be in the list.** `renders` does not run under
 `merge_group` (this PR's exclusion), so a render check name would never
 report and the queue would stall until the status-check timeout.
+
+**But `renders` IS in `gate-ok`'s `needs:`, so PR-side render failures
+now block. Decided, kept, and here is the reasoning.**
+
+A failed render lane could not block anything before this PR:
+`rebaseline-lane`'s header argues neutral-not-red from *"nothing in this
+repo is branch-protected and agents merge their own PRs, so a red X was
+never actually blocking"*. Requiring `gate ok` ends that, on the
+pull-request side only (a merge group runs no render lane at all). Three
+things decided it:
+
+1. **The rate is measured, and the class that produced the reds is
+   gone.** `work/ciw/render-lanes-red-at-missing-merge-ref` measured
+   **103 failed render-lane jobs in 89 runs** — every one of them
+   `fatal: couldn't find remote ref refs/pull/N/merge` at checkout. That
+   is the **pre-fix** rate: PR 1724 landed as **`a5d9f41a`**
+   (2026-09-04T01:31:21Z, an ancestor of `main`) and gave `render.yml` a
+   `checkout target` job that resolves the object and hands the lanes a
+   SHA. Re-measured over every completed `ci.yml` run since that merge —
+   **n = 259 runs carrying render lanes, 777 render-lane jobs, to
+   2026-09-04T16:46Z** — there are **8 failed render-lane jobs, and none
+   of them failed at checkout.** Per render-bearing run that is 3.1 %;
+   per render-lane job, 1.0 %. Over the window immediately before the
+   merge the same reading gives 5 failures in 116 render-bearing runs,
+   **all five at checkout**.
+2. **The eight residual failures are the lane saying something about the
+   tree**, which is what a gate is for. One is `demo tour (…)`; seven are
+   `the real gallery opens in the viewer (GUI-4 acceptance)` inside 25
+   minutes on 2026-09-04, an incident that also reddened `main`'s own
+   push run (33841011297). Those seven are one break, and blocking on it
+   is the intended behaviour of a merge gate, not collateral — though it
+   is also the shape to watch: a break on `main` reddens every PR that
+   has merged `main`, and under a required check that is a fleet-wide
+   block rather than a fleet-wide red X.
+3. **Dropping `renders` from `needs:` would not have removed the
+   blocking.** The sweep reads the RUN's job list, not `needs:`, so the
+   render lanes stay in the population either way; without the `needs:`
+   edge they would simply more often be caught *still running*, which
+   claim 1 reds. Actually excluding them would take an exemption inside
+   the sweep — and an exemption inside the sweep is the thing the sweep
+   exists to prevent.
+
+**If it turns out to bite, the lever is at the lane and not here**: make
+a render lane's hard failures `continue-on-error` or `neutral` in
+`render.yml`, which is a change to what the lane MEANS, argued at the
+lane. Removing one name from a sweep that claims to read the whole run
+is not.
 
 ## THE K-LINT DEPENDENCY, STATED ACCURATELY
 
@@ -368,6 +540,15 @@ unit performs any of it.
 3. **Look at a recent pull request run and confirm `gate ok` is green
    there.** It is the only required check, and it reports on pull
    requests as well as merge groups.
+4. **Know what the flip tightens on the PULL REQUEST side**, because that
+   is where it bites first and it is not a merge-queue property at all:
+   requiring `gate ok` means an agent cannot merge a pull request whose
+   gate is red — a real change to `CLAUDE.md`'s "agents merge their own
+   PRs" — and, for the first time, **a failed render lane blocks a pull
+   request**. That is decided and argued above on a measured post-`a5d9f41a`
+   rate (8 failed render-lane jobs in 259 render-bearing runs, none at
+   checkout). If it proves wrong, the lever is `render.yml`'s own failure
+   semantics, not the required-check list.
 
 ### The settings
 
@@ -466,10 +647,13 @@ honest and a claimed demonstration is not.
    run, itself excluded. That is the first claim (every job terminal)
    and the second (every conclusion acceptable) both executing against a
    real 12-`test`-job code-tier run, with `actions: read` sufficing for
-   the API read. Its seven decision paths were additionally driven
-   against fixture job lists before it went into the file (green, a
-   failed job, a job missing from `needs:` still running, a paged job
-   list, an empty population, `neutral`, an unreadable API).
+   the API read. That receipt predates the extraction — the same logic is
+   now `scripts/check-run-jobs.py` and the job passes it `--tier` and
+   `--run-build`, so the green line has one more row than the receipt
+   shows. **Its other six decision paths are re-driven by anything that
+   runs `scripts/check-run-jobs.py --selftest`**, which both halves of CI
+   do; they used to be driven once, by hand, before the logic went into
+   the file, and by nothing after.
    What has **not** been exercised is `gate ok` under `merge_group`, for
    the same reason as 1.
 3. **The latency table is a simulation**, on 138 real arrivals and two
@@ -479,11 +663,17 @@ honest and a claimed demonstration is not.
    where a lane merges the moment it is green rather than enqueueing;
    and **no failures modelled**, which is the assumption the rebuild
    discussion above exists to qualify.
-4. **The runner-cost figure mixes two windows** — the merge rate from
+4. **Neither number models a recreated merge group.** A group rebuilt
+   after an ejection or a queue jump gets a new ref and therefore a new
+   run-level concurrency group, so the superseded run is not cancelled
+   and finishes on the runners. That is unmodelled in the cost figure and
+   in the latency table alike (above), and it cannot be measured without
+   a queue.
+5. **The runner-cost figure mixes two windows** — the merge rate from
    23.96 h, the per-run cost from the 5.5 h since un-sampling landed, in
    which only 9 code-tier runs have completed. n = 9 is thin, and the
    direction of the thinness is unknown.
-5. **The repository's current branch protection was not readable.** The
+6. **The repository's current branch protection was not readable.** The
    API returns 403 for a lane token on
    `repos/evgunter/cad/branches/main/protection`; the rulesets endpoint
    returns an empty list. So the runbook says what to set, not what will
