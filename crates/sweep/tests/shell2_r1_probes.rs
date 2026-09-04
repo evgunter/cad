@@ -425,3 +425,32 @@ fn e2e_a_user_places_an_approx_faced_part_measures_and_exports_it() {
         }
     }
 }
+
+/// **Q3 probe: the lane's certificate-agreement assertion is vacuous at
+/// its own fixture.** Both limbs are certified `<= tolerance` and are
+/// non-negative, so at `tolerance = 1e-9` the difference of any two of
+/// them is inside the row's `1e-9` slack by construction. Printed here
+/// with the actual numbers.
+#[test]
+fn q3_the_certificate_agreement_bound_equals_the_fixture_tolerance() {
+    let d = 0.05;
+    let tol = 1e-9;
+    let (body, face) = box_with_approx_cap(d, tol);
+    let moved = topo::transform_rigid(&body, &rigid(), Tol::witness()).expect("the body moves");
+    let (c0, c1) = (
+        *approx_face_surface(&body, face).certificate(),
+        *approx_face_surface(&moved, face).certificate(),
+    );
+    eprintln!(
+        "shell-2-r1 Q3: hull_sup {:e} -> {:e}; on_locus_max {:e} -> {:e}; row slack {:e}",
+        c0.hull_sup, c1.hull_sup, c0.on_locus_max, c1.on_locus_max, tol
+    );
+    assert!(
+        c0.hull_sup <= tol && c1.hull_sup <= tol,
+        "both limbs are certified at or under the mint tolerance"
+    );
+    // The row's own assertion, re-stated: it holds for ANY pair of
+    // certified limbs at this tolerance, mapped or not.
+    assert!((c1.hull_sup - c0.hull_sup).abs() <= tol);
+    assert!((c1.hull_sup - 0.0_f64).abs() <= tol, "…including against 0");
+}
