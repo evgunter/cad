@@ -8,8 +8,8 @@ area: kernel
 prefix: verbs/
 tag: (VERBS orchestrator)
 ab_band: 100-199
-paths: [crates/geom-brep/src/intersect.rs, crates/geom-brep/src/ssi.rs, crates/geom-brep/src/ssi/*, crates/geom-brep/src/offset*.rs, crates/topo/src/offset_*.rs, crates/topo/src/shell.rs, crates/topo/src/replace_face.rs, crates/sweep/src/revolve/*, crates/sweep/tests/verbs_*, crates/topo/tests/verbs_*, docs/KERNEL-VERBS.md]
-keep_out: [the boolean reduction and its honest remainder are S-BOOL's (crates/topo/src/boolean), fillet band/surgery and chamfer parity were S-BLEND's and stay ceded, editor-core recipe doors and Verb lowering are LIB's and SEAT's, C7/REST joins and the loft U-turn gate are not verb-gating]
+paths: [crates/geom-brep/src/intersect.rs, crates/geom-brep/src/ssi.rs, crates/geom-brep/src/ssi/*, crates/topo/src/offset_axial.rs, crates/sweep/src/revolve/*, crates/sweep/tests/verbs_*, crates/topo/tests/verbs_*, docs/KERNEL-VERBS.md]
+keep_out: [the boolean reduction and its honest remainder are S-BOOL's (crates/topo/src/boolean), fillet band/surgery and chamfer parity were S-BLEND's and stay ceded, editor-core recipe doors and Verb lowering are LIB's and SEAT's, the shell and offset verbs (topo/{shell,replace_face,transform,offset_together}.rs and geom-brep/offset*.rs) are SHELL's since 2026-09-04 — offset_axial.rs stays here only until VERBS-RIMCAP merges, C7/REST joins and the loft U-turn gate are not verb-gating]
 ---
 
 Executes `docs/KERNEL-VERBS.md`, the register: the missing modeling verbs
