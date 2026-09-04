@@ -283,3 +283,127 @@ run-weighted — which is what the pooled figure had been measuring silently.
 which now narrows the gate AND, since the trailer became additive-only, reds
 the classify step. Filed in `work/issues/` rather than on FILLET's slate,
 which is that program's to claim by moving.
+
+## Unit 8 — `f3-recosting-on-a-public-repo`, measured and asked (2026-09-04)
+
+A measurement unit, so the deliverable is numbers and a question rather
+than a diff. The full reading is in the item; the four that change how
+this program talks:
+
+- **A code-tier run is 7.4 minutes and 24.4 job-minutes** on the public
+  4-vCPU runner (n=149 completed post-flip PR runs), against the
+  13.75-minute critical path and ~87/62/40 billed minutes this program
+  has been quoting. `--workspace` builds are **336 s / 388 s** against
+  820 s / 840 s cold. The runner spec is read first-hand: run
+  `33830873453`, job `100893490483`, `nproc` = 4, 15 GB.
+- **This log's own explanation of the `TAG_INVENTORY` red was wrong.**
+  It says *"no run on `main` has drawn a point that executes the test
+  since the two tag values landed, because main's push runs classify
+  docs-tier"*. The first clause holds; the reason does not. **45 % of
+  main's push runs are code-tier** (90 of 200 ran `renders`, which needs
+  `RUN_K_LINT=true`, set for every tier but `docs` —
+  `scripts/ci-filter.py:1730`), and the test rows are skipped on all of
+  them by F3's `github.event_name != 'push'` guard. The correction makes
+  the instance *better* evidence about F3, not worse: nothing about the
+  tier was involved.
+- **The residue's cost is attribution, not latency.** The compensating
+  control detected the composition in **11 m 41 s** (run `33788618577`,
+  on `tcost/k2-unit`). What it could not do was say whose it was: **42
+  red runs across 20 distinct branches** over the 8 h 11 m to the repair.
+  The item's "seven branches" was an undercount of the same event.
+- **Restoring the job set alone would have caught nothing.** The push
+  run for the composing merge (`33787453014`) was cancelled after 246 s
+  by the next push; a full run needs ~442 s. The proposal to Ev is
+  therefore the job set **and** a per-SHA concurrency group for push
+  runs, at +48 job-minutes an hour and $0.
+
+Units 9 and 10 may now quote figures from
+`docs/CI-MINUTES-2026-08.md`'s **2026-09-04 section** and only that one.
+
+### Unit 8, fix pass after verification (2026-09-04)
+
+A verification lane re-derived every load-bearing figure from 760
+`ci.yml` runs and they reproduce, most to the digit. What did not
+survive was prose, in the two shapes this program has been losing lanes
+to all night:
+
+- **A number stated backwards.** "PR runs still red first, by about four
+  minutes" compared a run *creation* time (11 m 41 s) with a run
+  *duration* (7.4 min). Measured: the PR run reds **17 m 29 s** after
+  the merge (job `100761051102`, +348 s into run `33788618577`); a push
+  run reaches the same offset **5 m 48 s** after it. **The push run reds
+  first, by 11 m 41 s.** The error ran *against* the unit's own
+  recommendation, which is why self-review missed it — a figure that
+  weakens your case does not trigger the reflex that checks it. Worth
+  keeping as a rule.
+- **A scope stated too small.** The concurrency half was priced as "one
+  line". It is three mechanisms: `render.yml:268–275`'s own gate-mode
+  group on the caller's ref, which **starts** firing once the run-level
+  group goes per-SHA and cancels `renders` on exactly the merges the
+  change exists for; the `cache-on-failure: false` argument at
+  ci.yml:1830–1840, argued *from* push runs being cancelled; and
+  `renders`' `push_to` write to `main` at ci.yml:4203. The unit now says
+  it does not price that and names it a second design pass.
+
+Two more corrections, both self-inconsistencies rather than new facts:
+"A without the concurrency half is measurably worthless" (it degrades to
+burst-level attribution, ~2 merges — *better* than the ~4.4-merge window
+the same document rejects option C for), and a population definition
+that omitted the exclusion of cancelled runs, so nobody could rebuild
+the frame (220/149 with them excluded, 268/195 with them in).
+
+And one confirmation the unit had and did not use: **51 of 90 code-tier
+push runs (57 %) are already cancelled**, at a 259 s median job set,
+against 15 % of docs-tier pushes at 40 s. The aggregate 34 % was quoted
+with its causality backwards.
+
+Nothing in the measurement moved and the recommendation is unchanged.
+
+### Unit 8 answers Ev, and changes its own recommendation (2026-09-04)
+
+Ev's comment on 1796 asked two things, and the answers moved the unit
+off the proposal it opened with.
+
+**Q1 — full job set vs test rows only, on the record.** Two identified
+composition instances (`TAG_INVENTORY` at `bdfa604b`; `MateFault::
+Unleverable` at `50d9ba21`, filed as
+`merge-order-semantic-break-reaches-main`). Measured clear air: 161 s
+and **95 s** before the next push cancels; measured time-to-red:
+`clippy` **+84…96 s**, the build +127…202 s, the test rows +348 s. So
+the full set catches **1 of 2** as things stand (instance 2, by a 6–27 s
+margin), the narrow variant **0 of 2**, and both catch 2 of 2 once push
+runs stop being cancelled. **The row that catches instance 2 at all is
+`clippy` — which the narrow variant does not restore.** The abstract
+risk the unit named a revision earlier turned up in the record one night
+later.
+
+**Q2 — the configuration draw.** Priced: **+15.6 job-minutes per
+code-tier run** (24.4 → ~40), **+161 job-min/h**, and **+22 s of wall
+clock (~5 %)**, because six points are two builds and twelve 46–58 s
+test jobs, not six builds. Filed as
+`configuration-sampling-outlives-its-premise`; Ev has authorised the
+change and a separate lane owns the edit. Attribution, stated carefully:
+of five recorded main-reds, **zero** are the lane/eps draw's — but that
+population is biased against exactly that class, so the record cannot
+settle it and the argument has to rest on price. Note `k-lint`'s 1-of-5
+sampler is a **second** sampler and is not in that price.
+
+**And the unit now recommends against its own opening proposal.** Ev
+authorised experimenting with a merge queue; priced against the same
+two instances, a queue **prevents** them where the push gate only
+**detects** them, at **the same runner cost** (44 vs 48 job-min/h,
+simulated over the 200 observed merge arrivals). The throughput
+objection does not survive contact: the median 308 s gap is not the
+arrival rate — the mean inter-arrival is 826 s and utilisation is
+**ρ ≈ 0.27**, so a serial queue is stable, and the cost is merge latency
+(median 442 s, p90 676 s, max 857 s at batch ≤5) rather than backlog.
+
+Two things that fell out of that and are worth keeping: ci.yml's
+`!= 'push'` spelling means a `merge_group` event runs the full gate with
+**no edit**, which is exactly the case its 2026-08-28 note argued for;
+and required status checks are named, so **un-sampling is a
+precondition** for a queue, which couples Q2 to the queue rather than
+leaving them independent.
+
+Nothing was enabled and no repository setting was touched: the queue is
+a design put to Ev.
