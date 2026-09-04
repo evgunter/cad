@@ -212,6 +212,7 @@ fn drive_at(doc: &ProfileDoc, dials: SymbolicDials, tol: Tol) -> Option<String> 
         &analyzed,
         &DriveConfig {
             symbolic: dials,
+            max_leaves: 512,
             ..DriveConfig::default()
         },
         tol,
@@ -247,6 +248,7 @@ fn r2_end_to_end_bracket_study() {
                 &analyzed,
                 &DriveConfig {
                     symbolic: dials,
+                    max_leaves: 512,
                     ..DriveConfig::default()
                 },
                 tol,
@@ -403,6 +405,7 @@ fn r2_the_drive_is_bit_identical_across_repeats_and_the_rayon_schedule() {
             &analyzed,
             &DriveConfig {
                 parallel,
+                max_leaves: 256,
                 ..DriveConfig::default()
             },
             tol,
@@ -500,6 +503,7 @@ fn r2_what_a_real_study_gets_today() {
             &analyzed,
             &DriveConfig {
                 symbolic: dials,
+                max_leaves: 512,
                 ..DriveConfig::default()
             },
             tol,
