@@ -544,6 +544,62 @@ fn r2_a_one_section_loft_at_the_insert_door() {
     }
 }
 
+/// **A3 with the CURVES and POINTS in it.** The unit's A3 rows compare
+/// face/edge/vertex COUNTS and a sorted multiset of surface `Debug`
+/// strings; nothing compares the curve geometry or the points. This
+/// row adds both, over the die's 21 pips, so the "bit-identical"
+/// claim is measured on more than the surfaces.
+#[test]
+fn r2_the_die_fold_and_chain_agree_on_curves_and_points() {
+    let die = crate::corpus::die_composed_tour::document();
+    let doc = die.doc;
+    let union = doc
+        .order()
+        .iter()
+        .copied()
+        .find(|id| matches!(doc.node(*id), Some(Node::Union { .. })))
+        .expect("one union");
+    let Some(Node::Union { members }) = doc.node(union) else {
+        panic!("the union is a union")
+    };
+    let members = members.clone();
+    let (doc, chain) = members.iter().skip(1).fold(
+        (doc, members[0]),
+        |(doc, acc): (ProfileDoc, RecipeNodeId), pip| {
+            insert(
+                doc,
+                Node::Boolean {
+                    op: editor_core::BooleanOp::Union,
+                    a: acc,
+                    b: *pip,
+                    declare: None,
+                },
+            )
+        },
+    );
+    let ev = run(&doc);
+    let body = |id: RecipeNodeId| match &ev.value(id).expect("evaluated").payload {
+        ValuePayload::Body(b) => (**b).clone(),
+        ValuePayload::Boolean(BooleanValue::Body { body, .. }) => (**body).clone(),
+        other => panic!("expected a body, got {other:?}"),
+    };
+    let (folded, chained) = (body(union), body(chain));
+    let sorted = |mut v: Vec<String>| {
+        v.sort();
+        v
+    };
+    assert_eq!(
+        sorted(folded.curves().map(|(_, c)| format!("{c:?}")).collect()),
+        sorted(chained.curves().map(|(_, c)| format!("{c:?}")).collect()),
+        "the fold's curves are not the chain's"
+    );
+    assert_eq!(
+        sorted(folded.points().map(|(_, p)| format!("{p:?}")).collect()),
+        sorted(chained.points().map(|(_, p)| format!("{p:?}")).collect()),
+        "the fold's points are not the chain's"
+    );
+}
+
 /// **What a refusal raised at a LATER fold step names.** Two members
 /// fuse; the third meets them flush, so the step refuses and
 /// `refusal_menu` reads the ACCUMULATED table — which is the pair
