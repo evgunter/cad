@@ -163,6 +163,7 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Revolve { .. } => "Revolve",
         Node::Transform { .. } => "Transform",
         Node::Boolean { .. } => "Boolean",
+        Node::Union { .. } => "Union",
         Node::Split { .. } => "Split",
         Node::Pattern { .. } => "Pattern",
         Node::PlacedUnion { .. } => "PlacedUnion",

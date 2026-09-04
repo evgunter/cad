@@ -1890,6 +1890,7 @@ class SegTag:
     AxisEdge: Final[SegTag]
     FromA: Final[SegTag]
     FromB: Final[SegTag]
+    FromMember: Final[SegTag]
     Seam: Final[SegTag]
     Merged: Final[SegTag]
     Fragment: Final[SegTag]

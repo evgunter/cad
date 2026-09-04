@@ -31,6 +31,7 @@ macro_rules! name_free_node {
             | $crate::node::Node::Sweep { .. }
             | $crate::node::Node::Split { .. }
             | $crate::node::Node::Boolean { .. }
+            | $crate::node::Node::Union { .. }
             | $crate::node::Node::Transform { .. }
             | $crate::node::Node::Pattern { .. }
             | $crate::node::Node::PlacedUnion { .. }
@@ -842,6 +843,7 @@ pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
         | Node::Chamfer { .. }
         | Node::Split { .. }
         | Node::Boolean { .. }
+        | Node::Union { .. }
         | Node::Transform { .. }
         | Node::Pattern { .. }
         | Node::PlacedUnion { .. }
@@ -889,6 +891,48 @@ impl MeasureRef {
     /// A reference read at `at`.
     pub fn new(at: RecipeNodeId, name: StableName) -> Self {
         Self { at, name }
+    }
+}
+
+/// **What makes a node's INPUT LIST invalid** ([`Node::input_fault`];
+/// DM5) — one vocabulary for the two edit doors and the load door's
+/// re-check, so the rule has one definition and three callers rather
+/// than three copies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputFault {
+    /// One node is reached twice through this node's edges. It covers
+    /// a boolean or a split whose two operands coincide and a list
+    /// with a repeated entry alike: what "the same body twice" means
+    /// does not change with the node kind.
+    Duplicate {
+        /// The input reached twice.
+        input: RecipeNodeId,
+    },
+    /// A LIST input ([`Node::list_input`]) left with fewer than two
+    /// entries. A union of one body is that body and a loft through
+    /// one section is not a skin: either is a node whose meaning is
+    /// its own input, spelled as an operator.
+    TooFew {
+        /// How many entries it has.
+        found: usize,
+    },
+}
+
+// The ONE prose vocabulary for this fault, forwarded by every door
+// that renders it rather than restated.
+impl core::fmt::Display for InputFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Duplicate { input } => write!(
+                f,
+                "node {} is taken as an input twice — a node's inputs are pairwise distinct",
+                input.0
+            ),
+            Self::TooFew { found } => write!(
+                f,
+                "a list input takes two or more entries, and this has {found}"
+            ),
+        }
     }
 }
 
@@ -1301,6 +1345,42 @@ pub enum Node<P> {
         /// Optional coincidence-intent input (a `Declare` node).
         declare: Option<RecipeNodeId>,
     },
+    /// **The n-ary union** (DOCM-REFERENCES-DESIGN DM4): two or more
+    /// member bodies, ONE body out — the same value shape a pair
+    /// union yields, so every consumer of a union is unchanged.
+    ///
+    /// It sits beside [`Node::Boolean`], which stays for a pair, and
+    /// beside [`Node::PlacedUnion`], which fuses instances of one
+    /// prototype and is a different sentence.
+    ///
+    /// # Why the list, and what the list buys
+    ///
+    /// A pairwise chain records JOIN DEPTH in every name it mints:
+    /// boolean naming wraps each operand's names in `FromA`/`FromB`,
+    /// so the twentieth member of a chain is twenty segments deep and
+    /// removing one link renames every member that joined before it.
+    /// A member of this node is named by IDENTITY —
+    /// [`crate::RoleSeg::FromMember`] wrapping the member's own name,
+    /// one wrapper whatever the fold's depth — so a member's names
+    /// depend on neither its position in the list nor on how many
+    /// members precede it, and [`crate::DocEdit::SetMembers`] can drop
+    /// one without disturbing the rest.
+    ///
+    /// # No `declare` field
+    ///
+    /// A declared-contact union is spelled with [`Node::Boolean`],
+    /// which carries the `Declare` input, and stays so: a declaration
+    /// is a statement about ONE pair of operands, and a field here
+    /// would have to say which fold step it applies to — a position,
+    /// which is the one thing this node exists not to record.
+    Union {
+        /// The member bodies, in fold order (D9: the order is the
+        /// list's, and the list is data). Two or more, pairwise
+        /// distinct — both held at the edit door
+        /// ([`crate::EditError::TooFewMembers`],
+        /// [`crate::EditError::DuplicateInput`]).
+        members: Vec<RecipeNodeId>,
+    },
     /// A rigid placement of an upstream body (F4: Transform).
     Transform {
         /// The body placed.
@@ -1692,6 +1772,10 @@ impl<P> Node<P> {
                 v.extend(declare.iter().copied());
                 v
             }
+            // In LIST ORDER, not sorted: the order is the fold's (D9),
+            // so it is what the DAG edge list has to report. The list
+            // is pairwise distinct at the edit door, so no edge repeats.
+            Node::Union { members } => members.clone(),
             Node::Transform { input, .. } => vec![*input],
             // The two placement-rule nodes take the same edges: the
             // body, plus the datum a circular rule turns about.
@@ -1702,6 +1786,150 @@ impl<P> Node<P> {
                 }
                 v
             }
+        }
+    }
+
+    /// **The node's LIST input**, where it has one — the whole of it,
+    /// in order.
+    ///
+    /// A list input is an input the recipe spells as a sequence rather
+    /// than as named slots, so the only edit that can change it is one
+    /// that names the WHOLE new sequence
+    /// ([`crate::DocEdit::SetMembers`]) — there is no position to
+    /// address and no per-entry edit. Two nodes have one: a union's
+    /// members and a loft's sections. Everything else answers `None`,
+    /// which is what makes `SetMembers` at a boolean or a split a
+    /// typed refusal rather than a silent no-op.
+    ///
+    /// The match is EXHAUSTIVE on purpose: a future node whose inputs
+    /// are a list must be classified here or the compile breaks,
+    /// rather than defaulting to "has no list" and being unreachable
+    /// from the edit that exists for exactly it.
+    pub fn list_input(&self) -> Option<&[RecipeNodeId]> {
+        match self {
+            Node::Union { members } => Some(members),
+            Node::Loft { profiles, .. } => Some(profiles),
+            Node::Datum(_)
+            | Node::Profile(_)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Sweep { .. }
+            | Node::Fillet { .. }
+            | Node::Chamfer { .. }
+            | Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Transform { .. }
+            | Node::Pattern { .. }
+            | Node::PlacedUnion { .. }
+            | Node::Declare { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Mate { .. }
+            | Node::Measure { .. }
+            | Node::Assertion { .. } => None,
+        }
+    }
+
+    /// **DM5, stated once**: what is wrong with this node's inputs, if
+    /// anything — one node reached twice, or a list left under two.
+    ///
+    /// One structural rule over [`Node::inputs`] rather than a rule per
+    /// node kind, and ONE definition with three callers: `InsertNode`,
+    /// [`crate::DocEdit::SetMembers`] on the rewritten node, and the
+    /// load door's `validate_document`. The two edit doors render it in
+    /// [`crate::EditError`]'s vocabulary and the load door in
+    /// `SnapshotError`'s, because a refusal names the door it came
+    /// from — but the question is asked in exactly one place, which is
+    /// what stops the three from drifting.
+    ///
+    /// The order is deliberate. The list's floor answers first, so a
+    /// one-entry list is reported as short rather than as whatever its
+    /// single entry happens to collide with; liveness is NOT asked
+    /// here at all, because it needs the document and the callers
+    /// check it before they call.
+    ///
+    /// # What the rule covers, and why that is sound
+    ///
+    /// Both clauses read [`Node::inputs`], so they apply to EVERY node
+    /// kind — not only the union, the list-input kinds and the boolean.
+    /// That is wider than DM5's text, and deliberately:
+    ///
+    /// - The duplicate clause is sound everywhere because no node kind
+    ///   in this crate has a meaning for the same input twice. A
+    ///   boolean with `a == b` is a self-operation whose result is one
+    ///   of its own operands; a `Split` cutting a body by itself is the
+    ///   same; a `Mate` between a part and itself has no relative
+    ///   frame. The one kind that could plausibly want a repeat is
+    ///   [`Node::Measure`], and it does not: its edges come from the
+    ///   measurement's own node set, which DEDUPS before `inputs`
+    ///   returns, so a measurement over one body twice presents one
+    ///   edge here and is untouched by this rule.
+    /// - The floor clause only ever fires where [`Node::list_input`]
+    ///   answers `Some`, which is [`Node::Union`] and [`Node::Loft`].
+    ///   For the loft this is NEW — a one-section loft was accepted
+    ///   before this unit and is refused now, at the insert door and at
+    ///   the load door alike. A single section has nothing to loft
+    ///   between and the sweep refused it downstream anyway; the change
+    ///   is that it is refused where it is authored, naming the list,
+    ///   instead of at evaluation naming the sweep.
+    ///   (`a_one_section_loft_is_refused_at_the_insert_door` and its
+    ///   load-door twin pin both.)
+    pub fn input_fault(&self) -> Option<InputFault>
+    where
+        P: crate::ProfilePayload,
+    {
+        if let Some(list) = self.list_input()
+            && list.len() < 2
+        {
+            return Some(InputFault::TooFew { found: list.len() });
+        }
+        let mut seen: std::collections::BTreeSet<RecipeNodeId> = std::collections::BTreeSet::new();
+        self.inputs()
+            .into_iter()
+            .find(|input| !seen.insert(*input))
+            .map(|input| InputFault::Duplicate { input })
+    }
+
+    /// Writes a whole new list into [`Node::list_input`]'s slot,
+    /// answering whether this node has one. The edit door validates
+    /// against the REWRITTEN node, so the write happens first and the
+    /// checks run on the result — which is what makes `SetMembers`
+    /// share `InsertNode`'s checks rather than mirror them.
+    pub(crate) fn set_list_input(&mut self, list: Vec<RecipeNodeId>) -> bool {
+        match self {
+            Node::Union { members } => {
+                *members = list;
+                true
+            }
+            Node::Loft { profiles, .. } => {
+                *profiles = list;
+                true
+            }
+            // Exhaustive, and it names the same variants
+            // [`Node::list_input`] answers `None` for: the read and
+            // the write are one answer read two ways, and a variant
+            // one of them treats as list-free while the other writes
+            // it is a list nothing can read back.
+            Node::Datum(_)
+            | Node::Profile(_)
+            | Node::Extrude { .. }
+            | Node::Revolve { .. }
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Sweep { .. }
+            | Node::Fillet { .. }
+            | Node::Chamfer { .. }
+            | Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Transform { .. }
+            | Node::Pattern { .. }
+            | Node::PlacedUnion { .. }
+            | Node::Declare { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Mate { .. }
+            | Node::Measure { .. }
+            | Node::Assertion { .. } => false,
         }
     }
 
@@ -1747,6 +1975,7 @@ impl<P> Node<P> {
             // referenced document evaluates at its OWN parameters.
             Node::Split { .. }
             | Node::Boolean { .. }
+            | Node::Union { .. }
             | Node::Declare { .. }
             // A11: the alignment datum is authored geometry, not a
             // continuous slot — a mate has no expression to drive.
@@ -1881,6 +2110,7 @@ impl<P> Node<P> {
                 | Node::Chamfer { .. }
                 | Node::Split { .. }
                 | Node::Boolean { .. }
+                | Node::Union { .. }
                 | Node::Transform { .. }
                 | Node::Declare { .. }
                 | Node::InstantiatePart { .. }
@@ -1961,6 +2191,7 @@ impl<P> Node<P> {
                 | Node::Chamfer { .. }
                 | Node::Split { .. }
                 | Node::Boolean { .. }
+                | Node::Union { .. }
                 | Node::Transform { .. }
                 | Node::Declare { .. }
                 | Node::InstantiatePart { .. }
@@ -2133,6 +2364,7 @@ impl<P> Node<P> {
             | Node::Chamfer { .. }
             | Node::Split { .. }
             | Node::Boolean { .. }
+            | Node::Union { .. }
             | Node::Transform { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }

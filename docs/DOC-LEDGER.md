@@ -804,3 +804,13 @@ The rule above; the unit's record is its row in `MODEL-AB-LOG.md`
 and its MERGED entry in `work/docm/log.md`.
 
 - `DOCM-4-SPEC.md` — DOCM-4, an evaluation carries its document's identity (#1808)
+
+## Per-merge deletion — DOCM-3's spec (2026-09-04)
+
+Recoverable at `git show d87d012149dfcbc917713ba8c18cbf505390040e:docs/DOCM-3-SPEC.md`
+(the DOCM-3 unit head, before the state-sync commit that deleted it;
+the file carries the stop-clause amendment as its last section). The
+rule above; the unit's record is its row in `MODEL-AB-LOG.md` and its
+MERGED entry in `work/docm/log.md`.
+
+- `DOCM-3-SPEC.md` — DOCM-3, `Node::Union`, `DocEdit::SetMembers`, pairwise-distinct inputs (#1803)

@@ -1878,6 +1878,34 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         tol,
     );
     doc = next;
+    // A SECOND independently minted body, stood clear of the first,
+    // for the n-ary union candidate. Standing clear is the load-bearing
+    // part: two members that MEET refuse the undeclared contact rather
+    // than answering this row's question. They need not be
+    // independently minted — a union keys its names on the member EDGE,
+    // so a body and a placement of it are two members and name fine
+    // (`docm3_union::two_placements_of_one_prototype_are_two_members`);
+    // two extrudes are simply the clearest thing to stand apart.
+    let (next, extruded_b) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile: profile_b,
+            distance: common::len(0.01),
+        },
+        tol,
+    );
+    doc = next;
+    let (next, body_b) = common::inserted(
+        &doc,
+        Node::Transform {
+            input: extruded_b,
+            translation: [common::len(0.1), common::len(0.0), common::len(0.0)],
+            rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+        },
+        tol,
+    );
+    doc = next;
     let (next, other) = common::inserted(
         &doc,
         Node::Transform {
@@ -1940,6 +1968,20 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                 a: body,
                 b: other,
                 declare: None,
+            },
+        ),
+        // The n-ary union at its minimal size. Its two members are
+        // `body` and the SECOND extrude rather than `other` because
+        // those two stand CLEAR of each other, and a union whose
+        // members meet refuses the undeclared contact before the seat's
+        // question is reached. `other` is a placement of `body`, which
+        // a union names perfectly well — the member edge tells the two
+        // apart even though a transform passes names through — but it
+        // sits where `body` is.
+        (
+            "union",
+            Node::Union {
+                members: vec![body, body_b],
             },
         ),
         (

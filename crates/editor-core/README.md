@@ -132,7 +132,9 @@ nodes share the rule vocabulary and slot map.
   none. `placement_rule_fault`, read by `apply`, the snapshot check and
   evaluation, refuses a count spelled twice, an empty list, and a non-finite or
   improper frame. Face-tied placements and a placement-list edit arm are not
-  implemented; heterogeneous groups are out of scope (pairwise `Boolean`).
+  implemented. Heterogeneous groups are `Node::Union`'s: an n-ary fuse over an
+  arbitrary member list, named by member and not by position, edited with
+  `DocEdit::SetMembers`.
 - **Naming does not grow.** Per-instance discrimination is `RoleSeg::Instance
   { i, of }`, the pattern node's wrapper; each instance's rows are re-keyed onto
   the one output body through that instance's graft bridge, and the body is

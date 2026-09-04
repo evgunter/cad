@@ -107,3 +107,23 @@ adjudication: `pair-doors-outside-the-three-do-not-check-document-identity`.
 Spec `docs/DOCM-4-SPEC.md` deleted at merge (DOC-LEDGER). Two spec
 errors were the orchestrator's (three constructor sites where there
 were two; the wrong Python test file).
+
+## DOCM-3 MERGED (2026-09-04, PR 1803)
+
+Ordinal 1801, sample #127, block DOCM-B1 slot 0. Implementer arm OPUS.
+Two phases: the lane stopped at DM4's false naming key, the orchestrator
+amended DM4/DM5 (#1807) and the spec, the lane resumed as the same arm.
+v6 dual on frozen `a713a02e`: R1 (fable) 0/3/4 APPROVE-WITH-FIXES, R2
+(opus) 1/7/5 APPROVE-WITH-FIXES. Adjudicated: one bilateral MAJOR (the
+fold's refusal named fold-internal rows no table holds; R1 rated it
+MINOR) fixed by collapsing refusal payloads through the union's own
+rule; two silent deviations (two wildcard arms; the list floor reaching
+the loft's insert and load doors) fixed and disclosed; the rest MINOR
+and NOTE, all fixed. Unilateral-MAJOR tally +0. R1 disclosed an
+accidental glimpse of R2's build-script PATHS through the shared session
+scratchpad — no content, no findings — so the pair stays FAIR under v6
+item 3e; the hazard is now a line in `memories/agent-lane-operations.md`
+and every later brief names a private scratch directory. Filed at
+adjudication: `n-ary-union-has-no-declaration-channel` (Ev's ruling).
+Spec `docs/DOCM-3-SPEC.md` deleted at merge (DOC-LEDGER). Both node-kind
+units (`DOCM-1`, `DOCM-2`) are now unblocked.

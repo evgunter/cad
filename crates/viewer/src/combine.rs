@@ -509,6 +509,9 @@ pub fn denotes_body(node: &Node<ProfileProgram>) -> bool {
         | Node::Fillet { .. }
         | Node::Chamfer { .. }
         | Node::Boolean { .. }
+        // ONE body out, exactly as the pair union it generalizes: the
+        // members are folded, not collected.
+        | Node::Union { .. }
         | Node::Transform { .. }
         | Node::PlacedUnion { .. }
         | Node::InstantiatePart { .. } => true,

@@ -14,7 +14,7 @@ the name↔entity table and re-resolution is a lookup, never a match.
 |---|---|
 | N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier` | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
-| N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs` |
+| N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs` |
 | N2 discriminators; tie propagation | `discriminate.rs`; `defer.rs` |
 | N5 `ResolveError`, `Diagnosis`, tombstones, offers; diff engine; hit-testing; `Rebind` | `crates/editor-core/src/resolve/mod.rs`; `resolve/vdiff.rs`; `resolve/hit.rs`, `resolve/pick.rs`; `edit.rs` |
 | N6 `GeomSource` | `crates/topo/src/source.rs`; consumers `crates/topo/src/merge_faces.rs`, `crates/topo/src/boolean/plane_eq.rs` |
@@ -28,7 +28,8 @@ a runtime `EntityKind` (Body, Face, Edge, Vertex — bodies are first-class), th
 minting `RecipeNodeId` (from the document's monotone counter at insertion; never
 positional, never reused), and `RolePath = Vec<RoleSeg>`. `RoleSeg` is one closed
 enum grouped by op: extrude (`Cap`, `Lateral`, ...), revolve (`Band`, `Pole`,
-...), boolean (`FromA`, `FromB`, `Seam`, `Merged`, `Fragment`), split
+...), boolean (`FromA`, `FromB`, `FromMember { member, of }`, `Seam`, `Merged`,
+`Fragment`), split
 (`SectionFace`, `SectionEdge`, `SplitFragment`, ...), blend (shared by fillet and
 chamfer, told apart by the minting node), `InPart`, pattern `Instance { i, of }`
 with `i` recipe-structural. Role arguments are themselves names; profile locators
