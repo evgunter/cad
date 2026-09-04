@@ -1,0 +1,231 @@
+CERT-N3 dual (v6), recorded BEFORE R1 dispatch, 2026-09-04
+ordinal: 714, CLAIMED on main at dispatch (S-CERT band; the claim block
+follows CERT-M3's in docs/MODEL-AB-LOG.md).
+slot byte 89 (od /dev/urandom, one byte), parity 1 => R1 FABLE + R2 OPUS
+(cross-model). Block CERT-B4 slot 3 (byte 123 => fable at 3): the
+implementer arm was FABLE.
+METHOD NOTE (pre-recorded so both arms run identically): reviews run
+SEQUENTIALLY on the frozen head b5a727c3b04eb2d2c012acbc3c56e49e706ca9b1
+on PR 1879 (cert/n3-track-n-remainder). The head is the lane's own: nine
+unit commits on the dispatch base 724c84927 (23cf34412 D244; 0b1f290cd +
+9f121914e D31; 3dcdc855a D98; dced2e381 + a55603346 S235/C24 + docs;
+4d9b0cd9a the lane's merge of origin/main at the tracker-migration head;
+b195c3ed6 tracker re-homing; 0a8c33f95 bounds roster; b5a727c3b fixture
+margin + trailer) — no orchestrator-direct commits. Gate on b5a727c3b:
+run 33927371220 ALL GREEN (lane=both eps=all by trailer, the additive
+spelling main's filter now requires). The implementer session died
+mid-unit on a model rate limit (during the D31 bit-identity
+measurement) and was resumed from its transcript on the same worktree
+and branch; the D31 evidence in the body was re-taken after the resume.
+Main deleted docs/SMELL-SCAN-2026-08.md under the tracker migration
+while the branch was open; the landings are re-homed into
+work/cert/{D244,D31,D98,S235,C24}.md (status closed) and the closed
+members deleted in work/code-quality/{S18,S11,S66}.md. Reviewers review
+the UNIT diff (`git diff origin/main...b5a727c3b`), and the merge's
+interplay with main (136 files moved under the lane) is theirs to read.
+R2 after R1 with the IDENTICAL stored brief, isolated. Probe branches:
+cert/n3r1-probes, cert/n3r2-probes (local until close-out). Reviewers
+build in their OWN target directories (never a shared CARGO_TARGET_DIR
+across worktrees); sequential. CERT-M3's dual (ordinal 713) runs
+CONCURRENTLY on its own unit; grounds file-disjoint (M3: geom-brep
+edge_nurbs/certify, topo validate/census/euler/props; N3: geom,
+geom-core spline, sweep/skin, topo boolean/boxes).
+Implementer difficulty M (logged at spec pre-draw, docs/CERT-N3-SPEC.md
+at 1267e32c0 on cert/orchestrator). Usage: the counter records only the
+resumed half (~498k tokens, 99 tool uses, ~68m wall); the pre-death half
+left no record. Verification the lane disclosed: three-ε sweep (1e-6,
+1e-9, 1e-12) on every moved row in both lanes; full suites of geom-core,
+geom, sweep, topo in both lanes and mesh/step-export/geom-brep in the
+default lane; all gates; excluded roots re-swept (no caller of any
+changed door). Unit shape for the reviewers' weighting: one BEHAVIOUR
+change — the boolean lane's conic edge box (topo::boolean::boxes,
+EdgeBoxRule::ConicAmplitude) becomes geom's exact extremal construction
+via a new dispatcher `conic_arc_aabb`, strictly TIGHTER than the
+16-sample subdivision-plus-sagitta bound it replaces (36 candidate pairs
+stop being examined on the lane's corpus, all with zero accepted events
+under the brute-force reference), PLUS a fix inside the exact door
+itself (`extremal_angle_interval` gave up at the atan2 cut — extremal
+angle exactly π — and now reads corners in the frame rotated by π),
+which is beyond "adopt"; the census lane keeps `arc_extent` (its scalar
+has no ordering) and the lane-agreement rows now pin a GAP ≤ the charge
+instead of equality. D31 claimed bit-identical to both retired
+spellings (measured on a corpus, probe not committed); D98 a D2 row-0
+type change (`unit_segment(NonZeroUsize)`) with a 53-site test-fixture
+ripple outside the fence; D244 an alias inline; C24 closed on a 19 ns
+measurement, no CurveJet minted. Where a wrong answer is reachable:
+S235's box SOUNDNESS at every scalar the boolean reads it at (a
+too-tight box is a pruning hole in every door that prunes on it), the
+branch-cut fix's own soundness, the `Interval` lane's wide-bracket path,
+and the census/boolean gap pin.
+
+COMMON BRIEF (stored verbatim; lane plumbing differs per lane):
+---
+You are a blinded adversarial reviewer for unit CERT-N3 of the S-CERT
+program (repo evgunter/cad) — Track N's last unit: rows D244, D31, D98,
+S235 and C24's analytic member, after which Track N is empty. Review PR
+1879 on its FROZEN head b5a727c3b04eb2d2c012acbc3c56e49e706ca9b1 — do
+not review any later commit; if the branch has moved, say so and still
+review b5a727c3b. The unit diff is `git diff origin/main...b5a727c3b`
+(main's own commits are not the unit's; the branch merged main at
+4d9b0cd9a and the interplay of that merge is yours to read).
+
+Read first, in order: docs/prompts/reviewer-style-lane.md (binding
+style-lane brief; carry its structural questions and confidence
+vocabulary), the unit's binding spec (git show
+origin/cert/orchestrator:docs/CERT-N3-SPEC.md — it fixes the rows, the
+order, the fence with its two drawn seams, the ADV posture on S235 and
+the landing convention; your target is whether each row is COMPLETELY
+closed and closed in the BEST way available, whether any fix mints a
+fresh instance of the defect it closes (rule 5), and — above all for
+this unit — whether the adopted conic box is SOUND: a superset of the
+locus at every scalar the boolean reads it at), the Track N rows and
+findings as they stood BEFORE this PR edited them (git show
+724c84927:docs/SMELL-SCAN-2026-08.md — the Track N table; findings S235,
+S32's curve-side paragraph, S18's D31 row, S16 (the box-soundness class),
+S11, S66; the repartition rules: rule 1 fence, rule 3 landing, rule 5 no
+fresh instance) and their re-homed successors on the head
+(work/cert/{D244,D31,D98,S235,C24}.md, work/code-quality/{S18,S11,S66}.md,
+the filed work/code-quality/{D291,D292}.md — the tracker migration
+happened under this branch; read work/README.md's landing rules), the D2
+addendum in docs/DESIGN.md, crates/geom/src/curves/boxes.rs and
+crates/topo/src/boolean/boxes.rs at the merge base, then the PR 1879
+diff and body (read the PR body with the github MCP pull_request_read
+tool, method get, owner evgunter repo cad pullNumber 1879, read-only;
+NO GitHub writes).
+
+CLAIMS TO FALSIFY (each gets a verdict with evidence; execution beats
+inspection; every number is the PR body's claim, not a fact):
+1. S235 — SOUNDNESS OF THE ADOPTED BOX (the unit's ADV row). Write your
+   OWN adversarial corpus, independent of the lane's 92 edges: circles
+   and ellipses at radii from 1e-4 to 1e4, spans that cross each
+   extremal angle strictly inside, exactly at an endpoint, and within
+   1e-9 rad of an endpoint; runs that wrap past 2π and runs whose
+   parametrisation starts near the atan2 cut; `u_ref` at every octant
+   boundary; ellipse tilts up to 89.99° and axis ratios to 1e3;
+   degenerate spans (1e-6 rad) and spans within 1e-6 of a full turn.
+   For each edge sample the locus densely (1e5 points) and assert the
+   box from `edge_box` at f64 CONTAINS every sample with zero pad. Then
+   the same at Interval (the wide-bracket path: does the box dominate
+   every realisation of the bracket, including brackets that straddle
+   an extremal angle?) and at Dual64 if the door admits it. One
+   escaped sample is a MAJOR.
+2. S235 — THE BRANCH-CUT FIX in `extremal_angle_interval` (extremal
+   angle exactly π; corners read in the frame rotated by π). Is the
+   rotated frame's cut really clear of the rectangle whenever the
+   original cut was inside it, and what happens when the rectangle
+   touches BOTH cuts (straddles the origin's u axis on both sides — the
+   origin-inside case) or touches the positive u axis exactly at a
+   corner? Construct brackets that touch each axis exactly and
+   brackets of width zero on one coordinate; is the None (include both
+   extrema) arm still taken whenever it must be, and is the "any 2πk
+   translate" span test right after the π shift-back? This fix is
+   beyond "adopt" — is it in-fence and is its soundness pinned by a
+   row, or only by the ceiling row that motivated it?
+3. S235 — THE CENSUS/BOOLEAN GAP PIN. `the_two_box_lanes_agree_face_for_
+   face` now pins census ⊇ boolean with gap ≤ `r·(span/16)²/8`. Is that
+   charge the right bound for the census's `arc_extent` on every fixture
+   (derive it; is it per-coordinate `A_i` or the radius?), and is the
+   row still LOUD — plant a walk drift (drop an edge from one lane) and
+   confirm it reds; plant a box widened by less than the charge and
+   confirm what the row says. Is "a lost edge moves a box by the edge's
+   extent, never by less than the charge" true on the smallest edge in
+   the fixtures?
+4. S235 — THE PRUNING DELTA AND EVERY DOOR THAT PRUNES. Re-run the
+   lane's corpus through `sweep_traces` at the merge base and the head;
+   reproduce the 36 pairs; confirm each has zero accepted events under
+   the brute-force reference AND that no `subtract` result changed.
+   Then enumerate every consumer of `edge_box`/`face_box` (the reduction
+   sweep, the operand gate, `separation`, the sphere-extent fallback,
+   `face_tree`, the census's arm 2): does any of them read the box with
+   a semantics that a TIGHTER box breaks (an equality, a containment of
+   a pad, a sort key)? Is the operand-gate claim ("already admits
+   Line|Circle|Ellipse; the obligation is real only for NURBS") true —
+   read `gate_operand_edges` and `gate_operand_pairs`.
+5. S235 — the retired arm: was the "full-turn fallback" really
+   unreachable (row 0), and is the surviving `unreachable!` (row 4)
+   truly impossible — try to construct an `EdgeCurve` with `certified`
+   None under a conic rule through any public constructor, STEP import,
+   or map_scalar. Is `bracket_span` dead at the merge base (grep)?
+6. D31 — BIT IDENTITY. The lane's probe was NOT committed. Re-take it:
+   copy the two retired spellings verbatim from the merge base
+   (sweep::skin::make_compatible's union loop; fit::deviation_from's),
+   run them beside `refine_to_union` on your own corpus (rational and
+   non-rational, mismatched multiplicities, a full-budget multiplicity
+   run, single-span vectors, mixed degrees through the elevation path,
+   and a case where the two retired spellings' insertion ORDER differed)
+   and byte-compare control points, weights and knots. Is
+   `union_refinements`' contract ("every distinct interior value at the
+   greatest multiplicity any input gives it") exactly what BOTH callers
+   computed before, including for a knot that one vector holds at
+   multiplicity p+1 (a discontinuity)? Does `InteriorKnot`'s doc say
+   truly why the second consumer returns f64?
+7. D98 — ROW 0 vs ROW 1. Is `unit_segment(NonZeroUsize)` the right D2
+   answer, or does it push a refusal into callers that hold a variable
+   degree (find every caller with a non-literal degree — the lane
+   claims none)? Remove the `compile_fail,E0308` annotation and
+   compile: is the ONE error E0308 on the argument and nothing else?
+   Is `unit_segment.rs`'s pin against `clamped()` at 1..=6 exercising
+   the vector (compare values, not lengths)? Re-count the ripple (53
+   sites / 18 files claimed; main added 2): any site where
+   `NonZeroUsize::MIN.saturating_add(n − 1)` was written with the wrong
+   n, or where a fixture's degree changed meaning?
+8. D244 — is the inline a pure rename at both call sites (diff the
+   expressions), and is `decoration_seam.rs`'s header still true
+   (execute the row)? Did S89's finding text lose exactly this member?
+9. C24 — re-take the measurement (release, debug-assertions as the root
+   profile sets): is 19 ns per pair right, and is "tens of calls per
+   boolean" right — count `chord`'s conic-arm evaluations on the corpus
+   bodies (instrument `neighborhood.rs` in your worktree, do not push).
+   Is closing C24 on the number, with no CurveJet, the best answer, or
+   does the S32 surface-side precedent apply?
+10. THE SWEEP (S16's class) and the two filings D291/D292: re-run the
+    pattern at the head; is `edge_axial_span`'s subdivision the same
+    defect and rightly deferred (does a directional exact extremum
+    really exist in closed form for an ellipse along an arbitrary
+    axis — derive it), and is census.rs:1951's comment now false?
+    Find a hand-derived bound beside a shipped exact one that the
+    pattern cannot match.
+11. THE ROW LANDINGS under rule 3 in their NEW homes: each of the five
+    work/cert items closed with a `## Closed` record that states what
+    landed; S18's D31 row, S11's two `boxes` rows and S66's S235
+    paragraph deleted member by member (diff against 724c84927's
+    SMELL-SCAN text and list every deleted sentence); the two-halves
+    rule relocated into `EdgeBoxRule`'s doc BEFORE the finding text was
+    deleted (is the relocated text the rule, not a paraphrase?); D291 and
+    D292 filed with file:line citations; `python3 scripts/work.py lint`
+    at the head; the stale docs/WORK-TRACKS-2026-09.md citation swept.
+12. THE ε/LANE POSTURE and the `mev` winding-margin premise: the body
+    says the near-full-turn fixture's shortfall (0.02 rad → 2e-5 at
+    r = 0.001) clears the widest escalate band (1e-5 at ε = 1e-6). Run
+    the S235 rows and `s16_box_soundness` at 1e-6, 1e-9, 1e-12 in both
+    lanes yourself; then find the ε at which the fixture DOES refuse
+    and say whether the row's premise is stated where a future ε change
+    will find it. Is "no tolerance enters" true of the box (the
+    `Tol::witness()` pad, `ANGLE_SLOP`)?
+13. THE MERGE INTERPLAY: main moved 136 files under this lane. Did the
+    scalar-lift rows in `sweep` (main's) and this unit's `make_compatible`
+    change compose correctly; are the two callers main added
+    (`tcost_k1_budget_exit.rs`, `topo/src/transform.rs`) rippled by the
+    same rule; is the sole-Bounds roster (`bounds_census.rs`) right to
+    gain `conic_arc_aabb` and lose `bracket_span` — run it.
+14. Rule 5 per row; D2-addendum classifications (D98 row 0; the retired
+    fallback row 0 / the `unreachable!` row 4); Q3 (do the new rows
+    exercise what they claim on constructed inputs?); Q7 (the dispatcher
+    `conic_arc_aabb` returning None for Line/Nurbs versus an enum or a
+    per-kind call at the arm); Q8 (how much of the unit diff you read
+    clause by clause — say which files). The four stated deviations: is
+    each argued right (s16's location; pub(crate) rows beside the arm;
+    the D98 ripple as mechanical; the branch-cut fix kept)?
+
+RULES: work in your own worktree from the frozen head; do NOT push to
+cert/n3-track-n-remainder; put probes on your assigned probe branch
+(local commits; the orchestrator collects them); no GitHub writes of
+any kind; no Co-Authored-By; keep CARGO_TARGET_DIR OUTSIDE your
+worktree at the path your plumbing names; serialize heavy builds
+through /home/user/cad/local-scripts/with-build-slot.sh -- <cmd>;
+foreground discipline (never wait on a background notifier — poll);
+check df -h / before big builds and clean your own target dir if free
+space nears 8G. Verdict ladder: APPROVE / APPROVE-WITH-FIXES /
+NEEDS-MAJOR-ATTENTION-ITEM / REJECT, with per-item MAJOR/MIN/NOTE
+severities, executed-vs-inspected marked per item, and the rubric
+scores per the style lane. Report <=150 lines.
