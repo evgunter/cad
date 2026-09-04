@@ -1,14 +1,34 @@
 # The spiric rim carrier and the pinch machinery — design conversation
 
-**STATUS: DRAFT for an `[ev]` PR** (CURVED orchestrator; drafted
-2026-09-04 against main `d799235e2`, every code cite re-derived by
-symbol at that head). Two questions the VERBS exit walk transferred
+**STATUS: OPEN — an `[ev]` design conversation** (CURVED orchestrator;
+drafted 2026-09-04 against main `d799235e2`, every code cite
+re-derived by symbol at that head; the tracker item is
+`work/curved/spiric-carrier-ruling.md`). Two questions the VERBS exit walk transferred
 to design: `docs/VERBS-RIMCAP-SPEC.md` PR-2 (the torus half of the
 partial-revolve rim — the spiric carrier) and
-`work/issues/pinch-carrying-machinery-valence-4.md` (#1377, the
+`work/curved/pinch-carrying-machinery-valence-4.md` (#1377, the
 valence-4 pinch family). The RIMCAP spec guessed they are one
 design; §6 measures that guess and refutes it. Nothing here
 dispatches; §1 is what Ev rules on.
+
+## 0. The orchestrator's reading (for Ev, in two paragraphs)
+
+The RIMCAP spec deferred the torus rim as "a spiric quartic `Curve3`
+cannot carry" and guessed it belongs with the pinch machinery. §3–§6
+measure both: the rim is always the two-oval regime of the spiric
+(the shell offset can never reach the double point), it has a closed
+form in the torus's own minor angle with speed bounded below by `r`,
+and the pinch family's curves are ellipses the kernel already carries
+— its gap is vertex topology, not a carrier. So the honest shape is a
+per-configuration exact kind, which is what D3's closed enum is for,
+and the pinch stays its own conversation.
+
+I recommend Q1 = (b), Q2 = (b1), Q3 = (i) now with (ii) opened as its
+own `[ev]` conversation (its payoff is the whole "torus exact meters"
+column, so it deserves to be argued on that ground), Q4 = (i), Q5 =
+(ii) for the carrier unit with the props lane funded as a separate
+numeric unit right behind it, and Q6 = ratify. Answer in this PR's
+comments; I edit the doc in place and merge.
 
 ## 1. Decisions asked (each with the viable answers; §7 argues)
 
@@ -231,7 +251,7 @@ extents) — close, and not equal. So RIMCAP PR-1's acceptance pattern
 last act `validate_geometric` (`topo/src/shell.rs`) needs +V. Without
 a quadrature lane the elbow would stop precisely where the sphere
 lune stops today: `VolumeUncomputable { NotIsoRectangle }`
-(`work/issues/sphere-flux-arm-refuses-partial-bands.md`). A lane
+(`work/props/sphere-flux-arm-refuses-partial-bands.md`). A lane
 would be certified quadrature in `v` with an enclosed remainder;
 `props/quad.rs`'s rule ("no transcendental is ever evaluated on the
 certified path" — the C9 ring is the substrate) does not admit the
