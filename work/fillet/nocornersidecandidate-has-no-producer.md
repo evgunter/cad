@@ -2,11 +2,12 @@
 id: nocornersidecandidate-has-no-producer
 kind: issue
 title: `NoCornerReason::NoCornerSideCandidate` has no producer reachable through a shipped door (machinery with no producer)
-status: open
+status: closed
 opened: 2026-08-30
 github: 1280
 refs: [1267]
-needs_ev: true
+closed: 2026-09-04
+pr: 1733
 ---
 
 ## From GitHub issue 1280
@@ -70,3 +71,7 @@ known to reach it (the four searches above, blind spots stated).
 
 A 👍 on 1 closes this as a one-line doc edit riding the next unit that
 opens `validate.rs`; 2 becomes a unit with a proof obligation.
+
+**Ruled (Ev, 👍 on PR 1733, 2026-09-04): option 1.** The variant stays
+as a stated defensive arm; its doc comment now states the invariant in
+one sentence and cites the ruling. Closed with that edit.
