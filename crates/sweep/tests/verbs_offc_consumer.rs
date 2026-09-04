@@ -640,6 +640,13 @@ fn box_with_curved_approx_cap(d: f64) -> (Body<f64>, FaceKey, Surface<f64>) {
 /// frame: a rotation re-splits the same geometry across the coordinate
 /// axes, the enclosures widen or narrow, and the bound moves with them.
 ///
+/// The claim was also VACUOUS where it was made. Both limbs are
+/// certified `<= tolerance` and non-negative, so on a fixture minted at
+/// 1e-9 the assertion `|Δ| <= 1e-9` holds for any two certified limbs
+/// whatever — a mapped bound five orders above its operand's would have
+/// passed it. That is why this row is minted at 1e-6: the slack it
+/// asserts is a thousandth of the tolerance rather than equal to it.
+///
 /// So the row asserts the split rather than the invariance: the sampled
 /// limb survives, the bound is allowed to move and is only required to
 /// stay under the tolerance the surface claims — and the movement is
