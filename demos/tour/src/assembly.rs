@@ -75,9 +75,8 @@ use pncad::document::{
     Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, Datum, Dimension,
     DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame,
     InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind,
-    ProfileDoc, ProfileProgram, RecipeNodeId, apply, assemble,
-    content_pin, evaluate, inline, load, mixed_pins, parse_expr, product_named, save,
-    solve_document, split,
+    ProfileDoc, ProfileProgram, RecipeNodeId, apply, assemble, content_pin, evaluate, inline, load,
+    mixed_pins, parse_expr, product_named, save, solve_document, split,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
