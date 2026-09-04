@@ -49,6 +49,34 @@ quietly changed it would be a behaviour change smuggled through a
 mechanical move, which `docs/prompts/implementer-discipline.md` §3
 forbids in as many words.
 
+## What VIEW-1b established (2026-09-04)
+
+The table landed and records `Save` as **permitted** mid-gesture, which
+is what the code did before it. Two things the unit turned up that
+this item did not know:
+
+- **The behaviour is pinned deliberately, not by omission.**
+  `crates/viewer/tests/review_gui3_r2.rs:504` —
+  `a_save_taken_mid_gesture_writes_the_committed_document_not_the_preview`
+  — asserts it, on the argument that a save writes the committed
+  history and a preview is not in it. So this was answered once, with a
+  reason, and the answer is only invisible because it lived in a test
+  rather than beside the code. The table is now where a reader finds
+  it.
+- **`Open` and `Save` may not be the same case at all.** `Open` refuses
+  because it REPLACES the document the drag previews against; `Save`
+  does not. The asymmetry this item was filed on is therefore not
+  obviously a defect, and the question narrows to whether writing a
+  document while a gesture is mid-flight is sound — which the pinned
+  row already argues it is.
+
+**What stays open** is thinner than what was filed: whether the
+committed-history argument covers every writer (a save-as into a new
+directory rebinds the resolver, which is not the same as writing the
+current document), and whether the tree should say anything at all
+while a save happens mid-drag. If neither survives scrutiny, this item
+closes as answered rather than fixed.
+
 ## Home
 
 VIEW's: `crates/viewer/src/session.rs`, and unit 1's ground.

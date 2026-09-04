@@ -556,3 +556,57 @@ FILE, not per module**: six lanes each extracting one module from
 file. So 1c is two lanes — one for `session.rs`, one for `app.rs`,
 which are independent — each doing its whole file's extraction, after
 1b lands and shrinks the session lane's job by 23 guards.
+
+## 1b landed on a branch that had lost it, and a guard reported a pass it never ran (2026-09-04)
+
+The unit itself is good and is PR #1816: 23 guards replaced by one
+exhaustive `SessionOp::permitted_during_value_gesture` checked once in
+`perform`, 26 refused and 13 permitted, no behaviour change. **The
+lane corrected the dispatch twice** — `AddPlacedUnion` was missing from
+the guarded list (eleven creation doors, not ten: counting guard LINES
+undercounts OPS by two, since `AddPattern`/`AddPlacedUnion` share
+`add_pattern` and `AddFillet`/`AddChamfer` share `add_blend`), and
+`PreviewGesture`/`CommitGesture`/`CancelGesture` needed rows the brief
+never gave them, permitted, because guarding them would leave a drag
+with no way to end. Both corrections are the reviewer-brief's rule
+working as intended: a dispatch is a hypothesis.
+
+**Two process failures, both this orchestrator's.**
+
+**The state-sync commit was built on a stale tree.** `070be390` — the
+one clearing `needs_ev` after Ev's sign-off — has `14f1f9b4` as its
+parent, not the branch tip, so its push moved nothing and #1801 merged
+without it. Main therefore carried `needs_ev: true` on a question Ev had
+already answered, and `STATUS.md` showed VIEW waiting on Ev when it was
+not. Corrected: the clearing rides #1816, which is where state-sync
+belongs anyway.
+
+**The lane's branch pointer was left behind its own commit.** Subagents
+here share this checkout rather than getting per-lane worktrees, so the
+lane branched from the shared HEAD (picking up `070be390`), then reset
+onto merged main and committed its work as `0ad4274e` — which ended up
+on no branch at all, while the remote ref still pointed at the
+orchestrator commit. Recovered by merging `0ad4274e` back onto the
+branch, never a force-push; nothing was lost, because a commit object
+survives being unreferenced.
+
+**The part worth generalising is the second-order failure.** The lane
+reported in good faith that `work.py territory` found **0 paths in
+another program's territory**. Re-run against the recovered tree it
+names two — `crates/viewer/tests/all.rs` and `gesture_table.rs`, both
+CHROME's and TCOST's. The tool is fine. It saw a tree without the
+lane's work, and a guard run against the wrong tree reports a pass.
+That is the same shape as the existing rule about confirming a
+`Compiling <crate>` line before trusting a build, one level up, so it
+is recorded in `memories/agent-lane-operations.md` beside the
+branch-ref hazard it extends rather than filed as a defect.
+
+**The lane got the harder call right**: it could not trigger hosted CI
+(`ci.yml` runs on `pull_request`, `push: main` and `workflow_dispatch`;
+a branch push starts nothing and `workflow_dispatch` 403s for its
+token) and it SAID SO rather than offering its local runs as the gate.
+That is the discipline doc's rule followed exactly on the one occasion
+it cost the lane something.
+
+CHROME's test glob is touched by this unit (`gesture_table.rs`,
+`all.rs`); the announce is owed with #1816 rather than assumed.
