@@ -419,3 +419,59 @@ prose-only residues, and it is the fourth instance today. It landed on
 the one item where the cost is not a lost record but an unasked
 question, which is the argument for treating the pattern rather than
 the instances.
+
+## Parked against VIEW's split, and one item re-homed to LIB (2026-09-04)
+
+Ev asked whether CHROME's remainder should move into VIEW or stay put
+with the dependency recorded. **Stay put, parked** — and the tracker's
+own vocabulary is the argument rather than a preference.
+
+**Why not move.** `work/README.md` re-homes residue when a program
+CLOSES; CHROME is not closing (it holds an open Ev unit and owns
+`crates/viewer/tests/*`, which VIEW's `paths` do not cover). More
+decisively, moving now would assert these are VIEW's work before
+VIEW's unit 1 has ratified — and a module split is exactly the kind of
+change that can DELETE a finding rather than inherit it.
+`session-gesture-guard-spelled-thirteen-times` is the clearest case:
+the split's own charter names "gesture-safety as data", which if ruled
+that way dissolves the item instead of relocating it. Whether each of
+these survives the split is the split's to determine, and CHROME's plan
+already said the residue *rides* it — riding is not being absorbed.
+Two of them also name `crates/editor-core`, outside VIEW's territory as
+well, so moving them into VIEW would file work in a program that cannot
+touch its ground.
+
+**Why not merely say so in prose, either.** `parked` is a real status
+and it requires `blocked_on` to be non-empty, so the dependency becomes
+machine-readable and lint enforces that the reference resolves. A new
+orchestrator reading the board sees nine parked rows naming their
+trigger instead of nine open rows that look available and are not.
+Prose in this log would have been the session's own recurring defect a
+fifth time.
+
+**What is parked**: the nine whose ground is `session.rs` or `app.rs` —
+the two files VIEW unit 1 splits, and where its plan says *"Nothing
+else in this program lands in those files before the split does."*
+`parameter-row-field-has-no-text-door` carries a second trigger, the
+`editor-core` door filed as `doc-param-unit-edit-has-no-door`.
+
+**What stays open**, and is dispatchable today without touching VIEW's
+ground: `probe-rows-assert-in-one-direction-only` (tests only — VIEW's
+`paths` are `src/*` and the README), `fmt-cache-carries-the-toolkit-
+codegen` (CI, names no crate file), `mispaired-ids-exempts-the-empty-
+window` (`scene.rs`), `viewer-const-all-tables-have-no-exhaustiveness-
+guard` (`combine.rs`), `edge-cost-claims-name-a-search-that-is-gone`
+(`blend.rs`, `pick.rs`), `band-refusal-still-badges-every-row` and
+`mate-fault-subject-spelled-in-three-crates` (both reaching
+`editor-core`, which this program's `keep_out` fences — a slate for
+whoever owns the kernel, not for CHROME), and the two `add-profile`
+hand-offs.
+
+**And one item was in the wrong directory entirely.**
+`save-a-copy-duplicate-id-bricks-store` arrived in DOCM's hand-off, but
+CHROME's `paths` do not cover `crates/pncad` at all, so the program
+holding it could not have taken it. Its own Home section — written
+before the hand-off — already named LIB, and its account of the fix is
+an identity design question, which is the library contract's ground.
+Moved to `work/lib/`. Its viewer half is a rider owed AFTER the
+identity question is ruled, which is a hand-off in the other direction.
