@@ -1928,10 +1928,10 @@ class OpGroup:
     InstantiatePart: Final[OpGroup]
 
 class CapEnd:
-    """An extrude/revolve cap end (`SegPat.side`)."""
+    """Which end of the sweep vector a cap face closes (`SegPat.side`)."""
 
-    Top: Final[CapEnd]
-    Bottom: Final[CapEnd]
+    End: Final[CapEnd]
+    Start: Final[CapEnd]
 
 class MeridianEnd:
     """A revolve meridian end (`SegPat.side`)."""

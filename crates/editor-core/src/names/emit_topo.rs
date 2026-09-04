@@ -1488,7 +1488,7 @@ mod tests {
         let ext_node = RecipeNodeId(1);
         let a_table = name_extrude(ext_node, &built).unwrap();
 
-        // Synthetic merge: the top cap absorbed one lateral — listed
+        // Synthetic merge: the end cap absorbed one lateral — listed
         // TWICE to exercise the dedup.
         let lateral = *a_table
             .iter()

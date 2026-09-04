@@ -2180,7 +2180,7 @@ fn asm_r2a_mated_assembly(
             of: Box::new(StableName {
                 kind: EntityKind::Face,
                 node: WS_PART_BODY,
-                path: vec![RoleSeg::Cap(CapEnd::Bottom)],
+                path: vec![RoleSeg::Cap(CapEnd::Start)],
             }),
         }],
     };
@@ -2316,12 +2316,12 @@ fn asm_r2b_child_crossing_probe() {
             outer: StableName {
                 kind: EntityKind::Face,
                 node: WS_PART_BODY,
-                path: vec![RoleSeg::Cap(CapEnd::Top)],
+                path: vec![RoleSeg::Cap(CapEnd::End)],
             },
             inner: StableName {
                 kind: EntityKind::Face,
                 node: WS_PART_BODY,
-                path: vec![RoleSeg::Cap(CapEnd::Bottom)],
+                path: vec![RoleSeg::Cap(CapEnd::Start)],
             },
         }],
     };
