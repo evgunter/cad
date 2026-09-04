@@ -475,3 +475,60 @@ before the hand-off — already named LIB, and its account of the fix is
 an identity design question, which is the library contract's ground.
 Moved to `work/lib/`. Its viewer half is a rider owed AFTER the
 identity question is ruled, which is a hand-off in the other direction.
+
+## Nine of nine: the hardware run, and two things it opened (2026-09-04)
+
+Ev ran the first-light checklist on real hardware — Windows-native,
+D3D12, Intel Iris Plus Graphics, driver 31.0.101.1999. All three
+readings are answered on the item and in `gpu.rs`'s module comment,
+which had said outright that culling was off because nobody knew and
+instructed whoever found out to replace it. `FrontFace::Ccw`; the
+`R32Uint` clear is clean; the blocking readback costs a median 0.803 ms
+over 293 samples, about 5% of a frame, so the movement gate already in
+place is sufficient. **The startup panic that opened this item does not
+reproduce.** The scene and id passes now cull.
+
+**Two of the three readings were binary tells and one was not**, which
+the checklist did not say. The culling flip and the clear semantics are
+settled by whether a thing is drawn and whether a message appears — an
+operator's eye is the instrument and it is adequate. The readback cost
+is quantitative in substance and the item asked it qualitatively (*"a
+frozen or crawling frame rate"*); at 60 fps "fine" and "8 ms per hover
+frame" look identical, and there was **no timing instrument anywhere in
+`crates/viewer/src`** — no `Instant`, no frame-time, no counter, with
+`IdQueryLog` recording a serial rather than a duration. Ev closed that
+by adding a timing `eprintln!` for the run. A checklist mixing the two
+kinds without marking which is which invites the third being ticked off
+as "looked fine".
+
+**Enabling culling made a visual property load-bearing for the first
+time.** With `cull_mode: None` an inverted patch still drew, shaded
+oddly but present and pickable; culled, it is absent from both the
+picture and the id buffer — so a rendering fault now presents as a
+MODELLING error. Nothing in this repo has ever asserted a rendered
+pixel: PR 1755's smoke row deliberately builds pipelines and paints
+nothing, and Ev's own run notes that the whole frame path still escapes
+CI. Filed as `culling-is-load-bearing-with-no-pixel-test`, with the
+lavapipe id-buffer readback named as the buildable close. Its sibling
+is `chrome-weight-is-outside-the-palette` — two visual properties now
+carrying meaning with nothing watching either.
+
+**And the run's Vulkan aside was disclosed in prose and filed nowhere**
+— the fifth instance today of the shape `work/README.md:100-106`
+legislates against, arriving in the last item to close. `app::run`
+states its window intent explicitly and its GPU intent not at all, and
+that machine enumerates an Intel Vulkan adapter that access-violates
+during device creation, which is not a catchable Rust error. Not an
+observed crash — the default picked D3D12 and ran clean — but the
+ingredient is demonstrated. Filed as
+`viewer-expresses-no-gpu-adapter-preference`. The precedent is in that
+same function: its window intent is stated rather than negotiated, and
+the WSLg arm prefers X11 by hand, both added by this same first-light
+item. The GPU half of the argument was never made.
+
+**Where that leaves the program.** All nine units are answered. CHROME
+does NOT close with them: a closed program may hold only closed items,
+and this directory holds nine parked on VIEW's split plus the open
+residue. The exit walk is Ev's to ratify and the re-homing depends on
+what the split leaves standing, so the honest state is a program whose
+slate is complete and whose residue is scheduled.

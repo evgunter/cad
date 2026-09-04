@@ -5,6 +5,8 @@ title: viewer::session is accreting into a god-module - split conversation befor
 status: open
 opened: 2026-08-31
 github: 1386
+needs_ev: true
+refs: [session-shims-and-test-imports, save-is-not-gesture-guarded, two-gestures-can-be-in-flight-together, revolve-tool-unreachable-no-axisinplane-form, opoutcome-superseded-has-no-production-reader]
 ---
 
 ## From GitHub issue 1386

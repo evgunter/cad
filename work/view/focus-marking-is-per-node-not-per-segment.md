@@ -24,6 +24,30 @@ So the unit is: establish the authored-step → canonical-segment map as a door 
 
 Not a defect of what shipped — the shipped behaviour is stated as a gap in the module docs of `pick::focus` and in the GUI log — but it is the natural next step and the request that produced the feature asked for it by name.
 
+## Territory, measured (2026-09-04)
+
+The item says the map door "belongs beside the lowering, in
+`profile`/`editor-core`". Read against the territory globs, that is two
+programs and not one, which the program header's `keep_out` now says:
+
+- the authored coordinate is `SlotId::Profile { loop_, step, arg }`,
+  whose `step` is defined by `ProfileProgram::step_args`
+  (`crates/editor-core/src/program.rs:653`, and the slot enumeration at
+  `:1265`). `crates/editor-core/src/program.rs` is **DOCM's** glob.
+- the canonical coordinate is `ProfileEdgeRef { loop_index, segment }`
+  (`crates/editor-core/src/names/role.rs:140` — also DOCM's), whose
+  `segment` indexes the canonical chain that `crates/profile` produces
+  (`structure.rs`'s canonical start/reversal, `path.rs`'s
+  `circle_split`). `crates/profile/*` is **S-BOOL's** glob.
+
+So the map's two endpoints are owned by DOCM and its subdivision
+behaviour by S-BOOL, and the viewer owns neither. Where the door lives
+is a question for the three of us; this program's standing is to state
+what it needs from it, which is the total function authored-step → set
+of canonical segments, refusing rather than guessing where the
+correspondence is not established. Two announces owed before this unit
+is cut.
+
 ## Home
 
 Viewer ground (`crates/viewer/src/pick.rs`) with a lowering-side door in `profile`/`editor-core`; the GUI program is closed and may hold only closed items, so it lands under `work/issues/`.
