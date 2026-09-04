@@ -434,18 +434,107 @@ fn mem_total_kb() -> u64 {
         .unwrap_or(0)
 }
 
+/// The flag subset that actually moves these rows. Not the whole `flags`
+/// line: the opt-0/opt-2 ratio measured 30% apart between an AVX-512 guest
+/// and CI (2026-08-22 census), which is the discrimination worth recording,
+/// and the same two names the lane's other emitters probe
+/// (`scripts/criterion-emit.py`, `scripts/opt-level-calibrate.py`).
+const HOST_CPU_FLAGS: [&str; 2] = ["avx2", "avx512f"];
+
+/// Where host identity is read from. Passed to [`cpu_identity`] rather than
+/// read inline, so the path is a seam a test can point at nothing.
+const CPUINFO: &str = "/proc/cpuinfo";
+
+/// Which box this is, as far as `/proc/cpuinfo` can say.
+///
+/// `runner`, `nproc`, `mem_total_kb` and `arch` are constant across a hosted
+/// runner pool while the CPU generation underneath it is not, so without this
+/// pair a sample cannot be attributed to a host at all — only to a class of
+/// host. Same two fields under the same names in every emitter of this lane,
+/// so the blocks compare.
+///
+/// `(None, None)` means the file could not be read; an empty flag list means
+/// the flags are genuinely absent. A reader must be able to tell those apart,
+/// and a box without `/proc` must not cost the whole environment block.
+fn cpu_identity(path: &str) -> (Option<String>, Option<Vec<String>>) {
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return (None, None);
+    };
+    cpu_identity_of(&text)
+}
+
+/// The parse half of [`cpu_identity`], split off so the shapes a
+/// `/proc/cpuinfo` can take are testable without one.
+fn cpu_identity_of(text: &str) -> (Option<String>, Option<Vec<String>>) {
+    let mut model: Option<String> = None;
+    let mut flags: Option<Vec<String>> = None;
+    for line in text.lines() {
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        match key.trim() {
+            "model name" if model.is_none() => {
+                let v = value.trim();
+                if !v.is_empty() {
+                    model = Some(v.to_string());
+                }
+            }
+            "flags" if flags.is_none() => {
+                let mut found: Vec<String> = Vec::new();
+                for flag in HOST_CPU_FLAGS {
+                    if value.split_whitespace().any(|f| f == flag) {
+                        found.push(flag.to_string());
+                    }
+                }
+                flags = Some(found);
+            }
+            _ => {}
+        }
+    }
+    (model, Some(flags.unwrap_or_default()))
+}
+
+/// Host identity degrades rather than failing: a box whose `/proc/cpuinfo`
+/// cannot be read still writes a complete environment block, and a reader can
+/// tell "the file was not there" from "the flags were not set".
+#[test]
+fn cpu_identity_degrades_rather_than_failing() {
+    assert_eq!(cpu_identity("/nonexistent/cpuinfo"), (None, None));
+    // The whole point of the nulls: the rest of the block survives them.
+    let env = environment();
+    assert!(env.get("cpu_model").is_some() && env.get("cpu_flags").is_some());
+
+    // Readable but shaped differently — an aarch64 `/proc/cpuinfo` carries
+    // `Features`, not `flags`, and no `model name`. The flag list is then
+    // EMPTY rather than absent, which is what says the file WAS read.
+    let (model, flags) = cpu_identity_of("processor\t: 0\nFeatures\t: fp asimd\n");
+    assert_eq!(model, None);
+    assert_eq!(flags, Some(Vec::new()));
+
+    // The ordinary case: first `model name` only, probed flag subset only.
+    let (model, flags) =
+        cpu_identity_of("model name\t: A\nflags\t: fpu avx2 sse\nmodel name\t: B\n");
+    assert_eq!(model.as_deref(), Some("A"));
+    assert_eq!(flags, Some(vec!["avx2".to_string()]));
+}
+
 /// The build/host provenance that the `disputed_measurement` argument
 /// went unresolved for want of. Recorded on EVERY entry so two
 /// entries that disagree can be compared as environments, not just as
 /// numbers.
 fn environment() -> serde_json::Value {
     let var = |k: &str| std::env::var(k).unwrap_or_default();
+    let (cpu_model, cpu_flags) = cpu_identity(CPUINFO);
     serde_json::json!({
         "runner": std::env::var(RUNNER).unwrap_or_else(|_| "local".to_string()),
         "os": std::env::consts::OS,
         "arch": std::env::consts::ARCH,
         "nproc": std::thread::available_parallelism().map_or(0, std::num::NonZero::get),
         "mem_total_kb": mem_total_kb(),
+        // Which box, not just which class of box: every field above is
+        // constant across a hosted runner pool. See `cpu_identity`.
+        "cpu_model": cpu_model,
+        "cpu_flags": cpu_flags,
         "cargo_rustc_procs": build_proc_count(),
         "rustflags": var("RUSTFLAGS"),
         "rustup_toolchain": var("RUSTUP_TOOLCHAIN"),

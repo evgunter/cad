@@ -32,10 +32,29 @@ neither number alone is.
 ## Before quoting a sample
 
 * **Read the `environment` block first.** Runner, core count, memory,
-  toolchain, RUSTFLAGS, every `CARGO_PROFILE_*` and the debug-assertions
-  posture are recorded per sample, because a committed timing is worth
-  nothing if you cannot say which box produced it
+  `cpu_model`, `cpu_flags`, toolchain, RUSTFLAGS, every `CARGO_PROFILE_*` and
+  the debug-assertions posture are recorded per sample, because a committed
+  timing is worth nothing if you cannot say which box produced it
   (`memories/perf-measurement-lane.md`).
+
+  **What that block can now tell you**: which host CPU a sample ran on, by
+  model string and by whether `avx2` / `avx512f` were available — the two
+  fields that vary within one runner class, where every other field in the
+  list is constant across the whole `ubuntu-latest` pool. Two samples whose
+  `cpu_model` differs are not comparable at the ~10% resolution below.
+  `cpu_model: null` with `cpu_flags: null` means `/proc/cpuinfo` was
+  unreadable, not that the box had no CPU model; `cpu_flags: []` means the
+  file was read and neither extension was present.
+
+  **What it still cannot.** *These fields start with the first sample written
+  after they were added; every sample before that carries the old field set
+  and stays unattributable, because the history is append-only and nothing
+  retro-fits it.* It also cannot distinguish two boxes of the same model, and
+  it says nothing about what else was running on the host. And there is one
+  known step change it only half-covers: the runner class moved from 2 vCPU /
+  7 GB to 4 vCPU / 16 GB on 2026-09-03 (`.github/workflows/ci.yml`), so
+  `nproc` separates the two eras and nothing separates the boxes within
+  either. Do not read a trend across that date as a property of the tree.
 * **`median_ci_ns` is a WITHIN-run interval and it understates what a
   comparison across two entries can resolve.** Three consecutive runs on a
   quiet 4-core box (2026-08-27) spread ~3–9% against within-run intervals

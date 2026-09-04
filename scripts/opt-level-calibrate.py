@@ -375,6 +375,50 @@ def _run(cmd: list[str]) -> str:
         return ""
 
 
+# The flag subset that actually moves these rows, and the same two fields under
+# the same names as the lane's other emitters (`scripts/criterion-emit.py`,
+# `crates/editor-core/tests/m4_pr8_latency.rs`) so the blocks compare. Not the
+# whole `flags` line: the opt-0/opt-2 ratio measured 30% apart between an
+# AVX-512 guest and CI (2026-08-22 census), which is the discrimination this
+# sample's verdict actually rests on.
+HOST_CPU_FLAGS = ("avx2", "avx512f")
+
+# Read through a name so the selftest can point it at a path that is not there
+# and PROVE the degradation rather than assert it.
+CPUINFO = "/proc/cpuinfo"
+
+
+def cpu_identity() -> tuple[str | None, list[str] | None]:
+    """Which box this is, as far as `/proc/cpuinfo` can say.
+
+    `nproc`, `mem_total_kb` and `platform.machine()` are constant across a
+    hosted runner pool while the CPU generation underneath it is not, so
+    without this pair a sample cannot be attributed to a host at all.
+
+    `(None, None)` means the file could not be read; `[]` means the flags are
+    genuinely absent. A reader must be able to tell those apart, and a box
+    without `/proc` must not cost the whole environment block.
+    """
+    try:
+        with open(CPUINFO, encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+    except OSError:
+        return None, None
+    model: str | None = None
+    flags: list[str] | None = None
+    for line in text.splitlines():
+        key, sep, value = line.partition(":")
+        if not sep:
+            continue
+        key = key.strip()
+        if key == "model name" and model is None:
+            model = value.strip() or None
+        elif key == "flags" and flags is None:
+            present = set(value.split())
+            flags = [f for f in HOST_CPU_FLAGS if f in present]
+    return model, ([] if flags is None else flags)
+
+
 def environment() -> dict:
     """The block that makes two samples comparable rather than arguable — the
     same fields ci.yml's rebuild-latency measurement records, for the same
@@ -386,6 +430,7 @@ def environment() -> dict:
             mem = fh.readline().split()[1]
     except (OSError, IndexError):
         pass
+    cpu_model, cpu_flags = cpu_identity()
     return {
         "runner": os.environ.get("RUNNER_ENV_LABEL", "")
                   or f"{platform.system()}/{platform.machine()} {os.environ.get('RUNNER_IMAGE', 'ubuntu-latest')}",
@@ -393,6 +438,10 @@ def environment() -> dict:
         "arch": platform.machine(),
         "nproc": os.cpu_count(),
         "mem_total_kb": int(mem) if mem.isdigit() else None,
+        # Which box, not just which class of box: every field above is constant
+        # across a hosted runner pool. See `cpu_identity`.
+        "cpu_model": cpu_model,
+        "cpu_flags": cpu_flags,
         "rustc": _run(["rustc", "-V"]),
         "nextest": _run(["cargo-nextest", "nextest", "--version"]),
         "rustflags": os.environ.get("RUSTFLAGS", ""),
@@ -750,8 +799,20 @@ def selftest() -> None:
 
     env = environment()
     for key in ("runner", "nproc", "rustflags", "cargo_profile", "debug_assertions",
-                "tolerance_eps", "nightly_suite_cfg"):
+                "tolerance_eps", "nightly_suite_cfg", "cpu_model", "cpu_flags"):
         assert key in env, key
+    assert env["cpu_flags"] is None or set(env["cpu_flags"]) <= set(HOST_CPU_FLAGS), env
+
+    # HOST IDENTITY MUST DEGRADE, not crash and not take the block with it: a
+    # box with no readable /proc/cpuinfo still owes a complete environment.
+    saved_cpuinfo = globals()["CPUINFO"]
+    globals()["CPUINFO"] = os.path.join(tempfile.gettempdir(), "no-such-cpuinfo-dir", "cpuinfo")
+    try:
+        degraded = environment()
+    finally:
+        globals()["CPUINFO"] = saved_cpuinfo
+    assert degraded["cpu_model"] is None and degraded["cpu_flags"] is None, degraded
+    assert "rustflags" in degraded and degraded["nproc"], degraded
 
     print("opt-level-calibrate selftest OK: a run's free-arm sample is read from the archive "
           "step and the summed shards; a docs-tier run, a cancelled shard and a renamed step "
@@ -762,8 +823,10 @@ def selftest() -> None:
           "tree that moved recalibrates unconditionally instead of drifting one level's E "
           "against another's; schema-1 and schema-2 samples still read and still derive; the "
           "cadence fires on a first sample, on the calendar and on >20% drift, and holds "
-          "otherwise; no free arm means no measured arm is spent; and a flip is reported "
-          "loudly without failing anything")
+          "otherwise; no free arm means no measured arm is spent; the environment block "
+          "names the host CPU and degrades to nulls (never to a missing block) where "
+          "/proc/cpuinfo cannot be read; and a flip is reported loudly without failing "
+          "anything")
 
 
 def main() -> int:

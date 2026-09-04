@@ -122,9 +122,31 @@ rebuild.
   the tree's setting — is printed loudly in the job summary and is the rare
   actionable event; it changes nothing by itself.
 * **Read the `environment` block before comparing two samples.** Runner, core
-  count, memory, toolchain, `RUSTFLAGS`, every `CARGO_PROFILE_*`,
-  debug-assertions and ε are recorded per sample, because a committed timing is
-  only worth anything if you know which box produced it.
+  count, memory, `cpu_model`, `cpu_flags`, toolchain, `RUSTFLAGS`, every
+  `CARGO_PROFILE_*`, debug-assertions and ε are recorded per sample, because a
+  committed timing is only worth anything if you know which box produced it.
+
+  **What that block can now tell you**: which host CPU the measured arms ran
+  on — model string, and whether `avx2` / `avx512f` were available — where
+  every other field in that list is constant across the whole `ubuntu-latest`
+  pool. That matters more here than in the other two histories, because a
+  sample compares one **free** arm (the median of five gate runs, so five
+  hosts) against **measured** arms taken on one host on one night: a slow box
+  moves both measured arms together and only ever toward the tree's own level.
+  A margin smaller than the between-host spread is not a verdict, and
+  `cpu_model` is what lets a reader check that. `null` for both fields means
+  `/proc/cpuinfo` was unreadable; `cpu_flags: []` means it was read and
+  neither extension was present.
+
+  **What it still cannot.** *These fields start with the first sample written
+  after they were added; earlier samples carry the old field set and stay
+  unattributable — the history is append-only and nothing retro-fits it.* The
+  free arm's five runs are still summarised without their hosts, so its
+  between-host spread remains unrecorded. And the runner class moved from
+  2 vCPU / 7 GB to 4 vCPU / 16 GB on 2026-09-03
+  (`.github/workflows/ci.yml`): `nproc` separates the two eras, nothing
+  separates the boxes within either, and no `a`/`E` figure crosses that date
+  comparably.
 * **The arms must have measured the same suite.** Each arm's `tests` count is
   recorded for exactly that check. The measured arms are deliberately built
   **without** `--cfg nightly_suite`: with it, `E0`/`E1` would cover the

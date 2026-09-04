@@ -43,6 +43,27 @@ own provenance: three developer-workstation refreshes disagreed by
 environment hypothesis nobody captured side by side, and
 `docs/PERF-SCAN-2026-08.md` §0 had to label every absolute-millisecond
 claim in the repo provisional as a result. Every entry here records its
-own `environment` block (runner, nproc, memory, toolchain, RUSTFLAGS,
-`CARGO_PROFILE_*` overrides, debug-assertions, ε), so two entries that
-disagree can be compared as environments rather than argued about.
+own `environment` block (runner, nproc, memory, `cpu_model`, `cpu_flags`,
+toolchain, RUSTFLAGS, `CARGO_PROFILE_*` overrides, debug-assertions, ε),
+so two entries that disagree can be compared as environments rather than
+argued about.
+
+**What the block can now tell you**: which host CPU produced an entry, by
+model string and by whether `avx2` / `avx512f` were available. Those two
+fields are the ones that vary inside a hosted runner class — `nproc`,
+memory, arch and toolchain are constant across the whole `ubuntu-latest`
+pool, which is why the block used to be readable and still say nothing.
+`cpu_model: null` with `cpu_flags: null` means `/proc/cpuinfo` was
+unreadable; `cpu_flags: []` means it was read and neither extension was
+present.
+
+**What it still cannot.** *The two fields begin with the first entry
+written after they were added. Every earlier entry carries the old field
+set and stays unattributable — the history is append-only and nothing
+retro-fits it.* Two boxes of the same model are still one reading, and
+nothing here records what else the host was doing. One step change is
+only half-covered: the runner class moved from 2 vCPU / 7 GB to 4 vCPU /
+16 GB on 2026-09-03 (`.github/workflows/ci.yml`), so `nproc` separates
+the two eras and nothing separates the boxes within either. A `vs base`
+delta that straddles that date is a property of the runner, not of the
+tree.
