@@ -2,9 +2,11 @@
 id: CERT-M3
 kind: unit
 title: Track M's lane-trait lane — H5's three-trait census as CERT-M2 landed it
-status: dispatched
+status: review
 opened: 2026-09-01
 refs: [1559]
+pr: 1877
+branch: cert/m3-zero-lane-traits
 ---
 
 Track M lane after CERT-M2: the H5 row (C7 + S33, the lane-trait collapse)
