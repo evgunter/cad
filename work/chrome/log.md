@@ -320,3 +320,158 @@ the base tree in this lane. It states in its own output that nothing
 may be inferred from the absence and that it gates nothing — which is
 the right shape for a report that cannot run, and the opposite of the
 silent feature-skip this program's unit 2 existed to close.
+
+## Hand-off from DOCM (2026-09-04)
+
+Five items re-homed here by header-preserving `git mv` (ids unchanged),
+each a viewer build of a ruling in `docs/DOCM-REFERENCES-DESIGN.md` or
+`docs/DOCM-IDENTITY-DESIGN.md`: `add-profile-mints-no-frame` and
+`add-profile-placement-on-picked-face-frame` (DM1/DM2; the kernel half
+is `DOCM-1`), `save-a-copy-duplicate-id-bricks-store` (DI4),
+`no-persistent-setplacement-session-op` (DI5: the gesture's release IS
+the placement edit), `document-seam-no-in-session-change-detection`
+(DI2: `Reevaluate` re-mounts the store; its two chrome edges). Signed
+(DOCM orchestrator).
+## Eight of nine landed; what the slate cost and what it found (2026-09-04)
+
+`doc-params-carry-no-display-unit` merged as PR 1776 after a fix pass
+and is closed here. That closes every unit the plan cut except
+`viewer-first-light-on-real-hardware`, which is not a lane unit: it is
+a checklist only a real GPU can answer, and it sits with Ev as PR 1771.
+**The program cannot close until Ev runs it**, so the exit walk waits
+on hardware rather than on work.
+
+**The slate landed and the territory grew.** Twenty items are open in
+this directory and exactly one is a slate unit (`viewer-first-light-on-
+real-hardware`). Fourteen were filed BY the slate — style-review class
+findings, fence artifacts, and residues the units disclosed — and five
+arrived the same day as DOCM's hand-off, which is not this slate's
+doing at all. That is not a failure of estimation. Every one has a `file:line` and a reason, and the
+alternative was not fewer defects but the same defects unrecorded: the
+`work/README.md:100-106` rule this program tripped over twice says
+exactly that a residue with no file dies with the directory. Anyone
+reading this as "CHROME ended with more open than it started" should
+read it as "CHROME wrote down what it found."
+
+**What the style-review posture bought, now that the slate is done.**
+Ev's instruction was style reviews by default, correctness
+double-checks only for particularly tricky units, and no A/B row. The
+posture was right and the reason is specific: **on every unit that got
+a review, the review found something the unit's own evidence did not.**
+Not correctness bugs, mostly — a PR body claiming a record its own diff
+did not contain; an item scheduling work that had already landed; a
+`keep_out` disclosure naming the weaker of two boundaries; two residues
+disclosed in prose the tracker rules say is not scheduling. None of
+those is reachable by asking whether the code is right.
+
+Two of them WERE correctness, and both came from the reviewer refusing
+to accept a claim rather than from a correctness lane. The badge unit's
+`Poisoned` invariant was strengthened on one of its two producers, and
+the reviewer could only mark the consequence `likely` — the fix pass
+built the document and found it not merely reachable but rendering a
+self-contradiction. The parameter unit's probe seeded from
+`committed_doc()` while searching `doc()`; latent, held up by three
+invariants in three functions, and the review is why it is now a
+construction. **A style lane that verifies claims finds correctness
+defects as a side effect of checking whether the words are true.**
+
+**The orchestrator was corrected seven times, all upheld**: a crate-count
+delta published wrong (the `(*)` markers), a false sub-premise about
+clippy's caching, a sweep miscounted four ways in one PR body, a
+differential described as independent that was a transcription, a
+`field_drag_tick` caller count wrong twice in a row, a `.speed(` sweep
+given to a reviewer at half its size — and the paragraph above, whose
+first draft said fourteen open and thirteen filed when the board said
+fifteen and fourteen. Recording that one rather than quietly fixing it,
+because it is the seventh instance of this shape and it happened INSIDE
+the paragraph naming the shape. Reading a total off a table is exactly
+the "asserted from a command whose semantics were not checked" move,
+and knowing the pattern did not stop it; only the recount did. Recorded together because
+the shape is one shape: every one was a number or a claim the
+orchestrator asserted from a command it had not checked the semantics
+of, and every one was caught downstream. The lanes are not merely doing
+the work; they are the error-correction on the dispatch.
+
+## The one item whose whole point is Ev seeing it was invisible to Ev
+
+`viewer-first-light-on-real-hardware` carries `needs_ev: true` — on PR
+1771's branch. PR 1771 is `[ev]`, so it waits for Ev and does not merge;
+so the flag was not on main; so `STATUS.md`'s **Waiting on Ev** table
+did not list it, and this program's `on Ev` column read empty while its
+last open unit was a request for Ev.
+
+`work/README.md` states the invariant this breaks: *"`STATUS.md` lists
+every open `needs_ev` oldest first, so the two views (the PR list
+filtered on `[ev]`, and the tracker) always name the same set."* Only
+the PR view named it. Every other program's Ev-waiting item appears in
+that table, so the convention is not in doubt — this one was missing
+because of where its flag lived.
+
+The flag is landed here on its own, **byte-identical to the frontmatter
+1771 already carries** (`needs_ev`, `branch`, `pr`), so Ev's eventual
+merge of that PR is a no-op on those lines and cannot conflict. The
+PR's substance — the re-cut of what the checklist still asks — is
+untouched and stays Ev's to accept: recording that a question is
+outstanding is not answering it.
+
+This is the same defect as the stranded orchestrator log and the
+prose-only residues, and it is the fourth instance today. It landed on
+the one item where the cost is not a lost record but an unasked
+question, which is the argument for treating the pattern rather than
+the instances.
+
+## Parked against VIEW's split, and one item re-homed to LIB (2026-09-04)
+
+Ev asked whether CHROME's remainder should move into VIEW or stay put
+with the dependency recorded. **Stay put, parked** — and the tracker's
+own vocabulary is the argument rather than a preference.
+
+**Why not move.** `work/README.md` re-homes residue when a program
+CLOSES; CHROME is not closing (it holds an open Ev unit and owns
+`crates/viewer/tests/*`, which VIEW's `paths` do not cover). More
+decisively, moving now would assert these are VIEW's work before
+VIEW's unit 1 has ratified — and a module split is exactly the kind of
+change that can DELETE a finding rather than inherit it.
+`session-gesture-guard-spelled-thirteen-times` is the clearest case:
+the split's own charter names "gesture-safety as data", which if ruled
+that way dissolves the item instead of relocating it. Whether each of
+these survives the split is the split's to determine, and CHROME's plan
+already said the residue *rides* it — riding is not being absorbed.
+Two of them also name `crates/editor-core`, outside VIEW's territory as
+well, so moving them into VIEW would file work in a program that cannot
+touch its ground.
+
+**Why not merely say so in prose, either.** `parked` is a real status
+and it requires `blocked_on` to be non-empty, so the dependency becomes
+machine-readable and lint enforces that the reference resolves. A new
+orchestrator reading the board sees nine parked rows naming their
+trigger instead of nine open rows that look available and are not.
+Prose in this log would have been the session's own recurring defect a
+fifth time.
+
+**What is parked**: the nine whose ground is `session.rs` or `app.rs` —
+the two files VIEW unit 1 splits, and where its plan says *"Nothing
+else in this program lands in those files before the split does."*
+`parameter-row-field-has-no-text-door` carries a second trigger, the
+`editor-core` door filed as `doc-param-unit-edit-has-no-door`.
+
+**What stays open**, and is dispatchable today without touching VIEW's
+ground: `probe-rows-assert-in-one-direction-only` (tests only — VIEW's
+`paths` are `src/*` and the README), `fmt-cache-carries-the-toolkit-
+codegen` (CI, names no crate file), `mispaired-ids-exempts-the-empty-
+window` (`scene.rs`), `viewer-const-all-tables-have-no-exhaustiveness-
+guard` (`combine.rs`), `edge-cost-claims-name-a-search-that-is-gone`
+(`blend.rs`, `pick.rs`), `band-refusal-still-badges-every-row` and
+`mate-fault-subject-spelled-in-three-crates` (both reaching
+`editor-core`, which this program's `keep_out` fences — a slate for
+whoever owns the kernel, not for CHROME), and the two `add-profile`
+hand-offs.
+
+**And one item was in the wrong directory entirely.**
+`save-a-copy-duplicate-id-bricks-store` arrived in DOCM's hand-off, but
+CHROME's `paths` do not cover `crates/pncad` at all, so the program
+holding it could not have taken it. Its own Home section — written
+before the hand-off — already named LIB, and its account of the fix is
+an identity design question, which is the library contract's ground.
+Moved to `work/lib/`. Its viewer half is a rider owed AFTER the
+identity question is ruled, which is a hand-off in the other direction.

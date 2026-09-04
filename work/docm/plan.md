@@ -26,7 +26,7 @@ VIEW) or stay here when ruled and hard.
 
 ## Territory
 
-The fence is drawn against code-quality Track V in this opening
+The fence is drawn against code-quality Track V in the opening
 commit: Track V cedes `persist/*`, `program.rs`, `doc.rs`, `edit.rs`,
 `node.rs`, `names/role.rs`, `eval/{parts,memo}.rs`, `resolve/*` less
 `vdiff.rs`, and the mate/assembly files, and keeps the rest of
@@ -36,64 +36,56 @@ mirrors), `D365` (content-key mode tags), `D366` (`NodeErrorKind`'s
 projection and pncad-py's 48-arm mirror — LIB answers the Python side)
 and `debug-in-prose-residue-after-finding-sink` (`PersistError`,
 `EditError`, `NamingError`). They keep their ids and their `track: V`
-provenance.
+provenance. `mate.rs`, `mate/*` and `assembly.rs` are this program's
+since S-MATE's closing sweep (`docs/DOC-LEDGER.md` sweep 6).
 
-## The questions, in order
+## The rulings, and the slate they cut
 
-1. **Persisted-variant compatibility** — what adding or renaming a
-   persisted enum variant requires (forward-compat stance, migration,
-   when `SCHEMA_VERSION` bumps). Unblocks
-   `capend-top-bottom-contradicted-by-negative-extrude` and
-   `fused-step-slot-aliases-arrival-spec`, both E after the ruling,
-   and gives `C6`'s collapse its rule.
-2. **Frames** — `sketch-frame-from-face` (`needs_ev` already): a frozen
-   `Datum::Frame` from `face_frame` versus a derived-frame datum over
-   a `StableName`, and a carrier-kind interrogation door versus
-   any-face wording. Unblocks `add-profile-mints-no-frame` and
-   `add-profile-placement-on-picked-face-frame` (CHROME builds) and
-   `no-door-mints-mate-frame-from-face` (LIB held the plan; its
-   hand-off is recorded by this file's existence here).
-3. **Operand selectors** — `split-side-and-pattern-instance-as-operand`:
-   a part-selecting operand versus a projection node; then widen
-   `denotes_body`.
-4. **Deleting from a chain** — `no-docedit-splices-a-deleted-node`:
-   survivor policy per node kind, typed refusals, the schema bump. The
-   build is H and stays here.
-5. **Document identity (LIBRARY-DESIGN A4)** —
-   `save-a-copy-duplicate-id-bricks-store` (an explicit fork-identity
-   act), `memo-admission-and-resolver-state` (the eval memo checks
-   resolver state, or the refusal contract narrows; the class sweep
-   after is H), `document-seam-no-in-session-change-detection`
-   (store refresh shape, save-as warning, chooser vocabulary).
-6. **Layer-3 identity across rewinds** —
-   `layer3-recipenodeid-aliases-across-rewinds`: one rule for every
-   holder of a `RecipeNodeId` (generation stamp at consume, clear on
-   replacement, or stable names). The viewer build is VIEW's.
-7. **Free-move commit** — `no-persistent-setplacement-session-op`,
-   constrained by the G3 ratification (free-move is never persisted):
-   a `SetPlacement` door, a commit-probe affordance, or a documented
-   no.
-8. **Revolve naming D1** — `revolve-pole-export-interior-on-axis-vertex`:
-   what the pole export yields for an interior on-axis vertex now
-   editor-reachable; one row per direction after.
-9. **The instantiation seam** — `instantiation-seam-drops-mate-identity`:
-   carry `MintedDeclaration` across `PartValue`; whether an inner mint
-   refusal is the outer document's error narrows the Q1 ruling's letter
-   and is put to Ev as such.
-10. **The check registry's subject** — `check-registry-gathers-product-twice`:
-    `run_checks` computes the product once and hands residents a
-    subject; the `assemble` variant and the `product.rs` Dual arms are
-    edited by announced seam.
-11. **A certified range query** —
-    `certify-locally-valid-range-instead-of-sampling` (M10 residue):
-    a slot-widening override, an indeterminate-means-subdivide verdict
-    contract, and pacing; the build reuses M10-3's driver.
+Two conversations, ratified in-chat 2026-09-04 and recorded as
+companion docs:
 
-Riders that need no ruling: `D365`'s injectivity census (E, as the
-verb tags already are); `D366` once question 1 settles how a kind
-mirror is declared; half (2) of `mate-clocking-has-no-gui-path`
-(FIX has half (1)); `unify-discipline-machinery-onto-registry` step 2
-once the parameter-coincidence unit exists.
+- **`docs/DOCM-REFERENCES-DESIGN.md`** (DM1–DM6): what a recipe
+  reference may be. Builds that stay here: `DOCM-1` (the derived
+  sketch frame, the sense beside the pose, the carrier-kind read),
+  `DOCM-2` (`Node::Part`), `DOCM-3` (`Node::Union` n-ary,
+  `DocEdit::SetMembers`, pairwise-distinct inputs).
+  `no-docedit-splices-a-deleted-node` is parked on `DOCM-3` (DM6).
+- **`docs/DOCM-IDENTITY-DESIGN.md`** (DI1–DI5): a held value names
+  the world it came from. Build that stays here: `DOCM-4`
+  (`Evaluation` carries its document's identity; A4's refusal
+  sentence narrows to the seam). The viewer builds went to CHROME
+  (DI2's re-mount, DI4, DI5) and VIEW (DI1).
+
+Needing no ruling — the persisted-variant question was already
+answered by the Band-4 no-schema-version rule (`docs/DESIGN.md`,
+BOOL-13): `capend-top-bottom-contradicted-by-negative-extrude`,
+`fused-step-slot-aliases-arrival-spec` and
+`revolve-pole-export-interior-on-axis-vertex` are E-class units in
+place (ids kept); so are `D365`'s census, `C6`'s `WireStep` member,
+`D366`'s kind-mirror decision and
+`debug-in-prose-residue-after-finding-sink`.
+
+## The questions still open, in order
+
+1. **The instantiation seam** — `instantiation-seam-drops-mate-identity`:
+   carry `MintedDeclaration` (and `unminted`) across `PartValue` so a
+   carried refutation names its mate and the outermost gate sees
+   inner mint health; whether an inner mint refusal is the outer
+   document's error reads the Q1 ruling's letter and is put to Ev.
+2. **The check registry's subject** — `check-registry-gathers-product-twice`:
+   `run_checks` computes the product once and hands residents a
+   subject; `assemble` takes a pre-gathered product; the `product.rs`
+   Dual arms are edited by announced seam to M10.
+3. **A certified range query** —
+   `certify-locally-valid-range-instead-of-sampling`: the
+   slot-widening override (document parameters already widen through
+   `EvalOptions::param_box`), the indeterminate-means-subdivide
+   verdict contract, and pacing; the build reuses M10-3's driver.
+   Waits on M10's parameter-aware certification settling.
+
+Riders: half (2) of `mate-clocking-has-no-gui-path` (FIX has half
+(1)); `unify-discipline-machinery-onto-registry` step 2 once the
+parameter-coincidence unit exists.
 
 ## What is out
 
@@ -104,6 +96,6 @@ LIB's unit, filed by this program).
 
 ## Exit shape
 
-Every question above has a ratified answer in `docs/DESIGN.md` or a
-README beside the code, and every build it unblocked has a home; the
-walk convention applies.
+Every ruling above is ratified in a companion doc or a README beside
+the code, every build it cut has merged or has a home, and the three
+open questions have ratified answers; the walk convention applies.

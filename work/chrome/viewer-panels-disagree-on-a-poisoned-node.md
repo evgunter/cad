@@ -2,9 +2,10 @@
 id: viewer-panels-disagree-on-a-poisoned-node
 kind: issue
 title: The tree re-attributes a cluster-refused node; the properties panel and appearance still do not
-status: open
+status: parked
 opened: 2026-09-04
 refs: [1769, 1463]
+blocked_on: [viewer-session-god-module-split]
 ---
 
 Found by CHROME's style lane on PR 1769, as a class rather than an

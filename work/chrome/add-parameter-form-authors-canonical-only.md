@@ -2,9 +2,10 @@
 id: add-parameter-form-authors-canonical-only
 kind: issue
 title: The add-parameter form authors only the canonical unit, though the kernel's written_length/written_angle doors are total
-status: open
+status: parked
 opened: 2026-09-04
 refs: [1776]
+blocked_on: [viewer-session-god-module-split]
 ---
 
 
