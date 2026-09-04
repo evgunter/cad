@@ -80,3 +80,11 @@ selector (`rim_of(body, edge)` in `topo::query`, SEAT's seam),
 [#1736](https://github.com/evgunter/cad/pull/1736) H7's terminations (the
 transverse cut-off at perpendicular caps). E1 and E2 dispatched on
 `fillet/e1-nonpositive-radius` and `fillet/e2-recourse-followability`.
+
+Ev 👍'd [#1733](https://github.com/evgunter/cad/pull/1733) (option 1:
+`NoCornerSideCandidate` stays as a stated defensive arm); executed on
+that PR — the doc comment states the invariant, the item is closed.
+The H4 spec is `docs/FILLET-H4-SPEC.md`; block FILLET-B1's pre-draw
+fields and draw are recorded branch-side on `fillet/b1-block` (slot 0
+= H4, slots 1–2 bank for H5, H6). H4 dispatches when a heavy lane
+frees (E1 or E2).
