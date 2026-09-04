@@ -88,3 +88,25 @@ The H4 spec is `docs/FILLET-H4-SPEC.md`; block FILLET-B1's pre-draw
 fields and draw are recorded branch-side on `fillet/b1-block` (slot 0
 = H4, slots 1–2 bank for H5, H6). H4 dispatches when a heavy lane
 frees (E1 or E2).
+
+Rulings landed (2026-09-04): [#1735](https://github.com/evgunter/cad/pull/1735)
+approved — the rim selector is `rim_of(body, edge)` in `topo::query`;
+the item is a unit, spec `docs/FILLET-RIM-SPEC.md`, the seam announced
+in `work/seat/log.md`, and it takes block FILLET-B1's slot 1 ahead of
+H5 (record branch-side). [#1734](https://github.com/evgunter/cad/pull/1734):
+Ev asked whether reporting the whole list would be worse; answered
+"not worse, it costs shape", approved — every refusing crossing is
+reported with its corner point, nearest-to-the-anchors first; the item
+is a unit (spec to follow). [#1736](https://github.com/evgunter/cad/pull/1736):
+Ev asked whether the transverse cut-off would be contradicted by the
+later run-out design and whether the open-chain door's plane–plane
+restriction is being extended; answered (different situation from the
+mid-curve stop, a rename at most; H7 is the only widening) — awaiting
+the 👍. H4 dispatched on `fillet/h4-concave-closed-rim`.
+
+[#1736](https://github.com/evgunter/cad/pull/1736) ruled (Ev: "ok
+sounds good"): H7 builds the transverse cut-off at perpendicular caps;
+the item is a unit, spec to follow after H4/RIM/H5. All four opening
+rulings are now answered; only the cut-off's tag name remains to be
+ratified, inside H7's spec. This session is subscribed to its own
+open `[ev]` PRs so comments wake it.

@@ -158,6 +158,13 @@ the composition.** Recorded as evidence in
 `work/ciw/f3-recosting-on-a-public-repo`, which is re-costing F3 now
 that the repository is public and standard-runner minutes are free.
 
+## Further instance 2026-09-04 (FILLET, PR 1733)
+
+`test (interval, eps = 1e-12, 2/2)` on `fillet/ev-nocornerside` at
+`1887cf54`: 2330/2331, the one red this row. The PR's code change is a
+doc comment in `crates/profile/src/validate.rs`; merged over it,
+annotated on the PR.
+
 ## Fixed (M10 orchestrator-direct hotfix), 2026-09-04
 
 **The question this item held open, answered.** *Is the absence of
