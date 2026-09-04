@@ -14,7 +14,7 @@
 //!   site decides (no node refuses at a point), and the identity test
 //!   asks the same question there it asks over a box, so this is the
 //!   complete per-site table: theorem / sign-gated / numeric under
-//!   none, A, A+B, A+B+C;
+//!   none, A, B, A+B;
 //! - **the whole-box replay** at the real study, every rule on — what
 //!   actually BOUNDS the box: the outcome per predicate up to the first
 //!   refusal in each node, and the rendered normal form of every
@@ -219,7 +219,7 @@ fn m10_8_table_per_predicate_under_each_rule_set() {
             println!("   rule {label:<6} helped {helped:?}  HURT {hurt:?}");
         }
 
-        println!("== {name}: WHOLE-BOX replay at the real study, rules A+B+C");
+        println!("== {name}: WHOLE-BOX replay at the real study, rules A+B (every buildable rule)");
         let (shapes, refusal, counts) = replay(&doc, &real, SymRules::all(), tol);
         println!("   counts {counts:?}; first refusal: {refusal:?}");
         println!(
