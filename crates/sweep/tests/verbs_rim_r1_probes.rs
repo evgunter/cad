@@ -334,9 +334,10 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
         assert!(!seams.is_empty(), "a full ball carries a seam meridian");
         match fillet_edges(&ball, &seams[..1], 0.05 * r, tol()).map_err(|r| r.error) {
             Err(BlendError::TangentialEdge { margin, .. }) => {
+                assert_eq!(margin.predicate, "fillet3_convexity_sign");
                 assert_eq!(
-                    margin,
-                    0.0,
+                    margin.value(),
+                    Some(0.0),
                     "a co-surface seam's sine is structurally zero; {}",
                     fuzz::replay()
                 );
