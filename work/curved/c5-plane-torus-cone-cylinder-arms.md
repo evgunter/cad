@@ -28,3 +28,7 @@ VERBS' charter names the C5 section arms; the unit VERBS-C5ARMS already carries 
 
 **VERBS closed** (exit walk ratified, PR #1793); re-homed to
 `work/issues/` awaiting an owner.
+
+**Adopted by CURVED** at its opening for dispatch (2026-09-04, Ev's
+in-chat direction): the plan's lane that carries this item is in
+`work/curved/plan.md`.
