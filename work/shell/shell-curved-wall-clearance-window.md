@@ -3,7 +3,7 @@ id: shell-curved-wall-clearance-window
 kind: issue
 title: shell - the curved wall-clearance window (planar gate landed; curved residue waits on M10's clearance certificate)
 status: parked
-blocked_on: [shell-curved-clearance-consumer]
+blocked_on: [SHELL-4]
 opened: 2026-08-27
 github: 1055
 refs: [1048, 571]
