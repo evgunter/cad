@@ -553,12 +553,27 @@ fn declare_doors_both_operands_node_gone_and_ambiguous() {
         doc,
         Node::declare_rest(vec![(cap.clone(), fname(a, RoleSeg::Cap(CapEnd::Bottom)))]),
     );
+    // The second operand is a TRANSFORM of the first, not the first
+    // twice: a node's inputs are pairwise distinct (DM5), so the
+    // one-node spelling is refused at the edit door now. A transform
+    // adds no role segment and keeps the minting node (N1), so the
+    // declared name still resolves in both operand tables — which is
+    // the state this row is about, reached without repeating an edge.
+    let (doc, placed) = insert(
+        doc,
+        Node::Transform {
+            input: a,
+            translation: [len(0.0), len(0.0), len(0.0)],
+            rotation_axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
+            rotation_angle: fixture::ang(0.0),
+        },
+    );
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
-            b: a,
+            b: placed,
             declare: Some(decl),
         },
     );

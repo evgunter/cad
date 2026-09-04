@@ -1878,6 +1878,33 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         tol,
     );
     doc = next;
+    // A SECOND independently minted body, stood clear of the first,
+    // for the n-ary union candidate: its members must be
+    // distinguishable by their own names (two extrudes are; a body and
+    // a placement of it are not, because a transform passes its
+    // input's names through) and they must not meet, or the union
+    // refuses the undeclared contact rather than answering this row's
+    // question.
+    let (next, extruded_b) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile: profile_b,
+            distance: common::len(0.01),
+        },
+        tol,
+    );
+    doc = next;
+    let (next, body_b) = common::inserted(
+        &doc,
+        Node::Transform {
+            input: extruded_b,
+            translation: [common::len(0.1), common::len(0.0), common::len(0.0)],
+            rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+        },
+        tol,
+    );
+    doc = next;
     let (next, other) = common::inserted(
         &doc,
         Node::Transform {
@@ -1940,6 +1967,19 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                 a: body,
                 b: other,
                 declare: None,
+            },
+        ),
+        // The n-ary union at its minimal size. Its two members are
+        // `body` and the SECOND extrude rather than `other`: a
+        // transform passes its input's names through, so a union of a
+        // body and a placement of that same body has two members whose
+        // tables give one entity one name, and refuses at naming. Two
+        // independently minted bodies is the shape the seat's question
+        // is about.
+        (
+            "union",
+            Node::Union {
+                members: vec![body, body_b],
             },
         ),
         (
