@@ -262,8 +262,9 @@
 # direction that matters: the case for allowing the lint here is
 # stronger than when it was made, not weaker, and a per-root answer
 # would have had to grow twice already.
-# That is the SAME false-positive population
-# the FEATURES paragraph above adopted --all-features to kill, arriving
+#
+# IT IS THE SAME FALSE-POSITIVE POPULATION the FEATURES paragraph above
+# adopted --all-features to kill, arriving
 # from the other side. Reds on prose that is correct under the gate's
 # own primary selection are how a gate gets routed around, so the lint
 # that cannot tell "this link is broken" from "this link's target is in
