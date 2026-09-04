@@ -1,7 +1,7 @@
 ---
 id: stale-file-citations-after-the-split
 kind: issue
-title: Roughly twenty open files cite app.rs:NNNN or session.rs:NNNN for items this split moved
+title: 24 open files cite app.rs:NNNN or session.rs:NNNN for code the split moved, five of them wrong about the file
 status: open
 opened: 2026-09-04
 ---
@@ -20,7 +20,7 @@ sentence names the wrong file:
 
 | File | What is now wrong |
 |---|---|
-| `docs/DOCM-IDENTITY-DESIGN.md:112` | `request_eval`/`probe_bounds` cited at `session.rs:3030` / `:2321`; the doors stayed but the file is 1,500 lines |
+| `docs/DOCM-IDENTITY-DESIGN.md:112` | cites `session.rs:3030` and `:2321` past the file's last line; both doors are still in `session.rs`, but the probe the second one is about is now split with `session/probe.rs`, so the subject is in two files and the citation names neither |
 | `docs/BOOL-10-SPEC.md:62,159` | names "`app.rs`'s tool palette" as the viewer's arm for the verb; `PathVerb` and its `ALL` table are in `forms.rs`, and what draws them is in `widgets.rs` and `pane/create.rs` |
 | `work/code-quality/viewer-pathverb-all-hand-written-seventeen.md:19` | "`app.rs:514` declares `enum PathVerb`" — it is `forms.rs` now |
 | `work/chrome/viewer-const-all-tables-have-no-exhaustiveness-guard.md:14` | the three `const ALL` tables cited in `app.rs` are in `forms.rs` |

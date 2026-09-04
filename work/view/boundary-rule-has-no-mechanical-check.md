@@ -47,8 +47,7 @@ README owes one and states none.
 ## Candidate shape (not a design)
 
 A gate in the shape `scripts/gates/`'s allowlist gates already
-take:
-each module in `crates/viewer/src/` declares its kind, and the gate
+take: each module in `crates/viewer/src/` declares its kind, and the gate
 reads that module's `use` block against the kind — a vocabulary may
 not name `DocSession`, `ViewerApp` or `egui`; a driver may name
 anything. Where the kind is declared (a header convention, a table in
