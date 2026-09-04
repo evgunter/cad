@@ -264,6 +264,15 @@ Boundary rules, each a type-level discipline:
   smoke row builds a device on a software adapter and constructs every
   render pipeline in the viewport, asserting nothing about a pixel.
 
+  **What still escapes is more than pixels, and naming only the one
+  exception would overstate the seat.** Buffer and texture allocation,
+  render-pass encoding and the id pass's readback are all
+  device-validated and none of them is pixel painting either; the
+  smoke row reaches none of them, because each needs a frame rather
+  than a constructor. So the honest line is that CONSTRUCTION is
+  gated and everything downstream of a frame is not — which is what
+  `work/chrome/viewer-first-light-on-real-hardware` still holds open.
+
 The edit vocabulary is the one API surface shared by the GUI, the
 Python bindings, macro recording and headless tests; each is a
 consumer of `apply` and none knows about the others.

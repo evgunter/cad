@@ -89,6 +89,15 @@ mod gpu;
 /// modules' own rows, including `gpu`'s pipeline-creation smoke row,
 /// gate under `cargo nextest run -p viewer --features app` (same file)
 /// and nowhere else.
+///
+/// **This row closes no gate and cannot fail.** It is evidence, not a
+/// check: its whole payload is its NAME appearing in the PASS list, so
+/// a reader of a default-feature run meets the absence instead of
+/// inferring it. Nothing here goes red if the modules it names start
+/// running, stop existing, or grow a sibling — the enumeration above
+/// is kept by hand, and a marker that silently went stale would look
+/// exactly like this one. Read it as a sentence the log carries, and
+/// keep gating to the rows themselves.
 #[cfg(all(test, not(feature = "app")))]
 #[test]
 fn app_lane_skipped_no_chrome_or_gpu_coverage_here() {

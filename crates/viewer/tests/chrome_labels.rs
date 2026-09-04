@@ -20,6 +20,11 @@
 /// app` (`.github/workflows/ci.yml`) and nowhere else; the workspace
 /// archive builds this crate at default features and so carries this
 /// marker instead.
+///
+/// **This row closes no gate and cannot fail** — its payload is its
+/// NAME in the PASS list, nothing more. It does not go red if the
+/// rows it stands in for change, so the list it recites is kept by
+/// hand and a stale one would read exactly like a current one.
 #[cfg(not(feature = "app"))]
 #[test]
 fn app_lane_skipped_no_chrome_coverage_here() {

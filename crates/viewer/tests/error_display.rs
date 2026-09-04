@@ -209,6 +209,11 @@ fn replay_error_names_the_log_position_and_forwards_the_refusal() {
 /// one fewer test and nothing else. Its seat is the hosted row
 /// `cargo nextest run -p viewer --features app`
 /// (`.github/workflows/ci.yml`).
+///
+/// **This row closes no gate and cannot fail** — its payload is its
+/// NAME in the PASS list. It names ONE row, so a second `app`-gated
+/// row added to this file leaves the marker quietly incomplete;
+/// nothing mechanical says so.
 #[cfg(not(feature = "app"))]
 #[test]
 fn app_lane_skipped_startup_error_arms_not_checked_here() {
