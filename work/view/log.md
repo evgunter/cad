@@ -1321,3 +1321,50 @@ departed one.
 4. **The three design forks** — one `[ev]` PR carrying all three,
    opened while the build lanes run so the answers arrive without
    blocking anything.
+
+### Out on the wire (2026-09-04, evening)
+
+Three implementer lanes, each in **its own git worktree** under
+`/home/user/lanes/` with its own `CARGO_TARGET_DIR` and its own scratch
+directory. The shared-checkout hazard is why: this program watched it
+fail three ways during unit 1, and two concurrent lanes in one working
+tree is not a variant of those failures but the guaranteed form of
+them.
+
+- **`view/prune-report`** — the two `prune` discards as one unit, since
+  they are one change to one signature and would be one merge conflict
+  taken twice. Style review. The brief hands over three claims to
+  falsify, of which the weakest is the item's "nine assertion sites
+  across seven test files" — asserted against an older tree and not
+  re-counted by me.
+- **`view/clearing-walk`** — the four hand-maintained copies of one
+  reset. Style review. Told explicitly that `bounds` and `gesture`
+  already sit outside the walk and must be answered rather than
+  absorbed, and that my reading of the shape (*the value `land` writes
+  is the value the constructor clears*, not one `reset()` called four
+  times) is a reading and may be wrong.
+- **`view/pick-index-offthread`** — 6b. **Style AND correctness**, the
+  only unit in this program's history to carry a second reviewer. The
+  posture's test is met exactly: the failure mode is a pick answered
+  against an index built for another generation, which is a confident
+  wrong answer, not a refusal. The brief carries all three parts of
+  Ev's #1843 ruling, both withdrawn positions marked as withdrawn, and
+  the instruction that the GQ6 paragraph rides THIS PR because there is
+  no off-thread index to describe until the lane lands one.
+
+### The three forks are on #1883
+
+`[ev]` PR from `view/ev-three-forks`, subscribed for wake-on-comment
+per `work/README.md` — a question nobody is listening to has not been
+asked. Written as a decision document: three questions, each with the
+options, my reading, and what I would do with no answer. The one fact
+worth carrying out of writing it is that **all three are inputs to the
+same nineteen-site sweep**, which is why they are one PR and not three:
+`status-line-writers-bypass-the-ranking` sorts nineteen writers into
+news and standing facts, and cannot be dispatched until it knows what
+each of those is.
+
+`pick-and-parts-name-the-session-driver` is the one that is on Ev's
+desk for a reason other than difficulty: the rule it falsifies is text
+Ev ratified at #1801 one day earlier, and a gate this program built at
+#1848 is what proved it false.
