@@ -234,6 +234,20 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
+        path: "crates/sweep/src/blend/build.rs",
+        subject: "nonpositive_size_gate",
+        why: Selection(
+            "both blend doors' size gate: the read decides whether the REQUEST is \
+             admissible at all — `lo() > 0` refuses, anything else proceeds — and that \
+             classification is value-channel-decided (a dual's bracket is its value \
+             channel's, so the door answers exactly what the f64 lane answers). The \
+             selected quantity is locally constant in the choice: on either side of the \
+             boundary the whole neighbourhood takes the same branch, and the branch it \
+             takes when refusing carries no geometry, only the low end as an f64 payload \
+             in `BlendError::NonpositiveSize`",
+        ),
+    },
+    Site {
         path: "crates/topo/src/boolean/boxes.rs",
         subject: "bracket_point",
         why: Payload("the C10 span-box reader: brackets into an f64 `SpanBox`"),

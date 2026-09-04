@@ -63,3 +63,15 @@ files). The `[ev]` conversation for item 6 (where the curved
 wall-clearance gate lives) opens beside it rather than after items
 2–5 — it is Ev-paced and its inputs (M10-5 merged, M10-7 in flight on
 parameter-aware certification) are on the table now.
+
+## SHELL-1 MERGED (2026-09-04, PR #1756 — ordinal 2300, sample #121)
+
+The `ShellNaming` birth channel is in: `Shelled<T>` from both doors,
+the record written at the doors' own steps, lookup doors, six-arena
+retirements. LIB-G17 (`Node::Shell`) unparks — its `blocked_on` was
+the GitHub issue number 1202, now closed by this record; LIB's
+orchestrator reads the PR body's row table. SEAT's
+`shell-doors-take-tolerance-beside-tol` has its census. Both spec
+premises this unit falsified (the edge partition, the hole rows' key
+space) were mine; the lane reported rather than absorbed them, which
+is the posture the discipline asks for.

@@ -774,9 +774,9 @@ pub enum BlendError {
     /// **The band's size is not definitely positive** (D2 addendum row
     /// 1: invalid input, checked at the door before anything resolves).
     ///
-    /// A zero or negative setback is not a small chamfer, and neither
-    /// is one whose bracket straddles zero: there is no band to build
-    /// and no margin to meter. It is refused at the door because a
+    /// A zero or negative size is not a small blend, and neither is
+    /// one whose bracket straddles zero: there is no band to build and
+    /// no margin to meter. It is refused at the door because a
     /// nonpositive size silently LEVERS the margins that quote it —
     /// `fillet3_corner_independence`'s `|det(n₁,n₂,n₃)|·d` collapses
     /// to zero at `d = 0`, so the consumer would read "a trihedron

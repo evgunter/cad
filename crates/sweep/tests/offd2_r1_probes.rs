@@ -114,7 +114,7 @@ fn probe_overthick_box_fails_loud() {
     let r = topo::shell(&boxy(2.0, 3.0, 4.0), 1.9, FIT_TOL, Tol::witness());
     match r {
         Err(e) => println!("[probe] overthick box: LOUD: {e}"),
-        Ok(body) => panic!(
+        Ok(topo::Shelled { body, .. }) => panic!(
             "overthick box returned Ok — silent wrong answer; shells = {}, volume = {:?}",
             body.shells().count(),
             topo::mass_properties(&body, Tol::witness()).map(|p| p.volume)
@@ -129,7 +129,7 @@ fn probe_overhalf_slab_fails_loud() {
     let r = topo::shell(&boxy(4.0, 4.0, 1.0), 0.6, FIT_TOL, Tol::witness());
     match r {
         Err(e) => println!("[probe] over-half slab: LOUD: {e}"),
-        Ok(body) => panic!(
+        Ok(topo::Shelled { body, .. }) => panic!(
             "over-half slab returned Ok — silent wrong answer; shells = {}, volume = {:?}",
             body.shells().count(),
             topo::mass_properties(&body, Tol::witness()).map(|p| p.volume)
@@ -143,7 +143,7 @@ fn probe_exact_half_slab_fails_loud() {
     let r = topo::shell(&boxy(4.0, 4.0, 1.0), 0.5, FIT_TOL, Tol::witness());
     match r {
         Err(e) => println!("[probe] exact-half slab: LOUD: {e}"),
-        Ok(body) => panic!(
+        Ok(topo::Shelled { body, .. }) => panic!(
             "exact-half slab returned Ok — degenerate cavity; shells = {}, volume = {:?}",
             body.shells().count(),
             topo::mass_properties(&body, Tol::witness()).map(|p| p.volume)
@@ -170,7 +170,7 @@ fn probe_lshape_colliding_cavity_fails_loud() {
     let r = topo::shell(&l, 0.6, FIT_TOL, Tol::witness());
     match r {
         Err(e) => println!("[probe] L-shape: LOUD: {e}"),
-        Ok(body) => panic!(
+        Ok(topo::Shelled { body, .. }) => panic!(
             "L-shape returned Ok — colliding cavity; shells = {}, volume = {:?}",
             body.shells().count(),
             topo::mass_properties(&body, Tol::witness()).map(|p| p.volume)
@@ -227,7 +227,8 @@ fn probe_dumbbell_neck_collision_fails_loud() {
 #[test]
 fn probe_shell_of_a_hollow_fails_loud() {
     let hollow = topo::shell(&boxy(2.0, 3.0, 4.0), 0.25, FIT_TOL, Tol::witness())
-        .expect("the first shell is the PR's own green row");
+        .expect("the first shell is the PR's own green row")
+        .body;
     let r = topo::shell(&hollow, 0.05, FIT_TOL, Tol::witness());
     // **MAJ-2, closed (ordinal 82 -> fix pass).** At `259fde04` this
     // returned Ok with FOUR shells, tier-3 valid, volume 4.362: the
@@ -262,7 +263,8 @@ fn probe_opened_box_census() {
     let body = boxy(w, d, h);
     let top = plane_face_at(&body, h);
     let cup = topo::shell_open(&body, t, &[top], FIT_TOL, Tol::witness())
-        .expect("the PR's own green fixture");
+        .expect("the PR's own green fixture")
+        .body;
     let v = cup.vertices().count() as i64;
     let e = cup.edges().count() as i64;
     let f = cup.faces().count() as i64;
@@ -279,7 +281,8 @@ fn probe_opened_box_census() {
     // And the tube (two opposite rims): genus 1.
     let bottom = plane_face_at(&body, 0.0);
     let tube = topo::shell_open(&body, t, &[top, bottom], FIT_TOL, Tol::witness())
-        .expect("the PR's own green fixture");
+        .expect("the PR's own green fixture")
+        .body;
     let v = tube.vertices().count() as i64;
     let e = tube.edges().count() as i64;
     let f = tube.faces().count() as i64;
@@ -301,7 +304,7 @@ fn probe_adjacent_two_face_opening() {
     let side = plane_face_x(&body, w);
     match topo::shell_open(&body, t, &[top, side], FIT_TOL, Tol::witness()) {
         Err(e) => println!("[probe] adjacent pair: typed refusal: {e}"),
-        Ok(open) => {
+        Ok(topo::Shelled { body: open, .. }) => {
             assert_eq!(
                 topo::validate_geometric(&open, Tol::witness()),
                 Ok(()),
@@ -375,7 +378,7 @@ fn probe_opened_vessel_cup() {
              refused with {e}",
             top.len()
         ),
-        Ok(cup) => {
+        Ok(topo::Shelled { body: cup, .. }) => {
             assert_eq!(
                 topo::validate_geometric(&cup, Tol::witness()),
                 Ok(()),

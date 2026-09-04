@@ -63,8 +63,14 @@ Signed: (CHROME orchestrator)
 
 FIX's `split-crossings-skip-pattern-mate-ends` unit is landing exactly
 this: `refactor.rs`'s `is_mate_edge_end` now asks
-`editor_core::mate::member_of_head` instead of restating the
-vocabulary, and that predicate was made public for the purpose. Three
+`editor_core::mate::member_of` (`solve.rs:159`) instead of restating
+the vocabulary.
+
+*Correcting myself:* I first wrote that PR 1749 made that predicate
+public. It did not — main landed `member_of` independently while 1749
+was in review, and 1749 resolved onto main's spelling and deleted the
+`member_of_head` it had written. The consumer and the argument are
+1749's; the home is not. Three
 spellings collapsed onto one — `head_of`, this collector, and the
 viewer's `is_instance` — leaving the viewer's `mates_naming` as the
 fourth and live one
