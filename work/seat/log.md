@@ -275,3 +275,25 @@ interned token; the ledger answer is rewritten in place in
 dual's VS-Q4 assessments (in flight) land in the unit's row as evidence,
 not as a reopening: the merge of PR 1593 now waits only on the reviews,
 the fix pass and the seam merge.
+
+## SEAT-6 ADJUDICATED — fix pass dispatched (2026-09-04)
+
+Both blinded reviews delivered (R1 NOT-MERGEABLE-AS-IS, R2
+APPROVE-WITH-FIXES). Converged MAJOR: the token carries no document
+scope, so a part's `r` and the host's `r` compare equal on
+instantiation — a faithful elaboration of P1's own scope caveat, taken
+at the fix pass with the mechanism argued. Two unilateral executed
+MAJORs, one per arm: the memo's content key hashes slot VALUES so a
+value-preserving expression edit re-serves a stale token (R1), and the
+encoding's injectivity — the whole answer to VS-Q4's digest objection
+— is unguarded (R2). SEAT's tally candidates #4 and #5; the first from
+the fable arm. Both VS-Q4 assessments support the ruling on PR 1870
+(the encoding is the interner's key with the index removed;
+injectivity executed by brute force and by reading the length-prefixed
+encoding — the orchestrator's brief had hypothesised an unprefixed
+collision and stands corrected). Class findings filed:
+`work/issues/axis-flavoured-declarations-have-no-channel.md` (the
+CYLSPH coaxial premise and P2's SPHSPH sentence, outside SEAT's fence);
+the positional threading of evidence through the shared dispatch is
+recorded in that file's note. The seam merge landed ahead of the fix
+pass at Ev's prompting (head fa1b7416, full matrix green).

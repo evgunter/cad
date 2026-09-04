@@ -2648,6 +2648,82 @@ land by the orchestrator mid-unit (fence widened to the allowlist line
 dual (ordinal 711), grounds file-disjoint. Sample number at merge. Row
 at merge.
 
+CERT-M3 (PR #1877) ordinal FIXED AT DISPATCH (2026-09-04):
+**ordinal 713** (S-CERT band; block CERT-B4 slot 2, drawn byte 123 —
+fable at position 3, so this slot's implementer arm OPUS). v6 dual:
+slot byte 115, parity 1 ⇒ **R1 FABLE + R2 OPUS**; SEQUENTIAL on frozen
+`19a775c0e` (run 33925337156: every job green except `test (eps =
+1e-6, 2/2)`, a red INHERITED from main — profile's fuzzed fillet
+radius 2.6e-7 off at eps=1e-6 under seed 0x063fda568e08fb0f, reproduced
+byte-identical on bare main b7f347254 and passing at the default eps
+on both trees; `crates/profile` is untouched by the diff; filed as
+`work/bool/profile-fillet-radius-off-at-eps-1e-6.md` and annotated on
+the PR per the inherited-red rule; trailer `lane=both eps=all`, the
+additive spelling the filter now requires). The frozen head is the
+delivered head 636745f39 plus TWO disclosed steps: the implementer's
+own merge of main 096efa3bd (six conflicts — main's M10-7 branch had
+added a `Sym<T>` impl of the trait this unit deletes, resolved by
+letting the bound serve the tier, pinned by a doctest at `Sym<f64>`;
+the tracker migration re-homing the row landings into `work/cert/H5.md`)
+and the orchestrator's docs-only state-sync commit 19a775c0e
+(`work/cert/CERT-M3.md` to review + the trailer re-spelt after the
+previous head's `eps=1e-12` failed the change filter) — no unit code
+moved after 096efa3bd; method note recorded pre-R1 at cert/ab-state.
+Implementer difficulty L (logged at spec pre-draw, docs/CERT-M3-SPEC.md
+at 1267e32c0), the spec NARROWED at dispatch by an orchestrator ruling
+to CERT-M2's census (one trait deleted, one argued-and-left, one's
+absence row fixed and its contract put to Ev as `[ev]` PR #1878);
+impl ~340k tokens, 214 tool uses, ~135m wall for the unit by the
+usage counter, plus ~427k / 86 / ~32m for the merge-of-main follow-up.
+Verification the lane disclosed: three-ε sweep on the moved rows in
+both lanes, full suites at both lanes, doctests, all gates, all seven
+excluded roots built as the gates build them. Unit shape for the
+reviewers' weighting: no arithmetic moved — one trait, four impls, two
+methods and one refusal variant deleted; the certified body made a
+public free function at the SAME bound; two doors re-bounded
+`Decide + CertifiedBounds` (allowlist +2 files); check 2's lane made an
+argument (`recertify_via`, `needs_nurbs_lane`, a coverage narrowing at
+two at-rest doors for one carrier class); one new `ValidationError`
+variant splitting a scalar-level absence from a geometric refusal.
+Where a wrong answer is reachable: the tightened pass (H-R3 — what
+`Body<Dual64>` can still do and what two at-rest doors now silently
+skip), the deletion's forced callers, and the new skip semantics.
+Sample number at merge. Row at merge.
+
+CERT-N3 (PR #1879) ordinal FIXED AT DISPATCH (2026-09-04):
+**ordinal 714** (S-CERT band; block CERT-B4 slot 3, drawn byte 123 —
+fable at position 3, so this slot's implementer arm FABLE). v6 dual:
+slot byte 89, parity 1 ⇒ **R1 FABLE + R2 OPUS**; SEQUENTIAL on frozen
+`b5a727c3b` (run 33927371220 ALL GREEN, lane=both eps=all by trailer).
+The frozen head is the lane's own: nine unit commits on the dispatch
+base 724c84927 plus the lane's merge of origin/main at the tracker-
+migration head (4d9b0cd9a; conflicts only in the D98 ripple and two
+callers main added) — no orchestrator-direct commits. The implementer
+session DIED mid-unit on a model rate limit (HTTP 429, during the D31
+bit-identity measurement, ~2026-09-02) and was RESUMED from its
+transcript on the same worktree and branch two days later; the D31
+evidence was re-taken after the resume. Implementer difficulty M
+(logged at spec pre-draw, docs/CERT-N3-SPEC.md at 1267e32c0); the
+usage counter records only the resumed half — ~498k tokens, 99 tool
+uses, ~68m wall — the pre-death half left no usage record (its wall
+was ~2h by the dispatch/death timestamps). Verification the lane
+disclosed: three-ε sweep (1e-6, 1e-9, 1e-12) on every moved row in
+both lanes; full suites of the five touched crates in both lanes plus
+the three ripple crates; every gate; excluded roots re-swept (no
+caller). Unit shape for the reviewers' weighting: one BEHAVIOUR change
+— the boolean lane's conic edge box becomes geom's exact extremal
+construction (S235), strictly tighter than the subdivision bound it
+replaces (36 candidate pairs stop being examined on the corpus, all
+with zero accepted events), plus a branch-cut fix inside the exact door
+itself (extremal angle exactly π now bounded) that is beyond "adopt";
+D31 claimed bit-identical (measured); D98 a D2 row-0 type change with
+a 53-site fixture ripple; D244 an inline; C24 closed on a measurement.
+Where a wrong answer is reachable: S235's soundness at every scalar
+the boolean reads it at (a too-tight box is a pruning hole), the
+branch-cut fix's own soundness, and the census/boolean lane gap pin.
+Sample number at merge. Row at merge. CERT-M3's dual (ordinal 713)
+runs CONCURRENTLY; grounds file-disjoint.
+
 ## GAUTH program rows (docs/GAUTH-PLAN.md; band 900–999; blocks named GAUTH-B<n>)
 
 Opened 2026-08-31 (`docs/GAUTH-LOG.md`); single-orchestrator remote
@@ -3709,6 +3785,27 @@ either ruling. Disclosed: one earlier red CI run on the head before
 (a gate script's reader, fixed and pushed, not re-run); the PR body
 carries a `Generated by Claude Code` footer the GitHub write path
 appends on every write; it names no model.
+
+DOCM-5 review ordinal fixed at dispatch (2026-09-04, PR #1871 open —
+frozen head `4c727c88`): **ordinal 1804** (DOCM band). Pre-draw fields
+at the spec (`docs/DOCM-5-SPEC.md`): difficulty **M**, task-class
+**STRUCTURAL**; implementer arm per block DOCM-B2 slot 1 (record
+branch-side on `docm/b2-block`). Protocol v6 dual: draw = `/dev/urandom`
+byte **123**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS**. Method, recorded
+before either review runs: CONCURRENT same-head on frozen `4c727c88`,
+both briefs authored and STORED with sha256 before either dispatches
+(ff4c58f0f2d3501d… r1 / eff39ee466924bdd… r2 — identical text modulo lane names and lane
+paths, verified by diff), neither reviewer sees the other's report, v6
+item 5 isolation in both briefs, PRIVATE `CARGO_TARGET_DIR` AND private
+scratch directory per reviewer; the implementer's unit log entry is not
+written until the dual concludes. No stop clause fired; the spec is
+unamended. Disclosed: the spec cites `docs/PERF-PLAN.md`, which is not
+in the tree (the lane followed `memories/perf-measurement-lane.md` and
+said so); one earlier red on the head before (the binding census,
+fixed and pushed, not re-run); the PR body carries a `Generated by
+Claude Code` footer the GitHub write path appends on every write; it
+names no model.
+
 
 
 ## FILLET-RIM review ordinal fixed at dispatch (2026-09-04)
