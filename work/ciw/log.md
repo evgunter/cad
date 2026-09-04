@@ -407,3 +407,66 @@ leaving them independent.
 
 Nothing was enabled and no repository setting was touched: the queue is
 a design put to Ev.
+
+## 2026-09-04 — the merge queue trial, designed and prepared (`merge-queue-trial`)
+
+Ev ruled for the queue after PR 1796. This unit is the design, the
+workflow support and the runbook; **nothing is enabled and no repository
+setting was touched.**
+
+**The central fact holds and was re-checked at the site.** Every gated
+job's `if:` was read out of the parsed workflow: fifteen read
+`github.event_name != 'push' && …`, two carry no `if:` at all, the two
+cache primers are `push`-or-`dispatch` only, and `renders` is
+`!= 'workflow_dispatch'`. So `merge_group` needs the `on:` key and no
+`if:` edit — which is what the 2026-08-28 spelling note was written for.
+
+**Three things that enumeration missed**, none fatal, two of them
+corrections to PR 1796: `renders` *would* have run under `merge_group`
+(excluded here — no branch to re-baseline to, and the PR run and main's
+push run both render the same tree); the change filter's `HEAD^1` basis
+is **correct** under `merge_group` rather than the open question it was
+left as, because a merge group's parent is the group before it; and the
+two test-cost report steps degrade with a **stated skip**
+(`scripts/base-test-listing.sh:86-88`), not silently.
+
+**The numbers were re-derived and PR 1796's queue pricing does not
+survive.** That document priced "merge queue, batch ≤5" at 44 job-min/h
+from a simulation in which batching reduced the number of CI runs.
+GitHub's documentation is explicit that *"merge limits do not combine
+`merge_group` builds"* — a group is built per queued pull request — so
+**batch size is not a CI-cost lever at all** and the queue costs one full
+gate per PR. Post-un-sampling that gate is **44.8 job-minutes** (was
+24.4) and the merge rate over 23.96 h is **5.76/h, 41 % code-tier**, so
+the queue costs **110 job-min/h = +1.84 mean concurrent jobs**, against a
+queue delay today of 3 s.
+
+**The lever that matters is build concurrency, not batch size.**
+Simulated on the 138 observed arrivals at the measured 528 s / 42 s
+service times: concurrency 1 gives a code-tier PR a **1312 s median and a
+3774 s worst case**; concurrency 4 and above gives **528 s flat**, which
+is one run's wall clock with nothing queued. The observed peak of groups
+in flight is **4**. Recommended: build concurrency 5, maximum-to-merge 1,
+"only merge non-failing pull requests" on, merge-commit method (which
+`CLAUDE.md` requires anyway, and which also keeps `CI-Config:` trailers
+out of a group head).
+
+**The required check is one name: `gate ok`**, a job this unit adds. It
+runs on every event but `push`, `needs:` all twenty other jobs, and reads
+the run's own job list through the Actions API: it reds if any job is
+still running (which is how a stale `needs:` announces itself) or
+concluded anything but success/skipped/neutral. One name because most
+jobs are *skipped* on a docs-tier merge and this unit did not establish
+that a skipped check satisfies a required one — the failure that
+assumption would cause is a queue that never merges a docs change.
+Requiring it gates pull requests too, which is a real tightening of
+`CLAUDE.md`'s "agents merge their own PRs" and is called out as one.
+
+**The k-lint finding, resolved to an ordering dependency.** The obvious
+version — "a sampled row cannot be a required check" — is **false**:
+`k-lint (gate)` is one job with a fixed name and no matrix. The real
+problem is that a merge group's head is a new SHA, so a queue run draws
+its **own** row: a PR green on row X can be ejected by row Y, the author
+cannot reproduce it by re-running, and re-queueing draws again. Ev has
+authorised un-sampling k-lint; that lands first
+(`klint-row-still-sampled`), then the switch.

@@ -98,6 +98,13 @@ from that document may be quoted forward.
 10. `facade-guards-defer-to-rustdoc-json` — an `[ev]` ruling, asked with
     8's number in it. The format-instability half is the real question;
     the cost half is now small.
+11. `merge-queue-trial` — out of 8's ruling (Ev, 2026-09-04: trial a
+    merge queue). The design, the `merge_group` trigger, the single
+    required check (`gate ok`) and the enablement runbook; **the flip
+    itself is Ev's** and is not this program's to make. Its one ordering
+    dependency is `klint-row-still-sampled`, which Ev has authorised and
+    which lands first so that a queue run gates the same configuration
+    the pull request run did.
 
 `nightly-demotions-have-never-run` is not in the order: it is read from
 tonight's scheduled nightly (Ev, 2026-09-04 — do not force a dispatch),

@@ -14,6 +14,31 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
+  # THE MERGE QUEUE'S TRIGGER, AND IT IS INERT UNTIL SOMEONE ENABLES A QUEUE.
+  # `merge_group` fires only when a repository has a merge queue configured on
+  # the target branch; with none configured this key adds no run, no job and no
+  # minute. Enabling the queue is a BRANCH-PROTECTION setting and is Ev's, not
+  # a workflow edit — the runbook is `work/ciw/merge-queue-trial.md`.
+  #
+  # WHY THE TRIGGER IS ALL THAT THE JOB SET NEEDED. Every gated job below reads
+  # `github.event_name != 'push'` rather than `== 'pull_request'`, so a
+  # merge_group run gets the whole gate by default. That spelling was chosen on
+  # 2026-08-28 for exactly this direction (the note above the jobs argues it),
+  # and this is the trigger it was written for: adding the event here is the
+  # entire wiring, and `renders` is the one job that opts out (at its own key).
+  #
+  # WHAT A MERGE GROUP IS. GitHub builds one merge group PER QUEUED PULL
+  # REQUEST, containing the base branch plus every PR ahead of it in the queue
+  # plus that PR — so group N's first parent is group N-1, and the diff this
+  # workflow classifies (`git rev-parse HEAD^1` in the `filter` job) is exactly
+  # the one PR that group adds. That is the right classification basis and it
+  # needs no edit either: the tree the group's parent adds was gated by the
+  # group before it.
+  #
+  # `types: [checks_requested]` is the only activity type there is; naming it
+  # keeps a future second type from silently joining the gate.
+  merge_group:
+    types: [checks_requested]
   # NARROWING THE GATE TO A CONFIGURATION YOU CHOOSE (2026-08-28, Ev's ask;
   # repurposed 2026-09-04).
   #
@@ -155,7 +180,16 @@ concurrency:
 # RUN_VIEWER_TOOLKIT note calls the failure mode to avoid. Written this way, a trigger added
 # here runs the gate by default and has to be excluded deliberately, which is
 # the direction that fails safe. `renders` is the one such exclusion and
-# carries its reason at its own key.
+# carries its reason at its own key — two events now, `workflow_dispatch` and
+# `merge_group`, for two different reasons written there.
+#
+# THAT DIRECTION PAID (2026-09-04): adding `merge_group` to this file's `on:`
+# required NO edit to any job's `if:`. That is read off the guards, not off a
+# run — no merge_group run can exist until a queue is enabled — and what was
+# read is that every gated job's condition is `github.event_name != 'push'`
+# and nothing else event-shaped, so `merge_group` satisfies all of them. The
+# spelling is the reason the merge-queue trial costs a trigger rather than a
+# sweep.
 #
 # WHAT THIS GIVES UP, AND WHY NOTHING PAIRS WITH IT. The commit that
 # actually lands on main is now never itself built or tested. When main
@@ -4437,7 +4471,25 @@ jobs:
     # against a BRANCH, and a dispatch is the one entry point with no pull
     # request to report on. render.yml keeps its own `workflow_dispatch` for
     # when new frames are the thing being asked for.
-    if: github.event_name != 'workflow_dispatch' && needs.filter.outputs.run_k_lint == 'true'
+    #
+    # NOT ON A MERGE GROUP EITHER, and for a DIFFERENT reason — a queue run
+    # would render a tree that gets rendered twice around it anyway. The
+    # lanes' two outputs are a drift report against a branch and a
+    # re-baseline commit to one, and a merge group has no branch: `push_to`
+    # below is already empty under any non-push event, and the drift check
+    # would be posted against a `gh-readonly-queue/…` sha that is deleted
+    # when the group merges. Meanwhile the PR run has already rendered this
+    # merge preview and main's push run re-renders and re-baselines after the
+    # merge, so a queue render is the one job here that could only agree with
+    # its neighbours. At the 2026-09-04 medians it is ~335 job-seconds of the
+    # ~2690 a code-tier run costs — about an eighth of what a queue would add.
+    # NOTHING IS GIVEN UP: a render lane has never blocked a merge (drift is
+    # neutral by design, see the note above), so excluding it from the queue
+    # removes no gate. THE CONSEQUENCE TO KNOW is that no render check name
+    # reports on a merge_group run, so no render check may appear in the
+    # queue's required-check list — a required check that never reports
+    # stalls the queue until its status-check timeout.
+    if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group' && needs.filter.outputs.run_k_lint == 'true'
     uses: ./.github/workflows/render.yml
     # A reusable workflow gets the CALLER's token scope, and this
     # workflow declares none at the top level — so the lanes' own
@@ -4462,3 +4514,167 @@ jobs:
       # pull_request `github.sha` is the merge commit and a check there
       # never appears on the PR, so name the PR's head explicitly.
       report_sha: ${{ github.event.pull_request.head.sha || github.sha }}
+
+  # THE ONE CHECK A MERGE QUEUE (OR A BRANCH PROTECTION) SHOULD REQUIRE.
+  #
+  # A required status check is required BY NAME, and naming this workflow's
+  # gating jobs one by one does not work here for three reasons, each of which
+  # this job removes rather than works around:
+  #
+  #   * MOST OF THEM ARE SKIPPED ON A DOCS-TIER CHANGE. Every `if: run_build`
+  #     job reports `skipped` on a docs-only merge, and whether a skipped check
+  #     satisfies a required check is not something this repository has
+  #     established — the failure it would cause is a merge queue that never
+  #     merges a documentation change and gives no reason. One name that always
+  #     reports removes the question instead of betting on the answer.
+  #   * TWO OF THE NAMES ARE COMPUTED. `test (eps = …, …/2)` and
+  #     `test (interval, eps = …, …/2)` interpolate `needs.filter.outputs.eps_rows`,
+  #     which a `workflow_dispatch` or a `CI-Config:` trailer can still narrow.
+  #     Those spellings cannot reach a merge_group run (a group's head commit
+  #     message is GitHub's, and a queue takes no inputs), but a required-check
+  #     list is shared with pull requests, where they can.
+  #   * A LIST GOES STALE SILENTLY. A job added to this file and forgotten in a
+  #     branch-protection setting is a gate nobody removed and nobody runs. The
+  #     sweep below is what makes that impossible, and it is why this job reads
+  #     the run rather than trusting its own `needs:`.
+  #
+  # WHAT IT ASSERTS, in two claims that fail CLOSED:
+  #
+  #   1. EVERY job of this run except this one has reached a terminal state.
+  #      A job still running when this job summarises is a job missing from
+  #      `needs:` below — the omission this design is most exposed to — and it
+  #      is a RED naming the job, not a pass.
+  #   2. Every one of them concluded `success`, `skipped` or `neutral`.
+  #      `neutral` is a pass because that is how a render lane reports drift it
+  #      re-baselined (see `renders`); `failure`, `cancelled`, `timed_out` and
+  #      `action_required` are reds.
+  #
+  # `needs:` IS THEREFORE ORDERING AND NOT THE CLAIM. It lists every other job
+  # in this file so that this one runs last; if it ever falls behind the job
+  # list, claim 1 reds and says which name to add. Keep it exhaustive anyway —
+  # a red at the end of a run is a worse way to learn it than reading this
+  # list.
+  #
+  # NOT ON A PUSH. `main`'s push run carries write side-effects and no gate
+  # (the F3 note at the top of this file), so there is nothing here to
+  # summarise and no branch protection to satisfy. On every other event this
+  # job runs, which means a pull_request run exercises it on every push to
+  # every branch — the one part of the merge-queue design that CAN be
+  # exercised before a queue exists.
+  #
+  # IT IS NOT ENABLED ANYWHERE. Requiring this check is a branch-protection
+  # setting; `work/ciw/merge-queue-trial.md` is the runbook and it is Ev's to
+  # follow. Until then this job reports and nothing reads it.
+  #
+  # NO LOCAL MIRROR: its subject is a hosted run's own job list, read through
+  # the Actions API, and a developer box has no such list. The local half
+  # answers the same question by being one process: `local-scripts/gate.sh`
+  # runs the rows in order and its exit status IS the summary this job has to
+  # reconstruct, so mirroring it locally would be a check on the shell's `&&`.
+  gate-ok:
+    name: gate ok
+    if: always() && github.event_name != 'push'
+    needs:
+      - filter
+      - docs-only
+      - mirror
+      - discipline
+      - fmt
+      - clippy
+      - clippy-all-features
+      - cache-prime
+      - cache-prime-interval
+      - build
+      - test
+      - build-interval
+      - lint-interval
+      - test-interval
+      - interval-backend
+      - oracle-certify
+      - step-import
+      - python-suite
+      - k-lint
+      - renders
+    runs-on: ubuntu-latest
+    # `actions: read` for this run's own job list, and nothing else. A
+    # `permissions:` block replaces the workflow's default scopes outright,
+    # which is the point: this job writes nothing and checks out nothing.
+    permissions:
+      actions: read
+    steps:
+      - name: every job in this run concluded, and concluded green
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SELF: gate ok
+        run: |
+          set -uo pipefail
+          # `filter=latest` so a re-run of failed jobs is read as the run's
+          # current state rather than as its history. per_page is above the
+          # job count this workflow can produce (31 on a code-tier run at the
+          # 2026-09-04 job set); a run that exceeded it would page silently,
+          # so the count is checked against `total_count` below rather than
+          # assumed.
+          if ! gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" \
+                 > jobs.json 2> api-err.txt; then
+            echo "FAILED: could not read this run's job list."
+            echo "This gate summarises the run through the jobs API, so an unreadable list is a"
+            echo "RED and never a pass: with no list there is nothing to assert about."
+            sed 's/^/  /' api-err.txt
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json, os, sys
+
+          self_name = os.environ["SELF"]
+          d = json.load(open("jobs.json"))
+          jobs = d.get("jobs", [])
+          total = d.get("total_count")
+          if total is not None and total > len(jobs):
+              print(f"FAILED: the jobs API reports {total} jobs and this page carried {len(jobs)}.")
+              print("A paged job list would let this gate summarise a subset of the run and call it")
+              print("the run. Raise per_page (or page) in the step above.")
+              sys.exit(1)
+
+          others = [j for j in jobs if j["name"] != self_name]
+          if not others:
+              print("FAILED: this run's job list names no job but this one.")
+              print("Every claim below is about a population, and an empty one passes for the wrong")
+              print("reason.")
+              sys.exit(1)
+
+          running = [j for j in others if j.get("status") != "completed"]
+          bad = [j for j in others
+                 if j.get("status") == "completed"
+                 and j.get("conclusion") not in ("success", "skipped", "neutral")]
+
+          width = max(len(j["name"]) for j in others)
+          for j in sorted(others, key=lambda j: j["name"]):
+              print(f"  {j['name']:<{width}}  {j.get('conclusion') or j.get('status')}")
+
+          if running:
+              print()
+              print("FAILED: these jobs had not finished when this gate ran:")
+              for j in running:
+                  print(f"  {j['name']} ({j.get('status')})")
+              print()
+              print("This gate runs last because `needs:` names every other job in ci.yml. A job")
+              print("that is still going is one this gate did not wait for — add it to `needs:`.")
+              print("Reported as a failure and not as a pass: a check that summarises a run it")
+              print("did not see the end of is the exact thing this job exists to prevent.")
+              sys.exit(1)
+
+          if bad:
+              print()
+              print("FAILED: these jobs did not pass:")
+              for j in bad:
+                  print(f"  {j['name']} ({j['conclusion']})")
+              print()
+              print("Open the named job. This gate reports nothing of its own — it is one check")
+              print("name standing for the whole run, so that a branch protection or a merge queue")
+              print("can require one name that is present on every tier.")
+              sys.exit(1)
+
+          print()
+          plural = "" if len(others) == 1 else "s"
+          print(f"gate ok: {len(others)} job{plural}, all success, skipped or neutral.")
+          PY

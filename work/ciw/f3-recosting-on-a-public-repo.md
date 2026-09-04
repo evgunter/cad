@@ -1023,3 +1023,35 @@ is deleted here, as that PR intended.
 34 m 25 s) as evidence for this unit, not the class as a discovery. An
 instance of a ratified residue is worth keeping; the class was already
 written down.
+
+## Two figures here are superseded by the trial design (2026-09-04)
+
+`work/ciw/merge-queue-trial` re-derived this unit's queue pricing after
+PR 1823's un-sampling landed, and two things in the sections above do
+not survive it. Corrected here rather than left for the next reader.
+
+1. **The batch-size table and the "44 job-min/h at batch ≤5" figure are
+   wrong in MECHANISM, not only in magnitude.** They come from a
+   simulation in which batching reduces the number of CI runs. GitHub's
+   merge queue builds one merge group **per queued pull request**, and
+   its documentation says so directly: *"Merge limits do not combine
+   `merge_group` **builds**. Merge limits only affect merges to the base
+   branch once one or more `merge_group` has satisfied build checks."*
+   So a queue costs one full gate per pull request at any batch size,
+   the "batching makes the queue slightly cheaper" line is void, and the
+   lever that actually moves latency is **build concurrency**, which
+   this document does not name. Re-measured after un-sampling, the gate
+   is 44.8 job-minutes rather than 24.4 and the queue costs **110
+   job-min/h**, not 44. *The conclusion is unchanged*: the queue still
+   prevents where the push gate detects, and it still needs no
+   concurrency design pass, which the push gate does.
+2. **"The two test-cost report steps degrade silently" is false.**
+   `scripts/base-test-listing.sh:86-88` answers an empty `BASE_SHA` with
+   a stated skip — *"this run is not a pull_request run, so it has no
+   base tree to diff against"* — into the job log and the step summary.
+
+One thing this document left open is **closed** rather than corrected:
+the change filter's basis under `merge_group` ("unverified here") is
+right with no edit, because a merge group's first parent is the group
+before it, so `git rev-parse HEAD^1` yields exactly the one pull request
+that group adds.
