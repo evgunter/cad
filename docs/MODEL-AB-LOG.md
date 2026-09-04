@@ -3660,3 +3660,32 @@ DOCM-4 RECORDED AT MERGE (2026-09-04, PR #1808, sample #126 — prior highest #1
 DOCM-3 RECORDED AT MERGE (2026-09-04, PR #1803, sample #127 — prior highest #126 on main at merge; block DOCM-B1 slot 0 concluded; the block record stays on `docm/b1-block` until the block concludes):
 
 | DOCM-3 | 2026-09-04 | DOCM-3 (PR #1803; spec docs/DOCM-3-SPEC.md + its stop-clause amendment, DM4–DM6 of DOCM-REFERENCES-DESIGN): `Node::Union` n-ary (fold of the pair verb, tag 31), `RoleSeg::FromMember { member, of }` keyed on the member EDGE with `names/emit_union.rs` collapsing fold descents to one wrapper, `DocEdit::SetMembers` over `Node::list_input` (`Loft` too) with its typed refusals, DM5 as `Node::input_fault` (one definition, three callers incl. the load validator), the die's 21-pip tool as one union with the corpus regenerated; Phase 1 stopped at DM4's false key (pass-through members share tables), amended, resumed | L / STRUCTURAL (pre-draw, at the spec; re-logged unchanged at the amendment) | OPUS (block DOCM-B1 slot 0; byte 203 → fable at slot 2) | **DUAL (ordinal 1801, v6 byte 85 parity 1: R1 fable, R2 opus, concurrent same-head on frozen a713a02e)**: R1 0/3/4 APPROVE-WITH-FIXES, rubric 4/3/3 — MINOR: the fold's refusal menu names uncollapsed fold rows (red probe); `EditError` Display restates `InputFault` where the doc promises forwarding; the list floor newly refuses a one-section `Loft` at insert/load, undisclosed. R2 1/7/5 APPROVE-WITH-FIXES, rubric 4/3/3 — MAJOR: the same refusal defect, plus its consequence that a union of touching members has no declaration channel and dead-ends (red probe); MINOR: two `_ =>` wildcards where the PR body says none, the loft floor (silent), A3 pinning surfaces only, `Merged` arm unreachable with an unexplained dedup, `on_set_members` ordering unpinned, a stale node count, `SetMembers` `UnknownNode` unpinned. Convergent: the refusal payload (bilateral), the loft floor (bilateral, silent), the combine_ops stale premise, the segment-tag census, history in comments. Adjudicated 1 MAJ (bilateral); unilateral-MAJOR tally +0. R1 disclosed an accidental glimpse of R2's build-script paths via the shared scratchpad (no content, no findings) — pair FAIR (3e) | 2 silent (the wildcards; the loft floor at insert/load — both fixed and disclosed) | R1 4 / R2 4 | R1 3 / R2 3 | R1 3 / R2 3 | substantial — fourteen items: `union_refusal` collapsing every refusal name through `collapse_name`, both matches made exhaustive over all 41 segments, loft-floor disclosure + rows + the DM5 coverage argument at `input_fault`, A3 with curves and points in both rows, `Merged` unreachability stated + collision pin, the unreachable empty intermediate refused as a kernel bug, `InputFault` Display forwarded, `roots::is_sink` one home + ordering row, `UnknownNode` row + list read/write agreement row, a segment-tag injectivity census, five stale-prose sites, history stripped from comments, `name_args` sentence, PR body corrections; the declaration channel filed as `n-ary-union-has-no-declaration-channel` | impl CI green (drawn interval, eps 1e-6); fix CI green (drawn interval, eps 1e-6; one rustdoc-link red leg fixed in between); local editor-core/viewer/pncad/pncad-py 1556 rows, tour 62 | impl ~645k (both phases) / fix ~309k / reviews R1 ~322k + R2 ~297k | impl ~2h35m across both phases (incl. the stop) / fix ~48 min / reviews ~2h10m + ~50 min concurrent |
+
+## CURVED program rows (work/curved/; band 2200–2299; blocks named CURVED-B<n>)
+
+Opened for dispatch 2026-09-04 (`work/curved/log.md`); same orchestrator
+as TRIM (band 2500–2599, its own block series TRIM-B<n>). Block
+CURVED-B1's draw and slot record live branch-side (`curved/b1-block`)
+until the block concludes, per the block-draw redaction ruling; the
+record follows. Implementer ratio fable:opus 1:2 (the 2026-09-04
+amendment) — v3 triple {opus, opus, fable}, fable's position = byte mod 3.
+
+Block CURVED-B1 pre-draw fields (2026-09-04, logged before the draw):
+slot 0 = VERBS-C5ARMS PR-2 (`docs/VERBS-C5ARMS-SPEC.md` §PR-2, the
+coaxial cone×cylinder section arm; branch `curved/c5arms-2`) —
+difficulty **M** (the spec's own pre-log: "M, at the low end"; the
+weight is the re-expression of ordering/refusal pins 6/7/7b, not the
+closed form), task-class **NUMERIC** (two new metered margins,
+`cc_cone_axes_parallel` and `cc_cone_coaxial`, and a section decision
+on them). Slots 1–2 bank for the next dispatches in order
+(`cylindrical-rest-pair-hits-planar-merge`, then
+`torus-operand-boxes-span-whole-ring`), pre-draw fields at their specs.
+
+Block CURVED-B1 draw (2026-09-04, after the pre-draw fields above; one
+/dev/urandom byte, reject ≥252): byte **53**, 53 mod 3 = 2 = fable's
+position ⇒ **fable at slot 2**. So: slot 0 VERBS-C5ARMS PR-2 = OPUS,
+slot 1 = OPUS, slot 2 = FABLE. Recorded branch-side; this record
+reaches main when the block's last slot's reviews conclude; each
+ordinal claim at review dispatch goes to main on its own.
+
+Block CURVED-B1 slot record (branch-side, appended as each slot concludes):
