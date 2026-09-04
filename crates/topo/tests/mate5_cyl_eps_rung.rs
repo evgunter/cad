@@ -32,7 +32,7 @@ use topo::{
 
 fn band() -> Band {
     let tol = Tol::witness();
-    Band::new(tol.eps(), tol.k() * tol.eps()).unwrap()
+    Band::linear(tol).unwrap()
 }
 
 /// One cylinder description: the frame a sheet is authored in.
@@ -299,7 +299,7 @@ fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
 /// equal-but-independent descriptions do not glue" }` — six rows of
 /// this suite were red there with that same fingerprint, quoted in
 /// the PR body as the measured refusal chain (→
-/// `CensusUnsupported{Face}` → `Declined` → `Uncertified` at the
+/// `CensusUnsupported{FacePair}` → `Declined` → `Uncertified` at the
 /// census, per the spec's situation paragraph).
 #[test]
 fn a_declared_cylinder_pair_with_divergent_descriptions_certifies() {

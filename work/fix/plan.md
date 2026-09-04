@@ -60,14 +60,23 @@ that touch the same match.
 - `mate-contradiction-names-one-mate-twice` and
   `pin-mismatch-recourse-emitted-twice` — Display-only; the demo pin
   and the Python pin flip in the same change.
-- `error-types-with-no-display-class` — **three PRs, not one**: the
-  item is a class across five crates and four fences and asks its taker
-  for a re-sweep, so it is cut by fence — (a) `viewer`'s eight types
-  and the consumer status lines, (b) `editor-core`'s seven stragglers,
-  (c) the kernel-crate remainder (`topo::ContactRefusal`,
-  `topo::ReadbackError`, `mesh::TessellateError`,
-  `quantity::FmtQuantityError`). Each carries its own re-sweep and its
-  own blind-spot sentence; the item closes when the third lands.
+- `error-types-with-no-display-class` — cut by fence into three, and
+  **cuts 2 and 3 are empty**: the item's list was stale. Every type it
+  names already carries a `Display`, spelled
+  `impl core::fmt::Display for` — which the sweep that produced the
+  list could not see, because it grepped `Display for`. `MigrationError`
+  does not exist in the tree at all. What was actually owed was the
+  other half of "done": the consumer `{:?}` renderings and the comments
+  explaining them. Cut 1 (`viewer`, PR 1741) took eight of those, three
+  of them not on the item's list. The remainder is ONE small unit, not
+  two — `profile::path::Verb` (a sixth crate, reached through
+  `viewer::sketch::PreviewError::Transition`, found through the cut-1
+  lane's declared macro blind spot) and four `Dimension` debug labels.
+  `viewer::frame::Disagreement` is deliberately NOT forwarded and that
+  is recorded at the site: `StableName`'s `Display` omits the role path
+  on purpose, so forwarding would render two names differing only in
+  path identically and erase the disagreement the message exists to
+  report.
 - `no-parametric-loop-constructor` — `LoopProgram::polygon_expr`, the
   literal `polygon` delegating to it.
 - `coherence-findings-have-no-consumer` — `CheckId::ChartCoherence`

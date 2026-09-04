@@ -2,10 +2,12 @@
 id: mirror-parity-never-compares-flags
 kind: issue
 title: check-ci-mirror-parity compares which checks each half names, never their flags, so the two halves can drift on what a red run reports
-status: open
+status: review
 opened: 2026-08-30
 github: 1295
 refs: [1128, 1232]
+pr: 1759
+branch: ciw/parity-reads-flags
 ---
 
 ## From GitHub issue 1295
