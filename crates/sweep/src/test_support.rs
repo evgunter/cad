@@ -793,3 +793,76 @@ pub fn waist_fill(x_v: f64, r: f64) -> f64 {
     2.0 * PI
         * (x_v * r.powi(2) * (1.0 - PI / 4.0) + 2f64.sqrt() * r.powi(3) * (5.0 / 6.0 - PI / 4.0))
 }
+
+/// **The bowl**: a flat floor at `y = 1` from the axis out to radius 1,
+/// then a lip rising to `(1.5, 1.5)` and back down the outside to the
+/// base — `(0,0) (1.5,0) (1.5,1.5) (1,1) (0,1)` revolved fully.
+///
+/// Pole-touching, so both its discs are minted as half-discs and
+/// `merge_coplanar_faces` fuses each into one face. After that repair
+/// its FLOOR rim `(1, 1)` is the plane-hosted closed rim whose crossings
+/// are TRIVALENT — one plane face carrying both arcs in its own outer
+/// cycle — and it is CONCAVE, an inside corner whose band ADDS material.
+/// That is the pairing the closed-rim suites need: every other
+/// plane-hosted fixture in the tree is convex.
+pub fn bowl(tol: Tol) -> Body<f64> {
+    bowl_at(tol)
+}
+
+/// [`bowl`] at any scalar: the same five dyadic vertices through the
+/// same doors, so the interval twin differs in the scalar and nothing
+/// else.
+pub fn bowl_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
+    let v =
+        |x: f64, y: f64| ProfileVertex::new(Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
+    revolved_about_y_at(
+        vec![
+            v(0.0, 0.0),
+            v(1.5, 0.0),
+            v(1.5, 1.5),
+            v(1.0, 1.0),
+            v(0.0, 1.0),
+        ],
+        crate::Revolution::Full,
+        tol,
+    )
+}
+
+/// **The rolling ball's fill at a wedge, by Pappus** — the general form
+/// [`waist_fill`] is the 90-degree case of, and the one home both the
+/// `f64` rows and their interval twins read.
+///
+/// `k` is the profile corner and `da`, `db` the two generator
+/// directions leaving it, spanning the wedge the ball rests in. The
+/// ball of radius `r` touches both rays; the region between the corner
+/// and its arc is the kite `k, fa, c, fb` minus the sector at `c`
+/// between the feet, and Pappus revolves it.
+///
+/// **The wedge is the MATERIAL's on a convex rim and the VOID's on a
+/// concave one**, and that is the only difference between the two
+/// material sides: the region is the same shape, the carve REMOVES it
+/// on the convex side and ADDS it on the concave one, so a caller
+/// supplies the sign. Nothing of the kernel enters — the corner and the
+/// two directions are read off the fixture's own profile.
+#[must_use]
+pub fn wedge_fill(k: (f64, f64), da: (f64, f64), db: (f64, f64), r: f64) -> f64 {
+    let unit = |v: (f64, f64)| {
+        let n = (v.0 * v.0 + v.1 * v.1).sqrt();
+        (v.0 / n, v.1 / n)
+    };
+    let (da, db) = (unit(da), unit(db));
+    let wedge = (da.0 * db.1 - da.1 * db.0)
+        .abs()
+        .atan2(da.0 * db.0 + da.1 * db.1);
+    let t = r / (wedge / 2.0).tan();
+    let d = r / (wedge / 2.0).sin();
+    let bis = unit((da.0 + db.0, da.1 + db.1));
+    let fa = (k.0 + t * da.0, k.1 + t * da.1);
+    let fb = (k.0 + t * db.0, k.1 + t * db.1);
+    let c = (k.0 + d * bis.0, k.1 + d * bis.1);
+    pappus::pappus_volume(&[
+        (1.0, pappus::triangle(k, fa, c)),
+        (1.0, pappus::triangle(k, c, fb)),
+        (-1.0, pappus::sector(c, r, fa, fb)),
+    ])
+}

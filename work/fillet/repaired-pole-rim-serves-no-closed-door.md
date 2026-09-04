@@ -34,3 +34,46 @@ So the multi-link seam-split band BLEND-1 shipped serves the UNREPAIRED shape; a
 ## Home
 
 `work/issues/` — the closed-rim doors in `crates/sweep/src/fillet/surgery.rs` were S-BLEND's ground and that program is closed.
+
+## Resolved (this branch)
+
+**Both halves of "what would close it" are taken, and the natural
+reading was the right one**: the ANNULUS arm learned that one host face
+may carry several of the rim's arcs. No third resolution exists.
+
+- `resolve_rim`'s discriminant now routes on WHERE the rim sits in its
+  one planar host's loop structure — a RING of it is the ladder, that
+  face's own OUTER cycle is the annulus with HOSTLESS crossings — and
+  falls through to the seam-split annulus when no single planar face
+  hosts every link.
+- `SeamCrossing` carries a `HostFoot` variant (`Seam(EdgeKey)` |
+  `Strut`) rather than a bare seam key, so the phase matches on what it
+  has and cannot read a seam that is not there.
+- At a hostless crossing the host foot is minted by the LADDER's own
+  strut `mev`, hoisted into `strut_foot` as one home both closed-rim
+  phases call, and the host trimlines are `mef` chords between
+  consecutive feet in the host face's own loop.
+- `refresh_annulus_seams` carries a `Strut` through untouched: there is
+  no host seam to re-read, and a hostless rim's host face carries the
+  whole rim, so only its MATE wall can be shared.
+
+**Phase 1 corrected three of the spec's claims** before any of this was
+built, and the corrections are recorded in
+`plane-hosted-rim-has-no-native-instance.md`: there is no NATIVE
+instance (a pole-touching revolve splits the whole loop at its seam);
+the repaired boss and dimple are ring-hosted and hit a separate,
+pre-existing false ring-clearance (`ring-clearance-refuses-a-nested-trim-circle.md`);
+and the seam-split resolution refuses at its HALF-BAND gate, not at
+`wall_seam`.
+
+**The measurement this file cites has flipped.** The row is now
+`crates/sweep/tests/blend1_r1_probes.rs::p4_the_repaired_lantern_neck_rim_carves_and_one_arc_refuses_followably`:
+the whole repaired neck rim carves to a tier-3-valid solid with one
+band and `volume_pad == 0.0`, while ONE arc of it still refuses at a
+trivalent corner that is not `SeamVertex` — and that refusal's recourse
+is followed to the whole-rim carve in the same row.
+
+Six fixtures carry the shape and all six carve, on both material sides:
+the lantern's neck and lip, the hemisphere's equator, the waisted
+body's base and top (convex), and the bowl's floor (concave, its fill
+derived by Pappus in the row).
