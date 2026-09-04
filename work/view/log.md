@@ -984,3 +984,58 @@ shape as the stale-tree state-sync commit earlier today, and the same
 lesson: this branch is not a place work becomes durable. Resolved as a
 chronological union. **The orchestrator branch needs a PR of its own
 before this session ends**, or the day's whole record lives on a branch.
+
+## 1d built; a parking decision of mine was resting on a false premise (2026-09-04)
+
+`Tools`'s seven `Option<…Tool>` fields are one `Option<OpenTool>`
+(#1832). The lane answered the gating question by enumeration rather
+than assumption — **two tools open was already unreachable**: the
+fields were private, no struct literal for `Tools` exists anywhere in
+the repo, the only writers were `open` (reset, then one match arm) and
+`close`, and `feed`/`reconcile` reach contents through `as_mut()` and
+never touch a discriminant. So this is a representation change with no
+behaviour change, and `ALL`'s ordering inside `open_kind` was dead code
+resting on that same fact.
+
+**`seated!` and its `Seated` trait are gone. `ALL` could not go** — six
+uses in `crates/viewer/tests/`, CHROME's glob. What changed is the
+sharp edge: `open_kind` no longer routes through the array, so a kind
+missing from `ALL` now narrows a sweep instead of making its tool
+permanently unreachable. That was the failure shape this unit was for,
+and it is the same one as
+`revolve-tool-unreachable-no-axisinplane-form` one level up. Half the
+stated goal, disclosed as half.
+
+### The correction that matters
+
+`pick-priority-filter-vocabulary` was parked on the split because I
+wrote that `ToolKind::pick_kinds` is "one of the hand-maintained lists
+over the tool set that the split's `Option<OpenTool>` step collapses".
+**It was already an exhaustive match.** There was nothing to collapse,
+1d leaves it byte-identical, and the blocker I named never gated the
+item. The lane found this and correctly declined to edit the item —
+§6's duplicate-filing hazard cuts both ways, and an item carrying an
+orchestrator's rationale is the orchestrator's to fix.
+
+That is the **sixth** dispatcher correction in unit 1's chain and the
+second against a decision rather than a detail. The first was the
+`Refusal` four-arms framing on #1801; both were written from names and
+plausibility rather than from the raising sites, which is the same
+error twice.
+
+### And the tracker has no word for what this item actually is
+
+Un-parking it is not an improvement — it is the least bad of two wrong
+states. The item is not dispatchable: its trigger is a vertex-pick tool
+that does not exist and is not scheduled, and README GQ7 ratifies the
+deferral. But `parked` requires `blocked_on` to name an item or a PR,
+and **nothing on the board names either the absent tool or a ratified
+prose deferral**. Between a status that overstates availability and a
+`blocked_on` naming something that does not gate it, `open` loses less:
+a reader who opens the file meets the truth in its first paragraph,
+where a false `blocked_on` would have gone on being believed unread —
+as mine was, for a day.
+
+CHROME hit the adjacent shape when it parked nine items and had to
+argue in prose why. Two instances is not a rule; a third is worth
+putting to Ev.
