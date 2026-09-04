@@ -462,3 +462,25 @@ MESH and S-CERT are **not** announced yet: their cancel points are only
 needed if 6a takes that option, and announcing a need that a ruling may
 not produce would be asking two programs to hold schedule for a
 hypothesis.
+
+## #1801's body rewritten: an `[ev]` PR is a decision document (2026-09-04)
+
+Ev, on the PR as first written: too much unnecessary detail — corrected
+line counts and the like — and the things to decide were hard to find.
+Correct. The body led with ~150 lines of evidence and put the three
+questions last, so the reader had to reach the end to learn what was
+being asked and then reread to find which paragraphs bore on it.
+
+Rewritten to three decisions, each carrying only the context needed to
+take it and the alternative rejected, with everything else behind one
+pointer to this log. What came out: the five ways the issue's framing
+was stale, the four filed defects in detail, the three closed doors in
+detail, the plan corrections, and the posture restatement — all of it
+already recorded here, which is the argument for cutting it there.
+
+The rule is general rather than VIEW's, so it is in
+`memories/ev-profile.md` and not only here: every program routes its
+questions to Ev through this shape, and the long form is the natural
+default when the evidence was expensive to gather. Cost of the finding
+is one edit; cost of not having it is Ev's attention on every `[ev]` PR
+the board opens.
