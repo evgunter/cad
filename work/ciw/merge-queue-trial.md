@@ -286,6 +286,20 @@ on besides latency.
 **Require exactly one check: `gate ok`.** This PR adds the job that
 reports it.
 
+**`docs-only ok` already claimed part of this role, and the two are now
+declared a pair rather than left to overlap.** That job's key read *"a
+marker job with no check in it — it echoes the tier so a docs-only PR has
+a green **required** status"*, written for the same imagined branch
+protection ~3,700 lines above. It is not the required status and is not
+meant to be: `docs-only` asserts WHAT THIS RUN CLASSIFIED AS and nothing
+about anybody's conclusion — which is why it is the marker a DRAFT run
+keeps, when `filter` has zeroed every `RUN_*` flag — while `gate ok`
+asserts every other job's conclusion, which `docs-only` never could. Both
+keys now say so. The tier marker has three spellings in `ci.yml` (this
+job, `filter`'s `the configuration this run gates` and draft-verdict
+steps, and `gate ok`'s summary line); a fourth is a reason to collapse
+some of them rather than to add it.
+
 A required status check is required *by name*, and naming this
 workflow's gating jobs one by one fails here for **two** reasons, both of
 which a name list cannot fix:

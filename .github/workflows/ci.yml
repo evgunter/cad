@@ -837,8 +837,28 @@ jobs:
           exit $rc
 
   # NO LOCAL MIRROR: a marker job with no check in it — it echoes the tier so
-  # a docs-only PR has a green required status. ci-local.sh prints the same two
-  # lines at its docs-tier exit and returns 0; there is nothing here to run.
+  # a docs-only PR has a green status that reports on every tier. ci-local.sh
+  # prints the same two lines at its docs-tier exit and returns 0; there is
+  # nothing here to run.
+  #
+  # IT IS NOT THE REQUIRED STATUS, AND SINCE 2026-09-04 IT IS NOT MEANT TO BE.
+  # This sentence used to read "a green required status", written for an
+  # imagined branch protection; `gate-ok` is the job that answers that now
+  # (`work/ciw/merge-queue-trial.md` is the runbook), and the two are a pair
+  # with a division of labour rather than a duplicate:
+  #   * `docs-only` asserts WHAT THIS RUN CLASSIFIED AS and nothing about
+  #     anybody's conclusion. It is the marker a DRAFT run keeps — the `filter`
+  #     job zeroes every `RUN_*` flag on a draft and this job deliberately
+  #     still runs, because a draft whose only check never reports cannot be
+  #     read as "not yet gated" by anything looking at the PR.
+  #   * `gate-ok` asserts EVERY OTHER JOB'S CONCLUSION, which `docs-only` never
+  #     could, and is the one name a protection or a queue should require. It
+  #     prints the tier too, so the required check does not have to be read
+  #     next to this one to know what it gated.
+  # THE TIER MARKER NOW HAS THREE SPELLINGS in this file — this job, the
+  # `filter` job's `the configuration this run gates` and draft-verdict steps,
+  # and `gate ok`'s summary line — and a fourth should be a reason to collapse
+  # some of these rather than to add it.
   docs-only:
     name: docs-only ok
     runs-on: ubuntu-latest
