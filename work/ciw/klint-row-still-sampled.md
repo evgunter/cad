@@ -2,9 +2,11 @@
 id: klint-row-still-sampled
 kind: issue
 title: The k-lint unification row is still drawn 1-in-5 after the lane/eps un-sampling
-status: open
+status: review
 opened: 2026-09-04
 parent: reinstate-full-configuration-runs
+pr: 1850
+branch: ciw/unsample-klint
 ---
 
 ## The finding
