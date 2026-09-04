@@ -15,7 +15,7 @@
 //! earns). The nesting rows after it are the fix pass's own.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{census, freecad_fixture};
 use geom_core::Tol;

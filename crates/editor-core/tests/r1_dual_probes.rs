@@ -34,8 +34,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
+use crate::fixture;
 
 use corpus::{Recorder, documents, eval, failures};
 use editor_core::eval::{ContentBits, KeyHasher};
@@ -46,7 +46,6 @@ use editor_core::{
 use editor_core::{BooleanValue, DatumValue, Evaluation, NodeResult, SplitSide};
 use fixture::{len, scl};
 use geom_core::{Bounds, Decide, Dual64, Tol};
-use profile::SketchPlane;
 use topo::Body;
 
 /// FNV-1a 64 over whatever is fed. Not a content key — a probe digest.
@@ -175,6 +174,23 @@ where
                         d.v3(u.get());
                         d.v3(v.get());
                     }
+                    // Tag 24, appended: both spellings of an in-plane
+                    // axis, so a drift in the numbers a revolve
+                    // actually consumes cannot hide behind the lift.
+                    ValuePayload::Datum(DatumValue::AxisInPlane {
+                        plane_origin,
+                        plane_dir,
+                        origin,
+                        dir,
+                    }) => {
+                        d.u64(24);
+                        d.sc(plane_origin.x);
+                        d.sc(plane_origin.y);
+                        d.sc(plane_dir.x);
+                        d.sc(plane_dir.y);
+                        d.p3(*origin);
+                        d.v3(dir.get());
+                    }
                     ValuePayload::Profile(p) => {
                         d.u64(13);
                         for lp in p.validated.loops() {
@@ -222,6 +238,11 @@ where
                     // The measured quantity IS a lane value, so it is
                     // digested through the same value-channel bracket
                     // every coordinate takes.
+                    // A measure with no value at this scalar digests as
+                    // the ABSENCE, at its own tag: two passes that both
+                    // failed to measure agree, and neither agrees with
+                    // a pass that measured something.
+                    ValuePayload::MeasureUnavailable { .. } => d.u64(24),
                     ValuePayload::Measure { value, dim } => {
                         d.u64(21);
                         d.s(&format!("{dim:?}"));
@@ -464,8 +485,16 @@ fn r1_no_value_only_key_collision_search() {
 /// the parameter node the e2e bumps.
 fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let mut r = Recorder::new();
+    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
+        origin: [0.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
+        u: [1.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        v: [0.0, 1.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+    }));
     let plate = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: xy_frame_0,
         loops: vec![
             LoopProgram::polygon([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]).unwrap(),
         ],
@@ -474,8 +503,16 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
         profile: plate,
         distance: len(0.25),
     });
+    let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
+        origin: [0.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
+        u: [1.0, 0.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        v: [0.0, 1.0, 0.0]
+            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+    }));
     let boss_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: xy_frame_1,
         loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).unwrap()],
     }));
     let boss = r.insert(Node::Extrude {

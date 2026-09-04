@@ -2,10 +2,12 @@
 id: LIB-CUR4
 kind: unit
 title: curation 4 — the three payload twins CUR3 banked
-status: dispatched
+status: closed
 branch: lib/curation-4
 opened: 2026-09-03
+closed: 2026-09-03
 refs: [LIB-TUBE]
+pr: 1633
 ---
 
 Mechanical under the 08-29 ruling (no A/B row; brief-as-spec, the PERR

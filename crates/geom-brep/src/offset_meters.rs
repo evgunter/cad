@@ -1,5 +1,5 @@
 //! **The two meters the offset fit needs** — the regularity floor and
-//! the collapse headroom (`docs/OFFSET-DESIGN.md` O3).
+//! the collapse headroom (`crates/geom-brep/README.md` O3).
 //!
 //! Both are read off [`crate::patch_bound`]'s per-cell enclosures, and
 //! both are **f64-substrate**: the C9 ring produces an `f64` certified

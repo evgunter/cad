@@ -400,3 +400,347 @@ annotate the interruption and the pairs stand. Both specs' grounding
 was re-verified against the moved main before redispatch — every
 cited symbol still exists; the specs bind as written, with their
 plan/log pointers updated to this directory.
+
+## Orchestrator-side entries, merged at block M10-B2's conclusion (2026-09-03)
+
+## M10-2 dual review adjudication (2026-08-29)
+
+Split verdict on frozen e0cc0b20: R1 MERGEABLE-with-one-MAJOR
+(rubric 4/3/4), R2 REQUEST CHANGES (4/2/2, 3 MAJ). Both reviewer
+lanes were killed mid-review by the same account-limit wave and
+resumed — a symmetric interruption, recorded for the row. The
+transform/minted-carrier finding is bilateral and the center: a
+measure over a transform-descended ref silently reads the UNMOVED
+carrier (0.5 where the placed geometry sits at 0.75; 5 where it
+sits at 95) and deviation 3's documented recourse — "the moving
+node's own emission" — does not exist (wire_transform Arc-clones
+the table through and mints nothing). R2 showed the interrogation
+layer already takes `(ev, node, name)`, so the fix direction is
+read-at-the-referenced-node, typed refusal as the fallback, plus
+the schedule deviation 3 owed (Q6). R2's unilateral M1 is the
+severity headline: `eval_measure` restates `expr::eval`'s
+arithmetic without its non-finite door, so `13/s` at `s = 0`
+measures `inf` and the assertion over it reports `Holds` — a false
+PASS from the node whose job is certifying intent. The plane-gap
+sign was bilateral at different severities (R1 MINOR, R2 MAJOR
+with the role-swap-does-not-negate table over disjoint slabs);
+adjudicated MAJOR — the plane arm folds sense (the carrier_eq S10
+discipline) so g means material separation and role swap negates.
+Fix pass IMPLEMENTER-INHERITED, adjudicated union: the 3 MAJ, both
+probe suites adopted (six of nine closed-form arms had no
+red-capable oracle in the PR's own suite — all six verified CORRECT
+under both reviewers' independent oracles), the misattributed
+parallelism refusal, the 1 m arm-floor honesty (docs must name the
+floor as the operative sub-metre lever; the lever redesign banks on
+chart_region.rs:804's standing criticism), the unreachable digest
+arms (a corpus doc carrying Measure+Assertion makes them live), the
+weak Python rows, and the accumulated prose/doc sweep (the
+key-format bump-rule tension disclosed; this log's own
+deviation-count line corrected by the fix pass).
+
+## M10-3 dual review adjudication (2026-08-29)
+
+Both arms on frozen 54a77ad9: R1 NOT-MERGEABLE (1 MAJ, rubric
+4/4/4), R2 REQUEST CHANGES (2 MAJ; rubric requested post-report —
+the lane omitted the triple and was resumed for it, the M9-3
+missing-data shape avoided because the worktree-kept rule held).
+The accounting composition is bilateral and byte-identically
+diagnosed from independent fixtures: the mass columns are
+UNCONDITIONAL (a leaf prices P(offset ∈ leaf), so the leaves
+already sum to 1 − tail) while `total()`/`unresolved()` compose
+`t·(1−tail) + tail` as if conditional — a Normal axis at the
+default ±3σ totals 0.99730729, and the E10 honesty gate
+under-reports unresolved mass by the whole tail, the unsafe
+direction. Invisible to the shipped suite because every fixture is
+bounded (tail ≡ 0) — the premise-excludes-the-failing-mode shape —
+and both arms shipped deliberately-RED counterexample rows. R2's
+unilateral second MAJOR is structural: `drive.rs`'s flip naming is
+a SECOND verdict-diff engine using positional zip, the method
+`resolve/vdiff.rs` ("built once", for exactly the f64-vs-Interval
+case) rejects as unsound in its own 17-line argument; certification
+stays conservative (unequal ⇒ refuse, no false certificate) but
+FlipCrossing evidence can name permutation artifacts and miss true
+flips. Adjudicated: name flips through the built-once engine, or
+carry the confronting paragraph plus an honest best-effort label —
+the missing paragraph is the defect either way. The claim-8 attack
+(a definiteness misclassification that CERTIFIES) came back NOT
+FOUND from both arms independently — the unit's one silent-defect
+shape stood.
+
+Fix pass IMPLEMENTER-INHERITED: the two MAJ, the bilateral
+max_leaves 2× overshoot, the macroscopic pin's budget mismatch and
+the ε/4-vs-ε/8 threshold correction, the irreproducible 26-hit
+sweep receipt (both arms count 23 unique; R2's second sweep adds
+~15 predicates the pattern missed), the containment positive arm
+row (both arms constructed it — code correct, coverage absent),
+deviation 3's missing schedule (an issue gets filed), the k_stats
+narrowing vs E6's "every" disclosed as a deviation, the stale
+deviation 7, and both probe suites adopted (the four red-by-design
+rows go green with the composition fix).
+
+Durable homes at adjudication: deviation 3's escalation-channel
+issue is filed by the fix pass; the extra widening-class hits fold
+into the corrected sweep receipt (the class's home remains #1191);
+the verdict-diff triple-spelling (vdiff / drive.rs / verdict_summary)
+gets a consolidation issue from the fix pass unless the MAJ fix
+itself unifies.
+
+## M10-4 dual review adjudication (2026-09-03)
+
+Both arms on frozen fc8de0ac: R1 REQUEST-CHANGES (1 MAJ, rubric
+4/3/4), R2 NOT-MERGEABLE (2 MAJ, rubric 4/3/3). The headline is
+bilateral and identically diagnosed with independent red probes:
+the chamber verdict is never bound to the build — `ForeignVerdict`
+compares axis NAMES, `ForeignBox` compares offsets, and nothing
+ties a `ParamBoxVerdict` to the document it was driven over, so an
+edited document (a value edit that keeps the verdict vector) or
+another document's verdict marks every sensitivity
+`ChamberCertified`. R1 named the fix's raw material (the drive
+already records per-leaf value-channel `node_keys`, and
+`worst_case`'s replay recomputes and discards them); R2 named the
+trap (a `VerdictVectorKey` compare would NOT close it — a pure value
+edit keeps the vector; it needs a content tie). R2's unilateral
+second MAJOR is the one the spec's grounding warned about: a LOFT
+section's dimension seeds to a silent finite ZERO (`section_of`
+emits the f64 elaboration's loops), the true derivative being 1 —
+"the profile gap TYPED, never silent zeros" — while the PR body says
+no typed valve was needed; the sweep seam has the same shape. R1
+had predicted the loft as the unexercised arm (T1) and flagged it
+unverified; R2 executed it. The remaining findings converge on
+honesty of the advisory columns (contribution extrapolates past the
+chamber it is marked with; `NothingCertified` throws away the
+sensitivities it computed and carries no accounting; the e2e's −2
+comes from the measure expression, not the lift — only the width
+slab and the reviewers' own arc-carrying rows pin the guided lift)
+and on disclosure (deviation 3 unscheduled and dropping a
+plan-named deliverable; deviation 2's rationale conflating keys
+with the value channel; stringified refusals against D2's letter;
+the RSS fixed-parameter door). Every claim the reviewers could
+execute against held otherwise: zero impact bit-identical over 22
+corpus documents at three scalars, seed hygiene under DL2 in six
+threading orders, σ derivations to 1e-9 against quadrature,
+`worst_case` tangent-free by type and right where the
+linearization is wrong.
+
+Fix pass IMPLEMENTER-INHERITED: the two MAJ (a content tie from
+the verdict to the anchor; a typed per-entry refusal for seeds that
+feed a C6/D9-pinned section, loft and sweep), the advisory-column
+honesty set, the disclosure set, both probe suites adopted (four
+red-by-design rows across the two go green with the MAJ fixes).
+
+Durable homes at adjudication: contribution bounds via
+`Dual<Interval>` enclosures (deviation 3) get a `work/m10` issue
+item from the fix pass — the plan named them as this unit's and
+M10-5's entry names only pruning; the subgradient-at-a-kink honesty
+gap (a one-sided derivative reported with a smooth one's confidence,
+conformant but unmarked — R1 T3, R2 note f) is stated in E4-facing
+docs by the fix pass and banked as an M10-6 report-shape question.
+
+## M10-4 MERGED (2026-09-03)
+
+PR #1627 merged, sample #114 (ordinal 505) — block M10-B2's last
+slot, so the block's records land on main with this entry. The seed
+door is open and E4 is real: every sensitivity carries a chamber
+certificate that is CONTENT-TIED to the build (the fix pass's
+deepest cut — the drive's own per-leaf `node_keys` replayed and
+compared before any mark is written, closing both the stale-edit and
+the same-name-foreign-document cases both reviewers had demonstrated),
+or `LocalOnly`; DL3's pairing hook is a typed two-half gate that
+discharges the obligation M10-DI's adjudication named; the `Stackup`
+gates on `worst_case` alone and now hands a real tolerance study its
+`LocalOnly` sensitivities, coverage and receipt inside
+`NothingCertified` instead of a data-free error. R2's unilateral MAJOR
+gave the program its typed profile valve for real — a loft or sweep
+section's parameter seed refuses `SeedPinnedSection` rather than
+producing the silent zero the plan's C6 seam entry predicted a year
+of specs ago. Honest limits, measured: certification widths remain
+ε-scale (M10-3's ceiling), `worst_case` at ε-scale is mostly the
+interval lane's dependency padding (2·half on the plate, 10·half on
+the slab), `contribution` extrapolates past its chamber by the
+box/leaf ratio and says so. Durable homes: contribution bounds via
+`Dual<Interval>` — `work/m10/contribution-bounds-via-dual-interval.md`;
+the subgradient-at-a-kink report mark banked for M10-6. Process: this
+unit's first lane died at the session limit and was redispatched fresh
+four days later against a main that had moved 524 merges — the fresh
+lane delivered in ~60 minutes, the rows annotate it. The six merged M10
+specs (M10-1, DI, P, 2, 3, 4) leave `docs/` with this merge per the
+ledger's rule. M10-5 is in flight; M10-6's spec is next.
+
+## M10-5 MERGED (2026-09-03)
+
+PR #1638 merged, sample #115 (ordinal 506). E7 is real: over a
+certified leaf the engine answers `Holds` / `Violated` with an
+f64-verified witness / `Refused` typed and priced, with the receipt
+identity riding the report — and after the fix pass the three
+places the deliverable could have lied are closed at the root: a
+fold over a drive that certified nothing refuses instead of passing,
+refused leaves are priced under their own class instead of riding as
+certified mass, and the BVH's admission threshold carries the
+funnel's band so nothing inside the window the funnel would refuse
+is silently held. R2's unilateral MAJOR — the strict violation arm
+had no reachable path, so gross interpenetration came back
+`Refused(Budget)` — was fixed by an exhibit arm that can only ADD
+verified violations; R1's unilateral MAJOR — the sweep never stopped
+at the first violation, so every `Violated` was a budget exhaustion
+and the limit narrative was wrong — by early exit with the
+unexamined frontier accounted `abandoned` and the cost curve
+re-measured in three regimes. The program's first symmetric tally
+pair. Two design-level residues are filed, not fixed: the window
+superset (D3) needs the boundary in chart coordinates; a signed
+penetration depth (D7) needs a margin that is not a norm. The 1055
+stretch did not land — the valve is the layering question (where a
+curved gate lives: above editor-core or a duplicate engine in topo),
+filed with the cost figures. The accelerator ships behind the
+`MonotoneOracle` seam with `NoTangents`; the `Dual<Interval>` oracle
+is the item M10-4 filed. Process: the lane spent three extra CI
+cycles on doc-truth fixes found after the first push and said so —
+the doc sweep belongs before the first push, recorded here for the
+next brief. The spec leaves `docs/` with this merge. M10-6 is next
+and last.
+
+## M10-6 dual review adjudication (2026-09-03)
+
+Both arms on frozen bf67a734 (PR #1685), with hosted CI
+budget-blocked account-wide, so every claim rests on the reviewers'
+local runs of what the gate would have covered — both stated their
+coverage row by row. R1 NOT-MERGEABLE (2 MAJ, rubric 3/3/2); R2
+"mergeable once two MAJORs are answered" (2 MAJ, rubric 4/3/3). The
+four MAJORs are four different findings. R1, by execution: the
+`min_separation` enclosure is over carrier WINDOWS (M10-5's
+disclosed superset) but `MinSeparation`'s docs sell it as
+containment-true over the trimmed faces and "what makes an `AtMost`
+assertion sound" — an L-cap parked over a notch brackets
+`[0.1, 0.1]` where the true face separation is 0.269, so `AtLeast
+0.2` certifies a FALSE `Violated` and `AtMost 0.15` a FALSE `Holds`
+(the row-1 gate would red a true assertion). The asymmetry is
+exact: windows ⊇ faces, so `lo` is a valid lower bound for the
+faces and `hi` is not — the two arms that consume `hi` are the
+unsound ones. R2 met the same shape (`lo = 0` on a non-convex body,
+the assertion `Unevaluated`) and scoped it to M10-5's filed item;
+R1 is right that its propagation into a VALUE and two assertion
+directions is this unit's. R1's second, by execution: the tour's
+stop-2 headline — "the requirement FAILS somewhere in the box: this
+is the number that gates" — comes from a raw `worst_case.lo <
+bound` at −4.2e-11, inside the coincidence band, while the
+document's own `Assertion` over the identical enclosure reads
+`Holds`; the demo preaches the funnel and decides on a float. R2,
+by execution: `VerdictVector::certifying` drops `Assertion` rows
+from the certification comparison, moving `witness_vector`,
+`serialize()` and every leaf's key for EVERY assertion-carrying
+document — defensible, load-bearing, nowhere in D1–D9, its
+justification written four commits after the code (R1 had it as a
+MINOR). R2's second: the row-3 demotion is per-invocation, so the
+E6 re-open trigger (rule 1 — an in-band indeterminate) would print
+among 15,768 rule-2/3 flags and not red; the rule-1 count, the
+number E6 actually asked for, is reported nowhere (zero today — the
+population piles up just outside the escalation band at a floor of
+1.0083e-5 ≈ Kε, which is the runbook's recourse 2 and correct). The
+MINORs converge: the cache seam's `report_key` blind to every dial
+and consumed by nothing; row 1's first entry never driven and its
+budgets all 0.0; `stackup` refusing a `min_clearance` measure whole
+where `worst_case` is computable (E9's own rule inverted); the
+Python read door answering a typed absence with "not a measure";
+the ci-local k-lint gate's exit-code mismatch; the MC tail row
+admitting 0.0; the ci.yml cost note attributing 33 s to a 0.34 s
+cell; `mc`/`report` interval-gated so E11.1's pure-f64 lane is
+unusable in the default build. Everything both arms could execute
+held otherwise: D1's additive load door refusing an unknown variant
+by name, D2's value-not-error absence judged better than the spec's
+own self-contradictory sentence, D6's goldens at all three ε rows
+with mutation and re-bless, D8's binary primitive the faithful
+elaboration, the enclosure's soundness ON WINDOWS surviving every
+attack, the MC stream re-derived bit-exact.
+
+Fix pass IMPLEMENTER-INHERITED: the enclosure typed one-sided for
+faces (the `hi`-consuming assertion arms refuse typed until window
+tightening lands, docs telling the truth); the tour deciding by the
+assertion's verdict, never a float, on a fixture whose failure is
+definite; `certifying` disclosed, justified and pinned; rule 1
+gated red with its count reported and a K-REPORT entry; the MINOR
+set; both probe suites adopted (R1's three ignored counterexamples
+go green as pins).
+
+Tally candidates: R1's window-enclosure MAJ and R1's tour-headline
+MAJ (both by execution, both unilateral — R2 scoped the first and
+did not exercise the narration); R2's two are bilateral at split
+severity with R1's MINOR 3 and MINOR 10. Durable homes: window
+tightening stays M10-5's filed item (this unit's fix is the honest
+typing until it lands); the PRNG's single-copy sentence in
+`test_utils::fuzz` is the fix pass's to make true again.
+
+## M10-6 MERGED (2026-09-03)
+
+PR #1685 merged, sample #118 (ordinal 507). The program's last unit.
+E10 and E11 are real: every derived report serializes exact-bits,
+keys on its content and renders for a human, priced and forced mass
+are two types, the three CI rows run on the sampled matrix and were
+read executing by step conclusion (rows 1–2 in the interval shards,
+row 3 on the k-lint axis with rule 1 gating and 65,992 advisory
+flags over the driver population, the tour cell in its own step),
+the MC lane estimates and never gates, and E3's last primitive
+ships with the engine door both M10-5 reviewers asked for — a
+certified bracket of the minimum separation the budget narrows and
+cannot falsify. The review's central finding shaped the door: the
+bracket is over carrier windows, not trimmed faces, so only its
+lower end is a bound on the measure; that is now a type the
+assertion consults, the two arms that would read the upper end
+refuse typed until window tightening lands, and the two gating
+directions survive. R1's second execution finding — the tour
+deciding on a float against its own assertion — is closed by a
+door that did not exist (`assertion_at`), with the measured fact
+that a definite failure and a real RSS divergence cannot coexist at
+this ε stated in the caption rather than faked. R2's key-move
+finding stands as a disclosed, pinned deviation (D10, retracting the
+body's "keys bit-identical"); its demotion finding makes rule 1 the
+one thing no caller can demote. Two tally candidates, both R1's, both
+by execution. Filed, not fixed: `MinClearanceRefusal`'s stringly
+twin (D12); ERROR-DESIGN's unary `min_clearance` arity against the
+shipped binary door (D8) goes to the exit walk as a doc revision for
+Ev.
+
+Process, for the next brief: (1) the lane died five times on API
+529s during the fix pass and was resumed each time from its
+worktree — never redispatched — at 60- then 30-minute backoffs;
+nothing was lost, but the pass took 4h40m for ~1h of work. (2) The
+orchestrator's re-gate of the frozen head (an empty trailer commit
+pushed after the Actions budget outage) reset the unit branch's
+local ref UNDER the lane's live worktree and orphaned its four
+unpushed commits; they were recovered from the reflog and the
+re-gate merged in. Rule: an orchestrator re-gating a branch a lane is
+working on makes the commit in its own checkout and pushes by
+ref, never `branch -f` on the shared local ref. (3) Two red CI cycles
+on one trap: `tools/` and `demos/` are excluded from the root
+workspace, so the root `cargo fmt` reaches neither; the pre-push
+sweep must run CI's own commands in every excluded root. The spec
+leaves `docs/` with this merge. What remains for M10 is the exit
+walk.
+
+## Seam — residue re-homed for the exit (2026-09-03)
+
+Per `work/README.md` (residue is re-homed before the sweep) and the
+2026-09 work-track proposal `docs/WORK-TRACKS-2026-09.md`, every open issue this program held
+moved by header-preserving `git mv` to the track that will carry it —
+ids unchanged, nothing copied:
+
+- `certify-locally-valid-range-instead-of-sampling` → `work/docm/`
+- `signed-penetration-depth` → `work/curved/`
+- `contribution-bounds-via-dual-interval` → `work/props/`
+- `k-stats-escalation-channel-and-redo` → `work/props/`
+- `three-per-node-verdict-shapes` → `work/props/`
+- `certified-lane-non-real-contract-audit` → `work/props/`
+- `clearance-window-tightening-needs-chart-boundary` → `work/trim/`
+
+The directory now holds only its units, its narrative and (for S-MATE)
+the `MATE-EXIT` ruling, so the sweep at ratification leaves nothing
+behind.
+
+## Handoff note from SHELL (2026-09-04)
+
+Ev ruled B on `[ev]` #1737: the body-level half of
+`crates/editor-core/src/clearance.rs` (the cell subdivision over
+`Body<Interval>`, `min_separation` and its types) moves into `topo`
+behind `interval`, and editor-core's leaf/param-box half calls down.
+SHELL cuts it as `work/shell/SHELL-3.md`, a joint unit; M10-7 (#1725)
+does not touch the file, measured, so the move is sequenced after
+#1725 merges and SHELL asks the M10 orchestrator to co-review. The
+gate itself is SHELL-4.

@@ -87,8 +87,23 @@ must be non-empty). A ruling is `open` or `closed`. A program is
   conflict, and that is the cross-program handoff surfacing, not a
   bug. Re-parent or re-home by editing the header, never by copying.
 - **Ids are stable.** An item keeps its id for life; a program keeps
-  its directory. Migrated code-quality rows keep the row ids they were
-  cited by (`D102`, `S330`, `C15`).
+  its directory for as long as it is open. Migrated code-quality rows
+  keep the row ids they were cited by (`D102`, `S330`, `C15`).
+- **A closed program's directory is deleted.** `work/` tracks work
+  still to be done, not work that has been done, so once a program
+  closes — its exit walk ratified, or Ev's ruling that it needs none —
+  `program.md`, `plan.md` and `log.md` go, and so does the ratified
+  exit walk; the deletion is recorded in `docs/DOC-LEDGER.md` with the
+  SHA they are recoverable at, and that ledger entry is the program's
+  done-state of record. Residue is re-homed to a live program or to
+  `work/issues/` before the sweep, not left behind in the closed
+  directory. **That sweep sees items, not sentences**: a residue a
+  lane discloses inside its own item's `## Closed` prose reads as a
+  record of work done, not as an open thread, so it is invisible to
+  the re-homing and dies with the directory. Disclosing a residue is
+  therefore not scheduling it — **give it its own file at the moment
+  you disclose it**, on this program's slate or in `work/issues/`, and
+  let the Closed section point at that file.
 - **A rides-along is its own file** with `rides_with:` naming its
   carrier. Closing the carrier does not close the passenger; lint
   refuses a live passenger on a closed carrier.
@@ -120,9 +135,13 @@ with **`[ev]`**, and the item that asked sets `needs_ev: true`. The PR
 is not named in the item: which PR carries the question is one
 `git log` away, and the item usually exists before the PR does. Ev
 answers in the PR's comments; the agent edits the item and the docs,
-merges, and clears the flag. `STATUS.md` lists every open `needs_ev`
-oldest first, so the two views (the PR list filtered on `[ev]`, and
-the tracker) always name the same set.
+merges, and clears the flag. Whoever opens an `[ev]` PR arranges to be
+woken by comments on it — the away-channel monitor locally, a PR
+subscription on a remote box — because the answer arrives as a comment
+and a question nobody is listening to has not been asked.
+`STATUS.md` lists every open `needs_ev` oldest first, so the two views
+(the PR list filtered on `[ev]`, and the tracker) always name the same
+set.
 
 State-sync rides the unit's PR as before (item header updates, log
 entries); conversations for Ev get their own `[ev]` PR.

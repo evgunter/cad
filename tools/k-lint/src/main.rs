@@ -1,7 +1,8 @@
-//! The large-K fragility lint CLI (spec D3): `k-lint <fresh.csv>...`
+//! The large-K fragility lint CLI (spec D3):
+//! `k-lint [--gate-rule-1-only] <fresh.csv>...`
 //!
-//! A GATE: findings fail the run. Three exit voices, kept structurally
-//! separate because they mean different things:
+//! Three exit voices, kept structurally separate because they mean
+//! different things:
 //!
 //! * **findings** — exit [`EXIT_FINDINGS`], with the interpretation
 //!   discipline printed in full (see [`discipline`]);
@@ -10,9 +11,29 @@
 //!   could not run at all, which is not a statement about geometry;
 //! * **clean** — exit 0.
 //!
+//! # Which findings gate (M10-6)
+//!
+//! By default all three rules gate: findings fail the run. That is the
+//! corpus rows' setting and nothing about it changed.
+//!
+//! `--gate-rule-1-only` narrows the GATE to rule 1 — `indeterminate`
+//! and `invalid` margins — while rules 2 and 3 still print, still
+//! tally, and no longer fail the run. It exists for ONE caller, the E6
+//! driver's own K population, whose subdivision refines margins toward
+//! zero by construction and therefore crowds the escalation band in
+//! bulk without anything being wrong; `docs/K-REPORT.md`'s recourse 2
+//! is the demotion this implements, and ci.yml's step carries the
+//! recorded justification.
+//!
+//! It is deliberately NOT `--advisory`: rule 1 is the trigger E6 names
+//! for re-opening the K question, so a flag the caller cannot demote
+//! is exactly the point. A per-rule TALLY prints on every run, gated
+//! or not, so "zero rule-1 flags" is a reported number rather than an
+//! inference from a green.
+//!
 //! Thresholds + baseline provenance: `lib.rs` module docs.
 
-use k_lint::lint_csv;
+use k_lint::{Reason, lint_csv};
 
 /// The lint ran and found margins crowding a decision boundary.
 const EXIT_FINDINGS: i32 = 2;
@@ -66,12 +87,25 @@ fn discipline(total_flags: usize) -> String {
 }
 
 fn main() {
-    let paths: Vec<String> = std::env::args().skip(1).collect();
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    // The one flag, recognised before the paths so a caller cannot
+    // accidentally lint a file called `--gate-rule-1-only`.
+    let gate_rule_1_only = args.iter().any(|a| a == "--gate-rule-1-only");
+    args.retain(|a| a != "--gate-rule-1-only");
+    if let Some(bad) = args.iter().find(|a| a.starts_with("--")) {
+        eprintln!("k-lint: unknown option {bad}");
+        std::process::exit(EXIT_HARNESS);
+    }
+    let paths: Vec<String> = args;
     if paths.is_empty() {
-        eprintln!("k-lint: usage: k-lint <k-probe-csv>...");
+        eprintln!("k-lint: usage: k-lint [--gate-rule-1-only] <k-probe-csv>...");
         std::process::exit(EXIT_HARNESS);
     }
     let mut total_flags = 0usize;
+    // Per-RULE totals across every input, printed unconditionally.
+    // Rule 1's count is the number this row exists to report, and a
+    // number nobody prints is a number nobody reads.
+    let mut per_rule = [0usize; 4];
     for path in &paths {
         let text = match std::fs::read_to_string(path) {
             Ok(t) => t,
@@ -91,10 +125,38 @@ fn main() {
             }
         };
         let (scanned, flags) = (scan.scanned, scan.flags);
+        // The per-file tally, by rule and then by reason. A FLAG can
+        // carry several reasons; each is counted, so the reason counts
+        // sum to at least the flag count and the two are labelled
+        // differently rather than conflated.
+        let mut file_rule = [0usize; 4];
+        let mut file_reason = [0usize; Reason::ALL.len()];
+        for f in &flags {
+            for r in &f.reasons {
+                file_rule[usize::from(r.rule())] += 1;
+                let idx = Reason::ALL
+                    .iter()
+                    .position(|c| c == r)
+                    .expect("Reason::ALL lists every variant");
+                file_reason[idx] += 1;
+            }
+        }
+        for (i, c) in file_rule.iter().enumerate() {
+            per_rule[i] += c;
+        }
         say(format_args!(
-            "k-lint: {path}: {scanned} samples, {} flagged",
-            flags.len()
+            "k-lint: {path}: {scanned} samples, {} flagged — rule 1 (undecided/invalid): {}, \
+             rule 2 (near a threshold): {}, rule 3 (below a floor): {}",
+            flags.len(),
+            file_rule[1],
+            file_rule[2],
+            file_rule[3]
         ));
+        for (r, c) in Reason::ALL.iter().zip(file_reason) {
+            if c > 0 {
+                say(format_args!("    rule {} — {r}: {c}", r.rule()));
+            }
+        }
         // Never a silent exemption: say it whenever rule (2)'s definite
         // arm ran capped at the baseline floor (lib.rs, "Rule (2)'s
         // discrimination floor").
@@ -130,11 +192,39 @@ fn main() {
         }
         total_flags += flags.len();
     }
-    if total_flags > 0 {
+    say(format_args!(
+        "k-lint: TOTAL over {} file(s): rule 1 (undecided/invalid) {}, rule 2 (near a \
+         threshold) {}, rule 3 (below a floor) {}",
+        paths.len(),
+        per_rule[1],
+        per_rule[2],
+        per_rule[3]
+    ));
+    // WHICH flags decide the exit. Rule 1 always does; rules 2 and 3
+    // do unless this caller demoted them, and the demotion is stated
+    // in the output rather than inferred from a green.
+    let gating = if gate_rule_1_only {
+        say(format_args!(
+            "k-lint: --gate-rule-1-only — rules 2 and 3 are ADVISORY for this caller \
+             (docs/K-REPORT.md recourse 2; the justification is at the calling step). \
+             Rule 1 is NOT demotable: it is the trigger E6 names."
+        ));
+        per_rule[1]
+    } else {
+        total_flags
+    };
+    if gating > 0 {
         // stderr, and stderr only: this verdict must survive a closed
         // or redirected stdout — it is the reason the row is red.
-        eprint!("{}", discipline(total_flags));
+        eprint!("{}", discipline(gating));
         std::process::exit(EXIT_FINDINGS);
+    }
+    if total_flags > 0 {
+        say(format_args!(
+            "k-lint: {total_flags} advisory flag(s), none of them rule 1 — the population \
+             crowds thresholds but every margin was DECIDED"
+        ));
+        return;
     }
     say(format_args!(
         "k-lint: clean — no margin crowds a decision boundary"

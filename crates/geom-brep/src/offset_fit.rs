@@ -1,6 +1,6 @@
 //! **The offset fit and its certificate** — the Book's §9.4 stack for
-//! surfaces, and the two-limb residual bound (`docs/OFFSET-DESIGN.md`
-//! O2/O3, `docs/CURVED-DESIGN.md` C8).
+//! surfaces, and the two-limb residual bound (`crates/geom-brep/README.md`
+//! O2/O3, `crates/geom-brep/README.md` C8).
 //!
 //! The offset of a NURBS surface is **not** a NURBS — normalizing the
 //! chart normal introduces a square root that breaks rationality — so

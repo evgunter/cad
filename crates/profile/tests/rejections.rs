@@ -2,7 +2,7 @@
 //! a closed-form profile, with the exact error asserted.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::{
     arc_kisses_line, bowtie, chain, circle_h, near_tangent_hole, profile, rect, tangent_hole, tol,
@@ -539,7 +539,7 @@ fn a_radius_within_the_band_of_a_carrier_radius_escalates_the_enclosing_gate() {
         site: EscalationSite::Fillet,
         source: Indeterminate {
             margin: MarginDiag::Value(-5.0 * eps),
-            band: Band::new(eps, tol().k() * eps).expect("the run's band forms"),
+            band: Band::linear(tol()).expect("the run's band forms"),
             predicate: Some("fillet_enclosing_carrier"),
         },
     }

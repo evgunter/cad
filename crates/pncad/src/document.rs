@@ -38,7 +38,7 @@ pub use editor_core::cascade_delete_order;
 // spell the whole node vocabulary through one module.
 pub use editor_core::{
     Axis3, BooleanOp, Datum, MeasureNodeFault, Node, PatternKind, PlacementRuleFault, RecipeNodeId,
-    SlotId, VectorSlot,
+    SlotId, TubeWindow, VectorSlot,
 };
 
 // The measurement vocabulary (ERROR-DESIGN E3/E10, CONTACT-DESIGN C5).
@@ -50,9 +50,15 @@ pub use editor_core::{
 // point is that a verdict is consumed by reports. `ASSERT_BOUND` is
 // the funnel site name, carried like `SEL_DATUM_DISTANCE` so a
 // K-census consumer can name the row rather than spell the string.
+// `MeasureUnavailableAt` and `MinClearanceRefusal` are carried for the
+// reason a payload's payload always is: they are what
+// `UnevaluatedReason::MeasureUnavailable` and
+// `NodeErrorKind::MeasureClearanceRefused` CARRY, so a consumer who can
+// name the outer type and not the inner one can see that there is a
+// reason and never read it.
 pub use editor_core::{
     ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive, MeasureRef,
-    UnevaluatedReason,
+    MeasureUnavailableAt, MinClearanceRefusal, UnevaluatedReason,
 };
 
 // Expressions and their text door.
@@ -195,11 +201,13 @@ pub use editor_core::{
 // (`SolvedPoses`, `MateRole`, the residual `Subgroup`), the recorded
 // cluster-record maintenance (`ClusterMaintenance`), and `MateFault`
 // — the typed refusal every door carries, the way `RootFault` is
-// carried above.
+// carried above. `member_of` is A11's member vocabulary itself, which
+// an authoring door must gate on so it admits exactly the heads the
+// solve places (`Member` is its answer).
 pub use editor_core::{
     Alignment, AxisSense, ClusterMaintenance, MateFault, MateFrame, MatePrimitive, MateRole,
-    MateSide, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, reading_edges,
-    relative_freedom_components, solve_document,
+    MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, member_of,
+    reading_edges, relative_freedom_components, solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through
@@ -263,7 +271,8 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // CALLER chooses where to gate on it. Deliberately NOT in the prelude
 // (prelude membership is corpus-measured).
 // `subject_body` resolves a finding's (root, output_ix) attribution
-// back to the flagged body in the same evaluation.
+// back to the flagged body and the declarations its producer minted
+// for it, in the same evaluation.
 pub use editor_core::{
     Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
     ChecksError, ChecksReport, Severity, enforce_checks, run_checks, subject_body,
@@ -272,5 +281,5 @@ pub use editor_core::{
 // The profile description node type and its document alias.
 pub use editor_core::{
     LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecordedProgramError, StepArg,
+    RecordedProgramError, StepArg, resolve_loops,
 };

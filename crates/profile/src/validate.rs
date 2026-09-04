@@ -72,7 +72,7 @@
 //! | `fillet_offset_circles_external` | \|ρ₁\|+\|ρ₂\| − d | linear band; offset-carrier intersection (M5 S2) |
 //! | `fillet_offset_circles_internal` | d − \|\|ρ₁\|−\|ρ₂\|\| | linear band; offset-carrier intersection (M5 S2) |
 //! | `fillet_offset_lever` | \|ρ₂\| − C·R₂·scale²/(d·ε) | linear band; the arc×arc offset intersection's conditioning (M8) |
-//! | `fillet_enclosing_carrier` | ρ = R − σ·τ·r, one per circular leg | linear band; Negative is the permanently refused enclosing class (`docs/ENCLOSING-TANGENCY-DESIGN.md`) |
+//! | `fillet_enclosing_carrier` | ρ = R − σ·τ·r, one per circular leg | linear band; Negative is the permanently refused enclosing class (`crates/profile/README.md`) |
 //!
 //! Every `fillet_*` row above fires in
 //! the arc-carrier fillet construction (construction sugar's one
@@ -266,16 +266,11 @@ pub enum NoCornerReason {
     /// the legs do not actually reach (the branch rule's corner-side
     /// extent test).
     ///
-    /// **No construction is known to reach this arm** since the
-    /// enclosing (ρ < 0) class became a refusal of its own
-    /// (`docs/ENCLOSING-TANGENCY-DESIGN.md`): every request that used to
-    /// land here was one whose blend circle swallowed the leg carriers,
-    /// and those now refuse earlier and more precisely. Four searches
-    /// across three lanes (1.24M ordinary arc×arc corners, 400k random
-    /// draws, and two reviewers' sweeps) found no replacement — a
-    /// negative result with stated blind spots, not a proof. Whether the
-    /// variant keeps a producer at all is issue #1280; nothing here
-    /// decides it.
+    /// The reach gate's own failure arm, kept deliberately (Ev's ruling,
+    /// PR 1733): no known producer since the enclosing (ρ < 0) class
+    /// refuses first (`crates/profile/README.md`), but the branch it
+    /// names is real, so it stays typed rather than folded into a wrong
+    /// reason or a panic.
     NoCornerSideCandidate,
 }
 
@@ -340,7 +335,7 @@ const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered by pr
 /// own carrier radius, where the sign of ρ = R − σ·τ·r — and with it
 /// whether the requested fillet would SWALLOW that carrier, the
 /// permanently refused enclosing class
-/// (`docs/ENCLOSING-TANGENCY-DESIGN.md`) — is below the tolerance.
+/// (`crates/profile/README.md`) — is below the tolerance.
 ///
 /// One sentence for the in-band escalation of `fillet_enclosing_carrier`
 /// and for its definite sibling [`crate::PathError::FilletEnclosesLegCarrier`]
@@ -449,10 +444,6 @@ pub enum ProfileError {
         second: SegmentRef,
         /// The joint's vertex index (input chain).
         joint: usize,
-        /// `true` if the adjacent segments share one carrier
-        /// (collinear/cocircular continuation — not a tangency);
-        /// `false` if their distinct carriers meet transversally.
-        same_carrier: bool,
     },
     /// A loop's area-per-perimeter width classified as zero: a sliver
     /// loop (unreachable for loops that passed simplicity — kept total).
@@ -556,27 +547,13 @@ impl fmt::Display for ProfileError {
                 first,
                 second,
                 joint,
-                same_carrier,
-            } => {
-                if *same_carrier {
-                    write!(
-                        f,
-                        "joint {joint} between {first} and {second} is declared tangent, \
-                         but the segments continue on one shared carrier \
-                         (collinear/cocircular) — continuation is not a tangency; remove \
-                         the declaration (declared tangency is verified, never trusted)"
-                    )
-                } else {
-                    write!(
-                        f,
-                        "joint {joint} between {first} and {second} is declared tangent, \
-                         but the carriers definitely meet transversally — remove the \
-                         declaration or make the tangency exact \
-                         (the PATHS .fillet(r) door computes it); declared tangency is \
-                         verified, never trusted"
-                    )
-                }
-            }
+            } => write!(
+                f,
+                "joint {joint} between {first} and {second} is declared tangent, but the \
+                 carriers definitely meet transversally — remove the declaration or make \
+                 the tangency exact (the PATHS .fillet(r) door computes it); declared \
+                 tangency is verified, never trusted"
+            ),
             Self::SliverLoop { loop_index } => write!(
                 f,
                 "loop {loop_index} has zero width at tolerance (sliver loop)"
@@ -1020,7 +997,7 @@ impl<T: Decide> Profile<T> {
         tol: Tol,
         guide: &mut CanonGuide,
     ) -> Result<ValidatedProfile<T>, ProfileError> {
-        let band = Band::new(tol.eps(), tol.k() * tol.eps()).map_err(ProfileError::Band)?;
+        let band = Band::linear(tol).map_err(ProfileError::Band)?;
         // The exact-order band for canonical-start selection (module
         // docs): no representable f64 lies strictly inside it.
         let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;
@@ -1416,15 +1393,22 @@ fn judge_joints<T: Decide>(
                     ),
                 });
             }
-            (seg::JointClass::Transversal | seg::JointClass::SameCarrier, true) => {
+            (seg::JointClass::Transversal, true) => {
                 return Err(ProfileError::TangencyContradicted {
                     first,
                     second,
                     joint,
-                    same_carrier: class == seg::JointClass::SameCarrier,
                 });
             }
-            (seg::JointClass::Tangent, true)
+            // A declared joint whose two segments continue on ONE
+            // carrier is a declared TANGENT JOINT and nothing else
+            // (Ev, in-chat, 2026-09-02: every zero-turn joint is a
+            // declared tangent joint). The `same_carrier` arm that used
+            // to refuse it is retired: identity is a fact about the
+            // carriers, tangency is a fact about the directions, and the
+            // directions agree here.
+            (seg::JointClass::SameCarrier, true)
+            | (seg::JointClass::Tangent, true)
             | (seg::JointClass::Transversal | seg::JointClass::SameCarrier, false) => {}
         }
     }

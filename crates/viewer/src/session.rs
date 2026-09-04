@@ -42,7 +42,6 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, attribute};
-use pncad::profile::SketchPlane;
 use pncad::quantity::UnitDef;
 use pncad::select::{ContactClass, Resolution, RunCtx, resolve};
 use pncad::workspace::WorkspaceError;
@@ -386,10 +385,21 @@ impl Standing {
 pub enum NodeKindWanted {
     /// A `Node::Profile`.
     Profile,
-    /// A `Node::Datum(Datum::Axis)`.
+    /// A `Node::Datum(Datum::Axis)` — a world-space line, which is
+    /// what a circular placement rule turns about.
     Axis,
+    /// A `Node::Datum(Datum::AxisInPlane)` — an axis written in a
+    /// sketch frame, which is what a revolve turns.
+    ///
+    /// Separate from [`Self::Axis`] because the two are separate node
+    /// kinds and the evaluator's operand door refuses across them. A
+    /// seat that admitted both would route a pick the door then
+    /// rejects, which is the drift this vocabulary exists to prevent.
+    SketchAxis,
     /// A `Node::Datum(Datum::Plane)`.
     Plane,
+    /// A `Node::Datum(Datum::Frame)` — what a profile is drawn on.
+    Frame,
     /// A node whose value is ONE body — the combining seats' kind
     /// ([`combine::denotes_body`] carries the admissible set and why a
     /// split's sides and a pattern's instances are not in it).
@@ -411,7 +421,11 @@ pub fn admits(held: Option<&Node<ProfileProgram>>, wanted: NodeKindWanted) -> bo
     match wanted {
         NodeKindWanted::Profile => matches!(held, Some(Node::Profile(_))),
         NodeKindWanted::Axis => matches!(held, Some(Node::Datum(Datum::Axis { .. }))),
+        NodeKindWanted::SketchAxis => {
+            matches!(held, Some(Node::Datum(Datum::AxisInPlane { .. })))
+        }
         NodeKindWanted::Plane => matches!(held, Some(Node::Datum(Datum::Plane { .. }))),
+        NodeKindWanted::Frame => matches!(held, Some(Node::Datum(Datum::Frame { .. }))),
         NodeKindWanted::Body => held.is_some_and(combine::denotes_body),
     }
 }
@@ -422,7 +436,9 @@ impl NodeKindWanted {
         match self {
             Self::Profile => "a profile",
             Self::Axis => "an axis datum",
+            Self::SketchAxis => "an axis datum in a sketch frame",
             Self::Plane => "a plane datum",
+            Self::Frame => "a frame datum",
             Self::Body => "a body",
         }
     }
@@ -868,6 +884,24 @@ pub enum DatumSpec {
         /// Position components (`Length`).
         position: [Expr; 3],
     },
+    /// An axis written in a sketch frame — a revolve's axis of
+    /// revolution.
+    ///
+    /// `plane` is a PICK, not a field: it names the `Datum::Frame` the
+    /// two coordinate pairs are written against, and the pairs are
+    /// that frame's own 2-D coordinates. There is no third component,
+    /// which is the whole of why a revolve about one cannot leave the
+    /// sketch.
+    AxisInPlane {
+        /// The frame node the axis lives in.
+        plane: RecipeNodeId,
+        /// Origin components in the frame's coordinates (`Length`).
+        origin: [Expr; 2],
+        /// Direction components in the frame's coordinates (`Scalar`),
+        /// unnormalized — the kernel's `RevolveAxis` normalizes and
+        /// refuses a sliver at its own door.
+        direction: [Expr; 2],
+    },
     /// A sketch frame through `origin`, spanned by `u` and `v`.
     Frame {
         /// Origin components (`Length`).
@@ -972,6 +1006,12 @@ pub enum SessionOp {
     ///
     /// It changes no document, commits nothing and enters no history:
     /// every candidate is applied to a scratch copy that is dropped.
+    ///
+    /// A slot driven by an expression is refused, exactly as
+    /// [`SessionOp::SetSlot`] and [`SessionOp::BeginGesture`] refuse
+    /// it: the range would be a range of numbers for a field that
+    /// takes no number. The affordance names the driving parameters,
+    /// which are the fields to probe instead.
     ProbeBounds {
         /// The field to probe.
         target: BoundsTarget,
@@ -1141,13 +1181,14 @@ pub enum SessionOp {
     /// commit door as every other edit: one apply, one history state,
     /// one re-evaluation, and the free-move supersession prune.
     AddMate {
-        /// The `a` reference (instance-qualified).
+        /// The `a` reference — the head names a member of A11's
+        /// vocabulary (`pncad::document::member_of`).
         a: StableName,
-        /// The `b` reference (instance-qualified).
+        /// The `b` reference, same vocabulary.
         b: StableName,
         /// The declared contact class.
         class: ContactClass,
-        /// The alignment datum (frames in each instance's own part
+        /// The alignment datum (frames in each member's own part
         /// coordinates).
         alignment: Alignment,
     },
@@ -1195,12 +1236,23 @@ pub enum SessionOp {
     /// non-nested pair all refuse through the authoring-time check
     /// ([`Refusal::Edit`]), one rule for authored and hand-written
     /// programs alike (only a non-finite field refuses earlier, at
-    /// the literal door). The plane is frozen `f64` placement data
-    /// (the program's own placement struct — a snapshot, never a
-    /// reference to the geometry it may have been derived from).
+    /// the literal door). The plane is a REFERENCE to a frame node,
+    /// which the pick below spells out.
     AddProfile {
-        /// The sketch-plane placement the profile is authored on.
-        plane: SketchPlane<f64>,
+        /// **The frame node the profile is drawn on** — a PICK, not a
+        /// field.
+        ///
+        /// It was a `SketchPlane<f64>` the form filled in from a
+        /// world-XY constant. A profile's plane is a document node
+        /// now, so the form names one that already exists rather than
+        /// minting one on the side: one submit inserts one node, and
+        /// the frame a person drew on is the frame they can see in the
+        /// viewport and edit afterwards.
+        ///
+        /// A reference that does not name a `Datum::Frame` refuses
+        /// [`Refusal::WrongNodeKind`] at the door, like every other
+        /// pick.
+        plane: RecipeNodeId,
         /// The loop programs, in description order.
         loops: Vec<LoopProgram>,
     },
@@ -1226,7 +1278,8 @@ pub enum SessionOp {
     AddRevolve {
         /// The profile node revolved.
         profile: RecipeNodeId,
-        /// The `Datum::Axis` node revolved about.
+        /// The `Datum::AxisInPlane` node revolved about — an axis
+        /// written in the same sketch frame the profile is drawn on.
         axis: RecipeNodeId,
         /// The sweep angle (`Angle`); the chrome's default is a full
         /// turn.
@@ -2208,6 +2261,17 @@ impl DocSession {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
+        // A driven slot is not a field the user can put a number into,
+        // so a range of numbers for it is not an answer to any question
+        // they can act on: the probe refuses it with the same
+        // affordance the write and the drag do, which names the
+        // parameters to probe instead. A parameter has no driver and
+        // reaches this door unguarded.
+        if let BoundsTarget::Slot { node, slot } = target
+            && let Err(refusal) = self.guard_driven(node, slot)
+        {
+            return OpOutcome::refused(refusal);
+        }
         let base = self.doc().clone();
         let (origin, seed, integral) = match self.probe_scale(&target) {
             Ok(scale) => scale,
@@ -2247,6 +2311,15 @@ impl DocSession {
         OpOutcome::default()
     }
 
+    /// One written `unit`, in canonical terms — the probe's step, and
+    /// the one place that arithmetic is spelled, so a slot's seed and a
+    /// parameter's seed are the same answer to the same question.
+    /// `None` is the field that names no unit at all (a count, a bare
+    /// scalar), whose step is 1.
+    fn probe_seed(unit: Option<UnitDef>) -> f64 {
+        unit.map_or(1.0, |unit| props::from_written(1.0, unit))
+    }
+
     /// The probe's three inputs, read off the field: where it is now,
     /// the step to search by, and whether its answer is an integer.
     ///
@@ -2278,22 +2351,34 @@ impl DocSession {
                 // through `rendering_unit`, so a computed slot's step
                 // is the same unit the panel shows it in rather than a
                 // second answer to the same question.
-                let step = props::rendering_unit(dimension, remembered)
-                    .map_or(1.0, |unit| props::from_written(1.0, unit));
+                let step = Self::probe_seed(props::rendering_unit(dimension, remembered));
                 Ok((value, step, dimension == Dimension::Count))
             }
             BoundsTarget::Param { name } => {
                 let Some(param) = self.committed_doc().params().get(name) else {
                     return Err(Refusal::NoSuchParam(name.clone()));
                 };
-                let value = match param {
-                    DocParam::Continuous { value, .. } => *value,
-                    DocParam::Count { value } => *value as f64,
+                // Same rule as a slot's: one of whatever unit the
+                // field is WRITTEN in. A continuous parameter names the
+                // notation it was authored in
+                // (`DocParam::Continuous::display_unit`, which rides
+                // with the declaration and no value edit disturbs), so
+                // a millimetre parameter is searched in millimetres. A
+                // `Count` is a number rather than a quantity, has no
+                // unit to name, and steps by 1.
+                let (value, unit) = match param {
+                    DocParam::Continuous {
+                        value,
+                        display_unit,
+                        ..
+                    } => (*value, Some(display_unit.def())),
+                    DocParam::Count { value } => (*value as f64, None),
                 };
-                // A parameter stores no display unit (`props`' module
-                // docs name the asymmetry), so its seed is one CANONICAL
-                // unit.
-                Ok((value, 1.0, param.dim() == Dimension::Count))
+                Ok((
+                    value,
+                    Self::probe_seed(unit),
+                    param.dim() == Dimension::Count,
+                ))
             }
         }
     }
@@ -2621,9 +2706,17 @@ impl DocSession {
     /// the edit door's authoring-time check refuses them typed in the
     /// profile layer's own words — the one rule authored and
     /// hand-written programs share.
-    fn add_profile(&mut self, plane: SketchPlane<f64>, loops: Vec<LoopProgram>) -> OpOutcome {
+    fn add_profile(&mut self, plane: RecipeNodeId, loops: Vec<LoopProgram>) -> OpOutcome {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        // The plane is a PICK now, so it is gated where every other
+        // pick is: at this door, by kind, before the edit. Without
+        // this the reference would reach evaluation and refuse there
+        // — a typed refusal either way, but one the person gets after
+        // the node lands rather than instead of it.
+        if let Err(refusal) = self.require_kind(plane, NodeKindWanted::Frame) {
+            return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram { plane, loops }),
@@ -2653,7 +2746,7 @@ impl DocSession {
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
-        if let Err(refusal) = self.require_kind(axis, NodeKindWanted::Axis) {
+        if let Err(refusal) = self.require_kind(axis, NodeKindWanted::SketchAxis) {
             return OpOutcome::refused(refusal);
         }
         self.commit(DocEdit::InsertNode {
@@ -2919,6 +3012,15 @@ fn datum_node(spec: DatumSpec) -> Node<ProfileProgram> {
         DatumSpec::Axis { origin, direction } => Datum::Axis { origin, direction },
         DatumSpec::Point { position } => Datum::Point { position },
         DatumSpec::Frame { origin, u, v } => Datum::Frame { origin, u, v },
+        DatumSpec::AxisInPlane {
+            plane,
+            origin,
+            direction,
+        } => Datum::AxisInPlane {
+            plane,
+            origin,
+            direction,
+        },
     })
 }
 

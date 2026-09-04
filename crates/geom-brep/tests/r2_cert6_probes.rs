@@ -9,24 +9,14 @@
 //! zero corpus coverage).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::ring::p3;
+use crate::shared::tol::band;
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
+use geom_core::Tol;
 use geom_core::ring_interval::RingInterval;
 use geom_core::spline::KnotVector;
-use geom_core::{Band, Tol};
 use test_utils::vacuity;
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
-
-fn pt(x: f64) -> RingInterval {
-    RingInterval::from_bounds(x, x)
-}
-
-fn p3(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
-    [pt(x), pt(y), pt(z)]
-}
 
 /// A mildly curved single-span biquadratic dome, my own authoring.
 fn dome() -> (KnotVector, KnotVector, Vec<[RingInterval; 3]>) {
@@ -43,6 +33,13 @@ fn dome() -> (KnotVector, KnotVector, Vec<[RingInterval; 3]>) {
     (k.clone(), k, net)
 }
 
+/// This dome, at these weights and this ε — the row below memoizes on
+/// `(weights, eps)`, so those two are the only things that vary.
+///
+/// Deliberately NOT routed through `shared::patch::face_posture`: that
+/// gate panics on a posture outside the honest set, and which posture
+/// came back — refusals included — is the whole subject of the row
+/// below. The raw `Result` is the reading.
 fn drive(weights: &[f64], eps: f64) -> Result<geom_brep::props::quad::FaceCutBounds, PropsError> {
     let (ku, kv, net) = dome();
     let (a, b) = ku.domain();

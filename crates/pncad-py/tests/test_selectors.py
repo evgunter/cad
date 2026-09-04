@@ -29,7 +29,7 @@ from pncad import (
 
 def unit_cube(doc):
     square = doc.insert(
-        Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)])
+        Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)], plane=doc.sketch_frame())
     )
     return doc.insert(Node.extrude(square, 1 * m))
 

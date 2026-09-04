@@ -3075,3 +3075,125 @@ item files and in `work/STATUS.md` (generated); this log stays the
 narrative. Items created at migration: VERBS-CYLSPH (dispatched, PR
 #1604), VERBS-C5ARMS (open — PR-1 merged #1577, PR-2 remains),
 VERBS-CONE (open).
+## RIMCAP ratified; the queue moves into the tracker (2026-09-03)
+
+docs/VERBS-RIMCAP-SPEC.md ratified against main a6072d812 from the
+staged draft — sphere half only (the carried-datum corner rule +
+mint_carrier's off-axis-circle arm; two pre-registered STOPs; the
+reading-derived lune mechanism demoted to opening-measurement item
+4 with its own STOP), torus half kept as a design conversation
+inside the spec. Cites refreshed at ratification (verbs_shell
+klein row :633→:637; torax rim-constraint row :493→:497; the lune
+row's home at :581; the sphere-seam arm :1369-1391) and one
+corroboration recorded: torax_axial's own module doc already
+states the off-axis-centre mechanism — reading, not execution, so
+the measurement still runs. C5ARMS' hold note updated to RESOLVED
+pointing here for the elbow rows. New tracker items:
+VERBS-RIMCAP (spec) and VERBS-1031B (open; the fork-or-dissolve
+opening measurement is the unit's first act). RIMCAP dispatches
+after CYLSPH's cycle clears a lane.
+## Ordinal 112 returned and adjudicated (2026-09-03)
+
+R1 (fable) 0 MAJ / 5 MIN, 5/5/4, ACCEPT — payload-level carrier
+verification, three novel mutations caught by shipped rows, and
+the measured-false interval-tightness sentence found (widths
+bit-identical at the row's own numbers). R2 (opus) 3 MAJ / 7
+MIN, 4/3/3 — 54 poses re-derived, a 180-pose union sweep
+proving the germ frame unreachable for the pair (zero
+GermFrameUnsupported), and the three principal findings:
+
+- R2 MAJ-1 (unilateral, DOC-CLASS — recorded, 3b-excluded): the
+  refusal-text sweep MADE A TRUE SENTENCE FALSE — the
+  CurvedBooleanUnsupported doc's 'germ-pair join dispatch wires
+  …' correction conflated join_germ_pair (whose catch-all raises
+  that very error; sphere×sphere and cyl×sphere are NOT wired
+  there) with pair_section_frame. The same file's
+  CurvedPairUnsupported Display now contradicts it. The C5ARMS
+  lesson inverted: not a stale sentence left, a false one
+  created.
+- R2 MAJ-2 (bilateral in substance with R1 MIN-3, no candidate):
+  the spec-mandated FACTORED station form is entirely unpinned —
+  MUT-H (the exact form the spec forbade) leaves 15/15 rows
+  green including both interval rows, and the row's stated
+  rationale is measured false at its own numbers (bit-identical
+  widths; the squared form TIGHTER under uniform widening; the
+  factored form's real 1.5e6× win lives at near-tangency, which
+  no fixture visits). The ordinal-108 latitude-lever class.
+- R2 MAJ-3 (UNILATERAL TALLY CANDIDATE, class test-gap,
+  demonstrated: the asserted strings are static literals present
+  in every message of the variant): the opening row's
+  sphere-face half is pinned VACUOUSLY — `face` is discarded,
+  never read back to a SurfaceKind; only the carrier half is
+  real. The FACT is true (R2 read operand/carrier/face off the
+  bodies: Line seam, Sphere face, both poses).
+- Minor union: the stale rim comment (both arms); the 21-vs-20
+  count (both); reduce.rs's second #974 site undispositioned
+  (the spec named it — a sweep miss); no diag.predicate pins on
+  the in-band rows (the sibling arm's own fix-pass precedent);
+  the SSI row accepting CertificateLimb; 33-vs-17 points; the
+  twin headline contradicting its own list; merge-base line
+  cites; the MUT-B label misquote.
+
+TALLY: candidates now 6 pending the blinded coding (107×2,
+108×1, 110×1, 112×1 — the stopping rule fires at 8 confirmed).
+Pair COUNTS. Union fix pass out (opus, implementer-inherited).
+## VERBS-1031B ruled and specced (2026-09-03)
+
+Ev ruled option (1) in-chat — the repair op; the producer change
+rejected. Spec ratified (docs/VERBS-1031B-SPEC.md, M-): the
+arc-bounded winding arm ports boolean::join::ring_run_ccw's
+existing bulge machinery (axis·sa·sb·(Δ−sinΔ), arc-length
+perimeter, the same bool_ring_run_winding predicate) into
+merge_faces::loop_winding — the ratification read found the
+derivation already lives at the join site, so the unit is a
+fourth identically-stated site, not new mathematics. Acceptance:
+the teapot cup merges (census + tier-3 + re-posed twin), the
+boolean-after-merge measured whatever it is, NonMaximalFaces on
+the unmerged cup as the differential; the register's two settled
+sentences (the lily gate-admission deferral, the cup-seam
+straightness) sync by citation. STOP if a second gap sits behind
+the winding arm.
+## Ordinal 113 claimed — RIMCAP PR-1 dual (2026-09-03)
+
+RIMCAP PR-1 delivered with the mechanism hypothesis CONFIRMED
+(the pole arm answers on-axis while both moved caps stand 0.05
+off — instrumented; one refinement: the shipped refusal's true
+raising site is the axis-edge meter, not param_on, and the
+module doc was corrected to the measured version). Two arms
+beside the pole arm (meridian-pair + carried-datum; the lune's
+pole corners are the 2-CAP case the spec's one-cap wording
+cannot answer — flagged for spec re-cut) + the off-axis-circle
+mint arm computed inline; corners bit-exact at ρ=t√2; the elbow
+moves ONE DOOR DEEPER (TogetherAxialEdge, the spiric boundary
+stated — PR-2's design gate). ONE DECLARED DEVIATION with a
+filed schedule: the spec's shell-level acceptance rests on a
+measurably false premise — the operand lune is tier-3
+VolumeUncomputable (props_band_coplanar) TODAY, so the hollow
+delivered at the public direct door with a
+red-the-day-props-lands row; work/issues/
+sphere-flux-arm-refuses-partial-bands.md filed. Dual claim to
+main at dispatch; parity per the draw line.
+## Ordinal 114 claimed — 1031B dual (2026-09-03)
+
+1031B delivered with NEITHER STOP firing: the port lands
+(run_term's expression verbatim, two argued divergences — the
+separate bulge pass that makes the Line-only path structurally
+skip the new code, and the closed-cycle chord replacement); the
+cup MERGES ((25,26,48)→(19,24,36), 4 annuli + 2 pole caps + 6
+PeriodClosure skips, tier-3 Ok, roles pinned observably,
+re-posed twin identical); the boolean-after-merge measured at
+the SAME curved-pierce substrate the lily re-measurement
+reached — the register's gate-admission deferral closes by
+citation. Adjudication findings recorded by the lane: the
+spec's 'fourth site' was off by one (three sites, already
+reconciled in-repo — reported not silently fixed); a REAL
+introduced divergence — tier-3 check 6 still skips arc loops,
+so roles are now assigned by a functional the validator cannot
+check (MUT-2: tier-3 GREEN on inverted annulus roles) —
+follow-up declared with schedule; the spec's group-count
+prediction wrong (six not eight — measured, recorded). The unit
+also weathered the account-wide Actions budget wall (11:52–
+15:45 UTC, re-measured on resume rather than assumed) and a
+529 outage death with clean recovery. Dual claim to main at
+dispatch; parity per the draw line (byte 208 ⇒ R1 OPUS + R2
+FABLE).

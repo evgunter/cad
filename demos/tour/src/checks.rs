@@ -28,12 +28,11 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    BooleanOp, CancelToken, ChecksConfig, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation,
-    Expr, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, Severity, apply,
+    BooleanOp, CancelToken, ChecksConfig, Datum, Dimension, DocEdit, DocumentId, EvalOptions,
+    Evaluation, Expr, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, Severity, apply,
     enforce_checks, evaluate, run_checks,
 };
-use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::profile::SketchPlane;
+use pncad::geom_core::Tol;
 
 /// Inserts a node and returns its minted id.
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
@@ -45,10 +44,16 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
 /// An extruded square: half-width `h` centered at `(cx, 0)` on the
 /// z = `z0` sketch plane, extruded `dz` up.
 fn slab(doc: &mut ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64, tol: Tol) -> RecipeNodeId {
-    let plane = SketchPlane::from_frame(
-        Point3::new(0.0, 0.0, z0),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
+    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
+    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+    let plane = insert(
+        doc,
+        Node::Datum(Datum::Frame {
+            origin: [len(0.0), len(0.0), len(z0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+        tol,
     );
     let corners = vec![(cx - h, -h), (cx + h, -h), (cx + h, h), (cx - h, h)];
     let profile = insert(

@@ -21,7 +21,7 @@ use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ReplaceFaceError};
 
-mod common;
+use crate::common;
 use common::approx::{prism, twisted_loft};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {

@@ -20,14 +20,22 @@
 //!   triangles, and [`Mesh::triangles`] is those same patches
 //!   concatenated in the fixed order the STL writers walk.
 //!
-//! What does NOT cross is the picking chain. `FacePatch::face`,
+//! What does NOT cross is the mesh's back-references. `FacePatch::face`,
 //! `BoundaryPolyline::edge` and the two vertex back-references are
 //! arena keys (`FaceKey`, `EdgeKey`, `VertexKey`), and keeping those
 //! unnameable is what the whole curation is for — so a patch is
 //! addressable by INDEX here and the per-edge boundary polylines,
 //! whose only content beside indices is those keys, are not bound at
-//! all. A door from a patch to a `StableName` would be the honest
-//! shape, and it does not exist on either side of the boundary.
+//! all.
+//!
+//! **The door from a patch to a `StableName` is the honest shape, and
+//! since LIB-B-PICKING it exists on both sides**: `NodePick`'s
+//! `patch_names` / `boundary_names` (`py/pick.rs`) answer one name per
+//! patch and per polyline, in mesh order, with the key never leaving
+//! the kernel. That is what makes a patch INDEX a usable handle rather
+//! than a dead end — it is the argument of `NodePick`, not of this
+//! module, because only a value that owns its pairing may invert a
+//! key at all.
 //!
 //! # δ is a `Length`
 //!

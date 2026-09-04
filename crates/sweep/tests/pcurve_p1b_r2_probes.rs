@@ -33,7 +33,7 @@ use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve};
 use topo::query;
 use topo::{Body, EdgeKey, FaceKey, ValidationError};
 
-mod common;
+use crate::common;
 use common::quad;
 
 fn band() -> Band {

@@ -133,7 +133,7 @@ def prism(label, width, depth, height):
                 (width * m, depth * m),
                 (0 * m, depth * m),
             ],
-            elevation=0 * m,
+            plane=doc.sketch_frame(elevation=0 * m),
         )
     )
     doc.insert(Node.extrude(profile, height * m))
@@ -433,7 +433,7 @@ class TestBenchStand(BenchWorkspace):
             profile = doc.insert(
                 Node.polygon(
                     [(x[0], y[0]), (x[1], y[0]), (x[1], y[1]), (x[0], y[1])],
-                    elevation=z[0],
+                    plane=doc.sketch_frame(elevation=z[0]),
                 )
             )
             return doc.insert(Node.extrude(profile, z[1] - z[0]))
@@ -647,7 +647,7 @@ class TestAssemblyRefusals(BenchWorkspace):
             product(doc, evaluate(doc))
         self.assertEqual(gather.exception.variant, "root_failed")
 
-    def test_a_moved_pin_refuses_and_carries_its_recourse_twice(self):
+    def test_a_moved_pin_refuses_and_carries_its_recourse_once_by_either_door(self):
         doc, post_i, _ = self.two_instances()
         # A part legitimately changes on disk. The assembly still pins
         # the old version and is never silently retargeted.
@@ -656,18 +656,21 @@ class TestAssemblyRefusals(BenchWorkspace):
         with self.assertRaises(pncad.EvaluationError) as caught:
             evaluate(doc, resolver=self.ws).value(post_i)
         self.assertEqual(caught.exception.kind, "part_pin_mismatch")
-        # GAP (#947): the recourse paragraph arrives TWICE across the
-        # seam — the store's own message ends on it and the resolver
-        # appends it again when it classifies the failure. ASSERTED so
-        # it goes red when fixed; ONE copy means it was, and this count
-        # must be flipped in that same change. The store's own door
-        # emits it once, which is the contrast that says where the
-        # second copy comes from.
-        self.assertEqual(
-            str(caught.exception).count(pncad.PIN_MISMATCH_RECOURSE), 2
-        )
         with self.assertRaises(pncad.WorkspaceError) as direct:
             self.ws.resolve(self.post_ref)
+        # There are two doors onto this one refusal — the evaluation,
+        # which reads the resolver's classified message, and the store,
+        # which reads its own `WorkspaceError` — and BOTH have to tell
+        # the author what to do about it. Both do, and each says it
+        # exactly once: the recourse is written in exactly one place,
+        # the store's own message, and the seam carries that message
+        # through unaltered rather than re-appending the paragraph
+        # (which is what it used to do, #947 — the count through the
+        # evaluation was 2 against the store's 1). Counting rather than
+        # `assertIn` is the point: `assertIn` passes on one copy and on
+        # five, and the failure this pins is a DUPLICATE, not an
+        # absence.
+        self.assertEqual(str(caught.exception).count(pncad.PIN_MISMATCH_RECOURSE), 1)
         self.assertEqual(str(direct.exception).count(pncad.PIN_MISMATCH_RECOURSE), 1)
 
 
@@ -862,7 +865,7 @@ class TestRefactorings(BenchWorkspace):
 
     def test_inline_of_a_node_that_is_not_an_instance_refuses(self):
         doc = Doc("plain")
-        profile = doc.insert(Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m)]))
+        profile = doc.insert(Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m)], plane=doc.sketch_frame()))
         body = doc.insert(Node.extrude(profile, 1 * m))
         with self.assertRaises(pncad.InlineError) as caught:
             pncad.inline(doc, body, self.ws)

@@ -2729,6 +2729,7 @@ dependencies = [
  "pyo3",
  "quantity",
  "serde_json",
+ "test-utils",
 ]
 
 [[package]]

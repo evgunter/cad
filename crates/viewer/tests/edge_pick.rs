@@ -22,7 +22,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use pncad::document::{Evaluation, Frame, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};

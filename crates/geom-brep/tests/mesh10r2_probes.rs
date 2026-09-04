@@ -13,32 +13,23 @@
     clippy::print_stdout
 )]
 
+use crate::shared::surf;
+use crate::shared::tol::band;
+use crate::shared::topo;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{CarrierId, LoopEdge, PropsError, curved_face, require_iso_rectangle};
-use geom_core::Tol;
-use geom_core::{Band, Point3, Vec3};
 
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 const RR: f64 = 0.020;
 const R0: f64 = 0.005;
 fn torus() -> Surface<f64> {
-    Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
-        axis: v3(0.0, 0.0, 1.0),
-        major_radius: RR,
-        minor_radius: R0,
-        u_ref: v3(1.0, 0.0, 0.0),
-    }
+    surf::torus(RR, R0)
 }
+/// **Deliberately not `shared::topo::edge`.** Stamping a carrier id is
+/// this suite's whole subject, and `LoopEdge::hand_built` mints none —
+/// so this one builds the struct itself and takes the id as an
+/// argument. The interval ordering below is the shared builder's, and
+/// deliberately identical to it.
 fn edge(
     carrier: Curve3<f64>,
     a: f64,
@@ -59,39 +50,18 @@ fn edge(
     }
 }
 fn trim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
-    edge(
-        Curve3::Circle {
-            center: p3(0.0, 0.0, R0 * v.sin()),
-            axis: v3(0.0, 0.0, 1.0),
-            radius: RR + R0 * v.cos(),
-            u_ref: v3(1.0, 0.0, 0.0),
-        },
-        u0,
-        u1,
-        a,
-        b,
-        None,
-    )
+    edge(topo::torus_rim_circle(RR, R0, v), u0, u1, a, b, None)
 }
 fn tmer(u: f64, v0: f64, v1: f64, a: u32, b: u32, id: Option<u64>) -> LoopEdge<f64> {
-    edge(
-        Curve3::Circle {
-            center: p3(RR * u.cos(), RR * u.sin(), 0.0),
-            axis: v3(u.sin(), -u.cos(), 0.0),
-            radius: R0,
-            u_ref: v3(u.cos(), u.sin(), 0.0),
-        },
-        v0,
-        v1,
-        a,
-        b,
-        id,
-    )
+    edge(topo::torus_meridian_circle(RR, R0, u), v0, v1, a, b, id)
 }
 const V0: f64 = 0.2;
 const V1: f64 = 1.2;
 const U0: f64 = -1.0;
 const U1: f64 = 1.0;
+/// **Deliberately not shared**, for R1's reason above — and this one
+/// cannot be shared anyway: its `tmer` takes the carrier id through,
+/// which is R2's whole subject.
 fn control() -> Vec<LoopEdge<f64>> {
     vec![
         trim(V0, U0, U1, 0, 1),

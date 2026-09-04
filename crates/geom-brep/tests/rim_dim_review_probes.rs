@@ -28,20 +28,13 @@
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::point::{p3 as p, v3};
+use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::props::{LoopEdge, curved_face};
 use geom_core::Tol;
 use geom_core::k_stats::Probe;
-use geom_core::{Band, Point3, Vec3};
-
-fn p(x: f64, y: f64, z: f64) -> Point3<Probe> {
-    Point3::new(Probe(x), Probe(y), Probe(z))
-}
-
-fn v3(x: f64, y: f64, z: f64) -> Vec3<Probe> {
-    Vec3::new(Probe(x), Probe(y), Probe(z))
-}
 
 /// Cylinder wall patch u ∈ [0, π/2], v ∈ [0, h]: bottom rim one arc
 /// at v = 0, TOP rim split into two arcs at v = h and v = h + delta.
@@ -97,12 +90,7 @@ fn split_rim_patch(r: f64, h: f64, delta: f64) -> (Surface<Probe>, Vec<LoopEdge<
 fn small_body_rims_50eps_apart_refuse() {
     let eps = geom_core::Tol::witness().get().eps;
     let (surface, edges) = split_rim_patch(1e-4, 1e-3, 50.0 * eps);
-    let got = curved_face(
-        &surface,
-        &edges,
-        Probe(1.0),
-        Band::linear(Tol::witness()).unwrap(),
-    );
+    let got = curved_face(&surface, &edges, Probe(1.0), band());
     assert!(
         got.is_err(),
         "50eps-separated split rim must NOT silently group (pre-fix the area \
@@ -116,12 +104,7 @@ fn small_body_rims_50eps_apart_refuse() {
 fn large_body_rims_half_eps_apart_compute() {
     let eps = geom_core::Tol::witness().get().eps;
     let (surface, edges) = split_rim_patch(1e3, 1e4, 0.5 * eps);
-    let got = curved_face(
-        &surface,
-        &edges,
-        Probe(1.0),
-        Band::linear(Tol::witness()).unwrap(),
-    );
+    let got = curved_face(&surface, &edges, Probe(1.0), band());
     assert!(
         got.is_ok(),
         "0.5eps-separated split rim is coincident at tolerance; pre-fix the \

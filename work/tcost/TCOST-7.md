@@ -2,8 +2,11 @@
 id: TCOST-7
 kind: unit
 title: geom-brep test-helper dedup: six quarter_cylinder spellings, four drives, three dense oracles
-status: open
+status: closed
 opened: 2026-09-03
+pr: 1635
+branch: tcost/7-geom-brep-test-helpers
+closed: 2026-09-03
 ---
 
 Cut at batch style review 1 (`log.md`): `crates/geom-brep/tests/`

@@ -19,7 +19,7 @@
     clippy::float_cmp
 )]
 
-mod common;
+use crate::common;
 use common::*;
 use geom::Curve3;
 use geom_core::Tol;

@@ -14,7 +14,7 @@
 //! # Where a colour comes from
 //!
 //! Two sources, with the precedence between them ratified in
-//! `docs/GUI-DESIGN.md`:
+//! `crates/viewer/README.md`:
 //!
 //! - **The theme — a USER preference.** It supplies every semantic
 //!   mark (selection, hover, probe, focus, unresolved) and the

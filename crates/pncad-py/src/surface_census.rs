@@ -382,15 +382,18 @@ fn verb_spelling(verb: Verb) -> Spelling {
         Verb::Line => Bound(&["PathDirected.line"]),
         Verb::LineTo => Bound(&["PathPoint.line_to", "PathDirectedPoint.line_to"]),
         // The declared point-target continuation reaches the Rust
-        // authoring algebra and stops there: binding a verb in Python
-        // is its own surface work (the stub, its typing, and the
-        // binding suite), and the unit that added this one does not
-        // own that surface. Recorded here as ABSENT rather than left
-        // to be discovered — which is what this arm is for.
+        // authoring algebra and, since the seam's declared arrival
+        // landed, the DOCUMENT and PERSISTED vocabularies too. What it
+        // still does not reach is Python: binding a verb there is its
+        // own surface work (the stub, its typing, and the binding
+        // suite), which no unit so far has owned. Recorded here as
+        // ABSENT rather than left to be discovered — which is what this
+        // arm is for, and `the_not_bound_roster_decays` is what stops
+        // the reason outliving the fact.
         Verb::ContinueTo => Spelling::NotBound {
             would_be: &["PathDirectedPoint.continue_to"],
-            reason: "the Rust authoring algebra gained the verb; the Python surface is bound \
-                     by its own units and has not caught up",
+            reason: "the Rust algebra and the document vocabulary both spell it; the Python \
+                     surface is bound by its own units and has not caught up",
         },
         Verb::ArcTo => Bound(&[
             "PathPoint.arc_to",
