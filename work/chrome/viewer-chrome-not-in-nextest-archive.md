@@ -54,13 +54,50 @@ the existing house convention rather than a second one.
 `chrome_labels` and a guard already enforces that. The invisibility
 was purely the `#![cfg(feature = "app")]` inner attribute.
 
-**Sweep**: 78 file-level feature-gated suites across the workspace, of
-which 5 carried a loud-skip marker. The 3 viewer hits are fixed; the
-other 75 are not this unit's — their features (`interval`, `probe`,
-`budget`) each have a CI lane that builds them, so those suites gate
-somewhere and their default-lane absence is a designed asymmetry.
-`app` was the only feature that gated nowhere. **What the pattern
-could not match**: content made absent by a manifest
-`required-features` rather than a source `cfg` (this crate's
-`[[bin]] viewer` is exactly that), `cfg(all(..))`/`cfg(any(..))`
-spellings, and a gated `mod` inside an ungated file.
+**Sweep**: `git grep -lE '^#!\[cfg\(' -- '*/tests/*.rs'` at merge base
+`2f11071` finds 87 file-level gated suites — `interval` 66, `probe` 15,
+`all(feature = "probe", feature = "interval")` 1
+(`crates/editor-core/tests/m10_3_driver_k_probe_interval.rs:49`),
+`budget` 2, `oracle-inari` 2, `app` 1. 85 of those are under
+`crates/*/tests/`; the two `oracle-inari` suites are
+`interval-transcendentals/tests/`. The 3 viewer hits are fixed. The
+other 84 are not this unit's, and the reason has to be EXECUTION and
+not compilation, because "it builds somewhere" is precisely what this
+unit denies is coverage (`ci.yml` ~3532: `--all-targets` type-checks a
+test target and runs none of it). Per feature, from `ci.yml`:
+
+- `interval` (67, counting the `all(..)` suite) — RUN. `cargo nextest
+  run --archive-file nextest-interval.tar.zst` (`ci.yml:2888`) executes
+  the interval archive. Only on the `interval` draw of the LANE axis,
+  1 of 2 per run; the default lane compiles them and stops (`cargo test
+  --no-run --workspace --features interval`, `ci.yml:1940`).
+- `probe` (16, counting the same `all(..)` suite) — RUN.
+  `scripts/k_probe_sweep.sh` (`ci.yml:3972`) invokes each rostered
+  suite under `--test all`, and `scripts/gates/probe-suite-census.sh
+  --check-executed` floors what it ran; all 16 are rostered in that
+  script's `RUN_FLOOR`. Only on the `dev-probe` draw of the
+  `klint_row` axis, 1 of 5.
+- `budget` (2, both `crates/mesh`) — RUN, `cargo test -p mesh
+  --features budget` (`ci.yml:3769`). Only on the `dev-budget` draw,
+  1 of 5.
+- `oracle-inari` (2) — RUN, `cargo test --release --features
+  oracle-inari` (`ci.yml:3135`), but the `oracle-certify` job fires
+  only for a non-`push` event whose diff touches
+  `interval-transcendentals/` (`RUN_INTERVAL_ORACLE`,
+  `scripts/ci-filter.py:1725`). A diff elsewhere never executes them.
+
+`app` was the only feature whose suites executed under no draw at all.
+
+The 5 suites carrying a loud-skip marker before this unit are disjoint
+from the 87, and necessarily: a file-level `#![cfg(feature = …)]`
+compiles the marker out with everything else, so a marker can only sit
+in a file gated per-item.
+
+**What the pattern could not match**: content made absent by a manifest
+`required-features` rather than a source `cfg` (this crate's `[[bin]]
+viewer` is exactly that); an item-level `#[cfg]` inside an ungated file
+(`crates/topo/tests/review_m3_pr2.rs` and
+`crates/geom-core/tests/k_stats_doors.rs` gate that way, and are absent
+from the 87); a feature-gated `#[cfg(test)] mod` inside `src/` (the
+shape of two of the three viewer hits); and an inner attribute not at
+column 0.
