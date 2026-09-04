@@ -676,6 +676,16 @@ impl MateFault {
         }
     }
 
+    /// The lever behind the clash, when it was carried from a
+    /// disagreement rather than measured as a length.
+    #[getter]
+    fn lever(&self) -> Option<ClashLever> {
+        match &self.0 {
+            d::MateFault::Contradictory { lever, .. } => lever.map(ClashLever),
+            _ => None,
+        }
+    }
+
     /// What the coset table was asked for, in its own words.
     #[getter]
     fn what(&self) -> Option<&'static str> {
@@ -722,6 +732,42 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault) -> PyErr {
 
 /// The document's solved poses: each instance's pose relative to its
 /// cluster gauge, each mate's role, and the per-node refusals.
+/// The lever behind a contradiction's clash, when the predicate
+/// measured a DISAGREEMENT and an arm carried it to a point deviation.
+///
+/// The metre figure a `MateFault` reports is `disagreement * arm`
+/// exactly, so a caller that wants the angle back reads it here rather
+/// than dividing: a clash printed alone is a number nobody can
+/// re-derive. Absent (`MateFault.lever` is `None`) when the predicate
+/// measured a length outright.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct ClashLever(d::ClashLever);
+
+#[pymethods]
+impl ClashLever {
+    /// What the predicate measured before the arm carried it, in
+    /// `unit`.
+    #[getter]
+    fn disagreement(&self) -> f64 {
+        self.0.disagreement
+    }
+
+    /// `disagreement`'s unit: `rad` for an authored angle, empty for a
+    /// pure number (a sine, a rotation's departure from the identity).
+    #[getter]
+    fn unit(&self) -> &'static str {
+        self.0.unit
+    }
+
+    /// The lever arm — the length that turns the disagreement into the
+    /// deviation the predicate decided on.
+    #[getter]
+    fn arm(&self) -> Length {
+        Length(pncad::quantity::Length::from_meters(self.0.arm))
+    }
+}
+
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct SolvedPoses(d::SolvedPoses);
 
@@ -976,6 +1022,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MateSide>()?;
     m.add_class::<MateRole>()?;
     m.add_class::<Subgroup>()?;
+    m.add_class::<ClashLever>()?;
     m.add_class::<MateFault>()?;
     m.add_class::<SolvedPoses>()?;
     m.add_class::<ClassAdmission>()?;
