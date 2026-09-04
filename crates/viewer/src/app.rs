@@ -43,7 +43,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use editor_core::appearance::Rgba8;
 use eframe::egui;
-use egui_tiles::{EditAction, Tile, TileId, Tiles, Tree, UiResponse};
+use egui_tiles::{ContainerKind, EditAction, Tile, TileId, Tiles, Tree, UiResponse};
 use pncad::document::{
     Axis3, BooleanOp, Dimension, DimensionError, DocumentId, Expr, LoopProgram, ParamName,
     ProductError, RecipeNodeId, SlotId,
@@ -117,6 +117,34 @@ const UNTITLED: &str = "untitled";
 /// properties — the document's model, as against the View pane's
 /// display settings.
 const MODEL_TAB_TITLE: &str = "Model";
+
+/// A container's tab title, in words.
+///
+/// A tab title is prose a person reads, so the layout vocabulary is
+/// spelled here rather than taken from `ContainerKind`'s `Debug`. The
+/// match is exhaustive over a foreign enum on purpose: a kind added
+/// upstream breaks this build instead of quietly reaching a user as a
+/// type identifier, which is the guarantee `Debug` cannot give whether
+/// or not the new kind carries a field.
+fn container_kind_title(kind: ContainerKind) -> &'static str {
+    match kind {
+        ContainerKind::Tabs => "Tabs",
+        ContainerKind::Horizontal => "Columns",
+        ContainerKind::Vertical => "Rows",
+        ContainerKind::Grid => "Grid",
+    }
+}
+
+/// The status line for a referent the resolution machinery cannot
+/// place right now.
+///
+/// The cause is rendered through its OWN `Display`: the layer that
+/// raised the indeterminacy names it, and this one contributes only
+/// the noun it is talking about. Named rather than composed inside the
+/// render pass so the wording has one home and can be asserted on.
+pub fn indeterminate_wording(noun: &str, cause: &editor_core::ResolveIndeterminate) -> String {
+    format!("this {noun} cannot be resolved right now: {cause}")
+}
 
 /// The most of the Features/Properties stack the feature tree is
 /// auto-given: past this, the tree scrolls in its own half rather than
@@ -2283,7 +2311,7 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
         }
         match tiles.get(tile_id) {
             Some(Tile::Pane(pane)) => self.tab_title_for_pane(pane),
-            Some(Tile::Container(container)) => format!("{:?}", container.kind()).into(),
+            Some(Tile::Container(container)) => container_kind_title(container.kind()).into(),
             None => "MISSING TILE".into(),
         }
     }
@@ -3058,7 +3086,7 @@ impl ViewerBehavior<'_> {
             Some(pncad::select::Resolution::Indeterminate(cause)) => {
                 ui.colored_label(
                     chrome(self.theme.unresolved),
-                    format!("this {noun} cannot be resolved right now: {cause:?}"),
+                    indeterminate_wording(noun, cause),
                 );
             }
         }
@@ -5439,8 +5467,11 @@ pub enum WebStartupError {
     /// refusals the native build reports to a terminal.
     Startup(StartupError),
     /// `eframe`'s own web runner refused, with whatever the browser
-    /// said. The one arm that cannot be typed further: it is a
-    /// `JsValue` from the platform, rendered through its `Debug`.
+    /// said. The one arm on this crate's surface that cannot forward
+    /// to its payload's own words: the platform hands back a
+    /// `JsValue`, which implements no `Display`, and the orphan rule
+    /// puts writing one out of this crate's reach. The captured text
+    /// is therefore a `Debug` rendering, taken at the seam.
     Runner(String),
 }
 
@@ -5518,5 +5549,11 @@ pub async fn run_web(tol: Tol, canvas_id: &str) -> Result<(), WebStartupError> {
             }),
         )
         .await
+        // The one payload on this crate's surface that CANNOT forward:
+        // `JsValue` is `wasm-bindgen`'s, it implements no `Display`,
+        // and the orphan rule forecloses writing one here. `Debug` is
+        // the honest rendering — `as_string()` is not the alternative,
+        // because it answers `None` for every non-string `JsValue` and
+        // would drop the browser's message entirely.
         .map_err(|error| WebStartupError::Runner(format!("{error:?}")))
 }
