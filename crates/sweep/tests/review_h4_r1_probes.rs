@@ -89,7 +89,10 @@ fn the_waist_arm_rests_the_ball_on_the_void_side_at_the_hand_value() {
         ..
     } = link.blend.surface
     else {
-        panic!("the coaxial arm mints a torus, got {:?}", link.blend.surface)
+        panic!(
+            "the coaxial arm mints a torus, got {:?}",
+            link.blend.surface
+        )
     };
     assert_eq!(
         major_radius, want_spine,
@@ -236,7 +239,10 @@ fn a_dropped_edge_retirement_is_invisible_to_naming_totality() {
     let arcs = rim_arcs_at(&source, 0.5, 0.5);
     let out = fillet_edges(&source, &arcs, WAIST_R, tol())
         .unwrap_or_else(|e| panic!("the waist carves, got {e:?}"));
-    let rec = out.naming.as_ref().expect("the rim phase records its births");
+    let rec = out
+        .naming
+        .as_ref()
+        .expect("the rim phase records its births");
 
     let mut vanished: Vec<EdgeKey> = source
         .edges()
