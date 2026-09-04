@@ -84,6 +84,8 @@ use geom::Curve3;
 use geom::Surface;
 use geom_core::{Point3, Real, Vec3};
 
+use super::battery::Convexity;
+
 /// A blend surface with its spine and its per-support trimlines —
 /// the complete analytic answer for one link of a chain.
 #[derive(Clone, Debug)]
@@ -272,9 +274,9 @@ fn perp_unit<T: Real>(x: Vec3<T>, a: Vec3<T>) -> Vec3<T> {
 /// `r·tan(φ/2)` for the outward-normal angle φ) — derived here once
 /// and consumed by predicate 2.
 ///
-/// `convex` picks the side: on a concave chain the ball rolls on the
-/// far side of both supports, which is the same formula with `r`
-/// negated.
+/// `convexity` picks the side through [`Convexity::signed`]: on a
+/// concave chain the ball rolls on the far side of both supports, which
+/// is the same formula with `r` negated.
 #[must_use]
 pub fn plane_plane_blend<T: Real>(
     p: Point3<T>,
@@ -282,9 +284,9 @@ pub fn plane_plane_blend<T: Real>(
     n_a: Vec3<T>,
     n_b: Vec3<T>,
     radius: T,
-    convex: bool,
+    convexity: Convexity,
 ) -> EdgeBlend<T> {
-    let signed = if convex { radius } else { -radius };
+    let signed = convexity.signed(radius);
     let d = n_a.dot(n_b);
     let one = T::one();
     let center = p - (n_a + n_b) * (signed / (one + d));
@@ -325,11 +327,11 @@ pub fn plane_plane_blend<T: Real>(
 /// side of both supports the chain's stored convexity verdict picks
 /// (S10/S11): the material side of each on a CONVEX chain, the void
 /// side of each on a CONCAVE one, where the ball rolls in the void.
-/// That is ONE fold, `signed = ±r`, the same sign [`plane_plane_blend`]
-/// spells as its `signed` and [`corner_ball`] as its rest depth, and
-/// the sign the shared sheet reduction folds into each trace's side
-/// (`battery::curved_arm`); the four are cross-cited at
-/// `surgery::corner_plan` so none drifts alone. Which side of the
+/// That is ONE fold, [`Convexity::signed`] (`±r`), homed on the verdict
+/// type and shared with [`plane_plane_blend`], `surgery::corner_plan`
+/// and — as the side bit [`Convexity::ball_side`] — the shared sheet
+/// reduction (`battery::curved_arm`); [`corner_ball`] alone spells its
+/// NEGATIVE, the rest depth. Which side of the
 /// SPHERE its material is on is the pair's own second configuration
 /// and is read from the sphere face's stored sense bit, never from a
 /// normal: a sphere's chart normal is the outward radial
@@ -347,15 +349,20 @@ pub fn plane_plane_blend<T: Real>(
 /// - both trimlines are circles coaxial with the spine: radius `s` on
 ///   the plane (at `spine_center + n·signed`, which is the plane) and
 ///   `R·s/offset` on the sphere;
-/// - the plane's setback is `|s − a|` for the rim radius `a`, and its
-///   SIGN is the agreement bit above: where the offset is `R + r` the
+/// - the plane's setback is `|s − a|` for the rim radius `a`, spelled
+///   by the agreement bit above: where the offset is `R + r` the
 ///   blend widens the plane's boundary (`s > a` — a pip's blend eats
 ///   into the flat face rather than into the pocket; a boss's rests
 ///   outside its footprint), where it is `R − r` it shrinks it.
 ///
 /// **The setback convention, stated once, HERE, because this is where
-/// the two spellings diverge.** This arm returns a SIGNED setback on the
-/// plane; the shared sheet reduction ([`Meridian::blend`],
+/// the two spellings diverge.** This arm spells the plane's setback by
+/// case — `a − s` on the inner offset, `s − a` on the outer — which is
+/// the POSITIVE displacement in every quadrant (the sign of `s − a` is
+/// the agreement bit itself, so a wrong fold reads as a NEGATIVE length,
+/// which predicate 2 would turn into a wider margin;
+/// `review_h4_r1_probes::the_plane_sphere_fold_is_an_xnor_in_all_four_quadrants`
+/// pins the value in all four); the shared sheet reduction ([`Meridian::blend`],
 /// [`Ruling::blend`]) returns the unsigned Euclidean displacement of the
 /// trimline from the rim, on both supports. Predicate 2 consumes them
 /// identically, as `gap − setback − setback`, so the unsigned form is
@@ -390,17 +397,20 @@ pub fn plane_sphere_blend<T: Real>(
     sphere_r: T,
     radius: T,
     sphere_convex: bool,
-    convex: bool,
+    convexity: Convexity,
 ) -> EdgeBlend<T> {
-    // The one fold (function docs): the ball is `r` INTO the plane's
-    // material on a convex chain and `r` out of it on a concave one.
-    let signed = if convex { radius } else { -radius };
+    // The one fold (`Convexity::signed`): the ball is `r` INTO the
+    // plane's material on a convex chain and `r` out of it on a concave
+    // one.
+    let signed = convexity.signed(radius);
     let depth = (sphere_c - origin).dot(n);
     let h = depth + signed;
-    // The offset sphere the ball centre rides, selected STRUCTURALLY:
-    // inside the sphere's material exactly when its sense agrees with
-    // the chain's convexity.
-    let offset = if sphere_convex == convex {
+    // The same fold read against the sphere's stored sense: the ball
+    // rests on the sphere's MATERIAL side — inside it — exactly when
+    // that sense agrees with the chain's convexity.
+    let inside = convexity.ball_side(sphere_convex);
+    // The offset sphere the ball centre rides, selected STRUCTURALLY.
+    let offset = if inside {
         sphere_r - radius
     } else {
         sphere_r + radius
@@ -444,11 +454,12 @@ pub fn plane_sphere_blend<T: Real>(
                 radius: s,
                 u_ref,
             },
-            if sphere_convex == convex {
-                rim - s
-            } else {
-                s - rim
-            },
+            // The plane's setback: the POSITIVE displacement of the
+            // trimline from the rim in every quadrant (`s < rim` on the
+            // inner offset, `s > rim` on the outer — function docs),
+            // spelled by the bit rather than as `|s − rim|` so a wrong
+            // fold reads as a negative length instead of hiding.
+            if inside { rim - s } else { s - rim },
         ),
         trim_b: (
             Curve3::Circle {
@@ -934,14 +945,15 @@ pub fn corner_ball<T: Real>(
     verts: [Point3<T>; 3],
     normals: [Vec3<T>; 3],
     radius: T,
-    convex: bool,
+    convexity: Convexity,
 ) -> CornerBall<T> {
     let [n1, n2, n3] = normals;
-    // The rest DEPTH: the NEGATIVE of the foot-displacement fold its
-    // consumers spell (`corner_plan`'s `toward`, `plane_plane_blend`'s
-    // `signed`) — a foot displaces opposite the depth by definition
-    // of tangency. Cross-cited at those sites.
-    let signed = if convex { -radius } else { radius };
+    // The rest DEPTH: the NEGATIVE of the one fold, `Convexity::signed`,
+    // which every consumer spells as a FOOT displacement
+    // (`corner_plan`'s `toward`, `plane_plane_blend`'s `signed`) — a foot
+    // displaces opposite the depth by definition of tangency. The one
+    // place the fold must stay a negation; `corner_plan` cites it.
+    let signed = -convexity.signed(radius);
     // Right-hand sides: c·n_i = p_i·n_i + signed.
     let rhs = [
         Vec3::new(verts[0].x, verts[0].y, verts[0].z).dot(n1) + signed,

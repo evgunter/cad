@@ -57,7 +57,7 @@ use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE};
-use sweep::test_support::{revolved_about_y, rim_arcs_at, waisted};
+use sweep::test_support::{assert_promises_either_side, revolved_about_y, rim_arcs_at, waisted};
 use topo::{Body, EdgeKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -580,14 +580,9 @@ fn the_waisted_bodys_convex_rims_carve_so_its_concave_row_is_not_vacuous() {
 #[test]
 fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
     let source = waisted(tol());
-    // The sentence conditions on nothing. Spelled against the constant
-    // so the assertion names what a hedge WOULD be, not a substring of
-    // one phrasing of it.
-    assert!(
-        FILLET3_SEAM_VERTEX_RECOURSE.contains("either material side")
-            && !FILLET3_SEAM_VERTEX_RECOURSE.contains("CONVEX"),
-        "the carve half is promised on both sides: {FILLET3_SEAM_VERTEX_RECOURSE}"
-    );
+    // The sentence conditions on nothing — the one home of that pin
+    // names what a hedge WOULD be, not a substring of one phrasing.
+    assert_promises_either_side(FILLET3_SEAM_VERTEX_RECOURSE);
     let v0 = volume(&source);
 
     for (name, rim_r, rim_y, convex) in [

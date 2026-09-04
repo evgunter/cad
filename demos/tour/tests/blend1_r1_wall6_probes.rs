@@ -196,11 +196,15 @@ fn t4_one_mouth_arc_gets_the_recourse_whose_request_carves() {
         }
         other => panic!("one mouth arc refuses SeamVertex, got {other:?}"),
     }
-    // And the sentence it carries promises this rim the carve t3 takes,
-    // on either material side — no hedge left in it.
+    // And the sentence it carries names the request t3 EXECUTES — the
+    // rim whole — and promises it on either material side. The
+    // hedge-shape pin has one home, `sweep::test_support::assert_promises_either_side`,
+    // which the tour (a consumer, outside the kernel's test-support
+    // door) does not reach; what the tour pins is that the sentence is
+    // followed here: t3 is the whole-rim request, and it carves.
     let shown = pncad::sweep::blend::FILLET3_SEAM_VERTEX_RECOURSE;
     assert!(
-        shown.contains("either material side") && !shown.contains("CONVEX"),
-        "the carve half conditions on nothing: {shown}"
+        shown.contains("rim whole") && shown.contains("either material side"),
+        "the sentence names the whole-rim request t3 takes, on both sides: {shown}"
     );
 }

@@ -33,7 +33,9 @@ use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE};
-use sweep::test_support::{cube, revolved_about_y, rim_arcs_at, waisted};
+use sweep::test_support::{
+    assert_promises_either_side, cube, revolved_about_y, rim_arcs_at, waisted,
+};
 use topo::{Body, EdgeKey, FaceKey, SurfaceKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -142,12 +144,11 @@ fn p1_the_seam_vertex_tag_fires_without_reading_convexity() {
         }
     }
     // So the sentence the tag carries has to hold on both sides, and it
-    // does: the one door it names serves both configurations.
-    assert!(
-        FILLET3_SEAM_VERTEX_RECOURSE.contains("either material side")
-            && !FILLET3_SEAM_VERTEX_RECOURSE.contains("CONVEX"),
-        "the carve half conditions on nothing: {FILLET3_SEAM_VERTEX_RECOURSE}"
-    );
+    // does: the one door it names serves both configurations. The
+    // positive half (the promise names both sides) and the negative half
+    // (no hedge shape — the clause this row once pinned the ABSENCE of,
+    // and every spelling a re-conditioning would take) live in one home.
+    assert_promises_either_side(FILLET3_SEAM_VERTEX_RECOURSE);
 }
 
 // ------------------------------------------------------------------

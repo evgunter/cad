@@ -24,7 +24,8 @@
 //!   plane, two ring-free half-caps) — the concave twin of the die's pip,
 //!   whose spherical-cap fill is a washer integral in closed form and is
 //!   the pip's own cut with its sign flipped.
-//! - **Naming totality** on the concave band, in both directions.
+//! - **Naming totality** on the concave band, in all three directions,
+//!   through the walk every totality row shares.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -33,11 +34,11 @@ use core::f64::consts::PI;
 use geom::{Curve3, Surface};
 use geom_core::{Tol, Vec3};
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{ball_poled_z, cube, rim_arcs_at, waisted};
-use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{
-    Body, BooleanDeclarations, EdgeKey, FaceKey, VertexKey, mass_properties, validate_geometric,
+use sweep::test_support::{
+    assert_naming_totality, ball_poled_z, cube, faces_around, rim_arcs_at, waist_fill, waisted,
 };
+use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
+use topo::{Body, BooleanDeclarations, EdgeKey, FaceKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -83,41 +84,8 @@ fn assert_delta(before: (usize, usize, usize), after: (usize, usize, usize), wha
 // The waist: the annulus door, material added.
 // ------------------------------------------------------------------
 
-/// **The waist's material-adding fill, by Pappus** — nothing of the
-/// kernel enters.
-///
-/// In the meridian half-plane `(x, y)` the waist vertex is
-/// `V = (x_v, y_v) = (0.5, 0.5)`, where the lower generator (from
-/// `(1, 0)`, direction `(−1, 1)/√2`) meets the upper one (to `(1, 1)`,
-/// direction `(1, 1)/√2`). The material is on the axis side, so the
-/// VOID wedge at `V` opens toward `+x` between the two generators and
-/// is `90°`; the rim is concave. The rolling ball of radius `r` rests in
-/// that void, tangent to both generators: its centre is on the wedge's
-/// bisector (the `+x` ray from `V`) at distance `r/sin 45° = r√2`, so
-/// `C = (x_v + r√2, y_v)`, and its feet are `r` from `V` along each
-/// generator, `F± = (x_v + r/√2, y_v ± r/√2)`.
-///
-/// The fill region is the curvilinear triangle `V, F−, F+` bounded by
-/// the two generators and the fillet arc — the kite `V F− C F+` minus
-/// the circular sector at `C` between the feet. The kite is two right
-/// triangles of legs `r, r`, area `r²`; the sector's angle is
-/// `π − π/2 = π/2`, area `πr²/4`; so the fill's area is `r²(1 − π/4)`.
-///
-/// Its first moment about the axis, `∫ x dA`:
-/// - the kite is symmetric about `y = y_v` and each of its two
-///   triangles has centroid `x = x_v + r/√2` (the mean of `x_v`,
-///   `x_v + r/√2` and `x_v + r√2`), so `∫_kite x dA = r²(x_v + r/√2)`;
-/// - the sector's centroid lies `4√2 r/(3π)` from `C` toward `V`
-///   (`2R sin θ / 3θ` at half-angle `θ = π/4`), so
-///   `∫_sector x dA = (πr²/4)(x_v + r√2) − √2 r³/3`.
-///
-/// Subtracting and collecting,
-/// `∫_fill x dA = x_v r²(1 − π/4) + √2 r³(5/6 − π/4)`, and Pappus gives
-/// `ΔV = 2π ∫_fill x dA`. Both brackets are positive, as the fill lies
-/// on the `+x` side of `V`.
-fn waist_fill(x_v: f64, r: f64) -> f64 {
-    2.0 * PI * (x_v * r * r * (1.0 - PI / 4.0) + 2f64.sqrt() * r.powi(3) * (5.0 / 6.0 - PI / 4.0))
-}
+// The waist's Pappus fill is derived, once, at `test_support::waist_fill`;
+// this row and the interval twin both read it.
 
 const WAIST_R: f64 = 0.05;
 
@@ -350,12 +318,38 @@ fn the_boss_carves_a_concave_ladder_band_and_adds_the_cap_fill() {
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name}: tier-3 valid, got {e:?}"));
         assert_delta(census(body), census(&out.body), name);
-        // The ladder's signature: the top face keeps its key and its one
-        // ring, and that ring is now the (wider) trim circle.
+        // The ladder's signature, PROVED off the body rather than inferred
+        // from the widening: the band's neighbours are exactly one plane
+        // face — the top, its key kept, its one ring now the (wider) trim
+        // circle — and two ring-free half-caps.
         let trim_r = ring_radius(&out.body, top);
         assert!(
             trim_r > rim_r,
             "{name}: the plane's hole widens from the rim ({rim_r}) to the trim ({trim_r})"
+        );
+        let around = faces_around(&out.body, out.band_faces[0]);
+        let (mut planes, mut spheres) = (0, 0);
+        for f in &around {
+            let fd = out.body.get_face(*f).unwrap();
+            match out.body.get_surface(fd.surface) {
+                Some(Surface::Plane { .. }) => {
+                    planes += 1;
+                    assert_eq!(*f, top, "{name}: the plane beside the band is the top face");
+                    assert_eq!(fd.rings.len(), 1, "{name}: the top face keeps one ring");
+                }
+                Some(Surface::Sphere { .. }) => {
+                    spheres += 1;
+                    assert!(fd.rings.is_empty(), "{name}: a half-cap is ring-free");
+                }
+                other => panic!(
+                    "{name}: a ladder band's neighbour is the plane or the cap, got {other:?}"
+                ),
+            }
+        }
+        assert_eq!(
+            (planes, spheres),
+            (1, 2),
+            "{name}: the LADDER — one plane, two half-caps"
         );
         let v1 = volume(&out.body);
         if concave {
@@ -389,67 +383,21 @@ fn the_boss_carves_a_concave_ladder_band_and_adds_the_cap_fill() {
 // Naming totality on a concave band.
 // ------------------------------------------------------------------
 
-/// **Every output entity of the concave band is a recorded mint or a
-/// survivor, and every retirement names a SOURCE key** — the same shape
-/// `blend_seam_split_rim::a_seam_split_band_records_every_birth_and_every_death`
-/// pins on a convex band, on the waist. The naming rows do not read the
-/// material side, and this is where that is checked rather than said.
+/// **Naming totality on the concave band, in all three directions** —
+/// the shared walk (`test_support::assert_naming_totality`: every output
+/// entity minted or a survivor, every retirement a source key that did
+/// not survive, every vanished source entity a recorded retirement, the
+/// band row naming the requested arcs) plus this fixture's own counts.
+/// The naming rows do not read the material side, and this is where
+/// that is checked rather than said.
 #[test]
 fn a_concave_band_records_every_birth_and_every_death() {
     let source = waisted(tol());
     let arcs = rim_arcs_at(&source, 0.5, 0.5);
     let out = fillet_edges(&source, &arcs, WAIST_R, tol())
         .unwrap_or_else(|e| panic!("the waist carves, got {e:?}"));
-    let rec = out
-        .naming
-        .as_ref()
-        .expect("the rim phase records its births");
-
-    let minted_edges: Vec<EdgeKey> = rec
-        .rim_trims
-        .iter()
-        .map(|(e, _, _)| *e)
-        .chain(rec.meridian_remnants.iter().map(|(e, _)| *e))
-        .chain(rec.slits.iter().map(|(e, _)| *e))
-        .collect();
-    for (k, _) in out.body.edges() {
-        assert!(
-            minted_edges.contains(&k) || source.get_edge(k).is_some(),
-            "output edge {k:?} is neither minted nor a survivor"
-        );
-    }
-    for e in &rec.dead.edges {
-        assert!(
-            source.get_edge(*e).is_some(),
-            "a retirement names a source edge, got {e:?}"
-        );
-        assert!(
-            !out.body.edges().any(|(k, _)| k == *e) || minted_edges.contains(e),
-            "a retired edge does not survive: {e:?}"
-        );
-    }
-    for v in &rec.dead.vertices {
-        assert!(
-            source.get_vertex(*v).is_some(),
-            "a retirement names a source vertex, got {v:?}"
-        );
-        assert!(
-            !out.body.vertices().any(|(k, _)| k == *v),
-            "a retired vertex does not survive: {v:?}"
-        );
-    }
-    let minted_vertices: Vec<VertexKey> = rec
-        .rim_feet
-        .iter()
-        .map(|(v, _)| *v)
-        .chain(rec.meridian_splits.iter().map(|(v, _)| *v))
-        .collect();
-    for (k, _) in out.body.vertices() {
-        assert!(
-            minted_vertices.contains(&k) || source.get_vertex(k).is_some(),
-            "output vertex {k:?} is neither a recorded mint nor a survivor"
-        );
-    }
+    assert_naming_totality(&source, &out, &arcs, "the concave waist");
+    let rec = out.naming.as_ref().expect("recorded");
     assert_eq!(
         rec.rim_feet.len(),
         2,
@@ -464,18 +412,6 @@ fn a_concave_band_records_every_birth_and_every_death() {
         rec.dead.vertices.len(),
         2,
         "both seam vertices are retired, and nothing else is"
-    );
-    let mut banded: Vec<EdgeKey> = rec
-        .bands
-        .iter()
-        .flat_map(|(_, edges)| edges.iter().copied())
-        .collect();
-    banded.sort_unstable();
-    let mut requested = arcs.clone();
-    requested.sort_unstable();
-    assert_eq!(
-        banded, requested,
-        "the band row names exactly the requested arcs"
     );
     assert_eq!(rec.bands.len(), 1, "one band row");
     assert_eq!(

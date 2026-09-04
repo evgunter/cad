@@ -497,17 +497,26 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — every 
 /// stored convexity verdict, and a concave rim's band adds material
 /// through the same carve that removes a convex rim's.
 ///
-/// **Under-describes its door**, filed rather than reworded here: it
-/// names "circular plane-sphere rims" as the closed chains that carve,
-/// and a plane-CYLINDER top rim carves too
-/// (`review_fillet_e2_probes::open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves`).
-/// `work/fillet/blend-recourses-under-describe-their-doors.md`.
+/// **The closed clause names the door's extent and its one standing
+/// exception.** Any coaxial revolution pair carves — the plane–cylinder
+/// top rim of
+/// `review_fillet_e2_probes::open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves`
+/// included, which answers §2 of
+/// `work/fillet/blend-recourses-under-describe-their-doors.md` (§1, the
+/// spine-kind sentence, stays open there) — PROVIDED each support face
+/// carries one arc of the rim: a pole-touching body whose merged cap
+/// hosts both arcs on one plane face routes to the ladder and refuses on
+/// its ring gate (README A3-2, `work/issues/repaired-pole-rim-serves-no-closed-door.md`),
+/// so the sentence says so rather than over-promise at that body.
+/// `blend_recourse_followability` follows the clause to a carve.
 pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open chains are single plane\u{2013}plane links ending at \
      fully-requested trivalent corners, on either material side; for a fillet, closed \
      chains that are circular rims between two coaxial revolution surfaces (a pip's \
      plane\u{2013}sphere rim, a solid of revolution's latitude rim) also carve, on either \
-     material side (a chamfer has no closed-chain band); junction carry-through and \
-     run-outs are not implemented";
+     material side, where each support face carries one arc of the rim (a merged \
+     pole cap hosting every arc on one plane face refuses at the ladder's ring gate; \
+     a chamfer has no closed-chain band); junction carry-through and run-outs are \
+     not implemented";
 /// The recourse for a BODY the surgery has not been built for. The
 /// surgery operates in place on one solid; multi-solid and shell-less
 /// bodies are a separate door.
@@ -796,9 +805,10 @@ pub enum BlendError {
     ///
     /// Two families, and the second is not a shape of the chain in
     /// isolation: (a) the chain's own form — multi-link open chains
-    /// (junction carry-through), support pairs no arm covers, concave
-    /// CLOSED chains (the material-adding band), one-edge chains; and
-    /// (b) how the chain sits on its
+    /// (junction carry-through), support pairs no arm covers, one-edge
+    /// chains (a closed rim on EITHER material side is inside the door:
+    /// the band adds material on a concave rim through the same carve);
+    /// and (b) how the chain sits on its
     /// supports — a rim that is not a whole ring of its plane, a
     /// sphere support carrying rings of its own or more than its own
     /// arc, a rim vertex that does not drop exactly one meridian, a

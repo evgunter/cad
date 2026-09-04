@@ -575,8 +575,9 @@ component-aware E–P form found and corrected in M1 PR 4).**
   carriers (`bool_circle_curved_clearance`); what remains typed
   there: ellipse/NURBS carriers, crossing circles, and the
   containment stage's partial-sphere extent. Run-outs at
-  partially-requested corners, junction carry-through and concave
-  blends remain the fillet assembly's named refusals.)*
+  partially-requested corners and junction carry-through remain the
+  fillet assembly's named refusals; concave chains carve on both the
+  open-chain door (BLEND-4) and the closed-rim door (FILLET-H4).)*
   **(b) the SSI generic-`T` lift — CLOSED (M6-2).**
   `Pcurve::Fitted` is admissible: the enclosure
   seam takes any bracket-carrying scalar into the C9 ring

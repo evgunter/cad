@@ -58,8 +58,8 @@ use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{revolved_about_y, rim_arcs_at};
-use topo::{Body, EdgeKey, FaceKey, SurfaceKey, VertexKey, mass_properties, validate_geometric};
+use sweep::test_support::{assert_naming_totality, revolved_about_y, rim_arcs_at};
+use topo::{Body, EdgeKey, FaceKey, SurfaceKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -520,73 +520,22 @@ fn the_lanterns_arms_fold_both_sense_bits() {
     }
 }
 
-/// **The naming totality, on a seam-split band.** Every output entity
-/// is a recorded mint or a survivor of the source, and every retirement
-/// names a SOURCE key — checked in both directions, which is what makes
-/// the conditional dead-edge pushes evidence rather than hope.
+/// **The naming totality, on a seam-split band**, in all three
+/// directions through the shared walk (`test_support::assert_naming_totality`),
+/// plus this fixture's counts — and the count that is this rim's own
+/// lesson: each crossing mints a foot on EACH side, so the rows are
+/// per-crossing and not per-band. Dropping the rows for every crossing
+/// but the first leaves that crossing's host foot unaccounted for — and
+/// `emit_fillet` consumes `rim_feet`, so the same drop would silently
+/// lose a document name.
 #[test]
 fn a_seam_split_band_records_every_birth_and_every_death() {
     let source = lantern();
     let arcs = rim_arcs_at(&source, SHOULDER.0, SHOULDER.1);
     let out = fillet_edges(&source, &arcs, 0.05, tol())
         .unwrap_or_else(|e| panic!("the shoulder fillets, got {e:?}"));
-    let rec = out
-        .naming
-        .as_ref()
-        .expect("the rim phase records its births");
-
-    let minted_edges: Vec<EdgeKey> = rec
-        .rim_trims
-        .iter()
-        .map(|(e, _, _)| *e)
-        .chain(rec.meridian_remnants.iter().map(|(e, _)| *e))
-        .chain(rec.slits.iter().map(|(e, _)| *e))
-        .collect();
-    for (k, _) in out.body.edges() {
-        assert!(
-            minted_edges.contains(&k) || source.get_edge(k).is_some(),
-            "output edge {k:?} is neither minted nor a survivor"
-        );
-    }
-    for e in &rec.dead.edges {
-        assert!(
-            source.get_edge(*e).is_some(),
-            "a retirement names a source edge, got {e:?}"
-        );
-        assert!(
-            !out.body.edges().any(|(k, _)| k == *e) || minted_edges.contains(e),
-            "a retired edge does not survive: {e:?}"
-        );
-    }
-    for v in &rec.dead.vertices {
-        assert!(
-            source.get_vertex(*v).is_some(),
-            "a retirement names a source vertex, got {v:?}"
-        );
-        assert!(
-            !out.body.vertices().any(|(k, _)| k == *v),
-            "a retired vertex does not survive: {v:?}"
-        );
-    }
-    // VERTICES the other way too, and this is the direction a
-    // seam-split band adds sites to: each crossing mints a foot on
-    // EACH side, so the rows are per-crossing and not per-band.
-    // Dropping the rows for every crossing but the first leaves that
-    // crossing's host foot unaccounted for here — and `emit_fillet`
-    // consumes `rim_feet`, so the same drop would silently lose a
-    // document name.
-    let minted_vertices: Vec<VertexKey> = rec
-        .rim_feet
-        .iter()
-        .map(|(v, _)| *v)
-        .chain(rec.meridian_splits.iter().map(|(v, _)| *v))
-        .collect();
-    for (k, _) in out.body.vertices() {
-        assert!(
-            minted_vertices.contains(&k) || source.get_vertex(k).is_some(),
-            "output vertex {k:?} is neither a recorded mint nor a survivor"
-        );
-    }
+    assert_naming_totality(&source, &out, &arcs, "the shoulder");
+    let rec = out.naming.as_ref().expect("recorded");
     assert_eq!(
         rec.rim_feet.len(),
         2,
@@ -604,13 +553,4 @@ fn a_seam_split_band_records_every_birth_and_every_death() {
         2,
         "both seam vertices are retired, and nothing else is"
     );
-    let mut banded: Vec<EdgeKey> = rec
-        .bands
-        .iter()
-        .flat_map(|(_, edges)| edges.iter().copied())
-        .collect();
-    banded.sort_unstable();
-    let mut want = arcs.clone();
-    want.sort_unstable();
-    assert_eq!(banded, want, "the band names both arcs it replaces");
 }

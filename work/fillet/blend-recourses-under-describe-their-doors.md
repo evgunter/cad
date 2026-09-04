@@ -55,3 +55,11 @@ inline would duplicate the payload's own roster in prose.
 Where does the admitted-pair roster live, and does a recourse sentence
 quote it or point at it? Whichever is chosen, the pin the class asks for
 is the same: the second request executed, and the outcome asserted.
+
+## Status of §2 (FILLET-H4 fix pass, PR 1752)
+
+Answered by rewording: `FILLET3_ASSEMBLY_RECOURSE`'s closed clause now
+names "circular rims between two coaxial revolution surfaces" — the
+plane–cylinder top rim included — with the repaired-pole exception
+(README A3-2) stated in the sentence. §1 (the spine-kind sentence) is
+untouched by that PR and stays this item's open half.

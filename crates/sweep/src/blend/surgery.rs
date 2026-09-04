@@ -51,9 +51,11 @@
 //! cap). The rim edges are replaced by a torus BAND:
 //! struts and trim `mef`s on both supports carve the two annular
 //! strips (the plane's hole widens from the rim circle to the trim
-//! circle — the fillet eats into the FLAT face, which is what makes it
-//! a fillet and not a gouge; the curved side splits its MERIDIAN seam
-//! edges at the trim circle instead of strutting into the cap),
+//! circle on EITHER material side — on a convex rim the band replaces
+//! a strip of the flat face, on a concave one it rests on the flat face
+//! beyond the rim and adds material; the curved side splits its
+//! MERIDIAN seam edges at the trim circle instead of strutting into the
+//! cap),
 //! rim-edge `kef`s merge them and strut `kef`s fuse the pieces around
 //! the ring. The band is an annulus and a curved face must be
 //! RING-FREE (`props`' closed-form inventory; the donut's own
@@ -702,8 +704,7 @@ fn corner_plan<'a, T: Decide + Bounds>(
     let convexity = links.first().convexity();
     let (arc, feet, surface) = match kind {
         BlendKind::Fillet => {
-            let convex = matches!(convexity, Convexity::Convex);
-            let ball = corner_ball([p; 3], normals, radius, convex);
+            let ball = corner_ball([p; 3], normals, radius, convexity);
             // The ball at rest is at distance `radius` from every
             // support — inside the material at a convex corner, in the
             // void at a concave one — so its foot on each is the
@@ -713,18 +714,15 @@ fn corner_plan<'a, T: Decide + Bounds>(
             // support's trimlines, because the centre is on both
             // incident spines.
             //
-            // ONE fold, four named spellings, cross-cited so none
-            // drifts alone: this `toward` is the same sign the
-            // plane–plane band arm folds into its feet
-            // (`plane_plane_blend`'s `signed`), the same sign the
-            // plane–sphere arm folds into its spine
-            // (`plane_sphere_blend`'s `signed`), the same sign the
-            // shared sheet reduction folds into each trace's side
-            // (`battery::curved_arm`'s `sense == convex`), and the
-            // NEGATIVE of `corner_ball`'s `signed` — which is the rest
-            // DEPTH (`c·n = p·n + signed`), the displacement's opposite
-            // by definition of tangency.
-            let toward = if convex { radius } else { -radius };
+            // ONE fold, ONE home: `Convexity::signed` — the value the
+            // plane–plane band arm folds into its feet and the
+            // plane–sphere arm into its spine, and (as the side bit
+            // `Convexity::ball_side`) what the shared sheet reduction
+            // hands each trace (`battery::curved_arm`). `corner_ball`
+            // alone needs its NEGATIVE, the rest DEPTH
+            // (`c·n = p·n − toward`), the displacement's opposite by
+            // definition of tangency, and spells it as `-signed(..)`.
+            let toward = convexity.signed(radius);
             let mut feet = [ball.center; 3];
             for (foot, &n) in feet.iter_mut().zip(normals.iter()) {
                 *foot = ball.center + n * toward;
@@ -1052,8 +1050,9 @@ fn resolve_rim<'a, T: Decide + Bounds>(
 /// starts from this list). They are not
 /// shared because each answers a different question at a different
 /// phase; the intended relation is that the battery's ADMITS every site
-/// these two do and more, which is why the seam tag's recourse
-/// conditions its carve half.
+/// these two do and more, which is why the seam tag's recourse has to
+/// be true at every site the tag fires — and is, on either material
+/// side, since the closed-rim band carves on both.
 ///
 /// # Why this is not merged with the other annulus resolver
 ///
@@ -3695,7 +3694,7 @@ mod tests {
             0.09,
             0.02,
             false,
-            true,
+            Convexity::Convex,
         );
         let mut swapped = blend.clone();
         core::mem::swap(&mut swapped.trim_a, &mut swapped.trim_b);

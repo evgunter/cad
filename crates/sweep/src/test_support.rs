@@ -45,14 +45,18 @@
 //! satisfies `test` — which is why `cfg(debug_assertions)` cannot
 //! serve as the gate either.
 
-#![allow(clippy::unwrap_used, clippy::expect_used)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use core::f64::consts::PI;
 
 use geom::NurbsCurve3;
-use geom_core::{Affine3, Band, Bounds, Point2, Point3, Vec3};
+use geom_brep::PcurveFittedLane;
+use geom_core::{Affine3, Band, Bounds, Decide, Point2, Point3, Real, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use topo::{Body, EdgeKey};
+use topo::{Body, EdgeKey, FaceKey, LoopBoundary};
 
 use crate::blend::battery::{BlendRequest, Link, run_battery};
+use crate::blend::build::Blended;
 pub use crate::blend::surgery::ring_clearance_for_tests as ring_clearance;
 use crate::skin::{Section, segment_curve};
 use crate::{Extrusion, Lofted, SketchSegment, extrude, sweep_body};
@@ -109,12 +113,24 @@ pub fn revolved_about_y(
     rev: crate::Revolution<f64>,
     tol: Tol,
 ) -> Body<f64> {
-    let profile = Profile::new(SketchPlane::xy(), vec![ProfileLoop::new(verts)])
+    revolved_about_y_at(verts, rev, tol)
+}
+
+/// [`revolved_about_y`] at any scalar the revolve door takes — the
+/// interval twins build their fixtures through this, so the two lanes
+/// differ in the scalar and in nothing else. The bound is the door's
+/// own (`crate::revolve`'s), carrying no bracket read of its own.
+pub fn revolved_about_y_at<T: Decide + PcurveFittedLane>(
+    verts: Vec<ProfileVertex<T>>,
+    rev: crate::Revolution<T>,
+    tol: Tol,
+) -> Body<T> {
+    let profile = Profile::new(SketchPlane::<T>::xy(), vec![ProfileLoop::new(verts)])
         .validate(tol)
         .unwrap();
     let axis = crate::RevolveAxis {
-        origin: Point2::new(0.0, 0.0),
-        dir: geom_core::Vec2::new(0.0, 1.0),
+        origin: Point2::new(T::zero(), T::zero()),
+        dir: Vec2::new(T::zero(), T::one()),
     };
     crate::revolve(&profile, axis, rev, tol).unwrap().body
 }
@@ -244,13 +260,56 @@ pub fn rim_arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<Edg
 /// Its rims, for [`rim_arcs_at`]: waist `(0.5, 0.5)`, base `(1, 0)`,
 /// top `(1, 1)`. Its volume is two frusta, `7π/12`.
 pub fn waisted(tol: Tol) -> Body<f64> {
+    waisted_at(tol)
+}
+
+/// [`waisted`] at any scalar: the same five dyadic vertices (every one
+/// exactly representable, so the fixture's enclosures are points at a
+/// certified scalar) through the same doors.
+pub fn waisted_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
+    let v =
+        |x: f64, y: f64| ProfileVertex::new(Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
+    revolved_about_y_at(
+        vec![
+            v(0.0, 0.0),
+            v(1.0, 0.0),
+            v(0.5, 0.5),
+            v(1.0, 1.0),
+            v(0.0, 1.0),
+        ],
+        crate::Revolution::Full,
+        tol,
+    )
+}
+
+/// **A flat-floored dome cavity with a bore** — the plane–sphere fold's
+/// fourth quadrant, `(sphere pocket, chain concave)`, which no other
+/// fixture reaches. A block of revolution (radius 1, height 1) holds a
+/// cavity whose FLOOR is the plane `y = 0.3` out to a rim of radius
+/// `0.5` and whose CEILING is the hemisphere of radius `0.5` centred on
+/// the axis at the floor's level; a bore of radius `0.2` runs from where
+/// it meets the ceiling up through the top, which is what keeps the body
+/// one shell. Material lies BELOW the floor and OUTSIDE the sphere, so
+/// the sphere face's sense is `false` (a pocket) while the rim — where
+/// the floor and the ceiling meet — is the UNION of the two material
+/// half-spaces, a wedge of 3π/2: CONCAVE. Boss and pip are the other
+/// two mixed quadrants; the dome is the fourth.
+pub fn domed_cavity(tol: Tol) -> Body<f64> {
+    let (big_r, bore, floor) = (0.5_f64, 0.2_f64, 0.3_f64);
+    let y_bore = floor + (big_r.powi(2) - bore.powi(2)).sqrt();
+    // The ceiling arc from the bore's edge down to the rim subtends
+    // `acos(bore / R)` at the centre and bulges AWAY from the centre —
+    // to the left of its downward-outward chord.
+    let theta = (bore / big_r).acos();
     revolved_about_y(
         vec![
             ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
             ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(0.5, 0.5), 0.0),
             ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
+            ProfileVertex::new(Point2::new(bore, 1.0), 0.0),
+            ProfileVertex::new(Point2::new(bore, y_bore), -(theta / 4.0).tan()),
+            ProfileVertex::new(Point2::new(big_r, floor), 0.0),
+            ProfileVertex::new(Point2::new(0.0, floor), 0.0),
         ],
         crate::Revolution::Full,
         tol,
@@ -265,10 +324,16 @@ pub fn waisted(tol: Tol) -> Body<f64> {
 /// pips (`slab ∖ ball`) and their concave twin, a boss (`slab ∪ ball`),
 /// are both built from this.
 pub fn ball_poled_z(r: f64, c: Vec3<f64>, tol: Tol) -> Body<f64> {
-    let ball = revolved_about_y(
+    ball_poled_z_at(r, c, tol)
+}
+
+/// [`ball_poled_z`] at any scalar the revolve and rigid-motion doors
+/// take.
+pub fn ball_poled_z_at<T: Decide + PcurveFittedLane>(r: T, c: Vec3<T>, tol: Tol) -> Body<T> {
+    let ball = revolved_about_y_at(
         vec![
-            ProfileVertex::new(Point2::new(0.0, -r), 1.0),
-            ProfileVertex::new(Point2::new(0.0, r), 0.0),
+            ProfileVertex::new(Point2::new(T::zero(), -r), T::one()),
+            ProfileVertex::new(Point2::new(T::zero(), r), T::zero()),
         ],
         crate::Revolution::Full,
         tol,
@@ -276,9 +341,9 @@ pub fn ball_poled_z(r: f64, c: Vec3<f64>, tol: Tol) -> Body<f64> {
     let poled = topo::transform_rigid(
         &ball,
         &Affine3::rotation_about_axis(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::new(1.0, 0.0, 0.0),
-            core::f64::consts::FRAC_PI_2,
+            Point3::new(T::zero(), T::zero(), T::zero()),
+            Vec3::new(T::one(), T::zero(), T::zero()),
+            T::from_f64(core::f64::consts::FRAC_PI_2),
         ),
         tol,
     )
@@ -469,4 +534,262 @@ pub fn swept_elbow_lofted(tol: Tol) -> Lofted<f64> {
 /// [`swept_elbow_lofted`]'s body alone.
 pub fn swept_elbow(tol: Tol) -> Body<f64> {
     swept_elbow_lofted(tol).body
+}
+
+// ------------------------------------------------------------------
+// Shared assertion helpers for the blend suites — one home each.
+// ------------------------------------------------------------------
+
+/// The faces across the edges of `face`'s outer cycle, deduplicated —
+/// a band's NEIGHBOURS, which is how a door is proved rather than
+/// inferred: the ladder's band sits between one plane face and two
+/// ring-free half-caps, the annulus's between the two half-band walls.
+pub fn faces_around<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<FaceKey> {
+    let LoopBoundary::Cycle { first } = body
+        .get_loop(body.get_face(face).unwrap().outer)
+        .unwrap()
+        .boundary
+    else {
+        panic!("a band's outer loop is a cycle")
+    };
+    let mut out: Vec<FaceKey> = body
+        .loop_cycle(first)
+        .unwrap()
+        .into_iter()
+        .map(|he| {
+            let mate = body.mate(he).unwrap();
+            body.get_loop(body.get_half_edge(mate).unwrap().parent_loop)
+                .unwrap()
+                .face
+        })
+        .filter(|&f| f != face)
+        .collect();
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+/// **Naming totality on a closed-rim band, in all three directions.**
+/// (a) Every output entity is a recorded mint or a survivor of the
+/// source; (b) every recorded retirement names a SOURCE key that did not
+/// survive; (c) every source entity ABSENT from the output is a recorded
+/// retirement — a dead edge or vertex, or a rim arc a band row replaced.
+/// (c) is the direction the first two do not imply: a retirement the
+/// surgery forgets to record is invisible to (a) and (b) and to the
+/// census delta alike. Also: the band rows name exactly `requested`.
+/// The per-row COUNTS (feet, splits, retired seam vertices) stay in the
+/// rows, because they are the fixture's, not the walk's.
+pub fn assert_naming_totality(
+    source: &Body<f64>,
+    out: &Blended<f64>,
+    requested: &[EdgeKey],
+    what: &str,
+) {
+    let rec = out
+        .naming
+        .as_ref()
+        .unwrap_or_else(|| panic!("{what}: the rim phase records its births"));
+    let minted_edges: Vec<EdgeKey> = rec
+        .rim_trims
+        .iter()
+        .map(|(e, _, _)| *e)
+        .chain(rec.meridian_remnants.iter().map(|(e, _)| *e))
+        .chain(rec.slits.iter().map(|(e, _)| *e))
+        .collect();
+    let minted_vertices: Vec<topo::VertexKey> = rec
+        .rim_feet
+        .iter()
+        .map(|(v, _)| *v)
+        .chain(rec.meridian_splits.iter().map(|(v, _)| *v))
+        .collect();
+    let mut banded: Vec<EdgeKey> = rec
+        .bands
+        .iter()
+        .flat_map(|(_, edges)| edges.iter().copied())
+        .collect();
+    // (a)
+    for (k, _) in out.body.edges() {
+        assert!(
+            minted_edges.contains(&k) || source.get_edge(k).is_some(),
+            "{what}: output edge {k:?} is neither minted nor a survivor"
+        );
+    }
+    for (k, _) in out.body.vertices() {
+        assert!(
+            minted_vertices.contains(&k) || source.get_vertex(k).is_some(),
+            "{what}: output vertex {k:?} is neither a recorded mint nor a survivor"
+        );
+    }
+    // (b)
+    for e in &rec.dead.edges {
+        assert!(
+            source.get_edge(*e).is_some(),
+            "{what}: a retirement names a source edge, got {e:?}"
+        );
+        assert!(
+            out.body.get_edge(*e).is_none() || minted_edges.contains(e),
+            "{what}: a retired edge does not survive: {e:?}"
+        );
+    }
+    for v in &rec.dead.vertices {
+        assert!(
+            source.get_vertex(*v).is_some(),
+            "{what}: a retirement names a source vertex, got {v:?}"
+        );
+        assert!(
+            out.body.get_vertex(*v).is_none(),
+            "{what}: a retired vertex does not survive: {v:?}"
+        );
+    }
+    // (c)
+    for (k, _) in source.edges() {
+        if out.body.get_edge(k).is_none() {
+            assert!(
+                rec.dead.edges.contains(&k) || banded.contains(&k),
+                "{what}: source edge {k:?} vanished with no retirement recorded"
+            );
+        }
+    }
+    for (k, _) in source.vertices() {
+        if out.body.get_vertex(k).is_none() {
+            assert!(
+                rec.dead.vertices.contains(&k),
+                "{what}: source vertex {k:?} vanished with no retirement recorded"
+            );
+        }
+    }
+    banded.sort_unstable();
+    let mut want = requested.to_vec();
+    want.sort_unstable();
+    assert_eq!(
+        banded, want,
+        "{what}: the band rows name exactly the requested arcs"
+    );
+}
+
+/// **A recourse sentence promises the carve on EITHER material side and
+/// hedges on nothing** — the one home of the pin three suites used to
+/// spell as a string test each. The negative half names the hedge
+/// SHAPES a conditioned clause would take, so a rewording that keeps
+/// the promise but re-conditions it goes red here.
+pub fn assert_promises_either_side(sentence: &str) {
+    assert!(
+        sentence.contains("either material side"),
+        "the carve half is promised on both sides: {sentence}"
+    );
+    for hedge in [
+        "CONVEX",
+        "convex side",
+        "convex only",
+        "convex-only",
+        "only where",
+        "where the rim is",
+        "not on a concave",
+    ] {
+        assert!(
+            !sentence.contains(hedge),
+            "the carve half conditions on nothing, but carries {hedge:?}: {sentence}"
+        );
+    }
+}
+
+/// **Pappus pieces for a meridian-plane fill or cut**: `(area, ∫x dA)`
+/// of the elementary regions a fillet's cross-section decomposes into,
+/// so a row can derive a revolved volume delta by hand as
+/// `2π Σ ∫x dA` ([`pappus_volume`]) and compare it to the measured one.
+/// Coordinates are the meridian half-plane's `(x, y)` with the axis at
+/// `x = 0`. Each piece's centroid is the textbook one; the row states
+/// which pieces are added and which subtracted, and why.
+pub mod pappus {
+    use core::f64::consts::TAU;
+
+    /// A triangle `(a, b, c)`: area `½|(b−a)×(c−a)|`, centroid the mean.
+    #[must_use]
+    pub fn triangle(a: (f64, f64), b: (f64, f64), c: (f64, f64)) -> (f64, f64) {
+        let area = 0.5 * ((b.0 - a.0) * (c.1 - a.1) - (b.1 - a.1) * (c.0 - a.0)).abs();
+        (area, area * (a.0 + b.0 + c.0) / 3.0)
+    }
+
+    /// The MINOR circular sector at `c` of radius `rho` between the rays
+    /// to `f1` and `f2` (angle `θ < π`): area `½ρ²θ`, centroid
+    /// `4ρ sin(θ/2) / (3θ)` from `c` along the bisector.
+    #[must_use]
+    pub fn sector(c: (f64, f64), rho: f64, f1: (f64, f64), f2: (f64, f64)) -> (f64, f64) {
+        let (u, v) = ((f1.0 - c.0, f1.1 - c.1), (f2.0 - c.0, f2.1 - c.1));
+        let theta = angle(u, v);
+        let area = 0.5 * rho.powi(2) * theta;
+        let d = 4.0 * rho * (theta / 2.0).sin() / (3.0 * theta);
+        let bis = unit((u.0 + v.0, u.1 + v.1));
+        (area, area * (c.0 + d * bis.0))
+    }
+
+    /// The circular SEGMENT of the circle centred `o` of radius `big_r`
+    /// between the chord `a`–`b` and the minor arc: area
+    /// `½R²(φ − sin φ)`, centroid `4R sin³(φ/2) / (3(φ − sin φ))` from
+    /// `o` along the chord's bisector.
+    #[must_use]
+    pub fn segment(o: (f64, f64), big_r: f64, a: (f64, f64), b: (f64, f64)) -> (f64, f64) {
+        let (u, v) = ((a.0 - o.0, a.1 - o.1), (b.0 - o.0, b.1 - o.1));
+        let phi = angle(u, v);
+        let area = 0.5 * big_r.powi(2) * (phi - phi.sin());
+        let d = 4.0 * big_r * (phi / 2.0).sin().powi(3) / (3.0 * (phi - phi.sin()));
+        let bis = unit((u.0 + v.0, u.1 + v.1));
+        (area, area * (o.0 + d * bis.0))
+    }
+
+    /// `2π Σ ∫x dA` over signed pieces: the revolved volume of the
+    /// region they compose.
+    #[must_use]
+    pub fn pappus_volume(pieces: &[(f64, (f64, f64))]) -> f64 {
+        TAU * pieces.iter().map(|(sign, (_, mx))| sign * mx).sum::<f64>()
+    }
+
+    fn angle(u: (f64, f64), v: (f64, f64)) -> f64 {
+        let dot = u.0 * v.0 + u.1 * v.1;
+        let cross = u.0 * v.1 - u.1 * v.0;
+        cross.abs().atan2(dot)
+    }
+
+    fn unit(v: (f64, f64)) -> (f64, f64) {
+        let n = (v.0 * v.0 + v.1 * v.1).sqrt();
+        (v.0 / n, v.1 / n)
+    }
+}
+
+/// **The waist's material-adding fill, by Pappus** — nothing of the
+/// kernel enters.
+///
+/// In the meridian half-plane `(x, y)` the waist vertex is
+/// `V = (x_v, y_v) = (0.5, 0.5)`, where the lower generator (from
+/// `(1, 0)`, direction `(−1, 1)/√2`) meets the upper one (to `(1, 1)`,
+/// direction `(1, 1)/√2`). The material is on the axis side, so the
+/// VOID wedge at `V` opens toward `+x` between the two generators and
+/// is `90°`; the rim is concave. The rolling ball of radius `r` rests in
+/// that void, tangent to both generators: its centre is on the wedge's
+/// bisector (the `+x` ray from `V`) at distance `r/sin 45° = r√2`, so
+/// `C = (x_v + r√2, y_v)`, and its feet are `r` from `V` along each
+/// generator, `F± = (x_v + r/√2, y_v ± r/√2)`.
+///
+/// The fill region is the curvilinear triangle `V, F−, F+` bounded by
+/// the two generators and the fillet arc — the kite `V F− C F+` minus
+/// the circular sector at `C` between the feet. The kite is two right
+/// triangles of legs `r, r`, area `r²`; the sector's angle is
+/// `π − π/2 = π/2`, area `πr²/4`; so the fill's area is `r²(1 − π/4)`.
+///
+/// Its first moment about the axis, `∫ x dA`:
+/// - the kite is symmetric about `y = y_v` and each of its two
+///   triangles has centroid `x = x_v + r/√2` (the mean of `x_v`,
+///   `x_v + r/√2` and `x_v + r√2`), so `∫_kite x dA = r²(x_v + r/√2)`;
+/// - the sector's centroid lies `4√2 r/(3π)` from `C` toward `V`
+///   (`2R sin θ / 3θ` at half-angle `θ = π/4`), so
+///   `∫_sector x dA = (πr²/4)(x_v + r√2) − √2 r³/3`.
+///
+/// Subtracting and collecting,
+/// `∫_fill x dA = x_v r²(1 − π/4) + √2 r³(5/6 − π/4)`, and Pappus gives
+/// `ΔV = 2π ∫_fill x dA`. Both brackets are positive, as the fill lies
+/// on the `+x` side of `V`.
+#[must_use]
+pub fn waist_fill(x_v: f64, r: f64) -> f64 {
+    2.0 * PI
+        * (x_v * r.powi(2) * (1.0 - PI / 4.0) + 2f64.sqrt() * r.powi(3) * (5.0 / 6.0 - PI / 4.0))
 }
