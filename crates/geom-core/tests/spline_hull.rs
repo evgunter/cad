@@ -392,7 +392,7 @@ fn bounds_are_bit_identical_across_repeats_and_coefficient_types() {
 
 #[test]
 fn structural_errors_poison_rather_than_panic() {
-    let kv = KnotVector::unit_segment(NonZeroUsize::new(3).unwrap());
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN.saturating_add(2));
     let n = kv.control_count();
     let coeffs: Vec<f64> = (0..n).map(|i| i as f64).collect();
     let first = kv

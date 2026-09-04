@@ -2606,7 +2606,9 @@ mod tests {
         // frustum over an axial window both lanes project identically;
         // the ball, the tube and the control net read no edge box.
         let charge = |r: f64, span: f64| r * (span / ARC_SAMPLES as f64).powi(2) * 0.125;
-        let cases: Vec<(&str, (Body<f64>, FaceKey), f64)> = vec![
+        /// One fixture: its name, the face, and the census charge on it.
+        type Case = (&'static str, (Body<f64>, FaceKey), f64);
+        let cases: Vec<Case> = vec![
             ("plane", arc_sector(2.0, 2.3), charge(2.0, 2.3)),
             (
                 "cylinder",

@@ -598,7 +598,7 @@ const PI: f64 = core::f64::consts::PI;
 /// pi/2. Signed flux from the oracle.
 #[test]
 fn probe_sphere_octant() {
-    let kv2 = KnotVector::unit_segment(NonZeroUsize::new(2).unwrap());
+    let kv2 = KnotVector::unit_segment(NonZeroUsize::MIN.saturating_add(1));
     let net = [
         p(0.0, 0.0, 1.0),
         p(0.0, 0.0, 1.0),
@@ -627,7 +627,7 @@ fn probe_sphere_octant() {
 /// Quarter torus patch (R=2, r=0.5): dense oracle only.
 #[test]
 fn probe_quarter_torus() {
-    let kv2 = KnotVector::unit_segment(NonZeroUsize::new(2).unwrap());
+    let kv2 = KnotVector::unit_segment(NonZeroUsize::MIN.saturating_add(1));
     let (rr, r) = (2.0, 0.5);
     // tube quarter arc in xz-plane: (R+r,0,0) -> (R+r,0,r) -> (R,0,r)
     let prof = [(rr + r, 0.0), (rr + r, r), (rr, r)];
@@ -659,7 +659,7 @@ fn probe_quarter_torus() {
 /// lambda^i, lambda = 10 -> same locus): flux = area = pi exactly.
 #[test]
 fn probe_moebius_quarter_cylinder() {
-    let ku = KnotVector::unit_segment(NonZeroUsize::new(2).unwrap());
+    let ku = KnotVector::unit_segment(NonZeroUsize::MIN.saturating_add(1));
     let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let h = 2.0;
     let net = [
@@ -754,7 +754,7 @@ fn probe_extreme_weight_hypar() {
 /// row's shape; shared with the anti-vacuity test below).
 /// Closed forms: flux = (pi/2) r^2 h, area = (pi/2) r h.
 fn quarter_cylinder_probe(name: &str, r: f64, h: f64) -> Posture {
-    let ku = KnotVector::unit_segment(NonZeroUsize::new(2).unwrap());
+    let ku = KnotVector::unit_segment(NonZeroUsize::MIN.saturating_add(1));
     let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let net = [
         p(r, 0.0, 0.0),
@@ -945,7 +945,7 @@ fn probe_c0_kink_area() {
 /// BIT-identical (also printed for the debug/release cross-check).
 #[test]
 fn probe_determinism_bits() {
-    let ku = KnotVector::unit_segment(NonZeroUsize::new(2).unwrap());
+    let ku = KnotVector::unit_segment(NonZeroUsize::MIN.saturating_add(1));
     let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let h = 2.0;
     let net = [
@@ -1232,7 +1232,7 @@ fn diag_uniform_weight_twins() {
 #[test]
 fn probe_interval_scalar_agrees() {
     use geom_core::Interval;
-    let ku = KnotVector::unit_segment(NonZeroUsize::new(2).unwrap());
+    let ku = KnotVector::unit_segment(NonZeroUsize::MIN.saturating_add(1));
     let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let h = 2.0;
     let net = [
