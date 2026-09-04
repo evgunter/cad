@@ -7,6 +7,9 @@
 //! session — the property [`probe_scale`]'s note argues for, extended
 //! to the whole probe: one document answers where the search starts,
 //! what it steps by, and what every candidate is judged against.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use std::sync::Arc;
 

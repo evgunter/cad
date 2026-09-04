@@ -1,5 +1,7 @@
 //! The creation forms: the modal tools and the add-a-node panels the
 //! Properties pane hosts above the selection.
+//!
+//! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
 use pncad::document::{AxisSense, BooleanOp, DimensionError, DocumentId, MatePrimitive};

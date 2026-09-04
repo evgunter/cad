@@ -1,4 +1,6 @@
 //! The View pane: display tolerance, datums and the camera's state.
+//!
+//! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
 

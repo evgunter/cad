@@ -442,3 +442,106 @@ raw grep that counted three comment lines), **33** of them multi-line,
 **17** of those naming an `editor_core::` path (the item's 15 counted
 only the `editor_core::{` spelling and missed `mc::` and `report::`).
 The 32/28 `pub mod` counts in `editor-core`'s root re-derived unchanged.
+
+## 2026-09-04 — the merge queue trial, designed and prepared (`merge-queue-trial`)
+
+Ev ruled for the queue after PR 1796. This unit is the design, the
+workflow support and the runbook; **nothing is enabled and no repository
+setting was touched.**
+
+**The central fact holds and was re-checked at the site.** Every gated
+job's `if:` was read out of the parsed workflow: fifteen read
+`github.event_name != 'push' && …`, two carry no `if:` at all, the two
+cache primers are `push`-or-`dispatch` only, and `renders` is
+`!= 'workflow_dispatch'`. So `merge_group` needs the `on:` key and no
+`if:` edit — which is what the 2026-08-28 spelling note was written for.
+
+**Three things that enumeration missed**, none fatal, two of them
+corrections to PR 1796: `renders` *would* have run under `merge_group`
+(excluded here — no branch to re-baseline to, and the PR run and main's
+push run both render the same tree); the change filter's `HEAD^1` basis
+is **correct** under `merge_group` rather than the open question it was
+left as, because a merge group's parent is the group before it; and the
+two test-cost report steps degrade with a **stated skip**
+(`scripts/base-test-listing.sh:86-88`), not silently.
+
+**The numbers were re-derived and PR 1796's queue pricing does not
+survive.** That document priced "merge queue, batch ≤5" at 44 job-min/h
+from a simulation in which batching reduced the number of CI runs.
+GitHub's documentation is explicit that *"merge limits do not combine
+`merge_group` builds"* — a group is built per queued pull request — so
+**batch size is not a CI-cost lever at all** and the queue costs one full
+gate per PR. Post-un-sampling that gate is **44.8 job-minutes** (was
+24.4) and the merge rate over 23.96 h is **5.76/h, 41 % code-tier**.
+**A queue run is not a PR run**, though: it excludes the render lanes,
+which are 330 of a code-tier run's 2686 job-seconds, so what a merge
+group actually costs is **40.2 job-minutes** (median of the per-run
+difference, n = 9) and the queue costs **99 job-min/h = +1.66 mean
+concurrent jobs**, against a queue delay today of 3 s. (This entry said
+110 and +1.84 when it was written, on the PR-run figure; the 11 job-min/h
+of difference is render work no merge group will ever run.) The 528 s
+service time needs no such correction, and that was measured rather than
+assumed: dropping the render-lane jobs from each of the 9 runs' wall
+clock moves the median not at all.
+
+**The lever that matters is build concurrency, not batch size.**
+Simulated on the 138 observed arrivals at the measured 528 s / 42 s
+service times: concurrency 1 gives a code-tier PR a **1312 s median and a
+3774 s worst case**; concurrency 4 and above gives **528 s flat**, which
+is one run's wall clock with nothing queued. The observed peak of groups
+in flight is **4**. Recommended: build concurrency 5, maximum-to-merge 1,
+"only merge non-failing pull requests" on, merge-commit method (which
+`CLAUDE.md` requires anyway, and which also keeps `CI-Config:` trailers
+out of a group head).
+
+**The required check is one name: `gate ok`**, a job this unit adds. It
+runs on every event but `push`, `needs:` all twenty other jobs, and reads
+the run's own job list through the Actions API: it reds if any job is
+still running (which is how a stale `needs:` announces itself) or
+concluded anything but success/skipped/neutral. **One name because two of
+the twenty names are COMPUTED** — `test (eps = …)` interpolates
+`eps_rows`, and a required-check list is shared with the pull-request
+side where a `CI-Config:` trailer or a dispatch can still narrow the
+matrix — **and because a hand-kept list goes stale silently.** Requiring
+it gates pull requests too, which is a real tightening of `CLAUDE.md`'s
+"agents merge their own PRs" and is called out as one.
+
+**A third reason was led with and is withdrawn (2026-09-04, style
+review).** It read: most jobs are *skipped* on a docs-tier merge and this
+unit did not establish that a skipped check satisfies a required one.
+GitHub documents that it does —
+`content/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks.md`:
+*"A job is skipped by a conditional | The job reports 'Success'"*, and
+*"Successful check statuses are `success`, `skipped`, and `neutral`."*
+The pending-and-blocking row is the WORKFLOW-level skip (path or branch
+filtering, `[skip ci]`), which no job here is. The design stands on the
+two reasons above; the withdrawn one was a documented non-problem
+presented as an open question, and it was the one all three prose sites
+led with. The same page earns the job its `always()` and is now cited for
+it. Two more corrections out of the same review: the `neutral`
+accept-list entry's reason was "that is how a render lane reports drift"
+— false, and `rebaseline-lane/action.yml` says so (*"a workflow JOB
+cannot conclude `neutral`"*; the drift signal is a CHECK RUN, which this
+job's `/jobs` read cannot see) — the entry stays because those three are
+GitHub's definition of a pass; and the reader came **out of the YAML**
+into `scripts/check-run-jobs.py` with a `--selftest` over its seven
+decision paths, because six of them never execute on a real run and
+nothing in the tree re-drove them.
+
+**And requiring `gate ok` makes a failed render lane block a pull
+request**, which no render lane could do before. Kept deliberately, on a
+re-measured rate: the 103-reds-in-89-runs population is **pre-fix** — PR
+1724 landed as `a5d9f41a` — and since that merge there are **8 failed
+render-lane jobs in 259 render-bearing runs (777 jobs), none of them at
+checkout**, seven of the eight being one real break that also reddened
+`main`. Dropping `renders` from `needs:` would not have removed the
+blocking anyway: the sweep reads the run's job list, not `needs:`.
+
+**The k-lint finding, resolved to an ordering dependency.** The obvious
+version — "a sampled row cannot be a required check" — is **false**:
+`k-lint (gate)` is one job with a fixed name and no matrix. The real
+problem is that a merge group's head is a new SHA, so a queue run draws
+its **own** row: a PR green on row X can be ejected by row Y, the author
+cannot reproduce it by re-running, and re-queueing draws again. Ev has
+authorised un-sampling k-lint; that lands first
+(`klint-row-still-sampled`), then the switch.

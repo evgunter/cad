@@ -21,8 +21,13 @@ use topo::ContactClass;
 /// decision at one site.
 macro_rules! name_free_node {
     () => {
-        $crate::node::Node::Datum(_)
-            | $crate::node::Node::Profile(_)
+        $crate::node::Node::Datum(
+            $crate::node::Datum::Plane { .. }
+                | $crate::node::Datum::Axis { .. }
+                | $crate::node::Datum::Point { .. }
+                | $crate::node::Datum::Frame { .. }
+                | $crate::node::Datum::AxisInPlane { .. },
+        ) | $crate::node::Node::Profile(_)
             | $crate::node::Node::Extrude { .. }
             | $crate::node::Node::Revolve { .. }
             | $crate::node::Node::Tube { .. }
@@ -273,6 +278,13 @@ pub enum SlotId {
     ChamferDistance,
     /// A revolve's sweep angle (Angle).
     RevolveAngle,
+    /// A derived frame's SPIN — the authored rotation of sketch +x
+    /// about the face's outward normal, from the carrier's own
+    /// u-reference (Angle). The one continuous slot a
+    /// [`Datum::FaceFrame`] carries: its origin and normal are read
+    /// off the face, so the spin is the whole of what an author
+    /// chooses.
+    Spin,
     /// A tube's MAJOR radius — the spine circle's radius, from the
     /// spine centre to the tube's own centreline (Length).
     ///
@@ -457,6 +469,7 @@ impl SlotId {
             | Self::V(_)
             | Self::RotationAxis(_) => Dimension::Scalar,
             Self::RevolveAngle
+            | Self::Spin
             | Self::RotationAngle
             | Self::Step
             | Self::TubeWindowStart
@@ -495,6 +508,7 @@ impl SlotId {
             Self::Radius => "radius".to_owned(),
             Self::ChamferDistance => "chamfer distance".to_owned(),
             Self::RevolveAngle => "revolve angle".to_owned(),
+            Self::Spin => "spin".to_owned(),
             Self::TubeMajorRadius => "tube major radius".to_owned(),
             Self::TubeMinorRadius => "tube minor radius".to_owned(),
             Self::TubeWindowStart => "tube window start".to_owned(),
@@ -542,6 +556,7 @@ impl SlotId {
             | Self::Radius
             | Self::ChamferDistance
             | Self::RevolveAngle
+            | Self::Spin
             | Self::TubeMajorRadius
             | Self::TubeMinorRadius
             | Self::TubeWindowStart
@@ -558,8 +573,10 @@ impl SlotId {
     }
 }
 
-/// A datum construction (F4: plane/axis/point), defined by expression
-/// slots — geometry is produced by PR 2's evaluation, never here.
+/// A datum construction (F4: plane/axis/point, plus the two sketch
+/// frames), defined by expression slots and — for the derived frame —
+/// a DAG edge and a frozen name; geometry is produced by PR 2's
+/// evaluation, never here.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum Datum {
@@ -649,6 +666,41 @@ pub enum Datum {
         /// [`SlotId::Direction`]`(X | Y)`. Normalized at evaluation,
         /// where a degenerate pair refuses loudly.
         direction: [Expr; 2],
+    },
+    /// **A sketch frame DERIVED from a face** (DOCM-REFERENCES-DESIGN
+    /// DM1): a [`Datum::Frame`] whose pose is computed at evaluation
+    /// from a named face of an upstream body — origin the carrier's
+    /// own distinguished point, normal the face's OUTWARD normal,
+    /// sketch +x the carrier's u-reference rotated by `spin`. It
+    /// evaluates to the same value an authored frame does, so every
+    /// reader of a frame takes it unchanged.
+    ///
+    /// It is derived, not frozen: a frame read off a face and written
+    /// into nine literals would reintroduce the placement snapshot the
+    /// profile-plane migration deleted, one node out, and lie about
+    /// why it sits where it sits. As a DAG input the face's body is
+    /// upstream, the frame moves when the face moves, and it
+    /// participates in the memo and content key like every node.
+    ///
+    /// The failure mode is the fillet's: a face name that stops
+    /// resolving fails the frame typed and poisons the sketch above
+    /// it, exactly as a blend's selection does, and the repair is
+    /// `Rebind`. It is the first datum with an N5 failure mode.
+    ///
+    /// The normal is the OUTWARD one: the face's orientation sense
+    /// times the carrier's chart axis, both read off the face, so a
+    /// sketch on the underside of a plate faces out of the plate.
+    FaceFrame {
+        /// The body-denoting node the face is read out of — a DAG
+        /// input, exactly as [`Datum::AxisInPlane::plane`] is.
+        at: RecipeNodeId,
+        /// The face, as a frozen name resolved through `at`'s value
+        /// under the N5 ladder ([`Node::payload_names`] lists it, so
+        /// the insert door's liveness check and `Rebind` reach it).
+        face: StableName,
+        /// The rotation of sketch +x about the outward normal, from
+        /// the carrier's u-reference — Angle, [`SlotId::Spin`].
+        spin: Expr,
     },
 }
 
@@ -1747,12 +1799,15 @@ impl<P> Node<P> {
         P: crate::ProfilePayload,
     {
         match self {
-            // **The one datum that is not a leaf**: an in-plane axis's
+            // **Two datums are not leaves.** An in-plane axis's
             // two coordinate pairs MEAN something only against the
             // frame they are written in, so the frame is an input, not
             // a note. Ahead of the leaf arm below, which is every
             // OTHER datum.
             Node::Datum(Datum::AxisInPlane { plane, .. }) => vec![*plane],
+            // The derived frame reads its face out of `at`'s value, so
+            // that body is an input for the same reason.
+            Node::Datum(Datum::FaceFrame { at, .. }) => vec![*at],
             // A leaf whose material crosses the document seam has no
             // DAG edge to offer (A3).
             Node::Datum(_)
@@ -1995,6 +2050,9 @@ impl<P> Node<P> {
                 s.extend(vec3(SlotId::V));
                 s
             }
+            // Origin and normal come off the face; the spin is the
+            // one number an author chooses.
+            Node::Datum(Datum::FaceFrame { .. }) => vec![SlotId::Spin],
             Node::Profile(p) => p.slots(),
             // AQ4: an instance takes no arguments in v1 — the
             // referenced document evaluates at its OWN parameters.
@@ -2080,6 +2138,7 @@ impl<P> Node<P> {
             }
             (Node::Datum(Datum::Frame { u, .. }), S::U(ax)) => Some(comp(u, ax)),
             (Node::Datum(Datum::Frame { v, .. }), S::V(ax)) => Some(comp(v, ax)),
+            (Node::Datum(Datum::FaceFrame { spin, .. }), S::Spin) => Some(spin),
             // `comp2` answers None for `Z`, which is the honest
             // "this node does not carry that slot" this match is open
             // on — not a panic and not a silent zero.
@@ -2168,6 +2227,7 @@ impl<P> Node<P> {
             }
             (Node::Datum(Datum::Frame { u, .. }), S::U(ax)) => Some(comp_mut(u, ax)),
             (Node::Datum(Datum::Frame { v, .. }), S::V(ax)) => Some(comp_mut(v, ax)),
+            (Node::Datum(Datum::FaceFrame { spin, .. }), S::Spin) => Some(spin),
             (Node::Datum(Datum::AxisInPlane { origin, .. }), S::Origin(ax)) => {
                 comp2_mut(origin, ax)
             }
@@ -2244,6 +2304,10 @@ impl<P> Node<P> {
             Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
                 selection.iter().collect()
             }
+            // The derived frame's face is a frozen name like a blend's
+            // selection: the insert door checks its node is live, and
+            // `Rebind` is its repair.
+            Node::Datum(Datum::FaceFrame { face, .. }) => vec![face],
             // A12: a mate's two heads are the instance-qualified
             // references its reading edges are recomputed from.
             Node::Mate { a, b, .. } => vec![a, b],
@@ -2291,6 +2355,10 @@ impl<P> Node<P> {
             Node::Mate { a, b, .. } => {
                 hits += rewrite(a, from, to);
                 hits += rewrite(b, from, to);
+            }
+            // One name, no set to re-canonicalize.
+            Node::Datum(Datum::FaceFrame { face, .. }) => {
+                hits += rewrite(face, from, to);
             }
             // No re-canonicalization: the order IS argument order, and
             // a rebind onto an already-referenced entity must leave two
