@@ -704,9 +704,9 @@ impl<T: Decide> EdgeCurve<T> {
     ///      (definitely transverse required), metered through the
     ///      edge's honest extent ([`edge_extent`] — carrier diameter,
     ///      not the collapsing chord, for closed circle carriers).
-    ///    - `MappedCurve`: `|carrier(t_i) − description(i/8)|`.
-    ///    - `Seam`: implicit residual, halfplane residual `|w·v_ref|`,
-    ///      wrong-side excess `max(0, −w·u_ref)`.
+    ///    - `Scaffold` (a mapped source): `|carrier(t_i) − description(i/8)|`.
+    ///    - a `Chart` curve flagged `seam`: implicit residual, halfplane
+    ///      residual `|w·v_ref|`, wrong-side excess `max(0, −w·u_ref)`.
     /// 5. `Intersection`: the witness's implicit residuals vs both
     ///    surfaces, then the **mid-parameter pin**
     ///    `|carrier((t₀+t₁)/2) − witness| ≤ ε`

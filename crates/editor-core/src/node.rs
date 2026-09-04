@@ -142,6 +142,25 @@ pub enum StepArg {
     Target2Y,
     /// The arrival spec's carrier radius.
     CarrierRadius2,
+    /// The arrival spec's swept central angle.
+    ///
+    /// **This role and the two below it exist for HAND-BUILT
+    /// programs.** No recording surface can put a `Sweep`, `ArcLen` or
+    /// `Bulge` in a fused step's arrival position — `profile`'s
+    /// `family::ArrivalSpec` is implemented for `Center`, `Via` and
+    /// `Radius` alone — and the replay lattice refuses the shape, so
+    /// both document doors (`InsertNode`'s VQ9 check and the
+    /// persistence snapshot walk) reject a program carrying one.
+    /// [`crate::ProgramStep`]'s fields are public data by design (the
+    /// node-slot pattern), so such a program is nonetheless
+    /// REPRESENTABLE and is a supported construction; slot addressing
+    /// is total over the data type, so the arrival spec's argument
+    /// gets its own role rather than sharing the incoming spec's.
+    SweepVal2,
+    /// The arrival spec's arc length.
+    ArcLenVal2,
+    /// The arrival spec's bulge.
+    Bulge2,
 }
 
 impl StepArg {
@@ -182,6 +201,9 @@ impl StepArg {
             Self::Target2X => "arrival target x",
             Self::Target2Y => "arrival target y",
             Self::CarrierRadius2 => "arrival carrier radius",
+            Self::SweepVal2 => "arrival sweep",
+            Self::ArcLenVal2 => "arrival arc length",
+            Self::Bulge2 => "arrival bulge",
         }
     }
 
@@ -208,9 +230,12 @@ impl StepArg {
             | Self::Via2Y
             | Self::Target2X
             | Self::Target2Y
-            | Self::CarrierRadius2 => Dimension::Length,
-            Self::AngleVal | Self::TurnVal | Self::Phase | Self::SweepVal => Dimension::Angle,
-            Self::DirX | Self::DirY | Self::Bulge => Dimension::Scalar,
+            | Self::CarrierRadius2
+            | Self::ArcLenVal2 => Dimension::Length,
+            Self::AngleVal | Self::TurnVal | Self::Phase | Self::SweepVal | Self::SweepVal2 => {
+                Dimension::Angle
+            }
+            Self::DirX | Self::DirY | Self::Bulge | Self::Bulge2 => Dimension::Scalar,
         }
     }
 }
