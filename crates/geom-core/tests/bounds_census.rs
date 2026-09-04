@@ -188,6 +188,11 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/geom/src/curves/boxes.rs",
+        subject: "conic_arc_aabb",
+        why: Payload("the one-match dispatcher over the two arc constructors above"),
+    },
+    Site {
+        path: "crates/geom/src/curves/boxes.rs",
         subject: "nurbs_curve_aabb",
         why: Payload("bracket reads only, no arithmetic on the bracket"),
     },
@@ -281,11 +286,6 @@ const ROSTER: &[Site] = &[
         path: "crates/topo/src/boolean/boxes.rs",
         subject: "bracket_point",
         why: Payload("the C10 span-box reader: brackets into an f64 `SpanBox`"),
-    },
-    Site {
-        path: "crates/topo/src/boolean/boxes.rs",
-        subject: "bracket_span",
-        why: Payload("as `bracket_point`, one axis at a time"),
     },
     Site {
         path: "crates/topo/src/boolean/boxes.rs",
