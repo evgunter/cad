@@ -239,3 +239,15 @@ fence widened to exactly those two sites, the Dual-vs-f64 value-channel
 row as the proof the relaxation hides no wrong merge. Spec amended on
 the branch (§Amendment at the stop clause); the lane resumes as the
 same arm.
+
+## DOCM-2 dual review dispatched (2026-09-04, PR 1860 frozen at b59b2203)
+
+The lane reported the PR non-draft and green across the whole matrix
+at `b59b2203` (33 files, +1792/−91; one earlier red on a gate script's
+reader, fixed and pushed). Ordinal 1803 claimed on main at dispatch;
+parity byte 67 ⇒ R1 = FABLE, R2 = OPUS; briefs hashed and
+diff-identical modulo lane names; private build and scratch
+directories per lane. Both lanes running concurrently on the frozen
+head. The unit's log entry waits for the dual's conclusion. Filed at
+merge, not before: `LIB-B-PART` (the census family the unit chartered)
+and the bit-identity gate reader's finding.
