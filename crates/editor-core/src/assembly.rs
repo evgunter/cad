@@ -494,9 +494,12 @@ impl core::error::Error for AssemblyError {}
 ///
 /// # Errors
 ///
-/// [`AssemblyError`]: the gather's own refusals, a mate reference that
-/// names no product face, a class with no at-rest record
-/// ([`crate::mate::class_admission`]), and the kernel's tier-3′
+/// [`AssemblyError`]: the gather's own refusals — including
+/// [`crate::ProductError::EvaluationOfAnotherDocument`], which is the
+/// ONE path this gate reads an evaluation through, so a mispaired
+/// (document, evaluation) never reaches a predicate here — a mate
+/// reference that names no product face, a class with no at-rest
+/// record ([`crate::mate::class_admission`]), and the kernel's tier-3′
 /// findings attributed back to their mates.
 ///
 /// The success arm is narrower than the signature, and the type says

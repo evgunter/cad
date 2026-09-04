@@ -573,9 +573,11 @@ impl MateFault {
         mate_fault_tag(&self.0)
     }
 
-    /// The mate the fault is about, `None` for the two arms whose
-    /// subject is not one mate (`mate_band`, and `mate_contradictory`,
-    /// which names `held` and `added` instead).
+    /// The mate the fault is about, `None` for the three arms whose
+    /// subject is not one mate (`mate_band`; `mate_contradictory`,
+    /// which names `held` and `added` instead; and
+    /// `mate_poses_of_another_document`, whose subject is two
+    /// documents).
     #[getter]
     fn mate(&self) -> Option<NodeId> {
         use d::MateFault as F;
@@ -588,7 +590,7 @@ impl MateFault {
             | F::DanglingHead { mate, .. }
             | F::SelfMate { mate, .. }
             | F::Unleverable { mate, .. } => Some(NodeId(*mate)),
-            F::Band { .. } | F::Contradictory { .. } => None,
+            F::Band { .. } | F::Contradictory { .. } | F::PosesOfAnotherDocument { .. } => None,
         }
     }
 

@@ -57,6 +57,28 @@ pub struct Evaluation<T: Decide> {
     /// This evaluation's identity token (spec D5) — the caller's
     /// stale-result discrimination hook.
     pub epoch: Epoch,
+    /// **Which document this is an evaluation OF** (DI3): the id
+    /// [`Doc::id`] answered when the run started. Identity only, no
+    /// pin: within one document the per-node content keys decide
+    /// reuse, so the version half would cost a canonicalization per
+    /// run for a check the keys already make.
+    ///
+    /// Every door that takes a (document, evaluation) pair reads this
+    /// field to refuse a mispairing typed rather than answering about
+    /// the wrong document — node ids are minted per document, so an
+    /// evaluation of another document can collide on them.
+    pub document: crate::ident::DocumentId,
+    /// **A prior of another document, refused** (DI3): `Some` when
+    /// `evaluate` was handed a `prior` whose [`Evaluation::document`]
+    /// is not this document's, in which case the run had NO memo —
+    /// every node recomputed and [`Evaluation::reused`] is zero.
+    ///
+    /// `evaluate` is total (it returns no `Result`) and [`EvalOutcome`]
+    /// is completed-or-canceled, so the refusal is recorded on the
+    /// value the caller already reads rather than pushed into an
+    /// outcome arm that would mean something else. `None` is both "no
+    /// prior" and "a prior of this document".
+    pub prior_ignored: Option<PriorIgnored>,
     /// Deterministic topological order of the live nodes (spec D2:
     /// a pure function of the DAG; Kahn's algorithm, tiebreak
     /// `RecipeNodeId` ascending). Always the FULL order, even when
@@ -138,6 +160,16 @@ pub enum EvalOutcome {
     /// The cancel token was observed set at a yield point; `nodes`
     /// holds the completed prefix.
     Canceled,
+}
+
+/// A prior evaluation this run refused to mine: it is an evaluation of
+/// another document ([`Evaluation::prior_ignored`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PriorIgnored {
+    /// The document that was evaluated — the id the prior had to carry.
+    pub expected: crate::ident::DocumentId,
+    /// The document the handed prior is an evaluation of.
+    pub found: crate::ident::DocumentId,
 }
 
 /// One node's outcome (F2 verbatim, spec D2).
@@ -1668,7 +1700,10 @@ impl Default for EvalOptions {
 ///
 /// `prior` is the memo (spec D4): nodes whose content key matches the
 /// prior evaluation reuse the prior value without re-running the op;
-/// only the downstream cone of changed keys re-evaluates.
+/// only the downstream cone of changed keys re-evaluates. A prior of
+/// ANOTHER document is not a memo for this one (DI3): it is refused
+/// whole, recorded on [`Evaluation::prior_ignored`], and the run
+/// recomputes every node.
 ///
 /// `cancel` is checked between nodes (sequential) or between levels
 /// (parallel) — spec D5's cooperative yield points at node
@@ -1717,13 +1752,30 @@ fn evaluate_at_descent<T>(
 where
     T: EvalScalar,
 {
+    // The memo's own door (DI3): a prior is a prior OF a document, and
+    // node ids are minted per document, so an evaluation of another
+    // document can collide on them and be mined for hits that are
+    // about other geometry. Refused HERE, once, before the schedule is
+    // even built — which is what makes the per-node lookup below
+    // (`prior.and_then(|p| p.nodes.get(&id))`) a lookup that cannot
+    // reach a foreign node, rather than a check repeated per node.
+    let (prior, prior_ignored) = match prior {
+        Some(p) if p.document != doc.id() => (
+            None,
+            Some(PriorIgnored {
+                expected: doc.id(),
+                found: p.document,
+            }),
+        ),
+        carried => (carried, None),
+    };
     let sched = schedule::schedule(doc);
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
     // ε — otherwise every predicate below would silently decide at
     // the wrong tolerance. Refuse loudly, per node, staying total.
     let process_eps = tol.eps();
     if doc.epsilon().to_bits() != process_eps.to_bits() {
-        return refuse_tolerance_conflict(doc, sched, opts, process_eps);
+        return refuse_tolerance_conflict(doc, sched, opts, prior_ignored, process_eps);
     }
     // The lane environment, built ONCE and shared by every reader
     // below (slot evaluation, the lift's second pass, the two profile
@@ -1734,7 +1786,7 @@ where
         None => doc.param_env::<T>(),
         Some(b) => match crate::analysis::param_env_over::<T, _>(doc, b) {
             Ok(env) => env,
-            Err(source) => return refuse_param_box(doc, sched, opts, source),
+            Err(source) => return refuse_param_box(doc, sched, opts, prior_ignored, source),
         },
     };
     // The E4 seed rides the SAME environment (a seed is a separate act
@@ -1745,7 +1797,7 @@ where
         None => env,
         Some(name) => match crate::analysis::seed_env(doc, env, name) {
             Ok(env) => env,
-            Err(source) => return refuse_seed(doc, sched, opts, source),
+            Err(source) => return refuse_seed(doc, sched, opts, prior_ignored, source),
         },
     };
     let parts = parts::PartCache::<T>::new(
@@ -1847,6 +1899,8 @@ where
 
     Evaluation {
         epoch: opts.epoch,
+        document: doc.id(),
+        prior_ignored,
         order,
         nodes,
         outcome,
@@ -1862,15 +1916,18 @@ fn refuse_tolerance_conflict<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
+    prior_ignored: Option<PriorIgnored>,
     process_eps: f64,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     let document_eps = doc.epsilon();
-    refuse_every_node(doc, sched, opts, move || NodeErrorKind::ToleranceConflict {
-        document_eps,
-        process_eps,
+    refuse_every_node(doc, sched, opts, prior_ignored, move || {
+        NodeErrorKind::ToleranceConflict {
+            document_eps,
+            process_eps,
+        }
     })
 }
 
@@ -1883,12 +1940,13 @@ fn refuse_param_box<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
+    prior_ignored: Option<PriorIgnored>,
     source: crate::analysis::ParamBoxError,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
-    refuse_every_node(doc, sched, opts, move || NodeErrorKind::ParamBox {
+    refuse_every_node(doc, sched, opts, prior_ignored, move || NodeErrorKind::ParamBox {
         source: source.clone(),
     })
 }
@@ -1902,12 +1960,13 @@ fn refuse_seed<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
+    prior_ignored: Option<PriorIgnored>,
     source: crate::analysis::SeedError,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
-    refuse_every_node(doc, sched, opts, move || NodeErrorKind::Seed {
+    refuse_every_node(doc, sched, opts, prior_ignored, move || NodeErrorKind::Seed {
         source: source.clone(),
     })
 }
@@ -1919,6 +1978,7 @@ fn refuse_every_node<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
+    prior_ignored: Option<PriorIgnored>,
     kind: impl Fn() -> NodeErrorKind,
 ) -> Evaluation<T>
 where
@@ -1947,6 +2007,8 @@ where
     drop(states);
     Evaluation {
         epoch: opts.epoch,
+        document: doc.id(),
+        prior_ignored,
         order,
         nodes,
         outcome: EvalOutcome::Completed,
@@ -2158,6 +2220,11 @@ where
     // is not separably re-derivable — and D9 makes the re-run's
     // geometry bit-identical, so re-running IS "reuse the geometry,
     // re-derive the names", spelled honestly.
+    //
+    // `prior` is an evaluation of THIS document: `evaluate_at_descent`
+    // drops a foreign one before the schedule is built (DI3), so this
+    // lookup cannot serve a coincidental id collision from another
+    // document.
     if let Some(NodeResult::Ok(v)) = prior.and_then(|p| p.nodes.get(&id))
         && v.content_key == content_key
         && v.naming_key == naming_key

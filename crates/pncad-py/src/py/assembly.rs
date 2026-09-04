@@ -93,9 +93,12 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
         | E::SolidInvalid { node, .. } => (id(node), none(), none()),
         E::RootPoisoned { node, through } => (id(node), id(through), none()),
         E::Naming { node, name } => (id(node), none(), text(name)),
-        E::NoBodyRoots | E::ProductInvalid { .. } | E::ContactLineage { .. } => {
-            (none(), none(), none())
-        }
+        // The document-mismatch arm names two DOCUMENTS, which this
+        // node/node/name triple cannot carry; the message states both.
+        E::NoBodyRoots
+        | E::ProductInvalid { .. }
+        | E::ContactLineage { .. }
+        | E::EvaluationOfAnotherDocument { .. } => (none(), none(), none()),
     }
 }
 
