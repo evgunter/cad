@@ -172,13 +172,14 @@ fn an_all_nodes_refusal_carries_its_document_too() {
 /// claim is about the code and not about a value.
 #[test]
 fn every_evaluation_literal_stamps_the_document() {
-    let src = std::fs::read_to_string(
-        test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
-            .join("src")
-            .join("eval")
-            .join("mod.rs"),
-    )
-    .expect("this crate's own eval/mod.rs");
+    let path = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("eval")
+        .join("mod.rs");
+    let text = std::fs::read_to_string(&path).expect("this crate's own eval/mod.rs");
+    // The CODE view: a struct literal quoted in a comment is prose, and
+    // a guard that counted it would report on prose.
+    let src = test_utils::source::code_only(&text);
     let sites: Vec<String> = src
         .split("\n    Evaluation {\n")
         .skip(1)

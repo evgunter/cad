@@ -99,6 +99,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/editor-core/tests/docm4_evaluation_identity.rs",
+        disposition: Shared, // Evaluation-literal census, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/fix_loop_polygon_expr.rs",
         disposition: Shared, // polygon-close uniqueness census, code view
     },
