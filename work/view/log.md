@@ -1101,3 +1101,136 @@ no lane running. The three items that gate other work are all waiting on
 other programs: `next-id-has-no-layer3-door` (DOCM), the focus map door
 (DOCM and S-BOOL), and the pick-index seam ruling (an `[ev]` PR nobody
 has opened). The plan's items 3–6 are all still ahead.
+
+## Orchestrator handover; three lanes out; two false tracker rows (2026-09-04)
+
+The previous orchestrator exited with unit 1 closed, thirteen open
+items, one parked and no lane running. Picked the program up cold from
+`work/view/plan.md` and this log's tail. Nothing was lost: the working
+tree was clean, the branch was exactly `origin/main`, all four of unit
+1's PRs were merged, and there were no open `view/` PRs. `lint` was
+green — which is part of the finding below.
+
+### Ev's ruling on review posture, taken in chat
+
+**No A/B duals and no row in `docs/MODEL-AB-LOG.md`, whatever review a
+unit gets.** Style review is the default; a second correctness reviewer
+where the failure mode is a confident wrong answer rather than a
+refusal, dispatcher's judgement, argued in the dispatch. The band
+1900–1999 stays claimed and empty. Recorded in `plan.md` so a
+successor does not re-derive it.
+
+### Two rows the board was carrying falsely
+
+**`session-shims-and-test-imports` was parked behind an item that
+closed.** `viewer-session-god-module-split` closed 2026-09-04; this row
+went on reading `parked` for a day. `lint` does not object — a closed
+`blocked_on` resolves fine — so a trigger that fires makes nothing go
+red. **CHROME has nine rows in the same state**, all parked behind the
+same closed item, and this log has been claiming since unit 1 closed
+that they were "unblocked and told". The board says otherwise; being
+told is not a status.
+
+Un-parked rather than re-parked, for the reason the previous
+orchestrator argued on `pick-priority-filter-vocabulary`: between a
+status that overstates availability and a `blocked_on` naming
+something that does not gate it, `open` loses less, because a false
+`blocked_on` goes on being believed unread. That is now the second
+VIEW row and the ninth CHROME row whose real state this vocabulary
+cannot spell — the third instance the previous orchestrator said was
+worth putting to Ev. Filed as
+`tracker-has-no-status-for-an-unscheduled-trigger`, `needs_ev`, with
+four candidate shapes and one half that needs no ruling at all: **lint
+could refuse a `parked` row whose `blocked_on` names a CLOSED item**,
+today, with no vocabulary change, and three of CHROME's nine would
+have gone red on the commit that closed the split.
+
+**`blamed-mates-lost-its-exhaustive-arm` was open over a fix that had
+landed twice.** The arm is at `crates/viewer/src/tree.rs:325` and has
+been for a day. What kept the row open was its two residues, which
+were "announced" *in prose inside the item and nowhere else* — the
+exact shape `work/README.md` names as invisible to the re-homing
+sweep, so both would have died with this directory at close. Given
+files, in `work/issues/` because neither owner's slate is VIEW's to
+write on:
+`ci-draw-can-hide-a-compile-break-on-main` (**CIW's** — the `filter`
+draw can hide a hard compile break on `main` for an unbounded number
+of merges, and the 2026-09-04 twelve-job widening may close it for PR
+runs but not obviously for `main` push runs) and
+`mate-fault-accessors-wildcard-into-silence` (**LIB's ground, DOCM's
+ratification** — ten `_ => None` accessors over `MateFault`, which is
+the same defect as the missing arm with the compiler switched off).
+Item closed.
+
+### The citation sweep, and the one file it was wrong about
+
+Paid VIEW's half of `stale-file-citations-after-the-split`: five files
+in `work/view/` re-pointed against `d799235e`, each carrying a note so
+a reader can tell a re-point from a claim change.
+
+**One was not a re-point, and it is this program's hazard again.**
+`save-is-not-gesture-guarded` reasons from 23 `if self.gesture.is_some()`
+guards at 23 call sites, and from `open` carrying one where `save`
+does not. **VIEW-1b deleted that mechanism** — the rule is one
+exhaustive table at `session/op.rs:586`, two `is_some()` reads survive
+and neither is a dispatch guard. Correcting the two line numbers would
+have produced a file whose citations resolve and whose sentences are
+false, which is *more* dangerous than broken numbers, because a
+resolving citation reads as checked. Recorded against the general case:
+**a citation gate that resolves numbers would have passed the one file
+whose claim had gone stale.** That is a real limit on the guard
+`stale-file-citations-after-the-split` proposes, found by paying the
+cheap half.
+
+That makes seven prose claims outrunning this tree in two days.
+
+### Three lanes out
+
+Style review each unless the meta-review says otherwise; no A/B rows.
+
+- **`view/status-lifetimes`** — plan item 3. The design call, made here
+  and stated in the brief AS a call rather than a fact: *the status
+  line carries per-frame NEWS and `frame::frame_status` owns its
+  ranking; a fact that stays true after the frame ends is not news.*
+  The item filed the choice as open between three shapes; the reason
+  for calling it is that shape (3) already exists in the tree —
+  `frame::frame_status` (`frame.rs:103`) ranks refusal > every notice
+  joined > the batch verdict, and argues it at length — and `land`
+  (now `pane/viewport.rs:26`) predates the rule and bypasses it. What
+  is left is a lifetime split, and the item's own prose reaches it
+  twice. **Disclosed as a call over an item that says "none obviously
+  right"**; the lane is told to report if it thinks the split is
+  wrong. Fenced hard: the ~15 further direct writers of the line
+  (`pane/create.rs` x10, `pane/view.rs`, `pane/viewport.rs` x3,
+  `app.rs` x3) are censused and FILED, not refactored — CHROME has
+  nine newly-unblocked items in those same files. The item's
+  four-writer framing is an undercount and the brief says so as a
+  claim to check.
+- **`view/set-param-precheck`** — `set_param` pre-checks what
+  `DocEdit::SetDocParamValue` refuses typed, plus the sweep for the
+  class (42 `OpOutcome::refused` sites in `session.rs`). Style review:
+  the failure mode is a refusal's text changing, which CI reports
+  loudly. The brief names the trap explicitly — a test asserting
+  `NoSuchParam`'s wording must not be silently re-baselined.
+- **`view/module-kind-gate`** — `boundary-rule-has-no-mechanical-check`
+  plus `loud-skip-marker-says-two-modules-and-there-are-six`. The
+  countermeasure the hazard above wants. **Corrected my own first
+  reading before dispatching**: I assumed a new gate in
+  `scripts/gates/` would be picked up automatically, and
+  `gate-roster.sh` proves the opposite — it requires `ci.yml` to name
+  every gate by a `--selftest` call and a real call, so the unit
+  reaches two lines into **CIW's** territory. Told to make the reach
+  minimal, argue it under a `## Territory` heading, and escalate
+  rather than silently take the item's fallback (deleting the word
+  "mechanically" from the README), which is the orchestrator's call.
+  The brief also names the tension it must answer: part A builds a
+  machine that reads a hand-kept declaration, part B deletes a
+  hand-kept enumeration for going stale.
+
+### What is still not moving, and why
+
+Items 4, 5 and 6a are all waiting on other programs and **nothing in
+this session changes that**: the focus map door straddles DOCM and
+S-BOOL, `next-id-has-no-layer3-door` is DOCM's, and 6a is an `[ev]` PR
+that gates 6b and 6c. 6a is the one this program can act on alone and
+it is the next orchestrator build, not a lane's.
