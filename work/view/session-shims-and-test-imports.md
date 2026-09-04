@@ -16,12 +16,24 @@ unit, and "deferred" is not a schedule).
 ## The deviation
 
 32 of the 44 files in `crates/viewer/tests/` spell
-`use viewer::session::{…}` — the module path — for items `lib.rs:139`
-already re-exports at the crate root: `SessionOp` (5 files), `Refusal`
-(5), `ProfileShape` (5), `DocSession` (5), `Selection` (4),
-`NodeKindWanted` (4), `DatumSpec` (4), `FaceSelection` (3),
-`PatternRuleSpec` (2), `Hovered` (2), `EdgeSelection`, `AtRestBadge`,
-`admits`.
+`use viewer::session::{…}` — the module path — for these items:
+`SessionOp` (5 files), `Refusal` (5), `ProfileShape` (5), `DocSession`
+(5), `Selection` (4), `NodeKindWanted` (4), `DatumSpec` (4),
+`FaceSelection` (3), `PatternRuleSpec` (2), `Hovered` (2),
+`EdgeSelection`, `AtRestBadge`, `admits`.
+
+**Most of that list, but not all of it, is already spelled at the
+crate root.** `lib.rs:147`'s `pub use session::{…}` block re-exports
+eleven of the thirteen; `AtRestBadge` and `admits` appear in neither
+that block nor any other crate-root `pub use`, so for those two a
+re-point is not a substitution. `AtRestBadge` is reached by the module
+path in four files — one `use viewer::session::{…}` line
+(`story_assembly.rs:51`) and three fully-qualified
+`viewer::session::AtRestBadge::…` spellings — and has no crate-root
+spelling to move to; `admits` is imported by no test at all, only
+named in prose (`combine_ops.rs:1327`), so it does not belong in this
+list. Either the block grows first or those sites stay on the module
+path. The sweep is that much less mechanical than the rest.
 
 The split moves most of those items into `session::{select, refuse,
 op, author}`. It lands `pub use` shims in `session` so **no test file
