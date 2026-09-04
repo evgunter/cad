@@ -447,7 +447,7 @@ area `kernel`; prefix `fillet/`; tag `(FILLET orchestrator)`; ab_band `2000-2099
 | `fillet-nonpositive-radius-false-fact-refusal` | issue | open | fillet_edges at nonpositive radius emits a false-fact refusal; the two blend doors validate size asymmetrically |  |  |
 | `fillet-refusal-describes-unbracketed-crossing` | issue | open **[ev]** | An arc-carrier fillet refusal can describe the crossing the author did not bracket |  |  |
 | `fillet-ruled-spine-arms-no-surgery` | issue | open **[ev]** | fillet - the ruled-spine arms classify but no surgery carves their band |  |  |
-| `no-public-rim-arc-selector` | issue | open **[ev]** | selection: no public 'give me this rim's arcs' selector — every caller hand-rolls a radius/station scan |  |  |
+| `no-public-rim-arc-selector` | unit | open **[ev]** | selection: no public 'give me this rim's arcs' selector — every caller hand-rolls a radius/station scan |  |  |
 | `nocornersidecandidate-has-no-producer` | issue | open **[ev]** | `NoCornerReason::NoCornerSideCandidate` has no producer reachable through a shipped door (machinery with no producer) |  |  |
 | `recourse-sentences-owe-followability-pin` | issue | open | Recourse sentences owe a followability pin: the dead-recourse class recurred in consecutive units |  |  |
 | `repaired-pole-rim-serves-no-closed-door` | issue | open | fillet: a boolean-REPAIRED pole-touching rim is served by neither closed-rim door — one plane face, several mate half-bands |  |  |
