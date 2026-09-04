@@ -90,10 +90,10 @@ pub(crate) fn certified_carrier<'a>(
 /// The gate is a function of the carrier alone, so the arm it guards
 /// is drivable without a body: no certification admits a placeholder
 /// carrier, so no `Body` in this build reaches it through the emitter.
-pub(crate) fn printable_carrier<'a>(
-    carrier: &'a Curve3<f64>,
+pub(crate) fn printable_carrier(
+    carrier: &Curve3<f64>,
     edge_key: EdgeKey,
-) -> Result<&'a Curve3<f64>, StepExportError> {
+) -> Result<&Curve3<f64>, StepExportError> {
     if let Curve3::Nurbs(payload) = carrier
         && payload.is_placeholder()
     {
