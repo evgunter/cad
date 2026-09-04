@@ -15,6 +15,8 @@ keep_out: [scripts/gates/* and tools/* are code-quality Track K's, scripts/ci-fi
 The S-QA ground, unowned since 2026-08-31: workflow files, the render
 lanes, the parity checkers, the perf emitters and the demo shell and
 Python. Every item is E — the fix is written in the item — with two
-rulings split out as `[ev]` PRs. Review posture: batched style review,
-no A/B row (infra-only units, the S-TCOST precedent). Charter and unit
-order: `work/ciw/plan.md`; narrative in `work/ciw/log.md`.
+rulings split out as `[ev]` PRs. Review posture (Ev, 2026-09-04): no
+A/B protocol; one subagent style review per unit, plus a correctness
+reviewer only where a unit earns one, named in its PR with the reason.
+Charter and unit order: `work/ciw/plan.md`; narrative in
+`work/ciw/log.md`.
