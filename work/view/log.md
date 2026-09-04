@@ -610,3 +610,74 @@ it cost the lane something.
 
 CHROME's test glob is touched by this unit (`gesture_table.rs`,
 `all.rs`); the announce is owed with #1816 rather than assumed.
+
+## The fix pass hung after editing, and what that cost (2026-09-04)
+
+The style review on #1816 returned no MAJOR and did not block the
+merge. Its sharpest findings were about claims rather than code, and
+the sharpest of those was mine.
+
+**`crates/viewer/README.md`'s *Gesture safety is data* section — landed
+on main by #1801 — described this unit in FUTURE tense, on a premise
+sentence 1b had just made false, and named `SessionOp::gesture_safe`,
+an identifier that exists nowhere in the tree.** The shipped name is
+`permitted_during_value_gesture`. So for the time between the two
+merges the project's design doc of record named a symbol that does not
+exist, and `scripts/doc-gate.sh` could not have caught it: that gate is
+rustdoc-only and never opens a README. The dead name was in four files,
+not the one the review found — the plan and two item files carried it
+too, and `plan.md` is what lanes 1c and 1d read to learn what 1b did.
+
+Also landed: the sweep of prose citing the old per-site guard was a
+half-fix (one site rewritten, three left stating the rule unlinked, one
+of them load-bearing); two doc comments claimed the permitted arms
+"carry no guard of their own" when four do, which is true only under
+the reading this unit exists to prevent; an open question was written
+up in code as settled design; and the `Refusal::rank` paragraph's
+"exhaustive, so a new arm is compiler-caught" is true over `Refusal`'s
+arms and false one level down, where `Display(_)` is a catch-all that
+ranks a new `DisplayFault` by default.
+
+**The review earned its keep by mutating rather than reasoning.** It
+flipped `Save` in the predicate alone: `the_table_answers_for_every_op`
+went red and `every_op_behaves_as_the_table_says` stayed green — which
+proves the second copy is genuine AND proves the behavioural row cannot
+catch a wrong table entry, since both sides of its assertion read the
+same predicate. The PR body and the test header both claimed more than
+that. Reversing the whole table showed 20 of the 26 refusals have an
+external witness and six do not.
+
+### The lane hung, and the shared checkout made that expensive to see
+
+The fix-pass lane finished its edits by 07:52, wrote its target
+directory until 08:00, and then did nothing for over two hours while
+still reporting as running. No `cargo`, `rustc`, `rustdoc` or `nextest`
+process existed; disk was not exhausted (9.5 G free). Its last words
+were that it was about to run a verification mutation and wanted to
+commit first so it could revert — so it hung between editing and
+verifying.
+
+Because subagents share this checkout, its work sat as six modified
+files in the orchestrator's working tree for two hours. **That is the
+same shared-checkout hazard recorded earlier today, in its third
+form**: first an orchestrator commit landing on a lane's branch, then a
+lane's commit orphaned by an orchestrator merge, now a dead lane's
+uncommitted work indistinguishable from the orchestrator's own dirty
+tree. The rule already in `memories/agent-lane-operations.md` covers
+the recovery; what this instance adds is that **a stop-hook or any
+"you have uncommitted changes" prompt is not authority to commit**,
+because the tree may belong to a live lane.
+
+Recovered by reading all six files, then verifying what the lane never
+reached: `cargo fmt --check`, `work.py lint`, the three new rows, the
+full 466-row viewer suite, `clippy -p viewer --features app
+--all-targets`, and `cargo doc` under `-D rustdoc::broken_intra_doc_links`
+— that last one because the fix pass ADDED intra-doc links
+(`DisplayState`, `DisplayFault::FreeMoveInFlight`) and an unresolved
+link is exactly what the doc gate fails on. All clean. The lane's
+target directory was warm, which is how its hang was placed after
+compilation rather than during.
+
+**Cost of the hang: nothing but time.** Hosted CI is the verification of
+record here, not a lane's local runs, so a lane dying after its edits
+loses only the local pre-check.
