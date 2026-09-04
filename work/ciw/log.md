@@ -268,3 +268,52 @@ against 15 % of docs-tier pushes at 40 s. The aggregate 34 % was quoted
 with its causality backwards.
 
 Nothing in the measurement moved and the recommendation is unchanged.
+
+### Unit 8 answers Ev, and changes its own recommendation (2026-09-04)
+
+Ev's comment on 1796 asked two things, and the answers moved the unit
+off the proposal it opened with.
+
+**Q1 — full job set vs test rows only, on the record.** Two identified
+composition instances (`TAG_INVENTORY` at `bdfa604b`; `MateFault::
+Unleverable` at `50d9ba21`, filed as
+`merge-order-semantic-break-reaches-main`). Measured clear air: 161 s
+and **95 s** before the next push cancels; measured time-to-red:
+`clippy` **+84…96 s**, the build +127…202 s, the test rows +348 s. So
+the full set catches **1 of 2** as things stand (instance 2, by a 6–27 s
+margin), the narrow variant **0 of 2**, and both catch 2 of 2 once push
+runs stop being cancelled. **The row that catches instance 2 at all is
+`clippy` — which the narrow variant does not restore.** The abstract
+risk the unit named a revision earlier turned up in the record one night
+later.
+
+**Q2 — the configuration draw.** Priced: **+15.6 job-minutes per
+code-tier run** (24.4 → ~40), **+161 job-min/h**, and **+22 s of wall
+clock (~5 %)**, because six points are two builds and twelve 46–58 s
+test jobs, not six builds. Filed as
+`configuration-sampling-outlives-its-premise`; Ev has authorised the
+change and a separate lane owns the edit. Attribution, stated carefully:
+of five recorded main-reds, **zero** are the lane/eps draw's — but that
+population is biased against exactly that class, so the record cannot
+settle it and the argument has to rest on price. Note `k-lint`'s 1-of-5
+sampler is a **second** sampler and is not in that price.
+
+**And the unit now recommends against its own opening proposal.** Ev
+authorised experimenting with a merge queue; priced against the same
+two instances, a queue **prevents** them where the push gate only
+**detects** them, at **the same runner cost** (44 vs 48 job-min/h,
+simulated over the 200 observed merge arrivals). The throughput
+objection does not survive contact: the median 308 s gap is not the
+arrival rate — the mean inter-arrival is 826 s and utilisation is
+**ρ ≈ 0.27**, so a serial queue is stable, and the cost is merge latency
+(median 442 s, p90 676 s, max 857 s at batch ≤5) rather than backlog.
+
+Two things that fell out of that and are worth keeping: ci.yml's
+`!= 'push'` spelling means a `merge_group` event runs the full gate with
+**no edit**, which is exactly the case its 2026-08-28 note argued for;
+and required status checks are named, so **un-sampling is a
+precondition** for a queue, which couples Q2 to the queue rather than
+leaving them independent.
+
+Nothing was enabled and no repository setting was touched: the queue is
+a design put to Ev.

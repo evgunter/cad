@@ -603,3 +603,363 @@ Nothing in the measurement moved. The recommendation is unchanged and
 its central number is stronger than it was written: **5 m 48 s to a red
 on the merge commit, 11 m 41 s ahead of the stranger who pays for it
 today.**
+
+## EV'S TWO QUESTIONS (PR 1796, comment 5537281174, 2026-09-04 07:35Z)
+
+### The enumeration, and how it was built
+
+Both answers rest on a population of **recorded main-red instances**, so
+the search has to be describable. It is: `git grep` over `origin/main`
+for `main is red|main … non-compiling|latently red|reaches main|red on
+main` across `work/**.md` and `docs/**.md` — 13 files — read in context,
+keeping the ones that record **a defect present on `main` that no run on
+`main` executed**. Five qualify:
+
+| # | instance | mechanism | point-dependent? |
+|---|---|---|---|
+| 1 | `TAG_INVENTORY` two tag values (`bdfa604b`, 17:55:42Z) | **composition** of two green PRs | **no** — fires at both lanes and all three eps rows (its own closed item's evidence) |
+| 2 | `MateFault::Unleverable` non-compiling (`50d9ba21`, 05:26:52Z) | **composition** of two green PRs | **no** — measured red on both the default and interval clippy rows |
+| 3 | `main-latently-red-at-tier-all` (pyo3 wheel, doc collision) | one PR's own rows **unexecuted at its tier** | no |
+| 4 | `probe-census-red-interval-cfg-gate` | **a sampler** — but `k-lint`'s 1-of-5 row draw, not the lane/eps draw | (k-lint row, not a config point) |
+| 5 | `pncad-py-python-feature-clippy-lane-is-red` | a configuration **no CI row runs at all** (`--features python`) | no — a coverage hole, not a miss |
+
+**What this population cannot contain**, and it is the crux of Q2: a
+defect that only shows at a configuration point nothing drew is
+invisible until something draws it. The enumeration is of defects
+somebody wrote down, which biases it toward defects that cost enough to
+be written down. Absence of a lane/eps-draw red here is evidence that
+nothing is looking, not evidence that none exist.
+
+### Q1 — "for (B), do we have historical evidence on how much that vs (A) would've caught things?"
+
+`(A)`/`(B)` are read as the options table's rows: **A = the full job set
+on `push: main`; B = the test rows only.** (The adjacent question — the
+job set with or without the concurrency change — is answered by the same
+numbers and is below.)
+
+Two ingredients, both measured:
+
+**How much clear air each composing merge had** — time from its push run
+starting to the next push run starting, which is when
+`cancel-in-progress` fires:
+
+| composing merge | push run | clear air | the run actually lived |
+|---|---|---|---|
+| `bdfa604b` (instance 1) | `33787453014` | **161 s** | 246 s |
+| `50d9ba21` (instance 2) | `33840520387` | **95 s** | **102 s** |
+
+**How fast each row reds on the defect in question**, as an offset into
+its own run:
+
+| row | reds at | source |
+|---|---|---|
+| `clippy` (default) | **+84…96 s** | 3 runs in the 34-minute non-compiling window |
+| `clippy + doc-tests (interval)` | **+75…92 s** | same 3 runs |
+| `build + archive (default)` | +127…134 s | same |
+| `build + archive (interval)` | +155…202 s | same |
+| `test (…, 2/2)` on instance 1 | **+348 s** | job `100761051102`, run `33788618577` |
+
+Job `100924046762` (run `33841298810`, `clippy`) is read first-hand:
+`error[E0004]: non-exhaustive patterns: &editor_core::MateFault::Unleverable
+{ .. } not covered`, `crates/viewer/src/tree.rs:317:11`, exit 101 at
++84 s. That is instance 2, on a stranger's branch, four times over.
+
+**The counterfactual, n = 2:**
+
+| | instance 1 | instance 2 | caught |
+|---|---|---|---|
+| **A** (full set), cancellation as today | no — +348 s into a 246 s life | **yes, by 6–27 s** — `clippy` at +84…96 s into a 102 s life | **1 of 2** |
+| **B** (test rows only), cancellation as today | no — same +348 s | no — its earliest row is the build at +127…134 s | **0 of 2** |
+| **A + no cancellation** | yes, +348 s | yes, +84 s | **2 of 2** |
+| **B + no cancellation** | yes, +348 s | yes, +127 s | **2 of 2** |
+
+**So the historical evidence says A strictly dominates B, and the margin
+is real in one of the two cases.** The row that catches instance 2
+fastest — and the only row that catches it at all under today's
+cancellation — is `clippy`, which **B does not restore**. This is the
+abstract risk the first revision named ("what B gives up is every
+composition that is not a test failure") turning up in the record one
+night later, and it moves the recommendation from a judgement call to an
+observation.
+
+**Do not over-read n = 2.** Two instances is two instances; instance 2's
+margin is 6–27 seconds on a run that lived 102 s, which is a scheduling
+coin-flip and not a property. What the table supports is an ordering
+(A > B, both ≫ nothing) and one hard fact — **neither variant catches
+instance 1 without the concurrency change**.
+
+**Instances 3–5 are not in the table because A does not address them,
+and saying so is part of the answer.** Instance 3 is a *tier* question:
+a restored push run classifies at the merge's own tier, so it skips
+exactly the rows that PR's own run skipped. Catching it needs push runs
+at `tier=all`, which is a different and more expensive proposal than
+anything priced here. Instances 4 and 5 are a different sampler and a
+missing row respectively.
+
+### Q2 — un-sampling the configuration draw
+
+Ev: *"CI is weakened right now because of sampling only certain
+configurations… undoing that sampling now that actions minutes are much
+cheaper is probably a good idea regardless of if we still need the fix
+described in this pr."*
+
+**Q2.1 — attribution: how many main-reds are the draw's?** Of the five
+recorded instances above, **zero** are attributable to the lane/eps
+draw. Two are compositions, one is tier scope, one is `k-lint`'s
+row sampler, one is a configuration with no row at all. And the two
+compositions are **point-independent**: instance 1's own record has it
+firing at both lanes and all three eps rows, and instance 2 is measured
+red on both lanes' clippy rows — so un-sampling would not have caught
+either of them one second sooner.
+
+That is not a verdict against un-sampling, because of the bias stated
+above. It is a verdict against *justifying* un-sampling by the recorded
+reds: **the record cannot answer Ev's "how much of the reds on main are
+from that vs conflicts", and the reason it cannot is the same reason the
+draw is worth undoing.** The honest ground is the price, which is small
+(below), and the exposure, which is measurable: a merge is gated at
+**one** of six points, and each point gates between 9 % and 31 % of
+code-tier runs (observed frequencies: interval/1e-12 31 %, default/1e-12
+22 %, interval/default 15 %, interval/1e-6 13 %, default/default 10 %,
+default/1e-6 9 %; lane marginal 59 % interval, eps marginal 54 % 1e-12).
+Those are gating frequencies, not a claim about the hash: lanes can also
+be *asked for* by trailer, and `CONFIG_SOURCE` separates drawn from
+requested in a run's log, which this reading did not open.
+
+**S-TCOST's census could not be used.** There is no `docs/S-TCOST-LOG.md`
+on `origin/main` and no `nontest_failures.json` in the tree — the only
+mention of that file (`work/issues/render-lanes-checkout-merge-ref-vanishes`)
+calls it **lane-private**, so it was never committed. The enumeration
+above is built from the tracker instead, and its method is stated so it
+can be checked or widened.
+
+**Q2.2 — the price of running all six points.** The shape matters more
+than the count: **eps is read at runtime**, so the six points are **two
+builds and twelve test jobs**, not six builds (ci.yml's *BUILD ONCE PER
+COMPILE MODE*). And the test jobs are the cheap part. Measured medians
+over the post-flip population:
+
+| row | median | n |
+|---|---|---|
+| `build + archive (default)` | 309 s | 66 |
+| `build + archive (interval)` | 369 s | 96 |
+| a `test (…)` job, default lane | **46 s** | 128 |
+| a `test (…)` job, interval lane | **58 s** | 186 |
+| `clippy` | 66 s | 66 |
+| `clippy + doc-tests (interval)` | 114 s | 96 |
+
+A code-tier run today gates one point: one build, two test jobs, one
+clippy row ≈ 344 + 106 + 94 = **544 job-seconds** (weighting the lanes by
+their observed 59/41 split). Un-sampled it is two builds, twelve test
+jobs and both clippy rows = 678 + 624 + 180 = **1482 job-seconds**.
+
+* **+938 job-seconds ≈ +15.6 job-minutes per code-tier run**, taking the
+  median run from **24.4 to ~40 job-minutes**.
+* At **10.3 code-tier PR runs an hour** (149 runs over the 14.45 h
+  window), that is **+161 job-minutes an hour ≈ +2.7 mean concurrent
+  jobs**, against a measured mean of 4.3, p90 12, peak 36, and a queue
+  delay of 3 s median / 25 s p99.
+* **Wall clock: about +22 s on the median run, ~5 %.** Un-sampling does
+  not lengthen the critical path, it makes the *slower* lane mandatory:
+  runs that gate the interval lane already finish their last test row at
+  a median **464 s** against the default lane's **385 s**, and 442 s is
+  today's mixed median.
+
+So it is roughly **3× F3's cost in runner load and a twentieth of it in
+latency** — because what doubles is the build and what multiplies by six
+is a 46–58 second job.
+
+Not priced here, and named rather than absorbed: **`k-lint` is a second,
+independent sampler** (1 of 5 unifications), and it is the one sampler
+with a recorded red to its name (instance 4). Its job median is 127 s
+with a p75 of 347 s and a max of 1039 s, so un-sampling *it* is a
+materially different sum from the one above and wants its own reading.
+
+**Q2.3 — is it independent of F3? In mechanism yes, in value no.**
+
+* **Orthogonal in mechanism.** Sampling decides *which point* a run
+  gates; F3 decides *which trees get a run at all*. Neither touches the
+  other, and the evidence agrees: un-sampling would have caught neither
+  composition (both point-independent), and restoring the push gate does
+  nothing for a defect at an undrawn point unless that push run happens
+  to draw it.
+* **Complementary in value, and the direction is worth stating.** A
+  restored push gate that samples gates the landed tree at **one of six**
+  points; un-sampled, it gates it at all six. So un-sampling raises what
+  option A is worth, and A raises what un-sampling is worth, but neither
+  is a precondition for the other. **Ev's "regardless of if we still need
+  the fix described in this pr" is supported.**
+
+**Recommendation: un-sampling is its own unit**, filed as
+`work/ciw/configuration-sampling-outlives-its-premise`. It is priced
+independently, it changes no F3 decision, and its likely edit site is
+`scripts/ci-filter.py` — **S-TCOST's territory**
+(`work/tcost/program.md` `paths:`), not CIW's. CIW owns the posture
+question and `.github/workflows/*`; any edit to the filter is S-TCOST's
+to make or to be announced to them, and this unit writes neither.
+
+## THE MERGE QUEUE, PRICED — and it dominates the push gate
+
+Ev, in chat 2026-09-04: *"feel free to reinstate full runs instead of
+sampling and also to experiment with a merge queue if that still ends up
+looking important."* It does, and this section is the reason this unit
+now recommends against its own opening proposal.
+
+**Naming, because the letters have drifted.** Ev's comment reads `(A)`
+and `(B)` as this document's options table — full job set versus test
+rows only — and a later relettering would silently change what he
+answered. So the options are **named** from here on: *push-gate (full)*,
+*push-gate (tests only)*, *stop cancelling push runs* (a modifier on
+either, not an alternative), *scheduled run*, *merge queue*, *nothing*.
+
+### Why it is a different kind of answer
+
+Every instance in this unit's evidence is a composition that **no run
+ever compiled**: M10's tag values with LIB's gate, CHROME's
+`blamed_mates` with M10-7's `Unleverable`. A push gate tests that state
+**after it lands** — 5 m 48 s after, at best. A merge queue tests the
+prospective merge **before** it lands, so `main` never carries the
+defect. On both instances the queue does not detect faster; it
+**prevents**.
+
+And it closes the window at the source rather than compensating for it.
+F3's residue is the gap between a PR's last run and its merge; a queue
+*is* the elimination of that gap, because the tree that lands is the
+tree that was tested. That makes the push gate largely redundant for
+this class rather than complementary to it: **if the queue lands, the
+push job set should not be restored** — they are alternatives.
+
+### The throughput objection, checked and not sustained
+
+The objection put to this lane was that a queue serialises merges, that
+the median gap between pushes is 308 s against a 442 s run, and that a
+serial queue would therefore build a backlog. **The median gap is not
+the arrival rate.** Merges are bursty: p25 140 s, median 308 s, p75
+874 s, p90 2489 s, and the **mean inter-arrival is 826 s** over the
+45.66 h window. Mean service is 221 s (0.45 × 442 s code-tier + 0.55 ×
+40 s docs-tier), so **utilisation is ρ ≈ 0.27**. A single-server queue at
+ρ = 0.27 does not back up; it shows the burstiness as delay.
+
+Replaying the **200 observed merge arrivals** through a FIFO server
+(442 s for any group containing a code-tier merge, 40 s otherwise):
+
+| batch size | ready-to-merge → landed, median | p75 | p90 | max |
+|---|---|---|---|---|
+| 1 (strictly serial) | **442 s** | 597 s | 903 s | **1770 s** |
+| ≤2 | 442 s | 535 s | 807 s | 1541 s |
+| ≤5 | 442 s | 463 s | **676 s** | **857 s** |
+| ≤10 | 442 s | 463 s | 676 s | 857 s |
+
+Batching past 5 buys nothing at this arrival pattern. **The cost of a
+queue is therefore merge latency, and it is a median of 442 s with a p90
+of 676 s and a worst observed burst of 857 s at batch ≤ 5** — against
+~0 s today, since a lane merges the moment it is green.
+
+**And it costs no more runner time than the push gate does.** Same
+replay, counting the runs a queue would actually start:
+
+| | code-tier runs/h | job-minutes/h |
+|---|---|---|
+| merge queue, batch 1 | 1.97 | **48** |
+| merge queue, batch ≤5 | 1.80 | **44** |
+| push-gate (full) | 1.97 | **48** |
+
+Identical, because both run one full gate per merge; batching makes the
+queue slightly cheaper.
+
+**What the simulation assumes**, so it can be discounted properly: one
+median service time per class rather than a distribution; the observed
+arrivals were produced under a no-queue regime and lanes might merge
+differently under one; and **failures are not modelled**. A red queue
+run with batch N delays every PR in the batch and needs a bisect —
+which is the argument for a small batch, and at batch 1 there is no
+bisect at all. At the observed rate of composition defects (2 in
+45.66 h) the bisect path is rare, but "rare" here is n = 2.
+
+### What it would take, enumerated and NOT written
+
+- **`merge_group` is absent from the tree**: it appears nowhere in
+  `.github/` or `scripts/`. `ci.yml`'s `on:` needs the trigger.
+- **The gate guards already do the right thing, and that is not luck.**
+  Every gated job reads `github.event_name != 'push'`, so a
+  `merge_group` event runs the full set with no edit. ci.yml's header
+  argued for that spelling on 2026-08-28 — *"a trigger added here runs
+  the gate by default and has to be excluded deliberately, which is the
+  direction that fails safe"* — and this is the case it was written for.
+- **`renders`' `push_to`** is `github.event_name == 'push' && …`, so it
+  is empty under `merge_group`: report-only, correct by default.
+- **`render.yml`'s concurrency group** keys on `github.ref`, which under
+  `merge_group` is the queue's own `gh-readonly-queue/…` ref — distinct
+  per group, so no cross-cancellation. Also correct by default.
+- **Three `github.event.pull_request.base.sha` sites** (ci.yml:889,
+  2506, 2971) are null under `merge_group`. The territory step at :889 is
+  already `if: github.event_name == 'pull_request'`; the two test-cost
+  report steps are `continue-on-error: true`, so they degrade rather than
+  break — but they degrade silently, which is this repo's least-liked
+  failure shape.
+- **The change filter's basis** is the open question: it classifies a
+  diff, and under `merge_group` the diff is the queue group against the
+  base branch. Whether `scripts/ci-filter.py` computes that correctly is
+  unverified here and is **S-TCOST's file**.
+- **Required status checks vs sampled job names.** Branch protection
+  requires checks *by name*, and the sampled matrix's names are computed
+  (`test (eps = ${{ needs.filter.outputs.eps }}, 1/2)`). A queue's
+  required-check list is hard to write against names that change per
+  run — which is a second, independent argument for Q2's un-sampling,
+  and the two changes fit together.
+- **The working agreement changes.** `CLAUDE.md`: *"Agents own this
+  codebase and merge their own PRs to main."* Under a queue an agent
+  enqueues and waits, and a queue rejection hands the PR back. That is a
+  culture change, not a workflow knob.
+- **Blast radius**: it is a branch-protection setting; a misconfiguration
+  blocks all merging for everyone. **Nothing here is enabled, and no
+  repository setting was touched.**
+
+### What the queue does NOT fix
+
+- **Nothing about configuration sampling** (Q2). A queue run draws one
+  point of six like any other run.
+- **Instance 3's class**: a queue run classifies by tier like any other
+  run, so rows a PR's tier skips are skipped in the queue too.
+- **It does not make `main`'s push runs do anything more than they do
+  today** — it makes them unnecessary for this class instead.
+
+## THE OPTIONS, RE-PRICED
+
+| option | runner cost | what it does to the two composition instances | what it costs elsewhere |
+|---|---|---|---|
+| **merge queue** (batch ≤5) | **44 job-min/h** | **prevents both** — they never reach `main` | merge latency: median 442 s, p90 676 s, max 857 s; a branch-protection setting; the merge culture changes |
+| **push-gate (full)** + stop cancelling | 48 job-min/h | detects both, 5 m 48 s after landing | a three-mechanism concurrency design pass |
+| **push-gate (full)**, cancellation as-is | 48 job-min/h | detects **1 of 2**, by a 6–27 s margin | — |
+| **push-gate (tests only)** + stop cancelling | 16 job-min/h | detects both, the second at +127 s not +84 s | same design pass |
+| **push-gate (tests only)**, cancellation as-is | 16 job-min/h | detects **0 of 2** | — |
+| **scheduled run** | 9.8 job-h/day hourly | detects, ≤1 h later, naming ~4.4 merges | — |
+| **nothing** | 0 | 17 m 29 s, on a stranger's branch | 42 red runs on 20 branches, and 34 m 25 s of non-compiling `main`, in the two observed instances |
+
+## THE RECOMMENDATION, REVISED
+
+**Design and trial the merge queue; do not restore the push job set
+unless the queue is rejected.** This unit was opened to re-cost F3 and
+the honest answer is that the re-costing found a better instrument than
+the one it was asked to price: at **the same runner cost** (44 vs 48
+job-minutes an hour) the queue **prevents** the defect class that the
+push gate can only **detect**, and it removes F3's residue at its source
+rather than compensating for it.
+
+**The price to weigh is merge latency, not minutes**: median **442 s**
+from ready-to-merge to landed, p90 **676 s**, worst observed burst
+**857 s**, against approximately zero today. That is the number Ev
+should be answering, and it is a working-rhythm question rather than a
+CI one.
+
+**If the queue is rejected, the fallback is push-gate (full) plus the
+concurrency design pass, at 48 job-minutes an hour** — and *not* the
+test-rows-only variant, which the historical evidence now rules out: it
+catches 0 of 2 as things stand and 2 of 2 only with the same design
+pass, always later than the full set, because the row that catches
+instance 2 fastest is `clippy`.
+
+**F3 itself needs no revision under either answer**, which is worth
+saying plainly after all this measurement: a queue makes the push run's
+job set irrelevant to correctness, and the push run keeps carrying its
+three write side-effects exactly as F3 left it.
