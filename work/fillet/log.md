@@ -128,3 +128,22 @@ NUMERIC unchanged, re-logged branch-side. PR
 [#1752](https://github.com/evgunter/cad/pull/1752) is the unit's PR; the
 finding is filed as `concave-rim-arms-rest-ball-on-material-side`,
 which the unit closes.
+
+**E1 reviewed (2026-09-04): MERGEABLE-AFTER-FIXES**, single style review
+on frozen `acb85399` of PR [#1743](https://github.com/evgunter/cad/pull/1743).
+C1/C2/C3/C5 held under executed differentials and mutants; C4 missed one
+stale sentence. The review's real yield is a sibling class: the shared
+gate reads `lo() > 0` unmetered while the band's zero is 1e-9, so a
+positive size under ε still reaches the false-fact refusal at both doors
+(fillet: a false headroom sentence; chamfer: `DependentNormals` about an
+orthonormal corner) — the blend's is the one unmetered spelling of three
+(shell and tube meter positivity against the band). Adjudicated: the fix
+pass (implementer-inherited) adopts the reviewer's rows `--no-ff`
+(order pin, one-refusal row, the `Interval` bracket rows that make the
+interval claim real — the flipped probe is `f64`), fixes the prose and
+the duplicated rationale, and files the sub-ε class as its own issue
+with a characterization row rather than widening E1; the order change
+(size gate before repeated-edge) is disclosed as a change and stands.
+The inline-Display-advice class the review surfaced (`NonpositiveSize`,
+`RepeatedEdge` map to `Recourse::None` yet advise) is routed to E2's
+inventory. E3 dispatched on `fillet/e3-margin-payloads`.
