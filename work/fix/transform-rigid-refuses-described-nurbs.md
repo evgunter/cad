@@ -7,6 +7,7 @@ opened: 2026-08-31
 github: 1346
 refs: [1020]
 branch: fix/transform-rigid-nurbs
+pr: 1742
 ---
 
 ## From GitHub issue 1346

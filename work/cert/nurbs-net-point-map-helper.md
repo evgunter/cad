@@ -5,6 +5,7 @@ title: map_points on NurbsSurface/NurbsCurve landed from fix/ — the control-po
 status: review
 opened: 2026-09-04
 branch: fix/transform-rigid-nurbs
+pr: 1742
 ---
 
 
