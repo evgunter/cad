@@ -3664,3 +3664,13 @@ is the oracle and any fold found hardcoded convex is a sign decision).
 Slots 1–2 bank for the next H units in dispatch order
 (`repaired-pole-rim-serves-no-closed-door`, then
 `extrude-cap-rim-smooth-arm-noop`), pre-draw fields at their specs.
+
+Block FILLET-B1 draw (2026-09-04, after the pre-draw fields above; v3
+triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252): byte
+**111**, 111 mod 3 = 0 = fable's position ⇒ **fable at slot 0**.
+So: slot 0 FILLET-H4 = FABLE, slot 1 = OPUS, slot 2 = OPUS. Recorded
+branch-side; this record reaches main when the block's last slot's
+reviews conclude; each ordinal claim at review dispatch goes to main on
+its own.
+
+Block FILLET-B1 slot record (branch-side, appended as each slot concludes):
