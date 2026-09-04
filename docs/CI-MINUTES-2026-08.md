@@ -2008,3 +2008,109 @@ inheritance.)
 
 `work/tcost/rust-cache-never-restores-across-branches` still says no PR
 can inherit one; that item is S-TCOST's to update.
+
+## 2026-09-04 — the k-lint unification draw retired, and what five legs cost
+
+**Ev, in chat: *"you can un-sample k-lint"*.** This is the measurement the
+2026-09-04 un-sampling of the lane and ε deferred: `k-lint (gate)`'s five
+feature unifications were the last drawn dimension, and the section above
+scoped them out on cost shape without pricing them. Priced here, from this
+repository's own runs, on the public 4-vCPU runner.
+
+**What was measured, and what a run id means here.** Every figure below is
+derived from the jobs API's `started_at`/`completed_at` per job — *not* from
+the billing API, which returns `total_ms: 0` on a public repository because
+standard-runner minutes are not billed. "Job-minutes" therefore means wall time
+summed over the jobs that actually ran (`skipped` excluded), and it is a
+resource figure, not a bill. Per this document's 2026-08-31 addendum, each
+number is true as of the run it names and nothing re-takes it.
+
+### The five legs, on one run
+
+Run **33895150877** (PR 1850, `ciw/unsample-klint`, TIER=all, **green**): 33
+jobs ran, **72.7 job-min**, first job start to last job finish **667 s**. The
+five `k-lint (gate, <row>)` jobs:
+
+| row | duration | row steps executed |
+|---|---:|---:|
+| `dev-default` | 83 s | 5 |
+| `dev-budget` | 119 s | 1 |
+| `release-budget` | 139 s | 2 |
+| `dev-probe` | 360 s | 4 |
+| `release-default` | 413 s | 2 |
+| **all five** | **1114 s = 18.6 job-min** | **14** |
+
+The 14 is the whole of the job's `if:`-gated step set, each step executed
+exactly once across the legs; `demos tour fmt + clippy` — the step `#1756`'s
+run skipped — is one of `dev-default`'s five.
+
+### Job-minutes: +14.9 per code-tier run, in expectation
+
+A drawn run paid ONE row. Which one is a hash, so the counterfactual is the
+mean of the five, 222.8 s. Five legs cost 1114 s, so the change costs
+
+> **+891 s = +14.9 job-min per code-tier run in expectation**, over a range of
+> +11.7 (had the draw picked `release-default`) to +17.2 (had it picked
+> `dev-default`).
+
+Against this run's 72.7 job-min that is a sampled counterfactual of 57.8, so
+**+26 %**. For scale, the lane/ε un-sampling four hours earlier came to
+**+15.6 job-min/run** — the two changes cost very nearly the same, which the
+cost-shape argument did not predict and is the most useful thing this
+measurement says.
+
+### Wall clock: zero on this run, up to ~+190 s on a run k-lint tails
+
+**On run 33895150877 the change cost no wall clock at all.** The critical path
+was `build + archive (interval)` (417 s, ends 16:35:33) → `test (interval, eps =
+default, 1/2)` (143 s, ends 16:37:59). The longest k-lint leg,
+`release-default`, ended 16:36:34 — **85 s inside** that tail. All five legs
+started within 64 s of each other, so the runner pool served the fan-out
+without queueing against itself.
+
+That is not general, and the baselines say so. Three post-un-sampling runs with
+ONE drawn row:
+
+| run | jobs | job-min | span | `k-lint (gate)` | is k-lint the tail? |
+|---|---:|---:|---:|---:|---|
+| 33894413395 | 26 | 31.1 | 416 s | 391 s | **yes**, by 60 s |
+| 33889715837 | 27 | 44.8 | 532 s | 357 s | no, 150 s of slack |
+| 33860088305 | 29 | 48.6 | 601 s | 301 s | no, 268 s of slack |
+
+On a run where k-lint IS the tail — one of those three — the wall cost is
+`max(rows) − drawn(row)`: **+190 s in expectation, +330 s worst case**. On a
+run where another chain tails, it is zero. So the honest statement is a range
+and not a single number: **0 to +330 s of critical path, ~+190 s when it
+bites, and it bites on the smaller-tier runs** where the interval archive and
+its test legs do not dominate.
+
+### Why a matrix and not one job running five rows
+
+The old shape could already run all five: `CI-Config: klint=all` put them in
+ONE job, in sequence. Measured, run **33877832538**: `k-lint (gate)` **1036 s**,
+the run's tail by 689 s over the next-longest job, in a 1068 s span.
+
+| shape | k-lint job-seconds | k-lint contribution to wall |
+|---|---:|---:|
+| five parallel legs (33895150877) | 1114 | 413 s |
+| one serial job (33877832538) | 1036 | 1036 s |
+
+The matrix pays **+78 job-seconds** — four extra checkouts, toolchain installs
+and cache restores — and buys back **623 s of wall**. That is exactly the trade
+the job header used to refuse ("a matrix would pay this job's setup and cache
+restore five times to run one row's worth of work"), and it refused it
+correctly while one row was drawn: five setups for one row's work is waste,
+five setups for five rows' work is parallelism.
+
+**The comparison is across two runs, not a controlled pair**, and it is worth
+saying which way that cuts: 33877832538 was a `demos/` change, where the tour
+rebuild is heavier than on 33895150877's diff. The `+78` is therefore
+indicative of the setup overhead's ORDER, not a measurement of it; the `623 s`
+is the robust half, since it is `sum − max` over five rows either way.
+
+### What is not measured here
+
+One run of the new shape (n=1), on a branch whose cache was warm from `main`'s
+primer, at TIER=all. A cold-cache run pays more in every leg, and the two
+release legs — `release-default` (413 s) and `release-budget` (139 s) — are the
+ones a cold `--release` profile moves most. Nothing re-takes any of this.
