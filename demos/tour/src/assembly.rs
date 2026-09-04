@@ -175,17 +175,6 @@ fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol) {
     *doc = applied.doc;
 }
 
-/// A rectangle in the sketch plane, its width and height carried as
-/// document expressions: the polygon builder at Expr corners.
-fn rect(w: &Expr, h: &Expr, zero: &Expr) -> LoopProgram {
-    LoopProgram::polygon_expr([
-        [zero.clone(), zero.clone()],
-        [w.clone(), zero.clone()],
-        [w.clone(), h.clone()],
-        [zero.clone(), h.clone()],
-    ])
-}
-
 /// A mate frame: origin, primary axis, clocking reference.
 fn mate_frame(origin: [f64; 3]) -> MateFrame {
     MateFrame {
@@ -294,11 +283,20 @@ fn prism_part(
         }),
         tol,
     );
+    // The section, counter-clockwise from the origin corner: the two
+    // extents are the document's own named parameters, so the corners
+    // are expressions and the loop is built from them directly.
+    let (width, height) = (pe(plan.0, &scope), pe(plan.1, &scope));
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
             plane,
-            loops: vec![rect(&pe(plan.0, &scope), &pe(plan.1, &scope), &zero)],
+            loops: vec![LoopProgram::polygon_expr([
+                [zero.clone(), zero.clone()],
+                [width.clone(), zero.clone()],
+                [width, height.clone()],
+                [zero.clone(), height],
+            ])],
         }),
         tol,
     );
