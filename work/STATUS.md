@@ -650,6 +650,7 @@ area `kernel`; prefix `trim/`; tag `(TRIM orchestrator)`; ab_band `2500-2599`.
 | `symbolic-tier-and-clearance-engine` | 2026-09-03 | The symbolic identity tier and the clearance engine do not compose |
 | `ab-log-v6-stream-is-past-its-stopping-rule-unadjudicated` | 2026-09-04 | The v6 dual-review stream passed its twelve-pair stopping rule around 2026-08-29 and its unilateral-MAJOR tally has never been reconciled |
 | `authored-step-to-canonical-segment-map-has-no-home` | 2026-09-04 | The authored-step to canonical-segment map has no home: its two halves are DOCM's and BOOL's, and neither owner can site it alone |
+| `axis-flavoured-declarations-have-no-channel` | 2026-09-04 | Axis-flavoured declarations (coaxial, structural-parallel) have no identity channel: ParamSource carries stored scalar fields only, so CoaxialEvidence and SPHSPH's option (a) cannot be served by it |
 | `bit-identity-debug-only-gate-ends-an-item-at-a-semicolon` | 2026-09-04 | scripts/gates/bit-identity-debug-only.sh ends a gated item's read at the first ';' before its brace, so a correctly gated fn with an array type in its signature is reported ungated |
 | `census-findings-cross-without-a-per-arm-tag` | 2026-09-04 | a tier-3' census finding crosses to Python as prose with no per-arm tag |
 | `ci-draw-can-hide-a-compile-break-on-main` | 2026-09-04 | The ci.yml filter draw can hide a hard compile break on main for an unbounded number of merges |
