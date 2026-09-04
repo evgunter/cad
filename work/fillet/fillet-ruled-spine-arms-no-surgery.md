@@ -6,6 +6,7 @@ status: open
 opened: 2026-08-25
 github: 987
 refs: [962]
+needs_ev: true
 ---
 
 ## From GitHub issue 987
@@ -106,3 +107,9 @@ name is proposed in the unit's spec for ratification, as `SeamVertex`
 was. The mid-curve run-out taxonomy (A3-3) stays reserved and is not
 touched by this. This item is now the unit that builds it (H7, last in
 order); the spec follows.
+
+**Spec for ratification (2026-09-04):** `docs/FILLET-H7-SPEC.md` proposes
+`CornerConfig::TransverseCap` and `RunOutPolicy::CutOffAtTransverseCap`
+for the cut-off Ev chose on PR 1736; a 👍 on this PR ratifies the names
+and the unit dispatches (block FILLET-B2). `needs_ev` set for that
+ratification only.
