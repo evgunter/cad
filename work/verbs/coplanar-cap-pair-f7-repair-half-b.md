@@ -2,7 +2,8 @@
 id: coplanar-cap-pair-f7-repair-half-b
 kind: issue
 title: Full-revolve axis-touching planar caps are born as the F7 defect, and merge_coplanar_faces refuses to repair them
-status: open
+status: closed
+closed: 2026-09-04
 opened: 2026-08-26
 github: 1031
 refs: [1131, 1059]
@@ -103,3 +104,9 @@ PR: #1131.
 ## Home
 
 S-BOOL's `keep_out` names issue 1031 half B — all that remains open — as VERBS' ground.
+
+**CLOSED (2026-09-04):** half B delivered by VERBS-1031B (PR #1671,
+ordinal 114, sample #125) — the arc-bounded winding arm;
+`merge_coplanar_faces` now repairs the full-valence coplanar pairs (the
+teapot cup merges whole, tier-3 Ok). The pole half was #1131. Issue
+1031 is closable on both halves.

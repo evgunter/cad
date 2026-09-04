@@ -2,7 +2,8 @@
 id: verbs
 kind: program
 title: VERBS — the modeling-verb breadth program
-status: open
+status: closed
+closed: 2026-09-04
 opened: 2026-08-21
 area: kernel
 prefix: verbs/

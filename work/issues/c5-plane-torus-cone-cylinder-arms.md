@@ -25,3 +25,6 @@ The contract for the eventual re-authoring is recorded in #1048: **naturalness, 
 ## Home
 
 VERBS' charter names the C5 section arms; the unit VERBS-C5ARMS already carries this issue's two arms (PR-1 merged, PR-2 remaining).
+
+**VERBS closed** (exit walk ratified, PR #1793); re-homed to
+`work/issues/` awaiting an owner.

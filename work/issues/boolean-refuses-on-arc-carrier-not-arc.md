@@ -72,3 +72,6 @@ The four rows above are pinned as they stand, so that unit starts from a red-abl
 ## Home
 
 VERBS: `work/verbs/plan.md` records that VERBS CLAIMS #347's remaining half (the germ-arms unit), and the remaining scope is Wave 2's curved boolean breadth over analytic pairs, which is the program's charter.
+
+**VERBS closed** (exit walk ratified, PR #1793); re-homed to
+`work/issues/` awaiting an owner.

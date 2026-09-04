@@ -3322,3 +3322,21 @@ coding session (7 candidates; the analysis agent's, not the
 orchestrator's), the design conversations (#1372, #1377, the
 RIMCAP torus half), and the transfers already recorded. The
 exit-walk draft in staging updates next.
+## Program closure (2026-09-04) — the walk ratified at #1793
+
+Evan ratified docs/VERBS-EXIT-WALK.md; #1793 merged (fd45920d5).
+Dispositions executed: coplanar-cap-pair-f7-repair-half-b CLOSED
+(delivered by 1031B, PR #1671, sample #125 — issue 1031 closable
+on both halves); FOURTEEN items re-homed to work/issues/ awaiting
+owners (twelve live issues incl. the assigner/checker divergence
+and the parked pinch-machinery track, plus VERBS-C5ARMS and
+VERBS-CONE converted to issues carrying their remaining scope as
+successor-program seeds); the closed unit items (CYLSPH, RIMCAP,
+1031B, the twelfth-pair ruling) retire with this directory. The
+walk and this tracker leave the repo per the sweep-5 rule; the
+done-state of record moves to docs/DOC-LEDGER.md, everything
+recoverable at the SHA the ledger names. These are the program's
+last words: fourteen dual-reviewed units across four waves, every
+register row delivered or typed-refused with an owner, and the
+honest boundaries — the pinch, the spiric rim, the fitted join
+window — named at their doors rather than papered over.

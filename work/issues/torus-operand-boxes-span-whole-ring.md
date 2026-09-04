@@ -25,3 +25,6 @@ Context: issue 968 (the durable record of lily wall 1) carries the corrected dia
 ## Home
 
 `work/verbs/` — the per-kind operand box is VERBS-GATE's ground (VERBS unit 6, the operand gate per face kind), which fixed the cone case and deferred the torus one.
+
+**VERBS closed** (exit walk ratified, PR #1793); re-homed to
+`work/issues/` awaiting an owner.
