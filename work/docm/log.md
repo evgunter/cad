@@ -36,3 +36,48 @@ directory at opening, by header edit and `git mv` only (ids unchanged):
 
 No unit is cut and no branch exists yet. The first dispatch claims its
 ordinal from the band above and records it in `docs/MODEL-AB-LOG.md`.
+
+## Orchestrator opened; scoping before the first `[ev]` PR (2026-09-04)
+
+Orchestrator session opened on Ev's direction ("get ready to be the
+orchestrator for docm ... scope out the design work and start a
+discussion"). No unit cut, no ordinal claimed. Four read-only code
+surveys were run against the eleven questions; what they changed:
+
+- **Question 1 is already ruled.** The Band-4 roadmap line in
+  `docs/DESIGN.md` (Ev, 2026-09-01) and BOOL-13 (#1553) removed the
+  schema version: an additive vocabulary change invalidates nothing and
+  a breaking one is a corpus regeneration. `capend-top-bottom-…`
+  (rename `CapEnd` to the sweep vector's own ends) and
+  `fused-step-slot-…` (add `SweepVal2`/`ArcLenVal2`/`Bulge2`) are E
+  with no ruling owed; so is `C6`'s `WireStep` member. Proposed to Ev
+  in chat: collapse the question out of the plan.
+- **Questions 2, 3 and 4 share one axis** — which reference shapes the
+  recipe admits (DAG edge by `RecipeNodeId`; frozen `StableName`
+  resolved live under N5; `Expr` literal). A derived frame is a datum
+  carrying a name (the `MeasureRef { at, name }` shape); a part
+  operand is a node or an operand carrying `SplitHalf`/`Instance(i)`;
+  splice is an edit rewriting a DAG edge whose consumers hold frozen
+  names. Proposed as one conversation, three rulings.
+- **Questions 5 and 6 share the other axis** — a held value with no
+  witness of the world it came from: `Evaluation` carries no document
+  or resolver identity; `next_id` is part of the `Doc` value, so undo
+  restores it and a re-insert re-mints an id (`history.rs` retains
+  values, never replays).
+- **Premise corrections for the items** (recorded here, item files
+  untouched until the ruling lands): `memo-admission-…` says the
+  session hands the previous evaluation as `prior`; today the memo
+  lives in `viewer::evalseam::PriorRun`, gated by resolver identity
+  (`same_resolver`), and `request_eval` carries no prior — only
+  `probe_bounds` hands one. `check-registry-…`'s three gather sites are
+  now `session.rs` `land` at ~2020/2024/2032. `certify-…`'s first
+  missing door partly exists: `EvalOptions::param_box` widens document
+  parameters; what is missing is the slot-widening override.
+- **Fences that gate the order.** `MATE-EXIT` is still `needs_ev`
+  (PR 1528 merged the walk as PROPOSED; no ratification comment), so
+  `mate.rs`/`assembly.rs` stay closed to this program: questions 9 and
+  10 wait. Question 11 waits on M10-7 (PR 1725).
+
+Next: Ev's pushback on the recommendations in chat, then the first
+`[ev]` PR (the reference-vocabulary conversation) and the E-class
+dispatches that need no ruling.
