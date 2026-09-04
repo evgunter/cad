@@ -2,10 +2,12 @@
 id: doc-params-carry-no-display-unit
 kind: issue
 title: The PANEL does not read a document parameter's display unit — the storage half landed, the authoring and readout halves did not
-status: open
+status: review
 opened: 2026-09-01
 github: 1459
 refs: [1458]
+branch: chrome/doc-params-carry-no-display-unit
+pr: 1776
 ---
 
 ## From GitHub issue 1459
@@ -82,3 +84,49 @@ cannot warn anyone.
 CHROME (`work/chrome/`), re-homed at the program's opening from
 `work/issues/`. The GQ5 units layer and the viewer property panel are
 GUI-era ground and GUI is closed.
+
+## Fixed (CHROME, 2026-09-04) — four residues closed, the fifth reported
+
+**Residue 5 needs an `editor-core` door and was not taken.** `DocEdit`
+carries exactly two parameter doors and neither is unit-only;
+`SetDocParamValue`'s own rustdoc says the unit is deliberately not its
+business. The slot trick does not transfer: a slot's whole state is one
+`Expr`, so rebuilding a literal loses nothing, while a parameter's unit
+sits beside `distribution` on the declaration — so the same rebuild
+through create-or-replace must carry the annotation by hand, and no
+authoring door can express that pairing. The only spelling that can is
+the raw struct literal, which is the `B-DISTRIBUTIONS` trap itself.
+What is needed is `DocEdit::SetDocParamUnit` or a
+`DocParam::with_display_unit` mirroring `with_value`. Both are outside
+this program's `paths`. Reported, not crossed.
+
+**Closed**: the probe readout no longer says metres about a range
+searched in millimetres (the residue that did not exist before PR
+1746); `ParamRow` carries the authored unit and the row reads, drags
+and authors through it; and the two tell-free step constants now share
+`field_drag_tick` with the slot field.
+
+**Two of this item's own residues were wrong, and the lane said so.**
+
+- Residue 3 is not a defect. A unit on `GestureTarget::Param` would be
+  **dead data**: a slot gesture needs its captured unit because its
+  edit REBUILDS the literal, while a parameter's routes through
+  `SetDocParamValue`, which writes a number into a standing
+  declaration and cannot disturb the unit beside it. The reason is now
+  recorded on the variant so the absence does not read as this bug
+  again.
+- Residue 4's "three of four arms" is **two**. `is_structural()` is
+  `dimension == Count`, and a structural slot already dragged at 1.0 —
+  so a `Count` parameter agreed already. Routing counts through
+  `drag_tick(Count)` would have MINTED a disagreement and let a
+  whole-number field land between integers.
+
+Both came from a style-lane finding this item recorded verbatim. A
+finding is a claim too.
+
+**Still open beyond residue 5**, found in territory and left as unasked
+scope: the add-parameter form could author a millimetre parameter today
+through `written_length`/`written_angle` with no kernel change, at the
+cost of a unit picker and one design call about `props`' canonical-value
+rule. It is the one authoring affordance available before residue 5
+lands.
