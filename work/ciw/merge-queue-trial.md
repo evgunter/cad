@@ -2,10 +2,12 @@
 id: merge-queue-trial
 kind: unit
 title: Design and prepare a GitHub merge queue trial: the trigger, the required check, the settings and the runbook
-status: open
+status: review
 opened: 2026-09-04
 refs: [f3-recosting-on-a-public-repo, merge-order-semantic-break-reaches-main, klint-row-still-sampled, reinstate-full-configuration-runs, 1796, 1823]
 blocked_on: [klint-row-still-sampled]
+pr: 1845
+branch: ciw/merge-queue-trial
 ---
 
 Opened on Ev's ruling of 2026-09-04, taken after reading the costing in
