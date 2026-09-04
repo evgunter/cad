@@ -196,3 +196,24 @@ fixture copies homed in `test_support` (matching H4's spellings), the
 re-export, one home for the constant list, the "no witness" docs
 worded as suite facts not invariants; the under-describing recourses
 filed as their own issue.
+
+**E2 MERGED (2026-09-04)**, PR [#1753](https://github.com/evgunter/cad/pull/1753)
+at `ecbb4467`, green across three drawn points over the branch's life
+(default/1e-12, default/1e-6, interval/1e-6). Every recourse constant
+and two inline-advice sites now have a composed followability row or a
+suite-scoped "no witness" row whose premise is stated as such; the two
+falsified verdicts became witnesses (the ring recourse followable off
+the sample lattice; the geometry recourse rewritten to name the ring
+and the ORDER that builds — blend first, cut the pocket after — and
+composed); `ALL_RECOURSES` is the one home for the constant list;
+`profile` gained a `test-support` feature in `sweep`'s shape (and the
+façade guard learned to skip cfg-gated code); `waisted`/`spool`/`prism`
+homed in `test_support` matching H4's spellings. Filed by the review
+and kept: `fillet-escalation-site-has-no-producer` (the six `profile`
+fillet sentences are dead), `path-fillet-door-validator-tangency-disagree`
+(small bends build at the path door and refuse at validate, window
+riding √ε), `blend-recourses-under-describe-their-doors`. All three E
+openers are now merged or in review; E3 landed on
+[#1763](https://github.com/evgunter/cad/pull/1763) at `93341783` (the
+seven margins carry a `ClassifiedMargin`; the NaN hole is unreachable
+by construction) and its style review is dispatched.
