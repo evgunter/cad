@@ -127,3 +127,17 @@ and every later brief names a private scratch directory. Filed at
 adjudication: `n-ary-union-has-no-declaration-channel` (Ev's ruling).
 Spec `docs/DOCM-3-SPEC.md` deleted at merge (DOC-LEDGER). Both node-kind
 units (`DOCM-1`, `DOCM-2`) are now unblocked.
+
+## capend-top-bottom-contradicted-by-negative-extrude MERGED (2026-09-04, PR 1851)
+
+Mechanical unit (opus, no review lane, no row; merged on green CI plus
+the orchestrator's read of the diff): `CapEnd::{End, Start}`, 76 files
+of which the substance is the enum, the emitter's two loops, the
+Python mirror, the corpus and seven digest pins re-taken through their
+own doors, and the adopted probe. Two judgement calls accepted: the
+variant declaration order kept (the derived `Ord` is every name
+table's row order) and the probe moved out of the review record rather
+than rewritten in place. Filed: the sweep crate's `top` field docs
+(`work/issues/`). Noted for CIW's ground, not filed: the k-lint job's
+byte-for-byte die-corpus step is SKIPPED on the tier this PR drew, so
+hosted CI did not re-derive the regenerated corpus itself.
