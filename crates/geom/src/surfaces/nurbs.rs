@@ -386,25 +386,20 @@ impl<T: Real> NurbsSurface<T> {
     /// through [`Self::from_validated_parts`], which states why no
     /// re-validation is run.
     ///
-    /// # What the caller owes, and why the net alone is enough
+    /// # What the caller owes
     ///
     /// The result is the POINTWISE IMAGE of this surface — `f(S(u, v))`
-    /// for every `(u, v)` — exactly when `f` is **affine**, and nothing
-    /// here checks that. The reason it suffices is the storage
-    /// convention (module docs, and [`Self::eval_in_span`]): control
-    /// points are EUCLIDEAN `Point3`s with the weights held beside them
-    /// in a separate channel, so evaluation forms
-    /// `Σ Nᵢⱼ wᵢⱼ Pᵢⱼ ⁄ Σ Nᵢⱼ wᵢⱼ` — normalized coefficients summing to
-    /// one, i.e. an AFFINE combination of the `Pᵢⱼ`. An affine `f`
-    /// commutes with an affine combination, so mapping the net and
-    /// leaving the weights alone reproduces the image exactly; the
-    /// mapped surface is that image, never a re-fit of it.
+    /// at every `(u, v)` — exactly when `f` is **affine**, and nothing
+    /// here checks that. Why an affine `f` suffices, and why the
+    /// weights are therefore untouched, is the Euclidean-storage
+    /// section of [`crate::curves::nurbs`]'s data model, which is the
+    /// one home for that rule.
     ///
-    /// The convention is what makes the weights untouched. Were the net
-    /// stored WEIGHTED (`wᵢⱼPᵢⱼ` in homogeneous coordinates), the same
-    /// call would be wrong: an affine map's translation limb has to be
-    /// scaled by `wᵢⱼ` there, and applying it unscaled bends the
-    /// surface. Read the storage before reaching for this door.
+    /// The consequence worth repeating at the call site: were the net
+    /// stored WEIGHTED (`wᵢⱼPᵢⱼ`, homogeneous), this call would be
+    /// wrong — an affine map's translation limb has to be scaled by
+    /// `wᵢⱼ` there, and applying it unscaled bends the surface. Read
+    /// the storage before reaching for this door.
     ///
     /// A non-affine `f` is not refused and not meaningless — it is a
     /// map of the CONTROL NET, whose surface is some other surface —

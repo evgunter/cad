@@ -47,3 +47,18 @@ which is why the obligation is written at the door rather than assumed.
 
 `topo::transform_rigid`, which now refuses only the NURBS **placeholder**
 and maps described nets — `work/fix/transform-rigid-refuses-described-nurbs.md`.
+
+## One untested door, named rather than left to be discovered
+
+The macro gives `map_points` to **`NurbsCurve2`** as well, and nothing in
+the tree calls it — so the first `NurbsCurve2` consumer inherits a door with
+no row behind it. It is the same six lines the `NurbsCurve3` half is
+exercised on (a pointwise map through `from_validated_parts`), and the
+symmetry is the reason it exists: the alternative was breaking the macro
+that keeps the two halves one implementation. Whoever wires the first
+`NurbsCurve2` consumer owes it a row.
+
+The `NurbsCurve3` and `NurbsSurface` halves are exercised by
+`crates/sweep/tests/transform_nurbs_walls.rs` — including on genuinely
+rational nets (`|w − 1|` up to 7.6e-2), which is the only case that can
+distinguish this crate's Euclidean storage from a homogeneous one.

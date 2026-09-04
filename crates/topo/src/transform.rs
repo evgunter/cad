@@ -50,12 +50,11 @@
 //!   placement (`place ↦ map ∘ place`) and maps its world-space
 //!   vectors/axis data — sketch-space payloads are untouched;
 //! - a DESCRIBED `Nurbs` surface or carrier maps by its CONTROL
-//!   POINTS, with knots and weights carried over verbatim. The nets
-//!   are stored Euclidean with the weights in a channel beside them,
-//!   so evaluation is an affine combination of the control points; a
-//!   rigid map is affine and therefore commutes with it, making the
-//!   mapped net the exact IMAGE of the original rather than a re-fit.
-//!   No certificate rides on a net, so nothing has to be re-derived —
+//!   POINTS, with knots and weights carried over verbatim: a rigid map
+//!   is affine, and the Euclidean-storage section of `geom`'s
+//!   `curves::nurbs` data model is where the commutation that makes
+//!   the mapped net the exact IMAGE — never a re-fit — is argued. No
+//!   certificate rides on a net, so nothing has to be re-derived,
 //!   which is the whole of why this arm maps where `Approx` refuses;
 //! - the `Nurbs` PLACEHOLDER — and only it — is refused typed (its
 //!   evaluation is all-poison; transforming one would launder poison
@@ -89,9 +88,17 @@ pub enum TransformError {
     },
     /// The run's tolerance could not form a classification band.
     Band(BandError),
-    /// Re-certification of a mapped edge carrier failed — the map is
-    /// not an isometry at tolerance, or the input body's geometry was
-    /// already out of certification.
+    /// Re-certification of a mapped edge carrier failed. THREE causes
+    /// reach this arm, and the third is not about the caller's
+    /// geometry at all: the map is not an isometry at tolerance; or
+    /// the input body's geometry was already out of certification; or
+    /// the certification DOOR this pass uses admits a narrower class
+    /// than the at-rest validator does, and declined a body that is
+    /// perfectly sound. That last one is a `CertifyError::Unimplemented`
+    /// from an `Intersection` naming a described `Nurbs` operand: this
+    /// pass certifies through the plain [`EdgeCurve::certify`] while
+    /// tier 3 uses the lane-wired door. Read the nested `source`, not
+    /// this list, for which one it was.
     Certify {
         /// The edge whose carrier failed.
         edge: EdgeKey,
@@ -119,8 +126,10 @@ pub enum TransformError {
         /// The offending edge.
         edge: EdgeKey,
     },
-    /// A `Nurbs` placeholder surface or carrier — unimplemented
-    /// geometry evaluates to poison, so transforming it is refused.
+    /// A `Nurbs` placeholder surface or carrier — the "no description
+    /// yet" net, whose control points are all-poison, so transforming
+    /// it would launder poison as geometry. A DESCRIBED net is not
+    /// this arm: it maps, by its control points.
     NurbsPlaceholder,
     /// An approximating surface: the rigid map of an offset is the
     /// offset of the rigid map, but re-deriving the mapped fit's
@@ -317,15 +326,12 @@ fn map_surface<T: Real>(map: &Affine3<T>, s: &Surface<T>) -> Result<Surface<T>, 
             u_ref: map_vec(map, u_ref),
         },
         // A DESCRIBED net maps by its control points, weights and
-        // knots untouched: the net is stored Euclidean with the
-        // weights beside it, so evaluation is an affine combination of
-        // the control points and a rigid map — being affine — commutes
-        // with it. The mapped surface is the exact IMAGE of this one,
-        // not a re-fit, so there is no certificate to re-derive and no
-        // fit door to reach. The PLACEHOLDER is the state this
-        // refusal's text describes and the only state it refuses: its
-        // net is all-poison, so mapping it would launder poison as
-        // geometry.
+        // knots untouched — the exact image, not a re-fit, so there is
+        // no certificate to re-derive and no fit door to reach
+        // (`NurbsSurface::map_points` states what the caller owes).
+        // The PLACEHOLDER is the state this refusal's text describes
+        // and the only state it refuses: its net is all-poison, so
+        // mapping it would launder poison as geometry.
         Surface::Nurbs(ref n) => {
             if n.is_placeholder() {
                 return Err(TransformError::NurbsPlaceholder);

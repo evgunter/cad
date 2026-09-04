@@ -49,9 +49,12 @@ Both arms match the VARIANT, not the placeholder state. `Surface::Nurbs`
 carries `Arc<NurbsSurface<T>>` — "the universal fallback … a validated
 `NurbsSurface` payload" — and it evaluates for real (`Surface::eval` →
 `n.eval(u, v)`, `Surface::ders` → `n.ders(u, v)`). The loft walls this
-refused are degree-1×2 and 2×2 nets with live control points and rational
-weights; they tessellate, they integrate, they export to STEP. Nothing
-about them is poison.
+refused are degree-1×2 and 2×2 nets with live control points [and rational
+weights — **measured false, corrected at close**: a polyline-profile loft's
+walls carry weight 1 throughout, and only an ARC-bearing profile skins to a
+rational wall. The refusal was never about weights either way]; they
+tessellate, they integrate, they export to STEP. Nothing about them is
+poison.
 
 **The discriminator already exists** and is public on both halves:
 
@@ -126,11 +129,18 @@ at both doors.
 re-derivation problem.
 
 **Tests.** `crates/sweep/tests/transform_nurbs_walls.rs` (new suite,
-registered in the existing aggregated `all.rs` binary) transforms a real
-loft body under a quarter turn plus a dyadic translation and asserts the
-commuting square — `S'(u,v) = M(S(u,v))` on a 9x9 grid per wall and
-`C'(t) = M(C(t))` at 17 parameters per carrier, agreement 1e-12 — plus
-bitwise-equal knots and weights, plus tiers 1-3 on the mapped body. Both
+registered in the existing aggregated `all.rs` binary) transforms TWO loft
+bodies and asserts the commuting square — `S'(u,v) = M(S(u,v))` on a 9x9
+grid per wall and `C'(t) = M(C(t))` at 17 parameters per carrier, plus
+bitwise-equal knots and weights. The polyline-profile body (unit weights
+throughout) goes under a quarter turn plus a dyadic translation and also
+pins tiers 1-3 on the mapped body. The arc-profile body — genuinely
+rational walls — goes under a map with no exactly representable entry, and
+is the row that can catch a storage confusion at all; it deliberately does
+NOT assert tier 3, because that body misses its quadrature budget away from
+the origin whether or not a transform is involved (#390, `work/exch/`).
+Measured: residual exactly 0 under the dyadic map, worst 1.8e-15 under the
+awkward one, against a 1e-12 floor whose only job is to exclude a re-fit. Both
 rows fail on the pre-change kernel with `NurbsPlaceholder` (verified by
 reverting `transform.rs` alone and re-running). Five gate pins in
 `transform.rs`'s own `#[cfg(test)]` module hold both directions: the
@@ -142,6 +152,17 @@ their control points, and the public door refuses one and admits the other
 loft's placements at the offset. It builds the body at the origin, like its
 twin, and moves it with `pncad::topo::transform_rigid`; the gap comment and
 the three narration strings that cited this issue are gone.
+
+**A claim in the body above, corrected rather than quietly dropped.** This
+issue said the refused loft walls carry "rational weights". Measured, they
+do not: the polyline-profile loft that met this bug builds four nets with
+every weight exactly 1.0, and unit weights are precisely the case in which
+Euclidean and homogeneous storage are indistinguishable — so a suite built
+only on that body could not have caught a storage error, which is the error
+this whole unit turns on. The acceptance suite therefore carries a SECOND
+body, an arc-profile loft whose walls are genuinely rational (measured
+`|w − 1|` up to 7.6e-2), with a guard that fails if that fixture ever
+reverts to unit weights.
 
 **What I swept for.** The class is *a refusal gated on the `Nurbs` VARIANT
 whose stated reason is the placeholder STATE*. Three patterns over
