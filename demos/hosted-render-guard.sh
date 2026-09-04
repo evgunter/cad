@@ -74,10 +74,10 @@ require_hosted_render() {
 
     if [ "$got" = "$CAD_RENDER_HOSTED_SENTENCE" ]; then
         echo "[$entry] HOSTED RENDER declared — this pass IS the canonical renderer." >&2
-        echo "[$entry]   Frames it publishes carry the runner's renderer/GL stack," >&2
-        echo "[$entry]   which is the stack the committed tree is baselined on." >&2
-        echo "[$entry]   On main this run COMMITS what it draws; on a PR it reports" >&2
-        echo "[$entry]   the drift against the committed lane. None of it is preview." >&2
+        echo "[$entry]   What it draws is what the repo keeps: the run COMMITS it" >&2
+        echo "[$entry]   wherever it has a commit target (main's gate run, or a" >&2
+        echo "[$entry]   dispatch with a branch to land on), and otherwise reports" >&2
+        echo "[$entry]   the drift against the committed lane, as on a pull request." >&2
         return 0
     fi
 
@@ -86,8 +86,10 @@ require_hosted_render() {
         echo "REFUSING: renders are hosted now. $entry is not the default path."
         echo
         echo "THE DEFAULT WAY TO RE-RENDER IS TO LET CI DO IT."
-        echo "ci.yml renders all four lanes on every push. A lane that no longer"
-        echo "matches is RE-BASELINED for you — you never hand-commit cells:"
+        echo "ci.yml renders all four lanes on every push that builds anything"
+        echo "(a docs-only change skips them, with the rest of the code tier). A"
+        echo "lane that no longer matches is RE-BASELINED for you — you never"
+        echo "hand-commit cells:"
         echo
         echo "  git push          # CI renders and posts a neutral (\"!\") drift"
         echo "                    #   check naming the cells that differ"
@@ -117,9 +119,11 @@ require_hosted_render() {
         echo
         echo "  CAD_RENDER_LOCAL_OVERRIDE=$CAD_RENDER_LOCAL_OVERRIDE_SENTENCE $entry"
         echo
-        echo "That is the sentence for a box. The hosted workflows declare a"
-        echo "different one, in the file, at the step that renders; it says the"
-        echo "pass IS the canonical renderer, and it is not for a box to type."
+        echo "That is the sentence for a box, and the one that applies here."
+        echo "The hosted workflows declare a different one, in the file, at the"
+        echo "step that renders, saying the pass IS the canonical renderer —"
+        echo "true where they say it, a mislabel anywhere else. Both are spelled"
+        echo "out in demos/hosted-render-guard.sh; this one is yours."
         echo
         if [ -n "$got" ]; then
             echo "(CAD_RENDER_LOCAL_OVERRIDE is set to '$got', which is neither"

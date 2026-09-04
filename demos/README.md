@@ -167,14 +167,16 @@ cd ..
 ```
 
 `render.sh`, `render-wild.sh` and `render-uv.sh` each source
-`hosted-render-guard.sh` as their first act. Without
+`hosted-render-guard.sh` as their first act. They print a pointer at the
+push-and-pull flow above and **exit nonzero** unless the environment
+carries one of the two exact sentences the guard accepts. On a box that
+sentence is
 
 ```sh
 CAD_RENDER_LOCAL_OVERRIDE=i-accept-local-render-drift
 ```
 
-in the environment they print a pointer at the push-and-pull flow above
-and **exit nonzero**.
+The other one belongs to the hosted renderer, two paragraphs down.
 
 The value is a sentence on purpose. `1` / `yes` / `true` are what anybody
 — human or agent — types reflexively when a script complains about an
@@ -489,15 +491,20 @@ Consequences worth stating:
   boundary, so even-odd would shade a region that is not the face. Those
   cells show the strokes alone and say why; the signed area and winding
   are likewise not claimed there.
-* **There is a CI drift gate**, and this is still the only lane that can
-  have one. The obstacle is not FreeCAD availability — CI can run it —
-  but that the runner image's mesa drifts month to month, so a firing PNG
-  diff could be an image update rather than a geometry change; a standing
-  CI gate for the PNG lanes needs the pinned-container work described in
-  render.yml. This lane draws no 3-D, so its sheet is byte-reproducible
-  anywhere: `uv sheet drift (demos)` regenerates it and diffs it, and a
-  failure is either an uncommitted regeneration or a D9 determinism
-  finding.
+* **This is the only lane a drift gate could ever fail on**, and the
+  failing one is local. The obstacle for the others is not FreeCAD
+  availability — CI can run it — but that the runner image's mesa drifts
+  month to month, so a firing PNG diff could be an image update rather
+  than a geometry change; a standing CI gate for the PNG lanes needs the
+  pinned-container work described in render.yml. This lane draws no 3-D,
+  so its sheet is byte-reproducible anywhere. Hosted CI nonetheless does
+  not fail on it: `render.yml`'s uv lane re-baselines the committed sheet
+  and reports the difference as a neutral check, so the hosted `uv sheet
+  drift (demos)` row was retired in 2026-08. What survives is
+  `ci-local.sh`'s `uv sheet drift (demos)`, which regenerates the sheet
+  and diffs it and DOES fail — because a developer box cannot re-baseline
+  itself, and there being told is the whole point. A failure there is
+  either an uncommitted regeneration or a D9 determinism finding.
 * **Nothing is refused.** Unlike the tessellator's trim walk, this one
   accepts every pcurve form and falls back to `topo::pcurve_of`'s
   derive-on-demand, because a face the tessellator refuses is exactly the
