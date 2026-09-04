@@ -7,6 +7,7 @@ opened: 2026-09-01
 github: 1491
 refs: [1490]
 branch: fix/boolean-error-kind
+pr: 1806
 ---
 
 ## From GitHub issue 1491
