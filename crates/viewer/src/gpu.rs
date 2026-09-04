@@ -1448,6 +1448,8 @@ fn fs_id(in: IdOut) -> @location(0) u32 {
 "#;
 
 #[cfg(test)]
+// Panicking is a test's failure mechanism (workspace lint note).
+#[allow(clippy::expect_used)]
 mod tests {
     use super::*;
 
@@ -1459,10 +1461,10 @@ mod tests {
     /// spells every token `shader_source` replaces (a token renamed on
     /// one side only would otherwise pass silently).
     ///
-    /// Runs only under `--features app`, the module's own gate — an
-    /// instance of issue 1451's class: no CI row builds the app
-    /// feature, and the smoke row proposed there is where this starts
-    /// gating.
+    /// Runs only under `--features app`, this module's own gate, so
+    /// its gating seat is the app-feature test row rather than the
+    /// workspace archive — see `lib.rs`'s loud-skip marker for what a
+    /// build without the feature is not checking.
     #[test]
     fn every_shader_token_is_substituted() {
         let source = shader_source(wgpu::TextureFormat::Bgra8Unorm);
@@ -1531,6 +1533,91 @@ mod tests {
                 "the shader's sRGB encode no longer spells {constant}; \
                  `theme::channel_to_srgb8` is the other half of this curve",
             );
+        }
+    }
+
+    /// **Every pipeline this module builds, built on a real device.**
+    ///
+    /// Device acquisition, shader-module compilation and each
+    /// `create_render_pipeline` call are pure construction under
+    /// wgpu's typed validation, and that validation refuses
+    /// combinations the Rust types admit: a depth bias on a
+    /// non-triangle topology, a vertex layout the WGSL does not
+    /// declare, an attachment format the pipeline's blend state
+    /// cannot take. Every one of those is raised when the
+    /// application starts, on every adapter and every backend, and
+    /// nothing above this seam can see them — G1 excuses pixel
+    /// painting from a headless row, and pipeline construction is
+    /// not pixel painting. This row is where the whole family gates.
+    ///
+    /// **Construction only.** No surface, no swapchain, no frame, no
+    /// readback, and nothing is asserted about a pixel. What is
+    /// asserted is that the device raised no validation error while
+    /// [`ViewportRenderer::new`] built the shaded pipeline, the id
+    /// pipeline and their 1x1 targets, and the edge pipeline.
+    ///
+    /// **Both target formats**, because [`shader_source`] emits
+    /// different WGSL for each: the sRGB surface and the gamma-space
+    /// one are two shader modules and two sets of pipelines, and only
+    /// building both compiles both.
+    ///
+    /// **No adapter is a FAILURE here, never a skip.** A row that
+    /// goes green where no GPU exists reports the same thing whether
+    /// the pipelines built or the driver was absent, and a reader
+    /// cannot tell those apart — which is the exact defect this row
+    /// exists to close. The environment owes this row an adapter:
+    /// `mesa-vulkan-drivers` supplies lavapipe, it needs no display
+    /// and no X server (crates/viewer/README.md, headless), and the
+    /// panic below names it when it is missing.
+    #[test]
+    fn every_pass_builds_on_a_real_device() {
+        // `_from_env` so `WGPU_BACKEND` can steer this row at an
+        // operator's hand; with the variable unset it is every
+        // backend the build has. No display handle: this row opens
+        // no surface, so there is no window to hand one from.
+        let instance =
+            wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
+        let adapter =
+            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
+                .expect(
+                    "NO WGPU ADAPTER. This row builds every pipeline in this module on a real \
+                     device and can report nothing without one, so it fails rather than passing \
+                     emptily. Install a software ICD: `mesa-vulkan-drivers` supplies lavapipe, \
+                     which needs no display (crates/viewer/README.md, headless).",
+                );
+        let info = adapter.get_info();
+        println!(
+            "viewer::gpu pipeline smoke: adapter {:?} / {} ({:?}, driver {:?})",
+            info.backend, info.name, info.device_type, info.driver
+        );
+
+        let (device, _queue) =
+            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+                label: Some("viewer_pipeline_smoke"),
+                required_limits: adapter.limits(),
+                ..Default::default()
+            }))
+            .expect("the adapter above must yield a device at its own reported limits");
+
+        for target_format in [
+            wgpu::TextureFormat::Bgra8Unorm,
+            wgpu::TextureFormat::Bgra8UnormSrgb,
+        ] {
+            let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+            // Held until the scope is popped: the error is raised by
+            // the calls inside `new`, and dropping the pipelines first
+            // would not unsay it, but keeping the value is what makes
+            // the construction the scope's subject rather than a
+            // temporary's lifetime.
+            let renderer = ViewportRenderer::new(&device, target_format);
+            let error = pollster::block_on(scope.pop());
+            assert!(
+                error.is_none(),
+                "{target_format:?}: {}",
+                error.map_or_else(String::new, |e| e.to_string()),
+            );
+            drop(renderer);
+            println!("  {target_format:?}: shaded, id and edge pipelines built");
         }
     }
 }
