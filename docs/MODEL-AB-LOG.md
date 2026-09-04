@@ -3569,6 +3569,7 @@ Phase 2 work began): the unit's substance moved from "gate + surgery
 audit" to "arm fold + gate + surgery audit" (`docs/FILLET-H4-SPEC.md`
 §"Re-scope at Phase 1"); difficulty **L** and task-class **NUMERIC**
 stand; same lane, same arm.
+Slot 2 FILLET-H5 re-logged at its Phase 1 redirect (2026-09-04, before Phase 2 work began): the spec's native-instance claim was false and its fixture list rewritten to the repaired bodies (`docs/FILLET-H5-SPEC.md` §"Re-scope at Phase 1"); difficulty **M** and task-class **STRUCTURAL** stand; same lane, same arm.
 
 ## SHELL program rows (work/shell/; band 2300–2399; blocks named SHELL-B<n>)
 
