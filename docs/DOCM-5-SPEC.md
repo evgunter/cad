@@ -76,7 +76,7 @@ one. If you find a witness that needs no counter, use it and say so.
 **5. The measurement, re-taken** (`checks.rs`'s "Cost" doc, ~:695–712,
 and `product.rs`'s claim site). With the gather outside the registry
 the two terms are separable: measure the registry over the heatsink
-fin pattern (`docs/PERF-PLAN.md`'s discipline) with the subject in
+fin pattern (`demos/tour/src/heatsink.rs`; `docs/PERF-PLAN.md`'s discipline) with the subject in
 hand, and the gather alone, at the same solid/face counts the doc
 names; state both numbers where the withdrawn sentence stood; give the
 claim its Q6 disposition — a row in the existing rebuild-latency
@@ -99,7 +99,7 @@ so.
   Subject::Product(&product_recorded(..)), cfg, tol)` yield equal
   `ChecksReport`s; the empty document yields `Subject::NoBodyRoots`
   and a clean report through both; a document whose gather refuses
-  (a naming collision across roots — `dsc_checks` has the fixture)
+  (a naming collision across roots — `ProductError::Naming`; the viewport test's "two roots collide in the name table" document, `crates/viewer/src/pane/viewport.rs:~530`, is the shape)
   yields `ChecksError::Product` through the wrapper and is never
   offered to the door.
 - **A3 — `assemble` has no logic of its own.** For every assembly
