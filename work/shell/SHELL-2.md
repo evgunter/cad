@@ -5,7 +5,7 @@ title: transform_rigid maps an Approx face — the mapped fit re-certified throu
 status: spec
 opened: 2026-09-04
 branch: shell/2-transform-approx
-refs: [transform-rigid-refuses-approx-face, 1020, 1012]
+refs: [transform-rigid-refuses-approx-face, no-approx-faced-body-is-both-movable-and-valid, transform-rigid-refuses-described-nurbs, 1020, 1012]
 ---
 
 
