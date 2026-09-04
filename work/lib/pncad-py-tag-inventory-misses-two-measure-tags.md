@@ -156,3 +156,26 @@ composing into a red main, with no instrument anywhere that could see
 the composition.** Recorded as evidence in
 `work/ciw/f3-recosting-on-a-public-repo`, which is re-costing F3 now
 that the repository is public and standard-runner minutes are free.
+
+## Further instance 2026-09-04 (FIX, PR 1750)
+
+Run [33827843333](https://github.com/evgunter/cad/actions/runs/33827843333),
+job `test (interval, eps = default, 2/2)` — a **fourth** point of the
+matrix, `default` tolerance on the `interval` lane, which the instances
+above had not yet recorded (they cover `default`/`1e-6`/`1e-12` on
+`default` and `1e-12`/`1e-6` on `interval`). Same test, same two ADDED
+values, shard `2/2` only; `1/2` green in the same run, as were all
+twenty other jobs. It is the only failure in the run: 2167/2168 passed
+under `--no-fail-fast`, so that summary is the shard's whole failure
+surface.
+
+The carrying diff is `crates/topo/` + `crates/editor-core/` + `work/`
+and touches no `pncad-py` line.
+
+**Reproduced against `origin/main`'s own tree**, not inferred from the
+shard: a throwaway worktree at `origin/main` runs
+`cargo test -p pncad-py --lib the_whole_tag_table_matches_its_committed_inventory`
+and fails with the byte-identical message
+(`value(s) ADDED ["measure_clearance_refused", "measure_selection_kind"]`).
+`crates/pncad-py/src/tags.rs` names both; `crates/pncad-py/src/tests.rs`
+names neither. Not repaired here, per the disposition above.
