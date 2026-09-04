@@ -6,6 +6,7 @@ status: dispatched
 opened: 2026-09-01
 branch: curved/c5arms-2
 refs: [1057]
+pr: 1864
 ---
 
 Issue #1057's two arms of the C5 table. PR-1 (plane×torus, `verbs/c5arms-1`)
