@@ -2,11 +2,11 @@
 //! E12's reserve clause, executed as measurement first): per decide
 //! site, on the three documents where the symbolic tier was seen to
 //! miss — the tour's two-hole plate, R2's filleted L-bracket with two
-//! bores and R1's parametric bracket — which of the atom-algebra rules
-//! (`geom_core::SymRules`: A `sqrt(X)² = X`, B `sin² + cos² = 1`, C
-//! `sqrt(Q²) = Q` by a certified sign) discharges it, and for the sites
-//! that stay numeric with every rule on, the SHAPE of the residual that
-//! blocks them.
+//! bores and R1's parametric bracket — which of the BUILDABLE
+//! atom-algebra rules (`geom_core::SymRules`: A `sqrt(X)² = X`, B `sin²
+//! + cos² = 1`; rule C, the clause-3 sign fold, is filed unbuilt)
+//! discharges it, and for the sites that stay numeric with every rule
+//! on, the SHAPE of the residual that blocks them.
 //!
 //! Two replays per document, because they answer different questions:
 //!
@@ -60,25 +60,21 @@ fn budget() -> SymBudget {
     }
 }
 
-/// The rule sets the table is cut against. Cumulative A / A+B / A+B+C
-/// answers "which rule adds what", and the isolated A / B / C answer
-/// "which rule needs which" — rule C's fold of the normalized frame's
-/// `sqrt(v·v)²` for instance depends on rule A having reduced it first,
-/// while rule A's eager expansion can COST a higher `sqrt(Xa)−sqrt(Xb)`
-/// cancellation, so the two have to be seen apart as well as together.
-fn rule_sets() -> [(&'static str, SymRules); 6] {
-    let only = |sqrt_square, pythagoras, signed_root| SymRules {
+/// The rule sets the table is cut against — the two BUILDABLE rules,
+/// isolated and together. Rule C (clause 3) is filed unbuilt, so there
+/// is no `C` column here; the table's job is to show what A and B reach
+/// (and, measured, that on these documents they reach nothing the plain
+/// form did not, because the arc-family forms freeze first).
+fn rule_sets() -> [(&'static str, SymRules); 4] {
+    let only = |sqrt_square, pythagoras| SymRules {
         sqrt_square,
         pythagoras,
-        signed_root,
     };
     [
         ("none", SymRules::none()),
-        ("A", only(true, false, false)),
-        ("B", only(false, true, false)),
-        ("C", only(false, false, true)),
-        ("A+B", only(true, true, false)),
-        ("A+B+C", SymRules::all()),
+        ("A", only(true, false)),
+        ("B", only(false, true)),
+        ("A+B", SymRules::all()),
     ]
 }
 
@@ -317,10 +313,9 @@ fn m10_8_ceilings_per_rule_set() {
         ("two_hole_plate", &plate_at),
         ("r2_filleted_bracket", &bracket_at),
     ];
-    // The decisive sets only — the ceiling drive is expensive, and
-    // these four separate the questions: `none` is the pre-algebra
-    // tier, `C` isolates the sign fold, `A` the square reduction it
-    // depends on, `all` both together.
+    // The decisive sets — the ceiling drive is expensive: `none` is the
+    // pre-algebra tier, `A` the square reduction, `all` both buildable
+    // rules.
     let sets = [
         ("none", SymRules::none()),
         (
@@ -328,15 +323,6 @@ fn m10_8_ceilings_per_rule_set() {
             SymRules {
                 sqrt_square: true,
                 pythagoras: false,
-                signed_root: false,
-            },
-        ),
-        (
-            "C",
-            SymRules {
-                sqrt_square: false,
-                pythagoras: false,
-                signed_root: true,
             },
         ),
         ("all", SymRules::all()),

@@ -140,23 +140,20 @@ fn r1_the_nested_arc_endpoint_residual_is_not_reached_pinned() {
     );
 }
 
-/// The same family with the norm written as `sqrt(r·r)` where the
-/// argument's FORM is exactly `r²`: `r` by rule C, and `−r` when `r`
-/// is definitely negative.
+/// `sqrt(r·r) − r` where the argument's FORM is exactly `r²`: rule C
+/// (`sqrt(Q²)=Q` by a certified sign) would discharge it, but rule C is
+/// FILED UNBUILT — reading `r`'s sign at the lane scalar conflicts with
+/// the bit-identity discipline — so the atom stays opaque and the
+/// decision is numeric. Pinned so the day rule C is built is a visible
+/// move (sign_gated goes from 0 to 1).
 #[test]
-fn r1_sqrt_of_r_squared_is_r_by_its_sign() {
+fn r1_sqrt_of_r_squared_stays_numeric_rule_c_is_filed() {
     let (ok, counts) = with_session(budget(), || {
         let r = p("r", 2.0);
         zero((r * r).sqrt() - r)
     });
-    assert!(ok);
-    assert_eq!(counts.sign_gated, 1, "{counts:?}");
-    let (ok, counts) = with_session(budget(), || {
-        let r = p("r", -2.0);
-        zero((r * r).sqrt() + r)
-    });
-    assert!(ok);
-    assert_eq!(counts.sign_gated, 1, "{counts:?}");
+    assert!(ok, "numerically zero at the point");
+    assert_eq!(counts.sign_gated + counts.symbolic_zero, 0, "{counts:?}");
 }
 
 // --------------------------------------------- claim 2: the quotient (D1)
@@ -289,14 +286,14 @@ fn r1_atoms_over_the_zero_form_fold_to_their_values() {
 }
 
 /// Atoms keyed by arguments: `min(x, x) − x`, `floor(1) − 1`,
-/// `max(x, y) − max(y, x)`, `copysign(x, 1) − |x|` — none is reached
-/// (the conservative direction); pinned so a future fold is a visible
-/// move. `abs(x) − abs(−x)` is no longer among them: `abs` is rule C's
-/// second shape, and at a definitely positive `x` both atoms fold to
-/// `x` — a SIGN-GATED zero, pinned as such beside the rest.
+/// `max(x, y) − max(y, x)`, `copysign(x, 1) − |x|`, `abs(x) − abs(−x)`
+/// — none is reached (the conservative direction). `abs(x) − abs(−x)`
+/// would be rule C's second shape (`|x| = ±x` by a certified sign), but
+/// rule C is FILED UNBUILT, so it too stays opaque. Pinned so a future
+/// fold is a visible move.
 #[test]
 fn r1_argument_keyed_atoms_stay_conservative() {
-    let cases: [fn() -> Sym<f64>; 4] = [
+    let cases: [fn() -> Sym<f64>; 5] = [
         || {
             let x = p("x", 0.4);
             x.min(x) - x
@@ -310,6 +307,10 @@ fn r1_argument_keyed_atoms_stay_conservative() {
             let x = p("x", 0.4);
             x.copysign(lit(1.0)) - x.abs()
         },
+        || {
+            let x = p("x", 0.4);
+            x.abs() - (-x).abs()
+        },
     ];
     for (i, f) in cases.into_iter().enumerate() {
         let (_, counts) = with_session(budget(), || zero(f()));
@@ -319,13 +320,6 @@ fn r1_argument_keyed_atoms_stay_conservative() {
             "case {i} decided symbolically: {counts:?}"
         );
     }
-    let (ok, counts) = with_session(budget(), || {
-        let x = p("x", 0.4);
-        zero(x.abs() - (-x).abs())
-    });
-    assert!(ok);
-    assert_eq!(counts.sign_gated, 1, "{counts:?}");
-    assert_eq!(counts.symbolic_zero, 0);
 }
 
 /// `copysign(0, s)` folds to zero for ANY sign argument — including a

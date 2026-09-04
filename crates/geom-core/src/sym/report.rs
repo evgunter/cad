@@ -18,8 +18,7 @@ use core::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 
 use super::{
-    Discharge, Form, INDET_PI, ParamSymbol, Poly, Rat, SESSION, Session, SymId, SymOp, indet_param,
-    plain_form,
+    Form, INDET_PI, ParamSymbol, Poly, Rat, SESSION, Session, SymId, SymOp, indet_param, plain_form,
 };
 use crate::predicate::{Indeterminate, MarginDiag, Sign};
 
@@ -86,22 +85,20 @@ pub(super) fn active() -> bool {
     ACTIVE.get()
 }
 
-/// Records one decision, if the report is installed.
-pub(super) fn record(
-    numeric: &Result<Sign, Indeterminate>,
-    discharge: Option<Discharge>,
-    form: Option<String>,
-) {
+/// Records one decision, if the report is installed. `symbolic` is
+/// whether the tier answered it (an unconditional theorem — rule C, the
+/// sign-gated fold, is filed unbuilt, so [`ShapeOutcome::SignGated`] is
+/// the reserved variant the tier never produces).
+pub(super) fn record(numeric: &Result<Sign, Indeterminate>, symbolic: bool, form: Option<String>) {
     if !active() {
         return;
     }
-    let outcome = match (discharge, numeric) {
-        (Some(Discharge::Theorem), _) => ShapeOutcome::Theorem,
-        (Some(Discharge::SignGated), _) => ShapeOutcome::SignGated,
-        (None, Ok(Sign::Zero)) => ShapeOutcome::NumericZero,
-        (None, Ok(s)) => ShapeOutcome::Definite(*s),
-        (None, Err(e)) if matches!(e.margin, MarginDiag::Invalid) => ShapeOutcome::Invalid,
-        (None, Err(_)) => ShapeOutcome::Indeterminate,
+    let outcome = match (symbolic, numeric) {
+        (true, _) => ShapeOutcome::Theorem,
+        (false, Ok(Sign::Zero)) => ShapeOutcome::NumericZero,
+        (false, Ok(s)) => ShapeOutcome::Definite(*s),
+        (false, Err(e)) if matches!(e.margin, MarginDiag::Invalid) => ShapeOutcome::Invalid,
+        (false, Err(_)) => ShapeOutcome::Indeterminate,
     };
     SHAPES.with(|s| {
         s.borrow_mut().push(DecisionShape {
@@ -176,9 +173,6 @@ fn render_indet(sess: &Session, id: u128, depth: usize) -> String {
     }
     if let Some(name) = NAMES.with(|n| n.borrow().get(&id).cloned()) {
         return name;
-    }
-    if sess.params.contains_key(&id) {
-        return format!("param#{:08x}", id as u32);
     }
     if let Some(atom) = sess.atoms.get(&id) {
         let name = match atom.op {

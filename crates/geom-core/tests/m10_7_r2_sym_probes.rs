@@ -292,26 +292,21 @@ fn r2_the_kink_atoms_never_claim_a_cancellation() {
         "an atom keyed by its arguments claimed an identity it has no \
          argument for, among {out:?}"
     );
-    // `abs` HAS an argument now — rule C's: over `[1, 2]` the sign is
-    // certified, both atoms fold to `x`, and the zero is sign-gated;
-    // over a box that straddles zero nothing folds and the residual is
-    // the numeric channel's, at its width.
-    let (folded, counts) = with_session(budget(), || {
-        let x = p("x", 1.0, 2.0);
-        sign_of(x.abs() - (-x).abs())
-    });
-    assert_eq!(folded, Ok(Sign::Zero));
-    assert_eq!(counts.sign_gated, 1, "{counts:?}");
-    let (straddle, counts) = with_session(budget(), || {
-        let x = p("x", -1.0, 2.0);
-        sign_of(x.abs() - (-x).abs())
-    });
-    assert_ne!(
-        straddle,
-        Ok(Sign::Zero),
-        "a straddling |x| widens with the box"
-    );
-    assert_eq!(counts.sign_gated + counts.symbolic_zero, 0, "{counts:?}");
+    // `abs(x) − abs(−x)` would be rule C's shape (`|x| = ±x` by a
+    // certified sign), but rule C is FILED UNBUILT — so it stays opaque
+    // and the two `abs` atoms do not cancel. Over an interval box the
+    // numeric channel cannot see the identity either (`[1,2] − [1,2] =
+    // [-1,1]` straddles), so it is INDETERMINATE at every width — the
+    // exact widening the symbolic tier exists to beat, and does not here
+    // because the rule that would is not built.
+    for (lo, hi) in [(1.0, 2.0), (-1.0, 2.0)] {
+        let (s, counts) = with_session(budget(), || {
+            let x = p("x", lo, hi);
+            sign_of(x.abs() - (-x).abs())
+        });
+        assert_ne!(s, Ok(Sign::Zero), "rule C is filed, so |x|−|−x| widens");
+        assert_eq!(counts.sign_gated + counts.symbolic_zero, 0, "{counts:?}");
+    }
     // The one fold these DO license: min/max/copysign of zero forms.
     let (folds, _) = with_session(budget(), || {
         let x = p("x", 1.0, 2.0);

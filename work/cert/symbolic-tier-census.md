@@ -204,22 +204,23 @@ CSV rather than a name filter.
 
 ## The rule column (M10-8): which atom-algebra rule discharges each row
 
-M10-8 added three functional-identity rules behind the `SymRules` dial
-(A `sqrt(X)²=X`, B `sin²+cos²=1`, C `sqrt(Q²)=Q` by a certified sign)
-and measured, per decide site on the two-hole plate, R2's filleted
-L-bracket and R1's bracket, which rule discharges it. The column is
-uniform and the result is the unit's headline finding:
+M10-8 built two functional-identity rules behind the `SymRules` dial
+(A `sqrt(X)²=X`, B `sin²+cos²=1`) and filed a third UNBUILT (C
+`sqrt(Q²)=Q` by a certified sign — clause 3; its value-reading fold is
+at odds with the bit-identity discipline), and measured, per decide site
+on the two-hole plate, R2's filleted L-bracket and R1's bracket, which
+rule discharges it. The column is uniform and the result is the unit's
+headline finding:
 
 **On all three documents, EVERY explicit row that discharges at all is
-discharged by the PLAIN quotient form (M10-7); rules A, B and C add
-nothing.** The rules are correct on small forms (geom-core's rule-A/B/C
+discharged by the PLAIN quotient form (M10-7); rules A and B add
+nothing.** The rules are correct on small forms (geom-core's rule-A/B
 unit rows), but the arc-family forms they target — `carrier_on_surface`,
 `witness_on_surface`, the moving radial frame, whose `u_ref·u_ref`
 carries `sqrt(v·v)²` — are large enough to FREEZE before a top-residual
 reduction can reach them, so switched fully on the rules move no ceiling
-and change no row's split. `sign_gated` (rule C) is 0 in every certified
-population, because rule C fires only at the degenerate nominal of a box
-that does not certify.
+and change no row's split. `sign_gated` (rule C) is 0 everywhere because
+rule C is unbuilt; the receipt and K token stand reserved.
 
 So the rule column reads **"plain"** for every discharging row and
 **"none"** for every numeric one; the atom algebra is filed off by
