@@ -373,3 +373,31 @@ the shape is one shape: every one was a number or a claim the
 orchestrator asserted from a command it had not checked the semantics
 of, and every one was caught downstream. The lanes are not merely doing
 the work; they are the error-correction on the dispatch.
+
+## The one item whose whole point is Ev seeing it was invisible to Ev
+
+`viewer-first-light-on-real-hardware` carries `needs_ev: true` — on PR
+1771's branch. PR 1771 is `[ev]`, so it waits for Ev and does not merge;
+so the flag was not on main; so `STATUS.md`'s **Waiting on Ev** table
+did not list it, and this program's `on Ev` column read empty while its
+last open unit was a request for Ev.
+
+`work/README.md` states the invariant this breaks: *"`STATUS.md` lists
+every open `needs_ev` oldest first, so the two views (the PR list
+filtered on `[ev]`, and the tracker) always name the same set."* Only
+the PR view named it. Every other program's Ev-waiting item appears in
+that table, so the convention is not in doubt — this one was missing
+because of where its flag lived.
+
+The flag is landed here on its own, **byte-identical to the frontmatter
+1771 already carries** (`needs_ev`, `branch`, `pr`), so Ev's eventual
+merge of that PR is a no-op on those lines and cannot conflict. The
+PR's substance — the re-cut of what the checklist still asks — is
+untouched and stays Ev's to accept: recording that a question is
+outstanding is not answering it.
+
+This is the same defect as the stranded orchestrator log and the
+prose-only residues, and it is the fourth instance today. It landed on
+the one item where the cost is not a lost record but an unasked
+question, which is the argument for treating the pattern rather than
+the instances.
