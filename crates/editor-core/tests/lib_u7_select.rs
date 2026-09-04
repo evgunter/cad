@@ -336,7 +336,7 @@ fn the_selector_excludes_the_cavity_meridians_by_shape() {
 
 /// **Prefix argument matching**: constraining only the A side of a
 /// `Seam` is a coarser, still-honest way to say the same pip rim —
-/// "wherever the cube's top cap crosses something". The two arcs come
+/// "wherever the cube's end cap crosses something". The two arcs come
 /// back without the pattern naming either band variant.
 #[test]
 fn a_seam_pattern_may_constrain_only_its_a_side() {

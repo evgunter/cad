@@ -812,7 +812,7 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
         },
         Tol::witness(),
     );
-    // The part-local name of the cube's top cap.
+    // The part-local name of the cube's end cap.
     let inner = StableName {
         kind: EntityKind::Face,
         node: PART_BODY,

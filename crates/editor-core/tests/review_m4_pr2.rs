@@ -98,7 +98,7 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
         },
     );
     let (x, y) = if swap { (b, a) } else { (a, b) };
-    // M4 PR 5: the flush bottom caps are declared (sides resolve
+    // M4 PR 5: the flush start caps are declared (sides resolve
     // per-operand, so ONE Declare serves both operand orders).
     let (doc, decl) = insert(
         doc,

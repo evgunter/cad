@@ -270,7 +270,7 @@ use pncad::prelude::*;
 
 let node = RecipeNodeId(3);
 let face = |path| StableName { kind: EntityKind::Face, node, path };
-// A boolean seam edge: the top cap of one operand crossing a
+// A boolean seam edge: the end cap of one operand crossing a
 // revolve band of the other.
 let seam = StableName {
     kind: EntityKind::Edge,
@@ -371,7 +371,7 @@ doc = next;
 
 let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
 
-// Select the top cap by NAME, then ask where it is.
+// Select the end cap by NAME, then ask where it is.
 let top = Selector::of(
     NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End)),
 );

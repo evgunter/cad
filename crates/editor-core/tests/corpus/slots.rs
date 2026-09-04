@@ -87,8 +87,8 @@ pub fn document() -> CorpusDoc {
         profile: slot2_p,
         distance: len(1.0),
     });
-    // The first cavity's floor is slot 1's bottom cap, reversed onto
-    // the B side of `sub1`; slot 2's bottom cap is its own.
+    // The first cavity's floor is slot 1's start cap, reversed onto
+    // the B side of `sub1`; slot 2's start cap is its own.
     let cavity_floor = StableName {
         kind: EntityKind::Face,
         node: sub1,

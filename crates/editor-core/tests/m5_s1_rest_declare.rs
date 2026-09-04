@@ -57,8 +57,8 @@ fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m5_s1_rest_declare", Tol::witness());
     let (doc, a) = block(doc, 0.0, 1.0);
     let (doc, b) = block(doc, 1.0, 1.0);
-    // The author's intent, stated: the contact pair (A's top cap on
-    // B's bottom cap) plus the four flush wall pairs (the same-plane
+    // The author's intent, stated: the contact pair (A's end cap on
+    // B's start cap) plus the four flush wall pairs (the same-plane
     // sides the output stage merges).
     let pairs = vec![
         (

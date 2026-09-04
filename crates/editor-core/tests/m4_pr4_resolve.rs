@@ -1117,7 +1117,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     };
     let (doc1, b, _c, bl) = build(false);
     let ev1 = run(&doc1, None);
-    // The union carries B's top cap as FromB(cap_b).
+    // The union carries B's end cap as FromB(cap_b).
     let cap_b = name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End));
     let target = StableName {
         kind: EntityKind::Face,

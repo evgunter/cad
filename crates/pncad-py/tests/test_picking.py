@@ -82,8 +82,8 @@ def one(found):
     return found[0]
 
 
-def top_cap(ev, node):
-    """The name of `node`'s top cap face — the selector door's answer,
+def end_cap(ev, node):
+    """The name of `node`'s end cap face — the selector door's answer,
     which is the oracle a pick is checked against."""
     return one(
         ev.select(
@@ -107,11 +107,11 @@ class TestTheRayAnswersAName(unittest.TestCase):
         self.pick = NodePick.build(self.ev, self.cube, 0, DELTA)
 
     def test_the_picked_face_is_the_one_the_selector_names(self):
-        # The oracle: `select` says which name the top cap carries, and
+        # The oracle: `select` says which name the end cap carries, and
         # the ray has to agree. Two doors, one alphabet.
         hit = self.ev.pick_face([self.pick], straight_down())
         self.assertIsInstance(hit, PickHit)
-        self.assertEqual(hit.name, top_cap(self.ev, self.cube))
+        self.assertEqual(hit.name, end_cap(self.ev, self.cube))
 
     def test_the_picked_name_is_a_materializers_own_text(self):
         hit = self.ev.pick_face([self.pick], straight_down())
@@ -155,7 +155,7 @@ class TestTheRayAnswersAName(unittest.TestCase):
         # be the answer.
         sideways = Ray((3 * m, 0.5 * m, 0.5 * m), (-1.0, 0.0, 0.0))
         hit = self.ev.pick_face([self.pick], sideways)
-        self.assertNotEqual(hit.name, top_cap(self.ev, self.cube))
+        self.assertNotEqual(hit.name, end_cap(self.ev, self.cube))
         self.assertIn(hit.name, self.ev.all_faces(self.cube))
         self.assertAlmostEqual(hit.point[0].meters, 1.0, places=12)
 

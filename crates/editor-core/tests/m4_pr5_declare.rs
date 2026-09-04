@@ -295,8 +295,8 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
             declare: None,
         },
     );
-    // Slot floor of s1 = FromB(b1's Cap(Bottom)); the second tool's
-    // bottom cap lies in the SAME plane (z = 0.5) — declared.
+    // Slot floor of s1 = FromB(b1's Cap(Start)); the second tool's
+    // start cap lies in the SAME plane (z = 0.5) — declared.
     let floor1 = fname(
         s1,
         RoleSeg::FromB(Box::new(fname(b1, RoleSeg::Cap(CapEnd::Start)))),

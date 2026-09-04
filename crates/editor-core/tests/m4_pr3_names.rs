@@ -595,15 +595,15 @@ fn split_names_sections_fragments_and_crossings() {
         );
     }
     // Caps pass through UNCHANGED (names still minted at the extrude;
-    // the split contributes no segment): Top lives in the above body
-    // (index 0), Bottom below (index 1).
-    let top = t
+    // the split contributes no segment): the end cap lives in the
+    // above body (index 0), the start cap below (index 1).
+    let end = t
         .lookup(&name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End)))
-        .expect("top cap passes through");
-    let bottom = t
+        .expect("end cap passes through");
+    let start = t
         .lookup(&name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::Start)))
-        .expect("bottom cap passes through");
-    match (top, bottom) {
+        .expect("start cap passes through");
+    match (end, start) {
         (Entry::Unique(a), Entry::Unique(b)) => {
             assert_eq!(a.body, 0);
             assert_eq!(b.body, 1);
@@ -704,19 +704,19 @@ fn transform_passes_names_through_and_pattern_wraps_instances() {
     // Pattern: every master entry wrapped per instance, body = i.
     let tp = table(&ev, pat);
     assert_eq!(tp.len(), 27 * 3);
-    let master_top = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
+    let master_end = name1(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     for i in 0..3u32 {
         let wrapped = name1(
             EntityKind::Face,
             pat,
             RoleSeg::Instance {
                 i,
-                of: Box::new(master_top.clone()),
+                of: Box::new(master_end.clone()),
             },
         );
         match tp.lookup(&wrapped) {
             Some(Entry::Unique(e)) => assert_eq!(e.body, i),
-            other => panic!("instance {i} top cap: {other:?}"),
+            other => panic!("instance {i} end cap: {other:?}"),
         }
     }
 }
