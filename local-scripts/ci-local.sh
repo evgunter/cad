@@ -77,33 +77,32 @@
 # shards for wall-clock fan-out; the shards' union is exactly the row,
 # so the unsharded rows here gate the same test set.
 #
-# THIS HALF RUNS THE WHOLE MATRIX; HOSTED SAMPLES IT (2026-08-22). Hosted
-# CI now gates ONE point of {default, interval} x {default, 1e-6, 1e-12}
-# per run, drawn deterministically from the head SHA — the argument is in
-# scripts/ci-filter.py's CONFIGURATION SAMPLING note, and the currency it
-# buys is billed runner minutes. Nothing bills this half by the minute, so
-# nothing here is sampled: every lane and every eps row still runs on one
-# tree.
+# BOTH HALVES RUN THE WHOLE LANE/EPS MATRIX AGAIN (2026-09-04). From
+# 2026-08-22 hosted CI gated ONE point of {default, interval} x {default,
+# 1e-6, 1e-12} per run, drawn from the head SHA, and this half was the only
+# lane that ran all six on one tree. That draw is gone — the argument is in
+# scripts/ci-filter.py's CONFIGURATION COVERAGE note; the currency it bought
+# was billed runner minutes on a private repository, and the repository went
+# public on 2026-09-03. Nothing bills this half by the minute either, and
+# nothing here was ever sampled.
 #
-# THAT MAKES THIS THE ONLY LANE THAT RUNS EVERY POINT ON ONE TREE, which
-# is a heavier claim than this file used to carry and is worth stating in
-# both directions. It is NOT drift: local is a strict SUPERSET of any
-# hosted run, so a tree this half calls green was gated at every point
-# hosted could have drawn. And it is the reason to reach for this half
-# deliberately — before a merge that would be expensive to get wrong,
-# hosted's verdict covers one point of six and this one covers all of
-# them. The row SEMANTICS are still identical, which is what the mirror
-# convention is about; what differs is how many of them a given run
-# executes.
+# WHAT THIS HALF STILL ADDS OVER A HOSTED RUN, stated as a list rather than
+# as a superlative, because the superlative was true for thirteen days and
+# is the kind of sentence that outlives its fact: all five k-lint feature
+# unifications (hosted draws one), and the opt-in `--nightly` row below.
+# Local is still a strict SUPERSET of any hosted run on the sampled axes, so
+# a tree this half calls green was gated everywhere hosted could have looked
+# — the difference is now two dimensions narrower than it was. The row
+# SEMANTICS are identical either way, which is what the mirror convention is
+# about.
 #
-# HOSTED CAN NOW BE AIMED AT A POINT (2026-08-28) — ci.yml's
-# `workflow_dispatch` inputs, or a `CI-Config:` trailer in the head
-# commit's message, both landing in ci-filter.py's REQUESTING A POINT
-# path. That does not reach this half and deliberately so: every value
-# either spelling can request is one this file already runs, so the
-# superset claim above is untouched, and there is nothing here for a
-# request to buy. It is the hosted half's way of getting, for one
-# dimension, what this half gives for all three.
+# HOSTED CAN BE NARROWED TO A POINT (2026-08-28; it aimed a DRAW until
+# 2026-09-04 and narrows a full run now) — ci.yml's `workflow_dispatch`
+# inputs, or a `CI-Config:` trailer in the head commit's message, both
+# landing in ci-filter.py's NARROWING A RUN path. That does not reach this
+# half and deliberately so: every value either spelling can name is one this
+# file already runs, so the superset claim above is untouched, and there is
+# nothing here for a request to buy.
 #
 # NOT MIRRORED, deliberately (2026-08-04): ci.yml's two build jobs set
 # RUSTFLAGS=-C link-arg=-fuse-ld=mold and CARGO_PROFILE_{DEV,TEST}_DEBUG=
@@ -158,8 +157,8 @@ FULL=0
 BASE=""
 # THE NIGHTLY (DEMOTED) ROW IS OPT-IN, and that is the one place this script
 # is NOT a superset of a hosted run. The superset claim it makes elsewhere is
-# about the sampled MATRIX — both lanes, all three eps, all five k-lint
-# unifications — and a demoted test is not a matrix point: it is a test Ev
+# about the MATRIX — both lanes, all three eps, all five k-lint unifications
+# — and a demoted test is not a matrix point: it is a test Ev
 # ruled need not run per-PR at all, and this script is the per-PR gate of
 # record when hosted Actions is unavailable. Running it by default would put
 # back, in the half a developer waits on, exactly the cost the demotion
@@ -567,7 +566,7 @@ topo_release() {
 # and the wheel is a second compile of the kernel under the `python`
 # feature. This half is billed in one developer's wall clock, on a run
 # they chose to make, and it is already the lane that runs every point of
-# a matrix the hosted gate samples: skipping work here would buy nothing
+# every dimension: skipping work here would buy nothing
 # and would leave the local gate proving strictly less than the hosted
 # one, which is the opposite of this file's contract. So `RUN_PNCAD_PY`
 # is deliberately not consulted, exactly as `RUN_VIEWER_TOOLKIT` is not.
@@ -642,10 +641,13 @@ test_eps() {
 # HOSTED MIRROR: build / doc-tests
 doc_tests() { cargo test --doc $SCOPE; }
 # The interval rows run ONLY the tests the feature adds. NO HOSTED MIRROR
-# ANY MORE (2026-08-22): hosted's `test-interval` now runs the WHOLE suite,
-# because configuration sampling draws ONE lane per run and the default legs
-# this selection subtracts are not running on an interval draw. See that
-# job's header in .github/workflows/ci.yml.
+# ANY MORE (2026-08-22): hosted's `test-interval` runs the WHOLE suite. The
+# reason it started doing so was the lane draw — the default legs this
+# selection subtracts did not run on an interval draw. That draw is gone
+# (2026-09-04) and hosted still runs the whole suite on both lanes: the
+# subtraction is a COST lever, restoring it would reduce what a hosted run
+# gates, and that decision is filed rather than taken. See that job's header
+# in .github/workflows/ci.yml.
 #
 # THE SELECTION IS STILL RIGHT HERE, and the asymmetry is the point rather
 # than drift: this half runs BOTH lanes over one tree, so the 42% of test
@@ -677,10 +679,9 @@ interval_selection() {
 #
 # THE MARKER BELOW CITES A HOSTED STEP THAT RUNS MORE THAN THIS ROW DOES, and
 # says so rather than implying equivalence. Hosted's `test-interval / run
-# archived tests` executes the WHOLE interval archive at one sampled eps,
-# because a sampled run draws one lane and has no default legs to lean on;
+# archived tests` executes the WHOLE interval archive, once per eps row;
 # this row executes the interval-only difference at both eps rows, because
-# this half runs both lanes over one tree. The JOB correspondence the marker
+# this half subtracts what its own default legs already ran. The JOB correspondence the marker
 # asserts is real — both are the interval-feature test row of their half —
 # and the difference in what each executes is the declared asymmetry recorded
 # at INTERVAL_SEL above and in MIRROR_EXEMPT.
@@ -777,9 +778,10 @@ interval_doc_tests() { cargo test --doc $SCOPE --features interval; }
 # the hosted `persistence` and `band 4 corpus` jobs they mirrored —
 # ci.yml carries the argument at the tombstone where those jobs were.
 # The short form: every module they named is an ordinary `#[test]` that
-# the `test (eps = ...)` rows above already run, at all three ε here and
-# at the drawn ε hosted, so the rows re-bought coverage they already had
-# and (hosted) pinned two ε bands the sampling exists to spread out.
+# the `test (eps = ...)` rows above already run, at all three ε on both
+# halves, so the rows re-bought coverage they already had. (Hosted drew one
+# ε per run from 2026-08-22 to 2026-09-04, which made those rows worse than
+# redundant there — they pinned two bands the draw existed to spread out.)
 #
 # The two `(interval)` rows below are NOT part of that and stay: they
 # mirror named steps of the hosted `test-interval` job, which the
@@ -1095,14 +1097,12 @@ run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D w
 # seed-keyed axis lane-sampled and left the ruling's "never a green job
 # name over a silent skip" false half the time.
 #
-# UNCONDITIONAL HERE, GATED HOSTED, and that asymmetry is the same one
-# the sampled matrix already has: the hosted gate skips the eframe/wgpu
+# UNCONDITIONAL HERE, GATED HOSTED: the hosted gate skips the eframe/wgpu
 # graph unless the change filter's SEEDS intersect {viewer, pncad, bvh}
-# (Ev's viewer-CI-posture ruling, docs/GUI-LOG.md 2026-08-27), because
-# it is billed by the minute on every PR. This half is not billed by the
-# minute — it is billed in one developer's wall clock, on a run they
-# chose to make — and it is already the lane that runs every point of a
-# matrix the hosted gate samples. Skipping work here would buy nothing
+# (Ev's viewer-CI-posture ruling, docs/GUI-LOG.md 2026-08-27). This half is
+# not billed by anyone's minute — it is billed in one developer's wall
+# clock, on a run they chose to make — and it runs every point of every
+# dimension. Skipping work here would buy nothing
 # and would leave the local gate proving strictly less than the hosted
 # one, which is the opposite of this file's contract.
 #
@@ -1151,8 +1151,8 @@ run_row "test (viewer app)"            cargo nextest run -p viewer --features ap
 # filter's SEEDS intersect {viewer, pncad, bvh} (Ev's viewer-CI-posture
 # ruling), because there it is a per-PR bill on every kernel change.
 # This half is billed in one developer's wall clock on a run they chose
-# to make, and is the lane that runs every point of a matrix the hosted
-# gate samples, so it takes the wider selection every time.
+# to make, and runs every point of every dimension, so it takes the wider
+# selection every time.
 #
 # ONE POINT, NOT THE POWERSET, on both halves: `--all-features` is every
 # feature ON together. A warning visible only under a proper subset is

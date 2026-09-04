@@ -951,6 +951,102 @@ demotion argument rests on — stated with a number rather than assumed.
 
 ## 2026-08-22 — configuration sampling, and the draft skip (F5)
 
+### SUPERSEDED for the lane and ε, 2026-09-04 — full runs reinstated
+
+**Everything in this section below this block describes the regime that ran
+from 2026-08-22 to 2026-09-04.** The lane and ε draws are gone: a code-tier
+run gates every point of {default, `interval`} x {default, 1e-6, 1e-12}, as
+two archives and twelve `test (…)` jobs. **The k-lint unification draw is
+NOT affected and is still one row of five per run** — it is five compiles
+sharing almost no artifacts, not one archive replayed, and it was not
+re-costed here (`work/ciw/klint-row-still-sampled.md`).
+
+**Ev's authorisation, in chat, 2026-09-04**: *"feel free to reinstate full
+runs instead of sampling"*, on the reasoning that *"CI is weakened right now
+because of sampling only certain configurations to run … undoing that
+sampling now that actions minutes are much cheaper is probably a good idea"*.
+The premise this whole document opens with — an Actions allowance being
+consumed faster than the work justified — died when the repository went
+public on 2026-09-03.
+
+**The measurement.** Population: every `CI` workflow run created
+`2026-09-04T04:00Z`–`2026-09-04T07:52Z` with `conclusion` ∈ {success,
+failure} (cancelled excluded — a cancelled run's job set is a truncation, not
+a sample): **155 runs, 71 code-tier** (a code-tier run is one carrying a
+`build + archive` job). Durations are per-job wall time from the jobs API;
+nothing here is a BILLED minute, because a public repository's standard-runner
+minutes are not billed.
+
+| | today (sampled) | un-sampled |
+|---|---|---|
+| job-minutes, median code-tier run | **24.5** (n=71) | **~40** |
+| critical path, median code-tier run | **399 s** default draw / **456 s** interval draw | **~456 s**, every run |
+| `build + archive (default)` | 278 s (n=38) | unchanged |
+| `build + archive (interval)` | 368 s (n=38) | unchanged |
+| one `test (…)` leg | 46-48 s default lane, 56 s interval | unchanged |
+| `clippy` / `clippy + doc-tests (interval)` | 72 s / 100 s | unchanged |
+
+**It is not a 6x multiplier, and the reason is the archive.** ε is runtime
+env, read by bit-identical binaries, so the six points are TWO builds and
+TWELVE test legs. Summing the configuration-dependent jobs at the medians
+above: un-sampled = 646 s of builds + 172 s of lint + 618 s of test legs =
+**1436 s**; today's expectation over the 50/50 draw = **512 s**. So
+**+924 s = +15.4 job-minutes per code-tier run**, on a median run of 24.5 —
+so **24.5 → ~40**.
+
+**Why the component sum and not a run-total comparison.** The observed
+medians split by drawn lane are 21.1 (default, n=33) and 25.4 (interval,
+n=33), a gap of 4.3 job-minutes where the per-job medians account for only
+2.3. The rest is CONFOUNDED, not measurement error: a diff under
+`interval-transcendentals/` PINNED the interval lane, so the interval-drawn
+set is enriched in runs that are `TIER=all` and carry the oracle and backend
+rows for reasons that have nothing to do with the lane. Summing the jobs the
+lane actually decides avoids that; comparing run totals does not.
+
+**Two currencies, and the second one depends on the window.** At this
+window's **18.4 code-tier runs/hour** that is **+283 job-minutes/hour**
+against a measured 485 job-min/h of all CI. The rate is not a constant: PR
+1796's population (2026-09-03T15:20Z–2026-09-04T05:47Z, 14.45 h) has 10.3
+code-tier runs/hour and prices the same change at +161 job-min/h. **The two
+lanes agree on the per-run figure — +15.4 here against +15.6 there — and
+disagree only on how busy an hour is.** Quote the per-run number; derive the
+hourly one from the window you care about.
+
+**Critical path: +57 s on half the runs, +0 on the other half.** Every run
+now takes the interval lane's path, because that archive is the slower of the
+two (368 s against 278 s). A run that would have drawn `interval` is
+unchanged; one that would have drawn `default` gains the difference. The
+added ε legs cost ~0 wall: they start together behind an archive that was
+already being built (run `33848247472`: both default legs at t+370 s, both
+interval legs at t+432 s). Expected over the draw: **+28 s, about +7%**.
+
+**A cross-check, and why it is not the headline.** Five runs in the window
+already carried `CI-Config: lane=both` — the un-sampled lane at one ε — and
+their median is 34.8 job-minutes and 516 s wall (run `33848247472` is one).
+Median-to-median that is +11.5 job-min for the lane alone, against the +8.5
+the per-job medians derive; n=5, not a random sample (a lane asks for
+`lane=both` when it is doing something unusual), so the component derivation
+above is the one to quote.
+
+**What this does and does not buy.** It closes the gap where a defect at an
+undrawn point merges green and surfaces on a stranger's branch — each point
+gated ~1 run in 6, or 9-31% of code-tier runs by PR 1796's count. It does
+NOT address a composition that no run ever compiles (PR 1796's subject: two
+independently-green PRs whose merge is red), and it does not add a check that
+runs nowhere. **No claim is made that it would have caught a specific past
+red**: of the five recorded main-reds PR 1796 enumerated, zero are
+attributable to the lane/ε draw — and that population is biased against
+exactly this class, because a defect at an undrawn point leaves no record
+until something draws it. The argument is price and exposure, not history.
+
+**One consequence beyond coverage**: a GitHub merge queue's required checks
+are named, so un-sampling is a precondition for the queue PR 1796 recommends
+trialling.
+
+**`local-scripts/ci-local.sh` is no longer "the only lane that runs every
+point on one tree"** — the sentence below saying so was true for thirteen
+days. Local still runs all five k-lint unifications and its opt-in
+`--nightly` row; hosted now matches it on the lane and ε.
 Ev's proposal, and the reason it is a separate section rather than a
 finding: the audit above tuned what each job costs, and this changes
 **what a run gates**. A code-tier run used to execute every point of
@@ -1052,9 +1148,10 @@ one caller — `local-scripts/ci-local.sh`, which still runs both lanes on
 one tree — and is declared in that script's `MIRROR_EXEMPT` with the
 reason.
 
-**`local-scripts/ci-local.sh` is now the only lane that runs every point
+**`local-scripts/ci-local.sh` WAS then the only lane that runs every point
 on one tree**, and is deliberately not sampled: nothing bills it by the
-minute. Local is a strict superset of any hosted run.
+minute. (Superseded 2026-09-04 — hosted runs every lane and ε point too;
+local still adds all five k-lint rows and its `--nightly` row.)
 
 ### Expected cost, derived not measured
 

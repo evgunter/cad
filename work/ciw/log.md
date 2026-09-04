@@ -193,3 +193,48 @@ above. `docs/perf-data/*` is PERF's and `crates/*/tests/*` is S-TCOST's;
 "files no live program owns" was false for both. Found by unit 5's lane
 reading `work.py territory`'s warning on its own diff rather than
 ignoring it.
+
+## 2026-09-04 — full configuration runs reinstated (`reinstate-full-configuration-runs`)
+
+Ev authorised it in chat: *"feel free to reinstate full runs instead of
+sampling"*, because *"CI is weakened right now because of sampling only
+certain configurations to run"*. A hosted run gated one point of
+{default, `interval`} x {default eps, 1e-6, 1e-12}, drawn from the head
+SHA; it now gates all six, as two archives and twelve `test (…)` jobs.
+`_forces_interval` — the `interval-transcendentals/` lane pin — is
+deleted with the draw it existed to pre-empt.
+
+**It is not a 6x multiplier and the measurement says so.** The nextest
+archive is built per COMPILE MODE and eps is runtime env, so six points
+are two builds and twelve test legs. Over 71 code-tier runs in one 3.9-h
+window: **+15.4 job-minutes per run** (24.5 → ~40) and **+57 s of
+critical path on the half of runs that would have drawn `default`**, +0
+on the other half. That agrees with PR 1796's independent +15.6 to
+within 0.2 job-minutes; the two lanes' per-HOUR figures differ (+283 vs
++161) only because their windows differ in busyness, and both are right
+for their window. The block that supersedes
+`docs/CI-MINUTES-2026-08.md`'s 2026-08-22 sampling section carries the
+population and the derivation.
+
+**The dispatch inputs and the `CI-Config:` trailer stay, repurposed.**
+They no longer buy coverage for the lane or eps — a run has it — so they
+NARROW a run instead, which is what a fast re-gate of one axis wants, and
+they remain the only way to choose the k-lint row. Their neutral option
+was renamed `sample` → `unset`: one input list cannot carry two
+vocabularies once `lane: sample` names a draw that does not exist.
+
+**Two residues, filed rather than disclosed in prose.**
+`klint-row-still-sampled` — the third dimension is still drawn 1-in-5,
+because five unifications are five compiles rather than one archive
+replayed, and it was not re-costed. `interval-only-selection-premise-restored`
+— the 2026-08-22 reversal of the interval-only selection was forced by
+the lane draw, so its original premise holds again; restoring the
+subtraction would REDUCE what a run gates and is a cost lever with its
+own argument to make.
+
+**`scripts/ci-filter.py` is S-TCOST's and the edit was made anyway**,
+under Ev's authorisation and announced in the PR by name. No open
+S-TCOST item assumed the draw; one parked one —
+`skip-eps-battery-by-observing-oncelock` — has its premise RESTORED,
+since "the ε battery runs the whole suite at three ambient ε values" is
+true again.
