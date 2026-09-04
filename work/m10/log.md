@@ -887,3 +887,15 @@ program's second symmetric tally pair. Twenty-eight deviations, the
 plate's miss among them stated in the tour's own caption. The spec
 leaves `docs/` with this merge; M10-8 is next, and the exit walk
 stays a draft until it lands.
+
+## M10-8 dispatched: the arc family (2026-09-04)
+
+M10-7's tier certifies the slab and misses every arc: the algebra
+says why (an arc's `u_ref` is a normalized vector, so `sqrt(v·v)`
+atoms appear squared and un-reduced in every point the circle
+evaluates, and the endpoint pin needs `sqrt(r²) = r`, a sign fact).
+Spec written measurement-first at Ev's item's own caution — a
+per-predicate table of what each candidate rule would discharge on
+the plate and both reviewers' brackets decides what ships; the
+registered-identity door stays the reserve unless the table shows a
+family the three rules miss. Dispatched on block M10-B4 slot 2.
