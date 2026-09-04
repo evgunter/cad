@@ -184,10 +184,22 @@ that produced the frames. A pass run this way is **preview only**: its
 frames carry *this* box's renderer and GL stack, which is the drift the
 sentence names.
 
+**There are two accepted sentences, because there are two acceptors.**
+The one above is a box's. The hosted renderer declares
+`CAD_RENDER_LOCAL_OVERRIDE=i-am-the-hosted-renderer` instead, and the
+guard then announces the pass as the canonical renderer rather than as a
+preview — which is what it is, since those are the frames that get
+committed. One message cannot be true of both, and the preview one ends
+in *do NOT commit what this pass draws*, which is the opposite of what
+the hosted job is about to do. Any other value, and unset, refuses
+exactly as before. The variable keeps its `LOCAL` for the reason the
+guard's header gives.
+
 The rule is structural, not sniffed: there is no `GITHUB_ACTIONS` check
 in the guard. The sanctioned automated callers — `render.yml`'s render
-steps, `ci.yml`'s `uv sheet drift (demos)` row, and `ci-local.sh`'s
-`uv_sheet_drift` — each set the sentence **in the file, at the step that
+jobs, which declare the hosted sentence, and `ci-local.sh`'s
+`uv_sheet_drift`, which declares the local one because it genuinely is a
+local pass — each set their sentence **in the file, at the step that
 renders**, where a reviewer sees it. A sniffed exemption would be
 invisible at the call site and would grow silently with every new runner
 and local CI emulator.

@@ -13,26 +13,53 @@
 # nonzero instead.
 #
 # THE OVERRIDE IS A SENTENCE, DELIBERATELY. `CAD_RENDER_LOCAL_OVERRIDE`
-# must equal the exact string below — not "1", not "yes", not "true".
-# Those are values an agent or a developer reaches for reflexively when
-# a script complains about an environment variable; a sentence naming
-# what you are accepting is one nobody types by accident, and one that
-# reads as an admission in the shell history that produced the frames.
+# must equal one of the exact strings below — not "1", not "yes", not
+# "true". Those are values an agent or a developer reaches for
+# reflexively when a script complains about an environment variable; a
+# sentence naming what you are accepting is one nobody types by accident,
+# and one that reads as an admission in the shell history that produced
+# the frames.
+#
+# TWO SENTENCES, BECAUSE THERE ARE TWO ACCEPTORS. A developer on a box is
+# accepting drift and must not commit what the pass draws. The hosted
+# workflow is the opposite case: it IS the renderer whose frames get
+# committed, so every line of the local warning is false for it, and the
+# last line instructs the reader against exactly what the job is about to
+# do — which misleads precisely when someone is reading a render log to
+# diagnose something. So each acceptor declares WHICH it is and gets the
+# message that is true of it. The two sentences are an enumeration, not a
+# parse: any other value, and unset, still refuses.
 #
 # THE RULE IS STRUCTURAL, NOT SNIFFED. CI does not get an exemption for
-# being CI: `render.yml`, `ci.yml` and `local-scripts/ci-local.sh` each set
-# this variable in the file, at the step that renders. There is no
+# being CI: `render.yml` and `local-scripts/ci-local.sh` each set this
+# variable in the file, at the step that renders. (`ci.yml` renders by
+# CALLING render.yml, so that file makes the declaration for the gate
+# too.) There is no
 # GITHUB_ACTIONS check here on purpose — a sniffed exemption is invisible
 # at the call site and grows silently (every new runner, every act-like
 # local emulator), whereas an env line in the workflow is reviewable
-# where the render is requested. The workflows are also the most
-# *informed* acceptors of the sentence: render.yml's own step summary is
-# the measurement of exactly the drift the sentence names.
+# where the render is requested. The hosted sentence keeps that property
+# whole: it is a declaration made in the file by the acceptor, not a
+# guess the guard makes about the environment it woke up in. The
+# workflows are also the most *informed* acceptors of a sentence:
+# render.yml's own step summary is the measurement of exactly the drift
+# the local sentence names.
+#
+# WHY THE NAME STILL SAYS "LOCAL". The variable outlived its adjective —
+# one of its values now says "I am not local". Ev sanctioned either
+# spelling (2026-08-19) and the name was kept: it is the string already
+# written into every shell history, README line and workflow file that
+# names it, and a rename buys nothing the sentences do not say out loud
+# at each call site. This paragraph exists so the mismatch is not filed
+# a second time.
 CAD_RENDER_LOCAL_OVERRIDE_SENTENCE='i-accept-local-render-drift'
+CAD_RENDER_HOSTED_SENTENCE='i-am-the-hosted-renderer'
 
 # $1: the entry point's name, for the message. Returns (0) only when the
-# override is set to the exact sentence; otherwise prints the pointer and
-# EXITS nonzero from the calling script.
+# override is set to one of the exact sentences above, printing the
+# message that belongs to the acceptor that set it; on anything else,
+# unset included, it prints the pointer and EXITS nonzero from the
+# calling script.
 require_hosted_render() {
     local entry="$1"
     local got="${CAD_RENDER_LOCAL_OVERRIDE:-}"
@@ -42,6 +69,15 @@ require_hosted_render() {
         echo "[$entry]   Frames it publishes carry THIS box's renderer/GL stack." >&2
         echo "[$entry]   The committed tree is refreshed by CI, which re-baselines" >&2
         echo "[$entry]   every lane on a push — do NOT commit what this pass draws." >&2
+        return 0
+    fi
+
+    if [ "$got" = "$CAD_RENDER_HOSTED_SENTENCE" ]; then
+        echo "[$entry] HOSTED RENDER declared — this pass IS the canonical renderer." >&2
+        echo "[$entry]   Frames it publishes carry the runner's renderer/GL stack," >&2
+        echo "[$entry]   which is the stack the committed tree is baselined on." >&2
+        echo "[$entry]   On main this run COMMITS what it draws; on a PR it reports" >&2
+        echo "[$entry]   the drift against the committed lane. None of it is preview." >&2
         return 0
     fi
 
@@ -81,10 +117,14 @@ require_hosted_render() {
         echo
         echo "  CAD_RENDER_LOCAL_OVERRIDE=$CAD_RENDER_LOCAL_OVERRIDE_SENTENCE $entry"
         echo
+        echo "That is the sentence for a box. The hosted workflows declare a"
+        echo "different one, in the file, at the step that renders; it says the"
+        echo "pass IS the canonical renderer, and it is not for a box to type."
+        echo
         if [ -n "$got" ]; then
-            echo "(CAD_RENDER_LOCAL_OVERRIDE is set to '$got', which is not the"
-            echo "sentence above. It is spelled out in full on purpose — see"
-            echo "demos/hosted-render-guard.sh.)"
+            echo "(CAD_RENDER_LOCAL_OVERRIDE is set to '$got', which is neither"
+            echo "accepted sentence. They are spelled out in full on purpose —"
+            echo "see demos/hosted-render-guard.sh.)"
             echo
         fi
     } >&2
