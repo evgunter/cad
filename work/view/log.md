@@ -170,3 +170,47 @@ were found by reading the cited symbols rather than the cited prose,
 and neither was visible from the item text. Worth doing for the
 remaining items before any of them is cut, which is the order this
 program is now working in.
+
+## The pick index's expensive step is not cancelable, and 6a now owes that question too (2026-09-04)
+
+Third instance of today's pattern, and the one that most changes a
+unit's shape. `pick-index-built-on-ui-thread` says a δ change "wants
+the same cancel-and-restart the evaluation already has". The seam does
+have it — `submit`/`poll`/`cancel` over a `Generation`, payloads
+already `Send` — but its cancelation "is checked between nodes"
+(`evalseam.rs:42`), and the step this unit moves has no nodes.
+`mesh::tessellate` takes no `CancelToken` and neither does anything in
+`crates/bvh`. So the 6.5 s measured tessellate is uninterruptible, and
+6b as originally framed would move an uninterruptible cost onto the
+worker rather than a cancelable one.
+
+The three ways out are on the item. Two of them (cancel between roots;
+restart-without-cancel) are inside this program's ground and each makes
+a *weaker* promise than the evaluation seam does; the third is real
+cancel points in `crates/mesh` (MESH's) and `crates/bvh` (CERT's), two
+more programs' schedules.
+
+**This goes to 6a rather than to the implementer.** Which promise the
+index seam makes is the same question as what its staleness rule is —
+a build that cannot be canceled and a build whose result may be stale
+on arrival are one design, and §5's inventory should state the
+asymmetry with the evaluation seam rather than leave a reader to
+discover it. Adding it to 6a costs nothing; discovering it inside 6b
+costs the unit.
+
+**And it sharpens the re-cut's condition.** The log's opening entry
+said 6b and 6c collapse back into one adversarially-reviewed unit if 6a
+rules the staleness rule is not expressible as frame data. Add a second
+trigger: if 6a takes option 2 — real cancel points in two other
+programs' crates — then 6b is no longer a move within this program's
+ground and is not this program's unit to cut alone.
+
+**The pattern itself, now at three instances, is worth stating once.**
+`next-id-has-no-layer3-door`, the focus map door, and this all have the
+shape: *a ratified or filed design names a mechanism by symbol, the
+symbol exists, and the door it needs is closed or on another program's
+ground.* All three were invisible from the item text and cost one grep
+each to find. The cheap countermeasure is the order this program is
+already working in — resolve every cited symbol before cutting the
+unit, not at dispatch — so no rule is added; it is recorded here so the
+next orchestrator has the reason rather than the habit.
