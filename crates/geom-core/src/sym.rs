@@ -104,6 +104,93 @@
 //! same sound outcome as a term-count freeze, and it is measured rather
 //! than assumed.
 //!
+//! # The census: which identity-shaped predicates this tier reaches
+//!
+//! PR #1231's two sweeps re-run on this head find **66** predicate-shaped
+//! names of the identity/gap family (57 at that PR's merge base; the nine
+//! new ones are `carrier_torus_{axis_parallel,center,major_radius,
+//! minor_radius}`, `pt_axis_plane_gap`, `pt_cap_gap`,
+//! `self_intersection_gap`, `ss_carrier_{external,identity,internal}`).
+//! The commands are that PR's, verbatim, and so are their blind spots:
+//! sweep A misses a predicate named through a wrapper or a table, sweep
+//! B cannot tell a predicate name from any other string literal of that
+//! shape, and neither sees a name using none of the filtered words.
+//!
+//! Every one of the 66 is in exactly one bucket.
+//!
+//! **NOT A PREDICATE — 6.** `coincide` and `coincident` are prose inside
+//! module docs (`editor_core::mate`, `geom_core::tolerance`);
+//! `carrier_in_chain`, `rebind_identity` and `frame_coincidence` are
+//! `pncad-py` TAG strings for error and enum variants
+//! (`pncad-py/src/tags.rs`); `carrier_kind` is a diagnostic name on an
+//! `Indeterminate` carrying `MarginDiag::Invalid`
+//! (`topo/src/boolean/carrier_eq.rs:339`) — a structure contradiction,
+//! with no margin ever classified.
+//!
+//! **IMPLICIT — 4** (S-CERT's frontier, and its item lists these four by
+//! name): `ssi_on_locus` and `ssi_on_locus_foot`
+//! (`geom-brep/src/ssi/certify.rs`) are a MARCHED intersection point's
+//! residual and the foot of its projection; `plane_nurbs_on_locus`
+//! (`geom-brep/src/certify.rs`) is a chart-image foot;
+//! `offset_reanchor_on_carrier` (`topo/src/replace_face.rs`) re-anchors
+//! an offset carrier through a solve. A quantity found by iteration has
+//! no expression in the parameters, so no normal form reaches it and its
+//! residual widens with the box whatever this tier does.
+//!
+//! **EXPLICIT — 56.** The remaining names' margins are closed forms in
+//! the parameters — a distance, a dot, a cross, a radius difference, a
+//! levered sine — over analytic carriers, which is exactly what the
+//! normal form is made of. Eight are MEASURED discharging on the M10
+//! fixtures and the tour's plate (the run is
+//! `editor-core/tests/m10_7_census_probe.rs`, at `Sym<Probe>` through
+//! the same funnel): `carrier_endpoint_start` and `carrier_endpoint_end`
+//! (56 symbolic / 16 numeric each), `carrier_matches_mapped_source`
+//! (288/72), `carrier_on_surface_1` and `carrier_on_surface_2` (216/72
+//! each), `carrier_circles_identity` (6/0), `side_cylinders_cosurface`
+//! (4/0), `carrier_cyl_axis_parallel` (3/0). The rest are explicit by
+//! the SITE's construction rather than by measurement, and several of
+//! them — the `pncad-py` tags aside, the `mate`/`coset` family and the
+//! boolean contact verifier — sit on paths that run at `f64` over no
+//! parameter box at all, so no fixture can exercise them here.
+//!
+//! `side_planes_cosurface` is the one of M10-3's three OBSERVED names
+//! that decides 0/8 symbolic on these fixtures, and the reason is not a
+//! miss: consecutive walls of a rectangle are genuinely NOT cosurface,
+//! so all eight decisions are definite non-coincidences. Its margin,
+//! `perp_dot(normalize(prev.b − prev.a), next.b − prev.a)`
+//! (`sweep/src/swept.rs`), is a quotient of polynomials and the form
+//! reaches it wherever the walls really are cosurface — which is what
+//! `side_cylinders_cosurface` at 4/0 on the plate's holes shows.
+//!
+//! # The family this tier MISSES, named (E12's reserve)
+//!
+//! E12 keeps discharge-by-provenance in reserve "only if the census
+//! shows a family the symbolic tier misses". It does, and this is it.
+//!
+//! An ARC rim's endpoint pinning. `sweep::swept` gives a swept arc the
+//! carrier `Circle { center: c, radius: r, u_ref: (q − c).normalize() }`
+//! and the certifier checks `‖carrier.eval(0) − q‖ ≤ ε`, which expands
+//! to `‖c + (q − c)·r/‖q − c‖ − q‖`. That is zero iff `‖q − c‖ = r`,
+//! which is TRUE of the geometry and is not a rational-function identity
+//! in the parameters: it needs `sqrt(r²) = r`, a fact about the sign of
+//! the radius rather than about algebra. No normal form over a field of
+//! fractions can see it, and no budget makes it visible.
+//!
+//! MEASURED consequence, on the tour's own two-hole plate
+//! (`m10_7_census_probe::measure_the_ceiling_on_the_two_hole_plate`):
+//! the widest box that certifies whole is `7.81e-7` of the real study
+//! with the tier ON and `7.81e-7` with it OFF — unmoved — and the first
+//! refusal beyond it is `carrier_endpoint_start` with the enclosure
+//! `[0, 1.25e-9]` against a coincidence threshold of `1e-9`. On the
+//! straight-walled slab, where no normalization stands between the
+//! carrier and its endpoint, the same measurement moves from a
+//! half-width of `ε/16` to `0.488` on a `1.0` nominal — a factor of
+//! about `8·10^9`.
+//!
+//! The recourse E12 names is a provenance token ("built as the arc's far
+//! endpoint"), discharged structurally and verified at the f64 witness
+//! point. It is not taken here.
+//!
 //! # No session, no tier
 //!
 //! Ids are computable without the table, so a [`Sym<T>`] built outside

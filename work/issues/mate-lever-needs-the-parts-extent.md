@@ -4,7 +4,6 @@ kind: issue
 title: A mate's lever arm cannot reach the mated parts' extent
 status: open
 opened: 2026-09-03
-program: m10
 ---
 
 ERROR-DESIGN E3's amendment (ratified at revision E12) replaces the

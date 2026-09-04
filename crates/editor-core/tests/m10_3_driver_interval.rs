@@ -5,41 +5,46 @@
 //! `analyzed_box` for the box, `drive` for the verdict, the verdict's
 //! own accessors for the answer. Nothing reaches past them.
 //!
-//! # The widths are in ε, and that is the unit's headline finding
+//! # The widths were in ε, and the symbolic tier moved them
 //!
-//! Every box below is sized as a multiple of the run's ε. That is not
-//! tidiness: the certification predicates the kernel runs on a replayed
-//! body are *identities* — an edge's endpoint lies ON its carrier, a
-//! side plane is cosurface with its neighbour — whose margin is exactly
-//! zero in real arithmetic and whose INTERVAL enclosure is `[0, c·w]`
-//! for a box of width `w`, because the two sides of the identity share
-//! the parameter and interval arithmetic cannot see that they cancel.
-//! An enclosure that straddles the coincidence threshold is
-//! indeterminate, so a leaf becomes fully definite only once its own
-//! width is a fraction of ε. The fraction is FIXTURE-DEPENDENT — `c`
-//! counts the parameter-dependent terms one identity accumulates — and
-//! `the_certification_width_is_a_small_fraction_of_epsilon` measures
-//! it rather than asserting it: `ε/8` of width on the one-extrude slab
-//! here, about half that on the two-extrude chamber the review suites
-//! drive.
+//! Until ERROR-DESIGN E12 every box below was sized as a multiple of the
+//! run's ε, and that was the M10-3 unit's headline finding. The reason:
+//! the certification predicates the kernel runs on a replayed body are
+//! *identities* — an edge's endpoint lies ON its carrier, a side plane is
+//! cosurface with its neighbour — whose margin is exactly zero in real
+//! arithmetic and whose INTERVAL enclosure is `[0, c·w]` for a box of
+//! width `w`, because the two sides of the identity share the parameter
+//! and interval arithmetic cannot see that they cancel. A leaf became
+//! fully definite only once its own width was a fraction of ε, so a
+//! MACROSCOPIC tolerance box — a ±0.05 band on a 1.0 nominal, `10^8 ε`
+//! wide — needed about 30 bisections against a shipped per-axis depth
+//! budget of 24, and came back as priced `Budget` mass.
 //!
-//! Refinement gets there, and the driver is correct at every step; what
-//! it costs is that a MACROSCOPIC tolerance box (a ±0.05 band on a 1.0
-//! nominal is `10^8 ε` wide) needs about 30 bisections on that axis to
-//! reach its first certified leaf — `log2(0.05 / (ε/16))` at the
-//! default ε — against a shipped per-axis depth budget of 24. On
-//! such a box today's verdict is `Budget`-refused mass, priced and
-//! reported — never a silent partial and never a false certificate,
-//! but not yet the "2.1% of the tolerance mass has no valid build"
-//! sentence either.
+//! **The symbolic identity tier discharges those identities as
+//! identities** (`geom_core::sym`): a margin whose expression is
+//! identically zero in the document's parameters decides `Zero` before
+//! any enclosure is consulted, at any width. So the widening they caused
+//! is gone, the two rows that pinned it are re-cut the other way round
+//! (`a_macroscopic_box_certifies_at_the_shipped_depth_budget` and
+//! `the_certification_width_is_no_longer_bounded_by_epsilon`), and what
+//! bounds a box now is real geometry — a flip, a genuine sliver — rather
+//! than an enclosure that could not see through an identity.
 //!
-//! This is the same widening class as **issue #1191**, observed on a
+//! **The ε-scaled boxes below are kept where they are still the
+//! subject.** A planted flip at `20ε ± 40ε` is about the flip, and
+//! sizing it in ε is what puts the flip inside the box; a terminal
+//! sliver is a statement about the band and has no other scale to be
+//! stated at. Only the rows whose subject WAS the widening moved.
+//!
+//! `the_tier_off_reproduces_the_pre_e12_refusal` keeps the old answer
+//! visible: the same document and box with `SymbolicDials::off()` comes
+//! back exactly as this unit pinned it.
+//!
+//! The `[0, c·w]` widening class is issue #1191's, observed on a
 //! different family of predicates; that issue is the class's home and
-//! this unit consumes it rather than fixing it. The by-shape sweep for
-//! its siblings, its commands and its blind spots are recorded in this
-//! unit's PR — 57 identity- and gap-shaped funnel names, of which the
-//! fixtures here observe three (`carrier_endpoint_start`,
-//! `carrier_endpoint_end`, `side_planes_cosurface`).
+//! this file consumes it. The by-shape sweep for its siblings, its
+//! commands and its blind spots are in M10-3's PR and re-run in M10-7's,
+//! where the 57 names it published are classified.
 //!
 //! The file's basename carries `interval` deliberately: the driver is
 //! gated on that feature (there is no leaf to certify without the
