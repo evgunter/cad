@@ -218,14 +218,9 @@ fn drive_at(doc: &ProfileDoc, dials: SymbolicDials, tol: Tol) -> Option<String> 
         tol,
     )
     .ok()
-    .map(|v| {
-        format!(
-            "receipt={:?} decisions={:?}\n{}",
-            v.receipt(),
-            v.decisions(),
-            v.render(&analyzed)
-        )
-    })
+    // `serialize()` is the goldening form — the text M10-6's own
+    // differential is taken over — not the human `render()`.
+    .map(|v| v.serialize())
 }
 
 /// **THE E2E EXERCISE**: R2's own document, driven both ways, with the
@@ -470,10 +465,12 @@ fn r2_a_zero_term_budget_reproduces_the_tier_off_verdict() {
     // The verdicts must agree everywhere the E12 receipt is not the
     // subject; the receipt line itself is the one legitimate difference,
     // since a zero-budget run still COUNTS its (numeric) decisions.
+    // The E12 receipt line is the ONE legitimate difference: a
+    // zero-budget run still counts its (numeric) decisions, where a
+    // tier-off run installs no session and counts nothing.
     let strip = |s: &str| {
         s.lines()
-            .filter(|l| !l.contains("decisions symbolic_zero") && !l.contains("decisions ="))
-            .filter(|l| !l.contains("symbolic identities"))
+            .filter(|l| !l.starts_with("decisions symbolic_zero"))
             .collect::<Vec<_>>()
             .join("\n")
     };
@@ -569,11 +566,15 @@ fn collinear_walls() -> ProfileDoc {
         plane,
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
+            // The DECLARED straight continuation: `LineTo` at a zero-turn
+            // junction is refused by the profile door (`JunctionTangent`
+            // — an undeclared zero-turn joint), so the split vertex is
+            // authored the way the vocabulary spells it.
             ProgramStep::LineTo(ProgramTarget::Point([
                 Expr::div(w(), scl(2.0)).expect("Length / Scalar"),
                 len(0.0),
             ])),
-            ProgramStep::LineTo(ProgramTarget::Point([w(), len(0.0)])),
+            ProgramStep::ContinueTo(ProgramTarget::Point([w(), len(0.0)])),
             ProgramStep::LineTo(ProgramTarget::Point([w(), len(2.0e-3)])),
             ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(2.0e-3)])),
             ProgramStep::LineTo(ProgramTarget::Start),
