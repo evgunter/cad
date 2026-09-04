@@ -460,7 +460,7 @@ fn the_not_a_rigid_translation_door_is_unreachable_at_rest() {
         "the tangent bullet refuses at the corner it is about, not at a carrier lane"
     );
     pncad::topo::shell(&lifted_dome(tol), 1.0 / 128.0, FIT_TOL, tol)
-        .expect("the non-tangent dome's junction is transversal, so it hollows");
+        .expect("the non-tangent dome's junction is transversal, so it hollows").body;
 }
 
 /// The offset door's own refusal, as a two-word class name plus what
@@ -612,7 +612,7 @@ fn the_hollow_now_survives_every_axial_junction() {
         ),
     ] {
         pncad::topo::shell(&body, thickness, FIT_TOL, tol)
-            .unwrap_or_else(|e| panic!("{what} hollows, got {e}"));
+            .unwrap_or_else(|e| panic!("{what} hollows, got {e}")).body;
     }
 
     // ONE row is left on the refusing side, and it is written as one
@@ -653,7 +653,7 @@ fn the_opened_rim_is_right_on_a_box() {
         .collect();
     assert_eq!(top.len(), 1, "an extrusion's cap is ONE face");
     let cup =
-        pncad::topo::shell_open(&body, 0.02, &top, FIT_TOL, tol).expect("a box opens at its top");
+        pncad::topo::shell_open(&body, 0.02, &top, FIT_TOL, tol).expect("a box opens at its top").body;
     assert_eq!(
         (rings(&cup), genus(&cup)),
         (1, 0),
@@ -728,7 +728,7 @@ fn the_opened_rim_is_an_annulus_on_every_revolve() {
             "{what}: a full revolve's cap is two half-discs"
         );
         let cup = pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol)
-            .unwrap_or_else(|e| panic!("{what}: the opened arm must build the rim, got {e}"));
+            .unwrap_or_else(|e| panic!("{what}: the opened arm must build the rim, got {e}")).body;
         assert_eq!(
             pncad::topo::validate_geometric(&cup, tol),
             Ok(()),
@@ -896,7 +896,7 @@ fn the_annular_mouth_opens_to_two_disjoint_rims() {
          which is the whole point of the row"
     );
     let cup =
-        pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol).expect("the annular mouth opens");
+        pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol).expect("the annular mouth opens").body;
     assert_eq!(
         pncad::topo::validate_geometric(&cup, tol),
         Ok(()),

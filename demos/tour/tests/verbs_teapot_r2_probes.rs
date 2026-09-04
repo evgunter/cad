@@ -170,7 +170,7 @@ fn r2_my_own_revolve_opens_at_a_chart_they_never_touch() {
     let chart = plane_chart_at(&body, top);
     println!("[r2-1] my mouth chart is {} face(s)", chart.len());
     let cup = pncad::topo::shell_open(&body, 0.021, &chart, FIT_TOL, tol)
-        .expect("shell_open returns a body");
+        .expect("shell_open returns a body").body;
     println!(
         "[r2-1] tier3 = {:?}; shells = {}; rings = {}; genus = {}",
         pncad::topo::validate_geometric(&cup, tol),
@@ -325,7 +325,7 @@ fn r2_ring_anatomy_on_a_drum() {
         .into();
     let body = revolved(lp, tol);
     let chart = plane_chart_at(&body, h);
-    let cup = pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol).expect("the drum opens");
+    let cup = pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol).expect("the drum opens").body;
     println!(
         "[r2-4] drum cup: V/E/F = {}/{}/{}, shells = {}, rings = {}, genus = {}",
         cup.vertices().count(),
@@ -432,7 +432,7 @@ fn r2_box_control_is_right() {
         .collect();
     assert_eq!(top.len(), 1, "an extrusion's cap is ONE face");
     let cup =
-        pncad::topo::shell_open(&body, t, &top, FIT_TOL, tol).expect("a box opens at its top");
+        pncad::topo::shell_open(&body, t, &top, FIT_TOL, tol).expect("a box opens at its top").body;
     println!(
         "[r2-5] box cup: rings = {}, genus = {}, shells = {}, tier3 = {:?}",
         rings(&cup),
@@ -752,7 +752,7 @@ fn r2_annular_mouth_anatomy() {
         rings(&body),
         genus(&body)
     );
-    let sealed = pncad::topo::shell(&body, t, FIT_TOL, tol).expect("the tube hollows");
+    let sealed = pncad::topo::shell(&body, t, FIT_TOL, tol).expect("the tube hollows").body;
     println!(
         "[r2-10] SEALED: shells = {}, rings = {}, genus = {}, mesh = {:?}",
         sealed.shells().count(),
@@ -765,7 +765,7 @@ fn r2_annular_mouth_anatomy() {
             .sum::<usize>())
     );
     let chart = plane_chart_at(&body, h);
-    let cup = pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol).expect("the tube opens");
+    let cup = pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol).expect("the tube opens").body;
     println!(
         "[r2-10] OPEN: V/E/F = {}/{}/{}, shells = {}, rings = {}, genus = {}, tier3 = {:?}",
         cup.vertices().count(),
@@ -819,7 +819,7 @@ fn r2_step_frontier_kind() {
         ),
         tol,
     );
-    let hollow = pncad::topo::shell(&pot, 0.1, FIT_TOL, tol).expect("hollows");
+    let hollow = pncad::topo::shell(&pot, 0.1, FIT_TOL, tol).expect("hollows").body;
     let e = pncad::step_export::step_string(
         &hollow,
         &pncad::step_export::StepOptions {
@@ -894,7 +894,7 @@ fn r2_the_scene_numbers() {
     println!(
         "[r2-12] sense-aware clearance = {clearance}; sense-BLIND = {blind} (inf = none found)"
     );
-    let pot = pncad::topo::shell(&sharp, wall, FIT_TOL, tol).expect("the pot hollows");
+    let pot = pncad::topo::shell(&sharp, wall, FIT_TOL, tol).expect("the pot hollows").body;
     println!(
         "[r2-12] pot: V/E/F = {}/{}/{}, shells = {}, genus = {}, tier3 = {:?}",
         pot.vertices().count(),

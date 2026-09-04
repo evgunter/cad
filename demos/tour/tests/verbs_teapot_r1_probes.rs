@@ -163,7 +163,7 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     assert_eq!(mouth.len(), 2, "a full revolve's cap is two half-discs");
 
     let cup = pncad::topo::shell_open(&body, t, &mouth, FIT_TOL, tol)
-        .expect("the opened arm returns a body on my vase too");
+        .expect("the opened arm returns a body on my vase too").body;
 
     // Tiers 1-3 still bless it — and tier 3 now also carries the
     // ring-vs-outer invariant the old body violated.
@@ -326,7 +326,7 @@ fn p2_the_oblique_class_hollows_outside_the_enumeration() {
         ("a box with one beveled side", beveled_box, None),
     ] {
         let hollow = pncad::topo::shell(&body, t, FIT_TOL, tol)
-            .unwrap_or_else(|e| panic!("{what}: an oblique all-plane junction hollows now: {e}"));
+            .unwrap_or_else(|e| panic!("{what}: an oblique all-plane junction hollows now: {e}")).body;
         assert_eq!(
             pncad::topo::validate_geometric(&hollow, tol),
             Ok(()),
@@ -382,7 +382,7 @@ fn p2b_an_all_square_plus_prism_still_hollows() {
         tol,
     );
     let hollow = pncad::topo::shell(&plus, 0.02, FIT_TOL, tol)
-        .expect("an all-square nonconvex prism is inside the surviving class");
+        .expect("an all-square nonconvex prism is inside the surviving class").body;
     assert_eq!(hollow.shells().count(), 2, "outer + cavity");
 }
 
@@ -435,7 +435,7 @@ fn p3_wall1_hollows_to_its_closed_form() {
         tol,
     );
     let pot = pncad::topo::shell(&bellied, t, FIT_TOL, tol)
-        .expect("the bellied pot hollows now — wall 1 retired");
+        .expect("the bellied pot hollows now — wall 1 retired").body;
     assert_eq!(
         pncad::topo::validate_geometric(&pot, tol),
         Ok(()),
