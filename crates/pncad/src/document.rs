@@ -140,10 +140,13 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // they are `VerbArity`'s payload, so a consumer can match the variant
 // but not name what it caught without them (the prelude's `BlendKind`
 // rule — the discriminant crosses with the refusal).
+// `PriorIgnored` rides with `Evaluation` by the same rule: it is
+// `Evaluation::prior_ignored`'s type, so a consumer cannot read why a
+// memo was refused without naming it.
 pub use editor_core::{
     Arity, BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation, NodeError,
-    NodeErrorKind, NodeResult, NodeValue, ProfileLift, SplitSide, UnitVec3, UnitVec3Error,
-    ValuePayload, VerbKind, evaluate,
+    NodeErrorKind, NodeResult, NodeValue, PriorIgnored, ProfileLift, SplitSide, UnitVec3,
+    UnitVec3Error, ValuePayload, VerbKind, evaluate,
 };
 
 // Persistence: the doors, verbatim.
