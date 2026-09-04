@@ -7,16 +7,18 @@
 //! sentence about somebody else's refusal — asserted by containment, so
 //! the inner layer stays free to reword itself.
 //!
-//! Where a message still shows a debug rendering it is a payload from
-//! another crate that has no `Display` (issue #1111 covers those);
-//! `debug_shaped` below is deliberately applied only to the arms whose
-//! payloads are all local.
+//! No arm renders its payload through `Debug`: a cross-crate payload
+//! forwards exactly as a local one does, so `debug_shaped` applies to
+//! every arm here.
 
 use bvh::Aabb;
+use editor_core::{HitTestError, InterrogateError, MateSide, NodePickError};
 use pncad::document::{EditError, RecipeNodeId};
+use pncad::mesh::TessellateError;
 use viewer::camera::{CameraError, CameraOp, CameraOpError};
 use viewer::history::ReplayError;
-use viewer::pick::{IdMapError, PatchId, PickError, PickIndexError};
+use viewer::matetool::MateToolError;
+use viewer::pick::{EdgeNameFault, IdMapError, PatchId, PickError, PickIndexError};
 use viewer::scene::{SceneDocError, SceneError};
 
 /// Whether a rendering looks like a derived `Debug` rather than prose:
@@ -148,6 +150,30 @@ fn scene_error_names_the_counts_it_carries() {
     prose(&broken, "BrokenPatchIndex");
 }
 
+/// The tessellation arm forwards `mesh`'s own refusal: the kernel
+/// named that failure and the scene layer does not re-diagnose it.
+#[test]
+fn scene_error_forwards_its_tessellation_arm() {
+    let inner = TessellateError::InvalidChordalTolerance { value: -1.0 };
+    let outer = SceneError::NotTessellated(inner.clone()).to_string();
+    assert!(outer.contains(&inner.to_string()), "{outer}");
+    prose(&outer, "InvalidChordalTolerance");
+}
+
+/// A picked face whose frame cannot be derived carries the
+/// interrogation door's own refusal, plus the side this layer knows.
+#[test]
+fn mate_tool_error_forwards_its_frame_arm() {
+    let inner = InterrogateError::NoSuchName;
+    let outer = MateToolError::Frame {
+        side: MateSide::A,
+        error: inner,
+    }
+    .to_string();
+    assert!(outer.contains(&inner.to_string()), "{outer}");
+    prose(&outer, "NoSuchName");
+}
+
 #[test]
 fn scene_doc_error_renders_its_postcondition_arm() {
     prose(&SceneDocError::NoNodeMinted.to_string(), "NoNodeMinted");
@@ -181,12 +207,51 @@ fn pick_index_error_forwards_its_id_arm() {
     assert_eq!(outer, inner.to_string());
 }
 
+/// The indexing arm carries `editor-core`'s own refusal, and the root
+/// it names is this layer's contribution — both reach the reader.
+#[test]
+fn pick_index_error_forwards_its_node_arm() {
+    let node = RecipeNodeId(7);
+    let inner = NodePickError::NotABody { node };
+    let outer = PickIndexError::Node {
+        node,
+        error: inner.clone(),
+    }
+    .to_string();
+    assert!(outer.contains(&inner.to_string()), "{outer}");
+    assert!(outer.contains('7'), "{outer}");
+    prose(&outer, "NotABody");
+}
+
 #[test]
 fn pick_error_forwards_its_camera_arm() {
     let inner = CameraError::UnusableBounds;
     let outer = PickError::Camera(inner).to_string();
     assert!(outer.contains(&inner.to_string()), "{outer}");
     prose(&outer, "UnusableBounds");
+}
+
+/// The hit-test arm forwards `editor-core`'s words rather than
+/// composing a sentence about somebody else's refusal.
+#[test]
+fn pick_error_forwards_its_hit_test_arm() {
+    let inner = HitTestError::NodeFailed {
+        node: RecipeNodeId(4),
+    };
+    let outer = PickError::HitTest(inner).to_string();
+    assert!(outer.contains(&inner.to_string()), "{outer}");
+    prose(&outer, "NodeFailed");
+}
+
+/// A drawn edge with no name carries the naming layer's own report.
+#[test]
+fn edge_name_fault_forwards_its_unnamed_arm() {
+    let inner = HitTestError::NodeFailed {
+        node: RecipeNodeId(4),
+    };
+    let outer = EdgeNameFault::Unnamed(inner).to_string();
+    assert!(outer.contains(&inner.to_string()), "{outer}");
+    prose(&outer, "Unnamed");
 }
 
 #[test]

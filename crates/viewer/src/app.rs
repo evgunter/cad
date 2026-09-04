@@ -3058,7 +3058,7 @@ impl ViewerBehavior<'_> {
             Some(pncad::select::Resolution::Indeterminate(cause)) => {
                 ui.colored_label(
                     chrome(self.theme.unresolved),
-                    format!("this {noun} cannot be resolved right now: {cause:?}"),
+                    format!("this {noun} cannot be resolved right now: {cause}"),
                 );
             }
         }
@@ -5518,5 +5518,5 @@ pub async fn run_web(tol: Tol, canvas_id: &str) -> Result<(), WebStartupError> {
             }),
         )
         .await
-        .map_err(|error| WebStartupError::Runner(format!("{error:?}")))
+        .map_err(|error| WebStartupError::Runner(error.to_string()))
 }
