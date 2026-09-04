@@ -322,3 +322,19 @@ amended §"Re-scope at Phase 1"; the Phase 2 design stands; PR
 [#1824](https://github.com/evgunter/cad/pull/1824) is the unit's PR.
 `D323`/`D324` turn out closed by code-quality (PR 1783) — this log's
 opening note that they land as FILLET riders is superseded.
+
+**RIM landed (2026-09-04)** on PR [#1821](https://github.com/evgunter/cad/pull/1821),
+head `9b9ae75e`, green at the asked-for interval lane. Phase 1 measured
+every body class's rim arcs bit-equal on centre, radius and axis (never
+negated; `u_ref` differs across chart seams and is not compared), so
+the EXACT door is the spec's own outcome: `topo::query::rim_of` with
+its four typed refusals, a topological tiling test (shared vertices,
+key equality — the arcs' params live in their own frames, so a
+parametric test would need a decision), eleven hand-rolled scans
+turned into calls including the tour's bud mouth, and
+`test_support::rim_arcs_at` now seeding one arc into the door. The PR
+carried H4's title from a brief-template slip — corrected at dispatch.
+Ordinal **2001** claimed; the v6 dual is dispatched concurrently on the
+frozen head. Two other programs' finds routed, not fixed: the tour's
+`blend1_r1_wall6_probes.rs:94` selects a rim at a 5e-4 radius
+tolerance (the reviewers measure whether that is real slack).
