@@ -4173,6 +4173,7 @@ dependencies = [
  "perceive-color",
  "perceive-cvd",
  "pncad",
+ "pollster 1.0.1",
  "rfd",
  "test-utils",
  "toml",

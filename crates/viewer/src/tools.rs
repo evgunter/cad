@@ -148,7 +148,13 @@ impl ToolKind {
             Self::Boolean => matches!(op, SessionOp::AddBoolean { .. }),
             Self::Split => matches!(op, SessionOp::AddSplit { .. }),
             Self::Transform => matches!(op, SessionOp::AddTransform { .. }),
-            Self::Pattern => matches!(op, SessionOp::AddPattern { .. }),
+            // Two ops, one tool, for the blend tool's reason: the
+            // output choice picks the door, and either one landing is
+            // this tool's edit committed.
+            Self::Pattern => matches!(
+                op,
+                SessionOp::AddPattern { .. } | SessionOp::AddPlacedUnion { .. }
+            ),
             // Two ops, one tool: the kind choice picks the door, and
             // either one landing is this tool's edit committed.
             Self::Blend => matches!(
