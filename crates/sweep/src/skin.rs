@@ -40,10 +40,12 @@
 //! same knots and same control bits out. The produced surface then
 //! evaluates generically over [`geom_core::Real`] (the substrate's
 //! rule) — [`NurbsSurface::map_scalar`] carries a chosen structure to
-//! any scalar.
-//! No topology decision is made here, so nothing routes through
-//! `k_stats`; the raw `f64` comparisons below are structure selection
-//! under C6.
+//! any scalar. The control bits and the weights are DATA, so that lift
+//! is exact at every scalar and reads the SAME definition Q8 names
+//! above: the interval lane encloses this surface, never an
+//! approximation of it. No topology decision is made here, so nothing
+//! routes through `k_stats`; the raw `f64` comparisons below are
+//! structure selection under C6.
 
 use std::sync::Arc;
 

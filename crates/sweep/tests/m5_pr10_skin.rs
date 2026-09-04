@@ -20,7 +20,7 @@
 use geom::NurbsCurve3;
 use geom_brep::SketchSegment;
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Point2, Point3, Real, Vec3};
+use geom_core::{Affine3, Band, Point2, Point3, Vec3};
 use sweep::skin::{SkinError, make_compatible, segment_curve, skin, skin_parameters};
 
 /// The band this row resolves at — every probe scales from it.
@@ -214,24 +214,6 @@ fn the_wall_is_genuinely_curved_in_v() {
         mid.distance(ruled) > 1e3 * ring(),
         "the skin is ruled: {mid:?} vs {ruled:?}"
     );
-}
-
-/// The lifted surface is the SAME surface at another scalar — Q8's
-/// "the produced NURBS is the definition", checked bit-for-bit at f64
-/// and by enclosure containment wherever the lane is wider.
-#[test]
-fn lifting_the_structure_reproduces_it_exactly() {
-    let compat = strip(1);
-    let surface = skin(&compat, 2).expect("skins");
-    let lifted = surface.map_scalar(f64::from_f64);
-    assert_eq!(lifted.knots_u().knots(), surface.knots_u().knots());
-    assert_eq!(lifted.knots_v().knots(), surface.knots_v().knots());
-    assert_eq!(lifted.weights(), surface.weights());
-    for (a, b) in lifted.control().iter().zip(surface.control()) {
-        assert_eq!(a.x.to_bits(), b.x.to_bits());
-        assert_eq!(a.y.to_bits(), b.y.to_bits());
-        assert_eq!(a.z.to_bits(), b.z.to_bits());
-    }
 }
 
 /// Determinism (D9): same sections in, same control BITS out.

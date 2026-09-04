@@ -9,9 +9,12 @@ VERBS-SHELLFIX 2b's merge per the ratified partition
 execution record — rulings, lane state, review outcomes, incidents.
 Live status is here and in §D, never in `memories/`.
 
-**Branch prefix:** `smellt/` for units; the orchestrator sits on
-S-BLEND's own session branches, and cross-references to program
-state live in `docs/S-BLEND-LOG.md`.
+**Branch prefix:** `smell/` for units — `work/code-quality/program.md`'s
+`prefix:` header, which is what `scripts/work.py territory` reads. The lane
+series continues as `T-1` under that prefix (`smell/t1-scalar-lifts`); the
+lettered lanes `T-a`–`T-c` above ran on `smellt/`. The orchestrator sits on
+S-BLEND's own session branches, and cross-references to program state live
+in `docs/S-BLEND-LOG.md`.
 
 **This track runs OUTSIDE the model A/B experiment**, following the
 F/G/I precedent the S-BLEND plan's "SMELL conventions" phrase names:
@@ -55,7 +58,8 @@ it for later lanes if style work should be instrumented.
 | **T-c** | D90 (the corner chart's unchecked faces — **ADV**), D321 (`admit.rs`'s `include_str!` self-reader), D96 (the `unreachable!` row-0 candidates, enumerated first) | **PR #1359 open, not merged.** All three closed; see the lane record below. `D96` is struck with its out-of-fence members re-homed (`D242`, `D243`, `D304`) and its one unaffordable in-fence arm rowed as `D325` |
 | (kept out per `T-R1`) | **`D322`, `D323`, `D324`** — `D124`'s three re-homes, all inside `crates/sweep/src/blend/` | **HELD until BLEND-4 (#1360) merges** (`T-R7`): that PR is open and edits all six files of the module, `surgery.rs` — `D322`'s own file — included. `D323` and `D324` are the same file as each other and cheaper taken together |
 | (was kept out per `T-R2`) | — | **spent.** `D91` was taken and closed by `T-b`. `D90` and `D321` were taken and closed by `T-c` against a live BLEND-4 — a deliberate exception to `T-R1` rather than a lift of it (`T-R7`) |
-| **T-1** | D320 (`skin.rs`'s `lift_surface`), D321 (`loft.rs`'s `lift_affine`) | **closed.** `D240` minted `NurbsSurface::map_scalar`, which is what `D320` waited on; both rows land on one branch. The `D321` of this row is the `loft.rs` one — the number was reissued after `T-c` closed the `admit.rs` `D321`, so every `D321` in the lane records above is the earlier, unrelated row |
+| (was not takeable) | — | **spent.** `D320`'s wait on `D240` is discharged: `D240` landed and minted `NurbsSurface::map_scalar`, the door the row waited for. Taken and closed by `T-1` |
+| **T-1** | D320 (`skin.rs`'s `lift_surface`), D321 (`loft.rs`'s `lift_affine`) | **PR #1782 open, style-reviewed, not merged.** Both rows closed there; no separate lane record — the PR body carries the sweep and its disposition. **`D321` names two different rows in this file:** `T-1`'s is `loft.rs`'s `lift_affine`, while the `D321` of the `T-R1` ruling above and of `T-c`'s and the `T-R2` rows is `fillet/admit.rs`'s `include_str!` self-reader, which `T-c` closed. The reissue is filed as `d321-row-number-reissued` |
 
 ## Lane records
 
