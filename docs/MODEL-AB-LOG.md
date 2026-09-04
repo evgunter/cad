@@ -3659,3 +3659,4 @@ ordinal claim at review dispatch goes to main on its own.
 
 Block SHELL-B1 slot record (branch-side, appended as each slot concludes):
 slot 0 = SHELL-1 (OPUS; pre-draw M / STRUCTURAL at `docs/SHELL-1-SPEC.md`) — dispatched 2026-09-04.
+slot 1 = SHELL-2 (OPUS; pre-draw S–M / STRUCTURAL-NUMERIC at `docs/SHELL-2-SPEC.md`, on branch `shell/2-transform-approx`) — dispatched 2026-09-04, concurrently with slot 0 on the same box.

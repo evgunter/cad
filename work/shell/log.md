@@ -96,3 +96,18 @@ its winding-rename half gains a fourth site from VERBS-1031B, so it
 waits for both PRs; unit 3 rewrites `shell.rs` and waits for SHELL-1;
 unit 4 (`transform-rigid-refuses-approx-face`) touches
 `transform.rs` only and is the next spec to write.
+
+## SHELL-2 cut and dispatched beside SHELL-1 (2026-09-04)
+
+Unit 4 of the plan order, pulled forward because it touches only
+`transform.rs` plus one lane method in `geom-brep/pcurve_cache.rs`
+(TRIM's file — one method, four arms; noted for TRIM) and does not
+wait on anything in flight. Spec `docs/SHELL-2-SPEC.md` and the item
+are on the unit branch `shell/2-transform-approx` (state-sync rides
+the unit's PR). Shape chosen and why: 57 caller files, four of them
+generic doors, so the certifier joins the lane `transform_rigid`
+already binds rather than adding a bound that cascades. Seam with
+M10-7 (#1725) recorded in the spec: it adds `Sym` impls to the same
+trait; whichever lands second adds the arm. Block SHELL-B1 slot 1 =
+OPUS per the draw. Two implementer lanes now share this 4-core box;
+briefs say so and ask for narrow build targets.
