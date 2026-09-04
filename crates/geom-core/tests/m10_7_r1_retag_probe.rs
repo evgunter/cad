@@ -35,7 +35,10 @@ fn r1_a_symbolic_zero_at_sym_interval_retags_an_unrelated_probe_sample() {
     println!("the unrelated sample now reads: {:?}", samples[0]);
     assert_eq!(
         (samples[0].predicate, samples[0].outcome),
-        ("unrelated_positive", SampleOutcome::Definite(Sign::Positive)),
+        (
+            "unrelated_positive",
+            SampleOutcome::Definite(Sign::Positive)
+        ),
         "a symbolic Zero at Sym<Interval> must not re-tag another scalar's sample"
     );
 }

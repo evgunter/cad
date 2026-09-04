@@ -962,6 +962,15 @@ klint_gate() {
   # names for re-opening the K question. The hosted row carries the
   # argument in full. The per-rule counts print at all three eps rows
   # either way.
+  # NO `tee` HERE, AND THEREFORE NO `PIPESTATUS` — deliberate, and the
+  # asymmetry with the hosted half is worth stating so nobody
+  # "restores" it. The hosted row tees into a file it relays into the
+  # step summary; this half prints straight to the terminal, so `$?` is
+  # the lint's own status and is exact. The hosted half spent its first
+  # weeks unable to fail because it read `PIPESTATUS[0]` on the line
+  # AFTER `status=$?`, by which point the assignment had rewritten it
+  # (ci.yml carries the full account at that step). Adding a pipe here
+  # would import that hazard for nothing.
   (cd tools/k-lint && cargo run -- --gate-rule-1-only \
     ../../target/k-fresh/driver/k-eps-1e-6.csv \
     ../../target/k-fresh/driver/k-eps-1e-9.csv \

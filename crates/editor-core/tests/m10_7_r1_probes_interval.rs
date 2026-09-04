@@ -23,7 +23,7 @@ use editor_core::{
 use fixture::Recorder;
 use geom_core::Tol;
 
-use crate::m10_3_driver_interval::{sliver_axis, slab};
+use crate::m10_3_driver_interval::{slab, sliver_axis};
 use crate::m10_7_plate::plate;
 
 fn len(v: f64) -> Expr {
@@ -107,7 +107,10 @@ fn r1_slab_ceiling_and_first_refusal() {
         .unwrap();
         (
             v.receipt().certified == 1,
-            v.refused().iter().map(|l| format!("{:?}", l.reason)).collect::<Vec<_>>(),
+            v.refused()
+                .iter()
+                .map(|l| format!("{:?}", l.reason))
+                .collect::<Vec<_>>(),
             v.decisions(),
         )
     };
@@ -513,7 +516,9 @@ fn r1_e2e_bracket_study() {
                     None => holds.2 += 1,
                 }
             }
-            println!("   assertion over certified leaves (holds, violated, unevaluated) = {holds:?}");
+            println!(
+                "   assertion over certified leaves (holds, violated, unevaluated) = {holds:?}"
+            );
         }
     }
 }

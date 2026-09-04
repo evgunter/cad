@@ -3953,6 +3953,30 @@ jobs:
         run: |
           set -uo pipefail
           cd tools/k-lint
+          # THE STATUS IS READ OFF THE PIPELINE LINE ITSELF, and it has
+          # to be. The first spelling was
+          #
+          #     ... | tee ... || status=$?
+          #     status=${PIPESTATUS[0]:-$status}
+          #
+          # and it made this row incapable of failing. `PIPESTATUS` is
+          # rewritten by EVERY command, including the assignment
+          # `status=$?` on the line above — which succeeds — so by the
+          # time the second line reads `PIPESTATUS[0]` it is that
+          # assignment's own 0, the `:-` default never fires because 0
+          # is a perfectly good value, and `status` is 0 whatever the
+          # lint said. Both non-zero arms of the `case` below were
+          # unreachable from the day the `| tee` was added, and the row
+          # then spent that time reporting success over a lint that was
+          # refusing every file it was handed unread.
+          #
+          # `set -e` is deliberately still off (`set -uo pipefail`
+          # above), so the pipeline's failure does not abort the step
+          # before the summary is written; the `case` is what decides.
+          # The local half (`local-scripts/ci-local.sh`, `klint_gate`)
+          # does NOT tee, so its plain `$?` is exact and needs no
+          # `PIPESTATUS` — the two halves differ here on purpose, and
+          # ci-local.sh says so at its own call site.
           status=0
           # `--gate-rule-1-only` is the demotion, and it is NARROW: rule
           # 1 (indeterminate / invalid margins) still reds this row.
@@ -3966,8 +3990,8 @@ jobs:
             ../../target/k-fresh/driver/k-eps-1e-6.csv \
             ../../target/k-fresh/driver/k-eps-1e-9.csv \
             ../../target/k-fresh/driver/k-eps-1e-12.csv \
-            2>&1 | tee ../../k-lint-driver.out || status=$?
-          status=${PIPESTATUS[0]:-$status}
+            2>&1 | tee ../../k-lint-driver.out
+          status=${PIPESTATUS[0]}
           # THE PER-RULE COUNTS ARE THE ROW'S REPORT, at all three eps
           # rows, not a summary of one. `k-lint` prints a per-file line
           # and a TOTAL line; both are relayed so a reader gets the

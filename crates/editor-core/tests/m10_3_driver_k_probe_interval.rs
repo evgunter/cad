@@ -59,8 +59,8 @@ use editor_core::{
     Dimension, Distribution, DocEdit, DocParam, LoopProgram, Node, ParamName, ProfileDoc,
     ProfileProgram, UnitSym,
 };
+use geom_core::Tol;
 use geom_core::k_stats::{self, MarginSample, SampleOutcome};
-use geom_core::{Sign, Tol};
 
 use fixture::Recorder;
 
@@ -338,14 +338,11 @@ fn an_empty_certified_set_is_reported_rather_than_panicked_over() {
 }
 
 fn outcome_str(o: SampleOutcome) -> &'static str {
-    match o {
-        SampleOutcome::Definite(Sign::Negative) => "negative",
-        SampleOutcome::Definite(Sign::Zero) => "zero",
-        SampleOutcome::Definite(Sign::Positive) => "positive",
-        SampleOutcome::Indeterminate => "indeterminate",
-        SampleOutcome::Invalid => "invalid",
-        SampleOutcome::SymbolicZero => "symbolic_zero",
-    }
+    // The ONE spelling of the sweep's outcome vocabulary lives
+    // on the enum, because `tools/k-lint` has to read what this
+    // writes and a hand-kept copy on each side of that boundary
+    // silently disarmed the E6 driver gate once already.
+    o.token()
 }
 
 /// The K-REPORT dump: every driver-path sample as CSV, in the M2 file

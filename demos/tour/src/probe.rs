@@ -37,7 +37,6 @@
 
 use std::io::Write as _;
 
-use pncad::geom_core::Sign;
 use pncad::geom_core::k_stats::{self, Probe, SampleOutcome};
 use pncad::topo::{Body, ContactRecords};
 
@@ -75,14 +74,11 @@ fn validate_probe(label: &str, body: &Body<Probe>, contacts: Option<&ContactReco
 }
 
 fn outcome_str(o: SampleOutcome) -> &'static str {
-    match o {
-        SampleOutcome::Definite(Sign::Negative) => "negative",
-        SampleOutcome::Definite(Sign::Zero) => "zero",
-        SampleOutcome::Definite(Sign::Positive) => "positive",
-        SampleOutcome::Indeterminate => "indeterminate",
-        SampleOutcome::Invalid => "invalid",
-        SampleOutcome::SymbolicZero => "symbolic_zero",
-    }
+    // The ONE spelling of the sweep's outcome vocabulary lives
+    // on the enum, because `tools/k-lint` has to read what this
+    // writes and a hand-kept copy on each side of that boundary
+    // silently disarmed the E6 driver gate once already.
+    o.token()
 }
 
 /// Builds one scene group under a fresh recording, validates its

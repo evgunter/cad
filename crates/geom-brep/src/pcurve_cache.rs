@@ -1557,10 +1557,6 @@ impl PcurveFittedLane for geom_core::interval::Interval {
     }
 }
 
-/// The dual lane: STATICALLY no fitted certificate — this impl
-/// instantiates none of the certified machinery (trait docs). The
-/// caller turns the `None` into
-/// [`PcurveCertifyError::FittedLaneUnsupported`]; a dual body simply
 /// **The symbolic tier over a certifying scalar** (`geom_core::sym`):
 /// every door is the base scalar's, run at `Sym<T>`. The tier alters
 /// one decision rule inside the scalar, so a `Sym`-wrapped certifying
@@ -1601,6 +1597,11 @@ where
     }
 }
 
+/// never carries a fitted cache, because one cannot be built there.
+/// The dual lane: STATICALLY no fitted certificate — this impl
+/// instantiates none of the certified machinery (trait docs). The
+/// caller turns the `None` into
+/// [`PcurveCertifyError::FittedLaneUnsupported`]; a dual body simply
 /// never carries a fitted cache, because one cannot be built there.
 impl<T> PcurveFittedLane for geom_core::Dual<T>
 where

@@ -35,7 +35,6 @@ use crate::corpus;
 
 use std::io::Write as _;
 
-use geom_core::Sign;
 use geom_core::k_stats::{self, MarginSample, Probe, SampleOutcome};
 use topo::{mass_properties, validate, validate_closed};
 
@@ -43,14 +42,11 @@ use corpus::{body_of, documents, eval, failures};
 use geom_core::Tol;
 
 fn outcome_str(o: SampleOutcome) -> &'static str {
-    match o {
-        SampleOutcome::Definite(Sign::Negative) => "negative",
-        SampleOutcome::Definite(Sign::Zero) => "zero",
-        SampleOutcome::Definite(Sign::Positive) => "positive",
-        SampleOutcome::Indeterminate => "indeterminate",
-        SampleOutcome::Invalid => "invalid",
-        SampleOutcome::SymbolicZero => "symbolic_zero",
-    }
+    // The ONE spelling of the sweep's outcome vocabulary lives
+    // on the enum, because `tools/k-lint` has to read what this
+    // writes and a hand-kept copy on each side of that boundary
+    // silently disarmed the E6 driver gate once already.
+    o.token()
 }
 
 /// One document's Probe sweep: evaluation (sequential — the sample

@@ -661,9 +661,6 @@ impl EdgeNurbsLane for geom_core::interval::Interval {
     }
 }
 
-/// The dual lane: STATICALLY no plane × NURBS certificate — this impl
-/// instantiates none of the certified machinery (module docs). A dual
-/// body simply never adopts this edge class, because the bound that
 /// **The symbolic tier over a certifying scalar** (`geom_core::sym`):
 /// the limbs are the base scalar's, run at `Sym<T>`. The tier changes
 /// how one class of margin decides and nothing about the certificate,
@@ -689,6 +686,10 @@ where
     }
 }
 
+/// would certify it cannot be built there.
+/// The dual lane: STATICALLY no plane × NURBS certificate — this impl
+/// instantiates none of the certified machinery (module docs). A dual
+/// body simply never adopts this edge class, because the bound that
 /// would certify it cannot be built there.
 impl<T> EdgeNurbsLane for geom_core::Dual<T>
 where

@@ -412,11 +412,22 @@ impl AxisScalar for geom_core::Interval {
 /// rather than an opaque interval, which is the whole of what makes an
 /// identity cancel downstream.
 ///
-/// [`AxisScalar::axis`] — the unnamed door — mints NO symbol: without a
-/// name there is no symbol to mint, and inventing one per call would
-/// make two occurrences of the same parameter two different symbols,
-/// which is worse than none. It answers the base scalar's axis as an
-/// opaque value, and everything built from it decides numerically.
+/// [`AxisScalar::axis`] — the unnamed door — mints no PARAMETER symbol,
+/// because without a name there is nothing to key one by: two calls
+/// could not be recognised as the same parameter, and calling them one
+/// symbol would claim an identity nobody stated. It answers the base
+/// scalar's axis through [`geom_core::Sym::opaque`], which gives each
+/// call its OWN indeterminate — so everything built from it decides
+/// numerically, and two axes minted this way never cancel against each
+/// other.
+///
+/// That last clause is load-bearing and it was got wrong once: while
+/// `opaque` handed every untracked value one shared id, two `axis`
+/// calls were one unknown, and their difference was the zero polynomial
+/// — a symbolic `Zero` on two enclosures that are not equal. Distinct
+/// unknowns are the only sound answer here; an unnamed axis is
+/// something the tier knows NOTHING about, and "nothing" is not
+/// "the same as its neighbour".
 impl<T: AxisScalar> AxisScalar for geom_core::Sym<T>
 where
     geom_core::Sym<T>: geom_core::Real,

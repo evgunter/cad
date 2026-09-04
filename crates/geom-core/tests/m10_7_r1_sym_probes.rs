@@ -85,7 +85,10 @@ fn r1_coincidence_collinear_at_nominal_only_is_never_symbolic() {
             let (cx, cy) = (lit(2.0), w);
             (bx - ax) * (cy - ay) - (by - ay) * (cx - ax)
         });
-        assert_eq!(s, 0, "a coincidence never decides symbolically (w={v}, zero={ok})");
+        assert_eq!(
+            s, 0,
+            "a coincidence never decides symbolically (w={v}, zero={ok})"
+        );
     }
 }
 
@@ -122,7 +125,10 @@ fn r1_the_arc_endpoint_family_is_not_reached_pinned() {
     });
     // Numerically zero at the point; symbolically NOT discharged.
     assert!(ok, "at a point the numeric channel answers Zero");
-    assert_eq!(s, 0, "the arc-endpoint family is the tier's disclosed miss (D4)");
+    assert_eq!(
+        s, 0,
+        "the arc-endpoint family is the tier's disclosed miss (D4)"
+    );
 }
 
 /// The same family with the norm written as `sqrt(r·r)` where the
@@ -221,7 +227,13 @@ fn r1_atoms_over_the_zero_form_fold_to_their_values() {
     let (ok, s, _) = sym(|| {
         let x = p("x", 0.4);
         let z = x - x;
-        z.sqrt() + z.abs() + z.floor() + (z.cos() - lit(1.0)) + z.sin() + z.tan() + z.asin()
+        z.sqrt()
+            + z.abs()
+            + z.floor()
+            + (z.cos() - lit(1.0))
+            + z.sin()
+            + z.tan()
+            + z.asin()
             + z.atan()
     });
     assert!(ok && s == 1, "{ok} {s}");
@@ -290,7 +302,10 @@ fn r1_i128_overflow_freezes_and_is_counted() {
         let b = x * c;
         (zero(a - a), zero(a - b))
     });
-    assert!(counts.frozen >= 1, "the overflow is a counted freeze: {counts:?}");
+    assert!(
+        counts.frozen >= 1,
+        "the overflow is a counted freeze: {counts:?}"
+    );
     assert!(out.0, "same node cancels through a freeze");
     // `c·x − x·c`: `c` is ONE frozen node (one id), so the two products
     // are the same monomial and the form is zero — a frozen atom still
@@ -325,7 +340,10 @@ fn r1_dyadic_exponent_alignment_overflow_freezes() {
         let sum = lit(big) * x + lit(small) * x;
         zero(sum - sum)
     });
-    assert!(counts.frozen >= 1, "the alignment overflow freezes: {counts:?}");
+    assert!(
+        counts.frozen >= 1,
+        "the alignment overflow freezes: {counts:?}"
+    );
 }
 
 /// A budget of zero terms: nothing is asked of the DAG.

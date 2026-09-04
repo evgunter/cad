@@ -63,12 +63,25 @@
 //! `floor` stays opaque. Overriding them would be strictly less
 //! cancellation for no gain.
 //!
-//! **The documented limits.** There is no factoring, no
-//! `Inv(b)·b = 1`, and no trigonometric identity: `sin² + cos² − 1` does
-//! not decide symbolically, and neither does `(x/y)·y − x`. Each is an
-//! opaque atom by construction, which is a limit of the tier and not a
-//! bug in it — over-refusal is the safe direction, and every such margin
-//! falls to the numeric channel exactly as before.
+//! **The documented limits.** The normal form is a QUOTIENT of
+//! polynomials over the parameter symbols — a field of fractions, not a
+//! polynomial ring — so a reciprocal is a first-class part of it and
+//! `(x/y)·y − x` DOES decide symbolically: `x/y` is the form `x` over
+//! `y`, multiplying by `y` gives `xy/y`, and the difference's numerator
+//! is the zero polynomial. (The tier's headline row needs exactly that:
+//! an extruded strut's carrier is `origin + (w/‖w‖)·t`, so its endpoint
+//! residual is literally `w·(‖w‖·‖w‖⁻¹ − 1)`.) That is the whole of the
+//! reciprocal's reach, and it is a NORMAL FORM rather than a rewrite
+//! rule: nothing is factored, and no simplification is attempted.
+//!
+//! What remains outside the tier: no factoring, and no functional
+//! identity of any opaque atom. `sin² + cos² − 1` does not decide
+//! symbolically, `sqrt(x)·sqrt(x) − x` does not, and `|x| − x` on a
+//! nonnegative `x` does not. Each atom is an indeterminate keyed by its
+//! argument's form, so two occurrences of ONE atom cancel and nothing
+//! else about it is known. These are limits of the tier and not bugs in
+//! it — over-refusal is the safe direction, and every such margin falls
+//! to the numeric channel exactly as before.
 //!
 //! # Node ids are CONTENT HASHES (D9)
 //!
@@ -191,14 +204,29 @@
 //! endpoint"), discharged structurally and verified at the f64 witness
 //! point. It is not taken here.
 //!
-//! # No session, no tier
+//! # No session, no tier — and what that does NOT mean
 //!
 //! Ids are computable without the table, so a [`Sym<T>`] built outside
 //! [`with_session`] still carries a deterministic id — the lookup simply
-//! misses, the form freezes, and every decision falls to the numeric
-//! channel. The tier is never partially on.
+//! misses, the form freezes, and the decision falls to the numeric
+//! channel.
+//!
+//! An earlier draft of this paragraph said "the tier is never partially
+//! on", and that sentence was false. A node minted before the session
+//! was installed is not IN the session's table, so its form freezes to
+//! an indeterminate keyed by its own id — and two occurrences of that
+//! same node share the id, so they still cancel: `a − a` decides `Zero`
+//! for such an `a`, inside a session that never saw it built. That is
+//! SOUND (one id is one expression, so the cancellation is a real
+//! theorem about a real subexpression) but it is not "off". The true
+//! statement is narrower and it is the one that matters: **a node the
+//! session cannot expand contributes an unknown, never a value** — so
+//! the tier can only ever discharge FEWER identities than it would with
+//! the full table, never more, and mixing a pre-session node into a
+//! session's DAG cannot manufacture a theorem that a fully-recorded
+//! replay would not also reach.
 
-use core::cell::RefCell;
+use core::cell::{Cell, RefCell};
 use core::ops::{Add, Div, Mul, Neg, Sub};
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
@@ -218,8 +246,17 @@ use crate::spline::{KnotVector, SpanLocate, SpanSet};
 pub struct SymId(u128);
 
 impl SymId {
-    /// The id of a leaf minted with no session installed. Reserved: the
-    /// mixer never produces it, so it can never collide with a node.
+    /// The **empty child slot**, and nothing else. Reserved: the mixer
+    /// never produces it, so it can never collide with a node's id.
+    ///
+    /// It used to be a second thing as well — the id every
+    /// [`Sym::opaque`] value carried — and that was a soundness defect,
+    /// because one id means one expression: `opaque(1.0) - opaque(2.0)`
+    /// hashed to a difference of a node with ITSELF, whose form is the
+    /// zero polynomial, and `sign_within` answered `Zero` on two values
+    /// that are not equal. Two untracked reals are two unknowns, so each
+    /// opaque value now mints its OWN indeterminate ([`SymOp::Opaque`])
+    /// and this constant names one thing.
     const UNRECORDED: Self = Self(0);
 
     /// The id's bits — for a determinism check that has to compare two
@@ -287,6 +324,14 @@ impl ParamSymbol {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SymOp {
     Param,
+    /// **One untracked real**, minted by [`Sym::opaque`]: a value whose
+    /// expression this session did not build, carrying a per-session
+    /// sequence number in its payload so that each such value is its
+    /// OWN unknown. Never keyed by the value's bits — two intervals
+    /// that happen to be equal are still two different reals, and
+    /// keying by bits would re-introduce the false theorem this op
+    /// exists to prevent.
+    Opaque,
     Lit,
     Pi,
     Add,
@@ -346,13 +391,14 @@ impl SymOp {
             Self::Max => 21,
             Self::Copysign => 22,
             Self::Hull => 23,
+            Self::Opaque => 24,
         }
     }
 
     /// How many of the node's two child slots this op reads.
     fn arity(self) -> usize {
         match self {
-            Self::Param | Self::Lit | Self::Pi => 0,
+            Self::Param | Self::Opaque | Self::Lit | Self::Pi => 0,
             Self::Neg
             | Self::Powi
             | Self::Inv
@@ -420,7 +466,16 @@ struct Rat {
 }
 
 /// The greatest common divisor of two non-negative `i128`s.
-fn gcd(mut a: i128, mut b: i128) -> i128 {
+/// The greatest common divisor of two MAGNITUDES.
+///
+/// Unsigned on purpose: the signed spelling took `num.unsigned_abs() as
+/// i128` at its one call site, which wraps `i128::MIN` back to a
+/// NEGATIVE value, and a negative `g` then flipped the sign of the
+/// reduced numerator — `Rat::new(i128::MIN, 1, 0)` would have answered
+/// `+2^127/1`. There is no `i128` that can hold `|i128::MIN|`, so the
+/// magnitude is a `u128` and the conversion back is checked by the
+/// caller.
+fn gcd(mut a: u128, mut b: u128) -> u128 {
     while b != 0 {
         let t = a % b;
         a = b;
@@ -459,8 +514,13 @@ impl Rat {
         } else {
             (num, den)
         };
-        let g = gcd(num.unsigned_abs() as i128, den);
-        let (num, den) = (num / g, den / g);
+        // `g` divides both magnitudes, and `den > 0` here, so `g > 0`
+        // and both quotients fit: `|num| / g <= |num| <= 2^127` with
+        // equality only when `g == 1` and `num == i128::MIN`, which
+        // `i128::try_from` then refuses rather than wrapping.
+        let g = gcd(num.unsigned_abs(), den.unsigned_abs());
+        let g = i128::try_from(g).ok()?;
+        let (num, den) = (num.checked_div(g)?, den.checked_div(g)?);
         let (num, nz) = strip_twos(num);
         let (den, dz) = strip_twos(den);
         let exp2 = exp2
@@ -653,7 +713,32 @@ impl Poly {
         Some(out)
     }
 
-    fn mul(&self, other: &Self) -> Option<Self> {
+    /// The product, or `None` for the caller to freeze.
+    ///
+    /// **Refused BEFORE it is built**, on bounds that cost nothing to
+    /// compute: the product has at most `|a|*|b|` terms and degree
+    /// exactly `deg(a) + deg(b)`. The first version built the whole
+    /// product and let [`within`] reject it afterwards, which is how a
+    /// single multiplication came to take 10.8 s on a reviewer's
+    /// bracket — the work was done and then thrown away. Freezing is
+    /// the same outcome either way; only the bill differs.
+    ///
+    /// The term bound is an UPPER one (colliding monomials merge), so a
+    /// product whose terms would have collided down under the budget is
+    /// refused where the old code would have kept it. That is a real
+    /// difference and it is measured rather than assumed: on the M10-3
+    /// slab and the tour's plate the frozen counts are unchanged, so
+    /// nothing the shipped fixtures rely on sat in that gap. The degree
+    /// bound is exact for the leading monomial in every case the form
+    /// reaches, cancellation of a whole leading term needing coefficient
+    /// cancellation that a product of two nonzero polynomials over a
+    /// field does not produce.
+    fn mul(&self, other: &Self, budget: SymBudget) -> Option<Self> {
+        if self.terms.len().checked_mul(other.terms.len())? > budget.max_terms
+            || self.degree().checked_add(other.degree())? > budget.max_degree
+        {
+            return None;
+        }
         let mut out = Self::zero();
         for (ma, ca) in &self.terms {
             for (mb, cb) in &other.terms {
@@ -803,6 +888,35 @@ struct Session {
 thread_local! {
     /// The installed session, if any (module docs: no session, no tier).
     static SESSION: RefCell<Option<Session>> = const { RefCell::new(None) };
+
+    /// **How many opaque values this leaf replay has minted** — the
+    /// payload [`Sym::opaque`] stamps into its node, so that each
+    /// untracked real is its own indeterminate.
+    ///
+    /// D9, argued here rather than assumed. A sequence number is only
+    /// deterministic if the order that advances it is; this one is
+    /// advanced by the ORDER A LEAF MINTS ITS OPAQUE VALUES, which is
+    /// the order the evaluation service walks that leaf's recipe — a
+    /// fixed, single-threaded walk per leaf, the same one whose node
+    /// ids D9 already rests on. [`with_session`] resets it around every
+    /// replay, so a leaf's sequence starts at 0 no matter which leaf
+    /// ran before it or on which rayon worker, and two replays of the
+    /// same leaf mint the same ids. The counter never crosses a leaf
+    /// boundary, which is the property that makes it safe: it is
+    /// per-replay state living beside a per-replay table.
+    static OPAQUE_SEQ: Cell<u64> = const { Cell::new(0) };
+}
+
+/// Restores [`OPAQUE_SEQ`] when a [`with_session`] call leaves, by any
+/// path including a panic — the counter is per-replay state, so a
+/// session that unwound without restoring it would hand the next leaf a
+/// sequence starting mid-count and break the D9 claim on `opaque`'s ids.
+struct OpaqueSeqGuard(u64);
+
+impl Drop for OpaqueSeqGuard {
+    fn drop(&mut self) {
+        OPAQUE_SEQ.set(self.0);
+    }
 }
 
 /// Runs `f` with a fresh symbolic session installed on this thread,
@@ -815,6 +929,10 @@ thread_local! {
 /// a different leaf's decisions into the outer one's receipt.
 pub fn with_session<R>(budget: SymBudget, f: impl FnOnce() -> R) -> (R, SymCounts) {
     let nested = SESSION.with(|s| s.borrow().is_some());
+    // The opaque sequence is per-replay state, restored on the way out
+    // so a nested or sequential call cannot inherit a partial count
+    // (`OPAQUE_SEQ`'s docs carry the D9 argument).
+    let _restore = OpaqueSeqGuard(OPAQUE_SEQ.replace(0));
     // A nested call in a release build runs with the OUTER session,
     // which is sound — ids are content hashes and the table is keyed by
     // them — and only muddles whose receipt the decisions land in.
@@ -862,6 +980,16 @@ fn intern(node: SymNode) -> SymId {
 /// The indeterminate π enters the form as: a fixed key, so `τ − 2π`
 /// cancels while nothing reads a value of π anywhere.
 const INDET_PI: u128 = 0x5049_5f49_4e44_4554_5f5f_5f5f_5f5f_5f5f;
+
+/// The indeterminate ONE OPAQUE VALUE enters the form as, keyed by its
+/// per-replay sequence number — a different key per call, which is what
+/// makes two untracked reals two unknowns rather than one.
+fn indet_opaque(seq: u64) -> u128 {
+    Hash128::new()
+        .word(0x4f50_4151_5545_5f5f)
+        .word(seq)
+        .finish()
+}
 
 /// The indeterminate a parameter symbol enters the form as.
 fn indet_param(symbol: u64) -> u128 {
@@ -931,6 +1059,31 @@ fn indet_atom(tag: u64, payload: u64, args: &[u128]) -> u128 {
 struct Form {
     num: Poly,
     den: Poly,
+    /// **This form is not a rational function of the parameters** — it
+    /// was built through a division by the ZERO polynomial, so it has
+    /// no value anywhere and nothing derived from it may be declared
+    /// identically zero.
+    ///
+    /// Why a poison and not a freeze (the reviewer's row
+    /// `atan(1/(x-x)) - atan(1/(x-x))`). Freezing turns an
+    /// unrepresentable subexpression into an INDETERMINATE keyed by its
+    /// node id, and two occurrences of one node share that id — so the
+    /// two `atan`s would be one unknown `u`, `u - u` would be the zero
+    /// polynomial, and the tier would answer `Zero` for an expression
+    /// with no real value. Freezing is the right answer for something
+    /// the form cannot REPRESENT; it is the wrong answer for something
+    /// that does not EXIST. Poison propagates through every combinator
+    /// and makes [`Form::is_zero`] false, so the theorem's clause 2
+    /// cannot be satisfied through it.
+    ///
+    /// This is the form-side half of clause 1. The value-side half
+    /// (`MarginDiag::Invalid` from the numeric channel) catches a
+    /// domain violation the SCALAR can see — an uncertified interval,
+    /// a NaN. It cannot see this one: at `f64` the whole expression
+    /// evaluates to a finite `0.0`, because `1/0` is `+inf`,
+    /// `atan(+inf)` is `pi/2`, and the difference is an honest zero.
+    /// The two halves catch different things and both are needed.
+    poisoned: bool,
 }
 
 impl Form {
@@ -938,6 +1091,7 @@ impl Form {
         Self {
             num,
             den: Poly::one(),
+            poisoned: false,
         }
     }
 
@@ -945,11 +1099,31 @@ impl Form {
         Self::poly(Poly::zero())
     }
 
-    fn is_zero(&self) -> bool {
-        self.num.is_zero()
+    /// The form of an expression with no value: see [`Form::poisoned`].
+    /// Its numerator is deliberately the ONE polynomial, so that a
+    /// reader who ignores the flag still never reads it as a zero.
+    fn poison() -> Self {
+        Self {
+            num: Poly::one(),
+            den: Poly::one(),
+            poisoned: true,
+        }
     }
 
-    fn add(&self, other: &Self) -> Option<Self> {
+    /// Whether either operand is poison — the propagation rule, in one
+    /// place so no combinator can forget it.
+    fn tainted(&self, other: &Self) -> bool {
+        self.poisoned || other.poisoned
+    }
+
+    fn is_zero(&self) -> bool {
+        !self.poisoned && self.num.is_zero()
+    }
+
+    fn add(&self, other: &Self, budget: SymBudget) -> Option<Self> {
+        if self.tainted(other) {
+            return Some(Self::poison());
+        }
         // A shared denominator adds numerators, which is both cheaper
         // and tighter against the budget than cross-multiplying two
         // copies of the same polynomial.
@@ -957,46 +1131,63 @@ impl Form {
             return Some(Self {
                 num: self.num.add(&other.num)?,
                 den: self.den.clone(),
+                poisoned: false,
             });
         }
         Some(Self {
-            num: self.num.mul(&other.den)?.add(&other.num.mul(&self.den)?)?,
-            den: self.den.mul(&other.den)?,
+            num: self
+                .num
+                .mul(&other.den, budget)?
+                .add(&other.num.mul(&self.den, budget)?)?,
+            den: self.den.mul(&other.den, budget)?,
+            poisoned: false,
         })
     }
 
     fn neg(&self) -> Option<Self> {
+        if self.poisoned {
+            return Some(Self::poison());
+        }
         Some(Self {
             num: self.num.neg()?,
             den: self.den.clone(),
+            poisoned: false,
         })
     }
 
-    fn mul(&self, other: &Self) -> Option<Self> {
+    fn mul(&self, other: &Self, budget: SymBudget) -> Option<Self> {
+        if self.tainted(other) {
+            return Some(Self::poison());
+        }
         Some(Self {
-            num: self.num.mul(&other.num)?,
-            den: self.den.mul(&other.den)?,
+            num: self.num.mul(&other.num, budget)?,
+            den: self.den.mul(&other.den, budget)?,
+            poisoned: false,
         })
     }
 
-    /// The reciprocal — `None` when the numerator is identically zero,
-    /// which is not a rational function and is poison at every point.
+    /// The reciprocal — POISON when the numerator is identically zero,
+    /// which is not a rational function and has no value at any point.
     fn recip(&self) -> Option<Self> {
-        if self.num.is_zero() {
-            return None;
+        if self.poisoned || self.num.is_zero() {
+            return Some(Self::poison());
         }
         Some(Self {
             num: self.den.clone(),
             den: self.num.clone(),
+            poisoned: false,
         })
     }
 
     /// The form's canonical digest — the key an opaque atom is minted
     /// under, so two atoms with equal-form arguments are one
-    /// indeterminate.
+    /// indeterminate. The poison flag is part of it, so an atom over a
+    /// poisoned argument is never keyed as one over a clean argument;
+    /// the atom itself is poisoned too, which is the load-bearing half.
     fn digest(&self) -> u128 {
         Hash128::new()
             .word(0x464f_524d_5f4e_4652)
+            .word(u64::from(self.poisoned))
             .wide(self.num.digest())
             .wide(self.den.digest())
             .finish()
@@ -1044,9 +1235,14 @@ fn within(budget: SymBudget, f: &Form) -> bool {
 /// `base^n` for `n >= 0`, budget-checked at every step so a large
 /// exponent freezes rather than allocating its way to the ceiling.
 fn powi_form(base: &Form, n: u32, budget: SymBudget) -> Option<Form> {
+    // `x^0` is 1 only where `x` has a value; a poisoned base has none,
+    // so the exponent cannot rescue it.
+    if base.poisoned {
+        return Some(Form::poison());
+    }
     let mut acc = Form::poly(Poly::one());
     for _ in 0..n {
-        acc = acc.mul(base)?;
+        acc = acc.mul(base, budget)?;
         if !within(budget, &acc) {
             return None;
         }
@@ -1060,6 +1256,12 @@ fn powi_form(base: &Form, n: u32, budget: SymBudget) -> Option<Form> {
 fn combine(node: &SymNode, kids: [&Form; 2], budget: SymBudget) -> Option<Form> {
     let (a, b) = (kids[0], kids[1]);
     let atom1 = |op: SymOp| {
+        // A function OF an expression with no value has no value
+        // either, and `a.is_zero()` is already false for a poisoned
+        // argument, so the at-zero fold cannot fire on one.
+        if a.poisoned {
+            return Some(Form::poison());
+        }
         if a.is_zero()
             && let Some(f) = unary_at_zero(op)
         {
@@ -1072,6 +1274,9 @@ fn combine(node: &SymNode, kids: [&Form; 2], budget: SymBudget) -> Option<Form> 
         ))))
     };
     let atom2 = |op: SymOp| {
+        if a.tainted(b) {
+            return Some(Form::poison());
+        }
         Some(Form::poly(Poly::indet(indet_atom(
             op.tag(),
             node.payload,
@@ -1080,13 +1285,16 @@ fn combine(node: &SymNode, kids: [&Form; 2], budget: SymBudget) -> Option<Form> 
     };
     match node.op {
         SymOp::Param => Some(Form::poly(Poly::indet(indet_param(node.payload)))),
+        // One untracked real: its OWN indeterminate, keyed by the
+        // sequence number the node carries (`SymOp::Opaque`'s docs).
+        SymOp::Opaque => Some(Form::poly(Poly::indet(indet_opaque(node.payload)))),
         SymOp::Lit => {
             Rat::of_f64(f64::from_bits(node.payload)).map(|c| Form::poly(Poly::constant(c)))
         }
         SymOp::Pi => Some(Form::poly(Poly::indet(INDET_PI))),
-        SymOp::Add => a.add(b),
-        SymOp::Sub => a.add(&b.neg()?),
-        SymOp::Mul => a.mul(b),
+        SymOp::Add => a.add(b, budget),
+        SymOp::Sub => a.add(&b.neg()?, budget),
+        SymOp::Mul => a.mul(b, budget),
         SymOp::Neg => a.neg(),
         SymOp::Inv => a.recip(),
         SymOp::Powi => {
@@ -1127,6 +1335,9 @@ fn combine(node: &SymNode, kids: [&Form; 2], budget: SymBudget) -> Option<Form> 
         // the form can take without reading a value.
         SymOp::Atan2 => atom2(node.op),
         // Keyed by the CHILD IDS, never by their forms (the op's docs).
+        // A hull of something with no value has none either, so the
+        // poison crosses this door like every other.
+        SymOp::Hull if a.tainted(b) => Some(Form::poison()),
         SymOp::Hull => Some(Form::poly(Poly::indet(
             Hash128::new()
                 .word(SymOp::Hull.tag())
@@ -1267,20 +1478,36 @@ impl<T> Sym<T> {
         self.node
     }
 
-    /// A value carrying NO tracked expression: the id is the reserved
-    /// unrecorded one, so its form freezes and every decision on it is
-    /// the numeric one.
+    /// A value carrying NO tracked expression: **its own fresh
+    /// indeterminate**, so its form is an unknown and every decision
+    /// that depends on it is the numeric one.
     ///
     /// The door for a lane that legitimately has no expression to track
     /// — a bracket handed back by an engine that ran at another scalar
     /// — where fabricating a node would claim an algebraic relationship
     /// that was never computed.
+    ///
+    /// **Each call mints a DIFFERENT unknown, and that is the whole
+    /// point.** Two untracked reals are two unknowns: `x` and `y` with
+    /// nothing known about either. If they shared an id they would be
+    /// one unknown, `x − x` would be the zero polynomial, and
+    /// `opaque(1.0) − opaque(2.0)` would decide `Zero` — a theorem
+    /// about two values that are not equal. They are also never keyed
+    /// by the VALUE: two enclosures that happen to be bit-equal are
+    /// still two separate reals, and keying by bits would say they are
+    /// one.
+    ///
+    /// The sequence that separates them is [`OPAQUE_SEQ`], whose docs
+    /// carry the D9 argument for why a counter here is still
+    /// schedule-independent.
     #[must_use]
     pub fn opaque(value: T) -> Self {
-        Self {
-            value,
-            node: SymId::UNRECORDED,
-        }
+        let seq = OPAQUE_SEQ.with(|c| {
+            let n = c.get();
+            c.set(n.wrapping_add(1));
+            n
+        });
+        Self::nullary(value, SymOp::Opaque, seq)
     }
 
     /// A value bound as the document PARAMETER `symbol` — the one door
@@ -1537,19 +1764,45 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 /// and an honest K sample. At `Probe` the base scalar records the margin
 /// it classified before this impl overrides the answer, so the funnel's
 /// sample carries a real number and is merely RE-TAGGED
-/// ([`crate::k_stats`]'s `retag_symbolic_zero`) rather than replaced by
-/// one with no margin in it.
+/// ([`crate::k_stats`]'s `retag_symbolic_zero_at`) rather than replaced
+/// by one with no margin in it — at the index taken BEFORE the base
+/// scalar ran, so the row re-tagged is this decision's own.
+///
+/// **And a definite non-zero numeric answer short-circuits the form.**
+/// A certified enclosure that excludes zero is a proof that the margin
+/// is not zero, so no normal form over the parameters can be the zero
+/// polynomial — asking for one is work whose answer is already known.
+/// Building it was a measurable share of the tier's cost (a reviewer
+/// clocked one leaf replay at 57 ms against 1.4 ms numeric), and the
+/// forms skipped here are exactly the expensive ones: the margins that
+/// are NOT identities, which is most of them. A debug assertion keeps
+/// the shortcut honest — if a form ever IS zero under a definite
+/// numeric sign, the two channels contradict each other and that is a
+/// soundness bug in one of them, not a fast path to take quietly.
 ///
 /// Everything else is `T::sign_within` verbatim.
 impl<T: Decide> Decide for Sym<T> {
     fn sign_within(self, band: Band) -> Result<Sign, Indeterminate> {
+        // Where this decision's own K sample will land, read before the
+        // base scalar records it (`k_stats::sink_mark`).
+        #[cfg(feature = "probe")]
+        let mark = crate::k_stats::sink_mark();
         let numeric = self.value.sign_within(band);
         let domain_violation =
             matches!(&numeric, Err(e) if matches!(e.margin, MarginDiag::Invalid));
+        let definitely_nonzero = matches!(&numeric, Ok(Sign::Positive | Sign::Negative));
+        if definitely_nonzero {
+            debug_assert!(
+                !is_identically_zero(self.node),
+                "the numeric channel proved this margin nonzero and the form says it is                  identically zero: the two channels contradict each other"
+            );
+            count_decision(false);
+            return numeric;
+        }
         if !domain_violation && is_identically_zero(self.node) {
             count_decision(true);
             #[cfg(feature = "probe")]
-            crate::k_stats::retag_symbolic_zero();
+            crate::k_stats::retag_symbolic_zero_at(mark);
             return Ok(Sign::Zero);
         }
         count_decision(false);

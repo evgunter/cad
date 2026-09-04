@@ -14,13 +14,13 @@ use std::sync::Arc;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
-    CancelToken, Datum, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Expr,
-    LoopProgram, Node, ParamName, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep,
-    ProgramTarget, UnitSym, evaluate,
+    CancelToken, Datum, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Expr, LoopProgram,
+    Node, ParamName, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, UnitSym,
+    evaluate,
 };
 use fixture::Recorder;
-use geom_core::k_stats::{SampleOutcome, start_recording, take_samples};
 use geom_core::Tol;
+use geom_core::k_stats::{SampleOutcome, start_recording, take_samples};
 
 fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).unwrap()
@@ -222,7 +222,11 @@ fn r1_parametric_chain_at_a_point_box() {
             },
             tol,
         );
-        let n = ev.order.iter().filter(|id| ev.node_error(**id).is_some()).count();
+        let n = ev
+            .order
+            .iter()
+            .filter(|id| ev.node_error(**id).is_some())
+            .count();
         println!("fixed={fixed} at f64 guided: {n} errors");
     }
 }
@@ -240,8 +244,16 @@ fn r1_bracket_census_and_lift_refusal() {
     for (pred, (s, n)) in &rows {
         println!("   {pred:<40} symbolic={s:<6} numeric={n}");
     }
-    for (scale, literal) in [(1.0, false), (1e-2, false), (1e-4, false), (1.0, true), (1e-2, true), (1e-4, true)] {
-        let (doc, _, _) = crate::m10_7_r1_probes_interval::bracket_pub(0.5e-3 * scale, literal, tol);
+    for (scale, literal) in [
+        (1.0, false),
+        (1e-2, false),
+        (1e-4, false),
+        (1.0, true),
+        (1e-2, true),
+        (1e-4, true),
+    ] {
+        let (doc, _, _) =
+            crate::m10_7_r1_probes_interval::bracket_pub(0.5e-3 * scale, literal, tol);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let opts = EvalOptions {
             param_box: Some(Arc::new(ParamBox::of(&analyzed))),

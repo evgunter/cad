@@ -10,12 +10,12 @@
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
 use geom_core::interval::Interval;
-use geom_core::k_stats::{Probe, SampleOutcome, start_recording, take_samples};
 use geom_core::k_stats::decide;
+use geom_core::k_stats::{Probe, SampleOutcome, start_recording, take_samples};
 use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::real::Real;
-use geom_core::{Decide, ParamSymbol, Sym, SymBudget, Tol};
 use geom_core::sym::with_session;
+use geom_core::{Decide, ParamSymbol, Sym, SymBudget, Tol};
 
 fn budget() -> SymBudget {
     SymBudget {
@@ -30,10 +30,7 @@ fn band() -> Band {
 
 /// A parameter bound over `[lo, hi]` — the shape `param_env_over` binds.
 fn p(name: &str, lo: f64, hi: f64) -> Sym<Interval> {
-    Sym::param(
-        ParamSymbol::of(name),
-        Interval::from_bounds(lo, hi),
-    )
+    Sym::param(ParamSymbol::of(name), Interval::from_bounds(lo, hi))
 }
 
 fn lit(x: f64) -> Sym<Interval> {
@@ -247,7 +244,10 @@ fn r2_the_atom_at_zero_folds_are_the_functions_own_values() {
             ("abs 0", sign_of(z.abs())),
             ("floor 0", sign_of(z.floor())),
             // τ − 2π: the value channel's τ against the node's 2·π.
-            ("τ − 2π", sign_of(<Sym<Interval> as Real>::tau() - lit(2.0) * pi)),
+            (
+                "τ − 2π",
+                sign_of(<Sym<Interval> as Real>::tau() - lit(2.0) * pi),
+            ),
         ]
     });
     for (name, s) in &out {
@@ -356,7 +356,10 @@ fn r2_a_degree_overflow_freezes() {
         let deep = x * x * x * x * x * x * x * x; // degree 8 > 4
         (sign_of(deep - deep), sign_of(deep))
     });
-    assert!(counts.frozen > 0, "the degree budget did not freeze: {counts:?}");
+    assert!(
+        counts.frozen > 0,
+        "the degree budget did not freeze: {counts:?}"
+    );
     assert_eq!(out.0, Ok(Sign::Zero));
     assert_ne!(out.1, Ok(Sign::Zero));
 }
@@ -369,8 +372,14 @@ fn r2_a_zero_budget_reproduces_the_numeric_only_lane() {
         let x = p("x", 0.0, 1.0);
         sign_of(x - x)
     });
-    assert_eq!(counts.symbolic_zero, 0, "a zero budget answered symbolically");
-    assert_eq!(counts.frozen, 0, "a zero budget should not even build a form");
+    assert_eq!(
+        counts.symbolic_zero, 0,
+        "a zero budget answered symbolically"
+    );
+    assert_eq!(
+        counts.frozen, 0,
+        "a zero budget should not even build a form"
+    );
     // The numeric answer over [0,1] − [0,1] = [−1,1] is indeterminate.
     assert!(s.is_err(), "the numeric lane decided {s:?} on [−1,1]");
 }
@@ -424,7 +433,10 @@ fn r2_outside_a_session_the_tier_is_wholly_off() {
         (y - y).node().bits()
     })
     .0;
-    assert_eq!(id_out, id_in, "the id depended on whether a session existed");
+    assert_eq!(
+        id_out, id_in,
+        "the id depended on whether a session existed"
+    );
     // And a value minted OUTSIDE a session, decided INSIDE one: the
     // node is missing from the table and FREEZES — but two frozen nodes
     // with the same id still cancel, so the decision is SYMBOLIC.
@@ -442,7 +454,10 @@ fn r2_outside_a_session_the_tier_is_wholly_off() {
          installed decided {s:?}"
     );
     assert_eq!(counts.symbolic_zero, 1);
-    assert!(counts.frozen > 0, "the missing node did not freeze: {counts:?}");
+    assert!(
+        counts.frozen > 0,
+        "the missing node did not freeze: {counts:?}"
+    );
 }
 
 // ------------------------------------------------- claim 7: the K row
@@ -536,7 +551,11 @@ fn r2_two_distinct_opaque_values_cancel_to_a_false_theorem() {
         let a = Sym::opaque(Interval::from_bounds(1.0, 1.0));
         let b = Sym::opaque(Interval::from_bounds(2.0, 2.0));
         let m = a - b; // the real margin is exactly −1
-        (sign_of(m), geom_core::Bounds::lo(m), geom_core::Bounds::hi(m))
+        (
+            sign_of(m),
+            geom_core::Bounds::lo(m),
+            geom_core::Bounds::hi(m),
+        )
     });
     assert_eq!(
         (s.1, s.2),

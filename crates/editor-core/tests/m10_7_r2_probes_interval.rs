@@ -261,13 +261,7 @@ fn r2_end_to_end_bracket_study() {
                         &doc, measure, &analyzed, &v, None, false, tol,
                     );
                     println!("   stackup: {stack:?}");
-                    let a = editor_core::drive::assertion_at(
-                        &doc,
-                        assertion,
-                        v.root(),
-                        dials,
-                        tol,
-                    );
+                    let a = editor_core::drive::assertion_at(&doc, assertion, v.root(), dials, tol);
                     println!("   assertion at the root box: {a:?}");
                 }
             }
@@ -406,7 +400,11 @@ fn r2_the_drive_is_bit_identical_across_repeats_and_the_rayon_schedule() {
             tol,
         )
         .expect("the bracket's nominal builds");
-        (v.serialize(), format!("{:?}", v.content_key()), v.decisions())
+        (
+            v.serialize(),
+            format!("{:?}", v.content_key()),
+            v.decisions(),
+        )
     };
     let a = run(false);
     let b = run(false);
@@ -672,9 +670,15 @@ fn r2_the_tier_off_accounting_is_the_merge_bases_bytes() {
         for (label, doc) in [
             (
                 "planted_flip",
-                crate::m10_3_driver_interval::slab(20.0 * Tol::witness().eps(), 40.0 * Tol::witness().eps()),
+                crate::m10_3_driver_interval::slab(
+                    20.0 * Tol::witness().eps(),
+                    40.0 * Tol::witness().eps(),
+                ),
             ),
-            ("terminal_sliver", crate::m10_3_driver_interval::sliver_axis()),
+            (
+                "terminal_sliver",
+                crate::m10_3_driver_interval::sliver_axis(),
+            ),
         ] {
             let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
             let verdict = drive(
