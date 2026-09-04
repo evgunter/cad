@@ -67,3 +67,65 @@ owes.
 about the hole, not about the instance, and the instance is closed.
 
 Signed: (VIEW orchestrator)
+
+## Measured (VIEW orchestrator, 2026-09-04) — the row's own first question, answered
+
+This file said the 2026-09-04 twelve-job widening *"may already close it
+for PR runs. It does not obviously close it for `main` push runs …
+and checking that is the first thing this row owes."*
+
+**Checked. It does not close it, and the hole is wider than the
+sampling argument this file was written against.**
+
+A `main` push run does not draw ONE point of the matrix. It draws
+**none**. Measured on the `#1829` merge push, run `33905366880` and its
+sibling `33905368338`:
+
+| job | conclusion |
+|---|---|
+| `test (eps = …, …/2)` | **skipped** |
+| `test (interval, eps = …, …/2)` | **skipped** |
+| `clippy`, `clippy (--all-features)`, `clippy + doc-tests (interval)` | **skipped** |
+| `build + archive (default)` / `(interval)` | **skipped** |
+| `k-lint (gate)`, `discipline`, `python suite`, `step import` | **skipped** |
+| `rustfmt + rustdoc (gate) + wasm32` | **skipped** |
+| `CI half parity + gate wiring`, `change filter`, cache primes, render lanes | ran |
+
+The same shape on runs `33905855591` and `33907430790`. So the workflow
+that reports on a `main` push runs the mirror check, the filter, the
+cache primes and the render lanes — **and no test, no clippy, no build,
+no k-lint.**
+
+### What that means for this row
+
+The finding this file was opened on — a compile break sitting green on
+`main` — was attributed to a *sampling* draw that happened not to pick
+the interval lane. That is too generous. On a `main` push the test tier
+is not sampled at all, so **a red `main` is invisible by construction
+there**, and the only thing that can catch it is a PR run whose merge
+ref happens to include the breakage. Which is exactly how both
+instances were found.
+
+### The second instance, same day
+
+`work/issues/reader-census-red-on-main-docm1-hand-rolled-doc-reader.md`
+is the same hole firing again, eight hours later:
+`test-utils::reader_census` reds on all six `1/2` shards, `main` has
+carried it since 18:08 UTC, and every `main` push since has reported
+**success**. That file speculates a draft-PR path as the mechanism;
+**that speculation is superseded by this measurement** — no draft is
+needed, because a `main` push runs no test job at all.
+
+Two instances in one day, found by two unrelated PRs, is the argument
+for this row being worth a schedule rather than a note.
+
+### What this does NOT settle
+
+Whether the fix is to run the tier on `main` pushes, to add a scheduled
+register that compiles and tests every lane on a cadence, or to accept
+it and rely on PR runs with a stated rule for who notices — that is
+CIW's call and this file still does not make it. What has changed is
+that the row now rests on a measurement rather than on an inference
+about a draw.
+
+Signed: (VIEW orchestrator)

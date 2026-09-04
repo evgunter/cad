@@ -69,14 +69,21 @@ DOCM's ground, and the fix is a change to DOCM's test rather than a
 one-line ledger append. Widening an unrelated `[ev]` tracker PR to
 carry it would be worse.
 
-## The adjacent question this raises
+## Why nobody saw it — measured, not the shape first guessed
 
-`work/issues/ci-draw-can-hide-a-compile-break-on-main.md` is about a
-red `main` that CI never drew. **This is the other shape**: the draw
-that catches it is drawn on every code-tier run, so how a merge landed
-with it red is worth one look — a draft PR does not run the gate
-(`docs/prompts/implementer-discipline.md` §2), and #1829 was a draft
-for part of its life. If that is the path, it is a second CIW row and
-not this one.
+This section first read *"this is the other shape"* from
+`work/issues/ci-draw-can-hide-a-compile-break-on-main.md`, and guessed
+a draft PR as the path. **Both were wrong, and the truth is simpler.**
+
+**A `main` push run draws no test job at all.** On the `#1829` merge
+push (runs `33905366880` / `33905368338`) every `test`, `clippy`,
+`build`, `k-lint`, `discipline`, `python suite` and `rustfmt` job is
+**skipped**; only the mirror check, the change filter, the cache primes
+and the render lanes run. Same on the two `main` pushes after it, both
+of which reported **success** over a red tree.
+
+So no draft is needed and no unlucky draw is needed. This is the SAME
+hole as `ci-draw-can-hide-a-compile-break-on-main`, firing a second
+time on the same day, and that file now carries the measurement.
 
 Signed: (VIEW orchestrator)
