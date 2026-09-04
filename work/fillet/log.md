@@ -272,3 +272,20 @@ a rider; the fourth quadrant (sphere pocket, concave chain) is built
 and carving. Block FILLET-B1 slot 0 concluded (record branch-side).
 **RIM dispatched** into slot 1 on `fillet/rim-selector` under
 `docs/FILLET-RIM-SPEC.md`. E3's fix pass is in flight.
+
+**E3 MERGED (2026-09-04)**, PR [#1763](https://github.com/evgunter/cad/pull/1763)
+at `503f4ad5`, green at the asked-for interval lane with the k-lint
+`dev-probe` row pinned. `BlendError`'s seven margins carry a
+`ClassifiedMargin` (reading in the scalar's own spelling — an
+enclosure at Interval, thin or not; band; predicate; sign); `gap` and
+`arm` carry their measurement whole; the request `radius` fields stay
+`f64` and say so; `ConvexitySignFlip` reports the link's own classified
+levered margin and its NaN hole is unreachable by construction. The
+k-lint probe row caught the first thin-bracket spelling writing
+synthetic K telemetry through the recorded classifier path — replaced
+by a type-level enclosure test with no classifier call. Filed by the
+review and the fix pass: `blend-payloads-outside-the-margin-family`
+(FILLET), `fitted-magnitude-nan-schedule-parameter` re-homed to
+`work/trim/`, `blamed-mates-lost-its-exhaustive-arm` (VIEW; main did
+not compile at `--features interval`, fixed on main independently).
+**All three E openers are closed.** RIM (slot 1) is in flight.
