@@ -33,10 +33,13 @@
 //!    refuse in-band (`docs/SELECT-DESIGN.md` §§1-2).
 //! 3. **A name answers with values, never keys.** [`face_frame`],
 //!    [`edge_frame`], [`vertex_position`] and [`denotation`] speak
-//!    names and hand back a [`Pose`] or a count. Arena keys are
+//!    names and hand back a [`Pose`] or a count, and
+//!    [`face_carrier_kind`] hands back the face's stored
+//!    [`SurfaceKind`] tag — a value too, the one "is this face
+//!    planar" is a comparison of. Arena keys are
 //!    body-lineage-scoped and do not leave `editor-core`; a NURBS
 //!    face has no canonical frame, so `face_frame` refuses it rather
-//!    than nominating one.
+//!    than nominating one (its kind is still readable).
 //!
 //! **A name also says which node MADE the entity.** [`attribute`]
 //! walks a name's carry-through segments — `FromTarget`, `FromA`,
@@ -58,8 +61,8 @@ pub use editor_core::{
     NameOrigin, NamePat, NameTable, OpGroup, ProfileEdgeRef, ProfileVertexRef, RimSupport,
     RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side,
     SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
-    declare, declare_all, declare_node, denotation, edge_frame, edge_name, face_frame, face_name,
-    find_flush_candidates, select, select_where, vertex_position,
+    declare, declare_all, declare_node, denotation, edge_frame, edge_name, face_carrier_kind,
+    face_frame, face_name, find_flush_candidates, select, select_where, vertex_position,
 };
 /// The frame type the geometry doors answer with, its refusal, and
 /// the refusal's own payload — re-exported from the kernel's

@@ -3062,6 +3062,8 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
 ///   `StructureFlip`, `ReplayOutcome`, `VerdictVector`, `VerdictRow`,
 ///   `VerdictVectorKey`, `AxisScalar`, `param_env_over`, `SeedScalar`,
+///   `SectionScalar` (which scalars carry a loft or sweep section's
+///   placement off a derived frame — a lane fact, decided by the type),
 ///   `SeedError`, `seed_env`, `std_deviation`, `sensitivities`,
 ///   `PairingViolation`; and the third lane seam `MinClearanceLane`
 ///   with its `MinClearanceOperand`, which is how a `min_clearance`
@@ -3084,7 +3086,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   the refusal's own `Display`), the two scalar CAPABILITY seams and
 ///   their env plumbing, and `sensitivities` — the intermediate whose
 ///   answer `stackup` already carries.
-const NOT_CARRIED: [&str; 92] = [
+const NOT_CARRIED: [&str; 93] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -3139,6 +3141,7 @@ const NOT_CARRIED: [&str; 92] = [
     "Resolved",
     "Rgba8",
     "RunStatus",
+    "SectionScalar",
     "SeedError",
     "SeedScalar",
     "SideVerdict",
