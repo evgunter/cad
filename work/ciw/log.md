@@ -407,3 +407,38 @@ leaving them independent.
 
 Nothing was enabled and no repository setting was touched: the queue is
 a design put to Ev.
+
+## Unit 10 — the façade-guards ruling, answered and landed (2026-09-04)
+
+Ev ruled in chat: *"ok yeah no rustdoc json, your arguments are
+convincing"* — disposition (2), the item's own recommendation. #696's
+deferral is **closed permanently**: the three source-text scans in
+`crates/pncad/tests/all.rs` are the enforcement, and no rustdoc-JSON
+pass is to be built.
+
+Two findings from this lane carried it. The multi-line `pub use` hole —
+the strongest argument for the structural check — is **our scanner's
+defect, not scanning's ceiling**, since `pub_use_names` in the same file
+is already statement-based; and the classes rustdoc JSON uniquely
+reaches (an `as`-aliased key, a key exposed as a public field or
+associated type) have **zero live instances** and take a coordinated
+two-crate edit whose second half already reds the completeness guard.
+The nightly-vs-per-PR placement sub-question is **moot rather than
+unanswered**: the nightly toolchain requirement follows the check
+wherever it runs, so placement never disposed of the format-instability
+cost, and per-PR would have put an unstable schema on the merge path.
+
+What landed on PR 1841 beyond the record: all three guard doc comments
+rewritten so they describe the permanent mechanism with its limits
+named, instead of pointing at a check nobody will build — a sanctioned
+drive-by into LIB's file, announced in the PR, doc comments only. The
+logic half is filed as `work/issues/lb13-guards-are-line-local` for LIB,
+carrying the line-locality hole and the stale `root_declared_pub_names`
+module count.
+
+Numbers re-derived rather than inherited, and two of the item's moved:
+the façade has **74** `pub use` statements in code (the item's 77 was a
+raw grep that counted three comment lines), **33** of them multi-line,
+**17** of those naming an `editor_core::` path (the item's 15 counted
+only the `editor_core::{` spelling and missed `mc::` and `report::`).
+The 32/28 `pub mod` counts in `editor-core`'s root re-derived unchanged.
