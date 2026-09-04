@@ -696,7 +696,7 @@ pub fn assert_promises_either_side(sentence: &str) {
 /// **Pappus pieces for a meridian-plane fill or cut**: `(area, ∫x dA)`
 /// of the elementary regions a fillet's cross-section decomposes into,
 /// so a row can derive a revolved volume delta by hand as
-/// `2π Σ ∫x dA` ([`pappus_volume`]) and compare it to the measured one.
+/// `2π Σ ∫x dA` ([`pappus::pappus_volume`]) and compare it to the measured one.
 /// Coordinates are the meridian half-plane's `(x, y)` with the axis at
 /// `x = 0`. Each piece's centroid is the textbook one; the row states
 /// which pieces are added and which subtracted, and why.
