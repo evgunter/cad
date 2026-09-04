@@ -1662,6 +1662,62 @@ impl PcurveFittedLane for geom_core::interval::Interval {
     }
 }
 
+/// **The symbolic tier over a certifying scalar** (`geom_core::sym`):
+/// every door is the base scalar's, run at `Sym<T>`. The tier alters
+/// one decision rule inside the scalar, so a `Sym`-wrapped certifying
+/// scalar still mints and re-derives fitted caches.
+impl<T> PcurveFittedLane for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: Decide,
+    T: geom_core::CertifiedBounds,
+{
+    fn fitted_certificate(
+        carrier: &Curve3<Self>,
+        t0: Self,
+        t1: Self,
+        image: &NurbsCurve2<Self>,
+        surface: &Surface<Self>,
+        mate: &Surface<Self>,
+        band: Band,
+    ) -> Result<Option<SsiCertificate<Self>>, PcurveCertifyError> {
+        fitted_lane(carrier, t0, t1, image, surface, mate, band)
+    }
+
+    fn general_image(
+        carrier: &NurbsCurve3<Self>,
+        wall: &NurbsSurface<Self>,
+    ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError> {
+        general_image_lane(carrier, wall)
+    }
+
+    fn chart_foot(
+        point: Point3<Self>,
+        wall: &NurbsSurface<Self>,
+    ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
+        chart_foot_lane(point, wall)
+    }
+
+    // No offset re-derivation lane, for the BASE scalar's reason: the
+    // offset fit is derived at `f64` only, so every non-`f64` lane
+    // answers `None` here and the caller reports the absence typed. The
+    // tier changes how a margin DECIDES, not which derivations exist, so
+    // wrapping a scalar cannot add one.
+    fn remap_certificate(
+        _description: &geom::SurfaceDescription<Self>,
+        _fit: &NurbsSurface<Self>,
+        _window: geom::ApproxWindow,
+        _tolerance: f64,
+        _band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, crate::OffsetFitError>> {
+        None
+    }
+
+    fn lane_name() -> &'static str {
+        "symbolic"
+    }
+}
+
+/// never carries a fitted cache, because one cannot be built there.
 /// The dual lane: STATICALLY no fitted certificate — this impl
 /// instantiates none of the certified machinery (trait docs). The
 /// caller turns the `None` into

@@ -37,7 +37,7 @@ use std::time::Instant;
 
 use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
-use editor_core::drive::{DriveConfig, drive};
+use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::stackup::{
     Chamber, PairingViolation, Rss, Sensitivity, SensitivityOutcome, SensitivityRefusal,
     StackupRefusal, Unavailable, sensitivities, stackup,
@@ -796,7 +796,22 @@ fn no_drive_or_a_refused_nominal_marks_local_only_and_gates_nothing() {
         }
         other => panic!("{other:?}"),
     }
-    let verdict = drive(&doc, &analyzed, &config(32), Tol::witness()).expect("builds");
+    // The tier OFF, deliberately: this row is about what a report says
+    // when the drive certified NOTHING, and since E12 this fixture's
+    // box certifies. `SymbolicDials::off()` is the honest way to ask
+    // for a drive that does not — the alternative would be tuning the
+    // fixture until the driver failed again, which is a worse pin on
+    // the same claim.
+    let verdict = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig {
+            symbolic: SymbolicDials::off(),
+            ..config(32)
+        },
+        Tol::witness(),
+    )
+    .expect("builds");
     assert!(verdict.certified().is_empty(), "{:?}", verdict.receipt());
     let refused =
         sensitivities(&doc, measure, None, Some(&verdict), false, Tol::witness()).expect("ok");

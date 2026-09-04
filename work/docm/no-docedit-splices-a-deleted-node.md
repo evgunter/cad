@@ -2,9 +2,10 @@
 id: no-docedit-splices-a-deleted-node
 kind: issue
 title: Deleting a feature from the middle of a chain is impossible: no DocEdit rewires a live node's inputs, so delete can only cascade
-status: open
+status: parked
 opened: 2026-08-31
 github: 1324
+blocked_on: [DOCM-3]
 ---
 
 ## From GitHub issue 1324
@@ -139,3 +140,12 @@ suites' headers, so a reader meeting the cascade finds this issue.
 ## Home
 
 `work/issues/` — the `DocEdit` vocabulary and the viewer's delete affordance are GUI-era ground and that program is closed; no open program's globs cover `editor-core`'s edit vocabulary.
+
+## Parked (2026-09-04)
+
+Ruled not to add splice: `docs/DOCM-REFERENCES-DESIGN.md` DM4–DM6. The
+die's chain is an artifact of the missing flat union, and walking the
+die showed a splice would also break the rim fillet's frozen names for
+every earlier pip (N1 records join depth). `DOCM-3` adds `Node::Union`
+and `DocEdit::SetMembers`; this item reopens only for a chain a flat
+operator cannot flatten that a user needs to edit from the middle.

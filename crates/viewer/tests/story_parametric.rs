@@ -451,9 +451,10 @@ fn the_parametric_living_walk() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(outcome.committed.is_empty(), "a probe commits nothing");
     assert_eq!(session.history().len(), before, "and mints no history");
-    let (target, bounds) = session.bounds().expect("the probe landed").clone();
+    let reading = session.bounds().expect("the probe landed").clone();
+    let bounds = reading.bounds;
     assert_eq!(
-        target,
+        reading.target,
         BoundsTarget::Param {
             name: taper.clone()
         }

@@ -28,18 +28,30 @@
 //! # What this covers, and what it does not
 //!
 //! COVERS: every `PropsQuadLane::quad_cut_face` impl in
-//! `crates/topo/src/props.rs` — `f64`, `Probe`, `Interval` (the three
-//! scalars with certification rights, which are the ones that can form
-//! the certified call) and `Dual` (which cannot, and answers `Ok(None)`
-//! so that it never does). A fifth impl, or a fourth spelling of the
-//! body, reds here.
+//! `crates/topo/src/props.rs` — `f64`, `Probe`, `Interval` and
+//! `Sym<T>` (the four scalars with certification rights, which are the
+//! ones that can form the certified call) and `Dual` (which cannot, and
+//! answers `Ok(None)` so that it never does). A sixth impl, or a third
+//! spelling of the body, reds here.
+//!
+//! `Sym<T>` (the symbolic identity tier, ERROR-DESIGN E12) joined the
+//! census with this file's count, which is the argument this pin asks
+//! for. It is a WRAPPER over a certifying base scalar, and it changes
+//! exactly one thing: how a margin whose expression is identically zero
+//! decides — inside `geom_core::Decide`, below every lane. Its
+//! quadrature is therefore not a second quadrature at all; the impl is
+//! the same call to the same `quad_lane::cut_face`, and this file
+//! checks that character-for-character rather than taking the argument
+//! on trust. What would break the door's identity claim here is the
+//! opposite move: giving the tier `Ok(None)`, which would silently
+//! demote a certifying lane the driver's leaf replay depends on.
 //!
 //! DOES NOT COVER: what `quad_lane::cut_face` itself computes, or the
 //! band, face order and schedule the two callers hand it — those are
 //! the same call site's arguments and the `sweep` suite's bit-identity
 //! row is the evidence for them. It is a SOURCE-TEXT pin, so it also
 //! says nothing about an impl living outside this file (there is none;
-//! the trait is sealed to this module's four).
+//! the trait is sealed to this module's five).
 //!
 //! Ungated: it reads one file and runs no geometry, so there is nothing
 //! for a change filter to save.
@@ -106,10 +118,10 @@ fn every_quad_cut_face_impl_forwards_to_the_certified_quadrature() {
 
     assert_eq!(
         bodies.len(),
-        4,
-        "LANE CENSUS: props.rs must hold exactly the four PropsQuadLane impls this pin \
-         reasons about (f64, Probe, Interval, Dual); found {} — a new scalar's lane is \
-         a new place the certified door's identity claim can break, so it is argued \
+        5,
+        "LANE CENSUS: props.rs must hold exactly the five PropsQuadLane impls this pin \
+         reasons about (f64, Probe, Interval, Sym, Dual); found {} — a new scalar's lane \
+         is a new place the certified door's identity claim can break, so it is argued \
          here rather than added silently: {bodies:?}",
         bodies.len()
     );
@@ -117,7 +129,7 @@ fn every_quad_cut_face_impl_forwards_to_the_certified_quadrature() {
     let no_lane = bodies.iter().filter(|b| *b == NO_LANE_BODY).count();
     assert_eq!(
         (certified, no_lane),
-        (3, 1),
+        (4, 1),
         "LANE IDENTITY: each certifying scalar's `quad_cut_face` must BE \
          `{CERTIFIED_BODY}` — the same function the certified door names directly, with \
          the same arguments in the same order — and the one lane that cannot certify \

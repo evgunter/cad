@@ -3197,3 +3197,128 @@ also weathered the account-wide Actions budget wall (11:52–
 529 outage death with clean recovery. Dual claim to main at
 dispatch; parity per the draw line (byte 208 ⇒ R1 OPUS + R2
 FABLE).
+## Ordinal 113 returned and adjudicated (2026-09-04)
+
+R1 (opus) 1 MAJ / 6 MIN, 5/4/4, ACCEPT — instrumented the base
+mechanism itself (pole arm on-axis, param_on never reached, the
+latitude refusals never printed), verified bit-exactness at the
+bit level, re-derived the cavity volume (rel 8.55e-15), and
+probed four turns incl. the reflex 270° plus an outward offset
+(worst residual 8.7e-18). R2 (fable, resumed across a limit
+death) 0 MAJ / 2 MIN, 4/5/5, ACCEPT — independent
+instrumentation of the same mechanism, all six mutations (three
+declared + three own) landing on typed doors with predicted
+numbers, the interval widths measured (2.07e-14/2.80e-15), and
+the deviation judged an honest discharge of an acceptance whose
+premise was false at ratification.
+
+- R1 MAJ-1 (UNILATERAL TALLY CANDIDATE, class doc/contract-API —
+  the blinded coding weighs 3b; the demonstrated half is real):
+  TogetherEdgeDisagreement's PUBLIC doc and Display assert a
+  cause its raising sites don't share — the variant raises from
+  THREE sites, and at the lune's site the gap is a
+  midpoint-to-surface residual, not 'two ends solved apart'; the
+  false text is exactly what misled the module doc the PR spent
+  item 4 correcting, and the unit fixed every derived text but
+  left the authoritative one. Pre-existing, but this is the unit
+  that measured it. R2 did not raise it.
+- Both arms CONFIRMED: the mechanism correction; the
+  meridian-pair arm as a REDUCTION not a widening (neither STOP
+  fired — R2: the spec's item-1 wording cannot produce its own
+  item-4 acceptance; the wording re-cut goes to the spec, done
+  below); the deviation with its forcing red-the-day row and
+  filed schedule; the differential; the wedge bit-identity.
+- MINOR union: the fifth refusal string in neither reachability
+  list and unpinned (R1, with the buildable lune(0.3,20°) pose);
+  the cavity-volume derivation asserted by no test (R1 — a
+  10-line pure-arithmetic row); the 'one deviation' framing
+  underselling the meridian-pair arm; the :441 cite off by one;
+  three phantom files in the sweep list; the turn/sign space at
+  two points (reflex + outward measured correct by R1, unpinned);
+  the sealed-arm pin loose (R2, pre-existing); two idiom
+  laxities (R2); 'six decide names' is seven in six audit rows.
+
+TALLY: candidates now 7 (107×2, 108×1, 110×1, 112×1, 113×1 —
+one more confirmed unilateral reaches the pre-registered 8 IF
+the blinded coding confirms all; the coding session remains the
+decider). Pair COUNTS (R2's resume flagged). Union fix pass out
+(fable, implementer-inherited). Spec item-1 wording re-cut folded
+into the fix-pass instructions.
+## Ordinal 114 returned and adjudicated (2026-09-04)
+
+R1 (opus) 1 MAJ / 6 MIN, 4/3/5, MERGEABLE-AFTER-ONE-FIX. R2
+(fable, resumed once across a limit death — lane pristine)
+1 MAJ / 4 MIN, 4/4/4, APPROVE WITH FINDINGS. Every measured
+claim reproduced verbatim BOTH arms (opening trace
+byte-for-byte, port character-identical, census/roles/boolean
+payloads exact, the mutation table reproduced with each column
+landing on its named row).
+
+- PRINCIPAL BILATERAL (dedup single; no tally candidate): the
+  introduced assigner/checker divergence — roles now assigned by
+  a functional tier-3 check 6 cannot check (both arms
+  independently re-proved MUT-2: the merge succeeds with
+  inverted roles and validate_geometric is GREEN) — has NO
+  committed schedule artifact: the follow-up lives only in PR
+  prose; work/verbs/VERBS-1031B.md never mentions check 6; the
+  M6 register items that own the flip condition are neither
+  cited nor updated. Both arms judged the FENCE right (porting
+  the arm into the validator changes its refusal surface on
+  existing corpora — its own measurement pass) and the omission
+  cheap to fix. R1's sharper find: the validator's stated reason
+  for the line-only scope (chord windings can disagree on >π
+  sectors) is EXACTLY the defect the bulge term dissolves — the
+  unit removed the reason at one site and left it standing
+  unqualified at the other.
+- MINOR union: the Ellipse arm dead to the whole battery (both
+  arms' mutations survive — R1 by axis-swap flipping the
+  metering bound direction, R2 by major/major; one retyped-
+  ellipse row closes it); the perimeter re-metering unpinned
+  (both, same shape: the escalation lever has no red half); the
+  committed module doc still carries the spec's refuted
+  three-pairs composition while the same file's test doc says
+  two (R2); a THIRD undeclared divergence (fail-loud on torn
+  lookup vs run_term's degrade — stricter, stated at the site,
+  undercounted in the table; R2); duplicated comment paragraph +
+  stale identifier (R1); acceptance rows pin variants where the
+  PR quotes payloads (R1); Zero-sign fold divergence framed
+  stronger than holds (R1).
+
+TALLY: no new candidates (the principal bilateral) — still 7
+pending the blinded coding. Pair COUNTS (R2's resume flagged).
+Union fix pass out (opus, implementer-inherited).
+## RIMCAP PR-1 merged (#1674, 2026-09-04) — ordinal-113 row (sample #123, no collision)
+
+The fix pass landed the whole union AND refuted one union
+instruction by measurement (the :441 cite was correct at the
+opening head — the orchestrator's fix was the error; recorded).
+TogetherEdgeDisagreement's doc/Display rewritten to enumerate
+its three meters with a constructed-error pin off payload
+fields; the fifth refusal string pinned on the buildable
+lune(0.3,20°); the cavity-volume row (rel 5.70e-15); reflex-270°
+and outward-offset rows pinning R1's exact numbers; the sealed
+assert tightened; the spec item-1 re-cut to both arms. The
+sphere rim capability ships; the klein elbow waits on the TORUS
+half (the spiric carrier design conversation in the RIMCAP
+spec); C5ARMS rows 3/4/8 wait with it. Lane swept. REMAINING
+IN-FLIGHT: the 1031B fix pass (the program's last open unit).
+## 1031B merged (#1671, 2026-09-04) — ordinal-114 row (sample #125 after the M10-7 collision)
+
+THE REGISTER'S LAST OPEN UNIT LANDS. The fix pass filed the
+assigner/checker divergence as a committed artifact with the
+refusal-surface measurement as the follow-up's opening step,
+pinned the Ellipse arm (both reviewers' mutations covered by one
+asserted value — they scale the margin by the same major/minor
+factor from opposite sides), pinned the perimeter re-metering
+via the module's one test-visible seam, and caught one
+ε-fragility of its own via CI (re-derived band-relative,
+recorded). The teapot cup merges whole; the register's
+gate-admission deferral is closed by citation; #1031 can close.
+
+PROGRAM STATE AT THIS MERGE: every register implementation row
+is DELIVERED or MEASURED-AND-REFUSED with a typed door and an
+owner. Remaining before the exit walk ratifies: the blinded
+coding session (7 candidates; the analysis agent's, not the
+orchestrator's), the design conversations (#1372, #1377, the
+RIMCAP torus half), and the transfers already recorded. The
+exit-walk draft in staging updates next.
