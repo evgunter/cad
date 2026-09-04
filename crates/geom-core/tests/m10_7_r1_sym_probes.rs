@@ -9,8 +9,8 @@
 
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, Margin, Sign};
-use geom_core::sym::{with_session, with_session_rules};
-use geom_core::{ParamSymbol, Real, Sym, SymBudget, SymRules, Tol};
+use geom_core::sym::with_session;
+use geom_core::{ParamSymbol, Real, Sym, SymBudget, Tol};
 
 fn budget() -> SymBudget {
     SymBudget {

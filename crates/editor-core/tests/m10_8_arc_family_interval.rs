@@ -183,7 +183,10 @@ fn m10_8_table_per_predicate_under_each_rule_set() {
         let mut table: BTreeMap<&'static str, Vec<Split>> = BTreeMap::new();
         for (_, rules) in rule_sets() {
             let (shapes, refusal, _) = replay(&doc, &nominal, rules, tol);
-            assert!(refusal.is_none(), "{name} refuses at its own nominal: {refusal:?}");
+            assert!(
+                refusal.is_none(),
+                "{name} refuses at its own nominal: {refusal:?}"
+            );
             for (pred, split) in split_by_predicate(&shapes) {
                 table.entry(pred).or_default().push(split);
             }
@@ -197,7 +200,10 @@ fn m10_8_table_per_predicate_under_each_rule_set() {
         for (pred, cols) in &table {
             print!("   {pred:<34}");
             for s in cols {
-                print!(" {:>12}", format!("{}/{}/{}", s.theorem, s.gated, s.numeric()));
+                print!(
+                    " {:>12}",
+                    format!("{}/{}/{}", s.theorem, s.gated, s.numeric())
+                );
             }
             println!();
         }
@@ -307,16 +313,32 @@ fn m10_8_ceilings_per_rule_set() {
     let tol = Tol::witness();
     let plate_at = |scale: f64| plate(5.0e-5 * scale, 1.0e-5 * scale, tol).0;
     let bracket_at = |scale: f64| r2_bracket(scale, tol).0;
-    let docs: [(&str, &dyn Fn(f64) -> ProfileDoc); 2] =
-        [("two_hole_plate", &plate_at), ("r2_filleted_bracket", &bracket_at)];
+    let docs: [(&str, &dyn Fn(f64) -> ProfileDoc); 2] = [
+        ("two_hole_plate", &plate_at),
+        ("r2_filleted_bracket", &bracket_at),
+    ];
     // The decisive sets only — the ceiling drive is expensive, and
     // these four separate the questions: `none` is the pre-algebra
     // tier, `C` isolates the sign fold, `A` the square reduction it
     // depends on, `all` both together.
     let sets = [
         ("none", SymRules::none()),
-        ("A", SymRules { sqrt_square: true, pythagoras: false, signed_root: false }),
-        ("C", SymRules { sqrt_square: false, pythagoras: false, signed_root: true }),
+        (
+            "A",
+            SymRules {
+                sqrt_square: true,
+                pythagoras: false,
+                signed_root: false,
+            },
+        ),
+        (
+            "C",
+            SymRules {
+                sqrt_square: false,
+                pythagoras: false,
+                signed_root: true,
+            },
+        ),
         ("all", SymRules::all()),
     ];
     for (name, doc_at) in docs {
@@ -326,7 +348,9 @@ fn m10_8_ceilings_per_rule_set() {
                 ..SymbolicDials::default()
             };
             let (c, refusal) = ceiling(doc_at, dials, tol);
-            println!("   {name} rules={label:<6} ceiling x{c:e} of the real study; beyond: {refusal:?}");
+            println!(
+                "   {name} rules={label:<6} ceiling x{c:e} of the real study; beyond: {refusal:?}"
+            );
         }
         let (c, refusal) = ceiling(doc_at, SymbolicDials::off(), tol);
         println!("   {name} tier OFF     ceiling x{c:e} of the real study; beyond: {refusal:?}");
@@ -342,8 +366,10 @@ fn m10_8_what_bounds_each_document_past_its_ceiling() {
     let tol = Tol::witness();
     let plate_at = |scale: f64| plate(5.0e-5 * scale, 1.0e-5 * scale, tol).0;
     let bracket_at = |scale: f64| r2_bracket(scale, tol).0;
-    let docs: [(&str, &dyn Fn(f64) -> ProfileDoc); 2] =
-        [("two_hole_plate", &plate_at), ("r2_filleted_bracket", &bracket_at)];
+    let docs: [(&str, &dyn Fn(f64) -> ProfileDoc); 2] = [
+        ("two_hole_plate", &plate_at),
+        ("r2_filleted_bracket", &bracket_at),
+    ];
     for (name, doc_at) in docs {
         let (c, _) = ceiling(doc_at, SymbolicDials::default(), tol);
         for factor in [2.0, 1.0 / c] {
@@ -351,11 +377,22 @@ fn m10_8_what_bounds_each_document_past_its_ceiling() {
             let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
             let (shapes, refusal, counts) =
                 replay(&doc, &ParamBox::of(&analyzed), SymRules::all(), tol);
-            println!("== {name} at x{:e} (ceiling x{c:e}): {counts:?}; first refusal {refusal:?}", c * factor);
+            println!(
+                "== {name} at x{:e} (ceiling x{c:e}): {counts:?}; first refusal {refusal:?}",
+                c * factor
+            );
             for s in shapes.iter().filter(|s| {
-                matches!(s.outcome, ShapeOutcome::Indeterminate | ShapeOutcome::Invalid)
+                matches!(
+                    s.outcome,
+                    ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
+                )
             }) {
-                println!("   [{:?}] {}: {}", s.outcome, s.predicate, s.form.as_deref().unwrap_or("-"));
+                println!(
+                    "   [{:?}] {}: {}",
+                    s.outcome,
+                    s.predicate,
+                    s.form.as_deref().unwrap_or("-")
+                );
             }
             let _ = Sign::Zero;
         }

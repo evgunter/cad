@@ -201,3 +201,32 @@ CSV rather than a name filter.
 | `wall_lines_cosurface` | EXPLICIT | closed form at the site | `crates/sweep/src/revolve/mod.rs` |
 | `witness_on_surface_1` | EXPLICIT | closed form at the site | `crates/geom-brep/src/certify.rs` |
 | `witness_on_surface_2` | EXPLICIT | closed form at the site | `crates/geom-brep/src/certify.rs` |
+
+## The rule column (M10-8): which atom-algebra rule discharges each row
+
+M10-8 added three functional-identity rules behind the `SymRules` dial
+(A `sqrt(X)²=X`, B `sin²+cos²=1`, C `sqrt(Q²)=Q` by a certified sign)
+and measured, per decide site on the two-hole plate, R2's filleted
+L-bracket and R1's bracket, which rule discharges it. The column is
+uniform and the result is the unit's headline finding:
+
+**On all three documents, EVERY explicit row that discharges at all is
+discharged by the PLAIN quotient form (M10-7); rules A, B and C add
+nothing.** The rules are correct on small forms (geom-core's rule-A/B/C
+unit rows), but the arc-family forms they target — `carrier_on_surface`,
+`witness_on_surface`, the moving radial frame, whose `u_ref·u_ref`
+carries `sqrt(v·v)²` — are large enough to FREEZE before a top-residual
+reduction can reach them, so switched fully on the rules move no ceiling
+and change no row's split. `sign_gated` (rule C) is 0 in every certified
+population, because rule C fires only at the degenerate nominal of a box
+that does not certify.
+
+So the rule column reads **"plain"** for every discharging row and
+**"none"** for every numeric one; the atom algebra is filed off by
+default (`SymRules::shipped()` is empty), the default tier is the M10-7
+quotient form bit for bit, and `docs/M10-8-SPEC.md`'s reserve is
+measured and not taken. The `carrier_endpoint_start`/`_end` rows remain
+the arc family the tier misses (the rim's `|r − sqrt(D)|`, whose radius
+sqrt is buried inside the outer distance sqrt — out of a top-residual
+fold's reach); an EARLY per-node reduction reaches them and the wider
+arc family, but at a cost and with downgrade hazards that filed it.

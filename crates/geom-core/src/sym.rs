@@ -74,14 +74,43 @@
 //! reciprocal's reach, and it is a NORMAL FORM rather than a rewrite
 //! rule: nothing is factored, and no simplification is attempted.
 //!
-//! What remains outside the tier: no factoring, and no functional
-//! identity of any opaque atom. `sin² + cos² − 1` does not decide
-//! symbolically, `sqrt(x)·sqrt(x) − x` does not, and `|x| − x` on a
-//! nonnegative `x` does not. Each atom is an indeterminate keyed by its
-//! argument's form, so two occurrences of ONE atom cancel and nothing
-//! else about it is known. These are limits of the tier and not bugs in
-//! it — over-refusal is the safe direction, and every such margin falls
-//! to the numeric channel exactly as before.
+//! What remains outside the DEFAULT tier: no factoring, and no
+//! functional identity of any opaque atom. `sin² + cos² − 1` does not
+//! decide symbolically, `sqrt(x)·sqrt(x) − x` does not, and `|x| − x` on
+//! a nonnegative `x` does not. Each atom is an indeterminate keyed by
+//! its argument's form, so two occurrences of ONE atom cancel and
+//! nothing else about it is known. These are limits of the tier and not
+//! bugs in it — over-refusal is the safe direction, and every such
+//! margin falls to the numeric channel exactly as before.
+//!
+//! # The atom algebra (M10-8), and why it is filed off by default
+//!
+//! Three functional-identity rules exist behind the [`SymRules`] dial —
+//! **A** `sqrt(X)² = X`, **B** `sin² + cos² = 1`, **C** `sqrt(Q²) = Q`
+//! for a `Q` whose sign is certified over the leaf box (clause 3, the
+//! one place a form reads a value) — applied as a reduction over the top
+//! RESIDUAL a decide site tests ([`is_identically_zero`]), never during
+//! form construction, so a rule can only ever ADD a discharge and never
+//! disturb what the plain quotient form already reaches. On small forms
+//! they are sound and effective (this module's rule-A/B/C unit rows pin
+//! each),
+//! and rule C's discharges are counted apart as [`SymCounts::sign_gated`]
+//! because they rest on a read value.
+//!
+//! They are **filed, not shipped** ([`SymRules::shipped`] is empty), and
+//! the reason is measured (M10-8's §1 table, over the two-hole plate and
+//! both reviewers' brackets): the arc family the rules target — a swept
+//! arc's carrier carries `u_ref·u_ref = (v·v)/sqrt(v·v)²`, which rule A
+//! reduces to `1` — lives in forms large enough to FREEZE before a
+//! top-residual reduction can reach them, so on all three documents the
+//! rules move no ceiling and discharge no decision the plain form did
+//! not. An EARLY reduction (per DAG node, before the freeze) does
+//! discharge the family and was measured to raise the filleted bracket's
+//! whole-certifying box ~10×, but paying a reduction per node is a
+//! runaway and letting it replace the plain form downgrades identities
+//! the plain form proves. A bounded, non-downgrading early reduction is
+//! the mechanism this unit could not land; the default tier stays the
+//! M10-7 quotient form, bit for bit.
 //!
 //! # Node ids are CONTENT HASHES (D9)
 //!
@@ -732,7 +761,11 @@ impl Rat {
         }
         let num = exact_isqrt(self.num.unsigned_abs())?;
         let den = exact_isqrt(self.den.unsigned_abs())?;
-        Self::new(i128::try_from(num).ok()?, i128::try_from(den).ok()?, self.exp2 / 2)
+        Self::new(
+            i128::try_from(num).ok()?,
+            i128::try_from(den).ok()?,
+            self.exp2 / 2,
+        )
     }
 
     /// Feeds the coefficient to a content hash (the atom-keying digest).
@@ -1838,7 +1871,15 @@ fn is_identically_zero<T: Real + Decide>(id: SymId, band: Band) -> Option<Discha
             ..rules
         };
         if ab != SymRules::none() {
-            let reduced = algebra::reduce(&plain, ab, budget, &sess.atoms, &NoOracle, &sess.params, band);
+            let reduced = algebra::reduce(
+                &plain,
+                ab,
+                budget,
+                &sess.atoms,
+                &NoOracle,
+                &sess.params,
+                band,
+            );
             if reduced.as_ref().is_some_and(|f| f.is_zero()) {
                 return Some(Discharge::Theorem);
             }
@@ -1849,8 +1890,15 @@ fn is_identically_zero<T: Real + Decide>(id: SymId, band: Band) -> Option<Discha
         // sign-gated.
         if rules.signed_root {
             let oracle = Lane::<T>(core::marker::PhantomData);
-            let reduced =
-                algebra::reduce(&plain, rules, budget, &sess.atoms, &oracle, &sess.params, band);
+            let reduced = algebra::reduce(
+                &plain,
+                rules,
+                budget,
+                &sess.atoms,
+                &oracle,
+                &sess.params,
+                band,
+            );
             if reduced.is_some_and(|f| f.is_zero() && f.gated) {
                 return Some(Discharge::SignGated);
             }
@@ -2217,7 +2265,7 @@ impl<T: SpanLocate> SpanLocate for Sym<T> {
 /// and an honest K sample. At `Probe` the base scalar records the margin
 /// it classified before this impl overrides the answer, so the funnel's
 /// sample carries a real number and is merely RE-TAGGED
-/// ([`crate::k_stats`]'s `retag_symbolic_zero_at`) rather than replaced
+/// ([`crate::k_stats`]'s `retag_at`) rather than replaced
 /// by one with no margin in it — at the index taken BEFORE the base
 /// scalar ran, so the row re-tagged is this decision's own.
 ///
@@ -2477,7 +2525,10 @@ mod tests {
         });
         assert_eq!(out, (true, true));
         assert_eq!(counts.sign_gated, 2, "{counts:?}");
-        assert_eq!(counts.symbolic_zero, 0, "a clause-3 fold is never an unconditional theorem");
+        assert_eq!(
+            counts.symbolic_zero, 0,
+            "a clause-3 fold is never an unconditional theorem"
+        );
         let (out, counts) = with_session(budget(), || {
             let r = p("r", -2.0);
             decides_zero((r * r).sqrt() + r)

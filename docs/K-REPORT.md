@@ -1726,3 +1726,52 @@ or a typed refusal) rather than margins, and which is where the move
 would be seen if a fixture ever produced one. A future document that
 measures a distance across a tilted plane pair will land here scaled by
 `L_new / 1 m`, and this paragraph is the record of what that scaling is.
+
+## M10-8 addendum (2026-09-04): the `sign_gated` outcome, and the atom algebra measured inert
+
+M10-8 added the arc-family atom algebra behind the `SymRules` dial and a
+fourth-and-a-half outcome to the funnel; both touch this report.
+
+### The `sign_gated` outcome
+
+`geom_core::k_stats::SampleOutcome::SignGated` (serialized `sign_gated`)
+joins `SymbolicZero`: a decision the symbolic tier answered through its
+clause-3 fold (`sqrt(Q²)=Q` on a `Q` whose sign the funnel certified
+over the leaf box) — a theorem CONDITIONAL on that one read value, so it
+is counted apart from the unconditional `symbolic_zero`. Like it, it is
+NEVER a rule sample: no margin was classified against the band. `k-lint`
+learns the token in its own column (`Scan::sign_gated`), the vocabulary
+keeps its one home on `SampleOutcome::token()`/`ALL` with the
+cross-workspace pin (`k-lint`'s `tests/outcome_vocabulary.rs`), and the
+per-file and TOTAL lines now print `symbolic_zero` and `sign_gated`
+side by side.
+
+### The driver population, with an arc fixture
+
+`m10_3_driver_k_probe_interval` gains `two_hole_plate_narrow` — the
+tour's plate scaled to `1e-6` of its real study, well below its
+`7.81e-7` whole-certifying ceiling, so the driver certifies leaves whose
+certified-midpoint replay carries the arc family. Measured at ε = 1e-9,
+the plate certifies 2 leaves and contributes ~2,940 samples; the CSV
+lints clean (rule 1 = 0), with `symbolic_zero` non-zero (the plate's
+carriers discharge through the PLAIN quotient form) and **`sign_gated`
+= 0**.
+
+`sign_gated` is 0 because the shipped tier runs the atom algebra OFF by
+default (`SymRules::shipped()` is empty). Even with every rule ON it is
+0 on this population: rule C fires only at the degenerate nominal of a
+box that does not certify, so no certified-leaf midpoint the driver
+samples exercises it. This is the honest state — the token is wired,
+linted and unit/CLI-tested, and reads 0 in the driver because the
+mechanism it counts is filed. The slabs remain straight-walled and
+contribute neither `symbolic_zero` nor `sign_gated` from the arc family.
+
+### Why the atom algebra is filed (the §1 measurement)
+
+Rules A/B/C are correct on small forms but inert on the three M10-8
+documents: the arc-family forms freeze before a top-residual reduction
+reaches them, so none moves a ceiling or changes a row's split. The
+default tier is the M10-7 quotient form bit for bit;
+`work/cert/symbolic-tier-census.md`'s rule column records "plain" for
+every discharging row. `docs/M10-8-SPEC.md`'s reserve is measured and
+not taken.

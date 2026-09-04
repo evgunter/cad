@@ -11,7 +11,7 @@
 //!
 //! Both replace an EVEN power of an atom by a power of a form the atom
 //! squared is equal to: `sqrt(X)² → X` and `sin(θ)² → 1 − cos(θ)²`.
-//! [`reduce`] applies that rewrite to every term of a form until no
+//! `reduce` applies that rewrite to every term of a form until no
 //! such power remains, and it terminates because every substituted
 //! form was built strictly before the atom it replaces — the
 //! argument of a `sqrt` is a descendant of the `sqrt` node — so each
@@ -27,10 +27,10 @@
 //!
 //! # The monomial order
 //!
-//! [`poly_sqrt`] needs a genuine MONOMIAL order (one compatible with
+//! `poly_sqrt` needs a genuine MONOMIAL order (one compatible with
 //! multiplication), and the parent's `BTreeMap` key order is not one:
 //! its sparse `(id, exponent)` vectors compare `x < y` but `x·x > x·y`.
-//! [`mono_cmp`] is graded lexicographic on the dense exponent vectors,
+//! `mono_cmp` is graded lexicographic on the dense exponent vectors,
 //! which is.
 
 use core::cmp::Ordering;
@@ -72,7 +72,7 @@ pub(super) fn mono_cmp(a: &Mono, b: &Mono) -> Ordering {
     })
 }
 
-/// The leading term under [`mono_cmp`]; `None` for the zero polynomial.
+/// The leading term under `mono_cmp`; `None` for the zero polynomial.
 fn leading(p: &Poly) -> Option<(Mono, Rat)> {
     p.terms
         .iter()
@@ -268,13 +268,7 @@ fn find_rewrite(
 /// (`id^e → repl^(e/2)·id^(e%2)`) or WHOLE (`id^e → repl^e`) — folding
 /// each term into the quotient `Form` the substitution produces (a
 /// `repl` that is itself a quotient makes the result one).
-fn poly_subst(
-    poly: &Poly,
-    id: u128,
-    repl: &Form,
-    square: bool,
-    budget: SymBudget,
-) -> Option<Form> {
+fn poly_subst(poly: &Poly, id: u128, repl: &Form, square: bool, budget: SymBudget) -> Option<Form> {
     let mut acc = Form::zero();
     for (mono, coeff) in &poly.terms {
         let e = mono.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e);
@@ -311,7 +305,7 @@ fn apply(f: &Form, rw: &Rewrite, budget: SymBudget) -> Option<Form> {
     Some(out)
 }
 
-/// The most substitutions [`reduce`] takes before it FREEZES. Each step
+/// The most substitutions `reduce` takes before it FREEZES. Each step
 /// removes one atom occurrence (a `Whole` erases the atom; a `Square`
 /// lowers its power by two and can only reintroduce strictly-older
 /// atoms), so a real residual reduces in a handful; a form that needs

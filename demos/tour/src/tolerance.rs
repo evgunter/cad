@@ -427,7 +427,10 @@ fn real_study(tol: Tol) {
                  filleted L-bracket with bores certifies nothing at any scale either \
                  way (factor 1.0), so a real study on CURVED geometry gets the pre-E12 \
                  answer today. The ceiling is a named family now, not a property of \
-                 the plate."
+                 the plate. M10-8 measured the atom-algebra reserve (sqrt(X)²=X and a \
+                 sign-gated sqrt(Q²)=Q) against this exact family and filed it: the \
+                 forms that would discharge freeze first, so the reserve moves this \
+                 ceiling by a factor of 1.0, and the bound stays carrier_endpoint_start."
             );
         }
         Err(other) => panic!("unexpected stackup refusal: {other}"),

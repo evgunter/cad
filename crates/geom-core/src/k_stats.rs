@@ -479,7 +479,7 @@ pub(crate) fn current_predicate() -> &'static str {
 }
 
 /// **Where the next recorded sample will land**, or `None` when no sink
-/// is installed — the index [`retag_symbolic_zero_at`] re-tags.
+/// is installed — the index [`retag_at`] re-tags.
 ///
 /// Read BEFORE the base scalar decides, so the index names this
 /// decision's own row rather than whatever happens to be last later.

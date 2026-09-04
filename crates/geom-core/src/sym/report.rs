@@ -12,7 +12,7 @@
 //! ordinary replay pays one flag read per decision for it.
 //!
 //! Parameter symbols are hashes, so a harness that wants names in the
-//! rendering registers them ([`name_param`]) before evaluating.
+//! rendering registers them (`name_param`) before evaluating.
 
 use core::cell::{Cell, RefCell};
 use std::collections::BTreeMap;

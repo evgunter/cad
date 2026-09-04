@@ -306,7 +306,11 @@ fn r2_the_kink_atoms_never_claim_a_cancellation() {
         let x = p("x", -1.0, 2.0);
         sign_of(x.abs() - (-x).abs())
     });
-    assert_ne!(straddle, Ok(Sign::Zero), "a straddling |x| widens with the box");
+    assert_ne!(
+        straddle,
+        Ok(Sign::Zero),
+        "a straddling |x| widens with the box"
+    );
     assert_eq!(counts.sign_gated + counts.symbolic_zero, 0, "{counts:?}");
     // The one fold these DO license: min/max/copysign of zero forms.
     let (folds, _) = with_session(budget(), || {
