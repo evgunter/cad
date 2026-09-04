@@ -261,3 +261,14 @@ R2 MINOR-2). Union fix pass implementer-inherited: both probe branches
 adopted, one home for the sign (`Convexity` grows the method; bools
 become the type), the sentence-shape re-sweep, `lane=both` on the
 landing head. The row and sample number wait for the fix head.
+
+**H4 MERGED (2026-09-04)** at `fc38f753`, PR [#1752](https://github.com/evgunter/cad/pull/1752):
+sample **#126** (renumbered from #123 at the sync — three other
+programs' duals merged ahead of it), ordinal 2000, the row in
+`docs/MODEL-AB-LOG.md`; `docs/FILLET-H4-SPEC.md` deleted into the
+ledger. A concave closed rim carves on either material side through
+both rim doors; the fold has one home on `Convexity`; `D322` closed as
+a rider; the fourth quadrant (sphere pocket, concave chain) is built
+and carving. Block FILLET-B1 slot 0 concluded (record branch-side).
+**RIM dispatched** into slot 1 on `fillet/rim-selector` under
+`docs/FILLET-RIM-SPEC.md`. E3's fix pass is in flight.
