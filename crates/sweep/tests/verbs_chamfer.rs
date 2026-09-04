@@ -6,6 +6,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::oracles::chamfered_cube_volume;
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
@@ -22,22 +23,6 @@ use topo::{Body, EdgeKey};
 const L: f64 = 1.0;
 /// The chamfer setback, meters.
 const D: f64 = 0.1;
-
-/// **The chamfered cube's volume in closed form.**
-///
-/// The solid is the cube intersected with the twelve strip planes and
-/// the eight corner planes, so the removed material is the union of
-/// twelve triangular prisms (leg `d`, cross-section `d²/2`, the full
-/// edge length) and eight corner tetrahedra `{x + y + z < 2d}`
-/// (volume `4d³/3`), and inclusion–exclusion over the four sets that
-/// meet at each corner over-counts by exactly `2d³` there.
-///
-/// `a³ − 6·a·d² + (16/3)·d³`, which at `d = a/2` gives `a³/6` — the
-/// octahedron on the cube's face centres, the degenerate end of the
-/// family.
-fn chamfered_cube_volume(a: f64, d: f64) -> f64 {
-    a.powi(3) - 6.0 * a * d * d + (16.0 / 3.0) * d.powi(3)
-}
 
 /// Every vertex point of a body, in a deterministic total order — so
 /// two bodies' vertex SETS can be compared bit for bit.

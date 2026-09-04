@@ -11,6 +11,7 @@ use geom_core::k_stats::decide;
 use geom_core::{Affine3, Band, Decide, Margin, Mat3, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use sweep::blend::BlendKind;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use topo::query::is_finite_length;
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
 use topo::{
@@ -142,7 +143,8 @@ where
         + Sync
         + topo::AtRestPolicy
         + crate::analysis::AxisScalar
-        + crate::analysis::SeedScalar,
+        + crate::analysis::SeedScalar
+        + crate::measure::MinClearanceLane,
 {
     match node {
         Node::Datum(d) => Ok(OpOut::plain(
@@ -227,7 +229,26 @@ where
             measure,
             bound,
             dir,
-        } => wire_assertion(*measure, bound, *dir, payload_values, results, tol),
+        } => {
+            // **Which endpoints this assertion may read** (M10-6/R1).
+            // Structural, off the referenced measure's own expression,
+            // so it is the same answer at every scalar; a reference
+            // that does not name a measure falls through to
+            // `wire_assertion`'s existing typed `WrongOperand`.
+            let certified = match doc.node(*measure) {
+                Some(Node::Measure { expr, .. }) => expr.certified(),
+                _ => crate::measure::Certified::Enclosure,
+            };
+            wire_assertion(
+                *measure,
+                bound,
+                *dir,
+                certified,
+                payload_values,
+                results,
+                tol,
+            )
+        }
         Node::InstantiatePart {
             doc_ref, interface, ..
         } => {
@@ -283,7 +304,8 @@ where
         + Sync
         + topo::AtRestPolicy
         + crate::analysis::AxisScalar
-        + crate::analysis::SeedScalar,
+        + crate::analysis::SeedScalar
+        + crate::measure::MinClearanceLane,
 {
     let part = env
         .parts
@@ -457,8 +479,18 @@ fn band(tol: Tol) -> Result<Band, NodeErrorKind> {
     Band::linear(tol).map_err(NodeErrorKind::Band)
 }
 
-/// Normalizes a direction-valued vector; decided-zero length refuses,
-/// in-band indeterminacy escalates.
+/// Normalizes a direction-valued vector; a non-finite length refuses,
+/// decided-zero length refuses, in-band indeterminacy escalates.
+///
+/// The finiteness question comes FIRST and is the kernel's own
+/// predicate ([`topo::query::is_finite_length`]), the same one
+/// [`topo::UnitVec3::new`] asks at the datum door: a length that
+/// overflowed to +∞ reads as a maximally definite positive margin and
+/// normalizes the vector to zero, so a decision taken before that
+/// question is a definite wrong answer. It is asked through the value
+/// channel every scalar has, with no bracket read and no threshold
+/// invented, so an enclosure of any width still passes and refuses
+/// later where it is unsound rather than here where it is merely wide.
 ///
 /// **Two doors, not one, and the split is a crate boundary.** This one
 /// carries the directions this layer OWNS — a transform's rotation
@@ -480,6 +512,12 @@ pub(crate) fn unit<T: Decide>(
     role: &'static str,
     band: Band,
 ) -> Result<Vec3<T>, NodeErrorKind> {
+    // `norm3` below recomputes this same value (`Vec3::norm` is
+    // deterministic), so the gate and the margin are the one length;
+    // it is spelled twice rather than reached into.
+    if !is_finite_length(v.norm()) {
+        return Err(NodeErrorKind::NonFiniteDirection { role });
+    }
     match decide("eval_direction_norm", Margin::norm3(v), band) {
         Ok(Sign::Positive) => Ok(v.normalize()),
         Ok(_) => Err(NodeErrorKind::DegenerateDirection { role }),
@@ -1565,6 +1603,48 @@ fn resolve_selection(
     Ok(keys)
 }
 
+/// One resolved measure reference, as a SELECTION rather than as a
+/// carrier: the body the name landed in, where it was read, and which
+/// entity it is.
+///
+/// [`super::measure::Carrier`] is the closed forms' view of the same
+/// resolution — a point, a plane, an axis. `min_clearance` needs the
+/// other view (a body and a face scope), and both come off one ladder
+/// walk in [`wire_measure`] rather than off two.
+struct Selected<'v, T: Decide> {
+    at: RecipeNodeId,
+    index: u32,
+    body: &'v topo::Body<T>,
+    key: crate::names::EntityKey,
+}
+
+impl<T: Decide> Selected<'_, T> {
+    /// The faces this selection scopes over: every face of the body for
+    /// a body-kind reference (arena order, which is the deterministic
+    /// order every derived list in this kernel inherits), the one face
+    /// for a face-kind reference, and a typed refusal for anything
+    /// else.
+    ///
+    /// # Errors
+    ///
+    /// [`NodeErrorKind::MeasureSelectionKind`], naming what was
+    /// selected instead.
+    fn faces(&self) -> Result<Vec<topo::entity::FaceKey>, NodeErrorKind> {
+        match self.key {
+            crate::names::EntityKey::Body => Ok(self.body.faces().map(|(k, _)| k).collect()),
+            crate::names::EntityKey::Face(k) => Ok(vec![k]),
+            crate::names::EntityKey::Edge(_) => Err(NodeErrorKind::MeasureSelectionKind {
+                verb: "min_clearance",
+                found: "an edge",
+            }),
+            crate::names::EntityKey::Vertex(_) => Err(NodeErrorKind::MeasureSelectionKind {
+                verb: "min_clearance",
+                found: "a vertex",
+            }),
+        }
+    }
+}
+
 /// **A measurement sink** (E3): resolve the node's references, read
 /// the carriers they sit on, run the closed form, hand back a typed F1
 /// quantity. No body in, no body out.
@@ -1591,7 +1671,7 @@ fn resolve_selection(
 /// with [`super::measure::Carrier::Unread`], which no closed form can
 /// reach — `Node::measure_fault` has already bounded every index, so a
 /// read of one is a kernel bug and says so.
-fn wire_measure<T: Decide>(
+fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
     node: &Node<ProfileProgram>,
     expr: &crate::measure::MeasureExpr,
     refs: &[crate::node::MeasureRef],
@@ -1610,14 +1690,20 @@ fn wire_measure<T: Decide>(
     let mut read = std::collections::BTreeSet::new();
     let mut prims = Vec::new();
     expr.primitives(&mut prims);
-    for prim in prims {
+    for prim in &prims {
         read.extend(prim.refs());
     }
     let mut carriers = Vec::with_capacity(refs.len());
+    // The SELECTION half of the same resolution, kept beside the
+    // carrier half rather than resolved a second time: `min_clearance`
+    // is about a body and a face scope where every other primitive is
+    // about a carrier, and both are read off the one ladder walk below.
+    let mut selections: Vec<Option<Selected<'_, T>>> = Vec::with_capacity(refs.len());
     for (index, r) in refs.iter().enumerate() {
         let index = u32::try_from(index).unwrap_or(u32::MAX);
         if !read.contains(&index) {
             carriers.push(super::measure::Carrier::Unread);
+            selections.push(None);
             continue;
         }
         let name = &r.name;
@@ -1634,13 +1720,76 @@ fn wire_measure<T: Decide>(
                 }
             })?;
         carriers.push(super::measure::carrier_of(body, ent));
+        selections.push(Some(Selected {
+            at: r.at,
+            index: ent.body,
+            body,
+            key: ent.key,
+        }));
+    }
+    // The `min_clearance` leaves, in the SAME pre-order the evaluation
+    // walk reads them back in — one order, two consumers, exactly as
+    // the value leaves are. Computed here because this is where the
+    // bodies are: the engine wants the geometry this evaluation
+    // already built, and re-entering `evaluate` to find it again would
+    // be a second lane of the same document.
+    let mut clearances = Vec::new();
+    for prim in &prims {
+        let crate::measure::MeasurePrimitive::MinClearance { a, b } = prim else {
+            continue;
+        };
+        let operand =
+            |i: &u32| -> Result<crate::measure::MinClearanceOperand<'_, T>, NodeErrorKind> {
+                // Bounds are the node door's and the load door's; a miss
+                // here is the same kernel bug `eval_measure` announces.
+                let Some(Some(sel)) = selections.get(*i as usize) else {
+                    unreachable!(
+                        "`min_clearance` reads reference {i} of {} resolved selections, yet \
+                     `Node::measure_fault` bounds every index at both doors and the read set \
+                     is computed from these very primitives",
+                        selections.len()
+                    )
+                };
+                Ok(crate::measure::MinClearanceOperand {
+                    at: sel.at,
+                    index: sel.index,
+                    body: sel.body,
+                    faces: sel.faces()?,
+                })
+            };
+        let (oa, ob) = (operand(a)?, operand(b)?);
+        match T::min_separation(&oa, &ob) {
+            Some(Ok(v)) => clearances.push(v),
+            Some(Err(refusal)) => return Err(NodeErrorKind::MeasureClearanceRefused(refusal)),
+            // **The typed absence, and the whole node takes it.** A
+            // measured expression is one number; when one of its leaves
+            // has no value at this scalar, neither does the expression,
+            // and saying so at the node is what lets an assertion over
+            // it report `Unevaluated` instead of being poisoned.
+            None => {
+                return Ok(OpOut::plain(
+                    ValuePayload::MeasureUnavailable {
+                        reason: crate::measure::MeasureUnavailableAt::NeedsEnclosure {
+                            verb: prim.verb(),
+                            scalar: T::LANE,
+                            door: "clearance::min_separation",
+                        },
+                        dim: expr.dim(),
+                    },
+                    names::empty(),
+                ));
+            }
+        }
     }
     let mut cursor = 0usize;
+    let mut clearance_cursor = 0usize;
     let value = super::measure::eval_measure(
         expr,
         &carriers,
         leaves.unwrap_or(&[]),
         &mut cursor,
+        &clearances,
+        &mut clearance_cursor,
         band(tol)?,
     )
     .map_err(|refusal| match refusal {
@@ -1663,6 +1812,7 @@ fn wire_measure<T: Decide>(
             predicate,
         },
     })?;
+    debug_assert_eq!(clearance_cursor, clearances.len());
     Ok(OpOut::plain(
         ValuePayload::Measure {
             value,
@@ -1683,11 +1833,28 @@ fn wire_assertion<T: Decide>(
     measure: RecipeNodeId,
     bound_expr: &crate::expr::Expr,
     dir: crate::measure::AssertionDir,
+    certified: crate::measure::Certified,
     payload_values: Option<&[T]>,
     results: &Results<T>,
     tol: Tol,
 ) -> OpResult<T> {
     let mv = value_of(results, measure)?;
+    // **The typed absence, reported rather than propagated.** A measure
+    // with no value at this scalar is not a failed node — it built, and
+    // said what it could not say — so the assertion answers with E10's
+    // third state carrying that reason, and the recorded requirement
+    // stays visible in a build that cannot check it. The dimension
+    // check below still has to run somewhere; it runs at the scalar
+    // that HAS a value, which is where a comparison exists to be
+    // ill-dimensioned.
+    if let ValuePayload::MeasureUnavailable { reason, .. } = &mv.payload {
+        return Ok(OpOut::plain(
+            ValuePayload::Assertion(crate::measure::AssertionVerdict::Unevaluated {
+                reason: crate::measure::UnevaluatedReason::MeasureUnavailable(*reason),
+            }),
+            names::empty(),
+        ));
+    }
     let ValuePayload::Measure { value, dim } = &mv.payload else {
         return Err(NodeErrorKind::WrongOperand {
             input: measure,
@@ -1720,6 +1887,7 @@ fn wire_assertion<T: Decide>(
             bound,
             dir,
             band(tol)?,
+            certified,
         )),
         names::empty(),
     ))

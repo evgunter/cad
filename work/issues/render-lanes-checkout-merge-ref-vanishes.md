@@ -2,10 +2,14 @@
 id: render-lanes-checkout-merge-ref-vanishes
 kind: issue
 title: render lanes: ~100 hosted reds are 'couldn't find remote ref refs/pull/N/merge' at checkout
-status: open
+status: closed
 opened: 2026-09-03
 github: 1607
+closed: 2026-09-03
+refs: [render-lanes-red-at-missing-merge-ref]
 ---
+
+**Closed 2026-09-03 as a duplicate of `render-lanes-red-at-missing-merge-ref`** — the same GH 1607 finding filed twice; the longer write-up survives and is CIW's.
 
 ## From GitHub issue 1607 (S-TCOST red-history census)
 

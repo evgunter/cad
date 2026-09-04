@@ -144,6 +144,20 @@ pub use validate::{
     BlendArc, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole, NoCornerReason,
     ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment,
 };
+/// The six fillet recourse sentences, under `test-support` only.
+///
+/// They are prose a caller reads, so a suite that pins what a caller
+/// reads has to spell them — and spelling them by restating the string
+/// makes the assertion agree with itself instead of with the code.
+/// This export is what lets `tests/fillet_recourse_followability.rs`
+/// name them; it is off in every build that is not this crate's own
+/// tests, so these six are not part of the production surface, and
+/// pncad's facade completeness guard does not see them.
+#[cfg(any(test, feature = "test-support"))]
+pub use validate::{
+    FILLET_ENCLOSING_RECOURSE, FILLET_FIT_RECOURSE, FILLET_LEG_EXTENT_RECOURSE,
+    FILLET_NO_CORNER_RECOURSE, FILLET_OFFSET_LEVER_RECOURSE, FILLET_TURN_INBAND_RECOURSE,
+};
 
 /// One vertex of a profile loop: a position plus the bulge of the
 /// segment *leaving* it toward the next vertex (see the crate docs'

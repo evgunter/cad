@@ -340,6 +340,11 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                     // The measured quantity IS a lane value, so it is
                     // digested through the same value-channel bracket
                     // every coordinate takes.
+                    // A measure with no value at this scalar digests as
+                    // the ABSENCE, at its own tag: two passes that both
+                    // failed to measure agree, and neither agrees with
+                    // a pass that measured something.
+                    ValuePayload::MeasureUnavailable { .. } => d.u64(24),
                     ValuePayload::Measure { value, dim } => {
                         d.u64(21);
                         d.u64(match dim {

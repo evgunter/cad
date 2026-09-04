@@ -15,7 +15,7 @@
 
 use geom_brep::SurfaceKind;
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Point2, Point3, Vec2, Vec3};
+use geom_core::{Affine3, Point2, Point3, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::build::fillet_edges;
@@ -29,11 +29,6 @@ const DIE_L: f64 = 1.0;
 const PIP_R: f64 = 0.09;
 const PIP_H: f64 = 0.05;
 const R: f64 = 0.05;
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
     let lp = ProfileLoop::new(vec![

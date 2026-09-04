@@ -628,17 +628,39 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: nightly-python
+      # The maturin and ty pins are NOT restated here — ci.yml declares itself
+      # the single source of truth for every tool version this repo installs,
+      # and scripts/ci-pin.py is the one reader of that declaration. It is
+      # anchored to ci.yml's WORKFLOW-LEVEL `env:` block and refuses rather
+      # than picking when a name is set more than once, so under `set -e` the
+      # substitution below is this step's whole error handling.
       - name: read the maturin and ty pins from ci.yml
         id: pins
         run: |
           set -euo pipefail
-          m="$(sed -n 's/^ *MATURIN_VERSION: *//p' .github/workflows/ci.yml | head -1 | tr -d "\"'")"
-          t="$(sed -n 's/^ *TY_VERSION: *//p' .github/workflows/ci.yml | head -1 | tr -d "\"'")"
-          test -n "$m" || { echo "no MATURIN_VERSION in ci.yml — that pin is this lane's input too"; exit 1; }
-          test -n "$t" || { echo "no TY_VERSION in ci.yml — that pin is this lane's input too"; exit 1; }
+          m="$(scripts/ci-pin.py MATURIN_VERSION)"
+          t="$(scripts/ci-pin.py TY_VERSION)"
           echo "maturin=$m" >> "$GITHUB_OUTPUT"
           echo "ty=$t" >> "$GITHUB_OUTPUT"
           echo "pins read from ci.yml: maturin $m, ty $t"
+      # THE SAME CLIPPY ROW ci.yml's `python-suite` CARRIES, and the
+      # reason it is duplicated here is the reason this whole job exists:
+      # that copy inherits the seed key, so it does not run on a PR whose
+      # seeds miss {pncad-py, pncad, editor-core}, and the lints it would
+      # catch from FURTHER DOWN — `quantity`, the kernel through `pncad`'s
+      # re-exports, or a `stable` toolchain bump shipping a new lint —
+      # seed nothing at all. That is the same class of skip the suite
+      # below is re-taken for, so it is re-taken the same way: ungated,
+      # once a day. The full argument for the command and for its siting
+      # is at ci.yml's copy; it is not restated here, so that there is one
+      # place to edit it.
+      #
+      # SAME POSITION IN THE JOB as ci.yml's copy — immediately before the
+      # wheel machinery, since it needs none of it. The pins step stays
+      # ahead of it because it is a text read that costs nothing and reds on
+      # a pin this lane cannot read.
+      - name: clippy (pncad-py, python feature)
+        run: cargo clippy -p pncad-py --features python --all-targets -- -D warnings
       - name: install maturin (pinned, official prebuilt)
         env:
           MATURIN_VERSION: ${{ steps.pins.outputs.maturin }}
@@ -1038,13 +1060,17 @@ jobs:
       # The pinned nextest version is NOT restated here. ci.yml declares
       # itself the single source of truth for it, so this reads it from
       # there: two pins would be two versions the day someone bumps one.
+      # scripts/ci-pin.py is the one reader — anchored to ci.yml's
+      # workflow-level `env:` block, and refusing rather than picking when a
+      # name is set more than once anywhere in that file. Its self-test is a
+      # row of ci.yml's `mirror` job, where it reds the PR that breaks it
+      # rather than skipping this workflow's measurement jobs a night later.
       - name: read the nextest pin from ci.yml
         if: steps.cadence.outputs.run_measured == 'true'
         id: nextest
         run: |
           set -euo pipefail
-          v="$(sed -n 's/^ *NEXTEST_VERSION: *//p' .github/workflows/ci.yml | head -1 | tr -d "\"'")"
-          test -n "$v" || { echo "no NEXTEST_VERSION in ci.yml — that pin is this lane's input too"; exit 1; }
+          v="$(scripts/ci-pin.py NEXTEST_VERSION)"
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "nextest pin read from ci.yml: $v"
       - name: install cargo-nextest (pinned, official prebuilt)
@@ -1400,8 +1426,7 @@ jobs:
         id: nextest
         run: |
           set -euo pipefail
-          v="$(sed -n 's/^ *NEXTEST_VERSION: *//p' .github/workflows/ci.yml | head -1 | tr -d "\"'")"
-          test -n "$v" || { echo "no NEXTEST_VERSION in ci.yml — that pin is this lane's input too"; exit 1; }
+          v="$(scripts/ci-pin.py NEXTEST_VERSION)"
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "nextest pin read from ci.yml: $v"
       - name: install cargo-nextest (pinned, official prebuilt)
@@ -1622,8 +1647,7 @@ jobs:
         id: nextest
         run: |
           set -euo pipefail
-          v="$(sed -n 's/^ *NEXTEST_VERSION: *//p' .github/workflows/ci.yml | head -1 | tr -d "\"'")"
-          test -n "$v" || { echo "no NEXTEST_VERSION in ci.yml — that pin is this lane's input too"; exit 1; }
+          v="$(scripts/ci-pin.py NEXTEST_VERSION)"
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "nextest pin read from ci.yml: $v"
       - name: install cargo-nextest (pinned, official prebuilt)

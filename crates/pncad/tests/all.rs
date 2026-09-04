@@ -4,6 +4,19 @@
 //! LINK/DEBUGINFO note in .github/workflows/ci.yml carries it with its
 //! date and provenance run.
 //!
+//! **No aggregation guard here, and why.** Every other crate's
+//! `tests/all.rs` mounts its suites with `#[path]` and carries
+//! `every_suite_file_is_aggregated`, which checks that set against the
+//! directory on every run. This `tests/` directory holds ONE `.rs`
+//! file — this one — so there is no set to check; and the row could not
+//! live here anyway, because it reads `test_utils::source` and the
+//! guard at the bottom of this file admits no `use` root but the
+//! façade. What keeps that sentence TRUE is not this paragraph:
+//! `crates/bvh/tests/aggregator_headers.rs`'s
+//! `a_non_aggregating_tests_directory_holds_one_suite_file` reds if a
+//! second suite is ever dropped in beside this one, where
+//! `autotests = false` would otherwise leave it uncompiled and unrun.
+//!
 //! What this file pins is the **closure property** (the crate docs'
 //! contract clause 1): every type reachable through the public API of
 //! the re-exported surface — every error-enum payload included — is
@@ -3046,45 +3059,32 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   façade consumer can reach, and `NodePick` is not merely the
 ///   preferred door but the only one. `PickTarget` is carried because
 ///   `pick_face`'s signature names it, not because it can be built.
-/// - **The E6 driver and its parameter box** (`drive`, `DriveConfig`,
-///   `DriveRefusal`, `ParamBoxVerdict`, `CertifiedLeaf`,
-///   `RefusedLeaf`, `RefusalReason`, `BudgetKind`, `FlipEvidence`, `StructureFlip`,
-///   `ReasonClass`, `Receipt`, `LeafResults`, `MeasureAccounting`,
-///   `ReplayOutcome`, `VerdictVector`, `VerdictRow`,
-///   `VerdictVectorKey`, `DEFAULT_MAX_DEPTH`, `DEFAULT_MAX_LEAVES`,
-///   `ParamBox`, `BoxAxis`, `ParamBoxError`, `AxisScalar`,
-///   `param_env_over`): the analysis lane's subdivision service and
-///   the box it drives over.
+/// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
+///   `StructureFlip`, `ReplayOutcome`, `VerdictVector`, `VerdictRow`,
+///   `VerdictVectorKey`, `AxisScalar`, `param_env_over`, `SeedScalar`,
+///   `SeedError`, `seed_env`, `std_deviation`, `sensitivities`,
+///   `PairingViolation`; and the third lane seam `MinClearanceLane`
+///   with its `MinClearanceOperand`, which is how a `min_clearance`
+///   measure asks the interval lane for the bracket only that lane
+///   can carry).
 ///
-///   Interior because the curated face is a DIFFERENT shape and is
-///   not built yet: what a consumer asks the analysis lane is "does
-///   this measurement hold over its tolerances", and E5's answer to
-///   that is a typed per-measurement stackup report whose INPUT is a
-///   leaf set. Carrying the leaf vocabulary now would door the
-///   intermediate and then have to un-door it. `drive` is also gated
-///   on the `interval` feature — there is no leaf to certify without
-///   the certified scalar — so a façade row for it would be a
-///   conditional door, which this surface does not have and should
-///   not acquire for a type its consumer does not want yet.
-/// - **The E4 seed door and the E4/E5 driver and report** (`SeedScalar`,
-///   `SeedError`, `seed_env`, `std_deviation`; `sensitivities`,
-///   `Sensitivity`, `SensitivityOutcome`, `SensitivityRefusal`,
-///   `Chamber`, `PairingViolation`, `LiftRefusal`; `stackup`, `Stackup`,
-///   `StackupRefusal`, `PerParam`, `ChamberSpan`, `Rss`, `WorstCase`,
-///   `Unavailable`):
-///   the analysis lane's derivative and stackup services.
+///   **The rest of this family is now CARRIED**, by `crate::analysis`
+///   behind the `interval` feature (M10-6): the driver and its box,
+///   the stackup and its field types, the reporting layer and the
+///   advisory estimator. The entry that stood here said the curated
+///   face "is the REPORTING surface — persisted, goldened stackups —
+///   which is where the façade row lands", and M10-6 built it, so the
+///   row landed. What that cost is a conditional door on a surface
+///   that had none, and `crate::analysis` states the trade at its own
+///   head rather than here.
 ///
-///   Interior for the row above's second reason, which now applies to
-///   the answer as well as the intermediate: `stackup` and the driver
-///   live behind the `interval` feature (the chamber mark's certified
-///   variant is an E6 leaf identity and the gating worst case is a
-///   certified enclosure), so a façade row would be the conditional
-///   door this surface does not have. The seed door's four names are
-///   the evaluation service's own scalar capability and its env
-///   plumbing — `AxisScalar`/`param_env_over`'s family, interior with
-///   them. The curated face is the reporting surface — persisted,
-///   goldened stackups — which is where the façade row lands.
-const NOT_CARRIED: [&str; 120] = [
+///   What stays interior is what a consumer of the REPORTS does not
+///   hold: the verdict-vector vocabulary (a certification identity,
+///   not a report), the flip evidence a refusal carries (read through
+///   the refusal's own `Display`), the two scalar CAPABILITY seams and
+///   their env plumbing, and `sensitivities` — the intermediate whose
+///   answer `stackup` already carries.
+const NOT_CARRIED: [&str; 92] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -3095,21 +3095,12 @@ const NOT_CARRIED: [&str; 120] = [
     "AttrSet",
     "AxisScalar",
     "BifurcationKind",
-    "BoxAxis",
     "BranchCertification",
     "BranchMarginEvidence",
-    "BudgetKind",
-    "CertifiedLeaf",
-    "Chamber",
-    "ChamberSpan",
     "ContentKey",
     "Coset",
-    "DEFAULT_MAX_DEPTH",
-    "DEFAULT_MAX_LEAVES",
     "Diagnosis",
     "DocDiff",
-    "DriveConfig",
-    "DriveRefusal",
     "EntityKey",
     "EntityRef",
     "Entry",
@@ -3119,15 +3110,14 @@ const NOT_CARRIED: [&str; 120] = [
     "FlipEvidence",
     "FlipSet",
     "Implicated",
-    "LeafResults",
-    "LiftRefusal",
-    "MeasureAccounting",
     "MeshPatchKey",
     "MeshPick",
     "MeshPickError",
     "MetaError",
     "MetaValue",
     "MetaVersionError",
+    "MinClearanceLane",
+    "MinClearanceOperand",
     "MintRefusal",
     "NamingError",
     "NamingKey",
@@ -3135,37 +3125,23 @@ const NOT_CARRIED: [&str; 120] = [
     "NodeVerdictDelta",
     "NodeVerdicts",
     "PairingViolation",
-    "ParamBox",
-    "ParamBoxError",
-    "ParamBoxVerdict",
     "ParamValue",
-    "PerParam",
     "PredicateDivergence",
     "Product",
     "ProfilePayload",
     "ProgramRefusal",
     "Qualifier",
-    "ReasonClass",
-    "Receipt",
     "RecipeEditRef",
-    "RefusalReason",
-    "RefusedLeaf",
     "ReplayOutcome",
     "ResolutionFailure",
     "ResolveError",
     "ResolveIndeterminate",
     "Resolved",
     "Rgba8",
-    "Rss",
     "RunStatus",
     "SeedError",
     "SeedScalar",
-    "Sensitivity",
-    "SensitivityOutcome",
-    "SensitivityRefusal",
     "SideVerdict",
-    "Stackup",
-    "StackupRefusal",
     "StructureFlip",
     "SummaryDelta",
     "SummaryDivergence",
@@ -3173,7 +3149,6 @@ const NOT_CARRIED: [&str; 120] = [
     "SummaryFlipSet",
     "TieWitness",
     "Tombstone",
-    "Unavailable",
     "VerdictFlip",
     "VerdictRow",
     "VerdictSummary",
@@ -3182,14 +3157,12 @@ const NOT_CARRIED: [&str; 120] = [
     "WitnessAge",
     "WitnessBifurcation",
     "WitnessDatum",
-    "WorstCase",
     "appearance_rebind_suggestions",
     "apply_with_names",
     "body_name",
     "derivation_nodes",
     "diff_summaries",
     "diff_verdicts",
-    "drive",
     "enrich_appearance_loss",
     "enrich_appearance_loss_with_prior",
     "entity_name",
@@ -3200,7 +3173,6 @@ const NOT_CARRIED: [&str; 120] = [
     "resolve_with_prior",
     "seed_env",
     "sensitivities",
-    "stackup",
     "std_deviation",
     "to_value",
     "verdict_summary",
@@ -3424,6 +3396,51 @@ fn assert_layer_root_exports_are_carried_or_listed(
 /// surface that declares five of the types the façade carries and one
 /// it deliberately does not — so for that layer the same omission
 /// would be a hole, and this closes it.
+/// The source with every `#[cfg(…)]`-gated item removed, attribute and
+/// all.
+///
+/// The two scanners below read a layer's root for the names it
+/// exports, and what the guard means by that is the surface a CONSUMER
+/// can name — the thing that must be carried through the façade or
+/// argued away. An item behind a `#[cfg]` is not that surface: no
+/// consumer's build graph turns the feature on (the profile layer's
+/// `test-support` is reached only through that crate's own self
+/// dev-dependency), so the name does not exist one hop past the
+/// façade, and asking the façade to carry it would advertise something
+/// unreachable. Without this the guard read the gate's TEXT and
+/// demanded a carrier statement for six sentences no build outside
+/// `profile/tests/` compiles.
+///
+/// Line-based and deliberately shallow: it drops the attribute line,
+/// then the item it gates, up to the statement's terminator. That is
+/// exactly the shape both roots use.
+fn code_without_cfg_gated(src: &str) -> String {
+    let mut out = String::new();
+    let mut lines = src.lines();
+    while let Some(line) = lines.next() {
+        if !line.trim_start().starts_with("#[cfg(") {
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        }
+        let mut depth: i32 = 0;
+        for gated in lines.by_ref() {
+            for c in gated.chars() {
+                match c {
+                    '{' | '(' | '[' => depth += 1,
+                    '}' | ')' | ']' => depth -= 1,
+                    _ => {}
+                }
+            }
+            let trimmed = gated.trim_end();
+            if depth <= 0 && (trimmed.ends_with(';') || trimmed.ends_with('}')) {
+                break;
+            }
+        }
+    }
+    out
+}
+
 fn root_declared_pub_names(src: &str) -> std::collections::BTreeSet<String> {
     let code = code_without_comments(src);
     let mut names = std::collections::BTreeSet::new();
@@ -3453,13 +3470,19 @@ fn root_declared_pub_names(src: &str) -> std::collections::BTreeSet<String> {
 }
 
 /// The profile layer's interior: root exports the façade's curated
-/// `profile` module does not carry, by family. One family, one name.
+/// `profile` module does not carry, by family. One family, one entry.
 ///
 /// - **The minting tier** (`RawLoop`): the one name whose absence is
 ///   the module's entire reason for existing. It carries `new` and
 ///   `polygon`; leaving the trait unnameable is what makes
 ///   `ProfileLoop::polygon(…)` fail to resolve while `ProfileLoop`
 ///   itself stays nameable. Carrying it here would undo the curation.
+///
+/// The layer's six `FILLET_*_RECOURSE` sentences are NOT listed here,
+/// and the reason is worth keeping: they are exported behind that
+/// crate's `test-support` feature, so no consumer's build compiles
+/// them and there is nothing for the façade to carry.
+/// [`code_without_cfg_gated`] is what makes the scan agree.
 const PROFILE_NOT_CARRIED: [&str; 1] = ["RawLoop"];
 
 /// **The document layer's guard, for the other layer curated the same
@@ -3495,6 +3518,7 @@ fn every_profile_layer_root_export_is_carried_or_listed() {
     let layer_lib = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../profile/src/lib.rs");
     let src = std::fs::read_to_string(&layer_lib)
         .unwrap_or_else(|e| panic!("reading {}: {e}", layer_lib.display()));
+    let src = code_without_cfg_gated(&src);
     let mut exported = module_pub_use_names(&src);
     exported.append(&mut root_declared_pub_names(&src));
 

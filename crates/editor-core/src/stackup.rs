@@ -131,8 +131,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use geom_core::interval::Interval;
-use geom_core::{CertifiedEnclosure, Dual64, Tol};
+use geom_core::{Dual64, Tol};
 use topo::Body;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
@@ -547,6 +546,27 @@ fn leaf_opts(box_: ParamBox) -> EvalOptions {
 /// it came from (the measure itself, or the failed ancestor a poisoned
 /// measure names) — the one ladder every reader of a measure payload
 /// takes.
+/// The stackup's NOMINAL column: the f64 value, or the typed reason
+/// there is none — distinguished from a measure node that genuinely
+/// failed, which stays an error.
+///
+/// [`measure_of`] folds both into one `Err` because its other callers
+/// want that; this one is the report's advisory column and has to tell
+/// a forfeit from a fault.
+fn nominal_of(
+    ev: &Evaluation<f64>,
+    id: RecipeNodeId,
+) -> Result<Result<f64, crate::measure::MeasureUnavailableAt>, (RecipeNodeId, String)> {
+    match ev.result(id) {
+        Some(NodeResult::Ok(v)) => match &v.payload {
+            ValuePayload::Measure { value, .. } => Ok(Ok(*value)),
+            ValuePayload::MeasureUnavailable { reason, .. } => Ok(Err(*reason)),
+            other => Err((id, format!("node is a {}", other.kind_name()))),
+        },
+        other => Err((id, format!("the measure did not evaluate: {other:?}"))),
+    }
+}
+
 fn measure_of<T: geom_core::Decide + Copy>(
     ev: &Evaluation<T>,
     id: RecipeNodeId,
@@ -554,6 +574,17 @@ fn measure_of<T: geom_core::Decide + Copy>(
     match ev.result(id) {
         Some(NodeResult::Ok(v)) => match &v.payload {
             ValuePayload::Measure { value, .. } => Ok(*value),
+            // **A measure with no value at this scalar reads as a
+            // refusal HERE**, carrying its own reason, and that is the
+            // honest shape rather than a gap in this report: E5's
+            // nominal is the f64 build's number, its per-param table is
+            // a `Dual` pass's, and a `min_clearance` has neither. So a
+            // stackup over one refuses `MeasureRefusedAtNominal` naming
+            // the scalar and the door, and the certified answer for
+            // such a measure is the per-leaf enclosure table
+            // ([`crate::report::LeafHistogram`]) rather than a nominal
+            // with contributions around it.
+            ValuePayload::MeasureUnavailable { reason, .. } => Err((id, format!("{reason}"))),
             // Unreachable while the driver's front check holds (the
             // node IS a measure and it evaluated Ok); answered as the
             // node's own refusal rather than panicking.
@@ -745,6 +776,16 @@ impl ValueChannel for Dual64 {
 
 /// FNV-1a 64 over value-channel bits — a comparison digest for the
 /// pairing, never a content key (it hashes OUTPUTS, keyed by nothing).
+///
+/// Its own mixer rather than `crate::eval::memo`'s (a private module,
+/// so it is named rather than linked), and the sentence
+/// above is the reason: that one builds CONTENT KEYS, whose whole job is
+/// to be the identity of an evaluation, and reusing the key type here
+/// would make a digest that must never be treated as an identity share a
+/// name with the one that is. `geom_core::sym`'s `Hash128` is a third,
+/// under the strictest contract of the three (node ids that must agree
+/// across builds forever). Three small FNV-1a mixers under three
+/// different contracts; the duplication is stated at each of them.
 struct Digest(u64);
 
 impl Digest {
@@ -884,6 +925,12 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
             d.u64(22);
             d.scalar(*value);
         }
+        // APPENDED, never reused (the tag rule this digest shares with
+        // the content keys). A measure with no value digests as the
+        // ABSENCE and not as some stand-in number: two passes that both
+        // failed to measure agree, and neither agrees with a pass that
+        // measured something.
+        ValuePayload::MeasureUnavailable { .. } => d.u64(24),
         ValuePayload::Assertion(verdict) => {
             d.u64(23);
             match verdict {
@@ -947,14 +994,22 @@ fn bind_verdict(
     let Some(tied) = chamber.or_else(|| verdict.certified().first()) else {
         return Ok(Chamber::LocalOnly);
     };
-    let replay: Evaluation<Interval> = evaluate(
+    // At the tier the drive ran (`ParamBoxVerdict::symbolic`): a leaf
+    // certified with the symbolic tier on can carry a node a
+    // numeric-only replay refuses, and the tie would then report a
+    // perfectly good build as "not of this build".
+    let readback = crate::eval::replay_leaf(
         doc,
-        None,
-        &CancelToken::new(),
         &leaf_opts(tied.box_.clone()),
+        verdict.lane(),
+        &crate::eval::LeafPrior::None,
+        crate::eval::LeafRequest {
+            keys: true,
+            ..crate::eval::LeafRequest::default()
+        },
         tol,
     );
-    tie(tied, &replay)?;
+    tie(tied, &readback.keys)?;
     Ok(
         chamber.map_or(Chamber::LocalOnly, |leaf| Chamber::ChamberCertified {
             leaf: leaf.box_.clone(),
@@ -965,12 +1020,10 @@ fn bind_verdict(
 
 /// The tie itself: the leaf's recorded per-node keys against its
 /// replay's, in evaluation order, the first difference named.
-fn tie(leaf: &CertifiedLeaf, replay: &Evaluation<Interval>) -> Result<(), SensitivityRefusal> {
-    let replayed: Vec<(RecipeNodeId, ContentKey)> = replay
-        .order
-        .iter()
-        .filter_map(|&id| replay.value(id).map(|v| (id, v.content_key)))
-        .collect();
+fn tie(
+    leaf: &CertifiedLeaf,
+    replayed: &[(RecipeNodeId, ContentKey)],
+) -> Result<(), SensitivityRefusal> {
     let recorded = &leaf.results.node_keys;
     let n = recorded.len().max(replayed.len());
     for i in 0..n {
@@ -1151,8 +1204,22 @@ pub struct Stackup {
     /// The `Measure` node the report is about.
     pub measurement: RecipeNodeId,
     /// The f64 build's measured value — re-derived from the anchored
-    /// evaluation, never handed in.
-    pub nominal: f64,
+    /// evaluation, never handed in — or the typed reason there is none.
+    ///
+    /// **Absent rather than missing** (M10-6, R2's MINOR-3). The
+    /// nominal is an ADVISORY column: E5 puts the certified worst case
+    /// first and calls it the only gating number, and E9's rule is that
+    /// a degraded advisory column forfeits while the gate stays. A
+    /// `min_clearance` measure has no f64 value by construction — it is
+    /// answered by an engine that needs an enclosure — and refusing the
+    /// whole report for it inverted that rule: the worst case IS
+    /// computable from the certified leaves' enclosures, and it was
+    /// being withheld because an advisory number beside it was not.
+    ///
+    /// So this forfeits, `per_param` and `rss` forfeit with it (they
+    /// are a `Dual` pass's and there is no tangent either), and
+    /// `worst_case` is built and gates.
+    pub nominal: Result<f64, crate::measure::MeasureUnavailableAt>,
     /// The nominal's chamber — the one mark every derivative row
     /// carries, stated once so a nominal in refused mass is visible
     /// without walking the rows.
@@ -1168,6 +1235,259 @@ pub struct Stackup {
     /// refused + tail; sums to 1 where it prices — E2/E6). Not
     /// recomputed here.
     pub coverage: MeasureAccounting,
+    /// **What the masses in `coverage` MEAN** — priced under a stated
+    /// measure, or set-theoretically forced by a Band contributor
+    /// (M10-1's obligation, R2's MINOR-7).
+    ///
+    /// A field rather than a rendering-time computation, because it is
+    /// a property of the report and not of one way of printing it:
+    /// without it [`Self::serialize`] golden-compares a Band document
+    /// and a Uniform one as identical, and the goldening form is where
+    /// the priced/forced distinction most needs to be visible.
+    pub basis: crate::report::MassBasis,
+}
+
+impl Stackup {
+    /// **The goldening form** (E10's "serializable for CI goldening"):
+    /// deterministic text with every float as its exact bits.
+    ///
+    /// The driver's own idiom, so a CI row that golden-compares a
+    /// stackup and one that golden-compares a verdict read the same
+    /// way. Nothing here rounds: a rounded golden is a golden that
+    /// stops moving when the report does.
+    pub fn serialize(&self) -> String {
+        use core::fmt::Write as _;
+        let mut s = String::new();
+        let _ = writeln!(
+            s,
+            "stackup measure={} nominal={} chamber={}",
+            self.measurement.0,
+            match &self.nominal {
+                Ok(v) => format!("{:016x}", v.to_bits()),
+                Err(why) => format!("unavailable:{}", why.verb()),
+            },
+            match &self.chamber {
+                Chamber::ChamberCertified {
+                    verdict_vector_key, ..
+                } => format!("certified:{:032x}", verdict_vector_key.0),
+                Chamber::LocalOnly => "local_only".to_owned(),
+            }
+        );
+        let _ = writeln!(
+            s,
+            "worst_case lo={:016x} hi={:016x} leaves={}",
+            self.worst_case.lo.to_bits(),
+            self.worst_case.hi.to_bits(),
+            self.worst_case.leaves
+        );
+        for row in &self.per_param {
+            let _ = writeln!(
+                s,
+                "param {} sensitivity={} contribution={} chamber_span={}",
+                row.param.0,
+                render_sensitivity(&row.sensitivity),
+                match &row.contribution {
+                    Ok(v) => format!("{:016x}", v.to_bits()),
+                    Err(u) => format!("unavailable:{}", u.param().0),
+                },
+                match &row.chamber_span {
+                    Some(c) => format!(
+                        "{:016x},{:016x}",
+                        c.half_width.to_bits(),
+                        c.contribution.to_bits()
+                    ),
+                    None => "none".to_owned(),
+                }
+            );
+        }
+        let _ = writeln!(
+            s,
+            "rss {}",
+            match &self.rss {
+                Rss::Advisory { sigma } => format!("advisory:{:016x}", sigma.to_bits()),
+                Rss::UnavailableBecause { blockers } => format!(
+                    "unavailable:{}",
+                    blockers
+                        .iter()
+                        .map(|b| b.param().0.clone())
+                        .collect::<Vec<_>>()
+                        .join(",")
+                ),
+            }
+        );
+        // The BASIS before the masses it qualifies: a reader who diffs
+        // two goldens and sees only this line has still learned the
+        // thing that changed.
+        let _ = writeln!(s, "basis {}", self.basis.word());
+        if let crate::report::MassBasis::Forced { by } = &self.basis {
+            for p in by {
+                let _ = writeln!(s, "  forced_by {}", p.0);
+            }
+        }
+        let _ = write!(s, "{}", coverage_bits(&self.coverage));
+        s
+    }
+
+    /// **The content key** of everything [`Self::serialize`] renders —
+    /// D9's proof, taken over the report's own bits.
+    ///
+    /// Derived on demand, never persisted (E10's "derived, never
+    /// persisted"), and it moves exactly when the serialized form
+    /// moves: two runs of one (recipe slice, box, ε, K) produce equal
+    /// keys, and any bit that differs anywhere in the report produces
+    /// different ones.
+    pub fn content_key(&self) -> ContentKey {
+        crate::eval::key_of(0xE5, &self.serialize())
+    }
+
+    /// **The human form**: the gating number first, the advisory table
+    /// after it and labeled, the coverage with its tail on every line.
+    ///
+    /// The ORDER is the E5 rule ("labeling and ordering, not
+    /// omission"): an engineer who reads only the first two lines has
+    /// read the certified answer, and the RSS cannot be met before the
+    /// number that gates.
+    pub fn render(&self, analyzed: &crate::analysis::AnalyzedBox) -> String {
+        use core::fmt::Write as _;
+        let mut s = String::new();
+        let _ = writeln!(s, "stackup of measure node {}", self.measurement.0);
+        let _ = writeln!(
+            s,
+            "  CERTIFIED WORST CASE (the only gating number): [{}, {}] over {} certified \
+             leaf/leaves",
+            self.worst_case.lo, self.worst_case.hi, self.worst_case.leaves
+        );
+        match &self.nominal {
+            Ok(v) => {
+                let _ = writeln!(
+                    s,
+                    "  nominal (f64 build): {v}  [{}]",
+                    match &self.chamber {
+                        Chamber::ChamberCertified { .. } =>
+                            "the nominal sits in a certified chamber",
+                        Chamber::LocalOnly => "LOCAL ONLY: the nominal's chamber was not certified",
+                    }
+                );
+            }
+            // The advisory column forfeits and SAYS SO — E9's rule,
+            // and the gating line above it is unaffected.
+            Err(why) => {
+                let _ = writeln!(
+                    s,
+                    "  nominal (f64 build): UNAVAILABLE (advisory column forfeited, the \
+                     worst case above still gates) — {why}"
+                );
+            }
+        }
+        let _ = writeln!(s, "  ADVISORY, never gating:");
+        let _ = writeln!(
+            s,
+            "    rss {}",
+            match &self.rss {
+                Rss::Advisory { sigma } => format!("σ ≈ {sigma} (linearized, first-order)"),
+                Rss::UnavailableBecause { blockers } => format!(
+                    "UNAVAILABLE — {}",
+                    blockers
+                        .iter()
+                        .map(|b| format!("{b}"))
+                        .collect::<Vec<_>>()
+                        .join("; ")
+                ),
+            }
+        );
+        for row in &self.per_param {
+            let _ = writeln!(
+                s,
+                "    ∂m/∂{}: {}   contribution {}",
+                row.param.0,
+                render_sensitivity(&row.sensitivity),
+                match &row.contribution {
+                    Ok(v) => format!("{v}"),
+                    Err(u) => format!("[{u}]"),
+                }
+            );
+        }
+        let _ = write!(
+            s,
+            "{}",
+            crate::report::MassBudget::of(&self.coverage, analyzed).render()
+        );
+        s
+    }
+}
+
+/// One sensitivity reading, in one spelling shared by the goldening
+/// form and the human one — the number and its E4 mark, never the
+/// number alone.
+///
+/// **Public since M10-6's review**: a `NothingCertified` refusal hands
+/// a consumer its `sensitivities` and nothing to print them with, so
+/// the tour's stop 1 was `Debug`-printing `Derivative { value: 2.0,
+/// chamber: LocalOnly }` at a reader. The E4 mark is the load-bearing
+/// half of that reading — a derivative certified only in the nominal's
+/// own chamber is not a derivative over the box — and it deserves
+/// better than a struct dump, in ONE spelling rather than a second one
+/// per consumer.
+pub fn render_sensitivity(outcome: &SensitivityOutcome) -> String {
+    match outcome {
+        SensitivityOutcome::Derivative { value, chamber } => format!(
+            "{value} ({})",
+            match chamber {
+                Chamber::ChamberCertified { .. } => "chamber-certified",
+                Chamber::LocalOnly => "LOCAL ONLY",
+            }
+        ),
+        SensitivityOutcome::TangentDegraded { tangent } => {
+            format!("degraded tangent ({tangent})")
+        }
+        SensitivityOutcome::MeasureRefused { node, cause } => {
+            format!("refused at node {}: {cause}", node.0)
+        }
+        // Spelled out rather than `Debug`-printed: this string is read
+        // by a person in `render` and compared by a golden in
+        // `serialize`, and `Debug` is a form neither of those wants.
+        SensitivityOutcome::Unliftable { node, refusal } => format!(
+            "unliftable at node {}: {}",
+            node.0,
+            match refusal {
+                LiftRefusal::PinnedSection { section, param } => format!(
+                    "{} feeds the section of node {}, which stays f64 (C6/D9)",
+                    param.0, section.0
+                ),
+                LiftRefusal::GuidedReplay { loop_, step } => format!(
+                    "the guided elaboration could not re-confirm loop {loop_} step {step} \
+                     at this pass's scalar"
+                ),
+            }
+        ),
+    }
+}
+
+/// The coverage block of the goldening form — the accounting's own
+/// bits, through the reporting layer's one spelling.
+fn coverage_bits(coverage: &MeasureAccounting) -> String {
+    use core::fmt::Write as _;
+    let mut s = String::new();
+    let _ = writeln!(
+        s,
+        "coverage certified={}",
+        crate::report::mass_bits(&coverage.certified)
+    );
+    for (class, m) in &coverage.refused {
+        let _ = writeln!(
+            s,
+            "coverage refused {} {}",
+            class.name(),
+            crate::report::mass_bits(m)
+        );
+    }
+    let _ = writeln!(
+        s,
+        "coverage tail={} containment={}",
+        crate::report::mass_bits(&coverage.unanalyzed),
+        coverage.containment
+    );
+    s
 }
 
 /// A stackup that could not be built. Advisory degradation is carried
@@ -1200,8 +1520,9 @@ pub enum StackupRefusal {
     /// and the drive's accounting and receipt saying where the mass
     /// went — so a real study's answer is legible from the refusal.
     NothingCertified {
-        /// The f64 build's measured value.
-        nominal: f64,
+        /// The f64 build's measured value, or the typed reason there
+        /// is none (M10-6; see [`Stackup::nominal`]).
+        nominal: Result<f64, crate::measure::MeasureUnavailableAt>,
         /// The driver's entries, every derivative marked
         /// [`Chamber::LocalOnly`].
         sensitivities: Vec<Sensitivity>,
@@ -1285,13 +1606,16 @@ impl core::error::Error for StackupRefusal {}
 /// and the per-leaf worst-case evaluations under rayon idiom 1; the
 /// report is schedule-independent (D9).
 ///
-/// The worst case re-evaluates the measure at `Interval` over each
-/// certified leaf's environment (the guided lift on, exactly as the
-/// drive replayed it), ties every leaf's keys to the drive's record
-/// on the way, and hulls the certified brackets. One interval
-/// evaluation per certified leaf, bounded above by the drive's own
-/// cost — that is the v1 cost decision, taken over a recording dial on
-/// `DriveConfig`.
+/// The worst case re-evaluates the measure over each certified leaf's
+/// environment ON THE LANE THE DRIVE RAN — the guided lift on, and the
+/// symbolic tier on or off exactly as `ParamBoxVerdict::symbolic` says,
+/// because a leaf the tier certified can carry a node a numeric-only
+/// replay refuses. The numeric channel is the same either way, so the
+/// hulled brackets are the same bits; what the lane decides is which
+/// leaves have one. It ties every leaf's keys to the drive's record on
+/// the way and hulls the certified brackets. One evaluation per
+/// certified leaf, bounded above by the drive's own cost — the v1 cost
+/// decision, taken over a recording dial on `DriveConfig`.
 ///
 /// # Errors
 ///
@@ -1317,9 +1641,23 @@ pub fn stackup(
     } = driver(doc, measure, paired, Some(verdict), parallel, tol)
         .map_err(StackupRefusal::Sensitivity)?;
 
-    // The nominal, re-derived from the anchored build.
-    let nominal = measure_of(&anchor, measure)
-        .map_err(|(node, cause)| StackupRefusal::MeasureRefusedAtNominal { node, cause })?;
+    // **The nominal, re-derived from the anchored build — and
+    // FORFEITED rather than fatal when the measure has no f64 value**
+    // (M10-6, R2's MINOR-3). E5 makes the certified worst case the only
+    // gating number and E9 says a degraded advisory column forfeits
+    // while the gate stays; refusing the whole report because an
+    // advisory number is missing inverted both. A `min_clearance` is
+    // exactly that case, by construction and at every f64 build.
+    //
+    // A measure that FAILED for any other reason is still fatal here:
+    // `measure_of`'s other error arms mean the node did not evaluate,
+    // which is a broken report and not a forfeited column.
+    let nominal = match nominal_of(&anchor, measure) {
+        Ok(n) => n,
+        Err((node, cause)) => {
+            return Err(StackupRefusal::MeasureRefusedAtNominal { node, cause });
+        }
+    };
 
     if verdict.certified().is_empty() {
         return Err(StackupRefusal::NothingCertified {
@@ -1412,15 +1750,18 @@ pub fn stackup(
         worst_case,
         rss,
         coverage: verdict.accounting().clone(),
+        basis: crate::report::MassBasis::of(analyzed),
     })
 }
 
 /// The hull of value-channel interval evaluations of the measure over
 /// the certified leaves, every leaf tied to the drive's record on the
-/// way. Tangent-free BY TYPE: the evaluation scalar is [`Interval`],
-/// which has no tangent channel, and the bracket is read through
-/// [`CertifiedEnclosure::certified_bracket`] — the domain-honest door,
-/// so a poisoned enclosure refuses named instead of hulling a NaN.
+/// way. Tangent-free BY TYPE: the evaluation scalar is
+/// [`geom_core::Interval`], which has no tangent channel, and the
+/// bracket is read through
+/// [`geom_core::CertifiedEnclosure::certified_bracket`] — the
+/// domain-honest door, so a poisoned enclosure refuses named instead of
+/// hulling a NaN.
 fn worst_case(
     doc: &Doc<ProfileProgram>,
     measure: RecipeNodeId,
@@ -1429,6 +1770,7 @@ fn worst_case(
     tol: Tol,
 ) -> Result<WorstCase, StackupRefusal> {
     let leaves = verdict.certified();
+    let lane = verdict.lane();
     // One shared memo prior over the DEGENERATE box — every axis fixed
     // at the nominal, bound through the same door and the same
     // arithmetic a leaf's fixed axes bind through — so the
@@ -1445,28 +1787,39 @@ fn worst_case(
             .map(|n| (n.clone(), BoxAxis::Fixed))
             .collect(),
     );
-    let prior: Evaluation<Interval> =
-        evaluate(doc, None, &CancelToken::new(), &leaf_opts(nominal_box), tol);
+    // The hull runs on the lane the drive ran on
+    // (`ParamBoxVerdict::symbolic`), for the tie's reason: a leaf the
+    // symbolic tier certified may carry a node a numeric-only replay
+    // refuses. The numeric channel of the wrapped scalar is the plain
+    // one's, verbatim, so the BRACKETS are the same bits either way —
+    // only which leaves have one changes. The prior is the numeric
+    // lane's alone; `LeafPrior` states why the symbolic lane has none.
+    let prior = crate::eval::LeafPrior::of(doc, &leaf_opts(nominal_box), lane, tol);
     let one = |leaf: &CertifiedLeaf| -> Result<(f64, f64), StackupRefusal> {
-        let ev: Evaluation<Interval> = evaluate(
+        let readback = crate::eval::replay_leaf(
             doc,
-            Some(&prior),
-            &CancelToken::new(),
             &leaf_opts(leaf.box_.clone()),
+            lane,
+            &prior,
+            crate::eval::LeafRequest {
+                keys: true,
+                measure: Some(measure),
+                ..crate::eval::LeafRequest::default()
+            },
             tol,
         );
-        tie(leaf, &ev).map_err(StackupRefusal::Sensitivity)?;
-        let value =
-            measure_of(&ev, measure).map_err(|(node, cause)| StackupRefusal::LeafDiverged {
+        tie(leaf, &readback.keys).map_err(StackupRefusal::Sensitivity)?;
+        readback
+            .measure
+            .unwrap_or(Ok(None))
+            .map_err(|(node, cause)| StackupRefusal::LeafDiverged {
                 leaf: leaf.box_.clone(),
                 node,
                 cause,
-            })?;
-        CertifiedEnclosure::certified_bracket(value).ok_or_else(|| {
-            StackupRefusal::WorstCaseUncertified {
+            })?
+            .ok_or_else(|| StackupRefusal::WorstCaseUncertified {
                 leaf: leaf.box_.clone(),
-            }
-        })
+            })
     };
     // D9 idiom 1 again: an indexed map, then one sequential fold over
     // the collected brackets, so the hull is the same bits in either

@@ -2729,6 +2729,7 @@ dependencies = [
  "pyo3",
  "quantity",
  "serde_json",
+ "test-utils",
 ]
 
 [[package]]
@@ -2858,6 +2859,7 @@ version = "0.0.0"
 dependencies = [
  "geom",
  "geom-core",
+ "profile",
  "proptest",
  "test-utils",
 ]
@@ -4171,6 +4173,7 @@ dependencies = [
  "perceive-color",
  "perceive-cvd",
  "pncad",
+ "pollster 1.0.1",
  "rfd",
  "test-utils",
  "toml",

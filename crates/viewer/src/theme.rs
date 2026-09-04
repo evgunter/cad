@@ -191,9 +191,11 @@ pub struct Theme {
     /// check does not require a hue difference precisely so that
     /// value-only separation stays a legitimate answer.
     pub focus: Mark,
-    /// An unresolved selection, a deleted feature, a failed or
-    /// poisoned badge — everything that says "this does not denote
-    /// anything". Chrome only; it tints no geometry.
+    /// An unresolved selection, a deleted feature, a FAILED badge —
+    /// everything that says "this does not denote anything". Chrome
+    /// only; it tints no geometry. (A POISONED badge is not on the
+    /// list: a row showing someone else's failure draws quiet, so the
+    /// colour stays on the row to act on.)
     pub unresolved: Rgba8,
     /// **Construction geometry**: the wireframe a datum plane, axis or
     /// point is drawn as (`crate::datums`).

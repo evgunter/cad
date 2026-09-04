@@ -2621,3 +2621,89 @@ owed before any full-protocol unit; the banked-findings pile is the
 remaining mechanical feedstock, headlined by the unlinted
 python-feature CI row (no clippy row on the merge gate covers
 12.6k lines of binding surface — routing decision pending).
+
+**LIB-MECH1 MERGED (#1696, 2026-09-03), and the banked pile is now the
+program's whole open surface.** One PR over seven banked issues, chosen
+by one rule — done-state MACHINE-checked rather than judgment-checked —
+with the twenty-one it did not take each given a reason in the unit
+file, so the selection is checkable rather than asserted. Four
+implementer lanes ran it, two reviewers (style, correctness) read it,
+and the round is worth recording for what the reviewers found rather
+than for what shipped.
+
+**The headline is the CI row nobody had.** `crates/pncad-py/src/py/` is
+~12.6k lines behind a non-default feature, and no clippy row in either
+CI half compiled it — the merge gate's `clippy` runs at default
+features, where every `#[pyclass]` is `#[cfg]`-ed away. The lane had
+never been green because it had never been run. Routing was the open
+question the two duplicate issues both stopped at; the answer is that
+`python-suite` (hosted) and the nightly ungated re-take already install
+an interpreter, already cache that feature graph, and are off the Rust
+critical path, so the row costs the gate nothing. Measured 37.0 s cold.
+The seed-key skip it inherits is stated at the step rather than
+discovered later.
+
+**Three claims this program wrote turned out false, and the reviewers
+found all three.** The demo's roster still advertised the doubled
+recourse as an open gap twenty lines above the site comment that had
+just closed it. "The three armed pins" was two — a `println!` is not a
+pin — in both the unit record and the issue's close. And the argument
+for deleting the `PartResolver` arm rested on the recourse coupling
+being unguarded, when `crates/viewer/tests/instance_authoring.rs`
+guards it, in this workspace, with no interpreter; the reviewer proved
+it by deleting the recourse from `Display` and watching that test red.
+That last one is the instructive failure: the safety argument was not
+wrong about the code, it was wrong about the tree, and it was written
+with more confidence than the sweep behind it.
+
+**The tree caught the fourth by itself, which is the better story.**
+The tag-value guard's first draft hand-rolled a Rust reader —
+comment stripper, string lexer, brace counter — and `reader_census`
+reds on exactly that, by construction, because the population of such
+readers "is not a list" and a new one arriving is what that row
+detects. Converted to `test_utils::source`: structure in the
+`code_only` view, literals read at the same offsets, `balanced_end` for
+every bracket walk. The conversion is the adoption that crate's docs
+ask of `pncad-py` BY NAME. It came out +51 lines rather than the ~120
+fewer expected, and that is recorded rather than fixed by trimming
+documentation to a number. It also turned up a latent bug in passing:
+the guard resolved its crate through a bare `CARGO_MANIFEST_DIR`, which
+a replayed nextest archive need not have — `crate_dir` handles both,
+and the sibling manifest read went with it.
+
+**Two lessons about our own green.** The local box's ruff is 0.15.8
+where CI pins 0.16.1, so `check-python-lint.py` SKIPS locally by design
+— four lanes and the orchestrator all read that skip as a pass, and CI
+found the `RUF059` none of them could see. The pinned binary is
+cheap to fetch and is now what this lane runs. And no lane ran
+`cargo nextest run --workspace` before the first push, which is where
+`reader_census` lived; both CI reds this round were findable locally
+and neither was found. The rule the round earns: a bundle that touches
+a guard runs the WHOLE suite before it pushes, and a linter that
+reports "skipped" is not a linter that reported.
+
+**Three findings banked rather than swept**, each with its own file
+because a finding that dies with the issue that held it is a finding
+nobody can pick up: `select-refusal-predicate-names-are-unpinned`
+(four of five reachable predicate names pinned nowhere, and neither
+carrying arm is constructible from `pncad-py`, so it is a K-name-space
+job and not a rider); `two-refusals-carry-no-recourse-sentence`
+(finding 2 of #947 — recourse prose authored into a kernel crate);
+`datum-in-plane-reads-back-a-length-pair-bare` (the write door takes
+`tuple[Length, Length]` where the read door answers bare floats —
+found because this unit ADDED the stub entry that made it visible).
+
+**Program standing after the merge.** Shell (LIB-G17) still parked on
+kernel #1202; a LIB-13 block draw still owed before any full-protocol
+unit. Twenty-four issues open, and the mechanical feedstock is now
+spent: what remains is design questions, Ev rulings, kernel-crate prose
+and multi-unit surfaces. The next LIB unit is a substantive one.
+
+## Hand-off from DOCM (2026-09-04)
+
+`no-door-mints-mate-frame-from-face` re-homed here by header-preserving
+`git mv`: the frozen-at-authoring answer is ratified as the mate side's
+(`docs/DOCM-REFERENCES-DESIGN.md` DM1, the asymmetry paragraph), the
+viewer's mate tool already derives its frames that way, and what is
+left is the headless door — a `Pose` into a `MateFrame` from the façade
+— which is LIB's surface. Signed (DOCM orchestrator).

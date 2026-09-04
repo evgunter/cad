@@ -391,6 +391,22 @@ pub(crate) struct Datum {
     /// a reader asking which way a datum faces gets the same answer
     /// for a frame as for a plane, and one asking how the frame is
     /// TURNED — the datum a plane does not carry — reads the axes.
+    //
+    // The tuple is spelled out rather than hidden behind a
+    // `type SketchAxes = ((f64, f64, f64), (f64, f64, f64))`, and the
+    // reason is that this is a `#[pyo3(get)]` projection: the written
+    // shape IS the object Python receives, and `pncad.pyi` states it
+    // literally as
+    // `Optional[tuple[tuple[float, float, float], tuple[float, float, float]]]`.
+    // An alias would name the pair on the Rust side while the thing the
+    // stub records stayed a bare nested tuple on the Python side, so a
+    // reader checking the binding against the stub would have to chase
+    // the alias to learn nothing new. The two fields above it —
+    // `direction`'s triple and `in_plane`'s pair of pairs — are literal
+    // for the same reason and stay under clippy's threshold; naming
+    // only the third would make three projections of one kind read as
+    // two.
+    #[allow(clippy::type_complexity)] // the tuple IS the Python-side contract; see above
     #[pyo3(get)]
     axes: Option<((f64, f64, f64), (f64, f64, f64))>,
 }
@@ -680,6 +696,17 @@ impl Value {
     }
 
     /// The quantity a `Measure` node evaluated to (E3).
+    ///
+    /// **A measure with no value at this scalar refuses by NAME**
+    /// (M10-6, R2's MINOR-4). `min_clearance` is answered by an engine
+    /// that needs an enclosure, so at the `f64` scalar a Python caller
+    /// drives it has no value — a typed ABSENCE, not a failure, which
+    /// is why the node evaluates at all. That absence shares
+    /// `kind_name()` with a taken measurement ("measure"), so the
+    /// generic arm below produced the nonsense "a `measure` value is
+    /// not a measure" and told a caller nothing about what to do.
+    /// `Value.assertion` already carried its reason through; this door
+    /// now does the same.
     fn measure(&self, py: Python<'_>) -> PyResult<Measurement> {
         match &self.payload {
             d::ValuePayload::Measure { value, dim } => Ok(Measurement {
@@ -688,6 +715,12 @@ impl Value {
                 length: (*dim == d::Dimension::Length)
                     .then(|| Length(pncad::quantity::Length::from_meters(*value))),
             }),
+            d::ValuePayload::MeasureUnavailable { reason, .. } => Err(eval_err(
+                py,
+                format!("this measure has no value in this build: {reason}"),
+                "measure_unavailable",
+                self.node,
+            )),
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a measure", other.kind_name()),

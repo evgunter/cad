@@ -846,6 +846,31 @@ jobs:
       # above turns on WHERE the check runs, not on what it costs.
       - name: change filter selftest (the docs tier fails open)
         run: python3 scripts/ci-filter.py --selftest
+      # THE PIN READER'S OWN TESTS. `scripts/ci-pin.py` is what nightly.yml's
+      # four pin-reading steps call to get a tool version out of THIS file's
+      # workflow-level `env:` block, and what it is FOR is refusing an
+      # ambiguous read rather than picking one — behaviour no real run
+      # exercises, because this file sets each pin exactly once and the happy
+      # path is all any lane ever takes. A reader whose refusals nothing
+      # executes is the defect it replaced: the retired `sed` idiom's sixth
+      # copy had unbalanced quotes and never ran, and a person reading a log
+      # found it, not CI.
+      #
+      # SITED HERE AND NOT IN nightly.yml, which is where the callers are. A
+      # self-test belongs on the run that can red the PR that broke it. Every
+      # nightly job carries `if: needs.gate.outputs.run == 'true'`, so a
+      # failure in that workflow's first job does not red a row — it SKIPS ten
+      # measurement jobs and the record step, costing a night of
+      # rebuild-latency, opt-level and criterion samples, hours after the
+      # author who broke it saw green.
+      #
+      # NOT IN `TIER_BLIND`, deliberately: that list is for checks whose
+      # inputs are prose or `local-scripts/`, and this one's inputs are this
+      # workflow file and the script, neither of which reaches the docs tier.
+      # It sits in this job anyway because the job carries no `if:` and needs
+      # no toolchain — stdlib python against temp fixtures.
+      - name: pin reader selftest (ci.yml's env block is read, not guessed)
+        run: scripts/ci-pin.py --selftest
       # THE WORK TRACKER'S LINT (work/README.md is the contract). Its inputs
       # are `work/` and `docs/` — markdown, TIER=docs — so it is sited here for
       # the same reason as every row above. Stdlib python and git; the
@@ -1428,10 +1453,10 @@ jobs:
       #
       # This job has no lane gate, which is why the pair lives here: the
       # seed-keyed axis has to be able to speak on every run, and in the
-      # lane-gated `clippy` job it could not (see the note there). Both
+      # lane-gated `clippy` job it could not (see the note there). The
       # rows the ruling names are now in one job with one verdict —
-      # the rustdoc `--all-features` pass above, and the app-feature
-      # clippy below.
+      # the rustdoc `--all-features` pass above, the app-feature clippy
+      # below, and the app-feature TEST row beside it.
       #
       # Mirror: local-scripts/ci-local.sh's toolkit rows.
       - name: viewer toolkit rows - the filter's verdict
@@ -1443,9 +1468,15 @@ jobs:
             echo 'RUN: the seeds intersect {viewer, pncad, bvh} (or the tier is unscopable).'
             echo 'RUN: the rustdoc pass above documented viewer under --all-features.'
             echo 'RUN: the app-feature clippy row below compiles the eframe/wgpu graph.'
+            echo 'RUN: the app-feature TEST row below executes the `app`-gated rows —'
+            echo '     the chrome suites and the viewport pipeline-creation smoke row.'
           else
             echo 'SKIP: no seed in {viewer, pncad, bvh} — the eframe/wgpu graph is not compiled on this run.'
             echo 'SKIP: viewer was documented at DEFAULT features and its app-feature clippy row did not run.'
+            echo 'SKIP: the app-feature TEST row did not run, so NOTHING gated the chrome rows'
+            echo '     or the viewport pipeline-creation smoke row on this run. The archive'
+            echo '     lane builds viewer at default features and reports that in its own'
+            echo '     output, by name: the `app_lane_skipped_*` rows.'
             echo 'The nightly lane re-takes both ungated; viewer default-feature rows still ran in the closure.'
           fi
       # Sited here rather than in `clippy` so a lane draw cannot take it
@@ -1455,6 +1486,74 @@ jobs:
       - name: clippy (viewer app feature - eframe + wgpu)
         if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
         run: cargo clippy -p viewer --features app --all-targets -- -D warnings
+
+      # THE APP-FEATURE TEST ROW, AND WHY IT IS NOT `--features app` ON
+      # THE ARCHIVE.
+      #
+      # Everything behind `#[cfg(feature = "app")]` — the chrome label
+      # rows, the `StartupError` arms, every unit test in `viewer::app`
+      # and `viewer::gpu` — is absent from `build`'s nextest archive,
+      # which compiles this crate at DEFAULT features. Those rows looked
+      # like coverage and were none. The alternative shape was to archive
+      # with `--features app`; it was measured and refused. The archive
+      # is built ONCE and DOWNLOADED BY EVERY LEG of the `test` matrix,
+      # so the toolkit graph's extra archive weight is paid per leg and
+      # buys nothing for the rows that already gate — while THIS job
+      # already compiles that exact graph, in an every-lane seat, for the
+      # clippy row above. So the marginal cost of gating the rows is
+      # sited where the graph is already being built.
+      #
+      # THE WEIGHT, AND WHY IT CARRIES NO GUARD. Adding `--features app`
+      # to the whole-workspace archive grew it by 179 MB. A viewer-scoped
+      # archive measured +224.6 MB; that is a DIFFERENT delta — one
+      # crate's archive against one crate's archive, not this archive
+      # against this archive — so it is a second reading and not a
+      # confirmation of the first. Neither is guarded and neither can
+      # be: a guard would have to build a second archive at
+      # `--features app` on every run, which is exactly the cost this
+      # paragraph refuses to pay. Nor does the siting turn on the
+      # figure — it holds for any per-leg weight that buys no gate.
+      # Stated once, here; crates/viewer/README.md points at this
+      # comment rather than carrying a second copy.
+      #
+      # WHAT IS NOT FREE, stated because the siting argument above is
+      # easy to overstate: clippy is `cargo check` semantics, so the row
+      # above leaves the graph as METADATA. This row is the first in the
+      # job that needs codegen and a linker over it, and `rust-cache`
+      # carries those artefacts between runs.
+      #
+      # A SOFTWARE VULKAN ADAPTER IS A HARD REQUIREMENT of this row, not
+      # a nicety: `viewer::gpu`'s smoke row builds every render pipeline
+      # on a real device and FAILS rather than skipping when there is no
+      # adapter (a green row over an absent driver is indistinguishable
+      # from a green row over built pipelines, which is the defect this
+      # whole step exists to close). `mesa-vulkan-drivers` supplies
+      # lavapipe; it needs no X server and no display, because nothing
+      # here opens a surface. `vulkaninfo --summary` prints WHICH adapter
+      # the row will land on, before the row runs.
+      #
+      # `--success-output immediate` because the smoke row's adapter
+      # line is prose a reader of this log is meant to see, not output
+      # to recover from a failure. Not for the loud-skip markers: they
+      # are `cfg(not(feature = "app"))` and this row is `--features
+      # app`, so they are compiled out of it and announce themselves by
+      # NAME in the archive legs' PASS list instead.
+      #
+      # Mirror: local-scripts/ci-local.sh's toolkit rows.
+      - name: install a software Vulkan adapter (lavapipe)
+        if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers vulkan-tools
+          vulkaninfo --summary
+      - name: install cargo-nextest (pinned, official prebuilt)
+        if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ env.NEXTEST_VERSION }}
+      - name: viewer app-feature rows (chrome + gpu pipeline smoke)
+        if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
+        run: cargo nextest run -p viewer --features app --success-output immediate
 
       # WASM32 GUARD (#807), THE INTERVAL BUILD ONLY.
       #
@@ -3192,6 +3291,57 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: python
+      # THE `python` FEATURE'S CLIPPY ROW, AND IT IS SITED IN THIS JOB ON
+      # PURPOSE. `crates/pncad-py/src/py/` — the whole PyO3 surface —
+      # compiles only under the crate's non-default `python` feature
+      # (`src/lib.rs`, `#[cfg(feature = "python")] mod py;`), so the
+      # `clippy` job's `cargo clippy $cargo_scope --all-targets`, which
+      # runs at DEFAULT features, has every one of those lines `#[cfg]`-ed
+      # away before clippy sees them. Until this row that half was linted
+      # by NO row: the `clippy` job cannot see it, and the wheel build
+      # below compiles it without linting it.
+      #
+      # WHY NOT IN THE `clippy` JOB. That job is on the Rust critical
+      # path, and a `--features python` row there is a SECOND compile of
+      # the façade stack under a second feature set — the same second
+      # compile the seed-key argument in this job's header was written to
+      # stop buying on every code-tier run — plus an interpreter the Rust
+      # jobs are STRUCTURALLY free of (the U9S gating property; see
+      # crates/pncad-py/Cargo.toml's header). Here it costs neither: this
+      # job already installs Python 3.12, already restores the `python`
+      # feature graph's own cache, and nothing `needs` it, so the row adds
+      # work to no job the gate waits on and opens no new job or cache lane.
+      # The LOCAL half sites the same command with the other clippy rows
+      # instead, and argues why the two differ at `local-scripts/ci-local.sh`.
+      #
+      # FIRST AMONG THIS JOB'S CARGO WORK, before maturin is even
+      # installed, because it needs none of the wheel machinery and it is
+      # the step that says "the `python` half compiles" in clippy's words
+      # rather than in a maturin log a minute later. The order is free
+      # either way: maturin builds `extension-module` (a different feature
+      # set, hence different unit fingerprints) and codegens where clippy
+      # emits metadata, so neither warms the other's units.
+      #
+      # NO libpython IS LINKED, even though `python` alone does not imply
+      # `extension-module`: clippy is check-only, so the `cdylib` is never
+      # linked (a cold `cargo clippy -p pncad-py --features python
+      # --all-targets` leaves no `libpncad_py.so` in target/debug/deps —
+      # only the proc-macro dylibs every clippy run builds). pyo3's BUILD
+      # SCRIPT does need an interpreter — with none on PATH it fails
+      # `error: no Python 3.x interpreter found` — and setup-python above
+      # is it.
+      #
+      # WHAT THE SITING GIVES UP is this job's seed key and its `push`
+      # skip: on a PR whose seeds miss {pncad-py, pncad, editor-core} the
+      # row does not run. A lint introduced BY the binding code, or by
+      # `pncad`/`editor-core`, seeds the axis and is caught on its own PR;
+      # one reaching `src/py/` from further down (`quantity`, the kernel
+      # through `pncad`'s re-exports) or from a `stable` toolchain bump
+      # shipping a new lint seeds nothing, and waits for nightly.yml's
+      # `python suite (ungated re-take)`, which carries this same step
+      # ungated once a day.
+      - name: clippy (pncad-py, python feature)
+        run: cargo clippy -p pncad-py --features python --all-targets -- -D warnings
       - name: install maturin (pinned, official prebuilt)
         run: curl -LsSf "https://github.com/PyO3/maturin/releases/download/v$MATURIN_VERSION/maturin-x86_64-unknown-linux-musl.tar.gz" | tar zxf - -C "$HOME/.cargo/bin" maturin
       # Debug profile on purpose (no --release): fastest honest build.
@@ -3502,17 +3652,43 @@ jobs:
       #
       # COST, MEASURED on the run that armed it (32973311618, this
       # row's own draw): release build 2m11, then the bin's unit tests
-      # 0.21 s and the three-ε `eps_regression` tour runs 13.60 s. The
+      # 0.21 s and the three-ε `eps_regression` tour runs 13.60 s.
+      # RE-MEASURED 2026-09-03 with `--features interval` below: the
+      # bin's unit tests go 0.21 s -> ~32 s. **That is NOT the tolerance
+      # cell**, and the first version of this note said it was, which
+      # R2's MINOR-12 caught. Measured on this branch, same machine,
+      # release profile:
+      #
+      #   whole bin suite, --features interval          32.02 s
+      #   the same with `-- --skip tolerance`           32.30 s
+      #   the tolerance cell alone                       1.19 s
+      #
+      # The cell's differential is inside the noise. The ~32 s is what
+      # the OTHER 26 rows cost once the crate is built with the
+      # certified scalar — the feature changes the kernel they link
+      # against, so they all pay for it — and attributing it to the one
+      # new row would have sent the next person optimising the wrong
+      # thing. The
       # bin's unit tests link against the crate this row already builds
-      # in release, so the widening pays a link plus ~14 s of running,
+      # in release, so the widening pays a link plus that running time,
       # not a sixth feature unification. (Those same unit tests cost
       # ~412 s in the DEV profile — the finding-13 rows tessellate the
       # lily at δ = 2e-3 — which is why this row is the release one and
       # why widening the dev-default row instead would not have been
       # free.)
+      # `--features interval` SINCE M10-6, and it buys exactly one
+      # thing: the tolerance cell (`src/tolerance.rs`), whose subject is
+      # the E6 driver's certified leaves and the E5 stackup over them,
+      # is compiled and its row executed. Without the feature the cell
+      # is `cfg`'d out and a tour walk says so at the stop rather than
+      # walking one scene fewer in silence.
+      #
+      # COST: the kernel is built once more with the certified scalar
+      # for this crate's graph. It rides the same `release-default` draw
+      # as the rest of this row, so it is not a per-run price.
       - name: demos tour suite (the #99 ε pin + the tour's own probes)
         if: contains(fromJSON('["release-default", "all"]'), needs.filter.outputs.klint_row)
-        run: cd demos/tour && cargo test --release
+        run: cd demos/tour && cargo test --release --features interval
       # THE COMMITTED DIE CORPUS IS STILL THE SCENE THAT AUTHORED IT.
       # `crates/editor-core/tests/corpus/die_composed_tour.rs` registers
       # the tour's composed die by replaying committed BYTES, because
@@ -3817,6 +3993,102 @@ jobs:
             ../../target/k-fresh/k-eps-1e-6.csv \
             ../../target/k-fresh/k-eps-1e-9.csv \
             ../../target/k-fresh/k-eps-1e-12.csv
+      # **M10-6's THIRD E10 CI ROW: the E6 driver's own K population**
+      # (ERROR-DESIGN E6's T6 obligation; docs/K-REPORT.md's runbook).
+      #
+      # WHICH AXIS IT RIDES, and what a green means. This row is inside
+      # `k-lint (gate)` and gated on the `dev-probe` draw of the
+      # `klint_row` axis, exactly like the sweep that produces its
+      # input — so a green on a run that drew another row means the row
+      # did not run, not that the population is clean. A branch that
+      # wants it says `CI-Config: klint=dev-probe` on its head commit.
+      #
+      # WHY IT IS ADVISORY, stated rather than assumed. The lint's
+      # thresholds were calibrated over the Band 4 corpus and the tour
+      # scenes — a population of AUTHOR-CHOSEN nominals. The driver's
+      # certified-midpoint population is the opposite by construction:
+      # the subdivision refines until every predicate is definite, so
+      # its margins pile up just outside the escalation band, and the
+      # lint fires in bulk (measured 2026-09-03: 15,768 flags over
+      # 257,025 samples at ε = 1e-6). That is exactly the E6 evidence
+      # this row exists to produce, and `tools/k-lint`'s own discipline
+      # text names the disposition: re-derive the thresholds, or demote
+      # the row to advisory with a recorded justification. This is the
+      # recorded justification. Changing geometry to get under a
+      # threshold remains the forbidden move, and nothing here does it.
+      #
+      # WHAT STILL REDS THIS ROW: harness breakage (exit 1) — an
+      # unreadable CSV, a malformed sample row, a sweep that wrote a
+      # file the lint cannot parse. Findings (exit 2) are printed and
+      # summarized. So the row cannot rot into a green over a broken
+      # sweep, which is the failure a plain `|| true` would have.
+      - name: driver K-telemetry lint (E6 evidence — rule 1 GATES, rules 2/3 advisory)
+        if: contains(fromJSON('["dev-probe", "all"]'), needs.filter.outputs.klint_row)
+        run: |
+          set -uo pipefail
+          cd tools/k-lint
+          # THE STATUS IS READ OFF THE PIPELINE LINE ITSELF, and it has
+          # to be. The first spelling was
+          #
+          #     ... | tee ... || status=$?
+          #     status=${PIPESTATUS[0]:-$status}
+          #
+          # and it made this row incapable of failing. `PIPESTATUS` is
+          # rewritten by EVERY command, including the assignment
+          # `status=$?` on the line above — which succeeds — so by the
+          # time the second line reads `PIPESTATUS[0]` it is that
+          # assignment's own 0, the `:-` default never fires because 0
+          # is a perfectly good value, and `status` is 0 whatever the
+          # lint said. Both non-zero arms of the `case` below were
+          # unreachable from the day the `| tee` was added, and the row
+          # then spent that time reporting success over a lint that was
+          # refusing every file it was handed unread.
+          #
+          # `set -e` is deliberately still off (`set -uo pipefail`
+          # above), so the pipeline's failure does not abort the step
+          # before the summary is written; the `case` is what decides.
+          # The local half (`local-scripts/ci-local.sh`, `klint_gate`)
+          # does NOT tee, so its plain `$?` is exact and needs no
+          # `PIPESTATUS` — the two halves differ here on purpose, and
+          # ci-local.sh says so at its own call site.
+          status=0
+          # `--gate-rule-1-only` is the demotion, and it is NARROW: rule
+          # 1 (indeterminate / invalid margins) still reds this row.
+          # That is the arm ERROR-DESIGN E6 names as the trigger for
+          # re-opening the K question, and a blanket demotion would have
+          # covered it — a future in-band margin would have printed
+          # among tens of thousands of rule-2/3 flags and gone green.
+          # Rules 2 and 3 are the ones this population makes in bulk by
+          # construction, and only they are demoted.
+          cargo run -- --gate-rule-1-only \
+            ../../target/k-fresh/driver/k-eps-1e-6.csv \
+            ../../target/k-fresh/driver/k-eps-1e-9.csv \
+            ../../target/k-fresh/driver/k-eps-1e-12.csv \
+            2>&1 | tee ../../k-lint-driver.out
+          status=${PIPESTATUS[0]}
+          # THE PER-RULE COUNTS ARE THE ROW'S REPORT, at all three eps
+          # rows, not a summary of one. `k-lint` prints a per-file line
+          # and a TOTAL line; both are relayed so a reader gets the
+          # numbers without opening the log.
+          {
+            echo "### driver K-telemetry (E6 evidence)"
+            echo
+            echo '```'
+            grep -E '^k-lint: (TOTAL|.*samples,)' ../../k-lint-driver.out || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "driver K-telemetry lint exit status: $status" >> "$GITHUB_STEP_SUMMARY"
+          case "$status" in
+            0) echo "no rule-1 margin: every margin the driver produced was DECIDED. Rule-2/3 flags, if any, are distribution EVIDENCE — the driver refines margins toward zero by construction, so they crowd the band. Read them per docs/K-REPORT.md; do not change geometry." >> "$GITHUB_STEP_SUMMARY" ;;
+            2) echo "RULE 1 FIRED — a driver margin was indeterminate or invalid. This is the E6 re-open trigger, not a distribution note: read docs/K-REPORT.md's runbook and the flagged rows before anything else." >&2; exit 1 ;;
+            *) echo "harness breakage — the sweep wrote something this lint cannot read" >&2; exit 1 ;;
+          esac
+          # Solver predicates are VACUOUS in v1 (the M10 plan's ruling
+          # Q1: no sketch solver exists, so no `solver_branch_margin`
+          # row can appear in any population this sweep collects). The
+          # row's k-population is the driver's alone, and that is a
+          # scope statement rather than a gap in the sweep.
+          echo "solver predicates are vacuous in v1 (ruling Q1): no solver exists to sample" >> "$GITHUB_STEP_SUMMARY"
 
   # THE RENDER GATE. The committed montages are build products of the
   # kernel that nothing checked: for a while `k-lint` gated the UV sheet
@@ -3869,11 +4141,23 @@ jobs:
   # .github/actions/rebaseline-lane for why neutral rather than red.
   #
   # `push_to` is the BRANCH, while the render itself runs on
-  # `github.ref` — the PR's MERGE commit on a pull_request, main's tip
-  # on a push. Rendering the merge preview and committing to the head
+  # `github.sha` — the PR's MERGE commit on a pull_request, the pushed
+  # commit on a push. Rendering the merge preview and committing to the head
   # branch is self-consistent because this gate always compares against
   # that same merge preview, and main's own push run re-renders and
   # re-baselines again after the merge if the two ever part.
+  #
+  # THAT WAS `github.ref` AND IS NOW `github.sha`, WHICH MOVED TWO THINGS.
+  # The merge ref is transient — re-pointed on every push to the PR, deleted
+  # when it closes — and a lane that checked the NAME out died at
+  # `actions/checkout` saying nothing about the tree. It is an OBJECT now,
+  # and one consequence is worth meeting here rather than discovering: on a
+  # PUSH the lanes render the commit the run is about, not main's tip at the
+  # moment the checkout ran, so a main push whose tip has already moved on
+  # renders the older tree — which the re-baseline sentence above already
+  # covers, because the next push re-renders and re-baselines if they part.
+  # render.yml's `checkout target` job carries the whole argument, and the
+  # skip-with-a-stated-reason path for a merge commit gone outright.
   #
   # Scene concurrency is left to render.yml's own default (2, the
   # runner's core count) rather than restated here: this job renders the

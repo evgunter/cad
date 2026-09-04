@@ -5,13 +5,19 @@
 //! there is no derivation here to merge — what was being duplicated was
 //! the three-line wrapper, once per suite, forty-eight times.
 //!
-//! **What this module does NOT absorb.** Four suites build a band that
-//! is deliberately NOT the run's: `decoration_plane_mint.rs`
+//! **What this module does NOT absorb.** Six suites in this crate build
+//! a band that is deliberately NOT the run's: `decoration_plane_mint.rs`
 //! (a fixed 1e-9 .. 1e-8), `pcurve_p1a_meter.rs` (twice — `ROW_EPS`
-//! and a fixed 1e-9 .. 1e-8) and `r2_probes.rs` (`4·DRIFT ..
-//! 40·DRIFT`). Each says at its own site why it is pinned to the row's
-//! scale rather than to ε, and a shared home must not make them follow
-//! ε by accident.
+//! and a fixed 1e-9 .. 1e-8), `r2_probes.rs` (`4·DRIFT .. 40·DRIFT`),
+//! `pcurve_p1b_r2_probes.rs` (a fixed 1e-6 zero carrying the run's K)
+//! and `tcost_k1_budget_exit.rs` (an explicit ε scaled by the compiled
+//! `DEFAULT_K` rather than the run's K). Each says at its own site why
+//! it is pinned to the row's scale rather than to ε, and a shared home
+//! must not make them follow ε by accident.
+//!
+//! That list is a census, so it goes stale the way a sweep does: a new
+//! suite minting its own band belongs in it, and an entry that starts
+//! following ε belongs out of it.
 
 use geom_core::{Band, Tol};
 

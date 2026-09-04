@@ -117,6 +117,8 @@ mod shellfix1_r1_probes;
 mod torax_axial;
 #[path = "torax_interval.rs"]
 mod torax_interval;
+#[path = "transform_nurbs_walls.rs"]
+mod transform_nurbs_walls;
 #[path = "verbs_offc_consumer.rs"]
 mod verbs_offc_consumer;
 #[path = "verbs_offd.rs"]
@@ -268,6 +270,8 @@ mod review_d2_adv_probes;
 mod review_d2_recourse_at_the_site;
 #[path = "review_d8_consumer_differential.rs"]
 mod review_d8_consumer_differential;
+#[path = "review_fillet_e1_probes.rs"]
+mod review_fillet_e1_probes;
 #[path = "review_m2_pr4.rs"]
 mod review_m2_pr4;
 #[path = "review_m2_pr4_interval.rs"]
@@ -332,6 +336,8 @@ mod s16_box_soundness;
 mod s49_census_jurisdiction;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
+#[path = "verbs_1031b_arcwind.rs"]
+mod verbs_1031b_arcwind;
 #[path = "verbs_arms1_annulus.rs"]
 mod verbs_arms1_annulus;
 #[path = "verbs_arms1_r1_probes.rs"]
@@ -390,77 +396,13 @@ mod verbs_tubewall_r2_probes;
 #[path = "verbs_tubewall_r2_solidbits.rs"]
 mod verbs_tubewall_r2_solidbits;
 
-/// Guards the `autotests = false` hazard: a suite file added under
-/// `tests/` but not declared above would silently stop being compiled
-/// and run. Both directions are asserted — every file on disk is
-/// declared, and every declaration answers to a file, so no number
-/// about this file is stated in prose without being computed.
-///
-/// The walk is `test_utils::source::suite_files`, which recurses into
-/// group directories and tells a suite from a shared helper by Rust's
-/// own module rule; read it before adding either.
-///
-/// It also pins ONE HOME for every shared helper: no suite file may
-/// carry a `mod <name>;` of its own. That form loads a FILE as a module
-/// of the declaring suite, and in an aggregated binary the same helper
-/// is then parsed, resolved, type-checked and codegen'd once per suite
-/// that declares it — the cost this crate's `all.rs` header describes.
-/// One declaration at the root of this file, and `use crate::<name>;`
-/// in each suite, makes it one compilation for the whole binary.
+/// The aggregation and ONE HOME checks, whose one home — the walk, the
+/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
 #[test]
-// Scoped to this fn on purpose: a crate-root `#![allow]` in this file would
-// weaken the lint gate for every suite module included above.
-#[allow(clippy::expect_used)]
 fn every_suite_file_is_aggregated() {
-    let root = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    // Comments blanked, string literals KEPT — see
-    // `test_utils::source::code_and_literals`, which states why.
-    let src = test_utils::source::code_and_literals(include_str!("all.rs"));
-    let found = test_utils::source::suite_files(&root);
-    let missing: Vec<&String> = found
-        .iter()
-        .filter(|rel| !src.contains(&format!("#[path = \"{rel}\"]")))
-        .collect();
-    assert!(
-        missing.is_empty(),
-        "suites under tests/ are not declared in tests/all.rs, so `autotests = false` \
-         is silently dropping them: {missing:?}. Add a `#[path]` line for each."
-    );
-    // The converse, computed rather than restated: one `#[path]` line
-    // per suite file, no orphan declaration. The `format!` above spells
-    // its quote ESCAPED, so it is not one of these matches.
-    let declared = src.matches("#[path = \"").count();
-    assert_eq!(
-        declared,
-        found.len(),
-        "tests/all.rs declares {declared} suites but {} suite files exist under tests/",
-        found.len()
-    );
-    // ONE HOME for every shared helper, enforced over the same walk.
-    // A `mod <name>;` in a SUITE loads that helper file as a module of
-    // THAT suite, so inside this one binary the helper is parsed,
-    // resolved, type-checked and codegen'd once per suite that declares
-    // it. Declared once at the top of this file and reached with
-    // `use crate::<name>;`, it is compiled once for the binary.
-    // Inline `mod <name> { … }` blocks are not this and stay legal;
-    // helper TREES are directories carrying a `mod.rs`, which the walk
-    // above already excludes.
-    let redeclared: Vec<String> = found
-        .iter()
-        .flat_map(|rel| {
-            let text =
-                std::fs::read_to_string(root.join(rel)).expect("a walked suite file reads back");
-            test_utils::source::file_module_decls(&text)
-                .into_iter()
-                .map(move |name| format!("{rel}: mod {name};"))
-        })
-        .collect();
-    assert!(
-        redeclared.is_empty(),
-        "a suite declares a module of its own, which compiles that file once per \
-         declaring suite inside this one binary: {redeclared:?}. Declare it once in \
-         tests/all.rs (`mod <name>;`, no `#[path]`) and say `use crate::<name>;` here."
-    );
+    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
+    assert!(violations.is_empty(), "{}", violations.join("\n"));
 }
 
 #[path = "m8_3_rational_volume.rs"]
@@ -522,3 +464,12 @@ mod cert_m2r1_head;
 mod cert_m2r1_passes;
 #[path = "r1_area_gauge_probes.rs"]
 mod r1_area_gauge_probes;
+
+#[path = "tcost_k3_certificate.rs"]
+mod tcost_k3_certificate;
+
+#[path = "blend_recourse_followability.rs"]
+mod blend_recourse_followability;
+
+#[path = "review_fillet_e2_probes.rs"]
+mod review_fillet_e2_probes;

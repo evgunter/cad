@@ -168,6 +168,7 @@ dependencies = [
 name = "geom-core"
 version = "0.0.0"
 dependencies = [
+ "interval-transcendentals",
  "libm",
 ]
 
@@ -192,6 +193,13 @@ dependencies = [
  "allocator-api2",
  "equivalent",
  "foldhash",
+]
+
+[[package]]
+name = "interval-transcendentals"
+version = "0.1.0"
+dependencies = [
+ "libm",
 ]
 
 [[package]]

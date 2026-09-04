@@ -40,6 +40,8 @@ condense are recorded in `docs/DOC-LEDGER.md`.
 | `crates/sweep/README.md` | RATIFIED (#992) | ARMS-3, the ARMS3-DESIGN clauses A3-1…A3-3: the general sphere×sphere fillet arm, the valence-4 "corner" that is not a corner, and what a run-out at a seam vertex IS; and the blend-vocabulary clauses V1–V4 (how a shared blend refusal names its verb) |
 | `crates/profile/README.md` | RATIFIED (#1210) | The enclosing (ρ < 0) fillet tangency (ENCLOSING-TANGENCY-DESIGN): the class is permanently unreachable — no door emits it — and a radius demanding it refuses typed |
 | `docs/VERB-SEAT-DESIGN.md` | RATIFIED (#1388, 2026-08-31) | The kernel query seat, one verb vocabulary, and lowered parameter identity (the issue-1345 conversation, with the issue-757 producer gap and the issue-1372 channel): §1 the query doors at `topo` with `select_where` delegating; §2 the per-verb kernel `Verb` declaration, commitments as owner-held stable-tag matches; §3 the opaque per-field `ParamSource` channel (`GeomSource` one level finer). Executed by the SEAT program (`work/seat/plan.md` / `work/seat/log.md`); §1 implemented at SEAT-1/SEAT-2/SEAT-3 |
+| `docs/DOCM-REFERENCES-DESIGN.md` | RATIFIED (Ev, in-chat, 2026-09-04) | What a recipe reference may be, DM1–DM6: a derived sketch frame is a datum carrying a face name (`Datum::FaceFrame`, the `MeasureRef` shape), the read-back returns the face's sense beside the chart pose rather than folding it in, a carrier-kind read is a tag comparison and not a verdict; a split's half or a pattern's instance is selected by a projection node (`Node::Part`); flat operators before splice — an n-ary `Node::Union` with `DocEdit::SetMembers` and pairwise-distinct inputs, and no edit rewires a live node's inputs (splice parked) |
+| `docs/DOCM-IDENTITY-DESIGN.md` | RATIFIED (Ev, in-chat, 2026-09-04) | A held value names the world it came from, DI1–DI5: a held node id is valid on the history branch that minted it; the memo is a pure function of the document and store freshness is the session's (A4's refusal sentence narrows to the seam; `Reevaluate` re-mounts the store); `Evaluation` carries its document's identity; saving never forks identity and forking is its own act; releasing a free-move gesture is the placement edit (G3's never-persisted clause narrows to hiding) |
 | `docs/KERNEL-VERBS.md` | Reference register | The modeling verbs the kernel does not yet have, each with its prerequisites; worked in dependency order by the VERBS program (`work/verbs/plan.md` / `work/verbs/log.md`). The register never schedules |
 | `docs/K-REPORT.md` | Reference | K-constant evidence record (#89 CLOSED, K = 10 permanent) + milestone addenda |
 | `work/perf/plan.md` | Merged-and-advisory (D9 addendum) | Performance plan and Q-P answers |
@@ -312,7 +314,13 @@ component-aware E–P form found and corrected in M1 PR 4).**
    topological one. Global self-intersection / minimum clearance stays
    deferred (M3 partial via booleans — tier 3′ below discharges the
    coincidence census, exactly on the planar inventory and by named
-   class elsewhere; M10 interval clearance).
+   class elsewhere; M10 interval clearance). The interval clearance
+   engine's body-level half — the cell subdivision over
+   `Body<Interval>` — lives in `topo` behind `interval`, with the
+   parameter-box outer half above it in editor-core, so a verb that
+   must certify a boundary embedded (`shell`'s cavity clone) runs the
+   same engine at a certifying scalar and refuses typed at the door
+   (Ev, #1737).
 4. **Tier 3′ "pseudomanifold" (`validate_pseudomanifold`; ratified at
    the M3 exit sweep per M3-PLAN F1/F2, resolved with Ev #42;
    implemented M3 PR 6a, #75)** — the honest at-rest tier for boolean

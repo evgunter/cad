@@ -348,6 +348,26 @@ pub trait AxisScalar: geom_core::Real {
     /// The tightest enclosure of the offset span `[lo, hi]`, or `None`
     /// when this scalar cannot represent it.
     fn axis(lo: f64, hi: f64) -> Option<Self>;
+
+    /// The same axis, with the PARAMETER'S NAME in hand — the door
+    /// [`param_env_over`] calls (E12).
+    ///
+    /// The default DELEGATES to [`AxisScalar::axis`] and discards the
+    /// name, so every existing scalar is unaffected by this seam: `f64`,
+    /// `Probe`, `Interval` and `Dual<T>` bind exactly the value they
+    /// bound before, bit for bit. The one implementor that overrides it
+    /// is `geom_core::Sym<T>`, whose whole business is that a parameter
+    /// occurrence is a NAMED symbol rather than an anonymous enclosure —
+    /// two occurrences of one parameter have to be one indeterminate,
+    /// and only the name can say that they are.
+    ///
+    /// The name is a `&ParamName` rather than a `&str` because the
+    /// caller has one and the identity being carried is the document's,
+    /// not a string's.
+    fn axis_named(name: &ParamName, lo: f64, hi: f64) -> Option<Self> {
+        let _ = name;
+        Self::axis(lo, hi)
+    }
 }
 
 /// A point scalar carries only a degenerate axis, and the comparison is
@@ -380,6 +400,44 @@ impl AxisScalar for geom_core::Probe {
 impl AxisScalar for geom_core::Interval {
     fn axis(lo: f64, hi: f64) -> Option<Self> {
         Some(geom_core::Interval::from_bounds(lo, hi))
+    }
+}
+
+/// **The symbolic tier binds the axis as a SYMBOL** — the one door that
+/// introduces an indeterminate ([`AxisScalar::axis_named`]).
+///
+/// The value channel is the base scalar's own offset enclosure, so the
+/// numbers are the ones an un-wrapped run would carry; what is added is
+/// that `nominal + offset` is an affine expression in a named symbol
+/// rather than an opaque interval, which is the whole of what makes an
+/// identity cancel downstream.
+///
+/// [`AxisScalar::axis`] — the unnamed door — mints no PARAMETER symbol,
+/// because without a name there is nothing to key one by: two calls
+/// could not be recognised as the same parameter, and calling them one
+/// symbol would claim an identity nobody stated. It answers the base
+/// scalar's axis through [`geom_core::Sym::opaque`], which gives each
+/// call its OWN indeterminate — so everything built from it decides
+/// numerically, and two axes minted this way never cancel against each
+/// other.
+///
+/// That last clause is load-bearing and it was got wrong once: while
+/// `opaque` handed every untracked value one shared id, two `axis`
+/// calls were one unknown, and their difference was the zero polynomial
+/// — a symbolic `Zero` on two enclosures that are not equal. Distinct
+/// unknowns are the only sound answer here; an unnamed axis is
+/// something the tier knows NOTHING about, and "nothing" is not
+/// "the same as its neighbour".
+impl<T: AxisScalar> AxisScalar for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: geom_core::Real,
+{
+    fn axis(lo: f64, hi: f64) -> Option<Self> {
+        T::axis(lo, hi).map(geom_core::Sym::opaque)
+    }
+
+    fn axis_named(name: &ParamName, lo: f64, hi: f64) -> Option<Self> {
+        T::axis(lo, hi).map(|v| geom_core::Sym::param(geom_core::ParamSymbol::of(&name.0), v))
     }
 }
 
@@ -445,6 +503,18 @@ impl SeedScalar for geom_core::Probe {
 /// states the same boundary from the other side).
 #[cfg(feature = "interval")]
 impl SeedScalar for geom_core::Interval {
+    fn seed(_lifted: Self) -> Option<Self> {
+        None
+    }
+}
+
+/// The symbolic tier is an expression channel, not a tangent bundle: it
+/// carries whatever its base scalar carries, which for every scalar it
+/// is instantiated at is no tangent at all.
+impl<T: SeedScalar> SeedScalar for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: geom_core::Real,
+{
     fn seed(_lifted: Self) -> Option<Self> {
         None
     }
@@ -878,10 +948,16 @@ pub fn param_env_over<T: AxisScalar, P>(
         let v = match *p {
             DocParam::Continuous { dim, value, .. } => {
                 let (lo, hi) = box_.get(name).map_or((0.0, 0.0), BoxAxis::span);
-                let offset = T::axis(lo, hi).ok_or_else(|| ParamBoxError::AxisUnrepresentable {
-                    param: name.clone(),
-                    lo,
-                    hi,
+                // The NAMED door (E12): a scalar that tracks parameter
+                // occurrences symbolically needs to know which parameter
+                // this is; every other scalar's default discards the
+                // name and binds exactly what it bound before.
+                let offset = T::axis_named(name, lo, hi).ok_or_else(|| {
+                    ParamBoxError::AxisUnrepresentable {
+                        param: name.clone(),
+                        lo,
+                        hi,
+                    }
                 })?;
                 crate::expr::ParamValue::Continuous {
                     dim,
@@ -953,6 +1029,98 @@ pub fn box_mass(
     sub: (f64, f64),
 ) -> Result<f64, MeasureUnavailable> {
     interval_mass(param, dist, sub)
+}
+
+/// **The offset a distribution puts at quantile `u`** — inverse-
+/// transform sampling's one door, and the E11.1 advisory lane's only
+/// way to draw a parameter value.
+///
+/// `u` is a uniform draw in `[0, 1)`. The result is an OFFSET from the
+/// nominal, in the parameter's own dimension, exactly as every other
+/// door in this module speaks offsets.
+///
+/// **Inverse transform rather than a shaped generator**, and the reason
+/// is the one this module is built on: the quantile is derived from
+/// [`std_normal_mass`] — the SAME measure `box_mass` and `tail_mass`
+/// report — by the same monotone bisection [`quantile_z`] uses, so a
+/// sample lands in a sub-box with exactly the frequency `box_mass` says
+/// it should. A Box–Muller pair would be a second implementation of the
+/// normal law sitting beside the first, and the two would agree only by
+/// luck.
+///
+/// **It draws from the WHOLE law, never from the analyzed box.** That
+/// is what the MC lane adds over the certified one (E11.1): the tail
+/// the box excludes is exactly the region the certified answer does not
+/// cover, so an estimator that also clipped it would be estimating the
+/// same restriction twice.
+///
+/// # Errors
+///
+/// [`MeasureUnavailable::BandHasNoMeasure`] for a band: limits without
+/// a shape cannot be sampled, and promoting one to uniform is the E2
+/// violation this whole module refuses.
+pub fn sample_offset(
+    param: &ParamName,
+    dist: &Distribution,
+    u: f64,
+) -> Result<f64, MeasureUnavailable> {
+    match *dist {
+        Distribution::Band { .. } => Err(MeasureUnavailable::BandHasNoMeasure {
+            param: param.clone(),
+        }),
+        Distribution::Uniform { lo, hi } => Ok(lo + (hi - lo) * u),
+        Distribution::Normal { sigma } => Ok(sigma * std_normal_quantile(u)),
+        Distribution::TruncatedNormal { sigma, lo, hi } => {
+            // The truncated law's own inverse CDF: bisect the standard
+            // normal's mass over `[a, z]` against `u` of the window's
+            // total, so the draw is conditioned on the window rather
+            // than rejected into it. Rejection sampling would be the
+            // other route and it is not deterministic in the count of
+            // draws it makes, which D9 forbids.
+            let (a, b) = (lo / sigma, hi / sigma);
+            let total = std_normal_mass(a, b);
+            if total <= 0.0 || total.is_nan() {
+                // A window of zero mass is the degenerate point: the
+                // one offset every measure on it agrees about.
+                return Ok(lo);
+            }
+            let target = u * total;
+            let (mut z_lo, mut z_hi) = (a, b);
+            loop {
+                let mid = 0.5 * (z_lo + z_hi);
+                if mid <= z_lo || mid >= z_hi {
+                    return Ok(sigma * z_hi);
+                }
+                if std_normal_mass(a, mid) >= target {
+                    z_hi = mid;
+                } else {
+                    z_lo = mid;
+                }
+            }
+        }
+    }
+}
+
+/// `Φ⁻¹(u)` in standard deviations, by the same monotone bisection
+/// [`quantile_z`] runs and over the same measure.
+///
+/// Saturates at ±[`Z_BRACKET`], which is honest rather than a clamp
+/// hiding a failure: a `u` beyond what 16σ resolves is a draw the `f64`
+/// uniform grid cannot distinguish from the extreme itself.
+fn std_normal_quantile(u: f64) -> f64 {
+    let target = u.clamp(0.0, 1.0);
+    let (mut lo, mut hi) = (-Z_BRACKET, Z_BRACKET);
+    loop {
+        let mid = 0.5 * (lo + hi);
+        if mid <= lo || mid >= hi {
+            return hi;
+        }
+        if std_normal_mass(-Z_BRACKET, mid) >= target {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
 }
 
 /// The standard deviation a distribution puts around its own mean —

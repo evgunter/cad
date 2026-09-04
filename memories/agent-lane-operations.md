@@ -51,7 +51,16 @@ permission classifier blocks batch loops.
 
 **Reclaiming a finished lane is the ORCHESTRATOR's job**, not a lane's:
 only the orchestrator knows which agents have reported, and a lane
-cannot judge whether a sibling directory is live. Do it **when a review
+cannot judge whether a sibling directory is live. That reclaim is a
+GLOB, so a target at a path the brief did not name is invisible to it:
+one lane put 4.8 GB at `/root/<lane>-target` while the sweep globbed
+`/home/user/*-target`, and it surfaced only at 2.4 GB free with five
+concurrent builds live — every one of them unsafe to touch. Before
+concluding the box is out of space, `du -sh /root/* /home/user/*` for
+a target that wandered. And check each target for writes in the last
+few minutes before deleting one: a running build's target is never
+reclaimable, so a lane that ignores the agreed path can strand
+gigabytes behind builds nobody may interrupt. Do it **when a review
 returns**, not when a lane runs out of disk — a review lane's `target/`
 is pure waste the moment its report is in hand, and review lanes are
 the biggest consumers.
@@ -278,6 +287,18 @@ resume resets cwd to the orchestrator worktree** — every resumed
 command must carry `cd <clone> && ...` in the same Bash call, and
 post-resume battery claims are trusted only after verifying the
 transcript rows carried the cd.
+
+**Never move a live lane's branch ref from outside its worktree.** A
+lane's unit branch is checked out in its worktree; `git branch -f` /
+`git reset` on that branch from the orchestrator checkout (e.g. to
+re-gate a frozen head with an empty trailer commit) moves the lane's
+HEAD under it, orphans every unpushed lane commit, and shows the lane
+its own work as a giant staged diff on its next `git status` (M10-6
+fix pass, 2026-09-03 — recovered from `git reflog` and merged, nothing
+lost). Re-gate on a detached commit or a throwaway branch and push BY
+REF (`git push origin <sha>:refs/heads/<branch>`), or make the commit
+inside the lane's worktree while it is dead; never on the shared local
+ref. The lane then merges origin (merge-only) before its next push.
 
 **The session scratchpad is SHARED between concurrently running agents
 of one session.** PR/issue bodies, logs and run artifacts go to

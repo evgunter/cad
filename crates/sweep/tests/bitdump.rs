@@ -25,7 +25,7 @@ use std::fmt::Write as _;
 
 use geom::Surface;
 use geom_brep::SurfaceKind;
-use geom_core::{Affine3, Band, Point2, Tol, Vec2, Vec3};
+use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
@@ -34,11 +34,6 @@ use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, BooleanDeclarations, EdgeKey};
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 /// Dump one body, bit for bit, in key iteration order (identical
 /// operation sequences produce identical key orders).
@@ -299,13 +294,15 @@ fn bitdump_shell_open_box_corpus() {
 
     let mut text = String::new();
     let _ = writeln!(text, "== box cup (top designated, t = 0.25) ==");
-    let cup = topo::shell_open(&body, 0.25, &top, 1e-6, tol).unwrap();
+    let cup = topo::shell_open(&body, 0.25, &top, 1e-6, tol).unwrap().body;
     text.push_str(&dump(&cup));
     let _ = writeln!(text, "== box tube (both caps designated, t = 0.25) ==");
-    let tubey = topo::shell_open(&body, 0.25, &both, 1e-6, tol).unwrap();
+    let tubey = topo::shell_open(&body, 0.25, &both, 1e-6, tol)
+        .unwrap()
+        .body;
     text.push_str(&dump(&tubey));
     let _ = writeln!(text, "== the SEALED box (t = 0.25) ==");
-    let sealed = topo::shell(&body, 0.25, 1e-6, tol).unwrap();
+    let sealed = topo::shell(&body, 0.25, 1e-6, tol).unwrap().body;
     text.push_str(&dump(&sealed));
     save(&dir, "shell_open_box_corpus", &text);
 }

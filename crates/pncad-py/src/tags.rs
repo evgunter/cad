@@ -35,6 +35,23 @@
 //! which forces a wildcard arm and takes the compile-time alarm away
 //! with nothing that fires in its place — see that function for what
 //! the crossing does instead.
+//!
+//! **This file is READ as data.** The exhaustive matches guard the
+//! existence of a tag; nothing in the compiler guards its VALUE, and
+//! the values are the Python-facing contract. So
+//! `src/tests.rs`'s `the_whole_tag_table_matches_its_committed_inventory`
+//! parses this source at test time and compares every function's
+//! literals against an inventory committed there — a rename, an
+//! addition, a deletion or a new tag function reds on the default
+//! no-interpreter row. Its reader ENUMERATES rather than approximates:
+//! every top-level line here must be a comment, a `use` item, a
+//! `pub fn NAME(..) -> &'static str {` closed by a `}` in column 0, or
+//! a `pub const NAME: &str = "..";`, and every match arm's body must
+//! be a literal, a nested `match`, a block around one of those, or a
+//! call to another tag function. Anything else fails that test with
+//! *I do not understand this* rather than being skipped — so an
+//! attribute, a helper, or a cleverer arm added here is a deliberate
+//! diff that teaches the reader too, never a silent hole.
 
 use pncad::document::{
     AssemblyError, CheckEvidence, ChecksError, DimensionError, EditError, EvalError, InlineError,
@@ -295,6 +312,14 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::MeasureNotParallel { .. } => "measure_not_parallel",
         NodeErrorKind::MeasureNonFinite { .. } => "measure_non_finite",
         NodeErrorKind::MeasureMalformed(_) => "measure_malformed",
+        // Its own tag rather than `measure_unsupported`'s: the
+        // recourse is "select a body or a face", not "this carrier
+        // pair has no closed form".
+        NodeErrorKind::MeasureSelectionKind { .. } => "measure_selection_kind",
+        // And its own again: the clearance engine refused, so the
+        // recourse is the engine's — a wider budget, an admitted
+        // carrier — and not the measurement vocabulary's.
+        NodeErrorKind::MeasureClearanceRefused(_) => "measure_clearance_refused",
         NodeErrorKind::PayloadExpr { .. } => "payload_expr",
         NodeErrorKind::AssertionDimension { .. } => "assertion_dimension",
         NodeErrorKind::ToleranceConflict { .. } => "tolerance_conflict",
@@ -375,6 +400,7 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
         MateFault::Under { .. } => "mate_under",
         MateFault::DanglingHead { .. } => "mate_dangling_head",
         MateFault::SelfMate { .. } => "mate_self",
+        MateFault::Unleverable { .. } => "mate_datum_too_small_to_lever",
     }
 }
 

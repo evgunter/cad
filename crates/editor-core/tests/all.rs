@@ -100,6 +100,13 @@ mod display_contract;
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
 mod e4_dual_door;
+#[path = "fix_loop_polygon_expr.rs"]
+mod fix_loop_polygon_expr;
+#[path = "fix_pattern_mate_crossing.rs"]
+mod fix_pattern_mate_crossing;
+
+#[path = "fix_xblind_probe.rs"]
+mod fix_xblind_probe;
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]
@@ -161,6 +168,26 @@ mod m10_5_clearance_interval;
 mod m10_5_r1_probes_interval;
 #[path = "m10_5_r2_probes_interval.rs"]
 mod m10_5_r2_probes_interval;
+#[path = "m10_6_ci_rows_interval.rs"]
+mod m10_6_ci_rows_interval;
+#[path = "m10_6_min_clearance_interval.rs"]
+mod m10_6_min_clearance_interval;
+#[path = "m10_6_r1_probes_interval.rs"]
+mod m10_6_r1_probes_interval;
+#[path = "m10_6_reports_interval.rs"]
+mod m10_6_reports_interval;
+#[path = "m10_7_census_probe.rs"]
+mod m10_7_census_probe;
+#[path = "m10_7_lever.rs"]
+mod m10_7_lever;
+#[path = "m10_7_plate.rs"]
+mod m10_7_plate;
+#[path = "m10_7_probe_interval.rs"]
+mod m10_7_probe_interval;
+#[path = "m10_7_r1_census_probe.rs"]
+mod m10_7_r1_census_probe;
+#[path = "m10_7_r1_probes_interval.rs"]
+mod m10_7_r1_probes_interval;
 #[path = "m10_di_dual_corpus.rs"]
 mod m10_di_dual_corpus;
 #[path = "m10_p_fence.rs"]
@@ -300,8 +327,12 @@ mod r2_cert3_coord_dump;
 mod r2_keydiff;
 #[path = "r2_m10_2_probes.rs"]
 mod r2_m10_2_probes;
+#[path = "r2_m10_6_probes_interval.rs"]
+mod r2_m10_6_probes_interval;
 #[path = "r2_m10_di_probes.rs"]
 mod r2_m10_di_probes;
+#[path = "rev_fix_xsplit_unreachable.rs"]
+mod rev_fix_xsplit_unreachable;
 #[path = "review_gui1_r1.rs"]
 mod review_gui1_r1;
 #[path = "review_m4_pr1.rs"]
@@ -341,77 +372,13 @@ mod u8a_parse;
 #[path = "unreadable_by_this_build.rs"]
 mod unreadable_by_this_build;
 
-/// Guards the `autotests = false` hazard: a suite file added under
-/// `tests/` but not declared above would silently stop being compiled
-/// and run. Both directions are asserted — every file on disk is
-/// declared, and every declaration answers to a file, so no number
-/// about this file is stated in prose without being computed.
-///
-/// The walk is `test_utils::source::suite_files`, which recurses into
-/// group directories and tells a suite from a shared helper by Rust's
-/// own module rule; read it before adding either.
-///
-/// It also pins ONE HOME for every shared helper: no suite file may
-/// carry a `mod <name>;` of its own. That form loads a FILE as a module
-/// of the declaring suite, and in an aggregated binary the same helper
-/// is then parsed, resolved, type-checked and codegen'd once per suite
-/// that declares it — the cost this crate's `all.rs` header describes.
-/// One declaration at the root of this file, and `use crate::<name>;`
-/// in each suite, makes it one compilation for the whole binary.
+/// The aggregation and ONE HOME checks, whose one home — the walk, the
+/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
 #[test]
-// Scoped to this fn on purpose: a crate-root `#![allow]` in this file would
-// weaken the lint gate for every suite module included above.
-#[allow(clippy::expect_used)]
 fn every_suite_file_is_aggregated() {
-    let root = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    // Comments blanked, string literals KEPT — see
-    // `test_utils::source::code_and_literals`, which states why.
-    let src = test_utils::source::code_and_literals(include_str!("all.rs"));
-    let found = test_utils::source::suite_files(&root);
-    let missing: Vec<&String> = found
-        .iter()
-        .filter(|rel| !src.contains(&format!("#[path = \"{rel}\"]")))
-        .collect();
-    assert!(
-        missing.is_empty(),
-        "suites under tests/ are not declared in tests/all.rs, so `autotests = false` \
-         is silently dropping them: {missing:?}. Add a `#[path]` line for each."
-    );
-    // The converse, computed rather than restated: one `#[path]` line
-    // per suite file, no orphan declaration. The `format!` above spells
-    // its quote ESCAPED, so it is not one of these matches.
-    let declared = src.matches("#[path = \"").count();
-    assert_eq!(
-        declared,
-        found.len(),
-        "tests/all.rs declares {declared} suites but {} suite files exist under tests/",
-        found.len()
-    );
-    // ONE HOME for every shared helper, enforced over the same walk.
-    // A `mod <name>;` in a SUITE loads that helper file as a module of
-    // THAT suite, so inside this one binary the helper is parsed,
-    // resolved, type-checked and codegen'd once per suite that declares
-    // it. Declared once at the top of this file and reached with
-    // `use crate::<name>;`, it is compiled once for the binary.
-    // Inline `mod <name> { … }` blocks are not this and stay legal;
-    // helper TREES are directories carrying a `mod.rs`, which the walk
-    // above already excludes.
-    let redeclared: Vec<String> = found
-        .iter()
-        .flat_map(|rel| {
-            let text =
-                std::fs::read_to_string(root.join(rel)).expect("a walked suite file reads back");
-            test_utils::source::file_module_decls(&text)
-                .into_iter()
-                .map(move |name| format!("{rel}: mod {name};"))
-        })
-        .collect();
-    assert!(
-        redeclared.is_empty(),
-        "a suite declares a module of its own, which compiles that file once per \
-         declaring suite inside this one binary: {redeclared:?}. Declare it once in \
-         tests/all.rs (`mod <name>;`, no `#[path]`) and say `use crate::<name>;` here."
-    );
+    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
+    assert!(violations.is_empty(), "{}", violations.join("\n"));
 }
 
 #[path = "cert_m2r1_corpus.rs"]
@@ -431,3 +398,6 @@ mod lib_tube_r1_probes2;
 
 #[path = "lib_tube_r2_probes.rs"]
 mod lib_tube_r2_probes;
+
+#[path = "m10_7_r2_probes_interval.rs"]
+mod m10_7_r2_probes_interval;
