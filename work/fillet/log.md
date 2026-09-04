@@ -167,3 +167,14 @@ order pinned, the `Interval` bracket rows that make the interval claim
 real, the no-metering probe row); the sub-ε class filed as
 `blend-size-gate-unmetered-under-epsilon` with a characterization row
 as its witness. The first FILLET unit closes.
+
+**H4 landed (2026-09-04)** on PR [#1752](https://github.com/evgunter/cad/pull/1752),
+head `797e37f9`, green at the asked-for interval lane. The curved arms
+fold the chain's convexity; the concave gate is retired; the waist, the
+`cube ∪ ball` boss (LADDER), the lily mouth and the snowman waist carve
+at their closed-form volumes with pad 0; every convex carve bit-identical
+to the merge base by the dump; two mutants red only on concave rows;
+`D322` closed as a rider. Ordinal **2000** claimed; the v6 dual is
+dispatched concurrently on the frozen head (the draw and method are in
+`docs/MODEL-AB-LOG.md`'s claim entry). The implementer's unit entry
+waits for the dual.
