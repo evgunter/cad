@@ -354,19 +354,37 @@ pub enum ReplaceFaceError<T: Real> {
         /// The face named twice.
         face: FaceKey,
     },
-    /// **The simultaneous door: two corner solves disagree about where
-    /// an edge ends.** Distinct from
-    /// [`ReplaceFaceError::ReanchorOffCarrier`], which is the per-face
-    /// door's finding about a moved vertex leaving an UNMOVED
-    /// neighbour's carrier. This one is the simultaneous door's: the
-    /// edge's own line was carried to where its two moved planes put
-    /// it, and the far endpoint — solved independently, against a
-    /// different triple of planes — did not land on it. Two solves
-    /// agreeing is the claim; this is it failing.
+    /// **The simultaneous door: an edge's re-derived geometry
+    /// disagrees with a moved surface or carrier by `gap`.** Distinct
+    /// from [`ReplaceFaceError::ReanchorOffCarrier`], which is the
+    /// per-face door's finding about a moved vertex leaving an UNMOVED
+    /// neighbour's carrier. This one is the simultaneous door's
+    /// verification net over every edge it re-derives, and THREE
+    /// meters raise it — two about an endpoint, one about the carrier
+    /// itself:
+    ///
+    /// - `offset_together_edge_agreement` (the planar door): the far
+    ///   endpoint — solved independently, against a different triple
+    ///   of planes — read onto the carried line; `gap` is its distance
+    ///   off that line. Two solves agreeing is the claim; this is it
+    ///   failing.
+    /// - `offset_axial_edge_agreement` (the axial door's `param_on`):
+    ///   a moved endpoint read onto the minted carrier; `gap` is the
+    ///   endpoint's distance off it — the same two-solves claim, one
+    ///   carrier kind wider.
+    /// - `offset_axial_edge_on_surface` (the axial door): the minted
+    ///   carrier's own MIDPOINT metered against each of the two moved
+    ///   surfaces the edge separates; `gap` is the midpoint's residual
+    ///   to the surface that refused. No endpoint pair is compared at
+    ///   this meter at all — the carrier itself stands off a surface
+    ///   it claims to lie in. (The sphere lune's pre-RIMCAP refusal
+    ///   was this meter, on the axis edge between its two moved caps —
+    ///   the site an earlier draft of this doc misdescribed as an
+    ///   endpoint disagreement.)
     TogetherEdgeDisagreement {
-        /// The edge whose two ends were solved apart.
+        /// The edge whose re-derived geometry failed verification.
         edge: EdgeKey,
-        /// How far the far endpoint missed the line, in meters.
+        /// The disagreement the raising meter measured, in meters.
         gap: T,
     },
     /// **The axial door's kind gate**: a face wears a surface that is
@@ -597,9 +615,10 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             ),
             Self::TogetherEdgeDisagreement { edge, gap } => write!(
                 f,
-                "the simultaneous offset: {edge:?}'s two ends were solved {gap:?} m apart — \
-                 the far corner's own solve did not land on the carrier its two moved \
-                 SURFACES give it"
+                "the simultaneous offset: {edge:?}'s re-derived geometry is {gap:?} m out of \
+                 agreement — an independently solved endpoint stands off the edge's carrier, \
+                 or the minted carrier's own midpoint stands off a moved surface the edge \
+                 separates"
             ),
             Self::TogetherNonPlanar { face, kind } => write!(
                 f,

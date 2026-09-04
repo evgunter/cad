@@ -245,3 +245,13 @@ section says that is not already here — it reaches the same answer from
 a different direction ("no `.pyi` declares a constant for any other
 `measure_*` tag") rather than from the B-MEASURES census gap. Nothing
 in the Rust is at stake in that resolution.
+
+**Folded in from 1725's own section**, since the file above asks for it:
+M10-7 reached the same answer by a second, independently checkable
+route — **no `.pyi` under `crates/pncad-py/` declares a constant for ANY
+`measure_*` `node_error_tag`**, not just for these two, so the absence
+of the two new ones is the surface's existing shape rather than a gap
+these two opened. Both readings say correct surface; the repair is the
+inventory line alone. 1725 keeps the two lines it already carries
+(byte-identical to this hotfix, as verified above) and drops its own
+"closed here" claim: this file is where the item is closed.

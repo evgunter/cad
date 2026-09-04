@@ -131,8 +131,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use geom_core::interval::Interval;
-use geom_core::{CertifiedEnclosure, Dual64, Tol};
+use geom_core::{Dual64, Tol};
 use topo::Body;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
@@ -777,6 +776,16 @@ impl ValueChannel for Dual64 {
 
 /// FNV-1a 64 over value-channel bits — a comparison digest for the
 /// pairing, never a content key (it hashes OUTPUTS, keyed by nothing).
+///
+/// Its own mixer rather than `crate::eval::memo`'s (a private module,
+/// so it is named rather than linked), and the sentence
+/// above is the reason: that one builds CONTENT KEYS, whose whole job is
+/// to be the identity of an evaluation, and reusing the key type here
+/// would make a digest that must never be treated as an identity share a
+/// name with the one that is. `geom_core::sym`'s `Hash128` is a third,
+/// under the strictest contract of the three (node ids that must agree
+/// across builds forever). Three small FNV-1a mixers under three
+/// different contracts; the duplication is stated at each of them.
 struct Digest(u64);
 
 impl Digest {
@@ -985,14 +994,22 @@ fn bind_verdict(
     let Some(tied) = chamber.or_else(|| verdict.certified().first()) else {
         return Ok(Chamber::LocalOnly);
     };
-    let replay: Evaluation<Interval> = evaluate(
+    // At the tier the drive ran (`ParamBoxVerdict::symbolic`): a leaf
+    // certified with the symbolic tier on can carry a node a
+    // numeric-only replay refuses, and the tie would then report a
+    // perfectly good build as "not of this build".
+    let readback = crate::eval::replay_leaf(
         doc,
-        None,
-        &CancelToken::new(),
         &leaf_opts(tied.box_.clone()),
+        verdict.lane(),
+        &crate::eval::LeafPrior::None,
+        crate::eval::LeafRequest {
+            keys: true,
+            ..crate::eval::LeafRequest::default()
+        },
         tol,
     );
-    tie(tied, &replay)?;
+    tie(tied, &readback.keys)?;
     Ok(
         chamber.map_or(Chamber::LocalOnly, |leaf| Chamber::ChamberCertified {
             leaf: leaf.box_.clone(),
@@ -1003,12 +1020,10 @@ fn bind_verdict(
 
 /// The tie itself: the leaf's recorded per-node keys against its
 /// replay's, in evaluation order, the first difference named.
-fn tie(leaf: &CertifiedLeaf, replay: &Evaluation<Interval>) -> Result<(), SensitivityRefusal> {
-    let replayed: Vec<(RecipeNodeId, ContentKey)> = replay
-        .order
-        .iter()
-        .filter_map(|&id| replay.value(id).map(|v| (id, v.content_key)))
-        .collect();
+fn tie(
+    leaf: &CertifiedLeaf,
+    replayed: &[(RecipeNodeId, ContentKey)],
+) -> Result<(), SensitivityRefusal> {
     let recorded = &leaf.results.node_keys;
     let n = recorded.len().max(replayed.len());
     for i in 0..n {
@@ -1591,13 +1606,16 @@ impl core::error::Error for StackupRefusal {}
 /// and the per-leaf worst-case evaluations under rayon idiom 1; the
 /// report is schedule-independent (D9).
 ///
-/// The worst case re-evaluates the measure at `Interval` over each
-/// certified leaf's environment (the guided lift on, exactly as the
-/// drive replayed it), ties every leaf's keys to the drive's record
-/// on the way, and hulls the certified brackets. One interval
-/// evaluation per certified leaf, bounded above by the drive's own
-/// cost — that is the v1 cost decision, taken over a recording dial on
-/// `DriveConfig`.
+/// The worst case re-evaluates the measure over each certified leaf's
+/// environment ON THE LANE THE DRIVE RAN — the guided lift on, and the
+/// symbolic tier on or off exactly as `ParamBoxVerdict::symbolic` says,
+/// because a leaf the tier certified can carry a node a numeric-only
+/// replay refuses. The numeric channel is the same either way, so the
+/// hulled brackets are the same bits; what the lane decides is which
+/// leaves have one. It ties every leaf's keys to the drive's record on
+/// the way and hulls the certified brackets. One evaluation per
+/// certified leaf, bounded above by the drive's own cost — the v1 cost
+/// decision, taken over a recording dial on `DriveConfig`.
 ///
 /// # Errors
 ///
@@ -1738,10 +1756,12 @@ pub fn stackup(
 
 /// The hull of value-channel interval evaluations of the measure over
 /// the certified leaves, every leaf tied to the drive's record on the
-/// way. Tangent-free BY TYPE: the evaluation scalar is [`Interval`],
-/// which has no tangent channel, and the bracket is read through
-/// [`CertifiedEnclosure::certified_bracket`] — the domain-honest door,
-/// so a poisoned enclosure refuses named instead of hulling a NaN.
+/// way. Tangent-free BY TYPE: the evaluation scalar is
+/// [`geom_core::Interval`], which has no tangent channel, and the
+/// bracket is read through
+/// [`geom_core::CertifiedEnclosure::certified_bracket`] — the
+/// domain-honest door, so a poisoned enclosure refuses named instead of
+/// hulling a NaN.
 fn worst_case(
     doc: &Doc<ProfileProgram>,
     measure: RecipeNodeId,
@@ -1750,6 +1770,7 @@ fn worst_case(
     tol: Tol,
 ) -> Result<WorstCase, StackupRefusal> {
     let leaves = verdict.certified();
+    let lane = verdict.lane();
     // One shared memo prior over the DEGENERATE box — every axis fixed
     // at the nominal, bound through the same door and the same
     // arithmetic a leaf's fixed axes bind through — so the
@@ -1766,28 +1787,39 @@ fn worst_case(
             .map(|n| (n.clone(), BoxAxis::Fixed))
             .collect(),
     );
-    let prior: Evaluation<Interval> =
-        evaluate(doc, None, &CancelToken::new(), &leaf_opts(nominal_box), tol);
+    // The hull runs on the lane the drive ran on
+    // (`ParamBoxVerdict::symbolic`), for the tie's reason: a leaf the
+    // symbolic tier certified may carry a node a numeric-only replay
+    // refuses. The numeric channel of the wrapped scalar is the plain
+    // one's, verbatim, so the BRACKETS are the same bits either way —
+    // only which leaves have one changes. The prior is the numeric
+    // lane's alone; `LeafPrior` states why the symbolic lane has none.
+    let prior = crate::eval::LeafPrior::of(doc, &leaf_opts(nominal_box), lane, tol);
     let one = |leaf: &CertifiedLeaf| -> Result<(f64, f64), StackupRefusal> {
-        let ev: Evaluation<Interval> = evaluate(
+        let readback = crate::eval::replay_leaf(
             doc,
-            Some(&prior),
-            &CancelToken::new(),
             &leaf_opts(leaf.box_.clone()),
+            lane,
+            &prior,
+            crate::eval::LeafRequest {
+                keys: true,
+                measure: Some(measure),
+                ..crate::eval::LeafRequest::default()
+            },
             tol,
         );
-        tie(leaf, &ev).map_err(StackupRefusal::Sensitivity)?;
-        let value =
-            measure_of(&ev, measure).map_err(|(node, cause)| StackupRefusal::LeafDiverged {
+        tie(leaf, &readback.keys).map_err(StackupRefusal::Sensitivity)?;
+        readback
+            .measure
+            .unwrap_or(Ok(None))
+            .map_err(|(node, cause)| StackupRefusal::LeafDiverged {
                 leaf: leaf.box_.clone(),
                 node,
                 cause,
-            })?;
-        CertifiedEnclosure::certified_bracket(value).ok_or_else(|| {
-            StackupRefusal::WorstCaseUncertified {
+            })?
+            .ok_or_else(|| StackupRefusal::WorstCaseUncertified {
                 leaf: leaf.box_.clone(),
-            }
-        })
+            })
     };
     // D9 idiom 1 again: an indexed map, then one sequential fold over
     // the collected brackets, so the hull is the same bits in either

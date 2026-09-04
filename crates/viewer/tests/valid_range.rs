@@ -210,8 +210,9 @@ fn the_session_probes_a_real_slots_range() {
     assert!(outcome.committed.is_empty(), "a probe changes no document");
     assert!(outcome.previewed.is_empty());
 
-    let (probed, result) = session.bounds().expect("a probe landed").clone();
-    assert_eq!(probed, target);
+    let reading = session.bounds().expect("a probe landed").clone();
+    let result = reading.bounds;
+    assert_eq!(reading.target, target);
     assert_eq!(result.origin, 0.008);
     let Bound::Edge { valid, invalid } = result.low else {
         panic!("a thin extrude fails, so there is a floor below 8 mm: {result:?}");
@@ -395,7 +396,7 @@ fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
         },
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let (_, result) = session.bounds().expect("a probe landed").clone();
+    let result = session.bounds().expect("a probe landed").bounds;
     assert_eq!(result.origin, 0.008);
 
     // Upward: a thicker plate never fails, so the search reaches its
