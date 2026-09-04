@@ -162,10 +162,19 @@ So the chain goes, not the link:
   for a pair, and beside `PlacedUnion`, which fuses instances of one
   prototype and is a different sentence (`node.rs:1325`).
 - **Naming keys by member, not by depth.** The emitter wraps a
-  member's names in `FromMember(Box<StableName>)`; the inner name
-  embeds its own minting node, so members are distinguished by
-  identity and no position is recorded. Removing a member leaves
-  every other member's names as they were.
+  member's names in `FromMember { member: RecipeNodeId, of:
+  Box<StableName> }`: `member` is the member's own node id (the edge
+  in the list), `of` the entity's name in that member's table. The
+  key is the edge, never the inner name's minting node, because a
+  pass-through op contributes no segment (N1; `Transform` keeps the
+  input's rows verbatim), so two members that are transforms of one
+  body carry IDENTICAL tables — the die's 21 pips are exactly that —
+  and the inner name alone cannot tell them apart. The member id
+  can, it is data the node already carries, and DM5 makes it unique
+  within one union. No position is recorded, so removing a member
+  leaves every other member's names as they were. The `Instance { i,
+  of }` segment is the precedent shape, with an identity where it has
+  an index.
 - **`DocEdit::SetMembers { node, members: Vec<RecipeNodeId> }`** —
   the one edit that changes a list input, by naming the whole new
   list. Unambiguous by construction: nothing is inferred. Refuses
@@ -188,11 +197,14 @@ on whatever it is handed (`wire.rs:1994`). `SetMembers` needs the
 rule, so it is stated once, as a structural validity check on a
 node's inputs — pairwise distinct, which covers the boolean, a union
 or loft list with a repeated member, and a split whose target and
-tool coincide — and called by `InsertNode` and by `SetMembers` on the
-rewritten node, so the doors share the logic rather than mirror it.
-Load gets it for free, since load replays edits
-(`persist/mod.rs:433`). Refusal: `EditError::DuplicateInput { node,
-input }`.
+tool coincide — and called by `InsertNode`, by `SetMembers` on the
+rewritten node, and by the load validator (`persist/check.rs`,
+`validate_document`) on every node of a snapshot, so the three doors
+share the logic rather than mirror it. Replayed edits meet it through
+`InsertNode`; the snapshot beside the edit log is the third door, since
+a hand-written snapshot never passes an edit door. Refusal:
+`EditError::DuplicateInput { node, input }` at the edit doors, the
+validator's own `SnapshotError` arm at load.
 
 ## DM6 — Splice is not added
 
