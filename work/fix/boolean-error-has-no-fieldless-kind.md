@@ -2,12 +2,13 @@
 id: boolean-error-has-no-fieldless-kind
 kind: issue
 title: topo::BooleanError has no fieldless kind, so editor-core's checks door degrades it to reason: String — the PathErrorKind shape, one crate down
-status: review
+status: closed
 opened: 2026-09-01
 github: 1491
 refs: [1490]
 branch: fix/boolean-error-kind
 pr: 1806
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1491
