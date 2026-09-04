@@ -2,7 +2,7 @@
 id: pick-priority-filter-vocabulary
 kind: issue
 title: Pick-priority has no filter vocabulary - a tool states which entity kinds it takes, and only the mate tool's case is served
-status: open
+status: deferred
 opened: 2026-08-31
 github: 1379
 refs: [1407]
@@ -141,3 +141,23 @@ and stays Ev's.
 ## Home
 
 Viewer/GUI ground: GAUTH's closing entry names this issue as its residue and `crates/viewer/README.md` GQ7 owns the open question, but both GAUTH and GUI are closed programs, so it lands in `work/issues/`.
+
+## Deferred, and now sayable (2026-09-04)
+
+**Status `deferred`.** The section above records this row spending a day
+as `open` for want of a truer status, and says the tracker has no
+vocabulary for *waits on a trigger no item names*. Ev ruled on VIEW's
+PR #1857 that it should have one, distinct from `parked`: *"deferred and
+blocked do seem semantically different"*.
+
+The ratification this row cites is `crates/viewer/README.md` GQ7, which
+defers the filter vocabulary — which filters are offered where, and what
+the picture owes the user about an active filter — to sketcher and tree
+design. The trigger the row's own text names, a third asymmetric tool
+(a vertex pick), exists in no tree and on no program's slate.
+
+Nothing checks that citation and nothing pretends to: `work/README.md`
+says in as many words that a deferred row's ratification is prose,
+enforced by review. What lint does enforce is that the row carries no
+`blocked_on` — a row waiting on a named trigger is `parked`, and the two
+statuses stay distinct.
