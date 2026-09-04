@@ -21,8 +21,18 @@
 //! **The line carries NEWS, for the frame that produced it.** Every
 //! sentence on it is something that HAPPENED — an action the document
 //! refused, a pick a tool declined, a dialog that could not open — and
-//! which of a frame's news wins is [`frame_status`]'s ranking and
-//! nobody else's.
+//! which of a frame's news SHOULD win is [`frame_status`]'s ranking.
+//!
+//! **It does not yet win for every writer, and this module is one of
+//! the exceptions.** Nineteen writers in this crate reach the line
+//! without asking the ranking; eighteen assign the field outright, and
+//! the nineteenth is [`fold_status`], which answers in the right
+//! vocabulary and applies it at `pane::viewport::land`. So a camera
+//! refusal raised in a frame that also carries a clean acting op is
+//! overwritten by that batch's [`StatusUpdate::Clear`], which runs
+//! after the panes have drawn. The rule below is what the line is FOR;
+//! routing the writers through it is tracked as its own item, not
+//! asserted here as done.
 //!
 //! **A fact that is still true after the frame ends is not news.** It
 //! is a standing fact about the landed document or the picture drawn
@@ -197,25 +207,58 @@ pub fn fold_status(folded: &Folded) -> StatusUpdate {
 /// the one place a fault raised by a landing cannot survive the
 /// landing.
 ///
-/// **Loud, not weak.** A fault is a fault: the chrome draws this beside
-/// the at-rest and checks badges in the unresolved colour, not in the
-/// weak one the display budget's advisory uses, because the line it
-/// replaces was at least an ordinary label and a quieter home would be
-/// a regression dressed as a fix.
+/// **Redundant colour beside its own words.** The chrome draws this in
+/// [`crate::theme::Theme::unresolved`], the colour the at-rest refusal
+/// and the checks findings already carry, and that colour's stated
+/// contract is that it is REDUNDANT — every badge using it says its own
+/// words, so nothing depends on the colour being read. This badge
+/// satisfies it, because [`ProductError`]'s `Display` opens every arm
+/// with "product: ".
+///
+/// It is **not** simply louder than the line it left, and the argument
+/// must not lean on that: chromatically it is far more salient than an
+/// uncoloured label, and in LUMINANCE contrast it is lower in both
+/// palettes. What justifies the home is the lifetime — a standing fact
+/// cannot live on a line that carries one frame's news — and what
+/// justifies the colour is that it is the spelling its three sibling
+/// badges already use for a verdict a reader may need to act on.
+///
+/// # The arms that stay silent, and why
 ///
 /// **A document with no body root is EMPTY, not malformed.** A fresh
 /// document is in that state, and so is one whose last feature was just
 /// deleted — and the blank viewport says so more plainly than any words
 /// could. Reporting it makes deleting the last feature look like a
-/// failure. Every other gather refusal is a fault no per-node badge
-/// carries, which is what this one exists for.
+/// failure.
 ///
-/// The rendering is [`ProductError`]'s own `Display`, which opens every
-/// arm with "product: " — so nothing here composes prose about another
-/// value's failure.
+/// **A per-node state the feature tree already badges is not this
+/// channel's to repeat.** [`crate::tree::RowStatus`] has exactly three
+/// non-`Ok` states — `Failed`, `Poisoned`, `Unevaluated` — and
+/// [`ProductError::RootFailed`], [`ProductError::RootPoisoned`] and
+/// [`ProductError::UnknownNode`] are those same three states seen from
+/// the gather. The tree badges each AT the node and carries the typed
+/// cause with it, so this badge would say strictly less, in a louder
+/// colour, one row above a status line already reporting the same
+/// root's tessellation refusal. The Features pane goes further and
+/// draws a poisoned row deliberately QUIET, reserving the unresolved
+/// colour for the row a reader can act on; a badge shouting about the
+/// same poisoning would have the chrome saying both things at once.
+///
+/// What is left is what this channel is FOR: the gather-level faults no
+/// per-node badge can carry — a naming collision across roots, a graft
+/// the kernel refused, a validity verdict on the assembled product, an
+/// evaluation of the wrong document.
 pub fn product_badge(fault: Option<&ProductError>) -> Option<String> {
     fault
-        .filter(|fault| !matches!(fault, ProductError::NoBodyRoots))
+        .filter(|fault| {
+            !matches!(
+                fault,
+                ProductError::NoBodyRoots
+                    | ProductError::RootFailed { .. }
+                    | ProductError::RootPoisoned { .. }
+                    | ProductError::UnknownNode { .. }
+            )
+        })
         .map(ToString::to_string)
 }
 
@@ -465,9 +508,17 @@ pub fn dialog_status(backend: ChooserBackend, chose: bool) -> StatusUpdate {
 /// Whether a folded event stream actually moved the camera.
 ///
 /// The stream carries cursor events too, and a stream that denotes no
-/// camera operation is not a camera event: landing it anyway would
-/// clear the status line on every frame the pointer is inside the
-/// viewport, which is the same defect [`acts`] guards at the other end.
+/// camera operation is not a camera event.
+///
+/// **What this buys is a statement, not a fix.** It once stopped an
+/// erasure: landing a no-op fold cleared the status line on every frame
+/// the pointer was inside the viewport. [`fold_status`] closed that at
+/// the other end, so the guard is now near-redundant behaviourally —
+/// it saves one call and a `Camera` copy. It is kept because
+/// `pane::viewport::land` is documented as the one place a camera MOVE
+/// becomes application state, and calling it on frames where nothing
+/// moved makes that sentence false and hands any writer later added to
+/// it per-frame behaviour nobody asked for.
 pub fn folded_moved(folded: &Folded) -> bool {
     !folded.applied.is_empty() || folded.refused.is_some()
 }
@@ -634,13 +685,19 @@ pub fn disagreement(
     })
 }
 
-/// **The two lifetimes, driven the way the frame loop drives them.**
+/// **The two lifetimes, as policy over values.**
 ///
 /// Both rules this module states about the status line are silent when
 /// they break: a cleared line looks exactly like a line nobody wrote
 /// to, and a fault with no home looks exactly like a document with no
-/// fault. So each is asserted here against the composition that
-/// exposes it — a camera fold landing on the same frame as a document.
+/// fault.
+///
+/// Everything here is a pure function of a value, and the values are
+/// built by hand — `frame` is a vocabulary, so it is read and tested
+/// with no session and no window in existence
+/// (`crates/viewer/README.md`). The other half, where a real fold meets
+/// a real landing, is `pane::viewport`'s: that is the driver, and the
+/// rows that need one live there.
 #[cfg(test)]
 mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
@@ -650,59 +707,37 @@ mod tests {
     use super::*;
 
     use bvh::Aabb;
-    use pncad::geom_core::Tol;
+    use pncad::document::RecipeNodeId;
     use pncad::prelude::EntityKind;
 
-    use crate::camera::{Camera, CameraOp, fold_recorded};
-    use crate::props::SlotValue;
-    use crate::scene::{self, PLATE_EXTENT};
-    use crate::session::{DocSession, SessionOp};
+    use crate::camera::{Camera, CameraOp, CameraOpError};
 
-    /// The plate's box, the thing an opened document's re-frame fits.
-    fn plate_bounds() -> Aabb {
-        let [width, depth, thickness] = PLATE_EXTENT;
-        Aabb {
+    /// A camera — any camera. Nothing here reads it: [`fold_status`]
+    /// judges what a fold REFUSED, and [`Folded`] has to carry one.
+    fn a_camera() -> Camera {
+        let unit = Aabb {
             min_x: 0.0,
             min_y: 0.0,
             min_z: 0.0,
-            max_x: width,
-            max_y: depth,
-            max_z: thickness,
+            max_x: 1.0,
+            max_y: 1.0,
+            max_z: 1.0,
+        };
+        Camera::framing(&unit, 16.0 / 9.0).expect("a unit box frames")
+    }
+
+    /// A fold that applied everything it was given — the shape
+    /// `fold_recorded` returns for a drag that worked, and for the
+    /// re-frame an opened document books for itself.
+    fn a_clean_fold() -> Folded {
+        Folded {
+            camera: a_camera(),
+            applied: vec![CameraOp::Orbit {
+                yaw: 0.2,
+                pitch: 0.1,
+            }],
+            refused: None,
         }
-    }
-
-    fn framed() -> Camera {
-        Camera::framing(&plate_bounds(), 16.0 / 9.0).expect("the plate frames")
-    }
-
-    /// The re-frame `fit_on_scene` books when a document lands: the
-    /// operation the viewport folds and lands on that very frame.
-    fn the_re_frame_an_open_books() -> CameraOp {
-        CameraOp::Frame {
-            bounds: plate_bounds(),
-            aspect: 16.0 / 9.0,
-        }
-    }
-
-    /// A session whose landed product does not gather.
-    fn faulted_session() -> DocSession {
-        let tol = Tol::witness();
-        let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
-        let mut session = DocSession::inline(doc, tol);
-        session.pump();
-        assert!(
-            session.product_fault().is_none(),
-            "the plate's own product gathers: {:?}",
-            session.product_fault()
-        );
-        let outcome = session.perform(SessionOp::SetSlot {
-            node: extrude,
-            slot: SlotId::Distance,
-            value: SlotValue::Continuous(0.0),
-        });
-        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        session.pump();
-        session
     }
 
     #[test]
@@ -710,18 +745,12 @@ mod tests {
         // The defect this closes: the camera is the fastest-moving
         // writer the line has, and one that assigned on every clean
         // fold decided the fate of every other writer's sentence.
-        let camera = framed();
-        let move_it = CameraOp::Orbit {
-            yaw: 0.2,
-            pitch: 0.1,
-        };
-        let folded = fold_recorded(&camera, std::slice::from_ref(&move_it));
-        assert!(folded.refused.is_none(), "{:?}", folded.refused);
+        let folded = a_clean_fold();
         assert!(
             folded_moved(&folded),
             "the fold MOVED, so the frame loop lands it — a fold that \
-             moved nothing would never reach the line at all and this \
-             row would be asserting about a case that cannot happen"
+             moved nothing never reaches the line at all, and this row \
+             would be asserting about a case that cannot happen"
         );
         assert_eq!(fold_status(&folded), StatusUpdate::Keep);
 
@@ -736,9 +765,13 @@ mod tests {
 
     #[test]
     fn a_refused_fold_is_news_and_outranks_what_the_line_held() {
-        let camera = framed();
-        let refuses = CameraOp::Dolly { factor: 0.0 };
-        let folded = fold_recorded(&camera, std::slice::from_ref(&refuses));
+        let refused = CameraOp::Dolly { factor: 0.0 };
+        let folded = Folded {
+            camera: a_camera(),
+            applied: Vec::new(),
+            refused: Some((refused, CameraOpError::NonPositiveDolly { factor: 0.0 })),
+        };
+        assert!(folded_moved(&folded), "a refusal is a camera event too");
         let StatusUpdate::Show(message) = fold_status(&folded) else {
             panic!("a refused fold is news: {:?}", fold_status(&folded));
         };
@@ -753,53 +786,17 @@ mod tests {
     }
 
     #[test]
-    fn a_product_fault_survives_the_re_frame_the_open_that_raised_it_books() {
-        // The end-to-end case: a document lands with a fault AND books
-        // a re-frame, both on one frame. Whichever home the fault has,
-        // that fold must not be what takes it away.
-        let session = faulted_session();
-        let fault = product_badge(session.product_fault())
-            .expect("a root that will not evaluate is a gather refusal");
-
-        let folded = fold_recorded(
-            &framed(),
-            std::slice::from_ref(&the_re_frame_an_open_books()),
-        );
-        assert!(folded.refused.is_none(), "the re-frame applies");
-        assert!(folded_moved(&folded), "and it is landed");
-
-        // The home it has: a badge, read from held state, so the frame
-        // the fold happens on cannot touch it.
-        apply(&mut Some(fault.clone()), fold_status(&folded));
-        assert_eq!(
-            product_badge(session.product_fault()).as_deref(),
-            Some(fault.as_str()),
-            "the fault is a standing fact and is still readable after the re-frame"
-        );
-
-        // And the home it used to have: had the landing written the
-        // line, this same fold would now leave it alone. The two
-        // assertions together are the rule — the line carries news,
-        // and a clean fold produces none.
-        let mut line = Some(fault.clone());
-        apply(&mut line, fold_status(&folded));
-        assert_eq!(line.as_deref(), Some(fault.as_str()));
-    }
-
-    #[test]
-    fn the_gather_verdict_badges_every_fault_but_an_empty_document() {
-        let tol = Tol::witness();
-        let (_doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+    fn the_gather_verdict_badges_only_the_faults_nothing_else_carries() {
+        let node = RecipeNodeId(2);
 
         // The item's own reproduction: two roots colliding in the name
-        // table. It is not a node failure, so no per-node badge carries
-        // it and this is its only channel — which is why the badge is
-        // drawn loud rather than weak.
+        // table. Not a node failure, so no per-node badge carries it —
+        // which is why this channel exists at all.
         let collision = ProductError::Naming {
-            node: extrude,
+            node,
             name: Box::new(StableName {
                 kind: EntityKind::Face,
-                node: extrude,
+                node,
                 path: Vec::new(),
             }),
         };
@@ -807,12 +804,28 @@ mod tests {
         assert_eq!(badge, collision.to_string(), "the fault renders itself");
         assert!(
             badge.starts_with("product: "),
-            "and says what it is about: {badge}"
+            "and says what it is about, so the colour carries nothing \
+             alone: {badge}"
         );
 
-        // The one silent arm, and it is not a fault: a document with no
-        // body root is EMPTY. The blank viewport says that already.
-        assert_eq!(product_badge(Some(&ProductError::NoBodyRoots)), None);
+        // The silent arms. An empty document is not malformed, and the
+        // three per-node states are the feature tree's to badge — at
+        // the node, with the cause, one of them deliberately quiet.
+        for quiet in [
+            ProductError::NoBodyRoots,
+            ProductError::RootFailed { node },
+            ProductError::RootPoisoned {
+                node,
+                through: RecipeNodeId(1),
+            },
+            ProductError::UnknownNode { node },
+        ] {
+            assert_eq!(
+                product_badge(Some(&quiet)),
+                None,
+                "another channel already carries this: {quiet}"
+            );
+        }
         assert_eq!(product_badge(None), None);
     }
 

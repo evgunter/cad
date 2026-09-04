@@ -76,8 +76,9 @@ Open any document whose product has a fault (two roots colliding in the name tab
 **The status line carries per-frame NEWS, and `frame` owns its
 ranking. A fact that stays true after the frame ends is not news and
 does not belong in the line.** That sentence is now
-`crates/viewer/src/frame.rs`'s header, and both halves of it are
-values there rather than conditions at a call site:
+`crates/viewer/src/frame.rs`'s header, with the gap it does not yet
+close named beside it, and both halves of it are values there rather
+than conditions at a call site:
 
 - `frame::fold_status` answers `StatusUpdate::Keep` for a clean fold
   and `Show` for a refused one. A camera arriving where it was sent is
@@ -88,49 +89,76 @@ values there rather than conditions at a call site:
   through, so `Keep` is spelled as a decision instead of as the
   absence of an assignment. `land` and `ViewerApp::apply_status` both
   go through it.
-- `frame::product_badge` renders the gather's verdict, filtering
-  `NoBodyRoots` (an empty document is not malformed — the blank
-  viewport says so). The toolbar draws it beside the at-rest and
-  checks badges, in the unresolved colour rather than the weak one the
-  budget advisory uses: a fault is a fault, and the home it moved to
-  must not be quieter than the line it left.
+- `frame::product_badge` renders the gather's verdict for a toolbar
+  badge, declining every arm another channel already carries.
 
 Of the shape's three candidates, this is (2) and (3) together and not
 (1): the line does not carry its writer, because a writer that has
 nothing to say now says so.
 
-`sync_scene` no longer writes the fault at all. Two consequences worth
-recording. The badge is a read of held state, so it can never be stale
-or erased by anything else in the frame — where the old line was
-written only inside the successful-rebuild arm. And it therefore
-appears for faults the line could not reach: a failed root refuses the
-pick index, and `sync_scene` returned at that arm before ever reaching
-the product-fault assignment, so `RootFailed` and `RootPoisoned` badge
-now where before only the tree row did.
+### What the badge does and does not report
+
+`sync_scene` no longer writes the fault. The badge is a read of held
+state, so it can never be stale or erased by anything else in the
+frame, where the old line was written only inside the
+successful-rebuild arm.
+
+It reports LESS than that line did, deliberately. `RowStatus` has
+exactly three non-`Ok` states — `Failed`, `Poisoned`, `Unevaluated` —
+and `ProductError::RootFailed`, `RootPoisoned` and `UnknownNode` are
+those states seen from the gather. The tree badges each at the node,
+with the typed cause; the Features pane draws a poisoned row
+deliberately QUIET and reserves the unresolved colour for the row a
+reader can act on. A badge shouting about the same poisoning would
+have the chrome saying two things at once, so those three are filtered
+alongside `NoBodyRoots`. What is left is what this channel is for: the
+gather-level faults nothing else can carry.
+
+Its colour is `Theme::unresolved`, and the argument for it is the
+theme's own — REDUNDANT colour beside a badge that says its own words
+("product: …" comes from `ProductError`'s `Display`). It is NOT
+uniformly louder than the plain label it replaces: chromatically more
+salient, and lower in luminance contrast in both palettes. The home is
+justified by the lifetime, not by the volume.
 
 ### Rows
 
-`crates/viewer/src/frame.rs` (default lane, so all twelve CI test jobs
-run them) and `crates/viewer/src/pane/viewport.rs` (`--features app`).
-Each was driven red by mutating the thing it names:
+`crates/viewer/src/frame.rs` holds the policy rows over hand-built
+values — `frame` is a vocabulary and must be testable with no session
+in existence, which `crates/viewer/README.md` states and
+`scripts/gates/viewer-module-kinds.sh` (a sibling unit) enforces.
+`crates/viewer/src/pane/viewport.rs` holds the rows that need a driver:
+the `land` wiring, and the fold-meets-landing composition this item
+filed.
 
-- `a_clean_fold_keeps_a_message_it_did_not_write` — red when
+Four of the seven were driven red by mutating the thing they name; the
+other three are not mutation-checked and are named as such:
+
+- `a_clean_fold_keeps_a_message_it_did_not_write` — **red** when
   `fold_status`'s clean arm answers `Clear`.
-- `a_product_fault_survives_the_re_frame_the_open_that_raised_it_books`
-  — the composition this item filed: a session whose landed product
-  does not gather, and the `CameraOp::Frame` an Open books on the same
-  frame. Red under either mutation.
-- `the_gather_verdict_badges_every_fault_but_an_empty_document` —
-  builds the item's own repro as a value (`ProductError::Naming`) and
-  asserts `NoBodyRoots` stays silent. Red when `product_badge` filters
-  everything.
 - `landing_a_clean_fold_does_not_clear_a_message_it_did_not_write` —
-  calls `land`, which is the one wiring a `frame` row cannot reach:
-  red when `land` goes back to assigning the line itself.
+  **red** when `land` goes back to assigning the line itself, which is
+  the one wiring a `frame` row cannot reach.
+- `a_gather_fault_the_tree_cannot_badge_outlives_the_open_that_raised_it`
+  — the composition this item filed. **Red** under all three
+  mutations: the fold clearing, `land` assigning, and the badge
+  reporting a state the tree carries.
+- `the_gather_verdict_badges_only_the_faults_nothing_else_carries` —
+  builds this item's own repro as a value (`ProductError::Naming`).
+  **Red** when the filter stops declining the per-node arms.
+- `a_refused_fold_is_news_and_outranks_what_the_line_held`,
+  `landing_a_refused_fold_shows_the_refusal`,
+  `keep_clear_and_show_are_three_different_sentences` — the news half
+  and `apply`'s three arms. Not mutation-checked.
 
 ### What did not land
 
-The other eighteen direct writers of the line, which bypass
-`frame_status` entirely. Censused and classified in
-`status-line-writers-bypass-the-ranking`; not swept here because
-`crates/viewer/src/pane/` is shared with CHROME.
+- The nineteen remaining direct writers of the line, which bypass
+  `frame_status` entirely — including `fold_status` itself, which
+  reaches the field through `apply` at `land` rather than through the
+  ranking. Censused and classified in
+  `status-line-writers-bypass-the-ranking`.
+- Nothing owns when news STOPS being news:
+  `the-news-vocabulary-has-no-expiry`.
+- The four badges are one family in prose and five spellings in code:
+  `four-badges-five-spellings`.

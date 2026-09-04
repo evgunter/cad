@@ -122,10 +122,12 @@ impl ViewerBehavior<'_> {
         // ONE fold, the same one `map_stream` gives the tests.
         //
         // Landed only when the fold actually MOVED something: the
-        // stream now carries cursor events too, and a stream that
-        // denotes no camera operation is not a camera event — landing
-        // it would clear the status line on every frame the pointer is
-        // inside the viewport.
+        // stream carries cursor events too, and a stream that denotes
+        // no camera operation is not a camera event. `land` is where a
+        // camera MOVE becomes application state, so running it on a
+        // frame with no move would make that sentence false — see
+        // `frame::folded_moved`, which owns the rule and states what it
+        // does and does not buy now that a clean fold clears nothing.
         let folded = input::fold_events(&self.input, self.camera, viewport, &events);
         if frame::folded_moved(&folded) {
             land(self.camera, self.status, &folded);
@@ -401,13 +403,15 @@ impl ViewerBehavior<'_> {
     }
 }
 
-/// **The one wiring `frame`'s rows cannot reach.**
+/// **Where a real fold meets a real landing.**
 ///
-/// Every rule [`land`] obeys is a value in [`crate::frame`] and is
-/// asserted there. What is asserted HERE is that `land` still asks:
-/// the whole defect was a status-line assignment written at this call
-/// site, so a row that only exercises the policy would stay green
-/// through the exact regression it is meant to catch.
+/// The rules [`land`] obeys are values in [`crate::frame`] and are
+/// asserted there over hand-built values, because `frame` is a
+/// vocabulary and has to be testable with no session in existence.
+/// This module is the driver, so the rows that need one are here: the
+/// wiring — does `land` still ASK — and the composition the issue
+/// reproduces, a document landing with a fault on the same frame it
+/// books its own re-frame.
 #[cfg(test)]
 mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
@@ -415,33 +419,29 @@ mod tests {
 
     use super::land;
     use crate::camera::{Camera, CameraOp, fold_recorded};
-    use crate::scene::PLATE_EXTENT;
-    use bvh::Aabb;
-
-    fn plate_bounds() -> Aabb {
-        let [width, depth, thickness] = PLATE_EXTENT;
-        Aabb {
-            min_x: 0.0,
-            min_y: 0.0,
-            min_z: 0.0,
-            max_x: width,
-            max_y: depth,
-            max_z: thickness,
-        }
-    }
+    use crate::frame::product_badge;
+    use crate::props::SlotValue;
+    use crate::scene;
+    use crate::session::{DocSession, SessionOp};
+    use pncad::document::SlotId;
+    use pncad::geom_core::Tol;
 
     fn framed() -> Camera {
-        Camera::framing(&plate_bounds(), 16.0 / 9.0).expect("the plate frames")
+        Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("the plate frames")
+    }
+
+    /// The re-frame `fit_on_scene` books when a document lands — the
+    /// operation the viewport folds and lands on that very frame.
+    fn the_re_frame_an_open_books() -> CameraOp {
+        CameraOp::Frame {
+            bounds: scene::plate_bounds(),
+            aspect: 16.0 / 9.0,
+        }
     }
 
     #[test]
     fn landing_a_clean_fold_does_not_clear_a_message_it_did_not_write() {
-        // The re-frame an opened document books, landed on the same
-        // frame the landing raised its own news.
-        let fit = CameraOp::Frame {
-            bounds: plate_bounds(),
-            aspect: 16.0 / 9.0,
-        };
+        let fit = the_re_frame_an_open_books();
         let mut camera = framed();
         let folded = fold_recorded(&camera, std::slice::from_ref(&fit));
         assert!(folded.refused.is_none(), "the re-frame applies");
@@ -467,6 +467,70 @@ mod tests {
         assert!(
             shown.contains("camera:") && shown.contains("dolly by a factor"),
             "{shown}"
+        );
+    }
+
+    #[test]
+    fn a_gather_fault_the_tree_cannot_badge_outlives_the_open_that_raised_it() {
+        // The composition the issue reproduces, end to end and through
+        // the real doors: a landed pair whose product does not gather,
+        // and the re-frame that landing books, on one frame.
+        //
+        // The fault is built by hand rather than provoked, and that is
+        // the honest way round. A fault a document can REACH by an
+        // ordinary edit — a root driven to a zero distance — is a
+        // failed root, which the feature tree badges at the node and
+        // `product_badge` therefore declines. The faults this channel
+        // is for are gather-level and emission-level: they are not
+        // authorable from the panels, which is exactly why nothing else
+        // reports them.
+        let tol = Tol::witness();
+        let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        assert!(
+            session.product_fault().is_none(),
+            "the plate's own product gathers: {:?}",
+            session.product_fault()
+        );
+
+        // A landing that DOES fault, reached the way a user reaches it.
+        let outcome = session.perform(SessionOp::SetSlot {
+            node: extrude,
+            slot: SlotId::Distance,
+            value: SlotValue::Continuous(0.0),
+        });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        session.pump();
+        let fault = session.product_fault().expect("the gather refuses");
+        // …and it is one the tree carries, so the badge stays silent
+        // and the tree row is the channel. Both halves asserted, since
+        // silence is only correct while the other channel speaks.
+        assert!(
+            product_badge(Some(fault)).is_none(),
+            "a failed root is the tree's to badge: {fault}"
+        );
+        assert!(
+            session
+                .tree_rows()
+                .iter()
+                .any(|row| matches!(row.status, crate::tree::RowStatus::Failed { .. })),
+            "and the tree does badge it"
+        );
+
+        // Now the frame the issue is about: the message the landing
+        // raised, and the re-frame the same landing booked. Whatever
+        // the line holds when the fit is landed, the fit is not what
+        // takes it away.
+        let mut camera = framed();
+        let fit = the_re_frame_an_open_books();
+        let folded = fold_recorded(&camera, std::slice::from_ref(&fit));
+        let mut status = Some("product: two roots collide in the name table".to_owned());
+        land(&mut camera, &mut status, &folded);
+        assert_eq!(
+            status.as_deref(),
+            Some("product: two roots collide in the name table"),
+            "the re-frame an Open books is not news and erases none"
         );
     }
 }

@@ -830,9 +830,6 @@ impl ViewerApp {
         self.apply_status(update);
     }
 
-    /// Apply a policy verdict to the status line — the one place a
-    /// [`StatusUpdate`] becomes the field, shared by the batch policy
-    /// and the dialog policy so neither hand-assigns.
     /// Write the current theme choice to the preferences store.
     ///
     /// **Best-effort, and it reports.** A store that cannot be
@@ -861,6 +858,14 @@ impl ViewerApp {
         }
     }
 
+    /// This application's door onto [`frame::apply`]: the batch policy
+    /// and the dialog policy hand their verdict here rather than
+    /// assigning the field.
+    ///
+    /// **Not the one place a [`StatusUpdate`] becomes the field** —
+    /// that is `frame::apply`, and `pane::viewport::land` reaches it
+    /// directly, having a `&mut Option<String>` and no `&mut self` to
+    /// come through. This is the `&mut self` shorthand, nothing more.
     fn apply_status(&mut self, update: StatusUpdate) {
         frame::apply(&mut self.status, update);
     }
@@ -1144,11 +1149,16 @@ impl eframe::App for ViewerApp {
                 //
                 // Drawn in the unresolved colour, like the at-rest
                 // refusal and the checks findings and unlike the
-                // budget's weak advisory below: this is the only
-                // channel a fault no per-node badge carries has, so it
-                // must not be the quietest thing in the toolbar.
-                // What counts as one, and how it reads, is
-                // `frame::product_badge`.
+                // budget's weak advisory below: the colour is
+                // REDUNDANT here, in `Theme::unresolved`'s own sense —
+                // the badge says "product: …" in words either way — and
+                // it is the spelling this toolbar already uses for a
+                // verdict a reader may need to act on.
+                //
+                // Which faults reach it is `frame::product_badge`'s,
+                // and it declines every state another channel carries:
+                // the three per-node arms are the feature tree's, and
+                // an empty document is the blank viewport's.
                 if let Some(fault) = frame::product_badge(self.session.product_fault()) {
                     ui.separator();
                     ui.colored_label(chrome(self.theme.unresolved), fault);
