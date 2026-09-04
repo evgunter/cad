@@ -77,9 +77,27 @@ and a PR), `issue` (a defect or finding, not yet a unit), `ruling` (a
 question only Ev answers; never work).
 
 **status** of an item: `open` → `spec` → `dispatched` → `review` →
-`closed`, plus `parked` (waits on a named trigger, so `blocked_on`
-must be non-empty). A ruling is `open` or `closed`. A program is
-`open` or `closed`; a closed program may hold only closed items.
+`closed`, plus two ways of being not-now:
+
+- `parked` — **waits on a named trigger**, so `blocked_on` must be
+  non-empty and every id in it must resolve. The trigger is an item or
+  a PR: something that can fire, and that lint can see has fired.
+- `deferred` — **ratified as not-now**, with the ratification cited in
+  the body. No `blocked_on`: a deferred row is not waiting for anything
+  to happen, it has been decided against for now, and lint refuses a
+  `blocked_on` on one (a row that waits on a trigger is `parked`).
+  **The citation is prose and nothing checks it.** A ratification lives
+  in a README clause or a design doc, not in an item id, so there is no
+  reference for `lint` to resolve and no field pretending otherwise; a
+  reviewer reads the row and judges whether the ratification it names
+  says what it claims. What the tracker guarantees about a deferred row
+  is only this: it is not dispatchable, and it is not blocked either.
+
+Neither counts as available work: `STATUS.md` gives each its own column
+so a not-now row can never be read off the board as dispatchable, and
+neither is listed as stale for going untouched. A ruling is `open` or
+`closed`. A program is `open` or `closed`; a closed program may hold
+only closed items.
 
 ## Rules
 
@@ -118,6 +136,22 @@ must be non-empty). A ruling is `open` or `closed`. A program is
 - **References resolve.** Every id in `parent`, `blocked_on`,
   `rides_with` and `refs` names a file that exists. Ints are PR or
   issue numbers and are not checked.
+- **A fired trigger is not a blocker.** A `parked` row whose
+  `blocked_on` names a CLOSED item has had its trigger fire, and a
+  resolving reference is no evidence the row is still blocked. Two
+  cases, because the two say different things:
+  - **every blocker closed — a lint ERROR.** `parked` is simply false
+    of the row and the board is lying about it. Re-park it on what
+    actually gates it, open it, or defer it.
+  - **a fired entry beside a live one — a lint WARNING.** The row is
+    genuinely still blocked, so its status is true and only the entry
+    is stale; prune the fired entry.
+
+  The cost of the error is real and was accepted deliberately (Ev,
+  2026-09-04): one-file-one-item means the program closing a trigger
+  cannot un-park another program's rows in the same PR, so a closing
+  PR can red `main` for rows it does not own. The answer is to fix the
+  stale rows, not to soften the check.
 - **Territory is a glob list** on the program, and every glob matches
   at least one tracked path. `scripts/work.py territory --base main`
   reads a branch's prefix and its diff and names every path another

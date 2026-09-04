@@ -1007,6 +1007,13 @@ cost-shape deferral with no known cost: it has a measured instance of the
 remaining sampled dimension hiding a real failure. That raises its
 priority and the item says so.
 
+**Overtaken the same day (2026-09-04, PR 1850).** The k-lint draw is
+gone: five matrix legs, no draw, `KLINT_ROW=all` on every run. So "which
+is still one-in-five" above is a record of what was true when written,
+and this unit's Q2 answer — "zero of five recorded main-reds are
+attributable to the draw" — no longer has a surviving draw to be scoped
+against. `klint-row-still-sampled` is closed by that PR.
+
 **A correction of the shape this program kept making.** PR 1805's author
 first filed the two-green-PRs class as a *finding*, then withdrew it on
 discovering `ci.yml` already documents it in the F3 note — *"a semantic
