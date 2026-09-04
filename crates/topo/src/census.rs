@@ -214,7 +214,7 @@ use crate::boolean::{ContactRecords, ContainError, FaceContainment, contfp};
 use crate::chart_region::ChartRegionError;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, VertexKey};
 use crate::null::CurveGeom;
-use crate::validate::{CensusContact, StaleDeclaration, ValidationError, decide};
+use crate::validate::{CensusContact, CensusSubject, StaleDeclaration, ValidationError, decide};
 
 /// One edge's exact census geometry (post-gate: a `Line` carrier).
 struct EdgeGeo<T: Real> {
@@ -1616,7 +1616,7 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                         // the refusal is the lane's ruling, not a
                         // missing `Bounds` impl.)
                         errors.push(ValidationError::CensusUnsupported {
-                            entity: EntityId::Face(fa),
+                            subject: CensusSubject::FacePair(fa, fb),
                         });
                     }
                     Some(Ok(crate::chart_region::ChartOverlap::Empty)) => {}
@@ -1660,10 +1660,11 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                         | ChartRegionError::TouchingBoundary
                         | ChartRegionError::DegenerateLoop { .. }
                         | ChartRegionError::RayExhausted
+                        | ChartRegionError::WitnessBudgetExhausted { .. }
                         | ChartRegionError::Corrupt,
                     )) => {
                         errors.push(ValidationError::CensusUnsupported {
-                            entity: EntityId::Face(fa),
+                            subject: CensusSubject::FacePair(fa, fb),
                         });
                     }
                 }
@@ -2268,7 +2269,7 @@ fn sweep_cross_solid_backstop<T: Decide>(
             // is in this state; the refusal costs nothing and stays
             // loud if a second, ungated caller ever appears.
             errors.push(ValidationError::CensusUnsupported {
-                entity: EntityId::Face(f),
+                subject: CensusSubject::Entity(EntityId::Face(f)),
             });
             continue;
         }
@@ -2676,7 +2677,7 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
             }
             Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => {
                 errors.push(ValidationError::CensusUnsupported {
-                    entity: EntityId::Edge(c.witness),
+                    subject: CensusSubject::Entity(EntityId::Edge(c.witness)),
                 });
             }
         }
@@ -2733,7 +2734,7 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
             }
             Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => {
                 errors.push(ValidationError::CensusUnsupported {
-                    entity: EntityId::Face(c.face_a),
+                    subject: CensusSubject::FacePair(c.face_a, c.face_b),
                 });
                 continue;
             }
@@ -2745,7 +2746,7 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
         match T::declared_overlap(body, c.face_a, body, c.face_b, door_one, band) {
             None => {
                 errors.push(ValidationError::CensusUnsupported {
-                    entity: EntityId::Face(c.face_a),
+                    subject: CensusSubject::FacePair(c.face_a, c.face_b),
                 });
             }
             Some(Ok(crate::chart_region::ChartOverlap::PositiveArea)) => {}
@@ -2768,10 +2769,11 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
                 | ChartRegionError::TouchingBoundary
                 | ChartRegionError::DegenerateLoop { .. }
                 | ChartRegionError::RayExhausted
+                | ChartRegionError::WitnessBudgetExhausted { .. }
                 | ChartRegionError::Corrupt,
             )) => {
                 errors.push(ValidationError::CensusUnsupported {
-                    entity: EntityId::Face(c.face_a),
+                    subject: CensusSubject::FacePair(c.face_a, c.face_b),
                 });
             }
         }

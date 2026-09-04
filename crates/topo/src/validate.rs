@@ -302,6 +302,34 @@ pub(crate) fn decide<T: Decide>(
     geom_core::k_stats::decide(name, margin, band)
 }
 
+/// **What a census refusal is ABOUT** — the whole of the subject the
+/// refusing arm was examining.
+///
+/// INVARIANT: an arm whose subject is a candidate CONTACT names both
+/// faces. The census decides a face PAIR, never a face, so a refusal
+/// that named one half of a pair would let a consumer resolve it
+/// against a declaration the census never examined, and which half it
+/// named would be the arena's ordering rather than the arm's
+/// question. A consumer therefore matches the pair, and the answer is
+/// the same in either order.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CensusSubject {
+    /// One entity, and the arm's subject is that entity alone.
+    Entity(EntityId),
+    /// The candidate face pair, in the arm's own order. Unordered as
+    /// a subject: `(a, b)` and `(b, a)` name one candidate.
+    FacePair(FaceKey, FaceKey),
+}
+
+impl core::fmt::Display for CensusSubject {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Entity(e) => write!(f, "{e}"),
+            Self::FacePair(a, b) => write!(f, "the face pair {a:?} / {b:?}"),
+        }
+    }
+}
+
 /// **The tier-3 contact MARK** (OQ7's two-level shape, level (i);
 /// M5 PR 9): the per-edge dihedral/jet verdict the tier-3 pass
 /// derives, KEPT as a named recorded classification instead of
@@ -930,8 +958,10 @@ pub enum ValidationError {
     /// sampled, exactly as before — only the inventory statement
     /// moved.
     CensusUnsupported {
-        /// The unsupported entity.
-        entity: EntityId,
+        /// The unsupported subject, whole: an entity for the arms
+        /// whose subject is one entity, the face PAIR for the arms
+        /// that examine a candidate contact.
+        subject: CensusSubject,
     },
     /// Tier 3′ (M9-2 union fix, the conservative loudness backstop):
     /// a cross-solid candidate pair the census can neither examine
@@ -1581,9 +1611,9 @@ impl fmt::Display for ValidationError {
                 "tier-3′ census predicate escalated: {cause} — indeterminate \
                  coincidence geometry at rest is a defect"
             ),
-            Self::CensusUnsupported { entity } => write!(
+            Self::CensusUnsupported { subject } => write!(
                 f,
-                "tier-3′ census: {entity} is outside the census's certifiable \
+                "tier-3′ census: {subject} is outside the census's certifiable \
                  inventory — the census admits every carrier kind, but \
                  this record or conformal candidate has no certifier lane \
                  (exact-constant-arm charts, the Rest carrier ladder and the \
@@ -6064,7 +6094,10 @@ mod tests {
                 cause: indeterminate(),
             },
             ValidationError::CensusUnsupported {
-                entity: EntityId::Face(t.face_a),
+                subject: CensusSubject::FacePair(t.face_a, t.face_b),
+            },
+            ValidationError::CensusUnsupported {
+                subject: CensusSubject::Entity(EntityId::Face(t.face_a)),
             },
             ValidationError::CensusUndecidable {
                 a: EntityId::Face(t.face_a),
