@@ -7,9 +7,15 @@
 //! sentence about somebody else's refusal — asserted by containment, so
 //! the inner layer stays free to reword itself.
 //!
-//! No arm renders its payload through `Debug`: a cross-crate payload
-//! forwards exactly as a local one does, so `debug_shaped` applies to
-//! every arm here.
+//! For every arm covered below, a cross-crate payload forwards exactly
+//! as a local one does, so `debug_shaped` applies throughout.
+//!
+//! This is not a crate-wide claim. Two `Display` impls outside this
+//! file still render a payload through `Debug`, each for a stated
+//! reason: `WebStartupError::Runner` (a `JsValue` the orphan rule
+//! forecloses writing a `Display` for) and `Disagreement` (a role path,
+//! whose `RoleSeg` has none). `PreviewError::Transition` renders a
+//! `profile::path::Verb` that has no `Display` yet.
 
 use bvh::Aabb;
 use editor_core::{HitTestError, InterrogateError, MateSide, NodePickError};
@@ -267,6 +273,23 @@ fn replay_error_names_the_log_position_and_forwards_the_refusal() {
     assert!(outer.contains('3'), "{outer}");
     assert!(outer.contains(&inner.to_string()), "{outer}");
     prose(&outer, "Refused");
+}
+
+/// The indeterminate-resolution status line forwards the cause's own
+/// words and contributes only the noun it is talking about.
+#[cfg(feature = "app")]
+#[test]
+fn indeterminate_wording_forwards_the_causes_own_words() {
+    use editor_core::ResolveIndeterminate;
+    use viewer::app::indeterminate_wording;
+
+    let cause = ResolveIndeterminate::TargetFailed {
+        node: RecipeNodeId(6),
+    };
+    let shown = indeterminate_wording("face", &cause);
+    assert!(shown.contains("face"), "{shown}");
+    assert!(shown.contains(&cause.to_string()), "{shown}");
+    prose(&shown, "TargetFailed");
 }
 
 #[cfg(feature = "app")]
