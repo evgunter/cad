@@ -15,7 +15,7 @@ Found by the whole-file read that opened
 
 Two unrelated types are both reached as `self.gesture`:
 
-- `session::Gesture` (`crates/viewer/src/session.rs:1558`) — a slot or
+- `session::Gesture` (`crates/viewer/src/session.rs:153`) — a slot or
   parameter drag;
 - the free-move gesture on `DisplayState`
   (`crates/viewer/src/display.rs`, read at 555, 574, 599, 619, 658,
@@ -46,3 +46,12 @@ to prevent.
 ## Home
 
 VIEW's: `crates/viewer/src/session.rs` and `display.rs`.
+
+
+## Citations re-pointed after the 1c split (VIEW orchestrator, 2026-09-04)
+
+This file was written against the pre-split tree. The `file:line`
+citations above are corrected in place; this note exists so a reader
+who remembers the old ones can tell a correction from a claim change.
+Nothing about the finding moved — `stale-file-citations-after-the-split`
+is the general case, and this is VIEW's own half of it being paid.
