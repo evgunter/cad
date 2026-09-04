@@ -2,8 +2,10 @@
 id: nightly-pin-reading-idiom-four-copies
 kind: issue
 title: nightly.yml reads ci.yml's tool pins with a sed idiom that is now in four places and breaks silently on a second match
-status: open
+status: review
 opened: 2026-09-03
+pr: 1723
+branch: ciw/one-pin-reader
 ---
 
 

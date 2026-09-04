@@ -2,8 +2,10 @@
 id: perf-history-cannot-identify-its-host
 kind: issue
 title: perf histories cannot identify the box that produced a sample - the environment block records nproc/mem/toolchain and nothing that distinguishes two ubuntu-latest hosts
-status: open
+status: review
 opened: 2026-09-03
+pr: 1722
+branch: ciw/perf-host-identity
 ---
 
 
