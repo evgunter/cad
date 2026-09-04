@@ -185,3 +185,46 @@ verbatim plus `docs/prompts/reviewer-style-lane.md` by path):
   passes the census; the wire round-trip replays bit-identical.
 - **C6** The corpus document renders through the tour's own door and
   no baseline moved for a numeric reason.
+
+## Amendment at the stop clause (2026-09-04, orchestrator — recorded BEFORE the lane resumes)
+
+**Phase-1 finding, accepted; Ev ruled (in-chat, 2026-09-04).** Under
+`ProfileLift::Pinned` a profile's plane is read from the DOCUMENT at
+f64 (`profile_plane_f64`, PP6's "the sketch plane stays f64"), and a
+derived frame has no document elaboration, so item 2's "every reader
+of a frame works unchanged by value" was false at that site. The
+ruling, now in PP6 (`crates/editor-core/README.md`) and DM1c
+(`docs/DOCM-REFERENCES-DESIGN.md`, both on `main`): **a profile on a
+derived frame is placed at the lane scalar.** Binding consequences:
+
+1. Under EVERY lift, a profile whose `plane` is a `Datum::FaceFrame` is
+   placed through the by-value reader `frame_plane_lane` (`wire.rs:685`,
+   today Guided-only) using the frame's `DatumValue::Frame` at `T`; the
+   2-D elaboration (loops in sketch coordinates, PP1's structure record)
+   stays f64-pinned exactly as it is; only the placement into 3-D moves
+   to `T`. A profile on a `Datum::Frame` is untouched: `profile_plane_f64`
+   as today. `prepare_profile`/`lane_profile` therefore fork on the
+   plane node's KIND, once, at the site that reads the plane; say at
+   the fork why the two kinds differ (where their numbers come from).
+2. Loft and sweep SECTIONS (`section_of`, `wire.rs:2861`,
+   `eval/mod.rs:2138`) keep f64 geometry: a section drawn on a
+   `FaceFrame` refuses typed at any scalar but f64 —
+   `NodeErrorKind::DerivedFrameSection { profile, frame }`, the
+   `SeedPinnedSection` shape — and at f64 places through the same
+   by-value read. A row per direction (f64 evaluates; `Interval`
+   refuses typed).
+3. Content key: the placement now feeds `T`-valued frame data into the
+   profile's key under `Pinned` — follow PP5's rule (both channels
+   through `ContentBits::feed`) so a widened or seeded frame cannot
+   alias the nominal memo entry; a row that widens a parameter the
+   FaceFrame's body reads and shows the profile recomputes.
+4. A8 stands: the corpus document that carries a `FaceFrame` must be
+   green under `--features interval`, which item 1 is what makes
+   possible; report the interval row's reading from the hosted lane.
+5. Items 1, 3, 4 of the original spec and rows A1–A9 stand; items 3–4
+   (the sense, the carrier-kind door) as already built on this branch
+   are accepted. Merge `origin/main` first (never rebase): it carries
+   PP6/DM1c and DOCM-3.
+6. Undraft the PR when the rows are green locally. Pre-draw fields
+   stand (L / STRUCTURAL: the fork is by node kind, the placement is
+   arithmetic already done under Guided; no new predicate).
