@@ -140,6 +140,8 @@ mod blend4_concave_fillet;
 mod blend4_r1_probes;
 #[path = "blend6_verb_vocab.rs"]
 mod blend6_verb_vocab;
+#[path = "blend_margin_payload_interval.rs"]
+mod blend_margin_payload_interval;
 #[path = "blend_seam_split_rim.rs"]
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]

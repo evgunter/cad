@@ -36,6 +36,19 @@
 //! 5. [`battery::convexity_at`] — `fillet3_convexity_sign`
 //! 6. [`battery::corner_config`] — `fillet3_corner_independence`
 //!
+//! **What "the offending margin as payload" means, exactly.** A
+//! definite refusal carries a [`ClassifiedMargin`]: the reading the
+//! classifier saw — a value at `f64`, the ENCLOSURE at the interval
+//! scalar — plus the band it was judged against, the predicate that
+//! judged it, and the sign it decided. An indeterminate one carries
+//! `geom_core::Indeterminate` whole through
+//! [`BlendError::Escalated`]. Neither is projected to a single
+//! endpoint, because at the scalar the banked payoff runs on, one
+//! endpoint of an enclosure is a number nothing measured. A payload
+//! field holding some OTHER quantity — a lever arm, a gap, a radius,
+//! a requested size — is a bare `f64` under its own name, and only a
+//! `ClassifiedMargin` is rendered as "the margin".
+//!
 //! Beside them sits one **routing** decision, which is not a validity
 //! predicate and is named apart for that reason:
 //! `fillet3_support_coaxiality`, the departure of a CURVED support pair
