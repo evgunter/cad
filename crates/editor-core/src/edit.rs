@@ -336,8 +336,9 @@ pub enum EditError {
     /// It is one structural rule over [`Node::inputs`], not a rule per
     /// node kind, so it covers a boolean or a split whose two operands
     /// coincide and a list with a repeated entry alike — and it is
-    /// stated once, at `check_node_inputs`, with the insert door and
-    /// [`DocEdit::SetMembers`] as its two callers.
+    /// stated once, at [`Node::input_fault`], with this door,
+    /// [`DocEdit::SetMembers`] and the load validator as its three
+    /// callers.
     DuplicateInput {
         /// The node whose input list repeats.
         node: RecipeNodeId,
@@ -1263,43 +1264,26 @@ fn check_node_slots<P: crate::ProfilePayload>(
     Ok(())
 }
 
-/// **A node's inputs are pairwise distinct** (DM5), stated once.
+/// DM5 at an EDIT door: [`Node::input_fault`] rendered in this
+/// module's vocabulary. The rule itself lives on the node, where the
+/// load door reads it too; this is the door's name for its answer, and
+/// there is no second copy of the question.
 ///
-/// One structural rule over [`Node::inputs`] rather than a rule per
-/// node kind: what "the same body twice" means is the same thing at a
-/// boolean, at a split, and at an entry repeated in a list, and the
-/// three doors that could each have grown their own version instead
-/// share this one. Its callers are [`apply`]'s `InsertNode` and
-/// `SetMembers` arms — the two doors a node's input list can arrive
-/// through — and there is no second copy.
-///
-/// Also the list's floor, which is the same question asked of the same
-/// list: a node whose inputs ARE a list ([`Node::list_input`]) takes
-/// two or more of them, at every door.
-///
-/// **The order is deliberate**: liveness is checked by the caller
-/// first, so a list of dangling ids reports the dangling id rather
-/// than a count, and the count reports before the duplicates so a
-/// one-entry list is not described as a repetition.
+/// Liveness is the caller's, and is checked before this, so a list of
+/// dangling ids reports the dangling id rather than a count.
 fn check_node_inputs<P: crate::ProfilePayload>(
     id: RecipeNodeId,
     node: &Node<P>,
 ) -> Result<(), EditError> {
-    if let Some(list) = node.list_input()
-        && list.len() < 2
-    {
-        return Err(EditError::TooFewMembers {
-            node: id,
-            found: list.len(),
-        });
-    }
-    let mut seen: std::collections::BTreeSet<RecipeNodeId> = std::collections::BTreeSet::new();
-    for input in node.inputs() {
-        if !seen.insert(input) {
-            return Err(EditError::DuplicateInput { node: id, input });
+    match node.input_fault() {
+        None => Ok(()),
+        Some(crate::node::InputFault::Duplicate { input }) => {
+            Err(EditError::DuplicateInput { node: id, input })
+        }
+        Some(crate::node::InputFault::TooFew { found }) => {
+            Err(EditError::TooFewMembers { node: id, found })
         }
     }
-    Ok(())
 }
 
 /// Reject cycles in the recipe DAG (spec D3/D6). Defensive: insertion

@@ -288,44 +288,36 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
     // keep it is the one below, which is about the recipe layer rather
     // than the kernel.
     //
-    // NAMED GAP (2026-08-14): the recipe layer's only way to assemble
-    // a multi-shell body is a PAIRWISE `Node::Boolean(Union)`, so a
-    // 21-shell tool costs twenty union nodes and leaves the last
-    // ball's names twenty `FromA`/`FromB` segments deep. A group-union
-    // node (or a union that takes a list) would say this in one.
-    // Recorded in `docs/M8-LOG.md` beside the meridian gap.
-    let mut tool: Option<RecipeNodeId> = None;
-    for p in placements() {
-        let pip = insert(
-            doc,
-            Node::Transform {
-                input: ball,
-                translation: p.centre.map(len),
-                rotation_axis: p.axis.map(scl),
-                rotation_angle: ang(p.angle),
-            },
-            tol,
-        );
-        tool = Some(match tool {
-            None => pip,
-            Some(acc) => insert(
+    // The 21 placements are the MEMBERS of ONE `Node::Union`, which is
+    // how the recipe layer says "these bodies, fused". Under the twenty
+    // pairwise unions this used to be, a pip's rim name recorded the
+    // DEPTH at which it joined, so dropping one link renamed every pip
+    // that joined before it and the rim fillet's frozen selection
+    // failed typed for each of them. A union names each pip by its own
+    // member edge, so the twenty other rims survive a pip's removal —
+    // which is the acceptance row this scene exists to carry.
+    let members: Vec<RecipeNodeId> = placements()
+        .into_iter()
+        .map(|p| {
+            insert(
                 doc,
-                Node::Boolean {
-                    op: BooleanOp::Union,
-                    a: acc,
-                    b: pip,
-                    declare: None,
+                Node::Transform {
+                    input: ball,
+                    translation: p.centre.map(len),
+                    rotation_axis: p.axis.map(scl),
+                    rotation_angle: ang(p.angle),
                 },
                 tol,
-            ),
-        });
-    }
+            )
+        })
+        .collect();
+    let tool = insert(doc, Node::Union { members }, tol);
     insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
             a: cube,
-            b: tool.expect("21 pips"),
+            b: tool,
             declare: None,
         },
         tol,
@@ -555,7 +547,13 @@ pub fn corpus_text(tol: Tol) -> String {
 /// The deletion goes through the ordinary edit door, so the root list
 /// is maintained by `roots::on_delete` rather than asserted here, and
 /// the remaining document is exactly the recipe that builds the die:
-/// 49 nodes, one root, 89 faces, V = 0.952915, no separation finding.
+/// 32 nodes, one root, 89 faces, V = 0.952915, no separation finding.
+/// (Thirty-two and not the forty-nine it was: the twenty pairwise
+/// unions that used to chain the pips are ONE `Node::Union` now. The
+/// geometry is untouched — the face count and the volume are the same
+/// numbers — which is asserted rather than asserted-here, by
+/// `editor_core`'s `docm3_union::the_dies_union_is_the_chain_it_
+/// replaced`.)
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let die = build(tol);
     apply(&die.doc, &DocEdit::DeleteNode { id: die.blank }, tol)

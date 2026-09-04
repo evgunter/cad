@@ -189,9 +189,10 @@ pub fn documents() -> Vec<CorpusDoc> {
         // selection's provenance live in `m6_composed_node.rs`.
         die_composed::document(),
         // `die_composed_tour` (LIB-CORPUS-DIE): the same surgery at the
-        // size the demo tour renders it — 21 pips in one grouped tool,
-        // 12 box edges and 42 rim arcs behind names twenty unions
-        // deep. It is the ONE document here the registry does not
+        // size the demo tour renders it — 21 pips fused by ONE n-ary
+        // union into one grouped tool, 12 box edges and 42 rim arcs
+        // behind member-keyed names. It is the ONE document here the
+        // registry does not
         // author: the demo tour is its single authoring site and the
         // document crosses as committed bytes, because `demos/tour` is
         // a detached workspace this crate must not depend on. The
@@ -273,7 +274,7 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
 }
 
 /// The node kinds a document exercises (the coverage tally's domain).
-pub const NODE_KINDS: [&str; 18] = [
+pub const NODE_KINDS: [&str; 19] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -289,6 +290,12 @@ pub const NODE_KINDS: [&str; 18] = [
     "Chamfer",
     "Split",
     "Boolean",
+    // DOCM-3's n-ary union — COVERED, by `die_composed_tour`, whose
+    // cutting tool is one union over 21 pips. Listed as its own row
+    // beside `Boolean` because they are two nodes: a pair union keeps
+    // its `declare` input and its `FromA`/`FromB` naming, and a
+    // document that carries one carries nothing about the other.
+    "Union",
     "Transform",
     "Pattern",
     // LIB-PLACEDUNION: the ratified A′ group boolean.

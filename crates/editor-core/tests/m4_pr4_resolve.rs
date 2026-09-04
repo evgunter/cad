@@ -884,7 +884,7 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         // One embedded operand name: the entity derives from it.
         RoleSeg::FromA(x)
         | RoleSeg::FromB(x)
-        | RoleSeg::FromMember(x)
+        | RoleSeg::FromMember { of: x, .. }
         | RoleSeg::SectionEdge { face: x, .. }
         | RoleSeg::SplitFragment { parent: x, .. }
         | RoleSeg::CrossingVertex { edge: x, .. }

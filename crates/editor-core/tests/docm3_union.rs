@@ -67,11 +67,13 @@ fn body_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> topo::Body<f64> {
     }
 }
 
-/// The member a union-minted name descends from, or `None` for a name
-/// that is not a `FromMember` row.
+/// The member a union-minted name came from, or `None` for a name that
+/// is not a `FromMember` row. Read off the member EDGE, which is the
+/// only thing that answers: the inner name's minting node is the
+/// PROTOTYPE's where a member is a placement of one.
 fn member_of(name: &StableName) -> Option<RecipeNodeId> {
     match name.path.first() {
-        Some(RoleSeg::FromMember(inner)) => Some(inner.node),
+        Some(RoleSeg::FromMember { member, .. }) => Some(*member),
         _ => None,
     }
 }
@@ -124,12 +126,12 @@ fn every_union_name_wraps_its_member_exactly_once() {
     for name in all_faces(&ev, u) {
         assert_eq!(name.node, u, "a union's names are minted by the union");
         match name.path.as_slice() {
-            [RoleSeg::FromMember(inner)] => assert!(
+            [RoleSeg::FromMember { of, .. }] => assert!(
                 !matches!(
-                    inner.path.first(),
-                    Some(RoleSeg::FromA(_) | RoleSeg::FromB(_) | RoleSeg::FromMember(_))
+                    of.path.first(),
+                    Some(RoleSeg::FromA(_) | RoleSeg::FromB(_) | RoleSeg::FromMember { .. })
                 ),
-                "the wrapped name is the member's own, not a fold row: {inner:?}"
+                "the wrapped name is the member's own, not a fold row: {of:?}"
             ),
             other => panic!("a disjoint union's faces are single `FromMember` rows: {other:?}"),
         }
@@ -249,6 +251,46 @@ fn set_members_refuses_a_duplicate_member() {
         matches!(err, EditError::DuplicateInput { node, input } if node == u && input == boxes[0]),
         "{err:?}"
     );
+}
+
+/// The THIRD door: a SNAPSHOT carrying a node the edit doors refuse.
+///
+/// A saved file is data, and its snapshot is the one way a node
+/// reaches a document without passing `apply` — the edit log beside it
+/// replays through the doors. So the load validator asks the same
+/// function, and a hand-written file holding `Boolean { a: X, b: X }`
+/// or a one-member union refuses rather than loading.
+#[test]
+fn a_snapshot_carrying_a_refused_node_does_not_load() {
+    let tol = Tol::witness();
+    let (doc, boxes, u) = three_boxes([0, 1, 2]);
+    // The document is valid as saved; the corruption is introduced in
+    // the SNAPSHOT afterwards, which is what a tampered file is.
+    let text = editor_core::persist::save(&doc, &[], tol)
+        .expect("the document saves");
+    // The member list is rewritten in place, whatever whitespace the
+    // writer used around it, so the fixture is about the LIST and not
+    // about the formatting.
+    let corrupt = |members: String| {
+        let (head, rest) = text
+            .split_once("\"members\": [")
+            .expect("the union's list is on the wire");
+        let (_, tail) = rest.split_once(']').expect("the list closes");
+        let tampered = format!("{head}\"members\": [{members}]{tail}");
+        editor_core::persist::load(&tampered, tol)
+    };
+    // A repeated member in the union's list.
+    let err = corrupt(format!("{},{},{}", boxes[0].0, boxes[1].0, boxes[0].0))
+        .expect_err("a duplicate member must refuse");
+    let said = format!("{err}");
+    assert!(
+        said.contains("pairwise distinct") && said.contains(&format!("{}", u.0)),
+        "{said}"
+    );
+    // And a list left under two.
+    let err = corrupt(format!("{}", boxes[0].0)).expect_err("a one-member union must refuse");
+    let said = format!("{err}");
+    assert!(said.contains("two or more"), "{said}");
 }
 
 // ---------------------------------------------------------------------
@@ -420,28 +462,27 @@ fn dropping_a_member_leaves_the_others_names_alone() {
 }
 
 // ---------------------------------------------------------------------
-// The measured limit: members that share a minting node.
+// Members that share a minting node — the die's shape.
 // ---------------------------------------------------------------------
 
-/// **Two members whose names are the same names refuse typed.**
+/// **Two placements of ONE prototype are two members, and their names
+/// are distinct.** This is the row the member EDGE exists for.
 ///
-/// A member is keyed by the NAME its own table gives an entity, and a
-/// pass-through op mints no name of its own: a transform's table IS
+/// A pass-through op mints no name of its own: a transform's table IS
 /// its input's, verbatim (`eval::wire::wire_transform` — "the input's
 /// table rows hold verbatim: same names, same keys", N1's rule that a
 /// pass-through adds no segment and the `node` stays the original
-/// minter). So two transforms of ONE body carry two identical tables,
-/// and `FromMember(inner)` maps their corresponding faces onto one
-/// name.
+/// minter). So two transforms of one body carry two IDENTICAL tables,
+/// and a wrapper keyed on the inner name alone would map their
+/// corresponding faces onto one name and refuse.
 ///
-/// What the union does with that is the N1 guarantee it must: it
-/// refuses, naming the collision, rather than aliasing two faces under
-/// one name. This row pins the refusal AND the mechanism behind it —
-/// the second assertion is the measurement, and it is what says the
-/// member-keyed emitter cannot yet name a union of placed copies of
-/// one prototype (the die's 21 pips are exactly that shape).
+/// The segment keys on the member's node id instead, so the two
+/// members are told apart by the DAG edge that makes them two. The
+/// first assertion is the mechanism — the tables really are equal —
+/// and the second is what the union does with it. The die's 21 pips
+/// are exactly this shape, at scale.
 #[test]
-fn members_that_share_a_minting_node_refuse_rather_than_alias() {
+fn two_placements_of_one_prototype_are_two_members() {
     let doc = ProfileDoc::empty_derived("docm3_union", Tol::witness());
     let (doc, base) = cube(doc, 0.0);
     let place = |doc, dx: f64| {
@@ -472,14 +513,266 @@ fn members_that_share_a_minting_node_refuse_rather_than_alias() {
         "a transform passes its input's names through, so two placements of one \
          body carry identical name tables"
     );
-    // The consequence: the union refuses, loudly and by name.
-    match ev.nodes.get(&u) {
-        Some(editor_core::NodeResult::Failed(e)) => assert!(
-            format!("{:?}", e.kind).contains("Duplicate"),
-            "expected the no-silent-aliasing refusal, got {:?}",
-            e.kind
-        ),
-        other => panic!("expected a typed refusal, got {other:?}"),
+    // The consequence: twelve distinct face names under the union, six
+    // per member, told apart by the member edge and by nothing else.
+    let faces = all_faces(&ev, u);
+    assert_eq!(faces.len(), 12, "two boxes fuse to twelve faces: {faces:?}");
+    for member in [left, right] {
+        assert_eq!(
+            faces.iter().filter(|n| member_of(n) == Some(member)).count(),
+            6,
+            "member {member:?} contributes its six faces"
+        );
+    }
+    // And the inner names alone would NOT have told them apart: strip
+    // the member edge and the twelve collapse to six.
+    let inner: std::collections::BTreeSet<StableName> = faces
+        .iter()
+        .filter_map(|n| match n.path.first() {
+            Some(RoleSeg::FromMember { of, .. }) => Some((**of).clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        inner.len(),
+        6,
+        "the inner names are the prototype's, six of them, shared by both members"
+    );
+}
+
+// ---------------------------------------------------------------------
+// A1 — remove one pip and both fillets still resolve.
+// ---------------------------------------------------------------------
+
+/// **The row the naming design exists for**, at the size a person
+/// actually sees: the tour's die — 21 pips fused by one
+/// `Node::Union`, cut from a cube, then twelve box edges and 42 rim
+/// arcs blended over frozen selections.
+///
+/// For the FIRST, a MIDDLE and the LAST pip: drop it with
+/// `SetMembers`, delete the orphaned transform, and re-evaluate with
+/// the previous evaluation as `prior`. Both fillets must still
+/// evaluate `Ok`, with two fewer rim arcs selected (a pip contributes
+/// two rim edges) and no `BlendSelectionResolve` anywhere.
+///
+/// Under the pairwise chain this replaces the row goes red for every
+/// pip but the last: a chain records join DEPTH in each name, so
+/// removing one link renames every pip that joined before it and the
+/// rim fillet's frozen selection fails typed for each of them.
+#[test]
+fn removing_any_pip_leaves_both_die_fillets_resolving() {
+    let tol = Tol::witness();
+    let die = crate::corpus::die_composed_tour::document();
+    let doc = die.doc;
+    let union = doc
+        .order()
+        .iter()
+        .copied()
+        .find(|id| matches!(doc.node(*id), Some(Node::Union { .. })))
+        .expect("the die fuses its pips with one union");
+    let Some(Node::Union { members }) = doc.node(union) else {
+        panic!("the union is a union")
+    };
+    let members = members.clone();
+    assert_eq!(members.len(), 21, "the die has 21 pips");
+    let blends: Vec<RecipeNodeId> = doc
+        .order()
+        .iter()
+        .copied()
+        .filter(|id| matches!(doc.node(*id), Some(Node::Fillet { .. })))
+        .collect();
+    assert_eq!(blends.len(), 2, "the box-edge blend and the rim blend");
+    let before = run(&doc);
+    let (rim_target, rim_radius, rims) = match doc.node(blends[1]) {
+        Some(Node::Fillet {
+            target,
+            radius,
+            selection,
+        }) => (*target, radius.clone(), selection.clone()),
+        other => panic!("the die's last node is the rim blend, got {other:?}"),
+    };
+    assert_eq!(rims.len(), 42, "the die selects two rim arcs per pip");
+
+    for (label, k) in [("first", 0usize), ("middle", 10), ("last", 20)] {
+        let kept: Vec<RecipeNodeId> = members
+            .iter()
+            .copied()
+            .filter(|m| *m != members[k])
+            .collect();
+        let edited = doc
+            .apply(
+                &DocEdit::SetMembers {
+                    node: union,
+                    members: kept,
+                },
+                tol,
+            )
+            .unwrap_or_else(|e| panic!("dropping the {label} pip: {e}"))
+            .doc;
+        let edited = edited
+            .apply(&DocEdit::DeleteNode { id: members[k] }, tol)
+            .unwrap_or_else(|e| panic!("deleting the orphaned {label} transform: {e}"))
+            .doc;
+        let after = evaluate::<f64>(
+            &edited,
+            Some(&before),
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            tol,
+        );
+        // The removed pip's OWN rim arcs are gone with it, and their
+        // frozen names say so — every one of them names the dead
+        // member and nothing else does. That is the whole claim: the
+        // damage is exactly the removed member's, told apart by the
+        // member edge in the name and by nothing positional.
+        let doomed: Vec<StableName> = rims
+            .iter()
+            .filter(|n| editor_core::derivation_nodes(n).contains(&members[k]))
+            .cloned()
+            .collect();
+        assert_eq!(
+            doomed.len(),
+            2,
+            "the {label} pip contributes exactly its own two rim arcs"
+        );
+        // Deleting a pip is that edit plus dropping the names it took
+        // with it — one committed action a user can spell because the
+        // names say which member they came from. The blend is
+        // re-authored because a selection is frozen payload and there
+        // is no edit that prunes one.
+        let kept_rims: Vec<StableName> = rims
+            .iter()
+            .filter(|n| !doomed.contains(n))
+            .cloned()
+            .collect();
+        assert_eq!(kept_rims.len(), rims.len() - 2);
+        let edited = edited
+            .apply(&DocEdit::DeleteNode { id: blends[1] }, tol)
+            .expect("the rim blend is a sink")
+            .doc;
+        let (edited, rim) = insert(
+            edited,
+            Node::fillet(rim_target, rim_radius.clone(), kept_rims.clone()),
+        );
+        let after = evaluate::<f64>(
+            &edited,
+            Some(&after),
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            tol,
+        );
+        for (what, node) in [("box-edge", blends[0]), ("rim", rim)] {
+            let failure = after.nodes.get(&node).and_then(|r| match r {
+                editor_core::NodeResult::Failed(e) => Some(format!("{:?}", e.kind)),
+                _ => None,
+            });
+            assert!(
+                failure.is_none(),
+                "dropping the {label} pip broke the {what} fillet: {failure:?}"
+            );
+            assert!(
+                after.value(node).is_some(),
+                "dropping the {label} pip left the {what} fillet without a value"
+            );
+        }
+        assert_eq!(
+            selection_len(&edited, rim),
+            rims.len() - 2,
+            "the rim blend selects every arc but the dead pip's two"
+        );
+        // The selections are FROZEN, so they still name every edge they
+        // named — including the two rim arcs of the pip that is gone,
+        // which the blend now resolves against a body that no longer
+        // has them. That is what `BlendSelectionResolve` would say, and
+        // the assertions above are that it does not.
+    }
+}
+
+/// **A3 at the die's size**: the union of the 21 pips is the pairwise
+/// chain it replaced, body for body.
+///
+/// Both are built in ONE document over the SAME 21 transforms and
+/// evaluated at one scalar, so nothing about the comparison depends on
+/// two runs agreeing. Face, edge and vertex counts agree and every
+/// surface description agrees bit for bit; only the NAMES differ,
+/// which is the whole content of the change.
+#[test]
+fn the_dies_union_is_the_chain_it_replaced() {
+    let die = crate::corpus::die_composed_tour::document();
+    let doc = die.doc;
+    let union = doc
+        .order()
+        .iter()
+        .copied()
+        .find(|id| matches!(doc.node(*id), Some(Node::Union { .. })))
+        .expect("the die fuses its pips with one union");
+    let Some(Node::Union { members }) = doc.node(union) else {
+        panic!("the union is a union")
+    };
+    let members = members.clone();
+    // The chain this replaced, re-authored over the same members.
+    let (doc, chain) = members.iter().skip(1).fold(
+        (doc, members[0]),
+        |(doc, acc): (ProfileDoc, RecipeNodeId), pip| {
+            insert(
+                doc,
+                Node::Boolean {
+                    op: BooleanOp::Union,
+                    a: acc,
+                    b: *pip,
+                    declare: None,
+                },
+            )
+        },
+    );
+    let ev = run(&doc);
+    let (folded, chained) = (body_of(&ev, union), body_of(&ev, chain));
+    assert_eq!(
+        folded.faces().count(),
+        chained.faces().count(),
+        "the fold and the chain differ in face count"
+    );
+    assert_eq!(folded.edges().count(), chained.edges().count());
+    assert_eq!(folded.vertices().count(), chained.vertices().count());
+    let bits = |b: &topo::Body<f64>| {
+        let mut v: Vec<String> = b.surfaces().map(|(_, s)| format!("{s:?}")).collect();
+        v.sort();
+        v
+    };
+    assert_eq!(
+        bits(&folded),
+        bits(&chained),
+        "the fold's surfaces are not the chain's, description for description"
+    );
+    // And the names are what moved. The chain's LAST member is one
+    // descent deep and its FIRST is twenty; every member of the fold is
+    // one wrapper, whatever its position.
+    let depth = |n: &StableName| {
+        let mut d = 0;
+        let mut cur = n.path.first();
+        while let Some(RoleSeg::FromA(inner) | RoleSeg::FromB(inner)) = cur {
+            d += 1;
+            cur = inner.path.first();
+        }
+        d
+    };
+    assert_eq!(
+        all_faces(&ev, union).iter().map(depth).max(),
+        Some(0),
+        "a union's names carry no operand descent at all"
+    );
+    assert_eq!(
+        all_faces(&ev, chain).iter().map(depth).max(),
+        Some(20),
+        "the chain's first member is twenty descents deep"
+    );
+}
+
+/// How many names a blend node's selection carries.
+fn selection_len(doc: &ProfileDoc, blend: RecipeNodeId) -> usize {
+    match doc.node(blend) {
+        Some(Node::Fillet { selection, .. }) => selection.len(),
+        other => panic!("expected a fillet, got {other:?}"),
     }
 }
 

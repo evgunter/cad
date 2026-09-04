@@ -213,7 +213,7 @@ impl SegTag {
             RoleSeg::AxisEdge(..) => Self::AxisEdge,
             RoleSeg::FromA(..) => Self::FromA,
             RoleSeg::FromB(..) => Self::FromB,
-            RoleSeg::FromMember(..) => Self::FromMember,
+            RoleSeg::FromMember { .. } => Self::FromMember,
             RoleSeg::Seam { .. } => Self::Seam,
             RoleSeg::Merged(..) => Self::Merged,
             RoleSeg::Fragment(..) => Self::Fragment,
@@ -318,7 +318,7 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::AxisEdge(_)
         | RoleSeg::FromA(_)
         | RoleSeg::FromB(_)
-        | RoleSeg::FromMember(_)
+        | RoleSeg::FromMember { .. }
         | RoleSeg::Seam { .. }
         | RoleSeg::Merged(_)
         | RoleSeg::Fragment(Qualifier::SideOf(_) | Qualifier::OrderAlong { .. })
@@ -352,7 +352,7 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
     match seg {
         RoleSeg::FromA(n)
         | RoleSeg::FromB(n)
-        | RoleSeg::FromMember(n)
+        | RoleSeg::FromMember { of: n, .. }
         | RoleSeg::FromTarget(n)
         | RoleSeg::BlendFace(n)
         | RoleSeg::CornerFace(n)

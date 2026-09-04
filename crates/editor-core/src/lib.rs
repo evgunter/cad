@@ -150,8 +150,9 @@ pub use names::{
     select_where, vertex_position,
 };
 pub use node::{
-    Axis3, BooleanOp, Datum, InterfaceCrossing, InterfaceRecord, MeasureNodeFault, MeasureRef,
-    Node, PatternKind, PlacementRuleFault, RecipeNodeId, SlotId, StepArg, TubeWindow, VectorSlot,
+    Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, MeasureNodeFault,
+    MeasureRef, Node, PatternKind, PlacementRuleFault, RecipeNodeId, SlotId, StepArg, TubeWindow,
+    VectorSlot,
 };
 pub use parse::{ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};

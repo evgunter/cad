@@ -463,6 +463,16 @@ pub enum SnapshotError {
         /// What is wrong with it.
         fault: crate::node::MeasureNodeFault,
     },
+    /// A node whose inputs are not pairwise distinct, or whose LIST
+    /// input holds fewer than two entries (DM5). Both edit doors
+    /// refuse them, so a file carrying one is corrupt — refused,
+    /// never repaired.
+    InputList {
+        /// The offending node.
+        node: RecipeNodeId,
+        /// What is wrong with it.
+        fault: crate::node::InputFault,
+    },
     /// An assertion whose bound is dimensioned differently from the
     /// measure it constrains, or which references something that is
     /// not a measure at all (E10). The edit door refuses both; a file
@@ -568,6 +578,7 @@ impl core::fmt::Display for SnapshotError {
             Self::MeasureRefs { node, fault } => {
                 write!(f, "measure node {}: {fault}", node.0)
             }
+            Self::InputList { node, fault } => write!(f, "node {}: {fault}", node.0),
             Self::AssertionBound {
                 node,
                 measure,
@@ -683,6 +694,15 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         // placement, and frames that are finite and proper.
         if let Some(fault) = node.placement_rule_fault() {
             return Err(SnapshotError::PlacementRule { node: id, fault });
+        }
+        // DM5's third caller, for the reason the placement rule above
+        // has one: a saved file is DATA, and a SNAPSHOT is the one way
+        // a node reaches a document without passing `apply`. The edit
+        // log replays through the doors and is covered by them; the
+        // snapshot beside it is not, so the rule is asked here, of the
+        // same function, in this door's vocabulary.
+        if let Some(fault) = node.input_fault() {
+            return Err(SnapshotError::InputList { node: id, fault });
         }
         // The measurement vocabulary's two structural re-checks, for
         // the same reason the placement rule has one: a saved file is

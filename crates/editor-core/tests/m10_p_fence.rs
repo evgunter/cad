@@ -36,6 +36,21 @@
 //! covers the three scalars the review names rather than the value lane
 //! alone.
 //!
+//! **ALL THREE NUMBERS MOVED AT DOCM-3, AND FOR A STRUCTURAL REASON,
+//! not a numeric one.** This digest hashes each node's OUTCOME and the
+//! bits of every point, over the registry in registry order — so it is
+//! a function of how many nodes a document has as much as of what they
+//! compute. `die_composed_tour`'s cutting tool became one
+//! `Node::Union` over its 21 pips instead of twenty chained pairwise
+//! unions, and the document went from 51 nodes to 32: nineteen node
+//! outcomes left the stream, and the digest moved because the stream
+//! is shorter. The GEOMETRY did not move, and that is asserted rather
+//! than argued — `docm3_union::the_dies_union_is_the_chain_it_replaced`
+//! builds the fold and the chain in one document at one scalar and
+//! compares them face for face, edge for edge and description bits for
+//! description bits. The `probe` row moved with the `f64` row and
+//! stayed equal to it, which is the property that row exists for.
+//!
 //! THE INTERVAL NUMBER MOVED ONCE FOR THE AZIMUTH CONSOLIDATION, and
 //! the `f64` one did not. Point parameter recovery on a periodic
 //! carrier used to be spelled three times, two of them SELECTING a `2π`
@@ -538,7 +553,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x84d0_1f5a_a8fc_46bb, 0x628f_1718_c78e_ff37),
+        (0x612f_d469_8aed_100f, 0xb115_7303_0542_bef3),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -589,7 +604,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x84d0_1f5a_a8fc_46bb, 0x628f_1718_c78e_ff37),
+        (0x612f_d469_8aed_100f, 0xb115_7303_0542_bef3),
         "the corpus's Probe evaluation moved"
     );
 }

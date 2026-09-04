@@ -3420,9 +3420,15 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         // previous high-water mark: this space is append-only, and a
         // segment sharing `FromA`'s 16 would key a member's face and a
         // pair operand's face identically.
-        RoleSeg::FromMember(n) => {
+        // BOTH halves feed: two members of one union can be
+        // placements of ONE prototype and then carry the same inner
+        // name, so a key without the member edge would give their
+        // entities one key — the memo hazard this tag space exists to
+        // prevent.
+        RoleSeg::FromMember { member, of } => {
             h.write_tag(41);
-            feed_stable_name(h, n);
+            h.write_u64(member.0);
+            feed_stable_name(h, of);
         }
     }
 }

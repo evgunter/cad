@@ -2105,7 +2105,13 @@ fn wire_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
         });
     };
     let mut acc_body = body_operand(results, *first)?;
-    let mut acc_table = Arc::clone(&value_of(results, *first)?.name_table);
+    // The FIRST member enters member-keyed too, so every operand of
+    // every step is already in this node's name space and nothing
+    // downstream has to recover a member from an inner name.
+    let mut acc_table = Arc::new(
+        names::member_view(id, *first, &value_of(results, *first)?.name_table)
+            .map_err(NodeErrorKind::Naming)?,
+    );
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
     let mut empty_at: Option<RecipeNodeId> = None;
     for member in rest {
@@ -2113,7 +2119,10 @@ fn wire_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
             return Err(NodeErrorKind::EmptyOperand { input: reached });
         }
         let member_body = body_operand(results, *member)?;
-        let member_table = Arc::clone(&value_of(results, *member)?.name_table);
+        let member_table = Arc::new(
+            names::member_view(id, *member, &value_of(results, *member)?.name_table)
+                .map_err(NodeErrorKind::Naming)?,
+        );
         // No declarations: a declared-contact union is spelled with
         // `Node::Boolean`, which is where the `Declare` input lives.
         match (verb.build)(BooleanOp::Union, BooleanDeclarations::none())
@@ -2137,7 +2146,11 @@ fn wire_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
                 // under THIS node's id: that id is what tells an
                 // intermediate row from a member's own name when the
                 // chain is collapsed, and it is the id the node's
-                // names carry in the end anyway.
+                // names carry in the end anyway. Both operand
+                // CONTEXTS name this node for the same reason: their
+                // tables are the member-keyed views, so an error this
+                // step raises about an operand is about a row in this
+                // node's space.
                 acc_table = (verb.emitter)(
                     id,
                     &out.body,
@@ -2148,7 +2161,7 @@ fn wire_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
                         body: &acc_body,
                     },
                     &names::OperandCtx {
-                        node: *member,
+                        node: id,
                         table: &member_table,
                         body: &member_body,
                     },
