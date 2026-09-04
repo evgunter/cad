@@ -15,7 +15,7 @@ use core::f64::consts::PI;
 use profile::RawLoop;
 
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
+use geom_core::{Affine3, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::cube;
@@ -33,11 +33,6 @@ const PIP_R: f64 = 0.09;
 const PIP_H: f64 = 0.05;
 /// Pip spacing from the face centre, meters.
 const PIP_D: f64 = 0.22;
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
