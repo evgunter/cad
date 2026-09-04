@@ -1,7 +1,10 @@
 # Code quality — the plan
 
-Every live finding, row, ruling and sweep of this program is a file in
-this directory, and `work/STATUS.md` is the board. This page is the
+Every live finding, row, ruling and sweep **that no program has claimed**
+is a file in this directory, and `work/STATUS.md` is the board. A
+claimed row moves into the claiming program's directory in the PR that
+claims it (`program.md`'s charter), so a track's rows are not all in one
+place and are not meant to be — what is here is what is unclaimed. This page is the
 rules those files run on. Nothing here is ratified and nothing here is
 a commitment: a finding is a *question worth answering*, not a defect;
 several describe deliberate, ratified positions that a scanning agent
@@ -181,9 +184,10 @@ its ground stated under *What this partition leaves out*.
    moves it, never after.
 3. **A row leaves when it lands, and its finding leaves with it.** Both
    close and neither is annotated; the relocation rule for standing
-   sentences is under *How to read an item*. Landing PRs edit files in
-   this directory and conflict by construction, so within a track,
-   **merge one at a time**.
+   sentences is under *How to read an item*. Landing PRs edit the row's
+   file and conflict by construction, so within a track, **merge one at
+   a time** — in whichever directory the track's rows now live, since a
+   claimed track's rows have moved to the claiming program.
 4. **A style review runs on every unit** against
    `docs/prompts/reviewer-style-lane.md`, carrying the two questions the
    standing brief does not ask — *is the original problem completely
@@ -209,7 +213,7 @@ its ground stated under *What this partition leaves out*.
 
 ## The territories
 
-| Track | Territory (the fence) | Block | Executed by |
+| Track | Territory (the fence) | Block | Claimed by |
 |---|---|---|---|
 | **K** | `scripts/gates/` less `gate-roster.sh` and `probe-suite-census.sh`, `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | this program |
 | **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/`, `crates/topo/src/props.rs` | `D220`–`D239` / `S290`–`S309` | `cert` (`CERT-M3`) |
