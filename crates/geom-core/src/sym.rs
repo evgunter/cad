@@ -1034,34 +1034,38 @@ impl SymRules {
         }
     }
 
-    /// **The shipped set: rule A ONLY.** The §1 measurement justified
-    /// A and filed B and C:
+    /// **The shipped set: NONE.** The §1 measurement filed all three
+    /// rules, and the reason is architectural rather than about any one
+    /// rule.
     ///
-    /// - **A (`sqrt(X)²=X`)** raised the filleted bracket's
-    ///   whole-certifying box by ~10× (3.75e-8 → 3.87e-7) by discharging
-    ///   the normalized frame's `sqrt(v·v)²` unconditionally — the arc
-    ///   family (`carrier_on_surface`, `witness_on_surface`, the moving
-    ///   radial frame) as theorems, no value read. It ships.
-    /// - **B (`sin²+cos²=1`)** moved NOTHING on any of the three
-    ///   documents — none carries a revolve's `sin_cos` pair — so it is
-    ///   filed.
-    /// - **C (`sqrt(Q²)=Q` by a certified sign, clause 3)** fires only
-    ///   at the degenerate nominal of a box that does NOT certify (the
-    ///   plate's `newell_plane_residual`); on every certifiable box, and
-    ///   at every certified leaf's midpoint the driver samples, rule A
-    ///   already discharges what it would, so it moved no ceiling and
-    ///   produced ZERO `sign_gated` decisions in the driver population.
-    ///   It is filed — built and dial-selectable, its receipt and K
-    ///   token wired and tested, but not paid for by default, per E12's
-    ///   own rule that a door nobody consumes is machinery for zero
-    ///   certificate content.
+    /// Each rule is a sound reduction ([`with_session`]'s unit rows pin
+    /// them on small forms), and applied EARLY — during form
+    /// construction, as a per-node reduction — they do discharge the arc
+    /// family and were measured to raise the filleted bracket's
+    /// whole-certifying box ~10×. But that early reduction is what keeps
+    /// the forms small enough not to freeze, and paying it per DAG node
+    /// is a full reduction pass per node — measured as a runaway — while
+    /// letting it replace the plain form DOWNGRADES identities the plain
+    /// quotient form already proves (a straight edge's endpoint theorem
+    /// became sign-gated; an arc-span cancellation was lost). The
+    /// affordable, non-downgrading form is a reduction over the top
+    /// RESIDUAL only ([`crate::sym`]'s reduce), and by the time it runs
+    /// the arc-family subforms have already frozen (`frozen` in the
+    /// hundreds on the bracket at any budget), so it reaches no atom to
+    /// reduce: on the three documents A, B and C each move NO ceiling
+    /// and discharge NO decision the plain form did not.
+    ///
+    /// So the rules are FILED — built, dial-selectable, their receipts
+    /// and the shape-report instrument wired and tested — and the
+    /// default tier is the M10-7 quotient form exactly, bit for bit. A
+    /// bounded early reduction that neither downgrades nor runs away is
+    /// the mechanism this unit could not land; the measurement is its
+    /// record. Per E12's own rule, a door nobody consumes is machinery
+    /// for zero certificate content, and this door is not opened by
+    /// default.
     #[must_use]
     pub const fn shipped() -> Self {
-        Self {
-            sqrt_square: true,
-            pythagoras: false,
-            signed_root: false,
-        }
+        Self::none()
     }
 
     /// Every rule off: the quotient normal form with every atom opaque,
