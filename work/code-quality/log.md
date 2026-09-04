@@ -26,3 +26,34 @@ deletion is recorded in `docs/DOC-LEDGER.md`.
 - The nine closed-track execution logs
   (`SMELL-{C,E,F,G,H,I,KPW,T,UV}-LOG.md`) move unedited from `docs/` to
   `logs/`.
+
+## The tracks this program no longer executes (2026-09-04)
+
+Eight of the eleven tracks are ground other programs own, and four of
+them have a named unit elsewhere carrying the rows — `cert`'s `CERT-M3`
+and `CERT-N3`, `bool`'s `BOOL-Q`, `mesh`'s `MESH-R`, plus `fillet`,
+`exch`, `trim` and `lib` claiming T, U and Q's geom-brep files in their
+`keep_out`s. Every one of those claims was written on the CLAIMING
+side. Nothing here pointed back, so from this board a claimed row reads
+`open` and unclaimed, and a session reading only `work/code-quality/`
+concludes the tracks are idle. One did: it redid `D244`, which
+`cert/n3-track-n-remainder` already carried.
+
+- `program.md` now names the three tracks this program still dispatches
+  (`K`, `P`, `X` — the only three no program's `paths:` reaches) and
+  tables the other eight against their owners and executors.
+- `plan.md`'s territories table carries an **Executed by** column, and
+  *"a track can be claimed the day it is read"* is written in the past
+  tense, because eight of them since have been.
+- The table is maintained by hand and is the only pointer back: no row
+  header says which unit carries it, so neither `status` nor `lint` can
+  show or check it. A `carried_by:` key would make it lintable and is
+  not proposed here.
+- **A fourth seam is stated**: `crates/test-utils/src/source.rs` and
+  `reader_census.rs` are W's, and `D261` (P), `D287` (Q) and `D386` (W)
+  all land in them. The two conversions lower one hand-synced ceiling,
+  so it is re-derived at the landing rather than lowered by each row's
+  own count; both rows carry the note.
+- **Track `P` runs as three sub-lanes** — Euler surgery and validation,
+  the review and fixture readers, liveness and the generator — on three
+  disjoint file sets, no new letters and no new blocks.
