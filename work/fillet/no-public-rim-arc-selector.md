@@ -6,7 +6,6 @@ status: open
 opened: 2026-08-29
 github: 1246
 refs: [1222]
-needs_ev: true
 ---
 
 ## From GitHub issue 1246

@@ -216,8 +216,48 @@ impl TransformTool {
     }
 }
 
+/// **What a pattern's placements come out as** — the pattern form's
+/// output choice, and the only difference between its two nodes.
+///
+/// [`Node::Pattern`] and [`Node::PlacedUnion`] share one rule
+/// vocabulary and one per-instance naming, and differ in their RESULT:
+/// N bodies that stay separate, or ONE body that is their union. That
+/// is a node-kind fork rather than a flag on one node (spec D3 forbids
+/// a variant forking a node's result type), so the choice picks the
+/// door — the shape `BlendKindChoice` takes for fillet and chamfer.
+///
+/// **Fusing is not free.** A [`Node::PlacedUnion`] certifies its
+/// placements disjoint and refuses typed on its own badge when it
+/// cannot, where a [`Node::Pattern`] over the same rule builds
+/// regardless: the choice is between two honest answers, not between
+/// a strict door and a lax one.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PatternOutputChoice {
+    /// N separate bodies ([`Node::Pattern`]).
+    #[default]
+    Instances,
+    /// ONE body, the union of the prototype at every placement
+    /// ([`Node::PlacedUnion`]).
+    Fused,
+}
+
+impl PatternOutputChoice {
+    /// Both choices with their button labels — the chrome's radio row
+    /// and a test that sweeps them.
+    pub const ALL: [(Self, &'static str); 2] =
+        [(Self::Instances, "instances"), (Self::Fused, "fused")];
+}
+
 /// **The pattern tool**: a body pick, and — for the circular rule
-/// only — a datum-axis pick, committing one [`SessionOp::AddPattern`].
+/// only — a datum-axis pick, committing one [`SessionOp::AddPattern`]
+/// or one [`SessionOp::AddPlacedUnion`].
+///
+/// **One tool, two nodes**: the output choice
+/// ([`PatternOutputChoice`]) picks which op each door mints, because
+/// everything the tool holds is the same either way — the same
+/// prototype seat, the same axis seat, the same count and the same
+/// rule fields. The kernel's fused node takes exactly a prototype, a
+/// count and a parametric rule, so there is nothing more to collect.
 ///
 /// The axis seat is filled by an ordinary second pick whichever rule is
 /// chosen, and READ only by [`PatternTool::circular_op`]: a user who
@@ -284,15 +324,17 @@ impl PatternTool {
     /// node's own badge.
     pub fn linear_op(
         &self,
+        output: PatternOutputChoice,
         count: i64,
         direction: [Expr; 3],
         spacing: Expr,
     ) -> Result<SessionOp, SeatError> {
-        Ok(SessionOp::AddPattern {
-            input: self.seats.require(0)?,
+        Ok(pattern_op(
+            output,
+            self.seats.require(0)?,
             count,
-            rule: PatternRuleSpec::Linear { direction, spacing },
-        })
+            PatternRuleSpec::Linear { direction, spacing },
+        ))
     }
 
     /// **The one committed edit**, stepping around the picked axis.
@@ -301,15 +343,35 @@ impl PatternTool {
     ///
     /// [`SeatError::Empty`] with no body picked, or with no axis
     /// picked — which this door is the only one to need.
-    pub fn circular_op(&self, count: i64, step: Expr) -> Result<SessionOp, SeatError> {
-        Ok(SessionOp::AddPattern {
-            input: self.seats.require(0)?,
-            count,
-            rule: PatternRuleSpec::Circular {
-                axis: self.seats.require(1)?,
-                step,
-            },
-        })
+    pub fn circular_op(
+        &self,
+        output: PatternOutputChoice,
+        count: i64,
+        step: Expr,
+    ) -> Result<SessionOp, SeatError> {
+        // The BODY seat first, so an empty form names the pick a user
+        // makes first rather than the one this rule adds.
+        let input = self.seats.require(0)?;
+        let rule = PatternRuleSpec::Circular {
+            axis: self.seats.require(1)?,
+            step,
+        };
+        Ok(pattern_op(output, input, count, rule))
+    }
+}
+
+/// Which op a filled pattern form commits — the output choice's one
+/// consequence, spelled once so the two rule doors cannot disagree
+/// about it.
+fn pattern_op(
+    output: PatternOutputChoice,
+    input: RecipeNodeId,
+    count: i64,
+    rule: PatternRuleSpec,
+) -> SessionOp {
+    match output {
+        PatternOutputChoice::Instances => SessionOp::AddPattern { input, count, rule },
+        PatternOutputChoice::Fused => SessionOp::AddPlacedUnion { input, count, rule },
     }
 }
 
@@ -334,16 +396,48 @@ pub fn pattern_node(
     count: i64,
     rule: PatternRuleSpec,
 ) -> Node<ProfileProgram> {
-    let kind = match rule {
+    Node::Pattern {
+        input,
+        count: Expr::count(count),
+        kind: rule_kind(rule),
+    }
+}
+
+/// Lower one pattern spec to its FUSED node — the same prototype, the
+/// same count and the same rule as [`pattern_node`], and one body out
+/// instead of N.
+///
+/// The count slot is PRESENT, which is `Node::PlacedUnion`'s correct
+/// spelling for a parametric rule: only `PatternKind::Explicit` brings
+/// its own placements, and [`PatternRuleSpec`] cannot spell that rule.
+/// The edit door re-checks the pairing on every insert
+/// (`PlacementRuleFault::CountSpelling`), so a future rule that broke
+/// this refuses typed at the commit rather than landing.
+///
+/// Total, for the reason [`pattern_node`] is: slot dimensions are the
+/// edit door's question. Whether the placements are DISJOINT is not
+/// asked here either — that certificate is evaluation's, reported on
+/// the node's own badge.
+pub fn placed_union_node(
+    input: RecipeNodeId,
+    count: i64,
+    rule: PatternRuleSpec,
+) -> Node<ProfileProgram> {
+    Node::PlacedUnion {
+        input,
+        count: Some(Expr::count(count)),
+        kind: rule_kind(rule),
+    }
+}
+
+/// The rule vocabulary the two pattern nodes SHARE, lowered once: a
+/// spec is a `PatternKind`, whichever node is about to carry it.
+fn rule_kind(rule: PatternRuleSpec) -> PatternKind {
+    match rule {
         PatternRuleSpec::Linear { direction, spacing } => {
             PatternKind::Linear { direction, spacing }
         }
         PatternRuleSpec::Circular { axis, step } => PatternKind::Circular { axis, step },
-    };
-    Node::Pattern {
-        input,
-        count: Expr::count(count),
-        kind,
     }
 }
 

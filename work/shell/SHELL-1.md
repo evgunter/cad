@@ -2,10 +2,12 @@
 id: SHELL-1
 kind: unit
 title: the ShellNaming birth channel — shell and shell_open return Shelled<T>
-status: spec
+status: closed
 opened: 2026-09-04
 branch: shell/1-naming
 refs: [shell-needs-shellnaming-birth-channel, LIB-G17]
+closed: 2026-09-04
+pr: 1756
 ---
 
 

@@ -129,17 +129,19 @@ recipe-side and is VERBS territory kernel-side.
 
 ## D5 — shell WAITS on a kernel birth channel, and LIB files the ask now
 
-`shell`/`shell_open` return a bare `Body<T>` — no birth record
-exists (measured: no naming machinery anywhere in `topo/src/shell.rs`),
-where fillet/split/boolean each have one. A recipe node without an
-emitter mints no names, which reproduces G16's exact defect one verb
-over. So the shell unit has a hard prerequisite LIB cannot fence:
-a `ShellNaming` birth record (rims minted per opened face, wall
-faces off source faces, the FilletNaming shape) written by the
-kernel door. LIB's proposal: file the kernel ask as an issue at this
-doc's ratification, offer the record shape, and hold the Node::Shell
-unit until it lands (kernel program's concurrence per the standing
-rule). The node payload, decided now so the ask is concrete:
+`shell`/`shell_open` return `Shelled<T>`: the body and the
+`ShellNaming` birth record its consumers name entities through, in
+the shape fillet/split/boolean each already have. A recipe node
+without an emitter mints no names, which reproduces G16's exact
+defect one verb over, so the shell unit had a hard prerequisite LIB
+could not fence — a birth record (rims minted per opened chart, wall
+faces off source faces, inner twins through the void graft map)
+written by the kernel door itself. LIB's proposal was to file the
+kernel ask as an issue at this doc's ratification, offer the record
+shape, and hold the Node::Shell unit until it landed (kernel
+program's concurrence per the standing rule); the kernel took the
+ask and the channel is in `crates/topo/src/shell.rs`, so what the
+node waits on now is only its own unit. The node payload, decided now so the ask is concrete:
 `{ target, thickness: Expr, open: Vec<StableName> }` — open faces by
 frozen stable-name selection resolved through the N5 ladder to the
 `FaceKey`s the door takes (the teapot's by-description scan is the

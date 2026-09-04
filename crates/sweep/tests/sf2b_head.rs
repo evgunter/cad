@@ -326,7 +326,7 @@ fn sf2b_bellied_pot_sealed_and_opened() {
     let t = 1.0 / 128.0;
     let body = bellied_pot();
     match topo::shell(&body, t, FIT_TOL, tol) {
-        Ok(p) => println!(
+        Ok(topo::Shelled { body: p, .. }) => println!(
             "[pot] SEALED hollows: {} shells, props {:?}",
             p.shells().count(),
             topo::mass_properties(&p, tol).map(|x| (x.volume, x.surface_area))
@@ -343,7 +343,7 @@ fn sf2b_bellied_pot_sealed_and_opened() {
         .collect();
     println!("[pot] mouth chart: {} face(s)", mouth.len());
     match topo::shell_open(&body, t, &mouth, FIT_TOL, tol) {
-        Ok(p) => println!(
+        Ok(topo::Shelled { body: p, .. }) => println!(
             "[pot] OPENED: {} shells, props {:?}",
             p.shells().count(),
             topo::mass_properties(&p, tol).map(|x| (x.volume, x.surface_area))

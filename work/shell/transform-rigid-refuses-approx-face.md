@@ -2,10 +2,11 @@
 id: transform-rigid-refuses-approx-face
 kind: issue
 title: transform - map an Approx face; the composition law holds, the mapped certificate needs a re-derivation lane (OFF-D)
-status: open
+status: closed
 opened: 2026-08-26
 github: 1020
 refs: [1012]
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1020
@@ -29,3 +30,11 @@ Filed from VERBS-OFF-C (#1012), MINOR-3.
 ## Home
 
 Scheduled at OFF-D, the face-replacement/shell unit, which is VERBS' own; `crates/geom-brep/src/offset*.rs` and `crates/topo/src/replace_face.rs` are in its `paths:` territory.
+
+## Closed (SHELL-2, PR #1758, 2026-09-04)
+
+Shape 2, on the lane `transform_rigid` already binds: the mapped base
+and fit nets, the certificate re-derived through the scalar's fit
+lane, `ApproxLaneUnsupported`/`ApproxRecertify` typed where it cannot.
+The `NurbsPlaceholder` message now says what issue record 1346
+established; that arm stays open there.
