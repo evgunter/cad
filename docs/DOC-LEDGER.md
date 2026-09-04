@@ -756,3 +756,41 @@ residue), `PATHS-DESIGN` and `SELECT-DESIGN` (edited by live units this
 week), `MATE-7-TANGENCY-DESIGN` (ratified this week; the kissing arm
 banks on it). Reference and measurement records stay as sweep 3 left
 them.
+## Sweep 6 — 2026-09-04: VERBS leaves the tracker
+
+Sweep SHA: `c1e7ea19501d9e625dbd0de260d01a53a0384b42` — the closure
+dispositions commit, immediately before the deletion, so every path
+below is recoverable at
+`git show c1e7ea19501d9e625dbd0de260d01a53a0384b42:<PATH>`.
+
+Same rule as sweep 5: `work/` tracks work still to be done, so the
+closed program's directory leaves whole. One program, twenty files,
+`status: closed` with no live items:
+
+| program | title | closed | done-state of record |
+| --- | --- | --- | --- |
+| `verbs` | VERBS — the modeling-verb breadth program | 2026-09-04 | `docs/VERBS-EXIT-WALK.md` (ratified by Ev at PR #1793, merged `fd45920d5`; per-register-row disposition tables, the A/B instrument state at close, and the ten-item open list resolved at this sweep) |
+
+What the walk records: 28 delivered unit/PR rows (every implementation
+row of `docs/KERNEL-VERBS.md`), 2 measured-and-refused boundaries
+standing as done-states (the Steinmetz pinch family's typed refusal;
+the circle-profile rim's torus half), ~10 transfers, and the A/B
+program instrument at close (14 dual ordinals, 7 tally candidates
+pending the blinded coding, the 5.1 era boundary, the sample-number
+cascade note).
+
+### Residue — re-homed, not lost
+
+Before deletion, the dispositions commit closed
+`coplanar-cap-pair-f7-repair-half-b` (delivered by VERBS-1031B,
+PR #1671) and re-homed FOURTEEN live items to `work/issues/`:
+twelve open issues (among them `verbs-1031b-assigner-checker-
+divergence`, the parked `pinch-carrying-machinery-valence-4`, and
+the #1076/#347 register residue) plus `VERBS-C5ARMS` (PR-2
+cone×cylinder remains, spec `docs/VERBS-C5ARMS-SPEC.md`) and
+`VERBS-CONE` (operand lanes, never cut) converted to issues as
+successor-program seeds. Inbound refs re-pointed
+(`work/seat/SEAT-6.md`, `work/issues/sphere-flux-arm-refuses-
+partial-bands.md`, `work/props/m6-sense-gate-recorded-residuals.md`);
+`scripts/work.py lint` green. The A/B band (100–199) stays claimed
+in `docs/MODEL-AB-LOG.md`'s ordinal-bands section as always.
