@@ -1098,12 +1098,15 @@ impl core::fmt::Display for NodeErrorKind {
                 "input {} is the empty value — the body ops take real bodies",
                 input.0
             ),
+            // Every role word is already a complete noun phrase for the
+            // vector ("pattern direction", "transform rotation axis"),
+            // so the sentence names the role and nothing after it.
             Self::DegenerateDirection { role } => {
-                write!(f, "the {role} direction has zero length")
+                write!(f, "the {role} has zero length")
             }
             Self::NonFiniteDirection { role } => write!(
                 f,
-                "the {role} direction has no finite length — its components \
+                "the {role} has no finite length — its components \
                  overflow the norm, or one of them is not a number; scale \
                  the geometry into the session's range"
             ),

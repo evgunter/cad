@@ -73,3 +73,70 @@ lanes that filed them, before this program opened.
 
 `nested-pattern-mate-heads-refuse` is the program's one ruling and
 goes out as an `[ev]` PR, not a unit.
+
+## First wave adjudicated (2026-09-04)
+
+Six units dispatched, three delivered and reviewed, three implementing.
+Corrections to the record, in the order they were established.
+
+**The `error-types-with-no-display-class` re-cut was wrong.** The
+three-way cut was a sound decision on the information in the item, and
+the information was stale: every type the item names already carries a
+`Display`, spelled `impl core::fmt::Display for`, which the sweep that
+produced the list could not see because it grepped `Display for`.
+`MigrationError` is not in the tree at all. Cuts 2 and 3 are empty,
+verified here and not taken on the lane's word. The remainder is one
+small unit; `plan.md` carries it.
+
+**The `nested-pattern-mate-heads-refuse` ruling moved under Ev's
+question** (PR 1731). Ev: (a) desirable, (b) uncertain — are there
+natural cases? Reading `wire_transform` answered it and reversed this
+orchestrator's recommendation. A `Transform` contributes NO `RolePath`
+segment (spec D2, identity-preserving pass-through), so a mate
+reference through one still names the minting `InstantiatePart` and
+**mating to a transformed instance already works**. Add a pattern and
+the name's node becomes the `Pattern`, whose input is the `Transform`,
+and it refuses. The natural case for (b) is that asymmetry itself.
+That also makes (b) one walk with (a), not a separate rule, so the
+"ratify the fence" recommendation this program opened with no longer
+stands. Proposed instead: rule both in, implement as one S-MATE unit
+(a member-identity type change, not a FIX one-PR item), gated on one
+measurement NOT yet established — `fold_pair` builds cosets from
+authored alignment data and never reads the evaluated body, so if a
+`Transform` between an instance and mated material is reachable, the
+solve may be transform-blind for the case that already works.
+
+**Territory: SHELL claimed `crates/topo/src/transform.rs`** when it
+opened 2026-09-03, after this program's charter read the file as
+unowned. `paths` here drops it; `keep_out` records the crossing. The
+collision is live, not theoretical: SHELL also holds
+`transform-rigid-refuses-approx-face` (#1020), and the NURBS arm this
+program carries and the Approx arm SHELL owns are the two refusing
+arms of the SAME two match statements. Flagged on PR 1730 with three
+dispositions offered (land-and-announce, hand the item over, or SHELL
+takes both arms as one unit); the territory's owner decides, and
+nothing has been moved.
+
+**Review posture, measured.** Style reviews are earning their cost.
+Both delivered so far found a defect the unit's own claims covered
+over: on PR 1738 the fix routed a non-finite direction into
+`MateFault::DanglingHead` — a false cause the unit's sweep table
+recorded as "fixed", and structurally the same defect the unit set out
+to remove at the transform door; on PR 1732 the one row the unit
+singled out as its deliberate exception hardcodes K in its second half
+and goes red at `CAD_AMBIGUITY_K=30`. Both reviewers also corrected
+this orchestrator on a brief claim. No unit has needed an adversarial
+arm.
+
+**Two lane errors worth the class line.** A lane filed a duplicate
+issue into ANOTHER program's tracker directory from its own unit
+branch (`work/m10/`); the item already existed and the filing was the
+orchestrator's to place on the away channel, not a diff's to carry.
+And a lane described an inherited CI red as unfiled debt when the item
+existed. Both corrected. The shape: a lane that finds a defect outside
+its fence reaches for `work/` before it reaches for its report.
+
+**Standing note for every brief from here** (found by the band lane):
+the `CI-Config:` trailer is read off the head commit ONLY and is
+voided by any later commit, a merge included — so a requested lane
+needs the trailer restated on every head.
