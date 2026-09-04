@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""The two halves of CI run the same checks, the gates that must fire on
-docs-tier inputs are SITED where they can, and the prune exception stays one job.
+"""The two halves of CI run the same checks WITH THE SAME REPORTING SEMANTICS, the
+gates that must fire on docs-tier inputs are SITED where they can, and the prune
+exception stays one job.
 
 WHY THIS IS PYTHON AND NOT A `scripts/gates/*.sh` MEMBER. Its subject is the
 STRUCTURE of `.github/workflows/*.yml` — which job a step belongs to, whether
@@ -49,7 +50,28 @@ coincidence. What it proves is that no hosted JOB is unaccounted for locally.
 It does NOT prove the two run the same commands, and it does not prove the
 local row a citation sits above still exists — a marker is a comment, and
 deleting the row under it leaves the citation resolving perfectly well against
-the hosted step it names. Claim 6 reads
+the hosted step it names.
+
+CLAIM 10 IS WHERE THE ROSTER STOPS AND THE COMMANDS START. It takes the pairs
+claim 9 leaves and asks the one question a roster cannot: do the two halves run
+this check the SAME WAY. It is narrow on purpose — `cargo` invocations only,
+the flags in `SEMANTIC_FLAGS` only, between the two sides of one `HOSTED
+MIRROR` pair only, and only for a cargo subcommand BOTH sides run — so it does
+not turn claim 9's coarse job correspondence into a claim about equal argv,
+which would be false.
+
+THREE HOLES FOLLOW, all of them by construction. A pair whose halves name
+different cargo subcommands is not compared at all. A flag outside the
+allowlist is not read. And ENVIRONMENT IS NOT A FLAG: render.yml's
+`scene-inputs` and `montage` jobs set
+`CAD_RENDER_LOCAL_OVERRIDE=i-am-the-hosted-renderer` while ci-local.sh's
+`uv_sheet_drift` sets `i-accept-local-render-drift`, and `scene-inputs` is a
+pair this claim reads — so that divergence is live, deliberate, correct, and
+passes here in silence rather than through an exemption. That is the scope
+line, not an oversight: an env variable is read by the program under test and
+a flag is read by cargo, and one vocabulary spanning both would be a table of
+exceptions with a check hidden in it. Env parity, if it is ever wanted, is a
+claim of its own with its own declarations. Claim 6 reads
 `.github/workflows/*.yml` and nothing else that can trigger a checkout, so a
 composite action under `.github/actions/` is outside it. And, as everywhere,
 wiring is not execution: a step disabled by an `if:` on the STEP still satisfies
@@ -62,6 +84,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -184,6 +207,85 @@ MIRROR_EXEMPT = {
 # every flagged gate invocation is spelled in both halves today.
 GATE_MODE_EXEMPT: dict[str, tuple[str, str]] = {}
 
+# CLAIM 10'S ALLOWLIST — the `cargo` flags that change what a run MEANS rather
+# than what it executes. `flag -> takes a value`.
+#
+# AN ALLOWLIST AND NOT AN ARGV DIFF, deliberately. The two halves differ for
+# reasons that are correct and permanent — hosted runs from an archive with
+# `--archive-file` and `--workspace-remap`, local builds in a shared `target/`
+# — so a full argv comparison would be a list of exceptions with a check
+# hidden in it. What is enumerated here is the small set whose presence a
+# reader will not diff by eye and whose absence leaves no future red: a flag
+# that drops off one half merges once, silently.
+#
+# DERIVED AGAINST THE TREE, not copied from the issue that asked for it. Three
+# corrections came out of that reading, and they are the reason this list is
+# not the issue's list:
+#   * `--profile` appears in neither half. The release profile is spelled
+#     `--release` here — four rows in ci-local.sh, paired with the demo tour,
+#     `release-corruption`, `oracle-certify` and the k-lint eps pin — so
+#     `--release` is what is listed; `--profile` is kept beside it because the
+#     two are the same knob and cargo accepts either spelling.
+#   * `--test-threads` appears in ci.yml's PROSE only, on two comment lines
+#     about a measurement that runs `--test-threads 1`; `-j` appears nowhere in
+#     either half. Neither is passed by a live row. They are listed anyway:
+#     this is an absence detector, and the population it is about is flags that
+#     are not there yet.
+#   * `--all-features` and `--no-default-features` are not in the issue's list
+#     and are the same knob as `--features` — a selection that narrows or
+#     widens under an unchanged row name.
+SEMANTIC_FLAGS = {
+    "--no-fail-fast": False,
+    "--all-targets": False,
+    "--release": False,
+    "--all-features": False,
+    "--no-default-features": False,
+    "--features": True,
+    "--partition": True,
+    "--profile": True,
+    "--test-threads": True,
+    "-j": True,
+    "-E": True,
+}
+
+# Declared asymmetries in claim 10. `(marker, flag): (side, reason)`, the same
+# shape and the same expiry rule as MIRROR_EXEMPT: an entry says a flag is
+# carried by one half of a mirrored pair only, and an entry whose asymmetry has
+# closed is an error rather than a fossil.
+#
+# THREE ENTRIES AND TWO FACTS. The two `--partition` entries are the same fact
+# on two archives: hosted shards each test row across a pair of jobs and the
+# local half runs one row on one tree. The `--features` entry is the other:
+# hosted's interval row executes an ARCHIVE that was already compiled with the
+# feature, so the selection is written on a different command. Both are the
+# shape a per-pair confession is for — not that a half forgot a flag, but that
+# the flag has nothing to mean on that side.
+FLAG_EXEMPT = {
+    ("test / run archived tests", "--partition"): (
+        "hosted",
+        "hosted splits the default archive across two sharded jobs and the "
+        "local half runs it as one row on one tree. There is nothing to "
+        "partition locally: the shards exist to buy wall-clock on a runner "
+        "billed by the minute, and a developer box running half the suite "
+        "would be a worse gate, not a faster one",
+    ),
+    ("test-interval / run archived tests", "--partition"): (
+        "hosted",
+        "the same sharding, on the interval archive. Same reason as the "
+        "default row above",
+    ),
+    ("test-interval / run archived tests", "--features"): (
+        "local",
+        "the feature selection is baked into hosted's ARCHIVE, not written on "
+        "the row that runs it: the `build-interval` job compiles "
+        "nextest-interval.tar.zst with `cargo nextest archive --features "
+        "interval`, and this row only unpacks and runs it. The local half "
+        "compiles from the tree in front of you, so the selection has to be "
+        "on the row itself. Both halves select the same feature; what differs "
+        "is which command carries the flag",
+    ),
+}
+
 # Claim 8's floor. A hand-maintained number inside a gate whose thesis is that
 # hand-maintained rosters drift — kept deliberately, for the reason
 # `probe-suite-census.sh`'s CENSUS_FLOOR is kept: what a floor pins is that the
@@ -219,6 +321,15 @@ FIXTURE_MIRRORED_ROWS = 3
 # description of a sentence that a machine can hold.
 NO_MIRROR_MIN_WORDS = 4
 NO_MIRROR_MIN_CHARS = 24
+
+# The clean fixture's two claim-10 pairs. They carry NO allowlisted flag, so
+# every case below can plant exactly one and read back exactly one message;
+# a fixture that already agreed on `--no-fail-fast` would hide the case that
+# matters most.
+FIXTURE_CARGO_STEP = "cargo row"
+FIXTURE_CARGO_ROW = "cargo nextest run --workspace"
+FIXTURE_CARGO_FN_STEP = "cargo fn row"
+FIXTURE_CARGO_FN_ROW = "cargo clippy -- -D warnings"
 
 SCRIPT_RE = re.compile(r"(?:^|[^A-Za-z0-9_/.-])((?:scripts|demos)/[A-Za-z0-9_/.-]+\.(?:sh|py))")
 COMMENT_RE = re.compile(r"^\s*#")
@@ -298,6 +409,11 @@ class Step:
     def __init__(self) -> None:
         self.name: str | None = None
         self.lines: list[str] = []
+        # The `run:` scalar and its block body, and nothing else. Claim 10
+        # reads ARGV, and `step.lines` is not argv: it carries `name:`, `with:`
+        # and `env:` too, so a step named "rustfmt (benches — its own cargo
+        # root)" parses as an invocation of `cargo root`.
+        self.run: list[str] = []
 
 
 class Job:
@@ -503,12 +619,16 @@ def _read_step(path: str, job: Job, step: Step, item_indent: int,
                        f"`_read_step`." + teach("`STEP_KEYS`"))
         if key == "name":
             step.name = value.strip("'\"")
+        elif key == "run":
+            step.run.append(value)
         # A block scalar's body is opaque text, not keys — `run: |` is where
         # every invocation this file reads actually lives.
         j = k + 1
         while j < len(rows) and rows[j][1] > inner:
             if BLOCK_SCALAR_RE.fullmatch(value) or key in ("with", "env"):
                 step.lines.append(rows[j][2])
+                if key == "run":
+                    step.run.append(rows[j][2])
                 j += 1
                 continue
             raise Bail(f"{path}:{rows[j][0]}: content nested under `{key}:` in a step of job "
@@ -705,6 +825,226 @@ def local_call_sites(lines: list[str], want: str) -> list[int]:
                   if re.search(rf"(^|[^A-Za-z0-9_-]){re.escape(host)}([^A-Za-z0-9_-]|$)", m)
                   and not (a <= j <= b) and enclosing(j) is None]
     return sorted(set(sites))
+
+
+# ------------------------------------------------------- claim 10's reader
+#
+# THE ARGV READER, on the same inverted default as the two above: a command
+# line carrying `cargo` that this cannot take apart raises `Bail`. An absence
+# detector that answers "I could not read that, so: OK" detects nothing, and a
+# flag dropped from one half leaves no future red for anything else to catch.
+#
+# IT PARSES ARGV; IT DOES NOT EVALUATE THE SHELL, and the difference decides
+# every case below. `--partition count:${{ matrix.shard }}/2` is a well-formed
+# argv whose VALUE only a runner knows, so the value is recorded as OPAQUE and
+# compares equal to anything — refusing there would red a correct tree, which
+# is how an absence detector gets routed around. `cargo test --features` with
+# nothing after it, or a quote that never closes, is not a value this reader
+# declines to evaluate: it is an argv it cannot read, and that is a refusal.
+GH_EXPR_RE = re.compile(r"\$\{\{.*?\}\}")
+# Where one simple command ends and the next begins. Only outside quotes.
+#
+# NO BRACES, and they were in this set until the QA-2 reconstruction caught
+# them. Both halves hide the gated-suite filter in an array and splice it as
+# `${GATED[@]+"${GATED[@]}"}`; read as a group command that ends the argv, the
+# `--no-fail-fast` AFTER the splice fell into a chunk with no `cargo` in it and
+# vanished from BOTH sides at once — which reads as agreement. A brace is a
+# parameter expansion here far more often than a group, and a group's commands
+# are separated by `;` anyway.
+CMD_BREAK = frozenset("&|;()`")
+ATTACHED_J_RE = re.compile(r"-j\d+")
+OPAQUE = "*"
+
+
+def _join_continuations(lines: list[str]) -> list[str]:
+    """A `\\`-continued command is ONE argv. Read line by line it is two, and
+    the second one carries the flags — which is where most of this repo's
+    `--features` and `--no-fail-fast` spellings sit."""
+    out: list[str] = []
+    buf = ""
+    for line in lines:
+        text = line.rstrip()
+        if text.endswith("\\"):
+            buf += text[:-1] + " "
+            continue
+        out.append(buf + text)
+        buf = ""
+    if buf:
+        out.append(buf)
+    return out
+
+
+def _simple_commands(where: str, text: str) -> list[str]:
+    """Split one logical line into simple commands, quote-aware.
+
+    `cargo fmt --check && cargo clippy --all-targets` is two commands, and
+    reading it as one gives `cargo fmt` a flag it does not have. The split has
+    to know about quoting because both halves write
+    `bash -c 'cd benches && cargo fmt --all --check'`, where the `&&` is text.
+    A `#` that starts a word ends the line for the same reason: a comment is
+    not argv, and this repo's prose is full of apostrophes.
+    """
+    out: list[str] = []
+    cur: list[str] = []
+    i = 0
+    in_single = in_double = False
+    while i < len(text):
+        c = text[i]
+        if in_single:
+            in_single = c != "'"
+            cur.append(c)
+            i += 1
+            continue
+        if in_double:
+            if c == "\\" and i + 1 < len(text):
+                cur.append(c)
+                cur.append(text[i + 1])
+                i += 2
+                continue
+            in_double = c != '"'
+            cur.append(c)
+            i += 1
+            continue
+        if c == "'":
+            in_single = True
+        elif c == '"':
+            in_double = True
+        elif c == "\\" and i + 1 < len(text):
+            cur.append(c)
+            cur.append(text[i + 1])
+            i += 2
+            continue
+        elif c == "#" and (i == 0 or text[i - 1].isspace()):
+            break
+        elif c in CMD_BREAK:
+            out.append("".join(cur))
+            cur = []
+            i += 1
+            continue
+        cur.append(c)
+        i += 1
+    if in_single or in_double:
+        raise Bail(f"{where}: a quote opens on this command line and never closes: {text.strip()[:120]!r}. "
+                   "This line names `cargo`, so claim 10 has to read its flags and cannot: the rest of "
+                   "the line could be argv or could be text inside the quote, and guessing is how a "
+                   "dropped flag reads as agreement. Close the quote, or if the line is not a command,"
+                   + teach("`_simple_commands`"))
+    out.append("".join(cur))
+    return out
+
+
+def cargo_flags(where: str, lines: list[str]) -> dict[str, dict[str, set[str | None]]]:
+    """`cargo <sub>` (and `cargo nextest <sub>`) -> flag -> the values seen.
+
+    A boolean flag's value is `None`; a value this reader cannot evaluate is
+    `OPAQUE`. Only `cargo` is read: every flag in `SEMANTIC_FLAGS` is a cargo
+    or nextest flag, and widening to `scripts/` invocations would put this
+    claim on top of claim 2's ground with none of its exemption vocabulary.
+    """
+    out: dict[str, dict[str, set[str | None]]] = {}
+    for line in _join_continuations(lines):
+        line = GH_EXPR_RE.sub("$GHEXPR", line)
+        if "cargo" not in line:
+            continue
+        for chunk in _simple_commands(where, line):
+            if "cargo" not in chunk:
+                continue
+            try:
+                toks = shlex.split(chunk)
+            except ValueError as exc:
+                raise Bail(f"{where}: cannot read this as a command line ({exc}): {chunk.strip()[:120]!r}. "
+                           "It names `cargo`, so claim 10 has to know which flags it carries."
+                           + teach("`cargo_flags`")) from exc
+            if "cargo" not in toks:
+                continue
+            rest = toks[toks.index("cargo") + 1:]
+            sub = next((t for t in rest if not t.startswith("-")), None)
+            if sub is None:
+                continue
+            key = f"cargo {sub}"
+            if sub == "nextest":
+                after = rest[rest.index("nextest") + 1:]
+                nsub = next((t for t in after if not t.startswith("-")), None)
+                if nsub is not None:
+                    key = f"cargo nextest {nsub}"
+            flags = out.setdefault(key, {})
+            i = 0
+            while i < len(rest):
+                tok = rest[i]
+                value: str | None = None
+                if tok.startswith("--") and "=" in tok:
+                    name, value = tok.split("=", 1)
+                elif ATTACHED_J_RE.fullmatch(tok):
+                    name, value = "-j", tok[2:]
+                else:
+                    name = tok
+                if name in SEMANTIC_FLAGS:
+                    if SEMANTIC_FLAGS[name] and value is None:
+                        if i + 1 >= len(rest):
+                            raise Bail(f"{where}: `{name}` is the last token of {chunk.strip()[:100]!r} and "
+                                       "takes a value. Claim 10 compares the two halves' selections, so an "
+                                       "argument it cannot find is a refusal rather than a flag with no "
+                                       f"value." + teach("`SEMANTIC_FLAGS` and `cargo_flags`"))
+                        value = rest[i + 1]
+                        i += 1
+                    flags.setdefault(name, set()).add(
+                        OPAQUE if (value is not None and "$" in value) else value)
+                i += 1
+    return out
+
+
+def marker_row(raw: list[str], at: int, funcs: dict[str, tuple[int, int]]) -> list[str]:
+    """The local half's side of the pair a `HOSTED MIRROR` marker on line `at`
+    declares: the lines whose argv answers to the hosted step it cites.
+
+    ONE EXTENT RULE, AND IT IS NARROW. Below the marker (past further markers,
+    prose and blank lines) is either a shell function definition — then the row
+    is that function's body — or a command, and then the row is THAT COMMAND
+    AND NOTHING AFTER IT. The looser reading, "every line down to the next
+    comment", swallows the three rows that follow `run_row "clippy (interval)"`
+    and hands the interval clippy pair the interval TEST rows' flags.
+
+    Then the shell functions the row calls are folded in, transitively:
+    `run_row "wasm32 check (#807)" wasm_check` is a row whose whole argv lives
+    in a function twenty lines up, and a rule that stopped at the dispatch line
+    would read it as a pair with no cargo command in it — a pass, for the
+    reason this claim exists to refuse.
+
+    THE FAILURE DIRECTION. That closure matches function names against the
+    row's code, so it is biased LARGE: it can fold in a function the row does
+    not really call, which shows up as a flag on one side that the other does
+    not have — a false red, not a false pass. It is the expensive direction and
+    it is the safe one, which is the trade this whole file makes.
+    """
+    i = at + 1
+    while i < len(raw) and (not raw[i].strip() or COMMENT_RE.match(raw[i])):
+        i += 1
+    if i >= len(raw):
+        # A marker with nothing under it. NOT a refusal: there is no argv here
+        # to misread, and whether a citation still sits above a live row is
+        # claim 8's disclosed gap ("a marker is a comment, and deleting the row
+        # under it leaves the citation resolving perfectly well"), not this
+        # claim's. An empty row simply has no cargo command to compare.
+        return []
+    opens = next((nm for nm, (a, _b) in funcs.items() if a == i), None)
+    if opens is not None:
+        idx = set(range(funcs[opens][0], funcs[opens][1] + 1))
+    else:
+        end = i
+        while end < len(raw) and raw[end].rstrip().endswith("\\"):
+            end += 1
+        idx = set(range(i, end + 1))
+    grown = True
+    while grown:
+        grown = False
+        body = [raw[x] for x in sorted(idx) if not COMMENT_RE.match(raw[x])]
+        for name, (a, b) in funcs.items():
+            if set(range(a, b + 1)) <= idx:
+                continue
+            if any(re.search(rf"(^|[^A-Za-z0-9_-]){re.escape(name)}([^A-Za-z0-9_-]|$)", ln) for ln in body):
+                idx |= set(range(a, b + 1))
+                grown = True
+    return [raw[x] for x in sorted(idx)]
 
 
 def unconditional(jobs: dict[str, "Job"], name: str, seen: frozenset[str] = frozenset()) -> str | None:
@@ -988,10 +1328,19 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
             all_jobs[j.name] = j
             job_file[j.name] = wf_path
     steps = {(j.name, st.name) for j in all_jobs.values() for st in j.steps if st.name}
-    # Markers ARE comments, so they are read from the raw file.
+    # Markers ARE comments, so they are read from the raw file. Claim 10 needs
+    # WHERE each one sits as well as what it says — the row it declares is the
+    # code under it — so the sites are kept and the set derived from them.
     with open(LOCAL_HALF, encoding="utf-8") as fh:
-        markers = sorted({m.group(1) for line in fh.read().splitlines()
-                          for m in [MARKER_RE.search(line)] if m})
+        local_raw = fh.read().splitlines()
+    marker_sites = [(i, m.group(1)) for i, line in enumerate(local_raw)
+                    for m in [MARKER_RE.search(line)] if m]
+    markers = sorted({text for _at, text in marker_sites})
+    # Against the RAW lines, so a marker's line number and a function's body
+    # are measured on one coordinate system. Claim 7 reads the same functions
+    # off the comment-stripped copy, which is the right frame for ITS question
+    # (where a row runs) and the wrong one for this (which lines a row is).
+    local_funcs = shell_functions(local_raw)
     for marker in markers:
         if " / " not in marker:
             err(f"{LOCAL_HALF} has a HOSTED MIRROR marker `{marker}` that is not `<job> / <step name>`. The "
@@ -1068,6 +1417,83 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
                 f"{NO_MIRROR_MIN_WORDS} words or {NO_MIRROR_MIN_CHARS} characters. That is the empty "
                 "case spelled legally: it satisfies the check without saying what the check asked "
                 "for. Say what this job does that no local row can do")
+
+    # CLAIM 10 — SEMANTICS-BEARING FLAG PARITY, per mirrored pair.
+    #
+    # Claims 1, 2 and 9 are about the ROSTER: which checks each half names,
+    # which gate modes it runs, that every hosted job is cited or says why it
+    # has no local half. None of them reads the flags on the commands, so two
+    # rows can be paired, identically named, both green, and be running the
+    # same test binary under different reporting semantics. That is not
+    # hypothetical: `--no-fail-fast` was added to hosted's two sharded nextest
+    # rows and not to the local half, hosted reported a shard's whole failure
+    # surface while the local half reported one failure per row, and this
+    # checker said OK across that state.
+    #
+    # WHAT A PAIR IS: a `HOSTED MIRROR` citation. Claim 8 has already proved
+    # the citation resolves, so the two sides are a hosted step's `run:` and
+    # the local row under the marker (`marker_row`).
+    #
+    # ONLY WHERE BOTH SIDES RUN THE SAME COMMAND. A hosted job's steps and a
+    # local row's function body are not the same partition of the work — claim
+    # 9's header says so at length — so a `cargo doc` on one side and a `cargo
+    # clippy` on the other are not a disagreement about flags, they are the
+    # granularity the two halves genuinely have. Comparing only the command
+    # keys BOTH sides carry is what keeps this claim about flags. THE COST IS
+    # STATED: a pair whose halves name different cargo subcommands is not
+    # compared at all, and neither is a flag drop that also changes the
+    # subcommand.
+    for at, marker in marker_sites:
+        if " / " not in marker:
+            continue
+        job_name, step_name = marker.split(" / ", 1)
+        job = all_jobs.get(job_name)
+        step = next((st for st in job.steps if st.name == step_name), None) if job else None
+        if step is None:
+            continue  # claim 8 has already reported this citation
+        h_cmds = cargo_flags(f"{job_file[job_name]} job `{job_name}` step `{step_name}`", step.run)
+        l_cmds = cargo_flags(f"{LOCAL_HALF}:{at + 1} (the row citing `{marker}`)",
+                             marker_row(local_raw, at, local_funcs))
+        for cmd in sorted(set(h_cmds) & set(l_cmds)):
+            h_flags, l_flags = h_cmds[cmd], l_cmds[cmd]
+            for flag in sorted(set(h_flags) | set(l_flags)):
+                declared = FLAG_EXEMPT.get((marker, flag))
+                h_vals, l_vals = h_flags.get(flag), l_flags.get(flag)
+                if h_vals is not None and l_vals is not None:
+                    if declared is not None:
+                        want, reason = declared
+                        err(f"`{flag}` on `{cmd}` is declared {want}-only for the pair `{marker}` in "
+                            f'FLAG_EXEMPT and BOTH halves now pass it. The reason ("{reason}") has '
+                            "expired — delete the entry, so the list stays a record of asymmetries "
+                            "that exist rather than of ones that once did")
+                        continue
+                    if OPAQUE in h_vals or OPAQUE in l_vals or h_vals == l_vals:
+                        continue
+                    err(f"the pair `{marker}` passes `{flag}` on `{cmd}` with different values — hosted "
+                        f"{sorted(h_vals)}, local {sorted(l_vals)}. A selection that narrows on one side "
+                        "runs fewer tests under the same row name, and nothing else here would say so: "
+                        "mirror the value, or declare the pair in FLAG_EXEMPT with the reason it differs")
+                    continue
+                side = "hosted" if h_vals is not None else "local"
+                if declared is not None:
+                    want, reason = declared
+                    if want != side:
+                        err(f"`{flag}` on `{cmd}` is declared {want}-only for the pair `{marker}` in "
+                            f"FLAG_EXEMPT and is passed by the {side} half. The exemption now describes "
+                            f'the opposite of the tree — re-read the reason ("{reason}") and fix '
+                            "whichever side moved")
+                    continue
+                err(f"the pair `{marker}` passes `{flag}` on `{cmd}` in the {side} half only. This is one "
+                    "of the flags that changes what a run MEANS rather than what it executes "
+                    "(SEMANTIC_FLAGS), so the two halves now disagree about what a red run reports while "
+                    "every roster claim above still says they run the same check — mirror it, or declare "
+                    "the pair in FLAG_EXEMPT with the reason it is one-sided")
+
+    for (marker, flag), (want, reason) in sorted(FLAG_EXEMPT.items()):
+        if marker not in markers:
+            err(f"FLAG_EXEMPT declares `{flag}` {want}-only for the pair `{marker}`, and "
+                f"{LOCAL_HALF} carries no such HOSTED MIRROR marker. Either the pair is gone and the "
+                f'entry should go with it, or ("{reason}") is describing a row that stopped running')
 
     return errs
 
@@ -1148,6 +1574,12 @@ def plant_clean(t: str) -> None:
         for i, n in enumerate(names):
             fh.write(f"      - name: mirrored step {i}\n        run: scripts/{n}\n")
         fh.write("      - name: tools\n        run: cd tools/toolcrate && cargo test\n")
+        # CLAIM 10'S TWO PAIR SHAPES, both agreeing. `cargo row` is a local row
+        # written where the marker is; `cargo fn row` is a row whose argv lives
+        # in a shell function the dispatch line names, which is how most of
+        # this repo's local half is written.
+        fh.write(f"      - name: {FIXTURE_CARGO_STEP}\n        run: {FIXTURE_CARGO_ROW}\n")
+        fh.write(f"      - name: {FIXTURE_CARGO_FN_STEP}\n        run: {FIXTURE_CARGO_FN_ROW}\n")
         # A job with no local half, confessing at its own key — claim 9's
         # other branch, exercised by the CLEAN fixture so the passing shape is
         # covered as well as the failing ones.
@@ -1162,6 +1594,17 @@ def plant_clean(t: str) -> None:
         # is exactly a row with no local half.
         for i, path in enumerate(_exempt_side("hosted")):
             fh.write(f"      - name: hosted only {i}\n        run: {path}\n")
+        # EVERY FLAG_EXEMPT pair, DERIVED, one job per cited job name. These
+        # jobs check nothing out, so claim 6 passes over them; they are cited
+        # by the markers the local half writes below, so claim 9 does too.
+        by_job: dict[str, list[tuple[str, str]]] = {}
+        for marker, (hosted_argv, _local_argv) in _flag_exempt_rows().items():
+            job_name, step_name = marker.split(" / ", 1)
+            by_job.setdefault(job_name, []).append((step_name, hosted_argv))
+        for job_name, rows in sorted(by_job.items()):
+            fh.write(f"  {job_name}:\n    steps:\n")
+            for step_name, hosted_argv in rows:
+                fh.write(f"      - name: {step_name}\n        run: {hosted_argv}\n")
     with open(os.path.join(t, LOCAL_HALF), "w") as fh:
         fh.write("#!/usr/bin/env bash\n")
         fh.write(f"# HOSTED MIRROR: {SITING_JOB} / sited rows\n")
@@ -1178,9 +1621,49 @@ def plant_clean(t: str) -> None:
         for path in _exempt_side("local"):
             fh.write(f"{path}\n")
         fh.write("cd tools/toolcrate && cargo test\n")
+        fh.write(f"# HOSTED MIRROR: discipline / {FIXTURE_CARGO_STEP}\n{FIXTURE_CARGO_ROW}\n")
+        fh.write(f"cargo_fn_row() {{\n  {FIXTURE_CARGO_FN_ROW}\n}}\n")
+        fh.write(f"# HOSTED MIRROR: discipline / {FIXTURE_CARGO_FN_STEP}\nrun_fixture_row cargo_fn_row\n")
+        for marker, (_hosted_argv, local_argv) in _flag_exempt_rows().items():
+            fh.write(f"# HOSTED MIRROR: {marker}\n{local_argv}\n")
     for path in MIRROR_EXEMPT:
         os.makedirs(os.path.join(t, os.path.dirname(path)), exist_ok=True)
         open(os.path.join(t, path), "w").close()
+
+
+def _flag_spelling(flag: str) -> str:
+    """How the fixture writes one allowlisted flag. A value-taking flag gets a
+    literal, never an expansion: an expansion is OPAQUE, and a fixture whose
+    values all compare equal to everything would pass every value case."""
+    return flag if not SEMANTIC_FLAGS[flag] else f"{flag} fixture-value"
+
+
+def _flag_exempt_rows() -> dict[str, tuple[str, str]]:
+    """`marker -> (hosted argv, local argv)` for the FLAG_EXEMPT pairs.
+
+    DERIVED FROM THE TABLE, for the reason `_exempt_side` is: a fixture that
+    named an entry would go red against a CLEAN fixture the day that entry
+    expired for real, reporting the fixture where the finding is the entry.
+    """
+    rows: dict[str, tuple[list[str], list[str]]] = {}
+    for (marker, flag), (side, _reason) in sorted(FLAG_EXEMPT.items()):
+        if side not in ("hosted", "local"):
+            raise Bail(f"FLAG_EXEMPT declares side={side!r} for `{flag}` on the pair `{marker}`, which "
+                       "the selftest's clean fixture does not know how to satisfy — it can put a flag "
+                       "on the hosted row or the local one, and nowhere else."
+                       + teach("`_flag_exempt_rows`"))
+        if " / " not in marker:
+            raise Bail(f"FLAG_EXEMPT is keyed on the pair `{marker}`, which is not a "
+                       "`<job> / <step name>` citation and so can never name a mirrored pair."
+                       + teach("`_flag_exempt_rows`"))
+        h, ln = rows.setdefault(marker, ([], []))
+        (h if side == "hosted" else ln).append(_flag_spelling(flag))
+    # A DIFFERENT BASE FROM `FIXTURE_CARGO_ROW`, deliberately: the cases below
+    # rewrite one row by its exact text, and two rows spelled identically make
+    # every one of them edit both — which is how `flag_value_opaque` first
+    # "failed" against a pair it had never touched.
+    base = "cargo nextest run --archive-file fixture.tar.zst"
+    return {m: (" ".join([base, *h]), " ".join([base, *ln])) for m, (h, ln) in rows.items()}
 
 
 def _exempt_side(side: str) -> list[str]:
@@ -1233,6 +1716,18 @@ def _case(want: str, plant) -> None:
             raise SystemExit(f"SELFTEST FAILED: passed a planted violation ({plant.__name__})\n{out}")
         if want not in out:
             raise SystemExit(f"SELFTEST FAILED ({plant.__name__}): unexpected message\n{out}")
+
+
+def _ok_case(plant) -> None:
+    """A shape the checker must ACCEPT. An absence detector that reds on a
+    correct tree gets routed around, so the shapes this one deliberately lets
+    through are pinned as cases too, not left as prose."""
+    with tempfile.TemporaryDirectory() as t:
+        plant_clean(t)
+        plant(t)
+        rc, out = _run(t)
+        if rc != 0:
+            raise SystemExit(f"SELFTEST FAILED: refused a shape it must accept ({plant.__name__})\n{out}")
 
 
 def _append(path: str, text: str):
@@ -1364,6 +1859,69 @@ def selftest() -> None:
         _sub(t, LOCAL_HALF, f"{_one_local}\n", "")
         _append(HOSTED_HALF, f"      - name: x\n        run: {_one_local}\n")(t)
 
+    # CLAIM 10. One case per allowlisted flag, DERIVED from `SEMANTIC_FLAGS`
+    # rather than listed again: a hand-written list of cases beside a
+    # hand-written list of flags is two rosters, and a flag added to one and
+    # not the other is exactly the silence this whole file is about.
+    def _flag_on_hosted_only(flag: str):
+        def go(t: str) -> None:
+            _sub(t, HOSTED_HALF, f"run: {FIXTURE_CARGO_ROW}\n",
+                 f"run: {FIXTURE_CARGO_ROW} {_flag_spelling(flag)}\n")
+        go.__name__ = f"flag_hosted_only_{flag.strip('-')}"
+        return go
+
+    def flag_local_only(t):
+        _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n", f"{FIXTURE_CARGO_ROW} --no-fail-fast\n")
+
+    # The row whose argv is in a function the dispatch line names. Without the
+    # closure in `marker_row` this pair reads as "no cargo command locally",
+    # which is a pass.
+    def flag_through_function(t):
+        _sub(t, LOCAL_HALF, f"  {FIXTURE_CARGO_FN_ROW}\n", "  cargo clippy --all-targets -- -D warnings\n")
+
+    # Both halves pass the flag; the VALUES differ. Same row name, fewer tests.
+    def flag_value_diverges(t):
+        _sub(t, HOSTED_HALF, f"run: {FIXTURE_CARGO_ROW}\n", f"run: {FIXTURE_CARGO_ROW} --features one\n")
+        _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n", f"{FIXTURE_CARGO_ROW} --features two\n")
+
+    # An opaque value on either side is not a divergence: only a runner knows
+    # what it expands to, and refusing there would red a correct tree.
+    def flag_value_opaque(t):
+        _sub(t, HOSTED_HALF, f"run: {FIXTURE_CARGO_ROW}\n",
+             f"run: {FIXTURE_CARGO_ROW} --features ${{{{ matrix.feats }}}}\n")
+        _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n", f"{FIXTURE_CARGO_ROW} --features two\n")
+
+    # THE TWO REFUSALS. An argv this cannot read is never a pass.
+    def flag_missing_value(t):
+        _sub(t, HOSTED_HALF, f"run: {FIXTURE_CARGO_ROW}\n", f"run: {FIXTURE_CARGO_ROW} --features\n")
+
+    def unclosed_quote(t):
+        _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n", f"{FIXTURE_CARGO_ROW} -E 'test(/^a/)\n")
+
+    _flag_exempt = sorted(FLAG_EXEMPT)
+    if _flag_exempt:
+        _fx_marker, _fx_flag = _flag_exempt[0]
+        _fx_side = FLAG_EXEMPT[(_fx_marker, _fx_flag)][0]
+        _fx_hosted, _fx_local = _flag_exempt_rows()[_fx_marker]
+
+        def flag_exemption_expired(t):
+            """The declared one-sided flag appears on the OTHER half too."""
+            path, argv = ((LOCAL_HALF, _fx_local) if _fx_side == "hosted"
+                          else (HOSTED_HALF, _fx_hosted))
+            _sub(t, path, f"{argv}\n", f"{argv} {_flag_spelling(_fx_flag)}\n")
+
+        def flag_exemption_inverted(t):
+            """The flag moved to the half the entry says does not carry it."""
+            keep, gain = ((_fx_hosted, _fx_local) if _fx_side == "hosted"
+                          else (_fx_local, _fx_hosted))
+            keep_path = HOSTED_HALF if _fx_side == "hosted" else LOCAL_HALF
+            gain_path = LOCAL_HALF if _fx_side == "hosted" else HOSTED_HALF
+            _sub(t, keep_path, f"{keep}\n", f"{FIXTURE_CARGO_ROW}\n")
+            _sub(t, gain_path, f"{gain}\n", f"{gain} {_flag_spelling(_fx_flag)}\n")
+
+        def flag_exemption_orphaned(t):
+            _sub(t, LOCAL_HALF, f"# HOSTED MIRROR: {_fx_marker}\n", "# was a pair: \n")
+
     _case("and local-scripts/ci-local.sh does not", hosted_only)
     _case("and no workflow in .github/workflows/ does", local_only)
     _case("is invoked by the hosted half only", gate_mode_one_side)
@@ -1409,6 +1967,20 @@ def selftest() -> None:
     _case("carries an `if:`", _hollow_siting_job)
     _case("a definition above the exit is not a run", _local_row_below_exit)
     _case("never runs", _local_row_deleted)
+    # CLAIM 10, every allowlisted flag one at a time.
+    for _flag in sorted(SEMANTIC_FLAGS):
+        _case(f"passes `{_flag}` on `cargo nextest run` in the hosted half only",
+              _flag_on_hosted_only(_flag))
+    _case("passes `--no-fail-fast` on `cargo nextest run` in the local half only", flag_local_only)
+    _case("passes `--all-targets` on `cargo clippy` in the local half only", flag_through_function)
+    _case("with different values", flag_value_diverges)
+    _case("takes a value", flag_missing_value)
+    _case("never closes", unclosed_quote)
+    _ok_case(flag_value_opaque)
+    if _flag_exempt:
+        _case("BOTH halves now pass it", flag_exemption_expired)
+        _case("FLAG_EXEMPT and is passed by the", flag_exemption_inverted)
+        _case("carries no such HOSTED MIRROR marker", flag_exemption_orphaned)
     print("check-ci-mirror-parity selftest OK: every Bail names the symbol to extend or says there is "
           "none; passes a clean fixture, and refuses the fixture's own `--root` on the gate of "
           "record; fires on a one-sided row, a "
@@ -1421,7 +1993,12 @@ def selftest() -> None:
           "with neither a citation nor a reason, a reason with nothing after it, a reason on a job the "
           "local half cites anyway, a reason separated from its job key by a blank line, a reason too "
           "short to be a sentence, two reasons against one job, a job in a SECOND workflow file with "
-          "neither a citation nor a reason, and one job name defined in two files")
+          "neither a citation nor a reason, one job name defined in two files, EVERY flag in "
+          "SEMANTIC_FLAGS passed by one half of a mirrored pair and not the other (in each direction, "
+          "and through a shell function the local row only names), a flag both halves pass with "
+          "different values, an argv whose flag has no value or whose quote never closes, and a "
+          "FLAG_EXEMPT entry that expired, inverted or lost its pair — while accepting a value only a "
+          "runner can expand")
 
 
 def _sub(t: str, path: str, a: str, b: str) -> None:
@@ -1514,8 +2091,9 @@ def main() -> int:
           f"job in {WORKFLOW_DIR}/ but `{SITING_JOB}` prunes local-only tooling before reading it, every "
           "tier-blind check is sited in a job that no `if:`, `needs:` chain or `continue-on-error` can "
           "skip and above the local half's docs exit, all hosted-mirror citations resolve against every "
-          f"workflow in {WORKFLOW_DIR}/, and every job in every one of them is either cited by the local "
-          "half or says at its own key, in a sentence, why it has no local half")
+          f"workflow in {WORKFLOW_DIR}/, every job in every one of them is either cited by the local "
+          "half or says at its own key, in a sentence, why it has no local half, and no mirrored pair "
+          "passes a semantics-bearing cargo flag on one half only")
     return 0
 
 
