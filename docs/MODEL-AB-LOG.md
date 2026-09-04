@@ -3744,3 +3744,28 @@ implementer was killed by the account's usage limit mid-fix and its
 resume wedged on an orphaned build; a fresh same-arm lane finished
 (predecessor's uncommitted diff preserved and dispositioned in the PR
 body). Sample number AT MERGE in main's order. Row at merge.
+
+## TRIM program rows (work/trim/; band 2500–2599; blocks named TRIM-B<n>)
+
+Opened for dispatch 2026-09-04 (`work/trim/log.md`); same orchestrator as
+CURVED. Block TRIM-B1's draw and slot record live branch-side
+(`trim/b1-block`) until the block concludes, per the block-draw
+redaction ruling. Ratio fable:opus 1:2 — v3 triple {opus, opus, fable},
+fable's position = byte mod 3.
+
+Block TRIM-B1 pre-draw fields (2026-09-04, logged before the draw):
+slot 0 = TRIM-3 PR-1 (`docs/TRIM-3-SPEC.md` §7, the `topo`-only
+chart-boundary description and outside test; branch
+`trim/3-chart-bound`) — difficulty **M-low**, task-class **NUMERIC**
+(five new `decide` rows on metred chart margins; the periodic-root
+rule). Slots 1–2 bank for the next dispatches in order (TRIM-1, the de
+Boor extractor, spec pending; then TRIM-3 PR-2, the clearance seam,
+pre-logged L / NUMERIC at the spec).
+
+Block TRIM-B1 draw (2026-09-04, after the pre-draw fields above; one
+/dev/urandom byte, reject ≥252): byte **43**, 43 mod 3 = 1 = fable's
+position ⇒ **fable at slot 1**. Recorded branch-side; reaches main
+when the block's last slot's reviews conclude; each ordinal claim at
+review dispatch goes to main on its own.
+
+Block TRIM-B1 slot record (branch-side, appended as each slot concludes):
