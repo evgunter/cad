@@ -2,12 +2,13 @@
 id: transform-rigid-refuses-described-nurbs
 kind: issue
 title: transform_rigid refuses every NURBS-walled body - the arm matches the Nurbs VARIANT while its reason describes only the placeholder
-status: review
+status: closed
 opened: 2026-08-31
 github: 1346
 refs: [1020]
 branch: fix/transform-rigid-nurbs
 pr: 1742
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1346
