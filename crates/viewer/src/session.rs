@@ -940,10 +940,14 @@ impl DocSession {
         self.commit(edit)
     }
 
+    /// The value door: write a declared parameter's value.
+    ///
+    /// A name the document does not declare takes the commit path so
+    /// the typed refusal comes from the door rather than from here —
+    /// `DocEdit::SetDocParamValue` carries an existing declaration
+    /// forward and refuses `EditError::DocParamNotDeclared` when there
+    /// is none.
     fn set_param(&mut self, name: &ParamName, value: SlotValue) -> OpOutcome {
-        if !self.committed_doc().params().contains_key(name) {
-            return OpOutcome::refused(Refusal::NoSuchParam(name.clone()));
-        }
         self.commit(props::param_edit(name.clone(), value))
     }
 
