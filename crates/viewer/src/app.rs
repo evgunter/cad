@@ -53,6 +53,7 @@ use pncad::profile::{ArcSide, ArcSweep};
 use pncad::quantity::{self, AngleUnit, LengthUnit, UnitDef, WrittenAngle, WrittenLength};
 
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
+use crate::bounds;
 use crate::camera::{self, Camera, CameraOp};
 use crate::combine::PatternOutputChoice;
 use crate::datums;
@@ -67,7 +68,7 @@ use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::parts::PartChooser;
 use crate::pick::{self, PickCache, PickIndex};
 use crate::prefs::{self, Prefs, PrefsStore};
-use crate::props::{self, SlotDriver, SlotGroup, SlotRow, SlotValue};
+use crate::props::{self, ParamRow, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::scene::{self, DisplayTolerance, SceneMesh};
 use crate::seats::{Seat, SeatError, seat_line};
 use crate::session::{
@@ -1097,6 +1098,40 @@ fn drag_tick(dimension: Dimension) -> f64 {
         Dimension::Scalar => UNIT_DRAG_SPEED,
         Dimension::Count => COUNT_DRAG_SPEED,
     }
+}
+
+/// **The tick ONE PANEL FIELD is scrubbed at**, in the unit that field
+/// is WRITTEN in: [`drag_tick`]'s canonical answer for `dimension`, put
+/// through the field's own unit so a millimetre field steps by half a
+/// millimetre rather than by half a metre.
+///
+/// A `structural` field steps by one whatever its unit: what it holds
+/// is a count, and a tenth of an instance is not a value it can take.
+///
+/// One function for a slot field and a document parameter's alike —
+/// the two fields a user drags to move the same kind of number. Two
+/// spellings of it would be two answers to "how fast does a length
+/// move", and a parameter's would be the one nobody checked.
+pub fn field_drag_tick(dimension: Dimension, structural: bool, unit: Option<UnitDef>) -> f64 {
+    if structural {
+        return 1.0;
+    }
+    let tick = drag_tick(dimension);
+    unit.map_or(tick, |unit| props::in_written(tick, unit))
+}
+
+/// **The range reading for a document parameter**, as the panel says
+/// it: written in the unit the parameter was DECLARED in.
+///
+/// That unit is the one the search itself used — `SessionOp::
+/// ProbeBounds` seeds a parameter's probe at one WRITTEN unit — so a
+/// reading in any other would describe a search that did not happen,
+/// and would say metres about a range found in millimetres.
+///
+/// A function rather than a call inside the widget because it is a
+/// sentence a user reads, and the composition is the whole claim.
+pub fn param_range_wording(row: &ParamRow, bounds: bounds::Bounds) -> String {
+    bounds.wording(props::rendering_unit(row.dimension, row.unit))
 }
 
 /// **The smallest pattern count the form offers.**
@@ -2864,29 +2899,48 @@ impl ViewerBehavior<'_> {
                     .find(|row| row.name == name)
                 {
                     ui.label(format!("parameter {} ({:?})", row.name.0, row.dimension));
-                    let mut value = row.value.as_f64();
-                    let widget = ui.add(egui::DragValue::new(&mut value).speed(
-                        if row.dimension == Dimension::Count {
-                            1.0
-                        } else {
-                            0.0005
-                        },
-                    ));
-                    drag_ops(
-                        &widget,
-                        value,
-                        SessionOp::BeginParamGesture { name: name.clone() },
-                        |value| SessionOp::PreviewGesture { value },
-                        SessionOp::CommitGesture,
-                        |value| {
-                            vec![SessionOp::SetParam {
-                                name: name.clone(),
-                                value: SlotValue::of(row.dimension, value),
-                            }]
-                        },
-                        self.ops,
-                    );
-                    self.param_bounds_ui(ui, &name, row.dimension);
+                    // Shown and authored in the unit the parameter was
+                    // DECLARED in, through the same two functions a
+                    // slot field uses — a parameter written in
+                    // millimetres reads in millimetres, here and in its
+                    // range reading alike.
+                    let unit = props::rendering_unit(row.dimension, row.unit);
+                    let written = |v: f64| unit.map_or(v, |u| props::in_written(v, u));
+                    let canonical = |v: f64| unit.map_or(v, |u| props::from_written(v, u));
+                    let structural = row.dimension == Dimension::Count;
+                    let mut value = written(row.value.as_f64());
+                    ui.horizontal(|ui| {
+                        let widget =
+                            ui.add(egui::DragValue::new(&mut value).speed(field_drag_tick(
+                                row.dimension,
+                                structural,
+                                unit,
+                            )));
+                        // The unit beside the number rather than a
+                        // suffix on it, the way a slot row says it —
+                        // except that a parameter's notation has no
+                        // picker to change it (`props`' module docs
+                        // name the missing edit). The dimensionless row
+                        // and a `Count` have nothing to say here.
+                        if let Some(unit) = unit.filter(|u| !u.symbol().is_empty()) {
+                            ui.weak(unit.symbol());
+                        }
+                        drag_ops(
+                            &widget,
+                            canonical(value),
+                            SessionOp::BeginParamGesture { name: name.clone() },
+                            |value| SessionOp::PreviewGesture { value },
+                            SessionOp::CommitGesture,
+                            |value| {
+                                vec![SessionOp::SetParam {
+                                    name: name.clone(),
+                                    value: SlotValue::of(row.dimension, value),
+                                }]
+                            },
+                            self.ops,
+                        );
+                    });
+                    self.param_bounds_ui(ui, &row);
                 } else {
                     ui.weak("that parameter is gone");
                 }
@@ -2940,15 +2994,25 @@ impl ViewerBehavior<'_> {
             ] {
                 ui.radio_value(&mut self.drafts.new_param_dimension, Some(dimension), label);
             }
-            ui.add(
-                egui::DragValue::new(&mut self.drafts.new_param_value).speed(
-                    if self.drafts.new_param_dimension == Some(Dimension::Count) {
-                        1.0
-                    } else {
-                        0.0005
-                    },
-                ),
-            );
+            // The form authors in the canonical unit — a new
+            // parameter's declaration names that notation
+            // (`props::doc_param`) — so the tick is the canonical one
+            // for the dimension picked, and the panel's own rule
+            // answers it rather than a constant beside it. With no
+            // dimension picked yet there is no tick to derive and
+            // Create is refused anyway; a length's serves as the
+            // placeholder.
+            let speed = self
+                .drafts
+                .new_param_dimension
+                .map_or(FIELD_DRAG_SPEED, |dimension| {
+                    field_drag_tick(
+                        dimension,
+                        dimension == Dimension::Count,
+                        props::rendering_unit(dimension, None),
+                    )
+                });
+            ui.add(egui::DragValue::new(&mut self.drafts.new_param_value).speed(speed));
         });
         let name = self.drafts.new_param_name.trim();
         let existing = if name.is_empty() {
@@ -4466,17 +4530,7 @@ impl ViewerBehavior<'_> {
             Ok(value) => value.as_f64(),
             Err(_) => 0.0,
         });
-        // The drag speed is in WRITTEN units, so it travels through
-        // the same conversion the value does ([`unit_field`] carries
-        // the rule) — and it is `FIELD_DRAG_SPEED`, the same tick the
-        // creation forms use, rather than a second number for the
-        // same gesture. A structural slot steps in whole units: what
-        // it holds is a count.
-        let speed = if row.structural {
-            1.0
-        } else {
-            written(drag_tick(row.dimension))
-        };
+        let speed = field_drag_tick(row.dimension, row.structural, unit);
         // What the field says, when that is not the dragged number:
         // the text a parse refusal handed back, else the slot's own
         // source. A LITERAL slot with a value shows no fixed text at
@@ -4682,16 +4736,15 @@ impl ViewerBehavior<'_> {
 
     /// The range probe's button and reading for a DOCUMENT PARAMETER —
     /// the one field that is not a slot.
-    fn param_bounds_ui(&mut self, ui: &mut egui::Ui, name: &ParamName, dimension: Dimension) {
-        let target = BoundsTarget::Param { name: name.clone() };
+    fn param_bounds_ui(&mut self, ui: &mut egui::Ui, row: &ParamRow) {
+        let target = BoundsTarget::Param {
+            name: row.name.clone(),
+        };
         ui.horizontal(|ui| {
             if let Some((probed, result)) = self.session.bounds()
                 && *probed == target
             {
-                // A document parameter's authored unit is stored but
-                // not yet read here (`props`' module docs name the
-                // asymmetry), so its range reads in the canonical one.
-                ui.weak(result.wording(props::rendering_unit(dimension, None)));
+                ui.weak(param_range_wording(row, *result));
             }
             if ui
                 .small_button("range?")

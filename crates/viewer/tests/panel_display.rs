@@ -1,13 +1,15 @@
 //! **How the panel WRITES a number, as values rather than as pixels.**
 //!
-//! Three display decisions land in `props`, and each is a pure function
-//! of a document, so each is asserted here rather than looked at:
+//! The display decisions land in `props` and in the pure functions the
+//! panel reads it through, and each is a function of a document, so
+//! each is asserted here rather than looked at:
 //!
 //! * the three components of a 3-vector are ONE panel row
 //!   (`props::group_rows`),
-//! * a value is shown in the unit its literal remembers, and authored
-//!   back through the same factor (`rendering_unit` / `in_written` /
-//!   `from_written`),
+//! * a value is shown in the unit its literal — or, for a document
+//!   parameter, its DECLARATION — remembers, and authored back through
+//!   the same factor (`rendering_unit` / `in_written` / `from_written`),
+//!   at a drag tick in that same unit (`app::field_drag_tick`),
 //! * changing the unit and changing the number are separate operations,
 //!   and neither performs the other (`SetSlotUnit` vs `SetSlot`),
 //! * and the ONE value field says the number without the unit, shows a
@@ -24,11 +26,12 @@
 use crate::common;
 
 use pncad::document::{
-    Axis3, Datum, Dimension, Doc, DocEdit, Expr, Node, ProfileProgram, SlotId, VectorSlot,
+    Axis3, Datum, Dimension, Doc, DocEdit, DocParam, Expr, Node, ParamName, ProfileProgram, SlotId,
+    VectorSlot,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{DEG, IN, MM, PI, RAD};
-use pncad::quantity::{UnitDef, unit_by_symbol};
+use pncad::quantity::{UnitDef, WrittenLength, unit_by_symbol};
 use viewer::props::{
     self, SlotGroup, SlotUnitFault, SlotValue, from_written, in_written, rendering_unit,
 };
@@ -599,4 +602,243 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
         .expect("the distance row");
     assert_eq!(row.unit.map(|u| u.symbol()), Some("in"));
     assert_eq!(props::field_text(&row), "2");
+}
+
+/// **A parameter declared in millimetres reads in millimetres**, and a
+/// number authored against that row lands as the millimetres it says.
+///
+/// The row is the panel's whole account of a document parameter, so
+/// this is the claim a canonical-unit row breaks: `50 mm` shown as
+/// `0.05` is the panel saying metres about a parameter nobody wrote in
+/// metres. The value that CROSSES `props` stays canonical either way —
+/// the conversion is the field's, the same one a slot's does.
+#[test]
+fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-unit", tol);
+    let name = ParamName::new("base_r");
+    let (doc, _) = common::edited(
+        &doc,
+        DocEdit::SetDocParam {
+            name: name.clone(),
+            value: DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+        },
+        tol,
+    );
+    let mut session = DocSession::inline(doc, tol);
+    let row = |session: &DocSession| {
+        props::param_rows(session.doc())
+            .into_iter()
+            .find(|row| row.name == name)
+            .expect("the parameter row")
+    };
+
+    let before = row(&session);
+    let unit = rendering_unit(before.dimension, before.unit).expect("a length parameter");
+    assert_eq!(
+        unit.symbol(),
+        "mm",
+        "the row is written in what declared it"
+    );
+    // What the field shows: 50, not 0.05.
+    assert_eq!(in_written(before.value.as_f64(), unit), 50.0);
+    assert_eq!(
+        before.value,
+        SlotValue::Continuous(0.05),
+        "stored canonical"
+    );
+
+    // What the field authors: 60 typed into it is sixty MILLIMETRES,
+    // and it comes back out of the document as sixty millimetres.
+    let outcome = session.perform(SessionOp::SetParam {
+        name: name.clone(),
+        value: SlotValue::of(before.dimension, from_written(60.0, unit)),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let after = row(&session);
+    assert_eq!(
+        rendering_unit(after.dimension, after.unit).map(|u| u.symbol()),
+        Some("mm"),
+        "writing a number does not rewrite how the number is written"
+    );
+    assert_eq!(in_written(after.value.as_f64(), unit), 60.0);
+    assert_eq!(after.value, SlotValue::Continuous(0.06));
+}
+
+/// A `Count` parameter names no unit — an instance count is a number,
+/// not a quantity — and the panel's rendering rule agrees.
+#[test]
+fn a_count_parameter_has_no_written_unit() {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-count", tol);
+    let name = ParamName::new("holes");
+    let (doc, _) = common::edited(
+        &doc,
+        DocEdit::SetDocParam {
+            name: name.clone(),
+            value: DocParam::Count { value: 6 },
+        },
+        tol,
+    );
+    let row = props::param_rows(&doc)
+        .into_iter()
+        .find(|row| row.name == name)
+        .expect("the parameter row");
+    assert_eq!(row.unit, None);
+    assert_eq!(rendering_unit(row.dimension, row.unit), None);
+    assert_eq!(row.value, SlotValue::Count(6));
+}
+
+/// **Loud skip.** The two rows below need `viewer::app`, which is not
+/// in a default-feature build; say so rather than letting the run
+/// report two fewer tests and nothing else. Their seat is the hosted
+/// row `cargo nextest run -p viewer --features app`
+/// (`.github/workflows/ci.yml`).
+///
+/// **This row closes no gate and cannot fail** — its payload is its
+/// NAME in the PASS list. It names the rows by hand, so a third
+/// `app`-gated row added to this file leaves the marker quietly
+/// incomplete.
+#[cfg(not(feature = "app"))]
+#[test]
+fn app_lane_skipped_parameter_field_units_not_checked_here() {
+    println!(
+        "SKIPPED (no --features app): a_parameters_range_reads_in_the_unit_it_was_searched_in \
+         and a_parameter_field_is_dragged_at_the_tick_its_dimensions_slot_is do not run - \
+         the parameter field's reading unit and its drag tick are unchecked in this build."
+    );
+}
+
+/// **A parameter's range reading is written in the unit the search
+/// used** — the unit the parameter was declared in, because that is
+/// what the probe seeds one step of.
+///
+/// A reading in the canonical unit describes a search that did not
+/// happen: the panel would say metres about a range found in
+/// millimetres.
+#[cfg(feature = "app")]
+#[test]
+fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
+    use viewer::app::param_range_wording;
+    use viewer::bounds::{Bound, Bounds};
+
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-range", tol);
+    let (doc, _) = common::edited(
+        &doc,
+        DocEdit::SetDocParam {
+            name: ParamName::new("in_mm"),
+            value: DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+        },
+        tol,
+    );
+    // Declared in metres beside it, so the assertion below is about the
+    // DECLARATION and not about parameters in general.
+    let (doc, _) = common::edited(
+        &doc,
+        DocEdit::SetDocParam {
+            name: ParamName::new("in_m"),
+            value: DocParam::continuous(Dimension::Length, 0.05),
+        },
+        tol,
+    );
+    // One found range, read by both rows.
+    let found = Bounds {
+        origin: 0.05,
+        low: Bound::Edge {
+            valid: 0.04,
+            invalid: 0.039,
+        },
+        high: Bound::Edge {
+            valid: 0.06,
+            invalid: 0.061,
+        },
+        samples: 12,
+    };
+    let rows = props::param_rows(&doc);
+    let reading = |name: &str| {
+        let row = rows
+            .iter()
+            .find(|row| row.name == ParamName::new(name))
+            .expect("the parameter row");
+        param_range_wording(row, found)
+    };
+    let mm = reading("in_mm");
+    assert!(mm.contains("40.0000 mm"), "{mm}");
+    assert!(mm.contains("60.0000 mm"), "{mm}");
+    let m = reading("in_m");
+    assert!(m.contains("0.0400 m"), "{m}");
+}
+
+/// **A parameter's field is scrubbed at the tick its dimension's SLOT
+/// field is** — one gesture over a length means one step, whichever
+/// field it is over — and the tick is in the unit the field is written
+/// in, so a millimetre field steps by half a millimetre.
+#[cfg(feature = "app")]
+#[test]
+fn a_parameter_field_is_dragged_at_the_tick_its_dimensions_slot_is() {
+    use viewer::app::field_drag_tick;
+
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-tick", tol);
+    let (doc, _) = common::edited(
+        &doc,
+        DocEdit::SetDocParam {
+            name: ParamName::new("thickness"),
+            value: DocParam::written_length(WrittenLength::in_unit(8.0, MM)),
+        },
+        tol,
+    );
+    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, extrude) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: Expr::literal_with_unit(0.008, Dimension::Length, MM.def())
+                .expect("8 mm is a length"),
+        },
+        tol,
+    );
+    let slot = props::slot_rows(&doc, extrude)
+        .into_iter()
+        .find(|row| row.slot == SlotId::Distance)
+        .expect("the distance row");
+    let param = props::param_rows(&doc)
+        .into_iter()
+        .next()
+        .expect("the parameter row");
+    let slot_tick = field_drag_tick(
+        slot.dimension,
+        slot.structural,
+        rendering_unit(slot.dimension, slot.unit),
+    );
+    let param_tick = field_drag_tick(
+        param.dimension,
+        param.dimension == Dimension::Count,
+        rendering_unit(param.dimension, param.unit),
+    );
+    assert_eq!(
+        param_tick, slot_tick,
+        "the same dimension, written the same way, moves at the same speed"
+    );
+    // In WRITTEN units: half a millimetre is 0.5 of what this field
+    // says, not 0.0005 of it.
+    assert_eq!(param_tick, 0.5);
+
+    // Each dimension gets its own tick — the length one over an angle
+    // field is the mistake `drag_tick`'s branch exists to answer, and a
+    // parameter row inherits the answer rather than restating it.
+    let canonical = |dimension| {
+        field_drag_tick(
+            dimension,
+            dimension == Dimension::Count,
+            rendering_unit(dimension, None),
+        )
+    };
+    let length = canonical(Dimension::Length);
+    assert_ne!(canonical(Dimension::Angle), length);
+    assert_ne!(canonical(Dimension::Scalar), length);
+    // A count is whole: structural fields step by one, slot and
+    // parameter alike.
+    assert_eq!(canonical(Dimension::Count), 1.0);
 }
