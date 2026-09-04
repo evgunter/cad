@@ -484,3 +484,50 @@ questions to Ev through this shape, and the long form is the natural
 default when the evidence was expensive to gather. Cost of the finding
 is one edit; cost of not having it is Ev's attention on every `[ev]` PR
 the board opens.
+
+## Ev's answer, and a claim of mine that did not survive it (2026-09-04)
+
+Ev on #1801: the boundary rule is accepted ("sure"), with the
+suggestion to have subagents split the monster files; the sequencing is
+mine to choose and the four-way cut makes sense; and on the four
+`Refusal` arms, one question — **"what was the reason to move them?"**
+
+**There wasn't one for three of them.** The PR asserted that
+`NoSuchSlot`, `NoSuchParam`, `ParamExists` and `EmptyName` "are facts
+about the document, so by the rule their owner is `editor-core`". That
+was written from the arm names, not from the raising sites, and reading
+the sites says otherwise:
+
+- **`EmptyName`** (`session.rs:2783`) validates a document *name*
+  string before `Doc::empty_derived`. Not a document fact at all.
+- **`ParamExists`** (`:2590`) is a deliberate layer-3 NARROWING —
+  `DocEdit::SetDocParam` is create-or-replace and the session's create
+  door refuses replacement. Its own doc-comment already says so.
+- **`NoSuchSlot`** (`:2299`, `:2454`) means the *properties panel* has
+  no row for that slot (`props::slot_rows`), a layer-3 projection, not
+  editor-core's slot vocabulary.
+
+**The fourth is real, and it is a defect rather than a boundary
+question.** `set_param` (`:2577`) pre-checks that a parameter exists
+before committing `DocEdit::SetDocParamValue`, which `apply` already
+refuses as `EditError::DocParamNotDeclared`
+(`crates/editor-core/src/edit.rs:429`) — and `Refusal::Edit` already
+delegates, so deleting the pre-check surfaces the door's own answer.
+Filed as `set-param-prechecks-what-the-door-refuses`. The other two
+`NoSuchParam` sites are lookups with no edit behind them and are
+correctly flat.
+
+**So the README's exception paragraph is gone and the discipline gained
+its sharp edge instead**: *a flat arm must not restate a refusal a door
+already gives*, with the lookup-versus-pre-check distinction that
+separates the real case from the three false ones. The codebase already
+stated this rule in `delete_node`'s doc-comment — *"the typed refusal
+comes from the door rather than from here"* — one screen from the
+violation, which is the ordinary way this project's rules are broken.
+
+The lesson is not "check the code", which is already the rule. It is
+that **an exception list is a smell**: four arms that would not fit
+should have prompted re-deriving the rule rather than fencing them off,
+and the fence is what let an unchecked framing reach a design doc. The
+rule that replaced it classifies all nineteen arms and names a defect
+the exception list was hiding.

@@ -311,11 +311,19 @@ compiler-caught. What the ladder cannot catch is a new arm ranked
 because the alternative — a rank derived from the arm's shape — would
 make the ordering unstateable, and the ordering is the part users see.
 
-**Four arms are not obviously either.** `NoSuchSlot`, `NoSuchParam`,
-`ParamExists` and `EmptyName` are facts about the document, so by the
-rule above their owner is `editor-core` and they should delegate. They
-stay flat, because moving them is a change to layer 2's error
-vocabulary and that is not this crate's to make.
+**A flat arm must not restate a refusal a door already gives.** That is
+where the rule bites, and `delete_node` already states it in the code:
+*an id the document does not hold takes the single-edit path so the
+typed refusal comes from the door rather than from here.* Pre-checking
+in layer 3 what `apply` refuses is two spellings of one rule, and the
+delegating arm exists to carry the door's answer unchanged.
+
+**A lookup is not a pre-check.** Opening a gesture on a parameter needs
+its dimension, and the range probe needs its value and unit; both look
+the parameter up whether or not an edit ever follows, so a flat arm is
+the honest answer when the lookup fails. What separates the two cases
+is whether an edit is about to be committed that would refuse on its
+own.
 
 ### Gesture safety is data
 
