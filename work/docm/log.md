@@ -222,3 +222,20 @@ open questions are ruled. Record branch-side on `docm/b2-block`. Unit
 branch `docm/2-part` cut from the orchestrator branch (it carries the
 spec and DOCM-1's state-sync, both headed to main in PR 1856). The
 implementer lane is running on it.
+
+## DOCM-2 stopped at its clause and resumed under an amendment (2026-09-04, PR 1860 draft)
+
+Two findings from the lane. (1) In-fence: `wire_split` stamped both
+halves' section planes `minted(split, 0)` — opposed planes with one
+source, a same-source-theorem violation unreachable before `Node::Part`
+could take two pieces of one split; the fix (one index space across
+both halves) stands and gets its own row. (2) Fenced: topo's two
+same-source assertions (`merge_faces.rs`, `boolean/plane_eq.rs`) read
+`eq_bits`'s `None` at a channel-less scalar (`Dual`, `Sym`) as `false`
+and panic on the corpus document's union of the halves at `Dual64`.
+Ruled option (a): the assertions read a channel-less scalar as no
+evidence (rung 1 decides by source identity; no verdict changes), the
+fence widened to exactly those two sites, the Dual-vs-f64 value-channel
+row as the proof the relaxation hides no wrong merge. Spec amended on
+the branch (§Amendment at the stop clause); the lane resumes as the
+same arm.
