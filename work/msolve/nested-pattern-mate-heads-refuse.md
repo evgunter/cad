@@ -158,6 +158,7 @@ never really about naming.
 
 ### Re-homed
 
-S-MATE closed while this ruling was open. `crates/editor-core/src/mate*`
-is now **DOCM's** territory glob, so this item and its gate move there.
-Not a FIX one-PR item under any reading.
+S-MATE closed while this ruling was open, and DOCM inherited the FILES
+at that exit rather than this class of question. Ev's steer
+(2026-09-04): open a successor. This item and its gate move to
+**MSOLVE**. Not a FIX one-PR item under any reading.

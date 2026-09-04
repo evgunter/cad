@@ -11,8 +11,14 @@ Measured by a FIX measurement lane at the FIX orchestrator's request,
 while establishing whether it was safe to extend the mate-head member
 vocabulary through identity-transparent nodes (PR 1731's ruling).
 **It is a live defect, not a scope question**, and it is silent.
-Filed here rather than on S-MATE's slate so they claim it by header
-edit; the fix is theirs.
+Filed here rather than on a program's slate so the owner claims it by
+header edit.
+
+**Claimant corrected 2026-09-04:** this was routed at S-MATE, which has
+since CLOSED. `crates/editor-core/src/mate*` is now held by DOCM by inheritance of the FILES at
+S-MATE's exit. Ev's steer (2026-09-04) is that the assembly-semantics
+residue is a different question from DOCM's document-layer charter, so
+it is re-homed to **MSOLVE**, opened as S-MATE's successor.
 
 ## The defect
 
@@ -127,5 +133,5 @@ pattern's.
 
 ## Home
 
-`work/issues/` — `crates/editor-core/src/mate/*` is S-MATE's territory
-glob and the solve is its charter ground. Re-home by header edit.
+`work/msolve/` — S-MATE's successor, opened 2026-09-04 for exactly this
+residue.

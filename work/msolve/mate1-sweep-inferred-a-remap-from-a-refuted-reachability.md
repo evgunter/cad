@@ -68,5 +68,5 @@ the sweep could reason past it.
 
 ## Home
 
-`work/issues/` — S-MATE is the natural claimant (the sweep and the A11
-member vocabulary are its charter ground); re-home by header edit.
+`work/msolve/` — S-MATE's successor, opened 2026-09-04 for exactly this
+residue.
