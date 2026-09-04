@@ -89,3 +89,21 @@ caller, the load validator, since a snapshot never passes an edit door
 as the same arm. Disclosed and accepted: `pncad-py`'s exhaustive
 `EditError` tag mirrors forced three rows (the S4 shape `C6`/`D366`
 carry); `SetMembers` generalized over `Loft` through `Node::list_input`.
+
+## DOCM-4 MERGED (2026-09-04, PR 1808)
+
+Ordinal 1800, sample #126, block DOCM-B1 slot 1. Implementer arm OPUS.
+v6 dual on frozen `e8d0022d`: R1 (fable) 0/3/4 APPROVE-WITH-FIXES,
+R2 (opus) 3/4/4 NOT-MERGEABLE-AS-IS. Adjudicated: two bilateral MAJORs
+(the `pncad-py` pages for `placement` and `product` contradicting the
+new A4; A4's "every door" universal false against six doors) gated and
+were fixed; R2's third MAJOR (the `tree.rs` edit inside DOCM-3's fence,
+forced by an exhaustive match, disclosed to the orchestrator but not in
+the PR) adjudicated MINOR, disclosure added. Unilateral-MAJOR tally +0
+(the fenced-file finding is process-class, excluded by v6 item 3b).
+Fix pass: nine items, all fixed; the prose fixes re-verified by the
+orchestrator on the head rather than by a re-review round. Filed at
+adjudication: `pair-doors-outside-the-three-do-not-check-document-identity`.
+Spec `docs/DOCM-4-SPEC.md` deleted at merge (DOC-LEDGER). Two spec
+errors were the orchestrator's (three constructor sites where there
+were two; the wrong Python test file).
