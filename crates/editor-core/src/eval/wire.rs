@@ -144,11 +144,12 @@ where
         + topo::AtRestPolicy
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
-        + crate::measure::MinClearanceLane,
+        + crate::measure::MinClearanceLane
+        + super::SectionScalar,
 {
     match node {
         Node::Datum(d) => Ok(OpOut::plain(
-            wire_datum(d, results, vals, tol)?,
+            wire_datum(d, doc, results, vals, tol)?,
             names::empty(),
         )),
         Node::Profile(program) => Ok(OpOut::plain(
@@ -313,7 +314,8 @@ where
         + topo::AtRestPolicy
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
-        + crate::measure::MinClearanceLane,
+        + crate::measure::MinClearanceLane
+        + super::SectionScalar,
 {
     let part = env
         .parts
@@ -593,25 +595,40 @@ fn datum_unit<T: Decide>(
     })
 }
 
-/// **The sketch plane a profile is drawn on, at f64** — the frame node
-/// its payload names, resolved and orthonormalized.
+/// **A profile's `f64` placement, where the document HOLDS one** — an
+/// authored frame's nine expressions, resolved and orthonormalized;
+/// `None` for a frame derived from a face, which the document does not
+/// elaborate at any scalar.
 ///
-/// # Why f64 and not the frame's landed value
+/// # The two frame kinds (DM1c), and why the authored one is read here
 ///
-/// The placement feeds C6 STRUCTURE selection, which must be
-/// lane-identical: the same document has to select the same structure
+/// This is the site that reads the plane, and it forks ONCE on the
+/// frame node's kind, because the two kinds differ in where their
+/// numbers come from.
+///
+/// An AUTHORED frame ([`Datum::Frame`]) is document expressions, and
+/// they are read at `f64` rather than at the lane scalar for the C6
+/// reason: the placement feeds STRUCTURE selection, which must be
+/// lane-identical — the same document has to select the same structure
 /// at `f64` and at the interval scalar, or the lift's two passes are
 /// deciding different questions. That is the rule the profile's own
-/// program already follows — `eval_node` resolves it "at f64 because
-/// it feeds C6 structure selection" — and the frame is now part of the
-/// same input, so it follows the same rule rather than a new one. The
-/// frame's LANDED value is at the lane scalar and is the right answer
-/// to a different question (what a reader sees, what a measure
-/// measures); reading it here would make structure lane-dependent.
+/// program already follows (`eval_node` resolves it "at f64 because it
+/// feeds C6 structure selection"), and the frame's LANDED value is the
+/// right answer to a different question (what a reader sees, what a
+/// measure measures). So an authored frame is read twice, at two
+/// scalars, for two purposes — `Pinned` places with THIS read,
+/// `Guided` with [`frame_plane_lane`]'s.
 ///
-/// So the frame is read twice, at two scalars, for two purposes —
-/// exactly as the profile's own program is, and not a second opinion
-/// about one question.
+/// A DERIVED frame ([`Datum::FaceFrame`]) has no document elaboration
+/// at all: its placement is read off an upstream body's value, at
+/// whatever scalar that body was evaluated at, so there is nothing
+/// here to read and the answer is `None`. The profile's placement into
+/// 3-D then comes from the lane under every lift
+/// ([`frame_plane_lane`]), and its 2-D structure record is assembled
+/// in the conventional `SketchPlane::xy()` ([`prepare_profile`]),
+/// which no decision reads. `ProfilePre::placement_f64` carries the
+/// same `Option`, so a consumer that places with a derived frame's
+/// record has nothing to mistake for a placement.
 ///
 /// # Errors
 ///
@@ -622,20 +639,10 @@ pub(crate) fn profile_plane_f64(
     doc: &crate::doc::Doc<ProfileProgram>,
     plane: RecipeNodeId,
     tol: Tol,
-) -> Result<profile::SketchPlane<f64>, NodeErrorKind> {
-    let found = match doc.node(plane) {
-        None => {
-            return Err(NodeErrorKind::MissingInput { input: plane });
-        }
-        Some(Node::Datum(Datum::Frame { .. })) => None,
-        Some(_) => Some("not a datum frame"),
-    };
-    if let Some(found) = found {
-        return Err(NodeErrorKind::WrongOperand {
-            input: plane,
-            expected: "datum frame",
-            found,
-        });
+) -> Result<Option<profile::SketchPlane<f64>>, NodeErrorKind> {
+    match frame_kind(doc, plane)? {
+        FrameKind::Authored => {}
+        FrameKind::Derived => return Ok(None),
     }
     let node = doc
         .node(plane)
@@ -653,11 +660,47 @@ pub(crate) fn profile_plane_f64(
     };
     let origin = read(SlotId::Origin)?;
     let (u, v) = frame_axes(read(SlotId::U)?, read(SlotId::V)?, band(tol)?)?;
-    Ok(profile::SketchPlane::from_frame(
+    Ok(Some(profile::SketchPlane::from_frame(
         Point3::new(origin.x, origin.y, origin.z),
         u.get(),
         v.get(),
-    ))
+    )))
+}
+
+/// Which kind of frame node a profile's `plane` names — the ONE fork
+/// DM1c adds, keyed by node kind and never by a number.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum FrameKind {
+    /// A [`Datum::Frame`]: nine document expressions, placed from the
+    /// document at `f64` under `Pinned`.
+    Authored,
+    /// A [`Datum::FaceFrame`]: placed from the frame's landed value at
+    /// the lane scalar under every lift.
+    Derived,
+}
+
+/// Classifies the frame node a profile's `plane` names — the variant
+/// read every by-value reader of a frame shares, so "is this a frame"
+/// is answered once with one refusal vocabulary.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::MissingInput`] for an absent node;
+/// [`NodeErrorKind::WrongOperand`] when the node is not a frame.
+pub(crate) fn frame_kind(
+    doc: &crate::doc::Doc<ProfileProgram>,
+    plane: RecipeNodeId,
+) -> Result<FrameKind, NodeErrorKind> {
+    match doc.node(plane) {
+        None => Err(NodeErrorKind::MissingInput { input: plane }),
+        Some(Node::Datum(Datum::Frame { .. })) => Ok(FrameKind::Authored),
+        Some(Node::Datum(Datum::FaceFrame { .. })) => Ok(FrameKind::Derived),
+        Some(_) => Err(NodeErrorKind::WrongOperand {
+            input: plane,
+            expected: "datum frame",
+            found: "not a datum frame",
+        }),
+    }
 }
 
 /// **The sketch plane at the LANE scalar** — the frame's landed value,
@@ -678,11 +721,16 @@ pub(crate) fn profile_plane_f64(
 /// magnitudes stay lane-live. That is the same split the profile's own
 /// program has had since M10-P, applied to the input it just gained.
 ///
+/// A DERIVED frame is read here under EVERY lift (DM1c): it has no
+/// document elaboration, so this by-value read is the only placement
+/// it has, and the profile on it is placed at the lane scalar with
+/// its 2-D structure record still `f64`-pinned.
+///
 /// # Errors
 ///
 /// [`NodeErrorKind::WrongOperand`] when the landed value is not a
 /// frame — the kind door, at the lane where the value is read.
-fn frame_plane_lane<T: Decide>(
+pub(crate) fn frame_plane_lane<T: Decide>(
     results: &Results<T>,
     plane: RecipeNodeId,
 ) -> Result<profile::SketchPlane<T>, NodeErrorKind> {
@@ -697,6 +745,20 @@ fn frame_plane_lane<T: Decide>(
     // Unit and perpendicular by the datum's own construction, which is
     // `SketchPlane::from_frame`'s stated obligation on its caller.
     Ok(profile::SketchPlane::from_frame(*origin, u.get(), y.get()))
+}
+
+/// A lane-scalar placement carried across to `f64`, exactly, where the
+/// scalar is the `f64` lane — every component through
+/// [`super::SectionScalar::pinned_f64`] — and `None` on any analysis
+/// scalar. No component is inspected: the answer is the type's. The
+/// walk itself is [`anchor::map_affine`], the same walk
+/// [`anchor::embed_affine`] runs the other way.
+pub(crate) fn pinned_plane<T: super::SectionScalar>(
+    plane: &profile::SketchPlane<T>,
+) -> Option<profile::SketchPlane<f64>> {
+    anchor::map_affine(&plane.placement, |x| x.pinned_f64().ok_or(()))
+        .ok()
+        .map(profile::SketchPlane::new)
 }
 
 /// **A frame's authored pair, made orthonormal** — the one spelling of
@@ -760,6 +822,7 @@ struct AxisFrame<T: Decide> {
 
 fn wire_datum<T: Decide>(
     d: &Datum,
+    doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -835,6 +898,64 @@ fn wire_datum<T: Decide>(
                 dir: datum_unit(lift(plane_dir), "datum axis direction", band(tol)?)?,
             }
         }
+        // **The frame read off a face** (DM1). Its value is exactly an
+        // authored frame's, produced through the same `frame_axes`
+        // door, so every reader of a frame takes it by value; what is
+        // different is where the numbers come from, and every step of
+        // that is a stored fact copied out or a resolution through
+        // the N5 ladder — nothing here decides a number.
+        Datum::FaceFrame { at, face, .. } => {
+            let body = body_operand(results, *at)?;
+            let table = &value_of(results, *at)?.name_table;
+            // The fillet's ladder: rung 1 against the document, rungs
+            // 2 and 3 against the body's own table.
+            let ent = ladder::resolve_in(face, doc, table, |error| {
+                NodeErrorKind::FaceFrameResolve { error }
+            })?;
+            let names::EntityKey::Face(key) = ent.key else {
+                return Err(NodeErrorKind::FaceFrameKind {
+                    name: Box::new(face.clone()),
+                    found: ent.key.kind(),
+                });
+            };
+            // DM1b / DM2: the carrier's KIND is a stored tag, and a
+            // sketch frame wants a plane. A comparison of tags, not a
+            // predicate.
+            let carrier = topo::readback::face_carrier_kind(&body, key)
+                .map_err(|error| NodeErrorKind::FaceFrameReadback { error })?;
+            if carrier != geom_brep::SurfaceKind::Plane {
+                return Err(NodeErrorKind::FaceFrameNotPlanar { carrier });
+            }
+            let pose = topo::readback::face_pose(&body, key)
+                .map_err(|error| NodeErrorKind::FaceFrameReadback { error })?;
+            // DM1a: the outward normal is the sense beside the pose
+            // times the chart axis, formed here, in the open. The
+            // sense is a bool, so the sign is selected, never
+            // computed.
+            let n = if pose.sense { pose.axis } else { -pose.axis };
+            // A plane carrier always fixes its u-reference (readback's
+            // rule 3 leaves `None` only where the carrier fixes none,
+            // which a plane never is); the kind check above is what
+            // makes this arm unreachable for such a carrier.
+            let u_ref = pose.u_ref.ok_or(NodeErrorKind::FaceFrameReadback {
+                error: topo::readback::ReadbackError::NoCanonicalFrame {
+                    carrier: "planar carrier without a u-reference",
+                },
+            })?;
+            // The spin: sketch +x is the u-reference turned about the
+            // outward normal — a rotation, not a predicate. `u_ref`
+            // lies in the plane, so the rotation is the two-term
+            // form, and `v` is the right-handed third leg.
+            let (sin, cos) = need_scalar(vals, SlotId::Spin)?.sin_cos();
+            let u_raw = u_ref * cos + n.cross(u_ref) * sin;
+            let v_raw = n.cross(u_raw);
+            let (u, v) = frame_axes(u_raw, v_raw, band(tol)?)?;
+            DatumValue::Frame {
+                origin: pose.origin,
+                u,
+                v,
+            }
+        }
     }))
 }
 
@@ -849,10 +970,16 @@ fn wire_datum<T: Decide>(
 /// replay-time junction checks and both validations run under the
 /// SAME `Tolerance::get()` the evaluation pins.
 pub(crate) fn prepare_profile(
-    plane: profile::SketchPlane<f64>,
+    placement: Option<profile::SketchPlane<f64>>,
     resolved: &[Vec<profile::Step<f64>>],
     tol: Tol,
 ) -> Result<ProfilePre, NodeErrorKind> {
+    // The 2-D record's assembly frame: the placement where there is
+    // one, the conventional frame where there is not (a derived
+    // frame's profile, DM1c). Validation is 2-D and the naming anchor
+    // is loop-derived, so no decision below reads it; what places the
+    // profile is `placement_f64`, carried through as the same Option.
+    let plane = placement.unwrap_or_else(profile::SketchPlane::xy);
     let mut loops = Vec::with_capacity(resolved.len());
     let mut replay_records = Vec::with_capacity(resolved.len());
     for (li, steps) in resolved.iter().enumerate() {
@@ -877,6 +1004,7 @@ pub(crate) fn prepare_profile(
     })?;
     Ok(ProfilePre {
         profile_f64,
+        placement_f64: placement,
         naming,
         structure: profile::ProfileStructure {
             replay: replay_records,
@@ -964,9 +1092,24 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
         });
     };
     let validated = match lane.lift {
-        super::ProfileLift::Pinned => anchor::embed_profile::<T>(&pre.profile_f64)
-            .validate(tol)
-            .map_err(NodeErrorKind::Profile)?,
+        // The build path: the `f64` elaboration embedded bit for bit —
+        // loops AND placement for an authored frame. A DERIVED frame
+        // has no `f64` elaboration of its placement (DM1c: the
+        // document holds a face name, not nine numbers), so its loops
+        // embed exactly the same way and its placement is the lane's
+        // own value, read where every by-value reader of a frame reads
+        // it. The fork is by node kind; the numbers on both sides are
+        // the ones already computed.
+        super::ProfileLift::Pinned => {
+            let mut embedded = anchor::embed_profile::<T>(&pre.profile_f64);
+            embedded.plane = match &pre.placement_f64 {
+                Some(placement) => {
+                    profile::SketchPlane::new(anchor::embed_affine::<T>(&placement.placement))
+                }
+                None => frame_plane_lane(results, program.plane)?,
+            };
+            embedded.validate(tol).map_err(NodeErrorKind::Profile)?
+        }
         super::ProfileLift::Guided => lane_profile::<T>(
             program,
             frame_plane_lane(results, program.plane)?,
@@ -1546,6 +1689,24 @@ mod ladder {
         }
     }
 
+    /// **The single-table walk**, all three rungs: rung 1 against the
+    /// document, rungs 2 and 3 against ONE table, every refusal
+    /// through `refuse` in the caller's own vocabulary. The three
+    /// one-table doors (a blend's selection, a measure's reference, a
+    /// derived frame's face) are this function; the declare door
+    /// walks the rungs itself because it reads TWO tables between
+    /// rung 1 and rung 3 and picks a side in between.
+    pub(super) fn resolve_in(
+        name: &StableName,
+        doc: &crate::doc::Doc<ProfileProgram>,
+        table: &NameTable,
+        refuse: impl Fn(Box<ResolveError>) -> super::NodeErrorKind,
+    ) -> Result<EntityRef, super::NodeErrorKind> {
+        let live = live(name, doc).map_err(&refuse)?;
+        let landing = landing(&live, table);
+        resolve(live, landing).map_err(refuse)
+    }
+
     /// Rungs 2 and 3: the entity, or the refusal its landing earns.
     pub(super) fn resolve(
         live: Live<'_>,
@@ -1592,10 +1753,9 @@ fn resolve_selection(
     }
     let mut keys = Vec::with_capacity(selection.len());
     for name in selection {
-        let refused = |error| NodeErrorKind::BlendSelectionResolve { verb, error };
-        let live = ladder::live(name, doc).map_err(refused)?;
-        let landing = ladder::landing(&live, target);
-        let ent = ladder::resolve(live, landing).map_err(refused)?;
+        let ent = ladder::resolve_in(name, doc, target, |error| {
+            NodeErrorKind::BlendSelectionResolve { verb, error }
+        })?;
         let EntityKey::Edge(k) = ent.key else {
             return Err(NodeErrorKind::BlendSelectionKind {
                 verb,
@@ -1715,11 +1875,10 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
             continue;
         }
         let name = &r.name;
-        let refused = |error| NodeErrorKind::MeasureRefResolve { error };
-        let live = ladder::live(name, doc).map_err(refused)?;
         let value = value_of(results, r.at)?;
-        let landing = ladder::landing(&live, &value.name_table);
-        let ent = ladder::resolve(live, landing).map_err(refused)?;
+        let ent = ladder::resolve_in(name, doc, &value.name_table, |error| {
+            NodeErrorKind::MeasureRefResolve { error }
+        })?;
         let body =
             crate::names::interrogate::output_body(&value.payload, ent.body).map_err(|error| {
                 NodeErrorKind::MeasureRefUnreadable {
@@ -2813,7 +2972,7 @@ pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operan
 /// embedded through `from_f64`. Taking the description directly is
 /// therefore not a shortcut — it is the only way the Interval lane
 /// encloses the SAME surface the `f64` lane defines.
-fn section_of<T: Decide + geom_core::Bounds>(
+fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     id: RecipeNodeId,
@@ -2858,8 +3017,24 @@ fn section_of<T: Decide + geom_core::Bounds>(
     // gate to be added to only one. Sharing the function is what makes
     // "the duplicate ladder did not fork" a fact about the code rather
     // than a claim about two diffs.
-    let plane = profile_plane_f64(doc, program.plane, tol)?;
-    let pre = prepare_profile(plane, &resolved, tol)?;
+    // DM1c: a section on a DERIVED frame has no `f64` placement of its
+    // own — the frame's landed value is the lane's — and a section's
+    // geometry stays `f64`. So the placement comes off the by-value
+    // read, and crosses to `f64` only where the scalar IS `f64`
+    // (`SectionScalar`, decided by the type); anywhere else the
+    // section refuses typed, naming itself and the frame, rather than
+    // placing on a fabricated point of the frame's bracket.
+    let plane = match profile_plane_f64(doc, program.plane, tol)? {
+        Some(authored) => authored,
+        None => {
+            let lane_plane = frame_plane_lane(results, program.plane)?;
+            pinned_plane(&lane_plane).ok_or(NodeErrorKind::DerivedFrameSection {
+                profile: id,
+                frame: program.plane,
+            })?
+        }
+    };
+    let pre = prepare_profile(Some(plane), &resolved, tol)?;
     // The lift's second pass runs HERE TOO, as a GATE. A loft's or a
     // sweep's section stays f64 — the skinned surface's knots, degrees
     // and control bits must be identical in every lane, which is the
@@ -2876,7 +3051,17 @@ fn section_of<T: Decide + geom_core::Bounds>(
             tol,
         )?;
     }
-    let place = pre.profile_f64.plane.placement;
+    // Both arms above handed `prepare_profile` a placement, so the
+    // typed one is `Some` here by construction; a `None` would be an
+    // internal break, refused typed rather than placed at a
+    // convention.
+    let place = pre
+        .placement_f64
+        .ok_or(NodeErrorKind::DerivedFrameSection {
+            profile: id,
+            frame: program.plane,
+        })?
+        .placement;
     // The sections are the REPLAYED loops (program order — exactly
     // the stored-loop handoff LIB-U3 established, one derivation
     // earlier): positions, bulges, declared joints verbatim.
@@ -2892,7 +3077,7 @@ fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, Nod
 /// The Loft node (M6-3: the frontier flipped to the BUILDER — the
 /// §10.3 walls plus the M5-LOG item-6 assembly, tiers 1–3 green at
 /// rest).
-fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds>(
+fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super::SectionScalar>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
     doc: &crate::doc::Doc<ProfileProgram>,
@@ -2950,7 +3135,7 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds>(
 /// with a bad Count, is a recipe error and must read as one. What the
 /// node cannot do is reach the geometry: see [`SWEEP_FRONTIER`] for
 /// why no recipe-expressible path exists to sweep.
-fn wire_sweep<T: Decide + geom_core::Bounds>(
+fn wire_sweep<T: Decide + geom_core::Bounds + super::SectionScalar>(
     profile: RecipeNodeId,
     path: RecipeNodeId,
     doc: &crate::doc::Doc<ProfileProgram>,

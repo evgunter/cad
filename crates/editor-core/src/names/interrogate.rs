@@ -22,12 +22,17 @@
 //! # What comes back
 //!
 //! `topo::readback`'s [`Pose`] — the carrier's own stored frame,
-//! copied out. The rules that module states hold verbatim here:
-//! values never verdicts (no door answers "is this face planar"),
-//! definitional re-reads carry no pad, and no convention is invented
-//! where the geometry fixes none. This layer adds only the name
-//! resolution and the typed refusals that go with it.
+//! copied out, with the face's orientation sense beside it — and a
+//! face's carrier KIND, the stored [`SurfaceKind`] tag. The rules that
+//! module states hold verbatim here: values never verdicts (no door
+//! answers a NUMERIC predicate — "is this at z ≈ 1" stays deferred;
+//! "is this face planar" is a comparison of the tag [`face_carrier_kind`]
+//! hands out, decided by nothing here), definitional re-reads carry no
+//! pad, and no convention is invented where the geometry fixes none.
+//! This layer adds only the name resolution and the typed refusals
+//! that go with it.
 
+use geom_brep::SurfaceKind;
 use geom_core::Decide;
 use topo::Body;
 use topo::readback::{self, Pose, ReadbackError};
@@ -217,7 +222,9 @@ pub fn denotation<T: Decide>(
 }
 
 /// **Where is the face I selected?** — the named face's carrier
-/// frame, as of THIS evaluation.
+/// frame, as of THIS evaluation, with the face's orientation sense
+/// beside it ([`Pose::sense`]: the outward normal is `sense · axis`,
+/// and `axis` stays the chart's).
 ///
 /// Analytic carriers answer from their stored origin and axes (a
 /// definitional re-read: no pad); a NURBS face has no canonical frame
@@ -236,6 +243,33 @@ pub fn face_frame<T: Decide>(
     let (body, key) = entity_of(ev, node, name)?;
     match key {
         EntityKey::Face(f) => Ok(readback::face_pose(body, f)?),
+        other => Err(kind_mismatch(EntityKind::Face, other)),
+    }
+}
+
+/// **What kind of carrier is the face I selected?** — the named
+/// face's [`SurfaceKind`] tag, as of THIS evaluation, through the same
+/// node ladder [`face_frame`] walks.
+///
+/// A tag read, never a verdict: "is this face planar" is
+/// `face_carrier_kind(..)? == SurfaceKind::Plane`, the exact comparison
+/// `select_where`'s surface-kind filter already makes, with no number
+/// consulted. Every carrier has a kind, so the only kernel refusal is
+/// a dangling key (see [`readback::face_carrier_kind`]).
+///
+/// # Errors
+///
+/// As [`face_frame`]: the node ladder, `NoSuchName`, `Ambiguous`,
+/// `WrongKind` for a non-face name, and the wrapped
+/// [`ReadbackError`].
+pub fn face_carrier_kind<T: Decide>(
+    ev: &Evaluation<T>,
+    node: RecipeNodeId,
+    name: &StableName,
+) -> Result<SurfaceKind, InterrogateError> {
+    let (body, key) = entity_of(ev, node, name)?;
+    match key {
+        EntityKey::Face(f) => Ok(readback::face_carrier_kind(body, f)?),
         other => Err(kind_mismatch(EntityKind::Face, other)),
     }
 }

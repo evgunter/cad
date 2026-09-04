@@ -82,6 +82,9 @@
 //! the geometry here is what it would be built from; this module's
 //! answer would gain a triangle list beside its segments rather than
 //! changing shape.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
     DatumValue, Doc, Evaluation, Node, ProfileProgram, RecipeNodeId, ValuePayload,

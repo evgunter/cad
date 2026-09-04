@@ -202,8 +202,8 @@ fn notch(bound: f64, dir: AssertionDir) -> (ProfileDoc, RecipeNodeId, RecipeNode
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
             vec![
-                MeasureRef::at_mint(fixture::fname(ell, RoleSeg::Cap(CapEnd::Top))),
-                MeasureRef::at_mint(fixture::fname(block, RoleSeg::Cap(CapEnd::Bottom))),
+                MeasureRef::at_mint(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
+                MeasureRef::at_mint(fixture::fname(block, RoleSeg::Cap(CapEnd::Start))),
             ],
         )
         .expect("both indices in range"),

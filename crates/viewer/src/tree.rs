@@ -55,6 +55,9 @@
 //! So a chain of twenty booleans cutting features out of one solid
 //! draws as one column with its tools one level in, rather than a
 //! staircase twenty levels wide.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use std::collections::BTreeMap;
 
@@ -169,6 +172,7 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::PlacedUnion { .. } => "PlacedUnion",
         Node::Datum(Datum::Plane { .. }) => "Datum plane",
         Node::Datum(Datum::Frame { .. }) => "Datum frame",
+        Node::Datum(Datum::FaceFrame { .. }) => "Datum frame (on face)",
         Node::Datum(Datum::AxisInPlane { .. }) => "Datum axis (in sketch)",
         Node::Datum(Datum::Axis { .. }) => "Datum axis",
         Node::Datum(Datum::Point { .. }) => "Datum point",

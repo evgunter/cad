@@ -54,6 +54,7 @@ pub mod die_composed_tour;
 pub mod die_fillet;
 pub mod die_pips;
 pub mod die_tool;
+pub mod face_sketch;
 pub mod heatsink;
 pub mod heatsink_union;
 pub mod hollow_tube_elbow;
@@ -170,6 +171,11 @@ pub fn documents() -> Vec<CorpusDoc> {
         // oracle (`lib_placedunion.rs`).
         heatsink_union::document(),
         die_tool::document(),
+        // `face_sketch` (DOCM-1): a boss sketched ON the box's top face
+        // through a derived frame — the first `Datum::FaceFrame` in the
+        // registry, so the derived frame carries the standard rows
+        // (every ε, the Interval lane under DM1c, persistence, latency).
+        face_sketch::document(),
         // `loft_prism` (M6-3): R5 shape (iii)'s loft body — the
         // Band 4 corpus's first NURBS-walled solid. Standard rows
         // (every ε, interval lane, persistence, latency) for free by
@@ -346,12 +352,13 @@ pub const EDIT_KINDS: [&str; 15] = [
 /// The node SUB-kinds the corpus must also cover in full: every datum
 /// flavour, every boolean operator (and the declared boolean), and
 /// both pattern kinds.
-pub const SUB_KINDS: [&str; 15] = [
+pub const SUB_KINDS: [&str; 16] = [
     "Datum::Plane",
     "Datum::Axis",
     "Datum::AxisInPlane",
     "Datum::Point",
     "Datum::Frame",
+    "Datum::FaceFrame",
     "Boolean::Union",
     "Boolean::Intersect",
     "Boolean::Subtract",
@@ -387,6 +394,8 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         // corpus document authors at least one, which is the condition
         // this arm was written waiting for.
         Node::Datum(Datum::Frame { .. }) => vec!["Datum::Frame"],
+        // Listed: `face_sketch` draws on a frame derived from a face.
+        Node::Datum(Datum::FaceFrame { .. }) => vec!["Datum::FaceFrame"],
         // Listed: four corpus documents revolve, and a revolve's axis
         // is written in the profile's frame. `kitchen_sink` carries
         // BOTH axis kinds — a world line for its circular pattern, an

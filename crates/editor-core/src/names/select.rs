@@ -157,7 +157,7 @@ pub enum SegTag {
 /// float-free tags of the role vocabulary (cap end, meridian end,
 /// split half, rim support). One type so a pattern can constrain
 /// "which side" uniformly; the `From` impls let a caller write
-/// `.side(CapEnd::Top)`.
+/// `.side(CapEnd::End)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Side {
     /// An extrude/revolve cap end.
@@ -440,7 +440,7 @@ impl SegPat {
         }
     }
 
-    /// Constrains the end/side tag (`.side(CapEnd::Top)`).
+    /// Constrains the end/side tag (`.side(CapEnd::End)`).
     #[must_use]
     pub fn side(mut self, side: impl Into<Side>) -> Self {
         self.side = Some(side.into());
