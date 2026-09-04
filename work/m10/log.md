@@ -733,3 +733,14 @@ ids unchanged, nothing copied:
 The directory now holds only its units, its narrative and (for S-MATE)
 the `MATE-EXIT` ruling, so the sweep at ratification leaves nothing
 behind.
+
+## Handoff note from SHELL (2026-09-04)
+
+Ev ruled B on `[ev]` #1737: the body-level half of
+`crates/editor-core/src/clearance.rs` (the cell subdivision over
+`Body<Interval>`, `min_separation` and its types) moves into `topo`
+behind `interval`, and editor-core's leaf/param-box half calls down.
+SHELL cuts it as `work/shell/SHELL-3.md`, a joint unit; M10-7 (#1725)
+does not touch the file, measured, so the move is sequenced after
+#1725 merges and SHELL asks the M10 orchestrator to co-review. The
+gate itself is SHELL-4.
