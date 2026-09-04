@@ -12,7 +12,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 use common::{SOLID_FIXTURES, import_body};
 
 use geom_brep::EdgeDescription;

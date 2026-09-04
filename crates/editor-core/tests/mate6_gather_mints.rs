@@ -16,7 +16,7 @@
 //! across a document boundary.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -27,7 +27,7 @@ use editor_core::{
     MintRefusal, Node, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName,
     assemble, content_pin, evaluate, product_recorded,
 };
-use fixture::{desc, insert, len, step};
+use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
 // ---- The stub store (ASM-2A/R2a's shape) ----
@@ -85,14 +85,12 @@ fn block(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
     );
     insert(
         doc,
@@ -104,6 +102,11 @@ fn block(
 }
 
 /// A one-block part document: `[0,1]³`. Its extrude is node 1.
+/// The extrude in a one-block part document. A block is three nodes
+/// — the sketch frame, the profile drawn on it, then the extrude — so
+/// a part-local name is minted by node 2.
+const PART_BODY: RecipeNodeId = RecipeNodeId(2);
+
 fn cube_part(label: &str) -> ProfileDoc {
     let (doc, _) = block(
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
@@ -125,7 +128,7 @@ fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
         path: vec![RoleSeg::InPart {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: PART_BODY,
                 path: vec![RoleSeg::Cap(cap)],
             }),
         }],
@@ -196,7 +199,7 @@ fn dangling(instance: RecipeNodeId) -> StableName {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(99),
-                path: vec![RoleSeg::Cap(CapEnd::Top)],
+                path: vec![RoleSeg::Cap(CapEnd::End)],
             }),
         }],
     }
@@ -220,8 +223,8 @@ fn stand(label: &str, part: DocRef, seat: f64) -> (ProfileDoc, Vec<RecipeNodeId>
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 seat,
             ),
         },
@@ -438,8 +441,8 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part_in_part(ids[0], subs[1], CapEnd::Top),
-                in_part_in_part(ids[1], subs[0], CapEnd::Bottom),
+                in_part_in_part(ids[0], subs[1], CapEnd::End),
+                in_part_in_part(ids[1], subs[0], CapEnd::Start),
                 2.5,
             ),
         },
@@ -538,8 +541,8 @@ fn mint_makes_distinct_face_patches_and_no_curve_records() {
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 1.0,
             ),
         },
@@ -548,8 +551,8 @@ fn mint_makes_distinct_face_patches_and_no_curve_records() {
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part(ids[1], CapEnd::Top),
-                in_part(ids[2], CapEnd::Bottom),
+                in_part(ids[1], CapEnd::End),
+                in_part(ids[2], CapEnd::Start),
                 1.0,
             ),
         },
@@ -586,8 +589,8 @@ fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
     let part = store.insert(cube_part("mate6-tangent-cube"), Tol::witness());
     let (doc, ids, _) = stand("mate6-tangent-stand", part, 1.0);
     let mut node = rest_mate(
-        in_part(ids[0], CapEnd::Top),
-        in_part(ids[1], CapEnd::Bottom),
+        in_part(ids[0], CapEnd::End),
+        in_part(ids[1], CapEnd::Start),
         1.0,
     );
     if let Node::Mate { class, .. } = &mut node {
@@ -646,7 +649,7 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
     let (doc, bad) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(dangling(ids[0]), in_part(ids[1], CapEnd::Bottom), 1.0),
+            node: rest_mate(dangling(ids[0]), in_part(ids[1], CapEnd::Start), 1.0),
         },
     );
     let bad = bad.expect("the dangling mate is still a node");
@@ -654,8 +657,8 @@ fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part(ids[1], CapEnd::Top),
-                in_part(ids[2], CapEnd::Bottom),
+                in_part(ids[1], CapEnd::End),
+                in_part(ids[2], CapEnd::Start),
                 1.0,
             ),
         },
@@ -704,8 +707,8 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
         doc,
         DocEdit::InsertNode {
             node: classed_mate(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 1.5,
                 ContactClass::Tangent,
             ),
@@ -716,8 +719,8 @@ fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part(ids[1], CapEnd::Top),
-                in_part(ids[2], CapEnd::Bottom),
+                in_part(ids[1], CapEnd::End),
+                in_part(ids[2], CapEnd::Start),
                 1.0,
             ),
         },
@@ -764,8 +767,8 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
         doc,
         DocEdit::InsertNode {
             node: classed_mate(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 1.5,
                 ContactClass::Tangent,
             ),
@@ -776,8 +779,8 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
         doc,
         DocEdit::InsertNode {
             node: rest_mate(
-                in_part(ids[1], CapEnd::Top),
-                in_part(ids[2], CapEnd::Bottom),
+                in_part(ids[1], CapEnd::End),
+                in_part(ids[2], CapEnd::Start),
                 1.0,
             ),
         },
@@ -786,7 +789,7 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
     let (doc, second_bad) = step(
         doc,
         DocEdit::InsertNode {
-            node: rest_mate(dangling(ids[2]), in_part(ids[0], CapEnd::Bottom), 1.0),
+            node: rest_mate(dangling(ids[2]), in_part(ids[0], CapEnd::Start), 1.0),
         },
     );
     let second_bad = second_bad.expect("the dangling mate is a node");

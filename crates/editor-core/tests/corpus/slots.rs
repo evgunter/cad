@@ -28,7 +28,8 @@ use editor_core::{
     StableName,
 };
 
-use super::super::fixture::{desc, len};
+use crate::fixture::len;
+
 use super::{CorpusDoc, MassPin, Recorder};
 
 /// A cap face name at `node`.
@@ -43,24 +44,24 @@ fn cap(node: RecipeNodeId, end: CapEnd) -> StableName {
 /// The crossing-slots corpus document.
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
-    let plate_p = r.insert(Node::Profile(desc(
+    let plate_p = r.profile(
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]],
-    )));
+    );
     let plate = r.insert(Node::Extrude {
         profile: plate_p,
         distance: len(1.0),
     });
 
     // Slot 1: runs in y, floor at z = 0.5.
-    let slot1_p = r.insert(Node::Profile(desc(
+    let slot1_p = r.profile(
         [0.0, 0.0, 0.5],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(1.0, -1.0), (2.0, -1.0), (2.0, 4.0), (1.0, 4.0)]],
-    )));
+    );
     let slot1 = r.insert(Node::Extrude {
         profile: slot1_p,
         distance: len(1.0),
@@ -76,26 +77,26 @@ pub fn document() -> CorpusDoc {
 
     // Slot 2: runs in x, SAME floor plane z = 0.5 — the declared
     // contact, and the reason the second operand is a boolean result.
-    let slot2_p = r.insert(Node::Profile(desc(
+    let slot2_p = r.profile(
         [0.0, 0.0, 0.5],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(-1.0, 1.0), (4.0, 1.0), (4.0, 2.0), (-1.0, 2.0)]],
-    )));
+    );
     let slot2 = r.insert(Node::Extrude {
         profile: slot2_p,
         distance: len(1.0),
     });
-    // The first cavity's floor is slot 1's bottom cap, reversed onto
-    // the B side of `sub1`; slot 2's bottom cap is its own.
+    // The first cavity's floor is slot 1's start cap, reversed onto
+    // the B side of `sub1`; slot 2's start cap is its own.
     let cavity_floor = StableName {
         kind: EntityKind::Face,
         node: sub1,
-        path: vec![RoleSeg::FromB(Box::new(cap(slot1, CapEnd::Bottom)))],
+        path: vec![RoleSeg::FromB(Box::new(cap(slot1, CapEnd::Start)))],
     };
     let decl = r.insert(Node::declare_rest(vec![(
         cavity_floor,
-        cap(slot2, CapEnd::Bottom),
+        cap(slot2, CapEnd::Start),
     )]));
     let sub2 = r.insert(Node::Boolean {
         op: BooleanOp::Subtract,

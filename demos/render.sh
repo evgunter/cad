@@ -5,14 +5,22 @@
 #   ./render.sh            kernel lane -> renders/montage.png
 #       Every cell shows the KERNEL'S OWN tessellation (the tour's STL
 #       facets), drawn by headless FreeCAD importing the STL meshes.
-#       Fallback: the numpy+matplotlib STL renderer (zero system deps)
-#       — which renders to the GITIGNORED renders-preview/renders/ tree
-#       and never to renders/ (see "The fallback is uncommittable").
+#       NO FALLBACK: a missing or crashing freecadcmd fails the pass,
+#       nonzero and named, with the committed tree left untouched.
 #   ./render.sh --freecad  FreeCAD/OCC lane -> renders-freecad/montage-freecad.png
 #       Every cell is FreeCAD importing the body's OWN STEP export and
 #       letting OCC re-tessellate — the reference rendering the kernel's
 #       montage can be compared against, cell for cell (same scenes.json
 #       cameras/captions/grid).
+#   ./render.sh --matplotlib  preview only -> renders-preview/renders/
+#       The numpy+matplotlib STL renderer (zero system deps) drawing the
+#       same scenes without FreeCAD, into the GITIGNORED
+#       renders-preview/renders/ tree and never renders/ (see "The
+#       preview lane is uncommittable"). ASKED FOR BY NAME OR NOT AT
+#       ALL: it is the only lane here that ends a FreeCAD-less pass at
+#       exit 0, and a renderer nobody asked for that does that is how a
+#       pass which drew nothing came to look exactly like one that drew
+#       everything.
 #
 # ONE FREECADCMD PROCESS PER SCENE, IN BOTH LANES (#224 follow-up) —
 # AND STILL EXACTLY THAT BY DEFAULT. A warm FreeCAD session that
@@ -27,9 +35,10 @@
 # it is what BOUNDS a future hang: CAD_RENDER_BATCH is exactly the dial
 # for how much of a pass one hang can cost. Every process runs under a
 # wall-clock budget (see SCENE_TIMEOUT) with the process tree killed and
-# ONE fresh retry when the budget is exhausted. A budget exhausted TWICE
-# fails the pass, loudly, naming the scene and the budget — never a
-# silent skip, never a degraded cell.
+# ONE fresh retry when the budget is exhausted — and ONE fresh retry
+# when a single-scene process CRASHES (render_batch argues both). A
+# second failure of either kind fails the pass, loudly, naming the scene
+# — never a silent skip, never a degraded cell.
 #
 # ...AND, BY DEFAULT, ONE PER PROCESS. CAD_RENDER_BATCH renders that
 # many scenes in ONE freecadcmd process, trading FreeCAD's startup (a
@@ -50,12 +59,12 @@
 # FreeCAD — leaves the committed tree byte-for-byte as it was, and a
 # half-finished pass can never be mistaken for a whole one.
 #
-# THE FALLBACK IS UNCOMMITTABLE (#221). A matplotlib fallback frame
-# once reached a committed montage cell silently, because the fallback
-# wrote the same directory FreeCAD writes. Two layers now:
-#   * ROUTING — the fallback renders (and composes its own sheet) into
-#     renders-preview/<lane-dir>/, which .gitignore excludes. On
-#     fallback this script touches NOTHING under renders/, and says so
+# THE PREVIEW LANE IS UNCOMMITTABLE (#221). A matplotlib frame once
+# reached a committed montage cell silently, because the preview
+# renderer wrote the same directory FreeCAD writes. Two layers now:
+#   * ROUTING — --matplotlib renders (and composes its own sheet) into
+#     renders-preview/<lane-dir>/, which .gitignore excludes. On that
+#     lane this script touches NOTHING under renders/, and says so
 #     loudly on stderr;
 #   * GUARD — check_render_provenance.py runs over the committed lane
 #     directory in both lanes, after the stamp strip and BEFORE the
@@ -74,6 +83,21 @@ cd "$(dirname "$0")"
 # shellcheck source=demos/hosted-render-guard.sh
 . ./hosted-render-guard.sh
 require_hosted_render "demos/render.sh"
+
+# ---- which lane ------------------------------------------------------
+# At most one flag, and an unrecognised one REFUSES rather than
+# selecting the kernel lane by falling through — a typo that quietly
+# renders something other than what was asked for is the same shape of
+# wrong answer as a pass that drew nothing and exited 0.
+LANE="${1:-}"
+if [ "$#" -gt 1 ]; then
+    echo "render.sh takes at most one flag, got: $*" >&2
+    exit 2
+fi
+case "$LANE" in
+    ''|--freecad|--matplotlib) ;;
+    *) echo "usage: render.sh [--freecad | --matplotlib]" >&2; exit 2 ;;
+esac
 
 VENV=.venv
 if [ ! -x "$VENV/bin/python" ]; then
@@ -106,7 +130,7 @@ FREECADCMD="${FREECADCMD:-$HOME/.local/share/cad-work/freecad/squashfs-root/usr/
 # genuinely that slow — a wedge does not get faster with a bigger
 # budget.
 #
-# THIS BUDGET IS PER PROCESS, NOT PER SCENE (Evan, 2026-08-22). A batch
+# THIS BUDGET IS PER PROCESS, NOT PER SCENE (Ev, 2026-08-22). A batch
 # of N scenes gets THIS number, not N x it. The name predates batching
 # and is kept because at the default B=1 a process IS a scene, so it
 # still reads true where almost everyone meets it.
@@ -284,8 +308,40 @@ batch_attempt() {
 # path, so re-rendering a scene that already succeeded is idempotent and
 # costs only its own seconds — and it keeps the retry a plain "run that
 # process again" rather than a second, subtly different code path that
-# only ever executes after a wedge. A crash is NOT retried: it is
-# deterministic and the caller's business (batch_status splits it).
+# only ever executes after a wedge.
+#
+# A CRASH IS RETRIED TOO, ONCE, WHEN THE PROCESS CARRIED ONE SCENE.
+# It was not, on the reading that a crash is deterministic where a stall
+# is not. That reading is falsified: freecadcmd exited rc=1 mid-backtrace
+# on a scene that had rendered clean on the two immediately preceding
+# passes over byte-identical inputs. A renderer that crashes on
+# unchanged inputs is flaky, and the same one-fresh-process answer the
+# budget path already gives is the right one for it.
+#
+# ONLY at n=1, because above it batch_status ALREADY re-runs each
+# frameless scene alone: that split is a second attempt, in a fresh
+# process, and a better one — it isolates the guilty scene instead of
+# re-running four innocent ones with it. Retrying in place as well would
+# spend a third and fourth process to learn nothing new.
+#
+# WHAT THAT COSTS, AND IT IS NOT THE TIDY NUMBER. The split re-enters
+# render_batch with n=1, so the solo re-run TAKES THIS RETRY TOO. A
+# crashing scene therefore costs TWO processes at the default B=1 —
+# the scene, twice — and THREE above it: the batch it poisoned, then
+# the scene alone, twice. That is one process higher, once, and it does
+# not grow with B. A WEDGE still costs exactly two at every B, because
+# a wedge is never split. So the flat-in-B bound belongs to the wedge
+# and to B=1; the crash bound above B=1 is three, and saying otherwise
+# would be a claim this file's own batched failure disproves.
+#
+# WHAT THE RETRY MUST NOT DO IS HIDE ITSELF. A retried batch says so on
+# stderr both times — when it retries and, if the second attempt draws
+# the frames, again in the pass's output — and attempt 1's log is kept
+# as <bid>.attempt1.log rather than being overwritten by attempt 2,
+# because a crash that a retry papers over is exactly the evidence
+# needed to tell a flaky renderer from a broken scene. It is ONE retry,
+# never a loop: a second failure ends the pass with both logs in hand.
+#
 # Success is every PNG existing, not the exit status — freecadcmd's Qt
 # teardown can crash after a fully successful render (offscreen
 # destructor bug).
@@ -310,6 +366,10 @@ render_batch() {
         done
         if [ -z "$missing" ]; then
             echo "  [$bid] rendered${what} in ${BATCH_SECS}s (attempt $attempt)"
+            # A pass that only succeeded on the retry is a pass whose
+            # renderer misbehaved. Never let that reach the log as a
+            # plain success.
+            [ "$attempt" -eq 1 ] || echo "  [$bid] NOTE — attempt 1 failed and attempt 2 drew everything: the renderer was flaky here, not the work (attempt 1's log: demos/$LOGDIR/$bid.attempt1.log)" >&2
             # The frames are good (chunk framing and CRCs are checked
             # downstream), but the process still had to be killed:
             # FreeCAD stalled AFTER the last render. Never silent — this
@@ -328,11 +388,17 @@ render_batch() {
             BATCH_TIMED_OUT=1
             if [ "$attempt" -eq 1 ]; then
                 echo "  [$bid] TIMED OUT after ${budget}s — process tree killed, retrying the whole batch once in a fresh process (silent for the last ${stalled}s)" >&2
+                mv -f "$log" "$LOGDIR/$bid.attempt1.log"
                 continue
             fi
         else
             BATCH_TIMED_OUT=0
             BATCH_REASON="freecadcmd rc=$rc: $(tail -n 2 "$log" | tr '\n' ' ' | cut -c1-160)"
+            if [ "$attempt" -eq 1 ] && [ "$n" -eq 1 ]; then
+                echo "  [$bid] CRASHED — $BATCH_REASON; retrying once in a fresh process" >&2
+                mv -f "$log" "$LOGDIR/$bid.attempt1.log"
+                continue
+            fi
         fi
         return 1
     done
@@ -362,8 +428,8 @@ render_batch() {
 # A FAILED BATCH IS SPLIT, which is what keeps a batch from widening a
 # failure. One scene FreeCAD cannot draw kills the process it is in, so
 # in a batch of 5 it would take the four innocent scenes down with it —
-# four placeholder cells (STEP lane) or a whole-lane matplotlib fallback
-# (kernel lane) caused by a scene that renders perfectly well. So a
+# four placeholder cells (STEP lane) or a failed pass (kernel lane)
+# caused by a scene that renders perfectly well. So a
 # non-timeout failure re-runs each frameless scene of that batch ALONE,
 # one process each: the guilty scene fails exactly as it does today,
 # with its own log under its own name, and the innocent ones render.
@@ -456,7 +522,13 @@ render_all() {
     # leftover batch07.log from a pass at a different CAD_RENDER_BATCH
     # would be read as this pass's. Scene logs are left alone: their
     # names still mean exactly one thing.
-    rm -f "$LOGDIR"/batch*.log
+    #
+    # ONE SCENE LOG DOES NOT, and it is cleared with the batch logs: an
+    # `.attempt1.log` exists only for a process that had to be retried,
+    # so a stale one left beside a fresh scene log says a retry happened
+    # in THIS pass when none did. Its presence is the signal, which is
+    # exactly why it cannot be allowed to outlive the pass that wrote it.
+    rm -f "$LOGDIR"/batch*.log "$LOGDIR"/*.attempt1.log
     for name in "$@"; do
         batch+=("$name")
         if [ "${#batch[@]}" -ge "$RENDER_BATCH" ]; then
@@ -496,6 +568,37 @@ wedged() {
    demos/$stage/
  which is untracked. Re-run to retry. Raise FREECAD_SCENE_TIMEOUT
  only if the scene is genuinely that slow; a wedge is not.
+================================================================
+
+EOF
+    exit 1
+}
+
+# A scene the renderer could not draw ends the pass, in the lane that
+# has no placeholder cells. Same contract as the wedge and the
+# absent-renderer arm: nothing is published and the committed tree is
+# left exactly as it was, because a lane that cannot draw one of its
+# cells cannot certify the sheet the others would go on.
+crashed() {
+    local name=$1 rd=$2 reason=$3 bid=${4:-$1}
+    cat >&2 <<EOF
+
+================================================================
+ RENDER FAILED — scene '$name': $reason
+   drawn alone and retried once (see render_batch), so this scene
+   had two fresh freecadcmd processes of its own — three, if it also
+   poisoned a multi-scene batch before being split out of it.
+   logs: demos/$LOGDIR/$bid.log          the LAST attempt
+         demos/$LOGDIR/$bid.attempt1.log the FIRST, kept on purpose:
+                                         two backtraces is what tells
+                                         an OCC fault from an OOM kill
+ THE PASS FAILS HERE. No montage is composed, and
+   demos/$rd/
+ is left exactly as committed: this pass rendered into
+   demos/$STAGE_ROOT/$rd/
+ which is untracked. Re-run to retry. ./render.sh --matplotlib draws
+ the same scenes without FreeCAD, into the gitignored preview tree —
+ a preview, never the committed sheet.
 ================================================================
 
 EOF
@@ -585,7 +688,7 @@ publish() {
     done
 }
 
-if [ "${1:-}" = "--freecad" ]; then
+if [ "$LANE" = --freecad ]; then
     # ---- FreeCAD/OCC STEP lane ------------------------------------
     if [ ! -x "$FREECADCMD" ]; then
         echo "freecadcmd not found at $FREECADCMD — the --freecad lane" >&2
@@ -643,41 +746,54 @@ fi
 # ---- kernel-tessellation lane (the original montage) ---------------
 RD=renders
 STAGE="$STAGE_ROOT/$RD"
-# The fallback's own tree, mirroring the lane structure one level down
-# (renders-preview/renders/ here; the --freecad lane has no fallback —
-# its whole point is the OCC reference render — so
+# The preview lane's own tree, mirroring the lane structure one level
+# down (renders-preview/renders/ here; --freecad has no preview — its
+# whole point is the OCC reference render — so
 # renders-preview/renders-freecad/ never appears). Gitignored, so a
-# fallback frame cannot be committed even by `git add -A`.
+# matplotlib frame cannot be committed even by `git add -A`.
 PREVIEW="renders-preview/$RD"
 
-# Matplotlib fallback: preview tree only, and LOUD about it. Ends the
-# run (exec) — the committed sheet is not recomposed either, because
-# recomposing it from a stale/partial cell set is exactly the silent
-# corruption #221 hit.
-fallback() {
+# The explicit matplotlib lane (--matplotlib): preview tree only, and
+# LOUD about it. Ends the run (exec) — the committed sheet is not
+# recomposed either, because recomposing it from a cell set FreeCAD did
+# not draw is exactly the silent corruption #221 hit.
+#
+# NOTHING SELECTS THIS. It is reached only when a person named it on the
+# command line, which is why it is allowed to end a FreeCAD-less pass at
+# exit 0 where every other arm of this lane fails.
+matplotlib_preview() {
     mkdir -p "$PREVIEW"
     cat >&2 <<EOF
 
 ================================================================
- MATPLOTLIB FALLBACK — this is NOT the committed render
-   reason:  $1
+ MATPLOTLIB PREVIEW — this is NOT the committed render
    writing: demos/$PREVIEW/  (gitignored preview tree)
- demos/$RD/ is left untouched, montage.png included: a fallback
- frame must never be committable (#221). Whatever FreeCAD managed
- to render this pass is in demos/$STAGE/ (untracked), not in the
- lane directory — so a partial pass cannot masquerade as a whole
- one. To update the committed sheet, fix FreeCAD (FREECADCMD=...)
- and re-run.
+ demos/$RD/ is left untouched, montage.png included: a matplotlib
+ frame must never be committable (#221). To update the committed
+ sheet, run this script with no flag and a working freecadcmd
+ (FREECADCMD=...).
 ================================================================
 
 EOF
     "$VENV/bin/python" render.py out "$PREVIEW"
     exec "$VENV/bin/python" compose_montage.py out "$PREVIEW" \
-        '--banner=PREVIEW ONLY — matplotlib fallback (FreeCAD unavailable); NOT the committed sheet in demos/renders/'
+        '--banner=PREVIEW ONLY — matplotlib preview (./render.sh --matplotlib); NOT the committed sheet in demos/renders/'
 }
 
+if [ "$LANE" = --matplotlib ]; then
+    matplotlib_preview
+fi
+
+# No fallback: the kernel lane draws with FreeCAD or fails, exactly as
+# the --freecad lane does. Ending a rendererless pass at exit 0 made a
+# pass that drew nothing indistinguishable from one that drew
+# everything, and cost a second check downstream whose only job was to
+# tell them apart.
 if [ ! -x "$FREECADCMD" ]; then
-    fallback "freecadcmd not found at $FREECADCMD"
+    echo "freecadcmd not found at $FREECADCMD — the kernel lane has no" >&2
+    echo "automatic fallback (./render.sh --matplotlib draws the same scenes" >&2
+    echo "into the gitignored preview tree instead)" >&2
+    exit 1
 fi
 rm -rf "$STAGE"
 mkdir -p "$STAGE" "$LOGDIR"
@@ -690,10 +806,10 @@ for name in $names; do
     case "$ST_KIND" in
         ok) count_time "$ST_BID" "$ST_SECS" ;;
         # This lane has no placeholder cells: a scene it cannot render
-        # is a lane it cannot certify, so it goes to the preview tree
-        # whole rather than committing a hole. A wedge is louder still.
+        # is a lane it cannot certify, so the pass fails whole rather
+        # than committing a hole. A wedge is louder still.
         wedged) wedged "$name" "$RD" "$ST_BID" ;;
-        *) fallback "scene '$name': $ST_REASON" ;;
+        *) crashed "$name" "$RD" "$ST_REASON" "$ST_BID" ;;
     esac
 done
 echo "kernel lane: $(scene_stats "$STATS_UNIT" "${times[@]}"), ${PASS_SECS}s wall at ${RENDER_JOBS} job(s)${BATCH_NOTE} [budget ${SCENE_TIMEOUT}s/scene]"

@@ -133,7 +133,7 @@ def prism(label, width, depth, height):
                 (width * m, depth * m),
                 (0 * m, depth * m),
             ],
-            elevation=0 * m,
+            plane=doc.sketch_frame(elevation=0 * m),
         )
     )
     doc.insert(Node.extrude(profile, height * m))
@@ -256,7 +256,7 @@ class TestBenchLayout(BenchWorkspace):
         doc, family, _, _ = self.layout()
         ev = evaluate(doc, resolver=self.ws)
         caps = ev.select(
-            family, cap_selector(CapEnd.Top, [SegTag.Instance, SegTag.InPart])
+            family, cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart])
         )
         # One per placement, and the name NESTS rather than
         # concatenating: pattern index, then instance, then the part's
@@ -303,7 +303,7 @@ class TestBenchLayout(BenchWorkspace):
         # Rung 1: the part's own cap, in the part's own coordinates.
         part_ev = evaluate(self.post)
         part_root = self.post.roots[0]
-        part_cap = one(part_ev.select(part_root, cap_selector(CapEnd.Top)))
+        part_cap = one(part_ev.select(part_root, cap_selector(CapEnd.End)))
         local = part_ev.face_frame(part_root, part_cap).origin
 
         # Rung 2: the placement the layout gave that instance, applied
@@ -323,7 +323,7 @@ class TestBenchLayout(BenchWorkspace):
         ]
 
         caps = ev.select(
-            family, cap_selector(CapEnd.Top, [SegTag.Instance, SegTag.InPart])
+            family, cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart])
         )
         read = sorted(
             tuple(c.meters for c in ev.face_frame(family, cap).origin) for cap in caps
@@ -348,7 +348,7 @@ class TestBenchLayout(BenchWorkspace):
         doc, family, _, _ = self.layout()
         ev = evaluate(doc, resolver=self.ws)
         caps = ev.select(
-            family, cap_selector(CapEnd.Top, [SegTag.Instance, SegTag.InPart])
+            family, cap_selector(CapEnd.End, [SegTag.Instance, SegTag.InPart])
         )
         for cap in caps:
             denotation = ev.denotation(family, cap)
@@ -384,9 +384,9 @@ class TestBenchStand(BenchWorkspace):
         )
         shelf_i = doc.insert(Node.instantiate_part(self.shelf_ref))
         post_b = doc.insert(Node.instantiate_part(self.post_ref))
-        a_top = self.instance_face(doc, post_a, CapEnd.Top)
-        b_top = self.instance_face(doc, post_b, CapEnd.Top)
-        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Bottom)
+        a_top = self.instance_face(doc, post_a, CapEnd.End)
+        b_top = self.instance_face(doc, post_b, CapEnd.End)
+        s_bottom = self.instance_face(doc, shelf_i, CapEnd.Start)
         mate_1 = doc.insert(
             Node.mate(a_top, s_bottom, class_, seat(POST_SEAT, SEAT_A, primitive))
         )
@@ -433,7 +433,7 @@ class TestBenchStand(BenchWorkspace):
             profile = doc.insert(
                 Node.polygon(
                     [(x[0], y[0]), (x[1], y[0]), (x[1], y[1]), (x[0], y[1])],
-                    elevation=z[0],
+                    plane=doc.sketch_frame(elevation=z[0]),
                 )
             )
             return doc.insert(Node.extrude(profile, z[1] - z[0]))
@@ -577,7 +577,7 @@ class TestAssemblyRefusals(BenchWorkspace):
     def test_a_mate_naming_one_instance_twice_refuses(self):
         doc = Doc("self-mate")
         post_i = doc.insert(Node.instantiate_part(self.post_ref))
-        face = self.instance_face(doc, post_i, CapEnd.Top)
+        face = self.instance_face(doc, post_i, CapEnd.End)
         mate = doc.insert(Node.mate(face, face, ContactClass.Rest, seat(POST_SEAT, POST_SEAT)))
         fault = solve_document(doc).fault(mate)
         # A pair is two instances; a self-mate constrains nothing and
@@ -614,7 +614,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         doc, post_i, shelf_i = self.two_instances()
         ev = evaluate(doc, resolver=self.ws)
         edge = sorted(ev.all_edges(post_i))[0]
-        bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Bottom, [SegTag.InPart])))
+        bottom = one(ev.select(shelf_i, cap_selector(CapEnd.Start, [SegTag.InPart])))
         mate = doc.insert(
             Node.mate(edge, bottom, ContactClass.Rest, seat(POST_SEAT, SEAT_A))
         )
@@ -647,7 +647,7 @@ class TestAssemblyRefusals(BenchWorkspace):
             product(doc, evaluate(doc))
         self.assertEqual(gather.exception.variant, "root_failed")
 
-    def test_a_moved_pin_refuses_and_carries_its_recourse_twice(self):
+    def test_a_moved_pin_refuses_and_carries_its_recourse_once_by_either_door(self):
         doc, post_i, _ = self.two_instances()
         # A part legitimately changes on disk. The assembly still pins
         # the old version and is never silently retargeted.
@@ -656,18 +656,21 @@ class TestAssemblyRefusals(BenchWorkspace):
         with self.assertRaises(pncad.EvaluationError) as caught:
             evaluate(doc, resolver=self.ws).value(post_i)
         self.assertEqual(caught.exception.kind, "part_pin_mismatch")
-        # GAP (#947): the recourse paragraph arrives TWICE across the
-        # seam — the store's own message ends on it and the resolver
-        # appends it again when it classifies the failure. ASSERTED so
-        # it goes red when fixed; ONE copy means it was, and this count
-        # must be flipped in that same change. The store's own door
-        # emits it once, which is the contrast that says where the
-        # second copy comes from.
-        self.assertEqual(
-            str(caught.exception).count(pncad.PIN_MISMATCH_RECOURSE), 2
-        )
         with self.assertRaises(pncad.WorkspaceError) as direct:
             self.ws.resolve(self.post_ref)
+        # There are two doors onto this one refusal — the evaluation,
+        # which reads the resolver's classified message, and the store,
+        # which reads its own `WorkspaceError` — and BOTH have to tell
+        # the author what to do about it. Both do, and each says it
+        # exactly once: the recourse is written in exactly one place,
+        # the store's own message, and the seam carries that message
+        # through unaltered rather than re-appending the paragraph
+        # (which is what it used to do, #947 — the count through the
+        # evaluation was 2 against the store's 1). Counting rather than
+        # `assertIn` is the point: `assertIn` passes on one copy and on
+        # five, and the failure this pins is a DUPLICATE, not an
+        # absence.
+        self.assertEqual(str(caught.exception).count(pncad.PIN_MISMATCH_RECOURSE), 1)
         self.assertEqual(str(direct.exception).count(pncad.PIN_MISMATCH_RECOURSE), 1)
 
 
@@ -862,7 +865,7 @@ class TestRefactorings(BenchWorkspace):
 
     def test_inline_of_a_node_that_is_not_an_instance_refuses(self):
         doc = Doc("plain")
-        profile = doc.insert(Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m)]))
+        profile = doc.insert(Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m)], plane=doc.sketch_frame()))
         body = doc.insert(Node.extrude(profile, 1 * m))
         with self.assertRaises(pncad.InlineError) as caught:
             pncad.inline(doc, body, self.ws)

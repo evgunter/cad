@@ -599,8 +599,12 @@ fn the_hollow_now_survives_every_axial_junction() {
         // has a TORUS wall, which the axial reduction now reads as the
         // meridian circle centred `(R, h_c)` that it is. The body no
         // longer falls to the per-chart loop, so it never asks the C5
-        // table about `plane × torus` — and nothing here widened
-        // `intersect::route`, which is what makes that worth a row.
+        // table about `plane × torus`. VERBS-C5ARMS has since widened
+        // `intersect::route` for that pair (the exact-degenerate closed
+        // forms), so the row's evidence is no longer "the table
+        // declines it" — it is that the hollow is FLAG-INDEPENDENT:
+        // the axial door never consults `route`, and this row held
+        // green on both sides of the flip.
         (
             "a belly bulged about a centre OFF the axis: a TORUS wall",
             torus_barrel(tol),
@@ -648,8 +652,9 @@ fn the_opened_rim_is_right_on_a_box() {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(top.len(), 1, "an extrusion's cap is ONE face");
-    let cup =
-        pncad::topo::shell_open(&body, 0.02, &top, FIT_TOL, tol).expect("a box opens at its top");
+    let cup = pncad::topo::shell_open(&body, 0.02, &top, FIT_TOL, tol)
+        .expect("a box opens at its top")
+        .body;
     assert_eq!(
         (rings(&cup), genus(&cup)),
         (1, 0),
@@ -724,7 +729,8 @@ fn the_opened_rim_is_an_annulus_on_every_revolve() {
             "{what}: a full revolve's cap is two half-discs"
         );
         let cup = pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol)
-            .unwrap_or_else(|e| panic!("{what}: the opened arm must build the rim, got {e}"));
+            .unwrap_or_else(|e| panic!("{what}: the opened arm must build the rim, got {e}"))
+            .body;
         assert_eq!(
             pncad::topo::validate_geometric(&cup, tol),
             Ok(()),
@@ -891,8 +897,9 @@ fn the_annular_mouth_opens_to_two_disjoint_rims() {
         "a closed OFF-AXIS meridian closes its own seam, so this cap is ONE face — \
          which is the whole point of the row"
     );
-    let cup =
-        pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol).expect("the annular mouth opens");
+    let cup = pncad::topo::shell_open(&body, t, &chart, FIT_TOL, tol)
+        .expect("the annular mouth opens")
+        .body;
     assert_eq!(
         pncad::topo::validate_geometric(&cup, tol),
         Ok(()),

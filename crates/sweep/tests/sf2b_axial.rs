@@ -124,7 +124,8 @@ fn two_chord_area(r: f64, t: f64) -> f64 {
 fn wall(what: &str, body: &Body<f64>) -> f64 {
     let tol = Tol::witness();
     let hollow = topo::shell(body, T, FIT_TOL, tol)
-        .unwrap_or_else(|e| panic!("{what}: the axial door must hollow this, got {e}"));
+        .unwrap_or_else(|e| panic!("{what}: the axial door must hollow this, got {e}"))
+        .body;
     assert_eq!(
         topo::validate_geometric(&hollow, tol),
         Ok(()),
@@ -226,11 +227,12 @@ fn the_drum_still_hollows_on_the_new_branch() {
 /// - a **torus** wall is INSIDE the axial kinds. It is a surface of
 ///   revolution about the body's own axis and its meridian is a circle
 ///   centred `(R, h_c)`, which the reduction reads exactly as it reads
-///   a sphere's circle centred `(0, h_c)`. That the C5 table still
-///   declines `plane × torus` is beside the point at this door: it does
-///   not call the table, and a full revolve's rim is a LATITUDE circle
-///   whose position the corner solves give. `torax_axial` carries the
-///   closed forms;
+///   a sphere's circle centred `(0, h_c)`. What the C5 table says about
+///   `plane × torus` (it now routes the pair's exact-degenerate closed
+///   forms, since VERBS-C5ARMS) is beside the point at this door: it
+///   does not call the table, and a full revolve's rim is a LATITUDE
+///   circle whose position the corner solves give. `torax_axial`
+///   carries the closed forms;
 /// - a **tangent** junction has no transversal corner to solve, and the
 ///   conditioning meter says so in the geometry's own terms. This is
 ///   the tangent bullet's differential, and it now refuses at a door
@@ -253,8 +255,9 @@ fn the_axial_door_names_its_own_boundary() {
         ]),
         Revolution::Full,
     );
-    let hollow =
-        topo::shell(&torus_vase, T, FIT_TOL, tol).expect("a torus wall is inside the axial kinds");
+    let hollow = topo::shell(&torus_vase, T, FIT_TOL, tol)
+        .expect("a torus wall is inside the axial kinds")
+        .body;
     assert_eq!(
         topo::validate_geometric(&hollow, tol),
         Ok(()),

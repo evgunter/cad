@@ -13,7 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::tol;
 use geom_core::{Point2, Real};
@@ -30,6 +30,7 @@ fn embed_step<T: Real>(step: &Step<f64>) -> Step<T> {
     fn tgt<T: Real>(t: Target<f64>) -> Target<T> {
         match t {
             Target::Start => Target::Start,
+            Target::StartArriving => Target::StartArriving,
             Target::Point(p) => Target::Point(pt(p)),
         }
     }

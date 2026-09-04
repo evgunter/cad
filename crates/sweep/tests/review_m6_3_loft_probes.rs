@@ -10,7 +10,7 @@ use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{LoftError, Revolution, RevolveAxis, loft_body, revolve};
 
-mod common;
+use crate::common;
 use common::quad;
 use geom_core::Tol;
 

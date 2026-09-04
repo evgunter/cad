@@ -53,11 +53,21 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
+test_utils::gated_to![
+    "crates/sweep/src/blend/",
+    "crates/sweep/src/revolve/",
+    "crates/topo/src/boolean/",
+    "crates/sweep/src/test_support.rs",
+    "crates/topo/src/query.rs",
+    "crates/topo/src/instance.rs",
+    "crates/geom-core/src/predicate.rs",
+];
+
 use core::f64::consts::PI;
 
 use geom_brep::SurfaceKind;
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
+use geom_core::{Affine3, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::{BlendError, fillet_edges};
 use sweep::test_support::cube;
@@ -72,11 +82,6 @@ use topo::{Body, BooleanDeclarations, EdgeKey};
 /// of `CAD_FUZZ_EFFORT` per body. `CAD_FUZZ_SEED` pins the draws.
 fn effort() -> usize {
     fuzz::scaled(24)
-}
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {

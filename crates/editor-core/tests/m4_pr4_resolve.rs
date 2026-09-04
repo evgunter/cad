@@ -5,7 +5,7 @@
 //! Indeterminate — plus N3 offers, the rebind suggestion ladder, and
 //! the R6 name-level edit-time validation door.
 //!
-//! SWEEP-STRATEGY NOTE (Evan's 2026-07-29 ruling): this file's pins
+//! SWEEP-STRATEGY NOTE (Ev's 2026-07-29 ruling): this file's pins
 //! are about diff/resolve engine behavior GIVEN verdicts, so its
 //! evaluator deliberately runs the idealized (verdict-rich) sweep;
 //! the production-path degradation is pinned in `m4_pr4_banked`
@@ -13,7 +13,7 @@
 //! golden.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use std::sync::Arc;
 
@@ -24,7 +24,7 @@ use editor_core::{
     RecipeNodeId, Resolution, ResolveError, ResolveIndeterminate, RoleSeg, RunCtx, SlotId,
     StableName, apply_with_names, evaluate, rebind_suggestions, resolve, resolve_with_prior,
 };
-use fixture::{ang, desc, insert, len, scl, step};
+use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 /// Idealized (brute-force) boolean sweep since M5 PR 8: this file
@@ -49,14 +49,12 @@ fn block(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
     );
     insert(
         doc,
@@ -161,13 +159,13 @@ fn union_names_resolve_uniquely_and_pass_through_transforms() {
     // the retired constituent name itself now fails typed with the
     // merged row among the OFFERS (N3's loud retirement, pinned in
     // the vanishing tests below).
-    let cap = name1(EntityKind::Face, s.a, RoleSeg::Cap(CapEnd::Top));
+    let cap = name1(EntityKind::Face, s.a, RoleSeg::Cap(CapEnd::End));
     let wrapped = name1(
         EntityKind::Face,
         s.union,
         RoleSeg::FromA(Box::new(cap.clone())),
     );
-    let cap_b = name1(EntityKind::Face, s.b0, RoleSeg::Cap(CapEnd::Top));
+    let cap_b = name1(EntityKind::Face, s.b0, RoleSeg::Cap(CapEnd::End));
     let wrapped_b = name1(
         EntityKind::Face,
         s.union,
@@ -203,23 +201,21 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
     // PR 3's symmetric U cutter: two prong fragments of B's caps tie.
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 1.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (2.0, 1.0),
-                (6.0, 1.0),
-                (6.0, 3.0),
-                (2.0, 3.0),
-                (2.0, 2.5),
-                (5.0, 2.5),
-                (5.0, 1.5),
-                (2.0, 1.5),
-            ]],
-        )),
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (2.0, 1.0),
+            (6.0, 1.0),
+            (6.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 2.5),
+            (5.0, 2.5),
+            (5.0, 1.5),
+            (2.0, 1.5),
+        ]],
     );
     let (doc, b) = insert(
         doc,
@@ -327,6 +323,8 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     );
     let ev = Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
+        document: doc.id(),
+        prior_refused: None,
         order: vec![node],
         nodes,
         outcome: EvalOutcome::Completed,
@@ -371,8 +369,8 @@ fn deleting_a_named_node_strands_names_as_node_gone() {
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
-    let cap_a = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::Top));
-    let cap_b = name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::Top));
+    let cap_a = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
+    let cap_b = name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End));
     let (doc, _decl) = insert(doc, Node::declare_rest(vec![(cap_a, cap_b.clone())]));
     // b has no DAG dependents (Declare names are refs, not edges):
     // deletion is allowed and strands cap_b — N5's ratified dangling
@@ -405,7 +403,7 @@ fn never_minted_node_reports_foreign_not_deleted() {
     let foreign = name1(
         EntityKind::Face,
         RecipeNodeId(9999),
-        RoleSeg::Cap(CapEnd::Top),
+        RoleSeg::Cap(CapEnd::End),
     );
     match resolve(
         RunCtx {
@@ -694,7 +692,7 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
         doc: &doc2,
         eval: &ev,
     };
-    let cap_a = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::Top));
+    let cap_a = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
     assert_eq!(
         resolve(ctx, &cap_a),
         Resolution::Indeterminate(ResolveIndeterminate::TargetFailed { node: a })
@@ -712,7 +710,7 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
 fn rebind_suggestions_offer_wrapping_derivations() {
     let s = slide_union(0.5);
     let ev = run(&s.doc, None);
-    let cap = name1(EntityKind::Face, s.a, RoleSeg::Cap(CapEnd::Top));
+    let cap = name1(EntityKind::Face, s.a, RoleSeg::Cap(CapEnd::End));
     let suggestions = rebind_suggestions(&ev, &cap);
     // M4 PR 5 (N3 live): the FromA(cap) wrap retired into the Merged
     // row — the suggestion ladder offers the MERGED name (whose
@@ -736,8 +734,8 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     let ev = run(&doc, None);
-    let cap_a = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::Top));
-    let cap_b = name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::Top));
+    let cap_a = name1(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
+    let cap_b = name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End));
     // A real pair: accepted.
     assert!(
         apply_with_names(
@@ -776,7 +774,7 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
     // evaluation has NOT seen passes through (resolution happens at
     // evaluation).
     let (doc2, c) = block(doc.clone(), (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let cap_c = name1(EntityKind::Face, c, RoleSeg::Cap(CapEnd::Top));
+    let cap_c = name1(EntityKind::Face, c, RoleSeg::Cap(CapEnd::End));
     assert!(
         apply_with_names(
             &doc2,
@@ -805,7 +803,7 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
         EntityKind::Edge,
         a,
         RoleSeg::RimEdge(
-            CapEnd::Top,
+            CapEnd::End,
             editor_core::ProfileEdgeRef {
                 loop_index: 0,
                 segment: 0,
@@ -828,7 +826,7 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
         EntityKind::Edge,
         a,
         RoleSeg::RimEdge(
-            CapEnd::Top,
+            CapEnd::End,
             editor_core::ProfileEdgeRef {
                 loop_index: 7,
                 segment: 7,
@@ -888,6 +886,7 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         // One embedded operand name: the entity derives from it.
         RoleSeg::FromA(x)
         | RoleSeg::FromB(x)
+        | RoleSeg::FromMember { of: x, .. }
         | RoleSeg::SectionEdge { face: x, .. }
         | RoleSeg::SplitFragment { parent: x, .. }
         | RoleSeg::CrossingVertex { edge: x, .. }
@@ -969,7 +968,7 @@ fn only_sideof_mention(hay: &StableName, needle: &StableName) -> bool {
 /// segment reports the opposite.
 #[test]
 fn the_phantom_detector_sees_through_the_whole_vocabulary() {
-    let needle = fixture::fname(RecipeNodeId(1), RoleSeg::Cap(CapEnd::Top));
+    let needle = fixture::fname(RecipeNodeId(1), RoleSeg::Cap(CapEnd::End));
     let partner_only = StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId(2),
@@ -1015,21 +1014,19 @@ fn suggestions_never_offer_sideof_partner_phantoms_and_are_kind_filtered() {
     // verdict against its plane, and never a kind Rebind refuses.
     let doc = ProfileDoc::empty_derived("m4_pr4_resolve", Tol::witness());
     let (doc, _a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 1.0);
-    let (doc, bp) = insert(
+    let (doc, bp) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, -0.5],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (-2.5, 1.0),
-                (2.0, 1.0),
-                (4.5, 0.8),
-                (4.5, 0.9),
-                (2.0, 1.1),
-                (-2.5, 1.1),
-            ]],
-        )),
+        [0.0, 0.0, -0.5],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (-2.5, 1.0),
+            (2.0, 1.0),
+            (4.5, 0.8),
+            (4.5, 0.9),
+            (2.0, 1.1),
+            (-2.5, 1.1),
+        ]],
     );
     let (doc, band) = insert(
         doc,
@@ -1120,8 +1117,8 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     };
     let (doc1, b, _c, bl) = build(false);
     let ev1 = run(&doc1, None);
-    // The union carries B's top cap as FromB(cap_b).
-    let cap_b = name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::Top));
+    // The union carries B's end cap as FromB(cap_b).
+    let cap_b = name1(EntityKind::Face, b, RoleSeg::Cap(CapEnd::End));
     let target = StableName {
         kind: EntityKind::Face,
         node: bl,
@@ -1180,7 +1177,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     assert!(last_good.is_some(), "the prior run resolved the name");
     // The positive half of the #95 pin: the re-derived table carries
     // FromB(cap of C) — the value the recipe actually denotes.
-    let cap_c = name1(EntityKind::Face, c, RoleSeg::Cap(CapEnd::Top));
+    let cap_c = name1(EntityKind::Face, c, RoleSeg::Cap(CapEnd::End));
     let target_c = StableName {
         kind: EntityKind::Face,
         node: bl,
@@ -1339,7 +1336,11 @@ fn sideof_frag(
 
 /// One-node hand-built evaluation whose table is `t` (the over-tie
 /// pin's construction, reused).
-fn one_node_eval(node: RecipeNodeId, t: NameTable) -> Evaluation<f64> {
+fn one_node_eval(
+    document: editor_core::DocumentId,
+    node: RecipeNodeId,
+    t: NameTable,
+) -> Evaluation<f64> {
     let mut nodes = std::collections::BTreeMap::new();
     nodes.insert(
         node,
@@ -1355,6 +1356,8 @@ fn one_node_eval(node: RecipeNodeId, t: NameTable) -> Evaluation<f64> {
     );
     Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
+        document,
+        prior_refused: None,
         order: vec![node],
         nodes,
         outcome: EvalOutcome::Completed,
@@ -1399,8 +1402,8 @@ fn qualifier_delta_yields_predicate_flip_without_any_flip_set_evidence() {
     t_new.insert(new_name.clone(), body_ent(0)).unwrap();
     t_new.insert(f.clone(), body_ent(1)).unwrap();
     t_new.insert(p.clone(), body_ent(2)).unwrap();
-    let prior_ev = one_node_eval(n, t_prior);
-    let new_ev = one_node_eval(n, t_new);
+    let prior_ev = one_node_eval(doc.id(), n, t_prior);
+    let new_ev = one_node_eval(doc.id(), n, t_new);
 
     let expect_flip = |res: Resolution| {
         let Resolution::Failed(fail) = res else {

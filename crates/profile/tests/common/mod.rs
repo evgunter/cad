@@ -7,7 +7,7 @@
 //! per test process, and the crate's suites all run inside the one
 //! aggregated `all` binary, so the geom-core global-state discipline is
 //! satisfied by a single process-wide read.
-#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(dead_code)] // one instance per binary; no single consumer uses all of it
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -540,6 +540,51 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         .continue_to(Start, Tol::witness())
         .unwrap();
 
+    // 14. The DECLARED STRAIGHT ARRIVAL at the seam (BOOL-12): Ev's
+    //     D-shape, whose entry sits at a SUBDIVISION point of its one
+    //     straight side. The closing leg declares both facts — its own
+    //     departure continues the run, and its arrival continues the
+    //     entry's first side — and each is checked, never inferred.
+    let d_shape = Open
+        .at(p2(0.0, 0.0))
+        .angle(FRAC_PI_2, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .arc_to(
+            Bulge {
+                p: p2(0.0, -2.0),
+                b: 1.0,
+            },
+            Tol::witness(),
+        )
+        .unwrap()
+        .line_to(p2(0.0, -1.0), Tol::witness())
+        .unwrap()
+        .continue_to(Start.arrives_tangent(), Tol::witness())
+        .unwrap();
+
+    // 15. The DECLARED G1 ARRIVAL at the seam (BOOL-12): a stadium,
+    //     tangent at all four joints. The closing cap's departure
+    //     tangency CONSTRUCTS the arc and its arrival tangency is
+    //     CHECKED, so the seam joint carries a declared flag the verify
+    //     layer re-checks.
+    let stadium = Open
+        .at(p2(0.0, 0.0))
+        .angle(0.0, Tol::witness())
+        .unwrap()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .tangent()
+        .tangent_arc_to(p2(2.0, 2.0), Tol::witness())
+        .unwrap()
+        .tangent()
+        .line(2.0, Tol::witness())
+        .unwrap()
+        .tangent()
+        .tangent_arc_to(Start.arrives_tangent(), Tol::witness())
+        .unwrap();
+
     // 10/11. The complete-loop program forms.
     let circle = profile::circle(p2(1.0, 2.0), 0.75, Tol::witness()).unwrap();
     let split = profile::circle_split(p2(0.0, 0.0), 1.0, 5, 0.3, Tol::witness()).unwrap();
@@ -556,7 +601,37 @@ pub fn coverage_corpus() -> Vec<ClosedLoop<f64>> {
         lune,
         mode_legs,
         subdivided_square,
+        d_shape,
+        stadium,
         circle,
         split,
     ]
+}
+
+/// **The one home for the `EscalationSite::Fillet` value the kernel
+/// does not build.**
+///
+/// Six recourse sentences are written by a single `Display` arm —
+/// `ProfileError::Escalated { site: EscalationSite::Fillet, .. }`,
+/// dispatched on the escalation's predicate name — and nothing in the
+/// kernel constructs that value
+/// (`work/fillet/fillet-escalation-site-has-no-producer.md`). Two
+/// suites therefore hand-build it to pin the render rule, and they had
+/// hand-built it twice; when a producer lands, the thing to delete is
+/// this function and its callers, and one home is what makes that a
+/// single edit.
+///
+/// Returns what a caller would read: the arm rendered at an in-band
+/// margin for `predicate`.
+pub fn fillet_escalation_rendered(predicate: &'static str, tol: geom_core::Tol) -> String {
+    let eps = tol.eps();
+    profile::ProfileError::Escalated {
+        site: profile::EscalationSite::Fillet,
+        source: geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::Value(-5.0 * eps),
+            band: geom_core::Band::linear(tol).expect("the run's band forms"),
+            predicate: Some(predicate),
+        },
+    }
+    .to_string()
 }

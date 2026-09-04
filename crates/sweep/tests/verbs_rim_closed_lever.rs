@@ -20,8 +20,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::approx::band;
 use geom::{Curve3, Surface};
-use geom_core::{Band, Point2, Tol};
+use geom_core::{Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::battery::{BlendRequest, run_battery};
@@ -32,10 +33,6 @@ use topo::{Body, EdgeKey};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -203,7 +200,12 @@ fn a_co_surface_seam_meridian_still_refuses_tangential_at_exactly_zero() {
     );
     match fillet_edges(&ball, &[seam], 0.05, tol()).map_err(|r| r.error) {
         Err(BlendError::TangentialEdge { margin, .. }) => {
-            assert_eq!(margin, 0.0, "a co-surface seam's sine is structurally zero");
+            assert_eq!(margin.predicate, "fillet3_convexity_sign");
+            assert_eq!(
+                margin.value(),
+                Some(0.0),
+                "a co-surface seam's sine is structurally zero"
+            );
         }
         other => panic!("expected TangentialEdge at exactly zero, got {other:?}"),
     }

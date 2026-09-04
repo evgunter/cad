@@ -13,14 +13,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Node, PatternKind, PersistError,
     ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, RootFault, SnapshotError,
     content_pin, evaluate, load, save,
 };
-use fixture::{desc, insert, len, scl, square, step};
+use fixture::{desc, insert, len, on_frame, scl, square, step, xy_frame};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -35,14 +35,12 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 
 /// A unit square profile centered at `cx` on the z = 0 plane.
 fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(cx, 0.0, 0.5)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(cx, 0.0, 0.5)],
     );
     let (doc, extrude) = insert(
         doc,
@@ -68,14 +66,12 @@ fn volume(body: &topo::Body<f64>) -> f64 {
 fn row1a_no_consumer_insert_appends() {
     // A lone profile is a sink, so it roots itself; its extrude then
     // consumes it (row 1b's rule) and takes the slot.
-    let (doc, p0) = insert(
+    let (doc, p0) = on_frame(
         ProfileDoc::empty_derived("asm-roots-1a", Tol::witness()),
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(0.0, 0.0, 0.5)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
     );
     assert_eq!(doc.roots(), &[p0][..], "a lone profile roots itself");
     let (doc, e0) = insert(
@@ -418,14 +414,12 @@ fn row3c_split_root_gathers_both_pieces() {
 /// Row 4 — a profile-only document has no body product, typed.
 #[test]
 fn row4_no_body_roots_refuses_typed() {
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         ProfileDoc::empty_derived("asm-roots-4", Tol::witness()),
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(0.0, 0.0, 0.5)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
     );
     assert_eq!(doc.roots(), &[profile][..]);
     let ev = run(&doc);
@@ -562,23 +556,23 @@ fn row6c_replay_rebuilds_the_root_list() {
     let mut log: Vec<DocEdit<ProfileProgram>> = Vec::new();
     let id = editor_core::DocumentId::derive("asm-roots-6c");
     let mut doc: Doc<ProfileProgram> = Doc::empty(id, Tol::witness());
+    // Both blocks are sketched on the same plane, so ONE frame node
+    // serves both; being the first insert, it is also the id the
+    // profile/extrude counting below is measured from.
+    let mut nodes = vec![xy_frame()];
+    let plane = RecipeNodeId(0);
     for cx in [0.0, 5.0] {
-        for node in [
-            Node::Profile(desc(
-                [0.0, 0.0, 0.0],
-                [1.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0],
-                vec![square(cx, 0.0, 0.5)],
-            )),
-            Node::Extrude {
-                profile: RecipeNodeId(doc.len() as u64),
-                distance: len(1.0),
-            },
-        ] {
-            let edit = DocEdit::InsertNode { node };
-            doc = doc.apply(&edit, Tol::witness()).expect("insert").doc;
-            log.push(edit);
-        }
+        let profile = RecipeNodeId(nodes.len() as u64);
+        nodes.push(Node::Profile(desc(plane, vec![square(cx, 0.0, 0.5)])));
+        nodes.push(Node::Extrude {
+            profile,
+            distance: len(1.0),
+        });
+    }
+    for node in nodes {
+        let edit = DocEdit::InsertNode { node };
+        doc = doc.apply(&edit, Tol::witness()).expect("insert").doc;
+        log.push(edit);
     }
     let swap = DocEdit::SetRoots {
         roots: doc.roots().iter().rev().copied().collect(),

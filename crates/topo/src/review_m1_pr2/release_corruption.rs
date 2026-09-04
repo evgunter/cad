@@ -1,7 +1,7 @@
 //! Adversarial e2e review artifact for M1 PR 2 (2026-07-16). These are
 //! **independent derivations** — do not "simplify" them to match shipped
 //! fixtures; the independence is the regression value. Promoted per
-//! Evan's request (PR #17 thread).
+//! Ev's request (PR #17 thread).
 //!
 //! Tier-1-INVALID bodies fed into the operators. The debug-vs-release
 //! expectations are split with `cfg(debug_assertions)` guards, so neither
@@ -11,11 +11,15 @@
 //! debug_postcondition_fires_on_corrupt_input test, which documents that
 //! tension).
 //!
-//! Both are gated. The debug rows ride the standard nextest matrix; the
-//! release rows are the `corrupt input (release profile)` job in
-//! `.github/workflows/ci.yml`, which is the only release-profile test
-//! invocation the kernel workspace has. That job greps this sentence, so
-//! renaming it here or there is loud.
+//! Both are gated, on two different cadences. The debug rows ride the
+//! standard nextest matrix on every code-tier run; the release rows are the
+//! `corrupt input (release profile)` job, which is the only release-profile
+//! test invocation the kernel workspace has and which runs ONCE A NIGHT, in
+//! `.github/workflows/nightly.yml`, on any day main moved. It is a
+//! persistence-detector — a wrong body stays wrong — and the per-row
+//! argument for that cadence is at the job. `local-scripts/ci-local.sh`
+//! still runs the same rows on every local gate. Both halves grep this
+//! sentence for the job's name, so renaming it here or there is loud.
 //!
 //! # What of the contract is still ratified
 //!

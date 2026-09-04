@@ -1,12 +1,12 @@
 # SELECT-DESIGN: geometric selectors, the detect/declare protocol, and the GQ7 re-homing
 
 Status: **RATIFIED** (design conversation PR #286, 2026-08-09:
-Evan approved the recommendations round 1; GS-Q3 AMENDED round 2 —
+Ev approved the recommendations round 1; GS-Q3 AMENDED round 2 —
 the ruled boundary is FUSION, not arity: `find_flush_candidates ->
 Vec<FlushFinding>` with both `declare(finding)` and
 `declare_all(Vec<FlushFinding>)` acceptable, a fused
 detect-and-declare door forbidden permanently (findings must pass
-through user-visible hands as values); Evan: "sounds good").
+through user-visible hands as values); Ev: "sounds good").
 GS-Q1 (sel_* K-census participation), GS-Q2 (convexity
 reserved-not-built), GS-Q4 (mixed-Tied refuses), GS-Q5 (this doc),
 GS-Q6 (datum-relative position) all as recommended. §1's
@@ -376,7 +376,7 @@ takes it decides both halves, or neither.
 
 ## 4. GQ7 re-homing
 
-Per Evan's LB7-note ruling ("a bunch of general-usefulness stuff
+Per Ev's LB7-note ruling ("a bunch of general-usefulness stuff
 got originally mentioned in GUI-DESIGN even though it's more
 broadly applicable" — the GUI becomes a consumer, not the owner):
 

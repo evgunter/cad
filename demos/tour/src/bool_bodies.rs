@@ -148,7 +148,7 @@ fn leg<S: Scalar>(cx: f64, cy: f64, z_top: f64, tol: Tol) -> Body<S> {
 ///     etc.), so each seam crosses the underside AND two side faces.
 ///
 /// All three are narrated LIVE from their actual outcomes; since M4
-/// PR 5 the SHIPPED variant is the TRUE corner-ALIGNED table (Evan,
+/// PR 5 the SHIPPED variant is the TRUE corner-ALIGNED table (Ev,
 /// PR #71 — the first `demo_tripwires.rs` wire FIRED): each leg's
 /// outer faces lie exactly in the top's side planes, DECLARED per
 /// union, and the declared rung glues them — every later union sees
@@ -321,7 +321,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         Stop {
             name: "table",
             caption: String::new(),
-            // Montage cell RETIRED by the montage-v3 curation (Evan,
+            // Montage cell RETIRED by the montage-v3 curation (Ev,
             // 2026-08-30). The reason first written here was that the
             // assembly layer's furniture is "the same geometry, four
             // legs on the corners" — it is NOT, and converting it would

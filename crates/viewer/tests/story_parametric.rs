@@ -27,18 +27,17 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use core::f64::consts::PI;
 
 use common::{ang, body_volume, insert, len, len3, near, scl3, shape};
 use pncad::document::{
-    Axis3, BooleanOp, Dimension, Doc, DocEdit, DocParam, ParamName, ProfileProgram, RecipeNodeId,
-    SlotId, StepArg,
+    Axis3, BooleanOp, Dimension, Doc, DocEdit, DocParam, EditError, ParamName, ProfileProgram,
+    RecipeNodeId, SlotId, StepArg,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
-use pncad::profile::SketchPlane;
 use viewer::bounds::BoundsProbe;
 use viewer::props::{self, SlotDriver, SlotValue, in_written, rendering_unit};
 use viewer::session::{BoundsTarget, DocSession, ProfileShape, Refusal, SessionOp};
@@ -121,18 +120,19 @@ fn param_of(doc: &Doc<ProfileProgram>, name: &ParamName) -> SlotValue {
 /// One drum: a circle profile on world XY driven by `radius_expr`,
 /// extruded up by a literal the caller may re-drive afterwards.
 ///
-/// Stacked extruded drums rather than one revolved silhouette,
-/// because `ProfileShape` spells no revolvable silhouette — the
-/// template poverty issue 1457 tracks.
+/// Stacked extruded drums rather than one revolved silhouette: this
+/// scene predates `ProfileShape`'s `Path` arm, which can now spell
+/// one.
 fn drum(
     session: &mut DocSession,
     radius_expr: &str,
     distance: f64,
 ) -> (RecipeNodeId, RecipeNodeId) {
+    let plane = common::xy_frame_in(session);
     let profile = insert(
         session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 // A positive placeholder; the expression takes over
                 // before anything downstream consumes it.
@@ -200,8 +200,13 @@ fn the_parametric_living_walk() {
 
     // ── 3. The two doors partition the edit's semantics, typed.
     // Create over a declared name refuses `ParamExists` carrying what
-    // already stands there; a value write to an undeclared name — here
-    // a typo — refuses `NoSuchParam`. Neither commits or mints history.
+    // already stands there — a layer-3 narrowing of an edit that is
+    // create-or-replace, so no door below refuses it. A value write to
+    // an undeclared name — here a typo — is refused by the EDIT door
+    // instead: `DocEdit::SetDocParamValue` carries an existing
+    // declaration forward and says so, `EditError::DocParamNotDeclared`
+    // naming the parameter and the recourse ("declare it first").
+    // Neither commits or mints history.
     let before = session.history().len();
     let outcome = session.perform(SessionOp::CreateParam {
         name: taper.clone(),
@@ -227,8 +232,11 @@ fn the_parametric_living_walk() {
         value: SlotValue::Continuous(0.5),
     });
     match outcome.refusal {
-        Some(Refusal::NoSuchParam(ref name)) => assert_eq!(name.0, "tapper"),
-        ref other => panic!("expected NoSuchParam, got {other:?}"),
+        Some(Refusal::Edit(ref error)) => match **error {
+            EditError::DocParamNotDeclared { ref name } => assert_eq!(name.0, "tapper"),
+            ref other => panic!("expected DocParamNotDeclared, got {other:?}"),
+        },
+        ref other => panic!("expected the edit door's refusal, got {other:?}"),
     }
     assert!(outcome.committed.is_empty());
     assert_eq!(session.history().len(), before, "and mints no history");
@@ -368,7 +376,10 @@ fn the_parametric_living_walk() {
     let want = lighthouse_volume(BASE_R, TAPER, HEIGHT, EMBED, LAMP_H);
     assert!(near(got, want), "lighthouse volume {got} vs {want}");
     let rows = session.tree_rows();
-    assert_eq!(rows.len(), 10, "ten features, top to bottom");
+    // Thirteen: the ten features, and the three sketch frames they are
+    // drawn on — a plane is a feature of the document now, and the
+    // tree says so.
+    assert_eq!(rows.len(), 13, "ten features and three frames");
     assert!(
         rows.iter().all(|row| row.status == RowStatus::Ok),
         "every row green: {rows:?}"
@@ -406,16 +417,33 @@ fn the_parametric_living_walk() {
     assert_eq!(session.history().len(), before, "and mints no history");
 
     // ── 8. About to move `taper`, the user asks how far it can go.
-    // The probe targets the PARAMETER, not a driven slot: on an
-    // expression-driven slot the probe lacks the `DrivenByExpression`
-    // guard its sibling doors have (issue 1458), so the parameter door
-    // is the one that behaves. The probe is explicit, commits nothing,
+    // The probe targets the PARAMETER, and on a driven slot it must:
+    // the probe refuses an expression-driven slot with the same
+    // affordance the numeric write above got, which names the
+    // parameter to ask about instead. The probe is explicit, commits
+    // nothing,
     // and answers in the session: below, a wall exists (a drum's radius hits zero before
     // taper does — degenerate profile), so the low side is an EDGE
     // strictly inside (0, taper); above, the drums merely re-stack, so
     // the search finds real room past the first reach. A probe on an
     // undeclared parameter refuses through the same typed door as the
     // value write.
+    let outcome = session.perform(SessionOp::ProbeBounds {
+        target: BoundsTarget::Slot {
+            node: tower,
+            slot: SlotId::Distance,
+        },
+    });
+    match outcome.refusal {
+        Some(Refusal::DrivenByExpression { ref params, .. }) => {
+            assert_eq!(params, &vec![height.clone()], "probe THAT instead");
+        }
+        ref other => panic!("expected the driven refusal on the probe, got {other:?}"),
+    }
+    assert!(
+        session.bounds().is_none(),
+        "a refused probe lands no reading"
+    );
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Param {
             name: ParamName::new("tapper"),
@@ -431,9 +459,10 @@ fn the_parametric_living_walk() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(outcome.committed.is_empty(), "a probe commits nothing");
     assert_eq!(session.history().len(), before, "and mints no history");
-    let (target, bounds) = session.bounds().expect("the probe landed").clone();
+    let reading = session.bounds().expect("the probe landed").clone();
+    let bounds = reading.bounds;
     assert_eq!(
-        target,
+        reading.target,
         BoundsTarget::Param {
             name: taper.clone()
         }
@@ -451,7 +480,7 @@ fn the_parametric_living_walk() {
     );
     assert!(
         bounds.high.limit() >= TAPER + 1.0,
-        "real room upward, at least one canonical seed out: {:?}",
+        "real room upward, at least one seed out (a scalar's seed is 1): {:?}",
         bounds.high
     );
     assert!(

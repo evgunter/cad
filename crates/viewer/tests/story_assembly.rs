@@ -10,6 +10,12 @@
 //! included — and a save/reopen that resolves the whole workspace
 //! again.
 //!
+//! One stage is a mistake and its recovery: a clocking rider on the
+//! seat's frame coincidence, which the coset table decides against.
+//! The refusal reaches every instance in the cluster, and the tree
+//! sends the user to the MATE that caused it — the four instance rows
+//! read as downstream of the rider, not as four failures of their own.
+//!
 //! The at-rest badge tells the truth twice: the mated base CERTIFIES
 //! (its one contact is a declared, nested rest), and the finished
 //! windmill CERTIFIES TOO — the sails overhang the hub's walls, the
@@ -28,7 +34,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use std::path::Path;
 
@@ -93,10 +99,11 @@ fn author_box_part(
         name: name.to_owned(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let plane = common::xy_frame_in(session);
     let profile = insert(
         session,
         SessionOp::AddProfile {
-            plane: pncad::profile::SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle { width, height })],
         },
     );
@@ -736,6 +743,78 @@ fn the_windmill_story() {
         Some(&AtRestBadge::Certified { minted: 3 }),
         "the declared overhanging blades certify through the crossing rung"
     );
+
+    // ── 11a. A CONTRADICTORY RIDER, AND WHERE THE TREE SENDS THE
+    // USER. The user tries to clock the hub about its seat — but the
+    // seat is a frame coincidence and a coincidence has already pinned
+    // the roll, so the coset table decides against the rider
+    // (`mate_clocking_redundant`). The refusal reaches the whole
+    // cluster: no instance in it has a pose any more, and the kernel
+    // records the same typed fault against each of them as that node's
+    // OWN failure, because mates and instances are DAG leaves and the
+    // placement solve is not a DAG edge.
+    //
+    // What the tree must not do is read that verbatim. The fault names
+    // the mate it is about, so the rider the user just wrote is the one
+    // actionable row, and all four instance rows — the tower and both
+    // sails included, which the rider does not touch — read as
+    // downstream of it and point at it.
+    let clocked = {
+        let mut alignment = seat_proposal.alignment;
+        alignment.clocking = Some(0.4);
+        insert(
+            &mut session,
+            SessionOp::AddMate {
+                a: seat_proposal.a.clone(),
+                b: seat_proposal.b.clone(),
+                class: seat_proposal.class,
+                alignment,
+            },
+        )
+    };
+    session.pump();
+    let rows = session.tree_rows();
+    let status_of = |id: RecipeNodeId| common::status_of(&rows, id);
+    {
+        let RowStatus::Failed { message } = status_of(clocked) else {
+            panic!("the rider carries the cause, got {:?}", status_of(clocked));
+        };
+        assert!(
+            message.contains("mate_clocking_redundant"),
+            "the kernel's own words, on the mate's row: {message}"
+        );
+    }
+    assert_eq!(
+        rows.iter()
+            .filter(|row| matches!(row.status, RowStatus::Failed { .. }))
+            .map(|row| row.id)
+            .collect::<Vec<_>>(),
+        vec![clocked],
+        "exactly one actionable row, and it is the mate the fault names"
+    );
+    for instance in [tower_i, hub_i, sail_a, sail_b] {
+        match status_of(instance) {
+            RowStatus::Poisoned { through, message } => {
+                assert_eq!(through, clocked, "the instance points at the rider");
+                assert_eq!(
+                    message,
+                    Some(viewer::tree::downstream_wording(clocked)),
+                    "and sends the user to the rider's row rather than repeating its refusal here"
+                );
+            }
+            other => panic!("instance {instance:?} must read as downstream, got {other:?}"),
+        }
+    }
+    // Undo takes the rider back out; the windmill is whole again.
+    session.perform(SessionOp::Undo);
+    session.pump();
+    assert!(
+        session.doc().node(clocked).is_none(),
+        "undo removes the rider"
+    );
+    for row in session.tree_rows() {
+        assert_eq!(row.status, RowStatus::Ok, "{row:?}");
+    }
 
     // ── 12. SAVE AND REOPEN THE WORKSPACE. The document round-trips
     // with its mates; the fresh session re-resolves every instance

@@ -4,6 +4,19 @@
 //! LINK/DEBUGINFO note in .github/workflows/ci.yml carries it with its
 //! date and provenance run.
 //!
+//! **No aggregation guard here, and why.** Every other crate's
+//! `tests/all.rs` mounts its suites with `#[path]` and carries
+//! `every_suite_file_is_aggregated`, which checks that set against the
+//! directory on every run. This `tests/` directory holds ONE `.rs`
+//! file — this one — so there is no set to check; and the row could not
+//! live here anyway, because it reads `test_utils::source` and the
+//! guard at the bottom of this file admits no `use` root but the
+//! façade. What keeps that sentence TRUE is not this paragraph:
+//! `crates/bvh/tests/aggregator_headers.rs`'s
+//! `a_non_aggregating_tests_directory_holds_one_suite_file` reds if a
+//! second suite is ever dropped in beside this one, where
+//! `autotests = false` would otherwise leave it uncompiled and unrun.
+//!
 //! What this file pins is the **closure property** (the crate docs'
 //! contract clause 1): every type reachable through the public API of
 //! the re-exported surface — every error-enum payload included — is
@@ -225,6 +238,224 @@ fn adoption_payload(a: &pncad::step_import::AdoptionAttempt) {
 fn mesh_validate_and_surface_projection_are_nameable() {
     named::<Option<&pncad::mesh::validate::MeshError>>(None);
     named::<Option<&pncad::geom::SurfaceProjectionInconclusive>>(None);
+}
+
+// ---------------------------------------------------------------
+// CUR4: the CURATED half of the closure property.
+//
+// Everything above pins that a payload is nameable from `pncad` at
+// SOME path — contract clause 1, which module re-exports satisfy on
+// their own. These pin the stronger thing a CURATED list owes, and
+// the thing CUR3 established the rule for: a refusal the prelude
+// names must be MATCHABLE THROUGH the prelude. Every type below is
+// reached by a bare name out of `use pncad::prelude::*`, with no
+// module path spelled anywhere in the function — so dropping one from
+// the prelude stops this file compiling even though
+// `pncad::sweep::blend::CornerConfig` still resolves perfectly well.
+// That is the failure mode a nameability pin cannot see.
+//
+// The matches are EXHAUSTIVE for the reason CUR3's tag map is: an arm
+// added kernel-side has to break this build rather than quietly
+// becoming unmatchable at the curated surface.
+// ---------------------------------------------------------------
+
+/// `BlendError::UnsupportedCorner`'s payload — the OQ6 corner
+/// vocabulary (#85) — and the run-out policy the tag's own map
+/// assigns it. The two travel together in the arm, so they are pinned
+/// together here.
+fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
+    // `policy` is the ONE place the tag → policy map lives, so a
+    // refusal cannot disagree with its own tag. Matching its result
+    // exhaustively is what makes `RunOutPolicy`'s carriage
+    // load-bearing rather than decorative.
+    match corner.policy() {
+        Some(RunOutPolicy::RunOutStopAtVertex | RunOutPolicy::RunOutFeather) | None => {}
+    }
+    match corner {
+        CornerConfig::ThreeConvexEdges => "three_convex_edges",
+        CornerConfig::NEdgeVertex { valence } => {
+            named::<usize>(valence);
+            "n_edge_vertex"
+        }
+        CornerConfig::MixedConvexity { convex } => {
+            named::<usize>(convex);
+            "mixed_convexity"
+        }
+        CornerConfig::DependentNormals => "dependent_normals",
+        // Not a corner at all, and the one arm whose recourse names a
+        // door that EXISTS — the distinction a caller who could not
+        // name this type had to read out of the prose.
+        CornerConfig::SeamVertex => "seam_vertex",
+        CornerConfig::Indeterminate => "indeterminate",
+    }
+}
+
+/// `BlendError::Escalated`'s site and `ConvexitySignFlip`'s chain
+/// convexity — the other two blend payloads, matched by bare name.
+fn blend_site_and_convexity_are_matchable(
+    site: BlendSite,
+    chain: Convexity,
+) -> (&'static str, bool) {
+    let where_it_broke = match site {
+        BlendSite::Link { edge } => {
+            named::<EdgeKey>(edge);
+            "link"
+        }
+        BlendSite::Joint { vertex } => {
+            named::<VertexKey>(vertex);
+            "joint"
+        }
+        BlendSite::Chain => "chain",
+    };
+    let removes_material = match chain {
+        Convexity::Convex => true,
+        Convexity::Concave => false,
+    };
+    (where_it_broke, removes_material)
+}
+
+/// `ValidationError::UndeclaredContact`'s payload. The branch that
+/// matters is not "a census contact happened" but WHICH: an
+/// `EdgeFacePierce` is interpenetration and categorically undeclarable
+/// until the C6 era, while an `EdgeEdgeOverlap` is certifiable through
+/// the D3 reconstruction today. Same refusal, opposite advice.
+fn census_contact_is_matchable(contact: CensusContact) -> bool {
+    match contact {
+        CensusContact::VertexVertex { a, b } => {
+            named::<VertexKey>(a);
+            named::<VertexKey>(b);
+            true
+        }
+        CensusContact::VertexOnFace { vertex, face } => {
+            named::<VertexKey>(vertex);
+            named::<FaceKey>(face);
+            true
+        }
+        CensusContact::VertexOnEdge { vertex, edge } => {
+            named::<VertexKey>(vertex);
+            named::<EdgeKey>(edge);
+            true
+        }
+        CensusContact::EdgeFacePierce { .. } => false,
+        CensusContact::EdgeEdgeCross { .. } => true,
+        CensusContact::EdgeEdgeOverlap { .. } => true,
+        CensusContact::EdgeFaceOverlap { .. } => true,
+        // ONE RUNG, AND THIS IS WHERE IT STOPS. The arm binds its
+        // `ContactFinding` without naming it, which is exactly why the
+        // rung below is a banked finding and not this unit's scope:
+        // the DISCRIMINANT is matchable, and that is what the curated
+        // list owes. CUR3 stopped in the same place — `DanglingRef`'s
+        // arms carry `EntityId` and `GeomRef`, both still uncurated.
+        CensusContact::ConformalPatch { .. } => false,
+    }
+}
+
+/// `ValidationError::StaleContactDeclaration`'s and `RingMeetsOuter`'s
+/// payloads — which record to withdraw, and how the ring meets the
+/// loop it should not be touching.
+fn stale_declaration_and_ring_contact_are_matchable(
+    declaration: StaleDeclaration,
+    contact: RingContact,
+) -> (&'static str, &'static str) {
+    let stale = match declaration {
+        StaleDeclaration::VertexVertex { a, b } => {
+            named::<VertexKey>(a);
+            named::<VertexKey>(b);
+            "vertex_vertex"
+        }
+        StaleDeclaration::VertexOnFace { .. } => "vertex_on_face",
+        StaleDeclaration::CurveLocus {
+            face_a,
+            face_b,
+            witness,
+        } => {
+            named::<FaceKey>(face_a);
+            named::<FaceKey>(face_b);
+            named::<EdgeKey>(witness);
+            "curve_locus"
+        }
+        StaleDeclaration::Patch { .. } => "patch",
+    };
+    let ring = match contact {
+        RingContact::Vertex { .. } => "vertex",
+        RingContact::VertexOnEdge { .. } => "vertex_on_edge",
+        RingContact::Edge { .. } => "edge",
+    };
+    (stale, ring)
+}
+
+/// The carried payload vocabularies, matched through the prelude
+/// alone.
+///
+/// WHAT THIS DOES NOT PIN, stated rather than implied: none of these
+/// refusals is CONSTRUCTED from a façade door here. Reaching a real
+/// `UnsupportedCorner` needs a body with an out-of-scope trihedron,
+/// and reaching a real `UndeclaredContact` needs a census finding;
+/// both belong to the kernel suites that already own them. What is
+/// pinned is the CURATION property and only that — the values are
+/// built by hand, and every one of them is built with a bare prelude
+/// name, which is the whole claim.
+#[test]
+fn carried_refusal_payloads_are_matchable_through_the_prelude() {
+    assert_eq!(
+        corner_config_is_matchable(CornerConfig::SeamVertex),
+        "seam_vertex"
+    );
+    // The seam vertex is the arm whose policy is `None`: it is not a
+    // corner, so no run-out would help it. A caller that could not
+    // name `CornerConfig` could not tell that from a valence-4 vertex,
+    // whose policy is a real one.
+    assert!(CornerConfig::SeamVertex.policy().is_none());
+    assert_eq!(
+        CornerConfig::NEdgeVertex { valence: 4 }.policy(),
+        Some(RunOutPolicy::RunOutStopAtVertex)
+    );
+    assert_eq!(
+        CornerConfig::MixedConvexity { convex: 2 }.policy(),
+        Some(RunOutPolicy::RunOutFeather)
+    );
+
+    assert_eq!(
+        blend_site_and_convexity_are_matchable(BlendSite::Chain, Convexity::Convex),
+        ("chain", true)
+    );
+    assert_eq!(
+        blend_site_and_convexity_are_matchable(
+            BlendSite::Joint {
+                vertex: VertexKey::default()
+            },
+            Convexity::Concave
+        ),
+        ("joint", false)
+    );
+
+    // Declarable vs categorically undeclarable, off the same refusal.
+    assert!(census_contact_is_matchable(
+        CensusContact::EdgeEdgeOverlap {
+            a: EdgeKey::default(),
+            b: EdgeKey::default(),
+        }
+    ));
+    assert!(!census_contact_is_matchable(
+        CensusContact::EdgeFacePierce {
+            edge: EdgeKey::default(),
+            face: FaceKey::default(),
+        }
+    ));
+
+    assert_eq!(
+        stale_declaration_and_ring_contact_are_matchable(
+            StaleDeclaration::Patch {
+                face_a: FaceKey::default(),
+                face_b: FaceKey::default(),
+            },
+            RingContact::Edge {
+                ring_edge: EdgeKey::default(),
+                outer_edge: EdgeKey::default(),
+            },
+        ),
+        ("patch", "edge")
+    );
 }
 
 // ---------------------------------------------------------------
@@ -560,13 +791,10 @@ const FACADE_SOURCES: [(&str, &str); 11] = [
 /// surface** — the LB13 boundary, enforced rather than asserted in a
 /// report.
 ///
-/// The intended enforcement was a rustdoc-JSON scan of `pncad`'s
-/// public API. This toolchain is stable-only (1.97.0) and
-/// `--output-format json` is nightly-gated; installing a nightly and
-/// teaching CI to use it is a CI change, which is outside this unit's
-/// fence. So this is the FALLBACK, built on the U1 self-scanning
-/// pattern one file wider — and it is aimed at the exact regression
-/// LB13 forbids, not at a vague resemblance to it:
+/// This source-text scan IS the enforcement, and is the permanent
+/// mechanism rather than a stand-in for one. It is built on the U1
+/// self-scanning pattern one file wider, and it is aimed at the exact
+/// regression LB13 forbids, not at a vague resemblance to it:
 ///
 /// 1. `pub use editor_core;` — the whole-crate re-export whose removal
 ///    IS LB13(a). Re-adding it makes `pncad::editor_core::EntityRef`
@@ -574,12 +802,31 @@ const FACADE_SOURCES: [(&str, &str); 11] = [
 /// 2. Any `pub use` in `pncad`'s own source that names `EntityRef`,
 ///    `EntityKey`, or `Entry` — the LIB-U5 seal, kept sealed.
 ///
-/// What this fallback CANNOT see (stated so the next reader does not
-/// over-trust it): a key type re-exported under an alias, or one
-/// reachable as an associated type or a public field of something
-/// this list does allow. A rustdoc-JSON check would catch those;
-/// whether CI grows one is **#696**, which carries this deferral and
-/// the two others that share it.
+/// **The two limits, and why they are acceptable** — stated so the
+/// next reader neither over-trusts this scan nor re-derives the
+/// argument for replacing it. A key type re-exported under an `as`
+/// alias, and a key reachable as a public field, associated type or
+/// return type of a type this list does allow, are both invisible to
+/// a scan of `pub use` text. Reading the compiler's own view of the
+/// API — a rustdoc-JSON pass — is what reaches them, and it is not
+/// worth its price: a second, date-pinned nightly toolchain in a
+/// repository whose determinism argument opens with a pinned
+/// compiler, and an explicitly unstable schema carrying claims that
+/// are NEGATIVE — no key is nameable — where a format that moved
+/// reads green rather than red.
+///
+/// The deciding argument is reachability by an ordinary edit, not the
+/// absence of instances; a guard that never fires is a guard working.
+/// Each regression above is one line someone could plausibly write.
+/// Exposing a key through an alias or a public field takes a
+/// coordinated edit in two crates, and its second half already reds
+/// [`every_document_layer_root_export_is_carried_or_listed`]: an
+/// aliased root export is a name that guard finds uncarried, and
+/// every `editor-core` type that names a key in a public signature is
+/// already in its `NOT_CARRIED` list. Neither class has a live
+/// instance — the façade's sources and `editor-core`'s root contain
+/// no `as`-aliased `pub use` at all — and that is the weaker half of
+/// the reason, not the whole of it.
 #[test]
 fn no_arena_key_is_nameable_through_the_facade_document_surface() {
     // Every file of the façade's own source. A new module added here
@@ -637,13 +884,18 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
     );
 }
 
-/// **No raw loop-minting door is nameable through the façade** — Evan's
+/// **No raw loop-minting door is nameable through the façade** — Ev's
 /// ruling on #413 (LIB-RETTAIL), enforced rather than asserted in a
 /// report.
 ///
-/// Same fallback shape as the LB13 guard above (rustdoc JSON is
-/// nightly-gated on this toolchain — **#696**), aimed at the exact
-/// regression the ruling forbids:
+/// Same mechanism as the LB13 guard above, permanent for the same
+/// reasons and carrying the same two limits: an `as`-aliased
+/// re-export, and a name reachable as a public field, associated type
+/// or return type of an allowed type. Neither has a live instance,
+/// and neither is reachable by an ordinary edit the way the
+/// regressions below are — the full argument is on the LB13 guard and
+/// is not repeated here. Aimed, likewise, at the exact regression the
+/// ruling forbids:
 ///
 /// 1. `pub use profile;` — the whole-crate re-export whose removal IS
 ///    the demotion. Re-adding it makes `pncad::profile::RawLoop`
@@ -769,14 +1021,29 @@ fn lib_doors_vocabulary_is_nameable() {
     named::<Option<pncad::export::ExportError>>(None);
 }
 
-/// A square profile-program node, `[0,s]²` on the xy-plane.
-fn doors_square(s: f64) -> pncad::document::Node<pncad::document::ProfileProgram> {
+/// The world xy frame — the plane these door fixtures sketch on.
+fn doors_xy_frame() -> pncad::document::Node<pncad::document::ProfileProgram> {
+    use pncad::document::{Datum, Dimension, Expr, Node};
+    let len = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
+    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).unwrap();
+    Node::Datum(Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    })
+}
+
+/// A square profile-program node, `[0,s]²` on `plane`.
+fn doors_square(
+    plane: pncad::document::RecipeNodeId,
+    s: f64,
+) -> pncad::document::Node<pncad::document::ProfileProgram> {
     use pncad::document::{
         Dimension, Expr, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget,
     };
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([lit(0.0), lit(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([lit(s), lit(0.0)])),
@@ -813,7 +1080,8 @@ fn doors_box_doc() -> (
     use pncad::document::{Dimension, Expr, Node};
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     let doc = pncad::document::ProfileDoc::empty_derived("all", Tol::witness());
-    let (doc, profile) = doors_insert(doc, doors_square(2.0));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, profile) = doors_insert(doc, doors_square(plane, 2.0));
     let (doc, body) = doors_insert(
         doc,
         Node::Extrude {
@@ -881,10 +1149,11 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
 
     // And it evaluates as a document node.
     let doc = pncad::document::ProfileDoc::empty_derived("all", Tol::witness());
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
     let (doc, profile) = doors_insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![lifted],
         }),
     );
@@ -996,14 +1265,18 @@ fn the_export_door_serves_the_one_shot_journey() {
     }
 }
 
-/// A square of side `s` whose lower-left corner sits at `x`.
-fn doors_square_at(s: f64, x: f64) -> pncad::document::Node<pncad::document::ProfileProgram> {
+/// A square of side `s` on `plane`, lower-left corner at `x`.
+fn doors_square_at(
+    plane: pncad::document::RecipeNodeId,
+    s: f64,
+    x: f64,
+) -> pncad::document::Node<pncad::document::ProfileProgram> {
     use pncad::document::{
         Dimension, Expr, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget,
     };
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([lit(x), lit(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([lit(x + s), lit(0.0)])),
@@ -1023,7 +1296,8 @@ fn the_document_export_door_ships_the_multi_solid_product() {
     use pncad::document::{Dimension, Expr, Node};
     let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     let doc = pncad::document::ProfileDoc::empty_derived("asm-roots-doc-export", Tol::witness());
-    let (doc, p0) = doors_insert(doc, doors_square_at(2.0, 0.0));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, p0) = doors_insert(doc, doors_square_at(plane, 2.0, 0.0));
     let (doc, b0) = doors_insert(
         doc,
         Node::Extrude {
@@ -1031,7 +1305,8 @@ fn the_document_export_door_ships_the_multi_solid_product() {
             distance: lit(1.5),
         },
     );
-    let (doc, p1) = doors_insert(doc, doors_square_at(1.0, 10.0));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, p1) = doors_insert(doc, doors_square_at(plane, 1.0, 10.0));
     let (doc, b1) = doors_insert(
         doc,
         Node::Extrude {
@@ -1072,7 +1347,8 @@ fn the_document_export_door_refuses_a_bodiless_document() {
     use pncad::export::ExportError;
     let doc =
         pncad::document::ProfileDoc::empty_derived("asm-roots-doc-export-bodiless", Tol::witness());
-    let (doc, _profile) = doors_insert(doc, doors_square_at(2.0, 0.0));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, _profile) = doors_insert(doc, doors_square_at(plane, 2.0, 0.0));
     let ev = doors_evaluate(&doc);
     match pncad::export::export_document_step(&ev, &doc, &StepOptions::default(), Tol::witness()) {
         Err(ExportError::Product(ProductError::NoBodyRoots)) => {}
@@ -1086,7 +1362,8 @@ fn the_export_door_refuses_typed_not_vaguely() {
     use pncad::export::ExportError;
     let (doc, profile_node, first_box) = doors_box_doc();
     // A failing Boolean (undeclared coincidence) and its downstream.
-    let (doc, second_profile) = doors_insert(doc, doors_square(1.0));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, second_profile) = doors_insert(doc, doors_square(plane, 1.0));
     let (doc, second_box) = doors_insert(
         doc,
         Node::Extrude {
@@ -1187,10 +1464,11 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         ProgramStep::LineTo(ProgramTarget::Point([lit(0.0), lit(2.0)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
     let (doc, profile) = doors_insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
         }),
     );
@@ -1201,10 +1479,22 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             distance: lit(0.5),
         },
     );
+    // The tab sits inside the plate's slab: its own plane, so its own
+    // frame.
+    let scl =
+        |v: f64| pncad::document::Expr::literal(v, pncad::document::Dimension::Scalar).unwrap();
+    let (doc, tab_plane) = doors_insert(
+        doc,
+        Node::Datum(pncad::document::Datum::Frame {
+            origin: [lit(0.0), lit(0.0), lit(0.125)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
     let (doc, tab_p) = doors_insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.125))),
+            plane: tab_plane,
             loops: vec![
                 LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
                     .expect("finite tab corners"),
@@ -1413,13 +1703,18 @@ impl Drop for WsDir {
 }
 
 /// A one-block document under the given derived-id label, saved.
+/// The extrude in a [`ws_doc`] part: its sketch frame, the profile
+/// drawn on it, then the body. A part-local name is minted by node 2.
+const WS_PART_BODY: pncad::document::RecipeNodeId = pncad::document::RecipeNodeId(2);
+
 fn ws_doc(label: &str) -> (pncad::document::ProfileDoc, String) {
     use pncad::document::{Expr, Node};
     let doc = pncad::document::ProfileDoc::empty(
         pncad::document::DocumentId::derive(label),
         Tol::witness(),
     );
-    let (doc, profile) = doors_insert(doc, doors_square(2.0));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, profile) = doors_insert(doc, doors_square(plane, 2.0));
     let (doc, _) = doors_insert(
         doc,
         Node::Extrude {
@@ -1758,7 +2053,8 @@ fn asm2a_row5b_stale_pin_refuses_through_the_real_store() {
     // after the assembly pinned it" state.
     let edited = {
         let doc = pncad::document::ProfileDoc::empty(doc_ref.id, Tol::witness());
-        let (doc, profile) = doors_insert(doc, doors_square(3.0));
+        let (doc, plane) = doors_insert(doc, doors_xy_frame());
+        let (doc, profile) = doors_insert(doc, doors_square(plane, 3.0));
         let (doc, _) = doors_insert(
             doc,
             pncad::document::Node::Extrude {
@@ -1864,7 +2160,7 @@ fn asm_r2a_mated_assembly(
     pncad::document::ProfileDoc,
     Vec<pncad::document::RecipeNodeId>,
 ) {
-    use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive, Node, RecipeNodeId};
+    use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive, Node};
     use pncad::prelude::StableName;
     use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
     let mut doc = pncad::document::ProfileDoc::empty(
@@ -1883,8 +2179,8 @@ fn asm_r2a_mated_assembly(
         path: vec![RoleSeg::InPart {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
-                path: vec![RoleSeg::Cap(CapEnd::Bottom)],
+                node: WS_PART_BODY,
+                path: vec![RoleSeg::Cap(CapEnd::Start)],
             }),
         }],
     };
@@ -1994,13 +2290,13 @@ const ASM_R2B_PROBE_OUT: &str = "ASM_R2B_PROBE_OUT";
 /// rather than harvested from the split, and deliberately so: for a
 /// PROPER mate edge no accepted cut can produce a crossing (the
 /// whole-cluster precondition — see editor-core's `row5_a`), and the
-/// one shape that does mint one today has semantics pending Evan's
+/// one shape that does mint one today has semantics pending Ev's
 /// AQ8 ruling. Authoring the record keeps this row about D9 — the
 /// same bits from the same recipe — rather than about a semantics
 /// question that may move.
 #[test]
 fn asm_r2b_child_crossing_probe() {
-    use pncad::document::{DocEdit, Node, RecipeNodeId};
+    use pncad::document::{DocEdit, Node};
     use pncad::prelude::StableName;
     use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
     let Ok(out) = std::env::var(ASM_R2B_PROBE_OUT) else {
@@ -2019,13 +2315,13 @@ fn asm_r2b_child_crossing_probe() {
             class: ContactClass::Rest,
             outer: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
-                path: vec![RoleSeg::Cap(CapEnd::Top)],
+                node: WS_PART_BODY,
+                path: vec![RoleSeg::Cap(CapEnd::End)],
             },
             inner: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
-                path: vec![RoleSeg::Cap(CapEnd::Bottom)],
+                node: WS_PART_BODY,
+                path: vec![RoleSeg::Cap(CapEnd::Start)],
             },
         }],
     };
@@ -2328,7 +2624,8 @@ fn asm4_workspace_create_and_resave() {
 
     // Resave rewrites in place; the old pin no longer holds and the
     // stale reference is a typed PinMismatch (A4 — never retargeted).
-    let (moved, _) = doors_insert(doc.clone(), doors_square(3.0));
+    let (moved, plane) = doors_insert(doc.clone(), doors_xy_frame());
+    let (moved, _) = doors_insert(moved, doors_square(plane, 3.0));
     let resaved = ws
         .resave(&moved, Tol::witness())
         .expect("the resave writes");
@@ -2481,7 +2778,8 @@ fn asm_upd_resave_part(
 ) -> pncad::document::ContentPin {
     use pncad::document::{Expr, Node};
     let doc = pncad::document::ProfileDoc::empty(id, Tol::witness());
-    let (doc, profile) = doors_insert(doc, doors_square(side));
+    let (doc, plane) = doors_insert(doc, doors_xy_frame());
+    let (doc, profile) = doors_insert(doc, doors_square(plane, side));
     let (doc, _) = doors_insert(
         doc,
         Node::Extrude {
@@ -2782,27 +3080,34 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   façade consumer can reach, and `NodePick` is not merely the
 ///   preferred door but the only one. `PickTarget` is carried because
 ///   `pick_face`'s signature names it, not because it can be built.
-/// - **The E6 driver and its parameter box** (`drive`, `DriveConfig`,
-///   `DriveRefusal`, `ParamBoxVerdict`, `CertifiedLeaf`,
-///   `RefusedLeaf`, `RefusalReason`, `BudgetKind`, `FlipEvidence`, `StructureFlip`,
-///   `ReasonClass`, `Receipt`, `LeafResults`, `MeasureAccounting`,
-///   `ReplayOutcome`, `VerdictVector`, `VerdictRow`,
-///   `VerdictVectorKey`, `DEFAULT_MAX_DEPTH`, `DEFAULT_MAX_LEAVES`,
-///   `ParamBox`, `BoxAxis`, `ParamBoxError`, `AxisScalar`,
-///   `param_env_over`): the analysis lane's subdivision service and
-///   the box it drives over.
+/// - **The analysis lane's INTERIOR residue** (`FlipEvidence`,
+///   `StructureFlip`, `ReplayOutcome`, `VerdictVector`, `VerdictRow`,
+///   `VerdictVectorKey`, `AxisScalar`, `param_env_over`, `SeedScalar`,
+///   `SectionScalar` (which scalars carry a loft or sweep section's
+///   placement off a derived frame — a lane fact, decided by the type),
+///   `SeedError`, `seed_env`, `std_deviation`, `sensitivities`,
+///   `PairingViolation`; and the third lane seam `MinClearanceLane`
+///   with its `MinClearanceOperand`, which is how a `min_clearance`
+///   measure asks the interval lane for the bracket only that lane
+///   can carry).
 ///
-///   Interior because the curated face is a DIFFERENT shape and is
-///   not built yet: what a consumer asks the analysis lane is "does
-///   this measurement hold over its tolerances", and E5's answer to
-///   that is a typed per-measurement stackup report whose INPUT is a
-///   leaf set. Carrying the leaf vocabulary now would door the
-///   intermediate and then have to un-door it. `drive` is also gated
-///   on the `interval` feature — there is no leaf to certify without
-///   the certified scalar — so a façade row for it would be a
-///   conditional door, which this surface does not have and should
-///   not acquire for a type its consumer does not want yet.
-const NOT_CARRIED: [&str; 101] = [
+///   **The rest of this family is now CARRIED**, by `crate::analysis`
+///   behind the `interval` feature (M10-6): the driver and its box,
+///   the stackup and its field types, the reporting layer and the
+///   advisory estimator. The entry that stood here said the curated
+///   face "is the REPORTING surface — persisted, goldened stackups —
+///   which is where the façade row lands", and M10-6 built it, so the
+///   row landed. What that cost is a conditional door on a surface
+///   that had none, and `crate::analysis` states the trade at its own
+///   head rather than here.
+///
+///   What stays interior is what a consumer of the REPORTS does not
+///   hold: the verdict-vector vocabulary (a certification identity,
+///   not a report), the flip evidence a refusal carries (read through
+///   the refusal's own `Display`), the two scalar CAPABILITY seams and
+///   their env plumbing, and `sensitivities` — the intermediate whose
+///   answer `stackup` already carries.
+const NOT_CARRIED: [&str; 93] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -2813,19 +3118,12 @@ const NOT_CARRIED: [&str; 101] = [
     "AttrSet",
     "AxisScalar",
     "BifurcationKind",
-    "BoxAxis",
     "BranchCertification",
     "BranchMarginEvidence",
-    "BudgetKind",
-    "CertifiedLeaf",
     "ContentKey",
     "Coset",
-    "DEFAULT_MAX_DEPTH",
-    "DEFAULT_MAX_LEAVES",
     "Diagnosis",
     "DocDiff",
-    "DriveConfig",
-    "DriveRefusal",
     "EntityKey",
     "EntityRef",
     "Entry",
@@ -2835,34 +3133,28 @@ const NOT_CARRIED: [&str; 101] = [
     "FlipEvidence",
     "FlipSet",
     "Implicated",
-    "LeafResults",
-    "MeasureAccounting",
     "MeshPatchKey",
     "MeshPick",
     "MeshPickError",
     "MetaError",
     "MetaValue",
     "MetaVersionError",
+    "MinClearanceLane",
+    "MinClearanceOperand",
     "MintRefusal",
     "NamingError",
     "NamingKey",
     "NodeChange",
     "NodeVerdictDelta",
     "NodeVerdicts",
-    "ParamBox",
-    "ParamBoxError",
-    "ParamBoxVerdict",
+    "PairingViolation",
     "ParamValue",
     "PredicateDivergence",
     "Product",
     "ProfilePayload",
     "ProgramRefusal",
     "Qualifier",
-    "ReasonClass",
-    "Receipt",
     "RecipeEditRef",
-    "RefusalReason",
-    "RefusedLeaf",
     "ReplayOutcome",
     "ResolutionFailure",
     "ResolveError",
@@ -2870,6 +3162,9 @@ const NOT_CARRIED: [&str; 101] = [
     "Resolved",
     "Rgba8",
     "RunStatus",
+    "SectionScalar",
+    "SeedError",
+    "SeedScalar",
     "SideVerdict",
     "StructureFlip",
     "SummaryDelta",
@@ -2892,7 +3187,6 @@ const NOT_CARRIED: [&str; 101] = [
     "derivation_nodes",
     "diff_summaries",
     "diff_verdicts",
-    "drive",
     "enrich_appearance_loss",
     "enrich_appearance_loss_with_prior",
     "entity_name",
@@ -2901,6 +3195,9 @@ const NOT_CARRIED: [&str; 101] = [
     "product_recorded",
     "rebind_suggestions",
     "resolve_with_prior",
+    "seed_env",
+    "sensitivities",
+    "std_deviation",
     "to_value",
     "verdict_summary",
     "vertex_name",
@@ -3000,22 +3297,46 @@ fn module_pub_use_names(src: &str) -> std::collections::BTreeSet<String> {
 /// crates. It does not need to for them — they are re-exported whole,
 /// so their surfaces cannot drift from the façade's by construction.
 ///
-/// Two blind spots, both needing rustdoc JSON to close (**#696**):
+/// This scan of the root's `pub use` text is the permanent mechanism.
+/// Reading the compiler's own view of the API instead — a
+/// rustdoc-JSON pass — buys a second, date-pinned nightly toolchain
+/// in a repository whose determinism argument opens with a pinned
+/// compiler, and stands guards whose claims are NEGATIVE on an
+/// explicitly unstable schema, where a format that moved reads green.
+/// Two blind spots stand, and both are text-reachable: closing them
+/// is scanner work in this file, not a toolchain.
 ///
 /// 1. A public name reachable only by module path
 ///    (`editor_core::persist::Foo`) and never lifted to that crate's
 ///    root. This scan reads the root, exactly as the first closure
 ///    audit did, and that is the same structural hole that audit's
-///    second pass found.
+///    second pass found. `editor_core` is not re-exported whole, so
+///    such a name is not reachable one hop past the façade either:
+///    the hole is an accounting one — public names growing with
+///    nobody made to decide about them — rather than a leak.
 /// 2. A `pub` item written DIRECTLY in `editor-core/src/lib.rs`
-///    rather than re-exported. That file has no direct `pub` items
-///    today, so this one is held shut by a coincidence, not a rule.
+///    rather than re-exported. That root declares 32 `pub mod` at
+///    column 0, four of them behind `#[cfg(feature = "interval")]`,
+///    and no `pub` item of any other kind — so nothing type-like
+///    escapes this scan today, held shut by the root's shape rather
+///    than by a rule. [`root_declared_pub_names`] is the mechanism
+///    that closes this, and closes it for the profile layer in this
+///    file; applied to this root it would add those module names to
+///    the export set, so a `mod`-excluding variant is what this root
+///    wants.
 ///
 /// A third — a leaf name colliding across crates, so that carrying
 /// `Foo` from `sweep` looked like carrying the document layer's
 /// `Foo` — is CLOSED: the façade side counts only names introduced
 /// by a `pub use editor_core::…` statement, not every leaf in the
 /// file.
+///
+/// The one class no text scan reaches — a key exposed under an `as`
+/// alias, or as a public field or associated type of a carried type —
+/// has no live instance, and this guard is half its mitigation: a
+/// newly aliased root export is a new name here, uncarried, and fails
+/// (naming it with the `as` clause still attached, since the scanner
+/// takes the leaf of the statement).
 #[test]
 fn every_document_layer_root_export_is_carried_or_listed() {
     let kernel_lib =
@@ -3123,6 +3444,51 @@ fn assert_layer_root_exports_are_carried_or_listed(
 /// surface that declares five of the types the façade carries and one
 /// it deliberately does not — so for that layer the same omission
 /// would be a hole, and this closes it.
+/// The source with every `#[cfg(…)]`-gated item removed, attribute and
+/// all.
+///
+/// The two scanners below read a layer's root for the names it
+/// exports, and what the guard means by that is the surface a CONSUMER
+/// can name — the thing that must be carried through the façade or
+/// argued away. An item behind a `#[cfg]` is not that surface: no
+/// consumer's build graph turns the feature on (the profile layer's
+/// `test-support` is reached only through that crate's own self
+/// dev-dependency), so the name does not exist one hop past the
+/// façade, and asking the façade to carry it would advertise something
+/// unreachable. Without this the guard read the gate's TEXT and
+/// demanded a carrier statement for six sentences no build outside
+/// `profile/tests/` compiles.
+///
+/// Line-based and deliberately shallow: it drops the attribute line,
+/// then the item it gates, up to the statement's terminator. That is
+/// exactly the shape both roots use.
+fn code_without_cfg_gated(src: &str) -> String {
+    let mut out = String::new();
+    let mut lines = src.lines();
+    while let Some(line) = lines.next() {
+        if !line.trim_start().starts_with("#[cfg(") {
+            out.push_str(line);
+            out.push('\n');
+            continue;
+        }
+        let mut depth: i32 = 0;
+        for gated in lines.by_ref() {
+            for c in gated.chars() {
+                match c {
+                    '{' | '(' | '[' => depth += 1,
+                    '}' | ')' | ']' => depth -= 1,
+                    _ => {}
+                }
+            }
+            let trimmed = gated.trim_end();
+            if depth <= 0 && (trimmed.ends_with(';') || trimmed.ends_with('}')) {
+                break;
+            }
+        }
+    }
+    out
+}
+
 fn root_declared_pub_names(src: &str) -> std::collections::BTreeSet<String> {
     let code = code_without_comments(src);
     let mut names = std::collections::BTreeSet::new();
@@ -3152,13 +3518,19 @@ fn root_declared_pub_names(src: &str) -> std::collections::BTreeSet<String> {
 }
 
 /// The profile layer's interior: root exports the façade's curated
-/// `profile` module does not carry, by family. One family, one name.
+/// `profile` module does not carry, by family. One family, one entry.
 ///
 /// - **The minting tier** (`RawLoop`): the one name whose absence is
 ///   the module's entire reason for existing. It carries `new` and
 ///   `polygon`; leaving the trait unnameable is what makes
 ///   `ProfileLoop::polygon(…)` fail to resolve while `ProfileLoop`
 ///   itself stays nameable. Carrying it here would undo the curation.
+///
+/// The layer's six `FILLET_*_RECOURSE` sentences are NOT listed here,
+/// and the reason is worth keeping: they are exported behind that
+/// crate's `test-support` feature, so no consumer's build compiles
+/// them and there is nothing for the façade to carry.
+/// [`code_without_cfg_gated`] is what makes the scan agree.
 const PROFILE_NOT_CARRIED: [&str; 1] = ["RawLoop"];
 
 /// **The document layer's guard, for the other layer curated the same
@@ -3194,6 +3566,7 @@ fn every_profile_layer_root_export_is_carried_or_listed() {
     let layer_lib = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../profile/src/lib.rs");
     let src = std::fs::read_to_string(&layer_lib)
         .unwrap_or_else(|e| panic!("reading {}: {e}", layer_lib.display()));
+    let src = code_without_cfg_gated(&src);
     let mut exported = module_pub_use_names(&src);
     exported.append(&mut root_declared_pub_names(&src));
 

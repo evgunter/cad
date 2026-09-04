@@ -25,7 +25,6 @@ use pncad::document::{
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::prelude::StableName;
-use pncad::profile::SketchPlane;
 use pncad::select::{CapEnd, EntityKind, NamePat, Ray, SegPat, SegTag, Selector};
 use pncad::workspace::Workspace;
 use viewer::session::{DocSession, SessionOp};
@@ -85,10 +84,11 @@ fn box_part(label: &str, width: f64, depth: f64, height: f64, tol: Tol) -> Profi
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), tol);
     let outline = LoopProgram::polygon([(0.0, 0.0), (width, 0.0), (width, depth), (0.0, depth)])
         .expect("a literal rectangle");
+    let plane = insert(&mut doc, super::xy_frame(), tol);
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![outline],
         }),
         tol,
@@ -175,8 +175,8 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
         post_b,
         post: post_ref,
         shelf: shelf_ref,
-        post_top: cap_of(&post, CapEnd::Top, tol),
-        shelf_bottom: cap_of(&shelf, CapEnd::Bottom, tol),
+        post_top: cap_of(&post, CapEnd::End, tol),
+        shelf_bottom: cap_of(&shelf, CapEnd::Start, tol),
     }
 }
 
@@ -229,6 +229,36 @@ pub fn seat() -> viewer::matetool::MateChoice {
         primitive: pncad::document::MatePrimitive::FrameCoincidence,
         sense: pncad::document::AxisSense::Opposed,
         clocking: None,
+    }
+}
+
+/// **The seat ALIGNMENT the mate rows author directly**: a post's top
+/// cap on the shelf's underside, each frame in its own part's
+/// coordinates, at `b_x` along the shelf and with `clocking` as the
+/// rider.
+///
+/// One home because it is one geometric fact about this fixture — the
+/// two suites that build refused clusters differ only in where along
+/// the shelf a post lands and whether a rider rides, and a per-suite
+/// copy of the ladder could only drift from the bench it addresses.
+/// (`seat` above is the mate TOOL's choice for the same seat; this is
+/// the frame pair `SessionOp::AddMate` takes.)
+pub fn seat_alignment(b_x: f64, clocking: Option<f64>) -> pncad::document::Alignment {
+    use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive};
+    Alignment {
+        a: MateFrame {
+            origin: [POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT],
+            axis: [0.0, 0.0, 1.0],
+            reference: [1.0, 0.0, 0.0],
+        },
+        b: MateFrame {
+            origin: [b_x, SHELF_DEPTH / 2.0, 0.0],
+            axis: [0.0, 0.0, -1.0],
+            reference: [1.0, 0.0, 0.0],
+        },
+        primitive: MatePrimitive::FrameCoincidence,
+        sense: AxisSense::Opposed,
+        clocking,
     }
 }
 

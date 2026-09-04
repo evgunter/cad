@@ -124,19 +124,62 @@ pub enum ErrorClass {
     /// admit it ([`QuantityOpMismatch`]). The Python class is
     /// `DimensionError`.
     Dimension,
+    /// The display formatter refused a value: it is NaN or ±∞, and a
+    /// non-finite quantity has no display form. The Python class
+    /// keeps the Rust type's own name, `FmtQuantityError`.
+    ///
+    /// The quantity boundary's SECOND refusal, and the other one is
+    /// not its neighbour by accident: [`Self::Dimension`] is about
+    /// the pair of dimensions an operator was handed, this one about
+    /// the single number a formatter was handed. `quantity`'s
+    /// newtypes are plain value wrappers and refuse no float, so a
+    /// non-finite `Length` is constructible in Python exactly as it
+    /// is in Rust (`float("inf") * mm`); the fail-loud doors are the
+    /// ones values LEAVE through, and rendering one for a human is
+    /// one of those.
+    FmtQuantity,
     /// A value the expression layer refused (non-finite literal, a
     /// count written as continuous, ...) — the document layer's
     /// `DimensionError`, raised on the LITERAL-CONSTRUCTION door.
     /// The Python class is `LiteralError`.
     ///
-    /// That type has genuine dimension-mismatch arms too, and `load`
-    /// reaches them (`WireExpr::rebuild` re-runs every check through
-    /// the operator builders), but they arrive as
-    /// [`ErrorClass::Persist`] with the `parse` tag rather than under
-    /// any dimension class — issue #694. Nothing here is routed to
+    /// That type has genuine dimension-mismatch arms too, and two
+    /// other doors reach them. `load` does (`WireExpr::rebuild`
+    /// re-runs every check through the operator builders) and they
+    /// arrive as [`ErrorClass::Persist`] with the `parse` tag rather
+    /// than under any dimension class — issue #694. The expression
+    /// TEXT door does too, and they arrive as [`ErrorClass::Parse`]
+    /// with `variant == "dimension"` and the mismatch's own tag as
+    /// `kind`, which is the one of the three that keeps the inner
+    /// refusal branchable. Nothing anywhere is routed to
     /// [`ErrorClass::Dimension`], which is the quantity boundary's
     /// own check and a different type.
     Literal,
+    /// The expression TEXT door refused: `parse_expr` could not read
+    /// the source as an expression. The Python class keeps the Rust
+    /// type's own name, `ParseError`.
+    ///
+    /// Its `Dimension` arm forwards the expression layer's
+    /// `DimensionError` — the type [`Self::Literal`] also carries —
+    /// and it lands here rather than there because what refused is
+    /// the PARSE: the byte offset of the token whose reduction failed
+    /// is the recourse, and a `LiteralError` carries no position to
+    /// put it in. The inner refusal's own tag rides along as `kind`,
+    /// so nothing is lost by the routing.
+    Parse,
+    /// An expression the evaluator refused: a parameter with no
+    /// binding, a dimension the environment disagrees with, a count
+    /// crossing the continuous door (or the reverse), exact count
+    /// arithmetic that overflowed, or a non-finite result. The Python
+    /// class keeps the Rust type's own name, `EvalError`.
+    ///
+    /// Deliberately NOT a numeric-domain class. Division by zero and
+    /// out-of-domain trig are not refusals in the expression layer at
+    /// all — they follow the kernel's poison-value policy through the
+    /// scalar, because the AST has no branches to hide them behind —
+    /// and they reach this class only where they make the FINAL value
+    /// non-finite, under the `non_finite_result` tag.
+    Eval,
     /// A save or load the persistence doors refused.
     Persist,
     /// An export the document-layer door refused.
@@ -216,6 +259,25 @@ pub enum ErrorClass {
     /// arrive under their OWN tags rather than a wrapper tag, so
     /// which invariant broke is what a caller branches on.
     Readback,
+    /// A hit test could not answer: a target was offered whose node
+    /// this evaluation has no `Ok` value for, or the winning face
+    /// inverted to no name at all. The Python class keeps the Rust
+    /// type's own name, `HitTestError`.
+    ///
+    /// A MISS never reaches here. The ray hitting no offered triangle
+    /// is the typed `None`, and errors are never flattened into it.
+    HitTest,
+    /// A pick index could not be built: the node has no `Ok` value, its
+    /// value never draws, it has no output body at that index, or
+    /// tessellating and indexing that body refused. The Python class is
+    /// `NodePickError`.
+    ///
+    /// A separate class from [`Self::HitTest`] because the two are
+    /// different stages of one story: this one means there is nothing
+    /// to pick AGAINST, that one means the pick itself could not
+    /// answer. The standing ladder is shared, and arrives here under
+    /// the hit-test door's own tags rather than a wrapper's.
+    NodePick,
     /// The advisory-check registry could not RUN: a root without a
     /// value, a tolerance that forms no band, roots that gather into
     /// no product. The Python class is `ChecksError`.
@@ -245,7 +307,10 @@ impl ErrorClass {
             Self::Evaluation => "EvaluationError",
             Self::Validation => "ValidationError",
             Self::Dimension => "DimensionError",
+            Self::FmtQuantity => "FmtQuantityError",
             Self::Literal => "LiteralError",
+            Self::Parse => "ParseError",
+            Self::Eval => "EvalError",
             Self::Persist => "PersistError",
             Self::Export => "ExportError",
             Self::Tessellate => "TessellateError",
@@ -263,6 +328,8 @@ impl ErrorClass {
             Self::Inline => "InlineError",
             Self::Update => "UpdateError",
             Self::Readback => "ReadbackError",
+            Self::HitTest => "HitTestError",
+            Self::NodePick => "NodePickError",
             Self::Checks => "ChecksError",
             Self::Enforce => "CheckRefusal",
         }

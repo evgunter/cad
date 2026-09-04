@@ -36,6 +36,7 @@
 //! testing nothing.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::arc_section;
 use geom_brep::PropsError;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
@@ -47,20 +48,9 @@ use topo::{MassProperties, MassPropsError};
 /// Mirrored from `geom_brep::props::quad` (private there).
 const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
 
-/// A unit square with a quarter-circle bulge on the `+x` side — the
-/// same arc-bearing section `m8_3_rational_volume.rs` lofts, so the
-/// wall is RATIONAL (weights `1, cos 22.5°, 1` over two 45° sub-arcs)
-/// and nothing but the station count differs.
-fn arc_section(s: f64) -> Section {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
-    vec![ProfileLoop::new(vec![
-        v(-s, -s, 0.0),
-        // tan(π/8): a quarter-circle bulge-out.
-        v(s, -s, 0.4142135623730951),
-        v(s, s, 0.0),
-        v(-s, s, 0.0),
-    ])]
-}
+// The arc section is the crate's one copy (`tests/common/`), which
+// `m8_3_rational_volume` lofts too — so nothing but the station count
+// differs between these rows and that one.
 
 /// The total height every blade below is lofted over.
 const BLADE_HEIGHT: f64 = 2.0;
@@ -118,6 +108,7 @@ fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) ->
                 PropsError::QuadratureBudget {
                     width_len,
                     target_len,
+                    ..
                 },
             ..
         }) => {

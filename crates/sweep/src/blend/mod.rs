@@ -36,6 +36,37 @@
 //! 5. [`battery::convexity_at`] — `fillet3_convexity_sign`
 //! 6. [`battery::corner_config`] — `fillet3_corner_independence`
 //!
+//! **What "the offending margin as payload" means, exactly.** A
+//! definite refusal carries a [`ClassifiedMargin`]: the reading the
+//! classifier saw — a value at `f64`, the ENCLOSURE at the interval
+//! scalar — plus the band it was judged against, the predicate that
+//! judged it, and the sign it decided. An indeterminate one carries
+//! `geom_core::Indeterminate` whole through
+//! [`BlendError::Escalated`]. Neither is projected to a single
+//! endpoint, because at the scalar the banked payoff runs on, one
+//! endpoint of an enclosure is a number nothing measured. Only a
+//! `ClassifiedMargin` is rendered as "the margin".
+//!
+//! **Which SHAPE a reading takes is a property of the SCALAR**, not of
+//! the bracket's width: `f64` and `Interval` present a thin reading
+//! identically (`lo == hi`) and spell it differently (`Value(m)` vs
+//! `Enclosure { lo: m, hi: m }`), so a payload that guessed from the
+//! width would disagree with its own escalated twin about one reading.
+//! `battery::measured` reads both ends; `battery::holds_enclosures`
+//! says which arm they go into, by asking whether the scalar brackets
+//! anything at all — one division, no classifier, and therefore no
+//! K-telemetry sample from a constructor that decides nothing.
+//!
+//! **The companion fields split two ways, and the split is the point.**
+//! A quantity the refusal MEASURED and states as a fact — a gap
+//! between two features, a folded lever arm — is a `MarginDiag` for
+//! the same reason the margin is: it is an enclosure at the interval
+//! scalar and stating one end of it as the distance is the same defect
+//! one field over. A quantity the caller REQUESTED — a blend radius, a
+//! chamfer size — stays a bare `f64`: it is thin by construction at
+//! every scalar, there is no enclosure of it to report, and
+//! [`BlendError::NonpositiveSize`]'s `size` has said so all along.
+//!
 //! Beside them sits one **routing** decision, which is not a validity
 //! predicate and is named apart for that reason:
 //! `fillet3_support_coaxiality`, the departure of a CURVED support pair
@@ -91,7 +122,7 @@ pub mod surgery;
 
 use core::fmt;
 
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Sign};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, MarginDiag, Sign};
 use topo::{EdgeKey, EntityId, FaceKey, VertexKey};
 
 pub use arms::{BlendArm, CornerBall, EdgeBlend, RimBlend};
@@ -179,6 +210,105 @@ pub(crate) fn decide<T: Decide>(
     geom_core::k_stats::decide(name, margin, band)
 }
 
+/// A margin one of the battery's `fillet3_*` predicates classified
+/// **definitely**, carried with what the classifier saw, the band it
+/// was judged against, and the sign it decided.
+///
+/// A bare `f64` in a refusal payload says none of that. It does not
+/// say which predicate measured it, so the quantity has to be inferred
+/// from the variant it arrived in; it does not say what band made the
+/// reading a refusal, so the number is unscaled against the run that
+/// produced it; and at the interval scalar a margin is an ENCLOSURE,
+/// so projecting it to one end reports a bracket endpoint as though it
+/// were the reading. This is the definite twin of [`Indeterminate`]:
+/// the same three facts, plus the sign, for the case where the
+/// classifier DID decide.
+///
+/// Only a value of this type is rendered as "the margin". A lever arm,
+/// a gap, a radius or a requested size is a different number and keeps
+/// its own field and its own word.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ClassifiedMargin {
+    /// The `k_stats` name of the predicate that classified it — the
+    /// same name the telemetry corpus carries, and the same one an
+    /// escalation out of that door reports.
+    pub predicate: &'static str,
+    /// What the classifier saw: the value at the `f64` scalar, the
+    /// enclosure at the interval scalar. Never a projection to one end
+    /// of a bracket.
+    pub reading: MarginDiag,
+    /// The band the reading was judged against.
+    pub band: Band,
+    /// The sign the classifier decided. A definite decision is what
+    /// separates this payload from [`BlendError::Escalated`]'s, so
+    /// "decided Zero" and "decided Negative" stay distinguishable here
+    /// instead of being inferred from the number.
+    pub sign: Sign,
+}
+
+impl ClassifiedMargin {
+    /// The reading as ONE number, when the classifier saw one: `Some`
+    /// at the `f64` scalar, and for an interval margin whose enclosure
+    /// is thin. `None` for a genuine enclosure and for a poisoned
+    /// reading, neither of which any single `f64` stands for — so a
+    /// consumer that wants the number has to say what it does when
+    /// there is not one.
+    #[must_use]
+    pub fn value(&self) -> Option<f64> {
+        match self.reading {
+            MarginDiag::Value(m) => Some(m),
+            MarginDiag::Enclosure { .. } | MarginDiag::Invalid => None,
+        }
+    }
+}
+
+impl fmt::Display for ClassifiedMargin {
+    /// Rendered as `geom_core::IndeterminatePayload` renders its twin:
+    /// the same `{:e}` spelling for the reading and for both band
+    /// thresholds, so the definite and the indeterminate halves of one
+    /// predicate's vocabulary read alike in a log (E3 review item 3 —
+    /// they had diverged, this side printing `0.000000001` where the
+    /// sibling printed `1e-9`).
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let (zero, escalate) = (self.band.zero(), self.band.escalate());
+        match self.reading {
+            MarginDiag::Value(m) => write!(f, "margin {m:e} m")?,
+            MarginDiag::Enclosure { lo, hi } => write!(f, "margin enclosure [{lo:e}, {hi:e}] m")?,
+            // Unreachable from a definite decision — the classifier
+            // escalates poison instead of deciding it — and rendered
+            // rather than asserted, because a payload that cannot be
+            // printed is worse than one that prints an impossibility.
+            MarginDiag::Invalid => write!(f, "margin invalid (NaN or a poisoned enclosure)")?,
+        }
+        write!(
+            f,
+            " ({} decided {}; band zero = {zero:e}, escalate = {escalate:e})",
+            self.predicate, self.sign
+        )
+    }
+}
+
+/// A companion quantity a refusal states as a FACT beside the margin —
+/// a gap, a lever arm — rendered as the measurement it is.
+///
+/// A display adapter, not a payload type: the fields themselves stay
+/// [`MarginDiag`], which is geom-core's own shape for "what a reading
+/// looks like at this scalar". Plain (non-`{:e}`) numbers here on
+/// purpose — these read inside an English sentence ("are 0.1 m
+/// apart"), whereas the classified margin's `{:e}` belongs to the
+/// predicate vocabulary it shares with its twin.
+struct Measured(MarginDiag);
+
+impl fmt::Display for Measured {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            MarginDiag::Value(m) => write!(f, "{m}"),
+            MarginDiag::Enclosure { lo, hi } => write!(f, "[{lo}, {hi}]"),
+            MarginDiag::Invalid => f.write_str("an invalid (NaN or poisoned)"),
+        }
+    }
+}
+
 /// Where a blend escalation happened — the payload half of the
 /// two-tolerance shape (D4 ¶1 addendum): one message and one recourse
 /// per user situation, margins riding along as data.
@@ -198,12 +328,12 @@ pub enum BlendSite {
     Chain,
 }
 
-/// The **run-out policy vocabulary** (OQ6, decided by Evan at #85) —
+/// The **run-out policy vocabulary** (OQ6, decided by Ev at #85) —
 /// refusal-payload names ONLY. Neither variant has a constructor
 /// surface anywhere in the kernel: they exist so a refusal can name
 /// the front door that does not exist yet (the standing frontier
 /// error-text pattern), and so the post-M5 unit that implements run-outs
-/// inherits a vocabulary Evan already owns rather than inventing one.
+/// inherits a vocabulary Ev already owns rather than inventing one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RunOutPolicy {
     /// The blend runs at full radius all the way to the vertex and a
@@ -244,7 +374,7 @@ impl fmt::Display for RunOutPolicy {
 /// which both verbs now carve — so no refusal needs one, and no site
 /// mints [`Self::MixedConvexity`] with `convex: 0` any more. Whether
 /// the CARVED configuration deserves its own tag remains the
-/// corner-taxonomy question OQ6 reserves for Evan (evgunter/cad issue
+/// corner-taxonomy question OQ6 reserves for Ev (evgunter/cad issue
 /// 1355, opened when only the chamfer carved it).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CornerConfig {
@@ -389,15 +519,48 @@ pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet
 /// The recourse for a spine the rolling ball's own envelope folds on.
 /// Ball language kept deliberately: spine regularity is a rolling-ball
 /// fact, metered on no chamfer run.
+///
+/// **No fixture in the followability suite reaches this sentence** —
+/// which is a fact about those fixtures, not about the door. On the
+/// one closed-form curved spine they build, a plane–sphere rim, the
+/// clearance screen answers at every radius from the one that builds
+/// to the one that poisons. The PREMISE that does the work is that a
+/// plane–sphere rim's spine curvature and its clearance run out
+/// together; a spine that folds while clearance is ample would be
+/// handed this sentence, and nothing here shows there is no such body.
+/// Measured in `sweep/tests/blend_recourse_followability.rs`, by the
+/// row named
+/// `the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first`.
 pub const FILLET3_SPINE_RECOURSE: &str =
     "reduce the fillet radius below the spine's own curvature radius";
 /// The recourse for a chain that is not G1 (closed) / not classified
 /// (open).
+///
+/// **The corner clause is scoped to EVERY terminating corner, and the
+/// scope is not decoration.** A corner left partly requested refuses as
+/// a run-out wherever it sits, so a request covering one corner's three
+/// edges is still refused — at the three corners those edges run to.
+/// Endorsing "every edge of the corner" named a door that cannot serve
+/// the caller who was just refused, which is the A3-2 defect. Held to
+/// it by
+/// `sweep/tests/blend_recourse_followability.rs::the_chain_recourse_is_followed_by_requesting_every_terminating_corner`,
+/// which executes the one-corner request and the whole-body one
+/// together, so the hedge cannot drift from the door.
 pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected, tangent-continuous chain. Splitting the request at the break \
      helps only where the break is a genuine tangent break between two blendable runs; \
      where it is a CORNER, splitting leaves that corner partly requested and refuses \
-     again as a run-out — request every edge of the corner instead";
+     again as a run-out — request every edge of EVERY corner the chain terminates at \
+     instead, since one corner's edges alone still run out at the corners they reach";
 /// The recourse for a convexity sign flip along a chain.
+///
+/// **No fixture in the followability suite reaches this sentence.**
+/// Its PREMISE: every G1 chain the doors express is a rim, and a rim's
+/// convexity is uniform, so a body that mixes convexity mixes it at a
+/// CORNER — which answers with [`FILLET3_CORNER_RECOURSE`] first. The
+/// premise is about what the DOORS can express today; a chain door that
+/// admitted a non-rim G1 run would be where the witness comes from.
+/// Measured in `sweep/tests/blend_recourse_followability.rs`, by the
+/// row named `the_convexity_recourse_has_no_witness_in_this_suite`.
 pub const FILLET3_CONVEXITY_RECOURSE: &str =
     "split the chain at the convexity flip and blend each run separately";
 /// The recourse for a corner the corner patch does not cover — it
@@ -407,66 +570,83 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// Both clauses are true of either verb: the fully-requested UNIFORM
 /// trivalent corner carves on both material sides (the rolling ball's
 /// octant rests inside the material or in the void with its ball; the
-/// flat patch never had a side), so the sentence names the uniform
-/// configuration and conditions on nothing.
-pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates in a trivalent vertex whose three edges are all \
-     convex or all concave (over plane\u{2013}plane supports); mixed-convexity corners \
-     and general run-outs are not implemented";
+/// flat patch never had a side), so the sentence conditions on the
+/// configuration and not on the verb.
+///
+/// **What it DOES condition on is that every terminating corner is
+/// wholly requested**, which its sibling
+/// [`FILLET3_ASSEMBLY_RECOURSE`] already said and this one did not. The
+/// uniform configuration is necessary and not sufficient: the three
+/// edges at one all-convex cube corner terminate in exactly the
+/// endorsed vertex and still refuse — as a run-out, with this same
+/// sentence — at the corners they run to. Held to it by
+/// `sweep/tests/blend_recourse_followability.rs::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`,
+/// beside the chain row that pins the partly-requested outcome.
+pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates only in FULLY REQUESTED trivalent vertices whose \
+     three edges are all convex or all concave (over plane\u{2013}plane supports) — a \
+     corner left partly requested refuses as a run-out wherever it sits; \
+     mixed-convexity corners and general run-outs are not implemented";
 /// The recourse for a chain that stops at a CHART SEAM on an otherwise
 /// smooth rim.
 ///
 /// It names the REQUEST that describes what the caller wants — the rim
 /// entire, which is a closed chain — rather than a run-out policy,
 /// because a run-out at a smooth point is not what is missing. The
-/// closed-rim surgery CARVES that request where the rim is CONVEX: its
-/// annulus band takes a multi-link closed chain whose links are one
-/// rim's arcs across chart seams, walking through the seam vertices and
-/// resting on several faces of one surface per side.
+/// closed-rim surgery CARVES that request: its annulus band takes a
+/// multi-link closed chain whose links are one rim's arcs across chart
+/// seams, walking through the seam vertices and resting on several
+/// faces of one surface per side, on EITHER material side — a convex
+/// rim's band removes material, a concave rim's adds it.
 ///
-/// **The carve half is CONDITIONED, and the condition is not
-/// decoration.** This tag's firing rule
-/// ([`battery::is_seam_vertex`](battery)) is purely INCIDENCE — two rim
-/// arcs carrying one support pair, plus two co-surface seam meridians —
-/// and never reads convexity, while the convexity gate sits downstream
-/// in the surgery's own rim resolution. So the tag fires at a CONCAVE
-/// seam-split rim's vertex exactly as readily, and an unconditional
-/// promise would be false there: the whole-rim request answers with the
-/// material-side refusal instead (the concave closed-rim band is
-/// unbuilt, filed as evgunter/cad issue 1244). Naming a door that
-/// cannot serve the caller who was just refused is precisely the defect
-/// the A3-2 correction records; keeping this sentence true on BOTH
-/// material sides is what that standard costs.
-///
-/// Held to it by
+/// **A recourse must be true at every site its tag can fire.** This
+/// tag's firing rule ([`battery::is_seam_vertex`](battery)) is purely
+/// INCIDENCE — two rim arcs carrying one support pair, plus two
+/// co-surface seam meridians — and never reads convexity, so it fires
+/// at a concave rim's seam vertex exactly as readily as at a convex
+/// one. The sentence conditions on nothing because the door it names
+/// serves both sides. Held to it by
 /// `sweep/tests/review_blend1_r2_probes.rs::the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`,
-/// which asserts the sentence and the whole-rim answer TOGETHER, convex
+/// which asserts the sentence and the whole-rim CARVE together, convex
 /// and concave, so neither half can drift alone.
 pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — every arc the chart seam split it into — rather than a \
      chain that stops at the seam, which is a chart artifact the surface is smooth \
-     through; where that rim is CONVEX the fillet's closed-rim band carves it as one \
-     annulus (a chamfer has no closed-chain band), and where it is concave the \
-     whole-rim request meets the material-side refusal instead (a concave band adds \
-     material, which no closed-rim carve builds)";
+     through; the fillet's closed-rim band carves that rim as one annulus on either \
+     material side (a chamfer has no closed-chain band)";
 /// The recourse for a CHAIN whose shape is outside the front door of
 /// the in-place composition surgery. True of exactly the chain-shape
-/// refusals: what remains outside is junction carry-through, the
-/// closed rim's material-adding band, and rims that are not whole
-/// circular plane\u{2013}sphere rings.
+/// refusals: what remains outside is junction carry-through and rims
+/// that are not whole circular rings between two coaxial revolution
+/// surfaces.
 ///
 /// ONE clause is conditioned by verb, because it names a door one
 /// verb has and the other does not: the closed chain is the fillet's
 /// alone (a chamfer has no closed-chain band, so telling a chamfer
 /// caller to request a plane\u{2013}sphere rim would name a door that
-/// cannot serve them). The OPEN-chain clause conditions on neither
-/// verb nor side: both bands and both corner patches fold the chain's
-/// convexity verdict. What stays one-sided is the CLOSED rim — a
-/// concave closed band adds material, which no closed-rim carve
-/// builds (evgunter/cad issue 1244).
+/// cannot serve them). NEITHER clause conditions on side: both bands,
+/// both corner patches and the closed-rim band all fold the chain's
+/// stored convexity verdict, and a concave rim's band adds material
+/// through the same carve that removes a convex rim's.
+///
+/// **The closed clause names the door's extent and its one standing
+/// exception.** Any coaxial revolution pair carves — the plane–cylinder
+/// top rim of
+/// `review_fillet_e2_probes::open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves`
+/// included, which answers §2 of
+/// `work/fillet/blend-recourses-under-describe-their-doors.md` (§1, the
+/// spine-kind sentence, stays open there) — PROVIDED each support face
+/// carries one arc of the rim: a pole-touching body whose merged cap
+/// hosts both arcs on one plane face routes to the ladder and refuses on
+/// its ring gate (README A3-2, `work/issues/repaired-pole-rim-serves-no-closed-door.md`),
+/// so the sentence says so rather than over-promise at that body.
+/// `blend_recourse_followability` follows the clause to a carve.
 pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open chains are single plane\u{2013}plane links ending at \
      fully-requested trivalent corners, on either material side; for a fillet, closed \
-     chains that are circular plane\u{2013}sphere rims also carve (a chamfer has no \
-     closed-chain band); junction carry-through, run-outs and the closed rim's \
-     concave band are not implemented";
+     chains that are circular rims between two coaxial revolution surfaces (a pip's \
+     plane\u{2013}sphere rim, a solid of revolution's latitude rim) also carve, on either \
+     material side, where each support face carries one arc of the rim (a merged \
+     pole cap hosting every arc on one plane face refuses at the ladder's ring gate; \
+     a chamfer has no closed-chain band); junction carry-through and run-outs are \
+     not implemented";
 /// The recourse for a BODY the surgery has not been built for. The
 /// surgery operates in place on one solid; multi-solid and shell-less
 /// bodies are a separate door.
@@ -476,11 +656,47 @@ pub const FILLET3_BODY_RECOURSE: &str = "blend a body that is a single solid wit
 /// not cover. Everything this unit decides is exact and stored — never
 /// sampled — so a carrier outside the covered shapes refuses rather
 /// than approximating.
-pub const FILLET3_GEOMETRY_RECOURSE: &str = "blend edges whose supports are planes (for a fillet's rim, also a sphere cap) and \
-     whose stored carriers are lines and circles; the surgery's exact forms cover no \
-     other stored shape, and approximating one is not implemented";
+///
+/// **A caller reaches this at a support face's non-circular ring.**
+/// Cut a square pocket through a cube's top face and request the twelve
+/// OUTER edges: `ring_circle` refuses at every radius, because the ring
+/// the pocket leaves is carried by lines. Witnessed by
+/// `sweep/tests/review_fillet_e2_probes.rs`, row
+/// `the_geometry_recourse_reaches_the_front_door_at_a_line_ring_and_cannot_be_followed`,
+/// and followed to its build by `blend_recourse_followability.rs`, row
+/// `the_geometry_recourse_names_a_ring_and_an_order_that_builds`.
+///
+/// That witness is why the sentence reads as it does. The shape the
+/// surgery objects to is not always a shape the caller REQUESTED — a
+/// support face's own ring has to be carried through the blend too —
+/// so a sentence that only described the request endorsed exactly what
+/// the caller had already done (issue 1278's dead-recourse class,
+/// `work/fillet/geometry-recourse-dead-at-line-ring.md`).
+pub const FILLET3_GEOMETRY_RECOURSE: &str = "the shape named above is outside the surgery's exact forms, which read planes (for a \
+     fillet's rim, also a sphere cap) carried by lines and circles; approximating any \
+     other stored shape is not implemented. It need not be a shape you requested — a \
+     support face's own ring is carried through the blend as well, and only a CIRCLE ring \
+     is, so a ring left by some other feature blocks every blend on the face it sits on, \
+     at every size. Request edges whose supports and carriers are covered, and cut a \
+     feature that leaves a non-circular ring AFTER the blend rather than before it";
 /// The recourse for a ring the blend's trimline would consume (the
 /// surgery's ring carry-through check).
+///
+/// **A caller reaches this when the ring's closest approach to a
+/// requested edge lands OFF the screen's sample lattice.** The
+/// battery's clearance screen meters the same gap first, but it samples
+/// each boundary edge at nine places; a sampled gap is never smaller
+/// than the true one, so a setback between the two passes the screen
+/// and meets this exact check. Witnessed on a 30°-turned dimpled prism
+/// by `sweep/tests/review_fillet_e2_probes.rs`, row
+/// `the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_followable`,
+/// which also follows the sentence: the reduced size builds.
+///
+/// On a lattice-aligned fixture the screen does answer first, and
+/// `blend_recourse_followability.rs`'s
+/// `the_ring_recourse_is_screened_first_on_a_lattice_aligned_dimple`
+/// keeps that measured — as a property of that fixture, not of the
+/// door. See `work/fillet/ring-clearance-reaches-front-door-off-lattice.md`.
 pub const FILLET3_RING_RECOURSE: &str =
     "reduce the blend size, or move the feature whose ring sits inside the blend's setback";
 /// The recourse for a support pair outside the analytic-arm table —
@@ -488,6 +704,12 @@ pub const FILLET3_RING_RECOURSE: &str =
 /// chamfer's arm table is its own early return
 /// ([`BlendError::ChamferArmUnsupported`]), taken before any
 /// analytic-arm classification.
+///
+/// **Under-describes its door**, and is filed rather than reworded
+/// here: the refusal's own payload rosters nine more admitted pairs
+/// than the two this names. Following the sentence succeeds, so it is
+/// not a dead recourse — the wording is a door-inventory question.
+/// `work/fillet/blend-recourses-under-describe-their-doors.md`.
 pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use a chain whose support pairs have analytic blend arms (plane–plane or \
      plane–sphere); other pairs need the canal-surface approximating blend, which is \
      not implemented";
@@ -539,9 +761,14 @@ pub enum BlendError {
     RadiusHeadroom {
         /// The support face whose curvature ran out.
         face: FaceKey,
-        /// `(1 − r·κ_max)·r`, meters (the headroom at lever arm `r`).
-        margin: f64,
-        /// The blend radius, meters — the lever arm.
+        /// `(1 − r·κ_max)·r`, meters (the headroom at lever arm `r`),
+        /// as `fillet3_radius_headroom` classified it.
+        margin: ClassifiedMargin,
+        /// The blend radius, meters — the lever arm. A bare `f64`
+        /// deliberately, as [`BlendError::NonpositiveSize`]'s `size`
+        /// is: this is the REQUEST, the number the caller handed in,
+        /// thin by construction at every scalar. It is not a
+        /// measurement and there is no enclosure of it to report.
         radius: f64,
     },
     /// **Predicate 2**: two boundary features of a support face are
@@ -563,11 +790,16 @@ pub enum BlendError {
     FaceClearanceUncertified {
         /// The face whose survival is uncertified.
         face: FaceKey,
-        /// `gap − setback_here − setback_there`, meters.
-        margin: f64,
+        /// `gap − setback_here − setback_there`, meters, as
+        /// `fillet3_face_clearance` classified it.
+        margin: ClassifiedMargin,
         /// The straight-line gap between the two boundary features,
-        /// meters.
-        gap: f64,
+        /// meters — the MEASUREMENT, in the shape its scalar reports
+        /// readings in. Nothing classified it (it is stated as a fact
+        /// beside the margin that WAS classified), so it carries no
+        /// predicate and no sign; at the interval scalar it is the
+        /// enclosure the measurement produced, never one end of it.
+        gap: MarginDiag,
         /// Whether the two setbacks belong to two DIFFERENT requested
         /// chains. When they do the request is SPLITTABLE: the screen
         /// metered both setbacks against the SOURCE face at once, and
@@ -589,15 +821,18 @@ pub enum BlendError {
         /// The edge whose dihedral decided Zero.
         edge: EdgeKey,
         /// `((n_a × n_b)·τ̂)·arm`, meters — decided Zero at the
-        /// metered lever.
-        margin: f64,
+        /// metered lever by `fillet3_convexity_sign`.
+        margin: ClassifiedMargin,
     },
     /// **Predicate 3**: the spine (the rolling-ball centre locus, an
     /// offset locus) folds on itself at this radius.
     SpineIrregular {
-        /// `(1 − r·κ_spine)·r`, meters.
-        margin: f64,
-        /// The blend radius, meters — the lever arm.
+        /// `(1 − r·κ_spine)·r`, meters, as
+        /// `fillet3_spine_regularity` classified it.
+        margin: ClassifiedMargin,
+        /// The blend radius, meters — the lever arm, and the REQUEST
+        /// quantity, so a bare `f64` for the reason
+        /// [`BlendError::RadiusHeadroom`]'s `radius` is.
         radius: f64,
     },
     /// **Predicate 4**: consecutive links do not meet tangentially, so
@@ -605,19 +840,49 @@ pub enum BlendError {
     ChainNotG1 {
         /// The junction vertex.
         vertex: VertexKey,
-        /// `sin θ · arm`, meters.
-        margin: f64,
-        /// The folded lever arm, meters.
-        arm: f64,
+        /// `sin θ · arm`, meters, as `fillet3_chain_g1` classified it.
+        /// The polarity is inverted here: a definitely POSITIVE margin
+        /// is the corner this refuses on, and only a `Zero` one passes.
+        margin: ClassifiedMargin,
+        /// The folded lever arm, meters — the MEASUREMENT, as
+        /// [`BlendError::FaceClearanceUncertified`]'s `gap`: computed
+        /// from the carrier rather than requested, so at the interval
+        /// scalar it is an enclosure and is carried as one.
+        arm: MarginDiag,
     },
     /// **Predicate 5**: the dihedral's convexity sign is not constant
     /// along the chain. (An edge whose sign decided Zero is not a
     /// flip — it refuses as [`BlendError::TangentialEdge`].)
+    ///
+    /// # No fixture reaches this arm through a `Body`, and why
+    ///
+    /// Stated rather than left for the next reader to rediscover (E3
+    /// review, item 6). A chain whose links differ in convexity has a
+    /// non-tangential junction between them, so **predicate 4
+    /// (`fillet3_chain_g1`) refuses first**: it runs ahead of
+    /// predicate 5 over the same chain, and a sign flip between two
+    /// links implies the kink it tests for. Every route that would
+    /// reach this arm on a real body is therefore intercepted, and
+    /// the arm is exercised by constructing the payload directly
+    /// (`recourse_tests::seeds`, `review_blend6_r1_probes::seeds`).
+    ///
+    /// It is kept because the ordering is a property of today's
+    /// battery, not of the geometry: predicate 4 is skipped for a
+    /// single-link chain and for a closed chain whose junctions are
+    /// all tangent, and a future arm that resolves links without the
+    /// G1 screen would reach here. What is NOT done is inventing a
+    /// body-shaped fixture for it — a fixture that cannot be built out
+    /// of the geometry it claims to test would pin the constructor,
+    /// not the refusal.
     ConvexitySignFlip {
         /// The edge whose sign disagrees with the chain's.
         edge: EdgeKey,
-        /// `((n₁ × n₂)·τ̂)·arm`, meters; positive = convex.
-        margin: f64,
+        /// `((n₁ × n₂)·τ̂)·arm`, meters; positive = convex. This is
+        /// the link's OWN classified dihedral margin, the one
+        /// `fillet3_convexity_sign` decided when the link resolved —
+        /// the reading whose sign is the disagreement, carried from
+        /// the decision rather than re-derived at the refusal.
+        margin: ClassifiedMargin,
         /// The chain's own convexity, as established by its first
         /// definitely-classified link.
         chain: Convexity,
@@ -680,9 +945,9 @@ pub enum BlendError {
     /// **The band's size is not definitely positive** (D2 addendum row
     /// 1: invalid input, checked at the door before anything resolves).
     ///
-    /// A zero or negative setback is not a small chamfer, and neither
-    /// is one whose bracket straddles zero: there is no band to build
-    /// and no margin to meter. It is refused at the door because a
+    /// A zero or negative size is not a small blend, and neither is
+    /// one whose bracket straddles zero: there is no band to build and
+    /// no margin to meter. It is refused at the door because a
     /// nonpositive size silently LEVERS the margins that quote it —
     /// `fillet3_corner_independence`'s `|det(n₁,n₂,n₃)|·d` collapses
     /// to zero at `d = 0`, so the consumer would read "a trihedron
@@ -713,9 +978,10 @@ pub enum BlendError {
     ///
     /// Two families, and the second is not a shape of the chain in
     /// isolation: (a) the chain's own form — multi-link open chains
-    /// (junction carry-through), support pairs no arm covers, concave
-    /// CLOSED chains (the material-adding band), one-edge chains; and
-    /// (b) how the chain sits on its
+    /// (junction carry-through), support pairs no arm covers, one-edge
+    /// chains (a closed rim on EITHER material side is inside the door:
+    /// the band adds material on a concave rim through the same carve);
+    /// and (b) how the chain sits on its
     /// supports — a rim that is not a whole ring of its plane, a
     /// sphere support carrying rings of its own or more than its own
     /// arc, a rim vertex that does not drop exactly one meridian, a
@@ -780,8 +1046,11 @@ pub enum BlendError {
     RingClearance {
         /// The support face whose ring is too close.
         face: FaceKey,
-        /// The clearance margin, meters (negative or zero here).
-        margin: f64,
+        /// The ring-to-trimline clearance in meters, as
+        /// `fillet3_ring_clearance` classified it: definitely negative,
+        /// or decided Zero — which is the ring sitting ON the trimline,
+        /// never "no clearance was certified".
+        margin: ClassifiedMargin,
     },
     /// **The result's pcurve caches could not be re-minted** after the
     /// surgery — a chart image outside a derivation route, a loop that
@@ -842,7 +1111,7 @@ impl fmt::Display for BlendError {
             } => write!(
                 f,
                 "radius {radius} m exceeds the curvature headroom of support \
-                 {face:?} — margin {margin} m at lever arm {radius} m; \
+                 {face:?} — {margin} at lever arm {radius} m; \
                  {FILLET3_RADIUS_RECOURSE}"
             ),
             Self::FaceClearanceUncertified {
@@ -859,22 +1128,23 @@ impl fmt::Display for BlendError {
                 write!(
                     f,
                     "the clearance screen cannot certify that support face {face:?} \
-                     survives — two of its boundary features are {gap} m apart and their \
-                     blends set back further than that, margin {margin} m. The screen is \
+                     survives — two of its boundary features are {} m apart and their \
+                     blends set back further than that, {margin}. The screen is \
                      conservative by direction and does not assert the face IS consumed; \
-                     {recourse}"
+                     {recourse}",
+                    Measured(*gap)
                 )
             }
             Self::TangentialEdge { edge, margin } => write!(
                 f,
                 "edge {edge:?}'s dihedral has no definite wedge side — its sign \
-                 decided Zero at the metered lever (margin {margin} m), as a tangential \
+                 decided Zero at the metered lever ({margin}), as a tangential \
                  join does; {FILLET3_TANGENTIAL_RECOURSE}"
             ),
             Self::SpineIrregular { margin, radius } => write!(
                 f,
-                "the rolling-ball spine folds at radius {radius} m — margin \
-                 {margin} m at lever arm {radius} m; {FILLET3_SPINE_RECOURSE}"
+                "the rolling-ball spine folds at radius {radius} m — \
+                 {margin} at lever arm {radius} m; {FILLET3_SPINE_RECOURSE}"
             ),
             Self::ChainNotG1 {
                 vertex,
@@ -883,7 +1153,8 @@ impl fmt::Display for BlendError {
             } => write!(
                 f,
                 "the chain's links at {vertex:?} are not tangent-continuous — \
-                 margin {margin} m at lever arm {arm} m; {FILLET3_CHAIN_RECOURSE}"
+                 {margin} at lever arm {} m; {FILLET3_CHAIN_RECOURSE}",
+                Measured(*arm)
             ),
             Self::ConvexitySignFlip {
                 edge,
@@ -892,7 +1163,7 @@ impl fmt::Display for BlendError {
             } => write!(
                 f,
                 "edge {edge:?} is not {chain} like the rest of the chain \
-                 — margin {margin} m; {FILLET3_CONVEXITY_RECOURSE}"
+                 — {margin}; {FILLET3_CONVEXITY_RECOURSE}"
             ),
             Self::UnsupportedCorner { vertex, corner, .. } => {
                 // Both halves of this sentence come from the TAG — the
@@ -992,7 +1263,7 @@ impl fmt::Display for BlendError {
             Self::RingClearance { face, margin } => write!(
                 f,
                 "a ring of support face {face:?} sits within a blend's \
-                 trimline — margin {margin} m; {FILLET3_RING_RECOURSE}"
+                 trimline — {margin}; {FILLET3_RING_RECOURSE}"
             ),
             Self::Certify { site, source } => {
                 write!(f, "{site} — {source}")
@@ -1006,40 +1277,53 @@ impl fmt::Display for BlendError {
 
 impl core::error::Error for BlendError {}
 
+/// **Every recourse sentence this module can append, with the short
+/// name assertions use.** The ONE home for that list.
+///
+/// It had three. This module's own table checked its rows against a
+/// private copy, and two integration suites restated the list because
+/// a `tests/` file cannot name a `#[cfg(test)]` item — each with a
+/// written rationale for restating ("an independent derivation"). The
+/// rationale did not hold: `review_d2_recourse_at_the_site.rs`'s copy
+/// had drifted to twelve of fifteen, so the three it had dropped were
+/// exactly the three its "no foreign recourse" half could no longer
+/// see. Behind `test-support` for the same reason `test_support` is,
+/// so every consumer reads this array and a constant added below is
+/// added once.
+#[cfg(any(test, feature = "test-support"))]
+pub const ALL_RECOURSES: [(&str, &str); 15] = [
+    ("radius", FILLET3_RADIUS_RECOURSE),
+    ("clearance", FILLET3_CLEARANCE_RECOURSE),
+    ("clearance-split", FILLET3_CLEARANCE_SPLIT_RECOURSE),
+    ("tangential", FILLET3_TANGENTIAL_RECOURSE),
+    ("spine", FILLET3_SPINE_RECOURSE),
+    ("chain", FILLET3_CHAIN_RECOURSE),
+    ("convexity", FILLET3_CONVEXITY_RECOURSE),
+    ("corner", FILLET3_CORNER_RECOURSE),
+    ("seam-vertex", FILLET3_SEAM_VERTEX_RECOURSE),
+    ("assembly", FILLET3_ASSEMBLY_RECOURSE),
+    ("body", FILLET3_BODY_RECOURSE),
+    ("geometry", FILLET3_GEOMETRY_RECOURSE),
+    ("ring", FILLET3_RING_RECOURSE),
+    ("spine-kind", FILLET3_SPINE_KIND_RECOURSE),
+    ("chamfer-arm", CHAMFER_ARM_RECOURSE),
+];
+
 #[cfg(test)]
 #[allow(clippy::panic)]
 #[allow(clippy::expect_used)]
 mod recourse_tests {
-    use geom_core::{Band, BandError, Indeterminate, MarginDiag};
+    use geom_core::{Band, BandError, Indeterminate, MarginDiag, Sign};
     use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
     use super::{
-        BlendError, BlendSite, CHAMFER_ARM_RECOURSE, Convexity, CornerConfig,
+        BlendError, BlendSite, CHAMFER_ARM_RECOURSE, ClassifiedMargin, Convexity, CornerConfig,
         FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE,
         FILLET3_CLEARANCE_RECOURSE, FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
         FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE,
-        FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
-        FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
-    };
-
-    /// Every recourse sentence this module can append.
-    const ALL: [&str; 15] = [
-        CHAMFER_ARM_RECOURSE,
-        FILLET3_RADIUS_RECOURSE,
-        FILLET3_CLEARANCE_RECOURSE,
-        FILLET3_CLEARANCE_SPLIT_RECOURSE,
+        FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
         FILLET3_TANGENTIAL_RECOURSE,
-        FILLET3_SPINE_RECOURSE,
-        FILLET3_CHAIN_RECOURSE,
-        FILLET3_CONVEXITY_RECOURSE,
-        FILLET3_CORNER_RECOURSE,
-        FILLET3_ASSEMBLY_RECOURSE,
-        FILLET3_BODY_RECOURSE,
-        FILLET3_GEOMETRY_RECOURSE,
-        FILLET3_RING_RECOURSE,
-        FILLET3_SPINE_KIND_RECOURSE,
-        FILLET3_SEAM_VERTEX_RECOURSE,
-    ];
+    };
 
     /// What a variant's `Display` is allowed to append.
     enum Recourse {
@@ -1058,8 +1342,20 @@ mod recourse_tests {
     /// **The recourse contract, as one exhaustive table.**
     ///
     /// A recourse is advice, so it must be TRUE of the variant that
-    /// appends it, and a variant reporting invalid input has no fillet
-    /// advice to give.
+    /// appends it.
+    ///
+    /// **What `Recourse::None` means, exactly.** It says the variant
+    /// appends no named CONSTANT — not that it offers the caller
+    /// nothing. `NonpositiveSize` and `RepeatedEdge` both route here
+    /// and both end their own `Display` arm in a second request
+    /// ("supply a positive radius or setback", "request each edge
+    /// once"), which is a recourse by the definition issue 1278 uses.
+    /// That advice is owed a followability pin exactly like a named
+    /// sentence, and has one: `blend_recourse_followability.rs` rows
+    /// `a_nonpositive_size_gives_advice_the_recourse_table_says_it_has_none_of`
+    /// and `a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of`
+    /// execute both requests. Reading this row as "no advice" is what
+    /// made an inventory keyed on the constants miss them.
     ///
     /// **What the match enforces, and what it does not.** The match is
     /// exhaustive, so a new variant is a compile error here: no
@@ -1070,10 +1366,11 @@ mod recourse_tests {
     /// against this one: a variant added here and not there loses its
     /// rendering silently.
     ///
-    /// **The blind spot this module cannot close from inside**: `ALL`
+    /// **The blind spot this module cannot close from inside**:
+    /// [`ALL_RECOURSES`]
     /// is hand-written for the same reason (Rust cannot enumerate a
     /// module's constants), so a recourse constant that appears in
-    /// neither `ALL` nor any `Display` arm is invisible to every row
+    /// neither [`ALL_RECOURSES`] nor any `Display` arm is invisible to every row
     /// here. `tests/review_d2_recourse_at_the_site.rs` restates the
     /// list independently and reaches refusals through `fillet_edges`,
     /// which is the check on whether a SITE picks the right class;
@@ -1121,7 +1418,7 @@ mod recourse_tests {
     /// variant is caught by `contract`'s exhaustive match, adding it
     /// HERE is not. Every row below is rendered by
     /// `a_recourse_is_appended_only_where_the_table_allows_it`, and
-    /// the sentences they render are checked against `ALL` by
+    /// the sentences they render are checked against [`ALL_RECOURSES`] by
     /// `every_recourse_sentence_is_rendered_by_some_variant`.
     ///
     /// `UnsupportedCorner` appears twice on purpose: the recourse
@@ -1131,6 +1428,12 @@ mod recourse_tests {
     /// its recourse is chosen by `cross_chain`.
     fn seeds() -> Vec<BlendError> {
         let band = Band::new(1e-9, 1e-6).expect("a band");
+        let decided = |predicate, m: f64, sign| ClassifiedMargin {
+            predicate,
+            reading: MarginDiag::Value(m),
+            band,
+            sign,
+        };
         vec![
             BlendError::Band(BandError::Empty {
                 zero: 1.0,
@@ -1141,37 +1444,37 @@ mod recourse_tests {
             },
             BlendError::RadiusHeadroom {
                 face: FaceKey::default(),
-                margin: -1e-3,
+                margin: decided("fillet3_radius_headroom", -1e-3, Sign::Negative),
                 radius: 0.5,
             },
             BlendError::FaceClearanceUncertified {
                 face: FaceKey::default(),
-                margin: -1e-3,
-                gap: 0.2,
+                margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
+                gap: MarginDiag::Value(0.2),
                 cross_chain: false,
             },
             BlendError::FaceClearanceUncertified {
                 face: FaceKey::default(),
-                margin: -1e-3,
-                gap: 0.2,
+                margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
+                gap: MarginDiag::Value(0.2),
                 cross_chain: true,
             },
             BlendError::TangentialEdge {
                 edge: EdgeKey::default(),
-                margin: 0.0,
+                margin: decided("fillet3_convexity_sign", 0.0, Sign::Zero),
             },
             BlendError::SpineIrregular {
-                margin: -1e-3,
+                margin: decided("fillet3_spine_regularity", -1e-3, Sign::Negative),
                 radius: 0.5,
             },
             BlendError::ChainNotG1 {
                 vertex: VertexKey::default(),
-                margin: -1e-3,
-                arm: 0.5,
+                margin: decided("fillet3_chain_g1", 1e-3, Sign::Positive),
+                arm: MarginDiag::Value(0.5),
             },
             BlendError::ConvexitySignFlip {
                 edge: EdgeKey::default(),
-                margin: -1e-3,
+                margin: decided("fillet3_convexity_sign", -1e-3, Sign::Negative),
                 chain: Convexity::Convex,
             },
             BlendError::UnsupportedCorner {
@@ -1226,7 +1529,7 @@ mod recourse_tests {
             },
             BlendError::RingClearance {
                 face: FaceKey::default(),
-                margin: -1e-3,
+                margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
             },
             BlendError::Certify {
                 site: "blend face pcurves",
@@ -1241,9 +1544,13 @@ mod recourse_tests {
         ]
     }
 
-    /// How many of `ALL` appear in `text`.
+    /// How many of [`ALL_RECOURSES`] appear in `text`.
     fn recourses_in(text: &str) -> Vec<&'static str> {
-        ALL.into_iter().filter(|r| text.contains(r)).collect()
+        super::ALL_RECOURSES
+            .into_iter()
+            .map(|(_, r)| r)
+            .filter(|r| text.contains(r))
+            .collect()
     }
 
     /// **The tag's two maps agree.** A corner tag names a run-out policy
@@ -1297,7 +1604,7 @@ mod recourse_tests {
         }
     }
 
-    /// **Every sentence in `ALL` is appended by some variant.** A
+    /// **Every sentence in [`ALL_RECOURSES`] is appended by some variant.** A
     /// recourse constant no refusal renders is advice the kernel never
     /// gives, and a seed list that reaches only some of the constants
     /// leaves the rest asserted by nothing anywhere: the row above
@@ -1305,7 +1612,7 @@ mod recourse_tests {
     /// appended at all.
     ///
     /// This is the completeness the suites in `tests/` defer to, and
-    /// it is completeness over `ALL` — not over the module's
+    /// it is completeness over [`ALL_RECOURSES`] — not over the module's
     /// constants, which nothing enumerates (see `contract`).
     #[test]
     fn every_recourse_sentence_is_rendered_by_some_variant() {
@@ -1313,7 +1620,7 @@ mod recourse_tests {
             .iter()
             .flat_map(|seed| recourses_in(&seed.to_string()))
             .collect();
-        for sentence in ALL {
+        for (_, sentence) in super::ALL_RECOURSES {
             assert!(
                 rendered.contains(&sentence),
                 "no seeded variant appends {sentence:?} — either the constant is dead or \

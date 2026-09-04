@@ -24,7 +24,7 @@ use geom::{Curve3, NurbsSurface, Surface};
 use geom_core::{Point3, Tol, Vec3};
 use topo::{Body, CurveGeom, FaceKey, FaceSurface};
 
-mod common;
+use crate::common;
 use common::approx::{
     ReattachRefusal, band, moved_box, pulled_back, reattach_certifies_at, top_face,
     try_approx_walls, twisted_loft, unit_box,

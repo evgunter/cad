@@ -9,8 +9,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::approx::band;
 use geom_core::Tol;
-use geom_core::{Band, Point2, Vec3};
+use geom_core::{Point2, Sign, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::battery::{
@@ -23,10 +24,6 @@ use topo::{Body, EdgeKey, FaceKey, VertexKey};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
 /// A margin strictly inside the band: escalation territory, never a
@@ -52,29 +49,6 @@ fn boxy() -> Body<f64> {
     extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
         .unwrap()
         .body
-}
-
-/// A **toroidal spool**: an annular meridian whose outer wall is an
-/// off-axis 60° ARC, revolved about the sketch y-axis. That wall is
-/// a TORUS, and a torus support is outside every analytic arm's table —
-/// the canal-surface lane's front door, where the rolling ball's spine
-/// is neither a line nor a circle.
-fn spool(rev: sweep::Revolution<f64>) -> Body<f64> {
-    // A 60° arc about (1.5, 0) of radius 0.5, so it meets the base at a
-    // square corner and the top at a 30° one — neither joint tangent,
-    // which is what keeps the profile's own validator out of the way.
-    let bulge = (core::f64::consts::FRAC_PI_6 / 2.0).tan();
-    let (ex, ey) = (1.75, 0.25 * 3.0f64.sqrt());
-    sweep::test_support::revolved_about_y(
-        vec![
-            ProfileVertex::new(p2(0.5, 0.0), 0.0),
-            ProfileVertex::new(p2(2.0, 0.0), bulge),
-            ProfileVertex::new(p2(ex, ey), 0.0),
-            ProfileVertex::new(p2(0.5, ey), 0.0),
-        ],
-        rev,
-        tol(),
-    )
 }
 
 /// A cylinder: a three-arc circle extruded.
@@ -265,7 +239,13 @@ fn a_same_surface_smooth_split_refuses_with_a_zero_wedge() {
     };
     match run_battery(&req, band()) {
         Err(BlendError::TangentialEdge { margin, .. }) => {
-            assert_eq!(margin, 0.0, "a smooth split has an exactly-zero wedge");
+            assert_eq!(margin.predicate, "fillet3_convexity_sign");
+            assert_eq!(margin.sign, Sign::Zero);
+            assert_eq!(
+                margin.value(),
+                Some(0.0),
+                "a smooth split has an exactly-zero wedge"
+            );
         }
         other => panic!("expected a zero-wedge refusal, got {other:?}"),
     }
@@ -282,7 +262,7 @@ fn corner_tag_indeterminate_is_reached_at_a_curved_neighbour() {
     // a planar chain on one of them terminates where the TORUS wall's
     // meridian arrives — an edge no analytic arm resolves, which makes
     // the CORNER unclassifiable rather than that edge's own refusal.
-    let body = spool(sweep::Revolution::Partial(1.0));
+    let body = sweep::test_support::spool(sweep::Revolution::Partial(1.0), tol());
     // A cap edge whose two supports are both planes.
     let planar = body
         .edges()
@@ -325,7 +305,7 @@ fn corner_tag_indeterminate_is_reached_at_a_curved_neighbour() {
 /// reviewed unit. The refusal NAMES it.
 #[test]
 fn spine_unsupported_names_the_canal_surface_unit() {
-    let body = spool(sweep::Revolution::Full);
+    let body = sweep::test_support::spool(sweep::Revolution::Full, tol());
     let rim = body
         .edges()
         .find(|(_, e)| {
@@ -449,8 +429,10 @@ fn trio_convexity_sign() {
     )
     .expect("a definite box edge");
     assert_eq!(convex, sweep::blend::Convexity::Convex);
+    assert_eq!(m.predicate, "fillet3_convexity_sign");
+    assert_eq!(m.sign, Sign::Positive);
     assert!(
-        (m - 1.0).abs() < 1e-12,
+        m.value().is_some_and(|v| (v - 1.0).abs() < 1e-12),
         "the 90° box edge margin is the arm"
     );
     let (concave, _) = convexity_at(

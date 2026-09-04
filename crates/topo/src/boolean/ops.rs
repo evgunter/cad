@@ -207,9 +207,14 @@ pub struct BooleanNaming {
     /// `merge_coplanar_faces` absorption groups `(kept, absorbed…)`,
     /// result keys.
     pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
-    /// Declared-licensed merge groups the output stage SKIPPED as
-    /// outside the never-elide inventory (M4 PR 5): faces + the
-    /// actual refusing diagnostics. The skip is visible HERE — a
+    /// Merge groups the output stage did NOT glue, as outside the
+    /// never-elide inventory (M4 PR 5) — the group's faces plus the
+    /// typed [`MergeCoplanarError`](crate::merge_faces::MergeCoplanarError)
+    /// that stopped each, carried whole. WHICH groups are recorded
+    /// here rather than refusing the whole call is the regime's own
+    /// statement, at
+    /// [`MergeCoplanarOutcome::skipped`](crate::merge_faces::MergeCoplanarOutcome::skipped),
+    /// and is not restated here. The skip is visible HERE — a
     /// consumer can see what was not glued and why; the skipped
     /// faces' in-plane descriptions are re-checked against the
     /// actual adjacency before the result ships (review F1/F2).
@@ -771,7 +776,7 @@ pub(super) fn volume_backstop<T: Decide>(
     // ordinary mm-scale operands in the band and switched their bound
     // checks off. The skip zone survives, now meaning sub-resolution
     // thickness — which is what it always claimed to mean.)
-    // The backstops live on the INVARIANT LANE (Evan's #213 layering
+    // The backstops live on the INVARIANT LANE (Ev's #213 layering
     // ruling): consistency inequalities between integral results are
     // outside the length seam by design — no door, bare T — and a
     // certified violation is a kernel invariant failure, not a
@@ -1672,8 +1677,14 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         // deviation 1, and since M6-2 its blocker is
                         // the unwired JOIN lane alone — the generic
                         // lift and Pcurve::Fitted both landed there.
-                        // Certified boxes prove separation, anything
-                        // closer refuses typed.
+                        // The exact DECLARED-coaxial classification
+                        // does not retire this and the message is
+                        // re-verified rather than moved: this scan asks
+                        // about NEARNESS between two arbitrary trimmed
+                        // faces, which no coaxial section answers, and
+                        // it has no declaration channel to reach one
+                        // through in any case. Certified boxes prove
+                        // separation, anything closer refuses typed.
                         if boxes::face_box(y, yf, pad)?.overlaps(&ball_box) {
                             return Err(BooleanError::FallbackExtentUnsupported {
                                 operand: x_is,

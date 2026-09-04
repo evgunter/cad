@@ -105,6 +105,32 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
+        path: "crates/bvh/src/tree.rs",
+        subject: "build_bounded",
+        why: Payload(
+            "the `T: Bounds` construction door: it reads brackets only through \
+             `Aabb::from_points` above, so the endpoints land in an f64 `Aabb` and stop",
+        ),
+    },
+    Site {
+        path: "crates/editor-core/src/clearance.rs",
+        subject: "in_plane_axis",
+        why: Selection(
+            "the clearance engine's planar re-chart picks WHICH world axis to cross the \
+             normal with, by the widest cross product's `lo()` under `total_cmp`. A chart \
+             choice decides nothing semantic — every choice yields a sound superset, and \
+             the enclosure it names is locally constant in the choice",
+        ),
+    },
+    Site {
+        path: "crates/editor-core/src/clearance.rs",
+        subject: "chart_frame",
+        why: Payload(
+            "the same re-chart's finiteness guard: the brackets are read only to refuse a \
+             frame that did not come out finite, and nothing downstream reads them",
+        ),
+    },
+    Site {
         path: "crates/geom-brep/src/ssi.rs",
         subject: "impl<T: geom_core::Bounds> TubeScale<T>",
         why: HandedOff("Track Q's ssi ground; enumerated by S88 and not taken there"),
@@ -130,6 +156,16 @@ const ROSTER: &[Site] = &[
         why: Impl(
             "the D1 impl itself, written with a where-clause so the obligation reads \
              directly; the gate's KNOWN GAP 2 sanctions this exact spelling",
+        ),
+    },
+    Site {
+        path: "crates/geom-core/src/sym.rs",
+        subject: "impl<T: Bounds> Bounds for Sym<T>",
+        why: Impl(
+            "the symbolic tier's bracket delegation (ERROR-DESIGN E12): a `Sym<T>` \
+             carries `T`'s bracket verbatim because the DAG holds no numbers of its \
+             own, and nothing in this impl reads one — the two accessors forward and \
+             return",
         ),
     },
     Site {
@@ -197,6 +233,51 @@ const ROSTER: &[Site] = &[
         why: HandedOff("Track V's; a refusal-payload door S88's handoff names"),
     },
     Site {
+        path: "crates/sweep/src/blend/battery.rs",
+        subject: "classified",
+        why: Payload(
+            "the edge-blend battery's margin-payload constructor. It reads no bracket \
+             itself — the reading is `measured`'s below — and exists to bind that \
+             reading to the predicate, band and sign the decision already carried",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/battery.rs",
+        subject: "holds_enclosures",
+        why: Selection(
+            "asks whether the SCALAR brackets anything, by dividing one by three and \
+             comparing the ends: wide at an enclosure scalar, a point at `f64`. The \
+             answer is a property of the TYPE — identical for every value, so locally \
+             constant in the strongest possible sense (DL5(b)) — and it selects which \
+             `MarginDiag` arm a payload speaks, never what a predicate decided. It is \
+             arithmetic rather than a trial classification precisely so that a payload \
+             constructor writes no K-telemetry sample",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/battery.rs",
+        subject: "measured",
+        why: Payload(
+            "the one bracket read behind every blend refusal payload: both ends into a \
+             `MarginDiag` and stop, so a refusal reports the enclosure its scalar held \
+             rather than one endpoint of it. Nothing downstream branches on it",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/build.rs",
+        subject: "nonpositive_size_gate",
+        why: Selection(
+            "both blend doors' size gate: the read decides whether the REQUEST is \
+             admissible at all — `lo() > 0` refuses, anything else proceeds — and that \
+             classification is value-channel-decided (a dual's bracket is its value \
+             channel's, so the door answers exactly what the f64 lane answers). The \
+             selected quantity is locally constant in the choice: on either side of the \
+             boundary the whole neighbourhood takes the same branch, and the branch it \
+             takes when refusing carries no geometry, only the low end as an f64 payload \
+             in `BlendError::NonpositiveSize`",
+        ),
+    },
+    Site {
         path: "crates/topo/src/boolean/boxes.rs",
         subject: "bracket_point",
         why: Payload("the C10 span-box reader: brackets into an f64 `SpanBox`"),
@@ -229,6 +310,18 @@ const ROSTER: &[Site] = &[
         subject: "exact_zero",
         why: Selection("the C6 inventory gate's `is the trig channel exactly 0.0` read"),
     },
+    Site {
+        path: "crates/sweep/src/test_support.rs",
+        subject: "rim_arcs_at",
+        why: Selection(
+            "a test-side fixture SELECTOR, generic so the interval lane picks its rims \
+             through the same door as f64: which stored circle edges sit at a named \
+             radius and station, both enclosure ends compared against a fixed 1e-9 — a \
+             fixture-selection tolerance, not a kernel predicate. It chooses edges for a \
+             request and decides nothing about them; at a dual it reads the value \
+             channel's bracket and selects the edges the f64 lane selects",
+        ),
+    },
 ];
 
 /// The repository root: this crate's directory, two levels up. The
@@ -255,35 +348,43 @@ fn is_sole_bracket(bound: &str) -> bool {
     )
 }
 
-/// The end of the `<…>` opened at `open`, by angle depth.
+/// The end of the `<…>` opened at `open`.
 ///
-/// **A list this cannot close stops the census** rather than being
-/// skipped: angle brackets are not reliably balanced in Rust (a `->` or a
-/// comparison inside a bound breaks the count), and a site the walk
-/// cannot read is a site it must not drop — `flagged_census.rs`'s
-/// turbofish scan takes the same asymmetry for the same reason.
+/// **The reading is [`test_utils::source::angle_end`]'s**, not a copy
+/// of it: the census already walks a `code_only` view, which is that
+/// helper's precondition, and a copy of a lexer's postcondition at a
+/// call site is how this tree grew its readers in the first place.
+///
+/// **A list the reader cannot close stops the census** rather than
+/// being skipped: a site the walk cannot read is a site it must not
+/// drop — `flagged_census.rs`'s turbofish scan takes the same
+/// asymmetry for the same reason.
+///
+/// **That asymmetry is only half of the exposure, and the other half
+/// is silent.** Refusing to close is the LOUD failure and this panic
+/// covers it. A list closed at the WRONG `>` — a genuine comparison
+/// inside a const generic argument — answers a list that is too SHORT,
+/// and a short list still parses, so the census would undercount with
+/// no signal at all. Nothing in the tree is written that way today;
+/// the shared reader states the same residue at its own definition.
 fn angle_end(code: &str, open: usize) -> usize {
-    let mut depth = 0i32;
-    for (i, ch) in code[open..].char_indices() {
-        match ch {
-            '<' => depth += 1,
-            '>' => {
-                depth -= 1;
-                if depth == 0 {
-                    return open + i;
-                }
-            }
-            '{' | ';' => break,
-            _ => {}
-        }
-    }
-    panic!(
-        "a generic parameter list at byte {open} does not close before its item's body: {:.120}",
-        &code[open..]
-    )
+    test_utils::source::angle_end(code, open).unwrap_or_else(|| {
+        panic!(
+            "a generic parameter list at byte {open} does not close before its item's body: {:.120}",
+            &code[open..]
+        )
+    })
 }
 
 /// Split at top-level commas, ignoring commas nested in any bracket.
+///
+/// **A private copy of [`test_utils::source::top_level_split`], kept
+/// deliberately.** The shared helper CLAMPS its depth at zero where
+/// this one lets it go negative, so on a fragment carrying an
+/// unbalanced closer the two disagree about which commas are
+/// top-level. Swapping it in is a behaviour change to what this census
+/// reads, which is not the repair this file came here for; it is its
+/// own unit, with its own evidence.
 fn top_level_params(inner: &str) -> Vec<&str> {
     let (mut out, mut depth, mut start) = (Vec::new(), 0i32, 0usize);
     for (i, ch) in inner.char_indices() {

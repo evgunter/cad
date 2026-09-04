@@ -8,7 +8,7 @@ metadata:
 **Read this only when performing a switch.** Nothing here is needed
 during normal operation.
 
-The outgoing orchestrator performs the switch itself (Evan, PR #285).
+The outgoing orchestrator performs the switch itself (Ev, PR #285).
 
 **The contract — this is the part that must hold whatever the harness
 looks like:**

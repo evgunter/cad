@@ -11,7 +11,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -23,7 +23,7 @@ use editor_core::{
     ResolveFailure, ResolveFault, RoleSeg, StableName, apply, clusters, content_pin, evaluate,
     load, product, relative_freedom_components, save, solve_document,
 };
-use fixture::{desc, insert, len, square, step};
+use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
 
 /// `step`, with the minted id unwrapped — every insert in this suite
@@ -70,14 +70,12 @@ impl PartResolver for StubStore {
 /// A one-solid part: a unit square extruded 1 tall.
 fn part(label: &str) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(0.0, 0.0, 0.5)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
     );
     let (doc, _) = insert(
         doc,
@@ -107,6 +105,11 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, StubStore)
 /// An instance-qualified name: a face of `instance`'s part product.
 /// The HEAD is the instantiate node, which is exactly what A12's
 /// reading edge is recomputed from.
+/// The extrude in a one-block part document. A block is three nodes
+/// — the sketch frame, the profile drawn on it, then the extrude — so
+/// a part-local name is minted by node 2.
+const PART_BODY: RecipeNodeId = RecipeNodeId(2);
+
 fn in_part(instance: RecipeNodeId, part_node: RecipeNodeId) -> StableName {
     StableName {
         kind: EntityKind::Face,
@@ -115,7 +118,7 @@ fn in_part(instance: RecipeNodeId, part_node: RecipeNodeId) -> StableName {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
                 node: part_node,
-                path: vec![RoleSeg::Cap(editor_core::CapEnd::Bottom)],
+                path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
             }),
         }],
     }
@@ -139,8 +142,8 @@ fn mate(
     clocking: Option<f64>,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: in_part(a, RecipeNodeId(1)),
-        b: in_part(b, RecipeNodeId(1)),
+        a: in_part(a, PART_BODY),
+        b: in_part(b, PART_BODY),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: fa,
@@ -406,6 +409,7 @@ fn row3_a_gap_mismatched_planar_pair_refuses_contradictory() {
         added,
         predicate,
         clash,
+        lever,
     } = &fault
     else {
         panic!("expected CONTRADICTORY, got {fault:?}");
@@ -416,6 +420,10 @@ fn row3_a_gap_mismatched_planar_pair_refuses_contradictory() {
     assert!(
         (clash.abs() - 1.0).abs() < 1e-9,
         "the measured clash IS the authored gap mismatch: {clash}"
+    );
+    assert!(
+        lever.is_none(),
+        "a translation predicate measures a LENGTH outright, so there is no lever: {lever:?}"
     );
     let message = fault.to_string();
     assert!(message.contains(predicate), "{message}");
@@ -948,6 +956,7 @@ fn row5b_mismatched_inter_axis_invariants_refuse_contradictory() {
         added,
         predicate,
         clash,
+        lever,
     } = &fault
     else {
         panic!("expected CONTRADICTORY, got {fault:?}");
@@ -957,6 +966,10 @@ fn row5b_mismatched_inter_axis_invariants_refuse_contradictory() {
     assert!(
         (clash.abs() - 1.0).abs() < 1e-9,
         "the clash IS the inter-axis invariant difference (2 − 1): {clash}"
+    );
+    assert!(
+        lever.is_none(),
+        "a point-on-axis offset is a LENGTH outright, so there is no lever: {lever:?}"
     );
 }
 
@@ -1227,8 +1240,8 @@ fn row6f_rebind_repairs_a_mate_head_that_is_the_only_reference() {
     let applied = doc
         .apply(
             &DocEdit::Rebind {
-                from: in_part(ids[1], RecipeNodeId(1)),
-                to: in_part(ids[2], RecipeNodeId(1)),
+                from: in_part(ids[1], PART_BODY),
+                to: in_part(ids[2], PART_BODY),
             },
             Tol::witness(),
         )
@@ -1277,10 +1290,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
         DocEdit::InsertNode {
             node: Node::Declare {
                 pairs: vec![(
-                    (
-                        in_part(ids[1], RecipeNodeId(1)),
-                        in_part(ids[0], RecipeNodeId(1)),
-                    ),
+                    (in_part(ids[1], PART_BODY), in_part(ids[0], PART_BODY)),
                     ContactClass::Rest,
                 )],
             },
@@ -1290,8 +1300,8 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
     let applied = doc
         .apply(
             &DocEdit::Rebind {
-                from: in_part(ids[1], RecipeNodeId(1)),
-                to: in_part(ids[2], RecipeNodeId(1)),
+                from: in_part(ids[1], PART_BODY),
+                to: in_part(ids[2], PART_BODY),
             },
             Tol::witness(),
         )
@@ -1301,7 +1311,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
     };
     assert_eq!(
         pairs[0].0.0,
-        in_part(ids[2], RecipeNodeId(1)),
+        in_part(ids[2], PART_BODY),
         "the declaration was rewritten"
     );
     assert_eq!(
@@ -1424,7 +1434,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_a_declare_pair() {
         path: vec![RoleSeg::InPart {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: PART_BODY,
                 path: vec![RoleSeg::Lateral(editor_core::ProfileEdgeRef {
                     loop_index: 7,
                     segment: 7,
@@ -1662,5 +1672,69 @@ fn row7f_a_non_finite_alignment_refuses_at_the_edit_door() {
     assert!(
         matches!(refusal, editor_core::EditError::NonFiniteAlignment { .. }),
         "{refusal:?}"
+    );
+}
+
+/// A frame coincidence with a nonzero clocking rider: the coincidence
+/// has already pinned the roll, so the table refuses the rider — and
+/// the refusal names ONE mate, because one mate is at fault. The
+/// magnitude the predicate decided on is the roll LEVERED by the
+/// contact arm, so the message carries both halves and the reader can
+/// multiply them back into the metre figure.
+#[test]
+fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
+    let (doc, ids, _) = assembly("asm-r2a-row7g", 2);
+    let (doc, id) = mint(
+        doc,
+        DocEdit::InsertNode {
+            node: mate(
+                ids[0],
+                ids[1],
+                MatePrimitive::FrameCoincidence,
+                AxisSense::Aligned,
+                z_up(),
+                z_up(),
+                Some(core::f64::consts::FRAC_PI_2),
+            ),
+        },
+    );
+    let poses = solve_document(&doc, Tol::witness());
+    let fault = poses.fault(id).expect("the rider refuses").clone();
+    let editor_core::MateFault::Contradictory {
+        held,
+        added,
+        predicate,
+        clash,
+        lever,
+    } = &fault
+    else {
+        panic!("expected CONTRADICTORY, got {fault:?}");
+    };
+    assert_eq!(
+        (*held, *added),
+        (id, id),
+        "the mate contradicts ITSELF, so it stands on both sides"
+    );
+    assert_eq!(*predicate, "mate_clocking_redundant");
+    let (radians, arm) = lever.expect("the clocking clash is levered, not measured as a length");
+    assert!((radians - core::f64::consts::FRAC_PI_2).abs() < 1e-15);
+    assert!(
+        (radians * arm - clash).abs() < 1e-15,
+        "the stored metre figure IS the product of the halves at the raising site: \
+         {radians} * {arm} vs {clash}"
+    );
+    let message = fault.to_string();
+    assert!(
+        message.contains(&format!("mate {} contradicts itself", id.0)),
+        "one mate at fault is named ONCE: {message}"
+    );
+    assert!(
+        !message.contains(&format!("mates {} and {}", id.0, id.0)),
+        "the pair sentence reads as an indexing fault here: {message}"
+    );
+    assert!(
+        message.contains(&format!("a roll of {radians} rad"))
+            && message.contains(&format!("on a {arm} m arm")),
+        "the levered magnitude names its roll and the arm it was decided at: {message}"
     );
 }

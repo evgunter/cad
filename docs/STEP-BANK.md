@@ -103,7 +103,7 @@ registered below. They are all under one PD grant; the table lists only the pick
   CC-BY-SA-with-exception *and* very largely derived from manufacturer datasheets/models.
   Provenance too diffuse to clear per-file, and the parts are geometrically trivial.
 - **`FreeCAD/FreeCAD` `data/tests/Step/as1-ac-214*.stp`** — banked but flagged UNCLEAR; see
-  the table row. Do not adopt without an explicit decision from Evan.
+  the table row. Do not adopt without an explicit decision from Ev.
 - **NIST EDM `models/STEP/STI/` files whose `README` design source is STEPNet, STEP Tools,
   Inc. or TEAM** (`moon_buggy_asm.stp`, `as1_pe.stp`, `mbb.stp`, `iso14649-demo.stp`,
   `ph4m3-st.stp`, `teampart.stp`) — third-party donations redistributed by NIST. Only the

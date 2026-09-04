@@ -18,7 +18,7 @@
 //!         loud on some arm, never a silent pass.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -29,7 +29,7 @@ use editor_core::{
     ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName, assemble,
     content_pin, evaluate, run_checks,
 };
-use fixture::{desc, insert, len, step};
+use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
 #[derive(Debug, Default, Clone)]
@@ -81,14 +81,12 @@ fn block(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
     );
     insert(
         doc,
@@ -110,6 +108,11 @@ fn cube_part(label: &str) -> ProfileDoc {
     doc
 }
 
+/// The extrude in a one-block part document. A block is three nodes
+/// — the sketch frame, the profile drawn on it, then the extrude — so
+/// a part-local name is minted by node 2.
+const PART_BODY: RecipeNodeId = RecipeNodeId(2);
+
 fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
     StableName {
         kind: EntityKind::Face,
@@ -117,7 +120,7 @@ fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
         path: vec![RoleSeg::InPart {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: PART_BODY,
                 path: vec![RoleSeg::Cap(cap)],
             }),
         }],
@@ -134,7 +137,7 @@ fn vanished(instance: RecipeNodeId) -> StableName {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(99),
-                path: vec![RoleSeg::Cap(CapEnd::Top)],
+                path: vec![RoleSeg::Cap(CapEnd::End)],
             }),
         }],
     }
@@ -180,8 +183,8 @@ fn stand(label: &str, part: DocRef, seat: f64) -> (ProfileDoc, Vec<RecipeNodeId>
         doc,
         DocEdit::InsertNode {
             node: mate_node(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 ContactClass::Rest,
                 seat,
             ),
@@ -249,7 +252,7 @@ fn p1_first_bad_mate_wins_badref_before_tangent() {
         DocEdit::InsertNode {
             node: mate_node(
                 vanished(ids[0]),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[1], CapEnd::Start),
                 ContactClass::Rest,
                 1.5,
             ),
@@ -259,8 +262,8 @@ fn p1_first_bad_mate_wins_badref_before_tangent() {
         doc,
         DocEdit::InsertNode {
             node: mate_node(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 ContactClass::Tangent,
                 1.5,
             ),
@@ -283,8 +286,8 @@ fn p2_first_bad_mate_wins_tangent_before_badref() {
         doc,
         DocEdit::InsertNode {
             node: mate_node(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 ContactClass::Tangent,
                 1.5,
             ),
@@ -295,7 +298,7 @@ fn p2_first_bad_mate_wins_tangent_before_badref() {
         DocEdit::InsertNode {
             node: mate_node(
                 vanished(ids[0]),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[1], CapEnd::Start),
                 ContactClass::Rest,
                 1.5,
             ),
@@ -370,8 +373,8 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
         doc,
         DocEdit::InsertNode {
             node: mate_node(
-                in_part(ids[2], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[2], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 ContactClass::Tangent,
                 5.0,
             ),
@@ -383,8 +386,8 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
         doc,
         DocEdit::InsertNode {
             node: mate_node(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 ContactClass::Rest,
                 1.0,
             ),
@@ -467,8 +470,8 @@ fn p8_inner_mint_refusals_stop_at_the_seam() {
         inner,
         DocEdit::InsertNode {
             node: mate_node(
-                in_part(ids[0], CapEnd::Top),
-                in_part(ids[1], CapEnd::Bottom),
+                in_part(ids[0], CapEnd::End),
+                in_part(ids[1], CapEnd::Start),
                 ContactClass::Tangent,
                 5.0,
             ),

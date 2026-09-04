@@ -17,7 +17,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use std::collections::BTreeMap;
 
@@ -26,7 +26,7 @@ use editor_core::{
     ChecksConfig, ChecksReport, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, Severity,
     enforce_checks, run_checks, subject_body,
 };
-use fixture::{desc, insert, len, square};
+use fixture::{insert, len, on_frame, square};
 use geom_core::Tol;
 use topo::ShellClassifyError;
 
@@ -43,14 +43,12 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// An extruded square: half-width `h` centered at `(cx, 0)` on the
 /// z = `z0` plane, extruded `dz` up.
 fn slab(doc: ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(cx, 0.0, h)],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(cx, 0.0, h)],
     );
     insert(
         doc,
@@ -327,12 +325,24 @@ fn a_findings_attribution_resolves_to_its_subject() {
     let report =
         run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).expect("checks run");
     let finding = &report.findings[0];
-    let body = subject_body(&ev, finding.root, finding.output_ix)
+    let (body, contacts) = subject_body(&ev, finding.root, finding.output_ix)
         .expect("the attribution resolves against the evaluation it came from");
     // The flagged body IS the disjoint union: the two shells the
     // finding counted (their grouping into solids is the kernel's
     // business, not pinned here).
     assert_eq!(body.shells().count(), 2);
+    // The subject's DECLARATIONS travel with it, so the tier-3′ gate
+    // reached through an attribution asks about the same body the
+    // producer minted. This union declares nothing (`declare: None`,
+    // and its operands are three metres apart), so the honest claim
+    // here is that the empty set is what arrived — not that the pair
+    // is populated. The case where a non-empty set is the difference
+    // between passing and refusing is a carried D-1 record set, which
+    // needs a store and a referenced document; it is pinned at the
+    // Python boundary instead
+    // (`test_checks.py::TestSubjectBodyCarriesItsDeclarations`), which
+    // is where the narrowing was measured.
+    assert_eq!(*contacts, topo::ContactRecords::default());
     // An attribution with no subject (a stale expectation's shape)
     // resolves to None, not to a wrong body.
     assert!(subject_body(&ev, finding.root, 7).is_none());

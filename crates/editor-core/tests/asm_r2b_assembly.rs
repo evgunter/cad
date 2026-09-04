@@ -26,7 +26,7 @@
 //! refusal (row 3).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -38,7 +38,7 @@ use editor_core::{
     ResolveFailure, ResolveFault, RoleSeg, StableName, assemble, content_pin, evaluate, inline,
     product_recorded, split,
 };
-use fixture::{desc, insert, len, step};
+use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
 // ---- The stub store (the ASM-2A/R2a shape, verbatim in spirit) ----
@@ -96,14 +96,12 @@ fn block(
     z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
     );
     insert(
         doc,
@@ -114,7 +112,12 @@ fn block(
     )
 }
 
-/// A one-block part document: `[0,1]³`. Its extrude is node 1.
+/// The extrude in a one-`block` part document. A block is three
+/// nodes now — the sketch frame, the profile drawn on it, then the
+/// extrude — so the body a part-local name is minted by is node 2.
+const PART_BODY: RecipeNodeId = RecipeNodeId(2);
+
+/// A one-block part document: `[0,1]³`. Its extrude is [`PART_BODY`].
 fn cube_part(label: &str) -> ProfileDoc {
     let (doc, _) = block(
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
@@ -155,7 +158,7 @@ fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
         path: vec![RoleSeg::InPart {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: PART_BODY,
                 path: vec![RoleSeg::Cap(cap)],
             }),
         }],
@@ -183,8 +186,8 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
 /// is z ∈ [0,1]); anything larger leaves a definite gap.
 fn rest_mate(a: RecipeNodeId, b: RecipeNodeId, seat: f64) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: in_part(a, CapEnd::Top),
-        b: in_part(b, CapEnd::Bottom),
+        a: in_part(a, CapEnd::End),
+        b: in_part(b, CapEnd::Start),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
@@ -206,8 +209,8 @@ fn rest_mate_at(
     origin: [f64; 3],
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: in_part(a, CapEnd::Top),
-        b: in_part(b, CapEnd::Bottom),
+        a: in_part(a, CapEnd::End),
+        b: in_part(b, CapEnd::Start),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame(origin, [0.0, 0.0, 1.0]),
@@ -431,10 +434,7 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
     assert_eq!(declared.class, ContactClass::Rest, "with the mate's class");
     assert_eq!(
         (declared.a.clone(), declared.b.clone()),
-        (
-            in_part(ids[0], CapEnd::Top),
-            in_part(ids[1], CapEnd::Bottom)
-        ),
+        (in_part(ids[0], CapEnd::End), in_part(ids[1], CapEnd::Start)),
         "and both of its references"
     );
     assert_eq!(
@@ -689,10 +689,7 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
     assert_eq!(named.mate, mate, "the MATE NODE is named");
     assert_eq!(
         (named.a, named.b),
-        (
-            in_part(ids[0], CapEnd::Top),
-            in_part(ids[1], CapEnd::Bottom)
-        ),
+        (in_part(ids[0], CapEnd::End), in_part(ids[1], CapEnd::Start)),
         "both references are named"
     );
     assert!(
@@ -733,7 +730,7 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
 // (`SplitError::TornCluster`). Opposite sides of a cut and the same
 // cluster are mutually exclusive. A4's sentence and A11's cut rule are
 // in tension for proper edges; that gap is now recorded as **AQ8** in
-// docs/ASSEMBLY-DESIGN.md, whose proposed resolution is a conversion
+// crates/editor-core/ASSEMBLY.md, whose proposed resolution is a conversion
 // door (ASM-XSPLIT) rather than a change to either rule.
 //
 // **And ONLY an edge can cross** (AQ8, ruled — option (b), SKIP). The
@@ -815,12 +812,11 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
         },
         Tol::witness(),
     );
-    // The part-local name of the cube's top cap: profile is node 0,
-    // extrude node 1.
+    // The part-local name of the cube's end cap.
     let inner = StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(1),
-        path: vec![RoleSeg::Cap(CapEnd::Top)],
+        node: PART_BODY,
+        path: vec![RoleSeg::Cap(CapEnd::End)],
     };
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
@@ -898,8 +894,8 @@ fn row5_c_inline_dissolves_the_crossing_record() {
     );
     let inner = StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(1),
-        path: vec![RoleSeg::Cap(CapEnd::Top)],
+        node: PART_BODY,
+        path: vec![RoleSeg::Cap(CapEnd::End)],
     };
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
@@ -958,7 +954,7 @@ fn row5_d_a_dangling_head_mate_contributes_no_crossing() {
         *b = StableName {
             kind: EntityKind::Face,
             node: local,
-            path: vec![RoleSeg::Cap(CapEnd::Bottom)],
+            path: vec![RoleSeg::Cap(CapEnd::Start)],
         };
     }
     let (doc, mate) = step(doc, DocEdit::InsertNode { node });
@@ -1119,8 +1115,8 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
     );
     let inner = StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(1),
-        path: vec![RoleSeg::Cap(CapEnd::Top)],
+        node: PART_BODY,
+        path: vec![RoleSeg::Cap(CapEnd::End)],
     };
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
@@ -1323,7 +1319,7 @@ fn a_mixed_verdict_is_the_at_rest_arm_not_the_frontier() {
 /// DISJOINT is stale, and staleness is a finding against the document
 /// — never a decline.
 ///
-/// This arm is the consequence `docs/CENSUS-REST-CLOSURE-DESIGN.md`
+/// This arm is the consequence `crates/topo/README.md`
 /// reserved: `assembly.rs`'s own comment said it could not execute
 /// while the chart door answered DIVERGENCE for every cross-instance
 /// pair, and asked for an acceptance row "in the same change" the day
@@ -1488,7 +1484,7 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(99),
-                path: vec![RoleSeg::Cap(CapEnd::Top)],
+                path: vec![RoleSeg::Cap(CapEnd::End)],
             }),
         }];
     }
@@ -1513,7 +1509,7 @@ fn the_crossing_refusal_is_a_named_node_error() {
         name: Box::new(StableName {
             kind: EntityKind::Face,
             node: RecipeNodeId(3),
-            path: vec![RoleSeg::Cap(CapEnd::Top)],
+            path: vec![RoleSeg::Cap(CapEnd::End)],
         }),
     };
     let msg = e.to_string();
@@ -1568,8 +1564,8 @@ fn flush_seat(label: &str) -> (ProfileDoc, RecipeNodeId, StubStore) {
         doc,
         DocEdit::InsertNode {
             node: Node::Mate {
-                a: in_part(post_id, CapEnd::Top),
-                b: in_part(shelf_id, CapEnd::Bottom),
+                a: in_part(post_id, CapEnd::End),
+                b: in_part(shelf_id, CapEnd::Start),
                 class: ContactClass::Rest,
                 alignment: Alignment {
                     a: frame([0.0, 0.0, 0.5], [0.0, 0.0, 1.0]),
@@ -1666,12 +1662,12 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
         a: StableName {
             kind: EntityKind::Face,
             node: RecipeNodeId(1),
-            path: vec![RoleSeg::Cap(CapEnd::Top)],
+            path: vec![RoleSeg::Cap(CapEnd::End)],
         },
         b: StableName {
             kind: EntityKind::Face,
             node: RecipeNodeId(2),
-            path: vec![RoleSeg::Cap(CapEnd::Bottom)],
+            path: vec![RoleSeg::Cap(CapEnd::Start)],
         },
         class: ContactClass::Rest,
         faces: (topo::FaceKey::default(), topo::FaceKey::default()),
@@ -1750,7 +1746,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
             name: Box::new(StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId(1),
-                path: vec![RoleSeg::Cap(CapEnd::Top)],
+                path: vec![RoleSeg::Cap(CapEnd::End)],
             }),
         },
         ProductError::Graft {

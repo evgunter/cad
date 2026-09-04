@@ -18,7 +18,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -29,7 +29,7 @@ use editor_core::{
     MateRole, Node, PartResolver, PatternKind, ProfileDoc, RecipeNodeId, ResolveFailure,
     ResolveFault, RoleSeg, StableName, assemble, content_pin, evaluate, solve_document,
 };
-use fixture::{desc, insert, len, scl, step};
+use fixture::{insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 // ---- Substrate (as in the unit's own suite) ----
@@ -79,14 +79,12 @@ fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
 
 fn block_part(label: &str, x: (f64, f64), y: (f64, f64), z0: f64, dz: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
     );
     let (doc, _) = insert(
         doc,
@@ -102,6 +100,11 @@ fn leg_part(label: &str) -> ProfileDoc {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
 }
 
+/// The extrude in a one-block part document. A block is three nodes
+/// — the sketch frame, the profile drawn on it, then the extrude — so
+/// a part-local name is minted by node 2.
+const PART_BODY: RecipeNodeId = RecipeNodeId(2);
+
 fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
     StableName {
         kind: EntityKind::Face,
@@ -109,7 +112,7 @@ fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
         path: vec![RoleSeg::InPart {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: PART_BODY,
                 path: vec![RoleSeg::Cap(cap)],
             }),
         }],
@@ -330,8 +333,8 @@ fn r2_oblique_circular_conjugation_at_a_placed_cluster_frame() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -408,8 +411,8 @@ fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 0, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 0, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -419,8 +422,8 @@ fn r2_consistent_loop_still_verifies_under_a_placed_cluster_frame() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -492,8 +495,8 @@ fn r2_two_patterns_tree_edge_composes_both_offsets() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(p1, 1, in_part(leg1, CapEnd::Top)),
-                in_copy(p2, 1, in_part(leg2, CapEnd::Bottom)),
+                in_copy(p1, 1, in_part(leg1, CapEnd::End)),
+                in_copy(p2, 1, in_part(leg2, CapEnd::Start)),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -550,8 +553,8 @@ fn r2_patterned_member_as_tree_child_uses_the_inverse_offset() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -606,8 +609,8 @@ fn r2_out_of_range_copy_on_a_declaring_mate_still_refuses_somewhere() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 0, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 0, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -617,8 +620,8 @@ fn r2_out_of_range_copy_on_a_declaring_mate_still_refuses_somewhere() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 5, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 5, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -689,8 +692,8 @@ fn r2_nested_pattern_head_refuses_dangling() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(outer, 1, in_copy(inner, 1, in_part(leg, CapEnd::Top))),
-                in_part(top, CapEnd::Bottom),
+                in_copy(outer, 1, in_copy(inner, 1, in_part(leg, CapEnd::End))),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -729,8 +732,8 @@ fn r2_plain_document_pose_bits() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_part(ia, CapEnd::Top),
-                in_part(ib, CapEnd::Bottom),
+                in_part(ia, CapEnd::End),
+                in_part(ib, CapEnd::Start),
                 [0.25, 0.5, 1.0],
                 AxisSense::Opposed,
             ),
@@ -740,8 +743,8 @@ fn r2_plain_document_pose_bits() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_part(ib, CapEnd::Top),
-                in_part(ic, CapEnd::Bottom),
+                in_part(ib, CapEnd::End),
+                in_part(ic, CapEnd::Start),
                 [0.75, 0.125, 1.0],
                 AxisSense::Aligned,
             ),

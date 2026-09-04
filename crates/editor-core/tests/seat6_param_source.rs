@@ -23,16 +23,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
+use crate::fixture;
 
 use corpus::{body_of, eval, failures};
 use editor_core::param_source;
 use editor_core::{
-    Dimension, DocEdit, DocParam, DocumentId, Expr, LoopProgram, Node, ParamName, ProfileDoc,
-    ProfileProgram, SlotId,
+    Dimension, DocEdit, DocParam, DocumentId, Expr, Node, ParamName, ProfileDoc, SlotId,
 };
-use fixture::{insert, len, prism_edges, square, step};
+use fixture::{insert, len, on_frame, prism_edges, square, step};
 use geom_brep::RadiusEvidence;
 use geom_core::Tol;
 use profile::{RawLoop, SketchPlane};
@@ -54,13 +53,14 @@ fn filleted_cube(
     cx: f64,
     radius: Expr,
 ) -> (ProfileDoc, editor_core::RecipeNodeId) {
-    let loops = vec![LoopProgram::polygon(square(cx, 0.0, 0.5)).unwrap()];
-    let (doc, profile) = insert(
+    // A frame node and the square drawn on it — the profile names the
+    // plane it is sketched on.
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
-            loops,
-        }),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(cx, 0.0, 0.5)],
     );
     let (doc, cube) = insert(
         doc,
@@ -298,13 +298,12 @@ fn the_chamfer_attaches_nothing_because_its_flow_says_so() {
             value: DocParam::continuous(Dimension::Length, R),
         },
     );
-    let loops = vec![LoopProgram::polygon(square(0.0, 0.0, 0.5)).unwrap()];
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
-            loops,
-        }),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
     );
     let (doc, cube) = insert(
         doc,

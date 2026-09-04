@@ -12,7 +12,7 @@ ordinal band, dual tally, sample number) is claimed from it ON MAIN at
 dispatch. Read it before dispatching an implementer.** No copy lives
 here, in a plan, or in an M-log.
 
-**Why:** Evan wants to know whether Opus implementation produces more
+**Why:** Ev wants to know whether Opus implementation produces more
 bugs / worse code than Fable at lower cost — measured, not vibed.
 
 What binds outside the log's own text:
@@ -31,7 +31,7 @@ What binds outside the log's own text:
   immediately before briefing reviewers. Flag contamination on the
   EXPOSURE, not on whether a reviewer discloses noticing it.
 - **Readouts are deliberately not summarised anywhere agents read**
-  (standing rule, Evan): a directional arm result creates expectancy
+  (standing rule, Ev): a directional arm result creates expectancy
   effects on difficulty logging, adjudication and dispatch sequencing.
   They live on branch `ev/ab-bayes-analysis` under `analysis/model-ab/`
   — **an orchestrator with a dispatch in flight should not read them.**

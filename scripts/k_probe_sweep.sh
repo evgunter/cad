@@ -131,7 +131,13 @@ finish_run() {
 # below exist to catch.
 feats_for() {
   case "$1" in
-    m10_3_driver_k_probe_interval) echo probe,interval ;;
+    # Every suite here needs BOTH features for the same reason: it
+    # instantiates a `probe` scalar inside an `interval` service (the E6
+    # driver, or `Sym<Interval>` from the symbolic tier), so under
+    # `probe` alone the file compiles to NOTHING and the selection over
+    # it runs and skips zero tests.
+    m10_3_driver_k_probe_interval|m10_7_r1_retag_probe|m10_7_r2_sym_probes)
+      echo probe,interval ;;
     *) echo probe ;;
   esac
 }
@@ -153,8 +159,21 @@ run_dump() {
   # inside an `if` condition is exempt from `set -e`, so the guard would
   # take the false branch and pass in exactly the case it names. Default
   # the count instead.
+  #
+  # WHAT THIS FLOOR CLAIMS, AND WHAT IT DELIBERATELY DOES NOT. It says
+  # the harness wrote something past its header — it catches a dump that
+  # died, was redirected nowhere, or never reached its writer. It does
+  # NOT claim a non-empty MARGIN population, and for the E6 driver row
+  # it must not: a drive whose leaves are all refused (a budget dial, a
+  # tolerance, a fixture) certifies nothing, so it samples nothing, and
+  # the honest artifact is a census line saying so rather than a red
+  # (issues 1296/1304/1342 — the row used to panic in that state, which
+  # took this whole ε loop down with it and left every branch without a
+  # k-lint verdict at any ε). The claim that the funnel receives what
+  # the drive certified is made where it can be stated exactly, in that
+  # suite's own biconditional row.
   if [ "$(wc -l < "$out" 2>/dev/null || echo 0)" -lt 2 ]; then
-    echo "ERROR: $label wrote no sample rows to $out — the harness ran but recorded no margins." >&2
+    echo "ERROR: $label wrote nothing past its header to $out — the harness ran but recorded neither a row nor a census." >&2
     exit 1
   fi
 }

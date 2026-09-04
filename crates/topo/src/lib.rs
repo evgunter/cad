@@ -134,12 +134,15 @@ pub mod attach;
 pub mod body;
 pub mod boolean;
 pub(crate) mod census;
+pub mod chart;
+pub mod chart_iso;
 pub mod chart_region;
 // The shared chord-join core — ch. 14's `join`/`cut` mechanics and the
 // section-chord geometry, a top-level sibling of `boolean/` and
 // `splitting/` for the reason its own docs give. Non-doc comment for
 // the same rustdoc reason as the sector modules below.
 pub(crate) mod chord_join;
+pub mod coherence;
 pub mod contact;
 pub mod entity;
 pub mod euler;
@@ -267,17 +270,17 @@ pub mod validate;
 
 pub use body::Body;
 pub use boolean::{
-    BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp,
-    BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts, CarriedVf, CarriedVv,
-    CarrierDesc, CarrierEqError, CarrierRelation, CompletedPolygonPair, ContactRecords,
-    CurveContact, FaceContainment, FacePairDeclaration, NullEdgePairRecord, Operand, OperandKeys,
-    PairSite, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity,
-    PlaneRelation, PointInSolidError, SideCode, SolidContainment, SweepStrategy, SweepTrace,
-    TangentLocus, TangentLocusError, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
-    VoidInserted, VvContact, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq,
-    contfp, curved_face_containment, face_carrier, flush_pair_relation, insert_void, intersect,
-    intersect_with, oriented_plane_eq, point_in_solid, subtract, subtract_with, tangent_locus,
-    tangent_pair_relation, union, union_with,
+    BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanErrorKind,
+    BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts,
+    CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, CompletedPolygonPair,
+    ContactRecords, CurveContact, FaceContainment, FacePairDeclaration, NullEdgePairRecord,
+    Operand, OperandKeys, PairSite, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError,
+    PlaneIdentity, PlaneRelation, PointInSolidError, SideCode, SolidContainment, SweepStrategy,
+    SweepTrace, TangentLocus, TangentLocusError, VfContact, VoidContainment, VoidEvidence,
+    VoidInsertError, VoidInserted, VvContact, boolean_op_with, boolean_reduce,
+    boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, face_carrier,
+    flush_pair_relation, insert_void, intersect, intersect_with, oriented_plane_eq, point_in_solid,
+    subtract, subtract_with, tangent_locus, tangent_pair_relation, union, union_with,
 };
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.
@@ -297,8 +300,14 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
+pub use chart::{Chart, ChartKind};
+pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
 pub use chart_region::{
     ChartOverlap, ChartRegionError, ChartRegionLane, chart_region_overlap, declared_pair_overlap,
+};
+pub use coherence::{
+    CoherenceCondition, CoherenceFinding, CoherenceReport, StructureRead, Unexaminable, Unexamined,
+    examine_chart_coherence, gap_is_noise,
 };
 pub use geom::Curve3;
 pub use geom::Surface;
@@ -321,7 +330,7 @@ pub use props::{
     AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, PropsQuadLane,
     ShellClassification, ShellClassifyError, ShellRole, classify_shells, mass_properties,
 };
-pub use provenance::Provenance;
+pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
@@ -334,7 +343,9 @@ pub use readback::{DanglingRef, Pose, ReadbackError};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
 pub use revert::RevertError;
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
-pub use shell::{ShellError, shell, shell_open};
+pub use shell::{
+    HoleRim, RimNaming, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,
+};
 pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};
 pub use split::SplitEdgeCreated;
 pub use splitting::{
@@ -345,8 +356,10 @@ pub use splitting::{
 };
 pub use transform::{TransformError, transform_rigid};
 pub use validate::{
-    CensusContact, ContactMark, RingContact, StaleDeclaration, ValidationError, contact_marks,
-    contact_marks_declared, validate, validate_closed, validate_geometric,
+    CensusContact, CensusSubject, ContactMark, RingContact, StaleDeclaration, ValidationError,
+    contact_marks, contact_marks_declared, validate, validate_closed, validate_geometric,
+    validate_geometric_certificate, validate_geometric_certificate_declared,
     validate_geometric_declared, validate_geometric_structural,
     validate_geometric_structural_declared, validate_pseudomanifold,
+    validate_pseudomanifold_certificate,
 };

@@ -16,13 +16,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, CapEnd, EntityKind, EvalOptions, Node, ProfileDoc,
     RecipeNodeId, RoleSeg, StableName, ValuePayload, evaluate, load, save,
 };
-use fixture::{desc, insert, len, wall};
+use fixture::{insert, len, on_frame, wall};
 use geom_core::Tol;
 
 fn fname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
@@ -35,14 +35,12 @@ fn fname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
 
 /// An axis-aligned (0..2)² block at height z0, extruded dz.
 fn block(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]],
     );
     insert(
         doc,
@@ -59,13 +57,13 @@ fn rest_doc() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m5_s1_rest_declare", Tol::witness());
     let (doc, a) = block(doc, 0.0, 1.0);
     let (doc, b) = block(doc, 1.0, 1.0);
-    // The author's intent, stated: the contact pair (A's top cap on
-    // B's bottom cap) plus the four flush wall pairs (the same-plane
+    // The author's intent, stated: the contact pair (A's end cap on
+    // B's start cap) plus the four flush wall pairs (the same-plane
     // sides the output stage merges).
     let pairs = vec![
         (
-            fname(a, RoleSeg::Cap(CapEnd::Top)),
-            fname(b, RoleSeg::Cap(CapEnd::Bottom)),
+            fname(a, RoleSeg::Cap(CapEnd::End)),
+            fname(b, RoleSeg::Cap(CapEnd::Start)),
         ),
         (fname(a, wall(0)), fname(b, wall(0))),
         (fname(a, wall(1)), fname(b, wall(1))),

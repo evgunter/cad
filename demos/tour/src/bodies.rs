@@ -424,7 +424,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bracket(tol),
             None,
         )),
-        // Montage cell RETIRED by the montage-v3 curation (Evan,
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
         // 2026-08-30): `diechamfer` carries the chamfer verb on the
         // sheet, on a better part and at the SAME setback as
         // `diefillet`'s radius, so the two panels compare verbs. This
@@ -446,7 +446,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             spacer_body,
             Some(spacer_note),
         )),
-        // Montage cell RETIRED by the montage-v3 curation (Evan,
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
         // 2026-08-30): the genus-2 holed-profile EXTRUDE moves onto
         // `twopeg`, whose plate Q is authored as one extrude of a
         // profile with two circular inner loops (it was two boolean
@@ -466,7 +466,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             plate(tol),
             None,
         )),
-        // Montage cell RETIRED by the montage-v3 curation (Evan,
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
         // 2026-08-30): every surface this axis-touching full revolve
         // shows is on the sheet elsewhere — the teapot's pot IS this
         // meridian (foot cylinder, one sphere-zone arc, mouth) and the
@@ -500,7 +500,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             sheave_body,
             Some(sheave_note),
         ),
-        // Montage cell RETIRED by the montage-v3 curation (Evan,
+        // Montage cell RETIRED by the montage-v3 curation (Ev,
         // 2026-08-30). `Revolution::Partial` stays legible on the
         // sheet through klein's tubes and the lily's bud (three
         // partial revolves of the lantern meridian), so what the cell
@@ -525,7 +525,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     ]
 }
 
-// RE-HOMED (LIB-RETTAIL, Evan's ruling on #413): `finale_fail_loud` —
+// RE-HOMED (LIB-RETTAIL, Ev's ruling on #413): `finale_fail_loud` —
 // the bowtie coda — left the tour. A broken-on-purpose scene is not a
 // use case, and it was the last thing keeping a raw public authoring
 // tier alive. Its fail-loud contract did not evaporate: it is

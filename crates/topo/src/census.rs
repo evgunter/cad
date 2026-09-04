@@ -3,9 +3,10 @@
 //! defers, run at rest against a body's declared-contact records.
 //!
 //! **Sweep shape**: quadratic all-pairs sweeps in arena order
-//! (vertex×vertex, vertex×edge, vertex×face, edge×face, edge×edge) —
-//! the boolean edge×face convention: correctness first, the BVH filter
-//! is PERF-PLAN's later 10×. Exact on the F5 planar subset (`Line`
+//! (vertex×vertex, vertex×edge, vertex×face, edge×face, edge×edge),
+//! plus the conformal-patch arm and the cross-solid backstop named
+//! below — the boolean edge×face convention: correctness first, the
+//! BVH filter is PERF-PLAN's later 10×. Exact on the F5 planar subset (`Line`
 //! carriers, `Plane` surfaces). **Since M9-2 the census ADMITS every
 //! carrier kind**, and its reach is exactly this, stated class by
 //! class (the union fix's truth pass):
@@ -89,7 +90,7 @@
 //! overlap it bounds, edge-edge or edge-on-face.
 //!
 //! **The ruled strength is UNIFIED** (CONTACT-DESIGN C3/C4's
-//! post-ratification annotation; `docs/MATE-4B-CROSSING-DESIGN.md`):
+//! post-ratification annotation; `crates/topo/README.md`):
 //! *a declared pair answers exactly for its verified interface — the
 //! overlap region, with material opposition being what "interface"
 //! means for a crossing.* One consult site holds that strength today:
@@ -214,7 +215,7 @@ use crate::boolean::{ContactRecords, ContainError, FaceContainment, contfp};
 use crate::chart_region::ChartRegionError;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, VertexKey};
 use crate::null::CurveGeom;
-use crate::validate::{CensusContact, StaleDeclaration, ValidationError, decide};
+use crate::validate::{CensusContact, CensusSubject, StaleDeclaration, ValidationError, decide};
 
 /// One edge's exact census geometry (post-gate: a `Line` carrier).
 struct EdgeGeo<T: Real> {
@@ -640,10 +641,26 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
     }
 }
 
-/// A debug rendering of a witness position (the payload posture of
+/// A witness position rendered as COORDINATES (the payload posture of
 /// `ResultVolumeImplausible`: display data, never load-bearing).
+///
+/// Coordinates rather than the point's own `Debug`, because this string
+/// is pasted verbatim into a user-facing refusal: `Point3`'s derived
+/// rendering carries the field braces that mark a message as `Debug`
+/// guts, and the coordinate-triple SHAPE is what the rest of the tree
+/// uses for a point in prose (`mate/coset.rs`, `py/readback.rs` — both
+/// concrete `Point3<f64>`, so both spell it `{}`).
+///
+/// Each scalar keeps `{:?}` because `Real` bounds `Debug` and not
+/// `Display`: there is no route to `{}` on a generic `T` here. The
+/// alternative — projecting `T` to `f64` through `Bounds` — is what
+/// #990 refuses, naming `fn margin_of<T: Bounds>(…) -> f64` as the
+/// helper asked for and declined. (Not L7, which is the scope rule and
+/// admits rendering as legitimate `Bounds` context; the refusal is
+/// #990's.) `{:?}` prints `1.0` where `{}` prints `1`, so this matches
+/// the tree's shape and not its spelling.
 fn witness<T: Real>(p: Point3<T>) -> String {
-    format!("{p:?}")
+    format!("({:?}, {:?}, {:?})", p.x, p.y, p.z)
 }
 
 /// An impossible sign from a nonnegative margin — surfaced as the
@@ -1214,7 +1231,7 @@ enum CrossingBacking {
 }
 
 /// **The `EdgeEdgeCross` backing rung** — the unified strength's
-/// first instance (module docs; `docs/MATE-4B-CROSSING-DESIGN.md`,
+/// first instance (module docs; `crates/topo/README.md`,
 /// option A, planar-first): a declared face pair backs a crossing of
 /// two coplanar boundary edges iff
 ///
@@ -1616,7 +1633,7 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                         // the refusal is the lane's ruling, not a
                         // missing `Bounds` impl.)
                         errors.push(ValidationError::CensusUnsupported {
-                            entity: EntityId::Face(fa),
+                            subject: CensusSubject::FacePair(fa, fb),
                         });
                     }
                     Some(Ok(crate::chart_region::ChartOverlap::Empty)) => {}
@@ -1660,10 +1677,11 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                         | ChartRegionError::TouchingBoundary
                         | ChartRegionError::DegenerateLoop { .. }
                         | ChartRegionError::RayExhausted
+                        | ChartRegionError::WitnessBudgetExhausted { .. }
                         | ChartRegionError::Corrupt,
                     )) => {
                         errors.push(ValidationError::CensusUnsupported {
-                            entity: EntityId::Face(fa),
+                            subject: CensusSubject::FacePair(fa, fb),
                         });
                     }
                 }
@@ -2262,13 +2280,17 @@ fn sweep_cross_solid_backstop<T: Decide>(
             // which is what this early-out did, silently, in the
             // function whose header forbids exactly that.
             //
-            // `validate_closed`'s tier-2 check 1 refuses every empty
-            // loop and `validate_pseudomanifold` runs it before the
-            // census, so no body reaching here through the public door
-            // is in this state; the refusal costs nothing and stays
-            // loud if a second, ungated caller ever appears.
+            // Two states reach it and only one is closed off ahead of
+            // here: `validate_closed`'s tier-2 check 1 refuses every
+            // empty loop, and `validate_pseudomanifold` runs it before
+            // the census, so the unbounded-face half cannot arrive
+            // through the public door. The other half — a boundary
+            // that does not RESOLVE, any dangling loop, half-edge,
+            // vertex or point reference — is not argued unreachable
+            // here; it is refused on its merits. Both cost nothing and
+            // stay loud if a second, ungated caller ever appears.
             errors.push(ValidationError::CensusUnsupported {
-                entity: EntityId::Face(f),
+                subject: CensusSubject::Entity(EntityId::Face(f)),
             });
             continue;
         }
@@ -2676,7 +2698,7 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
             }
             Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => {
                 errors.push(ValidationError::CensusUnsupported {
-                    entity: EntityId::Edge(c.witness),
+                    subject: CensusSubject::Entity(EntityId::Edge(c.witness)),
                 });
             }
         }
@@ -2733,7 +2755,7 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
             }
             Err(crate::contact::ContactRefusal::NotCertifiable { .. }) => {
                 errors.push(ValidationError::CensusUnsupported {
-                    entity: EntityId::Face(c.face_a),
+                    subject: CensusSubject::FacePair(c.face_a, c.face_b),
                 });
                 continue;
             }
@@ -2745,7 +2767,7 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
         match T::declared_overlap(body, c.face_a, body, c.face_b, door_one, band) {
             None => {
                 errors.push(ValidationError::CensusUnsupported {
-                    entity: EntityId::Face(c.face_a),
+                    subject: CensusSubject::FacePair(c.face_a, c.face_b),
                 });
             }
             Some(Ok(crate::chart_region::ChartOverlap::PositiveArea)) => {}
@@ -2768,10 +2790,11 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
                 | ChartRegionError::TouchingBoundary
                 | ChartRegionError::DegenerateLoop { .. }
                 | ChartRegionError::RayExhausted
+                | ChartRegionError::WitnessBudgetExhausted { .. }
                 | ChartRegionError::Corrupt,
             )) => {
                 errors.push(ValidationError::CensusUnsupported {
-                    entity: EntityId::Face(c.face_a),
+                    subject: CensusSubject::FacePair(c.face_a, c.face_b),
                 });
             }
         }
@@ -3221,7 +3244,7 @@ mod tests {
     // description of the same cylinder locus (origin a quarter up the
     // axis, axis direction opposed, seam rotated 0.7 rad, its own
     // `GeomSource`) — the cross-instance class's fingerprint, which
-    // used to dead-end `ChartDivergence` → `CensusUnsupported{Face}`
+    // used to dead-end `ChartDivergence` → `CensusUnsupported{FacePair}`
     // → `Declined` → `Uncertified` and now flows through the
     // certified-ε enclosure arm.
 
@@ -3374,7 +3397,7 @@ mod tests {
     /// certifier — Door 1 verifies the carrier through the record's
     /// own declaration, Door 2 answers through the certified-ε
     /// enclosure. Before this arm, the same records dead-ended
-    /// `CensusUnsupported{Face}` (the chain the predicate-level
+    /// `CensusUnsupported{FacePair}` (the chain the predicate-level
     /// red-first suite quotes).
     #[test]
     fn a_cross_description_cylinder_patch_record_certifies() {
