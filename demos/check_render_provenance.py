@@ -216,7 +216,7 @@ def check_file(path, wild=False):
         return None
     if software.startswith(MATPLOTLIB_SOFTWARE_PREFIX):
         return (
-            f"{path}: MATPLOTLIB FALLBACK FRAME in a committed render "
+            f"{path}: MATPLOTLIB-DRAWN FRAME in a committed render "
             f"path ({describe(text)}). The fallback renders to the "
             f"gitignored demos/renders-preview/ tree; this file must "
             f"come from FreeCAD (re-run ./render.sh with a working "
@@ -317,7 +317,7 @@ def selftest():
         violations, _ = check_dirs([d])
         assert len(violations) == 1, violations
         assert "fallback_cell.png" in violations[0], violations
-        assert "MATPLOTLIB FALLBACK FRAME" in violations[0], violations
+        assert "MATPLOTLIB-DRAWN FRAME" in violations[0], violations
         (d / "fallback_cell.png").unlink()
 
         # An unstamped cell (unknown renderer): refused too.
@@ -365,7 +365,7 @@ def selftest():
         violations, _ = check_dirs([d])
         # (d still holds the bad sheet from the exemption case above.)
         assert any(
-            "stray_wild.png" in v and "MATPLOTLIB FALLBACK FRAME" in v
+            "stray_wild.png" in v and "MATPLOTLIB-DRAWN FRAME" in v
             for v in violations
         ), violations
     # ---- the two cross-file agreements this module asserts ---------

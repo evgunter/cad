@@ -881,7 +881,11 @@ jobs:
   # commit `bb65cb9`, which did this when it merged the two ε rows of the
   # `persistence` and `corpus` jobs.
   #
-  # ONE RIDER THE MERGE HAD TO CARRY, and it is per-lane:
+  # TWO RIDERS THE MERGE HAD TO CARRY, both of them per-lane:
+  #   * A NOT-CLEAN-BUT-GREEN PASS IS SURFACED PER LANE, out of that
+  #     lane's own collapsed group, as a `::warning::` and a step-summary
+  #     line. With two lanes in one job the group is the only thing
+  #     separating their output, so the lift has to name the lane.
   #   * THE LOGS ARE MOVED ASIDE PER LANE. render.sh clears `*.status` and
   #     `batch*.log` at the start of a pass and names per-scene logs after
   #     the scene, so the second lane would overwrite the first's. Each
@@ -957,10 +961,14 @@ jobs:
       #     wedge eating its whole batch — is not the failure mode this
       #     workload actually has.
       #   * THE RATE IS ~1 IN 4,300 scene renders, and the BUDGET IS FLAT in
-      #     B (render.sh, 2026-08-22), so a failure costs the same wall clock
-      #     at any B. Blast radius is therefore NOT the binding constraint:
-      #     the hazard is per-scene, so expected collateral is under 1% of a
-      #     lane-run's scene work at every B.
+      #     B (render.sh, 2026-08-22), so a WEDGE costs the same wall clock
+      #     at any B. A CRASH costs one process more above B=1 than at B=1:
+      #     the poisoned batch, then the scene ALONE TWICE, because the
+      #     split re-enters render.sh's crash retry at one scene. At ~5-6 s
+      #     of effective scene work that is seconds, not a budget. Blast
+      #     radius is therefore NOT the binding constraint: the hazard is
+      #     per-scene, so expected collateral is under 1% of a lane-run's
+      #     scene work at every B.
       #
       # WHAT IS NOT MEASURED, and what actually picks the number: CONTENTION
       # HEADROOM. The budget is 300 s PER PROCESS however many scenes the
@@ -1141,11 +1149,31 @@ jobs:
             [ "${!wanted}" = "true" ] || { echo "::notice::$lane lane not requested by this dispatch"; continue; }
             flag=""
             if [ "$lane" = freecad ]; then flag="--freecad"; fi
+            out="$RUNNER_TEMP/render-$lane.log"
             echo "::group::$lane lane"
             FREECADCMD="$HOME/freecad-appimage/squashfs-root/usr/bin/freecadcmd" \
               xvfb-run -a --server-args="-screen 0 1600x1200x24" \
-              demos/render.sh $flag && status=0 || status=$?
+              demos/render.sh $flag 2>&1 | tee "$out"
+            status=${PIPESTATUS[0]}
             echo "::endgroup::"
+
+            # GREEN BUT NOT CLEAN, LIFTED OUT OF THE GROUP. render.sh
+            # announces a retry, and a process that stalled after
+            # writing its frames, on stderr — which is inside the
+            # collapsed group above and nowhere a reader meets by
+            # default. A pass that only drew because a process was
+            # retried is not the same event as a clean pass, and this
+            # workflow just retired an assertion for letting a
+            # not-really-successful pass read as a successful one; a
+            # flaky lane that is silent at the surface is one notch of
+            # the same thing. A FAILING lane already gets `::error::`
+            # below, so this is only about the green one.
+            notclean=$(grep -cE 'NOTE — |TIMED OUT after|CRASHED — ' "$out" || true)
+            if [ "$status" -eq 0 ] && [ "${notclean:-0}" -gt 0 ]; then
+              echo "::warning::[$lane] GREEN BUT NOT CLEAN — ${notclean} line(s) report a retried or stalled freecadcmd process. The lane drew everything, but the renderer misbehaved doing it; the first attempt's log is in the freecad-logs-$lane artifact as *.attempt1.log."
+              printf -- '- **%s lane**: green, but %s line(s) report a retried or stalled process — the renderer misbehaved and drew anyway (see `*.attempt1.log` in `freecad-logs-%s`).\n' \
+                "$lane" "$notclean" "$lane" >> "$GITHUB_STEP_SUMMARY"
+            fi
 
             # THE LANE'S VERDICT IS render.sh's EXIT STATUS, and nothing
             # else. This loop used to also assert that

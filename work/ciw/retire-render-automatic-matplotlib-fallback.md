@@ -52,6 +52,26 @@ So a **stall gets a retry and a crash gets none** — backwards, on this evidenc
 
 Worth deciding alongside step 1, since removing the fallback changes what a non-retried crash costs: it becomes a red lane rather than a silent preview. No prior record of a `freecadcmd rc=1` crash in this lane appears anywhere in `docs/` or `memories/` — new symptom, single occurrence.
 
+## Corrections to this file (2026-09-04, from the implementing lane, PR 1745)
+
+* **"a *second, separate* step — `assert no matplotlib fallback`"** (above) is
+  wrong about the tree. There is no step by that name. The check is an inline
+  `if [ -e "demos/renders-preview/$dir" ]` block *inside* the `render both
+  lanes` step's loop; only the surrounding comments, `demos/README.md` and
+  `.github/actions/rebaseline-lane/action.yml` call it by that name. The defect
+  and the fix are unaffected — a reader looking for a step to delete is not.
+* **Every line citation above is stale.** As of `9deebf87` the sites are
+  `render.sh:~657` (`fallback()`), `:~676` (its banner), `:~680`
+  (`freecadcmd not found`), `:~696` (`*) fallback ...`) and `:~302-338` (the
+  retry loop); the `--freecad` no-fallback arm the item cites as `:367` is
+  `:~676`.
+* **The retry, decided:** widened to cover a crash, one fresh process, but only
+  where the batch carried ONE scene — above that `batch_status`'s split already
+  re-runs each frameless scene alone. The cost, measured rather than reasoned:
+  a crashing scene takes TWO processes at `CAD_RENDER_BATCH=1` and THREE above
+  it, because the split re-enters the retry at n=1. A wedge is never split and
+  still costs exactly two at every batch size. The argument is in PR 1745.
+
 ## Evidence retained
 
 `freecad-logs-kernel` artifact, ID `9348750507`, run `32204571643` — holds the full `chute.log` backtrace (14-day retention). That would separate an OCC segfault from an OOM kill or an llvmpipe fault, if anyone wants the root cause rather than the routing fix.

@@ -322,9 +322,17 @@ batch_attempt() {
 # frameless scene alone: that split is a second attempt, in a fresh
 # process, and a better one — it isolates the guilty scene instead of
 # re-running four innocent ones with it. Retrying in place as well would
-# spend a third and fourth process to learn nothing new. So the bound is
-# the same at every batch size as the wedge's: at most TWO processes per
-# scene before the pass gives up.
+# spend a third and fourth process to learn nothing new.
+#
+# WHAT THAT COSTS, AND IT IS NOT THE TIDY NUMBER. The split re-enters
+# render_batch with n=1, so the solo re-run TAKES THIS RETRY TOO. A
+# crashing scene therefore costs TWO processes at the default B=1 —
+# the scene, twice — and THREE above it: the batch it poisoned, then
+# the scene alone, twice. That is one process higher, once, and it does
+# not grow with B. A WEDGE still costs exactly two at every B, because
+# a wedge is never split. So the flat-in-B bound belongs to the wedge
+# and to B=1; the crash bound above B=1 is three, and saying otherwise
+# would be a claim this file's own batched failure disproves.
 #
 # WHAT THE RETRY MUST NOT DO IS HIDE ITSELF. A retried batch says so on
 # stderr both times — when it retries and, if the second attempt draws
@@ -514,7 +522,13 @@ render_all() {
     # leftover batch07.log from a pass at a different CAD_RENDER_BATCH
     # would be read as this pass's. Scene logs are left alone: their
     # names still mean exactly one thing.
-    rm -f "$LOGDIR"/batch*.log
+    #
+    # ONE SCENE LOG DOES NOT, and it is cleared with the batch logs: an
+    # `.attempt1.log` exists only for a process that had to be retried,
+    # so a stale one left beside a fresh scene log says a retry happened
+    # in THIS pass when none did. Its presence is the signal, which is
+    # exactly why it cannot be allowed to outlive the pass that wrote it.
+    rm -f "$LOGDIR"/batch*.log "$LOGDIR"/*.attempt1.log
     for name in "$@"; do
         batch+=("$name")
         if [ "${#batch[@]}" -ge "$RENDER_BATCH" ]; then
@@ -571,9 +585,13 @@ crashed() {
 
 ================================================================
  RENDER FAILED — scene '$name': $reason
-   after two fresh freecadcmd processes (a single-scene process is
-   retried once; see render_batch).
-   log: demos/$LOGDIR/$bid.log
+   drawn alone and retried once (see render_batch), so this scene
+   had two fresh freecadcmd processes of its own — three, if it also
+   poisoned a multi-scene batch before being split out of it.
+   logs: demos/$LOGDIR/$bid.log          the LAST attempt
+         demos/$LOGDIR/$bid.attempt1.log the FIRST, kept on purpose:
+                                         two backtraces is what tells
+                                         an OCC fault from an OOM kill
  THE PASS FAILS HERE. No montage is composed, and
    demos/$rd/
  is left exactly as committed: this pass rendered into

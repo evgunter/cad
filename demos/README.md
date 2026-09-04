@@ -715,12 +715,20 @@ rc=1 on a scene that rendered clean on the two preceding passes over
 identical inputs, so a crash is not reliably deterministic. Above one
 scene per process a crash is not retried in place: the batch split
 already re-runs each frameless scene alone, which is the same second
-attempt in a fresher, narrower process. Either way it is at most two
-processes per scene, and a second failure is a loud, named failure that
-ends the pass — never a silent skip, never a degraded cell. A retry
-says so on stderr, both when it happens and when the second attempt
-succeeds, and the first attempt's log is kept beside the second's
-(`<scene>.attempt1.log`).
+attempt in a fresher, narrower process.
+
+The cost, exactly: a crashing scene takes **two** processes at the
+default one-scene-per-process, and **three** above it — the batch it
+poisoned, then the scene alone, twice, because the split re-enters the
+retry at one scene. A **wedge** is never split and so costs exactly two
+at every batch size. Either way a second failure is a loud, named
+failure that ends the pass — never a silent skip, never a degraded
+cell. A retry says so on stderr, both when it happens and when the
+second attempt succeeds; the hosted lane lifts a retried-but-green pass
+into a `::warning::` and the step summary, because a green lane that
+needed a retry must not read as a clean one. The first attempt's log is
+kept beside the second's (`<scene>.attempt1.log`) and cleared at the
+start of the next pass, so its presence always means *this* pass.
 Two signals come out with it: how long the process had been silent (a
 slow scene keeps writing to its log; a wedged one goes quiet), and, when
 the frame was written but the process still had to be killed, a note

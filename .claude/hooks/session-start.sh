@@ -323,8 +323,12 @@ done
 # Worth pre-warming because it is the one render prerequisite that is a
 # cold download: FreeCAD is deliberately absent (a ~1 GB AppImage whose
 # whole purpose here is the hosted OCC reference lane), so on this
-# container the tour's kernel lane takes its matplotlib fallback and says
-# so loudly, exactly as designed.
+# container the tour's KERNEL lane cannot draw at all — it exits 1,
+# naming the missing binary. A preview here is `./render.sh
+# --matplotlib`, which asks for this venv's renderer by name and writes
+# only the ignored preview tree. Nothing selects that automatically:
+# a pass that drew nothing must not be able to look like one that
+# drew everything.
 #
 # The two things a preview pass needs beyond this venv, neither of which
 # belongs in a hook (both are per-scene work, not provisioning):
