@@ -2,11 +2,12 @@
 id: two-gestures-can-be-in-flight-together
 kind: issue
 title: session::Gesture and display::FreeMoveGesture share a field name and no guard, so a slider drag and a free-move probe can overlap
-status: review
+status: closed
 opened: 2026-09-04
 refs: [viewer-session-god-module-split, save-is-not-gesture-guarded, gesture-drags-have-no-cancel-door]
 branch: view/two-gestures
 pr: 1873
+closed: 2026-09-04
 ---
 
 

@@ -709,9 +709,13 @@ pub struct OpOutcome {
     /// solved placement from the next landed evaluation on.
     ///
     /// **Only COMMITTED probes.** A gesture in flight when the
-    /// transition lands dies too, and is deliberately not named here;
-    /// a caller learns that from `DisplayState::probing` and from the
-    /// typed refusal the next gesture op gives it.
+    /// transition lands dies too and is not named here — recorded as
+    /// current behaviour and explicitly not endorsed
+    /// (`crates/viewer/tests/review_gui4_r1.rs`), which is the same
+    /// rule [`SessionOp::permitted_during_value_gesture`] states from
+    /// the other side. A caller learns of the death from
+    /// `DisplayState::probing` and from the typed refusal the next
+    /// gesture op gives it.
     ///
     /// The chrome renders this through `frame::supersession_notice`.
     pub superseded: Vec<RecipeNodeId>,
