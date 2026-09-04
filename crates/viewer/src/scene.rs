@@ -586,6 +586,28 @@ pub const PLATE_EXTENT: [f64; 3] = [0.060, 0.040, 0.008];
 /// (⌀24 mm). Same reason as [`PLATE_EXTENT`].
 pub const PLATE_HOLE_RADIUS: f64 = 0.012;
 
+/// The plate's box, without evaluating anything: the corner at the
+/// origin and [`PLATE_EXTENT`] away from it.
+///
+/// The assembly [`PLATE_EXTENT`]'s own note asks for, given a home
+/// rather than restated — "a camera fixture, an expected-bounds
+/// assertion" is a six-line struct literal, and it had been hand-copied
+/// into every suite that wanted a box to frame a camera on. One home
+/// for the numbers and a different one for the box they make is half
+/// the rule.
+#[must_use]
+pub fn plate_bounds() -> Aabb {
+    let [width, depth, thickness] = PLATE_EXTENT;
+    Aabb {
+        min_x: 0.0,
+        min_y: 0.0,
+        min_z: 0.0,
+        max_x: width,
+        max_y: depth,
+        max_z: thickness,
+    }
+}
+
 /// The spike's document: a plate with a through hole.
 ///
 /// Authored through the ordinary document doors — one profile node

@@ -54,7 +54,6 @@ use std::sync::atomic::AtomicU64;
 use editor_core::appearance::Rgba8;
 use eframe::egui;
 use egui_tiles::{ContainerKind, EditAction, Tile, TileId, Tiles, Tree, UiResponse};
-use pncad::document::ProductError;
 use pncad::geom_core::Tol;
 
 use crate::camera::{self, Camera};
@@ -664,36 +663,15 @@ impl ViewerApp {
                     self.fit_on_scene = false;
                     self.pending_fit = true;
                 }
-                // The gather's own verdict, computed once when the
-                // evaluation landed. A naming collision across roots is
-                // not a node failure, so no tree badge carries it and
-                // the viewport would otherwise draw a product nothing
-                // says is malformed.
-                //
-                // The budget's verdict is NOT here, and the reason is
-                // worth writing down: this line is transient — a
-                // camera fold clears it through `land`, which every
-                // re-frame performs, including the one an Open books —
-                // and a coarsened δ is not transient, it is a standing
-                // fact about the picture on screen. It is a BADGE, up
-                // with the at-rest and checks reads.
-                self.status = self
-                    .session
-                    .product_fault()
-                    // **A document with no body root is EMPTY, not
-                    // malformed.** A fresh document is in that state,
-                    // and so is one whose last feature was just
-                    // deleted — and the blank viewport this arm has
-                    // just drawn says so more plainly than a line of
-                    // text could. Reporting it made deleting the last
-                    // feature look like a failure. Every other gather
-                    // refusal is a fault no tree badge carries, which
-                    // is what this line exists for, and stays here.
-                    .filter(|fault| !matches!(fault, ProductError::NoBodyRoots))
-                    // `ProductError`'s own `Display` opens every arm
-                    // with "product: ", so the prefix this used to add
-                    // by hand said the word twice.
-                    .map(ToString::to_string);
+                // The gather's own verdict is NOT written here. A
+                // naming collision across roots is not a node failure,
+                // so no tree badge carries it — but it is a standing
+                // fact about the landed pair, not this frame's news,
+                // and the status line carries news
+                // (`frame`'s header). It badges beside the at-rest and
+                // checks reads, off `frame::product_badge`, which is a
+                // read of held state and so cannot be stale here or
+                // erased by anything the rest of the frame does.
             }
             Err(error) => self.status = Some(format!("scene: {error}")),
         }
@@ -854,9 +832,6 @@ impl ViewerApp {
         self.apply_status(update);
     }
 
-    /// Apply a policy verdict to the status line — the one place a
-    /// [`StatusUpdate`] becomes the field, shared by the batch policy
-    /// and the dialog policy so neither hand-assigns.
     /// Write the current theme choice to the preferences store.
     ///
     /// **Best-effort, and it reports.** A store that cannot be
@@ -885,12 +860,16 @@ impl ViewerApp {
         }
     }
 
+    /// This application's door onto [`frame::apply`]: the batch policy
+    /// and the dialog policy hand their verdict here rather than
+    /// assigning the field.
+    ///
+    /// **Not the one place a [`StatusUpdate`] becomes the field** —
+    /// that is `frame::apply`, and `pane::viewport::land` reaches it
+    /// directly, having a `&mut Option<String>` and no `&mut self` to
+    /// come through. This is the `&mut self` shorthand, nothing more.
     fn apply_status(&mut self, update: StatusUpdate) {
-        match update {
-            StatusUpdate::Keep => {}
-            StatusUpdate::Clear => self.status = None,
-            StatusUpdate::Show(message) => self.status = Some(message),
-        }
+        frame::apply(&mut self.status, update);
     }
 
     /// **The advisory-check findings, in a window a reader can keep
@@ -1164,14 +1143,36 @@ impl eframe::App for ViewerApp {
                         self.checks_shown = !self.checks_shown;
                     }
                 }
+                // The gather's verdict, for the landed pair. **A
+                // standing fact, so a badge** — the status line beside
+                // it carries one frame's news and is cleared by the
+                // next acting batch, while "the product on screen does
+                // not gather" is true until another pair lands.
+                //
+                // Drawn in the unresolved colour, like the at-rest
+                // refusal and the checks findings and unlike the
+                // budget's weak advisory below: the colour is
+                // REDUNDANT here, in `Theme::unresolved`'s own sense —
+                // the badge says "product: …" in words either way — and
+                // it is the spelling this toolbar already uses for a
+                // verdict a reader may need to act on.
+                //
+                // Which faults reach it is `frame::product_badge`'s,
+                // and it declines every state another channel carries:
+                // the three per-node arms are the feature tree's, and
+                // an empty document is the blank viewport's.
+                if let Some(fault) = frame::product_badge(self.session.product_fault()) {
+                    ui.separator();
+                    ui.colored_label(chrome(self.theme.unresolved), fault);
+                }
                 // The display budget's badge: shown while the δ on
                 // screen is the one the budget CHOSE when the document
                 // opened, and gone the moment the user picks their
-                // own. A read of held state, like the two badges
-                // above, which is why it is here rather than in the
-                // status line below — that line is cleared by the next
-                // camera fold (issue filed), and "this δ was chosen
-                // for you" has to outlive a mouse drag.
+                // own. A read of held state, like the badges above,
+                // which is why it is here rather than in the status
+                // line below — that line carries one frame's news, and
+                // "this δ was chosen for you" has to outlive a mouse
+                // drag.
                 if let Some(fitted) = self.budget_delta
                     && let Some(wording) = fitted.wording()
                 {
