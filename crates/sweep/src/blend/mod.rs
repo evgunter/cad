@@ -389,15 +389,40 @@ pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet
 /// The recourse for a spine the rolling ball's own envelope folds on.
 /// Ball language kept deliberately: spine regularity is a rolling-ball
 /// fact, metered on no chamfer run.
+///
+/// **No caller has been handed this sentence.** The clearance screen
+/// answers first at every radius on the one closed-form curved spine
+/// the surgery carries, so the lever it names reaches nobody; pinned as
+/// the current outcome in `sweep/tests/blend_recourse_followability.rs`, by the row
+/// named `the_spine_recourse_has_no_front_door_witness_the_clearance_screen_answers_first`.
 pub const FILLET3_SPINE_RECOURSE: &str =
     "reduce the fillet radius below the spine's own curvature radius";
 /// The recourse for a chain that is not G1 (closed) / not classified
 /// (open).
+///
+/// **The corner clause is scoped to EVERY terminating corner, and the
+/// scope is not decoration.** A corner left partly requested refuses as
+/// a run-out wherever it sits, so a request covering one corner's three
+/// edges is still refused — at the three corners those edges run to.
+/// Endorsing "every edge of the corner" named a door that cannot serve
+/// the caller who was just refused, which is the A3-2 defect. Held to
+/// it by
+/// `sweep/tests/blend_recourse_followability.rs::the_chain_recourse_is_followed_by_requesting_every_terminating_corner`,
+/// which executes the one-corner request and the whole-body one
+/// together, so the hedge cannot drift from the door.
 pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected, tangent-continuous chain. Splitting the request at the break \
      helps only where the break is a genuine tangent break between two blendable runs; \
      where it is a CORNER, splitting leaves that corner partly requested and refuses \
-     again as a run-out — request every edge of the corner instead";
+     again as a run-out — request every edge of EVERY corner the chain terminates at \
+     instead, since one corner's edges alone still run out at the corners they reach";
 /// The recourse for a convexity sign flip along a chain.
+///
+/// **No caller has been handed this sentence.** Every G1 chain the
+/// doors express is a rim, whose convexity is uniform; a body that
+/// mixes convexity mixes it at a CORNER, which answers with
+/// [`FILLET3_CORNER_RECOURSE`] instead. Pinned as the current outcome
+/// in `sweep/tests/blend_recourse_followability.rs`, by the row
+/// named `the_convexity_recourse_has_no_front_door_witness`.
 pub const FILLET3_CONVEXITY_RECOURSE: &str =
     "split the chain at the convexity flip and blend each run separately";
 /// The recourse for a corner the corner patch does not cover — it
@@ -407,11 +432,22 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// Both clauses are true of either verb: the fully-requested UNIFORM
 /// trivalent corner carves on both material sides (the rolling ball's
 /// octant rests inside the material or in the void with its ball; the
-/// flat patch never had a side), so the sentence names the uniform
-/// configuration and conditions on nothing.
-pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates in a trivalent vertex whose three edges are all \
-     convex or all concave (over plane\u{2013}plane supports); mixed-convexity corners \
-     and general run-outs are not implemented";
+/// flat patch never had a side), so the sentence conditions on the
+/// configuration and not on the verb.
+///
+/// **What it DOES condition on is that every terminating corner is
+/// wholly requested**, which its sibling
+/// [`FILLET3_ASSEMBLY_RECOURSE`] already said and this one did not. The
+/// uniform configuration is necessary and not sufficient: the three
+/// edges at one all-convex cube corner terminate in exactly the
+/// endorsed vertex and still refuse — as a run-out, with this same
+/// sentence — at the corners they run to. Held to it by
+/// `sweep/tests/blend_recourse_followability.rs::the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds`,
+/// beside the chain row that pins the partly-requested outcome.
+pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates only in FULLY REQUESTED trivalent vertices whose \
+     three edges are all convex or all concave (over plane\u{2013}plane supports) — a \
+     corner left partly requested refuses as a run-out wherever it sits; \
+     mixed-convexity corners and general run-outs are not implemented";
 /// The recourse for a chain that stops at a CHART SEAM on an otherwise
 /// smooth rim.
 ///
@@ -476,11 +512,24 @@ pub const FILLET3_BODY_RECOURSE: &str = "blend a body that is a single solid wit
 /// not cover. Everything this unit decides is exact and stored — never
 /// sampled — so a carrier outside the covered shapes refuses rather
 /// than approximating.
+///
+/// **No caller has been handed this sentence.** The chain-shape gate
+/// reads the support pair before the geometry frontier is reached, so a
+/// non-planar support answers with [`FILLET3_ASSEMBLY_RECOURSE`];
+/// pinned as the current outcome in
+/// `sweep/tests/blend_recourse_followability.rs`, by the row
+/// named `the_geometry_recourse_has_no_front_door_witness`.
 pub const FILLET3_GEOMETRY_RECOURSE: &str = "blend edges whose supports are planes (for a fillet's rim, also a sphere cap) and \
      whose stored carriers are lines and circles; the surgery's exact forms cover no \
      other stored shape, and approximating one is not implemented";
 /// The recourse for a ring the blend's trimline would consume (the
 /// surgery's ring carry-through check).
+///
+/// **No caller has been handed this sentence.** The battery's clearance
+/// screen meters the same gap before the carry-through check runs, so
+/// the caller reads [`FILLET3_CLEARANCE_RECOURSE`]; pinned as the
+/// current outcome in `sweep/tests/blend_recourse_followability.rs`, by the row
+/// named `the_ring_recourse_has_no_front_door_witness_the_clearance_screen_answers_first`.
 pub const FILLET3_RING_RECOURSE: &str =
     "reduce the blend size, or move the feature whose ring sits inside the blend's setback";
 /// The recourse for a support pair outside the analytic-arm table —

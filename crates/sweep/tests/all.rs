@@ -461,3 +461,6 @@ mod r1_area_gauge_probes;
 
 #[path = "tcost_k3_certificate.rs"]
 mod tcost_k3_certificate;
+
+#[path = "blend_recourse_followability.rs"]
+mod blend_recourse_followability;
