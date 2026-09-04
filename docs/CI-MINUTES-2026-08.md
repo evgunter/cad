@@ -2234,6 +2234,40 @@ Three things follow, and all three are corrections to figures above:
 read by exactly one leg. The trade is five cache entries where there were two,
 and it is a trade rather than a free win — written down here as one.
 
+#### Re-measured on hosted runs, per row, with the post-step outcome
+
+**Run 33902561110** (`3768a039`, TIER=all, green; 33 jobs run, 3 skipped) is
+the first full run under the per-row key. Every leg's own post step, read off
+its job log:
+
+| row | duration | post-step outcome |
+|---|---:|---|
+| `dev-budget` | 79 s | `Cache up-to-date.` — exact hit on its own key, nothing to save |
+| `dev-default` | 80 s | `Cache up-to-date.` |
+| `release-budget` | 121 s | `Cache up-to-date.` |
+| `release-default` | 397 s | **saved**, `Sent 207715597 of 207715597 (100.0%)` |
+| `dev-probe` | 471 s | **saved**, `Sent 324718500 of 324718500 (100.0%)` |
+| | **1148 s** | **no leg logged `Failed to save` — the first run of the five in which that is true** |
+
+The two legs that had never once persisted their `target/` now do: 198 MB and
+310 MB, on keys nothing else writes. Under the old key those two failed to
+reserve on every run measured.
+
+**The durations did not fall on this run, and that is expected rather than
+disappointing.** Changing the key invalidates every entry, so `release-default`
+and `dev-probe` were cold here — they were writing their lanes for the first
+time. 397 s and 471 s against the four-run pre-fix range of 376–413 s and
+268–478 s is a cold run landing inside it. What the fix buys is a warm run
+whose warmth is its own, and the read of that is the next run, below.
+
+**Job-minutes on this run: +15.3**, against the pre-fix four-run mean of +14.8
+— inside the observed spread and not a regression, on a run where two legs paid
+a cold compile.
+
+**Wall clock: k-lint did not tail.** The longest leg (`dev-probe`, ends
+17:57:57) finished 58 s inside `test (interval, eps = default, 1/2)`
+(17:58:55).
+
 ### What is not measured here
 
 Three runs of the new shape, all on one branch whose cache was warm from
