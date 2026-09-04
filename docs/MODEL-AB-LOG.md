@@ -3660,3 +3660,30 @@ DOCM-4 RECORDED AT MERGE (2026-09-04, PR #1808, sample #126 — prior highest #1
 DOCM-3 RECORDED AT MERGE (2026-09-04, PR #1803, sample #127 — prior highest #126 on main at merge; block DOCM-B1 slot 0 concluded; the block record stays on `docm/b1-block` until the block concludes):
 
 | DOCM-3 | 2026-09-04 | DOCM-3 (PR #1803; spec docs/DOCM-3-SPEC.md + its stop-clause amendment, DM4–DM6 of DOCM-REFERENCES-DESIGN): `Node::Union` n-ary (fold of the pair verb, tag 31), `RoleSeg::FromMember { member, of }` keyed on the member EDGE with `names/emit_union.rs` collapsing fold descents to one wrapper, `DocEdit::SetMembers` over `Node::list_input` (`Loft` too) with its typed refusals, DM5 as `Node::input_fault` (one definition, three callers incl. the load validator), the die's 21-pip tool as one union with the corpus regenerated; Phase 1 stopped at DM4's false key (pass-through members share tables), amended, resumed | L / STRUCTURAL (pre-draw, at the spec; re-logged unchanged at the amendment) | OPUS (block DOCM-B1 slot 0; byte 203 → fable at slot 2) | **DUAL (ordinal 1801, v6 byte 85 parity 1: R1 fable, R2 opus, concurrent same-head on frozen a713a02e)**: R1 0/3/4 APPROVE-WITH-FIXES, rubric 4/3/3 — MINOR: the fold's refusal menu names uncollapsed fold rows (red probe); `EditError` Display restates `InputFault` where the doc promises forwarding; the list floor newly refuses a one-section `Loft` at insert/load, undisclosed. R2 1/7/5 APPROVE-WITH-FIXES, rubric 4/3/3 — MAJOR: the same refusal defect, plus its consequence that a union of touching members has no declaration channel and dead-ends (red probe); MINOR: two `_ =>` wildcards where the PR body says none, the loft floor (silent), A3 pinning surfaces only, `Merged` arm unreachable with an unexplained dedup, `on_set_members` ordering unpinned, a stale node count, `SetMembers` `UnknownNode` unpinned. Convergent: the refusal payload (bilateral), the loft floor (bilateral, silent), the combine_ops stale premise, the segment-tag census, history in comments. Adjudicated 1 MAJ (bilateral); unilateral-MAJOR tally +0. R1 disclosed an accidental glimpse of R2's build-script paths via the shared scratchpad (no content, no findings) — pair FAIR (3e) | 2 silent (the wildcards; the loft floor at insert/load — both fixed and disclosed) | R1 4 / R2 4 | R1 3 / R2 3 | R1 3 / R2 3 | substantial — fourteen items: `union_refusal` collapsing every refusal name through `collapse_name`, both matches made exhaustive over all 41 segments, loft-floor disclosure + rows + the DM5 coverage argument at `input_fault`, A3 with curves and points in both rows, `Merged` unreachability stated + collision pin, the unreachable empty intermediate refused as a kernel bug, `InputFault` Display forwarded, `roots::is_sink` one home + ordering row, `UnknownNode` row + list read/write agreement row, a segment-tag injectivity census, five stale-prose sites, history stripped from comments, `name_args` sentence, PR body corrections; the declaration channel filed as `n-ary-union-has-no-declaration-channel` | impl CI green (drawn interval, eps 1e-6); fix CI green (drawn interval, eps 1e-6; one rustdoc-link red leg fixed in between); local editor-core/viewer/pncad/pncad-py 1556 rows, tour 62 | impl ~645k (both phases) / fix ~309k / reviews R1 ~322k + R2 ~297k | impl ~2h35m across both phases (incl. the stop) / fix ~48 min / reviews ~2h10m + ~50 min concurrent |
+
+## EXCH-H1 review ordinal fixed at dispatch (2026-09-04)
+
+EXCH-H1 (`EXCH-H1`, closing `step-import-degree-one-line-promotion`,
+PR #1798 open — frozen head `431c6ba40`): **ordinal 2100** (EXCH band;
+first claimant). Pre-draw fields at the spec (`docs/EXCH-H1-SPEC.md`):
+difficulty **M**, task-class **NUMERIC**, re-logged unchanged at the
+§Re-scope ruling. Implementer arm per block EXCH-B1 slot 0 (record
+branch-side on `exch/b1-block`). Protocol v6 dual: draw =
+`/dev/urandom` byte **146**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**.
+Method, recorded before either review runs: CONCURRENT same-head on
+frozen `431c6ba40`, both briefs authored and STORED with sha256
+before either dispatches (6a5241719f6c… r1 / f32ba33e03bc… r2 —
+identical text modulo lane names and lane paths, verified by diff),
+neither reviewer sees the other's report, v6 item 5 isolation in both
+briefs, PRIVATE `CARGO_TARGET_DIR` per reviewer (fresh for both); the
+implementer's unit log entry is not written until the dual concludes.
+Orchestrator's ruling the reviewers read as settled: the spec's
+Phase 1 stop clause fired and the announced TRIM seam was extended to
+the one seam-class limb (`docs/EXCH-H1-SPEC.md` §"Re-scope at
+Phase 1") — reviewers falsify the built limb and the rows, not where
+the rung lives; the lane-side INV-C5 amendment is explicitly OPEN to
+attack. Process incidents to annotate at the row: the first
+implementer was killed by the account's usage limit mid-fix and its
+resume wedged on an orphaned build; a fresh same-arm lane finished
+(predecessor's uncommitted diff preserved and dispositioned in the PR
+body). Sample number AT MERGE in main's order. Row at merge.
