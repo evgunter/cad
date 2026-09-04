@@ -5,7 +5,7 @@ title: unit() admits the non-finite-norm class SEAT-DV closed at the datum door:
 status: review
 opened: 2026-09-02
 github: 1572
-refs: [1564, 1570, 1372, direction-underflow-reports-zero-length, is-finite-length-homed-in-the-query-seat]
+refs: [1564, 1570, 1372, direction-underflow-reports-zero-length, is-finite-length-homed-in-the-query-seat, mate-dangling-head-is-a-catch-all-that-reports-a-false-cause]
 branch: fix/unit-finite-norm
 pr: 1738
 ---
@@ -91,7 +91,8 @@ review): one variant carrying the evaluation layer's typed refusal
 verbatim and closing the catch-all is the proposed end state, but it
 reverses a documented S-MATE decision on S-MATE's charter ground, and
 a one-PR item needing another program's design assent is an item cut
-wrong. Filed to S-MATE with this unit's measurement as the argument.
+wrong. Filed to S-MATE with this unit's measurement as the argument:
+`mate-dangling-head-is-a-catch-all-that-reports-a-false-cause`.
 
 **What was swept for.** The class — a caller-supplied direction
 normalized, or its length decided, without the finiteness question

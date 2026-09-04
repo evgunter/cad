@@ -228,8 +228,8 @@ fn head_of<P>(
 /// evaluates to `Poisoned` rather than to its own
 /// `DegenerateDirection`/`NonFiniteDirection`. Carrying the
 /// evaluation layer's typed refusal into [`MateFault`] instead is
-/// proposed to this module's owner (FIX's slate, from PR 1738's
-/// review).
+/// proposed to this module's owner, filed as
+/// `mate-dangling-head-is-a-catch-all-that-reports-a-false-cause`.
 fn derived_offset<P>(
     doc: &Doc<P>,
     mate: RecipeNodeId,
