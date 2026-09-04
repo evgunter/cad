@@ -157,3 +157,26 @@ mutation phase announces a failed lookup rather than discarding it, at every
 write"* — while its evidence is *"these modules"*; the same diff left three
 silent discards in a sibling file, ten lines below two `unreachable!`
 conversions it had just added.
+
+## 6. Filing what you find outside your fence
+
+A sweep that works turns up defects that are not yours. **They go in your
+report and your PR description — not into another program's tracker
+directory.**
+
+`work/<program>/` is that program's slate. Filing there from a unit branch is
+a cross-program handoff made by diff, and `work/README.md`'s one-file-one-item
+rule makes two programs editing one item a merge conflict *by design*. Your own
+program's slate is yours to file on; someone else's is the orchestrator's, on
+the away channel.
+
+There is a second reason, and it is the one that actually bites: **you cannot
+tell whether the item already exists.** Two lanes in one session filed the same
+inherited CI red into two different programs' directories, on the same day the
+issue was filed and routed by a third — each lane re-derived the provenance
+correctly and neither could see the others. The orchestrator could. Report it;
+let the party with the whole board place it.
+
+Reporting it is not a lesser outcome. A finding with a named file and line in a
+PR body warns every reader of that PR; a duplicate item on the wrong slate
+warns nobody and costs a merge.
