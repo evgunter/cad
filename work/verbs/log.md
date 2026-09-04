@@ -3197,3 +3197,50 @@ also weathered the account-wide Actions budget wall (11:52–
 529 outage death with clean recovery. Dual claim to main at
 dispatch; parity per the draw line (byte 208 ⇒ R1 OPUS + R2
 FABLE).
+## Ordinal 113 returned and adjudicated (2026-09-04)
+
+R1 (opus) 1 MAJ / 6 MIN, 5/4/4, ACCEPT — instrumented the base
+mechanism itself (pole arm on-axis, param_on never reached, the
+latitude refusals never printed), verified bit-exactness at the
+bit level, re-derived the cavity volume (rel 8.55e-15), and
+probed four turns incl. the reflex 270° plus an outward offset
+(worst residual 8.7e-18). R2 (fable, resumed across a limit
+death) 0 MAJ / 2 MIN, 4/5/5, ACCEPT — independent
+instrumentation of the same mechanism, all six mutations (three
+declared + three own) landing on typed doors with predicted
+numbers, the interval widths measured (2.07e-14/2.80e-15), and
+the deviation judged an honest discharge of an acceptance whose
+premise was false at ratification.
+
+- R1 MAJ-1 (UNILATERAL TALLY CANDIDATE, class doc/contract-API —
+  the blinded coding weighs 3b; the demonstrated half is real):
+  TogetherEdgeDisagreement's PUBLIC doc and Display assert a
+  cause its raising sites don't share — the variant raises from
+  THREE sites, and at the lune's site the gap is a
+  midpoint-to-surface residual, not 'two ends solved apart'; the
+  false text is exactly what misled the module doc the PR spent
+  item 4 correcting, and the unit fixed every derived text but
+  left the authoritative one. Pre-existing, but this is the unit
+  that measured it. R2 did not raise it.
+- Both arms CONFIRMED: the mechanism correction; the
+  meridian-pair arm as a REDUCTION not a widening (neither STOP
+  fired — R2: the spec's item-1 wording cannot produce its own
+  item-4 acceptance; the wording re-cut goes to the spec, done
+  below); the deviation with its forcing red-the-day row and
+  filed schedule; the differential; the wedge bit-identity.
+- MINOR union: the fifth refusal string in neither reachability
+  list and unpinned (R1, with the buildable lune(0.3,20°) pose);
+  the cavity-volume derivation asserted by no test (R1 — a
+  10-line pure-arithmetic row); the 'one deviation' framing
+  underselling the meridian-pair arm; the :441 cite off by one;
+  three phantom files in the sweep list; the turn/sign space at
+  two points (reflex + outward measured correct by R1, unpinned);
+  the sealed-arm pin loose (R2, pre-existing); two idiom
+  laxities (R2); 'six decide names' is seven in six audit rows.
+
+TALLY: candidates now 7 (107×2, 108×1, 110×1, 112×1, 113×1 —
+one more confirmed unilateral reaches the pre-registered 8 IF
+the blinded coding confirms all; the coding session remains the
+decider). Pair COUNTS (R2's resume flagged). Union fix pass out
+(fable, implementer-inherited). Spec item-1 wording re-cut folded
+into the fix-pass instructions.
