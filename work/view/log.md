@@ -1039,3 +1039,65 @@ as mine was, for a day.
 CHROME hit the adjacent shape when it parked nine items and had to
 argue in prose why. Two instances is not a rule; a third is worth
 putting to Ev.
+
+## Unit 1 is closed (2026-09-04)
+
+Four PRs: #1801 ratified the boundary rule, #1816 made gesture safety
+data, #1830 split both files, #1832 made the one-of-seven tool
+invariant unrepresentable. **`session.rs` 3,260 → 1,500 and `app.rs`
+5,696 → 1,752**, thirteen new modules, and across the whole chain **no
+test file was touched and no assertion changed**. CHROME's nine parked
+items are unblocked and told.
+
+### 1d's review, and the finding that should not be lost
+
+All four claims survived. Two things came out of it worth more than the
+diff:
+
+**The reviewer verified the no-behaviour-change argument leg by leg and
+then added a leg nobody had considered.** `Tools` derives `Debug`, and
+derived `Debug` output IS observable behaviour that the change alters.
+It holds only because nothing formats a `Tools`. So the claim survives
+**by luck rather than by the enumeration**, which covered constructors
+and writers and not observers. *Who can construct this* and *who can
+observe this* are different sweeps, and the second is the one that gets
+skipped.
+
+**`ToolKind::ALL` had exactly one production reader — `open_kind`'s
+scan — and 1d removed it, leaving zero.** `ordinal` had zero already.
+So they are a `pub` pair existing solely for a test to sweep a list only
+that test reads, guarded by a second test. Same class as
+`opoutcome-superseded-has-no-production-reader`, filed by this program
+this morning. And the reviewer's Q6 point landed exactly: **1c filed an
+item for this shape of CHROME-glob residue and 1d filed none.** Now
+filed as `tool-kind-all-and-ordinal-have-no-production-reader`.
+
+### The seventh correction, and it is the one I was warned about
+
+The fix-pass lane checked a claim I had passed through and found it
+false: `forms::BOOLEAN_OPS` and `MATE_PRIMITIVES` are **not** that
+class — both are `pub(crate)` and both have production readers
+(`pane/create.rs:129`, `:144`, `:876`). The reviewer had named them as
+unswept siblings; I relayed that into a dispatch brief as an
+instruction without checking it.
+
+`docs/REVIEW-STYLE-DISPATCH.md` §3 names this exactly: *"A lane's
+unverified observation, repeated back to it as an instruction, arrives
+carrying the dispatcher's authority and is one commit from a ratified
+doc. Check a lane's claim before you build a brief on it."* It says the
+rule "binds the dispatcher hardest", and it was right. The lane caught
+it because the brief also told it the brief was a hypothesis — the two
+halves of that posture are what saved it, not either alone.
+
+**Seven dispatcher corrections across unit 1's chain**, two against
+decisions rather than details. Every one improved the unit. The posture
+that produced them is cheap: state the dispatch's claims as claims, and
+say so.
+
+### Where the program stands
+
+Unit 1 closed. **Thirteen open items, one parked**, nothing dispatched,
+no lane running. The three items that gate other work are all waiting on
+other programs: `next-id-has-no-layer3-door` (DOCM), the focus map door
+(DOCM and S-BOOL), and the pick-index seam ruling (an `[ev]` PR nobody
+has opened). The plan's items 3–6 are all still ahead.
