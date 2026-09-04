@@ -37,8 +37,9 @@ that nothing enforces either answer.
 
 The charter asks whether gesture-safety becomes data. If it does, this
 is the case that decides the shape of the datum: one flag is not
-enough if there are two gestures, and a `gesture_safe` predicate that
-silently means "safe against the slot gesture only" would be a table
+enough if there are two gestures, and a
+`SessionOp::permitted_during_value_gesture` predicate that silently
+meant "safe against the slot gesture only" would be a table
 that reads as complete and is not — the exact failure the table exists
 to prevent.
 

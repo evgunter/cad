@@ -1009,10 +1009,11 @@ pub fn wall_probes<S: Scalar + CertifiedBounds>(tol: Tol) {
             )
         },
         "record that the writer's outward/void classifier grew a curved arm, update \
-         findings entry 7 (the O6 demo-gates list row), and retire the `ring` and \
-         `tubewall::hollowtorus` scenes' `step_at_frontier` declarations, which pin this \
-         same refusal on the rendered hollow ring and on the parameter door's hollow \
-         torus — one gate, three probes, retiring together",
+         findings entry 7 (the O6 demo-gates list row), and retire the `ring`, \
+         `tubewall::hollowtorus` and `torusvessel` scenes' `step_at_frontier` \
+         declarations, which pin this same refusal on the rendered hollow ring, on the \
+         parameter door's hollow torus and on the shelled torus-walled vessel — one \
+         gate, four probes, retiring together",
     );
 
     // Wall 7 is RETIRED, per its own instruction: `mesh::planar`'s
