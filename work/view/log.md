@@ -339,3 +339,71 @@ one is vocabulary or policy, while the entire 2,507-line
 file's header claims "Toolkit adaptation, and nothing else"
 (`app.rs:6`), and roughly 900 of its first 1,188 lines contain no egui
 call whatever.
+
+## Unit 1's design: one rule, and the split cut in four (2026-09-04)
+
+Written into `crates/viewer/README.md` under **Module boundaries**, to
+go to Ev as an `[ev]` PR before anything is cut. `needs_ev` is set on
+the item.
+
+**The design is a rule, not a map.** *Every module in this crate is a
+vocabulary or a driver, and its `use` block says which* — a vocabulary
+names no `DocSession`, no `ViewerApp` and no `egui`; a driver owns
+mutable state and dispatches, and there are exactly two. The reason to
+prefer a rule is that a map is stale after the next unit and this rule
+is mechanically checkable by reading a `use` block. It is also
+descriptive rather than invented: it is already true of `camera`,
+`frame`, `input` and `display`, and the two files that grew are each
+one driver plus vocabulary that never left. That is why the extraction
+list falls out of the evidence rather than being argued for module by
+module — the inventory found `session::author`'s members reference
+`DocSession` **zero** times, and roughly 900 of `app.rs`'s first 1,188
+lines contain no `egui` call.
+
+**The unit is cut in four, and the order matters.** Gesture-as-data
+comes BEFORE the move: it deletes 23 guards that the move would
+otherwise carry into six new modules, so doing it first makes the move
+smaller. The move is third and stays purely mechanical. `Option<OpenTool>`
+is last.
+
+**Representation changes are deliberately separated from the move.**
+The move's entire safety property is that the compiler checks it and
+not one of 459 tests changes an assertion. A representation change
+folded into an L-size move destroys exactly that property, and the
+review has no way to tell which half a failure came from. The plan's
+"L-size mechanical refactor" survives as 1c only because 1b and 1d
+were lifted out of it.
+
+**Three answers the charter asked for.**
+
+- *`Refusal`'s delegation discipline*: an arm delegates where a module
+  below layer 3 owns the failure and its wording, and is flat where
+  layer 3 is the only place the fact exists. Applied to the 19 arms it
+  classifies 15 and leaves four — `NoSuchSlot`, `NoSuchParam`,
+  `ParamExists`, `EmptyName`, all facts about the document, so the
+  rule says they should delegate. The README says they stay flat and
+  why: moving them changes layer 2's error vocabulary, which is
+  `editor-core`'s and therefore DOCM's. Stating the exception is the
+  point — a rule that classified all 19 by construction would be a
+  rule fitted to the answer.
+- *Gesture safety as data*: yes, `SessionOp::gesture_safe`, exhaustive,
+  checked once. With two constraints the evidence forced: it changes
+  no operation's current answer (`save` included — that stays
+  `save-is-not-gesture-guarded`'s question, and a refactor that
+  silently fixed it would be a behaviour change smuggled through a
+  mechanical move), and it is not one flag for two gestures, since
+  `two-gestures-can-be-in-flight-together` shows a predicate reading as
+  a guarantee it does not give.
+- *The one-of-N tools invariant*: yes, `Option<OpenTool>`. Seven
+  fields, not the six the issue predicted, and the argument is stronger
+  than the issue's: `Tools::open_kind` scans the fixed-length
+  `ToolKind::ALL`, so an eighth tool omitted from that array compiles
+  clean and is **permanently unreachable**, which is the same failure
+  shape as `revolve-tool-unreachable-no-axisinplane-form` filed today.
+
+**What the design does not settle, said out loud.** The wording family
+still has six shapes across five modules and `AtRestBadge` still stores
+a stringified refusal. The boundary rule places them; it does not
+unify them. Left unnamed, that is the disclosed-blind-spot-read-as-a-
+discharge shape `docs/REVIEW-STYLE-DISPATCH.md` §2 names, so the README
+says it in its own last paragraph rather than only here.

@@ -30,11 +30,24 @@ concurrency unit.
 
 ## Order
 
-1. `viewer-session-god-module-split` — module boundaries, `Refusal`
-   delegation discipline, gesture-safety as data, `Option<OpenTool>`
-   for the one-of-six-tools invariant; ratified into the viewer README
-   in an `[ev]` PR, then an L-size mechanical refactor. Nothing else
-   in this program lands in those files before the split does.
+1. `viewer-session-god-module-split`, in four. The boundary rule —
+   every module is a vocabulary or a driver, and its `use` block says
+   which — is stated in `crates/viewer/README.md` under *Module
+   boundaries*, and ratified in an `[ev]` PR before anything is cut.
+   Then, in this order, because each step shrinks the next:
+   **1b** gesture safety as data (`SessionOp::gesture_safe`, one
+   exhaustive match checked once in `perform`, the 23 guards deleted,
+   no operation's current answer changed);
+   **1c** the mechanical move, `session` into six vocabularies and
+   `app` into its panes, vocabularies and widgets, with `pub use`
+   shims so no test changes;
+   **1d** `Option<OpenTool>` for the one-of-seven invariant.
+   Representation changes are separate from the move on purpose: the
+   move's whole safety property is that the compiler checks it, and a
+   representation change bundled into it destroys that.
+   Nothing else in this program lands in those files before 1c does.
+   The shim removal is `session-shims-and-test-imports`, parked on it,
+   and needs CHROME's test glob.
 2. `pick-priority-filter-vocabulary` — **parked, trigger unmet.** A
    per-kind admission set replaces the three-variant `PickKinds` when a
    third asymmetric tool (vertex pick) exists; none does or is
