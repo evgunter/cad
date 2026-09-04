@@ -1449,14 +1449,20 @@ jobs:
           else
             scripts/doc-gate.sh --pr --scope '${{ needs.filter.outputs.cargo_scope }}' --skip-viewer-toolkit
           fi
-      # THE ONE VERDICT FOR BOTH TOOLKIT ROWS, IN AN EVERY-LANE SEAT.
+      # THIS JOB'S TOOLKIT ROWS, IN AN EVERY-LANE SEAT.
       #
       # This job has no lane gate, which is why the pair lives here: the
       # seed-keyed axis has to be able to speak on every run, and in the
-      # lane-gated `clippy` job it could not (see the note there). The
-      # rows the ruling names are now in one job with one verdict —
-      # the rustdoc `--all-features` pass above, the app-feature clippy
+      # lane-gated `clippy` job it could not (see the note there). Three
+      # of the axis's rows are in this job under this one verdict — the
+      # rustdoc `--all-features` pass above, the app-feature clippy
       # below, and the app-feature TEST row beside it.
+      #
+      # A FOURTH READS THE AXIS OUTSIDE THIS JOB and prints its own
+      # verdict: `clippy-all-features` drops `viewer` from its selection
+      # when the axis is false. One verdict per job, never a job without
+      # one — the clause is that no green job name stands over a silent
+      # skip, not that one step speaks for the workflow.
       #
       # Mirror: local-scripts/ci-local.sh's toolkit rows.
       - name: viewer toolkit rows - the filter's verdict
@@ -1786,16 +1792,20 @@ jobs:
 
   # THE FEATURE COMBINATION NOBODY BUILDS.
   #
-  # Every other Rust row in this workflow compiles ONE feature selection:
-  # `clippy` runs default features, `lint-interval` runs `--features
-  # interval`, `python-suite` runs `-p pncad-py --features python`, `fmt`
-  # runs `-p viewer --features app`. Code behind any OTHER opt-in feature
-  # — `probe`, `budget`, and every conjunction of two — is therefore
-  # linted by NO row, and a warning in it accumulates unseen because no
-  # job it can red exists. Measured on this tree at the row's own first
-  # run: four `unused_imports` in `geom-brep`'s test binary, all four
-  # inside files whose whole contents sit under `#![cfg(feature =
-  # "probe")]`, invisible at default features and reported here.
+  # NOT THE FIRST `--all-features` PASS HERE, and the difference is the
+  # whole of what this row adds. `scripts/doc-gate.sh` already documents
+  # the WORKSPACE at `--all-features` from the `fmt` job, and argues the
+  # flag at its own FEATURES header. What no row runs is `--all-features`
+  # with `--all-targets` and `-D warnings`: rustdoc builds no test
+  # targets and issues no lints, and every CLIPPY row here pins one
+  # selection — `clippy` default features, `lint-interval` `--features
+  # interval`, `python-suite` `-p pncad-py --features python`, `fmt`
+  # `-p viewer --features app`. So a LINT in a test, bench or example
+  # target behind `probe`, `budget`, or a conjunction of two opt-ins has
+  # no job it can red, and accumulates unseen. Measured on this tree at
+  # the row's own first run: four `unused_imports` in `geom-brep`'s test
+  # binary, all four in files whose whole contents sit under
+  # `#![cfg(feature = "probe")]`, invisible at default features.
   #
   # `k-lint (gate)` already COMPILES the probe-gated suites (`cargo test
   # --features probe --all-targets --no-run`, one crate at a time). That
@@ -1814,33 +1824,64 @@ jobs:
   # shape one dimension over; this row is `--workspace` on every run it
   # takes.
   #
-  # WHAT IT COSTS, measured 2026-09-04 on a 4-vCPU / 15-GB box, from an
-  # EMPTY target directory, this tree: 113 s with `viewer` in the
-  # selection, 79 s with it out. It is off the critical path — nothing
-  # `needs:` it, and it runs beside `fmt` (5m03s on the code-tier run
-  # sampled for this measurement) and beside `build` + `test` — so its
-  # wall clock is in their shadow rather than added to the run.
+  # WHAT IT COSTS. Hosted, cold, no entry under its key: 100 s for the
+  # clippy step with `viewer` in the selection (run 33843151612). It is
+  # off the critical path — nothing `needs:` it — and that run's other
+  # jobs were `k-lint (gate)` 450 s, `fmt` 367 s and `build` 324 s with
+  # `test` still to come after `build`, so its wall clock sits in their
+  # shadow rather than being added to the run. On a 4-vCPU / 15-GB box
+  # from an EMPTY target directory the two selections are 111 s and 80 s;
+  # the ~31 s between them is the eframe/wgpu term.
   #
   # THE GUI TOOLKIT GRAPH IS THE SAME SEED-KEYED AXIS AS EVERYWHERE ELSE,
-  # and this row does not widen it. Ev's viewer-CI-posture ruling
-  # (docs/GUI-LOG.md, 2026-08-27) refuses "a permanent per-PR bill if
-  # every kernel change pays" the ~140-crate eframe/wgpu graph — derived
-  # against this tree as 152 crates that enter the workspace's
-  # `--all-features` dependency graph with `viewer` and leave it with
-  # `--exclude viewer`, and 34 s of the 113 above. A flat `--all-features`
-  # here would make every code-tier run pay that, which is the thing the
-  # ruling declined, so the axis decides it exactly as it decides the
-  # rustdoc pass's `--skip-viewer-toolkit` in `fmt`: in, when the seeds
-  # buy the toolkit; `--exclude viewer`, when they do not.
+  # and this row takes the WHOLE of that axis rather than half of it.
+  # Ev's viewer-CI-posture ruling (2026-08-27, "the GUI is treated as a
+  # third-party consumer of the API") was recorded in the closed GUI
+  # program's log, which left the tracker with that program's directory
+  # in DOC-LEDGER sweep 5 and reads at
+  # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`.
+  # It is paraphrased at `RUN_VIEWER_TOOLKIT` in scripts/ci-filter.py.
+  # THE RULING HAS TWO CLAUSES AND THEY TRAVEL TOGETHER: the toolkit
+  # steps are seed-keyed, AND "a viewer row joins the nightly lane to
+  # re-take the gated coverage against toolkit-dependency drift". A row
+  # that takes the skip without the re-take is not applying the ruling —
+  # it is giving coverage up permanently — so this row's exclusion is
+  # paired with `clippy (viewer, all features)` in nightly.yml's
+  # `viewer-toolkit` job, ungated, once a day. Delete either and the
+  # other is wrong.
+  #
+  # The graph itself, derived against this tree with `cargo tree`: 218
+  # unique crates in the workspace's `--all-features` graph, 66 with
+  # `--exclude viewer`, so 152 enter with `viewer`. A flat
+  # `--all-features` here would make every code-tier run compile them,
+  # which would leave the other two toolkit rows skipping a graph the run
+  # builds anyway — the ruling's "roughly 140 crates that no other row in
+  # this workflow needs" made false by this row.
+  #
+  # THE CACHE KEY MOVES WITH THE AXIS, and it has to. One `rust-cache`
+  # entry over two feature selections is the hazard `clippy`'s own header
+  # names against `--all-features` and `lint-interval` restates below,
+  # and taking the axis without keying on it walks straight into it: the
+  # two selections share no artifacts, because excluding a member changes
+  # the feature unification of the members that remain. Measured on this
+  # tree, 4 vCPU: the exclusion against a directory holding only the flat
+  # build recompiles for 52 s, and the flat build against a directory
+  # holding only the exclusion recompiles for 88 s — against 0.4 s when
+  # the selection matches what is there. `rust-cache` PRUNES the target
+  # directory to the last build's artifacts before saving (its own
+  # "Cleaning .../target" line), so a shared entry can never hold both
+  # and every axis flip would pay one of those two numbers. `k-lint` keys
+  # on its profile and `lint-interval` on a `shared-key` for this reason.
   #
   # WHAT THE EXCLUSION GIVES UP, stated rather than implied: on an
-  # axis-false run nothing lints `viewer` at `--all-features` (`app` +
-  # `interval` together). `viewer` at DEFAULT features is still linted by
-  # `clippy` on a default draw and by `lint-interval` on an interval one,
-  # both scoped; `viewer --features app` is the `fmt` job's row under this
-  # same axis, and nightly.yml re-takes that one ungated once a day. The
-  # `app` + `interval` conjunction is linted by no row on an axis-false
-  # run, and by this one when the axis is true.
+  # axis-false run nothing in THIS workflow lints `viewer` at
+  # `--all-features` (`app` + `interval` together). `viewer` at DEFAULT
+  # features is still linted by `clippy` on a default draw and by
+  # `lint-interval` on an interval one, both scoped; `viewer --features
+  # app` is the `fmt` job's row under this same axis. All of that is
+  # re-taken by nightly.yml's `viewer-toolkit` job, ungated, once a day —
+  # the ruling's second clause, and what makes the skip a deferral rather
+  # than a hole.
   #
   # RECORDED, NEVER SILENT, per the ruling's own clause: the step prints
   # which of the two selections it ran and the seeds it read, so a green
@@ -1864,11 +1905,15 @@ jobs:
       - name: prune local-only tooling (hosted CI may not depend on it)
         run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
-      # No `shared-key`: this job's feature unification is its own, so it
-      # keys on this job like `clippy` does, and does not touch the two
-      # build primers' keys (scripts/check-cache-prime-parity.py requires
-      # those to be used by no other job).
+      # KEYED ON THE AXIS, per the header: the two selections share no
+      # artifacts, and one entry over both would recompile on every flip.
+      # `key:` (not `shared-key:`) so the two entries stay this job's own
+      # and neither collides with the build primers', which
+      # scripts/check-cache-prime-parity.py requires to be used by no
+      # other job.
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: viewer-${{ needs.filter.outputs.run_viewer_toolkit }}
       - name: clippy (--all-features)
         run: |
           printf 'seeds: %s\n' '${{ needs.filter.outputs.seeds }}'

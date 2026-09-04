@@ -1157,7 +1157,18 @@ run_row "test (viewer app)"            cargo nextest run -p viewer --features ap
 # ONE POINT, NOT THE POWERSET, on both halves: `--all-features` is every
 # feature ON together. A warning visible only under a proper subset is
 # outside this row.
+#
+# TWO HOSTED HALVES, and that is the seed-keyed axis showing through.
+# ci.yml's row drops `viewer` from the selection when the change
+# filter's seeds do not buy the toolkit, so nightly.yml re-takes that
+# member ungated once a day — the second clause of Ev's viewer-CI-posture
+# ruling. This one row is the local half of both: it lints the whole
+# workspace, `viewer` included, on every invocation.
+#
+# COST, 4 vCPU, empty target directory: 111 s. A developer running the
+# whole file pays it once.
 # HOSTED MIRROR: clippy-all-features / clippy (--all-features)
+# HOSTED MIRROR: viewer-toolkit / clippy (viewer, all features)
 run_row "clippy (--all-features)"      cargo clippy --workspace --all-targets --all-features -- -D warnings
 # The same shape one crate over: `crates/pncad-py/src/py/` — the whole
 # PyO3 surface — compiles only under the crate's non-default `python`

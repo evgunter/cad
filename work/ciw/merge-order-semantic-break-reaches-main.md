@@ -4,7 +4,7 @@ kind: issue
 title: Two green PRs merged 22 minutes apart left main non-compiling: no run ever gates the union
 status: open
 opened: 2026-09-04
-refs: [f3-recosting-on-a-public-repo, main-latently-red-at-tier-all, 1725, 1769]
+refs: [f3-recosting-on-a-public-repo, main-latently-red-at-tier-all, 1725, 1769, 1792]
 ---
 
 
@@ -62,15 +62,22 @@ because there is no earlier tree on which the check fails.
 
 ## Disposition
 
-The one-line fix (`MateFault::Unleverable { mate, .. }` joins the
-single-mate arm — the fault carries a `mate` field, and the function's
-own header says every arm but `Band` names its subject) rode the CIW
-`--all-features` clippy row's PR as a sanctioned drive-by, because that
-row could not land green over it. The mechanism above did not ride
-anything and is what this file records: it is evidence for
-`f3-recosting-on-a-public-repo`, whose subject is what a main push
-should re-gate, and it argues for a floor that is a function of MERGE
-ORDER rather than of tier.
+**The instance was fixed independently, not here.** `c825bbd2` (PR
+1792) landed the same one-line arm while the CIW lane was measuring —
+`MateFault::Unleverable { mate, .. }` joins the single-mate group, the
+fault carrying a `mate` field and `blamed_mates`' own header saying
+every arm but `Band` names its subject. The CIW branch carried a
+byte-identical arm for the same reason and dropped it on merging main,
+so nothing about the repair is CIW's and no CHROME/VIEW adjudication is
+owed.
+
+What is CIW's is the mechanism above, which is what this file records.
+It is evidence for `f3-recosting-on-a-public-repo`, whose subject is
+what a main push should re-gate, and it argues for a floor that is a
+function of MERGE ORDER rather than of tier: the two trees this defect
+lives between are each green, so no wider per-PR tier reaches it.
 
 Not measured here: how often this shape fires. One instance in one
-night is one instance.
+night is one instance, and the 34 min 25 s main stood
+non-compiling — 05:26:52Z, #1725's merge, to 06:01:17Z, #1792's — is
+one sample of exposure, not a distribution.
