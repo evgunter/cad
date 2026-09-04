@@ -427,7 +427,11 @@ impl std::error::Error for UnitVec3Error {}
 /// enclosure whose upper end overflowed still contains its truth) —
 /// the honest scope: this catches the point scalars, which is where an
 /// infinite length turns into a definite wrong answer.
-fn is_finite_length<T: Real>(x: T) -> bool {
+///
+/// Every direction door asks the length question through THIS
+/// predicate — [`UnitVec3::new`] below and the evaluation layer's own
+/// direction door alike — so one rule has one spelling.
+pub fn is_finite_length<T: Real>(x: T) -> bool {
     #[allow(clippy::eq_op)]
     let residual = x - x;
     !residual.is_poison()

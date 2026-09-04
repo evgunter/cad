@@ -453,6 +453,86 @@ fn typed_refusal_doors() {
     }
 }
 
+/// **A direction whose LENGTH is not a finite number refuses at the
+/// direction door**, before anything downstream decides on it.
+///
+/// The two directions this layer owns are wired separately and one
+/// reaching the door proves nothing about the other, so both are
+/// pinned. Components of 1e200 are finite VALUES — the expression
+/// layer passes them — but their norm overflows to +∞, an ∞ margin
+/// reads as maximally definite, and normalization collapses the
+/// vector to zero. A linear pattern then mints coincident copies out
+/// of a decided path; a transform's rotation axis reaches the
+/// rigidity check, which refuses it for a different reason than the
+/// one that is true.
+#[test]
+fn non_finite_direction_refuses_at_the_direction_door() {
+    // A linear pattern's direction.
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+    let (doc, pat) = insert(
+        doc,
+        Node::Pattern {
+            input: cube,
+            count: editor_core::Expr::count(3),
+            kind: PatternKind::Linear {
+                direction: [scl(1e200), scl(0.0), scl(0.0)],
+                spacing: len(2.0),
+            },
+        },
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&pat) {
+        Some(NodeResult::Failed(e)) => {
+            assert!(
+                matches!(
+                    e.kind,
+                    NodeErrorKind::NonFiniteDirection {
+                        role: "pattern direction"
+                    }
+                ),
+                "expected the non-finite refusal, got {:?}",
+                e.kind
+            );
+            let said = e.kind.to_string();
+            assert!(
+                said.contains("pattern direction") && said.contains("finite"),
+                "the refusal names the direction and what is wrong with it: {said}"
+            );
+        }
+        other => panic!("expected Failed, got {other:?}"),
+    }
+
+    // A transform's rotation axis, refused HERE — the rigidity check
+    // downstream also refuses this document, and that is not what
+    // holds the line.
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+    let (doc, moved) = insert(
+        doc,
+        Node::Transform {
+            input: cube,
+            translation: [len(0.0), len(0.0), len(0.0)],
+            rotation_axis: [scl(0.0), scl(1e200), scl(0.0)],
+            rotation_angle: ang(FRAC_PI_2),
+        },
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&moved) {
+        Some(NodeResult::Failed(e)) => assert!(
+            matches!(
+                e.kind,
+                NodeErrorKind::NonFiniteDirection {
+                    role: "transform rotation axis"
+                }
+            ),
+            "expected the direction door's refusal, got {:?}",
+            e.kind
+        ),
+        other => panic!("expected Failed, got {other:?}"),
+    }
+}
+
 #[test]
 fn declare_passes_through_and_boolean_accepts_it() {
     let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
