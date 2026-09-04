@@ -1118,8 +1118,10 @@ run_row "clippy (viewer app)"          cargo clippy -p viewer --features app --a
 # the fuller recipe.
 #
 # `--success-output immediate` for the same reason the hosted step has
-# it: the adapter line and the skip markers are prose meant to be read,
-# not output to recover from a failure.
+# it: the adapter line is prose meant to be read, not output to recover
+# from a failure. Not the skip markers — `--features app` compiles them
+# out of this row; they announce themselves by NAME in the default-
+# feature rows' PASS list.
 run_row "test (viewer app)"            cargo nextest run -p viewer --features app --success-output immediate
 # The same shape one crate over: `crates/pncad-py/src/py/` — the whole
 # PyO3 surface — compiles only under the crate's non-default `python`

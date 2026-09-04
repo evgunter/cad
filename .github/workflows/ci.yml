@@ -1520,9 +1520,12 @@ jobs:
       # here opens a surface. `vulkaninfo --summary` prints WHICH adapter
       # the row will land on, before the row runs.
       #
-      # `--success-output immediate` because the loud-skip markers and
-      # the smoke row's adapter line are prose a reader of this log is
-      # meant to see, not output to recover from a failure.
+      # `--success-output immediate` because the smoke row's adapter
+      # line is prose a reader of this log is meant to see, not output
+      # to recover from a failure. Not for the loud-skip markers: they
+      # are `cfg(not(feature = "app"))` and this row is `--features
+      # app`, so they are compiled out of it and announce themselves by
+      # NAME in the archive legs' PASS list instead.
       #
       # Mirror: local-scripts/ci-local.sh's toolkit rows.
       - name: install a software Vulkan adapter (lavapipe)

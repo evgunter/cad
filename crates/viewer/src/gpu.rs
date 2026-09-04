@@ -28,14 +28,15 @@
 //! CLEARED to `IdMap::NOTHING` — so "the cursor is over nothing" is a
 //! value the pass produces rather than a case the reader infers.
 //!
-//! # Nothing here has ever run
+//! # Construction runs; drawing does not
 //!
-//! Every line in this module compiles and lints, and none of it has
-//! executed: the lanes that wrote it had no GPU and no display. Issue
-//! #1097 owns first light, and its checklist carries the two questions
-//! only hardware answers about the code below — whether the depth
-//! attachment is really attached, and whether the id pass and the ray
-//! path agree on the same cursor.
+//! [`ViewportRenderer::new`] and everything it builds execute on a real
+//! device under `--features app`, so a pipeline this module cannot
+//! build is a red row. Nothing below that seam does: no surface, no
+//! frame, no readback, no pixel. The questions only a drawn frame
+//! answers — whether the depth attachment is really attached, and
+//! whether the id pass and the ray path agree on the same cursor —
+//! are open, and issue #1097 owns them.
 //!
 //! # Depth
 //!
