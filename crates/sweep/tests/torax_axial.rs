@@ -965,7 +965,10 @@ fn torax_the_lune_cavity_volume_closed_form_matches_quadrature() {
     }
     let rel = (v_closed - v_quad).abs() / v_closed;
     println!("[torax] cavity volume: closed {v_closed}, quadrature {v_quad}, rel {rel:e}");
-    assert!(rel <= 1e-12, "closed form vs quadrature disagree: rel {rel:e}");
+    assert!(
+        rel <= 1e-12,
+        "closed form vs quadrature disagree: rel {rel:e}"
+    );
 }
 
 /// **The meridian-pair arm at a REFLEX turn**: the 270° lune's moved
