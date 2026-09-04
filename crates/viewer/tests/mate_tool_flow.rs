@@ -10,11 +10,12 @@
 use crate::common;
 
 use common::asm;
-use pncad::document::{ClassAdmission, MateSide, solve_document};
+use common::{ang, len, scl};
+use pncad::document::{ClassAdmission, MateSide, RecipeNodeId, solve_document};
 use pncad::geom_core::{Point3, Tol};
-use pncad::select::{ContactClass, Ray};
+use pncad::select::{ContactClass, Ray, RoleSeg, face_frame};
 use viewer::matetool::{MateTool, MateToolError, MateToolEvent, MateToolState, admitted_classes};
-use viewer::session::{DocSession, FaceSelection, SessionOp};
+use viewer::session::{DocSession, FaceSelection, PatternRuleSpec, SessionOp};
 
 /// Pick a face through the session's real ray path.
 fn pick_at(session: &DocSession, ray: &Ray) -> FaceSelection {
@@ -157,7 +158,7 @@ fn the_tool_refuses_typed_what_the_picks_do_not_admit() {
     tool.pick(post_top.clone());
     assert!(matches!(
         tool.proposal(doc, eval, tol, asm::seat()),
-        Err(MateToolError::SamePick { instance }) if instance == bench.post_b
+        Err(MateToolError::SamePick { head }) if head == bench.post_b
     ));
 
     // A vanished pick refuses typed when asked WITHOUT a reconcile
@@ -231,4 +232,189 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
         }
     ));
     assert_eq!(tool.state(), &MateToolState::Idle);
+}
+
+/// The linear spacing the pattern rows step post_b by — wide enough
+/// that copy 1 stands clear of copy 0 and of the shelf, so a ray
+/// reaches exactly one of them.
+const PATTERN_STEP: f64 = 0.04;
+
+/// Pattern post_b twice along +x and answer the pattern node.
+fn patterned_post(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
+    let outcome = session.perform(SessionOp::AddPattern {
+        input: bench.post_b,
+        count: 2,
+        rule: PatternRuleSpec::Linear {
+            direction: [scl(1.0), scl(0.0), scl(0.0)],
+            spacing: len(PATTERN_STEP),
+        },
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    *outcome
+        .committed
+        .first()
+        .and_then(|edit| match edit {
+            pncad::document::DocEdit::InsertNode { .. } => session.committed_doc().roots().last(),
+            _ => None,
+        })
+        .expect("the pattern node is a root")
+}
+
+/// A pick on pattern copy `i` of the patterned post's top cap.
+fn copy_pick(session: &DocSession, i: u32) -> FaceSelection {
+    pick_at(
+        session,
+        &asm::down_at(
+            asm::POST_B_AT[0] + f64::from(i) * PATTERN_STEP + asm::POST_SECTION / 2.0,
+            asm::POST_B_AT[1] + asm::POST_SECTION / 2.0,
+        ),
+    )
+}
+
+/// **A pattern-placed head is a member and mates.** The A11 vocabulary
+/// admits `Pattern` + `Instance(i)` over a live instance and the solve
+/// places it; this row is the viewer authoring one by picking.
+#[test]
+fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
+    let tol = Tol::witness();
+    let bench = asm::bench("matepattern", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    let pattern = patterned_post(&mut session, &bench);
+
+    let copy_one = copy_pick(&session, 1);
+    assert_eq!(copy_one.node, pattern, "the ray met the pattern's body");
+    let shelf_bottom = pick_at(
+        &session,
+        &asm::up_at(
+            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
+            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
+        ),
+    );
+    let mut tool = MateTool::new();
+    tool.pick(copy_one.clone());
+    tool.pick(shelf_bottom.clone());
+    let (doc, eval) = session.landed_pair().expect("landed");
+    let proposal = tool
+        .proposal(doc, eval, tol, asm::seat())
+        .expect("a pattern copy is a member");
+
+    // The reference is `Instance(i)`-headed, on the pattern node —
+    // which is what makes it a MEMBER rather than a bare pattern head.
+    assert_eq!(proposal.a.node, pattern);
+    assert!(
+        matches!(
+            proposal.a.path.first(),
+            Some(RoleSeg::Instance { i: 1, .. })
+        ),
+        "the copy rides in the head: {:?}",
+        proposal.a.path.first()
+    );
+
+    // The alignment is in the MASTER's part coordinates — the same
+    // numbers copy 0 would author, because the pattern's derived
+    // offset is the solve's to apply and not the tool's to bake in.
+    assert!(
+        (proposal.alignment.a.origin[2] - asm::POST_HEIGHT).abs() < 1e-12,
+        "part coordinates: {:?}",
+        proposal.alignment.a.origin
+    );
+    let mut zero = MateTool::new();
+    zero.pick(copy_pick(&session, 0));
+    zero.pick(shelf_bottom.clone());
+    let from_zero = zero
+        .proposal(doc, eval, tol, asm::seat())
+        .expect("copy 0 is a member too");
+    assert_eq!(
+        from_zero.alignment.a.origin, proposal.alignment.a.origin,
+        "every copy of one pattern is the same part"
+    );
+
+    // And it SOLVES: one committed edit, then the two picked faces
+    // coincide in the world the evaluation draws. A tool that folded
+    // the pattern offset into the authored frame would land copy 1 one
+    // step away from the shelf.
+    let outcome = session.perform(proposal.op());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(outcome.committed.len(), 1);
+    session.pump();
+    let (doc, eval) = session.landed_pair().expect("landed");
+    assert!(
+        solve_document(doc, tol).fault(pattern).is_none(),
+        "the pattern member solves"
+    );
+    let a = face_frame(eval, copy_one.node, &copy_one.name).expect("copy 1's cap");
+    let b = face_frame(eval, shelf_bottom.node, &shelf_bottom.name).expect("the shelf's underside");
+    for (got, want) in [
+        (a.origin.x, b.origin.x),
+        (a.origin.y, b.origin.y),
+        (a.origin.z, b.origin.z),
+    ] {
+        assert!(
+            (got - want).abs() < 1e-9,
+            "the mated faces meet in the world: {:?} vs {:?}",
+            a.origin,
+            b.origin
+        );
+    }
+    for row in session.tree_rows() {
+        assert_eq!(row.status, viewer::tree::RowStatus::Ok, "{row:?}");
+    }
+}
+
+/// **What is still outside the vocabulary is still refused.** A
+/// pattern over something that is not a live instance carries no
+/// member, however `Instance(i)`-qualified its faces are.
+#[test]
+fn a_pattern_over_a_non_instance_is_still_not_an_instance_pick() {
+    let tol = Tol::witness();
+    let bench = asm::bench("matepatternnon", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    // A transform between the instance and the pattern: the pattern's
+    // input is a `Transform`, not an `InstantiatePart`, which is one
+    // of the heads `member_of` declines.
+    let moved = session.perform(SessionOp::AddTransform {
+        input: bench.post_b,
+        translation: [len(0.0), len(0.0), len(0.0)],
+        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+        rotation_angle: ang(0.0),
+    });
+    assert!(moved.refusal.is_none(), "{:?}", moved.refusal);
+    session.pump();
+    let moved = *session.committed_doc().roots().last().expect("a root");
+    let outcome = session.perform(SessionOp::AddPattern {
+        input: moved,
+        count: 2,
+        rule: PatternRuleSpec::Linear {
+            direction: [scl(1.0), scl(0.0), scl(0.0)],
+            spacing: len(PATTERN_STEP),
+        },
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    let pattern = *session.committed_doc().roots().last().expect("a root");
+
+    let copy_one = copy_pick(&session, 1);
+    assert_eq!(copy_one.node, pattern);
+    let shelf_bottom = pick_at(
+        &session,
+        &asm::up_at(
+            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
+            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
+        ),
+    );
+    let mut tool = MateTool::new();
+    tool.pick(copy_one);
+    tool.pick(shelf_bottom);
+    let (doc, eval) = session.landed_pair().expect("landed");
+    assert!(
+        matches!(
+            tool.proposal(doc, eval, tol, asm::seat()),
+            Err(MateToolError::NotAnInstancePick {
+                side: MateSide::A,
+                node
+            }) if node == pattern
+        ),
+        "a pattern over a transform carries no member"
+    );
 }
