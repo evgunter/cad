@@ -37,9 +37,11 @@
 //! **Either side of the material.** A chain of concave edges ending at
 //! all-concave trihedra carves exactly as a convex one does, because
 //! nothing below picks a side (next section); the two admission doors
-//! take that clause per verb, so the fillet's convex-only ball is
-//! unaffected. What stays outside is a MIXED corner, which is the
-//! run-out question rather than the convexity one.
+//! take that clause per verb, and the fillet's rolling ball folds the
+//! same stored verdict on its own arms (it rests in the void on a
+//! concave chain — BLEND-4 for open chains, FILLET-H4 for closed rims).
+//! What stays outside is a MIXED corner, which is the run-out question
+//! rather than the convexity one.
 //!
 //! Everything else refuses typed and names itself: a curved support
 //! ([`crate::blend::BlendError::ChamferArmUnsupported`] — the chamfer over curved

@@ -286,6 +286,23 @@ jobs:
       - name: rustdoc (viewer, all features)
         if: '!cancelled()'
         run: cargo doc -p viewer --all-features --no-deps
+      # THE LINT HALF OF THE SAME GATE, and the third row this job holds
+      # for the same ruling. ci.yml's `clippy (--all-features)` lints the
+      # workspace at every feature at once, and drops `viewer` from that
+      # selection when the seeds do not buy the toolkit — so on a skipped
+      # run NOTHING there lints this crate at `app` + `interval`
+      # together, which is a combination the two rows above do not cover
+      # either: the clippy row above pins `--features app` and the
+      # rustdoc row issues no lints. Ungated here, once a day, which is
+      # the clause of the ruling that makes that skip a deferral.
+      #
+      # `-p viewer` and not the workspace: the rest of the workspace is
+      # linted at `--all-features` on every code-tier PR run, gated by
+      # nothing. What this row re-takes is the one member the axis can
+      # remove.
+      - name: clippy (viewer, all features)
+        if: '!cancelled()'
+        run: cargo clippy -p viewer --all-targets --all-features -- -D warnings
 
   # THE RUSTDOC GATE'S OTHER TWO PASSES, and the reason ci.yml is allowed
   # to run only the first one.
