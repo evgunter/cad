@@ -72,3 +72,20 @@ against `docs/DOCM-4-SPEC.md` (pre-draw M / STRUCTURAL at the spec),
 concurrently with `DOCM-3` on disjoint files; the fence is in the spec's
 Constraints. Node-kind units (`DOCM-1`, `DOCM-2`) wait for `DOCM-3` to
 land, so two lanes never mint content-key tags at once.
+
+## DOCM-3 stop clause fired; DM4's key amended (2026-09-04)
+
+The lane stopped at the measured site: the die's 21 pips are
+`Transform`s of ONE revolve, a transform is pass-through under N1, so
+the 21 members carry identical name tables and `FromMember(inner)`
+collides (pinned executably on the lane's branch). Orchestrator ruling,
+a faithful elaboration of DM4's stated intent (identity-keyed,
+position-free), so recorded and merged without an `[ev]` round and
+reported to Ev in chat: the segment keys on the MEMBER EDGE —
+`FromMember { member: RecipeNodeId, of }` — the `Instance { i, of }`
+shape with an identity where it has an index. DM5 gains its third
+caller, the load validator, since a snapshot never passes an edit door
+(the lane's finding). Spec amended on the lane branch; the lane resumes
+as the same arm. Disclosed and accepted: `pncad-py`'s exhaustive
+`EditError` tag mirrors forced three rows (the S4 shape `C6`/`D366`
+carry); `SetMembers` generalized over `Loft` through `Node::list_input`.
