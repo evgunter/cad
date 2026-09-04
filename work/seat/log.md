@@ -246,3 +246,13 @@ ruling on PR 1735; spec `docs/FILLET-RIM-SPEC.md`): the rim an arc
 belongs to, an EXACT door beside `edge_adjacent_matches`, with its own
 `RimError`. Nothing else in the module moves; SEAT's units touching the
 file merge as usual.
+
+## VS-Q4 RULED — the encoding stands (2026-09-04, PR 1870)
+
+Ev signed off the SEAT-6 deviation as a revision of VS-Q4: `ParamSource`
+is a canonical injective encoding of the lowered expression, not an
+interned token; the ledger answer is rewritten in place in
+`docs/VERB-SEAT-DESIGN.md` and `SEAT-6`'s `needs_ev` flag clears. The
+dual's VS-Q4 assessments (in flight) land in the unit's row as evidence,
+not as a reopening: the merge of PR 1593 now waits only on the reviews,
+the fix pass and the seam merge.
