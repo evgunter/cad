@@ -409,16 +409,33 @@ fn the_parametric_living_walk() {
     assert_eq!(session.history().len(), before, "and mints no history");
 
     // ── 8. About to move `taper`, the user asks how far it can go.
-    // The probe targets the PARAMETER, not a driven slot: on an
-    // expression-driven slot the probe lacks the `DrivenByExpression`
-    // guard its sibling doors have (issue 1458), so the parameter door
-    // is the one that behaves. The probe is explicit, commits nothing,
+    // The probe targets the PARAMETER, and on a driven slot it must:
+    // the probe refuses an expression-driven slot with the same
+    // affordance the numeric write above got, which names the
+    // parameter to ask about instead. The probe is explicit, commits
+    // nothing,
     // and answers in the session: below, a wall exists (a drum's radius hits zero before
     // taper does — degenerate profile), so the low side is an EDGE
     // strictly inside (0, taper); above, the drums merely re-stack, so
     // the search finds real room past the first reach. A probe on an
     // undeclared parameter refuses through the same typed door as the
     // value write.
+    let outcome = session.perform(SessionOp::ProbeBounds {
+        target: BoundsTarget::Slot {
+            node: tower,
+            slot: SlotId::Distance,
+        },
+    });
+    match outcome.refusal {
+        Some(Refusal::DrivenByExpression { ref params, .. }) => {
+            assert_eq!(params, &vec![height.clone()], "probe THAT instead");
+        }
+        ref other => panic!("expected the driven refusal on the probe, got {other:?}"),
+    }
+    assert!(
+        session.bounds().is_none(),
+        "a refused probe lands no reading"
+    );
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Param {
             name: ParamName::new("tapper"),
@@ -454,7 +471,7 @@ fn the_parametric_living_walk() {
     );
     assert!(
         bounds.high.limit() >= TAPER + 1.0,
-        "real room upward, at least one canonical seed out: {:?}",
+        "real room upward, at least one seed out (a scalar's seed is 1): {:?}",
         bounds.high
     );
     assert!(

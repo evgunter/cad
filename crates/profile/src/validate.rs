@@ -997,7 +997,7 @@ impl<T: Decide> Profile<T> {
         tol: Tol,
         guide: &mut CanonGuide,
     ) -> Result<ValidatedProfile<T>, ProfileError> {
-        let band = Band::new(tol.eps(), tol.k() * tol.eps()).map_err(ProfileError::Band)?;
+        let band = Band::linear(tol).map_err(ProfileError::Band)?;
         // The exact-order band for canonical-start selection (module
         // docs): no representable f64 lies strictly inside it.
         let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;

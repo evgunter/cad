@@ -51,7 +51,16 @@ fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
     ]
 }
 
-/// A band shaped like `Band::linear` at an explicit ε.
+/// The band (ε, `DEFAULT_K`·ε) at an ε this suite chooses, per the
+/// module header's explicit-tolerance rule.
+///
+/// **Not `Band::linear`, on either edge.** That door derives ε from the
+/// run and takes only a `Tol` witness, so it cannot state a band at a
+/// chosen ε; and it scales by the run's K, which `CAD_AMBIGUITY_K` may
+/// set to any value above 1, whereas these rows need one multiplier at
+/// every matrix point. `DEFAULT_K` is the compiled constant on purpose:
+/// this band and `Band::linear` coincide only when the run's K is that
+/// default, so a reader must not take one for the other.
 fn linear_band(eps: f64) -> Band {
     Band::new(eps, DEFAULT_K * eps).unwrap()
 }

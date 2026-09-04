@@ -455,9 +455,24 @@ pub struct Disagreement {
 }
 
 impl core::fmt::Display for Disagreement {
+    /// Each side renders through [`StableName`]'s own `Display` — kind
+    /// and minting node, the half a user can act on — followed by the
+    /// role path.
+    ///
+    /// BOTH halves are load-bearing here, which is what makes this
+    /// message different from every other one in this crate. The name's
+    /// `Display` omits the path deliberately, so two names differing
+    /// only in their derivation would render identically; the path
+    /// alone drops kind and node, so two names on different nodes
+    /// sharing a role path would. A message whose entire subject is
+    /// that two answers DIFFER cannot afford either collapse.
+    ///
+    /// The path rides as `Debug` because `RoleSeg` has no `Display` in
+    /// this workspace — the one rendering here that is not prose, and
+    /// it is a derivation, not a sentence.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let show = |name: &Option<StableName>| match name {
-            Some(name) => format!("{:?}", name.path),
+            Some(name) => format!("{name} ({:?})", name.path),
             None => "nothing".to_owned(),
         };
         write!(
