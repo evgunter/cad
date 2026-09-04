@@ -2,10 +2,11 @@
 id: loud-skip-marker-says-two-modules-and-there-are-six
 kind: issue
 title: lib.rs's loud-skip marker says two app-feature modules; the split made it six
-status: review
+status: closed
 opened: 2026-09-04
 branch: view/module-kind-gate
 pr: 1848
+closed: 2026-09-04
 ---
 
 

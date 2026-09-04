@@ -2,10 +2,11 @@
 id: boundary-rule-has-no-mechanical-check
 kind: issue
 title: The vocabulary/driver rule is called mechanically checkable and nothing checks it
-status: review
+status: closed
 opened: 2026-09-04
 branch: view/module-kind-gate
 pr: 1848
+closed: 2026-09-04
 ---
 
 
