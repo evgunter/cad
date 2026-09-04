@@ -39,6 +39,18 @@ Names contain no floats and no arena keys; a pass-through op (Transform,
 split-intact entity) adds no segment, so `node` stays the original minter. Names
 are document-local; assembly wrapping is `ASSEMBLY.md`'s.
 
+**N1, the revolve poles.** `Pole(v)` names the ONE body vertex an on-axis
+profile vertex revolves to, looked up in the sweep's `poles` export. A PARTIAL
+revolve keeps the axis run: the rotation fixes every point of it and both
+meridian chains meet at each of its vertices, so an INTERIOR vertex of a
+subdivided axis run — an on-axis side carried by several collinear legs, which
+the continuation verbs author — is structurally a pole and takes `Pole(v)` like
+the run's tips. A FULL revolve deletes the axis run outright, so an interior
+vertex of it has no body entity and nothing to name: the export's `None` is the
+answer there, and the run's tips are the only named on-axis vertices. Totality
+is the check on that silence — `check_total` refuses a table leaving a LIVE body
+vertex unnamed, so a `None` standing over surviving geometry cannot pass.
+
 **N2 — Split discriminators are covariant margined predicates.** When one source
 yields n fragments, `Fragment(Qualifier)` follows the parent-bearing segment:
 `Qualifier::SideOf`, a sign vector of `name_frag_side_of` verdicts against the
