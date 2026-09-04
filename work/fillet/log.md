@@ -128,3 +128,53 @@ NUMERIC unchanged, re-logged branch-side. PR
 [#1752](https://github.com/evgunter/cad/pull/1752) is the unit's PR; the
 finding is filed as `concave-rim-arms-rest-ball-on-material-side`,
 which the unit closes.
+
+**E1 reviewed (2026-09-04): MERGEABLE-AFTER-FIXES**, single style review
+on frozen `acb85399` of PR [#1743](https://github.com/evgunter/cad/pull/1743).
+C1/C2/C3/C5 held under executed differentials and mutants; C4 missed one
+stale sentence. The review's real yield is a sibling class: the shared
+gate reads `lo() > 0` unmetered while the band's zero is 1e-9, so a
+positive size under ε still reaches the false-fact refusal at both doors
+(fillet: a false headroom sentence; chamfer: `DependentNormals` about an
+orthonormal corner) — the blend's is the one unmetered spelling of three
+(shell and tube meter positivity against the band). Adjudicated: the fix
+pass (implementer-inherited) adopts the reviewer's rows `--no-ff`
+(order pin, one-refusal row, the `Interval` bracket rows that make the
+interval claim real — the flipped probe is `f64`), fixes the prose and
+the duplicated rationale, and files the sub-ε class as its own issue
+with a characterization row rather than widening E1; the order change
+(size gate before repeated-edge) is disclosed as a change and stands.
+The inline-Display-advice class the review surfaced (`NonpositiveSize`,
+`RepeatedEdge` map to `Recourse::None` yet advise) is routed to E2's
+inventory. E3 dispatched on `fillet/e3-margin-payloads`.
+
+**E2 landed (2026-09-04)** as PR [#1753](https://github.com/evgunter/cad/pull/1753),
+head `804aa72f`, green at the drawn point (default, ε 1e-6). Twenty-two
+composed rows follow every recourse constant and two inline-advice
+sites to their promised outcome: eleven followable, ten pinned
+unreachable with the reason at the constant, two wording fixes
+(`FILLET3_CHAIN_RECOURSE`, `FILLET3_CORNER_RECOURSE`: a corner left
+partly requested runs out wherever it sits). Headline claim, to be
+falsified by the review before it gets an issue: all six `profile`
+fillet recourse sentences are dead because `EscalationSite::Fillet`
+has no producer. Style review dispatched on the frozen head.
+
+**E1 MERGED (2026-09-04)**, PR [#1743](https://github.com/evgunter/cad/pull/1743)
+at `fcb2c915`, green 22/22 at the asked-for interval lane, ε 1e-12
+drawn. Both blend doors share one size gate; the false-fact refusal at
+radius zero is gone; the reviewer's rows adopted `--no-ff` (the gate
+order pinned, the `Interval` bracket rows that make the interval claim
+real, the no-metering probe row); the sub-ε class filed as
+`blend-size-gate-unmetered-under-epsilon` with a characterization row
+as its witness. The first FILLET unit closes.
+
+**H4 landed (2026-09-04)** on PR [#1752](https://github.com/evgunter/cad/pull/1752),
+head `797e37f9`, green at the asked-for interval lane. The curved arms
+fold the chain's convexity; the concave gate is retired; the waist, the
+`cube ∪ ball` boss (LADDER), the lily mouth and the snowman waist carve
+at their closed-form volumes with pad 0; every convex carve bit-identical
+to the merge base by the dump; two mutants red only on concave rows;
+`D322` closed as a rider. Ordinal **2000** claimed; the v6 dual is
+dispatched concurrently on the frozen head (the draw and method are in
+`docs/MODEL-AB-LOG.md`'s claim entry). The implementer's unit entry
+waits for the dual.

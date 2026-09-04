@@ -140,3 +140,66 @@ its fence reaches for `work/` before it reaches for its report.
 the `CI-Config:` trailer is read off the head commit ONLY and is
 voided by any later commit, a merge included — so a requested lane
 needs the trailer restated on every head.
+
+## Wave 1 closed, wave 2 out (2026-09-04)
+
+**Four units merged**: `unit-admits-non-finite-direction-norm` (1738),
+`error-types-with-no-display-class` (1741), `band-linear-spelling-not-swept`
+(1732), `split-crossings-skip-pattern-mate-ends` (1749). Two in fix pass:
+`transform-rigid-refuses-described-nurbs` (1742), the census pair (1750).
+
+**Every unit's review found something the unit's own claims covered
+over, and no unit needed an adversarial arm.** The pattern across all
+six is one thing: a lane's *executed* result was reliable, and a
+*written* claim near it — its own, its item's, or the surrounding
+docs' — was not.
+
+- 1738: three separate written claims in one area were plausible and
+  false or incomplete (`placement.rs`'s stale refusal name,
+  `is_finite_length`'s "every direction door", `derived_offset`'s
+  defence of its catch-all). The last is the durable one: the doc
+  argues the catch-all is safe because the pattern node names the real
+  cause, and the mate fault POISONS the document so that node never
+  evaluates. Filed to S-MATE.
+- 1742: the item asserted the refused walls carry "rational weights".
+  Measured: every weight is exactly 1.0 — and under uniform weights
+  Euclidean and homogeneous storage are indistinguishable, so the
+  suite could not have caught the storage error its own argument is
+  about.
+- 1732: the row the unit singled out as its one deliberate exception
+  hardcodes K in its second half; the reviewer's suggested repair
+  would not have caught it (its sample points 10/3.5/30 all clear the
+  arm that only overflows for K > 2).
+- 1749: the item's premise was refuted by construction, and the
+  *obvious* fix would have created the defect the item feared.
+- 1741: the item's list came from a census keyed on a spelling the
+  types do not use; cuts 2 and 3 were empty.
+- 1750: the arm table is provable rather than sampled, and the lane's
+  own ×2 correction rescued the CLAIM, not just the number.
+
+**Two orchestrator errors, both caught by reviewers, both corrected in
+place:** a "re-homed on main" claim that had not landed (fixed by
+merging 1761), and telling a lane its branch was one tracker commit
+behind when main was 14 commits ahead touching viewer sources.
+
+**One duplicate filed by this orchestrator.** CHROME's style lane filed
+the viewer free-move hole hours earlier with an executed row. FIX's was
+deleted and folded in. Note what this says about the rule merged in
+1757: it routes cross-fence findings through the orchestrator because
+the orchestrator has the view the lane lacks — but **two orchestrators
+do not have each other's view**, and only the away channel closes that.
+Not amended on one instance; recorded so the rule is not read as
+claiming more than it does.
+
+**A second false attribution, self-caught:** two notes said PR 1749
+made `member_of` public. Main landed it independently while 1749 was in
+review; 1749 resolved onto main's spelling and deleted its own. The
+consumer and the argument are 1749's; the home is not. Corrected on
+both issues.
+
+Wave 2 out: `no-parametric-loop-constructor`,
+`mate-contradiction-names-one-mate-twice`. Held behind the census fix
+pass: `tier-3-prime-findings-render-through-debug` (shares
+`census.rs`). Still unscheduled: `coherence-findings-have-no-consumer`,
+`boolean-error-has-no-fieldless-kind`, `mate-clocking-has-no-gui-path`
+half 1.

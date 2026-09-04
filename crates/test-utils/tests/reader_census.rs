@@ -235,6 +235,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // the crate's src/ directory walk, for the file-list pin
     },
     Entry {
+        path: "crates/viewer/src/gpu.rs",
+        disposition: Shared, // pipeline census over its own source, code view
+    },
+    Entry {
         path: "crates/viewer/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },

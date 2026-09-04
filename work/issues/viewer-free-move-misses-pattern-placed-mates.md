@@ -65,17 +65,24 @@ user reaching for the master both get a wrong answer, by two unrelated
 mechanisms — which is why reading either door alone does not show the
 hole.
 
-**2. The fix has a door now.** PR 1749 (FIX,
-`split-crossings-skip-pattern-mate-ends`) made
-`editor_core::mate::member_of_head` public for exactly this reason: it
-collapsed three spellings of "is this name's head a member?" onto one
-predicate, after establishing that a second hand-written spelling is
-not merely redundant but *harmful* (a gate matching the head's spelling
-rather than the vocabulary mints an interface crossing for a mate that
-never solved). `mates_naming` is the fourth spelling and the one that
-was live. Resolving each reference's head through `member_of_head` and
-comparing MEMBERS is the shape; the behaviour change this issue names
-is still owed its own evidence.
+**2. The fix has a door now** — `editor_core::mate::member_of`
+(`solve.rs:159`), which main landed independently.
+
+*Correcting myself:* an earlier version of this note credited PR 1749
+with making that door public. It did not. PR 1749 wrote its own
+`member_of_head` for the same purpose, main landed `member_of` while
+that PR was in review, and the PR resolved onto main's spelling and
+deleted its own. The door exists; 1749 is not where it came from.
+
+What PR 1749 does contribute is the argument for using it: it
+established by mutation that a second hand-written spelling of the
+vocabulary is not merely redundant but *harmful* — a gate matching a
+mate head's spelling rather than asking the vocabulary mints an
+interface crossing for a mate that never solved, which AQ8's (b)-SKIP
+forbids. `mates_naming` is the remaining hand-written spelling and the
+one that is live. Resolving each reference's head through `member_of`
+and comparing MEMBERS is the shape; the behaviour change this issue
+names is still owed its own evidence.
 
 **3. The distinction from 1412, sharpened.** 1412 refuses something it
 should allow (the pick gate excludes heads the rider admits); this

@@ -2,12 +2,13 @@
 id: fillet-nonpositive-radius-false-fact-refusal
 kind: unit
 title: fillet_edges at nonpositive radius emits a false-fact refusal; the two blend doors validate size asymmetrically
-status: dispatched
+status: closed
 opened: 2026-08-31
 github: 1336
 refs: [1328, 1278]
 branch: fillet/e1-nonpositive-radius
 pr: 1743
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1336
