@@ -37,3 +37,41 @@ Not urgent, and nothing is wrong today. This is a note about where the next unit
 ## Home
 
 Viewer ground (`crates/viewer/src/pick.rs`): GAUTH's closing entry names this issue as its residue, and both GAUTH and GUI are closed programs, so it lands in `work/issues/`.
+
+## Fixed (CHROME, 2026-09-04)
+
+`PartWindows<K: DrawnKind>` owns the parts in order, each part's run of
+entity `K`, the flat names parallel to it, the name inverse and the
+`(node, body)` narrowing. Instantiated twice; `PickIndex` drops six
+fields for two, and `build`'s two loops become one walk. It was **nine**
+sites, not the eight the note counts — `scene_focused` was recomputing
+the patch window a third time from the mesh with its own offset.
+
+The two ADDRESS types are deliberately not unified: patch ids are
+global, an `EdgeId` is a per-body triple, so `name_of` stays a flat
+lookup and `edge_name_of` stays window-checked. What is generic is the
+WINDOW, not the address.
+
+**What the differential proves, stated at its real strength.** The
+`pick_windows.rs` hand-walk was committed BEFORE the refactor and was
+green against the unrefactored index, so it is a sound golden against
+behaviour drift and that ordering is checkable in `git log`. It is
+**not** the independent derivation the PR first claimed: the style lane
+found `HandWalked::of` to be statement-for-statement the pre-refactor
+implementation, down to the variable names, so a misconception held by
+the old code would survive into both sides. One real independence is
+accidental and worth keeping: the hand-walk takes its window length
+from `mesh().patches.len()` while the refactor takes it from
+`patch_names(eval).len()`, so `ids_in` does cross two sources.
+
+`by_target.insert` no longer overwrites a duplicate `(node, body)`
+silently — it refuses `PickIndexError::DrawnTwice`. And a pre-existing
+`MispairedIds` check stopped being tautological: it compared ids sliced
+from `mesh.patches.len()` against `mesh.patches.len()`, and now
+compares the name list's length against it. **That check still exempts
+the zero case** (`!part.ids.is_empty() && …`), which is precisely the
+empty-window case this unit covered at the structure — so "live on
+exactly the invariant" is true only for nonzero mismatches.
+
+`FaceSelection`/`EdgeSelection` stay field-for-field twins: the note
+says that call is re-taken at a THIRD kind, and this is the second.
