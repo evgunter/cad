@@ -407,3 +407,58 @@ a stringified refusal. The boundary rule places them; it does not
 unify them. Left unnamed, that is the disclosed-blind-spot-read-as-a-
 discharge shape `docs/REVIEW-STYLE-DISPATCH.md` §2 names, so the README
 says it in its own last paragraph rather than only here.
+
+## The split conversation is with Ev, and three programs are announced (2026-09-04)
+
+**PR #1801**, `[ev]`, from `view/orchestrator` — the branch the #396
+convention names, which this session moved to on Ev's word after
+opening from a session branch. The orchestrator record before that
+point is the same commits, reachable from this branch.
+
+The PR carries `crates/viewer/README.md`'s **Module boundaries**
+section and asks three things: whether the vocabulary/driver rule holds
+as the boundary, what to do about the four `Refusal` arms the rule says
+should delegate to `editor-core` and don't, and whether the four-way
+cut is ordered right — particularly gesture-as-data before the move.
+It does not ask about the four defects filed today; those are filed and
+will be worked in their own units.
+
+**The item is not carrying a `pr:` field.** `work/README.md` is
+explicit that an `[ev]` question's PR is not named in the item — "which
+PR carries the question is one `git log` away" — and `needs_ev: true`
+is the signal `STATUS.md` renders. Practice on the board is mixed
+(CHROME's `viewer-first-light-on-real-hardware` carries `pr: 1771`),
+and the contract is followed here rather than the precedent. The number
+is recorded in this log, which is where a narrative fact belongs.
+
+Woken on comments by a PR subscription on this box, per the same
+section's requirement that a question nobody is listening to has not
+been asked.
+
+### Announced, on the PR thread
+
+- **DOCM**, the substantive one: the `next_id` door DI1's own walk
+  needs and cannot reach, with the two candidate shapes named and the
+  choice left theirs; and the correction that BOTH endpoints of the
+  focus map are their glob, not S-BOOL's. Plus one adjacency offered
+  and not filed — the three whole-document passes per landing, next to
+  their `check-registry-gathers-product-twice`.
+- **CHROME**: their nine parked rows now have a moving trigger, and
+  `session-gesture-guard-spelled-thirteen-times` is confirmed at 23
+  guards and likely dissolved rather than relocated by gesture-as-data,
+  which is what their own log predicted. The revolve-unreachable defect
+  handed over as theirs by charter, with the class named and the
+  re-home left to their next move. The test-glob ask for the shim
+  removal, with the sweep's blind spots stated.
+- **S-BOOL**: no ask and no diff — VIEW will not touch
+  `crates/profile`. What they are told is that a change to
+  canonicalization changes the map's answers *silently*, since the map
+  keeps type-checking and starts lighting the wrong edge; and that if
+  they would rather the map lived beside the canonicalization it is
+  faithful to than beside the coordinate it translates from, that is
+  theirs to say. VIEW holds no position on which.
+
+MESH and S-CERT are **not** announced yet: their cancel points are only
+needed if 6a takes that option, and announcing a need that a ruling may
+not produce would be asking two programs to hold schedule for a
+hypothesis.
