@@ -924,9 +924,10 @@ impl Node {
     ) -> PyResult<Self> {
         let plane = plane.0;
         // The polygon as a loop PROGRAM (the post-switch v4 payload:
-        // the program IS the profile's definition): anchor at the
-        // first vertex, one `line_to` per remaining vertex, close by
-        // targeting `Start`. Too few points is not pre-checked — the
+        // the program IS the profile's definition). The expansion
+        // itself is `LoopProgram::polygon_expr`'s, not this door's:
+        // the binding lifts each vertex to a Length literal and hands
+        // the corners over. Too few points is not pre-checked — the
         // edit door's replay probe refuses it typed, at `insert`.
         let point = |py2: Python<'_>,
                      p: &(super::quantity::Length, super::quantity::Length)|
@@ -936,21 +937,14 @@ impl Node {
                 literal(py2, p.1.0.meters(), d::Dimension::Length)?,
             ])
         };
-        let mut steps = Vec::with_capacity(points.len() + 1);
-        let mut vertices = points.iter();
-        if let Some(first) = vertices.next() {
-            steps.push(d::ProgramStep::At(point(py, first)?));
-        }
-        for p in vertices {
-            steps.push(d::ProgramStep::LineTo(d::ProgramTarget::Point(point(
-                py, p,
-            )?)));
-        }
-        steps.push(d::ProgramStep::LineTo(d::ProgramTarget::Start));
+        let corners = points
+            .iter()
+            .map(|p| point(py, p))
+            .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
             inner: d::Node::Profile(d::ProfileProgram {
                 plane,
-                loops: vec![d::LoopProgram::Chain(steps)],
+                loops: vec![d::LoopProgram::polygon_expr(corners)],
             }),
         })
     }
