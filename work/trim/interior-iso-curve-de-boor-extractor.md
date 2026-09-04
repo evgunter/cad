@@ -1,11 +1,12 @@
 ---
 id: interior-iso-curve-de-boor-extractor
-kind: issue
+kind: unit
 title: Interior iso-curves have no certified route - the de Boor collapse extractor P-2 reached
-status: open
+status: dispatched
 opened: 2026-08-29
 github: 1195
 refs: [498]
+branch: trim/1-de-boor-extractor
 ---
 
 ## From GitHub issue 1195
