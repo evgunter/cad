@@ -34,7 +34,7 @@ mod certified {
     use geom_core::{Band, Interval, MarginDiag, Real, Sign, Tol};
     use sweep::blend::BlendError;
     use sweep::blend::battery::spine_regularity;
-    use sweep::blend::surgery::ring_clearance;
+    use sweep::blend::surgery::ring_clearance_for_tests as ring_clearance;
     use topo::FaceKey;
 
     fn band() -> Band {

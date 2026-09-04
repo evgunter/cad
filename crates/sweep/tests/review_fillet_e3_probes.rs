@@ -35,7 +35,7 @@ mod certified {
     use geom_core::{Band, Decide, Interval, MarginDiag, Real, Sign, Tol, Vec3};
     use sweep::blend::BlendError;
     use sweep::blend::battery::{chain_g1, face_clearance};
-    use sweep::blend::surgery::ring_clearance;
+    use sweep::blend::surgery::ring_clearance_for_tests as ring_clearance;
     use topo::{FaceKey, VertexKey};
 
     fn band() -> Band {
