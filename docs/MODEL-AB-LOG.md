@@ -3713,3 +3713,24 @@ implementer was killed by the account's usage limit mid-fix and its
 resume wedged on an orphaned build; a fresh same-arm lane finished
 (predecessor's uncommitted diff preserved and dispositioned in the PR
 body). Sample number AT MERGE in main's order. Row at merge.
+
+Block DOCM-B2 pre-draw fields (2026-09-04, logged before the draw):
+slot 0 = DOCM-2 (docs/DOCM-2-SPEC.md, committed on `docm/orchestrator`
+at 353c3f1f before this draw) — difficulty M, task-class STRUCTURAL
+(one node kind through every exhaustive match, one structural slot, a
+name-table projection with names verbatim, no new edit, no new
+segment; the node moves data and decides no number). Slots 1–2 bank
+for the next kernel units in dispatch order (the instantiation seam,
+the check-registry subject and the certified range query are the
+natural takers once ruled), pre-draw fields at their specs.
+
+Block DOCM-B2 draw (2026-09-04, after the pre-draw fields above; v3
+triple {opus, opus, fable}, one /dev/urandom byte, reject ≥252): byte
+**39**, 39 mod 3 = 0 = fable's position ⇒ **fable at slot 0**. So:
+slot 0 DOCM-2 = FABLE, slot 1 = OPUS, slot 2 = OPUS. Recorded
+branch-side (`docm/b2-block`, the DOCM-B1 shape): this record reaches
+main only when the block's last slot's reviews conclude; each ordinal
+claim at review dispatch goes to main on its own.
+
+Block DOCM-B2 slot record (branch-side, appended as each slot concludes):
+slot 0 pre-draw fields (2026-09-04, at dispatch; arm fixed by the draw above): DOCM-2 (docs/DOCM-2-SPEC.md) — difficulty M, task-class STRUCTURAL. Dispatched after DOCM-1 merged (#1829), so its content-key tags are chosen against a tree that already holds 32.
