@@ -193,3 +193,39 @@ above. `docs/perf-data/*` is PERF's and `crates/*/tests/*` is S-TCOST's;
 "files no live program owns" was false for both. Found by unit 5's lane
 reading `work.py territory`'s warning on its own diff rather than
 ignoring it.
+
+## Unit 8 — `f3-recosting-on-a-public-repo`, measured and asked (2026-09-04)
+
+A measurement unit, so the deliverable is numbers and a question rather
+than a diff. The full reading is in the item; the four that change how
+this program talks:
+
+- **A code-tier run is 7.4 minutes and 24.4 job-minutes** on the public
+  4-vCPU runner (n=149 completed post-flip PR runs), against the
+  13.75-minute critical path and ~87/62/40 billed minutes this program
+  has been quoting. `--workspace` builds are **336 s / 388 s** against
+  820 s / 840 s cold. The runner spec is read first-hand: run
+  `33830873453`, job `100893490483`, `nproc` = 4, 15 GB.
+- **This log's own explanation of the `TAG_INVENTORY` red was wrong.**
+  It says *"no run on `main` has drawn a point that executes the test
+  since the two tag values landed, because main's push runs classify
+  docs-tier"*. The first clause holds; the reason does not. **45 % of
+  main's push runs are code-tier** (90 of 200 ran `renders`, which needs
+  `RUN_K_LINT=true`, set for every tier but `docs` —
+  `scripts/ci-filter.py:1730`), and the test rows are skipped on all of
+  them by F3's `github.event_name != 'push'` guard. The correction makes
+  the instance *better* evidence about F3, not worse: nothing about the
+  tier was involved.
+- **The residue's cost is attribution, not latency.** The compensating
+  control detected the composition in **11 m 41 s** (run `33788618577`,
+  on `tcost/k2-unit`). What it could not do was say whose it was: **42
+  red runs across 20 distinct branches** over the 8 h 11 m to the repair.
+  The item's "seven branches" was an undercount of the same event.
+- **Restoring the job set alone would have caught nothing.** The push
+  run for the composing merge (`33787453014`) was cancelled after 246 s
+  by the next push; a full run needs ~442 s. The proposal to Ev is
+  therefore the job set **and** a per-SHA concurrency group for push
+  runs, at +48 job-minutes an hour and $0.
+
+Units 9 and 10 may now quote figures from
+`docs/CI-MINUTES-2026-08.md`'s **2026-09-04 section** and only that one.

@@ -1706,3 +1706,86 @@ samples swamps a single pair — read several.
 lanes: `shared-key` changes the key string, so the old entries are
 unreachable. That run is not the verdict, the same trap the OPT LEVEL
 note in ci.yml warns about.
+
+## 2026-09-04 — the re-take on the public 4-vCPU runner (CIW unit 8)
+
+**This document's opening premise is dead.** *"The Actions allowance was
+being consumed faster than the work justified"* was true of a private
+repository. `evgunter/cad` went public on 2026-09-03 (`5cc16e81` …
+`483212ef`; the repository record read `visibility: public`,
+`private: false` on 2026-09-04), standard-runner minutes are not billed,
+and the runner is **4 vCPU / 16 GB** — read first-hand off run
+**33830873453**, job **100893490483**, whose `runner + linker
+provenance` step prints `nproc` = **4** and `free -g` total **15**.
+
+**Every timing above this section predates that runner.** They are an
+ordering of costs, not a budget. What follows re-takes the ones a
+decision now rests on. The population is **220 completed `pull_request`
+runs created between `2026-09-03T15:20Z` and `2026-09-04T05:47Z`**, of
+which **149 are code-tier**, read from the jobs API.
+
+| what | 2 vCPU (above) | 4 vCPU (this section) |
+|---|---|---|
+| code-tier critical path | 13.75 min | **7.4 min** median (442 s, run created → last job end); **7.9 min** at `tier=all` (n=66) |
+| `build + archive (default)`, `--workspace` | 820 s cold / 603–639 s warm | **336 s** median (n=23) |
+| `build + archive (interval)`, `--workspace` | 840 s cold / 606–677 s warm | **388 s** median (n=43) |
+| a code-tier run's total job time | ~87 billed min, then ~62, then ~40 derived | **24.4 job-minutes** median (1462 job-s over 15 live jobs) |
+
+Two changes are inside that difference — the core count and the cache
+priming landed the same day — and this reading does not separate them.
+It is what a run costs today, which is what the decisions need.
+
+**The billing model at the top of this file no longer applies.** Per-job
+round-up is not a cost when minutes are not billed; the currency is
+**wall clock** (latency to a verdict) and **runner load** (job-minutes an
+hour, against concurrency). Quote those, not billed minutes, in any new
+argument.
+
+### What this changes for F3, and what it does not
+
+The re-costing of F3 itself, its options and a recommendation are in
+`work/ciw/f3-recosting-on-a-public-repo` and go to Ev on an `[ev]` PR.
+Three results from it belong here, because they correct or complete
+statements this document makes:
+
+1. **F3's push-run saving is now 24.4 job-minutes per code-tier merge
+   and zero dollars.** At the measured merge rate (200 push runs over
+   45.66 h = 4.36/h, of which 90 are code-tier = 1.97/h) restoring the
+   full set would cost **+48 job-minutes an hour**, or **+0.80 mean
+   concurrent jobs** against a measured mean of 4.3, a p90 of 12 and a
+   peak of 36 from PR runs alone. Queue delay today is 3 s median, 25 s
+   at p99: there is no queue for it to join.
+2. **"main's push runs classify docs-tier" is false, and this document
+   is not where that claim lives, but its readers act on it.** 90 of 200
+   push runs (45 %) ran `renders`, which requires `RUN_K_LINT=true`,
+   which `scripts/ci-filter.py:1730` sets for every tier but `docs`;
+   `RUN_BUILD` follows the same rule at `:1713`. The test rows are
+   skipped on **100 %** of push runs by F3's `github.event_name !=
+   'push'` guard, not by the tier.
+3. **A restored push run would be cancelled more often than not.**
+   Median gap between pushes on `main` is **308 s** and only **36 %** of
+   code-tier pushes have ≥442 s before the next one; 67 of 200 push runs
+   are already `cancelled` at today's 40-second job set. Restoring jobs
+   without also giving push runs their own concurrency group buys a gate
+   that does not finish.
+
+### The scheduled full run: still declined, and now for a better reason
+
+Priced at today's rates it is **9.8 job-hours a day hourly** or 24.4
+job-minutes a day nightly — *cheaper* than a per-merge run, since it does
+not scale with the merge rate. It stays declined anyway, and the price
+change is not why: measured on the one instance in evidence, the next
+PR's merge-ref discovered the composed defect in **11 m 41 s** (run
+`33788618577`), so a scheduled run buys a slower copy of a discovery
+that already happens, and names a window of ~4.4 merges instead of one.
+What the residue costs is attribution, and a scheduled run does not
+supply it.
+
+### The cache section's first reading owed, taken
+
+That section asks for "the first PR opened after this merges, first run,
+`build + archive`'s restore line". Job **100893490483** on a PR branch
+prints `Cache hit for: v0-rust-build-default-Linux-x64-fa41882e-fd5fb1c1`,
+263 MB, `full match: true`. **The primer works and a branch now inherits
+`main`'s entry.** `work/tcost/rust-cache-never-restores-across-branches`
+still says no PR can inherit one; that item is S-TCOST's to update.
