@@ -1344,3 +1344,104 @@ path.
 **no `[ev]` PR carrying it**, which by `work/README.md` means the
 question has not actually been asked. That is the next orchestrator
 debt.
+
+## Ev ruled on both open questions; main went red and came back (2026-09-04, evening)
+
+### 6a is answered, and the answer is cheaper than the question
+
+Ev, on #1843: *"the complexity of letting the user interact with a
+known outdated state may not be worth it… i'd be somewhat inclined to
+add a loading icon while we're waiting and call it a day"*, then
+**"sounds good!"** to the three-line reading. Ruling recorded in
+`pick-index-built-on-ui-thread`; PR merged; `needs_ev` cleared.
+
+**It collapses Q1 rather than answering it.** An index never READ while
+stale is not derived data that can be wrong — it is current or absent,
+and "absent, showing an older picture" is a state GUI-3 already
+ratified, inventoried and built chrome for. So the inventory gains no
+third shape and GQ6 needs no staleness sentence. The question this item
+opened partly dissolved, in the direction of the cheaper answer, and
+**6c disappeared with it**.
+
+**I withdrew my own recommendation mid-conversation.** I had argued the
+GPU id-buffer fallback was "the only answer still correct at 13.4 s".
+It renders from `ViewportCallback.scene` — the same stale mesh the
+viewport draws — so it answers picks against the document that is gone.
+It was never a second path, and I said so on the PR before Ev ruled.
+
+Two facts made his instinct stronger than it looked: the **scene mesh
+comes from the index too** (`sync_scene` returns early with no index),
+so the window already shows the previous document and the user cannot
+tell; and a pick with no index **silently does nothing** today. Hence
+Q2's "with the indicator, NOT silence" — the deliverable is the pick
+path distinguishing *not indexed yet* from *nothing under the cursor*.
+
+**And the README paragraph does not land yet.** I had written into my
+own check-in that it should. It should not: prose beside the code
+states the PRESENT, and there is no off-thread index until 6b exists.
+Landing it now would be the eighth prose claim to outrun this tree in
+two days, on the very item that catalogued the habit.
+
+### The tracker ruling, which turned a question into a build
+
+Ev on #1857: *"1.2 sounds good; deferred and blocked do seem
+semantically different. for 2, how about make it blocking but fix the
+things that are already stale?"*
+
+So: a **`deferred` status** (ratified not-now, citation in the body, no
+`blocked_on`), and the fired-trigger check becomes an **error**.
+
+The second half dissolves the constraint the PR was built around. The
+lane argued for warn-only because blocking would red `main` on nine
+CHROME rows, and `work/README.md`'s one-file-one-item rule makes it a
+merge conflict BY DESIGN for one program to un-park another's. That was
+the right objection and Ev answered it by authorising the repair.
+Dispatched back with three fences: do not add a check that pretends to
+verify the citation prose (this repo has been bitten twice today by
+exactly that), do not silently re-classify CHROME's rows into a status
+they have never used, and do not delete the warning channel to convert
+one check.
+
+### `main` was red for two and a half hours, and VIEW misreported it
+
+`test-utils::reader_census` went red on `17bb8fb18` (DOCM-1's fix pass)
+because `docm1_face_frame.rs` hand-rolls a module-doc reader — the
+population that row exists to detect. **The row worked.** Every open PR
+in the repo inherited it.
+
+**Two things VIEW got wrong.** First, this program filed the row and
+escalated to Ev saying no fix existed and nobody was awake — while
+CIW's #1859 had been open, green and clean since **nine minutes after**
+the file was written. The check that would have found it (listing open
+PRs) was never run; a local `ListAgents`, which sees only this machine,
+was. That is a claim asserted from the wrong instrument, which is what
+this program spent the day correcting in lanes. Second, this program's
+own filed row guessed a draft-PR path as the mechanism; the measurement
+says otherwise.
+
+**The measurement is the durable part.** A `main` PUSH run draws NO
+test job at all — every `test`, `clippy`, `build`, `k-lint`,
+`discipline`, `python suite` and `rustfmt` job is `skipped`; only the
+mirror check, the change filter, the cache primes and the render lanes
+run (runs `33905366880`, `33905855591`, `33907430790`). So a red `main`
+is invisible **by construction** there, and only a PR run whose merge
+ref carries the breakage can catch it. `ci-draw-can-hide-a-compile-break-on-main`
+now rests on that rather than on an inference about a sampling draw,
+and it has **two instances in one day**.
+
+CIW also found the argument this program missed for refusing the
+ledger-line shortcut: `reader_census` carries a hand-synced
+`UNCONVERTED_TODAY` that an `Unconverted` entry would force UP, and the
+file says it may not be raised without the row that licenses a new
+reader. The shortcut would have had to defeat a counter built to stop
+it.
+
+### Where the program stands
+
+Three lanes out: `view/superseded-reaches-the-user` (the news/standing
+-fact vocabulary VIEW-3 built makes it answerable),
+`view/two-gestures` (VIEW-1b's table now PERMITS the overlap, so the
+question is whether that row is right), and the tracker unit carrying
+Ev's ruling. **6b is dispatchable and waits only on the first**, which
+is live in `app.rs` — the same collision this program created between
+VIEW-3 and VIEW-5 this morning, not repeated.

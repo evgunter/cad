@@ -91,21 +91,35 @@ them so the log's references still resolve.
    program's: DI5 hands it to CHROME
    (`no-persistent-setplacement-session-op`).
 
-6. `pick-index-built-on-ui-thread`, in three:
-   **6a** the seam ruling — an `[ev]` PR extending the frame-state
-   inventory and stating the staleness rule, no code. **Nobody has
-   opened it, and it gates 6b and 6c.** It must also rule the
-   cancelation question the 2026-09-04 measurement opened: the
-   expensive step is *uninterruptible* as it stands
-   (`mesh::tessellate` and `crates/bvh` take no `CancelToken`), so
-   "cancel-and-restart like the evaluation seam" is not available
-   without two other programs' schedules. Three answers, not
-   equivalent, are stated in the item.
-   **6b** tessellation and `PickIndex::build` onto the `EvalService`
-   worker, `PickCache`'s retry policy travelling with it;
-   **6c** the staleness rule as values in `frame`, with rows.
-   6b and 6c collapse into one adversarially-reviewed unit if 6a rules
-   the staleness rule is not expressible as frame data.
+6. `pick-index-built-on-ui-thread` — **6a RULED (Ev, #1843,
+   2026-09-04); 6b is the build and 6c is gone.**
+
+   The ruling: the inventory gains **no third shape** and GQ6 gets no
+   staleness sentence, because an index never READ while stale is
+   *current or absent* rather than a shadow — and "absent, showing an
+   older picture" is a state GUI-3 already ratified and built chrome
+   for. Picks **refuse with a visible loading state, not silence**:
+   every pick path guards on `Option<&PickIndex>` and is silently inert
+   today, and a spinner over inert picks is fail-quiet. A δ change
+   **restarts without cancel**, the in-flight build running to
+   completion and its result discarded, with the doubled-window cost
+   (~26.8 s on the fine-δ row) stated rather than left to a reader.
+
+   **6c collapses into 6b**: with no stale read there is no staleness
+   rule to express as frame data, so what is left is the indicator's
+   own state, which 6b carries.
+
+   **6b, the whole remaining build**: tessellation and
+   `PickIndex::build` onto the `EvalService` worker keyed by
+   `Generation`; `PickCache`'s retry policy travelling with it;
+   restart-without-cancel on δ change; the indexing state added to the
+   existing busy chrome (`app.rs:1095-1112`, three states already); the
+   pick path made to say *not indexed yet*; and the GQ6 sentence —
+   which lands HERE and not before, because the README states the
+   present and there is no off-thread index until this unit exists.
+   `mesh` and `bvh` grow no cancel points, so no other program gates
+   it. **Waits only on `view/superseded-reaches-the-user`**, which is
+   live in `app.rs`.
 
 ### Beside the numbered order
 
