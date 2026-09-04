@@ -229,6 +229,21 @@ fn pick_index_error_forwards_its_node_arm() {
     prose(&outer, "NotABody");
 }
 
+/// The layout arm is this layer's OWN finding — no payload to forward
+/// — so it names the address it refused, which is the only thing a
+/// reader can act on.
+#[test]
+fn pick_index_error_names_the_body_drawn_twice() {
+    let drawn_twice = PickIndexError::DrawnTwice {
+        node: RecipeNodeId(7),
+        body: 2,
+    }
+    .to_string();
+    assert!(drawn_twice.contains('7'), "{drawn_twice}");
+    assert!(drawn_twice.contains('2'), "{drawn_twice}");
+    prose(&drawn_twice, "DrawnTwice");
+}
+
 #[test]
 fn pick_error_forwards_its_camera_arm() {
     let inner = CameraError::UnusableBounds;
