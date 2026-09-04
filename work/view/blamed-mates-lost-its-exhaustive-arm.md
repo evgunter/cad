@@ -71,11 +71,40 @@ is the process half below, which the duplicate work also demonstrates:
 two agents spent effort on one line because a red `main` was invisible
 until each independently drew the lane that builds it.
 
-## The other half, unfixed
+## The other half — swept (VIEW orchestrator, 2026-09-04)
 
-Worth a look while the file is open: is `blamed_mates` the only
-exhaustive match on `MateFault` outside `editor-core`? If there are
-others, they took the same risk and got lucky, and the pattern (a
-downstream crate matching a kernel enum exhaustively, with the
-kernel free to grow it) may want a `#[non_exhaustive]` conversation
-rather than one more arm.
+The question was whether `blamed_mates` is the only exhaustive match on
+`MateFault` outside `editor-core`. **It is not: there are two, and the
+second is not this program's.**
+
+- `crates/viewer/src/tree.rs:316` — `blamed_mates`, this issue's.
+- `crates/pncad-py/src/tags.rs:400` — the mate-fault tag function, and
+  **LIB's** ground (`crates/pncad-py/*`). It took the identical risk
+  and it did get its arm: `MateFault::Unleverable { .. } =>
+  "mate_datum_too_small_to_lever"` at `:411`. So both exhaustive
+  matches are correct as of this sweep, and both were repaired by
+  someone who happened to be looking.
+
+Everything else that names `MateFault` outside `editor-core` wildcards:
+`crates/pncad-py/src/py/mate.rs` (eight `_ => None` arms at :261, :524,
+:535, :546, :605, :614, :623, :632, :641) and
+`crates/viewer/src/app.rs:2880`. Those cannot break the build — and
+that is the point worth carrying, because **they fail the other way**:
+a new fault arm that names a mate returns `None` from every one of
+those accessors, silently, which is exactly the "drawing every reached
+row as downstream of nothing" that `blamed_mates`'s doc comment says
+its exhaustiveness exists to prevent. The wildcards are not the safe
+choice here; they are the same defect with the compiler switched off.
+
+**The `#[non_exhaustive]` question is real and is not VIEW's to answer.**
+`crates/editor-core/src/mate.rs` is DOCM's glob, and there is already a
+convention to argue from: `pncad-py`'s own module doc names
+`select_refusal_tag`'s enum as a documented `#[non_exhaustive]`
+exception (`tags.rs:34`, `:137`), so the tree has both patterns and no
+stated rule for choosing. Announced to DOCM and LIB rather than
+decided here.
+
+**The CI half stays open and is CIW's**: a draw that can hide a hard
+compile break on `main` for an unbounded number of merges. This issue
+states it well and this program is not the owner; the announce is
+owed with the others.

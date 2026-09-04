@@ -681,3 +681,52 @@ compilation rather than during.
 **Cost of the hang: nothing but time.** Hosted CI is the verification of
 record here, not a lane's local runs, so a lane dying after its edits
 loses only the local pre-check.
+
+## 1b merged; an inherited item swept; 1c dispatched into isolated worktrees (2026-09-04)
+
+**1b is on main** (#1816). The mid-gesture policy is one exhaustive
+table checked once, the README states it in the present under its real
+name, and each row in `gesture_table.rs` says what it is worth rather
+than sharing one overstated claim.
+
+**`blamed-mates-lost-its-exhaustive-arm` arrived on this slate from
+FILLET-E3** while 1b was in flight. Its code half was closed on
+arrival; it left two questions and this program owns one of them.
+
+Swept: **`blamed_mates` is not the only exhaustive match on `MateFault`
+outside `editor-core`** — `crates/pncad-py/src/tags.rs:400` is a second,
+and it is **LIB's** ground, and it did get its `Unleverable` arm. Both
+are correct as of today, and both were repaired by someone who happened
+to be looking, which is the part that should not be relied on again.
+
+The finding worth carrying is about the ones that did NOT break:
+`pncad-py/src/py/mate.rs` wildcards `MateFault` in eight accessors and
+`viewer/src/app.rs:2880` in one. They cannot fail to compile, and that
+is not safety — a new fault arm naming a mate returns `None` from every
+one of them, silently, which is precisely what `blamed_mates`'s
+doc-comment says its exhaustiveness exists to prevent. **The wildcards
+are the same defect with the compiler switched off.** Whether
+`MateFault` should be `#[non_exhaustive]` is DOCM's
+(`crates/editor-core/src/mate.rs`), and the tree already holds both
+patterns with no stated rule for choosing — `pncad-py`'s own module doc
+names `select_refusal_tag` as a documented `#[non_exhaustive]`
+exception. Announced to DOCM and LIB; the CI half (a draw that can hide
+a hard compile break on `main` for an unbounded number of merges) is
+CIW's and announced there.
+
+### 1c runs in worktrees, because the shared checkout has now failed three ways
+
+Two lanes editing `session.rs` and `app.rs` are independent by file,
+which is why 1c is two lanes rather than six. But this session has now
+watched the shared checkout fail three times — an orchestrator commit
+landing on a lane's branch, a lane's commit orphaned by an orchestrator
+merge, and a dead lane's edits sitting in the orchestrator's tree — and
+two CONCURRENT lanes in one working tree is not a variant of those
+hazards, it is the guaranteed form of them: two agents editing one tree
+with one HEAD.
+
+So both 1c lanes get **their own git worktree**. That is a per-lane
+checkout, which is what `memories/agent-lane-operations.md`'s branch-ref
+rules assume exists and what the remote-session default does not
+provide. It is the structural fix rather than a discipline one, which
+is the preference this project states everywhere else.
