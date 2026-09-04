@@ -2,11 +2,12 @@
 id: tier-3-prime-findings-render-through-debug
 kind: issue
 title: tier-3' census findings render through Debug, so the fourth validator rung cannot raise through the prose gate
-status: review
+status: closed
 opened: 2026-09-03
 refs: [LIB-B-VALIDATE4]
 branch: fix/tier3-census-display
 pr: 1779
+closed: 2026-09-04
 ---
 
 Measured at LIB-B-VALIDATE4, which bound `validate_pseudomanifold` —
