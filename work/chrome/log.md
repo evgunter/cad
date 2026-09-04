@@ -320,3 +320,56 @@ the base tree in this lane. It states in its own output that nothing
 may be inferred from the absence and that it gates nothing — which is
 the right shape for a report that cannot run, and the opposite of the
 silent feature-skip this program's unit 2 existed to close.
+
+## Eight of nine landed; what the slate cost and what it found (2026-09-04)
+
+`doc-params-carry-no-display-unit` merged as PR 1776 after a fix pass
+and is closed here. That closes every unit the plan cut except
+`viewer-first-light-on-real-hardware`, which is not a lane unit: it is
+a checklist only a real GPU can answer, and it sits with Ev as PR 1771.
+**The program cannot close until Ev runs it**, so the exit walk waits
+on hardware rather than on work.
+
+**The slate landed and the territory grew.** Fourteen items are open in
+this directory and exactly one of them is a slate unit; the other
+thirteen were filed BY the slate — style-review class findings, fence
+artifacts, and residues the units disclosed. That is not a failure of
+estimation. Every one has a `file:line` and a reason, and the
+alternative was not fewer defects but the same defects unrecorded: the
+`work/README.md:100-106` rule this program tripped over twice says
+exactly that a residue with no file dies with the directory. Anyone
+reading this as "CHROME ended with more open than it started" should
+read it as "CHROME wrote down what it found."
+
+**What the style-review posture bought, now that the slate is done.**
+Ev's instruction was style reviews by default, correctness
+double-checks only for particularly tricky units, and no A/B row. The
+posture was right and the reason is specific: **on every unit that got
+a review, the review found something the unit's own evidence did not.**
+Not correctness bugs, mostly — a PR body claiming a record its own diff
+did not contain; an item scheduling work that had already landed; a
+`keep_out` disclosure naming the weaker of two boundaries; two residues
+disclosed in prose the tracker rules say is not scheduling. None of
+those is reachable by asking whether the code is right.
+
+Two of them WERE correctness, and both came from the reviewer refusing
+to accept a claim rather than from a correctness lane. The badge unit's
+`Poisoned` invariant was strengthened on one of its two producers, and
+the reviewer could only mark the consequence `likely` — the fix pass
+built the document and found it not merely reachable but rendering a
+self-contradiction. The parameter unit's probe seeded from
+`committed_doc()` while searching `doc()`; latent, held up by three
+invariants in three functions, and the review is why it is now a
+construction. **A style lane that verifies claims finds correctness
+defects as a side effect of checking whether the words are true.**
+
+**The orchestrator was corrected six times, all upheld**: a crate-count
+delta published wrong (the `(*)` markers), a false sub-premise about
+clippy's caching, a sweep miscounted four ways in one PR body, a
+differential described as independent that was a transcription, a
+`field_drag_tick` caller count wrong twice in a row, and a `.speed(`
+sweep given to a reviewer at half its size. Recorded together because
+the shape is one shape: every one was a number or a claim the
+orchestrator asserted from a command it had not checked the semantics
+of, and every one was caught downstream. The lanes are not merely doing
+the work; they are the error-correction on the dispatch.
