@@ -2265,8 +2265,39 @@ whose warmth is its own, and the read of that is the next run, below.
 a cold compile.
 
 **Wall clock: k-lint did not tail.** The longest leg (`dev-probe`, ends
-17:57:57) finished 58 s inside `test (interval, eps = default, 1/2)`
-(17:58:55).
+17:57:57) finished 82 s inside `test (interval, eps = 1e-12, 2/2)`
+(17:59:19).
+
+**Run 33903485143** (`689d2ee5`, TIER=all, green; 34 jobs run, 3 skipped) is
+the warm read — every leg now restoring an entry it wrote itself:
+
+| row | duration | pre-fix range over four runs | post-step outcome |
+|---|---:|---:|---|
+| `dev-default` | 78 s | 76–95 s | `Cache up-to-date.` |
+| `dev-budget` | 109 s | 111–119 s | `Cache up-to-date.` |
+| `release-budget` | 110 s | 120–139 s | `Cache up-to-date.` |
+| `dev-probe` | 362 s | 268–478 s | `Cache up-to-date.` |
+| `release-default` | 403 s | 376–413 s | `Cache up-to-date.` |
+| | **1062 s** | 968–1207 s | **all five hit their own key; none saved because none needed to** |
+
+**All five legs exact-hit and none logged `Failed to save`.** That is the
+property the fix was for, and it is the one the old key made impossible: two
+legs failed to reserve on every run before, deterministically.
+
+**Job-minutes: +14.2**, against the pre-fix four-run mean of +14.8. The three
+cheap legs each came in at or below their pre-fix minimum. Not a large
+movement and not claimed as one — it is one run.
+
+**On the `dev-probe` swing, which is NOT settled here.** The pre-fix spread
+was 268 / 360 / 473 / 478 s and the cache lanes were named above as a
+candidate mechanism. Post-fix there is **one cold sample (471 s) and one warm
+sample (362 s)**, and 362 s sits inside the pre-fix range. So: the mechanism
+is real and is removed, and **whether removing it narrows the spread is not
+demonstrated** — one warm run cannot show a variance change, and it would
+take several. Stated as not-yet-known rather than as resolved.
+
+**Wall clock: k-lint did not tail this run either.** The longest leg
+(`release-default`, ends 18:06:53) finished 172 s inside the run's last job.
 
 ### What is not measured here
 
