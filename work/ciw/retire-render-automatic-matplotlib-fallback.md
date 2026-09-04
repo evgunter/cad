@@ -2,10 +2,12 @@
 id: retire-render-automatic-matplotlib-fallback
 kind: issue
 title: render.sh — retire the automatic matplotlib fallback; a crashed scene must fail loudly, not become a green preview
-status: open
+status: review
 opened: 2026-08-19
 github: 629
 refs: [221, 224, 331, 626]
+pr: 1745
+branch: ciw/retire-matplotlib-fallback
 ---
 
 ## From GitHub issue 629
