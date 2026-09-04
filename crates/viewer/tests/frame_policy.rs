@@ -16,9 +16,10 @@
 
 use crate::common;
 
-use pncad::document::{Doc, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId};
+use common::asm;
+use pncad::document::{Doc, Frame, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::select::Ray;
+use pncad::select::{ContactClass, Ray};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::DisplayView;
 use viewer::evalseam::Generation;
@@ -914,4 +915,74 @@ fn the_preferences_path_follows_the_xdg_rules() {
     {
         assert!(path.is_absolute(), "{} is not absolute", path.display());
     }
+}
+
+/// **A superseded free move reaches the line — driven the way the
+/// frame loop drives it.**
+///
+/// The value the session computes here is the one the chrome used to
+/// drop: `OpOutcome::superseded`, which nothing outside the test suite
+/// read. This row fails if it goes silent again, and it is built from
+/// a REAL outcome — a real mate landing on a real assembly — because a
+/// hand-made `OpOutcome` would assert about a shape rather than about
+/// the path.
+#[test]
+fn a_superseded_free_move_is_news_the_ranking_shows() {
+    let tol = Tol::witness();
+    let bench = asm::bench("framepolicy-supersede", tol);
+    let mut session = asm::open_bench(&bench, tol);
+
+    // The user places the unconstrained post by hand and COMMITS it —
+    // only a committed placement is ever reported superseded.
+    for op in [
+        SessionOp::BeginFreeMove {
+            instance: bench.post_b,
+        },
+        SessionOp::PreviewFreeMove {
+            frame: Frame::translation([0.04, 0.0, 0.0]),
+        },
+        SessionOp::CommitFreeMove,
+    ] {
+        let outcome = session.perform(op);
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    }
+    assert!(
+        session.display().free_move_of(bench.post_b).is_some(),
+        "the placement is held, so there is something to discard"
+    );
+
+    // Then they mate it, and that placement is discarded under them.
+    let mate = SessionOp::AddMate {
+        a: asm::in_part(bench.post_b, &bench.post_top),
+        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        class: ContactClass::Rest,
+        alignment: asm::seat_alignment(asm::SHELF_LENGTH / 2.0, None),
+    };
+    let outcome = session.perform(mate.clone());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(outcome.superseded, vec![bench.post_b]);
+
+    // What the chrome does with it, in `perform_batch`'s order: the
+    // outcome's supersessions join the frame's notices, and the
+    // ranking is asked.
+    let notices: Vec<String> = frame::supersession_notice(&outcome.superseded)
+        .into_iter()
+        .collect();
+    let update = frame::frame_status(
+        &notices,
+        core::slice::from_ref(&mate),
+        outcome.refusal.as_ref(),
+    );
+    let StatusUpdate::Show(message) = update else {
+        panic!("a discarded placement is news, not silence: {update:?}");
+    };
+    assert!(
+        message.contains(&format!("node {}", bench.post_b.0)),
+        "the line names the instance whose placement is gone: {message}"
+    );
+
+    // And it had to come through the ranking to get there: the mate is
+    // an acting op the document ACCEPTED, so the batch's own verdict
+    // would clear the line the supersession is written on.
+    assert_eq!(frame::batch_status(&[mate], None), StatusUpdate::Clear);
 }

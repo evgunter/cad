@@ -646,6 +646,15 @@ pub struct OpOutcome {
     /// rather than inferred: a mate landing on a probed instance
     /// removes its probe here, and the instance is drawn at its
     /// solved placement from the next landed evaluation on.
+    ///
+    /// **Only COMMITTED probes.** A gesture in flight when the
+    /// transition lands dies too, and is deliberately not named here;
+    /// a caller learns that from `DisplayState::probing` and from the
+    /// typed refusal the next gesture op gives it.
+    ///
+    /// The chrome renders this through `frame::supersession_notice`,
+    /// onto the frame's notices — which is what keeps it from being
+    /// erased by the accepted edit that caused it.
     pub superseded: Vec<RecipeNodeId>,
 }
 

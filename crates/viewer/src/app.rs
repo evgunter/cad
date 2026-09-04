@@ -357,9 +357,11 @@ pub struct ViewerApp {
     /// The last thing that went wrong, kept so a refused operation is
     /// visible instead of silently dropped.
     status: Option<String>,
-    /// **What the open tool said about THIS frame** — declined picks
-    /// and survival drops, collected as they happen and applied with
-    /// the batch verdict rather than before it.
+    /// **What THIS frame has to say that is not a refusal** — the open
+    /// tool's declined picks and survival drops, and the free-move
+    /// placements the frame's own operations superseded — collected as
+    /// they happen and applied with the batch verdict rather than
+    /// before it.
     ///
     /// They cannot be written straight to [`ViewerApp::status`]: the
     /// batch of the same frame is performed afterwards, and a clean
@@ -763,7 +765,7 @@ impl ViewerApp {
         // without queueing an op — a survival drop on a document the
         // seam just landed — is exactly the frame that needs its
         // notice shown.
-        let notices = core::mem::take(&mut self.notices);
+        let mut notices = core::mem::take(&mut self.notices);
         if ops.is_empty() && notices.is_empty() {
             return;
         }
@@ -777,7 +779,16 @@ impl ViewerApp {
             performed.push(op.clone());
             let opened = matches!(op, SessionOp::Open(_));
             let tool_edit = self.tools.commits_open_tool(&op);
-            match self.session.perform(op).refusal {
+            let outcome = self.session.perform(op);
+            // **Where a supersession reaches the user.** The session
+            // reports which free-move placements its document
+            // transition discarded; this is the one read of that field
+            // outside the test suite, and it goes onto the frame's
+            // notices rather than onto the line, because the accepted
+            // edit that caused it is about to answer `Clear`
+            // (`frame::supersession_notice` carries the argument).
+            notices.extend(frame::supersession_notice(&outcome.superseded));
+            match outcome.refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 // A replaced document owes a re-frame AND a fresh δ
                 // — both taken when its scene actually lands, not on
