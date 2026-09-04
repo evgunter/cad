@@ -271,3 +271,20 @@ disclosure is not a schedule, and a record's home decides whether it is
 a record at all. The rule `work/README.md` writes down for residues is
 the same rule that stranded this log on a branch with no PR; both are
 the failure to ask *who reads this after the session ends*.
+
+## Unit 8's plan row was directing readers at work that does not exist
+
+`plan.md`'s row 8 still read *"a display unit beside `DocParam`,
+`SetParamUnit` mirroring `SetSlotUnit`; one persisted field under the
+GQ3 versioning rule (announce)"*. The item was re-cut at dispatch —
+the storage half had already landed in another program's PR, so there
+is no new persisted field and the GQ3 announcement the row schedules
+is owed on nothing — and the plan was never brought along. PR 1776's
+style review found it.
+
+Worth a line because of WHERE it sat. `plan.md` is the file a program
+is executed from, so a stale row there does not merely go unread: it
+tells the next reader to announce a persisted field that does not
+exist. The correction points at the item rather than restating it,
+which is the only version that cannot rot again — the item is where
+the re-cut lives.
