@@ -3271,7 +3271,7 @@ def _selftest_eps_rows_workflow() -> None:
             text = fh.read()
     except OSError as exc:
         raise SystemExit(f"SELFTEST FAILED: {EPS_ROWS_WORKFLOW} cannot be read ({exc}); the eps "
-                         "matrix literal is derived from that file and cannot be checked")
+                         "matrix literal is derived from that file and cannot be checked") from exc
     found = _EPS_ROWS_RE.findall(text)
     if len(found) != 1:
         raise SystemExit(
@@ -3282,7 +3282,7 @@ def _selftest_eps_rows_workflow() -> None:
         rows = json.loads(found[0])
     except ValueError as exc:
         raise SystemExit(f"SELFTEST FAILED: {EPS_ROWS_WORKFLOW}'s eps matrix literal {found[0]!r} "
-                         f"is not JSON ({exc}); the matrix would expand to nothing")
+                         f"is not JSON ({exc}); the matrix would expand to nothing") from exc
     if tuple(rows) != EPS_ROWS:
         raise SystemExit(
             f"SELFTEST FAILED: {EPS_ROWS_WORKFLOW} expands EPS=all into {rows} and this script's "
@@ -3475,7 +3475,7 @@ def _selftest_config() -> None:
             except ConfigError as exc:
                 if "NARROW" not in str(exc) or "dispatch" not in str(exc):
                     raise SystemExit(f"SELFTEST FAILED: the refusal of a narrowing trailer must "
-                                     f"say it NARROWS and where narrowing lives — got {exc}")
+                                     f"say it NARROWS and where narrowing lives — got {exc}") from exc
             else:
                 raise SystemExit(
                     f"SELFTEST FAILED: `CI-Config: {name}={value}` was accepted. A trailer is "
