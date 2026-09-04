@@ -1445,3 +1445,46 @@ question is whether that row is right), and the tracker unit carrying
 Ev's ruling. **6b is dispatchable and waits only on the first**, which
 is live in `app.rs` — the same collision this program created between
 VIEW-3 and VIEW-5 this morning, not repeated.
+
+## The tracker ruling is built and merged (#1857, 2026-09-04)
+
+`deferred` exists, the fired-trigger check **blocks**, and
+`work.py lint` is `ok (0 problems, 0 warnings)` on the real tree with
+it blocking — which is the only real proof the nine stale rows were
+repaired, since a blocking check could not otherwise pass.
+
+**What landed, verified on main rather than taken from the report:**
+`work/README.md` now states two ways of being not-now — `parked` waits
+on a trigger lint can see fire; `deferred` is *ratified as not-now*
+with no `blocked_on`, and lint refuses one. The contract is honest
+about its own limit, which is the part worth keeping:
+
+> **The citation is prose and nothing checks it.** A ratification lives
+> in a README clause or a design doc, not in an item id, so there is no
+> reference for `lint` to resolve and no field pretending otherwise.
+
+That was the fence this program set on the dispatch — after two days of
+prose claims outrunning the tree, a check that *pretended* to verify a
+citation would have been the worst available outcome. `STATUS.md` gives
+each not-now status its own column so neither reads as dispatchable.
+
+CHROME's nine are `open`; `parameter-row-field-has-no-text-door` stays
+`parked` with only the fired entry pruned, which was the mixed case the
+lane dispositioned before the ruling and which became an edit after it.
+`pick-priority-filter-vocabulary` is VIEW's one `deferred` row, and it
+is the case the whole ruling was opened on — its trigger is a
+vertex-pick tool that does not exist, with the deferral ratified in
+GQ7. It had been `open` for a day only because nothing truer existed.
+
+`tracker-has-no-status-for-an-unscheduled-trigger` is closed with Ev's
+ruling recorded in it and `needs_ev` cleared.
+
+### One process note against myself
+
+**The lane merged this, not the orchestrator.** The dispatch said "this
+one merges when green — it is no longer waiting on Ev", which a lane
+can reasonably read as authorisation, and it did. The result is right
+and I verified it on main after the fact; but every other unit this
+session was meta-reviewed BEFORE merge, and the difference here was my
+wording rather than a decision. A dispatch that means *report and I
+will merge* has to say so.
