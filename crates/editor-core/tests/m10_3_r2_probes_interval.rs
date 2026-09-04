@@ -205,7 +205,12 @@ fn the_accounting_columns_plus_the_tail_sum_to_one_under_a_normal() {
 /// gate.
 #[test]
 fn the_unresolved_budget_is_refused_mass_plus_tail() {
-    let sigma = eps() / 2.0;
+    // The box has to REACH something the driver refuses, and since E12
+    // that is a genuine topology flip rather than an enclosure that
+    // widened: σ = 0.5 on a 1.0 nominal puts the ±3σ box across a zero
+    // extrusion distance. The row's subject — that `unresolved()` is
+    // the additive sum of refused mass and tail — is unchanged.
+    let sigma = 0.5;
     let doc = slab_with(1.0, Distribution::Normal { sigma }, depth_param());
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let v = drive(
@@ -557,19 +562,22 @@ fn my_own_drive_is_bit_identical_across_repeats_and_schedules() {
 
 // -------------------------------------------------- the widening
 
-/// **The macroscopic-box honesty statement, measured rather than
-/// quoted.** The PR states that the certification predicates' interval
-/// enclosure widens as `[0, c·w]` with `c ≈ 2–4`, so a leaf certifies
-/// only below roughly `ε/8` of width. This row measures the largest
-/// box that certifies WHOLE (`max_depth = 0`, so exactly one leaf) by
-/// bisection on the half-width, and asserts only the order of
-/// magnitude the claim implies.
+/// **The macroscopic-box statement, re-measured after E12.** This row
+/// used to check that the largest whole-certifying box was a small
+/// fraction of ε — the widening the certification identities caused.
+/// The symbolic identity tier discharges those identities, so the
+/// threshold is no longer about ε at all, and this row measures where
+/// it actually sits: an INDEPENDENT derivation of the claim
+/// `m10_3_driver_interval::the_certification_width_is_no_longer_bounded_by_epsilon`
+/// makes, on this file's own fixture and by its own bisection.
 ///
-/// EVIDENCE-ONLY: it records the measured threshold in ε and fails
-/// only if the number leaves the band the PR's statement implies, so
-/// the claim stops being a sentence nothing checks.
+/// What bounds the box now is real geometry: the extrusion distance is
+/// `1.0 ± half`, and a box reaching zero contains a genuine topology
+/// flip that no-flips v1 refuses as mass. The assertion is the ORDER —
+/// the threshold is far above ε and below the flip — which is what
+/// moved.
 #[test]
-fn the_certification_width_threshold_is_a_small_fraction_of_epsilon() {
+fn the_certification_width_threshold_is_no_longer_a_fraction_of_epsilon() {
     let certifies_whole = |half: f64| -> bool {
         let doc = slab_with(
             1.0,
@@ -593,8 +601,8 @@ fn the_certification_width_threshold_is_a_small_fraction_of_epsilon() {
             Err(_) => false,
         }
     };
-    // Bracket: ε/1024 certifies, ε certainly does not.
-    let (mut lo, mut hi) = (eps() / 1024.0, eps());
+    // Bracket: ε certifies, a box reaching the flip does not.
+    let (mut lo, mut hi) = (eps(), 1.0);
     assert!(certifies_whole(lo), "the bracket's low end must certify");
     assert!(!certifies_whole(hi), "the bracket's high end must not");
     for _ in 0..24 {
@@ -605,14 +613,14 @@ fn the_certification_width_threshold_is_a_small_fraction_of_epsilon() {
             hi = mid;
         }
     }
-    let ratio = eps() / (2.0 * lo);
-    println!("R2 MEASURED: the widest whole-certifying box is eps/{ratio:.2} wide");
-    // The PR's `[0, c·w]` with c ≈ 2–4 puts the whole-box width
-    // threshold within an order of magnitude of ε/8.
+    println!(
+        "R2 MEASURED: the widest whole-certifying half-width is {lo:e} ({} eps)",
+        lo / eps()
+    );
     assert!(
-        (2.0..=256.0).contains(&ratio),
-        "the largest box that certifies whole is ε/{ratio} wide — outside the band the PR's \
-         `[0, c·w]`, c ≈ 2–4 statement implies (it says roughly ε/8)"
+        lo >= 1.0e-3,
+        "the largest box that certifies whole has half-width {lo} — the identity tier is not \
+         discharging the certification identities, and the ε-scale ceiling is back"
     );
 }
 

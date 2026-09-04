@@ -2,11 +2,12 @@
 id: placed-union-has-no-session-op
 kind: issue
 title: No GUI door fuses a pattern: Node::PlacedUnion has no SessionOp
-status: review
+status: closed
 opened: 2026-09-01
 github: 1456
 branch: chrome/placed-union-has-no-session-op
 pr: 1762
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1456

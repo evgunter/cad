@@ -85,18 +85,27 @@ impl Box3 {
     pub(crate) fn around<T: CertifiedBounds>(c: Point3<T>, r: T) -> Self {
         let g = pad_interval(r);
         Self {
-            x: ring(c.x) + g,
-            y: ring(c.y) + g,
-            z: ring(c.z) + g,
+            x: RingInterval::from_certified(c.x) + g,
+            y: RingInterval::from_certified(c.y) + g,
+            z: RingInterval::from_certified(c.z) + g,
         }
     }
 
     /// The box spanned by two corners (componentwise hull).
     pub(crate) fn between<T: CertifiedBounds>(a: Point3<T>, b: Point3<T>) -> Self {
         Self {
-            x: RingInterval::hull(ring(a.x), ring(b.x)),
-            y: RingInterval::hull(ring(a.y), ring(b.y)),
-            z: RingInterval::hull(ring(a.z), ring(b.z)),
+            x: RingInterval::hull(
+                RingInterval::from_certified(a.x),
+                RingInterval::from_certified(b.x),
+            ),
+            y: RingInterval::hull(
+                RingInterval::from_certified(a.y),
+                RingInterval::from_certified(b.y),
+            ),
+            z: RingInterval::hull(
+                RingInterval::from_certified(a.z),
+                RingInterval::from_certified(b.z),
+            ),
         }
     }
 
@@ -176,26 +185,6 @@ impl Box3 {
     }
 }
 
-/// **The seam** (module docs): one scalar's bracket, as a ring
-/// enclosure. At `f64` this is `RingInterval::point`; at the interval
-/// scalar it carries the whole enclosure in, so nothing downstream can
-/// narrow what the caller could not.
-/// The seam itself: the caller's scalar crossing into the ring.
-///
-/// The bound is [`CertifiedEnclosure`], not `Bounds`. Everything built
-/// from this is a *certificate*, and the ring has two states and no
-/// decorations — so an operand that carries a sound bracket but whose
-/// computation left a domain has no way to say so once it is across.
-/// A refusing operand becomes ring poison, which fails every downstream
-/// test rather than shrinking a box.
-///
-/// The body is [`RingInterval::from_certified`]; this wrapper exists for
-/// the name at the call sites below, not for a second spelling of the
-/// door.
-fn ring<T: CertifiedEnclosure>(v: T) -> RingInterval {
-    RingInterval::from_certified(v)
-}
-
 /// A symmetric pad of magnitude `r` — `[−r⁺, r⁺]` taken at the
 /// bracket's UPPER end, because a pad is a widening and the sound
 /// direction for a widening is the largest value the operand could
@@ -234,11 +223,19 @@ fn cross3(a: [RingInterval; 3], b: [RingInterval; 3]) -> [RingInterval; 3] {
 }
 
 fn constv<T: CertifiedBounds>(v: Vec3<T>) -> [RingInterval; 3] {
-    [ring(v.x), ring(v.y), ring(v.z)]
+    [
+        RingInterval::from_certified(v.x),
+        RingInterval::from_certified(v.y),
+        RingInterval::from_certified(v.z),
+    ]
 }
 
 fn subp<T: CertifiedBounds>(b: Box3, p: Point3<T>) -> [RingInterval; 3] {
-    [b.x - ring(p.x), b.y - ring(p.y), b.z - ring(p.z)]
+    [
+        b.x - RingInterval::from_certified(p.x),
+        b.y - RingInterval::from_certified(p.y),
+        b.z - RingInterval::from_certified(p.z),
+    ]
 }
 
 /// `|q|²` with **tight** squares — [`RingInterval::sqr`], not `q*q`:
@@ -270,10 +267,12 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(
     match *surface {
         Surface::Plane { origin, normal, .. } => dot3(subp(b, origin), constv(normal)),
         Surface::Sphere { center, radius, .. } => {
-            // `sqr`, never `ring(radius) * ring(radius)`: the radius
-            // enclosure is one operand, and squaring it as two
-            // independent ones widens it (the interval-square rule).
-            (norm_sq(subp(b, center)) - ring(radius).sqr()) / (two * ring(radius))
+            // `sqr`, never `r * r`: the radius enclosure is one
+            // operand, and squaring it as two independent ones widens
+            // it (the interval-square rule). One crossing, bound once,
+            // for the same reason.
+            let r = RingInterval::from_certified(radius);
+            (norm_sq(subp(b, center)) - r.sqr()) / (two * r)
         }
         Surface::Cylinder {
             origin,
@@ -298,7 +297,8 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(
             // cancellation inside one expression, and for an
             // axis-aligned cylinder it is exact.
             let w = [q[0] - a[0] * h, q[1] - a[1] * h, q[2] - a[2] * h];
-            (norm_sq(w) - ring(radius).sqr()) / (two * ring(radius))
+            let r = RingInterval::from_certified(radius);
+            (norm_sq(w) - r.sqr()) / (two * r)
         }
         // `Approx` with the no-enclosure group: the implicit forms this
         // module encloses do not exist for a spline stand-in.
@@ -320,11 +320,8 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
         Surface::Plane { normal, .. } => constv(normal),
         Surface::Sphere { center, radius, .. } => {
             let q = subp(b, center);
-            [
-                q[0] / ring(radius),
-                q[1] / ring(radius),
-                q[2] / ring(radius),
-            ]
+            let r = RingInterval::from_certified(radius);
+            [q[0] / r, q[1] / r, q[2] / r]
         }
         Surface::Cylinder {
             origin,
@@ -335,10 +332,11 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
             let q = subp(b, origin);
             let h = dot3(q, constv(axis));
             let a = constv(axis);
+            let r = RingInterval::from_certified(radius);
             [
-                (q[0] - a[0] * h) / ring(radius),
-                (q[1] - a[1] * h) / ring(radius),
-                (q[2] - a[2] * h) / ring(radius),
+                (q[0] - a[0] * h) / r,
+                (q[1] - a[1] * h) / r,
+                (q[2] - a[2] * h) / r,
             ]
         }
         // As the residual enclosure above: no implicit form, no
@@ -493,9 +491,20 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                 // structure and the control point is the caller's
                 // scalar, so the product is formed IN THE RING — the
                 // seam, not a collapse.
-                let (rw0, rw1) = (ring(w0), ring(w1));
-                let a0 = [rw0 * ring(p0.x), rw0 * ring(p0.y), rw0 * ring(p0.z)];
-                let a1 = [rw1 * ring(p1.x), rw1 * ring(p1.y), rw1 * ring(p1.z)];
+                let (rw0, rw1) = (
+                    RingInterval::from_certified(w0),
+                    RingInterval::from_certified(w1),
+                );
+                let a0 = [
+                    rw0 * RingInterval::from_certified(p0.x),
+                    rw0 * RingInterval::from_certified(p0.y),
+                    rw0 * RingInterval::from_certified(p0.z),
+                ];
+                let a1 = [
+                    rw1 * RingInterval::from_certified(p1.x),
+                    rw1 * RingInterval::from_certified(p1.y),
+                    rw1 * RingInterval::from_certified(p1.z),
+                ];
                 let (deg, span_lo, span_hi) = if along_u {
                     let Some((&lo, &hi)) = ku.get(iu + 1).zip(ku.get(iu + pu + 1)) else {
                         return (poison_box(), RingInterval::poison(), RingInterval::poison());
@@ -507,8 +516,8 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                     };
                     (pv as f64, lo, hi)
                 };
-                let denom = ring(span_hi - span_lo);
-                let scale = ring(deg) / denom;
+                let denom = RingInterval::from_certified(span_hi - span_lo);
+                let scale = RingInterval::from_certified(deg) / denom;
                 let d = Box3 {
                     x: (a1[0] - a0[0]) * scale,
                     y: (a1[1] - a0[1]) * scale,
@@ -518,12 +527,16 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                     None => d,
                     Some(acc) => acc.hull(d),
                 });
-                let dw = (ring(w1) - ring(w0)) * scale;
+                let dw =
+                    (RingInterval::from_certified(w1) - RingInterval::from_certified(w0)) * scale;
                 wd = Some(match wd {
                     None => dw,
                     Some(acc) => RingInterval::hull(acc, dw),
                 });
-                for wv in [ring(w0), ring(w1)] {
+                for wv in [
+                    RingInterval::from_certified(w0),
+                    RingInterval::from_certified(w1),
+                ] {
                     w = Some(match w {
                         None => wv,
                         Some(acc) => RingInterval::hull(acc, wv),
@@ -632,9 +645,9 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         let ru = RingInterval::from_bounds(-hu, hu);
         let rv = RingInterval::from_bounds(-hv, hv);
         Box3 {
-            x: ring(c.x) + du.x * ru + dv.x * rv,
-            y: ring(c.y) + du.y * ru + dv.y * rv,
-            z: ring(c.z) + du.z * ru + dv.z * rv,
+            x: RingInterval::from_certified(c.x) + du.x * ru + dv.x * rv,
+            y: RingInterval::from_certified(c.y) + du.y * ru + dv.y * rv,
+            z: RingInterval::from_certified(c.z) + du.z * ru + dv.z * rv,
         }
     }
 }
@@ -875,7 +888,7 @@ mod tests {
     }
 
     /// **The two crossings agree with the door, whichever way it
-    /// answers.** `ring` destructures a refusal to poison and
+    /// answers.** The bracket crossing destructures a refusal to poison and
     /// `pad_interval` reads the bracket's upper end, so the door
     /// beginning to REFUSE a value it used to hand over as a NaN bracket
     /// takes a different branch through both of them. The `f64` lane is
@@ -926,8 +939,8 @@ mod tests {
 
     /// **The M6-2 seam requires the certified door.**
     ///
-    /// `ring<T: CertifiedEnclosure>` is the only way an evaluation scalar
-    /// enters the C9 ring here, and the ring has two states and no
+    /// [`RingInterval::from_certified`] is the only way an evaluation
+    /// scalar enters the C9 ring here, and the ring has two states and no
     /// decorations — so an operand whose bracket is sound but whose
     /// computation left a domain has no way to say so once it is across.
     /// The rows sweep the operand across the domain boundary: the
@@ -963,7 +976,7 @@ mod tests {
         }
 
         /// A sphere whose centre carries `c` in x — the operand reaches
-        /// `implicit_enclosure` through `subp`, the same `ring` helper
+        /// `implicit_enclosure` through `subp`, the same crossing door
         /// every other entry point uses.
         fn sphere(c: Interval) -> Surface<Interval> {
             Surface::Sphere {

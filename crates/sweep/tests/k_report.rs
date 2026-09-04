@@ -278,13 +278,11 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
 }
 
 fn outcome_str(o: SampleOutcome) -> &'static str {
-    match o {
-        SampleOutcome::Definite(geom_core::Sign::Negative) => "negative",
-        SampleOutcome::Definite(geom_core::Sign::Zero) => "zero",
-        SampleOutcome::Definite(geom_core::Sign::Positive) => "positive",
-        SampleOutcome::Indeterminate => "indeterminate",
-        SampleOutcome::Invalid => "invalid",
-    }
+    // The ONE spelling of the sweep's outcome vocabulary lives
+    // on the enum, because `tools/k-lint` has to read what this
+    // writes and a hand-kept copy on each side of that boundary
+    // silently disarmed the E6 driver gate once already.
+    o.token()
 }
 
 /// The dump entry point (ignored: run explicitly, one process per ε).
