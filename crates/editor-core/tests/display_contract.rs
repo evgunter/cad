@@ -14,11 +14,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    AssemblyError, CapEnd, DeclareError, Diagnosis, Dimension, DimensionError, DocParamValue,
-    EditError, EntityKind, EvalError, HitTestError, InterrogateError, MateSide, MeshPickError,
-    NodeErrorKind, NodePickError, ParamName, ParseError, ProgramFault, RecipeNodeId, RefusedRef,
-    ResolveFault, ResolveIndeterminate, RoleSeg, SelectRefusal, SlotId, SnapshotError, StableName,
-    StepArg,
+    AssemblyError, CapEnd, ClashLever, DeclareError, Diagnosis, Dimension, DimensionError,
+    DocParamValue, EditError, EntityKind, EvalError, HitTestError, InterrogateError, MateFault,
+    MateSide, MeshPickError, NodeErrorKind, NodePickError, ParamName, ParseError, ProgramFault,
+    RecipeNodeId, RefusedRef, ResolveFault, ResolveIndeterminate, RoleSeg, SelectRefusal, SlotId,
+    SnapshotError, StableName, StepArg,
 };
 
 /// Asserts the F6 shape over one rendering: the wanted content is
@@ -658,5 +658,108 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
     assert!(
         shown.contains(&format!("(a {})", face_name())) && shown.contains("it names a vertex"),
         "the consonant kinds must keep \"a\": {shown:?}"
+    );
+}
+
+/// A mate-solve contradiction states WHO is at fault and in what
+/// currency. Two mates that cannot both hold are named as a pair; one
+/// mate that contradicts itself is named ONCE, because "mates 6 and 6"
+/// reads as an indexing fault and hides the shape the payload states.
+#[test]
+fn a_contradiction_names_one_mate_once_and_a_pair_as_a_pair() {
+    let pair = MateFault::Contradictory {
+        held: RecipeNodeId(3),
+        added: RecipeNodeId(5),
+        predicate: "mate_member_translation_zero",
+        clash: 0.01,
+        lever: None,
+    };
+    assert_f6(
+        &pair,
+        &["mates 3 and 5 cannot both hold", "a clash of 0.01 m"],
+        &["Contradictory"],
+    );
+    assert!(
+        !pair.to_string().contains("contradicts itself"),
+        "two distinct mates are a PAIR: {pair}"
+    );
+
+    let itself = MateFault::Contradictory {
+        held: RecipeNodeId(6),
+        added: RecipeNodeId(6),
+        predicate: "mate_clocking_redundant",
+        clash: core::f64::consts::FRAC_PI_2,
+        lever: Some(ClashLever {
+            disagreement: core::f64::consts::FRAC_PI_2,
+            unit: "rad",
+            arm: 1.0,
+        }),
+    };
+    assert_f6(
+        &itself,
+        &["mate 6 contradicts itself", "mate_clocking_redundant"],
+        &["Contradictory"],
+    );
+    assert!(
+        !itself.to_string().contains("mates 6 and 6"),
+        "one mate at fault is named once: {itself}"
+    );
+}
+
+/// A clash the predicate LEVERED out of a dimensionless disagreement
+/// prints both halves and their product, so the metre figure is one a
+/// reader can re-derive rather than a bare number wearing a unit. A
+/// clash decided structurally has no measurement at all and says so
+/// instead of rendering an infinity in metres.
+#[test]
+fn a_levered_clash_names_its_disagreement_and_its_arm() {
+    let levered = MateFault::Contradictory {
+        held: RecipeNodeId(6),
+        added: RecipeNodeId(6),
+        predicate: "mate_clocking_redundant",
+        clash: core::f64::consts::FRAC_PI_2 * 2.0,
+        lever: Some(ClashLever {
+            disagreement: core::f64::consts::FRAC_PI_2,
+            unit: "rad",
+            arm: 2.0,
+        }),
+    };
+    let shown = levered.to_string();
+    for want in [
+        "a disagreement of 1.5707963267948966 rad",
+        "a contact arm of 2 m",
+        "a clash of 3.141592653589793 m",
+    ] {
+        assert!(shown.contains(want), "{shown:?} is missing {want:?}");
+    }
+
+    let dimensionless = MateFault::Contradictory {
+        held: RecipeNodeId(3),
+        added: RecipeNodeId(5),
+        predicate: "mate_axes_parallel",
+        clash: 0.5,
+        lever: Some(ClashLever {
+            disagreement: 0.25,
+            unit: "",
+            arm: 2.0,
+        }),
+    };
+    let shown = dimensionless.to_string();
+    assert!(
+        shown.contains("a disagreement of 0.25 levered"),
+        "a pure number carries no unit word: {shown:?}"
+    );
+
+    let structural = MateFault::Contradictory {
+        held: RecipeNodeId(3),
+        added: RecipeNodeId(5),
+        predicate: "mate_member_empty",
+        clash: f64::INFINITY,
+        lever: None,
+    };
+    let shown = structural.to_string();
+    assert!(
+        shown.contains("meet in the empty set") && !shown.contains("inf"),
+        "a structural refusal has no metre figure to print: {shown:?}"
     );
 }

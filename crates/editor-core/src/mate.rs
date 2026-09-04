@@ -418,7 +418,10 @@ pub enum MateFault {
     /// CONTRADICTORY): names both mates, the predicate that failed,
     /// and the measured clash.
     Contradictory {
-        /// The mate already folded.
+        /// The mate already folded. **Equal to `added` when one mate
+        /// contradicts ITSELF**: a mate whose own datum and rider admit
+        /// no common pose dies by the same rule, and naming it on both
+        /// sides is how that shape reaches this variant.
         held: RecipeNodeId,
         /// The mate whose intersection died against it.
         added: RecipeNodeId,
@@ -427,6 +430,11 @@ pub enum MateFault {
         /// The measured clash, in metres (the margin that should have
         /// been zero and was not).
         clash: f64,
+        /// The lever, when `clash` was CARRIED to metres from a
+        /// dimensionless disagreement instead of measured as a length
+        /// outright. `None` is a predicate whose margin is already a
+        /// length.
+        lever: Option<ClashLever>,
     },
     /// A tree mate left a positive-dimensional residual (A11 rule 4's
     /// UNDER): names the pair, the residual subgroup, and its
@@ -466,6 +474,23 @@ pub enum MateFault {
     },
 }
 
+/// The lever behind a clash a predicate measured as a **disagreement**
+/// rather than as a length: the metre figure IS `disagreement · arm`
+/// ([`geom_core::predicate::Margin::levered`]'s door), so a message
+/// that prints the product alone states a number the reader cannot
+/// re-derive. Both halves travel so the product is checkable.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClashLever {
+    /// What the predicate measured before the arm carried it.
+    pub disagreement: f64,
+    /// `disagreement`'s unit: `"rad"` for an authored angle, `""` for a
+    /// pure number (a sine, a rotation's departure from the identity).
+    pub unit: &'static str,
+    /// The lever arm, in metres — the length that turns the
+    /// disagreement into the point deviation the predicate decided on.
+    pub arm: f64,
+}
+
 impl core::fmt::Display for MateFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -499,12 +524,52 @@ impl core::fmt::Display for MateFault {
                 added,
                 predicate,
                 clash,
-            } => write!(
-                f,
-                "mates {} and {} cannot both hold: predicate `{predicate}` measured a clash of \
-                 {clash} m where their cosets would have had to meet",
-                held.0, added.0
-            ),
+                lever,
+            } => {
+                // One mate named on BOTH sides is a mate contradicting
+                // itself, and "mates 6 and 6" reads as an indexing
+                // fault rather than as the shape the payload states.
+                if held == added {
+                    write!(
+                        f,
+                        "mate {} contradicts itself — the constraints it declares admit no \
+                         common pose",
+                        held.0
+                    )?;
+                } else {
+                    write!(f, "mates {} and {} cannot both hold", held.0, added.0)?;
+                }
+                write!(f, ": predicate `{predicate}` ")?;
+                // The empty intersection is decided STRUCTURALLY, so
+                // its margin is no measurement and never renders as one.
+                if !clash.is_finite() {
+                    return write!(
+                        f,
+                        "found the cosets meet in the empty set — a structural refusal, with no \
+                         margin to measure"
+                    );
+                }
+                // A levered clash is `disagreement · arm`, so printing
+                // the product alone states metres the reader cannot
+                // re-derive: both halves travel with it.
+                if let Some(ClashLever {
+                    disagreement,
+                    unit,
+                    arm,
+                }) = lever
+                {
+                    let space = if unit.is_empty() { "" } else { " " };
+                    write!(
+                        f,
+                        "measured a disagreement of {disagreement}{space}{unit} levered by a \
+                         contact arm of {arm} m — that is "
+                    )?;
+                }
+                write!(
+                    f,
+                    "a clash of {clash} m where the cosets would have had to meet"
+                )
+            }
             Self::Under {
                 mate,
                 parent,

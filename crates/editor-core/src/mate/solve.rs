@@ -546,6 +546,11 @@ fn mate_coset(
                         added: mate,
                         predicate: "mate_clocking_redundant",
                         clash: theta * arm,
+                        lever: Some(super::ClashLever {
+                            disagreement: theta,
+                            unit: "rad",
+                            arm,
+                        }),
                     }));
                 }
             }
@@ -692,6 +697,7 @@ pub fn fold_pair<P>(
                     added: mate,
                     predicate,
                     clash: margin,
+                    lever: None,
                 }));
             }
         };
@@ -701,6 +707,7 @@ pub fn fold_pair<P>(
                 added: mate,
                 predicate: "mate_member_empty",
                 clash: f64::INFINITY,
+                lever: None,
             }));
         }
         held_mate.get_or_insert(mate);
