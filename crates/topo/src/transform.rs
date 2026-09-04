@@ -62,15 +62,15 @@
 //!   [`TransformError::ApproxLaneUnsupported`] naming it, and a fit
 //!   door that refuses the re-derivation refuses
 //!   [`TransformError::ApproxRecertify`] with its own error verbatim;
-//! - `Nurbs` surfaces and carriers are refused typed. Not because they
-//!   evaluate to poison — the described ones do not, and the NURBS
-//!   evaluators are built — but because this pass has no
-//!   re-certification for a NURBS CARRIER and no pcurve pass over a
-//!   NURBS chart to re-derive against the mapped geometry, which is
-//!   what every other kind here gets. The placeholder payload
-//!   ([`geom::NurbsSurface::placeholder`]) is all-poison and refuses
-//!   under the same arm. Mapping a described NURBS surface is TRIM's
-//!   ground.
+//! - `Nurbs` surfaces and carriers are refused typed, **by variant**.
+//!   Only the placeholder payload
+//!   ([`geom::NurbsSurface::placeholder`]) justifies that on the
+//!   geometry: it is all-poison, and mapping it would launder poison
+//!   as geometry. A DESCRIBED net has live control points, evaluates
+//!   for real, and would map exactly — weights and knots are affine
+//!   invariants ([`geom::NurbsSurface::map_affine`]) — so narrowing
+//!   the arm to the placeholder state is unbuilt work rather than a
+//!   property of the geometry. It is not this pass's to build here.
 
 use geom::Curve3;
 use geom::Surface;
@@ -128,11 +128,9 @@ pub enum TransformError {
         /// The offending edge.
         edge: EdgeKey,
     },
-    /// A `Nurbs` surface or carrier. The evaluators exist; what this
-    /// pass does not have is a re-certification for a NURBS carrier and
-    /// a pcurve pass over a NURBS chart, so a mapped one could not be
-    /// re-derived against the mapped geometry the way every other kind
-    /// is. The all-poison placeholder payload refuses here too.
+    /// A `Nurbs` surface or carrier — refused by VARIANT, while only
+    /// the all-poison placeholder payload justifies it on the geometry.
+    /// A described net's rigid map is unbuilt work, not an obstruction.
     NurbsPlaceholder,
     /// An approximating surface at a scalar with no fit lane: its
     /// certificate cannot be re-derived on the mapped pair, and a
@@ -191,10 +189,11 @@ impl core::fmt::Display for TransformError {
                  {source}"
             ),
             Self::NurbsPlaceholder => f.write_str(
-                "transform: mapping a Nurbs surface or carrier is refused — this pass has no \
-                 re-certification for a NURBS carrier and no pcurve pass over a NURBS chart, \
-                 so a mapped one could not be re-derived against the mapped geometry (and the \
-                 placeholder payload is all-poison besides)",
+                "transform: a Nurbs surface or carrier is refused, and the refusal is by \
+                 VARIANT: the placeholder payload evaluates to poison, so mapping it would \
+                 launder poison as geometry, but a DESCRIBED net evaluates for real and would \
+                 map exactly — narrowing this arm to the placeholder state is unbuilt work, \
+                 not a property of the geometry",
             ),
             Self::Corrupt { what } => write!(
                 f,
