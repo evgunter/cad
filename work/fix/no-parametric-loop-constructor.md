@@ -65,6 +65,22 @@ load-bearing rather than incidental), and the expansion keeps its
 `At` … `LineTo(Start)` shape at a corner no literal door can take (a
 document parameter reference).
 
+**One red the unit caused, and fixed.** `geom-core`'s
+`bounds_census::every_sole_bracket_bound_door_is_in_the_roster` walks
+the tree's source and panicked on the new signature. Its `angle_end`
+helper closed a generic parameter list at the first `{` or `;` with no
+regard for bracket nesting, so the `;` inside `<Item = [Expr; 2]>` —
+an ordinary fixed-size array, and exactly the type `ProgramStep::At`
+holds — read as the item's body and stopped the census. The scanner
+now reads that terminator at square/round-bracket depth zero only,
+which is the nesting its own sibling `top_level_params` already
+respects for commas. `[Expr; 2]` was kept: distorting the door's type
+to suit a census parser would be the wrong repair. Swept for the same
+shape (`'{' | ';' => break` in a bracket scan, and `angle_end`-like
+helpers): one instance, this one. The sibling scanner
+`flagged_census::skip_turbofish` counts angle depth alone and has no
+`{`/`;` break, so it never had the defect.
+
 **Swept for.** Two patterns, and pattern 1 re-run on the merged tree
 after `origin/main` moved: the seventeen untaken hits are unchanged,
 main added no new hand-rolled polygon, and it touched neither
