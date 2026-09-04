@@ -124,8 +124,8 @@ pub use expr::{
 pub use ident::{ContentPin, DocRef, DocumentId};
 pub use mate::{
     Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, ClusterMaintenance, Coset, MateFault,
-    MateFrame, MatePrimitive, MateRole, MateSide, SolvedPoses, Subgroup, UNDER_RECOURSE,
-    class_admission, clusters, gauge_of, reading_edges, relative_freedom_components,
+    MateFrame, MatePrimitive, MateRole, MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE,
+    class_admission, clusters, gauge_of, member_of, reading_edges, relative_freedom_components,
     solve_document,
 };
 pub use mc::{

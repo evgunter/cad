@@ -190,6 +190,20 @@ pub fn mates_naming(doc: &Doc<ProfileProgram>, instance: RecipeNodeId) -> Vec<Re
 }
 
 /// Whether `node` is a live `InstantiatePart`.
+///
+/// **The question is per-instance DISPLAY state**, not membership: hide
+/// and free-move are keyed on the node with the identity a user hides
+/// or probes, and only an `InstantiatePart` has one. A pattern node
+/// draws several copies at once, so there is no single pose to probe
+/// and no single body to hide.
+///
+/// It is NOT the mate MEMBER vocabulary, which
+/// [`pncad::document::member_of`] owns and which additionally admits a
+/// pattern copy — an `Instance(i)`-qualified head on a `Pattern` over a
+/// live instance. The two differ because they ask different questions:
+/// a copy is a member (the solve places it) while having no per-copy
+/// display state of its own. An authoring door that gates on this
+/// predicate refuses heads the solve already places.
 pub fn is_instance(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     matches!(doc.node(node), Some(Node::InstantiatePart { .. }))
 }
