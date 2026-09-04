@@ -9,7 +9,7 @@ developer's box. A 2026-08-22 census re-measured the same ratio at **4.95 /
 4.99** on a 4-core AVX-512 guest — about 30% less than the figure the verdict
 is built on, enough that the note's "~2x and ~3x margins" would become 0.94x
 and 0.91x, i.e. opt-0 winning outright. That is NOT a licence to flip: the
-census box is not CI's 2-vCPU runner, and a ratio is exactly the kind of
+census box is not CI's runner, and a ratio is exactly the kind of
 number that does not transfer between machines. It IS a demonstration that the
 quantity CI relies on has never been measured where CI runs.
 
@@ -267,7 +267,7 @@ def summarise_free_arm(opt_level: int, samples: list[dict]) -> dict:
         "opt_level": opt_level,
         "source": "gate-runs",
         "n": len(samples),
-        # MEDIAN, not mean: a hosted 2-vCPU runner has a fat tail (the same
+        # MEDIAN, not mean: a shared hosted runner has a fat tail (the same
         # sentence docs/perf-data/rebuild-latency/README.md carries), and one
         # contended run would drag a mean far enough to move the verdict.
         "a": statistics.median(s["a"] for s in samples),
@@ -394,6 +394,14 @@ def cpu_identity() -> tuple[str | None, list[str] | None]:
     `nproc`, `mem_total_kb` and `platform.machine()` are constant across a
     hosted runner pool while the CPU generation underneath it is not, so
     without this pair a sample cannot be attributed to a host at all.
+
+    PARITY OBLIGATION: two more copies of this parser exist, in
+    `scripts/criterion-emit.py` and
+    `crates/editor-core/tests/m4_pr8_latency.rs`. They are copies rather
+    than one reader because no cheap home is shared across Rust and Python,
+    so the obligation is manual: a change to the field names, to
+    `HOST_CPU_FLAGS`, or to what a null means here is owed to both of them
+    in the same diff.
 
     `(None, None)` means the file could not be read; `[]` means the flags are
     genuinely absent. A reader must be able to tell those apart, and a box

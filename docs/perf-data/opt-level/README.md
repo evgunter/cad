@@ -38,7 +38,7 @@ came from a developer's box. A 2026-08-22 census measured the same ratio at
 **4.95 / 4.99** on a 4-core AVX-512 guest — about 30% lower, enough to turn the
 note's "~2x and ~3x margins" into 0.94x and 0.91x. That is **not** a licence to
 flip: a ratio does not transfer between machines, and the census box is not
-CI's 2-vCPU runner. It is a demonstration that the number CI relies on had
+CI's runner. It is a demonstration that the number CI relies on had
 never been measured where CI runs.
 
 Each sample here is that measurement, taken on the runner:
@@ -134,9 +134,22 @@ rebuild.
   hosts) against **measured** arms taken on one host on one night: a slow box
   moves both measured arms together and only ever toward the tree's own level.
   A margin smaller than the between-host spread is not a verdict, and
-  `cpu_model` is what lets a reader check that. `null` for both fields means
-  `/proc/cpuinfo` was unreadable; `cpu_flags: []` means it was read and
-  neither extension was present.
+  `cpu_model` is what lets a reader check that — though what that spread
+  actually is has not been measured yet, which is what these fields are
+  being accumulated to find out.
+
+  **Reading the pair.** `cpu_flags` is the field that says whether
+  `/proc/cpuinfo` was read at all: `null` means it could not be, and ANY
+  list — the empty one included — means it could. Three shapes, not two:
+
+  | `cpu_model` | `cpu_flags` | what happened |
+  |---|---|---|
+  | a string | a list | read; the ordinary case, and `[]` there means neither extension was present |
+  | `null` | `null` | `/proc/cpuinfo` unreadable — the box is unidentified, not featureless |
+  | `null` | a list | read, but it carried no `model name` line (an aarch64 one spells its flags `Features` and names no model) |
+
+  So `cpu_model: null` is not by itself a reading: pair it with `cpu_flags`
+  before concluding anything about the host.
 
   **What it still cannot.** *These fields start with the first sample written
   after they were added; earlier samples carry the old field set and stay

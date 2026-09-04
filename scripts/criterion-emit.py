@@ -141,10 +141,16 @@ def cpu_identity() -> tuple[str | None, list[str] | None]:
 
     `nproc`, `mem_total_kb` and `platform.machine()` are constant across a
     hosted runner pool while the CPU generation underneath it is not, so
-    without this pair a sample cannot be attributed to a host at all. Same
-    two fields, same spelling, in every emitter of this lane
-    (`scripts/opt-level-calibrate.py`,
-    `crates/editor-core/tests/m4_pr8_latency.rs`) so the blocks compare.
+    without this pair a sample cannot be attributed to a host at all.
+
+    PARITY OBLIGATION: two more copies of this parser exist, in
+    `scripts/opt-level-calibrate.py` and
+    `crates/editor-core/tests/m4_pr8_latency.rs`. They are copies rather
+    than one reader because no cheap home is shared across Rust and Python,
+    so the obligation is manual and it is this: a change to the field names,
+    to `HOST_CPU_FLAGS`, or to what a null means here is a change owed to
+    both of them in the same diff. Blocks that disagree do not compare, and
+    comparing them is the entire point of the fields.
 
     `(None, None)` means the file could not be read; `[]` means the flags
     are genuinely absent. A reader must be able to tell those apart, and a

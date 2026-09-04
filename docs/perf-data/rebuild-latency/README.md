@@ -32,7 +32,7 @@ comparable across rows and across PRs, and **never release-
 representative**.
 
 Read the `±` spread before believing a delta. Each figure is the median
-of 5 runs in one process; a hosted 2-vCPU runner has a fat tail, and a
+of 5 runs in one process; a shared hosted runner has a fat tail, and a
 `vs base` move inside the spread is noise, not a regression.
 
 ## Why the history exists at all
@@ -53,9 +53,22 @@ model string and by whether `avx2` / `avx512f` were available. Those two
 fields are the ones that vary inside a hosted runner class — `nproc`,
 memory, arch and toolchain are constant across the whole `ubuntu-latest`
 pool, which is why the block used to be readable and still say nothing.
-`cpu_model: null` with `cpu_flags: null` means `/proc/cpuinfo` was
-unreadable; `cpu_flags: []` means it was read and neither extension was
-present.
+
+**Reading the pair.** `cpu_flags` is the field that says whether
+`/proc/cpuinfo` was read at all: `null` means it could not be, and ANY list
+— the empty one included — means it could. Three shapes, not two:
+
+| `cpu_model` | `cpu_flags` | what happened |
+|---|---|---|
+| a string | a list | read; the ordinary case, and `[]` there means neither extension was present |
+| `null` | `null` | `/proc/cpuinfo` unreadable — the box is unidentified, not featureless |
+| `null` | a list | read, but it carried no `model name` line (an aarch64 one spells its flags `Features` and names no model) |
+
+So `cpu_model: null` is not by itself a reading: pair it with `cpu_flags`
+before concluding anything about the host. The third row is not
+hypothetical — it is the case
+`crates/editor-core/tests/m4_pr8_latency.rs`'s
+`cpu_identity_degrades_rather_than_failing` pins.
 
 **What it still cannot.** *The two fields begin with the first entry
 written after they were added. Every earlier entry carries the old field
