@@ -2,13 +2,13 @@
 id: facade-guards-defer-to-rustdoc-json
 kind: issue
 title: Three facade guards defer to a rustdoc-JSON check that is not scheduled
-status: review
+status: closed
 opened: 2026-08-20
 github: 696
 refs: [689]
 pr: 1841
 branch: ciw/facade-guards-ruling
-needs_ev: true
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 696
@@ -336,3 +336,81 @@ reads as green, and a toolchain this repo has never once installed.
 
 Both cases are now on the page. The recommendation stays (2); the
 ruling is Ev's.
+
+## THE RULING (Ev, 2026-09-04): no rustdoc JSON — disposition (2)
+
+> **"ok yeah no rustdoc json, your arguments are convincing"**
+> — Ev, in chat, 2026-09-04
+
+This is disposition **(2)**: the three source-text scans in
+`crates/pncad/tests/all.rs` are the **permanent** enforcement of the
+LB13 boundary, the #413 minting-door ruling and the document layer's
+completeness. **#696's deferral is closed permanently**, not
+rescheduled and not parked: no rustdoc-JSON pass is to be built, and
+the next person who has the idea should meet the argument below and
+either be persuaded by it or find its flaw. Reopening it takes a new
+finding, not a new lane.
+
+### The two findings that carried it, both from this lane's own work
+
+1. **The multi-line `pub use` hole is a defect in our scanner, not a
+   ceiling of scanning.** It was the strongest case for (1) — a
+   structural check reading the compiler's API would never have been
+   line-local — and it dissolves on inspection: `pub_use_names`
+   (`all.rs:3200`) already accumulates a statement to its `;` in the
+   same file. Fixing it in text buys more real coverage than the
+   nightly would have, at no toolchain cost. Filed as
+   `work/issues/lb13-guards-are-line-local` (LIB's, with the
+   `root_declared_pub_names` count error folded in).
+2. **The classes rustdoc JSON uniquely reaches have zero live
+   instances and are not reachable by an ordinary edit.** An
+   `as`-aliased key: none exists in the façade's sources or in
+   `editor-core`'s root. A key reachable as a public field or
+   associated type of a carried type: the four public signatures in
+   `editor-core` that name one sit inside `MeshPatchKey`, `Resolved`,
+   `AppearanceResolution` and `EntityRef`, all four already in
+   `NOT_CARRIED`. Exposing a key through either route takes a
+   coordinated two-crate edit whose second half already reds the
+   completeness guard.
+
+### What this ruling is NOT
+
+It is **not** "text scanning is good enough". Three things decided it,
+and each is narrower than that:
+
+- the two classes at stake are not reachable by an **ordinary edit** —
+  which is the test, not the instance count; a guard that never fires
+  is a guard working;
+- one of the three purchases #696 claimed (a `pub` item declared
+  directly in a layer root) became **text-reachable while the issue
+  sat**, in `root_declared_pub_names`, which already does that job for
+  the profile layer in the same file;
+- a **second pinned compiler under negative-claim guards** is a real
+  cost, not a rounding error, in a repository whose determinism
+  argument opens with a pinned compiler (D9/L2). These guards claim
+  that *no* key is nameable; over an explicitly unstable schema, a
+  format that moved reads **green**. Minutes were never the objection
+  and the ruling does not rest on them.
+
+### The placement sub-question is moot, not unanswered
+
+"Nightly workflow or per-PR gate?" had no answer to give once (2) was
+ruled, and it would not have survived (1) either. The nightly
+**toolchain** requirement follows the check wherever it runs — that is
+a property of `--output-format json`, not of the workflow it sits in —
+so placement never disposed of the format-instability cost, which was
+the whole question. And per-PR was refused on its own terms: it would
+put an unstable schema on the critical path of every merge. Nobody
+needs to re-derive this.
+
+### Discharged on this branch (PR 1841)
+
+All three guard doc comments were rewritten in
+`crates/pncad/tests/all.rs` — a sanctioned drive-by into LIB's file,
+announced as such in the PR — so that each states the text scan **is**
+the permanent mechanism, names its limits, records that neither has a
+live instance, and gives the reachability argument for why they are
+acceptable. No `for now`, no `until`: the file no longer cites #696 at
+all (`grep -n '696' crates/pncad/tests/all.rs` is empty), because
+pointing at a closed question is the defect this item was filed
+against. Guard **logic** was untouched; it is `work/issues/lb13-guards-are-line-local`'s.
