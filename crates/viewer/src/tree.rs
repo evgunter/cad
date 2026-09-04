@@ -310,9 +310,8 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> RowStatus {
 /// Exhaustive on purpose: a fault arm the kernel grows must decide
 /// here whether it names a mate, rather than falling into a wildcard
 /// and silently drawing every reached row as downstream of nothing.
-/// [`MateFault::Band`] names none — no band, no decisions, so no mate
-/// is more at fault than any other — and every row it reached keeps
-/// its own `Failed`.
+/// [`MateFault::Band`] and [`MateFault::PosesOfAnotherDocument`] name
+/// none, and every row they reached keeps its own `Failed`.
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
         MateFault::Frame { mate, .. }
@@ -323,7 +322,12 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::DanglingHead { mate, .. }
         | MateFault::SelfMate { mate, .. }
         | MateFault::Unleverable { mate, .. } => vec![*mate],
-        MateFault::Band { .. } => Vec::new(),
+        // Neither names a mate: no band, no decisions, so no mate is
+        // more at fault than any other; and a solve read against the
+        // wrong document blames the pairing, not a node — that arm is
+        // raised by `SolvedPoses::placement` and never recorded in a
+        // solve's fault map, so no row here can carry it.
+        MateFault::Band { .. } | MateFault::PosesOfAnotherDocument { .. } => Vec::new(),
         // A contradiction is a claim about a PAIR of mates: neither is
         // the wrong one on the fault's own telling, so both read as
         // causes and the user picks which to relax.

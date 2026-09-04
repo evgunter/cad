@@ -307,3 +307,34 @@ band with the transverse cut-off, out as an `[ev]` PR because it
 proposes `CornerConfig::TransverseCap` / `RunOutPolicy::CutOffAtTransverseCap`
 for ratification; `needs_ev` set on the item for that alone). Block
 FILLET-B2 opens with ATTR, H6 and H7 once slot 2 concludes.
+
+**H5 stopped at Phase 1 and was re-scoped, same lane (2026-09-04).** The
+lane measured that the spec's "native instance" does not exist (a full
+revolve splits the whole loop at its seam, so the plane-hosted rim
+arises only after `merge_coplanar_faces`), that the repaired boss and
+dimple route to the LADDER and refuse on a FALSE ring clearance (a
+nested trim circle judged by external separation — filed as
+`ring-clearance-refuses-a-nested-trim-circle`, its own numeric unit),
+and that the seam-split resolution refuses the shape at its half-band
+gate rather than at `wall_seam`. Six repaired fixtures carry the defect
+on both material sides (the bowl floor is the concave one). Spec
+amended §"Re-scope at Phase 1"; the Phase 2 design stands; PR
+[#1824](https://github.com/evgunter/cad/pull/1824) is the unit's PR.
+`D323`/`D324` turn out closed by code-quality (PR 1783) — this log's
+opening note that they land as FILLET riders is superseded.
+
+**RIM landed (2026-09-04)** on PR [#1821](https://github.com/evgunter/cad/pull/1821),
+head `9b9ae75e`, green at the asked-for interval lane. Phase 1 measured
+every body class's rim arcs bit-equal on centre, radius and axis (never
+negated; `u_ref` differs across chart seams and is not compared), so
+the EXACT door is the spec's own outcome: `topo::query::rim_of` with
+its four typed refusals, a topological tiling test (shared vertices,
+key equality — the arcs' params live in their own frames, so a
+parametric test would need a decision), eleven hand-rolled scans
+turned into calls including the tour's bud mouth, and
+`test_support::rim_arcs_at` now seeding one arc into the door. The PR
+carried H4's title from a brief-template slip — corrected at dispatch.
+Ordinal **2001** claimed; the v6 dual is dispatched concurrently on the
+frozen head. Two other programs' finds routed, not fixed: the tour's
+`blend1_r1_wall6_probes.rs:94` selects a rim at a 5e-4 radius
+tolerance (the reviewers measure whether that is real slack).

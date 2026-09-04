@@ -44,19 +44,60 @@ use topo::{Body, BooleanError, BooleanResultKind, ContactClass, ContactRecords};
 use crate::appearance::{self, AppearanceResolution};
 use crate::doc::Doc;
 use crate::expr::EvalError;
+use crate::ident::Mispaired;
 use crate::names::{NameTable, NamingError};
 use crate::node::{RecipeNodeId, SlotId, StableName};
 use crate::program::ProfileProgram;
 use geom_core::Tol;
 
 /// The result DAG (F2 verbatim, spec D2): a deterministic order plus a
-/// per-node result map, with the run's epoch, outcome, and the
-/// D4-acceptance recompute counters.
+/// per-node result map, with the run's epoch, the id of the document
+/// it is OF, its outcome, and the D4-acceptance recompute counters.
 #[derive(Debug)]
 pub struct Evaluation<T: Decide> {
     /// This evaluation's identity token (spec D5) — the caller's
     /// stale-result discrimination hook.
     pub epoch: Epoch,
+    /// **Which document this is an evaluation OF** (DI3): the id
+    /// [`Doc::id`] answered when the run started. Identity only, no
+    /// pin: within one document the per-node content keys decide
+    /// reuse, so the version half would cost a canonicalization per
+    /// run for a check the keys already make.
+    ///
+    /// THREE doors read this field to refuse a mispairing typed,
+    /// before reading anything of the value: [`product`](fn@crate::product)
+    /// (with its `_named` and `_recorded` siblings), [`crate::assemble`]
+    /// through them, and — for the solve's own twin of this stamp —
+    /// [`crate::mate::SolvedPoses::placement`]. The memo is the fourth
+    /// reader and refuses differently, below. Node ids alone could not
+    /// decide any of it: they are minted by a per-document counter, so
+    /// two documents built from one recipe carry the SAME ids for the
+    /// same nodes, and every lookup would hit.
+    ///
+    /// Other doors taking such a pair — `run_checks`,
+    /// `resolve::apply_with_names`, `stackup` and `sensitivities`,
+    /// `drive::certifying` — do NOT read it today (`assembly::mint` is
+    /// covered downstream by `product_recorded`); that gap is tracked
+    /// at
+    /// `work/docm/pair-doors-outside-the-three-do-not-check-document-identity`.
+    ///
+    /// The field is `pub` like every other field of this struct, so a
+    /// caller CAN restamp it. That is a deliberate act, not a slip, and
+    /// nothing downstream re-derives it.
+    pub document: crate::ident::DocumentId,
+    /// **A prior of another document, refused** (DI3): `Some` when
+    /// `evaluate` was handed a `prior` whose [`Evaluation::document`]
+    /// is not this document's, in which case the run had NO memo —
+    /// every node recomputed and [`Evaluation::reused`] is zero. The
+    /// payload is the same [`Mispaired`] the two erroring doors carry,
+    /// because the question is the same one.
+    ///
+    /// `evaluate` is total (it returns no `Result`) and [`EvalOutcome`]
+    /// is completed-or-canceled, so the refusal is recorded on the
+    /// value the caller already reads rather than pushed into an
+    /// outcome arm that would mean something else. `None` is both "no
+    /// prior" and "a prior of this document".
+    pub prior_refused: Option<Mispaired>,
     /// Deterministic topological order of the live nodes (spec D2:
     /// a pure function of the DAG; Kahn's algorithm, tiebreak
     /// `RecipeNodeId` ascending). Always the FULL order, even when
@@ -1668,7 +1709,10 @@ impl Default for EvalOptions {
 ///
 /// `prior` is the memo (spec D4): nodes whose content key matches the
 /// prior evaluation reuse the prior value without re-running the op;
-/// only the downstream cone of changed keys re-evaluates.
+/// only the downstream cone of changed keys re-evaluates. A prior of
+/// ANOTHER document is not a memo for this one (DI3): it is refused
+/// whole, recorded on [`Evaluation::prior_refused`], and the run
+/// recomputes every node.
 ///
 /// `cancel` is checked between nodes (sequential) or between levels
 /// (parallel) — spec D5's cooperative yield points at node
@@ -1717,13 +1761,25 @@ fn evaluate_at_descent<T>(
 where
     T: EvalScalar,
 {
+    // The memo's own door (DI3): a prior is a prior OF a document, and
+    // node ids are minted per document, so an evaluation of another
+    // document can collide on them and be mined for hits that are
+    // about other geometry. Refused HERE, once, before the schedule is
+    // even built — which is what makes the per-node lookup below
+    // (`prior.and_then(|p| p.nodes.get(&id))`) a lookup that cannot
+    // reach a foreign node, rather than a check repeated per node.
+    let (prior, prior_refused) =
+        match prior.and_then(|p| crate::ident::mispaired(doc.id(), p.document).map(|m| (p, m))) {
+            Some((_, refused)) => (None, Some(refused)),
+            None => (prior, None),
+        };
     let sched = schedule::schedule(doc);
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
     // ε — otherwise every predicate below would silently decide at
     // the wrong tolerance. Refuse loudly, per node, staying total.
     let process_eps = tol.eps();
     if doc.epsilon().to_bits() != process_eps.to_bits() {
-        return refuse_tolerance_conflict(doc, sched, opts, process_eps);
+        return refuse_tolerance_conflict(doc, sched, opts, prior_refused, process_eps);
     }
     // The lane environment, built ONCE and shared by every reader
     // below (slot evaluation, the lift's second pass, the two profile
@@ -1734,7 +1790,7 @@ where
         None => doc.param_env::<T>(),
         Some(b) => match crate::analysis::param_env_over::<T, _>(doc, b) {
             Ok(env) => env,
-            Err(source) => return refuse_param_box(doc, sched, opts, source),
+            Err(source) => return refuse_param_box(doc, sched, opts, prior_refused, source),
         },
     };
     // The E4 seed rides the SAME environment (a seed is a separate act
@@ -1745,7 +1801,7 @@ where
         None => env,
         Some(name) => match crate::analysis::seed_env(doc, env, name) {
             Ok(env) => env,
-            Err(source) => return refuse_seed(doc, sched, opts, source),
+            Err(source) => return refuse_seed(doc, sched, opts, prior_refused, source),
         },
     };
     let parts = parts::PartCache::<T>::new(
@@ -1847,6 +1903,8 @@ where
 
     Evaluation {
         epoch: opts.epoch,
+        document: doc.id(),
+        prior_refused,
         order,
         nodes,
         outcome,
@@ -1862,15 +1920,18 @@ fn refuse_tolerance_conflict<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
+    prior_refused: Option<Mispaired>,
     process_eps: f64,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     let document_eps = doc.epsilon();
-    refuse_every_node(doc, sched, opts, move || NodeErrorKind::ToleranceConflict {
-        document_eps,
-        process_eps,
+    refuse_every_node(doc, sched, opts, prior_refused, move || {
+        NodeErrorKind::ToleranceConflict {
+            document_eps,
+            process_eps,
+        }
     })
 }
 
@@ -1883,13 +1944,16 @@ fn refuse_param_box<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
+    prior_refused: Option<Mispaired>,
     source: crate::analysis::ParamBoxError,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
-    refuse_every_node(doc, sched, opts, move || NodeErrorKind::ParamBox {
-        source: source.clone(),
+    refuse_every_node(doc, sched, opts, prior_refused, move || {
+        NodeErrorKind::ParamBox {
+            source: source.clone(),
+        }
     })
 }
 
@@ -1902,13 +1966,16 @@ fn refuse_seed<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
+    prior_refused: Option<Mispaired>,
     source: crate::analysis::SeedError,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
-    refuse_every_node(doc, sched, opts, move || NodeErrorKind::Seed {
-        source: source.clone(),
+    refuse_every_node(doc, sched, opts, prior_refused, move || {
+        NodeErrorKind::Seed {
+            source: source.clone(),
+        }
     })
 }
 
@@ -1919,6 +1986,7 @@ fn refuse_every_node<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
+    prior_refused: Option<Mispaired>,
     kind: impl Fn() -> NodeErrorKind,
 ) -> Evaluation<T>
 where
@@ -1947,6 +2015,8 @@ where
     drop(states);
     Evaluation {
         epoch: opts.epoch,
+        document: doc.id(),
+        prior_refused,
         order,
         nodes,
         outcome: EvalOutcome::Completed,
@@ -2158,6 +2228,11 @@ where
     // is not separably re-derivable — and D9 makes the re-run's
     // geometry bit-identical, so re-running IS "reuse the geometry,
     // re-derive the names", spelled honestly.
+    //
+    // `prior` is an evaluation of THIS document: `evaluate_at_descent`
+    // drops a foreign one before the schedule is built (DI3), so this
+    // lookup cannot serve a coincidental id collision from another
+    // document.
     if let Some(NodeResult::Ok(v)) = prior.and_then(|p| p.nodes.get(&id))
         && v.content_key == content_key
         && v.naming_key == naming_key

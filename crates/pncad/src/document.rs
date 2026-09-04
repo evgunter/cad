@@ -140,10 +140,15 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // they are `VerbArity`'s payload, so a consumer can match the variant
 // but not name what it caught without them (the prelude's `BlendKind`
 // rule — the discriminant crosses with the refusal).
+// `Mispaired` rides with `Evaluation` by the same rule: it is
+// `Evaluation::prior_refused`'s payload, so a consumer cannot read why
+// a memo was refused without naming it. The name is not the memo's —
+// it is the one payload all three pairing doors carry (DI3), which is
+// why it is spelled for the QUESTION rather than for any one door.
 pub use editor_core::{
-    Arity, BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation, NodeError,
-    NodeErrorKind, NodeResult, NodeValue, ProfileLift, SplitSide, UnitVec3, UnitVec3Error,
-    ValuePayload, VerbKind, evaluate,
+    Arity, BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation, Mispaired,
+    NodeError, NodeErrorKind, NodeResult, NodeValue, ProfileLift, SplitSide, UnitVec3,
+    UnitVec3Error, ValuePayload, VerbKind, evaluate,
 };
 
 // Persistence: the doors, verbatim.

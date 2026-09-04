@@ -795,3 +795,12 @@ successor-program seeds. Inbound refs re-pointed
 partial-bands.md`, `work/props/m6-sense-gate-recorded-residuals.md`);
 `scripts/work.py lint` green. The A/B band (100–199) stays claimed
 in `docs/MODEL-AB-LOG.md`'s ordinal-bands section as always.
+
+## Per-merge deletion — DOCM-4's spec (2026-09-04)
+
+Recoverable at `git show c20bac059531ccfa00cded39f65ef53474f84e0d:docs/DOCM-4-SPEC.md`
+(the DOCM-4 unit head, before the state-sync commit that deleted it).
+The rule above; the unit's record is its row in `MODEL-AB-LOG.md`
+and its MERGED entry in `work/docm/log.md`.
+
+- `DOCM-4-SPEC.md` — DOCM-4, an evaluation carries its document's identity (#1808)
