@@ -3460,8 +3460,8 @@ fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
 fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
     use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg, SideVerdict, SplitHalf};
     let cap = |c: CapEnd| match c {
-        CapEnd::Top => 1u64,
-        CapEnd::Bottom => 2,
+        CapEnd::End => 1u64,
+        CapEnd::Start => 2,
     };
     let mer = |m: MeridianEnd| match m {
         MeridianEnd::Start => 1u64,

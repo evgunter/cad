@@ -50,7 +50,7 @@ fn boxed_with_face_frame(
             face: StableName {
                 kind: EntityKind::Face,
                 node: cube,
-                path: vec![RoleSeg::Cap(CapEnd::Top)],
+                path: vec![RoleSeg::Cap(CapEnd::End)],
             },
             spin: Expr::literal(0.0, Dimension::Angle).expect("an angle"),
         }),

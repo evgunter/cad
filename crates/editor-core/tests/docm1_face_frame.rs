@@ -336,7 +336,7 @@ fn face_frame_node(at: RecipeNodeId, face: StableName, spin: f64) -> Node<Profil
 }
 
 fn top_cap(cube: RecipeNodeId) -> StableName {
-    fixture::fname(cube, RoleSeg::Cap(CapEnd::Top))
+    fixture::fname(cube, RoleSeg::Cap(CapEnd::End))
 }
 
 /// **A1 — derived, not frozen.** The corpus document's own probe:

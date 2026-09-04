@@ -22,6 +22,9 @@ VERBS is live in `geom-brep` — theirs to take or to wave through a drive-by.
 
 `work/verbs/` — the issue names VERBS as the live claimant in `geom-brep`, whose `intersect.rs`/`ssi*`/`offset*` files are VERBS' territory.
 
+**VERBS closed** (exit walk ratified, PR #1793; `docs/DOC-LEDGER.md`
+sweep 6); those files have no program claimant until one takes them.
+
 ## Re-measured (2026-09-04, CIW): four imports, and not in the file named above
 
 `cargo clippy -p geom-brep --all-targets --all-features` on this tree,

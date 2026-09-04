@@ -452,14 +452,14 @@ fn target_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
 /// The argument roles of one arc spec; `second` selects the arrival
 /// (spec₂) role twins.
 ///
-/// The twins cover the positional roles only. `Bulge`, `Sweep` and
-/// `ArcLen` have none, because none of them is an arrival mode (§2c:
-/// `family::ArrivalSpec` is implemented for `Radius`, `Via` and
-/// `Center` alone), so no recording surface can put one in second
-/// position. Enumeration stays total over the data type regardless,
-/// and for a HAND-BUILT step whose two specs are the SAME one of
-/// those three the reused role addresses the incoming spec's argument
-/// twice and the arrival's not at all — issue #829.
+/// EVERY role has a twin, including the three whose modes are not
+/// arrival modes (§2c: `family::ArrivalSpec` is implemented for
+/// `Radius`, `Via` and `Center` alone, so no recording surface can put
+/// a `Bulge`, `Sweep` or `ArcLen` in second position). Enumeration is
+/// total over the data type, and a hand-built step may carry one:
+/// without its own twin such a spec's argument would share the
+/// incoming spec's role, which addresses the incoming argument twice
+/// and the arrival's not at all.
 fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
     use ProgramArcData as S;
     use StepArg as A;
@@ -470,10 +470,9 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
             target_slots(target, out);
             out.push(A::Bulge);
         }
-        // No `Bulge2`: see the twin note above.
         (S::Bulge { target, .. }, true) => {
             target2_slots(target, out);
-            out.push(A::Bulge);
+            out.push(A::Bulge2);
         }
         (S::Via { target, .. }, false) => {
             out.extend([A::ViaX, A::ViaY]);
@@ -492,9 +491,9 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
             target2_slots(target, out);
         }
         (S::Sweep { .. }, false) => out.extend([A::CarrierRadius, A::SweepVal]),
-        (S::Sweep { .. }, true) => out.extend([A::CarrierRadius2, A::SweepVal]),
+        (S::Sweep { .. }, true) => out.extend([A::CarrierRadius2, A::SweepVal2]),
         (S::ArcLen { .. }, false) => out.extend([A::CarrierRadius, A::ArcLenVal]),
-        (S::ArcLen { .. }, true) => out.extend([A::CarrierRadius2, A::ArcLenVal]),
+        (S::ArcLen { .. }, true) => out.extend([A::CarrierRadius2, A::ArcLenVal2]),
     }
 }
 
@@ -551,9 +550,12 @@ macro_rules! spec_arg_access {
             | (S::Sweep { r, .. }, A::CarrierRadius2, true)
             | (S::ArcLen { r, .. }, A::CarrierRadius, false)
             | (S::ArcLen { r, .. }, A::CarrierRadius2, true) => Some(r),
-            (S::Bulge { b, .. }, A::Bulge, _) => Some(b),
-            (S::Sweep { angle, .. }, A::SweepVal, _) => Some(angle),
-            (S::ArcLen { len, .. }, A::ArcLenVal, _) => Some(len),
+            (S::Bulge { b, .. }, A::Bulge, false)
+            | (S::Bulge { b, .. }, A::Bulge2, true) => Some(b),
+            (S::Sweep { angle, .. }, A::SweepVal, false)
+            | (S::Sweep { angle, .. }, A::SweepVal2, true) => Some(angle),
+            (S::ArcLen { len, .. }, A::ArcLenVal, false)
+            | (S::ArcLen { len, .. }, A::ArcLenVal2, true) => Some(len),
             (S::Via { q, .. }, A::ViaX, false) | (S::Via { q, .. }, A::Via2X, true) => {
                 Some($($ref_kw)* q[0])
             }
@@ -880,7 +882,7 @@ fn res_spec<T: Decide>(
         },
         ProgramArcData::Bulge { target, b } => profile::ArcData::Bulge {
             target: tgt(target)?,
-            b: res(b, env, loop_, i, A::Bulge)?,
+            b: res(b, env, loop_, i, pick(A::Bulge, A::Bulge2))?,
         },
         ProgramArcData::Via { q, target } => profile::ArcData::Via {
             q: pt2(q, pick(A::ViaX, A::Via2X), pick(A::ViaY, A::Via2Y))?,
@@ -898,12 +900,12 @@ fn res_spec<T: Decide>(
         ProgramArcData::Sweep { r, side, angle } => profile::ArcData::Sweep {
             r: res(r, env, loop_, i, pick(A::CarrierRadius, A::CarrierRadius2))?,
             side: *side,
-            angle: res(angle, env, loop_, i, A::SweepVal)?,
+            angle: res(angle, env, loop_, i, pick(A::SweepVal, A::SweepVal2))?,
         },
         ProgramArcData::ArcLen { r, side, len } => profile::ArcData::ArcLen {
             r: res(r, env, loop_, i, pick(A::CarrierRadius, A::CarrierRadius2))?,
             side: *side,
-            len: res(len, env, loop_, i, A::ArcLenVal)?,
+            len: res(len, env, loop_, i, pick(A::ArcLenVal, A::ArcLenVal2))?,
         },
     })
 }

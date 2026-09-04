@@ -7,6 +7,9 @@
 //! and its methods turn typed field values into [`Expr`]s and
 //! [`LoopProgram`]s. Nothing here names `DocSession`, `ViewerApp` or
 //! `egui`; the panels write these fields and read nothing back.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
     BooleanOp, Dimension, DimensionError, Expr, LoopProgram, ParamName, RecipeNodeId, SlotId,

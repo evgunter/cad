@@ -174,7 +174,7 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     // cap is still named by the extrude that minted it.
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
         at: lifted,
-        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::Top)),
+        face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
         spin: ang(0.0),
     }));
     // The document ends at the boss PROFILE: the row below measures the

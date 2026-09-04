@@ -7,6 +7,9 @@
 //! arguments; nothing here names the session. [`NodeKindWanted`] and
 //! [`admits`] live here because the kind a seat wants is a
 //! [`Refusal::WrongNodeKind`] payload and `admits` is its predicate.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
     Datum, Dimension, DimensionError, DocumentId, EditError, Node, ParamName, ParseError,
@@ -118,6 +121,14 @@ pub enum Refusal {
         slot: SlotId,
     },
     /// No document parameter by that name.
+    ///
+    /// A LOOKUP's not-found arm, never a pre-check: the two sites that
+    /// raise it need the declaration itself — its dimension to open a
+    /// gesture, its value and unit to seed a range probe — and neither
+    /// commits an edit, so no door below refuses on their behalf. The
+    /// value door does refuse an undeclared name, and says so in
+    /// editor-core's words ([`EditError::DocParamNotDeclared`], reached
+    /// through [`Self::Edit`]).
     NoSuchParam(ParamName),
     /// The CREATE door was asked for a name that is already declared.
     ///

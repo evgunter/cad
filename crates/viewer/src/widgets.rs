@@ -14,6 +14,8 @@
 //! from a `DragValue` to session operations, and the whole reason a
 //! dragged number in this crate emits one committed edit rather than
 //! one per frame.
+//!
+//! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
 use pncad::document::{Dimension, RecipeNodeId};

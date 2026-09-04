@@ -791,13 +791,10 @@ const FACADE_SOURCES: [(&str, &str); 11] = [
 /// surface** — the LB13 boundary, enforced rather than asserted in a
 /// report.
 ///
-/// The intended enforcement was a rustdoc-JSON scan of `pncad`'s
-/// public API. This toolchain is stable-only (1.97.0) and
-/// `--output-format json` is nightly-gated; installing a nightly and
-/// teaching CI to use it is a CI change, which is outside this unit's
-/// fence. So this is the FALLBACK, built on the U1 self-scanning
-/// pattern one file wider — and it is aimed at the exact regression
-/// LB13 forbids, not at a vague resemblance to it:
+/// This source-text scan IS the enforcement, and is the permanent
+/// mechanism rather than a stand-in for one. It is built on the U1
+/// self-scanning pattern one file wider, and it is aimed at the exact
+/// regression LB13 forbids, not at a vague resemblance to it:
 ///
 /// 1. `pub use editor_core;` — the whole-crate re-export whose removal
 ///    IS LB13(a). Re-adding it makes `pncad::editor_core::EntityRef`
@@ -805,12 +802,31 @@ const FACADE_SOURCES: [(&str, &str); 11] = [
 /// 2. Any `pub use` in `pncad`'s own source that names `EntityRef`,
 ///    `EntityKey`, or `Entry` — the LIB-U5 seal, kept sealed.
 ///
-/// What this fallback CANNOT see (stated so the next reader does not
-/// over-trust it): a key type re-exported under an alias, or one
-/// reachable as an associated type or a public field of something
-/// this list does allow. A rustdoc-JSON check would catch those;
-/// whether CI grows one is **#696**, which carries this deferral and
-/// the two others that share it.
+/// **The two limits, and why they are acceptable** — stated so the
+/// next reader neither over-trusts this scan nor re-derives the
+/// argument for replacing it. A key type re-exported under an `as`
+/// alias, and a key reachable as a public field, associated type or
+/// return type of a type this list does allow, are both invisible to
+/// a scan of `pub use` text. Reading the compiler's own view of the
+/// API — a rustdoc-JSON pass — is what reaches them, and it is not
+/// worth its price: a second, date-pinned nightly toolchain in a
+/// repository whose determinism argument opens with a pinned
+/// compiler, and an explicitly unstable schema carrying claims that
+/// are NEGATIVE — no key is nameable — where a format that moved
+/// reads green rather than red.
+///
+/// The deciding argument is reachability by an ordinary edit, not the
+/// absence of instances; a guard that never fires is a guard working.
+/// Each regression above is one line someone could plausibly write.
+/// Exposing a key through an alias or a public field takes a
+/// coordinated edit in two crates, and its second half already reds
+/// [`every_document_layer_root_export_is_carried_or_listed`]: an
+/// aliased root export is a name that guard finds uncarried, and
+/// every `editor-core` type that names a key in a public signature is
+/// already in its `NOT_CARRIED` list. Neither class has a live
+/// instance — the façade's sources and `editor-core`'s root contain
+/// no `as`-aliased `pub use` at all — and that is the weaker half of
+/// the reason, not the whole of it.
 #[test]
 fn no_arena_key_is_nameable_through_the_facade_document_surface() {
     // Every file of the façade's own source. A new module added here
@@ -872,9 +888,14 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
 /// ruling on #413 (LIB-RETTAIL), enforced rather than asserted in a
 /// report.
 ///
-/// Same fallback shape as the LB13 guard above (rustdoc JSON is
-/// nightly-gated on this toolchain — **#696**), aimed at the exact
-/// regression the ruling forbids:
+/// Same mechanism as the LB13 guard above, permanent for the same
+/// reasons and carrying the same two limits: an `as`-aliased
+/// re-export, and a name reachable as a public field, associated type
+/// or return type of an allowed type. Neither has a live instance,
+/// and neither is reachable by an ordinary edit the way the
+/// regressions below are — the full argument is on the LB13 guard and
+/// is not repeated here. Aimed, likewise, at the exact regression the
+/// ruling forbids:
 ///
 /// 1. `pub use profile;` — the whole-crate re-export whose removal IS
 ///    the demotion. Re-adding it makes `pncad::profile::RawLoop`
@@ -2159,7 +2180,7 @@ fn asm_r2a_mated_assembly(
             of: Box::new(StableName {
                 kind: EntityKind::Face,
                 node: WS_PART_BODY,
-                path: vec![RoleSeg::Cap(CapEnd::Bottom)],
+                path: vec![RoleSeg::Cap(CapEnd::Start)],
             }),
         }],
     };
@@ -2295,12 +2316,12 @@ fn asm_r2b_child_crossing_probe() {
             outer: StableName {
                 kind: EntityKind::Face,
                 node: WS_PART_BODY,
-                path: vec![RoleSeg::Cap(CapEnd::Top)],
+                path: vec![RoleSeg::Cap(CapEnd::End)],
             },
             inner: StableName {
                 kind: EntityKind::Face,
                 node: WS_PART_BODY,
-                path: vec![RoleSeg::Cap(CapEnd::Bottom)],
+                path: vec![RoleSeg::Cap(CapEnd::Start)],
             },
         }],
     };
@@ -3276,22 +3297,46 @@ fn module_pub_use_names(src: &str) -> std::collections::BTreeSet<String> {
 /// crates. It does not need to for them — they are re-exported whole,
 /// so their surfaces cannot drift from the façade's by construction.
 ///
-/// Two blind spots, both needing rustdoc JSON to close (**#696**):
+/// This scan of the root's `pub use` text is the permanent mechanism.
+/// Reading the compiler's own view of the API instead — a
+/// rustdoc-JSON pass — buys a second, date-pinned nightly toolchain
+/// in a repository whose determinism argument opens with a pinned
+/// compiler, and stands guards whose claims are NEGATIVE on an
+/// explicitly unstable schema, where a format that moved reads green.
+/// Two blind spots stand, and both are text-reachable: closing them
+/// is scanner work in this file, not a toolchain.
 ///
 /// 1. A public name reachable only by module path
 ///    (`editor_core::persist::Foo`) and never lifted to that crate's
 ///    root. This scan reads the root, exactly as the first closure
 ///    audit did, and that is the same structural hole that audit's
-///    second pass found.
+///    second pass found. `editor_core` is not re-exported whole, so
+///    such a name is not reachable one hop past the façade either:
+///    the hole is an accounting one — public names growing with
+///    nobody made to decide about them — rather than a leak.
 /// 2. A `pub` item written DIRECTLY in `editor-core/src/lib.rs`
-///    rather than re-exported. That file has no direct `pub` items
-///    today, so this one is held shut by a coincidence, not a rule.
+///    rather than re-exported. That root declares 32 `pub mod` at
+///    column 0, four of them behind `#[cfg(feature = "interval")]`,
+///    and no `pub` item of any other kind — so nothing type-like
+///    escapes this scan today, held shut by the root's shape rather
+///    than by a rule. [`root_declared_pub_names`] is the mechanism
+///    that closes this, and closes it for the profile layer in this
+///    file; applied to this root it would add those module names to
+///    the export set, so a `mod`-excluding variant is what this root
+///    wants.
 ///
 /// A third — a leaf name colliding across crates, so that carrying
 /// `Foo` from `sweep` looked like carrying the document layer's
 /// `Foo` — is CLOSED: the façade side counts only names introduced
 /// by a `pub use editor_core::…` statement, not every leaf in the
 /// file.
+///
+/// The one class no text scan reaches — a key exposed under an `as`
+/// alias, or as a public field or associated type of a carried type —
+/// has no live instance, and this guard is half its mitigation: a
+/// newly aliased root export is a new name here, uncarried, and fails
+/// (naming it with the `as` clause still attached, since the scanner
+/// takes the leaf of the statement).
 #[test]
 fn every_document_layer_root_export_is_carried_or_listed() {
     let kernel_lib =

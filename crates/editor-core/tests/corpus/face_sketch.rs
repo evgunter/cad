@@ -58,7 +58,7 @@ pub fn document() -> CorpusDoc {
     // carrier's own u-reference.
     let top = r.insert(Node::Datum(editor_core::Datum::FaceFrame {
         at: cube,
-        face: fname(cube, RoleSeg::Cap(CapEnd::Top)),
+        face: fname(cube, RoleSeg::Cap(CapEnd::End)),
         spin: ang(0.0),
     }));
     // The boss profile, centred on the frame's origin (the carrier's
