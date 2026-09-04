@@ -144,24 +144,22 @@ pub struct Member {
     pub copy: Option<(RecipeNodeId, u32)>,
 }
 
-/// The member a mate reference's HEAD names, or the typed
-/// dangling-head refusal (N5).
+/// **The member a reference's HEAD names**, or `None` for a head
+/// outside A11's member vocabulary.
+///
+/// This is the vocabulary's one home — the admission rule the solve
+/// reads and any authoring door must gate on, so a door cannot admit
+/// a head the solve will refuse (or refuse one it would place).
 ///
 /// Structural only — no expression is evaluated here, so the cluster
-/// partition never depends on a slot value. A head outside the member
-/// vocabulary (a non-instance node; a pattern whose name carries no
-/// `Instance(i)` qualifier; a pattern whose input is not itself a live
-/// instance — a patterned boolean, a nested pattern) resolves to no
-/// member and refuses.
-fn head_of<P>(
-    doc: &Doc<P>,
-    mate: RecipeNodeId,
-    side: MateSide,
-    name: &crate::names::StableName,
-) -> Result<Member, MateFault> {
+/// partition never depends on a slot value. Outside the vocabulary: a
+/// non-instance node; a pattern whose name carries no `Instance(i)`
+/// qualifier; a pattern whose input is not itself a live instance — a
+/// patterned boolean, a nested pattern.
+pub fn member_of<P>(doc: &Doc<P>, name: &crate::names::StableName) -> Option<Member> {
     let head = name.node;
     match doc.node(head) {
-        Some(Node::InstantiatePart { .. }) => Ok(Member {
+        Some(Node::InstantiatePart { .. }) => Some(Member {
             instance: head,
             copy: None,
         }),
@@ -169,15 +167,31 @@ fn head_of<P>(
             Some(RoleSeg::Instance { i, .. })
                 if matches!(doc.node(*input), Some(Node::InstantiatePart { .. })) =>
             {
-                Ok(Member {
+                Some(Member {
                     instance: *input,
                     copy: Some((head, *i)),
                 })
             }
-            _ => Err(MateFault::DanglingHead { mate, side, head }),
+            _ => None,
         },
-        _ => Err(MateFault::DanglingHead { mate, side, head }),
+        _ => None,
     }
+}
+
+/// The member a mate reference's HEAD names, or the typed
+/// dangling-head refusal (N5) — [`member_of`] with the mate and side
+/// that attribute the refusal.
+fn head_of<P>(
+    doc: &Doc<P>,
+    mate: RecipeNodeId,
+    side: MateSide,
+    name: &crate::names::StableName,
+) -> Result<Member, MateFault> {
+    member_of(doc, name).ok_or(MateFault::DanglingHead {
+        mate,
+        side,
+        head: name.node,
+    })
 }
 
 /// **The pattern-derived offset** of a pattern-placed member: the
