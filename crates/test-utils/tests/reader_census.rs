@@ -99,6 +99,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
+        path: "crates/editor-core/tests/fix_loop_polygon_expr.rs",
+        disposition: Shared, // polygon-close uniqueness census, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/gui1_pick_r2.rs",
         disposition: Shared, // public-surface scan, code view
     },

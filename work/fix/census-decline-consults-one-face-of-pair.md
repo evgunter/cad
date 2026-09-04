@@ -2,12 +2,13 @@
 id: census-decline-consults-one-face-of-pair
 kind: issue
 title: S190 - attribute's decline lookup consults one of the pair's two faces, and arena order picks which
-status: review
+status: closed
 opened: 2026-08-21
 github: 855
 refs: [S190, 855]
 branch: fix/census-typed-declines
 pr: 1750
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 855
