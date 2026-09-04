@@ -22,11 +22,11 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksError, ChecksReport, DocumentId,
-    Evaluation, Node, ProductError, ProfileDoc, RecipeNodeId, Subject, assemble, assemble_gathered,
-    product_recorded, run_checks, run_checks_on,
+    Advisory, Assembly, AssemblyError, BooleanOp, CheckId, ChecksConfig, ChecksError, ChecksReport,
+    DocumentId, Evaluation, Node, ProductError, ProfileDoc, RecipeNodeId, Severity, Subject,
+    assemble, assemble_gathered, product_recorded, run_checks, run_checks_on,
 };
-use fixture::{insert, len, on_frame, square};
+use fixture::{ang, insert, len, on_frame, scl, square};
 use geom_core::Tol;
 use topo::Body;
 
@@ -78,33 +78,189 @@ fn a_document_with_no_body_denoting_root_is_the_no_body_roots_subject() {
     assert!(wrapped.skipped.is_empty(), "with nothing skipped");
 }
 
-/// **A2 — a gather that REFUSES never reaches the door.**
+/// **A2 — a gather that refuses reaches the door as
+/// `Subject::Unavailable`, and the door raises it AFTER the residents
+/// that read no subject have answered.**
 ///
-/// The reachable refusal over two well-formed documents is the DI3
-/// pairing one: two documents replayed from one edit log carry the same
-/// node ids, so a foreign evaluation answers every lookup and only the
-/// gather's own pairing door catches it. Through the wrapper that is
-/// `ChecksError::Product`, carrying the gather's own sentence; the door
-/// under it is never offered the pair, because there is no subject to
-/// offer it.
+/// The reachable gather refusal over one well-formed document is the
+/// naming collision the spec names: two `Transform`s of one extrude are
+/// two roots carrying one extrude's minted names into one product
+/// table. Connectedness reads the evaluation and answers first (it has
+/// nothing to say here); the separation resident reads the subject,
+/// finds none, and the door refuses `Product` carrying the gather's own
+/// sentence. Nothing is run and discarded, and no arm claims the
+/// document denotes no body when it does.
 #[test]
-fn a_gather_refusal_is_the_wrappers_refusal_and_the_door_never_sees_it() {
+fn a_gather_refusal_reaches_the_door_and_refuses_after_the_subject_free_residents() {
     let tol = Tol::witness();
-    let a = twin("docm5-pair-a");
-    let b = twin("docm5-pair-b");
-    let ev_a: Evaluation<f64> = corpus::eval(&a);
-
-    let refusal = product_recorded(&b, &ev_a, tol).expect_err("the pairing door refuses");
+    let doc = naming_collision("docm5-collide");
+    let ev: Evaluation<f64> = corpus::eval(&doc);
+    let refusal = product_recorded(&doc, &ev, tol).expect_err("two roots collide");
     assert!(
-        matches!(refusal, ProductError::EvaluationOfAnotherDocument { .. }),
+        matches!(refusal, ProductError::Naming { .. }),
         "the premise: {refusal:?}"
     );
-    match run_checks(&b, &ev_a, &ChecksConfig::default(), tol).expect_err("so does the registry") {
+
+    // Through the wrapper, which gathers.
+    match run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect_err("the registry refuses") {
         ChecksError::Product { reason } => {
             assert_eq!(reason, refusal.to_string(), "the gather's own sentence");
         }
         other => panic!("expected the subject refusal, got {other}"),
     }
+
+    // And through the door, handed the same fact directly. The arm is
+    // the same, and it is raised whether or not the connectedness
+    // resident ran: what it is NOT raised by is a resident that reads
+    // no subject.
+    let unavailable = || Subject::Unavailable {
+        reason: refusal.to_string(),
+    };
+    for cfg in [
+        ChecksConfig::default(),
+        ChecksConfig {
+            connectedness: Severity::Off,
+            ..ChecksConfig::default()
+        },
+    ] {
+        match run_checks_on(&doc, &ev, unavailable(), &cfg, tol).expect_err("the door refuses") {
+            ChecksError::Product { reason } => assert_eq!(reason, refusal.to_string()),
+            other => panic!("expected the subject refusal, got {other}"),
+        }
+    }
+}
+
+/// **The gather is LAZY: a run no resident needs a subject for takes
+/// none.** (R2's `…_does_not_need_a_subject` and
+/// `…_still_pays_for_the_gather`, adopted — the second as a COUNT
+/// rather than a stopwatch, which is the same claim without a clock in
+/// it.)
+///
+/// With the one subject-reading resident `Off`, the base never gathered
+/// (the gather lived inside that resident), so a document whose gather
+/// refuses reported cleanly and a document whose gather succeeds paid
+/// nothing. Both hold again: the counter reads 0 across the call, and
+/// the crossed pair below — which the gather refuses — reports.
+#[test]
+fn a_run_that_needs_no_subject_does_not_gather() {
+    let tol = Tol::witness();
+    let off = ChecksConfig {
+        separation: Advisory::Off,
+        ..ChecksConfig::default()
+    };
+    assert!(
+        !off.needs_a_subject(),
+        "the premise: nothing enabled reads a subject"
+    );
+    assert!(
+        ChecksConfig::default().needs_a_subject(),
+        "and the default configuration does"
+    );
+
+    // A document that WOULD gather: the count is the claim.
+    let plate = twin("docm5-lazy-plate");
+    let ev: Evaluation<f64> = corpus::eval(&plate);
+    let before = editor_core::gathers_on_this_thread();
+    let report = run_checks(&plate, &ev, &off, tol).expect("the registry runs");
+    assert_eq!(
+        editor_core::gathers_on_this_thread() - before,
+        0,
+        "no enabled resident reads a subject, so nothing is gathered"
+    );
+    assert_eq!(
+        report.skipped,
+        vec![CheckId::Separation],
+        "and the skip is visible"
+    );
+
+    // A document that would NOT gather: the refusal never arises,
+    // because the gather never runs.
+    let collide = naming_collision("docm5-lazy-collide");
+    let ev: Evaluation<f64> = corpus::eval(&collide);
+    assert!(
+        product_recorded(&collide, &ev, tol).is_err(),
+        "the premise: this document's gather refuses"
+    );
+    let before = editor_core::gathers_on_this_thread();
+    let report = run_checks(&collide, &ev, &off, tol)
+        .expect("with the subject-reading resident off there is nothing to gather for");
+    assert_eq!(editor_core::gathers_on_this_thread() - before, 0);
+    assert_eq!(report.skipped, vec![CheckId::Separation]);
+}
+
+/// **DI3 at the door.** (R2's two rows, adopted.)
+///
+/// `run_checks_on` binds `doc` to `ev` itself rather than inheriting a
+/// gather's pairing check, because connectedness reads `doc.roots()`
+/// against `ev.value(root)` and a foreign evaluation of one recipe
+/// answers every one of those lookups. Both arguments are checked: the
+/// evaluation, and the product a `Subject::Product` carries.
+#[test]
+fn the_subject_door_refuses_an_evaluation_or_a_subject_of_another_document() {
+    let tol = Tol::witness();
+    let cfg = ChecksConfig::default();
+    let overlapping = twin_pair("docm5-di3-overlap", 0.4);
+    let apart = twin_pair("docm5-di3-apart", 4.0);
+    let ev_overlapping: Evaluation<f64> = corpus::eval(&overlapping);
+
+    // The premise: the two documents are one recipe under two
+    // identities, and they say different things.
+    let honest = run_checks(&overlapping, &ev_overlapping, &cfg, tol).expect("its own report");
+    assert!(
+        !honest.findings.is_empty(),
+        "the premise: the overlapping twin has something to report"
+    );
+
+    let expect_pairing = |got: Result<ChecksReport, ChecksError>, what: &str| match got {
+        Err(ChecksError::EvaluationOfAnotherDocument { expected, found }) => {
+            assert_eq!(
+                expected,
+                apart.id(),
+                "{what}: names the document asked about"
+            );
+            assert_eq!(found, overlapping.id(), "{what}: and the one handed");
+        }
+        Ok(report) => panic!(
+            "{what}: the door answered about another document ({} finding(s))",
+            report.findings.len()
+        ),
+        Err(other) => panic!("{what}: expected the pairing refusal, got {other}"),
+    };
+
+    // A foreign evaluation with a subject smuggled in beside it.
+    let crossed = product_recorded(&overlapping, &ev_overlapping, tol).expect("the twin gathers");
+    expect_pairing(
+        run_checks_on(
+            &apart,
+            &ev_overlapping,
+            Subject::Product(&crossed),
+            &cfg,
+            tol,
+        ),
+        "a foreign product",
+    );
+    // And with no subject at all — the arm that skips the only resident
+    // that could have refused.
+    expect_pairing(
+        run_checks_on(&apart, &ev_overlapping, Subject::NoBodyRoots, &cfg, tol),
+        "no subject",
+    );
+
+    // A product of THIS document beside an evaluation of another is the
+    // same hole one step later, and is refused for the evaluation.
+    let ev_apart: Evaluation<f64> = corpus::eval(&apart);
+    let own = product_recorded(&apart, &ev_apart, tol).expect("gathers");
+    expect_pairing(
+        run_checks_on(&apart, &ev_overlapping, Subject::Product(&own), &cfg, tol),
+        "own product, foreign evaluation",
+    );
+    // The mirror: this document's evaluation with another's product.
+    expect_pairing(
+        run_checks_on(&apart, &ev_apart, Subject::Product(&crossed), &cfg, tol),
+        "own evaluation, foreign product",
+    );
+    // And the honest pair still runs.
+    run_checks_on(&apart, &ev_apart, Subject::Product(&own), &cfg, tol).expect("the true pair");
 }
 
 /// **A2 — the registry's own preconditions answer BEFORE its subject
@@ -131,15 +287,45 @@ fn a_root_without_a_value_refuses_as_the_registrys_own_precondition() {
     }
 }
 
-/// **A2 — no resident derives its own subject.** The grep is the
-/// claim: the registry gathers in exactly one place, its wrapper.
+/// **A2 — no resident derives its own subject**, counted rather than
+/// grepped: one `run_checks` over a document that gathers costs exactly
+/// ONE gather, and the door under it costs none.
+///
+/// The counter sees every spelling of the gather
+/// (`product`/`product_named`/`product_recorded` are one
+/// implementation), which is what a source grep cannot promise; the
+/// grep beside it is kept only for what the counter cannot see — a
+/// gather on a path this document does not take.
 #[test]
-fn the_registry_gathers_in_one_place() {
+fn the_registry_gathers_once_and_the_door_under_it_never_does() {
+    let tol = Tol::witness();
+    let cfg = ChecksConfig::default();
+    let doc = twin("docm5-one-gather");
+    let ev: Evaluation<f64> = corpus::eval(&doc);
+
+    let before = editor_core::gathers_on_this_thread();
+    run_checks(&doc, &ev, &cfg, tol).expect("the registry runs");
+    assert_eq!(
+        editor_core::gathers_on_this_thread() - before,
+        1,
+        "one gather per run of the wrapper"
+    );
+
+    let subject = product_recorded(&doc, &ev, tol).expect("gathers");
+    let before = editor_core::gathers_on_this_thread();
+    run_checks_on(&doc, &ev, Subject::Product(&subject), &cfg, tol).expect("the door runs");
+    assert_eq!(
+        editor_core::gathers_on_this_thread() - before,
+        0,
+        "and the door, handed its subject, gathers nothing"
+    );
+
+    // What the counter cannot see is a gather on a path this document
+    // does not take, so the source count stands beside it.
     assert_eq!(
         gathers_in(include_str!("../src/checks.rs")),
         1,
-        "one gather in the registry, in `run_checks`; a resident that \
-         gathers for itself is the shape this door removed"
+        "and one gather call in the registry's source, in `run_checks`"
     );
 }
 
@@ -214,10 +400,28 @@ fn the_assembly_gathers_in_one_place() {
     assert_eq!(
         gathers_in(include_str!("../src/assembly.rs")),
         1,
-        "one gather in the assembly module, in `assemble`"
+        "one gather call in the assembly module's source, in `assemble`"
     );
 
     let tol = Tol::witness();
+    let doc = twin("docm5-asm-one-gather");
+    let ev: Evaluation<f64> = corpus::eval(&doc);
+    let before = editor_core::gathers_on_this_thread();
+    assemble(&doc, &ev, tol).expect("the wrapper assembles");
+    assert_eq!(
+        editor_core::gathers_on_this_thread() - before,
+        1,
+        "one gather per `assemble`"
+    );
+    let product = product_recorded(&doc, &ev, tol).expect("gathers");
+    let before = editor_core::gathers_on_this_thread();
+    assemble_gathered(product, tol).expect("the door assembles");
+    assert_eq!(
+        editor_core::gathers_on_this_thread() - before,
+        0,
+        "and none in the door under it"
+    );
+
     let a = twin("docm5-asm-pair-a");
     let b = twin("docm5-asm-pair-b");
     let ev_a: Evaluation<f64> = corpus::eval(&a);
@@ -253,13 +457,27 @@ fn nothing_clones_or_shares_the_product() {
     );
 }
 
-/// Calls to the gather in one source file, comments excluded — a
-/// mention in prose is not a second gather.
+/// Calls to the gather in one source file, comments excluded.
+///
+/// ALL THREE SPELLINGS: `product`, `product_named` and
+/// `product_recorded` are one implementation with fields dropped, so a
+/// module that called either of the first two would be gathering just
+/// as much. WHAT THIS CANNOT SEE, stated because a count that hides its
+/// blind spots is not a receipt: a gather behind an alias or a macro,
+/// one reached through a helper in another module, and the DIFFERENCE
+/// between a call on a hot path and one on a path nothing takes. The
+/// rows above pair it with the debug counter, which sees exactly what
+/// this cannot — what an actual run costs — and is blind to what this
+/// sees.
 fn gathers_in(source: &str) -> usize {
     source
         .lines()
         .filter(|line| !line.trim_start().starts_with("//"))
-        .filter(|line| line.contains("product_recorded("))
+        .filter(|line| {
+            line.contains("product_recorded(")
+                || line.contains("product_named(")
+                || line.contains(" product(")
+        })
         .count()
 }
 
@@ -361,4 +579,81 @@ fn the_registry_split_is_measured_at_a_pinned_point() {
         (161, 991),
         "the point the registry split is measured at"
     );
+}
+
+/// Two `Transform`s of one extrude, both roots: each carries the same
+/// extrude's minted names, so the two roots' rows collide in the
+/// product's one name table (`ProductError::Naming` — the refusal the
+/// spec names, and the only gather refusal reachable over a document
+/// whose roots all evaluate).
+fn naming_collision(id: &str) -> ProfileDoc {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty(DocumentId::derive(id), tol);
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let (doc, extrude) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    let moved = |doc, dx: f64| {
+        insert(
+            doc,
+            Node::Transform {
+                input: extrude,
+                translation: [len(dx), len(0.0), len(0.0)],
+                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+                rotation_angle: ang(0.0),
+            },
+        )
+    };
+    let (doc, _) = moved(doc, 3.0);
+    moved(doc, 6.0).0
+}
+
+/// Two extruded squares, the second offset by `apart` in x — two roots,
+/// so the separation resident's pair walk actually runs and has
+/// something to disagree about between two twins. Node ids are assigned
+/// in insertion order, so two of these under two document ids are one
+/// recipe under two identities: every lookup a foreign evaluation is
+/// asked for answers, which is the state DI3 exists for.
+fn twin_pair(id: &str, apart: f64) -> ProfileDoc {
+    let tol = Tol::witness();
+    let doc = ProfileDoc::empty(DocumentId::derive(id), tol);
+    let (doc, first) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let (doc, _) = insert(
+        doc,
+        Node::Extrude {
+            profile: first,
+            distance: len(1.0),
+        },
+    );
+    let (doc, second) = on_frame(
+        doc,
+        [apart, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    insert(
+        doc,
+        Node::Extrude {
+            profile: second,
+            distance: len(1.0),
+        },
+    )
+    .0
 }

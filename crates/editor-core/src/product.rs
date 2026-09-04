@@ -346,10 +346,18 @@ thread_local! {
 /// call, refusals included, since a refused gather is still a gather
 /// paid for.
 ///
-/// `cfg(debug_assertions)`-gated (the shape `topo::source`'s bit
-/// witnesses use): a release build carries neither the cell nor the
-/// increment. It counts, and a caller reads a DIFFERENCE across the
-/// operation it is asking about; the absolute value means nothing.
+/// `cfg(debug_assertions)`-gated, the shape `topo::source`'s bit
+/// witnesses use. **That is not the same as "absent from a release
+/// build" here**: this workspace's `[profile.release]` sets
+/// `debug-assertions = true` deliberately (and says so, and says it
+/// comes out before publish), so every build this repo produces today
+/// carries the counter and the increment. What the gate buys is that
+/// cargo's OWN release defaults strip both, which is what a consumer
+/// building this crate normally gets — and that the day the stanza
+/// comes out, nothing here has to change.
+///
+/// It counts, and a caller reads a DIFFERENCE across the operation it
+/// is asking about; the absolute value means nothing.
 #[cfg(debug_assertions)]
 #[must_use]
 pub fn gathers_on_this_thread() -> u64 {
@@ -388,6 +396,16 @@ pub fn product<P, T: Decide + AtRestPolicy>(
 /// them would be a second truth about what a document's product is.
 #[derive(Debug)]
 pub struct Product<T: Decide> {
+    /// The document this product is OF (DI3).
+    ///
+    /// A gather is a statement about one document, and the doors that
+    /// take a gathered product rather than gathering for themselves
+    /// have no other way to check that it is the one they were asked
+    /// about — `crate::run_checks_on` refuses a product from another
+    /// document exactly as this gather refuses a foreign evaluation.
+    /// Written from `doc.id()` after the pairing door below, so it is
+    /// the identity BOTH arguments agreed on.
+    pub document: crate::ident::DocumentId,
     /// The gathered aggregate.
     pub body: Body<T>,
     /// Its stable names, re-keyed onto the aggregate ([`product_named`]).
@@ -602,6 +620,7 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     // refuses before any mate is read.
     let (minted, unminted) = crate::assembly::mint(doc, evaluation, &names, &mut contacts);
     Ok(Product {
+        document: doc.id(),
         body: aggregate,
         names,
         contacts,

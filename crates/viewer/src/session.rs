@@ -604,13 +604,13 @@ impl DocSession {
         // BORROWS the product, and the A5 badge CONSUMES it last.
         // Nothing after the badge wants a product, so nothing here
         // clones one.
-        let doc = Arc::clone(&self.requested_doc);
+        let doc: &Doc<ProfileProgram> = &self.requested_doc;
         let cfg = ChecksConfig::default();
         // The A5 badge is taken for assembly-shaped documents only, and
         // whether the document is one is a fact about the document
         // rather than about its product — readable on either arm.
-        let assembly_shaped = assembly_shaped(doc.as_ref());
-        match product_recorded(doc.as_ref(), &done.evaluation, self.tol) {
+        let assembly_shaped = assembly_shaped(doc);
+        match product_recorded(doc, &done.evaluation, self.tol) {
             Ok(product) => {
                 self.landed_fault = None;
                 // The advisory registry. It REPORTS — a document with
@@ -622,7 +622,7 @@ impl DocSession {
                 // no report rather than a clean one: "not checked" is
                 // not "checked and fine".
                 self.landed_checks = run_checks_on(
-                    doc.as_ref(),
+                    doc,
                     &done.evaluation,
                     Subject::Product(&product),
                     &cfg,
@@ -646,14 +646,8 @@ impl DocSession {
                 // the report absent, which is "not checked".
                 self.landed_checks = matches!(fault, ProductError::NoBodyRoots)
                     .then(|| {
-                        run_checks_on(
-                            doc.as_ref(),
-                            &done.evaluation,
-                            Subject::NoBodyRoots,
-                            &cfg,
-                            self.tol,
-                        )
-                        .ok()
+                        run_checks_on(doc, &done.evaluation, Subject::NoBodyRoots, &cfg, self.tol)
+                            .ok()
                     })
                     .flatten();
                 self.landed_at_rest = assembly_shaped.then(|| AtRestBadge::Refused {

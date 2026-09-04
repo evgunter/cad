@@ -1522,9 +1522,14 @@ NOT_BOUND = {
     "run_checks_on": INTERIOR,
     # The gather's debug-only witness: how many products this thread
     # has gathered, for a consumer asserting it gathers once per
-    # operation. Not a question about a document at all, and it does
-    # not exist in a release build — `cfg(debug_assertions)` gates the
-    # counter, the increment and this reader alike.
+    # operation. Not a question about a document at all.
+    #
+    # `cfg(debug_assertions)` gates the counter, the increment and this
+    # reader alike — which is NOT the same as "absent from a release
+    # build" in this workspace, whose `[profile.release]` keeps
+    # `debug-assertions` on until publish. Every binary this repo
+    # produces carries it; cargo's own release defaults are what strip
+    # it. Either way it is not a Python door.
     "gathers_on_this_thread": INTERIOR,
     # --- gap: the SWEEP half of G2, still banked -------------------
     # The tube half closed at LIB-TUBE; `sweep_body` did not, and the

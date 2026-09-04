@@ -12,10 +12,11 @@
 //!
 //! Postures, each load-bearing:
 //!
-//! - **[`run_checks`] reports, never gates** (the [`crate::mixed_pins`]
-//!   posture): nothing calls it from `apply`, from the load door, or
-//!   from evaluation. A document with findings is valid at every one
-//!   of those doors.
+//! - **[`run_checks_on`] reports, never gates** (the
+//!   [`crate::mixed_pins`] posture), and so does [`run_checks`], the
+//!   wrapper that derives a [`Subject`] for it: nothing calls either
+//!   from `apply`, from the load door, or from evaluation. A document
+//!   with findings is valid at every one of those doors.
 //! - **[`enforce_checks`] is the ONLY refusing path**: it consumes a
 //!   finished report and refuses on `Error`-severity findings; the
 //!   CALLER chooses where (and whether) to gate.
@@ -84,6 +85,28 @@ impl CheckId {
             // the finding says — never "these two overlap", which the
             // boxes do not decide. See `topo::SolidsMeet`.
             Self::Separation => CheckKind::Certified,
+        }
+    }
+}
+
+impl CheckId {
+    /// Every check, in the order [`run_checks_on`] runs them (D9).
+    ///
+    /// A new variant that is not here fails
+    /// `dsc_checks::the_registry_order_is_every_check`, whose match is
+    /// the compiler's own walk of the closed set.
+    pub const ALL: [Self; 2] = [Self::Connectedness, Self::Separation];
+
+    /// Whether this resident reads the registry's [`Subject`].
+    ///
+    /// The one definition of that, and the reason the registry can
+    /// decide whether to gather AT ALL before it does: connectedness
+    /// reads the evaluation per root and needs no product, so a run
+    /// with only connectedness enabled has nothing to gather for.
+    pub fn reads_subject(self) -> bool {
+        match self {
+            Self::Connectedness => false,
+            Self::Separation => true,
         }
     }
 }
@@ -213,6 +236,23 @@ impl ChecksConfig {
             CheckId::Connectedness => self.connectedness,
             CheckId::Separation => self.separation.severity(),
         }
+    }
+
+    /// Whether a run under this configuration needs a [`Subject`] at
+    /// all: true iff some resident that reads one is not `Off`
+    /// ([`CheckId::reads_subject`], [`CheckId::ALL`]).
+    ///
+    /// The ONE definition of that question, and what lets
+    /// [`run_checks`] decide BEFORE it gathers. A configuration whose
+    /// enabled residents all read the evaluation has nothing to gather
+    /// FOR — which is what the registry did when each resident owned
+    /// its own gather, and is the difference between an advisory pass
+    /// and the most expensive call in a landing.
+    #[must_use]
+    pub fn needs_a_subject(&self) -> bool {
+        CheckId::ALL
+            .into_iter()
+            .any(|check| check.reads_subject() && self.severity(check) != Severity::Off)
     }
 }
 
@@ -480,13 +520,27 @@ pub enum ChecksError {
         /// The band construction failure.
         error: BandError,
     },
-    /// The document's roots did not gather into a product, so the
-    /// registry has no subject to run over. The gather's own refusal,
-    /// forwarded — this layer has no second opinion about what a
-    /// product is.
+    /// The evaluation, or the subject, is of ANOTHER document (DI3).
     ///
-    /// The refusal of the door that GATHERS, and of no resident: a
-    /// registry handed its subject never raises this.
+    /// Mirrors [`crate::ProductError::EvaluationOfAnotherDocument`],
+    /// and for its reason: node ids are minted per document, so a
+    /// foreign evaluation can answer every lookup a resident makes and
+    /// produce a finding about the wrong geometry without one lookup
+    /// missing. Raised before any resident runs.
+    EvaluationOfAnotherDocument {
+        /// The document the checks were asked for.
+        expected: crate::ident::DocumentId,
+        /// The document the handed evaluation or subject is of.
+        found: crate::ident::DocumentId,
+    },
+    /// The document's roots did not gather into a product, so a
+    /// resident that reads the subject has none. The gather's own
+    /// refusal, forwarded — this layer has no second opinion about
+    /// what a product is.
+    ///
+    /// Raised by the door, from [`Subject::Unavailable`], and only
+    /// when an enabled resident actually reads the subject: residents
+    /// that read the evaluation have answered before it.
     Product {
         /// The gather's own refusal, rendered — see
         /// [`CheckEvidence::SeparationUnavailable`] for why the message
@@ -505,6 +559,11 @@ impl fmt::Display for ChecksError {
                 node.0
             ),
             Self::Band { error } => write!(f, "checks: {error}"),
+            Self::EvaluationOfAnotherDocument { expected, found } => write!(
+                f,
+                "checks: the evaluation is of document {found}, not of \
+                 document {expected}",
+            ),
             Self::Product { reason } => write!(f, "checks: {reason}"),
         }
     }
@@ -542,18 +601,48 @@ impl core::error::Error for CheckRefusal {}
 /// document's product", and a caller that already holds the product
 /// would pay for it again.
 ///
-/// [`Subject::NoBodyRoots`] is the document that denotes no body at
-/// all — an empty document, or one holding only sketches and datums.
-/// It is not a failure to run the registry: a resident that needs a
-/// body has no subject there and contributes no finding, and a
-/// resident that does not (connectedness reads the evaluation) runs
-/// exactly as it would otherwise.
+/// The three arms are three different facts, and no arm ever stands in
+/// for another:
+///
+/// - [`Subject::Product`] — the gather succeeded and this is it. It
+///   must be a product OF THE PAIR the door is handed
+///   ([`run_checks_on`] refuses otherwise).
+/// - [`Subject::NoBodyRoots`] — no root denotes a body at all: an
+///   empty document, or one holding only sketches and datums. Not a
+///   failure to run the registry. A resident that needs a body has no
+///   subject here and contributes no finding; a resident that does not
+///   (connectedness reads the evaluation) runs exactly as it would
+///   otherwise.
+/// - [`Subject::Unavailable`] — there is no subject and the reason is
+///   carried. Either the gather REFUSED, or no enabled resident reads
+///   a subject and none was taken
+///   ([`ChecksConfig::needs_a_subject`]). A
+///   subject-reading resident that is enabled and meets this arm makes
+///   the door refuse [`ChecksError::Product`] carrying the reason;
+///   residents that read no subject have already answered by then, so
+///   their own refusals still come first.
 #[derive(Debug)]
 pub enum Subject<'a, T: Decide> {
     /// The gathered product, borrowed for the run.
     Product(&'a product::Product<T>),
     /// No root denotes a body, so there is no product to be had.
     NoBodyRoots,
+    /// There is no subject, and this is why.
+    Unavailable {
+        /// The gather's own refusal, rendered — or the sentence saying
+        /// no enabled resident asked for one.
+        reason: String,
+    },
+}
+
+impl<T: Decide> Subject<'_, T> {
+    /// The arm a run that needs no subject is handed
+    /// ([`ChecksConfig::needs_a_subject`]).
+    fn not_needed() -> Self {
+        Self::Unavailable {
+            reason: "checks: no enabled check reads the document's product".to_string(),
+        }
+    }
 }
 
 /// Runs every configured check over `doc`'s evaluated roots and
@@ -584,38 +673,37 @@ pub enum Subject<'a, T: Decide> {
 ///
 /// # Errors
 ///
-/// [`ChecksError`] — a root without a value in `ev`, a band the
-/// tolerance cannot form, or a document whose roots do not gather into
-/// a product. These mean the checks could not run at all; a check that
-/// ran and disagreed is a FINDING, not an error.
+/// [`ChecksError`] — an evaluation of another document, a root without
+/// a value in `ev`, a band the tolerance cannot form, or a document
+/// whose roots do not gather into a product for a resident that reads
+/// one. These mean the checks could not run at all; a check that ran
+/// and disagreed is a FINDING, not an error.
 pub fn run_checks<P, T: Decide + AtRestPolicy + CertifiedBounds>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     cfg: &ChecksConfig,
     tol: Tol,
 ) -> Result<ChecksReport, ChecksError> {
-    match product::product_recorded(doc, ev, tol) {
-        Ok(gathered) => run_checks_on(doc, ev, Subject::Product(&gathered), cfg, tol),
-        Err(product::ProductError::NoBodyRoots) => {
-            run_checks_on(doc, ev, Subject::NoBodyRoots, cfg, tol)
-        }
-        Err(source) => {
-            // PRECEDENCE: the registry's own preconditions answer
-            // before the subject does. A root without a value in this
-            // evaluation, or a tolerance that forms no band, is a
-            // statement about whether the checks may run AT ALL, and
-            // it holds whether or not the document also has a product.
-            // The report that run would have produced is not this
-            // call's answer and is dropped.
-            run_checks_on(doc, ev, Subject::NoBodyRoots, cfg, tol)?;
-            Err(ChecksError::Product {
-                reason: source.to_string(),
-            })
-        }
+    // LAZY, and the laziness is the point: the gather is by far the
+    // most expensive thing this door can do, and a configuration whose
+    // enabled residents all read the evaluation has nothing to gather
+    // FOR. Asking `needed_by` before gathering is also what keeps a
+    // gather refusal from reaching a run no resident would have shown
+    // it to.
+    if !cfg.needs_a_subject() {
+        return run_checks_on(doc, ev, Subject::not_needed(), cfg, tol);
     }
+    let subject = match product::product_recorded(doc, ev, tol) {
+        Ok(ref gathered) => return run_checks_on(doc, ev, Subject::Product(gathered), cfg, tol),
+        Err(product::ProductError::NoBodyRoots) => Subject::NoBodyRoots,
+        Err(source) => Subject::Unavailable {
+            reason: source.to_string(),
+        },
+    };
+    run_checks_on(doc, ev, subject, cfg, tol)
 }
 
-/// The registry over a subject the CALLER gathered — the door
+/// The registry over a subject the CALLER derived — the door
 /// [`run_checks`] wraps, and the one a caller with a product in hand
 /// uses so the document is gathered once.
 ///
@@ -623,11 +711,22 @@ pub fn run_checks<P, T: Decide + AtRestPolicy + CertifiedBounds>(
 /// order, and what a finding means holds here verbatim; the only
 /// difference is where the subject came from.
 ///
+/// **The pairing is checked HERE** (DI3), not inherited from a gather
+/// this door does not run: `ev` must be an evaluation of `doc`, and a
+/// [`Subject::Product`] must have been gathered from that same
+/// document. Both go through [`crate::ident::mispaired`], the one
+/// predicate that spells the comparison, before any resident runs —
+/// because a resident reading `doc.roots()` against a foreign `ev`
+/// finds a value for every root and reports about the wrong geometry.
+///
 /// # Errors
 ///
-/// [`ChecksError::Root`] and [`ChecksError::Band`] — the registry's own
-/// preconditions. [`ChecksError::Product`] is [`run_checks`]'s alone:
-/// this door was handed its subject and has no gather to refuse.
+/// [`ChecksError::EvaluationOfAnotherDocument`] for a mispaired
+/// argument; [`ChecksError::Root`] and [`ChecksError::Band`], the
+/// registry's own preconditions; and [`ChecksError::Product`] when an
+/// enabled resident reads the subject and finds
+/// [`Subject::Unavailable`] — after the residents that read no subject
+/// have answered, so their refusals still come first.
 pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
@@ -635,6 +734,20 @@ pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds>(
     cfg: &ChecksConfig,
     tol: Tol,
 ) -> Result<ChecksReport, ChecksError> {
+    let pairing = |found| {
+        crate::ident::mispaired(doc.id(), found).map(|m| ChecksError::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        })
+    };
+    if let Some(refusal) = pairing(ev.document) {
+        return Err(refusal);
+    }
+    if let Subject::Product(gathered) = &subject
+        && let Some(refusal) = pairing(gathered.document)
+    {
+        return Err(refusal);
+    }
     let mut report = ChecksReport::default();
     if cfg.severity(CheckId::Connectedness) == Severity::Off {
         report.skipped.push(CheckId::Connectedness);
@@ -643,6 +756,12 @@ pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds>(
     }
     if cfg.severity(CheckId::Separation) == Severity::Off {
         report.skipped.push(CheckId::Separation);
+    } else if let Subject::Unavailable { reason } = &subject {
+        // The resident is on and there is no subject: the registry
+        // could not run, and the reason is the one carried here.
+        return Err(ChecksError::Product {
+            reason: reason.clone(),
+        });
     } else {
         separation(&subject, tol, &mut report);
     }
@@ -800,9 +919,10 @@ fn separation<T: Decide + CertifiedBounds>(
     tol: Tol,
     report: &mut ChecksReport,
 ) {
-    // A document whose roots denote no body has no SUBJECT for this
-    // resident, so it contributes no finding — the reading
-    // [`Subject::NoBodyRoots`] states.
+    // No product, no pair to hold to a certificate, so no finding —
+    // the reading [`Subject::NoBodyRoots`] states. `Unavailable` never
+    // reaches here while this resident is enabled ([`run_checks_on`]
+    // refuses first) and is silent when it is not.
     let Subject::Product(gathered) = subject else {
         return;
     };
@@ -904,9 +1024,9 @@ fn declared_pairs<T: Decide>(
 
 /// The door from a finding's attribution back to its subject: the body
 /// at `(root, output_ix)` in this evaluation, AND the declared contact
-/// records that body carries — the same enumeration [`run_checks`]
-/// walks, so a [`CheckFinding`]'s attribution always resolves against
-/// the evaluation it was produced from. `None` when the root has no
+/// records that body carries — the same enumeration the connectedness
+/// resident walks, so a [`CheckFinding`]'s attribution always resolves
+/// against the evaluation it was produced from. `None` when the root has no
 /// value, denotes no body, or has no output at that index (exactly the
 /// attributions a [`CheckEvidence::StaleExpectation`] finding names).
 ///

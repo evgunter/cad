@@ -1007,6 +1007,12 @@ pub fn checks_error_tag(err: &ChecksError) -> &'static str {
     match err {
         ChecksError::Root { .. } => "root_without_value",
         ChecksError::Band { .. } => "band",
+        // Named for the FACT, as `product_unavailable` is: the pair is
+        // not a pair. It mirrors `ProductError`'s own arm, and the two
+        // tags stay distinct because the doors are — one is the
+        // gather's refusal of a foreign evaluation, this is the
+        // registry's refusal of a foreign evaluation or subject.
+        ChecksError::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
         ChecksError::Product { .. } => "product_unavailable",
     }
 }
