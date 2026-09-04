@@ -80,6 +80,26 @@ pub mod app;
 #[cfg(feature = "app")]
 mod gpu;
 
+/// **Loud skip.** The two modules above, and every unit test inside
+/// them, are absent from a default-feature build of this crate — the
+/// eframe/wgpu graph is not compiled there, which is what keeps a
+/// kernel PR's four `--workspace` jobs off the toolkit. What that
+/// costs is stated here rather than left to be inferred from a test
+/// count: the modules' own rows, including `gpu`'s pipeline-creation
+/// smoke row, gate in the app-feature test job
+/// (`.github/workflows/ci.yml`, `viewer app-feature rows`) and nowhere
+/// else.
+#[cfg(all(test, not(feature = "app")))]
+#[test]
+fn app_lane_skipped_no_chrome_or_gpu_coverage_here() {
+    println!(
+        "SKIPPED (no --features app): `viewer::app` and `viewer::gpu` are not in \
+         this build - the chrome's own unit rows and the pipeline-creation smoke \
+         row (every `create_render_pipeline` call in the viewport) run only where \
+         the `app` feature is built."
+    );
+}
+
 pub use blend::{BlendError, BlendEvent, BlendKindChoice, BlendTarget, BlendTool, FREEZE_NOTE};
 pub use camera::{Camera, CameraError, CameraOp, CameraOpError};
 pub use datums::{DatumDraw, DatumKind};

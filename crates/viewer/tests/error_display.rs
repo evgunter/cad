@@ -204,6 +204,20 @@ fn replay_error_names_the_log_position_and_forwards_the_refusal() {
     prose(&outer, "Refused");
 }
 
+/// **Loud skip.** The row below needs `viewer::app`, which is not in a
+/// default-feature build; say so rather than letting the run report
+/// one fewer test and nothing else. Its seat is the app-feature test
+/// job (`.github/workflows/ci.yml`, `viewer app-feature rows`).
+#[cfg(not(feature = "app"))]
+#[test]
+fn app_lane_skipped_startup_error_arms_not_checked_here() {
+    println!(
+        "SKIPPED (no --features app): startup_error_forwards_every_payload_arm \
+         does not run - `StartupError`'s forwarding of the camera, scene and \
+         document arms is unchecked in this build."
+    );
+}
+
 #[cfg(feature = "app")]
 #[test]
 fn startup_error_forwards_every_payload_arm() {
