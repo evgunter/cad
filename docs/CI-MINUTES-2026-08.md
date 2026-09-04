@@ -2108,37 +2108,46 @@ rebuild is heavier than on 33895150877's diff. The `+78` is therefore
 indicative of the setup overhead's ORDER, not a measurement of it; the `623 s`
 is the robust half, since it is `sum − max` over five rows either way.
 
-### A second run, and what it changes
+### Three runs, and the spread is the finding
 
-Run **33896480044** (the same PR's final head, TIER=all, **green**): 33 jobs,
-**68.5 job-min**, 577 s span. Its five legs, and the first run's beside them:
+The branch ran three times. All three green, all three TIER=all, 33 jobs each:
 
-| row | 33895150877 | 33896480044 |
-|---|---:|---:|
-| `dev-default` | 83 s | 95 s |
-| `dev-budget` | 119 s | 117 s |
-| `release-budget` | 139 s | 134 s |
-| `release-default` | 413 s | 388 s |
-| `dev-probe` | 360 s | **473 s** |
-| **sum** | **1114 s** | **1207 s** |
-| **cost vs the expected draw** | **+14.9 job-min** | **+16.1 job-min** |
+| row | 33895150877 | 33896480044 | 33897525485 |
+|---|---:|---:|---:|
+| `dev-default` | 83 s | 95 s | 83 s |
+| `dev-budget` | 119 s | 117 s | 118 s |
+| `release-budget` | 139 s | 134 s | 120 s |
+| `release-default` | 413 s | 388 s | 379 s |
+| `dev-probe` | 360 s | **473 s** | 268 s |
+| **sum** | **1114 s** | **1207 s** | **968 s** |
+| **run total** | 72.7 job-min | 68.5 | 60.5 |
+| **cost vs the expected draw** | **+14.9** | **+16.1** | **+12.9** |
 
-Two things move. The two heavy legs **trade places** — `dev-probe` and
-`release-default` are within ~20 % of each other and either can be the longest,
-so "the longest leg" is not a fixed row and no wall figure here should be
-attributed to one. And **k-lint was not the tail on either run**: run 2's tail
-was `test (interval, eps = default, 1/2)` at 16:50:26, 79 s after the longest
-k-lint leg (run 1: 85 s). On TIER=all runs the interval archive and its test
-legs dominate; the run where k-lint tailed (33894413395) was a smaller tier.
+**The mean is +14.6 job-min per code-tier run, over +12.9 to +16.1.** The three
+cheap legs are stable to within ~15 s; the whole spread is `dev-probe`, which
+ran 268, 360 and 473 s on the same tree — a factor of 1.8 between its own
+extremes, wider than its gap to `release-default`. So the two heavy legs **trade
+places between runs**, "the longest leg" is not a fixed row, and no figure here
+should be attributed to one.
 
-The two job-minute figures average **+15.5**, against the lane/ε change's
-**+15.6**. That the two un-samplings cost the same to within 1 % is a
-coincidence of this tree's shape and not a law, but it is the number to carry.
+**A sentence written at n=2 is corrected here rather than left standing.** With
+two runs the mean was +15.5, against the lane/ε un-sampling's +15.6, and this
+section said the two changes cost the same "to within 1 %". The third run
+falsifies that: the mean is **+14.6, about 6 % under** the lane/ε figure. The
+order is what survives — these two un-samplings cost the same to within a
+sixth, not to within a hundredth — and that is all the comparison was ever able
+to support.
+
+**k-lint tailed none of the three.** Every run's last job was
+`test (interval, eps = default, 1/2)`, finishing 85 s, 79 s and 187 s after the
+longest k-lint leg. On TIER=all runs the interval archive and its test legs
+dominate; the baseline where k-lint did tail (33894413395) was a smaller tier.
 
 ### What is not measured here
 
-Two runs of the new shape (n=2), both on one branch whose cache was warm from
-`main`'s primer, both at TIER=all. A cold-cache run pays more in every leg, and
-the release legs are the ones a cold `--release` profile moves most. The
-counterfactual is arithmetic, not a measurement: no run of the drawn shape
-exists on this tree to subtract. Nothing re-takes any of this.
+Three runs of the new shape, all on one branch whose cache was warm from
+`main`'s primer, all at TIER=all — so the tier that most often puts k-lint on
+the critical path is the one with no sample here. A cold-cache run pays more in
+every leg, and the release legs are the ones a cold `--release` profile moves
+most. The counterfactual is arithmetic, not a measurement: no run of the drawn
+shape exists on this tree to subtract. Nothing re-takes any of this.
