@@ -37,8 +37,8 @@ pub use editor_core::cascade_delete_order;
 // carries directly; it is re-exported here so document-layer code can
 // spell the whole node vocabulary through one module.
 pub use editor_core::{
-    Axis3, BooleanOp, Datum, InputFault, MeasureNodeFault, Node, PatternKind, PlacementRuleFault,
-    RecipeNodeId, SlotId, TubeWindow, VectorSlot,
+    Axis3, BooleanOp, Datum, InputFault, MeasureNodeFault, Node, PartSelect, PatternKind,
+    PlacementRuleFault, RecipeNodeId, SlotId, TubeWindow, VectorSlot,
 };
 
 // The measurement vocabulary (ERROR-DESIGN E3/E10, CONTACT-DESIGN C5).

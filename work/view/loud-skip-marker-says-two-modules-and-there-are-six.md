@@ -2,8 +2,11 @@
 id: loud-skip-marker-says-two-modules-and-there-are-six
 kind: issue
 title: lib.rs's loud-skip marker says two app-feature modules; the split made it six
-status: open
+status: closed
 opened: 2026-09-04
+branch: view/module-kind-gate
+pr: 1848
+closed: 2026-09-04
 ---
 
 
@@ -41,3 +44,47 @@ Name the feature and what it costs — "every module behind
 `--features app`" — instead of a count. The census the marker exists
 to give a reader is `.github/workflows/ci.yml`'s job list either way;
 the hand-kept enumeration buys nothing the feature name does not.
+
+## What landed
+
+The marker at `crates/viewer/src/lib.rs` now names the **feature and
+what it costs** — "every module this crate gates behind the `app`
+feature" — and enumerates nothing. Its second paragraph no longer
+admits to a hand-kept list: the roster is the `#[cfg(feature = "app")]`
+block above it, which the compiler keeps, so the marker cannot go stale
+when that block gains or loses a module. The `println!` payload got the
+same treatment and stopped naming `viewer::app` and `viewer::gpu`.
+
+The row is renamed `app_lane_skipped_no_app_feature_coverage_here`. Its
+whole payload is its NAME appearing in a default-feature PASS list, so
+the name has to say what the body says; `no_chrome_or_gpu` was the same
+two-module enumeration one level up. The `app_lane_skipped_*` prefix is
+kept, which is what `.github/workflows/ci.yml`, `local-scripts/ci-local.sh`
+and `crates/viewer/README.md` refer to it by.
+
+`crates/viewer/README.md`'s own list of the files carrying these rows
+was three of four; `tests/panel_display.rs` was added.
+
+**This is a HALF-FIX and is labelled as one.** It is one of the eight
+copies `work/issues/loud-skip-marker-is-a-hand-kept-idiom.md`
+tabulates, and it takes that issue's option 2 ("drop the enumeration")
+for this copy alone. Three siblings inside this same crate still carry
+the identical admission, each naming its rows by hand:
+
+| file:line | row |
+| --- | --- |
+| `crates/viewer/tests/chrome_labels.rs:24-27` | `app_lane_skipped_no_chrome_coverage_here` |
+| `crates/viewer/tests/error_display.rs` | `app_lane_skipped_startup_error_arms_not_checked_here` |
+| `crates/viewer/tests/panel_display.rs` | `app_lane_skipped_parameter_field_units_not_checked_here` |
+
+`chrome_labels.rs:26-27` is the clearest statement of it: *"the list it
+recites is kept by hand and a stale one would read exactly like a
+current one."* Those three are `crates/viewer/tests/`, which is
+`chrome`'s and `tcost`'s territory, not this program's — so they are
+named here and left alone. The four outside this crate are in
+`crates/sweep` and `crates/topo`.
+
+That issue's own table now cites a row that has been renamed (`:21`)
+and a moved line (`:23`); reported rather than edited, since the issue
+is homed outside this program's fence and the orchestrator is taking
+the tracker edit.

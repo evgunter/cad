@@ -1,5 +1,7 @@
 //! The Properties pane: what the current selection is, and the slot,
 //! parameter and instance fields that edit it.
+//!
+//! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
 use pncad::document::{Axis3, Dimension, Frame, ParamName, RecipeNodeId};

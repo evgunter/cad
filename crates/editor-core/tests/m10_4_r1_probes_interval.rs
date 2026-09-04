@@ -164,8 +164,8 @@ fn stepped_shaft_sized(
         rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
     });
     let refs = vec![
-        MeasureRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Bottom))),
-        MeasureRef::new(boss, fname(boss_raw, RoleSeg::Cap(CapEnd::Top))),
+        MeasureRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),
+        MeasureRef::new(boss, fname(boss_raw, RoleSeg::Cap(CapEnd::End))),
     ];
     let m = r.insert(
         Node::measure(

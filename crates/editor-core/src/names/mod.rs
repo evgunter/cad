@@ -39,7 +39,7 @@ mod table;
 pub use attribute::{NameOrigin, attribute};
 pub use emit::NamingError;
 pub(crate) use emit::name_in_part;
-pub(crate) use emit::{empty, name_pattern, name_placed_union};
+pub(crate) use emit::{check_total, empty, name_pattern, name_placed_union};
 pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
@@ -55,7 +55,8 @@ pub use geompred::{
     SurfaceKindSet,
 };
 pub use interrogate::{
-    Denotation, InterrogateError, denotation, edge_frame, face_frame, vertex_position,
+    Denotation, InterrogateError, denotation, edge_frame, face_carrier_kind, face_frame,
+    vertex_position,
 };
 pub(crate) use role::member_edge;
 pub(crate) use role::name_free_seg;

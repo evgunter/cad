@@ -38,8 +38,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, Datum, DocEdit, EvalOptions, Evaluation, Node,
-    NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow, ValuePayload,
-    apply, evaluate,
+    NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow,
+    ValuePayload, apply, evaluate,
 };
 use geom_core::Decide;
 use geom_core::Tol;
@@ -54,6 +54,7 @@ pub mod die_composed_tour;
 pub mod die_fillet;
 pub mod die_pips;
 pub mod die_tool;
+pub mod face_sketch;
 pub mod heatsink;
 pub mod heatsink_union;
 pub mod hollow_tube_elbow;
@@ -61,6 +62,7 @@ pub mod islands;
 pub mod kiss_carry;
 pub mod loft_prism;
 pub mod measured_web;
+pub mod part_select;
 pub mod plate_param;
 pub mod sink;
 pub mod slots;
@@ -170,6 +172,17 @@ pub fn documents() -> Vec<CorpusDoc> {
         // oracle (`lib_placedunion.rs`).
         heatsink_union::document(),
         die_tool::document(),
+        // `face_sketch` (DOCM-1): a boss sketched ON the box's top face
+        // through a derived frame — the first `Datum::FaceFrame` in the
+        // registry, so the derived frame carries the standard rows
+        // (every ε, the Interval lane under DM1c, persistence, latency).
+        face_sketch::document(),
+        // `part_select` (DOCM-2): a split's two halves and a pattern's
+        // middle instance each selected by a `Node::Part` and consumed
+        // downstream, so the census counts both selectors and every
+        // standard row (every ε, the Interval lane, persistence,
+        // latency) runs the projection.
+        part_select::document(),
         // `loft_prism` (M6-3): R5 shape (iii)'s loft body — the
         // Band 4 corpus's first NURBS-walled solid. Standard rows
         // (every ε, interval lane, persistence, latency) for free by
@@ -274,7 +287,7 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
 }
 
 /// The node kinds a document exercises (the coverage tally's domain).
-pub const NODE_KINDS: [&str; 19] = [
+pub const NODE_KINDS: [&str; 20] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -298,6 +311,8 @@ pub const NODE_KINDS: [&str; 19] = [
     "Union",
     "Transform",
     "Pattern",
+    // DOCM-2's projection node — COVERED, by `part_select`.
+    "Part",
     // LIB-PLACEDUNION: the ratified A′ group boolean.
     "PlacedUnion",
     // M5 PR 10's definitional feature nodes. `Loft` is COVERED since
@@ -346,18 +361,23 @@ pub const EDIT_KINDS: [&str; 15] = [
 /// The node SUB-kinds the corpus must also cover in full: every datum
 /// flavour, every boolean operator (and the declared boolean), and
 /// both pattern kinds.
-pub const SUB_KINDS: [&str; 15] = [
+pub const SUB_KINDS: [&str; 18] = [
     "Datum::Plane",
     "Datum::Axis",
     "Datum::AxisInPlane",
     "Datum::Point",
     "Datum::Frame",
+    "Datum::FaceFrame",
     "Boolean::Union",
     "Boolean::Intersect",
     "Boolean::Subtract",
     "Boolean+Declare",
     "Pattern::Linear",
     "Pattern::Circular",
+    // Both selectors of the projection node: `part_select` reads a
+    // split's two halves and a pattern's middle instance.
+    "Part::SplitHalf",
+    "Part::Instance",
     // LIB-PLACEDUNION's two register payoffs. `PlacedUnion::Circular`
     // is deliberately NOT listed: no corpus document needs one, and a
     // listed-but-uncovered sub-kind would fail the tally. The circular
@@ -387,6 +407,8 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         // corpus document authors at least one, which is the condition
         // this arm was written waiting for.
         Node::Datum(Datum::Frame { .. }) => vec!["Datum::Frame"],
+        // Listed: `face_sketch` draws on a frame derived from a face.
+        Node::Datum(Datum::FaceFrame { .. }) => vec!["Datum::FaceFrame"],
         // Listed: four corpus documents revolve, and a revolve's axis
         // is written in the profile's frame. `kitchen_sink` carries
         // BOTH axis kinds — a world line for its circular pattern, an
@@ -416,6 +438,13 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
             PatternKind::Linear { .. } => "PlacedUnion::Linear",
             PatternKind::Circular { .. } => "PlacedUnion::Circular",
             PatternKind::Explicit(_) => "PlacedUnion::Explicit",
+        }],
+        // The two selectors are two sub-kinds: which value kind the
+        // node reads, and so which refusals it can meet, follows the
+        // selector.
+        Node::Part { select, .. } => vec![match select {
+            PartSelect::SplitHalf(_) => "Part::SplitHalf",
+            PartSelect::Instance(_) => "Part::Instance",
         }],
         // EXHAUSTIVE on purpose (review MIN-2): no wildcard arm, so a
         // new `Node` variant — or a new `Datum`/`BooleanOp`/
@@ -469,6 +498,7 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Union { .. } => "Union",
         Node::Transform { .. } => "Transform",
         Node::Pattern { .. } => "Pattern",
+        Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",

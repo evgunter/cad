@@ -2,11 +2,12 @@
 id: SEAT-6
 kind: unit
 title: the lowered parameter-identity channel
-status: dispatched
+status: review
 opened: 2026-09-02
 pr: 1593
 branch: seat/psource
 refs: [1372, 1604]
+needs_ev: true
 ---
 
 Design §3 (P1–P3, issue #1372): the opaque `ParamSource` token minted by

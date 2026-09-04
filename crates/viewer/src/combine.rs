@@ -17,6 +17,9 @@
 //! The seat vocabulary, the pick rule, the survival step and the
 //! id-reuse hazard it does not cover (issue #1384) are all
 //! [`crate::seats`]'s, and are not restated here.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{BooleanOp, Doc, Expr, Node, PatternKind, ProfileProgram, RecipeNodeId};
 
@@ -467,12 +470,14 @@ pub fn transform_node(
 /// The rule this tracks is the evaluator's single-body OPERAND door
 /// (`eval::wire::body_operand`): a `Body` payload, or a boolean's
 /// non-empty result. A split's two sides and a pattern's instances are
-/// the cases that matter — each is SEVERAL bodies, and selecting one of
-/// them needs a vocabulary the recipe does not yet have, so a seat
-/// filled with one refuses at the door rather than after the edit
-/// lands. That the sentences those seats would spell ("union the upper
-/// half of that split") are ordinary ones is issue #1394, which widens
-/// at this function when the operand vocabulary answers it.
+/// the cases that matter — each is SEVERAL bodies, so a seat filled
+/// with one refuses at the door rather than after the edit lands. The
+/// recipe's way of saying which of them is meant is [`Node::Part`]
+/// (DOCM-REFERENCES-DESIGN DM3): a projection of one half or one
+/// instance, which evaluates to ONE `Body` value and is admitted here
+/// for exactly that reason. "Union the upper half of that split" is
+/// therefore a Part of the split at a boolean seat; the door that
+/// authors one is CHROME's.
 ///
 /// **Tracks, and is not equal to, in two named directions.** A node
 /// this admits may still refuse downstream — an empty boolean result is
@@ -513,6 +518,9 @@ pub fn denotes_body(node: &Node<ProfileProgram>) -> bool {
         // members are folded, not collected.
         | Node::Union { .. }
         | Node::Transform { .. }
+        // ONE body out of a split's or a pattern's value — the
+        // projection is what makes one of several bodies a body.
+        | Node::Part { .. }
         | Node::PlacedUnion { .. }
         | Node::InstantiatePart { .. } => true,
         Node::Datum(_)
