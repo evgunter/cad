@@ -18,9 +18,10 @@
 //! refusal of a nested trim circle
 //! (`work/fillet/ring-clearance-refuses-a-nested-trim-circle.md`).
 //!
-//! The row that FLIPS when the unit lands is
-//! `the_plane_hosted_rim_refuses_at_the_ladders_ring_gate`: every
-//! fixture there is the shape, and every one of them refuses today.
+//! The row that carries the unit's own claim is
+//! `the_plane_hosted_rim_carves_on_either_material_side`: every fixture
+//! there is the shape, and every one of them carves — five convex, one
+//! concave — at the same census delta.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -31,7 +32,7 @@ use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{lantern, revolved_about_y, rim_arcs_at, waisted};
-use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey, mass_properties};
+use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -189,31 +190,35 @@ fn repaired(mut body: Body<f64>) -> Body<f64> {
 // The rows.
 // ------------------------------------------------------------------
 
-/// **The shape, on every fixture that carries it.** One planar host,
-/// the rim in that face's own OUTER cycle and in no ring, and every
-/// crossing TRIVALENT — two rim arcs plus exactly one co-surface mate
-/// seam, the host's seam having been merged away by the repair. All of
-/// them refuse at the ladder's ring gate, which is the whole defect.
+/// **The shape, and its carve, on every fixture that carries it.** One
+/// planar host, the rim in that face's own OUTER cycle and in no ring,
+/// and every crossing TRIVALENT — two rim arcs plus exactly one
+/// co-surface mate seam, the host's seam having been merged away by the
+/// repair. Each one carves through the hostless-crossing annulus to a
+/// tier-3-valid solid carrying ONE band, with closed-form mass
+/// properties, and the CENSUS DELTA is the same `(+2, +3, +1)` on all
+/// six because the Euler walk is the same six moves per crossing and
+/// per arc whatever the supports' kinds are.
 ///
-/// **This is the row the unit flips.** When the hostless-crossing
-/// annulus arm lands, every fixture here carves instead, and the two
-/// structural halves above still hold unchanged.
+/// **Both material sides**: the five convex rims lose material to the
+/// band and the bowl's concave floor gains it, through one carve.
 #[test]
-fn the_plane_hosted_rim_refuses_at_the_ladders_ring_gate() {
-    let fixtures: Vec<(&str, Body<f64>, f64, f64)> = vec![
-        ("lantern neck", repaired(lantern(tol())), 1.0, 0.0),
-        ("lantern lip", repaired(lantern(tol())), 0.2, 1.2),
+fn the_plane_hosted_rim_carves_on_either_material_side() {
+    let fixtures: Vec<(&str, Body<f64>, f64, f64, bool)> = vec![
+        ("lantern neck", repaired(lantern(tol())), 1.0, 0.0, false),
+        ("lantern lip", repaired(lantern(tol())), 0.2, 1.2, false),
         (
             "hemisphere equator",
             repaired(hemisphere_on_flat_base()),
             1.0,
             0.0,
+            false,
         ),
-        ("waisted base", repaired(waisted(tol())), 1.0, 0.0),
-        ("waisted top", repaired(waisted(tol())), 1.0, 1.0),
-        ("bowl floor", repaired(bowl()), 1.0, 1.0),
+        ("waisted base", repaired(waisted(tol())), 1.0, 0.0, false),
+        ("waisted top", repaired(waisted(tol())), 1.0, 1.0, false),
+        ("bowl floor", repaired(bowl()), 1.0, 1.0, true),
     ];
-    for (name, body, r, y) in &fixtures {
+    for (name, body, r, y, concave) in &fixtures {
         let arcs = rim_arcs_at(body, *r, *y);
         assert_eq!(arcs.len(), 2, "{name}: the repair leaves the rim two arcs");
 
@@ -251,13 +256,43 @@ fn the_plane_hosted_rim_refuses_at_the_ladders_ring_gate() {
             );
         }
 
-        match fillet_edges(body, &arcs, 0.05, tol()).map_err(|e| e.error) {
-            Err(BlendError::UnsupportedChain { detail, .. }) => assert_eq!(
-                detail, "a closed chain is not a ring of its plane support",
-                "{name}: the ladder's ring gate refuses"
-            ),
-            other => panic!("{name}: expected the ring gate, got {other:?}"),
-        }
+        let before = mass_properties(body, tol()).expect("mass properties compute");
+        let census = |b: &Body<f64>| {
+            (
+                b.vertices().count() as i64,
+                b.edges().count() as i64,
+                b.faces().count() as i64,
+            )
+        };
+        let c0 = census(body);
+        let out = fillet_edges(body, &arcs, 0.05, tol())
+            .unwrap_or_else(|e| panic!("{name}: the hostless-crossing rim carves, got {e:?}"));
+        validate_geometric(&out.body, tol())
+            .unwrap_or_else(|e| panic!("{name}: tier-3 valid at rest, got {e:?}"));
+        assert_eq!(out.band_faces.len(), 1, "{name}: ONE band over both arcs");
+        let c1 = census(&out.body);
+        assert_eq!(
+            (c1.0 - c0.0, c1.1 - c0.1, c1.2 - c0.2),
+            (2, 3, 1),
+            "{name}: the two-crossing Euler walk's census delta"
+        );
+        // Euler's formula on the one shell, before and after: the carve
+        // is a genus-preserving surgery, not a topology change.
+        assert_eq!(c0.0 - c0.1 + c0.2, 2, "{name}: the source is a sphere");
+        assert_eq!(c1.0 - c1.1 + c1.2, 2, "{name}: and so is the carve");
+
+        let after = mass_properties(&out.body, tol()).expect("mass properties compute");
+        assert_eq!(
+            after.volume_pad, 0.0,
+            "{name}: every face of the carve is closed-form"
+        );
+        let delta = after.volume - before.volume;
+        assert_eq!(
+            delta > 0.0,
+            *concave,
+            "{name}: a concave rim's band ADDS material and a convex one's removes it \
+             (delta {delta})"
+        );
     }
 }
 

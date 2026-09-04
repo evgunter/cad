@@ -331,15 +331,24 @@ enum RimShape {
     /// dihedral is zero by construction), so the carve walks THROUGH
     /// it. [`AnnulusRim::crossings`] is one entry per arc, and a
     /// one-edge rim is the one-entry case of it.
+    ///
+    /// **The host side may be ONE face carrying every arc**, which is
+    /// what a coplanar-face merge leaves of a pole-touching cap: the
+    /// rim is then that face's whole OUTER cycle rather than several
+    /// half-bands, its crossings are TRIVALENT, and each host foot is a
+    /// strut instead of a seam split ([`HostFoot`]). Nothing else about
+    /// the walk changes — the mate splits, both sides' trimlines, the
+    /// excise, the crossing merges and the closure slit are the same
+    /// six moves, which is why this is one shape and not a third.
     Annulus(AnnulusRim),
 }
 
 /// A closed rim resolved onto the two SURFACES it separates.
 struct AnnulusRim {
     /// One crossing per rim arc — the vertices the rim's arcs meet at,
-    /// each with the two supports' seam meridians crossing there. A
-    /// one-edge rim has exactly one: its own vertex, where both walls'
-    /// doubly-traversed seams meet it.
+    /// each with the mate's seam meridian and the host's own foot
+    /// source ([`HostFoot`]). A one-edge rim has exactly one: its own
+    /// vertex, where both walls' doubly-traversed seams meet it.
     crossings: Vec<SeamCrossing>,
     /// Which crossing carries the band's SLIT, and therefore the
     /// azimuth of the band chart's own seam. Every other crossing is
@@ -347,15 +356,51 @@ struct AnnulusRim {
     closure: usize,
 }
 
-/// One vertex a closed rim's arcs meet at, with the seam meridian each
-/// support drops there.
+/// **Where a crossing's HOST foot comes from.** The two answers are
+/// different moves, not two settings of one, and this is a VARIANT
+/// rather than an `Option<EdgeKey>` so the phase matches on what it has
+/// and no site can read a seam that is not there.
+enum HostFoot {
+    /// The host is several half-band faces of one surface, so a seam
+    /// meridian meets the crossing and splitting it lands the foot on
+    /// EXISTING geometry. Its rim-side piece dies with the vertex.
+    Seam(EdgeKey),
+    /// ONE host face carries every arc in its own outer cycle, so the
+    /// crossing is TRIVALENT — two rim arcs and the mate's seam — and no
+    /// host seam exists to split. The foot is minted by the LADDER's own
+    /// move, a strut `mev` out to the host trimline at this vertex's own
+    /// parameter ([`strut_foot`]), and the strut dies at the crossing
+    /// exactly as the ladder's do.
+    Strut,
+}
+
+/// **What the HOST side of a closed rim carries**, decided once for the
+/// whole rim by [`resolve_rim`]'s routing and handed to the resolution
+/// so the gate below reads a decision rather than re-taking one.
+///
+/// It is the per-RIM mode; [`HostFoot`] is the per-CROSSING datum it
+/// resolves to, and the two are separate because only one of them can
+/// carry a key. Nothing derives this from the body inside the
+/// resolution: deriving it would silently admit the shape whose host is
+/// a CURVED single face carrying several arcs, which no arm builds and
+/// which must keep refusing at the half-band gate.
+#[derive(Clone, Copy)]
+enum HostSide {
+    /// Several half-band faces of one surface, one arc each, dropping a
+    /// seam meridian at every crossing.
+    Seams,
+    /// ONE face carrying every arc in its own outer cycle, so no seam
+    /// meets a crossing on this side.
+    Struts,
+}
+
+/// One vertex a closed rim's arcs meet at, with the mate's seam meridian
+/// and where the host's foot comes from.
 struct SeamCrossing {
     /// The vertex itself.
     vertex: VertexKey,
-    /// The HOST side's seam meridian at [`SeamCrossing::vertex`]. Split
-    /// at the host trimline, it supplies the band's foot instead of a
-    /// strut `mev`, and its rim-side piece dies with the vertex.
-    host_seam: EdgeKey,
+    /// What supplies the band's foot on the HOST side here.
+    host: HostFoot,
     /// The MATE side's seam meridian at [`SeamCrossing::vertex`]. Split
     /// at the mate trimline, its rim-side piece becomes the band's slit
     /// at the closure crossing and dies at every other.
@@ -552,7 +597,10 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
                     ann.crossings
                         .iter()
                         .map(|c| LiveSeams {
-                            host: c.host_seam,
+                            host: match c.host {
+                                HostFoot::Seam(seam) => HostFoot::Seam(seam),
+                                HostFoot::Strut => HostFoot::Strut,
+                            },
                             mate: c.mate_seam,
                         })
                         .collect()
@@ -824,12 +872,25 @@ fn chamfer_feet<T: Decide + Bounds>(
 ///   They stay, and the refusals name the shape rather than the kinds.
 ///
 /// **What routes a MULTI-LINK chain between them is the host side, not
-/// the link count.** A ladder rim is a ring of ONE planar face, so every
-/// link's planar support is that same face; a rim a chart seam has split
-/// has no such face on either side — its supports are half-band walls,
-/// several FACES of one SURFACE — and takes the annulus. A one-link
-/// chain is an annulus by shape (a ring of one face has a link count
-/// greater than one whenever it is a ring at all).
+/// the link count**, and the host side answers in three ways rather than
+/// two. When ONE planar face hosts every link, WHERE the rim sits in
+/// that face's loop structure decides:
+///
+/// - the rim is a RING of it → **LADDER**. The face keeps a boundary of
+///   its own outside the rim, the mate side is ring-free half-caps, and
+///   the ladder's struts and trim arcs walk the ring.
+/// - the rim is that face's own OUTER cycle → **ANNULUS with hostless
+///   crossings**. This is what a coplanar-face merge leaves of a
+///   pole-touching cap: the host has no seam at a crossing, so the
+///   crossing is trivalent and the host foot is a strut
+///   ([`HostFoot::Strut`]) rather than a seam split. The mate side is
+///   what the annulus already serves.
+///
+/// When NO single planar face hosts every link — a rim a chart seam has
+/// split, whose supports are half-band walls, several FACES of one
+/// SURFACE per side — it is the annulus with SEAM crossings, as before.
+/// A one-link chain is an annulus by shape (a ring of one face has a
+/// link count greater than one whenever it is a ring at all).
 ///
 /// **Neither shape asks which material side the rim is on.** The band
 /// is a torus about the rim's own spine whichever side the ball rests
@@ -927,16 +988,16 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     // support is a VALUE here, and "the loop that must have run did
     // not" is a state this function no longer spells.
     let Some((plane, first_mate)) = split(link0)? else {
-        return resolve_seam_split_rim(body, chain);
+        return resolve_seam_split_rim(body, chain, HostSide::Seams);
     };
     let mut mates = Vec::with_capacity(chain.link_count());
     mates.push(first_mate);
     for link in chain.rest() {
         let Some((p, s)) = split(link)? else {
-            return resolve_seam_split_rim(body, chain);
+            return resolve_seam_split_rim(body, chain, HostSide::Seams);
         };
         if p != plane {
-            return resolve_seam_split_rim(body, chain);
+            return resolve_seam_split_rim(body, chain, HostSide::Seams);
         }
         mates.push(s);
     }
@@ -952,19 +1013,32 @@ fn resolve_rim<'a, T: Decide + Bounds>(
             )
         })?;
 
-    // The rim must be a RING of the plane; each arc's mate face is a
-    // ring-free cap piece carrying exactly that one chain arc on its
-    // boundary (revolve-minted half-caps).
+    // WHERE the rim sits in the one planar host's loop structure is the
+    // routing (function docs). A ring is the LADDER; the face's own
+    // outer cycle is the annulus with HOSTLESS crossings, whose plan is
+    // built at the seam-split resolution's own host gate — the one site
+    // that asks what the host side carries.
     let ring = plane_loop;
     let pd = body
         .get_face(plane)
         .ok_or_else(|| not_intact(EntityId::Face(plane), "a rim's plane support"))?;
     if !pd.rings.contains(&ring) {
-        return Err(unbuilt_chain(
-            link0.edge,
-            "a closed chain is not a ring of its plane support",
+        if pd.outer == plane_loop {
+            return resolve_seam_split_rim(body, chain, HostSide::Struts);
+        }
+        // A half-edge's parent loop is a loop of the face it bounds, so
+        // a loop that is neither the outer cycle nor a ring of that face
+        // is a body whose loop set disagrees with its half-edges — Row
+        // 1, not a frontier.
+        return Err(not_intact(
+            EntityId::Loop(plane_loop),
+            "a rim's plane-side loop is neither that face's outer cycle nor one of its rings",
         ));
     }
+
+    // The LADDER's remaining gates: each arc's mate face is a ring-free
+    // cap piece carrying exactly that one chain arc on its boundary
+    // (revolve-minted half-caps).
     let chain_edges: Vec<EdgeKey> = chain.links().map(|l| l.edge).collect();
     for (link, &s) in chain.links().zip(mates.iter()) {
         let sd = body
@@ -1015,14 +1089,15 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     })
 }
 
-/// Resolve a closed rim a CHART SEAM has SPLIT: several arcs of one rim
-/// meeting at seam vertices, whose supports are the half-band walls the
-/// split left behind — several FACES of one SURFACE per side.
+/// Resolve a closed rim of SEVERAL arcs onto the two surfaces it
+/// separates — the arcs a chart seam left behind, whose supports are
+/// half-band faces, and equally the same rim after a coplanar-face
+/// merge has made ONE of those sides a single face.
 ///
 /// The band is still ONE annulus. What makes that true is the geometry
 /// of a seam vertex: the rim arrives and leaves on the same two
-/// surfaces (the surface is smooth through it), and the two extra
-/// incident edges are co-surface meridians whose dihedral is zero by
+/// surfaces (the surface is smooth through it), and the extra incident
+/// edges are co-surface meridians whose dihedral is zero by
 /// construction. So the walk carries THROUGH such a vertex; it never
 /// stops at one, and nothing here adds a termination.
 ///
@@ -1031,13 +1106,22 @@ fn resolve_rim<'a, T: Decide + Bounds>(
 /// - one support PAIR for the whole rim, and the two surfaces distinct
 ///   (a rim between two faces of one surface has no two sides to rest
 ///   on, and is a tangency the battery has already refused);
-/// - each support face ring-free and carrying exactly ONE of the
-///   chain's arcs — the half-band discipline the band replacement
-///   needs, the annulus twin of the ladder's half-cap one;
+/// - each MATE face ring-free and carrying exactly ONE of the chain's
+///   arcs — the half-band discipline the band replacement needs, the
+///   annulus twin of the ladder's half-cap one;
+/// - the HOST side per `host_side` ([`HostSide`]): the same half-band
+///   discipline under [`HostSide::Seams`], or, under
+///   [`HostSide::Struts`], ONE ring-free face whose OUTER CYCLE is
+///   exactly the chain's arcs and nothing else — the analogue of the
+///   ladder's "a rim ring carries edges outside the requested chain",
+///   and what makes the strip carve well-defined when the trim chords
+///   run in that cycle;
 /// - each arc's two ends met by exactly one other arc, so the arcs walk
 ///   one cycle in the host side's own traversal;
 /// - at every such vertex, incidence is exactly the two arcs plus ONE
-///   co-surface seam meridian per side.
+///   co-surface seam meridian per side that HAS one — both sides under
+///   `Seams`, the mate alone under `Struts`, where the crossing is
+///   trivalent because the merge consumed the host's seam.
 ///
 /// **One rule, four readings.** This incidence is also spelled by
 /// [`super::battery`]'s `is_seam_vertex` (the refusal classifier, which
@@ -1080,6 +1164,7 @@ fn resolve_rim<'a, T: Decide + Bounds>(
 fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     body: &Body<T>,
     chain: &'a Chain<T>,
+    host_side: HostSide,
 ) -> Result<RimPlan<'a, T>, BlendError> {
     let link0 = chain.first();
     let surface_of = |f: FaceKey| -> Option<SurfaceKey> { Some(body.get_face(f)?.surface) };
@@ -1142,38 +1227,96 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
         mates.push(m);
     }
 
-    // Each support face is a HALF-BAND of its wall: ring-free, and
-    // carrying exactly the one arc it hosts.
+    // The MATE face of every arc is a HALF-BAND of its wall: ring-free,
+    // and carrying exactly the one arc it hosts. Under `Seams` the host
+    // faces answer the same gate; under `Struts` the host is ONE face
+    // whose whole outer cycle is the rim, checked below instead.
     let chain_edges: Vec<EdgeKey> = chain.links().map(|l| l.edge).collect();
+    let half_band = |f: FaceKey, link: &Link<T>| -> Result<(), BlendError> {
+        let fd = body
+            .get_face(f)
+            .ok_or_else(|| not_intact(EntityId::Face(f), "a rim arc's support"))?;
+        if !fd.rings.is_empty() {
+            return Err(unbuilt_chain(
+                link.edge,
+                "a seam-split rim's support carries rings of its own",
+            ));
+        }
+        let carried: Vec<EdgeKey> = face_cycle(body, f)
+            .ok_or_else(|| {
+                not_intact(
+                    EntityId::Face(f),
+                    "a rim arc's support has no boundary cycle that walks",
+                )
+            })?
+            .iter()
+            .filter_map(|he| body.get_half_edge(*he).map(|h| h.edge))
+            .filter(|e| chain_edges.contains(e))
+            .collect();
+        if carried != [link.edge] {
+            return Err(unbuilt_chain(
+                link.edge,
+                "a seam-split rim's support does not carry exactly its own rim arc \
+                 (the half-band discipline the band replacement needs)",
+            ));
+        }
+        Ok(())
+    };
     for (i, link) in chain.links().enumerate() {
-        for f in [hosts[i], mates[i]] {
-            let fd = body
-                .get_face(f)
-                .ok_or_else(|| not_intact(EntityId::Face(f), "a rim arc's support"))?;
-            if !fd.rings.is_empty() {
-                return Err(unbuilt_chain(
-                    link.edge,
-                    "a seam-split rim's support carries rings of its own",
-                ));
-            }
-            let carried: Vec<EdgeKey> = face_cycle(body, f)
-                .ok_or_else(|| {
-                    not_intact(
-                        EntityId::Face(f),
-                        "a rim arc's support has no boundary cycle that walks",
-                    )
-                })?
-                .iter()
-                .filter_map(|he| body.get_half_edge(*he).map(|h| h.edge))
-                .filter(|e| chain_edges.contains(e))
-                .collect();
-            if carried != [link.edge] {
-                return Err(unbuilt_chain(
-                    link.edge,
-                    "a seam-split rim's support does not carry exactly its own rim arc \
-                     (the half-band discipline the band replacement needs)",
-                ));
-            }
+        half_band(mates[i], link)?;
+        match host_side {
+            HostSide::Seams => half_band(hosts[i], link)?,
+            HostSide::Struts => {}
+        }
+    }
+    // The HOSTLESS host: ONE ring-free face whose outer cycle is exactly
+    // the chain's arcs. "Exactly" is what the ladder's ring gate asks of
+    // its ring and for the same reason — a trim chord runs between
+    // consecutive feet IN this cycle, so an edge of it the request did
+    // not name would end up inside a strip the carve excises.
+    if let HostSide::Struts = host_side {
+        let Some(&host) = hosts.first() else {
+            unreachable!(
+                "rim plan: `hosts` carries one face per chain link and a chain always \
+                 carries its first link"
+            )
+        };
+        if hosts.iter().any(|&h| h != host) {
+            return Err(unbuilt_chain(
+                link0.edge,
+                "a hostless-crossing rim's arcs do not all lie on ONE host face",
+            ));
+        }
+        let fd = body
+            .get_face(host)
+            .ok_or_else(|| not_intact(EntityId::Face(host), "a rim's host support"))?;
+        if !fd.rings.is_empty() {
+            return Err(unbuilt_chain(
+                link0.edge,
+                "a hostless-crossing rim's host face carries rings of its own",
+            ));
+        }
+        let mut cycle: Vec<EdgeKey> = face_cycle(body, host)
+            .ok_or_else(|| {
+                not_intact(
+                    EntityId::Face(host),
+                    "a rim's host support has no outer cycle that walks",
+                )
+            })?
+            .iter()
+            .filter_map(|he| body.get_half_edge(*he).map(|h| h.edge))
+            .collect();
+        cycle.sort_unstable();
+        cycle.dedup();
+        let mut want = chain_edges.clone();
+        want.sort_unstable();
+        want.dedup();
+        if cycle != want {
+            return Err(unbuilt_chain(
+                link0.edge,
+                "a hostless-crossing rim's host face carries edges outside the requested \
+                 chain in its outer cycle",
+            ));
         }
     }
 
@@ -1216,7 +1359,14 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
         incident.dedup();
         let (arcs, seams): (Vec<EdgeKey>, Vec<EdgeKey>) =
             incident.iter().partition(|e| chain_edges.contains(e));
-        if arcs.len() != 2 || seams.len() != 2 {
+        // One seam per side that HAS one: both under `Seams`, the mate
+        // alone under `Struts`, where the coplanar merge consumed the
+        // host's and left the crossing TRIVALENT.
+        let want_seams = match host_side {
+            HostSide::Seams => 2,
+            HostSide::Struts => 1,
+        };
+        if arcs.len() != 2 || seams.len() != want_seams {
             return Err(unbuilt_chain(
                 link.edge,
                 "a seam-split rim's vertex carries more than the rim's two arcs and one \
@@ -1258,15 +1408,33 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
                 ));
             }
         }
-        let (Some(host_seam), Some(mate_seam)) = (host_seam, mate_seam) else {
+        let Some(mate_seam) = mate_seam else {
             return Err(unbuilt_chain(
                 link.edge,
                 "a rim vertex does not drop one seam meridian into each of its supports",
             ));
         };
+        // Under `Struts` the surviving seam is the MATE's by structure,
+        // not by a further check: the count gate admitted exactly one
+        // extra edge, the co-surface gate makes it a chart seam, and the
+        // host gate above put every arc on ONE host face — so the three
+        // faces at a trivalent crossing are that host and the arcs' two
+        // mates, and the only pair a co-surface edge can separate is the
+        // mates. A host-surface seam therefore leaves the mate slot
+        // empty and refuses on the line above.
+        let host = match (host_side, host_seam) {
+            (HostSide::Seams, Some(seam)) => HostFoot::Seam(seam),
+            (HostSide::Struts, None) => HostFoot::Strut,
+            (HostSide::Seams, None) | (HostSide::Struts, Some(_)) => {
+                return Err(unbuilt_chain(
+                    link.edge,
+                    "a rim vertex does not drop one seam meridian into each of its supports",
+                ));
+            }
+        };
         crossings.push(SeamCrossing {
             vertex,
-            host_seam,
+            host,
             mate_seam,
         });
     }
@@ -1362,7 +1530,11 @@ fn shared_support_gate<T: Real>(rims: &[RimPlan<'_, T>]) -> Result<(), BlendErro
 /// what can go stale between bands — everything else the phase reads
 /// is either plan geometry or read live at its own use site.
 struct LiveSeams {
-    host: EdgeKey,
+    /// The host's foot source under its CARVE-time key. A
+    /// [`HostFoot::Strut`] crossing has no seam to re-read and carries
+    /// through unchanged — the strut is minted by the phase, so nothing
+    /// an earlier band did can stale it.
+    host: HostFoot,
     mate: EdgeKey,
 }
 
@@ -1373,16 +1545,23 @@ struct LiveSeams {
 /// **The fourth reading of the seam-incidence rule** (see
 /// [`resolve_seam_split_rim`] for the other three and the intended
 /// relation): at a crossing vertex, the incident edges are the rim's
-/// own arcs plus ONE co-surface seam meridian per support side. An
-/// earlier annulus carve preserves that incidence at every OTHER rim's
-/// crossing — it splits the shared seam at its own feet and kills its
-/// own vertices only — so the re-read finds the surviving piece per
-/// side and nothing else. A body where it finds anything else is a
-/// composition this refresh cannot repair, and it refuses BEFORE this
-/// rim mutates anything (the clone already carries the earlier bands;
-/// the caller's body is untouched either way), naming the sequential
-/// recourse, which is always honest: each sequential call resolves its
-/// plan against its own source.
+/// own arcs plus ONE co-surface seam meridian per support side THAT HAS
+/// ONE. An earlier annulus carve preserves that incidence at every
+/// OTHER rim's crossing — it splits the shared seam at its own feet and
+/// kills its own vertices only — so the re-read finds the surviving
+/// piece per side and nothing else. A body where it finds anything else
+/// is a composition this refresh cannot repair, and it refuses BEFORE
+/// this rim mutates anything (the clone already carries the earlier
+/// bands; the caller's body is untouched either way), naming the
+/// sequential recourse, which is always honest: each sequential call
+/// resolves its plan against its own source.
+///
+/// **A HOSTLESS crossing re-reads its mate alone.** Its host foot is a
+/// strut this phase mints, which no earlier carve can have staled, and
+/// its host face carries the whole rim in its own outer cycle — so no
+/// second rim of the same call rests on that face and nothing there
+/// moves. What such a rim can share is its MATE wall, which is exactly
+/// the side still re-read.
 fn refresh_annulus_seams<T: Decide + Bounds>(
     body: &Body<T>,
     rim: &RimPlan<'_, T>,
@@ -1473,13 +1652,29 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
                 ));
             }
         }
-        let (Some(host), Some(mate)) = (host_seam, mate_seam) else {
+        let Some(mate) = mate_seam else {
             return Err(unbuilt_chain(
                 rim.chain.first().edge,
                 "an earlier band's carve consumed a seam meridian at a rim crossing \
                  outright — this composition is not repaired by a seam re-read; blend \
                  the rims in SEQUENTIAL calls",
             ));
+        };
+        // A hostless crossing has no host seam to find, and finding one
+        // would mean an earlier carve put a co-surface edge into a face
+        // whose whole outer cycle is this rim — the same unrepairable
+        // composition the arms above name.
+        let host = match (&c.host, host_seam) {
+            (HostFoot::Seam(_), Some(seam)) => HostFoot::Seam(seam),
+            (HostFoot::Strut, None) => HostFoot::Strut,
+            (HostFoot::Seam(_), None) | (HostFoot::Strut, Some(_)) => {
+                return Err(unbuilt_chain(
+                    rim.chain.first().edge,
+                    "an earlier band's carve consumed a seam meridian at a rim crossing \
+                     outright — this composition is not repaired by a seam re-read; blend \
+                     the rims in SEQUENTIAL calls",
+                ));
+            }
         };
         live.push(LiveSeams { host, mate });
     }
@@ -1552,7 +1747,7 @@ fn resolve_annulus<T: Decide + Bounds>(
     Ok(RimShape::Annulus(AnnulusRim {
         crossings: vec![SeamCrossing {
             vertex,
-            host_seam,
+            host: HostFoot::Seam(host_seam),
             mate_seam,
         }],
         closure: 0,
@@ -2547,6 +2742,51 @@ fn seam_split_param<T: Decide + Bounds>(
     ))
 }
 
+/// **The band's STRUT foot on a host support** — the `mev` from a rim
+/// vertex out to that support's trimline, and the ONE home of the move
+/// for both closed-rim phases: the ladder struts at every vertex of its
+/// ring, and the annulus struts at a crossing whose host side has no
+/// seam to split ([`HostFoot::Strut`]).
+///
+/// The foot is the SCALED rim carrier evaluated at the vertex's own
+/// parameter, so the azimuth is inherited from the rim exactly rather
+/// than reconstructed by an `atan2` — which is what makes the foot a
+/// representation of the rim's own frame and not a measurement. The
+/// caller passes that carrier and parameter because it holds them
+/// already; what is shared here is the MOVE, its site convention and
+/// its scaffolding carrier.
+///
+/// `MevSite::Fan { he1: he, he2: he }` splices both halves immediately
+/// before `he`, so the host loop reads `strut(v→foot)`,
+/// `strut(foot→v)`, `he` — a spur at the vertex. `he_minus` is
+/// therefore the half STARTING at the foot, which is what both phases'
+/// trim `mef` runs between.
+///
+/// The chord is scaffolding: a radial line between the two points,
+/// upgraded to nothing later because a strut never survives the carve
+/// (it dies at its crossing by `kef` or by the closure `kev`).
+fn strut_foot<T: Decide + Bounds>(
+    body: &mut Body<T>,
+    he: HalfEdgeKey,
+    v: VertexKey,
+    curve: &Curve3<T>,
+    t: T,
+    site: &'static str,
+    tol: Tol,
+) -> Result<(topo::MevCreated, Point3<T>), BlendError> {
+    let p = point_of(body, v).ok_or_else(|| not_intact(EntityId::Vertex(v), "a rim vertex"))?;
+    let fp = curve.eval(t);
+    let created = body
+        .mev(
+            MevSite::Fan { he1: he, he2: he },
+            fp,
+            EdgeCurveSpec::line_between(p, fp),
+            tol,
+        )
+        .map_err(|e| op(site, e))?;
+    Ok((created, fp))
+}
+
 fn rim_phase<T: Decide + Bounds>(
     body: &mut Body<T>,
     rim: &RimPlan<'_, T>,
@@ -2638,22 +2878,13 @@ fn rim_phase<T: Decide + Bounds>(
     for &(he, v, e) in &plane_walk {
         let rc = carrier_of(body, e)?;
         let (curve, t0, t1) = scaled(&rc, ca, sa, rc.plus_on_host);
-        let p = point_of(body, v).ok_or_else(|| not_intact(EntityId::Vertex(v), "a rim vertex"))?;
         // The foot inherits the rim vertex's own parameter on the
-        // scaled carrier — azimuth preserved exactly, no atan2.
-        let fp = curve.eval(t0);
-        // Same reported finding as the support strut above: a radial
-        // chord of the ring is a chord, not an image of the ring's
-        // chart, so it reaches rest through the scaffolding door and
-        // the fence names it.
-        let created = body
-            .mev(
-                MevSite::Fan { he1: he, he2: he },
-                fp,
-                EdgeCurveSpec::line_between(p, fp),
-                tol,
-            )
-            .map_err(|e| op("rim strut mev", e))?;
+        // scaled carrier — azimuth preserved exactly, no atan2. Same
+        // reported finding as the support strut above: a radial chord of
+        // the ring is a chord, not an image of the ring's chart, so it
+        // reaches rest through the scaffolding door and the fence names
+        // it.
+        let (created, fp) = strut_foot(body, he, v, &curve, t0, "rim strut mev", tol)?;
         struts_p.push((v, created.edge));
         rec.rim_feet.push((created.vertex, v));
         rec.dead.vertices.push(v);
@@ -2982,6 +3213,74 @@ fn mef_trim<T: Decide + Bounds>(
     .map_err(|e| op(site, e))
 }
 
+/// **One crossing's HOST foot as the carve holds it** — the mid-walk
+/// twin of [`HostFoot`], which says where the foot COMES from; this says
+/// what minting it left behind.
+enum HostAnchor {
+    /// The seam was split at the foot: its rim-side piece runs foot →
+    /// crossing and dies there, its far-side piece survives as the
+    /// support's remnant.
+    Seam {
+        foot: VertexKey,
+        rim_side: EdgeKey,
+        far_side: EdgeKey,
+    },
+    /// A strut was minted from the crossing out to the foot. There is no
+    /// far side — that is the whole difference at a hostless crossing —
+    /// and the strut is a mid-call entity that never reaches rest, so it
+    /// owes no birth or death row of its own.
+    Strut { foot: VertexKey, strut: EdgeKey },
+}
+
+impl HostAnchor {
+    /// The foot vertex, minted either way.
+    fn foot(&self) -> VertexKey {
+        match *self {
+            Self::Seam { foot, .. } | Self::Strut { foot, .. } => foot,
+        }
+    }
+
+    /// The edge running FOOT → crossing, which the crossing's `kev`
+    /// kills from the foot side. A seam's rim-side piece and a strut
+    /// play the same role here, which is why the closure step below has
+    /// no branch.
+    fn dying(&self) -> EdgeKey {
+        match *self {
+            Self::Seam { rim_side, .. } => rim_side,
+            Self::Strut { strut, .. } => strut,
+        }
+    }
+}
+
+/// The two half-edges a HOSTLESS host's trim `mef` runs between: the
+/// halves STARTING at the feet of the arc's own two crossings, found by
+/// position around the arc in the host's live loop.
+///
+/// The host side of a hostless crossing carries only the rim's arcs and
+/// this phase's own struts, so the loop reads `strutA(cA→fA)`,
+/// `strutA(fA→cA)`, `arc(cA→cB)`, `strutB(cB→fB)`, `strutB(fB→cB)` — the
+/// spur shape [`strut_foot`]'s `Fan` site mints. Hence the half before
+/// the arc and the second half after it are the two that start at feet,
+/// which is the ladder's own step-(4) spelling on its mate side.
+///
+/// Read LIVE, once per arc: each trim `mef` splits the host face, so by
+/// the last arc the half after it is an earlier TRIM rather than a
+/// strut — still starting at a foot, which is the property that has to
+/// hold and the one checked here rather than assumed.
+fn strut_chords<T: Decide>(
+    body: &Body<T>,
+    lp: LoopKey,
+    arc_half: HalfEdgeKey,
+    feet: &[VertexKey],
+) -> Option<(HalfEdgeKey, HalfEdgeKey)> {
+    let walk = loop_walk(body, lp)?;
+    let k = walk.len();
+    let pos = walk.iter().position(|(h, _, _)| *h == arc_half)?;
+    let (h1, v1, _) = walk[(pos + k - 1) % k];
+    let (h2, v2, _) = walk[(pos + 2) % k];
+    (feet.contains(&v1) && feet.contains(&v2)).then_some((h1, h2))
+}
+
 /// Where one crossing's two feet go, and the arc whose stored frame put
 /// them there — which is the arc a refusal at that crossing names.
 struct FootTarget<T: Real> {
@@ -3020,12 +3319,17 @@ struct ArcPlan<T: Real> {
 ///
 /// 1. `split_edge` each crossing's MATE seam where the mate trimline
 ///    crosses it — the rim-side piece becomes the slit or dies;
-/// 2. `split_edge` each crossing's HOST seam where the host trimline
-///    crosses it — this is the annulus's substitute for the ladder's
-///    strut `mev`: the foot already lies on existing geometry;
+/// 2. land each crossing's HOST foot, by whichever move its plan names
+///    ([`HostFoot`]): `split_edge` its HOST seam where the host trimline
+///    crosses it, the foot then lying on existing geometry; or, at a
+///    HOSTLESS crossing, mint it with the ladder's strut `mev`
+///    ([`strut_foot`]) — the two moves differ only in whether a seam
+///    was there to split, and both leave one foot vertex joined to the
+///    crossing by one edge that dies at step 6;
 /// 3. `mef` on each host support between the halves at its feet that
-///    start the rim-side and the far-side seam pieces — the host trim,
-///    carving that support's outer strip off the shrunk face;
+///    start the rim-side and the far-side seam pieces — or, hostless,
+///    the strut halves flanking the arc ([`strut_chords`]) — the host
+///    trim, carving that support's outer strip off the shrunk face;
 /// 4. `mef` likewise on each mate support;
 /// 5. `kef` each rim arc, merging its two strips into one sector;
 /// 6. `kev` each crossing's host seam rim-side piece from the FOOT
@@ -3041,6 +3345,16 @@ struct ArcPlan<T: Real> {
 /// walks THROUGH its other crossings, which is sound because the
 /// surface is smooth there — the seam is a chart artifact and the
 /// meridians crossing it are co-surface, dihedral zero by construction.
+/// A HOSTLESS crossing is walked through on the same ground: its host
+/// side is one smooth face either way, and the strut is scaffolding
+/// this call both mints and consumes.
+///
+/// **The struts leave the body tier-2 invalid between steps 2 and 3**,
+/// because a foot is valence-1 until its trim `mef` lands — measured,
+/// and the LADDER's identical `mev`-then-`mef` gap, not something the
+/// hostless arm introduces. The seam arm has no such window (a split
+/// leaves both pieces attached). Validity is a claim about the body at
+/// REST, which [`blend_surgery`]'s debug postcondition takes.
 ///
 /// Both supports keep their `FaceKey`, their surface, their sense bit and
 /// their rings; the surviving strip is the band. The trim arcs' and
@@ -3156,22 +3470,33 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // the mate foot is the mate window's FAR end.
     let mut targets: Vec<Option<FootTarget<T>>> =
         core::iter::repeat_with(|| None).take(n).collect();
-    for (a, l) in arcs.iter().zip(rim.chain.links()) {
+    // Which arc's host traversal starts at each crossing — the same
+    // correspondence, kept because a STRUT foot is minted into that
+    // arc's own host half-edge and needs it by index.
+    let mut starter: Vec<Option<usize>> = core::iter::repeat_with(|| None).take(n).collect();
+    for (i, (a, l)) in arcs.iter().zip(rim.chain.links()).enumerate() {
         targets[a.at.0] = Some(FootTarget {
             host: a.host_curve.eval(a.host_window.0),
             mate: a.mate_curve.eval(a.mate_window.1),
             named: l.edge,
         });
+        starter[a.at.0] = Some(i);
     }
     let mut feet_targets = Vec::with_capacity(n);
-    for (slot, c) in targets.drain(..).zip(ann.crossings.iter()) {
-        let Some(t) = slot else {
+    let mut starters = Vec::with_capacity(n);
+    for ((slot, start), c) in targets
+        .drain(..)
+        .zip(starter.drain(..))
+        .zip(ann.crossings.iter())
+    {
+        let (Some(t), Some(start)) = (slot, start) else {
             return Err(not_intact(
                 EntityId::Vertex(c.vertex),
                 "a rim crossing no arc's host-side traversal starts at",
             ));
         };
         feet_targets.push(t);
+        starters.push(start);
     }
 
     // ---- (1)+(2) The seam splits. Each mints one foot vertex on
@@ -3212,18 +3537,73 @@ fn rim_phase_annulus<T: Decide + Bounds>(
             "annulus mate seam split",
         )?);
     }
+    // The HOST foot, by whichever move this crossing's plan says. A seam
+    // split lands it on existing geometry; a hostless crossing mints it
+    // with the LADDER's strut, from the arc that starts here so the
+    // parameter is that arc's own window start — the same point the
+    // seam split targets, reached without a seam.
     let mut host_feet = Vec::with_capacity(n);
     for (ix, c) in ann.crossings.iter().enumerate() {
-        rec.meridian_remnants.retain(|(e, _)| *e != live[ix].host);
-        host_feet.push(split(
-            body,
-            live[ix].host,
-            c.vertex,
-            feet_targets[ix].host,
-            feet_targets[ix].named,
-            "annulus host seam split",
-        )?);
+        let anchor = match live[ix].host {
+            HostFoot::Seam(seam) => {
+                rec.meridian_remnants.retain(|(e, _)| *e != seam);
+                let (foot, rim_side, far_side) = split(
+                    body,
+                    seam,
+                    c.vertex,
+                    feet_targets[ix].host,
+                    feet_targets[ix].named,
+                    "annulus host seam split",
+                )?;
+                HostAnchor::Seam {
+                    foot,
+                    rim_side,
+                    far_side,
+                }
+            }
+            HostFoot::Strut => {
+                let i = starters[ix];
+                let l = rim.chain.links().nth(i).ok_or_else(|| {
+                    not_intact(
+                        EntityId::Vertex(c.vertex),
+                        "a rim crossing's own starting arc among the chain's links",
+                    )
+                })?;
+                let he = host_side_half(body, l, rim.hosts[i]).ok_or_else(|| {
+                    not_intact(EntityId::Edge(l.edge), "a rim arc's host-side half")
+                })?;
+                let (created, _) = strut_foot(
+                    body,
+                    he,
+                    c.vertex,
+                    &arcs[i].host_curve,
+                    arcs[i].host_window.0,
+                    "annulus host strut mev",
+                    tol,
+                )?;
+                HostAnchor::Strut {
+                    foot: created.vertex,
+                    strut: created.edge,
+                }
+            }
+        };
+        host_feet.push(anchor);
     }
+    let host_foot_vertices: Vec<VertexKey> = host_feet.iter().map(HostAnchor::foot).collect();
+    // `trim_chords` keys on the two seam PIECES at a foot, which only a
+    // seam anchor has; the rows it reads are built once here so the
+    // pick below stays the seam path's own, untouched.
+    let seam_chord_feet: Vec<(VertexKey, EdgeKey, EdgeKey)> = host_feet
+        .iter()
+        .filter_map(|a| match *a {
+            HostAnchor::Seam {
+                foot,
+                rim_side,
+                far_side,
+            } => Some((foot, rim_side, far_side)),
+            HostAnchor::Strut { .. } => None,
+        })
+        .collect();
 
     // ---- (3)+(4) The trimlines, one `mef` per support face. The run
     // that moves to the NEW face is the rim side, so each support keeps
@@ -3234,12 +3614,24 @@ fn rim_phase_annulus<T: Decide + Bounds>(
             .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim arc's host-side half"))?;
         let lp = loop_of_half(body, half)
             .ok_or_else(|| not_intact(EntityId::Edge(l.edge), "a rim arc's host-side loop"))?;
-        let (he1, he2) = trim_chords(body, lp, &host_feet).ok_or_else(|| {
-            not_intact(
-                EntityId::Loop(lp),
-                "a split seam's rim-side and far-side halves at this support's feet",
-            )
-        })?;
+        // A seam host is picked by the two pieces at its feet; a
+        // hostless one has no pieces, so its two halves are picked by
+        // POSITION around this arc and checked to start at feet.
+        let (he1, he2) = if seam_chord_feet.is_empty() {
+            strut_chords(body, lp, half, &host_foot_vertices).ok_or_else(|| {
+                not_intact(
+                    EntityId::Loop(lp),
+                    "this arc's two strut feet around it in the host's loop",
+                )
+            })?
+        } else {
+            trim_chords(body, lp, &seam_chord_feet).ok_or_else(|| {
+                not_intact(
+                    EntityId::Loop(lp),
+                    "a split seam's rim-side and far-side halves at this support's feet",
+                )
+            })?
+        };
         host_trims.push(mef_trim(
             body,
             he1,
@@ -3300,10 +3692,11 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         .chain(core::iter::once(ann.closure));
     for ix in order {
         let c = &ann.crossings[ix];
-        let Some((hp, hm)) = halves_of(body, host_feet[ix].1) else {
+        let Some((hp, hm)) = halves_of(body, host_feet[ix].dying()) else {
             unreachable!(
-                "annulus band: the host seam's rim-side piece came out of this phase's \
-                 own `split_edge` and nothing between there and here kills it"
+                "annulus band: the host's foot→crossing edge — a seam's rim-side piece or \
+                 a strut — came out of this phase's own mint and nothing between there \
+                 and here kills it"
             )
         };
         let dying = if body.half_edge_end(hm) == Some(c.vertex) {
@@ -3401,14 +3794,23 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // crossing's mate piece SURVIVES as the band's own meridian, so it
     // is a birth row and not a death.
     for (ix, c) in ann.crossings.iter().enumerate() {
-        rec.rim_feet.push((host_feet[ix].0, c.vertex));
+        rec.rim_feet.push((host_feet[ix].foot(), c.vertex));
     }
     for (ix, c) in ann.crossings.iter().enumerate() {
         rec.meridian_splits.push((mate_feet[ix].0, c.mate_seam));
     }
     for (ix, c) in ann.crossings.iter().enumerate() {
         rec.meridian_remnants.push((mate_feet[ix].2, c.mate_seam));
-        rec.meridian_remnants.push((host_feet[ix].2, c.host_seam));
+        // A hostless crossing leaves no host remnant: nothing of the
+        // host was subdivided, so there is no fragment of a source
+        // meridian to name. The STRUT is not one either — this call
+        // minted it and the closure `kev` consumes it, so it reaches
+        // neither the output nor the source and owes no row in either
+        // direction.
+        if let (HostAnchor::Seam { far_side, .. }, HostFoot::Seam(seam)) = (&host_feet[ix], &c.host)
+        {
+            rec.meridian_remnants.push((*far_side, *seam));
+        }
     }
     for (i, l) in rim.chain.links().enumerate() {
         rec.rim_trims
@@ -3436,8 +3838,14 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         // invariant directly (retire source keys only) instead of
         // deriving it from the split's retention direction, which
         // could change under it without a fixture noticing.
-        if host_feet[ix].1 == c.host_seam {
-            rec.dead.edges.push(c.host_seam);
+        //
+        // A STRUT never appears here for the same reason it owes no
+        // birth row: it is not a source key, so its death is not a
+        // retirement of anything the caller handed in.
+        if let (HostAnchor::Seam { rim_side, .. }, HostFoot::Seam(seam)) = (&host_feet[ix], &c.host)
+            && *rim_side == *seam
+        {
+            rec.dead.edges.push(*seam);
         }
         if ix != ann.closure && mate_feet[ix].1 == c.mate_seam {
             rec.dead.edges.push(c.mate_seam);

@@ -393,35 +393,67 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
 /// **`FILLET3_ASSEMBLY_RECOURSE` — the refusal it rides carries it, and
 /// every door it names is executed.**
 ///
-/// The refusal: the REPAIRED lantern (`merge_coplanar_faces` fuses each
-/// pole cap's two half-disks into one face, as every boolean consumer
-/// must), whose neck rim then has both arcs on ONE plane face, routes to
-/// the ladder and refuses on its ring gate — exactly the exception the
-/// closed clause states ("where each support face carries one arc of
-/// the rim"), so the sentence is true at the site that carries it. The
-/// sentence names three requests that carve, and each is built here:
+/// The refusal: an OPEN chain whose supports are not plane–plane (the
+/// edge between a wedge wall and the sphere zone of a PARTIAL revolve),
+/// which has no built termination — the sentence's own open-chain
+/// clause, so it is true at the site that carries it.
+///
+/// The sentence names four requests that carve, and each is built here:
 /// open plane–plane links ending at fully-requested trivalent corners
-/// (the cube), a closed circular plane–sphere rim (the dome's equator),
-/// and — the "either material side" half — a CONCAVE closed rim (the
-/// waisted revolve's waist, whose band adds material).
+/// (the cube whole), a closed circular plane–sphere rim (the dome's
+/// equator), the "either material side" half via a CONCAVE closed rim
+/// (the waisted revolve's waist, whose band adds material), and the
+/// "one face carries every arc" half via the REPAIRED lantern's neck
+/// (`merge_coplanar_faces` fuses each pole cap's two half-disks into
+/// one face, as every boolean consumer must, leaving both arcs on ONE
+/// plane face with trivalent crossings).
 ///
 /// What is NOT pinned: the open-chain clause says "on either material
 /// side", and the concave side would need an all-plane concave
 /// trivalent corner, which no fixture here builds.
 #[test]
 fn the_assembly_recourse_names_two_doors_that_both_carve() {
-    let mut repaired = sweep::test_support::lantern(tol());
-    repaired
-        .merge_coplanar_faces(tol())
-        .expect("the pole-split caps repair");
-    let neck = rim_arcs_at(&repaired, 1.0, 0.0);
-    assert_eq!(neck.len(), 2, "the repaired neck rim is still two arcs");
-    let err = refusal(&repaired, &neck, 0.05, "the repaired neck rim", false);
+    // A PARTIAL revolve of the dome profile: its wedge walls are planes
+    // and its zone wall is a sphere, so the edge between them is an OPEN
+    // chain whose supports are not plane–plane — the termination clause
+    // of the sentence ("open chains are single plane–plane links").
+    let wedge = sweep::test_support::revolved_about_y(
+        sweep::test_support::dome_profile(1.0),
+        sweep::Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        tol(),
+    );
+    let open_curved = query::all_edges(&wedge)
+        .into_iter()
+        .find(|&e| {
+            let ed = wedge.get_edge(e).unwrap();
+            let kind = |he| {
+                let l = wedge.get_half_edge(he).unwrap().parent_loop;
+                let f = wedge.get_loop(l).unwrap().face;
+                matches!(
+                    wedge
+                        .get_surface(wedge.get_face(f).unwrap().surface)
+                        .unwrap(),
+                    geom::Surface::Plane { .. }
+                )
+            };
+            kind(ed.he_plus) != kind(ed.he_minus)
+        })
+        .expect("a wedge has an edge between a flat wall and the curved zone");
+    let err = refusal(
+        &wedge,
+        &[open_curved],
+        0.05,
+        "an open plane–sphere chain",
+        false,
+    );
     assert!(
-        matches!(&err, BlendError::UnsupportedChain { detail, .. } if detail.contains("ring")),
-        "one plane face hosting both arcs routes to the ladder, whose ring gate refuses: {err:?}"
+        matches!(&err, BlendError::UnsupportedChain { detail, .. } if detail.contains("plane")),
+        "an open chain whose supports are not plane–plane has no built termination: {err:?}"
     );
     carries(&err, FILLET3_ASSEMBLY_RECOURSE, "unsupported chain");
+
+    let d = dome(1.0, tol());
+    let equator = closed_plane_sphere_rim(&d, 1.0);
 
     let boxy = cube(1.0, tol());
     builds(
@@ -430,13 +462,7 @@ fn the_assembly_recourse_names_two_doors_that_both_carve() {
         0.1,
         "single plane–plane links at fully-requested corners",
     );
-    let d = dome(1.0, tol());
-    builds(
-        &d,
-        &[closed_plane_sphere_rim(&d, 1.0)],
-        0.1,
-        "a closed circular plane–sphere rim",
-    );
+    builds(&d, &[equator], 0.1, "a closed circular plane–sphere rim");
     let body = waisted(tol());
     let waist = rim_arcs_at(&body, 0.5, 0.5);
     assert_eq!(waist.len(), 2, "the waist rim is seam-split");
@@ -445,6 +471,18 @@ fn the_assembly_recourse_names_two_doors_that_both_carve() {
         &waist,
         0.05,
         "a concave closed rim, on the other material side",
+    );
+    let mut repaired = sweep::test_support::lantern(tol());
+    repaired
+        .merge_coplanar_faces(tol())
+        .expect("the pole-split caps repair");
+    let neck = rim_arcs_at(&repaired, 1.0, 0.0);
+    assert_eq!(neck.len(), 2, "the repaired neck rim is still two arcs");
+    builds(
+        &repaired,
+        &neck,
+        0.05,
+        "a closed rim whose ONE host face carries every arc",
     );
 }
 

@@ -627,26 +627,26 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — every 
 /// stored convexity verdict, and a concave rim's band adds material
 /// through the same carve that removes a convex rim's.
 ///
-/// **The closed clause names the door's extent and its one standing
-/// exception.** Any coaxial revolution pair carves — the plane–cylinder
-/// top rim of
+/// **The closed clause names the door's extent, and it is now
+/// unconditional in the support's shape.** Any coaxial revolution pair
+/// carves — the plane–cylinder top rim of
 /// `review_fillet_e2_probes::open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves`
 /// included, which answers §2 of
 /// `work/fillet/blend-recourses-under-describe-their-doors.md` (§1, the
-/// spine-kind sentence, stays open there) — PROVIDED each support face
-/// carries one arc of the rim: a pole-touching body whose merged cap
-/// hosts both arcs on one plane face routes to the ladder and refuses on
-/// its ring gate (README A3-2, `work/fillet/repaired-pole-rim-serves-no-closed-door.md`),
-/// so the sentence says so rather than over-promise at that body.
-/// `blend_recourse_followability` follows the clause to a carve.
+/// spine-kind sentence, stays open there) — whether each support face
+/// carries one arc of the rim or ONE face carries them all. The standing
+/// exception this clause used to name, a pole-touching body whose merged
+/// cap hosts every arc on one plane face, is the annulus band's hostless
+/// crossing and carves like the rest (README A3-2;
+/// `blend::surgery::HostFoot`). `blend_recourse_followability` follows
+/// the clause to a carve.
 pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open chains are single plane\u{2013}plane links ending at \
      fully-requested trivalent corners, on either material side; for a fillet, closed \
      chains that are circular rims between two coaxial revolution surfaces (a pip's \
      plane\u{2013}sphere rim, a solid of revolution's latitude rim) also carve, on either \
-     material side, where each support face carries one arc of the rim (a merged \
-     pole cap hosting every arc on one plane face refuses at the ladder's ring gate; \
-     a chamfer has no closed-chain band); junction carry-through and run-outs are \
-     not implemented";
+     material side, whether each support face carries one arc of the rim or one face \
+     carries every arc (a chamfer has no closed-chain band); junction carry-through \
+     and run-outs are not implemented";
 /// The recourse for a BODY the surgery has not been built for. The
 /// surgery operates in place on one solid; multi-solid and shell-less
 /// bodies are a separate door.
