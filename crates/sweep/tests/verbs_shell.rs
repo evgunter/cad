@@ -1767,50 +1767,101 @@ fn the_revolved_cups_rim_row_reads_against_the_body() {
     );
 }
 
+/// A square prism with a square bore — a holed mouth carrying no
+/// revolve seam at all.
+fn holed_box(side: f64, bore: f64, h: f64) -> Body<f64> {
+    let square = |a: f64, b: f64| {
+        ProfileLoop::new(vec![
+            ProfileVertex::new(p2(a, a), 0.0),
+            ProfileVertex::new(p2(b, a), 0.0),
+            ProfileVertex::new(p2(b, b), 0.0),
+            ProfileVertex::new(p2(a, b), 0.0),
+        ])
+    };
+    let lo = 0.5 * (side - bore);
+    let profile = Profile::new(
+        SketchPlane::xy(),
+        vec![square(0.0, side), square(lo, lo + bore)],
+    )
+    .validate(Tol::witness())
+    .expect("a square with a square hole is a valid profile");
+    extrude(&profile, Extrusion::Distance(h), Tol::witness())
+        .expect("the holed square extrudes")
+        .body
+}
+
 /// **The hole rows.** A designated face carrying a hole yields one
 /// extra rim region per hole, and its row names the promoted face
 /// against the SOURCE ring it is the annulus of — checked by reading
 /// the promoted face's own outer loop back through the inner-twin rows.
+///
+/// Both shapes the surgery reaches this way are read: the revolve's
+/// annular cap, whose mouth is one slit face, and an extruded holed
+/// square, whose mouth carries no seam at all.
 #[test]
 fn a_designated_face_with_a_hole_records_its_promoted_rim() {
     let tol = Tol::witness();
     let (ri, ro, h, t) = (0.30, 0.50, 0.40, 0.05);
-    let source = tube(ri, ro, h);
-    let chart = plane_chart_at_y(&source, h);
-    let shelled = topo::shell_open(&source, t, &chart, FIT_TOL, tol).expect("the tube opens");
-    let (body, record) = (&shelled.body, &shelled.naming);
+    let cases: Vec<(&str, Body<f64>, Vec<FaceKey>, f64)> = {
+        let annular = tube(ri, ro, h);
+        let annular_chart = plane_chart_at_y(&annular, h);
+        let squared = holed_box(1.0, 0.4, 0.6);
+        let squared_chart: Vec<FaceKey> = squared
+            .faces()
+            .filter(|(_, f)| f.rings.len() == 1)
+            .map(|(k, _)| k)
+            .filter(|&k| {
+                matches!(squared.get_surface(squared.get_face(k).expect("face").surface),
+                    Some(geom::Surface::Plane { origin, .. }) if (origin.z - 0.6).abs() < 1e-12)
+            })
+            .collect();
+        vec![
+            ("the annular cap", annular, annular_chart, t),
+            ("the holed square", squared, squared_chart, 0.05),
+        ]
+    };
+    for (what, source, chart, t) in cases {
+        assert_eq!(chart.len(), 1, "{what}: one holed mouth face");
+        let shelled = topo::shell_open(&source, t, &chart, FIT_TOL, tol)
+            .unwrap_or_else(|e| panic!("{what} must open: {e}"));
+        let (body, record) = (&shelled.body, &shelled.naming);
 
-    assert_eq!(record.rims.len(), 1);
-    let rim = &record.rims[0];
-    assert_eq!(rim.holes.len(), 1, "the annular mouth has one hole to pair");
-    let (promoted, source_ring) = rim.holes[0];
-    let data = body.get_face(promoted).expect("the promoted rim resolves");
+        assert_eq!(record.rims.len(), 1, "{what}: one designated chart");
+        let rim = &record.rims[0];
+        assert_eq!(rim.holes.len(), 1, "{what}: one hole to pair");
+        let (promoted, source_ring) = rim.holes[0];
+        let data = body
+            .get_face(promoted)
+            .unwrap_or_else(|| panic!("{what}: the promoted rim does not resolve"));
 
-    // The promoted face's OUTER loop is the counterpart's ring, and
-    // every edge of it twins an edge of the ring the row names.
-    let twins = loop_edges(body, data.outer);
-    let named: Vec<topo::EdgeKey> = loop_edges(body, source_ring);
-    assert!(
-        !named.is_empty(),
-        "the source ring the row names still walks"
-    );
-    for &edge in &twins {
-        let src = record
-            .inner_edges
-            .iter()
-            .find(|(result, _)| *result == edge)
-            .map(|&(_, s)| s)
-            .expect("a promoted rim's boundary is made of inner twins");
+        // The promoted face's OUTER loop is the counterpart's ring, and
+        // every edge of it twins an edge of the ring the row names.
+        let twins = loop_edges(body, data.outer);
+        let named: Vec<topo::EdgeKey> = loop_edges(body, source_ring);
         assert!(
-            named.contains(&src),
-            "the promoted face's boundary twins the ring its row names"
+            !named.is_empty(),
+            "{what}: the source ring the row names still walks"
+        );
+        for &edge in &twins {
+            let src = record
+                .inner_edges
+                .iter()
+                .find(|(result, _)| *result == edge)
+                .map(|&(_, s)| s)
+                .unwrap_or_else(|| {
+                    panic!("{what}: a promoted rim's boundary edge is not an inner twin")
+                });
+            assert!(
+                named.contains(&src),
+                "{what}: the promoted face's boundary twins the ring its row names"
+            );
+        }
+        assert_eq!(
+            data.rings,
+            vec![source_ring],
+            "{what}: the row's ring is the hole the promoted face took with it"
         );
     }
-    assert_eq!(
-        data.rings,
-        vec![source_ring],
-        "and the row's ring is the hole the promoted face took with it"
-    );
 }
 
 /// **Determinism (D9).** The record's order is a function of the
