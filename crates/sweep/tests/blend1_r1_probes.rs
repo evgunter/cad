@@ -5,9 +5,10 @@
 //! - **The recourse's reach** (claim 8): the tag fires from the
 //!   battery's corner classifier, which runs before any convexity door,
 //!   so a chain stopping at a CONCAVE rim's seam vertex meets it too.
-//!   That was the review's MAJOR while the sentence promised the carve
-//!   unconditionally; it is now the premise the conditioned sentence
-//!   rests on, measured here rather than argued.
+//!   That was the review's MAJOR while the sentence promised a carve
+//!   the concave side then refused; the closed-rim band now carves on
+//!   either side, and the row pins the premise the unconditional
+//!   sentence rests on, measured rather than argued.
 //! - **An independent closed form** (claim 3): the suite's volume
 //!   oracle is a differential against the one-edge twin, which could
 //!   share a defect with the door under test. The lip rim's removal is
@@ -32,7 +33,9 @@ use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE};
-use sweep::test_support::{cube, revolved_about_y, rim_arcs_at};
+use sweep::test_support::{
+    assert_promises_either_side, cube, revolved_about_y, rim_arcs_at, waisted,
+};
 use topo::{Body, EdgeKey, FaceKey, SurfaceKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -83,22 +86,6 @@ fn bored_lantern() -> Body<f64> {
     )
 }
 
-/// The waisted pole-touching revolve whose waist rim is CONCAVE and
-/// seam-split (the PR suite's own concave fixture).
-fn waisted() -> Body<f64> {
-    revolved_about_y(
-        vec![
-            v(0.0, 0.0, 0.0),
-            v(1.0, 0.0, 0.0),
-            v(0.5, 0.5, 0.0),
-            v(1.0, 1.0, 0.0),
-            v(0.0, 1.0, 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    )
-}
-
 fn surface_of(body: &Body<f64>, f: FaceKey) -> SurfaceKey {
     body.get_face(f).unwrap().surface
 }
@@ -123,29 +110,24 @@ fn volume(body: &Body<f64>) -> f64 {
 // P1 — the recourse's promise, measured where the tag fires (claim 8).
 // ------------------------------------------------------------------
 
-/// **The tag's firing rule never reads convexity — which is why the
-/// recourse's carve half is conditioned.**
+/// **The tag's firing rule never reads convexity — so the recourse it
+/// carries must be true on both material sides, and is.**
 ///
-/// This row began as the r1 review's MAJOR: the rewritten recourse
-/// promised the carve unconditionally, and the corner classifier runs
-/// BEFORE any convexity door, so a chain stopping at a CONCAVE rim's
-/// seam vertex was shown a promise its own whole-rim request then
-/// refused.
-///
-/// It is now the MECHANISM half of that finding, kept because it is
-/// what the conditioning rests on: the tag is incidence-only, so the
-/// site set it fires over spans both material sides, and any sentence
-/// it carries must be true across that whole set. The composed
-/// promise-and-answer pin lives in the r2 suite
-/// (`the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`);
+/// This row began as the r1 review's MAJOR: the recourse promised the
+/// carve while the corner classifier, which runs BEFORE any convexity
+/// door, tagged a CONCAVE rim's seam vertex whose whole-rim request
+/// then refused. It is the MECHANISM half of that finding: the tag is
+/// incidence-only, so the site set it fires over spans both material
+/// sides, and any sentence it carries must be true across that whole
+/// set. The closed-rim band carves on either side, so the sentence
+/// promises the carve without a hedge; the composed promise-and-answer
+/// pin lives in the r2 suite
+/// (`the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`) and
 /// this row pins the premise it argues from.
-///
-/// Red if the tag ever learns convexity — at which point the sentence
-/// may drop its hedge, and should.
 #[test]
 fn p1_the_seam_vertex_tag_fires_without_reading_convexity() {
     // A CONCAVE seam-split rim, and a CONVEX one on the same body.
-    let body = waisted();
+    let body = waisted(tol());
     for (name, rim_r, rim_y) in [
         ("the concave waist", 0.5, 0.5),
         ("the convex base", 1.0, 0.0),
@@ -162,16 +144,11 @@ fn p1_the_seam_vertex_tag_fires_without_reading_convexity() {
         }
     }
     // So the sentence the tag carries has to hold on both sides, and it
-    // does that by conditioning its carve half rather than by promising
-    // one door for two configurations.
-    assert!(
-        FILLET3_SEAM_VERTEX_RECOURSE.contains("CONVEX"),
-        "the carve half names the side the door serves: {FILLET3_SEAM_VERTEX_RECOURSE}"
-    );
-    assert!(
-        !FILLET3_SEAM_VERTEX_RECOURSE.contains("which the closed-rim band carves as one"),
-        "the unconditional promise is gone: {FILLET3_SEAM_VERTEX_RECOURSE}"
-    );
+    // does: the one door it names serves both configurations. The
+    // positive half (the promise names both sides) and the negative half
+    // (no hedge shape — the clause this row once pinned the ABSENCE of,
+    // and every spelling a re-conditioning would take) live in one home.
+    assert_promises_either_side(FILLET3_SEAM_VERTEX_RECOURSE);
 }
 
 // ------------------------------------------------------------------

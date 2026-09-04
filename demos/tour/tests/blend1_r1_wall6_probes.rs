@@ -6,8 +6,9 @@
 //! `TangentialEdge { margin: 0.0 }` before any closed-rim door;
 //! (b) requested one rim at a time, the three transverse rims at
 //! carrier radii ~0.090, ~0.183, ~0.052 fillet whole at r = 0.02
-//! through the new door; (c) the fourth (~0.253, the mouth) refuses
-//! `"a concave chain adds material"`.
+//! through the new door; (c) the fourth (~0.253, the mouth) is CONCAVE
+//! and carves through the same door, ADDING material (re-measured when
+//! the material-adding closed-rim band landed; it refused before).
 //!
 //! The lantern here is rebuilt from `demos/tour/src/lily.rs`'s own
 //! meridian numbers (globe 0.44, top 0.40, mouth 0.36, lip 0.09, drop
@@ -144,37 +145,47 @@ fn t2_the_three_convex_rims_fillet_whole_at_the_named_radii() {
     }
 }
 
-/// The mouth rim (~0.253) is the real other frontier: CONCAVE, which
-/// no closed-rim carve in the module builds — the material-adding band,
-/// filed as evgunter/cad issue 1244. So the lily's fourth transverse
-/// rim is not this door's business and says so in its own words.
+/// The mouth rim (~0.253) is CONCAVE — the sphere zone meets the
+/// conical pucker in a valley — and it carves through the same door as
+/// the three convex rims: one annulus band, tier-3 valid, and the
+/// volume GROWS by the band's fill, because a concave band adds
+/// material where a convex one removes it. The lily's fourth
+/// transverse rim is not a frontier.
 #[test]
-fn t3_the_mouth_rim_refuses_concave() {
+fn t3_the_mouth_rim_carves_and_adds_material() {
     let tol = Tol::witness();
     let lant = lily_lantern(tol);
     let r_mouth = (GLOBE.powi(2) - MOUTH.powi(2)).sqrt();
     assert!((r_mouth - 0.253).abs() < 5e-4, "the PR's fourth radius");
     let arcs = rims_of_radius(&lant, r_mouth);
     assert_eq!(arcs.len(), 2, "the mouth rim is seam-split too");
-    match fillet_edges(&lant, &arcs, 0.02, tol).map_err(|r| r.error) {
-        Err(BlendError::UnsupportedChain { detail, .. }) => assert!(
-            detail.contains("concave"),
-            "the mouth refuses as concave, got {detail}"
-        ),
-        other => panic!("the mouth rim refuses concave, got {other:?}"),
-    }
+    let v0 = pncad::topo::mass_properties(&lant, tol)
+        .expect("mass properties")
+        .volume;
+    let out = fillet_edges(&lant, &arcs, 0.02, tol)
+        .unwrap_or_else(|e| panic!("the concave mouth rim carves whole at r = 0.02, got {e:?}"));
+    pncad::topo::validate_geometric(&out.body, tol)
+        .unwrap_or_else(|e| panic!("the mouth carves tier-3 valid, got {e:?}"));
+    assert_eq!(out.band_faces.len(), 1, "the mouth leaves one band");
+    let props = pncad::topo::mass_properties(&out.body, tol).expect("mass properties");
+    assert_eq!(props.volume_pad, 0.0, "closed-form inventory");
+    assert!(
+        props.volume > v0,
+        "a concave band ADDS material: {} must exceed {v0}",
+        props.volume
+    );
 }
 
-/// **The recourse stays true at a REACHABLE concave site.** One arc of
-/// the lily's own concave mouth rim refuses `SeamVertex` — the tag
-/// reads incidence and never convexity — and t3 above is the whole-rim
-/// request it names, refusing `concave`. This row was the r1 review's
-/// consumer-side witness for the MAJOR while the sentence promised the
-/// carve unconditionally; it now pins the CONDITIONED sentence at the
-/// same site, so a re-widening without issue 1244 would go red here on
+/// **The recourse is true at a REACHABLE concave site.** One arc of the
+/// lily's own concave mouth rim refuses `SeamVertex` — the tag reads
+/// incidence and never convexity — and t3 above is the whole-rim request
+/// it names, which CARVES. This row was the r1 review's consumer-side
+/// witness while the sentence over-promised a carve the door then
+/// refused; the sentence now promises the carve on either material side
+/// and the door keeps the promise, so this row pins the two together on
 /// a body a real user holds rather than only on a synthetic fixture.
 #[test]
-fn t4_one_mouth_arc_gets_the_conditioned_recourse_and_the_rim_refuses_concave() {
+fn t4_one_mouth_arc_gets_the_recourse_whose_request_carves() {
     let tol = Tol::witness();
     let lant = lily_lantern(tol);
     let r_mouth = (GLOBE.powi(2) - MOUTH.powi(2)).sqrt();
@@ -190,10 +201,15 @@ fn t4_one_mouth_arc_gets_the_conditioned_recourse_and_the_rim_refuses_concave() 
         }
         other => panic!("one mouth arc refuses SeamVertex, got {other:?}"),
     }
-    // And the sentence it carries does not promise this rim a carve.
+    // And the sentence it carries names the request t3 EXECUTES — the
+    // rim whole — and promises it on either material side. The
+    // hedge-shape pin has one home, `sweep::test_support::assert_promises_either_side`,
+    // which the tour (a consumer, outside the kernel's test-support
+    // door) does not reach; what the tour pins is that the sentence is
+    // followed here: t3 is the whole-rim request, and it carves.
     let shown = pncad::sweep::blend::FILLET3_SEAM_VERTEX_RECOURSE;
     assert!(
-        shown.contains("CONVEX"),
-        "the carve half names the side the door serves: {shown}"
+        shown.contains("rim whole") && shown.contains("either material side"),
+        "the sentence names the whole-rim request t3 takes, on both sides: {shown}"
     );
 }

@@ -118,3 +118,35 @@ and `work/issues/two-green-prs-merge-into-a-red-main`.
 gated PR. Repaired by PR 1792 rather than handed back, per the standing
 argument that main red blocks every program and a compile repair carries
 no design content. The mechanism is the last issue above.
+
+## Claimed rows leave this directory (2026-09-04)
+
+Ev: this is a slush heap for findings nothing has been assigned yet, not
+a long-lived register. So a row does not wait here for its lifetime — it
+waits here for a claim, and the claim moves it out. Yesterday's entry
+built a hand-maintained table pointing at the programs that carry
+claimed rows; that was the wrong fix, because it made the tracker better
+at describing a state that should not exist.
+
+- **35 rows moved** into the six programs whose units carry them —
+  `cert` (6, under `CERT-N3` and `CERT-M3`), `bool` (12, `BOOL-Q`),
+  `mesh` (9, `MESH-R`), `trim` (4), `fillet` (3), `exch` (1) — keeping
+  their ids, `track:` letters and bodies, with `parent:` set to the
+  carrying unit where one exists. `by_id` is global in `work.py`, so no
+  reference broke; ids resolve wherever the file sits.
+- **The four `keep_out` clauses that said the rows stay** (`fillet`,
+  `props`, `trim`, `exch`) are rewritten. A claim and a move are now one
+  act in one PR, and a clause saying a claimed row stays here is the
+  thing to delete.
+- `program.md` says what this directory is, and stops calling itself a
+  register. `plan.md`'s opening no longer claims every live row is a
+  file here.
+- **What stays is what nobody claimed**: `K`, `P` and `X` whole (no
+  other program's `paths:` reaches their ground); `W` and `V`, whose
+  ground is claimed but whose rows no unit names; and seven rows sitting
+  on claimed tracks that no unit named — `S90-impl`, `D283`, `D290`,
+  `S350`, `S351`, `D306`, `D341`. That residue is this directory doing
+  its job, not a backlog of unfinished bookkeeping.
+- **The `carried_by:` key is not needed and is not added.** `parent:`
+  already says it, lint already resolves it, and a row in the right
+  directory needs no pointer at all.

@@ -592,61 +592,61 @@ pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates only in
 /// It names the REQUEST that describes what the caller wants — the rim
 /// entire, which is a closed chain — rather than a run-out policy,
 /// because a run-out at a smooth point is not what is missing. The
-/// closed-rim surgery CARVES that request where the rim is CONVEX: its
-/// annulus band takes a multi-link closed chain whose links are one
-/// rim's arcs across chart seams, walking through the seam vertices and
-/// resting on several faces of one surface per side.
+/// closed-rim surgery CARVES that request: its annulus band takes a
+/// multi-link closed chain whose links are one rim's arcs across chart
+/// seams, walking through the seam vertices and resting on several
+/// faces of one surface per side, on EITHER material side — a convex
+/// rim's band removes material, a concave rim's adds it.
 ///
-/// **The carve half is CONDITIONED, and the condition is not
-/// decoration.** This tag's firing rule
-/// ([`battery::is_seam_vertex`](battery)) is purely INCIDENCE — two rim
-/// arcs carrying one support pair, plus two co-surface seam meridians —
-/// and never reads convexity, while the convexity gate sits downstream
-/// in the surgery's own rim resolution. So the tag fires at a CONCAVE
-/// seam-split rim's vertex exactly as readily, and an unconditional
-/// promise would be false there: the whole-rim request answers with the
-/// material-side refusal instead (the concave closed-rim band is
-/// unbuilt, filed as evgunter/cad issue 1244). Naming a door that
-/// cannot serve the caller who was just refused is precisely the defect
-/// the A3-2 correction records; keeping this sentence true on BOTH
-/// material sides is what that standard costs.
-///
-/// Held to it by
+/// **A recourse must be true at every site its tag can fire.** This
+/// tag's firing rule ([`battery::is_seam_vertex`](battery)) is purely
+/// INCIDENCE — two rim arcs carrying one support pair, plus two
+/// co-surface seam meridians — and never reads convexity, so it fires
+/// at a concave rim's seam vertex exactly as readily as at a convex
+/// one. The sentence conditions on nothing because the door it names
+/// serves both sides. Held to it by
 /// `sweep/tests/review_blend1_r2_probes.rs::the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`,
-/// which asserts the sentence and the whole-rim answer TOGETHER, convex
+/// which asserts the sentence and the whole-rim CARVE together, convex
 /// and concave, so neither half can drift alone.
 pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — every arc the chart seam split it into — rather than a \
      chain that stops at the seam, which is a chart artifact the surface is smooth \
-     through; where that rim is CONVEX the fillet's closed-rim band carves it as one \
-     annulus (a chamfer has no closed-chain band), and where it is concave the \
-     whole-rim request meets the material-side refusal instead (a concave band adds \
-     material, which no closed-rim carve builds)";
+     through; the fillet's closed-rim band carves that rim as one annulus on either \
+     material side (a chamfer has no closed-chain band)";
 /// The recourse for a CHAIN whose shape is outside the front door of
 /// the in-place composition surgery. True of exactly the chain-shape
-/// refusals: what remains outside is junction carry-through, the
-/// closed rim's material-adding band, and rims that are not whole
-/// circular plane\u{2013}sphere rings.
+/// refusals: what remains outside is junction carry-through and rims
+/// that are not whole circular rings between two coaxial revolution
+/// surfaces.
 ///
 /// ONE clause is conditioned by verb, because it names a door one
 /// verb has and the other does not: the closed chain is the fillet's
 /// alone (a chamfer has no closed-chain band, so telling a chamfer
 /// caller to request a plane\u{2013}sphere rim would name a door that
-/// cannot serve them). The OPEN-chain clause conditions on neither
-/// verb nor side: both bands and both corner patches fold the chain's
-/// convexity verdict. What stays one-sided is the CLOSED rim — a
-/// concave closed band adds material, which no closed-rim carve
-/// builds (evgunter/cad issue 1244).
+/// cannot serve them). NEITHER clause conditions on side: both bands,
+/// both corner patches and the closed-rim band all fold the chain's
+/// stored convexity verdict, and a concave rim's band adds material
+/// through the same carve that removes a convex rim's.
 ///
-/// **Under-describes its door**, filed rather than reworded here: it
-/// names "circular plane-sphere rims" as the closed chains that carve,
-/// and a plane-CYLINDER top rim carves too
-/// (`review_fillet_e2_probes::open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves`).
-/// `work/fillet/blend-recourses-under-describe-their-doors.md`.
+/// **The closed clause names the door's extent and its one standing
+/// exception.** Any coaxial revolution pair carves — the plane–cylinder
+/// top rim of
+/// `review_fillet_e2_probes::open_plane_sphere_arcs_meet_the_chain_gate_and_a_plane_cylinder_rim_carves`
+/// included, which answers §2 of
+/// `work/fillet/blend-recourses-under-describe-their-doors.md` (§1, the
+/// spine-kind sentence, stays open there) — PROVIDED each support face
+/// carries one arc of the rim: a pole-touching body whose merged cap
+/// hosts both arcs on one plane face routes to the ladder and refuses on
+/// its ring gate (README A3-2, `work/issues/repaired-pole-rim-serves-no-closed-door.md`),
+/// so the sentence says so rather than over-promise at that body.
+/// `blend_recourse_followability` follows the clause to a carve.
 pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open chains are single plane\u{2013}plane links ending at \
      fully-requested trivalent corners, on either material side; for a fillet, closed \
-     chains that are circular plane\u{2013}sphere rims also carve (a chamfer has no \
-     closed-chain band); junction carry-through, run-outs and the closed rim's \
-     concave band are not implemented";
+     chains that are circular rims between two coaxial revolution surfaces (a pip's \
+     plane\u{2013}sphere rim, a solid of revolution's latitude rim) also carve, on either \
+     material side, where each support face carries one arc of the rim (a merged \
+     pole cap hosting every arc on one plane face refuses at the ladder's ring gate; \
+     a chamfer has no closed-chain band); junction carry-through and run-outs are \
+     not implemented";
 /// The recourse for a BODY the surgery has not been built for. The
 /// surgery operates in place on one solid; multi-solid and shell-less
 /// bodies are a separate door.
@@ -978,9 +978,10 @@ pub enum BlendError {
     ///
     /// Two families, and the second is not a shape of the chain in
     /// isolation: (a) the chain's own form — multi-link open chains
-    /// (junction carry-through), support pairs no arm covers, concave
-    /// CLOSED chains (the material-adding band), one-edge chains; and
-    /// (b) how the chain sits on its
+    /// (junction carry-through), support pairs no arm covers, one-edge
+    /// chains (a closed rim on EITHER material side is inside the door:
+    /// the band adds material on a concave rim through the same carve);
+    /// and (b) how the chain sits on its
     /// supports — a rim that is not a whole ring of its plane, a
     /// sphere support carrying rings of its own or more than its own
     /// arc, a rim vertex that does not drop exactly one meridian, a

@@ -390,26 +390,36 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
     builds(&body, &edges, 0.1, "every corner fully requested");
 }
 
-/// **`FILLET3_ASSEMBLY_RECOURSE` — both doors it names, both executed.**
+/// **`FILLET3_ASSEMBLY_RECOURSE` — the refusal it rides carries it, and
+/// every door it names is executed.**
 ///
-/// The waisted revolve's CONCAVE waist rim is the closed chain the
-/// material-side gate refuses. The sentence names two requests that do
-/// carve, and each is built here: open plane–plane links ending at
-/// fully-requested trivalent corners (the cube), and — for a fillet —
-/// a closed circular plane–sphere rim (the dome's equator).
+/// The refusal: the REPAIRED lantern (`merge_coplanar_faces` fuses each
+/// pole cap's two half-disks into one face, as every boolean consumer
+/// must), whose neck rim then has both arcs on ONE plane face, routes to
+/// the ladder and refuses on its ring gate — exactly the exception the
+/// closed clause states ("where each support face carries one arc of
+/// the rim"), so the sentence is true at the site that carries it. The
+/// sentence names three requests that carve, and each is built here:
+/// open plane–plane links ending at fully-requested trivalent corners
+/// (the cube), a closed circular plane–sphere rim (the dome's equator),
+/// and — the "either material side" half — a CONCAVE closed rim (the
+/// waisted revolve's waist, whose band adds material).
 ///
 /// What is NOT pinned: the open-chain clause says "on either material
 /// side", and the concave side would need an all-plane concave
 /// trivalent corner, which no fixture here builds.
 #[test]
 fn the_assembly_recourse_names_two_doors_that_both_carve() {
-    let body = waisted(tol());
-    let waist = rim_arcs_at(&body, 0.5, 0.5);
-    assert_eq!(waist.len(), 2, "the waist rim is seam-split");
-    let err = refusal(&body, &waist, 0.05, "the concave waist rim", false);
+    let mut repaired = sweep::test_support::lantern(tol());
+    repaired
+        .merge_coplanar_faces(tol())
+        .expect("the pole-split caps repair");
+    let neck = rim_arcs_at(&repaired, 1.0, 0.0);
+    assert_eq!(neck.len(), 2, "the repaired neck rim is still two arcs");
+    let err = refusal(&repaired, &neck, 0.05, "the repaired neck rim", false);
     assert!(
-        matches!(err, BlendError::UnsupportedChain { .. }),
-        "a concave closed band is the chain-shape frontier, got {err:?}"
+        matches!(&err, BlendError::UnsupportedChain { detail, .. } if detail.contains("ring")),
+        "one plane face hosting both arcs routes to the ladder, whose ring gate refuses: {err:?}"
     );
     carries(&err, FILLET3_ASSEMBLY_RECOURSE, "unsupported chain");
 
@@ -426,6 +436,15 @@ fn the_assembly_recourse_names_two_doors_that_both_carve() {
         &[closed_plane_sphere_rim(&d, 1.0)],
         0.1,
         "a closed circular plane–sphere rim",
+    );
+    let body = waisted(tol());
+    let waist = rim_arcs_at(&body, 0.5, 0.5);
+    assert_eq!(waist.len(), 2, "the waist rim is seam-split");
+    builds(
+        &body,
+        &waist,
+        0.05,
+        "a concave closed rim, on the other material side",
     );
 }
 
