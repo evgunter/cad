@@ -42,89 +42,117 @@ Note the shape is not rectangle-specific: the gap is the whole chain vocabulary'
 
 `LoopProgram`'s constructors live in `crates/editor-core/src/program.rs`, which sits in no open program's territory (LIB's paths are the `pncad` façade and bindings), so it lands unowned under `work/issues/`.
 
+
 ## Closed
 
 **Landed.** `LoopProgram::polygon_expr(points: impl IntoIterator<Item
-= [Expr; 2]>)` in `crates/editor-core/src/program.rs` is now the ONE
-polygon expansion (`At(p0)`, `LineTo(p1)`, …, `LineTo(Start)`), and it
-is infallible — every coordinate arrives as an `Expr`, so there is no
-literal left to refuse. `LoopProgram::polygon` is that door at literal
-corners: it lifts each `(f64, f64)` through `len_lit` and delegates,
-so the two spellings cannot drift.
+= [Expr; 2]>)` in `crates/editor-core/src/program.rs` is the polygon
+expansion (`At(p0)`, `LineTo(p1)`, …, `LineTo(Start)`), infallible
+because every coordinate arrives as an `Expr`. `LoopProgram::polygon`
+lifts each `(f64, f64)` through `len_lit` and delegates.
 
-`demos/tour/src/assembly.rs::rect` — the measured parametric consumer,
-and the one this issue was filed from — now calls `polygon_expr` and
-its five hand-written `ProgramStep`s are gone, along with the GAP
-comment that named this issue. `ProgramStep` and `ProgramTarget` left
-the demo's import list with them.
+**Three copies existed, not one, and all three now route through the
+builder.** The first revision of this unit unified `impl LoopProgram`
+and asserted the tree; a style review falsified that by execution.
+The two live copies in shipped `src` were:
 
-`crates/editor-core/tests/fix_loop_polygon_expr.rs` pins both halves:
-the literal door and the expression door produce the identical
-program at the same corners (which is what makes the delegation
-load-bearing rather than incidental), and the expansion keeps its
-`At` … `LineTo(Start)` shape at a corner no literal door can take (a
-document parameter reference).
+- `crates/viewer/src/sketch.rs`, the `Rectangle` arm of
+  `loop_program` — character-for-character the same loop, over corners
+  that were ALREADY `[Expr; 2]`, so it was `polygon_expr`'s natural
+  second consumer;
+- `crates/pncad-py/src/py/doc.rs`, `Node.polygon` — the same expansion
+  unrolled, with a comment narrating it in prose.
 
-**One red the unit caused, and fixed.** `geom-core`'s
-`bounds_census::every_sole_bracket_bound_door_is_in_the_roster` walks
-the tree's source and panicked on the new signature. Its `angle_end`
-helper closed a generic parameter list at the first `{` or `;` with no
-regard for bracket nesting, so the `;` inside `<Item = [Expr; 2]>` —
-an ordinary fixed-size array, and exactly the type `ProgramStep::At`
-holds — read as the item's body and stopped the census. The scanner
-now reads that terminator at square/round-bracket depth zero only,
-which is the nesting its own sibling `top_level_params` already
-respects for commas. `[Expr; 2]` was kept: distorting the door's type
-to suit a census parser would be the wrong repair. Swept for the same
-shape (`'{' | ';' => break` in a bracket scan, and `angle_end`-like
-helpers): one instance, this one. The sibling scanner
-`flagged_census::skip_turbofish` counts angle depth alone and has no
-`{`/`;` break, so it never had the defect.
+Both fold. `demos/tour/src/assembly.rs` — the measured consumer this
+issue was filed from — no longer has a `rect` helper at all: the loop
+is authored at its one call site from the document's own named
+extents, which is what a user writes fresh against the door. The
+helper had been carrying a `zero: &Expr` argument that existed only
+because the hand expansion used it four times.
 
-**Swept for.** Two patterns, and pattern 1 re-run on the merged tree
-after `origin/main` moved: the seventeen untaken hits are unchanged,
-main added no new hand-rolled polygon, and it touched neither
-`program.rs` nor `assembly.rs`.
+**The stale justification is corrected, precisely.**
+`viewer::sketch::loop_program`'s doc declined the builder because
+"those constructors take `f64` and mint CANONICAL literals". That is
+still true of `LoopProgram::circle` and is now false of the polygon
+door, since `polygon_expr` takes `Expr` corners and mints nothing.
+Only the false half was rewritten.
 
-1. *The shape, not the symbol*: every `ProgramStep::At(` in the tree,
-   read forward for a run of `LineTo` closed by
-   `LineTo(ProgramTarget::Start)` — a hand-rolled polygon expansion.
-   18 hits. One is the demo consumer, taken. Five more carry NON-
-   literal corners, i.e. the same defect in test fixtures:
-   `m10_4_stackup_interval.rs:1264`, `m10_4_seed.rs:173`,
-   `m10_4_r2_probes_interval.rs:230` and `:409`, `switch_naming.rs:47`.
-   They are NOT taken: a fixture that spells its `Chain` out is direct
-   coverage of the document vocabulary, and routing it through the
-   builder would test the builder instead. The remaining twelve are
-   literal and could already have used `polygon`; `plate_param.rs:79`
-   says at the site that it is hand-built on purpose, beside the
-   carrier forms.
-2. *The literal/Expr split at the convenience layer*, which the issue
-   body calls the real class. The layer is four constructors:
-   `polygon` (fixed here), `from_recorded` (literal BY CONSTRUCTION —
-   `profile::Step<f64>` has no expressions and by G1 layering must not
-   gain them, so this is a seam, not a gap), and `circle` /
-   `circle_split`. The latter two are literal-only and stay that way:
-   each is a 1:1 fill of a public struct variant with no expansion
-   behind it, so the parametric spelling is the struct literal itself
-   (`plate_param::hole_loop` writes it in three lines) and there is no
-   second expansion that could drift. That asymmetry is a naming
-   inconsistency, not an instance of this defect. Nothing else in the
-   authoring layer takes literal coordinates: `Item = (f64, f64)` has
-   no other hit under `crates/`, and `Frame` is `f64`-valued by design
-   rather than `Expr`-bearing.
+**What the pin actually pins.** The agreement rows show the two doors
+AGREE, which catches DRIFT between two expansions. They cannot catch
+the EXISTENCE of one: any correct duplicate satisfies
+`polygon(c) == polygon_expr(lift(c))` by definition. Measured, not
+assumed — the reviewer planted the pre-fold body back inside `polygon`
+and the agreement rows went green, and a second plant closing the loop
+only at arity >= 2 also went green. So
+`crates/editor-core/tests/fix_loop_polygon_expr.rs` now carries four
+rows: agreement at four corners, agreement at BOTH degenerate arities
+(zero and one corner, where the builder is deliberately total because
+the edit door refuses degeneracy typed at `insert`), the parametric
+shape, and a source census asserting the polygon close is pushed in
+exactly one place in `crates/*/src`. The census is the only row that
+detects a second expansion arriving, and it was verified to red on the
+reviewer's own plant while the three agreement rows still passed.
 
-**What the sweep could NOT match.** Pattern 1 reads forward at most 13
-lines from an `At(`, only over lines that are themselves `LineTo`
-steps, so a polygon whose steps are built in a loop, pushed onto a
-`Vec` one at a time, split across a helper, or interleaved with
-comments or `#[cfg]` lines is invisible to it — and so is any closed
-chain that reaches `Start` through `ContinueTo` rather than `LineTo`.
-It is also blind to the Python surface entirely: it greps Rust only,
-and `Node.polygon` in the bindings was never read. Pattern 2 matched
-the exact type spelling `Item = (f64, f64)`, so a convenience door
-taking `&[(f64, f64)]`, `Point2<f64>`, or two scalars positionally
-would not appear — `circle`/`circle_split` were found by reading
-`impl LoopProgram` rather than by that grep, which is the measure of
-how narrow the grep is. Neither pattern says anything about doors that
-do not exist yet.
+**The census red this unit caused, and its repair.** `geom-core`'s
+`bounds_census` walks the tree's source and panicked on the new
+signature: its `angle_end` closed a generic list at the first `{` or
+`;` regardless of bracket nesting, so the `;` inside
+`<Item = [Expr; 2]>` read as the item's body. `[Expr; 2]` was kept —
+distorting the door to suit a census parser would be the wrong repair.
+The reading now lives in the SHARED home,
+`test_utils::source::angle_end`, beside `balanced_end` and
+`top_level_split`, whose own docs state the rule that a copy of a
+lexer's postcondition at a call site is how this tree grew its
+readers; `bounds_census` calls it and keeps its fail-loud panic.
+`top_level_params` stays a private copy and now says why at the site
+(the shared split clamps depth where it does not, so swapping it is a
+behaviour change to what the census reads, and its own unit).
+`angle_end` also no longer treats an arrow's `>` as a closer, and its
+half-true disclosure is corrected: refusing to close is loud and
+panics, but closing at the WRONG `>` answers a too-short list
+silently, which is the undercount direction the file claims to refuse.
+Direct rows for all of it live in `test-utils`' own `mod tests`, so a
+revert of the repair reds on its own evidence rather than incidentally
+through whichever door happens to be spelled with an array that day.
+
+**The class is DEFERRED, not closed** — the first revision claimed
+closed and the claim did not survive review. The reasoning that
+`circle`/`circle_split` cannot drift is sound about DRIFT and does not
+discharge what this issue filed, which is an AUTHORING gap: a
+parametric author cannot use those builders either. That is severed
+into `work/fix/circle-constructors-are-literal-only.md` rather than
+disclosed in prose here, per `work/README.md`. The scope claim is also
+restated: the sweep's scope was `impl LoopProgram`, NOT "the authoring
+layer" — `viewer::sketch::loop_program` is itself a convenience door
+with an expansion behind it, in the layer `CLAUDE.md` calls a thin
+client over the API, and the original sentence read as universal over
+ground the sweep never covered.
+
+**Swept for.** Pattern 1 (hand-rolled polygon expansions: a
+`ProgramStep::At(` read forward to a `LineTo(ProgramTarget::Start)`
+close) found 18 hits across the tree; one was the demo consumer,
+taken. Five carry non-literal corners and are test fixtures that spell
+their `Chain` out as direct coverage of the document vocabulary
+(`m10_4_stackup_interval.rs:1264`, `m10_4_seed.rs:173`,
+`m10_4_r2_probes_interval.rs:230` and `:409`, `switch_naming.rs:47`) —
+not taken, because routing them through the builder would test the
+builder instead. The rest are literal; `plate_param.rs:79` says at the
+site that it is hand-built on purpose. Pattern 2 read
+`ProgramTarget::Start` across `crates/*/src` and is what found the two
+live copies. Both patterns were re-run on each merged tree as
+`origin/main` moved.
+
+**What the sweep could NOT match.** Pattern 1 reads at most 13 lines
+forward from an `At(`, over lines that are themselves `LineTo` steps.
+**That blind spot is where both live copies were**: steps pushed onto
+a `Vec` in a loop, which is exactly the shape the sentence named. It
+is also blind to a chain closing through `ContinueTo`, and to macros.
+The Python surface was named as the likely miss and was the wrong
+guess twice over — the bigger miss was Rust, and `pncad-py` IS Rust,
+so the pattern could have read it and did not. Pattern 2 matched one
+literal spelling of a push; an expansion that appends by `extend`, by
+collecting an iterator, or by building the `Vec` literally is still
+invisible, and the census row inherits exactly that limit and says so.
+The census-repair sweep matched one spelling of the break rule and one
+helper name; a scanner holding its terminator in a variable would not
+appear.
