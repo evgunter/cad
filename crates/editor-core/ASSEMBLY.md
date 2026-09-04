@@ -88,12 +88,24 @@ version and is the SHA-256 of the canonical semantic bytes
 (`persist::canonical_bytes`); `DocRef` pairs them. Edits to a referenced
 document never retarget a reference: the resolver returns a document
 only when its bytes hash to the pin, else `ResolveFault::PinMismatch`;
-moving a pin is a recorded edit (A13). `refactor::split` cuts a node set
-closed under the DAG in both directions (a severed edge refuses) and a
-union of whole placement clusters (else `SplitError::TornCluster`) into
-a new document with a caller-supplied id, leaving one `InstantiatePart`
-behind; a cut of exactly one cluster hoists its frame onto the
-instance, any other cut moves placements verbatim. Remainder-side names
+moving a pin is a recorded edit (A13). That refusal is the SEAM's, and
+only the seam's (DI2): an evaluation that crosses the seam refuses a
+moved pin, and an evaluation served from a prior serves what the
+document pins — the memo is a pure function of the document, since for
+an instantiate node the pin IS the content, so store state enters no
+admission decision. Whether the mounted store still holds those bytes
+is the mounting session's question, not the memo's. An evaluation
+carries the id of the document it is of (DI3), and every door taking a
+(document, evaluation) pair — `product`, `assemble`,
+`SolvedPoses::placement` — refuses a mismatch typed
+(`ProductError::EvaluationOfAnotherDocument` and its siblings) rather
+than answering about another document's nodes. `refactor::split` cuts a
+node set closed under the DAG in both directions (a severed edge
+refuses) and a union of whole placement clusters (else
+`SplitError::TornCluster`) into a new document with a caller-supplied
+id, leaving one `InstantiatePart` behind; a cut of exactly one cluster
+hoists its frame onto the instance, any other cut moves placements
+verbatim. Remainder-side names
 re-anchor through the instance qualifier by recorded `Rebind`s;
 `refactor::inline` is the inverse. Both are pure, returning values plus
 edit lists. Acceptance: split-then-evaluate equals unsplit evaluation

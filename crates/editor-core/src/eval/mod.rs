@@ -1946,8 +1946,10 @@ fn refuse_param_box<T>(
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
-    refuse_every_node(doc, sched, opts, prior_ignored, move || NodeErrorKind::ParamBox {
-        source: source.clone(),
+    refuse_every_node(doc, sched, opts, prior_ignored, move || {
+        NodeErrorKind::ParamBox {
+            source: source.clone(),
+        }
     })
 }
 
@@ -1966,8 +1968,10 @@ fn refuse_seed<T>(
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
-    refuse_every_node(doc, sched, opts, prior_ignored, move || NodeErrorKind::Seed {
-        source: source.clone(),
+    refuse_every_node(doc, sched, opts, prior_ignored, move || {
+        NodeErrorKind::Seed {
+            source: source.clone(),
+        }
     })
 }
 
