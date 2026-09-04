@@ -23,6 +23,9 @@ Ev's standing instructions for implementation work:
   wait for sign-off**: changes to ratified DESIGN.md decisions, and open
   questions with several viable answers where Ev's preference matters.
   When unsure which kind a decision is, treat it as a fork.
+  **A PR that adds to or changes `memories/` waits too** — that text is
+  read at the start of every session, so what goes in it is Ev's call,
+  not a faithful elaboration.
 - **Keep an orchestrator log of decisions made unilaterally** and keep
   state-of-work knowledge in version control: the program's
   `work/<program>/log.md`, and one item file per unit, issue or ruling
