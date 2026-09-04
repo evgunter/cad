@@ -148,14 +148,14 @@ gathered across M2's full pipeline.
 
   **This break never touched the gate, and the gate reads no committed
   CSV at all.** `ci.yml`'s *K-telemetry probe sweep* runs
-  `scripts/k_probe_sweep.sh` into `target/k-fresh` on every run that
-  gates the `dev-probe` unification — drawn 1 in 5 since the
-  configuration sampling (`KLINT_ROWS`, `scripts/ci-filter.py`), and
-  askable by name with a `CI-Config: klint=dev-probe` trailer. **Not
-  1 in 5 on every merge**: a change under `tools/` PINS `dev-default`
-  (`KLINT_PATH_ROWS`), so such a merge does not gate this row at all —
-  and that includes a change to `tools/k-lint` itself, whose binary
-  this step runs. Ask for the row by name when that is what moved. And
+  `scripts/k_probe_sweep.sh` into `target/k-fresh` in the `dev-probe`
+  leg of `k-lint (gate)`, which **every code-tier run has** since the
+  k-lint unification stopped being sampled on 2026-09-04 (`KLINT_ROWS`,
+  `scripts/ci-filter.py`). From 2026-08-22 to that day the row was drawn
+  1 in 5 and a `tools/` change pinned `dev-default` instead, so a merge
+  could go green without gating this row at all; the trailer that used
+  to ask for it by name — `CI-Config: klint=dev-probe` — now REDS the
+  classify step, because a trailer may only add. And
   `tools/k-lint` lints **that fresh sweep** against constants
   pinned in `tools/k-lint/src/lib.rs` (`BASELINE_FLOOR_MARGIN = 4.0e-5`
   and the rule set). Nothing under `docs/k-report-data/` is opened at
@@ -165,17 +165,20 @@ gathered across M2's full pipeline.
   committed CSV can weaken the gate, and `k_report.rs` is the M2-era
   instrument only.
 
-  **What CI now covers, stated precisely** (D17, closed 2026-08-20;
-  **the schedule restated 2026-08-30**, when the sampling made the
-  original wording false). `k_report.rs` is both **type-checked and
-  run** on every run that gates the `dev-probe` unification — **1 in
-  5**, not on every building merge, which is what this sentence said
-  until the correction, and **none at all on a merge that touches
-  `tools/`**, where the path pin substitutes `dev-default`. The row is a persistence-detector: a harness
-  that stops compiling or starts panicking stays broken until a later
-  draw finds it, so what the sampling gave up here is latency, not
-  coverage. The `k-lint` job's *"compile and list every probe-gated test target"*
-  step covers the whole workspace — `scripts/gates/probe-suite-census.sh`
+  **What CI now covers, stated precisely** (D17, closed 2026-08-20; the
+  schedule restated 2026-08-30 when the sampling made the original
+  wording false, and restated again 2026-09-04 when the sampling was
+  retired). `k_report.rs` is both **type-checked and run** in
+  `k-lint (gate)`'s `dev-probe` leg, and **every code-tier run has that
+  leg** — so "on every building merge" is true again, which is what this
+  sentence said before 2026-08-30 and could not say between then and
+  2026-09-04, when the row was drawn 1 in 5 and a `tools/` diff pinned
+  `dev-default` instead. The row is a persistence-detector, which is
+  what made the sampling sound while it lasted: a harness that stops
+  compiling or starts panicking stays broken until a later draw finds
+  it, so what the sampling gave up here was latency, not coverage. The
+  `k-lint` job's *"compile and list every probe-gated test target"* step
+  covers the whole workspace — `scripts/gates/probe-suite-census.sh`
   derives the owning crates from the tree and the step `cargo check`s
   each `--features probe --all-targets`; the gate greps for that step
   name, **which is why this paragraph could go quietly false about how
@@ -233,23 +236,26 @@ gathered across M2's full pipeline.
   f64 one, and greenness is tolerance-dependent. `m4_pr8_k_probe`'s
   `run_doc` asserts the same predicate over every corpus document at all
   three ε **in the same sweep invocation** — both halves are
-  `k_probe_sweep.sh`, so both ride the `dev-probe` unification and run
-  on the 1 run in 5 that gates it (none, on a merge the `tools/` path
-  pin sends to `dev-default`), never on every merge — so the ε
-  sweep of that property is already paid on exactly the runs this one
-  is. What running the default selection adds is that these bodies
-  execute at all, and the `#[ignore]`d complement the floor reconciles.
+  `k_probe_sweep.sh`, so both ride the `dev-probe` unification, which
+  every code-tier run gates since 2026-09-04 (until then: 1 run in 5,
+  and none at all on a merge the `tools/` path pin sent to
+  `dev-default`) — so the ε sweep of that property is already paid on
+  exactly the runs this one is. What running the default selection adds
+  is that these bodies execute at all, and the `#[ignore]`d complement
+  the floor reconciles.
   It runs at a stated ε (1e-9) rather than at whatever the ambient
   default happens to be.
 
   The total is deliberately not written here: it is that gate's derived
-  tally, recomputed on every building merge — and **that one really is
-  every merge**, which is why it is worth saying which half is meant.
-  `probe-suite-census.sh`'s default mode (the per-crate tally and its
-  `CENSUS_FLOOR`) is sited in `discipline`, a job the configuration
-  sampling does not touch. The `--check-executed` reconciliation
-  described just above is the other half, and it rides `dev-probe` with
-  the sweep that feeds it: 1 run in 5.
+  tally, recomputed on every building merge. Which half is meant used to
+  matter and no longer decides anything: `probe-suite-census.sh`'s
+  default mode (the per-crate tally and its `CENSUS_FLOOR`) is sited in
+  `discipline`, and the `--check-executed` reconciliation described just
+  above rides `dev-probe` with the sweep that feeds it — which was 1 run
+  in 5 until 2026-09-04 and is every code-tier run since. The siting
+  distinction stands on its own merits (an ABSENCE detector belongs in
+  an unconditional job), and it is the reason the census half stayed
+  correct through the sampled period.
 
   **The M2 dump rides beside the gate, not inside it.** The sweep writes
   it to `<outdir>/m2/<prefix><ε>.csv`; `tools/k-lint` is handed the
@@ -603,8 +609,9 @@ enters the K stream under `bool_plane_parallel` /
 own. Those three rows therefore carry more samples than before, drawn
 from the same geometry through a different door — a distribution
 change to READ rather than a threshold to restore, and the first
-`k-lint` sweep after the merge is what reads it (SEAT-3 asked for one
-with a `klint=dev-probe` head trailer).
+`k-lint` sweep after the merge is what reads it (SEAT-3 had to ask for
+one with a `klint=dev-probe` head trailer, which was the spelling while
+the row was drawn; every run gates it now).
 
 **Maintenance: this roster is a RECORD, and stays hand-maintained.**
 The decision is on what the roster is *for*, and the evidence is that
