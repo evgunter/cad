@@ -85,6 +85,8 @@ mod eval_seam;
 mod focus_highlight;
 #[path = "frame_policy.rs"]
 mod frame_policy;
+#[path = "gesture_table.rs"]
+mod gesture_table;
 #[path = "input_mapping.rs"]
 mod input_mapping;
 #[path = "instance_authoring.rs"]
