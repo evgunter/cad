@@ -93,7 +93,10 @@ fn a_symbolic_zero_row_is_linted_rather_than_refused() {
          breakage is what disarmed the E6 driver gate",
     );
     assert_eq!(scan.scanned, 2, "both rows counted");
-    assert_eq!(scan.symbolic, 1, "the symbolic row counted in its own column");
+    assert_eq!(
+        scan.symbolic, 1,
+        "the symbolic row counted in its own column"
+    );
     assert!(
         scan.flags.is_empty(),
         "a symbolic zero was never classified against the band, so it can be no rule's \
