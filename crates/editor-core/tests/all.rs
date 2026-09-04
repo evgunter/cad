@@ -100,6 +100,10 @@ mod display_contract;
 mod docm1_face_frame;
 #[path = "docm1_face_frame_interval.rs"]
 mod docm1_face_frame_interval;
+#[path = "docm1_review_r1_probes.rs"]
+mod docm1_review_r1_probes;
+#[path = "docm1_review_r1_probes_interval.rs"]
+mod docm1_review_r1_probes_interval;
 #[path = "docm3_union.rs"]
 mod docm3_union;
 #[path = "docm4_evaluation_identity.rs"]
