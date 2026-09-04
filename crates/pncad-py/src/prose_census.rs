@@ -1381,14 +1381,6 @@ const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[
          the site is disclosed rather than claimed",
     ),
     (
-        "crates/step-import/src/error.rs",
-        "StepImportError",
-        "source",
-        2,
-        "a live panic on a public door — EXCH's, filed at\
-         work/issues/debug-in-prose-at-blend-and-step-import.md",
-    ),
-    (
         "crates/sweep/src/blend/mod.rs",
         "BlendError",
         "site",

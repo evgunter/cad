@@ -353,7 +353,11 @@ impl fmt::Display for StepExportError {
             Self::UnsupportedSurface { face, kind } => write!(
                 f,
                 "step export: face {face:?}'s surface ({kind}) has no printer in the \
-                 analytic subset (every elementary surface prints; NURBS faces do not)"
+                 analytic subset (every elementary surface prints, and a DESCRIBED \
+                 NURBS surface prints as B_SPLINE_SURFACE_WITH_KNOTS; what refuses \
+                 is the no-description-yet placeholder, which is a mid-surgery fact, \
+                 and an approximating surface, which refuses rather than printing \
+                 its fit as though it were the described geometry)"
             ),
             Self::UnsupportedCurve { edge, kind } => write!(
                 f,
