@@ -256,6 +256,15 @@ ERROR-DESIGN's own "Open after this doc" list.
   Acceptance is E12's: the two-hole plate's ±0.05 mm study certifies
   with refusals that are flips, slivers or tail, the M10-3 limit
   row re-cut as the positive pin, the ceiling re-measured.
+- **M10-8 — constructor-registered identities (E12's provenance
+  reserve); after M10-7, block M10-B4 slot 2.** Opened from M10-7's
+  measurement (D4): the plate's real study still refuses on the arc
+  carrier's `‖q − c‖ = r`, a radius-sign fact no normal form reaches.
+  A session door where a constructor registers an identity it
+  guarantees, verified at the f64 witness, consulted by the normal
+  form; the validated arc registers, the sweep's carrier consumes.
+  Acceptance is E12's: the plate's real study certifies. Plan
+  approved by Ev in chat, 2026-09-04.
 
 Cross-program interfaces, named so "error" does not become a
 bucket: the PARAM-LINT unit (DISCIPLINES) is not ours and blocks
