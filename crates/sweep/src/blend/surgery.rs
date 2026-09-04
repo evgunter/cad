@@ -1745,7 +1745,8 @@ fn rim_trim_circles<T: Real>(
 /// the SAME recourse (two-tolerance, D4 ¶1 addendum — this arm is
 /// trio-pinned like every `fillet3_*` predicate). Crate-visible, and
 /// reached from outside the crate only through the test-support door
-/// (`test_support::ring_clearance`) for exactly that trio: the margins
+/// ([`ring_clearance_for_tests`], re-exported as
+/// `test_support::ring_clearance`) for exactly that trio: the margins
 /// themselves are derived inside the surgery from stored trimlines and
 /// ring carriers, never sampled, so no production caller exists.
 ///
@@ -1776,6 +1777,21 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
             margin: margin.lo(),
         }),
     }
+}
+
+/// The test-support door to [`ring_clearance`]: the same function, made
+/// nameable from this crate's `tests/` binaries for its two-tolerance
+/// trio pin (`tests/m6_surgery.rs`) and compiled into no shipped build.
+/// It lives here rather than in `test_support` because its signature
+/// carries the surgery's own `Decide + Bounds` compound, which the
+/// `Bounds` scope rule ratifies for this file and no other in the crate.
+#[cfg(any(test, feature = "test-support"))]
+pub fn ring_clearance_for_tests<T: Decide + Bounds>(
+    face: FaceKey,
+    margin: T,
+    band: Band,
+) -> Result<(), BlendError> {
+    ring_clearance(face, margin, band)
 }
 
 /// The pre-mutation honesty pass (module docs): every ring of every

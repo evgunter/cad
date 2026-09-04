@@ -48,32 +48,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use geom::NurbsCurve3;
-use geom_core::{Affine3, Band, Bounds, Decide, Point2, Point3, Vec3};
+use geom_core::{Affine3, Band, Bounds, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use topo::{Body, EdgeKey, FaceKey};
+use topo::{Body, EdgeKey};
 
-use crate::blend::BlendError;
 use crate::blend::battery::{BlendRequest, Link, run_battery};
+pub use crate::blend::surgery::ring_clearance_for_tests as ring_clearance;
 use crate::skin::{Section, segment_curve};
 use crate::{Extrusion, Lofted, SketchSegment, extrude, sweep_body};
 use geom_core::Tol;
-
-/// **`fillet3_ring_clearance`'s decision function**, the composition
-/// surgery's one metered predicate, opened here for its two-tolerance
-/// trio pin (`tests/m6_surgery.rs`) and nothing else: the surgery derives
-/// its margins from stored trimlines and ring carriers, so the function
-/// has no production caller and is crate-visible at its own site.
-///
-/// # Errors
-///
-/// Exactly [`crate::blend::surgery::ring_clearance`]'s.
-pub fn ring_clearance<T: geom_core::Decide + Bounds>(
-    face: FaceKey,
-    margin: T,
-    band: Band,
-) -> Result<(), BlendError> {
-    crate::blend::surgery::ring_clearance(face, margin, band)
-}
 
 /// The cube side the in-crate pins build on, meters.
 pub const L: f64 = 1.0;
@@ -228,9 +211,11 @@ pub fn closed_plane_sphere_rim(body: &Body<f64>, rim_r: f64) -> EdgeKey {
 ///
 /// Generic over the scalar so the interval lane selects its rims through
 /// the same door: the comparison reads both bounds of the stored
-/// enclosure, which at `f64` is the value itself.
+/// enclosure, which at `f64` is the value itself. The bound is the SOLE
+/// `Bounds` the scope rule allows a driver to write (`Real` comes with
+/// it); nothing here decides — a fixture selector reads.
 #[must_use]
-pub fn rim_arcs_at<T: Decide + Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey> {
+pub fn rim_arcs_at<T: Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey> {
     let surface_of = |he| -> Option<topo::SurfaceKey> {
         let l = body.get_half_edge(he)?.parent_loop;
         Some(body.get_face(body.get_loop(l)?.face)?.surface)
