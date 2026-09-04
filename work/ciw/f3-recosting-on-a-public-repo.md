@@ -82,3 +82,47 @@ recommendation, and the change — if any — lands after Ev answers.
 - Nothing here reads on whether the demoted rows WORK — that is
   `work/ciw/nightly-demotions-have-never-run`, and it is a different
   defect with a different fix.
+
+## Inherited class: "2 vCPU" asserted in prose, 2026-09-04 (from unit 5)
+
+Unit 5 (`perf-history-cannot-identify-its-host`, PR 1722) edited six
+files and found that each still asserted the old runner three lines from
+the paragraph it had just added saying the runner changed. It fixed the
+six **in its own diff** and stopped there; the rest is this unit's,
+because the subject is the same one — what the 2026-09-03 runner change
+invalidates.
+
+**The count, measured at that PR's merge base.** `2 vCPU` or `2-vCPU`
+appears **51 times across 43 files**, excluding the two occurrences in
+`docs/perf-data/criterion/README.md` that correctly *describe* the change.
+It is not one sweep but three sub-classes, and only the third is likely to
+be a mechanical edit:
+
+* **~26 hits, `crates/*/Cargo.toml` + `crates/*/tests/all.rs` (13 crates,
+  one pair each).** These cite the 2-vCPU runner as the *reason* for the
+  one-test-binary layout ("on the CI runner (2 vCPU) the per-binary
+  codegen+link…"). **The number is load-bearing on a decision**, so these
+  are not text fixes: the layout's justification has to be re-checked at
+  4 vCPU / 16 GB before the sentence is rewritten, and re-checking it is
+  this unit's kind of work.
+* **~10 hits in costing prose** — `docs/CI-MINUTES-2026-08.md` (×3),
+  `docs/GENERICS-BUILD-COST.md` (×2), `docs/PERF-SCAN-2026-08.md`,
+  `.github/workflows/ci.yml` (×5), `.github/workflows/nightly.yml`, plus
+  this item's own two. Same status as every other figure in
+  `CI-MINUTES-2026-08.md`: predates the change, not quotable forward.
+* **the remainder** — `memories/perf-measurement-lane.md:25`,
+  `scripts/doc-gate.sh`, `scripts/check-ci-mirror-parity.py`,
+  `benches/benches/kernel.rs`, a few `crates/*/tests/*.rs` headers and
+  three `work/` logs. These are variance/fat-tail asides where the vCPU
+  count is incidental to the point; unit 5's repair spelling ("a shared
+  hosted runner has a fat tail") drops the stale number without
+  claiming a new one, and it applies unchanged here.
+
+`memories/perf-measurement-lane.md:25` is worth calling out on its own:
+it is the file the perf READMEs cite as their authority, so it is the
+one whose staleness propagates.
+
+Recorded here, not fixed by unit 5, because a 43-file sweep inside a
+two-field emitter change would have buried the change it was reviewed
+for — and because the first sub-class is a re-costing question, which is
+this unit's whole subject.
