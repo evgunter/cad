@@ -326,3 +326,39 @@ fn slab(doc: ProfileDoc, z0: f64, dz: f64) -> (ProfileDoc, RecipeNodeId) {
         },
     )
 }
+
+/// **The measured point is pinned exactly**, because a millisecond is
+/// only worth reading beside the size it was taken at.
+///
+/// `m4_pr8_latency`'s registry-split row states its two terms for the
+/// corpus heat sink at 160 fins. Its wall clock is machine-dependent
+/// and re-taken on a hosted runner per merge; these two counts are
+/// neither — they are exact, ε-independent and derived from the recipe,
+/// so they gate here on every PR. A document edit that moved them would
+/// otherwise leave the committed history comparing two different sizes
+/// under one name.
+#[test]
+fn the_registry_split_is_measured_at_a_pinned_point() {
+    let tol = Tol::witness();
+    let entry = corpus::documents()
+        .into_iter()
+        .find(|d| d.name == "heat_sink")
+        .expect("the corpus carries the heat sink");
+    let doc = editor_core::apply(
+        &entry.doc,
+        &editor_core::DocEdit::SetDocParam {
+            name: editor_core::ParamName::new("fins"),
+            value: editor_core::DocParam::Count { value: 160 },
+        },
+        tol,
+    )
+    .expect("the fin count is a document parameter")
+    .doc;
+    let ev: Evaluation<f64> = corpus::eval(&doc);
+    let product = product_recorded(&doc, &ev, tol).expect("the heat sink gathers");
+    assert_eq!(
+        (product.body.solids().count(), product.body.faces().count()),
+        (161, 991),
+        "the point the registry split is measured at"
+    );
+}

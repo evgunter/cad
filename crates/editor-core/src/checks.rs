@@ -762,16 +762,25 @@ fn connectedness<P, T: Decide + PropsQuadLane>(
 /// One box per face, one small tree per solid, then a hull test per
 /// cross-subject pair — quadratic in the SOLID count, not in the
 /// entity count, which is the whole reason this resident exists
-/// instead of running the tier-3′ census over the aggregate. Measured
-/// on the heatsink's fin pattern (`docs/PERF-PLAN.md`'s discipline:
-/// brute force until a measurement says otherwise), the whole
-/// registry costs ~28 ms at 161 solids / 966 faces where the census
-/// costs ~1.1 s. Which TERM of that 28 ms dominates — this walk, or
-/// the gather it stands on — was not measured, and the sentence that
-/// used to assert the gather does is withdrawn: the gather is called
-/// once more per landing than it needs to be (#1181), so the number
-/// will move when that is fixed and is not a safe thing to reason
-/// from.
+/// instead of running the tier-3′ census over the aggregate.
+///
+/// **The two terms are separable and separately measured**, because
+/// the registry no longer gathers its own subject: over the corpus
+/// heat sink at 160 fins (161 solids / 991 faces), the gather is
+/// ~250 ms and this registry over a subject already in hand is ~8 ms
+/// — the gather dominates by more than an order of magnitude, and a
+/// caller that already holds the product pays only the second term.
+/// The tier-3′ census over the same aggregate is the ~1.1 s figure
+/// this resident exists to avoid.
+///
+/// Those numbers are a dev-profile wall clock and are machine-
+/// dependent; the figures OF RECORD are the hosted ones, re-taken on
+/// every merge to `main` by the `registry split` row of
+/// `crates/editor-core/tests/m4_pr8_latency.rs` and appended to
+/// `docs/perf-data/rebuild-latency/`. The SIZE they are taken at is
+/// exact rather than measured and gates on every PR
+/// (`docm5_subject::the_registry_split_is_measured_at_a_pinned_point`).
+///
 /// A document with solids in the thousands would make the pair walk
 /// the term that matters, and the fix is already sitting here — one
 /// `Bvh` over the per-solid hulls, queried instead of the `S²` loop.
