@@ -9,6 +9,7 @@ opened: 2026-09-04
 
 ## Spec
 
+`docs/DOCM-2-SPEC.md` (binding; pre-draw M / STRUCTURAL), from
 `docs/DOCM-REFERENCES-DESIGN.md` DM3. `Node::Part { of, select }` with
 `PartSelect::{ SplitHalf, Instance(Expr) }`, one body out, names
 pass-through; `denotes_body` gains its arm and
