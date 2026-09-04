@@ -269,17 +269,17 @@ pub mod validate;
 
 pub use body::Body;
 pub use boolean::{
-    BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanNaming, BooleanOp,
-    BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts, CarriedVf, CarriedVv,
-    CarrierDesc, CarrierEqError, CarrierRelation, CompletedPolygonPair, ContactRecords,
-    CurveContact, FaceContainment, FacePairDeclaration, NullEdgePairRecord, Operand, OperandKeys,
-    PairSite, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity,
-    PlaneRelation, PointInSolidError, SideCode, SolidContainment, SweepStrategy, SweepTrace,
-    TangentLocus, TangentLocusError, VfContact, VoidContainment, VoidEvidence, VoidInsertError,
-    VoidInserted, VvContact, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq,
-    contfp, curved_face_containment, face_carrier, flush_pair_relation, insert_void, intersect,
-    intersect_with, oriented_plane_eq, point_in_solid, subtract, subtract_with, tangent_locus,
-    tangent_pair_relation, union, union_with,
+    BoolNullEdgeRecord, BooleanBody, BooleanDeclarations, BooleanError, BooleanErrorKind,
+    BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedContacts,
+    CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, CompletedPolygonPair,
+    ContactRecords, CurveContact, FaceContainment, FacePairDeclaration, NullEdgePairRecord,
+    Operand, OperandKeys, PairSite, PatchContact, PierceRingRecord, PlaneDesc, PlaneEqError,
+    PlaneIdentity, PlaneRelation, PointInSolidError, SideCode, SolidContainment, SweepStrategy,
+    SweepTrace, TangentLocus, TangentLocusError, VfContact, VoidContainment, VoidEvidence,
+    VoidInsertError, VoidInserted, VvContact, boolean_op_with, boolean_reduce,
+    boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, face_carrier,
+    flush_pair_relation, insert_void, intersect, intersect_with, oriented_plane_eq, point_in_solid,
+    subtract, subtract_with, tangent_locus, tangent_pair_relation, union, union_with,
 };
 // The contact vocabulary (C3/C4), defined once at the lowest crate
 // that can hold it: upward layers RE-EXPORT these, never redefine.

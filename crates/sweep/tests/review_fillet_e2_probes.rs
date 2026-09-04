@@ -145,9 +145,10 @@ fn the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_follow
     let BlendError::RingClearance { margin, .. } = err else {
         panic!("the exact ring check is what refuses past the screen, got {err:?}")
     };
+    assert_eq!(margin.predicate, "fillet3_ring_clearance");
     assert!(
-        margin < 0.0 && margin > -0.01,
-        "the ring sits 0.7172 from the edge and the setback is 0.72: margin {margin}"
+        margin.value().is_some_and(|m| m < 0.0 && m > -0.01),
+        "the ring sits 0.7172 from the edge and the setback is 0.72: {margin}"
     );
     assert!(
         err.to_string().contains(FILLET3_RING_RECOURSE),

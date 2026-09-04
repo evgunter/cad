@@ -44,7 +44,112 @@ use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey}
 use super::arms::{
     BlendArm, EdgeBlend, Meridian, Ruling, chamfer_strip, plane_plane_blend, plane_sphere_blend,
 };
-use super::{BlendError, BlendKind, BlendSite, CornerConfig, decide};
+use super::{BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, decide};
+
+/// **Does this scalar hold nondegenerate brackets?** — which is the
+/// same question as "which [`MarginDiag`] arm does its classifier
+/// speak", asked without classifying anything.
+///
+/// `f64` and `Interval` present a thin reading identically (`lo ==
+/// hi`) and spell it differently: `f64::sign_within` reports a reading
+/// it cannot classify as [`MarginDiag::Value`], `Interval`'s reports
+/// one as [`MarginDiag::Enclosure`] even when the enclosure is a point
+/// (`geom-core`'s interval suite pins the pair `Value(m)` /
+/// `Enclosure { lo: m, hi: m }` for one margin at the two scalars). So
+/// the shape cannot be read off the bracket, and the payload has to
+/// know which kind of scalar it is on.
+///
+/// **Why this is arithmetic and not a trial classification.** The
+/// obvious probe — classify a value the band cannot decide and read
+/// the spelling off the `Indeterminate` — goes through
+/// [`Decide::sign_within`], and at the probe scalar that path WRITES A
+/// K-TELEMETRY SAMPLE against the ambient predicate name
+/// (`k_stats::classify` sets the name, the probe scalar's
+/// `sign_within` records under it). A payload constructor is not a
+/// decision and must not appear in the K corpus: the first spelling of
+/// this function put 1398 synthetic in-band samples into
+/// `fillet3_convexity_sign`'s population, every one of them the band
+/// midpoint it had just invented, and `k-lint`'s rule 1 failed the
+/// run. Measuring the type instead of classifying a value keeps the
+/// corpus a record of decisions the kernel actually made.
+///
+/// **The measurement.** One third is not a dyadic rational, so a
+/// correctly-rounded enclosure of it is strictly wider than a point,
+/// while an `f64` quotient is one number. Nothing else about the
+/// constant matters, and no classifier, band or predicate name is
+/// involved. The answer is a property of `T` alone — it is the same
+/// for every value and every call — so the branch is on the TYPE, not
+/// on any geometry, which is what evaluation code is forbidden to
+/// branch on.
+///
+/// The bound is `Bounds` alone and deliberately: `Bounds: Real`, so
+/// the constructor and the division come with it, and
+/// `scripts/gates/no-extra-real-bounds.sh` forbids naming `Real`
+/// again beside another bound.
+fn holds_enclosures<T: Bounds>() -> Spelling {
+    let third = T::from_f64(1.0) / T::from_f64(3.0);
+    if third.lo() < third.hi() {
+        Spelling::Enclosure
+    } else {
+        Spelling::Value
+    }
+}
+
+/// Which [`MarginDiag`] arm a scalar's classifier speaks. A two-state
+/// answer to a two-state question, so the question can be asked
+/// without minting a `MarginDiag` that carries no reading yet.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Spelling {
+    /// This scalar reports a reading as one number.
+    Value,
+    /// This scalar reports a reading as an enclosure, point or not.
+    Enclosure,
+}
+
+/// A quantity a refusal reports, in the shape its own scalar's
+/// classifier would have reported it.
+///
+/// Both ends are read, so an interval quantity arrives as the
+/// enclosure it is rather than as one endpoint of it, and a thin
+/// interval enclosure stays an enclosure — because that is what
+/// `Interval::sign_within` calls it. The read is the M5 PR 12 seam's
+/// own (a bracket read feeding an error payload, deciding nothing,
+/// `Bounds`' delegation rule (a)); which VARIANT carries it is not
+/// read off the bracket at all but asked of the scalar, by
+/// [`holds_enclosures`].
+pub(crate) fn measured<T: Bounds>(value: T) -> MarginDiag {
+    let (lo, hi) = (value.lo(), value.hi());
+    if lo.is_nan() || hi.is_nan() {
+        return MarginDiag::Invalid;
+    }
+    match holds_enclosures::<T>() {
+        Spelling::Value => MarginDiag::Value(lo),
+        Spelling::Enclosure => MarginDiag::Enclosure { lo, hi },
+    }
+}
+
+/// The reading a definite decision saw, as the payload shape that says
+/// what it is — the one place this lane turns a classified `T` margin
+/// into a refusal payload.
+///
+/// The reading is [`measured`]'s; the predicate, band and sign are the
+/// decision's. Poison is reported rather than asserted away: it is
+/// unreachable behind a definite `Sign` (the classifier escalates
+/// poison instead of deciding it), and a payload that cannot be
+/// printed is worse than one that prints an impossibility.
+pub(crate) fn classified<T: Bounds>(
+    predicate: &'static str,
+    margin: T,
+    band: Band,
+    sign: Sign,
+) -> ClassifiedMargin {
+    ClassifiedMargin {
+        predicate,
+        reading: measured(margin),
+        band,
+        sign,
+    }
+}
 
 /// The number of interior samples the chain predicates take along
 /// each link. Nine, matching the certification schedule's
@@ -156,6 +261,12 @@ pub struct Link<T: Real> {
     pub blend: EdgeBlend<T>,
     /// The link's convexity verdict.
     pub convexity: Convexity,
+    /// The dihedral margin that verdict was decided from, kept whole.
+    /// The chain's sign-consistency check refuses on a link whose
+    /// verdict disagrees with the chain's, and the number that refusal
+    /// owes its reader is THIS one — the reading the classifier
+    /// actually judged — not a fresh quantity sampled at the refusal.
+    pub convexity_margin: ClassifiedMargin,
     /// The folded lever arm used by this link's angular predicates.
     pub arm_len: T,
 }
@@ -392,9 +503,9 @@ pub fn radius_headroom<T: Decide + Bounds>(
         .map_err(|e| esc(BlendSite::Chain, e))?
     {
         Sign::Positive => Ok(()),
-        _ => Err(BlendError::RadiusHeadroom {
+        sign => Err(BlendError::RadiusHeadroom {
             face,
-            margin: margin.lo(),
+            margin: classified("fillet3_radius_headroom", margin, band, sign),
             radius: radius.lo(),
         }),
     }
@@ -435,8 +546,8 @@ pub fn spine_regularity<T: Decide + Bounds>(
         .map_err(|e| esc(BlendSite::Chain, e))?
     {
         Sign::Positive => Ok(()),
-        _ => Err(BlendError::SpineIrregular {
-            margin: margin.lo(),
+        sign => Err(BlendError::SpineIrregular {
+            margin: classified("fillet3_spine_regularity", margin, band, sign),
             radius: radius.lo(),
         }),
     }
@@ -480,7 +591,7 @@ pub fn convexity_at<T: Decide + Bounds>(
     arm: T,
     edge: EdgeKey,
     band: Band,
-) -> Result<(Convexity, T), BlendError> {
+) -> Result<(Convexity, ClassifiedMargin), BlendError> {
     let site = BlendSite::Link { edge };
     match decide("fillet3_chain_arm", Margin::of(arm), band).map_err(|e| esc(site, e))? {
         Sign::Positive => {}
@@ -497,9 +608,10 @@ pub fn convexity_at<T: Decide + Bounds>(
     }
     let margin = Margin::levered(n_a.cross(n_b).dot(tau.normalize()), arm);
     let sign = decide("fillet3_convexity_sign", margin, band).map_err(|e| esc(site, e))?;
+    let reading = |s| classified("fillet3_convexity_sign", margin.value(), band, s);
     match sign {
-        Sign::Positive => Ok((Convexity::Convex, margin.value())),
-        Sign::Negative => Ok((Convexity::Concave, margin.value())),
+        Sign::Positive => Ok((Convexity::Convex, reading(Sign::Positive))),
+        Sign::Negative => Ok((Convexity::Concave, reading(Sign::Negative))),
         // A decided Zero establishes that the dihedral has no
         // definite wedge side at this lever — `(n_a × n_b)·τ̂` folded
         // against the arm is coincident with zero. Genuine tangency
@@ -510,7 +622,7 @@ pub fn convexity_at<T: Decide + Bounds>(
         // a chain verdict that was never taken.
         Sign::Zero => Err(BlendError::TangentialEdge {
             edge,
-            margin: margin.value().lo(),
+            margin: reading(Sign::Zero),
         }),
     }
 }
@@ -566,10 +678,10 @@ pub fn chain_g1<T: Decide + Bounds>(
         // polarity of a coincidence predicate, stated so no reader
         // has to infer it.
         Sign::Zero => Ok(()),
-        _ => Err(BlendError::ChainNotG1 {
+        sign => Err(BlendError::ChainNotG1 {
             vertex,
-            margin: margin.value().lo(),
-            arm: arm.lo(),
+            margin: classified("fillet3_chain_g1", margin.value(), band, sign),
+            arm: measured(arm),
         }),
     }
 }
@@ -706,10 +818,10 @@ pub fn face_clearance<T: Decide + Bounds>(
         .map_err(|e| esc(BlendSite::Chain, e))?
     {
         Sign::Positive => Ok(()),
-        _ => Err(BlendError::FaceClearanceUncertified {
+        sign => Err(BlendError::FaceClearanceUncertified {
             face,
-            margin: margin.lo(),
-            gap: gap.lo(),
+            margin: classified("fillet3_face_clearance", margin, band, sign),
+            gap: measured(gap),
             cross_chain,
         }),
     }
@@ -741,7 +853,7 @@ fn resolve_link<T: Decide + Bounds>(
     let n_b = outward(body, face_b, p).ok_or_else(broken)?;
     // Predicate 5 first at the link level: the arm's side depends on
     // the convexity, so the sign is established before any geometry.
-    let (convexity, _) = convexity_at(n_a, n_b, tau, extent, edge, band)?;
+    let (convexity, convexity_margin) = convexity_at(n_a, n_b, tau, extent, edge, band)?;
     let sa = body
         .get_surface(body.get_face(face_a).ok_or_else(broken)?.surface)
         .ok_or_else(broken)?
@@ -770,6 +882,7 @@ fn resolve_link<T: Decide + Bounds>(
         arm,
         blend,
         convexity,
+        convexity_margin,
         arm_len: extent,
     })
 }
@@ -1350,20 +1463,20 @@ pub fn run_battery_for<T: Decide + Bounds>(
         let first = chain.first().convexity;
         for link in chain.links() {
             if link.convexity != first {
-                let p = {
-                    let (c, t0, t1) = carrier_of(body, link.edge)
-                        .ok_or(BlendError::ChainNotConnected { edge: link.edge })?;
-                    c.eval(mid_param(t0, t1))
-                };
-                let n_a = outward(body, link.face_a, p);
-                let n_b = outward(body, link.face_b, p);
-                let margin = match (n_a, n_b) {
-                    (Some(a), Some(b)) => a.cross(b).norm().lo(),
-                    _ => f64::NAN,
-                };
+                // The number this refusal owes its reader is the
+                // margin whose SIGN is the disagreement, and the link
+                // already carries it: `fillet3_convexity_sign` decided
+                // it, at this link's own lever, when the link
+                // resolved. Re-deriving one here read the supports'
+                // normals a second time and reported `‖n_a × n_b‖` —
+                // unsigned, unlevered, and therefore not the quantity
+                // the variant documents — with `NaN` standing in for
+                // "the normals would not resolve", a structural
+                // absence in a measurement's costume. Both go: the
+                // decision is the record.
                 return Err(BlendError::ConvexitySignFlip {
                     edge: link.edge,
-                    margin,
+                    margin: link.convexity_margin,
                     chain: first,
                 });
             }

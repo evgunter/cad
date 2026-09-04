@@ -217,3 +217,93 @@ openers are now merged or in review; E3 landed on
 [#1763](https://github.com/evgunter/cad/pull/1763) at `93341783` (the
 seven margins carry a `ClassifiedMargin`; the NaN hole is unreachable
 by construction) and its style review is dispatched.
+
+**E3 reviewed (2026-09-04): MERGEABLE-AFTER-FIXES**, single style review
+on frozen `93341783` of PR [#1763](https://github.com/evgunter/cad/pull/1763);
+every claim held under a mutant and a merge-base differential. Owed and
+adjudicated TAKE: a thin bracket must read as the scalar's own
+classifier spells it (`Enclosure{lo==hi}` at Interval, not
+`Value(lo)`); the companion fields `gap` and `arm` are measured
+enclosures projected and rendered as facts — the item's anticipated
+third shape one field over — and now carry the measurement whole (the
+request `radius` stays `f64`, said so at the field); the reviewer's
+three red-by-design interval rows adopted and turned green by those
+fixes; the new NaN finding re-homed to `work/trim/` (TRIM is open and
+owns `pcurve_cache.rs` — the brief's premise was the orchestrator's
+error); the class one arm over (`support_coaxiality` drops its margin,
+`corner_at` folds a definite refusal margin-less, a `headroom: f64`
+"classified margin" in `offset_meters.rs`) filed as
+`blend-payloads-outside-the-margin-family`. Fix pass
+implementer-inherited.
+
+**H4 dual adjudicated (2026-09-04)**, both reviews on frozen `797e37f9`:
+R1 MERGEABLE-AFTER-FIXES 2/4/6, R2 MERGEABLE-AFTER-FIXES 0/2/4. Both
+re-derived the concave rest by hand (spine `0.5 + r√2`), reproduced
+both closed forms by independent quadrature (Green's theorem; Simpson)
+to 1e-17, re-ran the bit-dump differential themselves (identical, all
+six dumps), and reproduced the mutants; R2 added a third (band sense
+forced `true`: exactly the four concave carves red via tier 3). Both
+falsified C5 at stale prose — bilateral at `docs/KERNEL-VERBS.md:59`,
+each with unilateral sites (R1: `mod.rs`, `surgery.rs`, `battery.rs`
+sentences still stating the retired hedge as a REASON; R2:
+`docs/DESIGN.md:578` and `chamfer.rs:40`, stale since BLEND-4). **Tally
+candidate (the program's first): R1's MAJOR-2 is UNILATERAL and
+DEMONSTRATED BY EXECUTION** — the plane–sphere setback sign the unit
+introduced survives its mutant across all 1030 rows, and the value
+feeds predicate 2's consumption screen, making it more permissive on
+concave plane–sphere pairs; R2 never mentions the setback sign. Class:
+test-gap on code the unit moved. Bilateral otherwise: naming totality
+one-directional (R1 MINOR-1 ≡ R2 NOTE-3, R2's probe passes — the
+record is complete, the pin was not), fixture copies (R1 MINOR-2 ≡ R2
+Q1), the assembly recourse over-promising at H5's shape (R1 NOTE-5 ≡
+R2 NOTE-1), the default lane never run on the landing head (R1 NOTE-6 ≡
+R2 MINOR-2). Union fix pass implementer-inherited: both probe branches
+adopted, one home for the sign (`Convexity` grows the method; bools
+become the type), the sentence-shape re-sweep, `lane=both` on the
+landing head. The row and sample number wait for the fix head.
+
+**H4 MERGED (2026-09-04)** at `fc38f753`, PR [#1752](https://github.com/evgunter/cad/pull/1752):
+sample **#126** (renumbered from #123 at the sync — three other
+programs' duals merged ahead of it), ordinal 2000, the row in
+`docs/MODEL-AB-LOG.md`; `docs/FILLET-H4-SPEC.md` deleted into the
+ledger. A concave closed rim carves on either material side through
+both rim doors; the fold has one home on `Convexity`; `D322` closed as
+a rider; the fourth quadrant (sphere pocket, concave chain) is built
+and carving. Block FILLET-B1 slot 0 concluded (record branch-side).
+**RIM dispatched** into slot 1 on `fillet/rim-selector` under
+`docs/FILLET-RIM-SPEC.md`. E3's fix pass is in flight.
+
+**E3 MERGED (2026-09-04)**, PR [#1763](https://github.com/evgunter/cad/pull/1763)
+at `503f4ad5`, green at the asked-for interval lane with the k-lint
+`dev-probe` row pinned. `BlendError`'s seven margins carry a
+`ClassifiedMargin` (reading in the scalar's own spelling — an
+enclosure at Interval, thin or not; band; predicate; sign); `gap` and
+`arm` carry their measurement whole; the request `radius` fields stay
+`f64` and say so; `ConvexitySignFlip` reports the link's own classified
+levered margin and its NaN hole is unreachable by construction. The
+k-lint probe row caught the first thin-bracket spelling writing
+synthetic K telemetry through the recorded classifier path — replaced
+by a type-level enclosure test with no classifier call. Filed by the
+review and the fix pass: `blend-payloads-outside-the-margin-family`
+(FILLET), `fitted-magnitude-nan-schedule-parameter` re-homed to
+`work/trim/`, `blamed-mates-lost-its-exhaustive-arm` (VIEW; main did
+not compile at `--features interval`, fixed on main independently).
+**All three E openers are closed.** RIM (slot 1) is in flight.
+
+**H5 dispatched (2026-09-04)** into block FILLET-B1's slot 2 on
+`fillet/h5-hostless-rim` under `docs/FILLET-H5-SPEC.md` (pre-draw M /
+STRUCTURAL at the spec): a closed rim whose arcs one plane face hosts
+in its outer cycle is the annulus band with hostless crossings — the
+host foot minted by the ladder's strut, the mate side the seam-split
+walk unchanged; the shape arises both from `merge_coplanar_faces` and
+natively (a pole-touching dome on a wider flat top). Runs beside RIM
+(slot 1, `fillet/rim-selector`); they touch different files.
+
+**Specs written while slots 1–2 run (2026-09-04):** `docs/FILLET-H6-SPEC.md`
+(S / STRUCTURAL: measure whether extrude's cap-rim `Smooth` arm is
+reachable; either way the must-carry rule gets one home its three
+sibling arms call) and `docs/FILLET-H7-SPEC.md` (L / NUMERIC: the ruled
+band with the transverse cut-off, out as an `[ev]` PR because it
+proposes `CornerConfig::TransverseCap` / `RunOutPolicy::CutOffAtTransverseCap`
+for ratification; `needs_ev` set on the item for that alone). Block
+FILLET-B2 opens with ATTR, H6 and H7 once slot 2 concludes.
