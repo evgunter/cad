@@ -1540,6 +1540,7 @@ CONFIG_DIMENSIONS: dict[str, tuple[str, tuple[str, ...]]] = {
     "klint": ("KLINT_ROW", (*KLINT_ROWS, "all")),
 }
 
+
 def parse_config(tokens: list[str], source: str) -> dict[str, tuple[str, str]]:
     """`["lane=interval", ...]` -> `{"LANE": ("interval", source)}`, or raise.
 
@@ -1570,6 +1571,7 @@ def parse_config(tokens: list[str], source: str) -> dict[str, tuple[str, str]]:
             raise ConfigError(f"{source}: {key} named twice; say it once")
         out[out_key] = (value, source)
     return out
+
 
 def decorate(
     res: dict[str, str],
