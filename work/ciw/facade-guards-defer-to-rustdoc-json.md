@@ -2,10 +2,13 @@
 id: facade-guards-defer-to-rustdoc-json
 kind: issue
 title: Three facade guards defer to a rustdoc-JSON check that is not scheduled
-status: open
+status: review
 opened: 2026-08-20
 github: 696
 refs: [689]
+pr: 1841
+branch: ciw/facade-guards-ruling
+needs_ev: true
 ---
 
 ## From GitHub issue 696
