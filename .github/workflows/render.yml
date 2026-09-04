@@ -553,10 +553,14 @@ jobs:
       # `Swatinem/rust-cache` caches for workspace `.`, so the sharing and
       # the caching are the same directory rather than two arrangements.
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
-      # See the uv lane's note below: the render entry points refuse to run
-      # without this sentence and deliberately do NOT sniff for CI. THIS
-      # workflow is the sanctioned renderer, so it says so in the file.
-      CAD_RENDER_LOCAL_OVERRIDE: i-accept-local-render-drift
+      # The render entry points refuse to run without this sentence and
+      # deliberately do NOT sniff for CI (demos/hosted-render-guard.sh), so
+      # THIS workflow says in the file which acceptor it is. It is the
+      # HOSTED sentence, not the local one: the frames this job draws are
+      # the committed ones, and the local sentence's message — preview
+      # only, do not commit what this pass draws — is false of every line
+      # of it.
+      CAD_RENDER_LOCAL_OVERRIDE: i-am-the-hosted-renderer
     steps:
       # THE OBJECT, NOT THE REF. `checkout target` resolved this and probed
       # it; that job's header carries the whole argument.
@@ -986,11 +990,12 @@ jobs:
       # entire pass, i.e. no bound per unit of work at all, and it is the
       # arrangement the contended datum above would break first.
       CAD_RENDER_BATCH: "5"
-      # See the uv lane's note: the entry points refuse without this
-      # sentence and do not sniff for CI. This workflow IS the sanctioned
-      # renderer, and its "pixel drift vs the committed lane" step is the
-      # measurement of the drift the sentence names.
-      CAD_RENDER_LOCAL_OVERRIDE: i-accept-local-render-drift
+      # The entry points refuse without this sentence and do not sniff for
+      # CI (demos/hosted-render-guard.sh). This job IS the sanctioned
+      # renderer — its "pixel drift vs the committed lane" step is the
+      # measurement of that drift, and on main it commits the result — so
+      # it declares the HOSTED sentence rather than the local one.
+      CAD_RENDER_LOCAL_OVERRIDE: i-am-the-hosted-renderer
       # No GPU on a hosted runner: force the software rasterizer rather
       # than letting Coin pick up whatever partial GL the image ships.
       LIBGL_ALWAYS_SOFTWARE: "1"

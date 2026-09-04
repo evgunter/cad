@@ -1006,6 +1006,12 @@ pub enum SessionOp {
     ///
     /// It changes no document, commits nothing and enters no history:
     /// every candidate is applied to a scratch copy that is dropped.
+    ///
+    /// A slot driven by an expression is refused, exactly as
+    /// [`SessionOp::SetSlot`] and [`SessionOp::BeginGesture`] refuse
+    /// it: the range would be a range of numbers for a field that
+    /// takes no number. The affordance names the driving parameters,
+    /// which are the fields to probe instead.
     ProbeBounds {
         /// The field to probe.
         target: BoundsTarget,
@@ -2254,6 +2260,17 @@ impl DocSession {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
+        // A driven slot is not a field the user can put a number into,
+        // so a range of numbers for it is not an answer to any question
+        // they can act on: the probe refuses it with the same
+        // affordance the write and the drag do, which names the
+        // parameters to probe instead. A parameter has no driver and
+        // reaches this door unguarded.
+        if let BoundsTarget::Slot { node, slot } = target
+            && let Err(refusal) = self.guard_driven(node, slot)
+        {
+            return OpOutcome::refused(refusal);
+        }
         let base = self.doc().clone();
         let (origin, seed, integral) = match self.probe_scale(&target) {
             Ok(scale) => scale,
@@ -2293,6 +2310,15 @@ impl DocSession {
         OpOutcome::default()
     }
 
+    /// One written `unit`, in canonical terms — the probe's step, and
+    /// the one place that arithmetic is spelled, so a slot's seed and a
+    /// parameter's seed are the same answer to the same question.
+    /// `None` is the field that names no unit at all (a count, a bare
+    /// scalar), whose step is 1.
+    fn probe_seed(unit: Option<UnitDef>) -> f64 {
+        unit.map_or(1.0, |unit| props::from_written(1.0, unit))
+    }
+
     /// The probe's three inputs, read off the field: where it is now,
     /// the step to search by, and whether its answer is an integer.
     ///
@@ -2324,22 +2350,34 @@ impl DocSession {
                 // through `rendering_unit`, so a computed slot's step
                 // is the same unit the panel shows it in rather than a
                 // second answer to the same question.
-                let step = props::rendering_unit(dimension, remembered)
-                    .map_or(1.0, |unit| props::from_written(1.0, unit));
+                let step = Self::probe_seed(props::rendering_unit(dimension, remembered));
                 Ok((value, step, dimension == Dimension::Count))
             }
             BoundsTarget::Param { name } => {
                 let Some(param) = self.committed_doc().params().get(name) else {
                     return Err(Refusal::NoSuchParam(name.clone()));
                 };
-                let value = match param {
-                    DocParam::Continuous { value, .. } => *value,
-                    DocParam::Count { value } => *value as f64,
+                // Same rule as a slot's: one of whatever unit the
+                // field is WRITTEN in. A continuous parameter names the
+                // notation it was authored in
+                // (`DocParam::Continuous::display_unit`, which rides
+                // with the declaration and no value edit disturbs), so
+                // a millimetre parameter is searched in millimetres. A
+                // `Count` is a number rather than a quantity, has no
+                // unit to name, and steps by 1.
+                let (value, unit) = match param {
+                    DocParam::Continuous {
+                        value,
+                        display_unit,
+                        ..
+                    } => (*value, Some(display_unit.def())),
+                    DocParam::Count { value } => (*value as f64, None),
                 };
-                // A parameter stores no display unit (`props`' module
-                // docs name the asymmetry), so its seed is one CANONICAL
-                // unit.
-                Ok((value, 1.0, param.dim() == Dimension::Count))
+                Ok((
+                    value,
+                    Self::probe_seed(unit),
+                    param.dim() == Dimension::Count,
+                ))
             }
         }
     }

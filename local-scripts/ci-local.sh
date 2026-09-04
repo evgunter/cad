@@ -467,6 +467,9 @@ manifest_selftest() {
 # (demos/hosted-render-guard.sh) and deliberately do not sniff for CI.
 # This row is a sanctioned automated render — renderer-free, and
 # `git diff --exit-code` un-does the question of drift by failing on it.
+# It declares the LOCAL sentence, not the hosted one render.yml declares:
+# this pass runs on a developer's box and its frames are not the
+# committed ones, which is exactly what that sentence says.
 #
 # The two markers below are the LANES this row reproduces, in render.yml
 # rather than in ci.yml: the same `cargo run --release -- ../out` and the same
