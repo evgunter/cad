@@ -5,6 +5,7 @@ title: The toolbar's badge family is one concept in prose and five spellings in 
 status: open
 opened: 2026-09-04
 refs: [camera-fold-clears-status-line]
+needs_ev: true
 ---
 
 ## What this is
@@ -57,3 +58,41 @@ Found by the style review of `camera-fold-clears-status-line`, whose
 own change added the fifth member. Filing rather than fixing was that
 review's recommendation: asserting the family exists and implementing
 one member differently is the finding.
+
+## Put to Ev (VIEW orchestrator, 2026-09-04)
+
+**On this PR because it is the second half of one decision, not
+because it is hard on its own.** `status-line-writers-bypass-the-
+ranking` sorts nineteen writers into *news* (which wants the news
+vocabulary — the first question on this PR) and *standing facts*
+(which want badges — this one). Four of the nineteen are standing
+facts and each would add a fifth, sixth, seventh and eighth member to
+a family that already implements four members four different ways.
+Answering the two questions in two units means designing the badge
+family twice.
+
+**The question is narrow: is a badge vocabulary worth having?** The
+model already exists in the crate — `tree::RowStatus::badge()`
+(`crates/viewer/src/tree.rs:107`) is a typed state that renders its own
+label with the payload kept separate. The four toolbar badges
+(`crates/viewer/src/app.rs`, the block around `:1101-:1180`) agree
+with it on nothing: where `None` is decided, where the prefix comes
+from, whether the value is owned or formatted in place, and whether the
+colour rule is stated anywhere.
+
+The differences are not cosmetic, and this is the argument for
+answering yes: **where the `None` decision lives decides whether a row
+can assert it.** `frame::product_badge`'s carve-out is testable
+because it is a function; the checks badge's `!findings.is_empty()`
+rule is not, because it is an `&&` inside a `ui` closure.
+
+**The constraint on any answer, stated so a uniformity pass cannot
+flatten it:** the at-rest and checks badges each carry ratified
+arguments — the checks badge is a *button* BECAUSE a tooltip is the
+wrong home for text a reader acts on — and the `weak`/`unresolved`
+colour split encodes "actionable or not", a real rule that
+`pane/features.rs` argues explicitly for poisoned rows and that no
+value states. A badge vocabulary has to keep all three or say why not.
+
+**The orchestrator's recommendation:** yes, and take it *with* the
+news vocabulary as one unit, because the sweep needs both.

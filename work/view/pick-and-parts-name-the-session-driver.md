@@ -5,6 +5,7 @@ title: pick and parts are vocabularies that name DocSession, so the boundary rul
 status: open
 opened: 2026-09-04
 refs: [1848]
+needs_ev: true
 ---
 
 
@@ -78,3 +79,35 @@ session` records the state for a reader, and both modules say so in
 their own doc headers — the gate requires it, because a header reading
 *"it names no driver type"* nine lines above naming one is false and
 rustdoc publishes it.
+
+## Put to Ev (VIEW orchestrator, 2026-09-04)
+
+**This one is here because the ratified text is yours, not because the
+answer is hard.** `crates/viewer/README.md`'s `## Module boundaries`
+rule — *no vocabulary may name a driver* — was ratified at #1801, and
+the gate built at #1848 to enforce it found the rule is **false of the
+tree at five sites across two files**, and was false before the check
+existed. Verified on today's tree: `pick.rs:67` and `:2269`,
+`parts.rs:43`, `:143` and `:152`.
+
+Both files take `&DocSession` as a **read-only argument**; neither
+mutates it and neither dispatches, so neither is a driver under the
+README's own definition. The two answers are in the body above (hoist
+the read into a value; or widen the rule to permit a read-only
+`&DocSession`). This program has no preference strong enough to
+self-certify a change to a rule you ratified a day earlier, which is
+the whole reason it is on this PR.
+
+**What holds the line meanwhile, so nothing is urgent.**
+`scripts/gates/viewer-module-kinds.sh:156-159` carries the two files
+as its only `VOCAB_EXCEPTIONS`, and the entries are **site-granular**
+(`FILE|NEEDLE|COUNT`): a sixth site reds, a different forbidden name in
+the same file reds, and fixing a site without lowering the count reds
+too. The exemption cannot outlive its reason.
+
+That granularity is itself offered as evidence for an open
+code-quality ruling — `work/code-quality/D103.md`, *"the allowlist is
+file-granular while its justifications are per-seam, so later bounds
+inherit ratification"*. D103 lists "a count pinned per file" as one of
+three shapes; this is that shape, built inside D103's fence. It is
+evidence for that ruling, not a substitute for it.
