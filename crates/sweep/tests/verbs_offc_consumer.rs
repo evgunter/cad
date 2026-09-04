@@ -943,3 +943,57 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
         "expected ApproxLaneUnsupported naming the interval lane, got {e}"
     );
 }
+
+/// **What an `Approx`-capped part still cannot do, pinned so that
+/// lifting any of it is loud.** A user who places one of these bodies
+/// meets three walls after the map, and each is a different door's
+/// gap rather than a property of the map:
+///
+/// - **mass properties** refuse, because the quadrature wants a stored
+///   pcurve cache on every half-edge of a spline face and the iso
+///   lane's seam class will not mint one over a straight carrier;
+/// - **tessellation** refuses for the same missing caches;
+/// - **STEP export** refuses by kind: the writer has no printer for an
+///   approximating surface (`OFFSET_SURFACE` is the entity it would
+///   need), so it declines rather than emitting the fit as if the fit
+///   were the described geometry.
+///
+/// The row asserts each refusal and its shape. When one is built, this
+/// reds, and `work/shell/no-approx-faced-body-is-both-movable-and-valid.md`
+/// is the file to update.
+#[test]
+fn the_walls_a_placed_approx_capped_part_still_meets() {
+    let (body, _) = box_with_approx_cap(0.05, 1e-9);
+    let placed = topo::transform_rigid(&body, &rigid(), Tol::witness()).expect("the part places");
+
+    let props = topo::mass_properties(&placed, Tol::witness())
+        .expect_err("the quadrature wants caches this chart cannot mint");
+    assert!(
+        format!("{props}").contains("no stored pcurve cache"),
+        "mass properties must refuse for the missing caches, got {props}"
+    );
+
+    let mesh = mesh::tessellate(&placed, 0.05, Tol::witness())
+        .expect_err("tessellation wants the same caches");
+    assert!(
+        format!("{mesh}").contains("no stored pcurve cache"),
+        "tessellation must refuse for the missing caches, got {mesh}"
+    );
+
+    let step = step_export::step_string(
+        &placed,
+        &step_export::StepOptions::default(),
+        Tol::witness(),
+    )
+    .expect_err("the STEP writer has no printer for the kind");
+    assert!(
+        matches!(
+            step,
+            step_export::StepExportError::UnsupportedSurface {
+                kind: "approximating surface",
+                ..
+            }
+        ),
+        "expected the kind refusal, got {step}"
+    );
+}
