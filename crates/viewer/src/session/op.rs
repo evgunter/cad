@@ -551,13 +551,43 @@ impl SessionOp {
     /// **It is not a statement about the free-move gesture.** That is
     /// a second, independent drag living on the display state
     /// ([`crate::display::DisplayState::begin_free_move`]), with its own in-flight
-    /// refusal. Nothing observed so far enforces either an exclusion
-    /// or an independence between the two: they can be open at once
-    /// and neither answer implies the other, and whether that is
-    /// intended is open — see
-    /// `work/view/two-gestures-can-be-in-flight-together.md`. An
-    /// operation this returns `true` for is permitted
-    /// mid-value-gesture and nothing more.
+    /// refusal. The two can be open at once, deliberately, and the
+    /// four `*FreeMove` rows below say so. An operation this returns
+    /// `true` for is permitted mid-value-gesture and nothing more.
+    ///
+    /// # Why the two drags may overlap
+    ///
+    /// They own disjoint state. A value gesture owns a `Doc` snapshot
+    /// and writes a scratch `Doc`; the free-move gesture owns display
+    /// facts that enter no `Doc` at all, so a probe committed or
+    /// discarded mid-drag cannot reach what a preview is applied to or
+    /// what a commit records.
+    ///
+    /// They meet in exactly one place, and it is where the safety
+    /// actually lives: the display state's admission tests
+    /// ([`crate::display::free_move_check`]) are run against the
+    /// COMMITTED document, while the view the scene draws
+    /// ([`super::DocSession::display_view`]) resolves against the
+    /// PREVIEWED one, and every committed edit prunes the display
+    /// state against the new document — a prune that
+    /// DISCARDS committed probes and silently kills an in-flight
+    /// free-move whose instance stopped being eligible.
+    ///
+    /// **The identity that makes those the same answer**: a value
+    /// gesture's edits are `SetParam`, `SetStructuralParam` and
+    /// `SetDocParamValue`, which replace an expression on a node that
+    /// already exists and mint none; every display predicate reads the
+    /// node graph alone — which nodes exist, of what kind, with which
+    /// inputs and which mate references — and never a slot's
+    /// expression. So the scratch document and the committed one agree
+    /// on every display question, at every point of a drag. Break that
+    /// — give a value gesture an edit that adds or removes a node —
+    /// and committing a slider would take an in-flight probe away
+    /// under the pointer holding it, reporting nothing (a killed
+    /// in-flight gesture is deliberately absent from
+    /// [`OpOutcome::superseded`]). That is what
+    /// `a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other`
+    /// pins.
     ///
     /// The whole policy is here, exhaustively, so that the set of
     /// operations a drag refuses can be READ rather than reconstructed
