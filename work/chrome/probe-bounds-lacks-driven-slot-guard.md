@@ -7,6 +7,7 @@ opened: 2026-09-01
 github: 1458
 refs: [1183]
 branch: chrome/probe-bounds-lacks-driven-slot-guard
+pr: 1746
 ---
 
 ## From GitHub issue 1458
