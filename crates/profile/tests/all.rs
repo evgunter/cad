@@ -80,6 +80,8 @@ mod cert4r2_e2e;
 mod declared_tangency;
 #[path = "enclose_refusal_r2_probes.rs"]
 mod enclose_refusal_r2_probes;
+#[path = "fillet_recourse_followability.rs"]
+mod fillet_recourse_followability;
 #[path = "generic_replay.rs"]
 mod generic_replay;
 #[path = "guided_replay.rs"]

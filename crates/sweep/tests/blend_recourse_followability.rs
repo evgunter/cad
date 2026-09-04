@@ -128,13 +128,7 @@ fn edges_at_first_vertex(body: &Body<f64>) -> Vec<EdgeKey> {
 }
 
 /// The refusal a request meets, or a panic naming what built instead.
-fn refusal(
-    body: &Body<f64>,
-    edges: &[EdgeKey],
-    r: f64,
-    what: &str,
-    chamfer: bool,
-) -> BlendError {
+fn refusal(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str, chamfer: bool) -> BlendError {
     let out = if chamfer {
         chamfer_edges(body, edges, r, tol())
     } else {
@@ -666,10 +660,20 @@ fn the_ring_recourse_has_no_front_door_witness_the_clearance_screen_answers_firs
                 .is_some_and(|c| matches!(*c.carrier(), geom::Curve3::Line { .. }))
         })
         .collect();
-    assert_eq!(box_edges.len(), 12, "the dimple leaves the twelve box edges");
+    assert_eq!(
+        box_edges.len(),
+        12,
+        "the dimple leaves the twelve box edges"
+    );
 
     builds(&dimpled, &box_edges, 0.2, "a setback that clears the ring");
-    let err = refusal(&dimpled, &box_edges, 0.25, "a setback that reaches it", false);
+    let err = refusal(
+        &dimpled,
+        &box_edges,
+        0.25,
+        "a setback that reaches it",
+        false,
+    );
     assert!(
         matches!(err, BlendError::FaceClearanceUncertified { .. }),
         "the screen meters the ring gap first, got {err:?}"
