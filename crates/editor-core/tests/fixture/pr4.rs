@@ -191,11 +191,11 @@ where
     let docd = ProfileDoc::empty_derived("pr4", Tol::witness());
     let (docd, da) = block(docd, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (docd, db) = block(docd, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
-    let cap_b = name1(EntityKind::Face, db, RoleSeg::Cap(CapEnd::Top));
+    let cap_b = name1(EntityKind::Face, db, RoleSeg::Cap(CapEnd::End));
     let (docd, _) = insert(
         docd,
         Node::declare_rest(vec![(
-            name1(EntityKind::Face, da, RoleSeg::Cap(CapEnd::Top)),
+            name1(EntityKind::Face, da, RoleSeg::Cap(CapEnd::End)),
             cap_b.clone(),
         )]),
     );

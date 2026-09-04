@@ -171,7 +171,7 @@ fn surface_kind_selects_the_box_faces() {
     assert_eq!(faces.len(), 6);
 
     let top_cap = Selector::of(
-        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top)),
+        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End)),
     );
     assert_eq!(
         select_where(&ev, cube, &top_cap, &planes, &no_params(), Tol::witness()).unwrap(),
@@ -334,7 +334,7 @@ fn datum_distance_reads_face_frames() {
         &ev,
         cube,
         &Selector::of(
-            NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::Top)),
+            NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End)),
         ),
     );
     assert_eq!(top, named, "the decided atom finds what the role path does");
