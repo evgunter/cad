@@ -2,7 +2,8 @@
 id: VERBS-RIMCAP
 kind: unit
 title: the rim-construction capability — sphere half
-status: review
+status: closed
+closed: 2026-09-04
 opened: 2026-09-03
 branch: verbs/rimcap-1
 refs: [VERBS-C5ARMS]
