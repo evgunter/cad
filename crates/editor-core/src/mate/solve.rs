@@ -249,11 +249,14 @@ fn derived_offset<P>(
     // normalized the same triple under `datum_unit_norm`. So one datum
     // direction is decided under two predicate names depending on
     // which road reaches it — same arithmetic, same refusal shape,
-    // different name in the K census. Whether the two roads should
-    // meet is a family question, homed at issue 1570; nothing is
-    // migrated here.
-    let unit = |v: Vec3<f64>| -> Result<Vec3<f64>, Box<MateFault>> {
-        crate::eval::unit_direction(v, "pattern direction", band).map_err(|e| match e {
+    // different name in the K census. The ROLE word is the one thing
+    // the two roads do agree on: each rule names the vector it
+    // actually normalized, so a circular rule's refusal says "datum
+    // axis direction" here exactly as it does on the eval road.
+    // Whether the two roads should meet is a family question, homed at
+    // issue 1570; nothing is migrated here.
+    let unit = |v: Vec3<f64>, role: &'static str| -> Result<Vec3<f64>, Box<MateFault>> {
+        crate::eval::unit_direction(v, role, band).map_err(|e| match e {
             crate::eval::NodeErrorKind::Escalated { source, .. } => {
                 Box::new(MateFault::Indeterminate {
                     mate,
@@ -265,7 +268,7 @@ fn derived_offset<P>(
     };
     let ops = match kind {
         PatternKind::Linear { direction, spacing } => SteppedOperands::Linear {
-            direction: unit(triple(direction)?)?,
+            direction: unit(triple(direction)?, "pattern direction")?,
             spacing: scalar(spacing)?,
         },
         PatternKind::Circular { axis, step } => {
@@ -274,7 +277,7 @@ fn derived_offset<P>(
             };
             SteppedOperands::Circular {
                 origin: Point3::origin() + triple(origin)?,
-                dir: unit(triple(direction)?)?,
+                dir: unit(triple(direction)?, "datum axis direction")?,
                 step: scalar(step)?,
             }
         }

@@ -45,6 +45,17 @@
 //!   it buys the door above is that [`datum_distance`] is arithmetic
 //!   all the way down.
 //!
+//!   **[`is_finite_length`] is a second thing here that is not a
+//!   selection question**, and unlike the one above it is public. It
+//!   takes a bare scalar, reads no [`Body`] and reaches no funnel: it
+//!   is the value-channel question `UnitVec3::new` asks before
+//!   deciding a length, shared so that the evaluation layer's own
+//!   direction door asks it in the same words rather than a second
+//!   spelling. Whether it belongs here at all — `geom-core` holds
+//!   `Real`, `is_poison` and `Vec3::normalize`'s own overflow note —
+//!   is an open question for this seat's owner, filed as
+//!   `is-finite-length-homed-in-the-query-seat`.
+//!
 //! # Where an entity IS, for the decided door
 //!
 //! The decided door measures a POINT against a [`DatumValue`]. The
@@ -428,9 +439,15 @@ impl std::error::Error for UnitVec3Error {}
 /// the honest scope: this catches the point scalars, which is where an
 /// infinite length turns into a definite wrong answer.
 ///
-/// Every direction door asks the length question through THIS
-/// predicate — [`UnitVec3::new`] below and the evaluation layer's own
-/// direction door alike — so one rule has one spelling.
+/// Every direction door in this crate asks the length question through
+/// THIS predicate, and so does the evaluation layer's own direction
+/// door, so one rule has one spelling where it is asked at all. It is
+/// not asked everywhere a direction is normalized: `editor-core`'s
+/// `Frame::rotate_then_translate` asks nothing and is refused
+/// downstream on the non-finite frame it builds, and its
+/// `clearance::chart_frame` asks a different question (a bracket read
+/// of the normalized OUTPUT). Unifying those is issue 1570's family,
+/// not a claim this predicate can make on its own.
 pub fn is_finite_length<T: Real>(x: T) -> bool {
     #[allow(clippy::eq_op)]
     let residual = x - x;

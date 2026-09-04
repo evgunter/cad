@@ -5,7 +5,7 @@ title: unit() admits the non-finite-norm class SEAT-DV closed at the datum door:
 status: review
 opened: 2026-09-02
 github: 1572
-refs: [1564, 1570, 1372]
+refs: [1564, 1570, 1372, direction-underflow-reports-zero-length, is-finite-length-homed-in-the-query-seat]
 branch: fix/unit-finite-norm
 pr: 1738
 ---
@@ -40,26 +40,56 @@ value-channel self-difference SEAT-DV shipped for `UnitVec3::new`
 `topo::query` and both direction doors call it. A non-finite length
 raises the refusal that already existed for the datum door,
 `NodeErrorKind::NonFiniteDirection { role }`; no new variant and no
-second wording. Red-first row
-`m4_pr2_wire::non_finite_direction_refuses_at_the_direction_door` pins
-both roles this layer owns: a linear `Node::Pattern` with a `1e200`
-direction (which minted three coincident instances at the merge base)
-and a `Node::Transform` with a `1e200` rotation axis (which the
-rigidity check refused downstream — accidental coverage, now held at
-the door), and pins that the pattern refusal's sentence names the
-direction.
+second wording.
+
+Three rows, each its own `#[test]` so one failure never hides another:
+a linear `Node::Pattern` with a `1e200` direction (which minted three
+coincident instances at the merge base), a `Node::Transform` with a
+`1e200` rotation axis (which the rigidity check refused downstream —
+accidental coverage, now held at the door), and the same pattern
+document at the ENCLOSURE scalar, which pins that nothing coincident
+is minted there either.
+
+Carried by the same PR, from its style review:
+
+- the two refusal sentences no longer stutter — the roles are complete
+  noun phrases, so the template names the role and stops
+  (`"the pattern direction direction has no finite length"` was what a
+  user read);
+- the mate road names the direction it actually normalized, so a
+  circular rule's refusal says `"datum axis direction"` and not
+  `"pattern direction"`;
+- `placement.rs`'s sentence about which refusal a non-finite axis
+  yields is no longer stale, and says that the bit-identity claim
+  above it is between the two MAPS and not the two refusals;
+- `is_finite_length`'s own doc claims only what is true (every
+  direction door in `topo` plus the evaluation layer's, not "every
+  direction door"), and `query.rs`'s header names it as the second
+  non-selection thing in the seat.
+
+**What is NOT closed by this PR.** On the mate road
+(`mate/solve.rs`), the direction door's refusal does not survive the
+translation into `MateFault`: a catch-all arm reports every non-
+escalation refusal as `DanglingHead`, so a 1e200 pattern direction is
+announced as a dangling head for a head that resolves perfectly well.
+Measured: the mate fault poisons the document, so the pattern node
+that would have named the true cause reports `Poisoned` and the true
+cause appears NOWHERE in the evaluation. The same is true of a
+decided-zero direction, which predates this unit. Disposition pending
+the FIX orchestrator's ruling; `MateFault` is S-MATE's vocabulary.
 
 **What was swept for.** The class — a caller-supplied direction
 normalized, or its length decided, without the finiteness question
 asked first — grepped by SHAPE over `crates/editor-core/src/` in three
 passes (`\.normalize\(\)`; `Margin::norm3|norm_squared|\.norm\(\)`;
 `rotation_about|UnitVec3::new`). The full hit list with a disposition
-per hit is in PR #1738's body. No second live hole of this shape was
-found: `Frame::rotate_then_translate` (`placement.rs:76`) normalizes a
-caller's raw axis, and its refusal was verified empirically rather than
-read off its doc — a `1e200` axis yields an all-NaN frame that
-`SetPlacement` (`edit.rs:1671`) and the persist check
-(`persist/check.rs:726`) each refuse typed.
+per hit is in PR #1738's body. `Frame::rotate_then_translate`
+(`placement.rs:76`) normalizes a caller's raw axis and its refusal was
+verified by execution rather than read off its doc — a `1e200` axis
+yields an all-NaN frame that `SetPlacement` (`edit.rs:1671`) and the
+persist check (`persist/check.rs:726`) each refuse typed — so it is
+not a live hole, but its refusal is spelled as a NaN sweep of a matrix
+rather than as the length question, which is 1570's family.
 
 **What the sweep could not match.** Only `editor-core`'s `src/`, only
 at this merge base, and only by three syntactic shapes: it is blind to
@@ -68,8 +98,12 @@ helper, since the call site shows neither `normalize` nor `norm`
 (`Affine3::rotation_about_axis` at `eval/wire.rs:2349` is that shape
 and was dispositioned by reading, not by matching); to sites reached
 only through a trait method or macro expansion; and to anything merged
-to main after this base.
+to main after this base. It also matched only the OVERFLOW end of the
+range: the underflow twin is filed as
+`direction-underflow-reports-zero-length`.
 
-The wider direction-family unification stays #1570 under #1372;
-`clearance.rs`'s `chart_frame` finiteness door is a third spelling of
-the question and is noted there, not taken here.
+Two findings filed rather than taken:
+`direction-underflow-reports-zero-length` (a direction under ~1e-162
+is refused as "zero length", which it is not) and
+`is-finite-length-homed-in-the-query-seat` (a question for SEAT about
+where the predicate belongs).
