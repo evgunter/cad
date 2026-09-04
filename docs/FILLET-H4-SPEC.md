@@ -215,3 +215,56 @@ verbatim plus `docs/prompts/reviewer-style-lane.md` by path):
   the concave closed band as unbuilt; the sweep's blind spot is stated.
 - **C6** The lantern's mouth rim carves through the tour's own door, and if a
   frame moved the PR says what moved and why.
+
+## Re-scope at Phase 1 (2026-09-04, orchestrator)
+
+**Phase 1's finding.** With the gate deleted locally, every concave closed
+rim — the waist (ANNULUS), the lily mouth (ANNULUS) and a `cube ∪ ball`
+boss (LADDER, which the boolean door does build) — reaches its rim door and
+refuses at `seam_split_param` (`surgery.rs:2516`), the surgery correctly
+declining to cut a seam at a foot that lies beyond the rim. The cause is
+in the ARMS, measured at the arm: the curved arms fold each support's
+stored sense bit and never the chain's convexity verdict
+(`battery.rs:959`/`:974` into `Meridian::trace`/`Ruling::trace`;
+`plane_sphere_blend` at `arms.rs:381`–`:394` from `battery.rs:869`/`:878`),
+so on a concave chain each returns the convex rest MIRRORED through the
+rim — the waist's spine `0.5 − r√2` against the void-side `0.5 + r√2` to
+the last digit. Only `plane_plane_blend` (`:287`) and `corner_ball`
+(`:920`) fold `convex` — BLEND-4's work, which is why the open concave band
+carves. With the fold applied locally and the surgery UNCHANGED, all three
+carve tier-3 clean with `volume_pad == 0.0` and `ΔV` positive and equal to
+its closed form (the waist: Pappus `1.7387214704551e-3` against measured
+`…556e-3`). Full record:
+`work/fillet/concave-rim-arms-rest-ball-on-material-side.md`.
+
+**The stop clause is discharged and the arm fold JOINS this unit.** The
+arms are `crates/sweep/src/blend/*`, this program's ground; the fold is the
+convention `arms.rs`'s module docs already state (the ball rolls in the void
+on a concave chain, material outside the tube, sense read off the stored
+verdict — S10/S11); and the plane–plane arm is its precedent. Nothing here
+is a design fork. Difficulty and task-class stand (L / NUMERIC), re-logged
+at the redirect in the block record.
+
+**Phase 2, item 0 (before item 1):** the arm fold. `curved_arm` hands
+`Meridian::trace` and `Ruling::trace` the side `sense == convex` (the
+identity on a convex chain); `plane_sphere_blend` takes `convex` and folds
+it the way `plane_plane_blend` folds `signed` — spine at `depth + signed`,
+the offset sphere `R − r` where the sphere's sense agrees with the chain's
+convexity and `R + r` where it does not, the plane trim at
+`spine_center + n·signed`. ONE fold, cross-cited with `plane_plane_blend`'s
+`signed` and `corner_ball`'s, the `corner_plan` precedent (`:718`–`:722`).
+The `Ruling` site is folded for parity and its unreachability today stated
+at the site (ruled pairs refuse at the open-chain door), not rowed. The
+gate in `resolve_rim` retires in the SAME change — deleting it alone turns a
+typed refusal into the span refusal.
+
+**Acceptance, amended:** C1's convex differential is now load-bearing on
+code that MOVED — it is measured with the dump, never argued by
+construction, and the dump covers every convex arm family a fixture
+reaches: plane–sphere (the dome, the pip), cone–cone and sphere–cone (the
+waist's convex rims, the lantern's three), plus the open-chain die. The
+boss is the ladder twin (item 3's "or" arm is not taken: the union builds
+and routes to the LADDER). The mutant is the fold itself put back to
+`sense`. The issue file above closes with this unit (`status: closed` on
+the branch at landing, `pr` set). PR 1752 is the unit's PR; it takes the
+brief's title when the unit lands.
