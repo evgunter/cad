@@ -104,6 +104,8 @@ mod docm1_face_frame_interval;
 mod docm2_part;
 #[path = "docm2_part_interval.rs"]
 mod docm2_part_interval;
+#[path = "docm2_review_r1_probes.rs"]
+mod docm2_review_r1_probes;
 #[path = "docm3_union.rs"]
 mod docm3_union;
 #[path = "docm4_evaluation_identity.rs"]
