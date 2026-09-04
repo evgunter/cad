@@ -51,3 +51,30 @@ Measure the five rows on the 4-vCPU runner, then either un-sample (if the
 cost is of the same order as the lane/eps change) or record why the k-lint
 dimension stays sampled where the other two did not. It is a measurement
 first and a decision second, which is why it is an issue and not a unit.
+
+## No longer a cost-shape deferral: the remaining sampled row has a measured miss (2026-09-04)
+
+Filed from PR 1805 (code-quality Track T), folded into
+`work/ciw/f3-recosting-on-a-public-repo` when that PR was closed as
+superseded.
+
+**`#1756 → #1775`: `k-lint (gate)` reported green with `demos tour fmt +
+clippy` skipped**, because the drawn row did not carry it. A real failure
+sat behind a green row name, found later and repaired by a separate PR.
+
+That changes what this item is. When it was written, k-lint was scoped
+out of `reinstate-full-configuration-runs` on **cost shape** — five
+feature unifications compiled, against one archive replayed for the
+lane/ε rows — with no known cost to leaving it sampled. There is now a
+known cost, on the record, on the only dimension the hosted gate still
+samples.
+
+It also means the sentence "the hosted gate samples the matrix" is still
+true of this repository, and every reader who learns from PR 1823 that
+sampling is gone will be wrong about this row.
+
+What is owed is the same measurement PR 1823 made for lane/ε: what do
+five unifications cost on the 4-vCPU public runner, in job-minutes and in
+critical-path wall clock, against a `k-lint` row that currently draws one.
+The answer may still be that sampling is right here — the cost shape
+argument was not wrong, it was just uncontested. It is contested now.

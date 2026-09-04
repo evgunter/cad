@@ -6,7 +6,6 @@ status: review
 opened: 2026-09-04
 pr: 1796
 branch: ciw/f3-recosting
-needs_ev: true
 ---
 
 
@@ -963,3 +962,64 @@ instance 2 fastest is `clippy`.
 saying plainly after all this measurement: a queue makes the push run's
 job set irrelevant to correctness, and the push run keeps carrying its
 three write side-effects exactly as F3 left it.
+
+## Ev's ruling (2026-09-04): trial the merge queue
+
+Asked in chat and answered there: **trial a merge queue.** That is option
+D, this unit's own recommendation, and it is the option that *prevents*
+the composition defects rather than detecting them — at 44 job-min/h at
+batch ≤5 against the push gate's 48, both $0.
+
+Consequences recorded here so the next reader does not re-derive them:
+
+- **The push gate is not restored.** Options A (full job set on
+  `push: main`) and B (the per-SHA concurrency design pass) stay
+  unbuilt, and are the fallback if the queue trial is rejected. If they
+  are ever taken it is the FULL set plus B, never the narrow variant —
+  the narrow variant catches 0 of the 2 recorded instances because the
+  row that catches instance 2 is `clippy`, which it does not restore.
+- **F3 itself needs no revision either way**, as measured above.
+- **The scheduled run stays declined** (Ev, 2026-08-22), unchanged by
+  this ruling.
+- **Un-sampling was the precondition and it has landed** — a queue's
+  required checks are named, so the job set had to stop moving with a
+  seed first. `work/ciw/reinstate-full-configuration-runs` (PR 1823).
+
+The trial itself is a separate unit: `merge_group` needs no `ci.yml`
+edit (the `!= 'push'` spelling already admits it), but the required-check
+list, the batch size, the bisect behaviour on a failed batch and the
+branch-protection setting are a design pass, and enabling it changes how
+every agent in this repository merges.
+
+## Folded in from PR 1805 (code-quality Track T), 2026-09-04
+
+That PR asked the same question ~90 minutes before this one and is closed
+as superseded, with two things carried across rather than lost:
+
+**An incident this unit's enumeration missed, and it lands on the one
+dimension still sampled.** `#1756 → #1775`: `k-lint (gate)` reported
+**green with `demos tour fmt + clippy` skipped**, because the drawn row
+did not carry it. This unit's Q2 answer says "zero of five recorded
+main-reds are attributable to the draw" — true of the **lane/ε** draw
+that PR 1823 removed, and **false of the k-lint draw**, which is still
+one-in-five. So `work/ciw/klint-row-still-sampled` is no longer a
+cost-shape deferral with no known cost: it has a measured instance of the
+remaining sampled dimension hiding a real failure. That raises its
+priority and the item says so.
+
+**A correction of the shape this program kept making.** PR 1805's author
+first filed the two-green-PRs class as a *finding*, then withdrew it on
+discovering `ci.yml` already documents it in the F3 note — *"a semantic
+conflict between two independently-green PRs surfaces at the NEXT PR's
+merge-ref rather than at the merge that caused it… THE COST THAT REMAINS,
+stated rather than mitigated: the conflict surfaces on an INNOCENT PR."*
+Re-filing a ratified trade-off as a discovery is a real failure mode and
+the withdrawal is the right handling. `work/issues/two-green-prs-merge-into-a-red-main.md`
+is deleted here, as that PR intended.
+
+**What is NOT withdrawn** is
+`work/ciw/merge-order-semantic-break-reaches-main`: that records a dated
+*instance* (the `MateFault::Unleverable` break, main non-compiling for
+34 m 25 s) as evidence for this unit, not the class as a discovery. An
+instance of a ratified residue is worth keeping; the class was already
+written down.

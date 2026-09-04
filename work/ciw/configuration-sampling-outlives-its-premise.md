@@ -2,8 +2,9 @@
 id: configuration-sampling-outlives-its-premise
 kind: unit
 title: The lane/eps draw was bought with billed minutes: price un-sampling, and say what the red record can and cannot attribute to it
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-04
 ---
 
 
@@ -113,3 +114,17 @@ requested in a run's log, which this reading did not open.
   (`test (eps = ${{ needs.filter.outputs.eps }}, 1/2)`). Un-sampling
   makes those names constant, which is a precondition for the merge
   queue that `f3-recosting-on-a-public-repo` now recommends.
+
+## Closed (2026-09-04): the work it opened landed under another id
+
+This item was opened out of Ev's comment on PR 1796 to price un-sampling.
+The pricing is in that PR and in `docs/CI-MINUTES-2026-08.md`; **the change
+itself landed as `work/ciw/reinstate-full-configuration-runs` (PR 1823),
+merged 2026-09-04** — `WHOLE_BY_DEFAULT = {"lane": "both", "eps": "all"}`
+is on main and every hosted run gates all six lane/ε points.
+
+Two items for one piece of work, one of them describing it as pending, is
+the duplicate shape `work/README.md` forbids. This is the one to close: the
+landed unit carries the implementation, the measured cost and the prose
+sweep. What survives here and is NOT closed by it is the **k-lint** row,
+still sampled one-in-five, at `work/ciw/klint-row-still-sampled`.
