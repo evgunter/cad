@@ -3561,11 +3561,25 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // role-invariant) but silently corrupts tessellation/export;
     // this closes that class structurally. Scope: LINE-BOUNDED loops
     // only — the vertex-chord Newell functional IS the enclosed area
-    // exactly for straight boundaries; a planar face bounded by arcs
-    // (a revolve's annular sector) has chord windings that can
-    // legitimately disagree with the region's (a 270° sector's chord
-    // quad self-crosses), so curved-bounded faces stay in the
-    // documented deferral (M5 pcurves) along with curved faces.
+    // exactly for straight boundaries.
+    //
+    // **That scope's stated REASON is retired for circle carriers, and
+    // the remaining question is a different one** (VERBS-1031B). The
+    // reason above was that a planar face bounded by arcs has chord
+    // windings that can legitimately disagree with the region's — a
+    // 270° sector's chord quad self-crosses. That disagreement is
+    // exactly what the bulge term dissolves: `2A` decomposes EXACTLY
+    // as chord Newell plus a per-conic `axis · sa·sb · (Δ − sin Δ)`,
+    // so for Line/Circle/Ellipse boundaries there is no longer a
+    // chord-vs-region gap to point at. `merge_faces::loop_winding`
+    // states that decomposition today and NURBS remains the honest
+    // remainder there. What still keeps this arm line-only is NOT the
+    // chord objection but the cost of widening a REFUSAL surface: the
+    // other two sites of this predicate ask it a question they need
+    // answered, and this one asks it in order to FAIL a body, on an
+    // in-band margin whose behaviour over real revolve output is
+    // unmeasured. Owned, with that measurement as its opening step, by
+    // `work/verbs/verbs-1031b-assigner-checker-divergence.md`.
     //
     // **The S10 sense gate.** Since M5 S10 a face's outward normal is
     // `sense_sign · chart_normal`, so the winding is compared against
@@ -3606,6 +3620,12 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             };
             // Line-bounded only (banner): an arc's vertex chord is not
             // the boundary, and its winding is not the region's.
+            // Since VERBS-1031B this skip has a live PRODUCER on the
+            // other side of it — `merge_faces::loop_winding` now
+            // ASSIGNS outer/ring roles on exactly the conic-bounded
+            // loops this arm passes over, so those roles are set by a
+            // functional check 6 cannot falsify (evidence and flip
+            // condition: `verbs-1031b-assigner-checker-divergence`).
             let all_lines = cycle.iter().all(|&he| {
                 body.get_half_edge(he)
                     .and_then(|hd| body.get_edge(hd.edge))
