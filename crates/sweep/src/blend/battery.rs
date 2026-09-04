@@ -46,39 +46,52 @@ use super::arms::{
 };
 use super::{BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, decide};
 
-/// **What `MarginDiag` shape does this scalar's own classifier speak?**
-/// Asked, never inferred.
+/// **Does this scalar hold nondegenerate brackets?** — which is the
+/// same question as "which [`MarginDiag`] arm does its classifier
+/// speak", asked without classifying anything.
 ///
-/// `f64` and `Interval` both present a thin reading as `lo == hi`, so
-/// the bracket cannot say which spelling its scalar uses — only the
-/// scalar can, and the two disagree: `f64` classification reports a
-/// [`MarginDiag::Value`], interval classification reports a
-/// [`MarginDiag::Enclosure`] even when the enclosure is a point
-/// (`geom-core`'s `dual.rs` pins exactly that, and its interval suite
-/// pins the pair `Value(m)` / `Enclosure { lo: m, hi: m }` for one
-/// margin at the two scalars).
+/// `f64` and `Interval` present a thin reading identically (`lo ==
+/// hi`) and spell it differently: `f64::sign_within` reports a reading
+/// it cannot classify as [`MarginDiag::Value`], `Interval`'s reports
+/// one as [`MarginDiag::Enclosure`] even when the enclosure is a point
+/// (`geom-core`'s interval suite pins the pair `Value(m)` /
+/// `Enclosure { lo: m, hi: m }` for one margin at the two scalars). So
+/// the shape cannot be read off the bracket, and the payload has to
+/// know which kind of scalar it is on.
 ///
-/// So the question goes to [`Decide::sign_within`] itself — the same
-/// door the decision came through, and the only code that knows the
-/// answer. The input is the one value every band makes indeterminate
-/// for every scalar: the midpoint of the band's own ambiguity
-/// interval, strictly inside `(zero, escalate)` by
-/// [`Band`]'s constructor, which can therefore never decide and always
-/// comes back as an [`Indeterminate`] carrying that scalar's spelling.
-/// Nothing is branched on the margin, and no projection helper is
-/// added to `geom-core` (#990) — the scalar answers for itself.
+/// **Why this is arithmetic and not a trial classification.** The
+/// obvious probe — classify a value the band cannot decide and read
+/// the spelling off the `Indeterminate` — goes through
+/// [`Decide::sign_within`], and at the probe scalar that path WRITES A
+/// K-TELEMETRY SAMPLE against the ambient predicate name
+/// (`k_stats::classify` sets the name, the probe scalar's
+/// `sign_within` records under it). A payload constructor is not a
+/// decision and must not appear in the K corpus: the first spelling of
+/// this function put 1398 synthetic in-band samples into
+/// `fillet3_convexity_sign`'s population, every one of them the band
+/// midpoint it had just invented, and `k-lint`'s rule 1 failed the
+/// run. Measuring the type instead of classifying a value keeps the
+/// corpus a record of decisions the kernel actually made.
 ///
-/// An `Enclosure` is the answer whenever the probe does not say
-/// otherwise: it states both ends and so can never claim a point the
-/// scalar did not see.
-fn diag_spelling<T: Decide + Real>(band: Band) -> Spelling {
-    let midpoint = T::from_f64((band.zero() + band.escalate()) / 2.0);
-    match midpoint.sign_within(band) {
-        Err(Indeterminate {
-            margin: MarginDiag::Value(_),
-            ..
-        }) => Spelling::Value,
-        _ => Spelling::Enclosure,
+/// **The measurement.** One third is not a dyadic rational, so a
+/// correctly-rounded enclosure of it is strictly wider than a point,
+/// while an `f64` quotient is one number. Nothing else about the
+/// constant matters, and no classifier, band or predicate name is
+/// involved. The answer is a property of `T` alone — it is the same
+/// for every value and every call — so the branch is on the TYPE, not
+/// on any geometry, which is what evaluation code is forbidden to
+/// branch on.
+///
+/// The bound is `Bounds` alone and deliberately: `Bounds: Real`, so
+/// the constructor and the division come with it, and
+/// `scripts/gates/no-extra-real-bounds.sh` forbids naming `Real`
+/// again beside another bound.
+fn holds_enclosures<T: Bounds>() -> Spelling {
+    let third = T::from_f64(1.0) / T::from_f64(3.0);
+    if third.lo() < third.hi() {
+        Spelling::Enclosure
+    } else {
+        Spelling::Value
     }
 }
 
@@ -104,12 +117,12 @@ enum Spelling {
 /// `Bounds`' delegation rule (a)); which VARIANT carries it is not
 /// read off the bracket at all but asked of the scalar, by
 /// [`diag_spelling`].
-pub(crate) fn measured<T: Bounds + Decide + Real>(value: T, band: Band) -> MarginDiag {
+pub(crate) fn measured<T: Bounds>(value: T) -> MarginDiag {
     let (lo, hi) = (value.lo(), value.hi());
     if lo.is_nan() || hi.is_nan() {
         return MarginDiag::Invalid;
     }
-    match diag_spelling::<T>(band) {
+    match holds_enclosures::<T>() {
         Spelling::Value => MarginDiag::Value(lo),
         Spelling::Enclosure => MarginDiag::Enclosure { lo, hi },
     }
@@ -124,7 +137,7 @@ pub(crate) fn measured<T: Bounds + Decide + Real>(value: T, band: Band) -> Margi
 /// unreachable behind a definite `Sign` (the classifier escalates
 /// poison instead of deciding it), and a payload that cannot be
 /// printed is worse than one that prints an impossibility.
-pub(crate) fn classified<T: Bounds + Decide + Real>(
+pub(crate) fn classified<T: Bounds>(
     predicate: &'static str,
     margin: T,
     band: Band,
@@ -132,7 +145,7 @@ pub(crate) fn classified<T: Bounds + Decide + Real>(
 ) -> ClassifiedMargin {
     ClassifiedMargin {
         predicate,
-        reading: measured(margin, band),
+        reading: measured(margin),
         band,
         sign,
     }
@@ -602,7 +615,7 @@ pub fn convexity_at<T: Decide + Bounds>(
 /// # Errors
 ///
 /// [`BlendError::ChainNotG1`] / [`BlendError::Escalated`].
-pub fn chain_g1<T: Decide + Bounds + Real>(
+pub fn chain_g1<T: Decide + Bounds>(
     tau_in: Vec3<T>,
     tau_out: Vec3<T>,
     arm: T,
@@ -634,7 +647,7 @@ pub fn chain_g1<T: Decide + Bounds + Real>(
         sign => Err(BlendError::ChainNotG1 {
             vertex,
             margin: classified("fillet3_chain_g1", margin.value(), band, sign),
-            arm: measured(arm, band),
+            arm: measured(arm),
         }),
     }
 }
@@ -758,7 +771,7 @@ pub fn corner_config<T: Decide + Bounds>(
 /// rides into the refusal, whose recourse then names the SPLIT that
 /// re-meters each chain against the face the previous carve actually
 /// left (#935's boundary).
-pub fn face_clearance<T: Decide + Bounds + Real>(
+pub fn face_clearance<T: Decide + Bounds>(
     face: FaceKey,
     gap: T,
     setback_here: T,
@@ -774,7 +787,7 @@ pub fn face_clearance<T: Decide + Bounds + Real>(
         sign => Err(BlendError::FaceClearanceUncertified {
             face,
             margin: classified("fillet3_face_clearance", margin, band, sign),
-            gap: measured(gap, band),
+            gap: measured(gap),
             cross_chain,
         }),
     }

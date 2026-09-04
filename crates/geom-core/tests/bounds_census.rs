@@ -233,6 +233,37 @@ const ROSTER: &[Site] = &[
         why: HandedOff("Track V's; a refusal-payload door S88's handoff names"),
     },
     Site {
+        path: "crates/sweep/src/blend/battery.rs",
+        subject: "classified",
+        why: Payload(
+            "the edge-blend battery's margin-payload constructor. It reads no bracket \
+             itself — the reading is `measured`'s below — and exists to bind that \
+             reading to the predicate, band and sign the decision already carried",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/battery.rs",
+        subject: "holds_enclosures",
+        why: Selection(
+            "asks whether the SCALAR brackets anything, by dividing one by three and \
+             comparing the ends: wide at an enclosure scalar, a point at `f64`. The \
+             answer is a property of the TYPE — identical for every value, so locally \
+             constant in the strongest possible sense (DL5(b)) — and it selects which \
+             `MarginDiag` arm a payload speaks, never what a predicate decided. It is \
+             arithmetic rather than a trial classification precisely so that a payload \
+             constructor writes no K-telemetry sample",
+        ),
+    },
+    Site {
+        path: "crates/sweep/src/blend/battery.rs",
+        subject: "measured",
+        why: Payload(
+            "the one bracket read behind every blend refusal payload: both ends into a \
+             `MarginDiag` and stop, so a refusal reports the enclosure its scalar held \
+             rather than one endpoint of it. Nothing downstream branches on it",
+        ),
+    },
+    Site {
         path: "crates/sweep/src/blend/build.rs",
         subject: "nonpositive_size_gate",
         why: Selection(
