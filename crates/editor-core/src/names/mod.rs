@@ -55,7 +55,8 @@ pub use geompred::{
     SurfaceKindSet,
 };
 pub use interrogate::{
-    Denotation, InterrogateError, denotation, edge_frame, face_frame, vertex_position,
+    Denotation, InterrogateError, denotation, edge_frame, face_carrier_kind, face_frame,
+    vertex_position,
 };
 pub(crate) use role::member_edge;
 pub(crate) use role::name_free_seg;

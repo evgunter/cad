@@ -96,6 +96,8 @@ mod cascade_delete;
 mod cert3r1_dump;
 #[path = "display_contract.rs"]
 mod display_contract;
+#[path = "docm1_face_frame.rs"]
+mod docm1_face_frame;
 #[path = "docm3_union.rs"]
 mod docm3_union;
 #[path = "docm4_evaluation_identity.rs"]

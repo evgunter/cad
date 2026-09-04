@@ -146,8 +146,8 @@ pub use names::{
     ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
     SegPat, SegTag, SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName,
     SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, declare,
-    declare_all, declare_node, denotation, edge_frame, face_frame, find_flush_candidates, select,
-    select_where, vertex_position,
+    declare_all, declare_node, denotation, edge_frame, face_carrier_kind, face_frame,
+    find_flush_candidates, select, select_where, vertex_position,
 };
 pub use node::{
     Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, MeasureNodeFault,
