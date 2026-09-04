@@ -646,6 +646,7 @@ area `kernel`; prefix `trim/`; tag `(TRIM orchestrator)`; ab_band `2500-2599`.
 | `detached-demo-workspaces-are-gated-only-by-a-sampled-row` | 2026-09-04 | demos/tour and demos/wild are detached workspaces, invisible to workspace-wide clippy and gated only by a sampled k-lint row |
 | `doc-param-unit-edit-has-no-door` | 2026-09-04 | No editor-core door changes a document parameter's display unit — SetDocParam would drop the distribution |
 | `emit-blend-restates-the-kernels-own-arguments` | 2026-09-04 | editor-core's emit_blend re-derives two arguments that now have their home in sweep's kernel types, and one is already narrower |
+| `face-kind-read-has-two-homes` | 2026-09-04 | topo::query::face_surface_kind and readback::face_carrier_kind read one tag from two homes |
 | `fillet-specs-require-a-narrowing-ci-config` | 2026-09-04 | Two live FILLET specs require a CI-Config trailer that now narrows the gate, in a clause that contradicts itself |
 | `gui-wasm-build-is-not-gated-at-all` | 2026-09-04 | the GUI's wasm32 build is gated by nothing: ci.yml's wasm row excludes viewer, and default features exclude the app feature where the wasm code lives |
 | `lb13-guards-are-line-local` | 2026-09-04 | Both LB13 guards are line-local, and the façade's dominant idiom is the multi-line pub use list |
@@ -657,6 +658,7 @@ area `kernel`; prefix `trim/`; tag `(TRIM orchestrator)`; ab_band `2500-2599`.
 | `point-in-solid-refusal-names-faces-zero` | 2026-09-04 | point_in_solid's body-scoped refusals carry faces[0] under a payload doc that says 'the face being tested' |
 | `probe-interval-lane-has-no-clippy-row` | 2026-09-04 | the probe+interval feature combination has no clippy row anywhere, and four unused imports have accumulated in it |
 | `run-on-whitespace-in-message-literals` | 2026-09-04 | Five user-facing message literals carry a run of spaces from a lost line continuation |
+| `rustdoc-d-warnings-breakages-outside-the-doc-gate` | 2026-09-04 | Pre-existing rustdoc -D warnings breakages the doc gate does not render |
 | `source-scanning-censuses-are-a-tripwire-on-ordinary-rust` | 2026-09-04 | the source-scanning censuses hand-parse Rust and fail loud, so an ordinary-but-unusual signature reds another program's test with a byte offset for a message |
 | `stale-track-t-citations-in-fillet-and-cert` | 2026-09-04 | Three citations to Track T's rows in fillet's and cert's slates are stale |
 | `sweep-top-field-docs-make-the-spatial-claim-capend-shed` | 2026-09-04 | Extruded.top and Lofted.top doc comments make the spatial claim CapEnd shed under a signed distance |
