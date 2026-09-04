@@ -106,3 +106,53 @@ read directly from its own two runs. For the other seven branches it read
 only the job name and the `exit code 100` shape, and inferred the rest
 from the identical shard; the run ids are listed so that is checkable
 rather than taken.
+
+## Re-homed to LIB, with provenance (2026-09-04, CIW orchestrator)
+
+Ev, 2026-09-04: keep merging over it, but pass it off to actually get
+fixed. Re-verified unfixed on `origin/main` at that moment —
+`crates/pncad-py/src/tags.rs:318` and `:322` ship the two values,
+`crates/pncad-py/src/tests.rs` names neither, and no `.pyi` or `.py`
+under the repository names either.
+
+**Why LIB and not M10.** `crates/pncad-py/*` is LIB's territory
+(`work/lib/program.md`); M10's `paths` do not reach it. Both possible
+repairs — adding the two values to `TAG_INVENTORY`, or adding the
+bindings whose absence would make that wrong — are edits inside LIB's
+fence. What LIB does **not** own is the one question that decides
+which: *is the absence of these two tags from every `.pyi` and
+`tests/*.py` correct surface, or a missing binding?* That is the
+measure work's intent and it is M10's to answer (LIB's own `keep_out`:
+"the analysis lane is M10's"). One question, then a small edit.
+
+## How it happened: two green PRs, seven minutes apart
+
+Established by CIW on 2026-09-04, because "who broke it" was being
+guessed at and the answer bears on the class rather than on blame.
+
+| commit | program | what | merged (UTC) |
+|---|---|---|---|
+| `5a3fc838` | **M10**, `m10/m10-6-reporting` (PR 1685) | added both `node_error_tag` values | 17:48 |
+| `434964df` | **LIB**, `claude/lib-mechanical-clippy-ci-tadd42` (PR 1696) | added the `TAG_INVENTORY` gate that reads them | 17:55 |
+
+LIB last merged `main` into its branch at **16:31**, an hour and a
+quarter before M10 landed, so its branch never contained M10's values —
+`461e0f9a` is not an ancestor of LIB's final head. **LIB enumerated the
+table correctly against the tree it could see, and was made stale seven
+minutes later by a merge it had no way to know about.** No lane was
+careless; nothing here is a finding against either program.
+
+**Neither PR run could have caught it.** M10's run had the values and
+no gate. LIB's run had the gate and no values. The combination first
+existed only on `main`, whose push runs classify docs-tier and skip the
+test rows entirely — so the first tree to execute it was an unrelated
+third party's branch, days later, and it has been billed to every
+code-tier PR since.
+
+That is F3's accepted residue (`docs/CI-MINUTES-2026-08.md` §F3: "the
+landed main commit is then never itself tested") in its sharpest
+observed form: not "main is untested in principle" but **two green PRs
+composing into a red main, with no instrument anywhere that could see
+the composition.** Recorded as evidence in
+`work/ciw/f3-recosting-on-a-public-repo`, which is re-costing F3 now
+that the repository is public and standard-runner minutes are free.
