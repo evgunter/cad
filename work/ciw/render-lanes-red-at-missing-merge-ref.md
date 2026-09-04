@@ -1,10 +1,12 @@
 ---
 id: render-lanes-red-at-missing-merge-ref
 kind: issue
-title: "render lanes: ~100 hosted reds are couldn't find remote ref refs/pull/N/merge at checkout"
-status: open
+title: render lanes: ~100 hosted reds are couldn't find remote ref refs/pull/N/merge at checkout
+status: review
 opened: 2026-09-02
 github: 1607
+pr: 1724
+branch: ciw/render-lane-merge-ref
 ---
 
 ## From GitHub issue 1607

@@ -1,11 +1,12 @@
 ---
 id: no-public-rim-arc-selector
-kind: issue
+kind: unit
 title: selection: no public 'give me this rim's arcs' selector — every caller hand-rolls a radius/station scan
 status: open
 opened: 2026-08-29
 github: 1246
 refs: [1222]
+needs_ev: true
 ---
 
 ## From GitHub issue 1246
@@ -25,3 +26,46 @@ That last filter is the part that is easy to get wrong and impossible to discove
 ## Home
 
 `work/issues/` — the asked-for door is a new selection-vocabulary door whose home is itself the open question, so no program's territory glob or charter claims it yet.
+
+## For Ev — the key shape of the rim selector, and its home
+
+Every consumer hand-rolls the same scan: circular carriers at a radius
+and centre, then drop the co-surface seam meridians (a sphere's seam is
+a great circle that can share a rim's radius and centre exactly). The
+test-side copy is `test-utils`' `rim_arcs_at`.
+
+1. **Keyed by one edge — `rim_of(body, edge) -> Result<Vec<EdgeKey>,
+   RimError>` (recommended).** The caller names any one arc, by pick,
+   by stable name or by any existing query, and gets the rim whole:
+   every edge on the arc's carrier circle whose two supports lie on the
+   same two SURFACES as the given arc (several faces of one surface
+   across chart seams), co-surface seam meridians excluded by
+   construction. Refuses typed when the edge is not a circular arc, and
+   when the matched set does not close into one chain (naming the gap)
+   rather than returning a partial set. This is exactly the request
+   `FILLET3_SEAM_VERTEX_RECOURSE` tells the caller to make, and it is
+   name-addressable today: a recipe can say "the rim of edge ⟨name⟩"
+   now, and "the mouth rim" whenever rims get names of their own (the
+   names vocabulary, SEAT's / Track V's — not this door's question).
+2. **Keyed by the carrier circle** — `rim_at(body, centre, axis,
+   radius, band)`, the `test-utils` shape made public. Needs a match
+   tolerance the caller has to think about, and a recipe cannot spell a
+   circle without knowing the geometry first.
+3. **Keyed by the support pair** — `rim_between(body, surface_a,
+   surface_b)`. Ambiguous whenever two surfaces meet in more than one
+   rim (a torus and a plane).
+
+Home: `crates/topo/src/query.rs`, the kernel query seat (the family
+`edge_adjacent_matches` lives in) — SEAT's territory, entered by
+announced seam in SEAT's log; FILLET writes the spec, and the
+`test-utils` copy becomes a call to the door. Not `sweep`: the
+selector is a topology question with no blend vocabulary in it.
+
+A 👍 on 1 ratifies the key shape and the unit is cut.
+
+**Ruled (Ev, approved PR 1735, 2026-09-04): option 1.** The door is
+`rim_of(body, edge)` in `topo::query`: the whole rim the given arc
+belongs to, co-surface seam meridians excluded by construction, "not
+one rim" refused typed. This item is now the unit that builds it; the
+spec follows, and the `topo/query.rs` seam is announced in SEAT's log
+at dispatch.
