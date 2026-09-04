@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use crate::corpus;
 use crate::docm1_face_frame::lofted_on_face_frame;
-use crate::fixture::{self, Recorder, ang};
+use crate::fixture::{self, Recorder, ang, len, scl};
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::{
@@ -123,15 +123,25 @@ fn a_section_on_a_derived_frame_refuses_derived_frame_section_at_interval() {
     assert!(matches!(ev.nodes.get(&section), Some(NodeResult::Ok(_))));
 }
 
-/// A box whose height is a document parameter with a declared
-/// distribution, and a boss profile sketched on its top face.
+/// An exact unit box LIFTED by a document parameter `lift` (a rigid
+/// transform along +z) whose declared distribution the box's body
+/// value then carries, and a boss profile sketched on the lifted
+/// body's top face.
+///
+/// The widened parameter enters through the TRANSFORM rather than the
+/// extrude's height: an interval extrude re-certifies its carriers
+/// against a band scaled to the row's ε, and a height bracket of any
+/// width leaves that band — a fact about the extrude's certification,
+/// not about the frame. A rigid transform is key-stable and carries
+/// the bracket into the body's placement, which is exactly the fact
+/// the frame reads.
 fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("h"),
+        name: ParamName::new("lift"),
         value: DocParam::Continuous {
             dim: Dimension::Length,
-            value: 1.0,
+            value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(Distribution::Uniform {
                 lo: -width,
@@ -148,10 +158,22 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     let _ = plane;
     let cube = r.insert(Node::Extrude {
         profile,
-        distance: Expr::param(ParamName::new("h"), Dimension::Length),
+        distance: len(1.0),
     });
+    let lifted = r.insert(Node::Transform {
+        input: cube,
+        translation: [
+            len(0.0),
+            len(0.0),
+            Expr::param(ParamName::new("lift"), Dimension::Length),
+        ],
+        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+        rotation_angle: ang(0.0),
+    });
+    // A rigid transform keeps its input's name table verbatim, so the
+    // cap is still named by the extrude that minted it.
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        at: cube,
+        at: lifted,
         face: fixture::fname(cube, RoleSeg::Cap(CapEnd::Top)),
         spin: ang(0.0),
     }));
@@ -171,13 +193,16 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
 /// frame's body reads recomputes the profile on the frame — the
 /// widened placement cannot be served from the nominal memo entry.
 ///
-/// The widening is hair-thin (±1e-10): the interval extrude's own
-/// endpoint certification refuses a height bracket wide enough to
-/// straddle its margin band, and what this row measures is the memo
-/// and the carried width, not how wide a box the lane can build.
+/// The widening is hair-thin and SCALED TO THE ROW'S ε (±ε/8): the
+/// interval extrude's own endpoint certification refuses a height
+/// bracket whose enclosure (about four times the width) leaves the
+/// zero band, and the hosted matrix runs this row at every ε. What
+/// the row measures is the memo and the carried width, not how wide
+/// a box the lane can build.
 #[test]
 fn widening_the_frames_body_parameter_recomputes_the_profile() {
-    let (doc, boss_p) = boxed_on_param(1e-10);
+    let width = Tol::witness().eps() / 8.0;
+    let (doc, boss_p) = boxed_on_param(width);
     let nominal = run(&doc, None, &EvalOptions::default());
     assert!(
         corpus::failures(&nominal).is_empty(),
@@ -195,17 +220,17 @@ fn widening_the_frames_body_parameter_recomputes_the_profile() {
         "{:?}",
         corpus::failures(&widened)
     );
-    // The box's own frame and profile read no parameter and are
-    // served from the memo; everything from the box up — the derived
-    // frame and the boss profile — recomputes.
-    assert_eq!(widened.reused, 2, "the two parameter-free leaves");
-    assert_eq!(widened.recomputed, doc.len() - 2);
+    // The box's frame, profile and extrude read no parameter and are
+    // served from the memo; everything from the transform up — the
+    // lifted body, the derived frame and the boss profile — recomputes.
+    assert_eq!(widened.reused, 3, "the three parameter-free leaves");
+    assert_eq!(widened.recomputed, doc.len() - 3);
     let ValuePayload::Profile(p) = &widened.value(boss_p).expect("the boss profile").payload else {
         panic!("a profile");
     };
     let z = p.validated.plane().placement.translation.z;
     assert!(
-        z.hi() - z.lo() >= 1.9e-10,
+        z.hi() - z.lo() >= 1.9 * width,
         "the placement carries the widened height: {z:?}"
     );
 }

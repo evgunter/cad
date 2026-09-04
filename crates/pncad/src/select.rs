@@ -35,7 +35,7 @@
 //!    [`edge_frame`], [`vertex_position`] and [`denotation`] speak
 //!    names and hand back a [`Pose`] or a count, and
 //!    [`face_carrier_kind`] hands back the face's stored
-//!    [`SurfaceKind`] tag — a value too, the one "is this face
+//!    [`SurfaceKind`](crate::prelude::SurfaceKind) tag — a value too, the one "is this face
 //!    planar" is a comparison of. Arena keys are
 //!    body-lineage-scoped and do not leave `editor-core`; a NURBS
 //!    face has no canonical frame, so `face_frame` refuses it rather
