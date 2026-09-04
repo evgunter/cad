@@ -2,9 +2,10 @@
 id: viewer-session-god-module-split
 kind: issue
 title: viewer::session is accreting into a god-module - split conversation before more units land in it
-status: open
+status: dispatched
 opened: 2026-08-31
 github: 1386
+branch: view/1b-gesture-as-data
 ---
 
 ## From GitHub issue 1386
