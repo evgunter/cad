@@ -865,8 +865,8 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     tool.pick(bottom);
     let (doc, eval) = session.landed_pair().expect("landed");
     match tool.proposal(doc, eval, tol, rest_choice()) {
-        Err(viewer::matetool::MateToolError::SamePick { instance }) => {
-            assert_eq!(instance, bench.post_b);
+        Err(viewer::matetool::MateToolError::SamePick { head }) => {
+            assert_eq!(head, bench.post_b);
         }
         other => panic!("a self-mate must refuse at the tool, got {other:?}"),
     }
