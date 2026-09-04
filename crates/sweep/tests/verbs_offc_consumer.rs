@@ -44,9 +44,7 @@ use geom_core::{Affine3, Tol, Vec3};
 use topo::{Body, FaceKey, FaceSurface};
 
 use crate::common;
-use common::approx::{
-    approx_walls, band, box_with_approx_cap, moved_box, prism, unit_box,
-};
+use common::approx::{approx_walls, band, box_with_approx_cap, moved_box, prism, unit_box};
 
 /// The prism with all four walls carrying certified `Approx` surfaces
 /// at the given signed distance.
@@ -225,7 +223,6 @@ fn the_approx_face_tessellates_through_the_delegate_path() {
         "the delegate path produced no triangles for the Approx face"
     );
 }
-
 
 // ---------------------------------------------------------------------
 // The rigid map of an Approx-faced body
@@ -418,8 +415,9 @@ fn the_mapped_face_is_a_certified_fit_of_the_mapped_description() {
         let moved = topo::transform_rigid(&body, &rigid(), Tol::witness()).expect("the body moves");
         let after = approx_face_surface(&moved, face);
         let geom::SurfaceDescription::Offset { base, .. } = after.description();
-        let fresh = geom_brep::approx_offset_surface(Arc::clone(base), d, after.tolerance(), band())
-            .unwrap_or_else(|e| panic!("d = {d}: the mapped description must still fit: {e}"));
+        let fresh =
+            geom_brep::approx_offset_surface(Arc::clone(base), d, after.tolerance(), band())
+                .unwrap_or_else(|e| panic!("d = {d}: the mapped description must still fit: {e}"));
         let Surface::Approx(fresh) = &fresh else {
             panic!("the door mints the variant")
         };
@@ -583,9 +581,13 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
     let profile = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a square is a valid profile");
-    let mut body = sweep::extrude(&profile, sweep::Extrusion::Distance(iv(1.0)), Tol::witness())
-        .expect("a square prism extrudes at Interval")
-        .body;
+    let mut body = sweep::extrude(
+        &profile,
+        sweep::Extrusion::Distance(iv(1.0)),
+        Tol::witness(),
+    )
+    .expect("a square prism extrudes at Interval")
+    .body;
     let face = body
         .faces()
         .find(|(_, f)| {
