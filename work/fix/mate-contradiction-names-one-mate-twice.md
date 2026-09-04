@@ -34,67 +34,59 @@ Both defects were presentation, and the refusal still fires exactly
 where it did. What the measurement changed is the second one's
 diagnosis.
 
-**Measured first.** The clash magnitude is written literally as
-`theta * arm` at `crates/editor-core/src/mate/solve.rs:548`, with `arm`
-from `Alignment::lever_arm()` (`crates/editor-core/src/mate.rs:260`) —
-`max(‖a.origin‖, ‖b.origin‖, 1.0, authored lengths)`. The repro's frames
-both sit at the origin, so the arm is exactly 1.0, its FLOOR, and
-`π/2 · 1.0` is why the printed figure reads as a raw π/2. So the item's
-"levered angle labeled metres" is right about the lever and wrong about
-the unit: `Margin::levered` is D4's own door
-(`crates/geom-core/src/predicate.rs:499`) and θ·arm IS metres — the
-point deviation the roll induces at the arm. The defect is not a wrong
-unit but an **unrecoverable** number: the arm is invisible, so a reader
-cannot get θ back, and the metre figure equals π/2 only by the
-coincidence of a unit arm.
+**Measured first, and the item's premise was WRONG.** The clash is
+written literally as `theta * arm` (`mate/solve.rs:548`), with `arm`
+from `Alignment::lever_arm()` (`mate.rs:260`) — the larger of the two
+frame origins' distances and the authored lengths, floored at 1 m. The
+repro's frames both sit at the origin and `FrameCoincidence` has no
+authored lengths, so the arm is exactly 1.0, its FLOOR, and that alone
+is why `π/2 · arm` reads as a raw π/2 (probe: moving one origin to
+`[0,0,3]` gives `arm = 3`, `clash = 4.712…`). But `Margin::levered` is
+D4's own θ·r door, so θ·arm IS metres. **The metre is honest**; the
+defect is that the figure is *unrecoverable* with the arm invisible.
 
 **What landed.**
 
-- `MateFault::Contradictory` gains `lever: Option<ClashLever>`
-  (`ClashLever { disagreement, unit, arm }`). `clash` is unchanged — the
-  metres the predicate decided on — so every consumer keeps reading what
-  it read. The clocking arm fills it; the two fold sites pass `None`.
-- The `Display` arm names ONE mate once when `held == added` ("mate 6
-  contradicts itself — the constraints it declares admit no common
-  pose") and keeps the pair sentence otherwise.
-- A levered clash prints both halves and the product: "measured a
-  disagreement of 1.5707963267948966 rad levered by a contact arm of 1 m
-  — that is a clash of 1.5707963267948966 m". The angle-unit branch and
-  the honest-lever branch the issue offered are BOTH taken, because
-  printing the angle alone would drop the metres the band actually
-  compared against.
-- `mate_member_empty` carries `f64::INFINITY` and used to print "a clash
-  of inf m". It now says the cosets meet in the empty set — a structural
-  refusal with no margin to measure. Same sentence, same class.
+- `MateFault::Contradictory` gains `lever: Option<(f64, f64)>` —
+  `(radians, arm in metres)`. Deliberately NOT a new named type: the
+  export and binding gates key on names added to `editor-core`'s
+  `pub use` list, so a field on the existing variant trips neither, and
+  this change stays inside its own crate.
+- The `Display` names ONE mate once when `held == added`, and keeps the
+  pair sentence otherwise.
+- A levered clash prints the product it COMPUTES from the two halves it
+  shows ("a roll of … rad on a … m arm, a deviation of … m"), so the
+  sentence cannot assert an identity the payload failed to keep.
+- Whether there is a measurement at all is read from `predicate`
+  against the shared `MATE_MEMBER_EMPTY` constant, never from the
+  margin's value. `mate_member_empty` no longer prints "inf m"; a NaN
+  or negative infinity under any other predicate no longer borrows the
+  empty set's sentence.
+- The clocking site reads `Margin::value()` instead of respelling
+  `theta * arm` three lines after the door computed it.
 
-**Rows.** `crates/editor-core/tests/display_contract.rs` pins both
-corrected sentences plus the dimensionless and structural cases;
+**Rows.** `display_contract.rs` pins the corrected sentences plus the
+product-is-the-product and non-finite-is-not-the-empty-set properties;
 `asm_r2a_mate_solve.rs` row 7g drives the real repro through
-`solve_document` and checks `disagreement * arm == clash`; the two
-existing `Contradictory` rows now assert `lever.is_none()` for the
-length-measuring predicates.
+`solve_document`.
 
-**Swept for.** Two shapes. (1) A diagnostic naming one subject twice —
-grepped `{} and {}` / `{} (and|vs|against|with) {}` templates across
-`crates/*/src` and `demos/`. (2) A levered quantity reaching a message —
-grepped `Margin::levered`-family call sites (203) and `* arm` into a
-payload. Hit lists and per-hit disposition are in the PR body.
+**Swept for.** (1) A diagnostic naming one subject twice; (2) a levered
+quantity reaching a message with its arm invisible. Hit lists and
+per-hit disposition are in PR 1766.
 
 **What the sweep could NOT match.** A pair rendered across two `write!`
-calls or through a helper rather than one template; a pair joined by a
-word other than and/vs/against/with, or by punctuation (an arrow, a
-slash); a pair whose `Display` forwards to a nested type that names the
-subjects; and, for shape 2, any levering done in a named helper whose
-body the `* arm` grep never sees (`rotation_residual` was found only by
-reading `member_of`, not by the grep) or performed in a different unit
-system. Neither grep can see a value that becomes levered several frames
-above the message.
+calls, through a helper, or joined by punctuation rather than a word; a
+pair whose `Display` forwards to a nested type. For the levered shape,
+any levering done inside a named helper the `* arm` grep never sees
+(`rotation_residual` was found by reading `member_of`, not by the
+grep). Neither grep sees a value levered several frames above its
+message.
 
-**Residue, filed:** `work/fix/levered-clash-margins-hide-their-arm.md` —
-three sibling margins in `mate/coset.rs` still arrive with `lever: None`
-because filling them is solve-internal plumbing in S-MATE's live
-territory, not refusal prose.
+**Residue, filed:** `work/fix/levered-clash-margins-hide-their-arm.md`
+— three sibling margins in `mate/coset.rs` still arrive with
+`lever: None`.
 
-**Not taken, reported:** `crates/pncad-py/src/py/mate.rs:672` exposes
-`clash` as a `Length` with no lever getter, so the Python consumer meets
-the same unrecoverable metre figure one layer out; `pncad-py` is LIB's.
+**Out-of-fence findings** (reported, not filed): three
+`PoisonEnclosure` raise sites in `crates/editor-core/src/clearance.rs`
+can name one `FaceKey` twice across bodies, in two renderings. Routed
+by the orchestrator as a class.

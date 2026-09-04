@@ -533,6 +533,7 @@ fn mate_coset(
             // agree with is zero.
             if let Some(theta) = alignment.clocking {
                 let margin = geom_core::predicate::Margin::levered(theta, arm);
+                let deviation = margin.value();
                 let sign = geom_core::k_stats::decide("mate_clocking_redundant", margin, band)
                     .map_err(|diag| {
                         Box::new(MateFault::Indeterminate {
@@ -545,12 +546,8 @@ fn mate_coset(
                         held: mate,
                         added: mate,
                         predicate: "mate_clocking_redundant",
-                        clash: theta * arm,
-                        lever: Some(super::ClashLever {
-                            disagreement: theta,
-                            unit: "rad",
-                            arm,
-                        }),
+                        clash: deviation,
+                        lever: Some((theta, arm)),
                     }));
                 }
             }
@@ -705,7 +702,7 @@ pub fn fold_pair<P>(
             return Err(Box::new(MateFault::Contradictory {
                 held: held_mate.unwrap_or(mate),
                 added: mate,
-                predicate: "mate_member_empty",
+                predicate: super::MATE_MEMBER_EMPTY,
                 clash: f64::INFINITY,
                 lever: None,
             }));

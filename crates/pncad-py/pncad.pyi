@@ -3045,19 +3045,6 @@ class Subgroup:
     @property
     def direction(self) -> Optional[tuple[float, float, float]]: ...
 
-class ClashLever:
-    """The lever behind a contradiction's clash, when the predicate
-    measured a disagreement and an arm carried it to a point deviation.
-    The metre figure `MateFault.clash` reports is `disagreement * arm`
-    exactly, so the angle is read here rather than divided back out."""
-
-    @property
-    def disagreement(self) -> float: ...
-    @property
-    def unit(self) -> str: ...
-    @property
-    def arm(self) -> Length: ...
-
 class MateFault:
     """Why the solve refused for one node — a VALUE, because the solve
     is total and records a refusal per node rather than failing the
@@ -3087,8 +3074,6 @@ class MateFault:
     def predicate(self) -> Optional[str]: ...
     @property
     def clash(self) -> Optional[Length]: ...
-    @property
-    def lever(self) -> Optional[ClashLever]: ...
     @property
     def what(self) -> Optional[str]: ...
 

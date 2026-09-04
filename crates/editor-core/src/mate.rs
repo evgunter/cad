@@ -427,14 +427,23 @@ pub enum MateFault {
         added: RecipeNodeId,
         /// The predicate that decided against them.
         predicate: &'static str,
-        /// The measured clash, in metres (the margin that should have
-        /// been zero and was not).
+        /// The measured clash, in metres: the margin that should have
+        /// been zero and was not, or — for the predicate that decides
+        /// the empty intersection STRUCTURALLY — no measurement at all.
+        /// Which of those it is, is settled by `predicate`, never by
+        /// reading this number.
         clash: f64,
-        /// The lever, when `clash` was CARRIED to metres from a
-        /// dimensionless disagreement instead of measured as a length
-        /// outright. `None` is a predicate whose margin is already a
-        /// length.
-        lever: Option<ClashLever>,
+        /// The lever, when the predicate measured a ROLL and an arm
+        /// carried it to `clash`: `(radians, arm in metres)`, in that
+        /// order, whose product is the deviation. `None` when the
+        /// predicate measured its margin without a lever.
+        ///
+        /// The arm is the solve's own scale surrogate
+        /// ([`Alignment::lever_arm`]) — the larger of the two frame
+        /// origins' distances and the authored lengths, floored at one
+        /// metre — and NOT a contact feature, so a message that names
+        /// it is naming that scale and nothing in the model.
+        lever: Option<(f64, f64)>,
     },
     /// A tree mate left a positive-dimensional residual (A11 rule 4's
     /// UNDER): names the pair, the residual subgroup, and its
@@ -474,22 +483,12 @@ pub enum MateFault {
     },
 }
 
-/// The lever behind a clash a predicate measured as a **disagreement**
-/// rather than as a length: the metre figure IS `disagreement · arm`
-/// ([`geom_core::predicate::Margin::levered`]'s door), so a message
-/// that prints the product alone states a number the reader cannot
-/// re-derive. Both halves travel so the product is checkable.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ClashLever {
-    /// What the predicate measured before the arm carried it.
-    pub disagreement: f64,
-    /// `disagreement`'s unit: `"rad"` for an authored angle, `""` for a
-    /// pure number (a sine, a rotation's departure from the identity).
-    pub unit: &'static str,
-    /// The lever arm, in metres — the length that turns the
-    /// disagreement into the point deviation the predicate decided on.
-    pub arm: f64,
-}
+/// The predicate that decides the EMPTY intersection. It is the one
+/// name in the membership vocabulary that reports no measurement — the
+/// empty set holds nothing and no margin decides that — so it is a
+/// shared constant rather than a literal at each site, and every door
+/// that needs to know reads THIS rather than inspecting a margin.
+pub(crate) const MATE_MEMBER_EMPTY: &str = "mate_member_empty";
 
 impl core::fmt::Display for MateFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -540,35 +539,44 @@ impl core::fmt::Display for MateFault {
                     write!(f, "mates {} and {} cannot both hold", held.0, added.0)?;
                 }
                 write!(f, ": predicate `{predicate}` ")?;
-                // The empty intersection is decided STRUCTURALLY, so
-                // its margin is no measurement and never renders as one.
-                if !clash.is_finite() {
+                // WHETHER there is a measurement to report is the
+                // predicate's fact, settled where the refusal is
+                // raised. The margin's value never stands in for it:
+                // reading a sentinel back out of a number makes every
+                // other non-finite margin claim to be this case.
+                if *predicate == MATE_MEMBER_EMPTY {
                     return write!(
                         f,
                         "found the cosets meet in the empty set — a structural refusal, with no \
                          margin to measure"
                     );
                 }
-                // A levered clash is `disagreement · arm`, so printing
-                // the product alone states metres the reader cannot
-                // re-derive: both halves travel with it.
-                if let Some(ClashLever {
-                    disagreement,
-                    unit,
-                    arm,
-                }) = lever
-                {
-                    let space = if unit.is_empty() { "" } else { " " };
+                // A levered clash IS the product of its two halves, so
+                // the sentence prints the product it computes here.
+                // Stating a stored figure beside the halves would
+                // assert an identity nothing enforces.
+                if let Some((radians, arm)) = lever {
+                    return write!(
+                        f,
+                        "measured a roll of {radians} rad on a {arm} m arm, a deviation of {} m \
+                         where the cosets would have had to meet",
+                        radians * arm
+                    );
+                }
+                // Every other margin is a length measured outright —
+                // and a length that is not finite is not one.
+                if clash.is_finite() {
                     write!(
                         f,
-                        "measured a disagreement of {disagreement}{space}{unit} levered by a \
-                         contact arm of {arm} m — that is "
-                    )?;
+                        "measured a clash of {clash} m where the cosets would have had to meet"
+                    )
+                } else {
+                    write!(
+                        f,
+                        "measured a clash that is not a finite length ({clash}) where the cosets \
+                         would have had to meet"
+                    )
                 }
-                write!(
-                    f,
-                    "a clash of {clash} m where the cosets would have had to meet"
-                )
             }
             Self::Under {
                 mate,

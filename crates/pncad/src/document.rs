@@ -201,16 +201,13 @@ pub use editor_core::{
 // (`SolvedPoses`, `MateRole`, the residual `Subgroup`), the recorded
 // cluster-record maintenance (`ClusterMaintenance`), and `MateFault`
 // — the typed refusal every door carries, the way `RootFault` is
-// carried above; `ClashLever` travels with it, because a contradiction
-// whose magnitude was levered out of an angle carries the lever in the
-// payload and a consumer that cannot NAME it cannot read what it
-// carries. `member_of` is A11's member vocabulary itself, which
+// carried above. `member_of` is A11's member vocabulary itself, which
 // an authoring door must gate on so it admits exactly the heads the
 // solve places (`Member` is its answer).
 pub use editor_core::{
-    Alignment, AxisSense, ClashLever, ClusterMaintenance, MateFault, MateFrame, MatePrimitive,
-    MateRole, MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of,
-    member_of, reading_edges, relative_freedom_components, solve_document,
+    Alignment, AxisSense, ClusterMaintenance, MateFault, MateFrame, MatePrimitive, MateRole,
+    MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, member_of,
+    reading_edges, relative_freedom_components, solve_document,
 };
 
 // The class-admission table (`ClassAdmission`, read through

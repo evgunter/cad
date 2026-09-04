@@ -8,7 +8,7 @@ opened: 2026-09-04
 
 
 Residue disclosed by `mate-contradiction-names-one-mate-twice`, which
-gave `MateFault::Contradictory` a `lever: Option<ClashLever>` and filled
+gave `MateFault::Contradictory` a `lever: Option<(f64, f64)>` and filled
 it at the one raising site that has the lever in hand
 (`crates/editor-core/src/mate/solve.rs:544`, the clocking rider). The
 socket is in place; three sibling margins still arrive with `None` and
@@ -41,3 +41,23 @@ outright and correctly carry no lever; two rows in
 The tree's own precedent for the shape is
 `crates/profile/src/path.rs:1201`, `PathError::JunctionCusp`, which
 renders "turn margin {margin} m on a {arm} m arm".
+
+## The socket is typed RADIANS — do not fill it blindly
+
+`lever` is documented and rendered as `(radians, arm)`: the `Display`
+writes "a roll of {radians} rad". That is honest for the one site
+filling it today, whose disagreement IS an authored angle. **It is not
+honest for any of the three above** — a sine (`mate_axes_parallel`), a
+Frobenius departure from the identity (`rotation_residual`) and a
+reach are pure numbers, not radians, and dropping one into this field
+would re-mint the very defect the display unit closed, one field
+inward.
+
+An earlier draft carried a `unit: &'static str` beside the value to
+cover both cases. It was removed as a free string on a public surface
+that could be set to `"m"` and print a length as a disagreement — a
+knob no production site varied. Whoever takes these three owes the
+choice explicitly: a second arm in the sentence for dimensionless
+residuals, a typed unit (`quantity::AngleUnit` and friends exist), or
+a small-angle argument for calling a sine radians. It is a decision,
+not a fill.

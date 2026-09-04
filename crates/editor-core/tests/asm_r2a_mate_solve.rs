@@ -1716,15 +1716,12 @@ fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
         "the mate contradicts ITSELF, so it stands on both sides"
     );
     assert_eq!(*predicate, "mate_clocking_redundant");
-    let lever = lever.expect("the clocking clash is levered, not measured as a length");
-    assert_eq!(lever.unit, "rad");
-    assert!((lever.disagreement - core::f64::consts::FRAC_PI_2).abs() < 1e-15);
+    let (radians, arm) = lever.expect("the clocking clash is levered, not measured as a length");
+    assert!((radians - core::f64::consts::FRAC_PI_2).abs() < 1e-15);
     assert!(
-        (lever.disagreement * lever.arm - clash).abs() < 1e-15,
-        "the metre figure is the product the message asks the reader to check: \
-         {} * {} vs {clash}",
-        lever.disagreement,
-        lever.arm
+        (radians * arm - clash).abs() < 1e-15,
+        "the stored metre figure IS the product of the halves at the raising site: \
+         {radians} * {arm} vs {clash}"
     );
     let message = fault.to_string();
     assert!(
@@ -1736,7 +1733,8 @@ fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
         "the pair sentence reads as an indexing fault here: {message}"
     );
     assert!(
-        message.contains("rad") && message.contains("contact arm"),
-        "the levered magnitude names its angle and its arm: {message}"
+        message.contains(&format!("a roll of {radians} rad"))
+            && message.contains(&format!("on a {arm} m arm")),
+        "the levered magnitude names its roll and the arm it was decided at: {message}"
     );
 }
