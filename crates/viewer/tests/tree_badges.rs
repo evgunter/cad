@@ -5,10 +5,12 @@
 //! independent subgraphs complete, and what a badge says is the typed
 //! error's own rendering rather than a sentence this crate wrote.
 //!
-//! The row that matters most is the last one: the poisoned badge's
-//! message must be the FAILED ANCESTOR's error. A tree that showed
-//! "upstream failed" and nothing else would be green under every other
-//! assertion here and useless to a user.
+//! The rows that matter most are the downstream ones. A poisoned row
+//! must say where the failure is and must NOT recite what it was —
+//! the defect that reading gives is four instance rows carrying the
+//! same paragraph of refusal prose — and the row it points at must be
+//! one this same tree badges FAILED, or "upstream failure at node 5"
+//! sends the user somewhere there is nothing to read.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -16,9 +18,7 @@
 
 use crate::common;
 
-use pncad::document::{
-    Alignment, AxisSense, CancelToken, EvalOptions, MateFrame, MatePrimitive, NodeResult, evaluate,
-};
+use pncad::document::{BooleanOp, CancelToken, EvalOptions, NodeResult, evaluate};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use viewer::session::{DocSession, SessionOp};
@@ -60,8 +60,8 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
             assert_eq!(*through, extrude, "poison names the failure it came from");
             assert_eq!(
                 message.as_deref(),
-                Some(error.to_string().as_str()),
-                "a poisoned row shows the ROOT CAUSE, not a placeholder"
+                Some(tree::downstream_wording(extrude).as_str()),
+                "a poisoned row POINTS at the cause's row; it does not recite it"
             );
         }
         other => panic!("expected Poisoned, got {other:?}"),
@@ -88,12 +88,7 @@ fn an_independent_subgraph_completes_beside_a_failure() {
     session.pump();
     let rows = session.tree_rows();
 
-    let status_of = |id| {
-        rows.iter()
-            .find(|row| row.id == id)
-            .map(|row| row.status.clone())
-            .expect("the node has a row")
-    };
+    let status_of = |id| common::status_of(&rows, id);
     assert!(matches!(status_of(extrude), RowStatus::Failed { .. }));
     assert_eq!(status_of(other_extrude), RowStatus::Ok);
     assert_eq!(status_of(other_profile), RowStatus::Ok);
@@ -180,25 +175,6 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
     // The second carries a clocking rider on a frame coincidence,
     // which the coset table decides against (`mate_clocking_redundant`
     // — a coincidence has already pinned the roll).
-    let seat = |b_x: f64, clocking: Option<f64>| Alignment {
-        a: MateFrame {
-            origin: [
-                common::asm::POST_SECTION / 2.0,
-                common::asm::POST_SECTION / 2.0,
-                common::asm::POST_HEIGHT,
-            ],
-            axis: [0.0, 0.0, 1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        b: MateFrame {
-            origin: [b_x, common::asm::SHELF_DEPTH / 2.0, 0.0],
-            axis: [0.0, 0.0, -1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        primitive: MatePrimitive::FrameCoincidence,
-        sense: AxisSense::Opposed,
-        clocking,
-    };
     let add_mate = |session: &mut DocSession, post, alignment| {
         common::insert(
             session,
@@ -213,12 +189,12 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
     let sound = add_mate(
         &mut session,
         bench.post_a,
-        seat(common::asm::SHELF_LENGTH / 2.0, None),
+        common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0, None),
     );
     let offender = add_mate(
         &mut session,
         bench.post_b,
-        seat(common::asm::SHELF_LENGTH / 4.0, Some(0.3)),
+        common::asm::seat_alignment(common::asm::SHELF_LENGTH / 4.0, Some(0.3)),
     );
     // ONE evaluation over both mates. Pumping between them leaves the
     // sound mate's row reading `Ok` off the memo — a mate's key does
@@ -229,12 +205,7 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
 
     let rows = session.tree_rows();
     assert!(tree::has_faults(&rows), "the cluster refused: {rows:?}");
-    let status_of = |id| {
-        rows.iter()
-            .find(|row| row.id == id)
-            .map(|row| row.status.clone())
-            .unwrap_or_else(|| panic!("node {id:?} has a row"))
-    };
+    let status_of = |id| common::status_of(&rows, id);
 
     // The offending mate is the cause, and the only row that is.
     let RowStatus::Failed { message } = status_of(offender) else {
@@ -243,7 +214,6 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
             status_of(offender)
         );
     };
-    assert_eq!(status_of(offender).badge(), "FAILED");
     assert!(
         message.contains("mate_clocking_redundant"),
         "the kernel's own words on the mate's row: {message}"
@@ -262,6 +232,8 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
     // Every other row the refusal reached reads as downstream of it —
     // the two posts, the shelf, and the sound mate. `post_a` is the
     // row the issue is about: the offending mate does not touch it.
+    // What each of them says is the POINTER, not a fourth copy of the
+    // refusal prose the offending mate's row already carries.
     for (id, what) in [
         (
             bench.post_a,
@@ -276,14 +248,12 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
                 assert_eq!(through, offender, "{what} points at the offending mate");
                 assert_eq!(
                     message,
-                    Some(format!("node {} failed: {}", offender.0, {
-                        let (_, ev) = session.landed_pair().expect("landed");
-                        match ev.result(offender) {
-                            Some(NodeResult::Failed(error)) => error.kind.to_string(),
-                            other => panic!("the offending mate failed, got {other:?}"),
-                        }
-                    })),
-                    "{what} shows the CAUSE's own rendering"
+                    Some(tree::downstream_wording(offender)),
+                    "{what} points at the cause's row"
+                );
+                assert!(
+                    !message.unwrap_or_default().contains("mate_clocking"),
+                    "{what} must not recite the refusal a user reads once, on the mate"
                 );
             }
             other => panic!("{what} must read as downstream, got {other:?}"),
@@ -309,25 +279,6 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
     let bench = common::asm::bench("badge-contradiction", tol);
     let mut session = common::asm::open_bench(&bench, tol);
 
-    let seat = |b_x: f64| Alignment {
-        a: MateFrame {
-            origin: [
-                common::asm::POST_SECTION / 2.0,
-                common::asm::POST_SECTION / 2.0,
-                common::asm::POST_HEIGHT,
-            ],
-            axis: [0.0, 0.0, 1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        b: MateFrame {
-            origin: [b_x, common::asm::SHELF_DEPTH / 2.0, 0.0],
-            axis: [0.0, 0.0, -1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        primitive: MatePrimitive::FrameCoincidence,
-        sense: AxisSense::Opposed,
-        clocking: None,
-    };
     let add_mate = |session: &mut DocSession, alignment| {
         common::insert(
             session,
@@ -341,18 +292,31 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
     };
     // The first mate lands and EVALUATES — the memo now holds an `Ok`
     // for it — and only then does the second one contradict it.
-    let held = add_mate(&mut session, seat(common::asm::SHELF_LENGTH / 2.0));
+    let held = add_mate(
+        &mut session,
+        common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0, None),
+    );
     session.pump();
-    let added = add_mate(&mut session, seat(common::asm::SHELF_LENGTH / 2.0 + 0.01));
+    let added = add_mate(
+        &mut session,
+        common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0 + 0.01, None),
+    );
     session.pump();
 
     let rows = session.tree_rows();
-    let status_of = |id| {
-        rows.iter()
-            .find(|row| row.id == id)
-            .map(|row| row.status.clone())
-            .unwrap_or_else(|| panic!("node {id:?} has a row"))
-    };
+    let status_of = |id| common::status_of(&rows, id);
+    // THE PREMISE THIS ROW RESTS ON, asserted rather than assumed: the
+    // run reports `held` as `Ok` even though the fault names it. That
+    // is the memo hazard (`work/issues/mate-memo-key-does-not-carry-
+    // the-solve`), and it is what makes the two blamed mates
+    // distinguishable here — fix the kernel and this row must be
+    // rewritten rather than quietly passing as a copy of the one
+    // above.
+    assert_eq!(
+        status_of(held),
+        RowStatus::Ok,
+        "the memo hazard is the premise: the first mate reads Ok in the run that blames it"
+    );
     let failing: Vec<_> = rows
         .iter()
         .filter(|row| matches!(row.status, RowStatus::Failed { .. }))
@@ -383,8 +347,8 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
                 );
                 assert_eq!(
                     message,
-                    status_of(through).message().map(ToOwned::to_owned),
-                    "the message is the cause's own"
+                    Some(tree::downstream_wording(through)),
+                    "the message points at that mate's row"
                 );
             }
             other => panic!("a mated instance must read as downstream, got {other:?}"),
@@ -393,6 +357,100 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
     // post_b is in no cluster with them: an independent subgraph
     // completes, exactly as GQ2 says.
     assert_eq!(status_of(bench.post_b), RowStatus::Ok);
+
+    std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
+}
+
+/// **A row poisoned through a row that is ITSELF downstream points at
+/// the terminal cause, not at a POISONED row.**
+///
+/// The reachable document: a boolean over two instances of a cluster
+/// that then refuses. The kernel poisons the boolean through its first
+/// blocking input — an instance — and reports that instance as its own
+/// `Failed`; the tree redraws the instance as downstream of the mate.
+/// Read verbatim the boolean would point at a row drawn POISONED and
+/// weak, so the user's walk would be two hops through a row with
+/// nothing to act on.
+#[test]
+fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("badge-two-hop", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+
+    // The boolean lands first, over two instances that are both `Ok`:
+    // the operand seat admits an instance (`combine::denotes_body`).
+    let boolean = common::insert(
+        &mut session,
+        SessionOp::AddBoolean {
+            op: BooleanOp::Union,
+            a: bench.post_a,
+            b: bench.shelf_i,
+        },
+    );
+    session.pump();
+    assert_eq!(
+        common::status_of(&session.tree_rows(), boolean),
+        RowStatus::Ok,
+        "the boolean builds before the cluster refuses"
+    );
+
+    let add_mate = |session: &mut DocSession, post, alignment| {
+        common::insert(
+            session,
+            SessionOp::AddMate {
+                a: common::asm::in_part(post, &bench.post_top),
+                b: common::asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+                class: ContactClass::Rest,
+                alignment,
+            },
+        )
+    };
+    add_mate(
+        &mut session,
+        bench.post_a,
+        common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0, None),
+    );
+    let offender = add_mate(
+        &mut session,
+        bench.post_b,
+        common::asm::seat_alignment(common::asm::SHELF_LENGTH / 4.0, Some(0.3)),
+    );
+    session.pump();
+
+    // The kernel's own reading: poisoned through the INSTANCE, which
+    // is what makes the hop a real one rather than a hypothetical.
+    let (_, ev) = session.landed_pair().expect("landed");
+    assert_eq!(
+        ev.result(boolean).and_then(NodeResult::poisoned_through),
+        Some(bench.post_a),
+        "the evaluation poisons the boolean through its first blocking input"
+    );
+
+    let rows = session.tree_rows();
+    match common::status_of(&rows, boolean) {
+        RowStatus::Poisoned { through, message } => {
+            assert_eq!(
+                through, offender,
+                "the boolean points past the instance at the mate that refused"
+            );
+            assert_eq!(message, Some(tree::downstream_wording(offender)));
+        }
+        other => panic!("the boolean reads as downstream, got {other:?}"),
+    }
+
+    // The invariant that makes the pointer worth following, over the
+    // whole tree: every POISONED row names a row THIS TREE badges
+    // FAILED, so one hop lands on words to read.
+    for row in &rows {
+        if let RowStatus::Poisoned { through, .. } = &row.status {
+            assert!(
+                matches!(common::status_of(&rows, *through), RowStatus::Failed { .. }),
+                "{:?} points at {through:?}, which draws {}",
+                row.id,
+                common::status_of(&rows, *through).badge()
+            );
+        }
+    }
 
     std::fs::remove_dir_all(&bench.dir).expect("the fixture directory is removable");
 }

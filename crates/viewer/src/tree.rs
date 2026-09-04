@@ -1,20 +1,19 @@
 //! The feature tree: the GQ2 result DAG, as rows a panel can draw.
 //!
-//! # Failures are values, and this module renders no opinion of its
-//! own
+//! # Failures are values, and this module invents none of them
 //!
 //! GQ2's ratified codomain is a per-node result — `Ok`, `Failed(e)`,
 //! `Poisoned { through }` — and the ratified error rule is that a
 //! failure is a typed value the GUI renders, never a string invented
-//! at the interaction layer. So a badge's message is
-//! `NodeError`'s own `Display`, and a poisoned row's message is the
-//! `Display` of the FAILED ANCESTOR's error, reached through the
-//! shipped `Evaluation::node_error`. Nothing here composes a sentence
-//! about what went wrong; the payload already knows.
+//! at the interaction layer. So a failing row's message is
+//! `NodeError`'s own `Display`, and nothing here composes a sentence
+//! about what went wrong. The one sentence this module does write is
+//! a DOWNSTREAM row's ([`downstream_wording`]), and it says only
+//! WHERE the failure is.
 //!
-//! What this module does own is the *shape*: which rows exist, in
-//! which order, at what indentation, and which of them the selection
-//! is on.
+//! Because that is the other thing this module owns: the *shape* —
+//! which rows exist, in which order, at what indentation, which of
+//! them the selection is on, and which row a failure sends the eye to.
 //!
 //! # A mate refusal poisons across the placement graph, not the DAG
 //!
@@ -26,12 +25,13 @@
 //! it as its own `Failed`. Read verbatim that draws four identical
 //! FAILED badges and sends the eye nowhere.
 //!
-//! The fault itself resolves that: every `MateFault` arm names its
-//! subject, and the subject is a mate node. So a row whose id the fault
-//! NAMES is the cause and stays `Failed`; a row the same fault merely
-//! reached is [`RowStatus::Poisoned`] through the mate that is named.
-//! This is still the payload's own opinion, not one invented here — the
-//! only thing read is which node the kernel's own words point at.
+//! The fault itself resolves that: every `MateFault` arm but
+//! [`MateFault::Band`] names its subject, and the subject is a mate
+//! node (`blamed_mates` holds that carve-out). So a row whose id the
+//! fault NAMES is the cause and stays `Failed`; a row the same fault
+//! merely reached is [`RowStatus::Poisoned`] through the mate that is
+//! named — the only thing read being which node the kernel's own
+//! words point at.
 //!
 //! # Order and depth
 //!
@@ -77,23 +77,20 @@ pub enum RowStatus {
     /// The failure this row shows is not its own: it is downstream of
     /// a failure at `through`.
     ///
-    /// Two things arrive here. A DAG descendant of a failed node, which
-    /// the evaluation itself reports as poisoned and never ran; and an
-    /// instance or mate the placement solve left without a pose because
-    /// some OTHER mate in its cluster refused (the module header's
-    /// second section), which the evaluation reports as its own
-    /// `Failed` because the placement graph is not the DAG.
+    /// Two things arrive here: a DAG descendant of a failed node, which
+    /// the evaluation itself reports as poisoned; and a node the
+    /// placement solve left without a pose because some OTHER mate in
+    /// its cluster refused, which the evaluation reports as its own
+    /// `Failed` (the module header's second section).
     Poisoned {
-        /// The node whose failure this row is downstream of: the
-        /// nearest failed DAG ancestor, or the mate a solve refusal
-        /// names as its subject. Either way it is a node the
-        /// evaluation reports as `Failed`, so the chain is walkable in
-        /// one hop.
+        /// The row to go and read: a node THIS TREE badges `Failed`,
+        /// so the walk is one hop as DRAWN and not merely as evaluated
+        /// (`poisoned_through` pays for the difference).
         through: RecipeNodeId,
-        /// That node's error, rendered by the payload itself.
-        /// `None` only if the chain does not end at a failure — a
-        /// broken invariant this reports as absence rather than
-        /// papering over with an invented cause.
+        /// The pointer at `through` — [`downstream_wording`], never
+        /// the cause's own text. `None` only if the chain does not end
+        /// at a failure at all: a broken invariant reported as absence
+        /// rather than papered over with an invented cause.
         message: Option<String>,
     },
     /// The node has no entry in this evaluation: past a cancelation's
@@ -113,7 +110,9 @@ impl RowStatus {
         }
     }
 
-    /// The typed payload's message, when the status carries one.
+    /// The line drawn under the row, when it has one: the typed
+    /// payload's own words on a failing row, and on a downstream row
+    /// the pointer at the row that has them.
     pub fn message(&self) -> Option<&str> {
         match self {
             Self::Ok | Self::Unevaluated => None,
@@ -261,15 +260,48 @@ fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatu
                 message: error.to_string(),
             })
         }
-        Some(NodeResult::Poisoned { through }) => RowStatus::Poisoned {
-            through: *through,
-            // `node_error` walks the one `through` hop to the failed
-            // ancestor and answers ITS typed error — the whole reason
-            // a poisoned row can say what actually broke without this
-            // module knowing anything about the failure.
-            message: ev.node_error(id).map(ToString::to_string),
-        },
+        Some(NodeResult::Poisoned { through }) => poisoned_through(*through, ev),
     }
+}
+
+/// What a downstream row says: WHERE the failure is, never what it
+/// was.
+///
+/// Named rather than composed inside a render pass, so the wording has
+/// one home and can be asserted on (`app::indeterminate_wording`'s
+/// rule). Honest for BOTH of [`RowStatus::Poisoned`]'s producers
+/// because both point at a row this same tree badges `Failed`, where
+/// the payload's own words are read once instead of once per row the
+/// failure reached.
+pub fn downstream_wording(through: RecipeNodeId) -> String {
+    format!(
+        "upstream failure at node {} — that row carries the cause",
+        through.0
+    )
+}
+
+/// The status of a row the EVALUATION poisoned, given the nearest
+/// failed ancestor it named.
+///
+/// That ancestor is `Failed` in the run, but the tree may redraw its
+/// row as downstream itself — reachably: a boolean over two instances
+/// of a cluster that then refuses is poisoned through an instance
+/// whose own row now points at the mate. Two hops, one of them a row
+/// with nothing to act on, so this carries the same cause that row
+/// does. One step settles it: a mate the fault names keeps its own
+/// `Failed`.
+fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> RowStatus {
+    let Some(error) = ev.result(through).and_then(NodeResult::error) else {
+        // The chain does not end at a failure: report the absence.
+        return RowStatus::Poisoned {
+            through,
+            message: None,
+        };
+    };
+    downstream_of_mate(through, error, ev).unwrap_or(RowStatus::Poisoned {
+        through,
+        message: Some(downstream_wording(through)),
+    })
 }
 
 /// The mates a solve refusal BLAMES — the nodes the fault's own words
@@ -279,9 +311,8 @@ fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatu
 /// here whether it names a mate, rather than falling into a wildcard
 /// and silently drawing every reached row as downstream of nothing.
 /// [`MateFault::Band`] names none — no band, no decisions, so no mate
-/// is more at fault than any other — and a fault that names none
-/// leaves every row it reached reading as its own failure, which is
-/// the honest rendering of a cause that is the run's tolerance.
+/// is more at fault than any other — and every row it reached keeps
+/// its own `Failed`.
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
         MateFault::Frame { mate, .. }
@@ -294,8 +325,7 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         MateFault::Band { .. } => Vec::new(),
         // A contradiction is a claim about a PAIR of mates: neither is
         // the wrong one on the fault's own telling, so both read as
-        // causes and the user picks which to relax. When one mate
-        // contradicts itself the pair collapses to one row.
+        // causes and the user picks which to relax.
         MateFault::Contradictory { held, added, .. } => {
             if held == added {
                 vec![*held]
@@ -309,18 +339,18 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
 /// The downstream reading of a node's own `Failed`, when a mate
 /// refusal reached it without naming it.
 ///
-/// `None` — so the row keeps its own `Failed` — when the failure is
-/// not a mate refusal, when the fault names no mate at all, when this
-/// row IS one of the mates it names, and when THIS EVALUATION does not
-/// corroborate the blame.
+/// `None` — the row keeps its own `Failed` — on every guard below,
+/// of which the last is the load-bearing one: no mate the fault names
+/// is failing in THIS evaluation.
 ///
-/// That last condition is what keeps [`RowStatus::Poisoned`]'s
-/// walkable-in-one-hop invariant true here rather than assumed: the
-/// mate a fault names can read `Ok` in the very evaluation carrying
-/// the fault (a mate's memo key does not carry the solve, so a cluster
-/// that breaks around an unedited mate does not re-run it). Pointing a
-/// row at a green row would send the user nowhere AND drop the message
-/// they can act on, so the row keeps its own `Failed` instead.
+/// That guard keeps [`RowStatus::Poisoned`]'s walkable-in-one-hop
+/// invariant true here rather than assumed. What it catches is a named
+/// mate reading `Ok` — the only other reading available, since mates
+/// are DAG leaves and so are never `Poisoned` — which happens in the
+/// very evaluation carrying the fault, because a mate's memo key does
+/// not carry the solve and a cluster that breaks around an unedited
+/// mate does not re-run it. Pointing at a green row would send the
+/// user nowhere and drop the message they can act on.
 fn downstream_of_mate(
     id: RecipeNodeId,
     error: &NodeError,
@@ -333,19 +363,14 @@ fn downstream_of_mate(
     if blamed.contains(&id) {
         return None;
     }
-    // The first named mate the evaluation agrees is failing — the
-    // fault names `held` before `added`, and every other arm names
-    // one, so this is document order.
-    let (through, cause) = blamed
+    // The first named mate the run agrees is failing, in the fault's
+    // own order.
+    let through = blamed
         .into_iter()
-        .find_map(|mate| Some((mate, ev.result(mate).and_then(NodeResult::error)?)))?;
+        .find(|mate| ev.result(*mate).and_then(NodeResult::error).is_some())?;
     Some(RowStatus::Poisoned {
         through,
-        // The CAUSE's own rendering, not this row's copy of the fault:
-        // the message a user reads under a downstream badge is the
-        // failed mate's error, exactly as a DAG-poisoned row shows its
-        // ancestor's.
-        message: Some(cause.to_string()),
+        message: Some(downstream_wording(through)),
     })
 }
 

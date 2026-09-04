@@ -2786,26 +2786,45 @@ impl ViewerBehavior<'_> {
             }
             match &row.status {
                 RowStatus::Ok => {}
-                // A row the user cannot act on draws quiet: nothing
-                // ran here, and nothing here is the thing to fix.
+                // Nothing to act on HERE: the row was never run, or it
+                // shows someone else's failure and points at the row
+                // that owns it. Quiet, so the eye passes over it.
                 RowStatus::Unevaluated | RowStatus::Poisoned { .. } => {
                     ui.weak(row.status.badge());
                 }
-                // The ACTIONABLE row — the node whose own operation
-                // refused — is the only one that takes the colour, so
-                // a document with one broken feature and six rows
-                // downstream of it sends the eye to the one.
+                // The ACTIONABLE rows — the nodes whose own operation
+                // refused — are the ones that take the colour, so a
+                // document with six rows downstream of one broken
+                // feature sends the eye to the one. There can be more
+                // than one: a `MateFault::Contradictory` naming two
+                // different mates blames both, and both go red
+                // (`tree::blamed_mates`).
                 RowStatus::Failed { .. } => {
                     ui.colored_label(chrome(self.theme.unresolved), row.status.badge());
                 }
             }
         });
-        // The typed payload's own message, indented under the row it
-        // belongs to. Never a sentence this module wrote.
+        // The line under the row: the payload's own words where the
+        // row failed, and where it did not, the pointer at the row
+        // that has them — which is a CLICK, so "that row" is one
+        // gesture away rather than an id to hunt for.
         if let Some(message) = row.status.message() {
+            let through = match &row.status {
+                RowStatus::Poisoned { through, .. } => Some(*through),
+                _ => None,
+            };
             ui.horizontal(|ui| {
                 ui.add_space(indent(row.depth) + INDENT_STEP);
-                ui.weak(message);
+                match through {
+                    Some(through) => {
+                        if ui.link(message).clicked() {
+                            self.ops.push(SessionOp::Select(Selection::Node(through)));
+                        }
+                    }
+                    None => {
+                        ui.weak(message);
+                    }
+                }
             });
         }
         // The node's standing caveat (a mate class with no at-rest

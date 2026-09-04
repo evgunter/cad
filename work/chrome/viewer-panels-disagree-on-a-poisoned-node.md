@@ -15,7 +15,11 @@ downstream of the mate that caused it. **The viewer's other renderings
 of node status were not changed**, so two panels of one window now
 disagree about the same node:
 
-- the tree draws it `Poisoned`, weak, pointing at the mate;
+- the tree draws it `Poisoned`, weak, pointing at the mate — and
+  since the same PR's fix pass, its line under the row is that
+  POINTER, so the two panels now disagree in words as well as in
+  status: the tree says "upstream failure at node N", the properties
+  panel recites the refusal;
 - the properties panel reads the kernel arm verbatim through
   `Resolution` and renders `TargetFailed` in `theme.unresolved`
   (`crates/viewer/src/app.rs:3086-3092`,

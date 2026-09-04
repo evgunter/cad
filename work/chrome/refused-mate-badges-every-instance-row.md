@@ -67,3 +67,66 @@ viewer-side workaround for a kernel inconsistency, filed as
 Three rows, each verified RED with the attribution disabled, including
 a windmill story stage where the user clocks the hub and the tree sends
 the eye to the rider rather than to four identical instance badges.
+
+**Also changed, and not only for mates**: the badge WEIGHTS. `FAILED`
+takes `theme.unresolved`; `POISONED` draws quiet, where before both
+took the colour — so ordinary DAG poisoning, which this item is not
+about, reads differently too. That is the intent (the row to act on is
+the loud one), and it is the reason `crates/viewer/src/theme.rs`'s
+`unresolved` doc no longer lists a poisoned badge.
+
+## Fixed, second pass (the style review's 18 findings)
+
+**The prose half of the filed defect, which the first pass left
+standing.** The issue asked for two things, and only the badge half was
+done: every reached row still printed the cause's FULL refusal text, so
+a user still met four identical paragraphs. A downstream row now
+carries `tree::downstream_wording` — "upstream failure at node N — that
+row carries the cause" — and nothing else, and in the app that line is
+a LINK that selects the row it names. The full refusal is read once, on
+the row that owns it. Honest for both producers of `Poisoned` because
+both now point at a row the tree itself badges `FAILED`; the module
+header states the one carve-out this buys — the words about WHERE a
+failure is are this module's, the words about WHAT went wrong stay the
+payload's.
+
+**`Poisoned`'s invariant, on its other producer.** The first pass
+strengthened `through` on the mate branch only, and the two-hop chain
+the review suspected is REACHABLE: a boolean over two instances of a
+cluster that then refuses is poisoned by the kernel through an
+instance, whose own row the tree redraws as downstream of the mate — so
+the boolean pointed at a row drawn POISONED and weak, and recited that
+instance's own copy of the fault ("node 0 failed …") while node 0's row
+denied owning it. `tree::poisoned_through` now re-attributes the DAG
+branch through the same rule, one step (a mate a fault names keeps its
+own `Failed`, so there is no third hop). Pinned by
+`tree_badges::a_boolean_over_a_refused_clusters_instances_points_at_the_mate`,
+which also asserts the tree-wide invariant: every POISONED row names a
+row this tree badges FAILED.
+
+**Comments that were false in shipped code** are corrected: the
+"nothing ran here" reading of a poisoned row, the "only row that takes
+the colour" claim (a `Contradictory` naming two mates reddens both),
+`theme.rs`'s poisoned-badge listing, the module header's universal
+"every `MateFault` arm names its subject" (`Band` names none), the
+corroboration guard's two-cases-handled reading (mates are DAG leaves,
+so `Ok` is the only reading it guards), and an unenforced `held < added`
+document-order claim, now dropped rather than asserted.
+
+**Test mechanism, announced** (`keep_out`): `common::status_of` and
+`common::asm::seat_alignment` are lifted into the shared test tree,
+replacing five hand-written row lookups and three copies of the seat
+frame ladder. The contradiction row now ASSERTS its premise — that the
+run reports the first mate `Ok` — instead of resting on it silently, so
+fixing `mate-memo-key-does-not-carry-the-solve` turns that row red
+rather than leaving it a duplicate of the row above.
+
+**Judged, not fixed.** Badge colour and weight remain unseen by any
+test, and the weight half is outside every palette;
+`work/chrome/chrome-weight-is-outside-the-palette.md` carries it,
+because the question is whether a semantic distinction may be drawn in
+weight at all rather than one missing assertion.
+
+`crates/viewer/README.md`'s G4 and GQ2 clauses said what the tree no
+longer means; both are corrected under a narrow `paths` amendment
+recorded in `work/chrome/program.md`.

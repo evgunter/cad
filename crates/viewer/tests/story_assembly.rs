@@ -774,13 +774,8 @@ fn the_windmill_story() {
     };
     session.pump();
     let rows = session.tree_rows();
-    let status_of = |id: RecipeNodeId| {
-        rows.iter()
-            .find(|row| row.id == id)
-            .map(|row| row.status.clone())
-            .unwrap_or_else(|| panic!("node {id:?} has a row"))
-    };
-    let cause = {
+    let status_of = |id: RecipeNodeId| common::status_of(&rows, id);
+    {
         let RowStatus::Failed { message } = status_of(clocked) else {
             panic!("the rider carries the cause, got {:?}", status_of(clocked));
         };
@@ -788,8 +783,7 @@ fn the_windmill_story() {
             message.contains("mate_clocking_redundant"),
             "the kernel's own words, on the mate's row: {message}"
         );
-        message
-    };
+    }
     assert_eq!(
         rows.iter()
             .filter(|row| matches!(row.status, RowStatus::Failed { .. }))
@@ -803,9 +797,9 @@ fn the_windmill_story() {
             RowStatus::Poisoned { through, message } => {
                 assert_eq!(through, clocked, "the instance points at the rider");
                 assert_eq!(
-                    message.as_deref(),
-                    Some(cause.as_str()),
-                    "and shows the rider's own error, not a copy filed under itself"
+                    message,
+                    Some(viewer::tree::downstream_wording(clocked)),
+                    "and sends the user to the rider's row rather than repeating its refusal here"
                 );
             }
             other => panic!("instance {instance:?} must read as downstream, got {other:?}"),
