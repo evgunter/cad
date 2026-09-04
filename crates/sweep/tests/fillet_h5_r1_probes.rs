@@ -32,7 +32,8 @@ use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
-    assert_naming_totality, bowl, lantern, revolved_about_y, rim_arcs_at, waisted, wedge_fill,
+    assert_naming_totality, bowl, lantern, pappus, revolved_about_y, rim_arcs_at, waisted,
+    wedge_fill,
 };
 use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey, mass_properties, validate_geometric};
 
@@ -329,7 +330,7 @@ fn the_plane_host_carries_both_arcs_which_is_the_half_band_gates_own_fact() {
 #[test]
 fn the_plane_hosted_shape_reaches_either_material_side() {
     for (name, body, r, y, adds) in [
-        ("bowl floor", repaired(bowl(tol())), 1.0, 1.0, true),
+        ("bowl floor", bowl(tol()), 1.0, 1.0, true),
         ("lantern neck", lantern(tol()), 1.0, 0.0, false),
     ] {
         let arcs = rim_arcs_at(&body, r, y);
@@ -568,6 +569,75 @@ fn a_hostless_rim_composes_with_a_shared_wall_neighbour() {
             seq.volume.to_bits(),
             "the one-call result IS the sequential composition, bit for bit \
              (order {order:?})"
+        );
+    }
+}
+
+/// **The plane-times-SPHERE hostless carve at its closed form** — the
+/// shape `p4` is about, and the one the tour's lily reaches.
+///
+/// The lantern's neck and the hemisphere's equator have the SAME local
+/// geometry: the unit sphere centred at the origin meeting the plane
+/// `y = 0` at the rim of radius 1, material above the plane and inside
+/// the sphere. So one derivation serves both, and the two measured
+/// deltas agreeing to within an ulp or two is itself evidence that
+/// neither carve is reading anything but that geometry.
+///
+/// The ball of radius `r` rests on the material side: `r` above the
+/// floor and internally tangent to the sphere, so its centre is
+/// `C = (sqrt((1-r)^2 - r^2), r)` and its feet are `F_a = (C_x, 0)` on
+/// the floor and `F_b = C/(1-r)` on the sphere. The REMOVED meridian
+/// region is bounded by the floor from `F_a` to the corner `K = (1, 0)`,
+/// the sphere's own arc from `K` to `F_b`, and the fillet arc back to
+/// `F_a`. Cut it at the chord `K`–`F_b`:
+///
+/// - the kite `K, F_a, C, F_b` (two triangles), PLUS
+/// - the circular SEGMENT of the unit circle between that chord and its
+///   arc — the arc bulges away from the centre, so the true region
+///   holds it and the straight-sided kite does not, MINUS
+/// - the sector at `C` between the two feet, which is the ball itself
+///   and stays.
+///
+/// Pappus revolves the three pieces. Nothing of the kernel enters.
+#[test]
+fn the_plane_sphere_hostless_carve_matches_its_hand_closed_form() {
+    let r: f64 = 0.05;
+    let k = (1.0, 0.0);
+    let cx = ((1.0 - r).powi(2) - r.powi(2)).sqrt();
+    let c = (cx, r);
+    let fa = (cx, 0.0);
+    let fb = (c.0 / (1.0 - r), c.1 / (1.0 - r));
+    let removed = pappus::pappus_volume(&[
+        (1.0, pappus::triangle(k, fa, c)),
+        (1.0, pappus::triangle(k, c, fb)),
+        (1.0, pappus::segment((0.0, 0.0), 1.0, k, fb)),
+        (-1.0, pappus::sector(c, r, fa, fb)),
+    ]);
+    assert!(
+        removed > 0.0,
+        "the convex plane-sphere rim's band removes material: {removed}"
+    );
+
+    for (name, body) in [
+        ("the lantern's neck", repaired(lantern(tol()))),
+        (
+            "the hemisphere's equator",
+            repaired(hemisphere_on_flat_base()),
+        ),
+    ] {
+        let arcs = rim_arcs_at(&body, 1.0, 0.0);
+        let before = mass_properties(&body, tol()).unwrap();
+        let out = fillet_edges(&body, &arcs, r, tol())
+            .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
+        validate_geometric(&out.body, tol())
+            .unwrap_or_else(|e| panic!("{name} tier-3 valid, got {e:?}"));
+        let after = mass_properties(&out.body, tol()).unwrap();
+        assert_eq!(after.volume_pad, 0.0, "{name}: closed-form faces only");
+        let measured = before.volume - after.volume;
+        assert!(
+            (measured - removed).abs() <= 1e-12 * removed,
+            "{name}: the removed volume is the hand form \
+             (measured {measured}, closed form {removed})"
         );
     }
 }
