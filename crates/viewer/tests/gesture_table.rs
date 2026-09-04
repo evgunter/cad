@@ -64,8 +64,8 @@ use crate::common;
 
 use common::{len, len3, scl3};
 use pncad::document::{
-    Alignment, AxisSense, BooleanOp, Dimension, Doc, DocParam, DocumentId, Expr, Frame, MateFrame,
-    MatePrimitive, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId,
+    Alignment, AxisSense, BooleanOp, Dimension, Doc, DocEdit, DocParam, DocumentId, Expr, Frame,
+    MateFrame, MatePrimitive, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, MM, StableName};
@@ -417,120 +417,180 @@ fn nothing_is_fenced_when_no_gesture_is_in_flight() {
 ///
 /// The table permits the free-move quartet during a value gesture, so
 /// the two drags can be open at once. What makes that sound is one
-/// identity: a value gesture's edits replace an expression on a node
-/// that already exists, and every display predicate reads the node
-/// graph alone — so the scratch document the view resolves against and
-/// the committed document `free_move_check` admits against give the
-/// same answer, and the prune a gesture's commit runs cannot discard
-/// what it is holding.
+/// identity: a value gesture's edits leave the recipe's NODE GRAPH
+/// alone, and every display predicate is a function of that graph — so
+/// the scratch document the view resolves against, the committed one
+/// `free_move_check` admits against and the shown one the panel draws
+/// the control from all give the same answer, and the prune a
+/// gesture's commit runs cannot discard what it is holding.
 ///
-/// This row goes red when that identity goes, not when the current
-/// outcome changes: give a value gesture an edit that mints or removes
-/// a node and the last two blocks fail — the probe vanishes at the
-/// commit, and the in-flight free-move is killed by the prune with
-/// nothing said (a killed in-flight gesture is deliberately not in
-/// `superseded`). Reversing the table's four rows instead fails the
-/// first block, at `BeginFreeMove`.
+/// **The gesture here drags a node's slots, both kinds.** A pattern
+/// over the probed instance carries a continuous `Spacing`
+/// (`DocEdit::SetParam`) and a structural `Count`
+/// (`DocEdit::SetStructuralParam`) — the two of the three value-gesture
+/// edits that write into `doc.nodes` at all, and the ones the identity
+/// is actually about. Dragging a document parameter instead would
+/// write only `doc.params`, which no display predicate reads, and every
+/// assertion below would hold for any implementation of them.
+///
+/// The pattern also puts the instance UNDER a root rather than at one,
+/// so `drawn_targets` has a propagation to resolve rather than a
+/// singleton to return.
+///
+/// Where it goes red: give a value gesture an edit that changes the
+/// node graph and the identity block fails outright (`free_move_check`
+/// disagrees across the two documents); leave the identity and break
+/// the prune instead and the last two blocks fail — the committed probe
+/// vanishes, and the in-flight free-move is killed with nothing said (a
+/// killed in-flight gesture is not in `superseded`, which
+/// `review_gui4_r1.rs:815-819` records as current behaviour rather than
+/// endorses). Reversing the table's four rows fails the first block, at
+/// `BeginFreeMove`.
 #[test]
 fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     let tol = Tol::witness();
     let bench = common::asm::bench("view7-two-gestures", tol);
     let mut session = common::asm::open_bench(&bench, tol);
     let post = bench.post_a;
-    let param = ParamName::new("clearance");
+
     fn perform(session: &mut DocSession, op: SessionOp) -> viewer::session::OpOutcome {
         let outcome = session.perform(op.clone());
         assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
         outcome
     }
 
-    // A parameter to drag: an assembly of bare instances offers the
-    // value gesture no slot, and the parameter door is the same
-    // gesture through the same three ops.
-    perform(
+    // A pattern over the probed instance: the slots a value gesture can
+    // open on in an assembly of bare instances, and the reason the
+    // instance's display state has a root to propagate to.
+    let pattern = perform(
         &mut session,
-        SessionOp::CreateParam {
-            name: param.clone(),
-            value: DocParam::continuous(Dimension::Length, 0.005),
+        SessionOp::AddPattern {
+            input: post,
+            count: 2,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(0.03),
+            },
         },
     );
-    perform(
-        &mut session,
-        SessionOp::BeginParamGesture {
-            name: param.clone(),
-        },
-    );
-    perform(&mut session, SessionOp::PreviewGesture { value: 0.007 });
-    // The gesture really is in flight and really is previewing: the
-    // shown document is the scratch, not the history's.
-    assert_ne!(
-        session.doc(),
-        session.committed_doc(),
-        "a preview puts a scratch document on screen"
-    );
-    assert!(matches!(
-        session.perform(SessionOp::Undo).refusal,
-        Some(Refusal::GestureInFlight)
-    ));
-
-    // The identity itself, read off both documents at once.
-    assert_eq!(
-        viewer::display::free_move_check(session.doc(), post),
-        viewer::display::free_move_check(session.committed_doc(), post),
-        "the previewed and committed documents admit the same probes"
-    );
+    assert_eq!(pattern.committed.len(), 1);
+    let pattern = *session
+        .doc()
+        .order()
+        .last()
+        .expect("the pattern is the last node inserted");
     assert_eq!(
         viewer::display::drawn_targets(session.doc(), post),
-        viewer::display::drawn_targets(session.committed_doc(), post),
-        "the previewed and committed documents draw the probe on the same roots"
+        Ok(std::iter::once(pattern).collect()),
+        "the probe on the instance is drawn under the pattern root"
     );
 
-    // A whole free-move gesture, mid-value-gesture, through `perform`.
-    perform(&mut session, SessionOp::BeginFreeMove { instance: post });
-    let probe = Frame::translation([0.0, 0.0, 0.011]);
-    perform(&mut session, SessionOp::PreviewFreeMove { frame: probe });
-    // The view is resolved against the SCRATCH document, and it finds
-    // the same drawn root the committed one names.
-    let roots = viewer::display::drawn_targets(session.committed_doc(), post)
-        .expect("the post is addressable");
-    let view = session.display_view();
-    for root in &roots {
-        assert_eq!(
-            view.moved_roots.get(root),
-            Some(&probe),
-            "the previewed probe reaches its drawn root under a scratch document"
+    // Both node-writing gesture doors, one after the other.
+    for slot in [SlotId::Spacing, SlotId::Count] {
+        let drag_to = match slot {
+            SlotId::Count => 3.0,
+            _ => 0.04,
+        };
+        let probe = Frame::translation([0.0, 0.0, 0.011]);
+
+        perform(
+            &mut session,
+            SessionOp::BeginGesture {
+                node: pattern,
+                slot,
+            },
         );
+        perform(&mut session, SessionOp::PreviewGesture { value: drag_to });
+        // The gesture really is in flight and really is previewing a
+        // DIFFERENT document: without that the identity below is a
+        // comparison of one document with itself.
+        assert_ne!(
+            session.doc(),
+            session.committed_doc(),
+            "{slot:?}: a preview puts a scratch document on screen"
+        );
+        assert!(matches!(
+            session.perform(SessionOp::Undo).refusal,
+            Some(Refusal::GestureInFlight)
+        ));
+
+        // The identity, read off the two documents the display layer
+        // actually consults — the shown one (the panel's admission
+        // test and the view's resolution) and the committed one (the
+        // op's admission test).
+        assert_eq!(
+            viewer::display::free_move_check(session.doc(), post),
+            viewer::display::free_move_check(session.committed_doc(), post),
+            "{slot:?}: the shown and committed documents admit the same probes"
+        );
+        assert_eq!(
+            viewer::display::drawn_targets(session.doc(), post),
+            viewer::display::drawn_targets(session.committed_doc(), post),
+            "{slot:?}: the two documents draw the probe on the same roots"
+        );
+
+        // A whole free-move gesture, mid-value-gesture, through
+        // `perform` — and the view, resolved against the SCRATCH
+        // document, puts the previewed frame on the pattern root.
+        perform(&mut session, SessionOp::BeginFreeMove { instance: post });
+        perform(&mut session, SessionOp::PreviewFreeMove { frame: probe });
+        assert_eq!(
+            session.display_view().moved_roots.get(&pattern),
+            Some(&probe),
+            "{slot:?}: the previewed probe reaches its drawn root under a scratch document"
+        );
+        perform(&mut session, SessionOp::CommitFreeMove);
+        assert_eq!(session.display().free_move_of(post), Some(&probe));
+
+        // The value gesture lands its own value over a committed
+        // probe: one edit, no supersession, probe intact.
+        let outcome = perform(&mut session, SessionOp::CommitGesture);
+        assert_eq!(
+            outcome.committed.len(),
+            1,
+            "{slot:?}: one edit for the whole drag"
+        );
+        // The door actually taken, so the claim above is executed
+        // rather than described: these are the value-gesture edits
+        // that write into `doc.nodes`.
+        assert!(
+            matches!(
+                (&outcome.committed[0], slot),
+                (DocEdit::SetParam { .. }, SlotId::Spacing)
+                    | (DocEdit::SetStructuralParam { .. }, SlotId::Count)
+            ),
+            "{slot:?} took an unexpected door: {:?}",
+            outcome.committed[0]
+        );
+        assert!(
+            outcome.superseded.is_empty(),
+            "{slot:?}: a slot drag supersedes no probe: {:?}",
+            outcome.superseded
+        );
+        assert_eq!(session.display().free_move_of(post), Some(&probe));
+
+        // And the same over an IN-FLIGHT free-move, which the prune
+        // kills outright rather than reporting.
+        perform(&mut session, SessionOp::BeginFreeMove { instance: post });
+        perform(
+            &mut session,
+            SessionOp::BeginGesture {
+                node: pattern,
+                slot,
+            },
+        );
+        perform(
+            &mut session,
+            SessionOp::PreviewGesture {
+                value: drag_to + 1.0,
+            },
+        );
+        perform(&mut session, SessionOp::CommitGesture);
+        assert_eq!(
+            session.display().probing(),
+            Some(post),
+            "{slot:?}: committing a slot drag left the free-move gesture in flight"
+        );
+        perform(&mut session, SessionOp::CancelFreeMove);
     }
-    perform(&mut session, SessionOp::CommitFreeMove);
-    assert_eq!(session.display().free_move_of(post), Some(&probe));
-
-    // The value gesture lands its own value, and lands it over a
-    // committed probe: one edit, no supersession, probe intact.
-    let outcome = perform(&mut session, SessionOp::CommitGesture);
-    assert_eq!(outcome.committed.len(), 1, "one edit for the whole drag");
-    assert!(
-        outcome.superseded.is_empty(),
-        "a slider drag supersedes no probe: {:?}",
-        outcome.superseded
-    );
-    assert_eq!(session.display().free_move_of(post), Some(&probe));
-
-    // And the same over an IN-FLIGHT free-move, which the prune kills
-    // outright rather than reporting.
-    perform(&mut session, SessionOp::BeginFreeMove { instance: post });
-    perform(
-        &mut session,
-        SessionOp::BeginParamGesture {
-            name: param.clone(),
-        },
-    );
-    perform(&mut session, SessionOp::PreviewGesture { value: 0.009 });
-    perform(&mut session, SessionOp::CommitGesture);
-    assert_eq!(
-        session.display().probing(),
-        Some(post),
-        "committing a slider drag left the free-move gesture in flight"
-    );
-    perform(&mut session, SessionOp::PreviewFreeMove { frame: probe });
-    perform(&mut session, SessionOp::CommitFreeMove);
 }

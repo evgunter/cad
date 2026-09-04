@@ -93,36 +93,54 @@ from **nowhere** in the chrome — filed separately as
 `gesture-drags-have-no-cancel-door`, since it is a defect on its own
 terms whether or not the overlap matters.
 
-### Soundness
+### Soundness — today, with a ratified expiry date
 
 **A probe committed or discarded mid-drag cannot make the slider's
 preview or its commit wrong.** A value gesture owns a `Doc` snapshot
-(`Gesture::base`) and writes a scratch `Doc`; the free-move gesture
-owns display facts that enter no `Doc` at all, so nothing it writes is
+(`Gesture::base`) and writes a scratch `Doc`; the free-move gesture's
+previews and committed frames enter no `Doc`, so nothing it writes is
 reachable from `apply(&gesture.base, …)` or from what `commit_gesture`
 records.
 
-The two meet in exactly one place, and it is the interesting direction —
-the one this item did not name. `DisplayState::begin_free_move` admits
-against the COMMITTED document (`session.rs:704`), `display_view`
-resolves against the PREVIEWED one (`session.rs:467` via
-`DocSession::doc`), and every committed edit runs
-`DisplayState::prune`, which **discards committed probes and silently
-kills an in-flight free-move** whose instance stopped being eligible
-(`display.rs:651-676`; a killed in-flight gesture is deliberately not
-in `OpOutcome::superseded`).
+**That last clause has an expiry date.** DI5
+(`docs/DOCM-IDENTITY-DESIGN.md`, ratified 2026-09-04) rules that
+releasing a free-move emits one `DocEdit::SetPlacement` and empties
+`DisplayState::moves`. When CHROME's
+`no-persistent-setplacement-session-op` lands, `CommitFreeMove` becomes
+the ONLY permitted row that commits to history while a value gesture is
+open — and a commit applies against `history.doc()` while the gesture
+previews against its own snapshot. **That row has to be re-decided
+then**; the other three `*FreeMove` rows are unaffected. The doc
+comment says this at the site, so the argument names the ruling that
+ends it.
 
-Those are the same answer because of one identity: a value gesture's
-edits are `SetParam` / `SetStructuralParam` / `SetDocParamValue`
-(`props::slot_edit`, `props::param_edit`), which replace an expression
-on a node that already exists and mint none
-(`crates/editor-core/src/edit.rs:1518-1537`, `minted: None`), while
-every display predicate — `is_instance`, `mates_naming`,
-`drawn_targets`/`ancestry`/`instances_by_root`, hence `free_move_check`
-and `display_check` — reads the node graph alone and never a slot's
-expression. Break that identity and committing a slider would take an
-in-flight probe away under the pointer still holding it, reporting
-nothing.
+The two drags meet in **three** places, not one — all three ask a
+display predicate about a document, and not all about the same one:
+
+- the op admits against the COMMITTED document (`session.rs:704`);
+- `display_view` resolves against the PREVIEWED one (`session.rs:467`),
+  **and so does the Properties pane's own copy of the admission test**
+  (`pane/properties.rs:333`, `:345`), which decides whether to DRAW the
+  control the op then decides whether to ACCEPT;
+- every committed edit prunes the display state (`display.rs:651-685`),
+  discarding committed probes and killing an in-flight free-move
+  without reporting the kill.
+
+Those agree because of one identity: a value gesture's edits are
+`SetParam` and `SetStructuralParam`, which replace an expression on a
+node that already exists, and `SetDocParamValue`, which writes
+`doc.params` and touches no node at all; none mints or removes one
+(`crates/editor-core/src/edit.rs:1518-1537`, `minted: None`). Every
+display predicate is a function of the node graph and never of a slot's
+expression or a parameter's value. VIEW-7's correctness review
+strengthened this: `set_slot` takes `&mut Expr` and assigns through it,
+so changing a `RecipeNodeId` is type-level impossible, and neither slot
+arm sets `reconcile`, so `mate::solve::reconcile` — the one path that
+can insert nodes and re-key placements — never runs.
+
+**Whether the overlap was ever DECIDED is not established.** The four
+rows were carried forward from a tree where the `*FreeMove` ops were
+merely unguarded. What is established is that it is sound today.
 
 ### What landed
 
@@ -134,6 +152,23 @@ nothing.
   file), so `self.gesture` names one thing crate-wide; the field doc
   says why and points at the mechanism. `DocSession::gesture` keeps its
   name — it is what `Refusal::GestureInFlight` speaks about.
+- `crates/viewer/README.md`'s gesture-safety clause, which asserted the
+  pre-rename spelling ("both fields are spelled `self.gesture`").
+- A guard where prose was doing the work: `preview_gesture` asserts
+  `applied.record.minted.is_none()`. It holds the half a check can hold;
+  the other half is that `GestureTarget::edit` can produce nothing but
+  the three edits named above.
 - `crates/viewer/tests/gesture_table.rs` gains
   `a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other`,
-  which asserts the identity rather than the outcome.
+  which drags a pattern's `Spacing` (`SetParam`) and `Count`
+  (`SetStructuralParam`) — the two value-gesture doors that write into
+  `doc.nodes` — over both a committed and an in-flight probe. An
+  earlier draft dragged a document parameter, whose edit touches no
+  node, which made the identity assertions incapable of failing.
+
+### Residue
+
+- `gesture-drags-have-no-cancel-door` — widened to the class: neither
+  `CancelGesture` nor `CancelFreeMove` has an emitter.
+- `two-hand-written-copies-of-the-g1-gesture-machine` — the two
+  gestures implement one state machine twice.

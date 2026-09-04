@@ -444,8 +444,8 @@ pub struct DisplayState {
     /// a `gesture` of its own — the VALUE drag a slot or parameter
     /// field opens — and the two are independent drags that can be
     /// open at once, so one field name must not stand for both. Why
-    /// the overlap is sound, and the one identity it rests on, is
-    /// stated at
+    /// that overlap is sound, the identity it rests on and the
+    /// ratified change (DI5) that ends the argument are stated at
     /// [`crate::session::SessionOp::permitted_during_value_gesture`].
     free_move: Option<FreeMoveGesture>,
     /// Bumped on every visible change — the chrome's cheap "does the
