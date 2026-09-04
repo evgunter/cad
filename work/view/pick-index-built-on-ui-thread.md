@@ -188,3 +188,89 @@ posture (GQ6)**, extending the inventory with the third shape and its
 staleness rule, plus whichever of Q2 and Q3's answers Ev takes. Then
 6b and 6c, or 6b alone if Q1 rules the staleness rule is not
 expressible as frame data.
+
+## Ev's two questions, answered (2026-09-04)
+
+Both improve the question. The second changes it.
+
+### Where the asynchronously-landing index comes from
+
+**Nowhere — it does not exist.** That is 6b's proposal and my section
+above never said so plainly, which is the omission the question found.
+
+Today the index is built **synchronously**, on the UI thread, inside
+the frame: `ViewerApp::sync_scene` calls `PickCache::sync`
+(`crates/viewer/src/app.rs:627`), which calls `PickIndex::build`
+inline (`crates/viewer/src/pick.rs:2288`). Nothing about it is
+asynchronous and nothing lands late. The window does not repaint while
+it runs, which is the 8 s this item measures.
+
+6b would move that call onto the `EvalService` worker the evaluation
+already crosses (`crates/viewer/src/evalseam.rs`), so the index
+arrives from the worker keyed by the `Generation` it was built for,
+the way an `Evaluation` already does. **The asynchronously-landing
+index is the thing 6b creates**, and every question in this section is
+about a state the tree cannot currently be in.
+
+### How long the wait is — and why that is the whole of Q2
+
+The measurement is in the table above, and read against the question
+it says the wait is **seconds, not frames**:
+
+| δ | triangles | index total |
+|---|---|---|
+| 0.400 mm — what the display budget opens `hollowring` at | 998 576 | **~2.3 s** |
+| 0.1 mm — what it asked for before the budget | 3 984 276 | **13.4 s** (6.5 s of it tessellation) |
+
+So the window in which the index is behind the document is roughly
+**2.3 s on a document the budget opened, and up to 13.4 s if the user
+asks for a fine δ**. A stale-pick policy that would be unarguable at 30
+ms is a different proposal at two seconds and a third one at thirteen.
+
+**And this is what 6b actually buys.** It does not make the index
+arrive sooner — the work is the same work. It makes the wait
+*interactive*: today the window is frozen for those seconds and the
+user cannot attempt a pick, so there is no gap to have a policy about.
+6b converts a frozen 2–13 s into a responsive 2–13 s in which the
+model can be orbited and clicked, **and that is what creates Q2 at
+all.** The question is not "what do we do in the gap"; it is "we are
+about to hand the user a window that looks ready and has no pick index
+behind it for several seconds — what should it do".
+
+### What that does to Q2's three answers
+
+1. **Pick against the stale index** is not the status quo and is not
+   free: `PickCache::sync` sets `self.index = None` *before* it builds
+   (`pick.rs:2282`), so there is no old index retained to fall back
+   to. Choosing this means adding a retention policy — keep the
+   previous index and its generation, and answer picks from a
+   description of a document that is now up to 13.4 s out of date.
+   Whether that is tolerable is a function of the number, which is why
+   the question was worth asking.
+2. **Refuse the pick, typed** costs the user seconds of a window that
+   looks interactive. At 2.3 s that is a defensible "not yet"; at
+   13.4 s it is a viewer that ignores clicks for a quarter of a minute
+   while looking fine, which is arguably worse than freezing, because a
+   frozen window at least tells the truth.
+3. **Fall back to the GPU id-buffer pass** is the only answer whose
+   cost does not scale with the wait — the advisory pass is per-frame
+   and already runs. Its price is a promotion GQ6 ratified against.
+
+**The orchestrator's reading, again offered as an argument.** The
+duration makes (2) weak alone and (1) weak alone, and it makes (3)
+look less like a compromise and more like the answer the numbers
+select: it is the only one that is still correct at 13.4 s. If the
+advisory pass is not accurate enough to be promoted, then the honest
+consequence is that (2) is the fallback and **the δ ceiling, not the
+seam, is what needs to move** — which is a different unit from 6b and
+belongs to the display budget.
+
+### And it sharpens Q3
+
+Answer 3 to Q3 (restart without cancel, let the in-flight build finish
+and discard it) means a δ change during the window costs a **second
+full build** before the index is right. On the 13.4 s row that is a
+26.8 s wait produced by one slider drag, with no cancel point to stop
+it — because the step is uninterruptible, which is Q3's premise. The
+three answers to Q3 are therefore not independent of Q2: whichever
+policy Q2 takes has to hold for twice the window when Q3 answers 3.
