@@ -54,18 +54,21 @@
 //!
 //! The triangles are outward-wound (`mesh::FacePatch`'s contract) and
 //! the shading uses that winding: the normal comes from the triangle's
-//! own vertex order. Back-face *culling* is a second question — which
-//! screen-space winding wgpu calls "front" — that this lane had no GPU
-//! to settle, and getting it backwards makes a closed solid vanish
-//! entirely. With a depth buffer and an opaque closed body, drawing
-//! both sides is visually identical and cannot fail that way.
+//! own vertex order. Back-face *culling* was a second question — which
+//! screen-space winding wgpu calls "front" — and it is **settled: `Ccw`**.
+//! An outward-wound triangle presents counter-clockwise on screen, so
+//! `front_face: FrontFace::Ccw` with `cull_mode: Some(Face::Back)` keeps a
+//! closed solid whole. Read on hardware for issue #1097, on a D3D12 device
+//! (Intel Iris Plus): the plate stayed complete through a full orbit, bore
+//! included, with neither the total vanish that `Cw` would have produced
+//! nor any partial loss of patches. The answer is backend-independent —
+//! wgpu normalizes `FrontFace` — so it is stated here as a fact and not as
+//! one driver's opinion.
 //!
-//! **Scheduled, not merely noted: issue #1097** (viewer first light) owns
-//! turning it on — set `cull_mode: Some(Face::Back)`, run it, and if the
-//! solid vanishes the answer is `FrontFace::Cw` rather than `Ccw`. Whoever
-//! does it replaces this section with which one it was; the reason it is
-//! off today is ignorance, and ignorance recorded is a debt with an
-//! owner.
+//! **The edge pass keeps `cull_mode: None`, deliberately.** An edge mark is
+//! a camera-facing quad, not part of a closed solid, so back-face culling
+//! is a question about billboards rather than about winding, and the
+//! reading above does not answer it. It stays open on its own terms.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -465,7 +468,7 @@ impl ViewportRenderer {
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
                 // See the module docs: both sides are drawn.
-                cull_mode: None,
+                cull_mode: Some(wgpu::Face::Back),
                 unclipped_depth: false,
                 polygon_mode: wgpu::PolygonMode::Fill,
                 conservative: false,
@@ -735,7 +738,7 @@ impl IdPass {
                 // #1097 settles on hardware, and an id pass that culled
                 // the wrong way would answer NOTHING over a face that
                 // is plainly there.
-                cull_mode: None,
+                cull_mode: Some(wgpu::Face::Back),
                 unclipped_depth: false,
                 polygon_mode: wgpu::PolygonMode::Fill,
                 conservative: false,

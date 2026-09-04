@@ -37,6 +37,43 @@ The worker returns the index with the run; a δ change re-submits. `PickCache`'s
 
 Two things already exist that make this less of a leap than it sounds: an `Evaluation` already crosses the seam, so the payloads are `Send`; and the chrome already knows how to draw a picture older than the document — that is the `canceled — showing an older result` state, spinner, Cancel and Re-evaluate included.
 
+## Measured against the tree (2026-09-04): the expensive step is not cancelable
+
+"Shape of the fix" above says "a δ change while a build is in flight
+wants the same cancel-and-restart the evaluation already has". Two of
+the three things that rests on hold and one does not.
+
+**What holds.** The seam is `submit` / `poll` / `cancel` over a
+`Generation`, and a submit while a run is in flight cancels that run
+and starts the new one (`crates/viewer/src/evalseam.rs:146`). An
+`Evaluation` already crosses it, so the payloads are `Send`.
+
+**What does not.** The cancelation "is the shipped `CancelToken` and
+nothing else: it is checked between nodes"
+(`crates/viewer/src/evalseam.rs:42`). The step this unit moves has no
+nodes to be checked between, and neither `mesh::tessellate`
+(`crates/mesh/src/tessellate.rs:43`) nor anything in `crates/bvh`
+takes a `CancelToken` at all. So the 6.5 s tessellate this item
+measures is uninterruptible as it stands, and moving it to the worker
+moves an uninterruptible 6.5 s rather than a cancelable one.
+
+Three ways out, and they are not equivalent — this is a question for
+6a, not a choice to make at implementation time:
+
+1. **Cancel between ROOTS only.** Cheap and entirely inside this
+   program's ground, but a product with one big root — which
+   `hollowring` is — gets no cancel point at all, so it does not
+   answer the case the measurement is about.
+2. **`mesh` and `bvh` grow cancel points.** The honest fix, and both
+   are other programs' territory (`crates/mesh/*` is MESH's,
+   `crates/bvh/src/*` is CERT's), so it is two announces and two
+   programs' schedules before this unit can start.
+3. **Restart without cancel**: a δ change lets the in-flight build run
+   to completion and discards its result. Costs one wasted build and
+   nothing else, needs no door, and is a weaker promise than the
+   evaluation seam makes — which is exactly the kind of asymmetry §5's
+   inventory should state rather than leave to a reader to notice.
+
 ## Why this is filed and not done
 
 It changes the seam GUI-3 §5 ratified, and the §5 re-take ("GO ON EGUI, AUTHORITATIVE") rests on a complete frame-state inventory that this would extend — an index that lands asynchronously is new frame state with a new staleness rule. That wants a ruling, not a commit.

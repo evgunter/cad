@@ -1132,6 +1132,44 @@ run_row "clippy (viewer app)"          cargo clippy -p viewer --features app --a
 # out of this row; they announce themselves by NAME in the default-
 # feature rows' PASS list.
 run_row "test (viewer app)"            cargo nextest run -p viewer --features app --success-output immediate
+# EVERY OPT-IN FEATURE AT ONCE — the selection no other row here
+# compiles. The rows above each pin ONE: default features, `--features
+# interval`, `-p viewer --features app`, `-p pncad-py --features
+# python`. Code behind `probe` or `budget`, and every conjunction of
+# two opt-ins, is linted by none of them, so a warning in it has no row
+# it can red and accumulates unseen. That is the class this row exists
+# for; `k-lint`'s probe-gated compile loop builds those suites but
+# carries no `-D warnings`, so it is a compile and not a lint.
+#
+# UNSCOPED — `--workspace`, not `$SCOPE`. Scoping a row whose subject is
+# "what nothing else compiles" to the change closure reintroduces the
+# same shape one dimension over.
+#
+# UNCONDITIONAL ON `viewer`, GATED HOSTED, and the asymmetry is the one
+# the rows above already carry, for the argument written at them: the
+# hosted half keeps `viewer` out of this selection unless the change
+# filter's SEEDS intersect {viewer, pncad, bvh} (Ev's viewer-CI-posture
+# ruling), because there it is a per-PR bill on every kernel change.
+# This half is billed in one developer's wall clock on a run they chose
+# to make, and is the lane that runs every point of a matrix the hosted
+# gate samples, so it takes the wider selection every time.
+#
+# ONE POINT, NOT THE POWERSET, on both halves: `--all-features` is every
+# feature ON together. A warning visible only under a proper subset is
+# outside this row.
+#
+# TWO HOSTED HALVES, and that is the seed-keyed axis showing through.
+# ci.yml's row drops `viewer` from the selection when the change
+# filter's seeds do not buy the toolkit, so nightly.yml re-takes that
+# member ungated once a day — the second clause of Ev's viewer-CI-posture
+# ruling. This one row is the local half of both: it lints the whole
+# workspace, `viewer` included, on every invocation.
+#
+# COST, 4 vCPU, empty target directory: 111 s. A developer running the
+# whole file pays it once.
+# HOSTED MIRROR: clippy-all-features / clippy (--all-features)
+# HOSTED MIRROR: viewer-toolkit / clippy (viewer, all features)
+run_row "clippy (--all-features)"      cargo clippy --workspace --all-targets --all-features -- -D warnings
 # The same shape one crate over: `crates/pncad-py/src/py/` — the whole
 # PyO3 surface — compiles only under the crate's non-default `python`
 # feature, so the `clippy` row above, which runs at DEFAULT features,
