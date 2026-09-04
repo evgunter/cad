@@ -425,7 +425,7 @@ fn adopt_edges(
         // them as cylinders — with no candidate description AT ALL
         // (the ladder reported zero attempts, which is the shape of a
         // gap rather than of a refusal).
-        iso_curve_candidates(body, spec, fs_plus, fs_minus, &mut candidates);
+        iso_curve_candidates(body, spec, p_start, p_end, fs_plus, fs_minus, &mut candidates);
         if fs_plus != fs_minus {
             // The IsoCurve rung (M7-3): a NURBS-carried edge between
             // two described NURBS walls is the loft/sweep wall–wall
@@ -689,16 +689,24 @@ fn adopt_edges(
 /// the native description exactly. Duplicates are impossible — the two
 /// surface keys are visited once each — and the kernel's certify door
 /// still disposes of every candidate this offers.
+///
+/// A **promoted LINE carrier** takes the same rung through its vertex
+/// bits ([`line_column_match`]): D7 curve recognition rewrites a
+/// degree-1 boundary-column carrier into `Curve3::Line` before
+/// adoption sees it, so the column bits live in the edge's VERTEX
+/// positions rather than in the carrier — the arm's own comment
+/// carries the derivation. Without it, promotion would strip exactly
+/// this class of its only candidate and the import would refuse
+/// strictly earlier than the unpromoted file does.
 fn iso_curve_candidates(
     body: &Body<f64>,
     spec: &crate::entities::EdgeSpec,
+    p_start: Point3<f64>,
+    p_end: Point3<f64>,
     fs_plus: topo::SurfaceKey,
     fs_minus: topo::SurfaceKey,
     candidates: &mut Vec<(AdoptionCandidate, EdgeDescriptionSpec<f64>)>,
 ) {
-    let Curve3::Nurbs(ref nurbs_carrier) = spec.carrier else {
-        return;
-    };
     let walls: &[topo::SurfaceKey] = if fs_plus == fs_minus {
         &[fs_plus]
     } else {
@@ -706,31 +714,90 @@ fn iso_curve_candidates(
     };
     for end in [false, true] {
         for &wall in walls {
-            if let Some(Surface::Nurbs(wp)) = body.get_surface(wall)
-                && !wp.is_placeholder()
-                && let Ok(iso) = geom_brep::boundary_iso_u(wp.as_ref(), end)
-                && bitwise_iso_match(nurbs_carrier, &iso)
-            {
-                // The column's `u` is the payload's own KNOT domain end
-                // (#327), never a `[0, 1]` literal: an imported chart
-                // carries the file's parameterization, where `u = 1` is
-                // an interior column — a description naming a locus the
-                // carrier is not on.
-                let (du0, du1) = wp.knots_u().domain();
-                candidates.push((
-                    AdoptionCandidate::IsoCurve,
-                    EdgeDescriptionSpec::iso(
-                        wall,
-                        if end { du1 } else { du0 },
-                        spec.t0,
-                        spec.t1,
-                        spec.t0,
-                        spec.t1,
-                    ),
-                ));
+            let Some(Surface::Nurbs(wp)) = body.get_surface(wall) else {
+                continue;
+            };
+            if wp.is_placeholder() {
+                continue;
+            }
+            let Ok(iso) = geom_brep::boundary_iso_u(wp.as_ref(), end) else {
+                continue;
+            };
+            // The column's `u` is the payload's own KNOT domain end
+            // (#327), never a `[0, 1]` literal: an imported chart
+            // carries the file's parameterization, where `u = 1` is
+            // an interior column — a description naming a locus the
+            // carrier is not on.
+            let (du0, du1) = wp.knots_u().domain();
+            let u = if end { du1 } else { du0 };
+            match spec.carrier {
+                Curve3::Nurbs(ref nurbs_carrier) => {
+                    if bitwise_iso_match(nurbs_carrier, &iso) {
+                        candidates.push((
+                            AdoptionCandidate::IsoCurve,
+                            EdgeDescriptionSpec::iso(wall, u, spec.t0, spec.t1, spec.t0, spec.t1),
+                        ));
+                    }
+                }
+                // **The promoted-LINE twin of the bitwise arm.** D7
+                // curve recognition rewrites a degree-1 boundary-column
+                // carrier into `Curve3::Line` BEFORE adoption ever sees
+                // it, so the carrier bits the writer copied from the
+                // wall are no longer in the spec to match — but the
+                // edge's two VERTEX positions still are (the subset's
+                // `EDGE_CURVE` states its vertices from the same
+                // points). A wall column that is itself a straight
+                // ruling — degree 1, two control points, unit weights —
+                // whose ends are bitwise the edge's vertices, in either
+                // traversal order, is that ruling's own edge; the v map
+                // is affine through the column's OWN knot domain, run
+                // forward or reversed as the vertex order says. The
+                // match is a SELECTION (bitwise, no tolerance spent);
+                // the certify door's residual schedule is the CHECK,
+                // exactly as for the bitwise arm above.
+                Curve3::Line { .. } => {
+                    if let Some((v0, v1)) = line_column_match(&iso, p_start, p_end) {
+                        candidates.push((
+                            AdoptionCandidate::IsoCurve,
+                            EdgeDescriptionSpec::iso(wall, u, v0, v1, spec.t0, spec.t1),
+                        ));
+                    }
+                }
+                _ => {}
             }
         }
     }
+}
+
+/// The promoted-LINE column match ([`iso_curve_candidates`]'s Line
+/// arm): is `iso` a straight degree-1 ruling whose two control points
+/// are bitwise the edge's vertex pair? Answers the `(v0, v1)` the
+/// affine v map must take at `(t0, t1)` — the column's own knot-domain
+/// ends, forward when the start vertex sits at the column's start and
+/// reversed when it sits at its end. `None` withholds the candidate
+/// (a curved column, a non-uniform weight, no bitwise match), which
+/// leaves the edge to the rest of the ladder — never a guess.
+fn line_column_match(
+    iso: &geom::NurbsCurve3<f64>,
+    p_start: Point3<f64>,
+    p_end: Point3<f64>,
+) -> Option<(f64, f64)> {
+    let control = iso.control();
+    if iso.knots().degree() != 1
+        || control.len() != 2
+        || iso.weights().iter().any(|w| w.to_bits() != 1.0f64.to_bits())
+    {
+        return None;
+    }
+    let bits3 = |p: &Point3<f64>| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
+    let (dv0, dv1) = iso.knots().domain();
+    if bits3(&control[0]) == bits3(&p_start) && bits3(&control[1]) == bits3(&p_end) {
+        return Some((dv0, dv1));
+    }
+    if bits3(&control[0]) == bits3(&p_end) && bits3(&control[1]) == bits3(&p_start) {
+        return Some((dv1, dv0));
+    }
+    None
 }
 
 /// The conventional self-description for carriers the surfaces
