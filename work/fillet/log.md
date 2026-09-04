@@ -103,3 +103,10 @@ later run-out design and whether the open-chain door's plane–plane
 restriction is being extended; answered (different situation from the
 mid-curve stop, a rename at most; H7 is the only widening) — awaiting
 the 👍. H4 dispatched on `fillet/h4-concave-closed-rim`.
+
+[#1736](https://github.com/evgunter/cad/pull/1736) ruled (Ev: "ok
+sounds good"): H7 builds the transverse cut-off at perpendicular caps;
+the item is a unit, spec to follow after H4/RIM/H5. All four opening
+rulings are now answered; only the cut-off's tag name remains to be
+ratified, inside H7's spec. This session is subscribed to its own
+open `[ev]` PRs so comments wake it.
