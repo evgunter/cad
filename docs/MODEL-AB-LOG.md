@@ -3723,3 +3723,4 @@ ordinal claim at review dispatch goes to main on its own.
 
 Block DOCM-B1 slot record (branch-side, appended as each slot concludes):
 slot 1 pre-draw fields (2026-09-04, at dispatch; arm fixed by the draw above): DOCM-4 (docs/DOCM-4-SPEC.md) — difficulty M, task-class STRUCTURAL. Dispatched concurrently with slot 0 on disjoint files (the spec's Constraints name the fence).
+slot 1 = DOCM-4 (OPUS; pre-draw M / STRUCTURAL at `docs/DOCM-4-SPEC.md`) — concluded 2026-09-04 at merge of PR #1808, ordinal 1800, sample #126.
