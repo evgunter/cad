@@ -301,3 +301,26 @@ build and scratch directories per lane. Findings the lane reported for
 placement at merge: `scene.rs` gathers the same landed product twice
 more (VIEW's), and `docs/PERF-PLAN.md` is cited by thirty files and
 absent from the tree and the ledger (the spec itself among them).
+
+## DOCM-5 MERGED (2026-09-04, PR 1871, ordinal 1804, sample #130)
+
+Block DOCM-B2 slot 1 (OPUS), concluded; slot 2 (OPUS) remains. No
+stop; the v6 dual (R1 fable APPROVE-WITH-FIXES 1/4/3, R2 opus
+NOT-MERGEABLE-AS-IS 3/3/5) and its union fix pass. Adjudicated: one
+bilateral MAJOR (the release-profile claim — this workspace keeps
+debug assertions on in release until publish, the same fact DOCM-2's
+review found; prose) and TWO unilateral MAJORs, both R2's, both by red
+probe: the gather moved above the config read (a `Separation: Off` run
+gathered at 45× the door and a refusing gather raised where the base
+reported cleanly) and the subject door binding nothing to nothing (a
+crossed pair gave a measured wrong finding). Ruled: lazy gather by one
+definition, `Subject::Unavailable` carried into the door, DI3 at the
+door through `ident::mispaired`. Both enter the tally as candidates.
+The unit's own measurement replaced the withdrawn sentence with four
+separated terms and registered them nightly. Closed:
+`check-registry-gathers-product-twice`. Filed at merge or before: the
+scene's extra gather (VIEW), the absent `PERF-PLAN.md` (the repo's),
+the Python doors' double gather (LIB), debug-only counters' missing
+gate. The spec is deleted into the ledger. Next: the instantiation
+seam waits on Ev's inner-mint-refusal ruling; the certified range
+query waits on M10.
