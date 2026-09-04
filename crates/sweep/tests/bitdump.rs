@@ -25,7 +25,7 @@ use std::fmt::Write as _;
 
 use geom::Surface;
 use geom_brep::SurfaceKind;
-use geom_core::{Affine3, Band, Point2, Tol, Vec2, Vec3};
+use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
@@ -34,10 +34,6 @@ use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, BooleanDeclarations, EdgeKey};
-
-fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
-}
 
 /// Dump one body, bit for bit, in key iteration order (identical
 /// operation sequences produce identical key orders).

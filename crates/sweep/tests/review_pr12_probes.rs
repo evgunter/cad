@@ -1,9 +1,10 @@
 //! Blinded-review probes for M5 PR 12 (NOT for merge — reviewer scratch).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
+use crate::common::approx::band;
 use core::f64::consts::PI;
 use geom_core::Tol;
-use geom_core::{Affine3, Band, Point2, Point3, Vec2, Vec3};
+use geom_core::{Affine3, Point2, Point3, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::battery::{BlendRequest, run_battery};
@@ -16,9 +17,6 @@ use topo::{Body, BooleanDeclarations};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-fn band() -> Band {
-    Band::linear(tol()).unwrap()
 }
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)

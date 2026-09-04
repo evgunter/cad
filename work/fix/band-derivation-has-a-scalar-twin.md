@@ -58,3 +58,24 @@ Sites that scale a threshold by something other than the run's K
 geometry's placement *from* the band, not restating the band. They
 belong here only if the pair itself gets a door; they are not twins of
 the derivation.
+
+## A second shape, not covered by the argument above
+
+Two sites spell the band's **midpoint**, not its (zero, escalate) pair:
+
+- `crates/topo/tests/seat3_flush_detector.rs:140` —
+  `let gap = 0.5 * (raw.eps + raw.k * raw.eps);`
+- `crates/editor-core/tests/lib_sel2_flush.rs:254` —
+  `let gap = 0.5 * (tol.eps + tol.k * tol.eps);`
+
+The same expression, twice, in two crates. The "routing a pair through a
+fallible constructor to read its accessors back out" reason above does
+**not** apply to them: nothing here wants a pair, so there is no
+`Result` to thread and no awkwardness to avoid. They are a plain
+duplicate of one derivation — the midpoint of the ambiguity band, which
+is what a test picks when it wants a gap that is decidedly neither
+coincident nor separated.
+
+That makes them the easiest half of this item, and possibly its answer:
+if the midpoint earns a name, these two collapse onto it and the pair
+sites stay as they are.

@@ -9,8 +9,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::approx::band;
 use geom_core::Tol;
-use geom_core::{Band, Point2, Vec3};
+use geom_core::{Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::battery::{
@@ -23,10 +24,6 @@ use topo::{Body, EdgeKey, FaceKey, VertexKey};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::linear(tol()).unwrap()
 }
 
 /// A margin strictly inside the band: escalation territory, never a

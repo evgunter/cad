@@ -63,7 +63,7 @@
 use geom_core::k_stats::decide;
 use geom_core::{Band, Bounds, Decide, Margin, Point2, Real, Sign, Tol, Vec2};
 
-use super::{ArcData, Dir, PathError, PathNoCornerReason};
+use super::{ArcData, Dir, PathError, PathNoCornerReason, linear_band};
 use crate::fillet_select::nearest_joint;
 use crate::structure::{
     CornerGate, Decision, DecisionValue, FilletDecision, Guide, StructureRefusal,
@@ -486,7 +486,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
     tol: Tol,
 ) -> Result<ArcFilletTrims<T>, PathError<T>> {
     let consumed = guide.consume().map_err(structure)?;
-    let band = Band::linear(tol).map_err(PathError::Band)?;
+    let band = linear_band(tol)?;
     // Two refusal channels, deliberately. A corner the GATES discard is
     // the weaker story — the author's anchors simply do not bracket it,
     // and the other root is usually the one they meant. A corner that
