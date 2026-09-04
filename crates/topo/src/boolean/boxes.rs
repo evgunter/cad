@@ -2876,7 +2876,11 @@ mod tests {
         for &r in &[0.001, 1.0, 250.0] {
             for &(what, start, span) in &[
                 ("short", 0.0, deg(10.0)),
-                ("near-full turn", 0.1, 0.999 * tau),
+                // Short of a full turn by 0.02 rad: the span-winding
+                // certificate's margin is `r` times the shortfall, and at
+                // r = 0.001 that must clear the widest escalate band the
+                // suite runs (1e-5 at ε = 1e-6) — 2e-5 does.
+                ("near-full turn", 0.1, tau - 0.02),
                 ("crosses +y mid-run", 1.4, 0.35),
                 ("crosses -x mid-run", 2.9, 0.5),
                 ("crosses -y mid-run", 4.5, 0.4),
