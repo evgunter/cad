@@ -98,6 +98,8 @@ mod cert3r1_dump;
 mod display_contract;
 #[path = "docm4_evaluation_identity.rs"]
 mod docm4_evaluation_identity;
+#[path = "docm4_r1_probes.rs"]
+mod docm4_r1_probes;
 #[path = "dsc_checks.rs"]
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]

@@ -111,3 +111,7 @@ topo = { path = "../topo", features = ["sweep-testing"] }
 [[test]]
 name = "all"
 path = "tests/all.rs"
+
+[[test]]
+name = "docm4_r1_reused_dump"
+path = "tests/docm4_r1_reused_dump.rs"
