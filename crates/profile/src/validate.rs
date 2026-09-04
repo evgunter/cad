@@ -266,16 +266,11 @@ pub enum NoCornerReason {
     /// the legs do not actually reach (the branch rule's corner-side
     /// extent test).
     ///
-    /// **No construction is known to reach this arm** since the
-    /// enclosing (ρ < 0) class became a refusal of its own
-    /// (`crates/profile/README.md`): every request that used to
-    /// land here was one whose blend circle swallowed the leg carriers,
-    /// and those now refuse earlier and more precisely. Four searches
-    /// across three lanes (1.24M ordinary arc×arc corners, 400k random
-    /// draws, and two reviewers' sweeps) found no replacement — a
-    /// negative result with stated blind spots, not a proof. Whether the
-    /// variant keeps a producer at all is issue #1280; nothing here
-    /// decides it.
+    /// The reach gate's own failure arm, kept deliberately (Ev's ruling,
+    /// PR 1733): no known producer since the enclosing (ρ < 0) class
+    /// refuses first (`crates/profile/README.md`), but the branch it
+    /// names is real, so it stays typed rather than folded into a wrong
+    /// reason or a panic.
     NoCornerSideCandidate,
 }
 
