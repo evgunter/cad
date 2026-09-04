@@ -8,17 +8,15 @@ refs: [696, 1841]
 ---
 
 
-## Filed here rather than in `work/lib/`, deliberately
+## Filed on LIB's slate, by CIW
 
-`crates/pncad/tests/all.rs` is **LIB's** file and this is LIB's fix.
-`work/README.md`: an item's directory is the program that owns it, and
-a program claiming another's item MOVES the file. A lane on a unit
-branch does not file onto another program's slate, because it cannot
-see what is already there — the same reasoning
-`work/issues/fillet-specs-require-a-narrowing-ci-config` was filed
-under. **LIB should claim this by moving the file into `work/lib/`**;
-it sits here so the finding has a file at all, rather than living only
-in a merged PR body that stops being read at merge.
+`crates/pncad/tests/all.rs` is **LIB's** file and this is LIB's fix, so
+the item is LIB's from the start. It was first filed into
+`work/issues/` for LIB to claim by moving; **Ev ruled on 2026-09-04
+that filing straight onto the owning program's slate is correct**, so
+it was re-homed by header edit and `git mv`, never by copying.
+`work/issues/` is for items no program owns *yet* — not a waiting room
+for items whose owner is obvious.
 
 Found by CIW while asking the ruling on
 `work/ciw/facade-guards-defer-to-rustdoc-json` (#696, PR 1841). That
