@@ -22,17 +22,19 @@
 //! smoothed normal would blur the tessellation's real chordal error
 //! into something prettier than the model, and the facets are exactly
 //! what a δ reading should let you see.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use std::collections::BTreeSet;
 
 use bvh::Aabb;
 use pncad::document::{
-    CancelToken, Dimension, Doc, DocEdit, EvalOptions, Expr, Frame, LoopProgram, Node,
+    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, Frame, LoopProgram, Node,
     ProductError, ProfileProgram, RecipeNodeId, apply, evaluate, product,
 };
 use pncad::geom_core::{Affine3, Point3, Tol};
 use pncad::mesh::{Mesh, TessellateError, tessellate};
-use pncad::profile::SketchPlane;
 use pncad::topo::Body;
 
 /// The chordal display tolerance δ: how far the drawn triangles may
@@ -144,11 +146,10 @@ pub enum SceneError {
 }
 
 impl core::fmt::Display for SceneError {
-    /// [`SceneError::NoProduct`] forwards to [`ProductError`]'s own
-    /// `Display`: the layer that raised a failure names it.
-    /// [`SceneError::NotTessellated`] cannot — `mesh`'s
-    /// `TessellateError` has no `Display`, so its value reaches a
-    /// reader as a debug rendering until it grows one (issue #1111).
+    /// The payload-carrying arms forward to their payload's own
+    /// `Display` — [`ProductError`] and `mesh`'s `TessellateError`
+    /// each name their own failure, and this layer does not restate
+    /// it.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::InvalidDisplayTolerance { delta } => write!(
@@ -159,7 +160,7 @@ impl core::fmt::Display for SceneError {
             Self::NotTessellated(error) => {
                 write!(
                     f,
-                    "the body did not tessellate at this display tolerance: {error:?}"
+                    "the body did not tessellate at this display tolerance: {error}"
                 )
             }
             Self::EmptyMesh => f.write_str(
@@ -585,6 +586,28 @@ pub const PLATE_EXTENT: [f64; 3] = [0.060, 0.040, 0.008];
 /// (⌀24 mm). Same reason as [`PLATE_EXTENT`].
 pub const PLATE_HOLE_RADIUS: f64 = 0.012;
 
+/// The plate's box, without evaluating anything: the corner at the
+/// origin and [`PLATE_EXTENT`] away from it.
+///
+/// The assembly [`PLATE_EXTENT`]'s own note asks for, given a home
+/// rather than restated — "a camera fixture, an expected-bounds
+/// assertion" is a six-line struct literal, and it had been hand-copied
+/// into every suite that wanted a box to frame a camera on. One home
+/// for the numbers and a different one for the box they make is half
+/// the rule.
+#[must_use]
+pub fn plate_bounds() -> Aabb {
+    let [width, depth, thickness] = PLATE_EXTENT;
+    Aabb {
+        min_x: 0.0,
+        min_y: 0.0,
+        min_z: 0.0,
+        max_x: width,
+        max_y: depth,
+        max_z: thickness,
+    }
+}
+
 /// The spike's document: a plate with a through hole.
 ///
 /// Authored through the ordinary document doors — one profile node
@@ -624,11 +647,24 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
         centre: [length(width * 0.5)?, length(depth * 0.5)?],
         radius: length(PLATE_HOLE_RADIUS)?,
     };
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("gui-0-plate", tol);
+    // The frame the plate is drawn on — the world xy frame, spelled as
+    // a node because that is what a profile names now. It is the
+    // document's first node, so the plate reads in the feature tree
+    // the way it was authored: a frame, then a sketch on it.
+    let (doc, frame) = insert(
+        doc,
+        Node::Datum(Datum::Frame {
+            origin: [length(0.0)?, length(0.0)?, length(0.0)?],
+            u: [scalar(1.0)?, scalar(0.0)?, scalar(0.0)?],
+            v: [scalar(0.0)?, scalar(1.0)?, scalar(0.0)?],
+        }),
+        tol,
+    )?;
     let profile = ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane: frame,
         loops: vec![outline, hole],
     };
-    let doc: Doc<ProfileProgram> = Doc::empty_derived("gui-0-plate", tol);
     let (doc, profile_node) = insert(doc, Node::Profile(profile), tol)?;
     let (doc, extrude) = insert(
         doc,
@@ -931,6 +967,10 @@ pub fn scene_of(
 
 fn length(metres: f64) -> Result<Expr, SceneDocError> {
     Expr::literal(metres, Dimension::Length).map_err(SceneDocError::Dimension)
+}
+
+fn scalar(v: f64) -> Result<Expr, SceneDocError> {
+    Expr::literal(v, Dimension::Scalar).map_err(SceneDocError::Dimension)
 }
 
 fn insert(

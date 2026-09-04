@@ -9,7 +9,7 @@
 //! to compare it against. So the carrier is **evidence**: adopted as
 //! stated, then certified against both surfaces, and refused typed
 //! with the measured bound when it does not hold up. That is the
-//! ratified shape (Evan, PR #264) and it is what this module
+//! ratified shape (Ev, PR #264) and it is what this module
 //! implements — never a fit, never a widened gate.
 //!
 //! # What the lane proves
@@ -62,6 +62,15 @@
 //! default signatures because the capability is injected at a separate
 //! door ([`crate::certify::NurbsLane`]) rather than raised into the
 //! shared machinery.
+//!
+//! **The symbolic tier rides the same bound and needs no arm of its
+//! own** (`geom_core::sym`): `Sym<T>` implements
+//! [`geom_core::Bounds`], `geom_core::CertifiedEnclosure` and
+//! `geom_core::Decide` exactly when its base scalar does, so
+//! `Sym<T>` satisfies this signature for every certifying `T` — the
+//! limbs are the base scalar's, run at `Sym<T>`. The tier changes how
+//! one class of margin decides and nothing about the certificate, and
+//! a bound says that without an impl to write.
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
@@ -246,6 +255,24 @@ impl core::fmt::Display for PlaneNurbsRefusal {
 ///     plane: &Surface<f64>,
 ///     wall: &NurbsSurface<f64>,
 ///     extent: f64,
+///     band: Band,
+/// ) {
+///     let _ = geom_brep::plane_nurbs_limbs(carrier, plane, wall, extent, band);
+/// }
+/// ```
+///
+/// The symbolic tier is admitted by the same bound and needs no arm of
+/// its own, which is the whole of what a per-scalar impl would have
+/// said here:
+///
+/// ```
+/// use geom_core::{Band, Sym};
+/// use geom::{NurbsCurve3, NurbsSurface, Surface};
+/// fn symbolic(
+///     carrier: &NurbsCurve3<Sym<f64>>,
+///     plane: &Surface<Sym<f64>>,
+///     wall: &NurbsSurface<Sym<f64>>,
+///     extent: Sym<f64>,
 ///     band: Band,
 /// ) {
 ///     let _ = geom_brep::plane_nurbs_limbs(carrier, plane, wall, extent, band);

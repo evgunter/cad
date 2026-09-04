@@ -7,12 +7,18 @@
 //! directory on every run, and a number written out beside it is a
 //! second, unchecked copy of a set the compiler already knows.
 //!
-//! The files themselves are untouched: each keeps its own `//!` docs, its inner
-//! attributes (`#![cfg(feature = "interval")]` and friends work as
-//! module-level attributes), and its own `mod <helper>;` lines — a
-//! `#[path]` module's child modules resolve against the DIRECTORY
-//! CONTAINING the path file, i.e. `tests/`, exactly as when each file was
-//! its own crate root.
+//! Each suite keeps its own `//!` docs and its inner attributes
+//! (`#![cfg(feature = "interval")]` and friends work as module-level
+//! attributes). What it does NOT keep is a `mod <helper>;` line of its
+//! own: the shared helper trees are declared once, below, as modules of
+//! THIS root, and a suite that wants one says `use crate::<helper>;`.
+//! One declaration means one parse, one resolve, one type-check and one
+//! codegen of that helper per binary instead of one per including suite.
+//!
+//! What that gives up: a suite file is no longer compilable as its own
+//! crate root, because `crate::` now names this binary. Nothing in the
+//! tree compiles them that way — `autotests = false` plus the guard below
+//! make this file the only root — but it was true before and is not now.
 //!
 //! WHY ONE BINARY: on the CI runner (2 vCPU) the per-binary codegen+link
 //! constant dominated the workspace build job — the suites are small, so
@@ -31,18 +37,26 @@
 //! `round_trip`, under binary `all` rather than binary `export`); the set
 //! of tests is otherwise identical.
 
-// Each suite keeps its own verbatim `mod <helper>;`, so a shared helper is
-// loaded once per suite that uses it. That is deliberate — the alternative
-// is editing the suites — and it is what `duplicate_mod` is warning about.
-// Allowed HERE ONLY, by name: no blanket `#![allow]`, which would weaken
-// the lint gate for every suite module included below.
-#![allow(clippy::duplicate_mod)]
-
-#[path = "cert10r1_assembly_accounting.rs"]
-mod cert10r1_assembly_accounting;
+// The shared helper trees, declared ONCE for the whole binary. This file
+// is the crate root, so a plain `mod` resolves against `tests/` —
+// `tests/common/mod.rs` — and every consumer
+// reaches that one instance through `use crate::<helper>;`.
+//
+// NO `#[path]` ON THESE, deliberately: a path attribute in this file is
+// the aggregation guard's census of SUITE files
+// (`every_suite_file_is_aggregated` counts them against the directory
+// walk), and a helper module directory is not a suite. `mod` without the
+// attribute is also what `test_utils::source::suite_files` assumes when
+// it skips a directory carrying a `mod.rs`.
+//
+// There is no `#![allow(clippy::duplicate_mod)]` here because no file is
+// loaded twice any more; if one ever is, the lint is meant to fire.
+mod common;
 
 #[path = "budget_meter.rs"]
 mod budget_meter;
+#[path = "cert10r1_assembly_accounting.rs"]
+mod cert10r1_assembly_accounting;
 #[path = "errors.rs"]
 mod errors;
 #[path = "exact_vs_mesh.rs"]
@@ -51,15 +65,14 @@ mod exact_vs_mesh;
 mod fitted_refusals;
 #[path = "genus.rs"]
 mod genus;
-#[path = "issue111_az_needle.rs"]
-mod issue111_az_needle;
-#[path = "issue303_signed_volume_recentring.rs"]
-mod issue303_signed_volume_recentring;
-
 #[path = "iso_rectangle_door.rs"]
 mod iso_rectangle_door;
+#[path = "issue111_az_needle.rs"]
+mod issue111_az_needle;
 #[path = "issue1362_band_placement.rs"]
 mod issue1362_band_placement;
+#[path = "issue303_signed_volume_recentring.rs"]
+mod issue303_signed_volume_recentring;
 #[path = "issue555_subfloor_cap.rs"]
 mod issue555_subfloor_cap;
 #[path = "issue685_nu1_sizing.rs"]
@@ -76,8 +89,28 @@ mod m5_s10_face_sense;
 mod m5_s11_concave_sense;
 #[path = "m7_nurbs_trimmed.rs"]
 mod m7_nurbs_trimmed;
+#[path = "mesh10r1_digest.rs"]
+mod mesh10r1_digest;
+#[path = "mesh10r1_probes.rs"]
+mod mesh10r1_probes;
+#[path = "mesh10r2_digest.rs"]
+mod mesh10r2_digest;
+#[path = "mesh10r2_probes.rs"]
+mod mesh10r2_probes;
+#[path = "mesh11_arc_branch.rs"]
+mod mesh11_arc_branch;
+#[path = "mesh11r1_probes.rs"]
+mod mesh11r1_probes;
+#[path = "mesh11r2_probes.rs"]
+mod mesh11r2_probes;
 #[path = "mesh7r1_probes.rs"]
 mod mesh7r1_probes;
+#[path = "mesh8_corpus_coherence.rs"]
+mod mesh8_corpus_coherence;
+#[path = "mesh8r1_probes.rs"]
+mod mesh8r1_probes;
+#[path = "mesh8r2_probes.rs"]
+mod mesh8r2_probes;
 #[path = "newell_probes.rs"]
 mod newell_probes;
 #[path = "prisms.rs"]
@@ -125,44 +158,13 @@ mod revolves;
 #[path = "wedge.rs"]
 mod wedge;
 
-/// Guards the `autotests = false` hazard: a suite file added under
-/// `tests/` but not declared above would silently stop being compiled
-/// and run. Both directions are asserted — every file on disk is
-/// declared, and every declaration answers to a file, so no number
-/// about this file is stated in prose without being computed.
-///
-/// The walk is `test_utils::source::suite_files`, which recurses into
-/// group directories and tells a suite from a shared helper by Rust's
-/// own module rule; read it before adding either.
+/// The aggregation and ONE HOME checks, whose one home — the walk, the
+/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
 #[test]
-// Scoped to this fn on purpose: a crate-root `#![allow]` in this file would
-// weaken the lint gate for every suite module included above.
-#[allow(clippy::expect_used)]
 fn every_suite_file_is_aggregated() {
-    let root = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    // Comments blanked, string literals KEPT — see
-    // `test_utils::source::code_and_literals`, which states why.
-    let src = test_utils::source::code_and_literals(include_str!("all.rs"));
-    let found = test_utils::source::suite_files(&root);
-    let missing: Vec<&String> = found
-        .iter()
-        .filter(|rel| !src.contains(&format!("#[path = \"{rel}\"]")))
-        .collect();
-    assert!(
-        missing.is_empty(),
-        "suites under tests/ are not declared in tests/all.rs, so `autotests = false` \
-         is silently dropping them: {missing:?}. Add a `#[path]` line for each."
-    );
-    // The converse, computed rather than restated: one `#[path]` line
-    // per suite file, no orphan declaration. The `format!` above spells
-    // its quote ESCAPED, so it is not one of these matches.
-    let declared = src.matches("#[path = \"").count();
-    assert_eq!(
-        declared,
-        found.len(),
-        "tests/all.rs declares {declared} suites but {} suite files exist under tests/",
-        found.len()
-    );
+    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
+    assert!(violations.is_empty(), "{}", violations.join("\n"));
 }
 
 /// **The ε inventory — `sizing::SizingTols`'s ledger written as a gate rather
@@ -214,28 +216,32 @@ fn every_suite_file_is_aggregated() {
 ///   measurement field — at every call, monotonically. The block is
 ///   absent from a default build (`budget` feature). The one token and
 ///   the one call are the same expression.
-/// - **`walk.rs` — 14 carriers, 5 reads (1 `separates`, 3
-///   `coincident`, 1 `dominates`).** **Four** `eps` parameters
-///   (`gap_is_noise`, `closing_column`, `iso_side_starts`,
-///   `loop_polygon`), **five** hand-offs (`closing_column`'s and
-///   `loop_polygon`'s two `gap_is_noise` calls, `loop_polygon`'s calls
-///   to `iso_side_starts` and `closing_column`), and **five** terminal
-///   reads: `gap_is_noise`'s `dominates(gap * lever)` (one predicate,
-///   four call sites — the domain guard above plus three
-///   `debug_assert` detectors that gate nothing), `iso_side_starts`'
-///   `separates(radial)`, `pole_index`'s `coincident(norm)` (the
-///   pole-membership find — the ONE home both `pole_v` and the
-///   issue-896 guard consume), `loop_polygon`'s
+/// - **`walk.rs` — 9 carriers, 5 reads (1 `separates`, 3
+///   `coincident`, 1 `dominates`).** **Three** `eps` parameters
+///   (`gap_is_noise`, `iso_side_starts`, `loop_polygon`), **one**
+///   hand-off (`loop_polygon`'s call to `iso_side_starts`), and
+///   **five** terminal reads: `gap_is_noise`'s
+///   `dominates(gap * lever)` (one predicate, and since issue 868 one
+///   call site — `curved`'s domain guard, which refuses a face),
+///   `iso_side_starts`' `separates(radial)`, `pole_index`'s
+///   `coincident(norm)` (the pole-membership find — the ONE home both
+///   `pole_v` and the issue-896 guard consume), `loop_polygon`'s
 ///   `coincident_declared` closure, whose `coincident(d)` asks
 ///   whether two DECLARED vertices of one loop are the same point,
 ///   and the issue-896 guard's own `coincident(gap)`, asking whether
 ///   a junction × pole pair the classification passes over coincides.
-///   4 + 5 + 5 = 14 carriers; 1 + 3 + 1 + 0 = 5 reads.
+///   3 + 1 + 5 = 9 carriers; 1 + 3 + 1 + 0 = 5 reads.
 ///
-/// Nine carrier sites and **six terminal reads across the crate** —
-/// `walk.rs`'s five plus `trimmed.rs`'s `pad`, which is the whole of
-/// the read column and sums to the same six the operation totals do
-/// (1 `separates` + 3 `coincident` + 1 `dominates` + 1 `pad`).
+///   The band that `topo::coherence` reads is NOT on this inventory
+///   and cannot be: it is that crate's own `f64`, not an [`Eps`], and
+///   this row walks `crates/mesh/src` alone. The two spellings are
+///   held together by `walk::tests::the_two_spellings_of_the_band_
+///   agree` instead.
+///
+/// **Six terminal reads across the crate** — `walk.rs`'s five plus
+/// `trimmed.rs`'s `pad`, which is the whole of the read column and
+/// sums to the same six the operation totals do (1 `separates` +
+/// 3 `coincident` + 1 `dominates` + 1 `pad`).
 ///
 /// # Why the operation column is the pin that matters
 ///
@@ -310,8 +316,12 @@ fn every_suite_file_is_aggregated() {
 /// 3. **The test half of each file** — deliberately, because a test
 ///    that reads ε is not a place ε reaches the mesh. **The cut is
 ///    crude and its failure modes are not symmetric.** It is the first
-///    line equal to `#[cfg(test)]` at column 0; the row asserts there
-///    is at most one, so the cut is unambiguous. A file with no such
+///    line equal to `#[cfg(test)]` at column 0 that OPENS a test half;
+///    one that mounts another file (`#[cfg(test)] mod <name>;`, with or
+///    without a `#[path]` between) is not a cut, because the text it
+///    declares is not this file's and everything below it is still
+///    production — `lib.rs` carries two such mounts and no cut. The row
+///    asserts there is at most one real cut, so the cut is unambiguous. A file with no such
 ///    line counts WHOLE — conservative, so it over-counts rather than
 ///    under-counts. `tessellate.rs` is the crate's only such file now;
 ///    `trimmed.rs` was one until #887 gave it a test module, which is
@@ -349,6 +359,26 @@ fn every_suite_file_is_aggregated() {
 /// (`source_walk::crate_sources`) is `pub(crate)`, the identical
 /// obstacle `code_only` was moved to remove, and re-forking it
 /// reproduced exactly the defect the sharing was for.
+/// Whether the top-level `#[cfg(test)]` at `i` MOUNTS another file
+/// (`mod <name>;`, optionally through intervening attributes) rather
+/// than opening this file's test half.
+///
+/// A mount declares a SEPARATE source file. Its text is not this file's,
+/// so nothing after the mount is test code and the walk reaches the
+/// mounted file on its own (or, for a `#[path]` mount, that file lives
+/// under another root and is out of this inventory's scope either way).
+/// Treating a mount as a cut would hide every production line below it
+/// from the ε columns — the one unsound direction this row has.
+fn mounts_a_module(lines: &[&str], i: usize) -> bool {
+    lines[i + 1..]
+        .iter()
+        .find(|l| !l.trim_start().starts_with('#') && !l.trim().is_empty())
+        .is_some_and(|l| {
+            let l = l.trim_start();
+            (l.starts_with("mod ") || l.starts_with("pub mod ")) && l.trim_end().ends_with(';')
+        })
+}
+
 #[test]
 #[allow(clippy::expect_used)]
 fn the_eps_inventory_is_pinned() {
@@ -360,7 +390,7 @@ fn the_eps_inventory_is_pinned() {
         ("sizing.rs", 2, [0, 0, 0, 0]),
         ("tessellate.rs", 2, [0, 0, 0, 0]),
         ("trimmed.rs", 1, [0, 0, 0, 1]),
-        ("walk.rs", 14, [1, 3, 1, 0]),
+        ("walk.rs", 9, [1, 3, 1, 0]),
     ];
     let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
     let needle = concat!("e", "ps");
@@ -373,17 +403,17 @@ fn the_eps_inventory_is_pinned() {
             .replace('\\', "/");
         let text = std::fs::read_to_string(&path).expect("a readable source file");
         let code = test_utils::source::code_only(&text);
-        let cuts = code.lines().filter(|l| *l == "#[cfg(test)]").count();
+        let lines: Vec<&str> = code.lines().collect();
+        let cuts: Vec<usize> = (0..lines.len())
+            .filter(|i| lines[*i] == "#[cfg(test)]" && !mounts_a_module(&lines, *i))
+            .collect();
         assert!(
-            cuts <= 1,
-            "{name} has {cuts} top-level `#[cfg(test)]` lines, so the production/test \
-             cut is ambiguous. See this row's docs on what the cut assumes."
+            cuts.len() <= 1,
+            "{name} has {} top-level `#[cfg(test)]` lines that begin a test half, so the \
+             production/test cut is ambiguous. See this row's docs on what the cut assumes.",
+            cuts.len()
         );
-        let prod: String = code
-            .lines()
-            .take_while(|l| *l != "#[cfg(test)]")
-            .collect::<Vec<_>>()
-            .join("\n");
+        let prod: String = lines[..cuts.first().copied().unwrap_or(lines.len())].join("\n");
         // Identifier occurrences, not substrings: `steps` and
         // `grid_steps` are not ε carriers and outnumber the real ones.
         let carriers = prod

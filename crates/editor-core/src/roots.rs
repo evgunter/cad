@@ -94,7 +94,7 @@ impl core::error::Error for RootFault {}
 
 /// The strict ancestors of `from`, visited depth-first over `inputs()`
 /// in deterministic order; `visit` sees each reached node once.
-fn walk_strict_ancestors<P>(
+fn walk_strict_ancestors<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     from: RecipeNodeId,
     seen: &mut std::collections::BTreeSet<RecipeNodeId>,
@@ -120,7 +120,7 @@ fn walk_strict_ancestors<P>(
 /// # Errors
 ///
 /// The first [`RootFault`] found.
-pub(crate) fn check<P>(doc: &Doc<P>) -> Result<(), RootFault> {
+pub(crate) fn check<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), RootFault> {
     let mut listed = std::collections::BTreeSet::new();
     for &root in &doc.roots {
         if doc.node(root).is_none() {
@@ -166,7 +166,11 @@ pub(crate) fn check<P>(doc: &Doc<P>) -> Result<(), RootFault> {
 /// roots REPLACES them at the earliest consumed position (tip
 /// transfer), because those roots just stopped being sinks. Consumed
 /// non-root inputs change nothing — they were not sinks either way.
-pub(crate) fn on_insert<P>(doc: &mut Doc<P>, id: RecipeNodeId, inputs: &[RecipeNodeId]) {
+pub(crate) fn on_insert<P: crate::ProfilePayload>(
+    doc: &mut Doc<P>,
+    id: RecipeNodeId,
+    inputs: &[RecipeNodeId],
+) {
     let Some(at) = doc.roots.iter().position(|r| inputs.contains(r)) else {
         doc.roots.push(id);
         return;
@@ -177,13 +181,48 @@ pub(crate) fn on_insert<P>(doc: &mut Doc<P>, id: RecipeNodeId, inputs: &[RecipeN
     doc.roots.insert(at, id);
 }
 
+/// The D-3 maintenance for an accepted `SetMembers`, applied AFTER the
+/// rewritten node is live.
+///
+/// The other two maintainers can splice, because an insert and a
+/// delete each move the sink set in ONE direction. This edit moves it
+/// both ways at once — a member the new list dropped may have become a
+/// sink, a member it added may have stopped being one — so the answer
+/// is recomputed instead: the root set IS the sink set (D-2's coverage
+/// plus ancestor-freedom leave no other set possible, since a sink can
+/// be covered only by itself and a non-sink is an ancestor of the sink
+/// below it). Existing roots keep their order, and nodes the rewrite
+/// orphaned join at the end in document order — the edit vacates no
+/// position for them to take.
+pub(crate) fn on_set_members<P: crate::ProfilePayload>(doc: &mut Doc<P>) {
+    let sinks: Vec<RecipeNodeId> = doc
+        .order
+        .iter()
+        .copied()
+        .filter(|x| is_sink(doc, *x))
+        .collect();
+    let mut kept: Vec<RecipeNodeId> = doc
+        .roots
+        .iter()
+        .copied()
+        .filter(|r| sinks.contains(r))
+        .collect();
+    let fresh: Vec<RecipeNodeId> = sinks.into_iter().filter(|s| !kept.contains(s)).collect();
+    kept.extend(fresh);
+    doc.roots = kept;
+}
+
 /// The D-3 maintenance for an accepted `DeleteNode`, applied AFTER the
 /// node is gone: deleting a root re-roots the direct inputs that its
 /// departure turned into sinks, in DOCUMENT order, expanding at the
 /// deleted root's list position. Deleting a non-root touches nothing
 /// (and cannot happen through `apply`: a non-root has a live consumer,
 /// which is the dangling refusal).
-pub(crate) fn on_delete<P>(doc: &mut Doc<P>, id: RecipeNodeId, inputs: &[RecipeNodeId]) {
+pub(crate) fn on_delete<P: crate::ProfilePayload>(
+    doc: &mut Doc<P>,
+    id: RecipeNodeId,
+    inputs: &[RecipeNodeId],
+) {
     let Some(at) = doc.roots.iter().position(|&r| r == id) else {
         return;
     };
@@ -192,7 +231,23 @@ pub(crate) fn on_delete<P>(doc: &mut Doc<P>, id: RecipeNodeId, inputs: &[RecipeN
         .iter()
         .copied()
         .filter(|x| inputs.contains(x))
-        .filter(|x| !doc.nodes.values().any(|n| n.inputs().contains(x)))
+        .filter(|x| is_sink(doc, *x))
         .collect();
     doc.roots.splice(at..=at, orphans);
+}
+
+/// **Is this node a sink** — is it an input to nothing live?
+///
+/// One home for the predicate both maintainers above ask, so "what
+/// makes a node a root" is answered in one place: D-2's coverage plus
+/// ancestor-freedom make the root set exactly the sink set, and a
+/// maintainer that computed sink-hood its own way could drift from
+/// that identity without anything noticing.
+///
+/// Linear in the document per call, so the recomputing maintainer is
+/// quadratic in node count. Fine at the sizes this kernel authors
+/// (the die, its largest document, is 32 nodes); an incremental
+/// consumer index is the fix if it ever is not.
+fn is_sink<P: crate::ProfilePayload>(doc: &Doc<P>, id: RecipeNodeId) -> bool {
+    !doc.nodes.values().any(|n| n.inputs().contains(&id))
 }

@@ -352,12 +352,23 @@ impl Alignment {
 
     /// The **lever arm** this mate's angular decisions turn on: the
     /// largest distance in its own authored data over which an angular
-    /// error accumulates into a gap. Floored at one metre, so a mate
-    /// authored AT the origin cannot claim an arbitrarily tight
-    /// angular threshold.
+    /// error accumulates into a gap.
+    ///
+    /// `None` when the alignment names a scale but names one too small
+    /// to lever anything: a lever of `L` makes the smallest decidable
+    /// tilt `ε/L`, so a datum at a nanometre buys a threshold of a whole
+    /// radian, and a verdict there is vacuous rather than tight. The
+    /// solve records that case as the `mate_datum_too_small_to_lever`
+    /// fault; this getter is the same fact read off the alignment, so it
+    /// answers with an absence rather than raising. An alignment that
+    /// names NO scale at all is not this case — it borrows the session
+    /// box's scale and answers with a number.
     #[getter]
-    fn lever_arm(&self) -> Length {
-        Length(pncad::quantity::Length::from_meters(self.0.lever_arm()))
+    fn lever_arm(&self) -> Option<Length> {
+        self.0
+            .lever_arm()
+            .ok()
+            .map(|m| Length(pncad::quantity::Length::from_meters(m)))
     }
 
     fn __eq__(&self, other: &Self) -> bool {
@@ -562,9 +573,11 @@ impl MateFault {
         mate_fault_tag(&self.0)
     }
 
-    /// The mate the fault is about, `None` for the two arms whose
-    /// subject is not one mate (`mate_band`, and `mate_contradictory`,
-    /// which names `held` and `added` instead).
+    /// The mate the fault is about, `None` for the three arms whose
+    /// subject is not one mate (`mate_band`; `mate_contradictory`,
+    /// which names `held` and `added` instead; and
+    /// `mate_poses_of_another_document`, whose subject is two
+    /// documents).
     #[getter]
     fn mate(&self) -> Option<NodeId> {
         use d::MateFault as F;
@@ -575,8 +588,9 @@ impl MateFault {
             | F::Indeterminate { mate, .. }
             | F::Under { mate, .. }
             | F::DanglingHead { mate, .. }
-            | F::SelfMate { mate, .. } => Some(NodeId(*mate)),
-            F::Band { .. } | F::Contradictory { .. } => None,
+            | F::SelfMate { mate, .. }
+            | F::Unleverable { mate, .. } => Some(NodeId(*mate)),
+            F::Band { .. } | F::Contradictory { .. } | F::PosesOfAnotherDocument { .. } => None,
         }
     }
 
@@ -762,10 +776,13 @@ impl SolvedPoses {
     /// before mates existed.
     ///
     /// `doc` is read for its placement registry, and it must be the
-    /// document this solve is OF: passing a different one composes
-    /// this document's relative poses onto that one's cluster frames,
-    /// which is not a pose of either. Nothing here can check that —
-    /// a document carries no identity of the solve that read it.
+    /// document this solve is OF: passing a different one would
+    /// compose this document's relative poses onto that one's cluster
+    /// frames, which is not a pose of either. The door refuses that
+    /// first — a `SolvedPoses` carries the id of the document
+    /// `solve_document` solved, and a mismatch raises `MateError`
+    /// with tag `mate_poses_of_another_document` before any frame is
+    /// read.
     ///
     /// Raises `MateError` when the instance's cluster did not solve.
     fn placement(

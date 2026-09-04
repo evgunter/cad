@@ -22,7 +22,7 @@
 #     below.) The session-3 70-minute matrix was partly CPU
 #     contention from concurrent agent builds (identical rows
 #     measured 3-4x faster uncontended) and partly since-fixed
-#     laptop settings (Evan, 2026-08-06) — timing numbers from
+#     laptop settings (Ev, 2026-08-06) — timing numbers from
 #     before that fix, including the ~3.7 min uncontended warm
 #     matrix, are stale upper bounds.
 #   * WARM: the runner keeps one persistent target/ at a fixed path.

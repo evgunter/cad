@@ -77,33 +77,32 @@
 # shards for wall-clock fan-out; the shards' union is exactly the row,
 # so the unsharded rows here gate the same test set.
 #
-# THIS HALF RUNS THE WHOLE MATRIX; HOSTED SAMPLES IT (2026-08-22). Hosted
-# CI now gates ONE point of {default, interval} x {default, 1e-6, 1e-12}
-# per run, drawn deterministically from the head SHA — the argument is in
-# scripts/ci-filter.py's CONFIGURATION SAMPLING note, and the currency it
-# buys is billed runner minutes. Nothing bills this half by the minute, so
-# nothing here is sampled: every lane and every eps row still runs on one
-# tree.
+# BOTH HALVES RUN THE WHOLE LANE/EPS MATRIX AGAIN (2026-09-04). From
+# 2026-08-22 hosted CI gated ONE point of {default, interval} x {default,
+# 1e-6, 1e-12} per run, drawn from the head SHA, and this half was the only
+# lane that ran all six on one tree. That draw is gone — the argument is in
+# scripts/ci-filter.py's CONFIGURATION COVERAGE note; the currency it bought
+# was billed runner minutes on a private repository, and the repository went
+# public on 2026-09-03. Nothing bills this half by the minute either, and
+# nothing here was ever sampled.
 #
-# THAT MAKES THIS THE ONLY LANE THAT RUNS EVERY POINT ON ONE TREE, which
-# is a heavier claim than this file used to carry and is worth stating in
-# both directions. It is NOT drift: local is a strict SUPERSET of any
-# hosted run, so a tree this half calls green was gated at every point
-# hosted could have drawn. And it is the reason to reach for this half
-# deliberately — before a merge that would be expensive to get wrong,
-# hosted's verdict covers one point of six and this one covers all of
-# them. The row SEMANTICS are still identical, which is what the mirror
-# convention is about; what differs is how many of them a given run
-# executes.
+# WHAT THIS HALF STILL ADDS OVER A HOSTED RUN, stated as a list rather than
+# as a superlative, because the superlative was true for thirteen days and
+# is the kind of sentence that outlives its fact: all five k-lint feature
+# unifications (hosted draws one), and the opt-in `--nightly` row below.
+# Local is still a strict SUPERSET of any hosted run on the sampled axes, so
+# a tree this half calls green was gated everywhere hosted could have looked
+# — the difference is now two dimensions narrower than it was. The row
+# SEMANTICS are identical either way, which is what the mirror convention is
+# about.
 #
-# HOSTED CAN NOW BE AIMED AT A POINT (2026-08-28) — ci.yml's
-# `workflow_dispatch` inputs, or a `CI-Config:` trailer in the head
-# commit's message, both landing in ci-filter.py's REQUESTING A POINT
-# path. That does not reach this half and deliberately so: every value
-# either spelling can request is one this file already runs, so the
-# superset claim above is untouched, and there is nothing here for a
-# request to buy. It is the hosted half's way of getting, for one
-# dimension, what this half gives for all three.
+# HOSTED CAN BE NARROWED TO A POINT (2026-08-28; it aimed a DRAW until
+# 2026-09-04 and narrows a full run now) — ci.yml's `workflow_dispatch`
+# inputs, or a `CI-Config:` trailer in the head commit's message, both
+# landing in ci-filter.py's NARROWING A RUN path. That does not reach this
+# half and deliberately so: every value either spelling can name is one this
+# file already runs, so the superset claim above is untouched, and there is
+# nothing here for a request to buy.
 #
 # NOT MIRRORED, deliberately (2026-08-04): ci.yml's two build jobs set
 # RUSTFLAGS=-C link-arg=-fuse-ld=mold and CARGO_PROFILE_{DEV,TEST}_DEBUG=
@@ -158,8 +157,8 @@ FULL=0
 BASE=""
 # THE NIGHTLY (DEMOTED) ROW IS OPT-IN, and that is the one place this script
 # is NOT a superset of a hosted run. The superset claim it makes elsewhere is
-# about the sampled MATRIX — both lanes, all three eps, all five k-lint
-# unifications — and a demoted test is not a matrix point: it is a test Evan
+# about the MATRIX — both lanes, all three eps, all five k-lint unifications
+# — and a demoted test is not a matrix point: it is a test Ev
 # ruled need not run per-PR at all, and this script is the per-PR gate of
 # record when hosted Actions is unavailable. Running it by default would put
 # back, in the half a developer waits on, exactly the cost the demotion
@@ -183,11 +182,24 @@ SCOPE=--workspace
 RUN_EDITOR_CORE=true
 RUN_STL=true
 RUN_STEP_EXPORT=true
-RUN_PNCAD_PY=true
 RUN_INTERVAL_BACKEND=true
 RUN_INTERVAL_ORACLE=true
 RUN_K_LINT=true
 RUN_TOPO_RELEASE=true
+# THE GATED SUITES THIS RUN DOES NOT EXECUTE, as one nextest `-E` expression
+# excluding them — empty for the whole-suite run, which is what `--full`
+# always produces (tier `all` empties this key by construction). A suite
+# carrying a `test_utils::gated_to!` marker runs only when one of the source
+# paths it names, or its own file, is in the change set; the argument is at
+# THE PER-FILE TEST GATE in scripts/ci-filter.py, and the filter names each
+# skipped suite on stderr above.
+#
+# THIS HALF APPLIES IT FOR THE SAME REASON IT APPLIES THE TIER, and not
+# because minutes are billed here: a local gate that ran a strictly different
+# test SET from the hosted one would answer a different question than the run
+# it is standing in for. `--full` is the spelling for "run everything anyway",
+# and it already is.
+TEST_FILTER=
 if [ "$FULL" -eq 1 ]; then
   echo "=== change filter: --full, forcing tier 'all'"
 else
@@ -206,18 +218,23 @@ else
       RUN_EDITOR_CORE) RUN_EDITOR_CORE="$v" ;;
       RUN_STL) RUN_STL="$v" ;;
       RUN_STEP_EXPORT) RUN_STEP_EXPORT="$v" ;;
-      RUN_PNCAD_PY) RUN_PNCAD_PY="$v" ;;
       RUN_INTERVAL_BACKEND) RUN_INTERVAL_BACKEND="$v" ;;
       RUN_INTERVAL_ORACLE) RUN_INTERVAL_ORACLE="$v" ;;
       RUN_K_LINT) RUN_K_LINT="$v" ;;
       RUN_TOPO_RELEASE) RUN_TOPO_RELEASE="$v" ;;
+      TEST_FILTER) TEST_FILTER="$v" ;;
     esac
   done < <(scripts/ci-filter.py --base "$BASE")
 fi
 echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
+if [ -n "$TEST_FILTER" ]; then
+  echo "=== gated suites: -E '$TEST_FILTER' (the filter's notices above name each one)"
+else
+  echo "=== gated suites: none excluded — the test rows run the whole scope"
+fi
 
 # --- tier-blind rows: A CHECK MUST BE SITED WHERE IT CAN FIRE ON ITS OWN
-# INPUTS (Evan, 2026-08-20, on S61). These read prose, documentation and this
+# INPUTS (Ev, 2026-08-20, on S61). These read prose, documentation and this
 # file — inputs whose change sets classify TIER=docs, which is exactly what the
 # early exit below returns on. Placed ABOVE it, because a check the tier
 # selection can skip is not a check, and because siting them below would
@@ -240,21 +257,32 @@ echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
 # promote that skip to a failure on this box too.
 # HOSTED MIRROR: mirror / gate roster parity (both halves run every gate)
 # HOSTED MIRROR: mirror / probe type-check loop citations
+# HOSTED MIRROR: mirror / viewer module kinds (vocabulary/driver boundary)
 # HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
 # HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
 # HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
+# The work tracker's lint (work/README.md) reads work/ and docs/ — markdown,
+# the docs tier — so it sits here too. The territory row is advisory on both
+# halves: it prints paths another program owns and never fails.
+# HOSTED MIRROR: mirror / work tracker lint (work/ items resolve and docs/ holds no plan or log)
+# HOSTED MIRROR: mirror / work tracker territory (advisory)
 tier_blind_rows() {
   local rc=0
   scripts/gates/gate-roster.sh --selftest || rc=1
   scripts/gates/gate-roster.sh || rc=1
   scripts/gates/probe-suite-census.sh --citations || rc=1
+  scripts/gates/viewer-module-kinds.sh --selftest || rc=1
+  scripts/gates/viewer-module-kinds.sh || rc=1
   python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
   python3 scripts/check-ci-mirror-parity.py || rc=1
   python3 scripts/ci-filter.py --selftest || rc=1
   scripts/tess_budget_cut.sh --selftest || rc=1
   python3 scripts/check-python-lint.py --selftest || rc=1
   python3 scripts/check-python-lint.py || rc=1
+  python3 scripts/work.py --selftest || rc=1
+  python3 scripts/work.py lint || rc=1
+  python3 scripts/work.py territory --base "$BASE" || rc=1
   return $rc
 }
 echo
@@ -357,6 +385,15 @@ discipline() {
         && python3 scripts/check-interval-cfg-additive.py); then
     rc=1
   fi
+  # The hosted build jobs start warm only while their `env:` block and their
+  # `shared-key` still match the `cache-prime*` jobs that write the entry on
+  # main. Drift is silent up there and free to catch down here — the script
+  # reads .github/workflows/ only, so this box can run it.
+  # HOSTED MIRROR: discipline / cache-prime key parity (the build jobs' warm start)
+  if ! (python3 scripts/check-cache-prime-parity.py --selftest \
+        && python3 scripts/check-cache-prime-parity.py); then
+    rc=1
+  fi
   # The parsers behind the hosted test-cost REPORTS, against fixtures captured
   # from real runs. The reports themselves have no local half and are not
   # supposed to: their subject is what a hosted run cost and what a PULL
@@ -373,6 +410,15 @@ discipline() {
         && scripts/base-test-listing.sh --selftest); then
     rc=1
   fi
+  # The reader behind the hosted `gate ok` job — the one check a merge queue or
+  # a branch protection is meant to require. The READING has no local half and
+  # is not supposed to: its subject is a hosted run's own job list, and this box
+  # answers the same question by being one process (gate.sh's exit status IS
+  # that summary). What belongs in both halves, by exactly the base-test-listing
+  # argument above, is the SELFTEST: six of the reader's seven decision paths
+  # never execute on a real run, so nothing but this drives them.
+  # HOSTED MIRROR: discipline / run-job gate selftest (the one required check's seven paths)
+  python3 scripts/check-run-jobs.py --selftest || rc=1
   return $rc
 }
 
@@ -432,6 +478,9 @@ manifest_selftest() {
 # (demos/hosted-render-guard.sh) and deliberately do not sniff for CI.
 # This row is a sanctioned automated render — renderer-free, and
 # `git diff --exit-code` un-does the question of drift by failing on it.
+# It declares the LOCAL sentence, not the hosted one render.yml declares:
+# this pass runs on a developer's box and its frames are not the
+# committed ones, which is exactly what that sentence says.
 #
 # The two markers below are the LANES this row reproduces, in render.yml
 # rather than in ci.yml: the same `cargo run --release -- ../out` and the same
@@ -475,6 +524,14 @@ step_import() {
 # compile is the whole cost (93 s on a cold hosted cache). The guards
 # after the run are the point: a name filter that matches nothing exits
 # 0, so an empty selection must fail rather than pass quietly.
+# THE HOSTED HALF OF THIS ROW IS THE NIGHTLY, NOT THE GATE (2026-09-03).
+# `release-corruption` moved to .github/workflows/nightly.yml and runs there
+# ungated once a day; the per-row argument that it may sit on a cadence is at
+# the job. This row keeps its per-change gate (`RUN_TOPO_RELEASE`, which no
+# hosted job reads any more) because nothing bills a local gate by the minute
+# and scoping it costs nothing here. So on a local gate these suites still run
+# against the tree in front of you, which is the whole reason the demotion is
+# affordable.
 # HOSTED MIRROR: release-corruption / corrupt-input suites, release profile
 topo_release() {
   local log rc passed
@@ -513,7 +570,20 @@ topo_release() {
 # maturin). The script takes the build slot itself; nested under
 # ci-local's exclusive hold that acquisition is a no-op
 # (BUILD_SLOT_HELD).
+#
+# UNCONDITIONAL HERE, SEED-GATED HOSTED (2026-09-03), and it is the same
+# asymmetry the viewer toolkit rows below carry, for the same reason. The
+# hosted job runs only when the change filter's SEEDS intersect
+# {pncad-py, pncad, editor-core} — it is billed by the minute on every PR
+# and the wheel is a second compile of the kernel under the `python`
+# feature. This half is billed in one developer's wall clock, on a run
+# they chose to make, and it is already the lane that runs every point of
+# every dimension: skipping work here would buy nothing
+# and would leave the local gate proving strictly less than the hosted
+# one, which is the opposite of this file's contract. So `RUN_PNCAD_PY`
+# is deliberately not consulted, exactly as `RUN_VIEWER_TOOLKIT` is not.
 # HOSTED MIRROR: python-suite / run the Python suite (unittest discover)
+# HOSTED MIRROR: python-suite-nightly / run the Python suite (unittest discover)
 python_suite() {
   crates/pncad-py/run-python-tests.sh
 }
@@ -546,19 +616,50 @@ nextest_check() {
 # parity checker compares which CHECKS each half names, never the flags on the
 # commands, so hosted and local can drift on reporting semantics with nothing
 # noticing — filed as its own issue rather than left as a note here.
+#
+# `$TEST_FILTER` IS COMPOSED WITH `&`, NEVER PASSED AS A SECOND `-E`. nextest
+# ORs its `-E` expressions, so a row that already selects a set — the interval
+# rows below do — would get the gated suites ADDED BACK by a second flag
+# rather than subtracted, which is the one way this could silently un-gate
+# what it means to gate. One `-E` per row, built by `gated_expr`.
+#
+# The whole-suite rows have no selection of their own, so `gated_expr` returns
+# the filter alone, and nothing at all when it is empty.
+# shellcheck disable=SC2086
+gated_expr() {
+  local sel=${1:-}
+  if [ -z "$TEST_FILTER" ]; then
+    [ -n "$sel" ] && printf -- '-E\n%s\n' "$sel"
+    return 0
+  fi
+  if [ -n "$sel" ]; then
+    printf -- '-E\n(%s) & (%s)\n' "$sel" "$TEST_FILTER"
+  else
+    printf -- '-E\n%s\n' "$TEST_FILTER"
+  fi
+}
 # shellcheck disable=SC2086
 # HOSTED MIRROR: test / run archived tests
-test_default() { nextest_check && cargo nextest run $SCOPE --no-fail-fast; }
+test_default() {
+  local -a g; mapfile -t g < <(gated_expr)
+  nextest_check && cargo nextest run $SCOPE ${g[@]+"${g[@]}"} --no-fail-fast
+}
 # shellcheck disable=SC2086
-test_eps() { nextest_check && CAD_TOLERANCE_EPS="$1" cargo nextest run $SCOPE --no-fail-fast; }
+test_eps() {
+  local -a g; mapfile -t g < <(gated_expr)
+  nextest_check && CAD_TOLERANCE_EPS="$1" cargo nextest run $SCOPE ${g[@]+"${g[@]}"} --no-fail-fast
+}
 # shellcheck disable=SC2086
 # HOSTED MIRROR: build / doc-tests
 doc_tests() { cargo test --doc $SCOPE; }
 # The interval rows run ONLY the tests the feature adds. NO HOSTED MIRROR
-# ANY MORE (2026-08-22): hosted's `test-interval` now runs the WHOLE suite,
-# because configuration sampling draws ONE lane per run and the default legs
-# this selection subtracts are not running on an interval draw. See that
-# job's header in .github/workflows/ci.yml.
+# ANY MORE (2026-08-22): hosted's `test-interval` runs the WHOLE suite. The
+# reason it started doing so was the lane draw — the default legs this
+# selection subtracts did not run on an interval draw. That draw is gone
+# (2026-09-04) and hosted still runs the whole suite on both lanes: the
+# subtraction is a COST lever, restoring it would reduce what a hosted run
+# gates, and that decision is filed rather than taken. See that job's header
+# in .github/workflows/ci.yml.
 #
 # THE SELECTION IS STILL RIGHT HERE, and the asymmetry is the point rather
 # than drift: this half runs BOTH lanes over one tree, so the 42% of test
@@ -590,10 +691,9 @@ interval_selection() {
 #
 # THE MARKER BELOW CITES A HOSTED STEP THAT RUNS MORE THAN THIS ROW DOES, and
 # says so rather than implying equivalence. Hosted's `test-interval / run
-# archived tests` executes the WHOLE interval archive at one sampled eps,
-# because a sampled run draws one lane and has no default legs to lean on;
+# archived tests` executes the WHOLE interval archive, once per eps row;
 # this row executes the interval-only difference at both eps rows, because
-# this half runs both lanes over one tree. The JOB correspondence the marker
+# this half subtracts what its own default legs already ran. The JOB correspondence the marker
 # asserts is real — both are the interval-feature test row of their half —
 # and the difference in what each executes is the declared asymmetry recorded
 # at INTERVAL_SEL above and in MIRROR_EXEMPT.
@@ -602,9 +702,11 @@ interval_selection() {
 interval_tests() {
   nextest_check && interval_selection || return 1
   local sel extra=""
+  local -a g
   sel=$(cat "$INTERVAL_SEL")
   [ "$sel" = "none()" ] && extra="--no-tests=pass"
-  cargo nextest run $SCOPE --features interval -E "$sel" $extra --no-fail-fast
+  mapfile -t g < <(gated_expr "$sel")
+  cargo nextest run $SCOPE --features interval ${g[@]+"${g[@]}"} $extra --no-fail-fast
 }
 # THE DEMOTED (NIGHTLY-ONLY) TESTS. A test carrying
 #
@@ -656,7 +758,7 @@ nightly_selection() {
 #
 # NO `--run-ignored`, IN ANY SPELLING. Under the cfg these are ordinary tests
 # and a plain filtered run executes them; the flag would sweep in the whole
-# pre-existing `#[ignore]`d population, which is what Evan ruled out.
+# pre-existing `#[ignore]`d population, which is what Ev ruled out.
 # HOSTED MIRROR: demoted / run the demoted tests (and nothing else)
 # shellcheck disable=SC2086
 nightly_demoted() {
@@ -672,10 +774,12 @@ nightly_demoted() {
 interval_eps() {
   nextest_check && interval_selection || return 1
   local sel extra=""
+  local -a g
   sel=$(cat "$INTERVAL_SEL")
   [ "$sel" = "none()" ] && extra="--no-tests=pass"
+  mapfile -t g < <(gated_expr "$sel")
   CAD_TOLERANCE_EPS=1e-6 cargo nextest run $SCOPE --features interval \
-    -E "$sel" $extra --no-fail-fast
+    ${g[@]+"${g[@]}"} $extra --no-fail-fast
 }
 # shellcheck disable=SC2086
 # HOSTED MIRROR: lint-interval / doc-tests (interval)
@@ -686,9 +790,10 @@ interval_doc_tests() { cargo test --doc $SCOPE --features interval; }
 # the hosted `persistence` and `band 4 corpus` jobs they mirrored —
 # ci.yml carries the argument at the tombstone where those jobs were.
 # The short form: every module they named is an ordinary `#[test]` that
-# the `test (eps = ...)` rows above already run, at all three ε here and
-# at the drawn ε hosted, so the rows re-bought coverage they already had
-# and (hosted) pinned two ε bands the sampling exists to spread out.
+# the `test (eps = ...)` rows above already run, at all three ε on both
+# halves, so the rows re-bought coverage they already had. (Hosted drew one
+# ε per run from 2026-08-22 to 2026-09-04, which made those rows worse than
+# redundant there — they pinned two bands the draw existed to spread out.)
 #
 # The two `(interval)` rows below are NOT part of that and stay: they
 # mirror named steps of the hosted `test-interval` job, which the
@@ -806,7 +911,9 @@ demos_hygiene() {
 # spelling of the lily's and the bottle's frontier pins.
 # HOSTED MIRROR: k-lint / demos tour suite (the #99 ε pin + the tour's own probes)
 demos_eps_pin() {
-  (cd demos/tour && cargo test --release)
+  # `--features interval` since M10-6, matching the hosted row: it is
+  # what compiles the tolerance cell and runs its row.
+  (cd demos/tour && cargo test --release --features interval)
 }
 
 # Spec D3: the large-K fragility lint (mirrors ci.yml's `k-lint` job —
@@ -854,12 +961,45 @@ probe_targets() {
       | scripts/gates/probe-suite-census.sh --check-listing "$c" || return 1
   done
 }
+# HOSTED MIRROR: k-lint / driver K-telemetry lint (E6 evidence — rule 1 GATES, rules 2/3 advisory)
 klint_gate() {
   scripts/k_probe_sweep.sh target/k-fresh || return 1
   (cd tools/k-lint && cargo run -- \
     ../../target/k-fresh/k-eps-1e-6.csv \
     ../../target/k-fresh/k-eps-1e-9.csv \
-    ../../target/k-fresh/k-eps-1e-12.csv)
+    ../../target/k-fresh/k-eps-1e-12.csv) || return 1
+  # The E6 driver's own population. `--gate-rule-1-only` demotes rules
+  # 2 and 3 — the ones this population makes in bulk, because the
+  # driver refines margins toward zero by construction and the
+  # corpus-calibrated thresholds fire over that — and leaves rule 1
+  # (indeterminate / invalid) GATING, because that is the trigger E6
+  # names for re-opening the K question. The hosted row carries the
+  # argument in full. The per-rule counts print at all three eps rows
+  # either way.
+  # NO `tee` HERE, AND THEREFORE NO `PIPESTATUS` — deliberate, and the
+  # asymmetry with the hosted half is worth stating so nobody
+  # "restores" it. The hosted row tees into a file it relays into the
+  # step summary; this half prints straight to the terminal, so `$?` is
+  # the lint's own status and is exact. The hosted half spent its first
+  # weeks unable to fail because it read `PIPESTATUS[0]` on the line
+  # AFTER `status=$?`, by which point the assignment had rewritten it
+  # (ci.yml carries the full account at that step). Adding a pipe here
+  # would import that hazard for nothing.
+  (cd tools/k-lint && cargo run -- --gate-rule-1-only \
+    ../../target/k-fresh/driver/k-eps-1e-6.csv \
+    ../../target/k-fresh/driver/k-eps-1e-9.csv \
+    ../../target/k-fresh/driver/k-eps-1e-12.csv)
+  local status=$?
+  # ANY non-zero fails this row, which is what the hosted half does and
+  # what this half did NOT: it tested `= 1` alone, so a build failure
+  # (101), a panic (101) or an unknown-option exit passed silently. The
+  # two halves disagreed about every status but 1 and 2, and
+  # check-ci-mirror-parity.py cannot see it — that script compares the
+  # NAMES and gate modes of the rows, not the shell that implements
+  # them, so this class of drift is caught by reading, not by a gate.
+  # Said here rather than left to be rediscovered.
+  [ "$status" != 0 ] && return 1
+  return 0
 }
 
 # The tessellation-budget lint (issue #320; mirrors the two ci.yml
@@ -929,7 +1069,7 @@ tesslint_gate() {
 }
 
 # The wasm32 guard (#807).
-# ONE LEG, the interval one, on Evan's ruling of 2026-08-21 that the
+# ONE LEG, the interval one, on Ev's ruling of 2026-08-21 that the
 # purely-additive lint suffices for the default build. Read that step's
 # comment for the subsumption argument, for the lint residual this guard
 # now inherits, and for the dated third-party graph measurement the
@@ -959,6 +1099,7 @@ run_row "rustfmt (benches)"            bash -c 'cd benches && cargo fmt --all --
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
 # HOSTED MIRROR: fmt / viewer toolkit rows - the filter's verdict
 # HOSTED MIRROR: fmt / clippy (viewer app feature - eframe + wgpu)
+# HOSTED MIRROR: fmt / viewer app-feature rows (chrome + gpu pipeline smoke)
 # HOSTED MIRROR: viewer-toolkit / clippy (viewer app feature - eframe + wgpu)
 # HOSTED MIRROR: viewer-toolkit / rustdoc (viewer, all features)
 #
@@ -968,20 +1109,101 @@ run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D w
 # seed-keyed axis lane-sampled and left the ruling's "never a green job
 # name over a silent skip" false half the time.
 #
-# UNCONDITIONAL HERE, GATED HOSTED, and that asymmetry is the same one
-# the sampled matrix already has: the hosted gate skips the eframe/wgpu
+# UNCONDITIONAL HERE, GATED HOSTED: the hosted gate skips the eframe/wgpu
 # graph unless the change filter's SEEDS intersect {viewer, pncad, bvh}
-# (Evan's viewer-CI-posture ruling, docs/GUI-LOG.md 2026-08-27), because
-# it is billed by the minute on every PR. This half is not billed by the
-# minute — it is billed in one developer's wall clock, on a run they
-# chose to make — and it is already the lane that runs every point of a
-# matrix the hosted gate samples. Skipping work here would buy nothing
+# (Ev's viewer-CI-posture ruling, docs/GUI-LOG.md 2026-08-27). This half is
+# not billed by anyone's minute — it is billed in one developer's wall
+# clock, on a run they chose to make — and it runs every point of every
+# dimension. Skipping work here would buy nothing
 # and would leave the local gate proving strictly less than the hosted
 # one, which is the opposite of this file's contract.
 #
 # `RUN_VIEWER_TOOLKIT` is deliberately not consulted: the filter's
 # output is shared, but a local run has no reason to act on this axis.
 run_row "clippy (viewer app)"          cargo clippy -p viewer --features app --all-targets -- -D warnings
+# THE ROWS BEHIND THE FEATURE, EXECUTED. The clippy row above compiles
+# them; it does not run them, and everything under `#[cfg(feature =
+# "app")]` — the chrome labels, the `StartupError` arms, and
+# `viewer::gpu`'s pipeline-creation smoke row — is absent from the
+# nextest archive, which builds this crate at DEFAULT features. That is
+# the whole reason this row exists: the archive's own output announces
+# the absence by name (the `app_lane_skipped_*` markers) and this is
+# where the rows themselves gate.
+#
+# A SOFTWARE VULKAN ADAPTER IS REQUIRED and is NOT installed by this
+# script — it installs no system packages anywhere. The gpu smoke row
+# fails, loudly and by name, when there is no adapter, because a row
+# that skipped there would report the same green as a row that built
+# every pipeline. `apt-get install -y mesa-vulkan-drivers` supplies
+# lavapipe and needs no display; crates/viewer/README.md (headless) is
+# the fuller recipe.
+#
+# `--success-output immediate` for the same reason the hosted step has
+# it: the adapter line is prose meant to be read, not output to recover
+# from a failure. Not the skip markers — `--features app` compiles them
+# out of this row; they announce themselves by NAME in the default-
+# feature rows' PASS list.
+run_row "test (viewer app)"            cargo nextest run -p viewer --features app --success-output immediate
+# EVERY OPT-IN FEATURE AT ONCE — the selection no other row here
+# compiles. The rows above each pin ONE: default features, `--features
+# interval`, `-p viewer --features app`, `-p pncad-py --features
+# python`. Code behind `probe` or `budget`, and every conjunction of
+# two opt-ins, is linted by none of them, so a warning in it has no row
+# it can red and accumulates unseen. That is the class this row exists
+# for; `k-lint`'s probe-gated compile loop builds those suites but
+# carries no `-D warnings`, so it is a compile and not a lint.
+#
+# UNSCOPED — `--workspace`, not `$SCOPE`. Scoping a row whose subject is
+# "what nothing else compiles" to the change closure reintroduces the
+# same shape one dimension over.
+#
+# UNCONDITIONAL ON `viewer`, GATED HOSTED, and the asymmetry is the one
+# the rows above already carry, for the argument written at them: the
+# hosted half keeps `viewer` out of this selection unless the change
+# filter's SEEDS intersect {viewer, pncad, bvh} (Ev's viewer-CI-posture
+# ruling), because there it is a per-PR bill on every kernel change.
+# This half is billed in one developer's wall clock on a run they chose
+# to make, and runs every point of every dimension, so it takes the wider
+# selection every time.
+#
+# ONE POINT, NOT THE POWERSET, on both halves: `--all-features` is every
+# feature ON together. A warning visible only under a proper subset is
+# outside this row.
+#
+# TWO HOSTED HALVES, and that is the seed-keyed axis showing through.
+# ci.yml's row drops `viewer` from the selection when the change
+# filter's seeds do not buy the toolkit, so nightly.yml re-takes that
+# member ungated once a day — the second clause of Ev's viewer-CI-posture
+# ruling. This one row is the local half of both: it lints the whole
+# workspace, `viewer` included, on every invocation.
+#
+# COST, 4 vCPU, empty target directory: 111 s. A developer running the
+# whole file pays it once.
+# HOSTED MIRROR: clippy-all-features / clippy (--all-features)
+# HOSTED MIRROR: viewer-toolkit / clippy (viewer, all features)
+run_row "clippy (--all-features)"      cargo clippy --workspace --all-targets --all-features -- -D warnings
+# The same shape one crate over: `crates/pncad-py/src/py/` — the whole
+# PyO3 surface — compiles only under the crate's non-default `python`
+# feature, so the `clippy` row above, which runs at DEFAULT features,
+# has all of it `#[cfg]`-ed away before clippy sees it.
+#
+# SITED WITH THE OTHER CLIPPY ROWS HERE, WITH THE PYTHON JOB HOSTED, and
+# the asymmetry is deliberate rather than drift. Hosted, the row rides
+# `python-suite` because that job already has an interpreter, already
+# caches the `python` feature graph, and is off the critical path — the
+# constraint there is billed minutes on jobs the gate waits for. This
+# half has no critical path and reports one PASS/FAIL per row, so
+# folding a lint into `python suite (staged cdylib)` would only make a
+# lint failure print under the suite's name.
+#
+# UNCONDITIONAL, like the two rows around it and for the argument written
+# at `python_suite` above. It needs a Python 3 interpreter — not
+# libpython: clippy never links the cdylib, but pyo3's build script
+# probes for an interpreter and fails loudly without one — which is
+# strictly less than the `python suite` row below already requires.
+# HOSTED MIRROR: python-suite / clippy (pncad-py, python feature)
+# HOSTED MIRROR: python-suite-nightly / clippy (pncad-py, python feature)
+run_row "clippy (pncad-py, python)"    cargo clippy -p pncad-py --features python --all-targets -- -D warnings
 # Rustdoc gate (#465): same script hosted calls, unscoped there and here
 # — it is a tree-wide ratchet over a derived root set, not a per-closure
 # row. See scripts/doc-gate.sh for the flags and the derivation.
@@ -996,13 +1218,25 @@ run_row "clippy (viewer app)"          cargo clippy -p viewer --features app --a
 # `--skip-viewer-toolkit` exists for the hosted half only (see the
 # clippy note above): this row documents viewer under --all-features
 # like everything else.
+#
+# NO `--pr`, AND NO `--scope`, FOR THE SAME REASON. Hosted, the `fmt`
+# job runs the WORKSPACE pass alone and scopes it to the change closure;
+# the six cargo roots the workspace excludes and the
+# --no-default-features re-read of every root with a not(feature) half
+# are nightly.yml's `rustdoc (gate, every root)`, ungated, once a day.
+# This half runs all three passes over every root on every invocation,
+# which is the same asymmetry the toolkit rows above have and the same
+# argument: hosted is billed by the minute per PR and this is billed in
+# one developer's wall clock on a run they chose to make, so the local
+# gate stays a strict superset of any hosted one.
+# HOSTED MIRROR: rustdoc-roots / rustdoc (gate, every root)
 rustdoc_gate() {
   scripts/doc-gate.sh --selftest && scripts/doc-gate.sh
 }
 run_row "rustdoc (gate)"               rustdoc_gate
 # HOSTED MIRROR: fmt / wasm32 check (kernel + editor-core, --features interval)
 run_row "wasm32 check (#807)"          wasm_check
-# ε battery {default, 1e-6, 1e-12} (Evan's ruling, 2026-07-30): the two
+# ε battery {default, 1e-6, 1e-12} (Ev's ruling, 2026-07-30): the two
 # env rows straddle the compiled default — DEFAULT_EPS = 1e-9, geom-core/
 # src/tolerance.rs — three orders either side. Over the default archive;
 # the first row compiles, the eps rows
@@ -1050,8 +1284,9 @@ run_row_if "$RUN_INTERVAL_ORACLE" "interval oracle (certify vs inari+MPFR)" orac
 # precisely because those five compile the tour and the kernel five times
 # over. Nothing bills this script by the minute, so it keeps running the
 # whole product, exactly as it keeps running every lane and every ε: local
-# is a strict superset of any hosted run, and that is now true of three
-# sampled dimensions rather than two.
+# is a strict superset of any hosted run, and since 2026-09-04 the k-lint
+# row is the ONE dimension that superset is about — hosted runs every lane
+# and every ε itself.
 run_row_if "$RUN_K_LINT" "demos tour (fmt + clippy)"       demos_hygiene
 run_row_if "$RUN_K_LINT" "demos tour suite (#99 ε pin + probes)" demos_eps_pin
 run_row_if "$RUN_K_LINT" "uv sheet drift (demos)"          uv_sheet_drift
@@ -1072,9 +1307,10 @@ run_row_if "$RUN_STEP_EXPORT" "step import (freecad)" step_import
 # and it compiles `-p topo --lib`, so topo's own closure membership is
 # the condition. Fires on 89 of the last 128 first-parent merges.
 run_row_if "$RUN_TOPO_RELEASE" "corrupt input (release profile)" topo_release
-# Root package pncad-py: the wheel's build graph is the whole façade
-# stack, so this fires exactly when something the suite compiles moved.
-run_row_if "$RUN_PNCAD_PY" "python suite (staged cdylib)" python_suite
+# Unconditional: see the note at `python_suite` above. The hosted half is
+# seed-gated and the nightly re-takes it; this half runs it on every
+# code-tier local gate.
+run_row "python suite (staged cdylib)" python_suite
 
 echo
 echo "=== ci-local summary ==="

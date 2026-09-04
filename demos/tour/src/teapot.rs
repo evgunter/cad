@@ -212,20 +212,17 @@ const LID_BASE: f64 = Y_MOUTH + LIFT;
 /// dome's foot at [`R_NECK`], the skirt between them is a cone of
 /// `Δr = −2/256` over `Δy = +6/256`.
 ///
-/// **That slope is a CONVEXITY constraint, not a taste.** The dome's
-/// foot is the sphere's 5-12-13 point, where the meridian's own slope
-/// is `|dy/dr| = 12/5 = 2.4`. A cone shallower than that meets the
-/// sphere in a VALLEY, and a concave chain adds material where a
-/// closed-rim carve only removes it — measured, not reasoned: a 45°
-/// skirt (`Δr = −4` over `Δy = +4`) authors and builds, and the fillet
-/// arm refuses its foot `UnsupportedChain { edge, detail: "a concave
-/// chain adds material, which no closed-rim carve builds — not
-/// implemented" }` while the flange's own rim and the knob's COMPOSE in
-/// the same breath. (That variant keeps the dome's 5-12-13 junctions
-/// exact by putting `DOME_C` at `LID_BASE − 1/256`; a 45° skirt against
-/// THIS centre would refuse one door earlier, at the arc's own
-/// equidistance check.) At `|dy/dr| = 3` the junction is convex and all
-/// three roll.
+/// **That slope is a CONVEXITY choice.** The dome's foot is the
+/// sphere's 5-12-13 point, where the meridian's own slope is
+/// `|dy/dr| = 12/5 = 2.4`. A cone shallower than that meets the sphere
+/// in a VALLEY — a concave rim, whose fillet band ADDS material (the
+/// closed-rim carve builds either side) — and a lid whose skirt fills
+/// into its own dome is not this lid. At `|dy/dr| = 3` the junction is
+/// convex and all three rims roll outward, the way a lid's skirt
+/// should. (A 45° skirt, `Δr = −4` over `Δy = +4`, authors and builds;
+/// the variant that keeps the dome's 5-12-13 junctions exact puts
+/// `DOME_C` at `LID_BASE − 1/256`, and against THIS centre it refuses
+/// one door earlier, at the arc's own equidistance check.)
 const R_FLANGE: f64 = 14.0 / 256.0;
 /// Where the conical flange ends and the dome's sphere begins.
 const Y_FLANGE: f64 = LID_BASE + 6.0 / 256.0;
@@ -712,7 +709,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     // ---- the sealed hollow: the body the scene SHIPS ----
     let pot = pncad::topo::shell(&bellied, WALL, FIT_TOL, tol)
-        .unwrap_or_else(|e| panic!("the pot hollows, got {e}"));
+        .unwrap_or_else(|e| panic!("the pot hollows, got {e}"))
+        .body;
     let (pv, pe, pf) = (
         pot.vertices().count(),
         pot.edges().count(),
@@ -786,7 +784,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // OPENED pot, because a teapot has a mouth.
     let mouth = plane_chart_at(&bellied, Y_MOUTH);
     let cup = pncad::topo::shell_open(&bellied, WALL, &mouth, FIT_TOL, tol)
-        .unwrap_or_else(|e| panic!("the pot opens at its mouth, got {e}"));
+        .unwrap_or_else(|e| panic!("the pot opens at its mouth, got {e}"))
+        .body;
 
     // ---- the lid ----
     let plain_lid = revolved(lid_meridian(tol), tol);
@@ -1107,7 +1106,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         tol,
     );
     let torus_pot = pncad::topo::shell(&torus_belly, WALL, FIT_TOL, tol)
-        .expect("a pot bellied about a centre off the axis hollows through the axial door");
+        .expect("a pot bellied about a centre off the axis hollows through the axial door")
+        .body;
     assert_eq!(
         pncad::topo::validate_geometric(&torus_pot, tol),
         Ok(()),
@@ -1302,8 +1302,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              torus the meridian reduction did not know, so the body fell to the \
              per-chart loop and the C5 table refused its plane x torus pair. The \
              reduction knows the kind now, that pot hollows, and the probe above \
-             asserts the hollow instead of pinning a refusal — nothing here widened \
-             `intersect::route` (`tests/verbs_teapot.rs` \
+             asserts the hollow instead of pinning a refusal — the hollow rides the \
+             meridian reduction, not the C5 table, and held on both sides of \
+             VERBS-C5ARMS's later `intersect::route` widening for the pair \
+             (`tests/verbs_teapot.rs` \
              carries the junction table, the tangency discriminator and the sweep's \
              blind spot). THE MOUTH IS \
              OPEN, AND THAT WAS THE SCENE'S SECOND FINDING BEFORE IT WAS FIXED: \

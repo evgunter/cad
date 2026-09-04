@@ -14,7 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -25,7 +25,7 @@ use editor_core::{
     RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SnapshotError, StableName, content_pin,
     evaluate, load, product, product_named, save,
 };
-use fixture::{desc, insert, len, square, step};
+use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
 
 // ---- The stub store ----
@@ -90,14 +90,12 @@ fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
 /// centered at `cx`.
 fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(cx, 0.0, side / 2.0)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(cx, 0.0, side / 2.0)],
     );
     let (doc, _) = insert(
         doc,
@@ -116,14 +114,12 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
 /// union is a genuine one-solid result with nothing declared.
 fn boolean_part(label: &str) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, plate_p) = insert(
+    let (doc, plate_p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]],
     );
     let (doc, plate) = insert(
         doc,
@@ -132,14 +128,12 @@ fn boolean_part(label: &str) -> ProfileDoc {
             distance: len(0.8),
         },
     );
-    let (doc, boss_p) = insert(
+    let (doc, boss_p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(1.2, 1.7, 0.35)],
-        )),
+        [0.0, 0.0, 0.3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(1.2, 1.7, 0.35)],
     );
     let (doc, boss) = insert(
         doc,
@@ -164,14 +158,12 @@ fn boolean_part(label: &str) -> ProfileDoc {
 /// row 5d refused before ASM-2B lifted that door, and instantiates now.
 fn two_solid_part(label: &str) -> ProfileDoc {
     let doc = part(label, 0.0, 1.0);
-    let (doc, profile) = insert(
+    let (doc, profile) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(10.0, 0.0, 0.5)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(10.0, 0.0, 0.5)],
     );
     let (doc, _) = insert(
         doc,
@@ -714,7 +706,11 @@ fn row6_placement_is_part_of_the_content_key() {
     assert!((min_x(&body) - 3.5).abs() < 1e-12);
 
     // And a re-evaluation with NO edit reuses — and asks the seam
-    // nothing at all (the lazy cache's whole point).
+    // nothing at all. That is the memo's contract and not a shortcut
+    // in it (DI2): the memo is a pure function of the document, and
+    // for an instantiate node the pin IS the content, so the served
+    // value is exactly what this document pins. Store freshness is the
+    // mounting session's question.
     let third = evaluate::<f64>(
         &moved,
         Some(&second),
@@ -776,14 +772,12 @@ fn row7_the_validator_refuses_placement_states_the_edits_cannot_produce() {
     // A second, NON-instance node, so the corrupted key below names a
     // live node and the diagnosis is the placement rule rather than an
     // id-range fault.
-    let (doc, other) = insert(
+    let (doc, other) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![square(0.0, 0.0, 0.5)],
-        )),
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
     );
     let (doc, _) = step(
         doc,

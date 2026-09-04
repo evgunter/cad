@@ -9,25 +9,25 @@
 //! correct; the consumers measured convex-hardcoded; the carve rows
 //! below are the widening built on that record.
 //!
-//! The fixture is the concave-chamfer suite's vented cavity — the
-//! cube's mirror: a block whose rectangular cavity has twelve concave
-//! edges meeting at eight all-concave trihedra, vented by a round
-//! chimney so the body stays one shell. Its builders are restated
-//! here (the suite-tree fixture-copy class the chamfer suite already
-//! declares; evgunter/cad issue 1364 owns the shared test-support
-//! home for the builders and the volume oracles together).
+//! The fixture is `common::cavity`'s vented cavity — the cube's
+//! mirror: a block whose rectangular cavity has twelve concave edges
+//! meeting at eight all-concave trihedra, vented by a round chimney so
+//! the body stays one shell. The concave-chamfer suite and both review
+//! probe suites carve THE SAME body, from that one home.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::cavity::{cavity_edges, vented_cavity};
+use crate::common::oracles::rounded_box_volume;
 use geom::Surface;
-use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use geom_core::{Point2, Point3, Tol, Vec3};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::blend::arms::corner_ball;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, CornerConfig, FILLET3_CORNER_RECOURSE};
+use sweep::blend::{BlendError, Convexity, CornerConfig, FILLET3_CORNER_RECOURSE};
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
-use topo::{Body, EdgeKey, subtract, validate, validate_closed};
+use topo::{Body, EdgeKey, validate, validate_closed};
 
 /// The fillet radius, meters.
 const R: f64 = 0.25;
@@ -37,105 +37,6 @@ fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
 }
 fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
     Vec3::new(x, y, z)
-}
-
-/// An axis-aligned box, authored the way a user would: a rectangle
-/// profile on a translated sketch plane, extruded.
-fn brick(lo: Point3<f64>, hi: Point3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::polygon([
-        Point2::new(lo.x, lo.y),
-        Point2::new(hi.x, lo.y),
-        Point2::new(hi.x, hi.y),
-        Point2::new(lo.x, hi.y),
-    ]);
-    let plane = SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Point3::new(0.0, 0.0, lo.z) - Point3::origin(),
-    ));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("a rectangle is a valid profile");
-    extrude(&profile, Extrusion::Distance(hi.z - lo.z), Tol::witness())
-        .expect("a brick extrudes")
-        .body
-}
-
-/// A circular rod: two half-arc profile segments extruded, so its wall
-/// is a cylinder and the ring it cuts in a plane is a circle.
-fn rod(center: Point2<f64>, r: f64, z0: f64, z1: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(center.x - r, center.y), 1.0),
-        ProfileVertex::new(Point2::new(center.x + r, center.y), 1.0),
-    ]);
-    let plane = SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Point3::new(0.0, 0.0, z0) - Point3::origin(),
-    ));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("a circle is a valid profile");
-    extrude(&profile, Extrusion::Distance(z1 - z0), Tol::witness())
-        .expect("a rod extrudes")
-        .body
-}
-
-/// The vented cavity: block `[0,4]³`, cavity `[1,3]³`, round chimney
-/// of radius `0.5` on `x = y = 2` from `z = 2.5` clear of the top —
-/// one shell, twelve concave cavity edges, eight all-concave corners.
-/// The vent's mouth ring sits `0.5` clear of every cavity wall, twice
-/// the setback `R` carves at, so the ring rides through.
-fn vented_cavity() -> Body<f64> {
-    let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
-    let vent = rod(Point2::new(2.0, 2.0), 0.5, 2.5, 5.0);
-    let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
-    let vented = subtract(&block, &vent, Tol::witness())
-        .expect("the vent cut succeeds")
-        .body()
-        .expect("the vent cut leaves material")
-        .body
-        .clone();
-    subtract(&vented, &cavity, Tol::witness())
-        .expect("the cavity cut succeeds")
-        .body()
-        .expect("the cavity cut leaves material")
-        .body
-        .clone()
-}
-
-/// The cavity's twelve edges, found by their endpoints — both of them
-/// corners of the cavity box `[1,3]³` — never by index.
-fn cavity_edges(body: &Body<f64>) -> Vec<EdgeKey> {
-    let corner = |q: Point3<f64>| {
-        [q.x, q.y, q.z]
-            .iter()
-            .all(|c| (c - 1.0).abs() < 1e-12 || (c - 3.0).abs() < 1e-12)
-    };
-    let mut found: Vec<EdgeKey> = body
-        .edges()
-        .filter(|(k, _)| {
-            let Some(e) = body.get_edge(*k) else {
-                return false;
-            };
-            let Some(h) = body.get_half_edge(e.he_plus) else {
-                return false;
-            };
-            let Some(end) = body.half_edge_end(e.he_plus) else {
-                return false;
-            };
-            let pt = |vk| {
-                body.get_vertex(vk)
-                    .and_then(|x| body.get_point(x.point))
-                    .copied()
-            };
-            match (pt(h.start), pt(end)) {
-                (Some(a), Some(b)) => corner(a) && corner(b),
-                _ => false,
-            }
-        })
-        .map(|(k, _)| k)
-        .collect();
-    found.sort_unstable();
-    found
 }
 
 /// **MEASUREMENT 1 — the concave arm rests the ball in the void.**
@@ -157,7 +58,7 @@ fn cavity_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 fn the_concave_arm_rests_the_ball_in_the_void_at_depth_r() {
     let r = 0.15;
     let normals = [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)];
-    let ball = corner_ball([p(0.0, 0.0, 0.0); 3], normals, r, false);
+    let ball = corner_ball([p(0.0, 0.0, 0.0); 3], normals, r, Convexity::Concave);
     assert!(
         (ball.center - p(r, r, r)).norm() < 1e-15,
         "the concave rest is at (r, r, r), got {:?}",
@@ -185,7 +86,7 @@ fn the_concave_rest_holds_at_an_oblique_trihedron() {
     let r = 0.2;
     let normals = [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.6, 0.0, 0.8)];
     let verts = [p(0.0, 0.0, 0.0); 3];
-    let concave = corner_ball(verts, normals, r, false);
+    let concave = corner_ball(verts, normals, r, Convexity::Concave);
     for (i, n) in normals.iter().enumerate() {
         let depth = (concave.center - verts[i]).dot(*n);
         assert!(
@@ -194,7 +95,7 @@ fn the_concave_rest_holds_at_an_oblique_trihedron() {
         );
     }
     assert!((concave.independence - 0.8).abs() < 1e-15);
-    let convex = corner_ball(verts, normals, r, true);
+    let convex = corner_ball(verts, normals, r, Convexity::Convex);
     assert!(
         (convex.independence - concave.independence).abs() < 1e-15,
         "independence is side-blind"
@@ -215,7 +116,7 @@ fn the_concave_rest_holds_at_an_oblique_trihedron() {
 fn the_convex_feet_formula_is_two_r_off_the_wall_under_the_concave_rest() {
     let r = 0.15;
     let normals = [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)];
-    let ball = corner_ball([p(0.0, 0.0, 0.0); 3], normals, r, false);
+    let ball = corner_ball([p(0.0, 0.0, 0.0); 3], normals, r, Convexity::Concave);
     for n in normals {
         let convex_formula = ball.center + n * r;
         let off = (convex_formula - p(0.0, 0.0, 0.0)).dot(n);
@@ -248,7 +149,7 @@ fn the_stored_chart_pole_aims_at_each_sides_own_patch_centre() {
     let r = 0.15;
     let normals = [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)];
     let mean = (normals[0] + normals[1] + normals[2]).normalize();
-    for (convex, patch_centre) in [(true, mean), (false, -mean)] {
+    for (convex, patch_centre) in [(Convexity::Convex, mean), (Convexity::Concave, -mean)] {
         let ball = corner_ball([p(0.0, 0.0, 0.0); 3], normals, r, convex);
         let Surface::Sphere { axis, .. } = ball.surface else {
             panic!("the corner ball's surface is a sphere");
@@ -273,18 +174,12 @@ fn the_stored_chart_pole_aims_at_each_sides_own_patch_centre() {
 /// less that rounded void, less the vent's cylinder above the cavity
 /// ceiling.
 ///
-/// The Steiner form is a declared copy class (rounded-box siblings in
-/// the two-sided row of the blend3 R1 probes, the R1 blend4 probes'
-/// prism generalization, and the die suites); evgunter/cad issue 1364
-/// owns the shared oracle home.
+/// The Steiner form itself is [`rounded_box_volume`], where its
+/// derivation lives; what stays here is the fixture's own arithmetic.
 fn filleted_cavity_volume() -> f64 {
     let block = 4.0_f64.powi(3);
     let vent = core::f64::consts::PI * 0.5 * 0.5 * (4.0 - 3.0);
-    let l = 2.0 - 2.0 * R;
-    let rounded_void = l.powi(3)
-        + 6.0 * l * l * R
-        + 3.0 * core::f64::consts::PI * l * R * R
-        + (4.0 / 3.0) * core::f64::consts::PI * R.powi(3);
+    let rounded_void = rounded_box_volume(2.0 - 2.0 * R, R);
     block - rounded_void - vent
 }
 

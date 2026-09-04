@@ -151,12 +151,15 @@ RUN_FLOOR=(
   plain:geom-brep:span_meter_dim_twins:5
   plain:geom-core:certified_door:6
   plain:geom-core:k_stats_doors:2
+  plain:geom-core:m10_7_r1_retag_probe:1
+  plain:geom-core:m10_7_r2_sym_probes:18
   plain:profile:review_m2_pr2_probe:2
   plain:profile:review_s2_probe:1
   plain:profile:scalar_channels_probe:4
   plain:profile:validate_ok_probe:1
   plain:sweep:k_report:0
   plain:sweep:review_chamfer_r1_probes:7
+  plain:sweep:review_fillet_e1_probes:4
   plain:topo:probe_census:1
   plain:topo:probe_s5_sectors:1
   plain:topo:review_m3_pr2:9
@@ -249,10 +252,18 @@ CITING_FILES=(
 # rename — that ci.yml still carries a step of this name — is unaffected.
 #
 # Shell globs, matched against the repo-relative path; `*` matches `/`.
+# `work/*` IS EXEMPT ON THE SAME ARGUMENT AS `docs/*`, and it is the
+# tracker rather than a document tree: an item file is a DATED FINDING,
+# and a finding that quoted the step name on the day it was written
+# stays true when the step is renamed — the finding is history the
+# moment it is filed. It is also the tree where a closed issue's note
+# most naturally quotes the step it was about, which is exactly how
+# this exemption came to be needed (the four k-probe items, 2026-09-03).
 CITATION_EXEMPT=(
   '.github/workflows/ci.yml'                # the step itself
   'scripts/gates/probe-suite-census.sh'     # this gate
   'docs/*'                                  # records, plans, prompts, logs
+  'work/*'                                  # the tracker: dated findings
 )
 
 # The clippy row that makes a misspelt cfg gate a hard error.

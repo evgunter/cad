@@ -77,12 +77,17 @@
 //!
 //! # Interface records
 //!
-//! Every mate EDGE whose two ends land on opposite sides of the cut
-//! becomes one [`crate::InterfaceCrossing::Mate`] entry in the
+//! A mate EDGE whose two ends land on opposite sides of the cut would
+//! become one [`crate::InterfaceCrossing::Mate`] entry in the
 //! remainder instance's [`crate::InterfaceRecord`] (ASM-R2b D-4, the
-//! hook ASM-4 left). A mate that is not an edge between two instances
-//! contributes nothing however its names fall, and a split that
-//! crosses no mate edge mints the EMPTY record.
+//! hook ASM-4 left) — but **no accepted cut puts them there, so split
+//! always mints the EMPTY record**. The cut rules make it unreachable:
+//! an edge welds its two members into one placement cluster and
+//! `TornCluster` refuses to tear one. The collector below carries the
+//! argument in full; the door that would make a crossing reachable is
+//! banked as ASM-XSPLIT. A mate that is not an edge — a dangling or
+//! nested-pattern head — contributes nothing however its names fall,
+//! and that one IS reachable: the gate is what skips it.
 //!
 //! # Determinism (D6/D9)
 //!
@@ -566,6 +571,14 @@ fn remap_seg(seg: &RoleSeg, map: &NodeMap) -> Result<RoleSeg, RecipeNodeId> {
         name_free_seg!() => seg.clone(),
         R::FromA(n) => R::FromA(one(n)?),
         R::FromB(n) => R::FromB(one(n)?),
+        // BOTH halves cross: the member edge is a local node id like
+        // the minting one, so a subgraph copied into another document
+        // carries a member reference that names a node HERE unless it
+        // is re-mapped too.
+        R::FromMember { member, of } => R::FromMember {
+            member: map.get(member).copied().ok_or(*member)?,
+            of: one(of)?,
+        },
         R::Seam { a, b } => R::Seam {
             a: one(a)?,
             b: one(b)?,
@@ -685,7 +698,45 @@ fn remap_node(
     };
     let nm = |n: &StableName| remap_name(n, map).map_err(|_| RemapMiss::Name(Box::new(n.clone())));
     Ok(match node {
-        Node::Datum(_) | Node::Profile(_) => node.clone(),
+        // **An in-plane axis is not a leaf**: its frame is an input,
+        // and a clone would carry the OTHER document's node number
+        // across the cut — exactly the trap the profile's plane hit
+        // one rung down, where this arm cloned because a profile
+        // referenced nothing.
+        Node::Datum(crate::Datum::AxisInPlane {
+            plane,
+            origin,
+            direction,
+        }) => Node::Datum(crate::Datum::AxisInPlane {
+            plane: id(*plane)?,
+            origin: origin.clone(),
+            direction: direction.clone(),
+        }),
+        // A derived frame is not a leaf either: its body is an input
+        // and its face is a frozen name, and both cross the cut or
+        // the remap misses loudly — exactly a blend's target and
+        // selection.
+        Node::Datum(crate::Datum::FaceFrame { at, face, spin }) => {
+            Node::Datum(crate::Datum::FaceFrame {
+                at: id(*at)?,
+                face: nm(face)?,
+                spin: spin.clone(),
+            })
+        }
+        Node::Datum(
+            crate::Datum::Plane { .. }
+            | crate::Datum::Axis { .. }
+            | crate::Datum::Point { .. }
+            | crate::Datum::Frame { .. },
+        ) => node.clone(),
+        // A profile's PLANE is an input like any other: it crosses the
+        // cut with the profile or the remap misses loudly. (Before the
+        // sketch frame became a node this arm cloned, because a
+        // profile referenced nothing.)
+        Node::Profile(p) => Node::Profile(ProfileProgram {
+            plane: id(p.plane)?,
+            loops: p.loops.clone(),
+        }),
         Node::Extrude { profile, distance } => Node::Extrude {
             profile: id(*profile)?,
             distance: distance.clone(),
@@ -698,6 +749,38 @@ fn remap_node(
             profile: id(*profile)?,
             axis: id(*axis)?,
             angle: angle.clone(),
+        },
+        // The two tube kinds remap the same way — one spine edge, every
+        // other field carried — and are written apart rather than
+        // through a helper, so which fields each kind has stays
+        // readable at the site that has to name them all.
+        Node::Tube {
+            spine,
+            u_ref,
+            major_radius,
+            window,
+            minor_radius,
+        } => Node::Tube {
+            spine: id(*spine)?,
+            u_ref: u_ref.clone(),
+            major_radius: major_radius.clone(),
+            window: window.clone(),
+            minor_radius: minor_radius.clone(),
+        },
+        Node::HollowTube {
+            spine,
+            u_ref,
+            major_radius,
+            window,
+            minor_radius,
+            wall,
+        } => Node::HollowTube {
+            spine: id(*spine)?,
+            u_ref: u_ref.clone(),
+            major_radius: major_radius.clone(),
+            window: window.clone(),
+            minor_radius: minor_radius.clone(),
+            wall: wall.clone(),
         },
         Node::Loft { profiles, v_degree } => Node::Loft {
             profiles: profiles.iter().map(|&p| id(p)).collect::<Result<_, _>>()?,
@@ -742,6 +825,9 @@ fn remap_node(
             b: id(*b)?,
             declare: declare.map(id).transpose()?,
         },
+        Node::Union { members } => Node::Union {
+            members: members.iter().map(|&m| id(m)).collect::<Result<_, _>>()?,
+        },
         Node::Transform {
             input,
             translation,
@@ -757,6 +843,12 @@ fn remap_node(
             input: id(*input)?,
             count: count.clone(),
             kind: remap_rule(kind, &id)?,
+        },
+        // The selector is payload with no id in it (a half, or an
+        // index expression); only the edge remaps.
+        Node::Part { of, select } => Node::Part {
+            of: id(*of)?,
+            select: select.clone(),
         },
         Node::PlacedUnion { input, count, kind } => Node::PlacedUnion {
             input: id(*input)?,
@@ -1150,25 +1242,61 @@ pub fn split(
     // touched the cut. Collected in the pre-split document's node
     // order, which is what makes the record D9-deterministic.
     //
-    // **Only a mate EDGE can cross** (AQ8, RULED — option (b), SKIP).
-    // A4 says "every mate EDGE crossing the cut". An A12 reading edge
-    // exists when both heads resolve to live MEMBERS — a live
-    // instance, or a pattern-placed instance (A11's member
-    // vocabulary) — but this collector still gates on plain
-    // `InstantiatePart` heads only: a mate whose edge end is a
-    // pattern-placed head contributes no crossing record, and so loses
-    // the pin-move re-verification the record buys (issue 1405 —
-    // split/refactor ground). A mate with a DANGLING head — one
-    // resolving to no member at all — is not an edge and contributes
-    // NO crossing, however its names fall across the cut.
-    // The ruling's reason is the one that matters here: such a mate
-    // never solved, so a record minted from it would be
-    // trusted-at-rest state, which AQ8's ratification condition
-    // forbids. The mate itself stays in the document (N5) and its
-    // names rebind like any other; it simply says nothing about the
-    // seam.
-    let is_mate_edge_end =
-        |name: &StableName| matches!(doc.node(name.node), Some(Node::InstantiatePart { .. }));
+    // **Only a mate EDGE can cross.** A4 says "every mate EDGE
+    // crossing the cut", and an A12 reading edge exists exactly when
+    // both heads resolve to live MEMBERS of A11's vocabulary — a live
+    // instance, or a pattern-placed instance (`Pattern` node +
+    // `Instance(i)`). The gate is `crate::mate::member_of`
+    // ITSELF, not a re-spelling of it: this collector, A12's reading
+    // edges and A11's clusters ask ONE predicate.
+    //
+    // # Why no accepted cut reaches this record
+    //
+    // The record is unreachable, and predicate identity alone does not
+    // establish that — the loop below tests NAMES
+    // (`derivation_nodes ⊆ cut`) while the cluster precondition tests
+    // INSTANCES. Three facts carry the argument, and the second is the
+    // one that ties those two readings together:
+    //
+    // 1. `Node::Mate::payload_names()` is exactly `[a, b]`, so a kept
+    //    mate's two references are classified above: each is wholly
+    //    inside the cut or wholly disjoint from it, never straddling
+    //    (`NameStraddlesCut` refuses the third case). So `!inside`
+    //    here means DISJOINT, not merely "not contained".
+    // 2. `Node::Pattern::inputs()` includes `input`, so D-2's closure
+    //    check refuses any cut with the pattern on one side and its
+    //    input instance on the other: `pattern ∈ cut` iff
+    //    `pattern.input ∈ cut`. A pattern-placed head's derivation
+    //    nodes and the MEMBER it resolves to therefore always land on
+    //    the same side, which is what makes (1)'s name reading agree
+    //    with the cluster precondition's instance reading. For a plain
+    //    head the two are the same node and this is trivial.
+    // 3. An edge's two members are welded into one placement cluster
+    //    (`mate::clusters`, on this same predicate), and `TornCluster`
+    //    above refuses any cut that is not a union of WHOLE clusters.
+    //
+    // Together: an edge's two ends are never on opposite sides of an
+    // accepted cut, so this loop mints nothing for one and the record
+    // is ALWAYS empty. Remove any one of the three and the argument
+    // fails. The conversion door that would make a crossing reachable
+    // is banked as ASM-XSPLIT. Exhausted over every subset of two
+    // recipes in `rev_fix_xsplit_unreachable.rs`.
+    //
+    // A mate with a DANGLING head — one resolving to no member at all
+    // — is not an edge and contributes NO crossing, however its names
+    // fall across the cut. Such a mate never solved, so a record
+    // minted from it would be trusted-at-rest state. Unlike (1)-(3),
+    // this arm is NOT forced by the cut rules: a nested-pattern head
+    // welds no cluster, so its mate's ends do reach opposite sides of
+    // an accepted cut, and the gate is the only thing that skips it.
+    // That is AQ8 option (b), SKIP — ruled at the ASM-R2b review but
+    // NOT carried into `crates/editor-core/ASSEMBLY.md`, whose AQ8
+    // clause states only the weld/`TornCluster` half; the ruling is
+    // recorded in `asm_r2b_assembly.rs`'s rows-5-and-6 header and
+    // pinned by `row5_d`. The mate itself stays in the document (N5)
+    // and its names rebind like any other; it simply says nothing
+    // about the seam.
+    let is_mate_edge_end = |name: &StableName| crate::mate::member_of(doc, name).is_some();
     let mut crossings: Vec<InterfaceCrossing> = Vec::new();
     for &id in doc.order() {
         if cut.contains(&id) {

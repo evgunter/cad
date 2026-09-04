@@ -320,9 +320,8 @@ fn unpaired_chord_segment(
     uses.iter().find(|&(_, &n)| n != 2).map(|(&e, &n)| (e, n))
 }
 
-// GATED ON THE GUARD IT TESTS, the way `walk`'s own row-5 test row is
-// (`walk::tests::the_closure_detector_fires_when_the_gap_clears_the_
-// spatial_bar`): every row here calls `unpaired_chord_segment`, which
+// GATED ON THE GUARD IT TESTS: every row here calls
+// `unpaired_chord_segment`, which
 // is `#[cfg(debug_assertions)]`, so with debug-assertions OFF the
 // subject does not exist and neither should the rows. Without this the
 // lib test target fails to COMPILE in that configuration.

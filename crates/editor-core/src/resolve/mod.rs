@@ -1158,6 +1158,8 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::ClearAppearanceMeta { .. } => {}
         // Carry no `StableName` at all.
         DocEdit::DeleteNode { .. }
+        // A list of node ids carries no name.
+        | DocEdit::SetMembers { .. }
         | DocEdit::SetParam { .. }
         | DocEdit::SetStructuralParam { .. }
         | DocEdit::SetExpression { .. }
@@ -1181,14 +1183,23 @@ pub fn apply_with_names<T: Decide>(
 }
 
 /// The nodes a name's derivation passes through: its minting node,
-/// every embedded operand name's nodes (recursively), and every
-/// discriminator partner's nodes — the localization set of N7 ("an
-/// edit renames nothing outside derivation paths that actually pass
-/// through the edited node").
+/// every embedded operand name's nodes (recursively), every
+/// discriminator partner's nodes, and every node id a SEGMENT carries
+/// in its own right — the localization set of N7 ("an edit renames
+/// nothing outside derivation paths that actually pass through the
+/// edited node").
+///
+/// The last of those is a union's member edge
+/// ([`crate::names::RoleSeg::FromMember`]): the entity derives from
+/// that member, and the member is named by an id rather than by a
+/// name, so a walk that only visits embedded names would leave it out
+/// of the localization set and out of every id check built on this.
 pub fn derivation_nodes(name: &StableName) -> BTreeSet<RecipeNodeId> {
     let mut nodes = BTreeSet::from([name.node]);
+    nodes.extend(name.path.iter().filter_map(crate::names::member_edge));
     for_each_inner(name, &mut |inner| {
         nodes.insert(inner.node);
+        nodes.extend(inner.path.iter().filter_map(crate::names::member_edge));
     });
     nodes
 }
@@ -1226,6 +1237,7 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
             // Structural embeddings: the entity derives from these.
             RoleSeg::FromA(n)
             | RoleSeg::FromB(n)
+            | RoleSeg::FromMember { of: n, .. }
             | RoleSeg::SectionEdge { face: n, .. }
             | RoleSeg::SplitFragment { parent: n, .. }
             | RoleSeg::CrossingVertex { edge: n, .. }

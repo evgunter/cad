@@ -4,7 +4,7 @@ description: >
   drift from what is committed, and mark the run NEUTRAL so the change
   demands a look without failing the build.
 
-# WHY THIS REPLACED A FAILING GATE (2026-08-17, Evan's ruling).
+# WHY THIS REPLACED A FAILING GATE (2026-08-17, Ev's ruling).
 #
 # The old gate did the right thing for the wrong cost. A drifting lane
 # failed the run and printed a `render-hosted.sh --run <id> --lane <x>`
@@ -31,10 +31,10 @@ description: >
 # all. If a re-baseline were green, nothing would ever ask anyone to
 # look. The neutral check IS the ask.
 #
-# WHAT STILL FAILS LOUDLY, unchanged: a wedged pass, and the
-# `assert no matplotlib fallback` check. This action is only reached
-# when the render itself succeeded, so a wedge is still a wedge and is
-# never re-reported as drift.
+# WHAT STILL FAILS LOUDLY, unchanged: a wedged pass, and a pass whose
+# renderer was missing or could not draw a scene. This action is only
+# reached when the render itself succeeded, so a failure is still a
+# failure and is never re-reported as drift.
 
 inputs:
   lane:

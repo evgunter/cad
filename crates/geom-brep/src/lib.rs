@@ -94,10 +94,11 @@ pub use implicit::{
     implicit_gradient, implicit_hessian_form, implicit_max_normal_curvature, implicit_residual,
 };
 pub use intersect::{
-    EqualCylinderSection, PairRoute, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection,
-    RadiusEvidence, Rung, SectionError, SphereSphereSection, SurfaceKind,
-    cylinder_cylinder_section, plane_cone_section, plane_cylinder_section, plane_sphere_section,
-    route, sphere_sphere_section,
+    CoaxialEvidence, CylinderSphereSection, EqualCylinderSection, PairRoute, PlaneConeSection,
+    PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence, Rung,
+    SectionError, SphereSphereSection, SurfaceKind, cylinder_cylinder_section,
+    cylinder_sphere_section, plane_cone_section, plane_cylinder_section, plane_sphere_section,
+    plane_torus_section, route, sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use mapped::{MappedCurve, SketchSegment};
@@ -106,7 +107,7 @@ pub use nurbs_iso::{IsoRowError, boundary_iso_u, boundary_iso_v, iso_boundary_ro
 pub use offset::{ConeOffset, OffsetError, offset_surface};
 pub use offset_fit::{
     OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface, certify_offset,
-    fit_offset, recertify_approx,
+    certify_offset_over, fit_offset, recertify_approx,
 };
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
@@ -118,6 +119,7 @@ pub use pcurve_cache::{
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,
+    require_one_chart_branch,
 };
 pub use ssi::{
     Exhaustiveness, SSI_FIT_DEGREE, SSI_FLOOR, SSI_MAX_STEPS, SsiBranch, SsiCertificate, SsiDomain,

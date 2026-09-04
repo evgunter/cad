@@ -35,8 +35,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::fixture;
 
 use std::collections::BTreeSet;
 
@@ -77,14 +76,12 @@ fn block(
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
     let loops = vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]];
-    let (doc, p) = insert(
-        doc,
-        Node::Profile(fixture::desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            loops,
-        )),
+    let (doc, p) = fixture::on_frame(
+        doc.clone(),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        loops,
     );
     insert(
         &doc,
@@ -178,7 +175,7 @@ fn an_appearance_record_on_a_fillet_minted_face_resolves() {
             kind: EntityKind::Edge,
             node: cube,
             path: vec![RoleSeg::RimEdge(
-                CapEnd::Top,
+                CapEnd::End,
                 editor_core::ProfileEdgeRef {
                     loop_index: 0,
                     segment: 0,
@@ -326,7 +323,7 @@ fn the_downstream_reference_survives_an_upstream_bump() {
         path: vec![RoleSeg::FromTarget(Box::new(StableName {
             kind: EntityKind::Face,
             node: cube,
-            path: vec![RoleSeg::Cap(CapEnd::Top)],
+            path: vec![RoleSeg::Cap(CapEnd::End)],
         }))],
     };
     let before = table_of(&eval(&doc), blank);
@@ -422,14 +419,12 @@ fn all_edges_materializes_exactly_the_authored_every_edge_set() {
 #[test]
 fn all_edges_of_a_nameless_node_is_empty() {
     let doc = ProfileDoc::empty_derived("m6_5_downstream", Tol::witness());
-    let (doc, p) = insert(
-        &doc,
-        Node::Profile(fixture::desc(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
+    let (doc, p) = fixture::on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let ev = eval(&doc);
     // A profile node has no output body and so an empty table.

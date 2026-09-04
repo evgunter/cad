@@ -140,8 +140,9 @@ pub fn code_only(text: &str) -> String {
 /// for a needle that **contains a string literal**, which
 /// [`code_only`] would erase and leave the guard vacuous.
 ///
-/// The tree's largest caller is the `every_suite_file_is_aggregated`
-/// row each crate's `tests/all.rs` carries, whose needle is the mount
+/// The tree's largest caller is [`aggregation_violations`], the body of
+/// the `every_suite_file_is_aggregated` row every aggregating crate's
+/// `tests/all.rs` carries, whose needle is the mount
 /// `#[path = "<suite>.rs"]`. **The argument is stated here so it is
 /// stated once**: a mount that has been commented out must not answer
 /// for the file it names, because `autotests = false` then drops a
@@ -395,6 +396,55 @@ pub fn balanced_end(blanked: &str, open: usize) -> Option<usize> {
     None
 }
 
+/// The byte offset of the `>` closing the generic list that opens at
+/// `open`, or `None` if the item's body arrives first.
+///
+/// Same precondition as [`balanced_end`]: a [`keeping`] view with
+/// literals and comments dropped, so every bracket is a real bracket.
+///
+/// **The item's body opens at the first `{` or `;` OUTSIDE every
+/// square and round bracket.** A fixed-size array in a generic
+/// argument — `<Item = [Expr; 2]>` — carries a `;` that ends no item,
+/// and reading it as a terminator closes the list early. That is the
+/// same nesting [`top_level_split`] respects for its separators, and
+/// it is here rather than at a call site for the reason stated there.
+///
+/// **`->` does not close a list.** An arrow's `>` is not an angle
+/// bracket, so a bound like `<F: Fn(u32) -> u32>` would otherwise
+/// drive the depth to zero early and answer a list that is too SHORT
+/// — an undercount, and silent, because a short list still parses.
+///
+/// **The residue, stated:** a genuine `>` comparison inside a const
+/// generic argument still closes the list early, and this answers
+/// `Some` at the wrong place rather than `None`. Angle brackets are
+/// not a bracket language; depth counting is a heuristic here in a way
+/// it is not in [`balanced_end`]. A caller that must not undercount
+/// owes its own check that the answer it got is where it expected one.
+#[must_use]
+pub fn angle_end(blanked: &str, open: usize) -> Option<usize> {
+    let (mut depth, mut brackets) = (0i32, 0i32);
+    let bytes = blanked.as_bytes();
+    for (off, c) in blanked[open..].char_indices() {
+        let at = open + off;
+        match c {
+            '<' => depth += 1,
+            // `-` immediately before is an arrow, not a closer.
+            '>' if at > 0 && bytes[at - 1] == b'-' => {}
+            '>' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(at);
+                }
+            }
+            '[' | '(' => brackets += 1,
+            ']' | ')' => brackets -= 1,
+            '{' | ';' if brackets == 0 => return None,
+            _ => {}
+        }
+    }
+    None
+}
+
 /// The byte ranges of the `sep`-separated items of `blanked` at bracket
 /// depth zero.
 ///
@@ -465,12 +515,13 @@ pub fn crate_dir(baked: &str) -> std::path::PathBuf {
 /// Every SUITE file under a crate's `tests/` directory, relative to it,
 /// `/`-separated and sorted, with `all.rs` itself excluded.
 ///
-/// Recursive, and shared for the reason [`rust_sources`] is: thirteen
-/// crates carry a row asserting every suite is mounted in `tests/all.rs`,
-/// and while they each walked `tests/` themselves twelve used a FLAT
-/// `read_dir` and one recursed — so twelve of them could not see a
+/// Recursive, and shared for the reason [`rust_sources`] is: every
+/// aggregating crate carries a row asserting every suite is mounted in
+/// `tests/all.rs`, and while each of them walked `tests/` itself all
+/// but one used a FLAT `read_dir` — so all but one could not see a
 /// suite in a group directory at all, and nothing recorded that they
-/// were the weaker variant.
+/// were the weaker variant. The row's whole body is
+/// [`aggregation_violations`] now, and this is the walk it makes.
 ///
 /// **A suite and a shared HELPER are told apart by Rust's own module
 /// rule, not by a list.** A subdirectory holding a `mod.rs` is a module
@@ -509,6 +560,190 @@ pub fn suite_files(tests_dir: &std::path::Path) -> Vec<String> {
         .collect()
 }
 
+/// Every `mod <name>;` declaration in a Rust source text — the FILE
+/// form of a module declaration, never an inline `mod <name> { … }`.
+///
+/// **ONE HOME, and why the shape is the thing being counted.** In an
+/// aggregated test binary (`autotests = false`, every suite mounted in
+/// `tests/all.rs` with `#[path]`) a `mod <name>;` inside a SUITE loads
+/// that helper file as a module of that suite — so the helper is
+/// parsed, resolved, type-checked and codegen'd once per suite that
+/// declares it, inside the one binary. Declared once at the root of
+/// `all.rs` and reached with `use crate::<name>;`, it is compiled once
+/// for the whole binary. An inline `mod <name> { … }` block loads no
+/// file and duplicates nothing, so it is deliberately NOT reported:
+/// suites use it freely to group rows (`mod interval { … }`).
+///
+/// The view is [`code_only`], not [`code_and_literals`]: this needle is
+/// a code fragment carrying no literal of its own, so blanking literals
+/// as well as comments can lose no real declaration and it removes the
+/// one false positive available — a `"mod x;"` written inside a string.
+///
+/// Names are returned in source order, with repeats kept: the caller is
+/// reporting sites, not a set.
+#[must_use]
+pub fn file_module_decls(text: &str) -> Vec<String> {
+    let blanked = code_only(text);
+    let b = blanked.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0usize;
+    while let Some(off) = blanked[i..].find("mod") {
+        let at = i + off;
+        i = at + "mod".len();
+        // `mod` has to be a whole token, not the tail of `xmod`.
+        if at > 0 && (b[at - 1].is_ascii_alphanumeric() || b[at - 1] == b'_') {
+            continue;
+        }
+        let mut j = i;
+        // ... and the head of one: `model` is not a declaration.
+        if j >= b.len() || !b[j].is_ascii_whitespace() {
+            continue;
+        }
+        while j < b.len() && b[j].is_ascii_whitespace() {
+            j += 1;
+        }
+        let start = j;
+        while j < b.len() && (b[j].is_ascii_alphanumeric() || b[j] == b'_') {
+            j += 1;
+        }
+        if j == start {
+            continue;
+        }
+        let name = &blanked[start..j];
+        while j < b.len() && b[j].is_ascii_whitespace() {
+            j += 1;
+        }
+        // `;` is the file form; `{` is an inline block and costs nothing.
+        if j < b.len() && b[j] == b';' {
+            out.push(name.to_string());
+        }
+    }
+    out
+}
+
+/// **The aggregation guard's whole verdict**, as the list of violations
+/// it found — empty when a crate's `tests/` directory and its
+/// `tests/all.rs` agree. Each aggregating crate's
+/// `every_suite_file_is_aggregated` row asserts this list is empty, and
+/// that call is the whole of it.
+///
+/// # Why the checks live here and not at each aggregator
+///
+/// Every aggregating crate carries the same row, and the row used to be
+/// the same twenty-five lines copied into each of them: the walk, the
+/// mount scan, the module-declaration read, and three messages. A
+/// message, an exemption or a fourth check was then one edit per copy,
+/// all of which had to agree — the shape that drifts, and a guard that
+/// has drifted is weaker in whichever copy was missed without saying
+/// so. One home makes it one edit, and makes the sentence every crate
+/// prints on a red the same sentence.
+///
+/// # What is checked, and why each direction is needed
+///
+/// `autotests = false` plus one `[[test]]` target means a `tests/*.rs`
+/// file that no `#[path]` line mounts is not compiled and does not run
+/// — indistinguishable, from outside, from a suite that passes.
+///
+/// 1. **Every suite file on disk is mounted.** That silent direction.
+/// 2. **Every mount answers to a suite file**: one `#[path]` line per
+///    file and no orphan declaration, computed rather than restated, so
+///    no number about the set is written in prose.
+/// 3. **No suite file declares a module of its own.** A `mod <name>;`
+///    inside a SUITE loads that helper as a module of THAT suite, so
+///    inside the one binary the helper is parsed, resolved,
+///    type-checked and codegen'd once per declaring suite; declared
+///    once at the root of `all.rs` and reached with
+///    `use crate::<name>;` it is compiled once for the binary. Inline
+///    `mod <name> { … }` blocks load no file and stay legal
+///    ([`file_module_decls`]), and helper TREES are directories
+///    carrying a `mod.rs`, which [`suite_files`] already excludes.
+///
+/// # The two inputs
+///
+/// `tests_dir` is the crate's `tests/` directory: the walk and each
+/// suite's text are read from it at RUN time, so a caller passes
+/// [`crate_dir`]'s answer rather than a baked path — a nextest archive
+/// replayed on another runner has no compile-time directory.
+///
+/// `all_rs` is the aggregator's OWN source, passed as
+/// `include_str!("all.rs")` so the text judged is the one that was
+/// compiled. It is read through [`code_and_literals`]: the needle is
+/// the mount `#[path = "<suite>.rs"]`, whose payload is a string
+/// literal, and a mount that has been commented out must not answer for
+/// the file it names.
+///
+/// **Panics** when the walk finds nothing or a walked suite cannot be
+/// read — a guard that cannot see the tree goes red rather than green
+/// over an empty set ([`rust_sources`]).
+///
+/// All three checks run before anything is reported, so a red names
+/// every violation found rather than the first. **The one exception is
+/// an unreadable suite file**: check 3 reads each walked file, so a
+/// file the walk saw and the reader cannot open panics HERE, with the
+/// `expect` below, rather than through check 1's sentence. Loud either
+/// way, and it is a broken checkout rather than a test outcome.
+///
+/// # What the call site still owes, and it is one character wide
+///
+/// `crates/test-utils/tests/reader_census.rs` detects a source reader
+/// by `named > mounted` — `.rs"` occurrences against `#[path = "` ones
+/// — and for an `all.rs` the ONLY thing carrying that margin is the
+/// `include_str!("all.rs")` this function is handed. **The margin is
+/// exactly one.** One extra `#[path = "` written inside a string
+/// literal in an `all.rs` closes it, the census stops seeing that file
+/// as a reader, and its `Shared` ledger line reds as `stale`. That is
+/// the loud direction and it is stated here because nothing else in
+/// the tree says it: before this function existed each `all.rs` also
+/// carried a `suite_files(` call, and the detector had two tells per
+/// file instead of one.
+#[must_use]
+pub fn aggregation_violations(tests_dir: &std::path::Path, all_rs: &str) -> Vec<String> {
+    let src = code_and_literals(all_rs);
+    let found = suite_files(tests_dir);
+    let mut violations = Vec::new();
+
+    let missing: Vec<&String> = found
+        .iter()
+        .filter(|rel| !src.contains(&format!("#[path = \"{rel}\"]")))
+        .collect();
+    if !missing.is_empty() {
+        violations.push(format!(
+            "suites under tests/ are not declared in tests/all.rs, so `autotests = false` \
+             is silently dropping them: {missing:?}. Add a `#[path]` line for each."
+        ));
+    }
+
+    // The converse. The `format!` above spells its quote ESCAPED, so it
+    // is not one of these matches.
+    let declared = src.matches("#[path = \"").count();
+    if declared != found.len() {
+        violations.push(format!(
+            "tests/all.rs declares {declared} suites but {} suite files exist under tests/",
+            found.len()
+        ));
+    }
+
+    let redeclared: Vec<String> = found
+        .iter()
+        .flat_map(|rel| {
+            let text = std::fs::read_to_string(tests_dir.join(rel))
+                .expect("a walked suite file reads back");
+            file_module_decls(&text)
+                .into_iter()
+                .map(move |name| format!("{rel}: mod {name};"))
+        })
+        .collect();
+    if !redeclared.is_empty() {
+        violations.push(format!(
+            "a suite declares a module of its own, which compiles that file once per \
+             declaring suite inside this one binary: {redeclared:?}. Declare it once in \
+             tests/all.rs (`mod <name>;`, no `#[path]`) and say `use crate::<name>;` here."
+        ));
+    }
+
+    violations
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
@@ -518,8 +753,52 @@ mod tests {
     // flakes about one run in thirteen (15/200; **issue #882**). Do not
     // copy that shape here.
     use super::{
-        Region, balanced_end, code_and_literals, code_only, comments_only, keeping, top_level_split,
+        Region, aggregation_violations, angle_end, balanced_end, code_and_literals, code_only,
+        comments_only, file_module_decls, keeping, top_level_split,
     };
+
+    /// A generic list closes at its own `>`, and the constructs that
+    /// carry a `>` or a `;` without ending it do not close it early.
+    ///
+    /// **Each row is planted against a specific way to get this
+    /// wrong**, so a repair reverted anywhere here reds on its own
+    /// evidence rather than on whichever door happens to be spelled
+    /// with the construct that day.
+    #[test]
+    fn a_generic_list_closes_at_its_own_angle_bracket() {
+        // The plain case: the answer is the closing `>`.
+        let plain = "fn f<T>(x: T) {}";
+        let open = plain.find('<').unwrap();
+        assert_eq!(angle_end(plain, open), Some(plain.find('>').unwrap()));
+
+        // A `;` INSIDE a square bracket is an array type, not the
+        // item's body. Counting it as a terminator is the defect this
+        // row exists for.
+        let array = "fn f(p: impl IntoIterator<Item = [Expr; 2]>) -> Self {}";
+        let open = array.find('<').unwrap();
+        let end = angle_end(array, open).expect("an array type does not end the list");
+        assert_eq!(&array[end..=end], ">");
+        assert_eq!(end, array.find("]>").unwrap() + 1);
+
+        // An arrow's `>` is not a closer: reading it as one answers a
+        // list that is too SHORT, which is the silent direction.
+        let arrow = "fn f<F: Fn(u32) -> u32>(g: F) {}";
+        let open = arrow.find('<').unwrap();
+        let end = angle_end(arrow, open).expect("an arrow does not end the list");
+        assert_eq!(end, arrow.find(">(").unwrap());
+
+        // Nesting still closes at the OUTER list.
+        let nested = "fn f<T: Into<Vec<u8>>>(x: T) {}";
+        let open = nested.find('<').unwrap();
+        let end = angle_end(nested, open).expect("a nested list closes");
+        assert_eq!(end, nested.find(">>>").unwrap() + 2);
+
+        // A `;` at bracket depth zero IS the item's body: a list that
+        // never closes answers `None` rather than running on.
+        assert_eq!(angle_end("type A = B<C;", "type A = B".len()), None);
+        // As does one that simply runs out of input.
+        assert_eq!(angle_end("fn f<T", 4), None);
+    }
 
     /// Every construct a needle can hide in, and the code read each one
     /// must not cost. Written once and asserted from three directions
@@ -800,5 +1079,113 @@ mod tests {
         assert!(!code_only(row).contains("Version 7 is"), "blanked as one");
         // The `///` spelling, which IS prose, for contrast.
         assert!(comments_only("/// Version 7 is a break.").contains("Version 7 is"));
+    }
+
+    /// The selftest for the ONE HOME guard the aggregated crates carry:
+    /// the FILE form of a module declaration is reported, and every
+    /// shape that is not one is not — an inline block, a hiding place,
+    /// and an identifier that merely starts or ends with `mod`.
+    #[test]
+    fn file_module_decls_reports_the_file_form_and_nothing_else() {
+        let src = "\
+mod common;
+pub mod helper ;
+pub(crate) mod nested;
+mod interval { fn f() {} }
+// mod commented_out;
+/// mod in_a_doc_comment;
+let s = \"mod in_a_literal;\";
+let m = model;
+let x = xmod;
+";
+        assert_eq!(
+            file_module_decls(src),
+            vec![
+                "common".to_string(),
+                "helper".to_string(),
+                "nested".to_string()
+            ]
+        );
+        // Repeats are sites, not a set — the caller reports each one.
+        assert_eq!(file_module_decls("mod a;\nmod a;").len(), 2);
+    }
+
+    /// A throwaway `tests/`-shaped tree under the system temp dir.
+    /// nextest runs one process per test, so the pid names it uniquely.
+    fn plant(files: &[(&str, &str)]) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("cad-aggregation-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        for (rel, body) in files {
+            let path = dir.join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, body).unwrap();
+        }
+        dir
+    }
+
+    /// S13's ratified shape, for the row fourteen aggregating crates
+    /// now share: **a clean tree passes and every planted violation
+    /// fires**, each with the message that names its own fix.
+    ///
+    /// The plantings are the four ways the pairing between a `tests/`
+    /// directory and its `all.rs` can break, and the fourth is the one
+    /// a naive scan gets wrong: a mount COMMENTED OUT aggregates
+    /// nothing, so it must not answer for the file it names.
+    #[test]
+    fn the_aggregation_guard_passes_a_clean_tree_and_fires_on_each_planting() {
+        let suite = "#[test]\nfn a() {}\n";
+        let dir = plant(&[("one.rs", suite), ("group/two.rs", suite)]);
+        let clean = "#[path = \"one.rs\"]\nmod one;\n#[path = \"group/two.rs\"]\nmod two;\n";
+        assert_eq!(aggregation_violations(&dir, clean), Vec::<String>::new());
+
+        let fires = |all: &str, needles: &[&str]| {
+            let found = aggregation_violations(&dir, all);
+            for needle in needles {
+                assert!(
+                    found.iter().any(|m| m.contains(needle)),
+                    "planted violation did not fire on {needle:?}: {found:#?}"
+                );
+            }
+        };
+
+        // 1. A suite on disk that no mount names — the silent direction,
+        //    reported together with the count it moves.
+        fires(
+            "#[path = \"one.rs\"]\nmod one;\n",
+            &[
+                "silently dropping them: [\"group/two.rs\"]",
+                "declares 1 suites but 2 suite files",
+            ],
+        );
+
+        // 2. A mount answering to no file: nothing is missing, and the
+        //    count is what says so.
+        fires(
+            &format!("{clean}#[path = \"three.rs\"]\nmod three;\n"),
+            &["declares 3 suites but 2 suite files"],
+        );
+
+        // 3. A mount that has been commented out aggregates nothing.
+        fires(
+            "// #[path = \"one.rs\"]\nmod one;\n#[path = \"group/two.rs\"]\nmod two;\n",
+            &["silently dropping them: [\"one.rs\"]"],
+        );
+
+        // 4. A suite declaring a module of its own — the ONE HOME half.
+        //    The inline block beside it is legal and must not fire.
+        std::fs::write(
+            dir.join("one.rs"),
+            "mod helper;\nmod inline { fn f() {} }\n",
+        )
+        .unwrap();
+        fires(clean, &["one.rs: mod helper;"]);
+        assert!(
+            !aggregation_violations(&dir, clean)
+                .iter()
+                .any(|m| m.contains("mod inline;")),
+            "an inline block loads no file and duplicates nothing"
+        );
+
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

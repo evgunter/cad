@@ -14,7 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod fixture;
+use crate::fixture;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -25,7 +25,7 @@ use editor_core::{
     MateRole, Node, PartResolver, PatternKind, ProfileDoc, RecipeNodeId, ResolveFailure,
     ResolveFault, RoleSeg, StableName, assemble, clusters, content_pin, evaluate, solve_document,
 };
-use fixture::{desc, insert, len, scl, step};
+use fixture::{insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
 // ---- Substrate (the stub resolver, as in the sibling suites) ----
@@ -76,17 +76,19 @@ fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
 // ---- Documents ----
 
 /// An axis-aligned block part: `[x]×[y]` at `z0`, extruded `dz`. Its
-/// extrude is node 1, so the part's caps name through `RecipeNodeId(1)`.
+/// extrude is [`PART_BODY`], so the part's caps name through it.
+/// The extrude in a one-block part document. A block is three nodes
+/// — the sketch frame, the profile drawn on it, then the extrude.
+const PART_BODY: RecipeNodeId = RecipeNodeId(2);
+
 fn block_part(label: &str, x: (f64, f64), y: (f64, f64), z0: f64, dz: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, p) = insert(
+    let (doc, p) = on_frame(
         doc,
-        Node::Profile(desc(
-            [0.0, 0.0, z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-        )),
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
     );
     let (doc, _) = insert(
         doc,
@@ -112,7 +114,7 @@ fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
         path: vec![RoleSeg::InPart {
             of: Box::new(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: PART_BODY,
                 path: vec![RoleSeg::Cap(cap)],
             }),
         }],
@@ -203,8 +205,8 @@ fn four_legs(
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, i, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, i, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 sense,
             ),
@@ -336,8 +338,8 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.5, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -411,8 +413,8 @@ fn two_seats(
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 0, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 0, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -422,8 +424,8 @@ fn two_seats(
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -599,8 +601,8 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
     let seat = |origin| {
         seat_mate(
-            in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
-            in_part(top, CapEnd::Bottom),
+            in_copy(pattern, 1, in_part(leg, CapEnd::End)),
+            in_part(top, CapEnd::Start),
             origin,
             AxisSense::Aligned,
         )
@@ -663,8 +665,8 @@ fn the_master_name_spelling_still_refuses_vanished() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_part(leg, CapEnd::Top),
-                in_part(top, CapEnd::Bottom),
+                in_part(leg, CapEnd::End),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -722,8 +724,8 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 5, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, 5, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -744,7 +746,7 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
     // A pattern of a non-instance body (an extrude patterned in the
     // same document): its copies stand on no instance — no member.
     let doc2 = block_part("mate1-fence-body", (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let extrude = RecipeNodeId(1);
+    let extrude = PART_BODY;
     let (doc2, body_pattern) = insert(
         doc2,
         Node::Pattern {
@@ -762,14 +764,14 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
     let master_face = StableName {
         kind: EntityKind::Face,
         node: extrude,
-        path: vec![RoleSeg::Cap(CapEnd::Top)],
+        path: vec![RoleSeg::Cap(CapEnd::End)],
     };
     let (doc2, m) = step(
         doc2,
         DocEdit::InsertNode {
             node: seat_mate(
                 in_copy(body_pattern, 0, master_face),
-                in_part(other, CapEnd::Bottom),
+                in_part(other, CapEnd::Start),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -814,8 +816,8 @@ fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 0, in_part(leg, CapEnd::Top)),
-                in_copy(pattern, 1, in_part(leg, CapEnd::Top)),
+                in_copy(pattern, 0, in_part(leg, CapEnd::End)),
+                in_copy(pattern, 1, in_part(leg, CapEnd::End)),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),
@@ -826,8 +828,8 @@ fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
         doc,
         DocEdit::InsertNode {
             node: seat_mate(
-                in_copy(pattern, 2, in_part(leg, CapEnd::Top)),
-                in_copy(pattern, 2, in_part(leg, CapEnd::Top)),
+                in_copy(pattern, 2, in_part(leg, CapEnd::End)),
+                in_copy(pattern, 2, in_part(leg, CapEnd::End)),
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             ),

@@ -28,14 +28,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod corpus;
-mod fixture;
+use crate::corpus;
+use crate::fixture;
 
 use editor_core::{
-    CancelToken, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
+    CancelToken, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, NameTable, Node,
     ProfileDoc, ProfileVertexRef, RecipeNodeId, RimSupport, RoleSeg, StableName, evaluate,
 };
-use fixture::{ang, desc, insert, len, scl};
+use fixture::{ang, axis_in_plane, insert, len, on_frame_keeping};
 use geom_core::Tol;
 use topo::{Body, EdgeKey};
 
@@ -90,8 +90,8 @@ fn the_recorded_band_trim_counts_are_executable() {
     );
     assert_eq!(
         got.len() - nonzero.len(),
-        20,
-        "twenty registered documents carry no band trimline at all: {got:?}"
+        24,
+        "twenty-four registered documents carry no band trimline at all: {got:?}"
     );
 }
 
@@ -131,29 +131,27 @@ fn the_ladder_rim_phase_already_reached_the_emitter_from_the_corpus() {
 /// `mouth`) and the wall ABOVE it (`mouth` → `top`).
 fn lantern(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("blend5_r1_probe_lantern", Tol::witness());
-    let (doc, profile) = insert(
+    let (doc, plane, profile) = on_frame_keeping(
         doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![
-                (0.2, 0.0),
-                (0.6, 0.0),
-                (0.6, 0.3),
-                mouth,
-                top,
-                (0.35, 1.2),
-                (0.2, 1.2),
-            ]],
-        )),
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (0.2, 0.0),
+            (0.6, 0.0),
+            (0.6, 0.3),
+            mouth,
+            top,
+            (0.35, 1.2),
+            (0.2, 1.2),
+        ]],
     );
     let (doc, axis) = insert(
         doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
+        // The axis, in the frame's own coordinates: the profile's v is
+        // world +Y, so the line the revolve turns about is that
+        // frame's +y through (0, 0).
+        axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)),
     );
     let (doc, revolve) = insert(
         doc,
@@ -292,85 +290,6 @@ fn the_host_role_moves_when_a_parameter_edit_makes_a_support_planar() {
         (cone_cone, plane_below, plane_above),
         (RimSupport::Mate, RimSupport::Host, RimSupport::Mate),
         "the measured roles of the lower wall's arc across the three variants"
-    );
-}
-
-// ---- Probe 4: my own sweep's one hit ----
-
-/// **Probe 4 — `CapEnd::{Top, Bottom}` is in the swept class, and the
-/// PR's table disposes it on a defence that would equally have
-/// excused `RimSide::Plane`.**
-///
-/// The PR defines the class as "a persisted name-vocabulary tag whose
-/// variant asserts a GEOMETRIC KIND that a construction can
-/// contradict", and disposes `CapEnd` as "not the class — names ends
-/// of the extrusion vector, structural in the minting op's own
-/// parameterization".
-///
-/// But an extrude's distance is SIGNED
-/// (`sweep/src/extrude.rs` — "a signed distance along the sketch
-/// plane's normal", gated only on a definite non-zero normal
-/// component), and `CapEnd::Top` is minted for the cap on the sketch
-/// plane TRANSLATED BY the extrusion vector
-/// (`names/emit_sweep.rs:90`). So under a negative distance the face
-/// persisted as `Cap(Top)` lies strictly BELOW the one persisted as
-/// `Cap(Bottom)` along the plane's own normal: unique names, one of
-/// them misleading — issue #961's defect exactly.
-///
-/// `RimSide::Plane` was structural in the surgery's parameterization
-/// in precisely the same sense (it was the `plane_walk` slot), and
-/// this unit judged that insufficient. This row measures the residue.
-#[test]
-fn the_top_cap_can_lie_below_the_bottom_cap() {
-    let doc = ProfileDoc::empty_derived("blend5_r1_probe_caps", Tol::witness());
-    let (doc, profile) = insert(
-        doc,
-        Node::Profile(desc(
-            [0.0; 3],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )),
-    );
-    let (doc, block) = insert(
-        doc,
-        Node::Extrude {
-            profile,
-            // The sketch plane's normal is u x v = +z; a NEGATIVE
-            // distance extrudes against it.
-            distance: len(-1.0),
-        },
-    );
-    let ev = run(&doc);
-    let t = table(&ev, block);
-    let body = corpus::body_of(&ev, block);
-    let cap_height = |end: editor_core::CapEnd| -> f64 {
-        let n = StableName {
-            kind: EntityKind::Face,
-            node: block,
-            path: vec![RoleSeg::Cap(end)],
-        };
-        let f = match t.lookup(&n) {
-            Some(Entry::Unique(r)) => match r.key {
-                EntityKey::Face(k) => k,
-                other => panic!("{n:?} names {other:?}"),
-            },
-            other => panic!("{n:?} is not uniquely named: {other:?}"),
-        };
-        let s = body
-            .get_surface(body.get_face(f).expect("a live face").surface)
-            .expect("a carrier");
-        match s {
-            geom::Surface::Plane { origin, .. } => origin.z,
-            other => panic!("a cap is planar, got {other:?}"),
-        }
-    };
-    let top = cap_height(editor_core::CapEnd::Top);
-    let bottom = cap_height(editor_core::CapEnd::Bottom);
-    assert!(
-        top < bottom,
-        "under a negative extrusion the cap named Top should lie BELOW the cap named \
-         Bottom; measured top={top} bottom={bottom}"
     );
 }
 

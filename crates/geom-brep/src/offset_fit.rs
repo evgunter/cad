@@ -1,6 +1,6 @@
 //! **The offset fit and its certificate** — the Book's §9.4 stack for
-//! surfaces, and the two-limb residual bound (`docs/OFFSET-DESIGN.md`
-//! O2/O3, `docs/CURVED-DESIGN.md` C8).
+//! surfaces, and the two-limb residual bound (`crates/geom-brep/README.md`
+//! O2/O3, `crates/geom-brep/README.md` C8).
 //!
 //! The offset of a NURBS surface is **not** a NURBS — normalizing the
 //! chart normal introduces a square root that breaks rationality — so
@@ -315,10 +315,12 @@ pub enum OffsetFitError {
         /// The tolerance it had to reach.
         tolerance: f64,
     },
-    /// The storage door was asked to certify over a window that is not
-    /// the base's own chart rectangle. The certificate this module
-    /// derives covers that rectangle and nothing narrower, so a
-    /// sub-window claim would be a bound it never proved.
+    /// A certification was asked for over a window that is not the
+    /// base's own chart rectangle. This module's derivation covers that
+    /// rectangle and nothing narrower, so a sub-window claim would be a
+    /// bound it never proved. Raised by [`certify_offset_over`], and so
+    /// by every door that goes through it — the storage mint, the
+    /// validator's re-derivation and the transform door's lane.
     WindowUnsupported {
         /// The window asked for.
         window: geom::ApproxWindow,
@@ -409,8 +411,8 @@ impl core::fmt::Display for OffsetFitError {
             ),
             Self::WindowUnsupported { window } => write!(
                 f,
-                "approx_offset_surface: the window asked for (u {:?}, v {:?}) is not the base's \
-                 own chart rectangle, and the certificate covers that rectangle only",
+                "the window (u {:?}, v {:?}) is not the base's own chart rectangle, and the \
+                 offset certificate covers that rectangle only",
                 window.u, window.v
             ),
             Self::Limb {
@@ -649,6 +651,38 @@ pub fn certify_offset(
     })
 }
 
+/// **The window rule and the certification behind it, one home.**
+/// Every door that certifies an offset fit against a described base
+/// goes through here: the storage mint ([`approx_offset_surface`]),
+/// the validator's re-derivation ([`recertify_approx`], which tier 3
+/// reaches through `topo::props::PropsQuadLane`) and the transform
+/// door's lane (`crate::PcurveFittedLane::remap_certificate`).
+///
+/// The rule: [`certify_offset`] derives over the base's WHOLE chart
+/// rectangle, so a `window` is honoured exactly when it IS that
+/// rectangle. Checked here rather than attested at each caller —
+/// three copies of one predicate is three chances for two doors to
+/// disagree about the same surface, which is what a narrowed window
+/// planted behind an honest certificate would exploit.
+///
+/// # Errors
+///
+/// [`OffsetFitError::WindowUnsupported`] for a window this derivation
+/// does not cover, then whatever [`certify_offset`] refuses.
+pub fn certify_offset_over(
+    base: &NurbsSurface<f64>,
+    fit: &NurbsSurface<f64>,
+    d: f64,
+    window: geom::ApproxWindow,
+    tolerance: f64,
+    band: Band,
+) -> Result<OffsetCertificate, OffsetFitError> {
+    if window != geom::ApproxWindow::of(base) {
+        return Err(OffsetFitError::WindowUnsupported { window });
+    }
+    certify_offset(base, fit, d, tolerance, band)
+}
+
 // ---------------------------------------------------------------------
 // The exact offset point (the fit's data and limb 1's target)
 // ---------------------------------------------------------------------
@@ -711,16 +745,10 @@ pub fn approx_offset_surface(
     };
     let approx = geom::ApproxSurface::certify(spec, |description, fit, window, tolerance| {
         let geom::SurfaceDescription::Offset { base, d } = description;
-        // The certificate covers the base's whole chart rectangle, so
-        // the window asked for is honoured exactly when it IS that
-        // rectangle. Checked, not attested.
-        if window != geom::ApproxWindow::of(base) {
-            return Err(OffsetFitError::WindowUnsupported { window });
-        }
-        certify_offset(base, fit, *d, tolerance, band).map(|cert| OffsetCertificate {
+        certify_offset_over(base, fit, *d, window, tolerance, band).map(|cert| OffsetCertificate {
             // Every measured field is the re-derivation's; `rounds` is
-            // the FIT's provenance, which a re-measurement cannot
-            // recompute, so the loop's honest count travels with it.
+            // the loop's, for the reason `OffsetCertificate::rounds`
+            // states.
             rounds: loop_cert.rounds,
             ..cert
         })
@@ -742,16 +770,22 @@ pub fn approx_offset_surface(
 /// which is D4's blessed consequence of ε-tightening and the edge
 /// machinery's exact behaviour.
 ///
+/// The stored WINDOW is read, and it is the one stored datum that is:
+/// it is not a claim to be re-measured but the statement of WHERE the
+/// claim is made, so a surface asserting a rectangle this derivation
+/// does not cover refuses here exactly as it does at the mint and at
+/// the transform door ([`certify_offset_over`], the one home).
+///
 /// # Errors
 ///
-/// As [`certify_offset`].
+/// As [`certify_offset_over`].
 pub fn recertify_approx(
     approx: &geom::ApproxSurface<f64>,
     tolerance: f64,
     band: Band,
 ) -> Result<OffsetCertificate, OffsetFitError> {
     let geom::SurfaceDescription::Offset { base, d } = approx.description();
-    certify_offset(base, approx.fit(), *d, tolerance, band)
+    certify_offset_over(base, approx.fit(), *d, approx.window(), tolerance, band)
 }
 
 // ---------------------------------------------------------------------

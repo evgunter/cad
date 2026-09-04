@@ -3,14 +3,17 @@
 mod assembly;
 mod checks;
 mod doc;
+mod expr;
 mod flush;
 mod mate;
 mod mesh;
 mod path;
+mod pick;
 mod place;
 mod quantity;
 mod readback;
 mod refactor;
+mod resolve;
 mod select;
 mod store;
 mod value;
@@ -62,13 +65,31 @@ pyo3::create_exception!(
      the operator and the two dimension tags.\n\n\
      This is the quantity boundary only, and it is not the only \
      dimension check in the library. The document layer has its own \
-     refusal type, which reaches Python two ways: through literal \
-     construction, raising `LiteralError`; and through `load`, where \
-     a save file's ill-dimensioned expression — a genuine mismatch — \
-     arrives as `PersistError` with `variant == \"parse\"` rather \
-     than as any dimension class (issue #694). So `DimensionError` \
-     does not intercept an expression-layer mismatch, and nothing \
-     else does either yet."
+     refusal type, which reaches Python three ways: through literal \
+     construction, raising `LiteralError`; through `Doc.parse_expr`, \
+     raising `ParseError` with `variant == \"dimension\"` and the \
+     mismatch's own tag as `kind`; and through `load`, where a save \
+     file's ill-dimensioned expression arrives as `PersistError` \
+     with `variant == \"parse\"` rather than as any dimension class \
+     (issue #694). So `DimensionError` never intercepts an \
+     expression-layer mismatch — the text door is where one is \
+     branchable."
+);
+pyo3::create_exception!(
+    pncad,
+    FmtQuantityError,
+    PncadError,
+    "`Length.format` or `Angle.format` refused a value: it is NaN or \
+     ±∞, and a non-finite quantity has no display form. Carries \
+     `variant` (`\"non_finite\"`) and `value`, the refused float.\n\n\
+     Reachable, and that is why it is typed rather than asserted \
+     away. `quantity`'s newtypes are plain value wrappers that \
+     refuse no float, so `float(\"inf\") * mm` is an ordinary \
+     `Length`; poison is stopped at the doors values LEAVE through, \
+     and rendering one for a human is one of those. The recourse is \
+     upstream by construction — nothing this formatter could be \
+     asked differently turns poison into text — so the message names \
+     the operation that produced the value."
 );
 pyo3::create_exception!(
     pncad,
@@ -79,10 +100,41 @@ pyo3::create_exception!(
      of the refusing arm.\n\n\
      Not `DimensionError`: that one is the quantity boundary's \
      operator check. The expression layer's refusal type has \
-     dimension-mismatch arms too, and `load` DOES reach them from a \
-     hand-edited save file — but they arrive as `PersistError` with \
-     `variant == \"parse\"`, not here (issue #694). Every `kind` \
-     raised on this class is a literal-value refusal."
+     dimension-mismatch arms too, and two other doors reach them — \
+     `load` from a hand-edited save file (as `PersistError` with \
+     `variant == \"parse\"`, issue #694) and `Doc.parse_expr` from \
+     source text (as `ParseError`). Every `kind` raised on THIS \
+     class is a literal-value refusal."
+);
+pyo3::create_exception!(
+    pncad,
+    ParseError,
+    PncadError,
+    "`Doc.parse_expr` could not read the source as an expression. \
+     Carries `variant`, the stable tag of the refusing arm, and \
+     `pos`, the byte offset in the source — which for a parser is \
+     the recourse, since it says WHERE to edit.\n\n\
+     The arm's own payload rides beside them and is `None` on the \
+     arms that do not carry it: `char`, `expected`, `found`, `text`, \
+     `symbol`, `name`, `arity`/`given` (a function's declared arity \
+     and the count supplied), and `kind`. That last one is the \
+     dimension checker's tag, on `variant == \"dimension\"` — the \
+     text door runs every smart constructor, so a reduction the \
+     checker refuses arrives here rather than as `LiteralError`, \
+     with the position a `LiteralError` has nowhere to put."
+);
+pyo3::create_exception!(
+    pncad,
+    EvalError,
+    PncadError,
+    "`Doc.eval` or `Doc.eval_count` refused an expression. Carries \
+     `variant`, the stable tag of the refusing arm, plus `name` (the \
+     parameter at fault), `expected` and `found` (dimension tags) \
+     and `count`, each `None` where the arm does not carry it.\n\n\
+     Numeric domain is NOT here: division by zero and out-of-domain \
+     trig are not refusals in the expression layer — the evaluator \
+     has no branches to hide them behind — and reach a caller as \
+     `non_finite_result` on the finished value instead."
 );
 pyo3::create_exception!(
     pncad,
@@ -290,6 +342,51 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     pncad,
+    HitTestError,
+    PncadError,
+    "A hit test could not answer. Carries `variant`, the stable tag of \
+     the refusing arm, plus `node`, `through`, `kind` and `body`, each \
+     present on every arm and `None` where that arm does not carry \
+     it.\n\n\
+     A MISS is not this. The ray hitting no offered triangle is \
+     `None`, typed, and an error is never flattened into it — so \
+     catching this class never means \"nothing was there\".\n\n\
+     Three arms are the standing ladder, spelled exactly as \
+     `ReadbackError` spells it (`node_not_evaluated`, `node_failed`, \
+     `node_poisoned`): a mesh displayed for a node this evaluation did \
+     not produce cannot belong to it. The fourth, `unnamed`, is a \
+     KERNEL BUG report — the node evaluated and the entity has no name \
+     in its table — and it carries the entity's `kind` and `body`, \
+     never its arena key.\n\n\
+     `NodePick.patch_names` answers with instances of this class IN A \
+     SLOT rather than raising: one naming-emission bug must not cost a \
+     consumer the names of every other patch it is drawing."
+);
+pyo3::create_exception!(
+    pncad,
+    NodePickError,
+    PncadError,
+    "A pick index could not be built. Carries `variant`, the stable \
+     tag of the refusing arm, plus `node`, `through`, `kind` and \
+     `body`, each present on every arm and `None` where that arm does \
+     not carry it.\n\n\
+     `not_a_body` and `no_such_body` are different states and stay \
+     apart: a datum, profile, declaration or mate NEVER draws, while a \
+     node that draws nothing today (an annihilated boolean, an empty \
+     split side) draws again after an edit.\n\n\
+     Two arms FORWARD rather than wrap. The standing ladder arrives \
+     under `HitTestError`'s own tags, because it IS that refusal; a \
+     tessellation refusal arrives under the tessellator's own tag and \
+     prose. What a forwarded arm does not bring is the inner refusal's \
+     extra ATTRIBUTES — a tessellation refusal's `value`, `bound`, \
+     `requested` and `note` stay on `TessellateError`, where \
+     `Body.tessellate` raises them. `mesh_index` is the arm with \
+     nothing to forward: its payload type is deliberately absent from \
+     the façade, so it crosses as one tag plus the kernel's own prose, \
+     which states the offending patch, triangle and index."
+);
+pyo3::create_exception!(
+    pncad,
     ChecksError,
     PncadError,
     "The advisory-check registry could not RUN. Carries `variant`, the \
@@ -332,6 +429,17 @@ pyo3::create_exception!(
 /// makes the rule hold for doors written after it rather than only
 /// for the ones it was written for.
 ///
+/// **One attribute name is unusable: `args`.** It is
+/// `BaseException`'s own, and CPython requires it to be a tuple, so
+/// setting it to anything else — `None` included, which is what the
+/// "every field on every arm" shape puts on the arms that do not
+/// carry it — raises `TypeError: 'NoneType' object is not iterable`
+/// from inside the raise itself. Found at LIB-B-EXPR-READ, where
+/// `WrongArity`'s argument count wanted the name; it is `given`
+/// there instead. The rest of `BaseException`'s surface
+/// (`with_traceback`, `add_note`, `__notes__`) is method- or
+/// dunder-shaped and no payload has wanted one.
+///
 /// It is a `debug_assert`, which in this workspace is live in every
 /// profile — the root manifest keeps them on under release too — so it
 /// runs over every door the Python suite exercises and stays on in a
@@ -351,12 +459,32 @@ pub(crate) fn typed_err(
          message belongs: {message}",
         class.class_name()
     );
+    raise_typed(py, class, message, fields)
+}
+
+/// The class table and the attribute loop.
+///
+/// Split out from [`typed_err`] when a second raising door existed. It
+/// has one caller now, so the split buys no sharing; it stays because
+/// the two halves answer different questions — this one maps a class to
+/// a Python exception type and hangs the payload on it, while
+/// [`typed_err`] decides whether a message is fit to raise at all. A
+/// reader looking for either finds it without the other.
+fn raise_typed(
+    py: Python<'_>,
+    class: ErrorClass,
+    message: String,
+    fields: &[(&str, Py<PyAny>)],
+) -> PyErr {
     let err = match class {
         ErrorClass::Edit => EditError::new_err(message),
         ErrorClass::Evaluation => EvaluationError::new_err(message),
         ErrorClass::Validation => ValidationError::new_err(message),
         ErrorClass::Dimension => DimensionError::new_err(message),
+        ErrorClass::FmtQuantity => FmtQuantityError::new_err(message),
         ErrorClass::Literal => LiteralError::new_err(message),
+        ErrorClass::Parse => ParseError::new_err(message),
+        ErrorClass::Eval => EvalError::new_err(message),
         ErrorClass::Persist => PersistError::new_err(message),
         ErrorClass::Export => ExportError::new_err(message),
         ErrorClass::Tessellate => TessellateError::new_err(message),
@@ -374,6 +502,8 @@ pub(crate) fn typed_err(
         ErrorClass::Inline => InlineError::new_err(message),
         ErrorClass::Update => UpdateError::new_err(message),
         ErrorClass::Readback => ReadbackError::new_err(message),
+        ErrorClass::HitTest => HitTestError::new_err(message),
+        ErrorClass::NodePick => NodePickError::new_err(message),
         ErrorClass::Checks => ChecksError::new_err(message),
         ErrorClass::Enforce => CheckRefusal::new_err(message),
     };
@@ -408,7 +538,10 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("EvaluationError", py.get_type::<EvaluationError>())?;
     m.add("ValidationError", py.get_type::<ValidationError>())?;
     m.add("DimensionError", py.get_type::<DimensionError>())?;
+    m.add("FmtQuantityError", py.get_type::<FmtQuantityError>())?;
     m.add("LiteralError", py.get_type::<LiteralError>())?;
+    m.add("ParseError", py.get_type::<ParseError>())?;
+    m.add("EvalError", py.get_type::<EvalError>())?;
     m.add("PersistError", py.get_type::<PersistError>())?;
     m.add("ExportError", py.get_type::<ExportError>())?;
     m.add("TessellateError", py.get_type::<TessellateError>())?;
@@ -426,6 +559,8 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("InlineError", py.get_type::<InlineError>())?;
     m.add("UpdateError", py.get_type::<UpdateError>())?;
     m.add("ReadbackError", py.get_type::<ReadbackError>())?;
+    m.add("HitTestError", py.get_type::<HitTestError>())?;
+    m.add("NodePickError", py.get_type::<NodePickError>())?;
     m.add("ChecksError", py.get_type::<ChecksError>())?;
     m.add("CheckRefusal", py.get_type::<CheckRefusal>())?;
 
@@ -433,8 +568,11 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     path::register(m)?;
     place::register(m)?;
     doc::register(m)?;
+    expr::register(m)?;
     select::register(m)?;
     readback::register(m)?;
+    pick::register(m)?;
+    resolve::register(m)?;
     store::register(m)?;
     mate::register(m)?;
     assembly::register(m)?;

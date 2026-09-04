@@ -17,7 +17,7 @@ use geom_core::Tol;
 use geom_core::{Bounds, Interval, Point3, Real};
 use topo::{Body, MefSite, MevSite, validate, validate_closed, validate_geometric};
 
-mod common;
+use crate::common;
 
 /// A point enclosure from exact `f64` coordinates ([`Real::from_f64`] is
 /// an exact embedding; these dyadic values are single points).

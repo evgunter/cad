@@ -3,12 +3,12 @@
 **Binding at dispatch** (S-BOOL program, `docs/S-BOOL-PLAN.md`;
 difficulty logged pre-draw: **M**). Read
 `docs/prompts/implementer-discipline.md` in full before starting.
-The primary specification is the Q1 fifth-round ruling (Evan,
+The primary specification is the Q1 fifth-round ruling (Ev,
 in-chat, 2026-09-01; ratified PR #1539 — `docs/S-BOOL-PLAN.md`
 §Rulings, "PQ4 reopened on BOOL-11's measured parity wall") together
 with the REOPENED clause of PATHS §6's PQ4 entry
 (`docs/PATHS-DESIGN.md`) and the BOOL-12 slate entry (widened to the
-tangent seam at PR #1541 on Evan's "join-tangent-to-end"). BOOL-11's
+tangent seam at PR #1541 on Ev's "join-tangent-to-end"). BOOL-11's
 PR #1520 record (§3, §6, §12) is the measured ground. Issue 433
 context applies; the issue does not close here (BOOL-9 remains).
 **Precondition: BOOL-13 has merged** — there is no schema version to
@@ -39,7 +39,7 @@ family with two members, ruled together:
   declared subdivision point. The kernel CHECKS, within ε through the
   funnel exactly as `continue_to` checks its target, that the entry's
   outgoing direction continues the arriving one.
-- **TANGENT arrival** (Evan, in-chat 2026-09-01, "join-tangent-to-end"):
+- **TANGENT arrival** (Ev, in-chat 2026-09-01, "join-tangent-to-end"):
   the closing arc declares that it arrives G1 into the entry's
   outgoing direction with a sharp departure — the mirror of
   `tangent_arc_to`, and of the NURBS closer's existing tangent-seam
@@ -63,7 +63,7 @@ uniform with — the interior spells the same facts on the departure
 (`.tangent()`, `continue_to`). Say this at the site and in §6; a
 reviewer will ask.
 
-## Canonical fixture (Evan's D-shape)
+## Canonical fixture (Ev's D-shape)
 
 `(0,0) → (0,2) — arc → (0,−2) → (0,−1) → (0,0)`: a semicircular arc on
 one side, one straight side from `(0,−2)` up through `(0,0)` to
@@ -99,12 +99,12 @@ the stadium (measurement 1 below).
    vertex, does either assume one authored side = one carrier, and
    what does the interior `line(len)` ruling (which already crossed
    that discipline, BOOL-8) tell us about whether the seam case is
-   different. Cite the sites. This reading rides the PR for Evan with
+   different. Cite the sites. This reading rides the PR for Ev with
    the §6 revision; the ruling required it before the build.
 
 Report both to the orchestrator before building. If the reading finds
 a consumer that genuinely depends on the seam being a carrier
-boundary, STOP and report — that is a design fork, Evan's.
+boundary, STOP and report — that is a design fork, Ev's.
 
 ## Deliverables
 
@@ -113,7 +113,7 @@ boundary, STOP and report — that is a design fork, Evan's.
    the closing verbs: the straight closer that declares continuation
    INTO the entry, the tangent-arc closer that declares its arrival
    G1) or an ENTRY-side declaration (the loop's first directed point
-   carries how it will be arrived at). Argue one for Evan's eyes in
+   carries how it will be arrived at). Argue one for Ev's eyes in
    the PR and in the §6 revision; the never-infer ladder, the
    directed-point axiom (§2c) and the LIB-RTABLE one-row-per-verb
    invariant bound the choice. Whichever you choose, each member is
@@ -169,7 +169,7 @@ boundary, STOP and report — that is a design fork, Evan's.
    spelling, the loop-start reading, the undeclared case still
    refused, the uniformity paragraph above; §4's seam paragraph and
    the verb-table rows land. **Design surface — the PR is HELD for
-   Evan's sign-off.**
+   Ev's sign-off.**
 8. **Rows**: the D-shape both directions; the stadium both
    directions; the declared check's band pinned on both sides, stated
    as multiples of the witness's ε; the lever's dimension-honesty row
@@ -205,7 +205,7 @@ boundary, STOP and report — that is a design fork, Evan's.
   closing keywords; no issue closes here.
 - **The PR does not merge on green** — PATHS §6 PQ4 / §4 / the verb
   table are design surface; the PR carries the spelling argument and
-  the loop-start reading for Evan's eyes; the orchestrator holds the
+  the loop-start reading for Ev's eyes; the orchestrator holds the
   merge for the sign-off.
 - Scope fence: `crates/profile/src/path.rs` + `path/program.rs` and
   the profile suites; `demos/tour/src/lily.rs` + `Cargo.toml`;

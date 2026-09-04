@@ -30,7 +30,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
 use common::asm;
 use pncad::document::{
@@ -335,8 +335,8 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
     assert!(
         matches!(
             tool.proposal(doc, eval, tol, seat()),
-            Err(viewer::matetool::MateToolError::SamePick { instance })
-                if instance == bench.post_b
+            Err(viewer::matetool::MateToolError::SamePick { head })
+                if head == bench.post_b
         ),
         "a mate needs a PAIR of instances"
     );

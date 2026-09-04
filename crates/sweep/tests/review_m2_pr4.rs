@@ -1262,34 +1262,6 @@ fn survives_rebuild_byte_identity_zoo() {
     }
 }
 
-/// Writes the canonical dump of a fixed holed+reversed build into
-/// CARGO_TARGET_TMPDIR, keyed by build profile — the debug-vs-release
-/// certificate-identity check is `diff`ing the two files after running
-/// this test under both profiles (done in the review; kept as the
-/// reproducible harness).
-#[test]
-fn dump_for_cross_profile_diff() {
-    let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
-    let t = extrude(
-        &validated(vec![outer, circle_loop(0.5, 0.5, 0.1)]),
-        Extrusion::Distance(-1.0),
-        Tol::witness(),
-    )
-    .unwrap();
-    let profile = if cfg!(debug_assertions) {
-        "debug"
-    } else {
-        "release"
-    };
-    // CARGO_TARGET_TMPDIR is baked at compile time; the directory itself
-    // is NOT guaranteed to exist on the test runner (nextest archives
-    // don't carry the empty dir) — create it, the repo-wide idiom.
-    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR"));
-    std::fs::create_dir_all(dir).unwrap();
-    let path = dir.join(format!("review-m2-pr4-dump-{profile}.txt"));
-    std::fs::write(&path, dump(&t)).unwrap();
-}
-
 // =====================================================================
 // Assignment 6 — the powi(2) bit-identity claims, derived and pinned.
 // Routed to the PR 3 fix pass (which owns the norm_squared tight-square

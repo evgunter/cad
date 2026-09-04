@@ -20,18 +20,20 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-mod common;
+use crate::common;
 
-use common::{ang, body_volume, insert, len, len3, near, scl3, shape};
+use common::{ang, body_volume, insert, len, len2, len3, near, scl2, scl3, shape};
 use pncad::document::SplitSide;
 use pncad::document::{
     Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, Expr, LoopProgram, Node, NodeError,
-    NodeErrorKind, NodeResult, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
+    NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
-use pncad::profile::SketchPlane;
-use viewer::combine::{BooleanTool, PatternTool, SplitTool, TransformTool, denotes_body};
+use pncad::select::SplitHalf;
+use viewer::combine::{
+    BooleanTool, PatternOutputChoice, PatternTool, SplitTool, TransformTool, denotes_body,
+};
 use viewer::pick::PickKinds;
 use viewer::seats::{Seat, SeatError, SeatEvent, seat_line};
 use viewer::session::{
@@ -59,10 +61,11 @@ fn session(tol: Tol) -> DocSession {
 /// A box of `size`, authored through the creation doors: one
 /// rectangle profile on world XY, one extrude.
 fn boxed(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
+    let plane = common::xy_frame_in(session);
     let profile = insert(
         session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: size[0],
                 height: size[1],
@@ -234,10 +237,11 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let a = boxed(&mut session, A);
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius: 0.01,
@@ -595,6 +599,288 @@ fn the_pattern_door_spells_its_count_structurally() {
     );
 }
 
+/// **The fused door is the affordance the boolean's refusal points
+/// at**: the same form as the pattern door — same prototype, same
+/// count, same rule — minting `Node::PlacedUnion`, whose ONE body a
+/// boolean seat consumes where a pattern's several instances are
+/// refused.
+#[test]
+fn the_fused_door_mints_one_body_a_boolean_seat_takes() {
+    let tol = Tol::witness();
+    let (mut session, part, proto) = two_boxes(tol);
+    let fused = insert(
+        &mut session,
+        SessionOp::AddPlacedUnion {
+            input: proto,
+            count: 2,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(0.05),
+            },
+        },
+    );
+    // The count slot is PRESENT and structural — the parametric
+    // spelling, which is the only one this door can mint.
+    let count = session
+        .committed_doc()
+        .node(fused)
+        .and_then(|node| node.expr(SlotId::Count))
+        .expect("a parametric placed union has a count slot");
+    assert_eq!(count.dim(), Dimension::Count);
+    assert!(count.bit_eq(&Expr::count(2)));
+    assert!(matches!(
+        session.committed_doc().node(fused),
+        Some(Node::PlacedUnion {
+            count: Some(_),
+            kind: PatternKind::Linear { .. },
+            ..
+        })
+    ));
+
+    // ONE body out, and it is the union of the prototype at both
+    // placements — where the same form's other door answers with two
+    // separate instances.
+    session.pump();
+    {
+        let eval = session.evaluation().expect("the inline seam landed");
+        let value = eval.value(fused).expect("the placed union evaluated");
+        assert!(
+            matches!(value.payload, ValuePayload::Body(_)),
+            "a placed union evaluates to one body, not to instances"
+        );
+    }
+    let vb = B[0] * B[1] * B[2];
+    let fused_volume = body_volume(&mut session, fused, tol);
+    assert!(
+        near(fused_volume, 2.0 * vb),
+        "two disjoint copies of the prototype: {fused_volume}"
+    );
+
+    // And the seat that refuses a pattern takes this: the fused group
+    // merges into the part through the ordinary boolean door.
+    let union = insert(
+        &mut session,
+        SessionOp::AddBoolean {
+            op: BooleanOp::Union,
+            a: part,
+            b: fused,
+        },
+    );
+    let va = A[0] * A[1] * A[2];
+    let volume = body_volume(&mut session, union, tol);
+    assert!(
+        near(volume, va + 2.0 * vb - OVERLAP),
+        "the part with the group fused into it: {volume}"
+    );
+}
+
+/// **Overlapping placements refuse on the fused node's own badge**,
+/// typed and named — the door authors what was asked for, and the
+/// certificate is evaluation's to issue or withhold.
+///
+/// This is the case the unfused door does not have: a `Node::Pattern`
+/// over the same rule builds regardless, because instances that
+/// overlap are still instances. It is also why the two doors are not
+/// interchangeable for a user — choosing `fused` is choosing to be
+/// told.
+#[test]
+fn overlapping_placements_refuse_on_the_fused_nodes_own_badge() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let proto = boxed(&mut session, B);
+    // A step shorter than the prototype is wide: every pair of copies
+    // meets.
+    let crowded = insert(
+        &mut session,
+        SessionOp::AddPlacedUnion {
+            input: proto,
+            count: 3,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(B[0] / 4.0),
+            },
+        },
+    );
+    // The unfused door over the SAME rule lands a value: the
+    // difference is the certificate, not the placements.
+    let loose = insert(
+        &mut session,
+        SessionOp::AddPattern {
+            input: proto,
+            count: 3,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(B[0] / 4.0),
+            },
+        },
+    );
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
+    assert!(
+        eval.value(crowded).is_none(),
+        "a group that cannot be certified disjoint has no value"
+    );
+    assert!(
+        eval.value(loose).is_some(),
+        "the unfused pattern over the same rule still evaluates"
+    );
+    let badge = tree::rows(session.committed_doc(), Some(eval))
+        .into_iter()
+        .find(|row| row.id == crowded)
+        .map(|row| row.status);
+    let Some(RowStatus::Failed { message }) = badge else {
+        panic!("the tree badge carries the node's own refusal: {badge:?}");
+    };
+    assert!(
+        message.contains("not certified disjoint"),
+        "and the refusal names what it could not certify: {message}"
+    );
+}
+
+/// **The new op round-trips**: authored, saved, reopened through the
+/// session's own doors, the document is the same one bit for bit and
+/// the same solid comes back out of it.
+///
+/// A `SessionOp` joins the REPLAY vocabulary, so this is the row that
+/// says the file carries the fused node rather than only the session
+/// that authored it.
+#[test]
+fn a_fused_pattern_round_trips_through_save_and_open() {
+    let tol = Tol::witness();
+    let mut authoring = session(tol);
+    let proto = boxed(&mut authoring, B);
+    let fused = insert(
+        &mut authoring,
+        SessionOp::AddPlacedUnion {
+            input: proto,
+            count: 3,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(0.05),
+            },
+        },
+    );
+    let volume = body_volume(&mut authoring, fused, tol);
+    let authored = authoring.committed_doc().clone();
+    let edits = authoring.history().path_edits().len();
+
+    let dir = common::tempdir("gauth4-placed-union");
+    let path = dir.join("fused.pncad");
+    assert!(
+        authoring
+            .perform(SessionOp::Save(path.clone()))
+            .refusal
+            .is_none(),
+        "save"
+    );
+    // A FRESH session, so nothing of the authoring one is carried
+    // into the answer.
+    let mut reopened = session(tol);
+    assert!(
+        reopened.perform(SessionOp::Open(path)).refusal.is_none(),
+        "open"
+    );
+    assert!(
+        reopened.committed_doc().bit_eq(&authored),
+        "the reopened document is the authored one, bit for bit"
+    );
+    assert_eq!(
+        reopened.history().path_edits().len(),
+        edits,
+        "the reopened history replays exactly the saved log"
+    );
+    let reloaded = body_volume(&mut reopened, fused, tol);
+    assert_eq!(
+        volume.to_bits(),
+        reloaded.to_bits(),
+        "same solid after reload"
+    );
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **Undo then redo returns the document to the same state**, bit for
+/// bit, with the fused node in it and its solid unchanged — the other
+/// half of joining the replay vocabulary.
+#[test]
+fn undo_and_redo_walk_the_fused_pattern_out_and_back() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let proto = boxed(&mut session, B);
+    let before = session.committed_doc().clone();
+    let states = session.history().len();
+    let fused = insert(
+        &mut session,
+        SessionOp::AddPlacedUnion {
+            input: proto,
+            count: 3,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(0.05),
+            },
+        },
+    );
+    let after = session.committed_doc().clone();
+    let volume = body_volume(&mut session, fused, tol);
+    assert_eq!(session.history().len(), states + 1, "one op, one state");
+
+    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    assert!(
+        session.committed_doc().node(fused).is_none(),
+        "the undo took the fused node out"
+    );
+    assert!(
+        session.committed_doc().bit_eq(&before),
+        "and left the document it was inserted into, bit for bit"
+    );
+    assert!(session.perform(SessionOp::Redo).refusal.is_none());
+    assert!(
+        session.committed_doc().bit_eq(&after),
+        "the redo puts back exactly what the op committed"
+    );
+    let again = body_volume(&mut session, fused, tol);
+    assert_eq!(volume.to_bits(), again.to_bits(), "the same solid, redone");
+    assert_eq!(
+        session.history().len(),
+        states + 1,
+        "the walk destroyed nothing and minted nothing"
+    );
+}
+
+/// The pattern form's output choice read as a value: both labels, the
+/// default, and which op each one commits — the chrome's radio row
+/// checked without a window.
+#[test]
+fn the_output_choice_names_both_doors_and_defaults_to_instances() {
+    assert_eq!(
+        PatternOutputChoice::ALL.map(|(output, label)| (output, label)),
+        [
+            (PatternOutputChoice::Instances, "instances"),
+            (PatternOutputChoice::Fused, "fused"),
+        ]
+    );
+    assert_eq!(
+        PatternOutputChoice::default(),
+        PatternOutputChoice::Instances
+    );
+
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = boxed(&mut session, B);
+    let mut tool = PatternTool::new();
+    tool.pick(session.committed_doc(), body);
+    for (output, label) in PatternOutputChoice::ALL {
+        let op = tool
+            .linear_op(output, 2, scl3([1.0, 0.0, 0.0]), len(0.05))
+            .expect("the body seat is filled");
+        let minted = matches!(
+            (output, &op),
+            (PatternOutputChoice::Instances, SessionOp::AddPattern { .. })
+                | (PatternOutputChoice::Fused, SessionOp::AddPlacedUnion { .. })
+        );
+        assert!(minted, "{label} commits its own op: {op:?}");
+    }
+}
+
 /// Every door that takes an existing BODY refuses mid-gesture and
 /// records nothing when it refuses — the creation vocabulary's rule,
 /// held by GAUTH-4's four arms and GAUTH-5's two.
@@ -669,6 +955,14 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
                 spacing: len(0.05),
             },
         },
+        SessionOp::AddPlacedUnion {
+            input: body,
+            count: 2,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(0.05),
+            },
+        },
         SessionOp::AddFillet {
             target: body,
             radius: len(0.001),
@@ -726,6 +1020,22 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             },
         },
         SessionOp::AddPattern {
+            input: body,
+            count: 2,
+            rule: PatternRuleSpec::Circular {
+                axis: body,
+                step: ang(1.0),
+            },
+        },
+        SessionOp::AddPlacedUnion {
+            input: plane,
+            count: 2,
+            rule: PatternRuleSpec::Linear {
+                direction: scl3([1.0, 0.0, 0.0]),
+                spacing: len(0.05),
+            },
+        },
+        SessionOp::AddPlacedUnion {
             input: body,
             count: 2,
             rule: PatternRuleSpec::Circular {
@@ -899,11 +1209,34 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     let mut pattern = PatternTool::new();
     pattern.pick(session.committed_doc(), a);
     assert!(matches!(
-        pattern.linear_op(3, scl3([1.0, 0.0, 0.0]), len(0.05)),
+        pattern.linear_op(
+            PatternOutputChoice::Instances,
+            3,
+            scl3([1.0, 0.0, 0.0]),
+            len(0.05)
+        ),
         Ok(SessionOp::AddPattern { count: 3, .. })
     ));
     assert!(matches!(
-        pattern.circular_op(3, ang(1.0)),
+        pattern.circular_op(PatternOutputChoice::Instances, 3, ang(1.0)),
+        Err(SeatError::Empty {
+            seat: Seat::PatternAxis
+        })
+    ));
+    // The output choice picks the op and changes nothing else: the
+    // same seats, the same count, the same rule — so an empty seat is
+    // still the error whichever node the form would have minted.
+    assert!(matches!(
+        pattern.linear_op(
+            PatternOutputChoice::Fused,
+            3,
+            scl3([1.0, 0.0, 0.0]),
+            len(0.05)
+        ),
+        Ok(SessionOp::AddPlacedUnion { count: 3, .. })
+    ));
+    assert!(matches!(
+        pattern.circular_op(PatternOutputChoice::Fused, 3, ang(1.0)),
         Err(SeatError::Empty {
             seat: Seat::PatternAxis
         })
@@ -1007,10 +1340,11 @@ fn every_tool_kind_is_listed_in_all() {
 fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
     let tol = Tol::witness();
     let (mut session, body, _) = two_boxes(tol);
+    let sketch_frame = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane: sketch_frame,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.01,
                 height: 0.01,
@@ -1038,17 +1372,37 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
     // A node the seat's own `wants()` says it cannot hold — and one
     // that is a legal node of SOME kind, so what the door refuses is
     // the kind and never the absence.
+    let sketch_axis = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::AxisInPlane {
+                plane: sketch_frame,
+                origin: len2([0.0, 0.0]),
+                direction: scl2([0.0, 1.0]),
+            },
+        },
+    );
     let right = |wanted: NodeKindWanted| match wanted {
         NodeKindWanted::Body => body,
         NodeKindWanted::Profile => profile,
         NodeKindWanted::Plane => plane,
+        NodeKindWanted::Frame => sketch_frame,
         NodeKindWanted::Axis => axis,
+        NodeKindWanted::SketchAxis => sketch_axis,
     };
     let wrong = |wanted: NodeKindWanted| match wanted {
         NodeKindWanted::Body => profile,
         NodeKindWanted::Profile => body,
         NodeKindWanted::Plane => axis,
+        // A datum PLANE is the near miss a sketch frame has: it names
+        // the same surface and carries no spin, which is exactly the
+        // distinction the frame pick exists for.
+        NodeKindWanted::Frame => plane,
         NodeKindWanted::Axis => plane,
+        // The near miss a revolve's axis has is the WORLD axis: same
+        // word, different node kind, and the seat that used to take it
+        // is exactly the seat that must not any more.
+        NodeKindWanted::SketchAxis => axis,
     };
 
     let mut seen = vec![false; Seat::ALL.len()];
@@ -1196,10 +1550,11 @@ fn a_pick_both_seats_admit_and_a_pick_neither_does_follow_the_plain_rule() {
 
     // A profile is neither a body nor a plane, so the split tool has
     // no seat to steer it to.
+    let plane = common::xy_frame_in(&mut session);
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: SketchPlane::xy(),
+            plane,
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.01,
                 height: 0.01,
@@ -1442,30 +1797,40 @@ fn a_tool_closes_on_its_own_committed_edit() {
 /// refused. That is asserted here in the same shape, so the day the
 /// frontier moves this row notices.
 ///
-/// **What it does not reach**, stated rather than implied: four of the
-/// eighteen node kinds are absent. `Mate`, `Measure` and `Assertion`
+/// **What it does not reach**, stated rather than implied: six of the
+/// twenty-two node kinds are absent. `Mate`, `Measure` and `Assertion`
 /// need substrate this row does not build (a solved assembly, a
 /// measured expression) and are all answered `false` by the seat;
 /// `InstantiatePart` is answered `true` and needs a resolver with a
 /// sibling document on disk, so its evaluates-to-a-body path is
-/// exercised by the assembly suites instead. The fourteen that ARE
-/// here include every kind whose classification is load-bearing for
-/// this unit.
+/// exercised by the assembly suites instead; the two tube kinds are
+/// answered `true` and evaluate through their own doors, exercised by
+/// `lib_tube_node`. The sixteen that ARE here — `Part` counted once
+/// for its two selectors — include every kind whose classification is
+/// load-bearing for this unit.
 #[test]
 fn the_body_seat_tracks_the_evaluators_operand_door() {
     let tol = Tol::witness();
     let mut doc = Doc::empty_derived("operand-door", tol);
     // The substrate every candidate is built out of.
-    let (next, profile) = common::inserted(&doc, common::square(0.02), tol);
+    // Named apart from the datum PLANE below, which is a different
+    // node kind with a confusingly similar name.
+    let (next, sketch_frame) = common::inserted(&doc, common::xy_frame(), tol);
+    doc = next;
+    let (next, profile) = common::inserted(&doc, common::square(sketch_frame, 0.02), tol);
+    doc = next;
+    // A parallel plane one centimetre up: its own frame, because it is
+    // its own plane.
+    let (next, lifted) = common::inserted(
+        &doc,
+        common::frame([0.0, 0.0, 0.01], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        tol,
+    );
     doc = next;
     let (next, profile_b) = common::inserted(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::from_frame(
-                pncad::geom_core::Point3::new(0.0, 0.0, 0.01),
-                pncad::geom_core::Vec3::unit_x(),
-                pncad::geom_core::Vec3::unit_y(),
-            ),
+            plane: lifted,
             loops: vec![
                 LoopProgram::polygon([(0.0, 0.0), (0.02, 0.0), (0.02, 0.02), (0.0, 0.02)])
                     .expect("finite corners"),
@@ -1477,17 +1842,23 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
     let (next, ring) = common::inserted(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
+            plane: sketch_frame,
             loops: vec![LoopProgram::circle(0.05, 0.0, 0.01).expect("finite circle")],
         }),
         tol,
     );
     doc = next;
-    let (next, axis) = common::inserted(
+    // The revolve candidate's axis. It is an in-plane axis and not the
+    // world `Datum::Axis` that used to sit here: a revolve turns a
+    // sketch about a line in its own plane, and the world axis this
+    // sweep no longer needs is a different node kind that no candidate
+    // below consumes (the pattern candidate's rule is Linear).
+    let (next, sketch_axis) = common::inserted(
         &doc,
-        Node::Datum(Datum::Axis {
-            origin: [common::len(0.0), common::len(0.0), common::len(0.0)],
-            direction: [common::scl(0.0), common::scl(1.0), common::scl(0.0)],
+        Node::Datum(Datum::AxisInPlane {
+            plane: sketch_frame,
+            origin: [common::len(0.0), common::len(0.0)],
+            direction: [common::scl(0.0), common::scl(1.0)],
         }),
         tol,
     );
@@ -1510,6 +1881,34 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         tol,
     );
     doc = next;
+    // A SECOND independently minted body, stood clear of the first,
+    // for the n-ary union candidate. Standing clear is the load-bearing
+    // part: two members that MEET refuse the undeclared contact rather
+    // than answering this row's question. They need not be
+    // independently minted — a union keys its names on the member EDGE,
+    // so a body and a placement of it are two members and name fine
+    // (`docm3_union::two_placements_of_one_prototype_are_two_members`);
+    // two extrudes are simply the clearest thing to stand apart.
+    let (next, extruded_b) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile: profile_b,
+            distance: common::len(0.01),
+        },
+        tol,
+    );
+    doc = next;
+    let (next, body_b) = common::inserted(
+        &doc,
+        Node::Transform {
+            input: extruded_b,
+            translation: [common::len(0.1), common::len(0.0), common::len(0.0)],
+            rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+        },
+        tol,
+    );
+    doc = next;
     let (next, other) = common::inserted(
         &doc,
         Node::Transform {
@@ -1517,6 +1916,31 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             translation: [common::len(0.01), common::len(0.002), common::len(0.002)],
             rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
             rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+        },
+        tol,
+    );
+    doc = next;
+    // A split and a pattern for the two Part candidates to read: each
+    // is SEVERAL bodies (refused at the seat below, as candidates in
+    // their own right), and a Part of either is one.
+    let (next, split_of_body) = common::inserted(
+        &doc,
+        Node::Split {
+            target: body,
+            tool: plane,
+        },
+        tol,
+    );
+    doc = next;
+    let (next, pattern_of_body) = common::inserted(
+        &doc,
+        Node::Pattern {
+            input: body,
+            count: Expr::count(2),
+            kind: PatternKind::Linear {
+                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
+                spacing: common::len(0.05),
+            },
         },
         tol,
     );
@@ -1549,7 +1973,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                 position: [common::len(0.0), common::len(0.0), common::len(0.0)],
             }),
         ),
-        ("profile", common::square(0.01)),
+        ("profile", common::square(sketch_frame, 0.01)),
         (
             "extrude",
             Node::Extrude {
@@ -1561,7 +1985,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             "revolve",
             Node::Revolve {
                 profile: ring,
-                axis,
+                axis: sketch_axis,
                 angle: Expr::literal(core::f64::consts::TAU, Dimension::Angle).expect("finite"),
             },
         ),
@@ -1572,6 +1996,20 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                 a: body,
                 b: other,
                 declare: None,
+            },
+        ),
+        // The n-ary union at its minimal size. Its two members are
+        // `body` and the SECOND extrude rather than `other` because
+        // those two stand CLEAR of each other, and a union whose
+        // members meet refuses the undeclared contact before the seat's
+        // question is reached. `other` is a placement of `body`, which
+        // a union names perfectly well — the member edge tells the two
+        // apart even though a transform passes names through — but it
+        // sits where `body` is.
+        (
+            "union",
+            Node::Union {
+                members: vec![body, body_b],
             },
         ),
         (
@@ -1599,6 +2037,22 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                     direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
                     spacing: common::len(0.05),
                 },
+            },
+        ),
+        // ONE body out of a split or a pattern: the projection is
+        // what makes one of several bodies a body at a seat.
+        (
+            "part of a split",
+            Node::Part {
+                of: split_of_body,
+                select: PartSelect::SplitHalf(SplitHalf::Above),
+            },
+        ),
+        (
+            "part of a pattern",
+            Node::Part {
+                of: pattern_of_body,
+                select: PartSelect::Instance(Expr::count(1)),
             },
         ),
         (

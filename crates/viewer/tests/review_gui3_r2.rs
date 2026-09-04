@@ -23,6 +23,8 @@
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
+test_utils::gated_to!["crates/viewer/src/", "crates/pncad/src/"];
+
 use std::sync::Arc;
 
 use pncad::document::{
@@ -30,7 +32,6 @@ use pncad::document::{
     ProfileProgram, RecipeNodeId, SlotId, apply,
 };
 use pncad::geom_core::Tol;
-use pncad::profile::SketchPlane;
 use test_utils::fuzz;
 use viewer::evalseam::{EvalRequest, EvalService, Generation, InlineEvaluator, ThreadEvaluator};
 use viewer::history::History;
@@ -48,9 +49,25 @@ fn scl(v: f64) -> Expr {
     Expr::literal(v, Dimension::Scalar).expect("a finite scalar")
 }
 
-fn rect(w: f64, h: f64) -> Node<ProfileProgram> {
+/// The world xy frame — this suite's own, like every other fixture
+/// here (a review suite derives what it needs independently).
+fn xy_frame() -> Node<ProfileProgram> {
+    let len = |v: f64| {
+        pncad::document::Expr::literal(v, pncad::document::Dimension::Length).expect("finite")
+    };
+    let scl = |v: f64| {
+        pncad::document::Expr::literal(v, pncad::document::Dimension::Scalar).expect("finite")
+    };
+    Node::Datum(pncad::document::Datum::Frame {
+        origin: [len(0.0), len(0.0), len(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
+    })
+}
+
+fn rect(plane: RecipeNodeId, w: f64, h: f64) -> Node<ProfileProgram> {
     Node::Profile(ProfileProgram {
-        plane: SketchPlane::xy(),
+        plane,
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]).expect("finite corners"),
         ],
@@ -87,7 +104,8 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     )
     .expect("the parameter declares")
     .doc;
-    let (doc, profile) = push(&doc, rect(0.03, 0.02), tol);
+    let (doc, plane) = push(&doc, xy_frame(), tol);
+    let (doc, profile) = push(&doc, rect(plane, 0.03, 0.02), tol);
     let (doc, extrude) = push(
         &doc,
         Node::Extrude {
@@ -659,7 +677,8 @@ fn a_parameterless_expression_is_driven_and_offers_no_navigation_target() {
 fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r2-gui3-broken", tol);
-    let (doc, profile) = push(&doc, rect(0.03, 0.02), tol);
+    let (doc, plane) = push(&doc, xy_frame(), tol);
+    let (doc, profile) = push(&doc, rect(plane, 0.03, 0.02), tol);
     let (doc, bad) = push(
         &doc,
         Node::Extrude {
@@ -712,18 +731,25 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
             assert_eq!(*through, bad, "the poison names the failed ancestor");
             assert_eq!(
                 message.as_deref(),
-                Some(expected.as_str()),
-                "a poisoned row reports the ANCESTOR's typed error verbatim"
+                Some(viewer::tree::downstream_wording(bad).as_str()),
+                "a poisoned row points at the ancestor's row and recites nothing"
             );
         }
         other => panic!("expected a poisoning, got {other:?}"),
     }
-    // No status carries a string this crate composed: every message in
-    // the tree is one of the evaluation's own renderings.
+    // No row invents a failure: what went wrong is the evaluation's
+    // own rendering, on the row that owns it, and every other line in
+    // the tree is the one pointer this crate writes.
     for row in &rows {
         if let Some(message) = row.status.message() {
+            let allowed = match &row.status {
+                viewer::tree::RowStatus::Poisoned { through, .. } => {
+                    viewer::tree::downstream_wording(*through)
+                }
+                _ => expected.clone(),
+            };
             assert_eq!(
-                message, expected,
+                message, allowed,
                 "an unexpected message appeared in the tree: {message}"
             );
         }

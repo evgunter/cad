@@ -63,7 +63,7 @@
 use geom_core::k_stats::decide;
 use geom_core::{Band, Bounds, Decide, Margin, Point2, Real, Sign, Tol, Vec2};
 
-use super::{ArcData, Dir, PathError, PathNoCornerReason};
+use super::{ArcData, Dir, PathError, PathNoCornerReason, linear_band};
 use crate::fillet_select::nearest_joint;
 use crate::structure::{
     CornerGate, Decision, DecisionValue, FilletDecision, Guide, StructureRefusal,
@@ -417,7 +417,7 @@ fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> PathError<T>
         // conditioning gate above it is deliberately NOT laundered into
         // `NoCornerForFillet`: the corner exists and the author can see
         // it — what does not exist, at this radius and permanently, is a
-        // fillet OF it (`docs/ENCLOSING-TANGENCY-DESIGN.md`). Unlike that
+        // fillet OF it (`crates/profile/README.md`). Unlike that
         // gate this one does NOT abort the resolve: ρ's sign is a fact
         // about THIS corner's turn side, and the pair's other crossing
         // turns the other way, where the same radius is an ordinary
@@ -486,7 +486,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
     tol: Tol,
 ) -> Result<ArcFilletTrims<T>, PathError<T>> {
     let consumed = guide.consume().map_err(structure)?;
-    let band = Band::new(tol.eps(), tol.k() * tol.eps()).map_err(PathError::Band)?;
+    let band = linear_band(tol)?;
     // Two refusal channels, deliberately. A corner the GATES discard is
     // the weaker story — the author's anchors simply do not bracket it,
     // and the other root is usually the one they meant. A corner that
