@@ -1644,6 +1644,51 @@ rule 1 gates, rules 2 and 3 demoted with a recorded justification — is
 unchanged, and it is unchanged for the same measured reason rather than
 by inheritance.
 
+### The gate that reported this was not able to fail, and for how long
+
+**Read this before quoting any driver-population number from a CI run
+between 2026-09-03 and 2026-09-04.** Two defects composed, and between
+them the driver K row reported success over a lint that had linted
+nothing.
+
+1. **The lint refused every driver file unread.** `SampleOutcome`
+   gained `SymbolicZero`, serialized `symbolic_zero`;
+   `tools/k-lint`'s accepted-token list did not learn it; and an unknown
+   token is HARNESS BREAKAGE by design, so `lint_csv` returned `Err` at
+   the first sample row of the first file. On run 33828394312 the step
+   log is one line — `malformed sweep row (harness breakage): …
+   symbolic_zero` — with no per-file line and no TOTAL.
+2. **The step could not fail.** Its status capture read `PIPESTATUS[0]`
+   on the line AFTER `status=$?`, and that assignment had already
+   rewritten `PIPESTATUS`; `status` was 0 whatever the lint said, so both
+   non-zero arms of its `case` were unreachable.
+
+**How long: since the row was born.** The step landed in M10-6's own PR
+(#1685) at `eab6e3acc` WITHOUT a pipe, where its plain `|| status=$?`
+was exact; `eeb28648b`, eight commits later in the same PR, added the
+`| tee` and the broken capture. So the row reached `main` already
+disarmed, and **no run on `main` or on any branch has ever been able to
+red it** — not on findings (exit 2, which IS the E6 re-open trigger) and
+not on harness breakage.
+
+What that costs this document, stated exactly:
+
+- The M10 addendum's "rule 1 gates" was a claim about a gate that could
+  not fire. Its *numbers* were read from the sweep's CSV and stand; its
+  *gating* claim was vacuous for the whole of its life so far.
+- The table above is measured from the CSV `scripts/k_probe_sweep.sh`
+  writes, not from the lint's verdict, so it is unaffected. What is now
+  also true, and was not before, is that the lint READS those rows: the
+  hosted step prints a per-file line and a TOTAL with a
+  `symbolic_zero` column beside the classified count.
+
+Both defects are fixed in M10-7's PR (1725): k-lint learns the token and
+counts it in its own column, the outcome vocabulary gets one home on
+`SampleOutcome::token()` with a k-lint test pinning the two across the
+workspace boundary, and the ci.yml step captures `PIPESTATUS` on the
+pipeline line. The `PIPESTATUS` pattern elsewhere in `ci.yml` is CIW's
+to sweep: `work/ciw/pipestatus-after-assignment-in-ci-yml.md`.
+
 The largest symbolic columns are `carrier_matches_mapped_source`,
 `carrier_on_surface_1` and `carrier_on_surface_2` (7,128 each),
 `segment_straightness` (1,650), and the two the M10-3 unit pinned,

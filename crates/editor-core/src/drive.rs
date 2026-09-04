@@ -200,6 +200,42 @@ pub struct DriveConfig {
 /// `SymbolicDials::off()` reproduces the numeric-only replay bit for
 /// bit: no session is installed, no node is minted, and the verdict's
 /// serialization carries no symbolic line at all.
+///
+/// # What the tier COSTS, measured
+///
+/// `enabled` is on by default, so every `DriveConfig::default()` drive
+/// pays this. The bill, release profile, one machine, from
+/// `editor-core/tests/m10_7_probe_interval.rs::m10_7_what_the_tier_costs`
+/// (run it rather than trusting the numbers — the ratios are what
+/// travels):
+///
+/// | fixture | tier ON | tier OFF | |
+/// | --- | --- | --- | --- |
+/// | slab, macroscopic box, 32 leaves | 17.1 ms, **certifies** | 5.4 ms, certifies nothing | 3.2x |
+/// | slab, macroscopic box, 256 leaves | 9.8 ms, **certifies** | 36.1 ms, certifies nothing | **0.27x** |
+/// | filleted bracket (CURVED), 32 leaves | 43.1 ms, certifies nothing | 2.5 ms, certifies nothing | **17x** |
+///
+/// Three different answers, and the middle one is not a typo. Where the
+/// tier CERTIFIES, it certifies in one leaf and the numeric lane
+/// subdivides to its budget and fails, so a larger leaf budget makes the
+/// tier the FASTER lane — the work it saves is the subdivision it makes
+/// unnecessary. Where it cannot certify, it is pure overhead, and the
+/// worst measured case is curved geometry: 17x for nothing, because the
+/// arc family it cannot discharge (`work/m10/M10-8.md`) means the box
+/// refuses either way.
+///
+/// Two things keep that bill down and both are measured rather than
+/// argued. A margin the numeric channel has already proved NON-ZERO
+/// never has its form built at all (`geom_core::sym`'s `Decide` impl —
+/// a certified enclosure excluding zero is a proof no normal form can
+/// contradict), which is most margins on most documents. And
+/// `Poly::mul` refuses on pre-bounds instead of building a product and
+/// discarding it, so an over-budget multiplication costs its two
+/// operands' sizes rather than their product.
+///
+/// The residual worry is the curved case, and the honest statement is
+/// that it is a real 17x paid for nothing on documents the tier cannot
+/// help — which is an argument for M10-8, not for a dial.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SymbolicDials {
     /// Whether the leaf replay runs at the symbolic tier.

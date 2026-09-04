@@ -174,12 +174,27 @@ fn r1_reciprocal_of_the_zero_form_freezes_and_never_certifies() {
     assert_eq!(f, 0, "no form is computed behind a domain refusal");
 }
 
-/// EVIDENCE-ONLY. `atan(1/(x−x))` at `f64` is `atan(inf) = π/2`, a
-/// finite value with no real behind it; the difference of two such is
-/// numerically 0 (not NaN), so clause 1 does not fire, the reciprocal
-/// of the zero form freezes, and the two `atan` atoms share the frozen
-/// key. Prints whether the tier claims a theorem about it. (At
-/// `Interval` the division is empty and clause 1 refuses.)
+/// **The tier claims NOTHING about an expression with no real value,
+/// even where the numeric channel cannot see that** — the row that
+/// found the form-side half of clause 1.
+///
+/// `atan(1/(x−x))` at `f64` is `atan(+inf) = π/2`, a finite value with
+/// no real behind it, and the difference of two of them is numerically
+/// `0.0` rather than NaN. So `MarginDiag::Invalid` never fires: clause
+/// 1's VALUE side is structurally blind here, and at an earlier head the
+/// reciprocal of the zero form FROZE, the two `atan` atoms shared the
+/// frozen key, and the tier answered `Zero` as a theorem.
+///
+/// It cannot now: a form built through a division by the zero polynomial
+/// is POISONED (`Form::poisoned`), the poison propagates through the
+/// atoms and the subtraction, and a poisoned form is never zero. What
+/// this row asserts is therefore about the TIER's claim, not about the
+/// answer — `f64` still classifies its own `0.0` margin as `Zero`, which
+/// is `f64` being `f64`, and the point is that the tier no longer adds a
+/// theorem on top of it.
+///
+/// (At `Interval` the division is empty, the decoration drops, and
+/// clause 1's value side refuses first — the sibling row above.)
 #[test]
 fn r1_atan_of_an_infinity_at_f64() {
     let (ok, s, f) = sym(|| {
@@ -188,6 +203,23 @@ fn r1_atan_of_an_infinity_at_f64() {
         inv.atan() - inv.atan()
     });
     println!("atan(1/0) - atan(1/0) at f64: zero={ok} symbolic={s} frozen={f}");
+    assert_eq!(
+        s, 0,
+        "the symbolic tier must claim NOTHING here: the expression has no real value \
+         anywhere, so no `Zero` it answers could be a theorem"
+    );
+    assert_eq!(
+        f, 0,
+        "and nothing is FROZEN either — freezing was the old answer, and it is what \
+         let the two `atan` atoms share a key and cancel"
+    );
+    // `f64`'s own answer to a margin that computes to 0.0 is `Zero`, and
+    // that is not this row's subject: it is the numeric channel doing
+    // exactly what it does at a point scalar.
+    assert!(
+        ok,
+        "the numeric channel still answers, and its answer is its own"
+    );
 }
 
 /// Two different fractions that are the same rational function: the

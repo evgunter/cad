@@ -114,8 +114,32 @@
 //! dependency set is `libm` and nothing else, and an arbitrary-precision
 //! coefficient has unbounded cost in a test run thousands of times per
 //! leaf. The freezing budget exists either way; an overflow freeze is the
-//! same sound outcome as a term-count freeze, and it is measured rather
-//! than assumed.
+//! same sound outcome as a term-count freeze.
+//!
+//! **What that costs, measured on CURVED geometry** — which is the case
+//! the first measurement missed, having been taken on the slab alone.
+//! On a filleted L-bracket with two bores, at the shipped budget AND at
+//! one 256 times wider (`max_terms` 2^20, `max_degree` 4096), the drive
+//! reports **`frozen: 0`** with 3,819 symbolic decisions against 2,740
+//! numeric ones. Not one form on that document reaches either dial or
+//! overflows `i128`.
+//!
+//! Two reviewers measured overflow freezes on curved documents at an
+//! earlier head (172 forms per leaf on one bracket; 7.3% of 164,703
+//! decisions on another), so the number moved, and it moved for a
+//! reason worth naming: the `Decide` impl now skips the normal form
+//! entirely when the numeric channel has already proved the margin
+//! non-zero. The forms that were overflowing were, on those fixtures,
+//! mostly the ones nobody needed — a definite margin's form cannot be
+//! the zero polynomial, so building it answered a question already
+//! answered.
+//!
+//! So the case for a wider coefficient is currently unmade on the
+//! evidence available: nothing measured here is losing cancellation to
+//! `i128`. What a wider coefficient WOULD buy, if a fixture ever does
+//! freeze on overflow, is exactly the cancellations behind those
+//! freezes — and the frozen count on the verdict is how that would be
+//! noticed, which is why it is a receipt field and not a log line.
 //!
 //! # The census: which identity-shaped predicates this tier reaches
 //!
@@ -372,6 +396,20 @@ enum SymOp {
     Sub,
     Mul,
     Neg,
+    /// An integer power, **EXPANDED into the form** rather than kept as
+    /// an opaque atom.
+    ///
+    /// The unit's spec listed `powi` among the opaque atoms and this is
+    /// a deliberate departure from it, disclosed as a deviation: an
+    /// integer power of a rational function IS a rational function, so
+    /// expanding it costs nothing in soundness and buys every
+    /// cancellation that runs through a square. It is what makes a
+    /// SQUARED DISTANCE cancel — `‖a − b‖²` reaching the form as a sum
+    /// of squares rather than as an unknown — and squared distances are
+    /// most of what the certification identities are written in. The
+    /// expansion is budget-checked at every step ([`powi_form`]), so a
+    /// large exponent freezes rather than allocating its way to the
+    /// ceiling.
     Powi,
     /// `1/x` — an atom, so `Inv(b)·b` does not fold to one.
     Inv,

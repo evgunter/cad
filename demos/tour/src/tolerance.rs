@@ -27,7 +27,19 @@
 //! and 7.81e-7 with it off, unmoved, and the first refusal beyond it is
 //! `carrier_endpoint_start`. On a straight-walled extrude, where no
 //! normalization stands between a carrier and its endpoint, the same
-//! measurement moves by a factor of about 8·10^9.
+//! measurement moves by a factor of about 3.9·10^9 (measured at the
+//! default ε; the slab's ceiling is ε-dependent and the factor with it).
+//!
+//! **And the family is wider than this plate's rim.** M10-7's two
+//! reviews took the tier to a filleted L-bracket with bores — the
+//! ordinary shape of a machined part, where an arc stands between the
+//! profile and its walls — and it certifies NOTHING at any scale, with
+//! the tier on or off, a factor of exactly 1.0. Per-predicate,
+//! `carrier_on_surface_1/2` and `witness_on_surface_1/2` decide zero
+//! symbolically there, where they discharge freely on the slab. So the
+//! honest general statement is: **a real study on curved geometry gets
+//! the pre-E12 answer today**, and the plate is the mild case rather
+//! than the hard one. `work/m10/M10-8.md` carries the measurement.
 //!
 //! So the ε-scale ceiling is not gone from THIS document, and the cell
 //! says so rather than reporting a win it did not get. E12's reserved
@@ -411,8 +423,11 @@ fn real_study(tol: Tol) {
                  rather than by algebra — still widens with the box. At ±0.05 mm no \
                  leaf replays. MEASURED: the widest whole-certifying box is 7.81e-7 of \
                  this study with the tier on AND off; on a straight-walled extrude the \
-                 same measurement moves by ~8e9. The ceiling is a named family now, \
-                 not a property of the plate."
+                 same measurement moves by ~3.9e9. And WIDER than this plate: a \
+                 filleted L-bracket with bores certifies nothing at any scale either \
+                 way (factor 1.0), so a real study on CURVED geometry gets the pre-E12 \
+                 answer today. The ceiling is a named family now, not a property of \
+                 the plate."
             );
         }
         Err(other) => panic!("unexpected stackup refusal: {other}"),
