@@ -2,8 +2,9 @@
 id: session-clearing-walk-is-hand-maintained-three-times
 kind: issue
 title: the constructor, open, new_document and land hand-maintain the same clearing walk, so a new landed_* field is silently missed
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-04
 refs: [viewer-session-god-module-split]
 ---
 
@@ -66,3 +67,29 @@ worth writing down where the walks are.
 Rides `viewer-session-god-module-split`'s ground; it is not that
 unit's fix, because moving code between modules does not merge two
 copies of a walk.
+
+## Closed
+
+`DocSession` holds one `Derived` — `selection`, `hover`, `scratch`,
+`landed` and `bounds` — reset by `Derived::none()` at the constructor
+and at both doors, and the six `landed_*` fields are one `LandedRun`
+written in one place by `land`. The twelve-statement walk is now
+`clear_for_new_document`, called by `open` and by `new_document`, and
+the constructor's `Derived::none()` is the one spelling of "nothing
+has landed yet".
+
+The two fields outside the walk kept their positions, with the reasons
+written where the walk is (`Derived`'s docs, `crates/viewer/README.md`):
+`bounds` joined the value — so a reader of either door sees it go —
+while `request_eval` keeps the stricter per-submit discard that is
+what actually makes it correct; `gesture` stayed out, because dissolving
+a drag under the pointer is the behaviour `permitted_during_value_gesture`
+refuses `Open` and `NewDocument` to prevent, and the reset now ASSERTS
+that guarantee (with `scratch.is_none()` beside it) rather than
+depending on it silently.
+
+`display` could not join: `DisplayState::clear` deliberately keeps its
+revision counter across the reset, so reconstructing it would send the
+chrome's rebuild key backwards. It stays a `clear()` call beside the
+one assignment, and its own `clear` closes the same hazard for fields
+inside it.

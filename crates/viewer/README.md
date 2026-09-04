@@ -331,6 +331,44 @@ and cannot leave it: every door returns a `Refusal` and mutates the
 session, and `perform`'s dispatch is the one place an operation becomes
 state.
 
+### What the session knows because of the document is one value
+
+`DocSession` holds a `Derived`: what is picked out of the document,
+what a drag previews over it, what the last run said about it
+(`LandedRun`), and what a range probe found in it. `Open` and
+`NewDocument` install a different document under a live session, and
+every one of those is a statement about the document that was there
+before — left in place they answer about the previous model until the
+first run lands. Both doors therefore reset the whole block by
+construction (`Derived::none`) rather than field by field, and the
+constructor writes that same value, which makes it the one spelling of
+"nothing is known yet": a field added there is cleared by being
+declared rather than by being remembered at three call sites.
+
+`LandedRun` is the same rule one level down. The six things a landing
+produces — the evaluation, the document it answers, its generation,
+the gather's refusal, the A5 badge and the advisory report — are
+statements about one (document, evaluation) pair, computed once in
+`land`, so they are one value and `landed_pair` cannot hand out half
+of it. `bounds` sits in `Derived` but is discarded on a stricter rule
+than the block's: every submit drops it (`request_eval`), because a
+range is a statement about one document and a commit or an undo
+already invalidates it.
+
+Three neighbours stay outside `Derived`, and the reasons are the
+interesting part. `DisplayState` is `clear`ed rather than rebuilt,
+since its revision counter is the chrome's rebuild key and must not go
+backwards; its own `clear` closes the same hazard inside it. `gesture`
+is cleared by nothing and must not be — a value drag is refused while
+either door is asked for (`permitted_during_value_gesture`), because a
+gesture dissolved under the pointer is the half-acted state that
+refusal exists to prevent — so the reset ASSERTS that guarantee
+instead of relying on it silently, and relaxing the table's row fails
+loudly rather than leaving a drag pointed at a document that is gone.
+`path` and `resolver` are facts about the backing file rather than
+about the document, and are the part of the two doors that genuinely
+differs: `Open` sets both, `NewDocument` clears both.
+
 ### The app's vocabularies
 
 | Module | Holds |
