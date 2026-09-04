@@ -30,18 +30,31 @@ fn dump_dir() -> Option<std::path::PathBuf> {
 }
 
 fn polygon(pts: &[(f64, f64)]) -> ProfileLoop<f64> {
-    ProfileLoop::new(pts.iter().map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0)).collect())
+    ProfileLoop::new(
+        pts.iter()
+            .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
+            .collect(),
+    )
 }
 
 fn bulged(pts: &[(f64, f64, f64)]) -> ProfileLoop<f64> {
-    ProfileLoop::new(pts.iter().map(|&(x, y, b)| ProfileVertex::new(p2(x, y), b)).collect())
+    ProfileLoop::new(
+        pts.iter()
+            .map(|&(x, y, b)| ProfileVertex::new(p2(x, y), b))
+            .collect(),
+    )
 }
 
 fn revolved_loop(lp: ProfileLoop<f64>) -> Body<f64> {
-    let profile = Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness()).unwrap();
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .unwrap();
     revolve(
         &profile,
-        RevolveAxis { origin: p2(0.0, 0.0), dir: Vec2::new(0.0, 1.0) },
+        RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        },
         Revolution::Full,
         Tol::witness(),
     )
@@ -50,8 +63,12 @@ fn revolved_loop(lp: ProfileLoop<f64>) -> Body<f64> {
 }
 
 fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
-    let profile = Profile::new(SketchPlane::xy(), loops).validate(Tol::witness()).unwrap();
-    extrude(&profile, Extrusion::Distance(h), Tol::witness()).unwrap().body
+    let profile = Profile::new(SketchPlane::xy(), loops)
+        .validate(Tol::witness())
+        .unwrap();
+    extrude(&profile, Extrusion::Distance(h), Tol::witness())
+        .unwrap()
+        .body
 }
 
 fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
@@ -89,8 +106,17 @@ fn dump(body: &Body<f64>) -> String {
         body.faces().map(|(_, f)| f.rings.len()).sum::<usize>(),
     );
     for (k, _) in body.vertices() {
-        let p = body.get_vertex(k).and_then(|v| body.get_point(v.point)).unwrap();
-        let _ = writeln!(s, "v {k:?} {:x} {:x} {:x}", p.x.to_bits(), p.y.to_bits(), p.z.to_bits());
+        let p = body
+            .get_vertex(k)
+            .and_then(|v| body.get_point(v.point))
+            .unwrap();
+        let _ = writeln!(
+            s,
+            "v {k:?} {:x} {:x} {:x}",
+            p.x.to_bits(),
+            p.y.to_bits(),
+            p.z.to_bits()
+        );
     }
     for (k, e) in body.edges() {
         let geomstr = body
@@ -101,8 +127,16 @@ fn dump(body: &Body<f64>) -> String {
         let _ = writeln!(s, "e {k:?} {geomstr}");
     }
     for (k, f) in body.faces() {
-        let surf = body.get_surface(f.surface).map(|x| format!("{x:?}")).unwrap_or_else(|| "?".into());
-        let _ = writeln!(s, "f {k:?} sense={} rings={} {surf}", f.sense, f.rings.len());
+        let surf = body
+            .get_surface(f.surface)
+            .map(|x| format!("{x:?}"))
+            .unwrap_or_else(|| "?".into());
+        let _ = writeln!(
+            s,
+            "f {k:?} sense={} rings={} {surf}",
+            f.sense,
+            f.rings.len()
+        );
         for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
             let LoopBoundary::Cycle { first } = body.get_loop(lk).unwrap().boundary else {
                 let _ = writeln!(s, "  loop {lk:?} empty");
@@ -113,8 +147,18 @@ fn dump(body: &Body<f64>) -> String {
                 .iter()
                 .map(|&he| {
                     let h = body.get_half_edge(he).unwrap();
-                    let p = body.get_vertex(h.start).and_then(|vv| body.get_point(vv.point)).unwrap();
-                    format!("{:?}:{:?}({:x},{:x},{:x})", he, h.edge, p.x.to_bits(), p.y.to_bits(), p.z.to_bits())
+                    let p = body
+                        .get_vertex(h.start)
+                        .and_then(|vv| body.get_point(vv.point))
+                        .unwrap();
+                    format!(
+                        "{:?}:{:?}({:x},{:x},{:x})",
+                        he,
+                        h.edge,
+                        p.x.to_bits(),
+                        p.y.to_bits(),
+                        p.z.to_bits()
+                    )
                 })
                 .collect();
             let _ = writeln!(s, "  loop {lk:?} {}", pts.join(" "));
@@ -147,26 +191,52 @@ fn shell1_r1_bitdump_corpus() {
         return;
     }
     let tol = Tol::witness();
-    let boxy = extruded(vec![polygon(&[(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)])], 4.0);
+    let boxy = extruded(
+        vec![polygon(&[(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)])],
+        4.0,
+    );
     let top = plane_chart_at_z(&boxy, 4.0);
     let bottom = plane_chart_at_z(&boxy, 0.0);
     let both: Vec<FaceKey> = top.iter().chain(&bottom).copied().collect();
     write_dump("box_sealed", &shelled(topo::shell(&boxy, 0.25, 1e-6, tol)));
-    write_dump("box_cup", &shelled(topo::shell_open(&boxy, 0.25, &top, 1e-6, tol)));
-    write_dump("box_tube", &shelled(topo::shell_open(&boxy, 0.25, &both, 1e-6, tol)));
+    write_dump(
+        "box_cup",
+        &shelled(topo::shell_open(&boxy, 0.25, &top, 1e-6, tol)),
+    );
+    write_dump(
+        "box_tube",
+        &shelled(topo::shell_open(&boxy, 0.25, &both, 1e-6, tol)),
+    );
 
     let vessel = revolved_loop(polygon(&[(0.0, 0.0), (0.5, 0.0), (0.5, 0.4), (0.0, 0.4)]));
     let top = plane_chart_at_y(&vessel, 0.4);
     let bottom = plane_chart_at_y(&vessel, 0.0);
     let both: Vec<FaceKey> = top.iter().chain(&bottom).copied().collect();
-    write_dump("vessel_sealed", &shelled(topo::shell(&vessel, 0.05, 1e-6, tol)));
-    write_dump("vessel_cup", &shelled(topo::shell_open(&vessel, 0.05, &top, 1e-6, tol)));
-    write_dump("vessel_both", &shelled(topo::shell_open(&vessel, 0.05, &both, 1e-6, tol)));
+    write_dump(
+        "vessel_sealed",
+        &shelled(topo::shell(&vessel, 0.05, 1e-6, tol)),
+    );
+    write_dump(
+        "vessel_cup",
+        &shelled(topo::shell_open(&vessel, 0.05, &top, 1e-6, tol)),
+    );
+    write_dump(
+        "vessel_both",
+        &shelled(topo::shell_open(&vessel, 0.05, &both, 1e-6, tol)),
+    );
 
-    let tube = revolved_loop(polygon(&[(0.30, 0.0), (0.50, 0.0), (0.50, 0.40), (0.30, 0.40)]));
+    let tube = revolved_loop(polygon(&[
+        (0.30, 0.0),
+        (0.50, 0.0),
+        (0.50, 0.40),
+        (0.30, 0.40),
+    ]));
     let top = plane_chart_at_y(&tube, 0.40);
     write_dump("tube_sealed", &shelled(topo::shell(&tube, 0.05, 1e-6, tol)));
-    write_dump("tube_cup", &shelled(topo::shell_open(&tube, 0.05, &top, 1e-6, tol)));
+    write_dump(
+        "tube_cup",
+        &shelled(topo::shell_open(&tube, 0.05, &top, 1e-6, tol)),
+    );
 
     let slab = extruded(
         vec![
@@ -176,16 +246,41 @@ fn shell1_r1_bitdump_corpus() {
         0.3,
     );
     let top = plane_chart_at_z(&slab, 0.3);
-    write_dump("slab_cup", &shelled(topo::shell_open(&slab, 0.04, &top, 1e-6, tol)));
+    write_dump(
+        "slab_cup",
+        &shelled(topo::shell_open(&slab, 0.04, &top, 1e-6, tol)),
+    );
 
-    let belly = revolved_loop(bulged(&[(0.0, 0.0, 0.0), (4.0 / 64.0, 0.0, 0.0), (4.0 / 64.0, 1.0 / 64.0, BULGE), (3.0 / 64.0, 8.0 / 64.0, 0.0), (0.0, 8.0 / 64.0, 0.0)]));
+    let belly = revolved_loop(bulged(&[
+        (0.0, 0.0, 0.0),
+        (4.0 / 64.0, 0.0, 0.0),
+        (4.0 / 64.0, 1.0 / 64.0, BULGE),
+        (3.0 / 64.0, 8.0 / 64.0, 0.0),
+        (0.0, 8.0 / 64.0, 0.0),
+    ]));
     let top = plane_chart_at_y(&belly, 8.0 / 64.0);
-    write_dump("belly_sealed", &shelled(topo::shell(&belly, 1.0 / 128.0, 1e-6, tol)));
-    write_dump("belly_cup", &shelled(topo::shell_open(&belly, 1.0 / 128.0, &top, 1e-6, tol)));
+    write_dump(
+        "belly_sealed",
+        &shelled(topo::shell(&belly, 1.0 / 128.0, 1e-6, tol)),
+    );
+    write_dump(
+        "belly_cup",
+        &shelled(topo::shell_open(&belly, 1.0 / 128.0, &top, 1e-6, tol)),
+    );
 
     let vase = revolved_loop(polygon(&[
-        (0.0, 0.0), (0.21, 0.0), (0.21, 0.07), (0.34, 0.07), (0.34, 0.19), (0.11, 0.19), (0.11, 0.31), (0.0, 0.31),
+        (0.0, 0.0),
+        (0.21, 0.0),
+        (0.21, 0.07),
+        (0.34, 0.07),
+        (0.34, 0.19),
+        (0.11, 0.19),
+        (0.11, 0.31),
+        (0.0, 0.31),
     ]));
     let bottom = plane_chart_at_y(&vase, 0.0);
-    write_dump("vase_bottom", &shelled(topo::shell_open(&vase, 0.02, &bottom, 1e-6, tol)));
+    write_dump(
+        "vase_bottom",
+        &shelled(topo::shell_open(&vase, 0.02, &bottom, 1e-6, tol)),
+    );
 }

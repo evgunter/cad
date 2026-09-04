@@ -83,7 +83,8 @@ fn sphere_faces(body: &Body<f64>) -> Vec<FaceKey> {
         .into_iter()
         .filter(|&f| {
             matches!(
-                body.get_face(f).and_then(|face| body.get_surface(face.surface)),
+                body.get_face(f)
+                    .and_then(|face| body.get_surface(face.surface)),
                 Some(Surface::Sphere { .. })
             )
         })
@@ -126,7 +127,12 @@ fn circle_radius(body: &Body<f64>, lk: LoopKey) -> f64 {
     };
     let he = body.loop_cycle(first).unwrap()[0];
     let e = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
-    match body.get_curve_geom(e.curve).and_then(|g| g.certified()).unwrap().carrier() {
+    match body
+        .get_curve_geom(e.curve)
+        .and_then(|g| g.certified())
+        .unwrap()
+        .carrier()
+    {
         pncad::geom::Curve3::Circle { radius, .. } => *radius,
         other => panic!("ring bounded by {other:?}"),
     }
@@ -134,15 +140,34 @@ fn circle_radius(body: &Body<f64>, lk: LoopKey) -> f64 {
 
 fn check_roles(what: &str, body: &Body<f64>, r: &Roles, wall: f64) {
     // The rim: planar at the mouth, annular, its one ring is the row's.
-    let rim = body.get_face(r.rim).unwrap_or_else(|| panic!("{what}: rim resolves"));
-    assert!(matches!(body.get_surface(rim.surface), Some(Surface::Plane { origin, .. }) if (origin.y - Y_MOUTH).abs() < 1e-12));
-    assert_eq!(rim.rings, vec![r.ring], "{what}: the rim's one ring is the row's");
-    assert!((circle_radius(body, rim.outer) - R_NECK).abs() < 1e-12, "{what}: outer rim circle");
-    assert!((circle_radius(body, r.ring) - (R_NECK - wall)).abs() < 1e-12, "{what}: ring radius = neck - wall");
+    let rim = body
+        .get_face(r.rim)
+        .unwrap_or_else(|| panic!("{what}: rim resolves"));
+    assert!(
+        matches!(body.get_surface(rim.surface), Some(Surface::Plane { origin, .. }) if (origin.y - Y_MOUTH).abs() < 1e-12)
+    );
+    assert_eq!(
+        rim.rings,
+        vec![r.ring],
+        "{what}: the rim's one ring is the row's"
+    );
+    assert!(
+        (circle_radius(body, rim.outer) - R_NECK).abs() < 1e-12,
+        "{what}: outer rim circle"
+    );
+    assert!(
+        (circle_radius(body, r.ring) - (R_NECK - wall)).abs() < 1e-12,
+        "{what}: ring radius = neck - wall"
+    );
     // The belly twin: a sphere of radius R_BELLY - wall.
-    let twin = body.get_face(r.belly_twin).unwrap_or_else(|| panic!("{what}: twin resolves"));
+    let twin = body
+        .get_face(r.belly_twin)
+        .unwrap_or_else(|| panic!("{what}: twin resolves"));
     match body.get_surface(twin.surface) {
-        Some(Surface::Sphere { radius, .. }) => assert!((radius - (R_BELLY - wall)).abs() < 1e-12, "{what}: twin radius {radius}"),
+        Some(Surface::Sphere { radius, .. }) => assert!(
+            (radius - (R_BELLY - wall)).abs() < 1e-12,
+            "{what}: twin radius {radius}"
+        ),
         other => panic!("{what}: twin is {other:?}"),
     }
     assert_eq!(body.shells().count(), 1, "{what}: opened pot is one shell");
@@ -155,32 +180,60 @@ fn the_teapots_mouth_rim_ring_and_belly_twin_from_the_record_alone() {
     let mouth = plane_chart_at(&pot, Y_MOUTH);
     assert_eq!(mouth.len(), 2, "the mouth is two half-discs");
 
-    let Shelled { body, naming } = pncad::topo::shell_open(&pot, WALL, &mouth, FIT_TOL, tol).expect("opens");
+    let Shelled { body, naming } =
+        pncad::topo::shell_open(&pot, WALL, &mouth, FIT_TOL, tol).expect("opens");
     let a = roles(&pot, &mouth, &naming);
     check_roles("wall 1/128", &body, &a, WALL);
     println!(
         "[e2e] rim {:?} ring {:?} belly twin {:?}; rims {} dead ({},{},{}) inner {} inner_edges {} ring_edges {}",
-        a.rim, a.ring, a.belly_twin, naming.rims.len(), naming.dead.faces.len(), naming.dead.edges.len(), naming.dead.vertices.len(),
-        naming.inner.len(), naming.inner_edges.len(), naming.rims[0].ring_edges.len()
+        a.rim,
+        a.ring,
+        a.belly_twin,
+        naming.rims.len(),
+        naming.dead.faces.len(),
+        naming.dead.edges.len(),
+        naming.dead.vertices.len(),
+        naming.inner.len(),
+        naming.inner_edges.len(),
+        naming.rims[0].ring_edges.len()
     );
 
     // Rebuild at another wall: same operand, same designation.
     let wall2 = 1.0 / 256.0;
-    let Shelled { body: body2, naming: naming2 } = pncad::topo::shell_open(&pot, wall2, &mouth, FIT_TOL, tol).expect("opens thinner");
+    let Shelled {
+        body: body2,
+        naming: naming2,
+    } = pncad::topo::shell_open(&pot, wall2, &mouth, FIT_TOL, tol).expect("opens thinner");
     let b = roles(&pot, &mouth, &naming2);
     check_roles("wall 1/256", &body2, &b, wall2);
-    assert_eq!((a.rim, a.ring, a.belly_twin), (b.rim, b.ring, b.belly_twin), "the same rows resolve to the same keys at the other wall");
+    assert_eq!(
+        (a.rim, a.ring, a.belly_twin),
+        (b.rim, b.ring, b.belly_twin),
+        "the same rows resolve to the same keys at the other wall"
+    );
     // And the whole record is key-identical: thickness changes geometry, not the construction.
-    assert_eq!(format!("{naming:?}"), format!("{naming2:?}"), "record identical across walls");
+    assert_eq!(
+        format!("{naming:?}"),
+        format!("{naming2:?}"),
+        "record identical across walls"
+    );
 
     // The ring rows reach the OPERAND's mouth boundary: each source is an edge of the mouth chart.
     let rimrow = &naming.rims[0];
     for &(_, src) in &rimrow.ring_edges {
         let on_mouth = mouth.iter().any(|&f| {
             let d = pot.get_face(f).unwrap();
-            let LoopBoundary::Cycle { first } = pot.get_loop(d.outer).unwrap().boundary else { return false };
-            pot.loop_cycle(first).unwrap().iter().any(|&he| pot.get_half_edge(he).unwrap().edge == src)
+            let LoopBoundary::Cycle { first } = pot.get_loop(d.outer).unwrap().boundary else {
+                return false;
+            };
+            pot.loop_cycle(first)
+                .unwrap()
+                .iter()
+                .any(|&he| pot.get_half_edge(he).unwrap().edge == src)
         });
-        assert!(on_mouth, "ring edge source {src:?} bounds the mouth in the operand");
+        assert!(
+            on_mouth,
+            "ring edge source {src:?} bounds the mouth in the operand"
+        );
     }
 }
