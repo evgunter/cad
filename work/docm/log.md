@@ -149,3 +149,10 @@ the lane resumes as the same arm. The three E-class units run as
 MECHANICAL units on Ev's "use your judgment" (in-chat): opus, no
 review lane, no row, merged on green CI plus the orchestrator's read —
 `docm/capend-ends`, `docm/spec2-slots`, `docm/revolve-pole-rule`.
+## revolve-pole-export-interior-on-axis-vertex MERGED (2026-09-04, PR 1839)
+
+Mechanical unit (opus, no review lane, no row; merged on green CI plus
+the orchestrator's read of the diff). The rule as filed held on the
+first run of both rows. One note for the WORK-TRACKS doc, which still
+lists the question as open; that doc is a dated proposal and is not
+edited.
