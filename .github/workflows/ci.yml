@@ -1784,6 +1784,105 @@ jobs:
       # already hosted the identically-named verdict step for the
       # doc-gate half of the same ruling. See the header there.
 
+  # THE FEATURE COMBINATION NOBODY BUILDS.
+  #
+  # Every other Rust row in this workflow compiles ONE feature selection:
+  # `clippy` runs default features, `lint-interval` runs `--features
+  # interval`, `python-suite` runs `-p pncad-py --features python`, `fmt`
+  # runs `-p viewer --features app`. Code behind any OTHER opt-in feature
+  # — `probe`, `budget`, and every conjunction of two — is therefore
+  # linted by NO row, and a warning in it accumulates unseen because no
+  # job it can red exists. Measured on this tree at the row's own first
+  # run: four `unused_imports` in `geom-brep`'s test binary, all four
+  # inside files whose whole contents sit under `#![cfg(feature =
+  # "probe")]`, invisible at default features and reported here.
+  #
+  # `k-lint (gate)` already COMPILES the probe-gated suites (`cargo test
+  # --features probe --all-targets --no-run`, one crate at a time). That
+  # is a compile, not a lint: it carries no `-D warnings`, so a warning
+  # passes it in silence, and its own row is one of five sampled feature
+  # unifications. This row is the lint.
+  #
+  # ITS OWN JOB, and not a second step in `clippy`, for three reasons that
+  # are each independently sufficient. `clippy` carries `lane !=
+  # 'interval'`, so half of all runs skip it entirely and a class about
+  # invisible feature combinations must not itself be sampled. `clippy`'s
+  # own header refuses `--all-features` there because it would mix two
+  # feature sets into one `rust-cache` entry — true, and a separate job
+  # gets its own entry. And `clippy` is scoped by the change filter
+  # (`cargo_scope`), which reintroduces exactly the accumulate-unseen
+  # shape one dimension over; this row is `--workspace` on every run it
+  # takes.
+  #
+  # WHAT IT COSTS, measured 2026-09-04 on a 4-vCPU / 15-GB box, from an
+  # EMPTY target directory, this tree: 113 s with `viewer` in the
+  # selection, 79 s with it out. It is off the critical path — nothing
+  # `needs:` it, and it runs beside `fmt` (5m03s on the code-tier run
+  # sampled for this measurement) and beside `build` + `test` — so its
+  # wall clock is in their shadow rather than added to the run.
+  #
+  # THE GUI TOOLKIT GRAPH IS THE SAME SEED-KEYED AXIS AS EVERYWHERE ELSE,
+  # and this row does not widen it. Ev's viewer-CI-posture ruling
+  # (docs/GUI-LOG.md, 2026-08-27) refuses "a permanent per-PR bill if
+  # every kernel change pays" the ~140-crate eframe/wgpu graph — derived
+  # against this tree as 152 crates that enter the workspace's
+  # `--all-features` dependency graph with `viewer` and leave it with
+  # `--exclude viewer`, and 34 s of the 113 above. A flat `--all-features`
+  # here would make every code-tier run pay that, which is the thing the
+  # ruling declined, so the axis decides it exactly as it decides the
+  # rustdoc pass's `--skip-viewer-toolkit` in `fmt`: in, when the seeds
+  # buy the toolkit; `--exclude viewer`, when they do not.
+  #
+  # WHAT THE EXCLUSION GIVES UP, stated rather than implied: on an
+  # axis-false run nothing lints `viewer` at `--all-features` (`app` +
+  # `interval` together). `viewer` at DEFAULT features is still linted by
+  # `clippy` on a default draw and by `lint-interval` on an interval one,
+  # both scoped; `viewer --features app` is the `fmt` job's row under this
+  # same axis, and nightly.yml re-takes that one ungated once a day. The
+  # `app` + `interval` conjunction is linted by no row on an axis-false
+  # run, and by this one when the axis is true.
+  #
+  # RECORDED, NEVER SILENT, per the ruling's own clause: the step prints
+  # which of the two selections it ran and the seeds it read, so a green
+  # job name never stands over a quietly narrowed one.
+  #
+  # ONE POINT, NOT THE POWERSET. `--all-features` is a single selection —
+  # every feature ON, together. A warning visible only under `probe`
+  # WITHOUT `interval`, or under any other proper subset, is outside this
+  # row and stays where it was: unlinted. Widening to the powerset is a
+  # different row with a different cost argument, and this one does not
+  # claim it.
+  clippy-all-features:
+    name: clippy (--all-features)
+    runs-on: ubuntu-latest
+    needs: filter
+    if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      # STRUCTURAL, as in every other compiling job here: hosted CI must
+      # not depend on local-only tooling. See the note in `clippy`.
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      # No `shared-key`: this job's feature unification is its own, so it
+      # keys on this job like `clippy` does, and does not touch the two
+      # build primers' keys (scripts/check-cache-prime-parity.py requires
+      # those to be used by no other job).
+      - uses: Swatinem/rust-cache@v2
+      - name: clippy (--all-features)
+        run: |
+          printf 'seeds: %s\n' '${{ needs.filter.outputs.seeds }}'
+          printf 'tier: %s\n' '${{ needs.filter.outputs.tier }}'
+          if [ '${{ needs.filter.outputs.run_viewer_toolkit }}' = 'true' ]; then
+            echo 'RUN: viewer is IN this selection — the seeds bought the eframe/wgpu graph.'
+            cargo clippy --workspace --all-targets --all-features -- -D warnings
+          else
+            echo 'SKIP: viewer is OUT of this selection — no seed in {viewer, pncad, bvh},'
+            echo '      so the eframe/wgpu graph is not compiled by this row on this run.'
+            echo '      Every other workspace member is linted at --all-features below.'
+            cargo clippy --workspace --exclude viewer --all-targets --all-features -- -D warnings
+          fi
+
   # ============================================================
   # CACHE PRIMING — the two jobs below are the ONLY compiling jobs on the
   # push side of the PUSH RUN line above, and they gate nothing. Read that
