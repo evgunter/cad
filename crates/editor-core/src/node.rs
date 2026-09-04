@@ -1848,6 +1848,33 @@ impl<P> Node<P> {
     /// single entry happens to collide with; liveness is NOT asked
     /// here at all, because it needs the document and the callers
     /// check it before they call.
+    ///
+    /// # What the rule covers, and why that is sound
+    ///
+    /// Both clauses read [`Node::inputs`], so they apply to EVERY node
+    /// kind — not only the union, the list-input kinds and the boolean.
+    /// That is wider than DM5's text, and deliberately:
+    ///
+    /// - The duplicate clause is sound everywhere because no node kind
+    ///   in this crate has a meaning for the same input twice. A
+    ///   boolean with `a == b` is a self-operation whose result is one
+    ///   of its own operands; a `Split` cutting a body by itself is the
+    ///   same; a `Mate` between a part and itself has no relative
+    ///   frame. The one kind that could plausibly want a repeat is
+    ///   [`Node::Measure`], and it does not: its edges come from the
+    ///   measurement's own node set, which DEDUPS before `inputs`
+    ///   returns, so a measurement over one body twice presents one
+    ///   edge here and is untouched by this rule.
+    /// - The floor clause only ever fires where [`Node::list_input`]
+    ///   answers `Some`, which is [`Node::Union`] and [`Node::Loft`].
+    ///   For the loft this is NEW — a one-section loft was accepted
+    ///   before this unit and is refused now, at the insert door and at
+    ///   the load door alike. A single section has nothing to loft
+    ///   between and the sweep refused it downstream anyway; the change
+    ///   is that it is refused where it is authored, naming the list,
+    ///   instead of at evaluation naming the sweep.
+    ///   (`a_one_section_loft_is_refused_at_the_insert_door` and its
+    ///   load-door twin pin both.)
     pub fn input_fault(&self) -> Option<InputFault>
     where
         P: crate::ProfilePayload,

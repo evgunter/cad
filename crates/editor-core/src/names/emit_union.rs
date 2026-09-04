@@ -1,41 +1,34 @@
 //! **The n-ary union's naming** ([`crate::Node::Union`]; DM4).
 //!
-//! The node's VALUE is a fold of the pair verb, and the fold's own
-//! tables are the pair emitter's: every step wraps the accumulated
-//! body's names in `FromA` and the joining member's in `FromB`, so
-//! after `n` steps a member's entity carries a descent chain whose
-//! LENGTH is the member's position in the list. That chain is exactly
-//! what a union must not record — it is why a pairwise chain renames
-//! every earlier member when one link is removed.
+//! A union's names record WHICH MEMBER an entity came from and not
+//! which fold step reached it. The fold's own tables are the pair
+//! emitter's, so a member's entity accumulates a `FromA`/`FromB`
+//! descent chain as long as its position in the list; that chain is
+//! what this module takes out, in two halves.
 //!
-//! Two halves take it out, and they are two because the fold's steps
-//! and the fold's result need different things.
+//! **Going in** ([`member_view`]): each member's table enters its fold
+//! step already wrapped in one [`RoleSeg::FromMember`] carrying that
+//! member's node id. Every operand of every step is therefore in the
+//! union's own name space, and every name the pair emitter embeds — a
+//! seam's two sides, a merge's constituents, a fragment's partners —
+//! already says which member it came from. It has to be put there: a
+//! pass-through op mints no name (N1), so N placements of one
+//! prototype carry N IDENTICAL tables and no inner name can tell them
+//! apart.
 //!
-//! **Going in** ([`member_view`]): each member's table is presented to
-//! its fold step ALREADY member-keyed — every row wrapped in one
-//! [`RoleSeg::FromMember`] carrying that member's node id. So every
-//! operand of every step is in the union's own name space, and every
-//! name the pair emitter embeds — a seam's two sides, a merge's
-//! constituents, a fragment's discriminator partners — is a name that
-//! already says which member it came from. Nothing downstream has to
-//! guess a member from an inner name, which is exactly what cannot be
-//! done: a pass-through op mints no name (N1), so N placements of one
-//! prototype carry N identical tables.
-//!
-//! **Coming out** ([`name_union`]): the fold's final table is rewritten
-//! once, collapsing each entity's `FromA`/`FromB` descent chain down to
-//! the `FromMember` at its foot — one wrapper, whatever the depth.
-//! `Seam`, `Merged` and `Fragment` keep the shapes the pair emitter
-//! minted them in, with the names they embed collapsed by the same
-//! rule.
+//! **Coming out** ([`name_union`], and [`collapse_name`] for the
+//! refusal paths): a fold-table name is rewritten by descending its
+//! `FromA`/`FromB` chain to the [`RoleSeg::FromMember`] at its foot —
+//! one wrapper, whatever the depth. `Seam`, `Merged` and `Fragment`
+//! keep the shapes the pair emitter minted, with the names they embed
+//! collapsed by the same rule.
 //!
 //! # How an intermediate row is told from a member's row
 //!
-//! By the head segment, and by the minting node under it. Every row of
-//! every fold step is emitted under the UNION's id, and a member-keyed
-//! row's head is `FromMember`: a `FromA`/`FromB` is therefore always
-//! another step's row and is descended through, and the descent stops
-//! at the first `FromMember` it reaches.
+//! By the HEAD segment alone. Every row of every fold step is minted
+//! under the union's id, so the id separates nothing; what separates
+//! them is that a member-keyed row's head is `FromMember` and an
+//! intermediate row's is `FromA`/`FromB`, which is descended through.
 
 use std::sync::Arc;
 
@@ -99,6 +92,23 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     Ok(Arc::new(t))
 }
 
+/// One fold-table name in the union's published space.
+///
+/// The same rewrite [`name_union`] applies to a whole table, exposed
+/// for the paths that carry a name out of a step that did NOT finish:
+/// a refusal raised at step `k` reads the ACCUMULATED table, whose
+/// rows are still `FromA`/`FromB`-headed, and a name in that shape is
+/// in the fold's internal space — no published table holds it and
+/// nothing can resolve it. Every name a union's refusal carries goes
+/// through here first, so what a caller is handed denotes in the space
+/// this node's own names live in.
+pub(crate) fn collapse_name(
+    node: RecipeNodeId,
+    name: &StableName,
+) -> Result<StableName, NamingError> {
+    collapse(node, name)
+}
+
 /// The emission bug this module can raise: a fold table carrying a
 /// segment the pair emitter does not mint.
 const FOREIGN: &str = "a union fold's table carries a segment the boolean emitter does not mint";
@@ -149,9 +159,25 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
         }
         // An F7 merged face: its constituents are result-face names in
         // the minting node's space (N3), so they stay in this union's
-        // space, each collapsed by this same rule. Re-sorted and
-        // deduplicated because collapsing may reorder them — the
-        // constituent SET is the name.
+        // space, each collapsed by this same rule.
+        //
+        // UNREACHABLE as the fold is built today, and stated so rather
+        // than left to look exercised: the pair emitter mints `Merged`
+        // only for a DECLARED contact's merge groups, and a union
+        // carries no declaration channel, so every step runs with
+        // `BooleanDeclarations::none()`. No row in this suite reaches
+        // this arm. The channel is a live design question
+        // (`work/docm/n-ary-union-has-no-declaration-channel`); the arm
+        // is written because the rule it states is the one every other
+        // embedded-name arm here states, so leaving it out would make
+        // the descent partial for a reason that is not a design one.
+        //
+        // The sort-and-dedup makes the constituent SET the name, the
+        // same choice the pair emitter's twin makes (`emit_topo.rs`,
+        // review R8): two merge groups collapsing to ONE constituent
+        // set collide LOUDLY at insert (`DuplicateName` → typed
+        // `NamingError`), never silently aliasing two faces onto one
+        // name.
         RoleSeg::Merged(constituents) => {
             let mut set = constituents
                 .iter()
@@ -161,7 +187,46 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
             set.dedup();
             vec![RoleSeg::Merged(set)]
         }
-        _ => return Err(bug(FOREIGN)),
+        // Everything else is a segment the boolean emitter does not
+        // mint, so a fold table carrying one is an emission bug. Named
+        // one by one rather than caught by a wildcard, so a new
+        // `RoleSeg` stops the compiler here and is decided, instead of
+        // silently joining this list.
+        RoleSeg::Fragment(_)
+        | RoleSeg::Cap(_)
+        | RoleSeg::Lateral(_)
+        | RoleSeg::RimEdge(_, _)
+        | RoleSeg::LateralEdge(_)
+        | RoleSeg::CapVertex(_, _)
+        | RoleSeg::Band(_)
+        | RoleSeg::BandRim(_)
+        | RoleSeg::BandRimPi(_)
+        | RoleSeg::BandPi(_)
+        | RoleSeg::Meridian(_, _)
+        | RoleSeg::MeridianVertex(_, _)
+        | RoleSeg::RevolveCap(_)
+        | RoleSeg::Pole(_)
+        | RoleSeg::AxisEdge(_)
+        | RoleSeg::SplitBody(_)
+        | RoleSeg::SectionFace { .. }
+        | RoleSeg::SectionEdge { .. }
+        | RoleSeg::SplitFragment { .. }
+        | RoleSeg::CrossingVertex { .. }
+        | RoleSeg::OnToolVertex { .. }
+        | RoleSeg::FromTarget(_)
+        | RoleSeg::BlendFace(_)
+        | RoleSeg::CornerFace(_)
+        | RoleSeg::TrimEdge { .. }
+        | RoleSeg::FootVertex { .. }
+        | RoleSeg::CornerArc { .. }
+        | RoleSeg::BandFace(_)
+        | RoleSeg::BandTrim { .. }
+        | RoleSeg::BandFoot(_)
+        | RoleSeg::BandCross(_)
+        | RoleSeg::BandCut(_)
+        | RoleSeg::BandSlit(_)
+        | RoleSeg::InPart { .. }
+        | RoleSeg::Instance { .. } => return Err(bug(FOREIGN)),
     };
     for seg in tail {
         path.push(match seg {
@@ -178,7 +243,49 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
                 RoleSeg::Fragment(Qualifier::SideOf(partners))
             }
             RoleSeg::Fragment(q @ Qualifier::OrderAlong { .. }) => RoleSeg::Fragment(q.clone()),
-            _ => return Err(bug(FOREIGN)),
+            // Only a `Fragment` follows a head segment in a boolean
+            // table; anything else in the tail is an emission bug.
+            // Spelled out for the same reason the head match is.
+            RoleSeg::OutputBody
+            | RoleSeg::FromA(_)
+            | RoleSeg::FromB(_)
+            | RoleSeg::FromMember { .. }
+            | RoleSeg::Seam { .. }
+            | RoleSeg::Merged(_)
+            | RoleSeg::Cap(_)
+            | RoleSeg::Lateral(_)
+            | RoleSeg::RimEdge(_, _)
+            | RoleSeg::LateralEdge(_)
+            | RoleSeg::CapVertex(_, _)
+            | RoleSeg::Band(_)
+            | RoleSeg::BandRim(_)
+            | RoleSeg::BandRimPi(_)
+            | RoleSeg::BandPi(_)
+            | RoleSeg::Meridian(_, _)
+            | RoleSeg::MeridianVertex(_, _)
+            | RoleSeg::RevolveCap(_)
+            | RoleSeg::Pole(_)
+            | RoleSeg::AxisEdge(_)
+            | RoleSeg::SplitBody(_)
+            | RoleSeg::SectionFace { .. }
+            | RoleSeg::SectionEdge { .. }
+            | RoleSeg::SplitFragment { .. }
+            | RoleSeg::CrossingVertex { .. }
+            | RoleSeg::OnToolVertex { .. }
+            | RoleSeg::FromTarget(_)
+            | RoleSeg::BlendFace(_)
+            | RoleSeg::CornerFace(_)
+            | RoleSeg::TrimEdge { .. }
+            | RoleSeg::FootVertex { .. }
+            | RoleSeg::CornerArc { .. }
+            | RoleSeg::BandFace(_)
+            | RoleSeg::BandTrim { .. }
+            | RoleSeg::BandFoot(_)
+            | RoleSeg::BandCross(_)
+            | RoleSeg::BandCut(_)
+            | RoleSeg::BandSlit(_)
+            | RoleSeg::InPart { .. }
+            | RoleSeg::Instance { .. } => return Err(bug(FOREIGN)),
         });
     }
     Ok(StableName {

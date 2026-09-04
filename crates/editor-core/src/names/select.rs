@@ -348,6 +348,14 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
 /// classified here or the compile breaks — or, if it embeds no name,
 /// added to [`crate::names::name_free_seg`], which is the one place
 /// that answer is written for this and its two sibling matches.
+///
+/// **Only NAMES.** [`RoleSeg::FromMember`] contributes its `of` and not
+/// its `member`, exactly as [`RoleSeg::Instance`] contributes its `of`
+/// and not its `i`: a bare [`crate::RecipeNodeId`] is not a name and a
+/// walk over names cannot see it. The consumers that need the member
+/// edge — the content key, the re-map, and `derivation_nodes` — reach
+/// it through [`crate::names::member_edge`], which is where "which
+/// segments carry a bare recipe-node id" is answered.
 fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
     match seg {
         RoleSeg::FromA(n)

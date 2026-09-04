@@ -44,7 +44,7 @@ pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{OperandCtx, name_boolean, name_split};
-pub(crate) use emit_union::{member_view, name_union};
+pub(crate) use emit_union::{collapse_name, member_view, name_union};
 pub use flush::{
     CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict, DeclareError, DeclaredContact,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, declare, declare_all, declare_node,

@@ -144,9 +144,10 @@ fn every_union_name_wraps_its_member_exactly_once() {
 
 /// **The fold is the chain's geometry.** One document carrying both a
 /// three-member `Node::Union` and the pairwise `Boolean(Union)` chain
-/// over the same three bodies: the two values agree face for face,
-/// edge for edge, on the bits of every description. Only the NAMES
-/// differ, which is the whole content of the change.
+/// over the same three bodies: the two values agree face for face and
+/// edge for edge in COUNT, and description for description on every
+/// surface, curve and point. Only the NAMES differ, which is the whole
+/// content of the change.
 #[test]
 fn the_fold_and_the_pairwise_chain_are_the_same_body() {
     let (doc, boxes, u) = three_boxes([0, 1, 2]);
@@ -177,15 +178,33 @@ fn the_fold_and_the_pairwise_chain_are_the_same_body() {
     );
     assert_eq!(folded.edges().count(), chained.edges().count());
     assert_eq!(folded.vertices().count(), chained.vertices().count());
-    let bits = |b: &topo::Body<f64>| {
-        let mut v: Vec<String> = b.surfaces().map(|(_, s)| format!("{s:?}")).collect();
+    // Surfaces, curves AND points: surfaces alone leave the fold free
+    // to differ in every edge and vertex the seams are made of, which
+    // is where a union's geometry actually lives. Curves and points
+    // adopted from `docm/3-review-r2`'s
+    // `r2_the_die_fold_and_chain_agree_on_curves_and_points`.
+    let sorted = |mut v: Vec<String>| {
         v.sort();
         v
     };
+    let surfaces =
+        |b: &topo::Body<f64>| sorted(b.surfaces().map(|(_, s)| format!("{s:?}")).collect());
+    let curves = |b: &topo::Body<f64>| sorted(b.curves().map(|(_, c)| format!("{c:?}")).collect());
+    let points = |b: &topo::Body<f64>| sorted(b.points().map(|(_, p)| format!("{p:?}")).collect());
     assert_eq!(
-        bits(&folded),
-        bits(&chained),
+        surfaces(&folded),
+        surfaces(&chained),
         "the fold's surfaces are not the chain's, description for description"
+    );
+    assert_eq!(
+        curves(&folded),
+        curves(&chained),
+        "the fold's curves are not the chain's, description for description"
+    );
+    assert_eq!(
+        points(&folded),
+        points(&chained),
+        "the fold's points are not the chain's, description for description"
     );
     // And the names are what moved: the chain's are two descents deep
     // for the first member, the fold's are one wrapper for every member.
@@ -695,9 +714,14 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
 ///
 /// Both are built in ONE document over the SAME 21 transforms and
 /// evaluated at one scalar, so nothing about the comparison depends on
-/// two runs agreeing. Face, edge and vertex counts agree and every
-/// surface description agrees bit for bit; only the NAMES differ,
-/// which is the whole content of the change.
+/// two runs agreeing. Face, edge and vertex COUNTS agree, and so does
+/// every description the body carries — surfaces, curves AND points,
+/// as multisets of their debug forms. Curves and points come from
+/// `docm/3-review-r2`'s `r2_the_die_fold_and_chain_agree_on_curves_and_points`:
+/// surfaces alone left the fold free to differ in every edge and vertex
+/// the seams are actually made of, which is where a union's geometry
+/// lives. Only the NAMES differ, which is the whole content of the
+/// change.
 #[test]
 fn the_dies_union_is_the_chain_it_replaced() {
     let die = crate::corpus::die_composed_tour::document();
@@ -736,15 +760,33 @@ fn the_dies_union_is_the_chain_it_replaced() {
     );
     assert_eq!(folded.edges().count(), chained.edges().count());
     assert_eq!(folded.vertices().count(), chained.vertices().count());
-    let bits = |b: &topo::Body<f64>| {
-        let mut v: Vec<String> = b.surfaces().map(|(_, s)| format!("{s:?}")).collect();
+    // Surfaces, curves AND points: surfaces alone leave the fold free
+    // to differ in every edge and vertex the seams are made of, which
+    // is where a union's geometry actually lives. Curves and points
+    // adopted from `docm/3-review-r2`'s
+    // `r2_the_die_fold_and_chain_agree_on_curves_and_points`.
+    let sorted = |mut v: Vec<String>| {
         v.sort();
         v
     };
+    let surfaces =
+        |b: &topo::Body<f64>| sorted(b.surfaces().map(|(_, s)| format!("{s:?}")).collect());
+    let curves = |b: &topo::Body<f64>| sorted(b.curves().map(|(_, c)| format!("{c:?}")).collect());
+    let points = |b: &topo::Body<f64>| sorted(b.points().map(|(_, p)| format!("{p:?}")).collect());
     assert_eq!(
-        bits(&folded),
-        bits(&chained),
+        surfaces(&folded),
+        surfaces(&chained),
         "the fold's surfaces are not the chain's, description for description"
+    );
+    assert_eq!(
+        curves(&folded),
+        curves(&chained),
+        "the fold's curves are not the chain's, description for description"
+    );
+    assert_eq!(
+        points(&folded),
+        points(&chained),
+        "the fold's points are not the chain's, description for description"
     );
     // And the names are what moved. The chain's LAST member is one
     // descent deep and its FIRST is twenty; every member of the fold is
@@ -810,5 +852,339 @@ fn a_union_is_one_body_at_an_operand_seat() {
             .count(),
         18,
         "three disjoint boxes fuse to eighteen faces"
+    );
+}
+
+// ---------------------------------------------------------------------
+// The refusal's name space. Adopted from `docm/3-review-r1`'s
+// `r1_refusal_from_a_later_fold_step_names_union_space_names`; R2's
+// `r2_a_refusal_at_a_later_fold_step_names_a_fold_row` measured the
+// same defect from the other side.
+// ---------------------------------------------------------------------
+
+/// A box on a frame at height `z0`, footprint `[x0,x1]×[y0,y1]`.
+fn boxed(
+    doc: ProfileDoc,
+    x: (f64, f64),
+    y: (f64, f64),
+    z0: f64,
+    h: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = on_frame(
+        doc,
+        [0.0, 0.0, z0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
+    );
+    insert(
+        doc,
+        Node::Extrude {
+            profile: p,
+            distance: len(h),
+        },
+    )
+}
+
+fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<String> {
+    match ev.nodes.get(&id) {
+        Some(editor_core::NodeResult::Failed(e)) => Some(format!("{:?}", e.kind)),
+        _ => None,
+    }
+}
+
+/// **A refusal raised at a LATER fold step names entities in the
+/// union's published space**, not in the fold's internal one.
+///
+/// `refusal_menu` resolves the raise site's face keys through the two
+/// operand tables. From step 2 on the `a` side is the ACCUMULATED
+/// table — the pair emitter's, `FromA`/`FromB`-headed — so an
+/// unfiltered refusal carries a name minted under the union's id that
+/// NO published table holds: `resolve` cannot look it up and a selector
+/// written against it matches nothing. Every name a union's refusal
+/// carries goes through the same collapse `name_union` applies, so what
+/// comes out is member-keyed.
+///
+/// The third member shares member 0's `x = 1` plane over a patch member
+/// 1 does not cover, so step 2 raises `UndeclaredCoincidence` — and the
+/// PAIR spelling of that same contact refuses identically, which is
+/// what says the fold added no refusal, only a name space.
+///
+/// A union carries no `declare` edge, so the recourse for a caller
+/// whose members touch is to spell that pair as a `Node::Boolean`
+/// union, where the `Declare` input lives; whether the n-ary node
+/// should have a declaration channel of its own is filed as
+/// `work/docm/n-ary-union-has-no-declaration-channel`.
+#[test]
+fn a_refusal_at_a_later_fold_step_names_member_space_entities() {
+    let doc = ProfileDoc::empty_derived("docm3_union_menu", Tol::witness());
+    let (doc, a) = boxed(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b) = boxed(doc, (0.5, 1.5), (0.2, 0.8), 0.2, 0.5);
+    let (doc, d) = boxed(doc, (1.0, 2.0), (0.0, 0.15), 0.0, 1.0);
+    let (doc, u) = insert(
+        doc,
+        Node::Union {
+            members: vec![a, b, d],
+        },
+    );
+    let (doc, pair) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a,
+            b: d,
+            declare: None,
+        },
+    );
+    let ev = run(&doc);
+    let pf = failure(&ev, pair).expect("the pair spelling refuses the undeclared contact");
+    assert!(pf.contains("UndeclaredContact"), "{pf}");
+    let uf = failure(&ev, u).expect("the fold refuses the undeclared contact at step 2");
+    assert!(
+        uf.contains("UndeclaredContact"),
+        "the fold's refusal is the pair's, not a new class: {uf}"
+    );
+    // The whole point: no fold row survives into the refusal.
+    assert!(
+        !uf.contains("FromA(") && !uf.contains("FromB("),
+        "the fold's refusal names an uncollapsed fold row: {uf}"
+    );
+    assert!(
+        uf.contains("FromMember"),
+        "the fold's refusal names member-space entities: {uf}"
+    );
+}
+
+// ---------------------------------------------------------------------
+// The list floor reaches `Loft`, at both doors. Measured by both
+// review branches (`r2_a_one_section_loft_at_the_insert_door`); the
+// widening is disclosed in the PR body's deviation list.
+// ---------------------------------------------------------------------
+
+/// Four stacked sections and a three-section loft over the first three.
+fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
+    let mut doc = ProfileDoc::empty_derived("docm3_union_loft", Tol::witness());
+    let mut profiles = Vec::new();
+    for (z, s) in [(0.0, 1.0), (1.0, 1.6), (2.0, 1.0), (3.0, 1.2)] {
+        let (d, id) = on_frame(
+            doc,
+            [0.0, 0.0, z],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![
+                (0.0, 0.0),
+                (2.0 * s, 0.0),
+                (2.0 * s, 1.0 * s),
+                (0.0, 1.0 * s),
+            ]],
+        );
+        doc = d;
+        profiles.push(id);
+    }
+    let (doc, loft) = insert(
+        doc,
+        Node::Loft {
+            profiles: profiles[..3].to_vec(),
+            v_degree: editor_core::Expr::count(2),
+        },
+    );
+    (doc, loft, profiles)
+}
+
+/// **A ONE-SECTION loft is refused at the insert door**, where before
+/// this unit it was accepted.
+///
+/// `input_fault`'s floor clause reads [`Node::list_input`], which
+/// answers for `Loft` as well as for `Union`, so DM4's two-entry floor
+/// reaches the loft too. This is a widening of what the door refuses
+/// and it is deliberate: a single section has nothing to loft between,
+/// the sweep refused it downstream anyway, and refusing it where it is
+/// AUTHORED names the list rather than naming the sweep.
+#[test]
+fn a_one_section_loft_is_refused_at_the_insert_door() {
+    let (doc, _, profiles) = loft_doc();
+    let err = doc
+        .apply(
+            &DocEdit::InsertNode {
+                node: Node::Loft {
+                    profiles: vec![profiles[0]],
+                    v_degree: editor_core::Expr::count(1),
+                },
+            },
+            Tol::witness(),
+        )
+        .expect_err("a one-section loft has no second section to loft to");
+    assert!(
+        matches!(err, EditError::TooFewMembers { found: 1, .. }),
+        "{err:?}"
+    );
+    // The floor answers BEFORE anything else the node might be wrong
+    // about, so the message names the list and not the sweep.
+    let said = format!("{err}");
+    assert!(
+        said.contains("a list input takes two or more entries"),
+        "the refusal forwards `InputFault`'s own sentence: {said}"
+    );
+}
+
+/// The LOAD-door twin: the same one-section loft in a SNAPSHOT.
+///
+/// `validate_document` is `input_fault`'s third caller, so a
+/// hand-written file carrying a one-section loft refuses rather than
+/// loading — the floor is not an edit-door courtesy that a file can
+/// walk around.
+#[test]
+fn a_snapshot_carrying_a_one_section_loft_does_not_load() {
+    let tol = Tol::witness();
+    let (doc, _, _) = loft_doc();
+    let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
+    let (head, rest) = text
+        .split_once("\"profiles\": [")
+        .expect("the loft's list is on the wire");
+    let (kept, tail) = rest.split_once(']').expect("the list closes");
+    let first = kept
+        .split(',')
+        .next()
+        .expect("the list has a first entry")
+        .trim()
+        .to_owned();
+    let tampered = format!("{head}\"profiles\": [{first}]{tail}");
+    let err = editor_core::persist::load(&tampered, tol)
+        .expect_err("a one-section loft must refuse at the load door");
+    let said = format!("{err}");
+    assert!(
+        said.contains("a list input takes two or more entries"),
+        "the load door forwards the same sentence the edit door does: {said}"
+    );
+}
+
+// ---------------------------------------------------------------------
+// `SetMembers`' remaining doors and the root-set contract.
+// ---------------------------------------------------------------------
+
+/// `SetMembers` naming a node the document does not hold refuses
+/// `UnknownNode` — the first question the edit asks, before it has a
+/// node to rewrite or a list to check.
+#[test]
+fn set_members_refuses_an_unknown_node() {
+    let (doc, boxes, _) = three_boxes([0, 1, 2]);
+    let err = doc
+        .apply(
+            &DocEdit::SetMembers {
+                node: RecipeNodeId(9999),
+                members: vec![boxes[0], boxes[1]],
+            },
+            Tol::witness(),
+        )
+        .expect_err("a node the document does not hold cannot be re-membered");
+    assert!(
+        matches!(err, EditError::UnknownNode { id } if id == RecipeNodeId(9999)),
+        "{err:?}"
+    );
+}
+
+/// **The read and the write are one answer.** `Node::list_input` says
+/// which kinds have a list and `set_list_input` writes it; a kind that
+/// one treats as list-free while the other writes is a list nothing can
+/// read back. Both matches are exhaustive with no wildcard, and this
+/// row holds them to the same answer over every node the CORPUS builds,
+/// through the public door — so a new kind that grows one and not the
+/// other is caught by a row and not only by review.
+///
+/// The door asks `list_input` first (`SetMembersOnNonList`), and asks
+/// the write's own answer again after rewriting; if the two matches
+/// ever disagreed, one of those two questions would answer differently
+/// from the other and this row would see it. Re-stating a node's OWN
+/// current list is the edit used, because it is the one list guaranteed
+/// live, acyclic and long enough for every list node in the corpus —
+/// so anything that refuses here refuses about the KIND.
+#[test]
+fn list_input_and_set_list_input_agree_on_every_node_kind() {
+    let tol = Tol::witness();
+    let mut seen: std::collections::BTreeSet<&'static str> = std::collections::BTreeSet::new();
+    for corpus in crate::corpus::documents() {
+        let doc = &corpus.doc;
+        for id in doc.order() {
+            let Some(node) = doc.node(*id) else { continue };
+            seen.insert(crate::corpus::node_kind(node));
+            let has_list = node.list_input().is_some();
+            let members = node.list_input().map(<[RecipeNodeId]>::to_vec);
+            let outcome = doc.apply(
+                &DocEdit::SetMembers {
+                    node: *id,
+                    members: members.unwrap_or_else(|| doc.order()[..2].to_vec()),
+                },
+                tol,
+            );
+            let non_list = matches!(outcome, Err(EditError::SetMembersOnNonList { .. }));
+            assert_eq!(
+                has_list,
+                !non_list,
+                "node {} ({}) reads as list_input={has_list} but the door answers \
+                 SetMembersOnNonList={non_list}",
+                id.0,
+                crate::corpus::node_kind(node)
+            );
+        }
+    }
+    // A row that walked no nodes would pass vacuously.
+    assert!(
+        seen.len() >= 15,
+        "the corpus offered only {} node kinds to hold the two matches to",
+        seen.len()
+    );
+}
+
+/// **`on_set_members`' ordering contract**, which the doc comment
+/// states and nothing measured: existing roots keep their ORDER, and
+/// nodes the rewrite orphaned join at the END in document order.
+///
+/// The edit moves the sink set in both directions at once — a member
+/// the new list dropped may have become a root, a member it added may
+/// have stopped being one — so the set is recomputed rather than
+/// spliced, and the recomputation has to be order-stable or a
+/// document's root list would shuffle under an unrelated edit.
+#[test]
+fn set_members_keeps_root_order_and_appends_orphans_last() {
+    let tol = Tol::witness();
+    // Two unions over four boxes, so the document has two roots; the
+    // second union is edited to drop a member, which orphans it.
+    let doc = ProfileDoc::empty_derived("docm3_union_roots", tol);
+    let (doc, a) = cube(doc, 0.0);
+    let (doc, b) = cube(doc, 2.0);
+    let (doc, c) = cube(doc, 4.0);
+    let (doc, d) = cube(doc, 6.0);
+    let (doc, first) = insert(
+        doc,
+        Node::Union {
+            members: vec![a, b],
+        },
+    );
+    let (doc, second) = insert(
+        doc,
+        Node::Union {
+            members: vec![c, d],
+        },
+    );
+    assert_eq!(
+        doc.roots(),
+        &[first, second],
+        "the two unions are the document's roots"
+    );
+    // Drop `d` from the second union and add nothing: `d` is orphaned.
+    let after = doc
+        .apply(
+            &DocEdit::SetMembers {
+                node: second,
+                members: vec![c, a],
+            },
+            tol,
+        )
+        .expect("re-membering the second union is a legal edit")
+        .doc;
+    assert_eq!(
+        after.roots(),
+        &[first, second, d],
+        "the existing roots keep their order and the orphan joins at the end"
     );
 }

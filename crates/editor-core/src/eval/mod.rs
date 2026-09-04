@@ -2486,9 +2486,7 @@ where
         // quoted above a published tag is never taken back — so the
         // unpublished one moves. This is that rule applied to itself.
         Node::Datum(Datum::AxisInPlane { .. }) => 30,
-        // DOCM-3. Tags APPEND — 31 is the next free number and an
-        // existing one is never reused. It does NOT share the pair
-        // union's 8: the two nodes carry different payloads (a list
+        // The n-ary union's tag. It does NOT share the pair union's 8: the two nodes carry different payloads (a list
         // against two named operands and a `declare` slot) and mint
         // different names, so a shared key would serve one's geometry
         // and table for the other out of the memo. The member list
@@ -3310,6 +3308,12 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             h.write_u64(u64::from(*of));
         }
     };
+    // SEG-TAG-SPACE BEGIN — the sentinel `seg_tag_space_is_injective`
+    // reads. Every segment tag lives INSIDE this match, written as a
+    // literal `write_tag(<number>)`; a tag written outside it is
+    // invisible to the census, so do not write one there. The nested
+    // closures above (qualifier, verdict, cap, meridian) have tag
+    // spaces of their OWN and are deliberately outside.
     match seg {
         RoleSeg::OutputBody => h.write_tag(1),
         RoleSeg::Cap(c) => {
@@ -3491,10 +3495,9 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             h.write_tag(39);
             feed_stable_name(h, n);
         }
-        // The n-ary union (DOCM-3). Appended past 40, the sequence's
-        // previous high-water mark: this space is append-only, and a
-        // segment sharing `FromA`'s 16 would key a member's face and a
-        // pair operand's face identically.
+        // The n-ary union's member key. It does not share `FromA`'s
+        // 16: that would key a member's face and a pair operand's face
+        // identically.
         // BOTH halves feed: two members of one union can be
         // placements of ONE prototype and then carry the same inner
         // name, so a key without the member edge would give their
@@ -3506,6 +3509,7 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
             feed_stable_name(h, of);
         }
     }
+    // SEG-TAG-SPACE END
 }
 
 #[cfg(test)]
@@ -3710,6 +3714,85 @@ mod verb_content_tag_tests {
                     .unwrap_or_default()
             );
             seen.push((tag, who));
+        }
+    }
+
+    /// **The SEGMENT tag space is injective too** — the same property
+    /// [`node_tag_space_is_injective`] holds for node tags, held for
+    /// [`feed_role_seg`]'s.
+    ///
+    /// It matters for the same reason and is a memo hazard of the same
+    /// class: two role segments sharing a tag make two different names
+    /// hash alike, and a content key that collides serves one node's
+    /// cached geometry for another's. `RoleSeg` is the enum this unit
+    /// grew (`FromMember`, tag 41) and it is the widest enum in the
+    /// crate, so the space had the most room to collide in and the
+    /// least to catch it with.
+    ///
+    /// A SOURCE census, for the reason the node one is: the tags live
+    /// in a match over `&RoleSeg`, and enumerating them by calling the
+    /// function would mean constructing one of every variant. The
+    /// sentinels bracket the match, every literal `write_tag(<number>)`
+    /// inside them is one segment tag, and nothing is hand-listed — a
+    /// tag added inside the sentinels is measured the moment it is
+    /// typed.
+    ///
+    /// What it cannot see, stated: a tag written outside the sentinels
+    /// (the sentinel comment says not to), and a tag whose arm computes
+    /// rather than names a number. Neither exists today. The nested
+    /// closures' tag spaces (qualifier, verdict, cap end, meridian end,
+    /// split half, rim support) are deliberately outside the region:
+    /// each is its own small space, keyed under a segment tag that this
+    /// census does hold unique.
+    #[test]
+    fn seg_tag_space_is_injective() {
+        const SOURCE: &str = include_str!("mod.rs");
+        let region = SOURCE
+            .split_once("SEG-TAG-SPACE BEGIN")
+            .expect("the segment match carries its opening sentinel")
+            .1
+            .split_once("SEG-TAG-SPACE END")
+            .expect("the segment match carries its closing sentinel")
+            .0;
+        // The same shared Rust reader the node census uses, so a tag
+        // number discussed in a comment or a string is not read as one.
+        let code_only = test_utils::source::code_and_literals(region);
+        let mut tags: Vec<(u8, usize)> = Vec::new();
+        for (n, code) in code_only.lines().enumerate() {
+            let Some(rest) = code.split_once("write_tag(") else {
+                continue;
+            };
+            let token: String = rest.1.chars().take_while(char::is_ascii_digit).collect();
+            if let Ok(tag) = token.parse::<u8>() {
+                tags.push((tag, n));
+            }
+        }
+        // A census that read nothing would pass vacuously. `RoleSeg`
+        // has 41 variants and every one writes a tag.
+        assert!(
+            tags.len() >= 41,
+            "the segment census found only {} tags — the sentinels or the scan have drifted from \
+             the match they are supposed to read",
+            tags.len()
+        );
+        // And the tag this unit added is in the region, which is what
+        // says the census is reading the match that grew.
+        assert!(
+            tags.iter().any(|(t, _)| *t == 41),
+            "`FromMember`'s tag 41 is not reachable from the segment match — the census is \
+             measuring the wrong region"
+        );
+        let mut seen: Vec<(u8, usize)> = Vec::new();
+        for (tag, line) in tags {
+            assert!(
+                !seen.iter().any(|(t, _)| *t == tag),
+                "segment tag {tag} is claimed twice: at region line {line} and at region line {}",
+                seen.iter()
+                    .find(|(t, _)| *t == tag)
+                    .map(|(_, l)| *l)
+                    .unwrap_or_default()
+            );
+            seen.push((tag, line));
         }
     }
 }

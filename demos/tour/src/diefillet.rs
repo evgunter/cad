@@ -279,23 +279,21 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
     );
 
     // ---- 21 placements, unioned into ONE cutting tool ----
-    // The group discipline used to be load-bearing: cutting the pips
-    // one at a time presented a body already carrying a TRIMMED sphere
-    // face as the next operand, which the extent scan refused. It is a
-    // CHOICE now — a trimmed sphere face is served through the sphere
-    // chart's own [azimuth] × [latitude] window, and the closed-group
-    // certificate is asked only where it is used — and the reason to
-    // keep it is the one below, which is about the recipe layer rather
-    // than the kernel.
-    //
     // The 21 placements are the MEMBERS of ONE `Node::Union`, which is
-    // how the recipe layer says "these bodies, fused". Under the twenty
-    // pairwise unions this used to be, a pip's rim name recorded the
-    // DEPTH at which it joined, so dropping one link renamed every pip
-    // that joined before it and the rim fillet's frozen selection
-    // failed typed for each of them. A union names each pip by its own
-    // member edge, so the twenty other rims survive a pip's removal —
-    // which is the acceptance row this scene exists to carry.
+    // how the recipe layer says "these bodies, fused". A union names
+    // each pip by its own member EDGE, so a pip's rim name records
+    // nothing about the other twenty and dropping one pip leaves their
+    // names — and the rim fillet's frozen selection — standing. That
+    // is the acceptance row this scene exists to carry
+    // (`docm3_union::removing_any_pip_leaves_both_die_fillets_resolving`).
+    //
+    // Fusing them as a group is also what keeps the cut off the extent
+    // scan's refusal path: cutting the pips one at a time presents a
+    // body already carrying a TRIMMED sphere face as the next operand.
+    // That is a CHOICE rather than a requirement — a trimmed sphere
+    // face is served through the sphere chart's own [azimuth] ×
+    // [latitude] window, and the closed-group certificate is asked only
+    // where it is used.
     let members: Vec<RecipeNodeId> = placements()
         .into_iter()
         .map(|p| {
@@ -548,12 +546,8 @@ pub fn corpus_text(tol: Tol) -> String {
 /// is maintained by `roots::on_delete` rather than asserted here, and
 /// the remaining document is exactly the recipe that builds the die:
 /// 32 nodes, one root, 89 faces, V = 0.952915, no separation finding.
-/// (Thirty-two and not the forty-nine it was: the twenty pairwise
-/// unions that used to chain the pips are ONE `Node::Union` now. The
-/// geometry is untouched — the face count and the volume are the same
-/// numbers — which is asserted rather than asserted-here, by
-/// `editor_core`'s `docm3_union::the_dies_union_is_the_chain_it_
-/// replaced`.)
+/// The 21 pips are the members of ONE `Node::Union`, so the node count
+/// is the pips, the blank and the two blends — not a chain length.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let die = build(tol);
     apply(&die.doc, &DocEdit::DeleteNode { id: die.blank }, tol)

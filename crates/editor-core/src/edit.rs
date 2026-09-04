@@ -789,11 +789,15 @@ impl core::fmt::Display for EditError {
                     at.0
                 )
             }
+            // Forwarded, not restated: `InputFault` owns this
+            // vocabulary and `node.rs` promises every door that renders
+            // it forwards. The door adds only its own frame — which
+            // edit, and which node the fault is about.
             Self::DuplicateInput { node, input } => write!(
                 f,
-                "edit: node {} would take node {} as an input twice — a node's inputs are \
-                 pairwise distinct",
-                node.0, input.0
+                "edit: node {} would be left invalid — {}",
+                node.0,
+                crate::node::InputFault::Duplicate { input: *input }
             ),
             Self::SetMembersOnNonList { node } => write!(
                 f,
@@ -802,9 +806,9 @@ impl core::fmt::Display for EditError {
             ),
             Self::TooFewMembers { node, found } => write!(
                 f,
-                "edit: node {} would be left with {found} member(s) — a list input takes two \
-                 or more",
-                node.0
+                "edit: node {} would be left invalid — {}",
+                node.0,
+                crate::node::InputFault::TooFew { found: *found }
             ),
             Self::DeleteWouldDangle { id, referenced_by } => write!(
                 f,

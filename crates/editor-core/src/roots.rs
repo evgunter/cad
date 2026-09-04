@@ -199,7 +199,7 @@ pub(crate) fn on_set_members<P: crate::ProfilePayload>(doc: &mut Doc<P>) {
         .order
         .iter()
         .copied()
-        .filter(|x| !doc.nodes.values().any(|n| n.inputs().contains(x)))
+        .filter(|x| is_sink(doc, *x))
         .collect();
     let mut kept: Vec<RecipeNodeId> = doc
         .roots
@@ -231,7 +231,23 @@ pub(crate) fn on_delete<P: crate::ProfilePayload>(
         .iter()
         .copied()
         .filter(|x| inputs.contains(x))
-        .filter(|x| !doc.nodes.values().any(|n| n.inputs().contains(x)))
+        .filter(|x| is_sink(doc, *x))
         .collect();
     doc.roots.splice(at..=at, orphans);
+}
+
+/// **Is this node a sink** — is it an input to nothing live?
+///
+/// One home for the predicate both maintainers above ask, so "what
+/// makes a node a root" is answered in one place: D-2's coverage plus
+/// ancestor-freedom make the root set exactly the sink set, and a
+/// maintainer that computed sink-hood its own way could drift from
+/// that identity without anything noticing.
+///
+/// Linear in the document per call, so the recomputing maintainer is
+/// quadratic in node count. Fine at the sizes this kernel authors
+/// (the die, its largest document, is 32 nodes); an incremental
+/// consumer index is the fix if it ever is not.
+fn is_sink<P: crate::ProfilePayload>(doc: &Doc<P>, id: RecipeNodeId) -> bool {
+    !doc.nodes.values().any(|n| n.inputs().contains(&id))
 }
