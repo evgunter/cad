@@ -47,25 +47,29 @@ it is the precondition for any of the sampled rows to mean anything.
 Whether the build tier should be exempt from the draw is a CI
 question, not this issue's, but it is the question this issue raises.
 
-## The repair taken, and by whom
+## The repair — landed twice, identically, independently
 
-Repaired in PR 1763 (FILLET-E3) because that PR could not otherwise
-report a green run, and no other PR was on it. One line:
-`MateFault::Unleverable { mate, .. }` joins the `vec![*mate]` group.
+FILLET-E3 (PR 1763) wrote the arm because its head asks for
+`lane=interval` and it could not otherwise report a green run.
+Independently and within the same hour, `main` landed the **identical
+arm** — `| MateFault::Unleverable { mate, .. } => vec![*mate]` — which
+showed up as a merge conflict against E3's copy. E3 took main's
+version; the file is now byte-identical to main's and no FILLET
+change survives in it.
 
-The decision that group membership represents is **forced by the
-variant's own shape**, which is why a FILLET unit was willing to make
-it: `Unleverable`'s first field is documented "The mate.", it names
-exactly one, and it is the mate whose datum is too small to lever the
-verdict — structurally identical to `ClassNotAdmitted`, `SelfMate` and
-the six others already in that group. The only arm that decides
-otherwise is `Band`, which names no mate at all, and `Contradictory`,
-which names two.
+That the two were written the same way without contact is the useful
+evidence here: the decision the exhaustive match demands is **forced by
+the variant's shape**. `Unleverable`'s first field is documented "The
+mate.", it names exactly one, and it is the mate whose datum is too
+small to lever the verdict — structurally identical to
+`ClassNotAdmitted`, `SelfMate` and the six others in that group. The
+only arms deciding otherwise are `Band` (names no mate) and
+`Contradictory` (names two).
 
-**What VIEW should check**: that this is the reading it wants, and
-that the `Failed`/downstream drawing it produces for an unleverable
-mate is right in the tree UI. If it is, this issue closes as
-confirmed; if not, the arm moves and the fix is VIEW's.
+So the code half of this issue is CLOSED on arrival. What remains open
+is the process half below, which the duplicate work also demonstrates:
+two agents spent effort on one line because a red `main` was invisible
+until each independently drew the lane that builds it.
 
 ## The other half, unfixed
 

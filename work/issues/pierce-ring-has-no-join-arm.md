@@ -79,3 +79,6 @@ pose, and the run/chord pairing is the first thing to read there.
 ## Home
 
 `work/verbs/` — the missing lane is the germ-arm/pierce ground VERBS' charter claims (Wave 2's curved boolean breadth), and S-BOOL's keep_out cedes the germ arms to VERBS explicitly.
+
+**VERBS closed** (exit walk ratified, PR #1793); re-homed to
+`work/issues/` awaiting an owner.

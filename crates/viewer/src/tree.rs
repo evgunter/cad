@@ -322,12 +322,6 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::Under { mate, .. }
         | MateFault::DanglingHead { mate, .. }
         | MateFault::SelfMate { mate, .. }
-        // `Unleverable` names one mate, whose own datum is the one too
-        // small to lever the verdict — the same shape as every arm
-        // above it. Added to un-red `main`, which grew the variant in
-        // 77f504727 without this arm and has not compiled at
-        // `--workspace --features interval` since; see
-        // `work/view/blamed-mates-lost-its-exhaustive-arm.md`.
         | MateFault::Unleverable { mate, .. } => vec![*mate],
         MateFault::Band { .. } => Vec::new(),
         // A contradiction is a claim about a PAIR of mates: neither is

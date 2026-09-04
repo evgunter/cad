@@ -2,9 +2,10 @@
 id: parameter-row-field-has-no-text-door
 kind: issue
 title: A parameter row's value field is a bare DragValue — no parser, no unit authoring, no no-op guard
-status: open
+status: parked
 opened: 2026-09-04
 refs: [1776]
+blocked_on: [viewer-session-god-module-split, doc-param-unit-edit-has-no-door]
 ---
 
 

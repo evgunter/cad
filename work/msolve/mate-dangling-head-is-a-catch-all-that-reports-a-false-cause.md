@@ -9,9 +9,11 @@ opened: 2026-09-04
 
 Measured by FIX's `unit-admits-non-finite-direction-norm` lane
 (PR 1738) at its fix pass, after that unit's style review flagged the
-symptom. Filed by the FIX orchestrator, homed here rather than in
-`work/mate/` so S-MATE claims it by header edit; the fix reverses an
-S-MATE design decision and is theirs to rule on, not FIX's to land.
+symptom. Filed by the FIX orchestrator, homed here rather than on a
+program's slate. **Claimant corrected 2026-09-04:** routed at S-MATE,
+which has since CLOSED; `crates/editor-core/src/mate*` is now DOCM's
+territory glob. The fix reverses a documented design decision and is
+the owner's to rule on, not FIX's to land.
 
 ## The decision as written
 
@@ -98,6 +100,5 @@ a mitigation, and nothing here is silently wrong.
 
 ## Home
 
-`work/issues/` — S-MATE is the claimant (`crates/editor-core/src/mate/*`
-is its territory glob and the refusal vocabulary is its charter
-ground). Re-home by header edit.
+`work/msolve/` — S-MATE's successor, opened 2026-09-04 for exactly this
+residue.

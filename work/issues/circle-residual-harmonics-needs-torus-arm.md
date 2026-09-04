@@ -23,3 +23,6 @@ Filed at MATE-7a's adjudication (PR #1477) as the scheduled home for its disclos
 ## Home
 
 `work/verbs/` — the issue routes itself to VERBS explicitly; `geom-brep`'s certified enclosure family is VERBS' germ ground and the GERMARMS spec's item 4 (deleted at merge, recoverable per `docs/DOC-LEDGER.md`) maps the adjacent territory.
+
+**VERBS closed** (exit walk ratified, PR #1793); re-homed to
+`work/issues/` awaiting an owner.
