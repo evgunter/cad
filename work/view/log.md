@@ -108,3 +108,35 @@ are already served. Parked; the blocker is recorded in the item's
 header once unit 1 has said where a tool states what it wants, since
 `ToolKind::pick_kinds` is one of the hand-maintained lists over the
 tool set that unit 1's charter collapses.
+
+## DI1's build is parked on a door DOCM owns, and item 5 was half misfiled (2026-09-04)
+
+Two corrections from reading `docs/DOCM-IDENTITY-DESIGN.md` against the
+tree, both landing before any dispatch rather than at one.
+
+**The plan's item 5 named two builds and only one is ours.** It read
+"the viewer builds of DOCM's layer-3 identity rule and free-move
+answer, when ruled". Both are now ruled, and DI5 assigns the free-move
+build to CHROME by name (`no-persistent-setplacement-session-op`),
+where it sits parked behind this program's unit 1. Only DI1 is VIEW's.
+The plan says so now; nothing was dispatched against the wrong half.
+
+**DI1's mechanism has no layer-3 door.** DI1 defines the hold as an id
+plus its minting entry, computed "by walking up until the counter drops
+below the id (`History::entry`, `Doc::next_id`)". `History::entry` is
+public; `Doc::next_id` is `pub(crate)` with no accessor
+(`crates/editor-core/src/doc.rs:315`), so the comparison the walk is
+defined by cannot be written from the viewer, and G1 makes reaching
+past the public surface a discipline rather than a preference. Filed as
+`next-id-has-no-layer3-door` and the DI1 build parked on it. The door
+is editor-core's and therefore DOCM's; the shape is theirs to pick
+(a `next_id` accessor, or the narrower predicate that answers *could
+this document have minted this id* without exposing the counter), and
+this program takes no position beyond naming the need. Announce owed to
+DOCM on the away channel.
+
+**DI1 also widens the sweep** past the three holders the item's
+original text named: it adds the revolve and combining seats,
+`BlendTarget::node`, and every held `StableName`, since a name embeds
+its minting node. Recorded on the item, because the sweep obligation is
+the part of that unit most likely to be read off the stale list.

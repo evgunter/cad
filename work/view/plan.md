@@ -46,8 +46,14 @@ concurrency unit.
 4. `focus-marking-is-per-node-not-per-segment` — the authored-step to
    canonical-segment map door beside the lowering (announce to
    S-BOOL), a focused-slot state, `pick::focus` narrowed through it.
-5. The viewer builds of DOCM's layer-3 identity rule and free-move
-   answer, when ruled.
+5. `layer3-recipenodeid-aliases-across-rewinds` — DI1's build, now
+   ruled: a hold carries its id plus its minting entry, descent is
+   checked before liveness, and tools clear on history replacement.
+   **Parked** on `next-id-has-no-layer3-door`: DI1's walk reads
+   `Doc::next_id`, which is `pub(crate)`, and the door is DOCM's.
+   The free-move half of this row was never this program's — DI5
+   hands that build to CHROME (`no-persistent-setplacement-session-op`),
+   and it is parked there behind unit 1.
 6. `pick-index-built-on-ui-thread`, in three:
    **6a** the GUI-3 §5 seam revision — an `[ev]` PR extending the
    frame-state inventory and stating the staleness rule, no code;
