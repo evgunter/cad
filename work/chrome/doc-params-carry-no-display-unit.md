@@ -23,3 +23,13 @@ The shape is the same one slots already have: a stored display unit beside `DocP
 ## Home
 
 `work/issues/` — the GQ5 units layer and the viewer property panel are GUI-era ground and GUI is closed; no open program's territory covers `crates/viewer/src/props.rs`.
+
+## Rider found by the probe-bounds unit (CHROME, 2026-09-04)
+
+`crates/viewer/src/app.rs:4646` renders a parameter's probe RESULT in
+the canonical unit, citing this same asymmetry. That sentence is still
+literally true of its own site, but PR 1746 made the probe SEARCH a
+parameter in its written unit, so the readout now says metres about a
+range found in millimetres. It is one line inside this item's
+territory and collides with it, so it is recorded here rather than
+fixed there.
