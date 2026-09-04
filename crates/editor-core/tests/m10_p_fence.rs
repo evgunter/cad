@@ -220,6 +220,17 @@
 //!   back GREEN against them. `lib_g16_corpus_name_digests` agrees
 //!   the finer way — every pre-existing per-document row unchanged.
 //!
+//! - DOCM-1 added `face_sketch`, the first document drawing on a
+//!   frame DERIVED from a face (`Datum::FaceFrame`), so the derived
+//!   frame's placement-at-the-lane path (DM1c) is walked by the
+//!   corpus rows. Removing it alone returned `f64`/`probe`
+//!   `612fd4698aed100f, b11573030542bef3` and `interval`
+//!   `da980271d61512d8, c35c2a2b2d3f791c` — the committed constants of
+//!   the tree it landed on, and both rows came back GREEN against
+//!   them (the probe row is `f64` bitwise and takes the `f64` pair).
+//!   `lib_g16_corpus_name_digests` agrees the finer way — every
+//!   pre-existing per-document row unchanged, one row added.
+//!
 //! The M10-2, SEAT-5 and LIB-TUBE measurements are the strongest of
 //! the five, for a reason worth stating: in each, the roster minus the
 //! addition IS the prior tree's roster, so the expected values were
@@ -556,7 +567,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x612f_d469_8aed_100f, 0xb115_7303_0542_bef3),
+        (0xbb3a_475c_a0b3_6446, 0xfc64_4067_666b_cae2),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -583,7 +594,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xda98_0271_d615_12d8, 0xc35c_2a2b_2d3f_791c),
+        (0x9cf2_c415_5fe4_c9f5, 0xf6e7_d5dd_7962_8ab1),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -607,7 +618,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x612f_d469_8aed_100f, 0xb115_7303_0542_bef3),
+        (0xbb3a_475c_a0b3_6446, 0xfc64_4067_666b_cae2),
         "the corpus's Probe evaluation moved"
     );
 }

@@ -98,6 +98,8 @@ mod cert3r1_dump;
 mod display_contract;
 #[path = "docm1_face_frame.rs"]
 mod docm1_face_frame;
+#[path = "docm1_face_frame_interval.rs"]
+mod docm1_face_frame_interval;
 #[path = "docm3_union.rs"]
 mod docm3_union;
 #[path = "docm4_evaluation_identity.rs"]

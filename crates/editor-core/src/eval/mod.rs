@@ -821,6 +821,56 @@ pub enum NodeErrorKind {
         /// Which blend the refusing node is.
         verb: sweep::blend::BlendKind,
     },
+    /// A derived frame's face name failed to resolve through its
+    /// body's name table — [`NodeErrorKind::BlendSelectionResolve`]'s
+    /// twin, through the same N5 ladder, for the same reason: the
+    /// name is a commitment, so a face that stops answering fails the
+    /// frame typed and poisons the sketch above it rather than
+    /// re-anchoring it silently. The repair is `Rebind`.
+    FaceFrameResolve {
+        /// The resolution failure (N5's closed trio).
+        error: Box<crate::resolve::ResolveError>,
+    },
+    /// A derived frame's name denotes something that is not a FACE
+    /// (an edge, a vertex, the body) — a recipe bug, refused rather
+    /// than reinterpreted.
+    FaceFrameKind {
+        /// The offending name.
+        name: Box<crate::names::StableName>,
+        /// What it actually denotes.
+        found: crate::names::EntityKind,
+    },
+    /// A derived frame's face is not planar (DM1b): a sketch frame
+    /// needs a plane, and the carrier found is named so a headless
+    /// author gets the same answer the chrome pre-empts. A tag read,
+    /// not a predicate — the carrier's own kind, copied out.
+    FaceFrameNotPlanar {
+        /// The carrier kind the face actually has.
+        carrier: geom_brep::SurfaceKind,
+    },
+    /// A derived frame's face resolved to a key its own body could not
+    /// read back — an evaluation-internal inconsistency between the
+    /// emitted table and the body, surfaced typed rather than guessed
+    /// around.
+    FaceFrameReadback {
+        /// The kernel-side refusal, unaltered.
+        error: topo::readback::ReadbackError,
+    },
+    /// A loft's or a sweep's SECTION is drawn on a derived frame
+    /// ([`crate::Datum::FaceFrame`]) and this evaluation's scalar is
+    /// not `f64` (DM1c). A section's geometry stays `f64` in every lane
+    /// (the skinned surface's structure must be lane-identical), and a
+    /// derived frame has no `f64` elaboration off the `f64` lane — its
+    /// placement is the lane's own value — so the section refuses,
+    /// naming the profile and the frame, rather than placing itself
+    /// on a fabricated point of the frame's bracket.
+    /// [`NodeErrorKind::SeedPinnedSection`]'s shape.
+    DerivedFrameSection {
+        /// The section profile node.
+        profile: RecipeNodeId,
+        /// The derived frame it is drawn on.
+        frame: RecipeNodeId,
+    },
     /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
     /// M4 PR 4 pins the document semantics — a per-node failure
     /// poisoning descendants only, GQ2/W5). NEVER constructed before
@@ -1252,6 +1302,37 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "the {verb} selection is empty — an unfinished recipe, not the identity"
             ),
+            Self::FaceFrameResolve { error } => {
+                write!(
+                    f,
+                    "the derived frame's face name failed to resolve: {error}"
+                )
+            }
+            Self::FaceFrameKind { name, found } => write!(
+                f,
+                "the derived frame's name minted by node {} denotes {} {}, not a face",
+                name.node.0,
+                found.article(),
+                found.noun()
+            ),
+            Self::FaceFrameNotPlanar { carrier } => write!(
+                f,
+                "the derived frame's face lies on a {} carrier, not a plane — a sketch frame \
+                 needs a planar face",
+                carrier.name()
+            ),
+            Self::FaceFrameReadback { error } => write!(
+                f,
+                "the derived frame's face resolved to a key its body could not read back: {error}"
+            ),
+            Self::DerivedFrameSection { profile, frame } => write!(
+                f,
+                "section profile node {} is drawn on derived frame node {}, and a loft's or a \
+                 sweep's section stays f64 in every lane — a derived frame is placed at the \
+                 lane's own scalar, so this node refuses off the f64 lane rather than place \
+                 the section on a fabricated point of the frame's bracket",
+                profile.0, frame.0
+            ),
             Self::MeasureRefResolve { error } => {
                 write!(f, "a measure reference failed to resolve: {error}")
             }
@@ -1375,6 +1456,7 @@ pub trait EvalScalar:
     + crate::analysis::AxisScalar
     + crate::analysis::SeedScalar
     + crate::measure::MinClearanceLane
+    + SectionScalar
 {
 }
 
@@ -1388,6 +1470,7 @@ impl<T> EvalScalar for T where
         + crate::analysis::AxisScalar
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
+        + SectionScalar
 {
 }
 
@@ -1687,6 +1770,64 @@ pub enum ProfileLift {
     /// A decision this scalar cannot confirm refuses the node typed
     /// rather than quietly keeping the nominal structure.
     Guided,
+}
+
+/// **Which scalars carry a section's placement** — the lane door DM1c
+/// turns on: a loft's or a sweep's section keeps `f64` geometry, and a
+/// section drawn on a derived frame takes its placement from the
+/// frame's landed value, which is exact `f64` only where the
+/// evaluation scalar IS `f64`.
+///
+/// Per-scalar like [`crate::analysis::AxisScalar`], and for the same
+/// reason: which lane an evaluation runs in is a fact about the type,
+/// so the type answers it. `f64` hands its value across; `Probe` is
+/// `f64` wearing a counter and does the same; every analysis scalar
+/// (`Interval`, `Dual`, `Sym`) answers `None`, because a bracket or a
+/// tangent has no single `f64` that is not a fabricated choice. No
+/// number is inspected: the answer is decided by the impl, never by a
+/// comparison.
+pub trait SectionScalar: geom_core::Real {
+    /// The value as exact `f64` where this scalar is the `f64` lane;
+    /// `None` on every analysis scalar.
+    fn pinned_f64(self) -> Option<f64>;
+}
+
+impl SectionScalar for f64 {
+    fn pinned_f64(self) -> Option<f64> {
+        Some(self)
+    }
+}
+
+#[cfg(feature = "probe")]
+impl SectionScalar for geom_core::Probe {
+    fn pinned_f64(self) -> Option<f64> {
+        Some(self.0)
+    }
+}
+
+#[cfg(feature = "interval")]
+impl SectionScalar for geom_core::Interval {
+    fn pinned_f64(self) -> Option<f64> {
+        None
+    }
+}
+
+impl<T: SectionScalar> SectionScalar for geom_core::Sym<T>
+where
+    geom_core::Sym<T>: geom_core::Real,
+{
+    fn pinned_f64(self) -> Option<f64> {
+        None
+    }
+}
+
+impl<T: geom_core::Real> SectionScalar for geom_core::Dual<T>
+where
+    geom_core::Dual<T>: geom_core::Real,
+{
+    fn pinned_f64(self) -> Option<f64> {
+        None
+    }
 }
 
 impl Default for EvalOptions {
@@ -2207,12 +2348,34 @@ where
         _ => None,
     };
 
+    // DM1c: a profile on a DERIVED frame is placed at the lane scalar
+    // under every lift, so its placement is T-valued frame data the
+    // key must state — PP5's rule, the same channel the lane program
+    // feeds through. An authored frame's placement is `f64` from the
+    // document and is already carried by the frame's own upstream
+    // key; a derived frame's key carries the face and the body, and
+    // the placement is READ off the body's value at T, which is what
+    // this feed pins so a widened or seeded frame cannot alias the
+    // nominal memo entry.
+    let derived_plane = match node {
+        crate::node::Node::Profile(program) => match wire::frame_kind(doc, program.plane) {
+            Ok(wire::FrameKind::Derived) => match wire::frame_plane_lane(results, program.plane) {
+                Ok(plane) => Some(plane),
+                Err(kind) => return fail(kind),
+            },
+            Ok(wire::FrameKind::Authored) => None,
+            Err(kind) => return fail(kind),
+        },
+        _ => None,
+    };
+
     let content_key = content_key(
         node,
         &slot_values,
         payload_values.as_deref(),
         resolved_program.as_deref(),
         lane_program.as_deref(),
+        derived_plane.as_ref(),
         &upstream_keys,
         doc.witness(id),
         op_env.poses.placement(doc, id).ok(),
@@ -2340,6 +2503,7 @@ fn content_key<T>(
     payload_values: Option<&[T]>,
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     lane_program: Option<&[Vec<profile::Step<T>>]>,
+    derived_plane: Option<&profile::SketchPlane<T>>,
     upstream_keys: &[ContentKey],
     witness: Option<&crate::witness::WitnessDatum>,
     placement: Option<crate::placement::Frame>,
@@ -2494,6 +2658,12 @@ where
         // the inputs' own keys carry them in list order below, which
         // is the rule `Loft`'s profiles already run on.
         Node::Union { .. } => 31,
+        // The derived sketch frame. It does NOT share the authored
+        // frame's 27 even though it evaluates to the same value kind:
+        // the two carry different payloads (a body edge, a face name
+        // and one spin slot against nine slots), and a shared tag
+        // would let a memo entry for one serve the other's geometry.
+        Node::Datum(Datum::FaceFrame { .. }) => 32,
     };
     // NODE-TAG-SPACE END
     h.write_tag(tag);
@@ -2554,6 +2724,19 @@ where
                     for step in steps {
                         feed_lane_step(&mut h, step);
                     }
+                }
+            }
+            // A derived frame's placement, at T, through the same
+            // channel: tag 42 opens it, so a profile on an authored
+            // frame keys exactly as it always has, and a profile on a
+            // derived frame cannot alias one.
+            if let Some(plane) = derived_plane {
+                h.write_tag(42);
+                let a = &plane.placement;
+                for v in [a.linear.c0, a.linear.c1, a.linear.c2, a.translation] {
+                    v.x.feed(&mut h);
+                    v.y.feed(&mut h);
+                    v.z.feed(&mut h);
                 }
             }
         }
@@ -2712,10 +2895,24 @@ where
                 crate::node::TubeWindow::Arc { .. } => 1,
             });
         }
+        // The derived frame's FACE is recipe payload, hashed the way a
+        // blend's selection is: two frames on two faces of one body
+        // share a tag, an upstream key and (possibly) a spin, and
+        // differ in exactly this name. `at` is an input edge and is
+        // carried by the upstream keys.
+        Node::Datum(Datum::FaceFrame { face, .. }) => feed_stable_name(&mut h, face),
         // Fully expressed by tag plus slots: their whole recipe payload
         // is either an input edge (excluded from the key by design — the
         // inputs' own keys carry it) or a slot expression, fed below.
-        Node::Datum(_)
+        // The datum variants are listed, not wildcarded, so a datum
+        // that grows a payload outside its slots has to answer here.
+        Node::Datum(
+            Datum::Plane { .. }
+            | Datum::Axis { .. }
+            | Datum::Point { .. }
+            | Datum::Frame { .. }
+            | Datum::AxisInPlane { .. },
+        )
         | Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Loft { .. }

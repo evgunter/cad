@@ -66,7 +66,13 @@ pub fn admits(held: Option<&Node<ProfileProgram>>, wanted: NodeKindWanted) -> bo
             matches!(held, Some(Node::Datum(Datum::AxisInPlane { .. })))
         }
         NodeKindWanted::Plane => matches!(held, Some(Node::Datum(Datum::Plane { .. }))),
-        NodeKindWanted::Frame => matches!(held, Some(Node::Datum(Datum::Frame { .. }))),
+        // Both frame kinds: a profile is drawn on a frame VALUE, and a
+        // derived frame evaluates to the same value an authored one
+        // does.
+        NodeKindWanted::Frame => matches!(
+            held,
+            Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
+        ),
         NodeKindWanted::Body => held.is_some_and(combine::denotes_body),
     }
 }

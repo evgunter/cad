@@ -481,7 +481,12 @@ pub fn frame_placement(
     evaluation: &Evaluation<f64>,
     frame: RecipeNodeId,
 ) -> Option<SketchPlane<f64>> {
-    if !matches!(doc.node(frame), Some(Node::Datum(Datum::Frame { .. }))) {
+    // Either frame kind: what is drawn is the landed VALUE, which both
+    // produce.
+    if !matches!(
+        doc.node(frame),
+        Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
+    ) {
         return None;
     }
     let ValuePayload::Datum(DatumValue::Frame { origin, u, v }) = &evaluation.value(frame)?.payload
@@ -501,7 +506,12 @@ pub fn frames(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
     doc.order()
         .iter()
         .copied()
-        .filter(|id| matches!(doc.node(*id), Some(Node::Datum(Datum::Frame { .. }))))
+        .filter(|id| {
+            matches!(
+                doc.node(*id),
+                Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
+            )
+        })
         .collect()
 }
 
