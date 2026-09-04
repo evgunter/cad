@@ -1,14 +1,46 @@
-//! FIX measurement probe — is the mate solve blind to a `Transform`
-//! sitting between an `InstantiatePart` and the material a mate names?
+//! **These rows pin a DEFECT, not a contract.** Every expectation
+//! below records what the kernel does TODAY and is believed WRONG; the
+//! finding is written up in
+//! `work/issues/mate-solve-is-transform-blind.md`, which is what
+//! explains them.
 //!
-//! `wire_transform` is an identity-preserving pass-through (spec D2):
-//! the transform contributes no `RolePath` segment and the input's name
-//! table holds verbatim, so a mate reference through a transform still
-//! names the MINTING instance and `member_of` admits it on its first
-//! arm. The solve then places that instance — and the transform
-//! composes its own map on top of the solved pose, downstream.
+//! The defect: `wire_transform` is an identity-preserving pass-through
+//! (spec D2) — a `Node::Transform` contributes no `RolePath` segment
+//! and its input's name table holds verbatim — so a mate reference
+//! through a transform still names the MINTING instance and
+//! `member_of` admits it on its first arm. The solve then places that
+//! instance in the instance's OWN coordinates (`fold_pair` reads
+//! authored alignment and the pattern-derived offsets, never the
+//! evaluated body), and the transform composes its map on top,
+//! downstream. The two disagree by exactly the transform's map, and
+//! nothing refuses.
 //!
-//! These rows measure whether the two agree.
+//! **The correct answer, when this is fixed:** `contact in the
+//! product` must become `true` — the mate's named faces must meet in
+//! the value the product actually gathers — and the two solved frames
+//! in `step2` must STOP being identical, because the solve must
+//! compose the transform's map into the pose it hands the instance.
+//!
+//! **The fix DELETES these rows; it does not update their
+//! expectations.** A lane that finds them red because it composed the
+//! map has not broken a test — it has removed the reason these rows
+//! exist, and the rows go with the defect. Re-pointing an assertion
+//! here at a new number would turn a defect pin back into a baseline,
+//! which is the one thing it must never become. Owner: the S-MATE unit
+//! that adds the `derived_offset` sibling walking the input chain.
+//!
+//! `step4` is the same story from the other side: the pattern-headed
+//! form of this shape refuses `DanglingHead` today, and that refusal
+//! is the ONLY thing keeping the patterned half honest. It is expected
+//! to go red when the member vocabulary is extended through
+//! identity-transparent nodes — which is the ruled change, and must
+//! land only WITH the map composition, or it converts this refusal
+//! into a second silent wrong answer.
+//!
+//! The `step2` mechanism assertion is the stronger of the two shapes:
+//! it isolates the cause (the solve does not read the transform) and
+//! so goes red on any fix that composes the map, whatever the geometry
+//! then measures.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -243,10 +275,34 @@ fn step2_solved_pose_versus_evaluated_geometry() {
     eprintln!("TEST    base z {test_base:?}  instance z {test_top:?}  transform out z {test_xf:?}");
     let poses = editor_core::solve_document(&doc, Tol::witness());
     eprintln!("TEST    solved relative(top) = {:?}", poses.relative(top));
+    // Not vacuous: both sides must actually HAVE a solved pose, or the
+    // Debug comparison below would pass on two `None`s.
+    assert!(
+        poses.relative(top).is_some() && cposes.relative(ctop).is_some(),
+        "both documents solved a relative pose for the mated instance"
+    );
+    // THE MECHANISM. This is the assertion that isolates the cause:
+    // the solve hands the instance the identical pose whether or not a
+    // transform sits downstream, i.e. it never reads the map. It goes
+    // red on ANY fix that composes the map, whatever the geometry then
+    // measures — at which point DELETE this row (see the module
+    // header); do not re-point it at the new frame.
     assert_eq!(
         format!("{:?}", poses.relative(top)),
         format!("{:?}", cposes.relative(ctop)),
-        "the solve produces the SAME relative pose with and without the transform"
+        "the solve is no longer transform-blind — it produced a \
+         different relative pose with the transform present. That is \
+         the intended repair: delete this suite rather than updating \
+         this expectation (work/issues/mate-solve-is-transform-blind.md)"
+    );
+    // The consequence, in exact arithmetic: the transform's output
+    // sits exactly the transform's own translation away from the pose
+    // the mate asked for.
+    assert_eq!(
+        (test_xf.0 - control_top.0).to_bits(),
+        LIFT.to_bits(),
+        "the transform's output is displaced from the mated pose by \
+         exactly the transform's translation"
     );
     eprintln!(
         "solve moved the instance by {} between control and test; \
@@ -301,6 +357,28 @@ fn step3_the_mated_faces_in_the_product() {
         "contact at the instance: {} | contact in the product: {}",
         (a_z - b_at_instance).abs() < 1e-12,
         (a_z - b_at_transform).abs() < 1e-12
+    );
+
+    // The mate IS satisfied where the solve worked...
+    assert_eq!(
+        a_z.to_bits(),
+        b_at_instance.to_bits(),
+        "the mate seats the faces together at the instance"
+    );
+    // ...and is NOT satisfied in the body the product gathers. THIS IS
+    // THE DEFECT. When it is fixed these two faces meet and this
+    // assertion goes red: delete this row, do not re-point it.
+    assert_ne!(
+        a_z.to_bits(),
+        b_at_transform.to_bits(),
+        "the mated faces now MEET in the product — the transform-blind \
+         solve was fixed. Delete this suite rather than updating this \
+         expectation (work/issues/mate-solve-is-transform-blind.md)"
+    );
+    assert_eq!(
+        (b_at_transform - b_at_instance).to_bits(),
+        LIFT.to_bits(),
+        "the named face is displaced by exactly the transform's translation"
     );
 
     // No refusal anywhere: the document is fully green.
