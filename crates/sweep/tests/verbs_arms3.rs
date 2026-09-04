@@ -322,8 +322,9 @@ fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
     // so on its own metered predicate.
     for seam in seams {
         match fillet_edges(&body, &[seam], 0.02, tol()).map_err(|r| r.error) {
-            Err(BlendError::TangentialEdge { margin, .. }) => assert!(
-                margin == 0.0,
+            Err(BlendError::TangentialEdge { margin, .. }) => assert_eq!(
+                margin.value(),
+                Some(0.0),
                 "a co-surface seam's dihedral is exactly zero, got {margin}"
             ),
             other => panic!("a co-surface seam refuses as a tangency, got {other:?}"),

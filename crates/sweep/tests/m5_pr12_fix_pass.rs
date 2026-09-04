@@ -135,7 +135,8 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
         assert!(r < apothem, "the row is only interesting below the apothem");
         match fillet_edges(&body, &edges, r, Tol::witness()).map_err(|r| r.error) {
             Err(e @ BlendError::FaceClearanceUncertified { margin, gap, .. }) => {
-                assert!(margin < 0.0);
+                assert_eq!(margin.predicate, "fillet3_face_clearance");
+                assert!(margin.value().is_some_and(|m| m < 0.0));
                 assert!(
                     (gap - 1.0).abs() < 1e-9,
                     "the binding gap is the hexagon's SIDE, not its apothem: {gap}"

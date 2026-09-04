@@ -111,7 +111,11 @@ fn t1_wall_6_as_authored_still_refuses_tangential_at_margin_zero() {
     let all: Vec<EdgeKey> = lant.edges().map(|(k, _)| k).collect();
     match fillet_edges(&lant, &all, 0.02, tol).map_err(|r| r.error) {
         Err(BlendError::TangentialEdge { margin, .. }) => {
-            assert_eq!(margin, 0.0, "a co-surface seam, not a near-tangency");
+            assert_eq!(
+                margin.value(),
+                Some(0.0),
+                "a co-surface seam, not a near-tangency"
+            );
         }
         other => panic!("wall 6 as authored refuses tangential, got {other:?}"),
     }

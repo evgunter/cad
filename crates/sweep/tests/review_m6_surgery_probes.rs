@@ -526,9 +526,11 @@ fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
             .expect_err("every-edge on a pipped body must refuse");
         match err.error {
             sweep::blend::BlendError::TangentialEdge { margin, .. } => {
-                assert!(
-                    margin == 0.0,
-                    "radius {r}: margin {margin} is not structural zero"
+                assert_eq!(margin.predicate, "fillet3_convexity_sign");
+                assert_eq!(
+                    margin.value(),
+                    Some(0.0),
+                    "radius {r}: {margin} is not structural zero"
                 );
             }
             other => panic!("radius {r}: expected TangentialEdge, got {other}"),

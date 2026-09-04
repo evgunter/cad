@@ -215,7 +215,11 @@ fn p1_radius_headroom_refuses_on_a_ball_tighter_than_the_blend() {
     };
     match run_battery(&req, band()) {
         Err(BlendError::RadiusHeadroom { margin, radius, .. }) => {
-            assert!(margin < 0.0, "the headroom margin is definitely negative");
+            assert_eq!(margin.predicate, "fillet3_radius_headroom");
+            assert!(
+                margin.value().is_some_and(|m| m < 0.0),
+                "the headroom margin is definitely negative"
+            );
             assert!((radius - 0.9).abs() < 1e-12);
         }
         other => panic!("expected a radius-headroom refusal, got {other:?}"),
@@ -240,7 +244,8 @@ fn p2_face_clearance_refuses_when_two_blends_meet_across_a_face() {
     };
     match run_battery(&req, band()) {
         Err(e @ BlendError::FaceClearanceUncertified { margin, gap, .. }) => {
-            assert!(margin < 0.0);
+            assert_eq!(margin.predicate, "fillet3_face_clearance");
+            assert!(margin.value().is_some_and(|m| m < 0.0));
             assert!((gap - 1.0).abs() < 1e-9, "the gap is the box side");
             // The box's opposite cap edges are PARALLEL with opposed
             // inward normals, which is exactly the configuration in
@@ -285,7 +290,11 @@ fn p3_spine_regularity_refuses_before_the_torus_is_minted() {
     };
     match run_battery(&req, band()) {
         Err(BlendError::SpineIrregular { margin, radius }) => {
-            assert!(margin <= 0.0, "the spine margin is definitely non-positive");
+            assert_eq!(margin.predicate, "fillet3_spine_regularity");
+            assert!(
+                margin.value().is_some_and(|m| m <= 0.0),
+                "the spine margin is definitely non-positive"
+            );
             assert!((radius - 0.2).abs() < 1e-12);
         }
         // A shallow rim is also a consumption hazard; either refusal
@@ -333,7 +342,11 @@ fn p4_chain_g1_refuses_at_a_cornered_junction() {
     };
     match run_battery(&req, band()) {
         Err(BlendError::ChainNotG1 { margin, arm, .. }) => {
-            assert!(margin > 0.0, "a 90° kink has a definitely positive margin");
+            assert_eq!(margin.predicate, "fillet3_chain_g1");
+            assert!(
+                margin.value().is_some_and(|m| m > 0.0),
+                "a 90° kink has a definitely positive margin"
+            );
             assert!(arm > 0.0);
         }
         other => panic!("expected a G1 refusal, got {other:?}"),

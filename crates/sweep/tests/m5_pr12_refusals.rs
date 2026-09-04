@@ -10,7 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::{Band, Point2, Vec3};
+use geom_core::{Band, Point2, Sign, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::battery::{
@@ -265,7 +265,13 @@ fn a_same_surface_smooth_split_refuses_with_a_zero_wedge() {
     };
     match run_battery(&req, band()) {
         Err(BlendError::TangentialEdge { margin, .. }) => {
-            assert_eq!(margin, 0.0, "a smooth split has an exactly-zero wedge");
+            assert_eq!(margin.predicate, "fillet3_convexity_sign");
+            assert_eq!(margin.sign, Sign::Zero);
+            assert_eq!(
+                margin.value(),
+                Some(0.0),
+                "a smooth split has an exactly-zero wedge"
+            );
         }
         other => panic!("expected a zero-wedge refusal, got {other:?}"),
     }
@@ -449,8 +455,10 @@ fn trio_convexity_sign() {
     )
     .expect("a definite box edge");
     assert_eq!(convex, sweep::blend::Convexity::Convex);
+    assert_eq!(m.predicate, "fillet3_convexity_sign");
+    assert_eq!(m.sign, Sign::Positive);
     assert!(
-        (m - 1.0).abs() < 1e-12,
+        m.value().is_some_and(|v| (v - 1.0).abs() < 1e-12),
         "the 90° box edge margin is the arm"
     );
     let (concave, _) = convexity_at(

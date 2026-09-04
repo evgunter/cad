@@ -27,7 +27,7 @@
 
 use core::f64::consts::SQRT_2;
 
-use geom_core::{Point2, Point3, Tol};
+use geom_core::{Point2, Point3, Sign, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
@@ -382,7 +382,13 @@ fn p5_the_rim_arcs_plus_a_seam_meridian_refuse_at_the_battery() {
     req.push(seam);
     match fillet_edges(&body, &req, 0.05, tol()).map_err(|r| r.error) {
         Err(BlendError::TangentialEdge { margin, .. }) => {
-            assert_eq!(margin, 0.0, "a co-surface seam is tangential exactly");
+            assert_eq!(margin.predicate, "fillet3_convexity_sign");
+            assert_eq!(margin.sign, Sign::Zero);
+            assert_eq!(
+                margin.value(),
+                Some(0.0),
+                "a co-surface seam is tangential exactly"
+            );
         }
         other => panic!("a request carrying a seam meridian refuses tangential, got {other:?}"),
     }

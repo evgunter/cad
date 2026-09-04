@@ -21,9 +21,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, BandError, Indeterminate, MarginDiag, Tol};
+use geom_core::{Band, BandError, Indeterminate, MarginDiag, Sign, Tol};
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, BlendKind, BlendRefusal, BlendSite, Convexity, CornerConfig};
+use sweep::blend::{
+    BlendError, BlendKind, BlendRefusal, BlendSite, ClassifiedMargin, Convexity, CornerConfig,
+};
 use sweep::test_support::cube;
 use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
@@ -34,6 +36,12 @@ use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 /// the in-crate list).
 fn seeds() -> Vec<BlendError> {
     let band = Band::new(1e-9, 1e-6).expect("a band");
+    let decided = |predicate, m: f64, sign| ClassifiedMargin {
+        predicate,
+        reading: MarginDiag::Value(m),
+        band,
+        sign,
+    };
     vec![
         BlendError::Band(BandError::Empty {
             zero: 1.0,
@@ -44,37 +52,37 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::RadiusHeadroom {
             face: FaceKey::default(),
-            margin: -1e-3,
+            margin: decided("fillet3_radius_headroom", -1e-3, Sign::Negative),
             radius: 0.5,
         },
         BlendError::FaceClearanceUncertified {
             face: FaceKey::default(),
-            margin: -1e-3,
+            margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
             gap: 0.2,
             cross_chain: false,
         },
         BlendError::FaceClearanceUncertified {
             face: FaceKey::default(),
-            margin: -1e-3,
+            margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
             gap: 0.2,
             cross_chain: true,
         },
         BlendError::TangentialEdge {
             edge: EdgeKey::default(),
-            margin: 0.0,
+            margin: decided("fillet3_convexity_sign", 0.0, Sign::Zero),
         },
         BlendError::SpineIrregular {
-            margin: -1e-3,
+            margin: decided("fillet3_spine_regularity", -1e-3, Sign::Negative),
             radius: 0.5,
         },
         BlendError::ChainNotG1 {
             vertex: VertexKey::default(),
-            margin: -1e-3,
+            margin: decided("fillet3_chain_g1", 1e-3, Sign::Positive),
             arm: 0.5,
         },
         BlendError::ConvexitySignFlip {
             edge: EdgeKey::default(),
-            margin: -1e-3,
+            margin: decided("fillet3_convexity_sign", -1e-3, Sign::Negative),
             chain: Convexity::Convex,
         },
         BlendError::UnsupportedCorner {
@@ -137,7 +145,7 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::RingClearance {
             face: FaceKey::default(),
-            margin: -1e-3,
+            margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
         },
         BlendError::Certify {
             site: "blend face pcurves",

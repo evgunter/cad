@@ -44,7 +44,43 @@ use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey}
 use super::arms::{
     BlendArm, EdgeBlend, Meridian, Ruling, chamfer_strip, plane_plane_blend, plane_sphere_blend,
 };
-use super::{BlendError, BlendKind, BlendSite, CornerConfig, decide};
+use super::{BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, decide};
+
+/// The bracket a definite decision saw, as the payload shape that says
+/// what it is — the one place this lane turns a `T` margin into a
+/// refusal payload.
+///
+/// Both ends are read, so an interval margin arrives as the enclosure
+/// it was rather than as one endpoint of it; a point bracket (every
+/// `f64` margin, and an interval one that happens to be thin) is the
+/// [`MarginDiag::Value`] the `f64` classifier would have reported. The
+/// read is the M5 PR 12 seam's own — a bracket read feeding an error
+/// payload, decided nothing, `Bounds`' delegation rule (a) — and the
+/// `lo`/`hi` comparison here chooses how to PRINT the bracket, never
+/// what the predicate decided.
+pub(crate) fn classified<T: Bounds>(
+    predicate: &'static str,
+    margin: T,
+    band: Band,
+    sign: Sign,
+) -> ClassifiedMargin {
+    let (lo, hi) = (margin.lo(), margin.hi());
+    let reading = if lo.is_nan() || hi.is_nan() {
+        // Unreachable behind a definite `Sign`: poison escalates. Kept
+        // total rather than asserted — the payload's job is to report.
+        MarginDiag::Invalid
+    } else if lo == hi {
+        MarginDiag::Value(lo)
+    } else {
+        MarginDiag::Enclosure { lo, hi }
+    };
+    ClassifiedMargin {
+        predicate,
+        reading,
+        band,
+        sign,
+    }
+}
 
 /// The number of interior samples the chain predicates take along
 /// each link. Nine, matching the certification schedule's
@@ -122,6 +158,12 @@ pub struct Link<T: Real> {
     pub blend: EdgeBlend<T>,
     /// The link's convexity verdict.
     pub convexity: Convexity,
+    /// The dihedral margin that verdict was decided from, kept whole.
+    /// The chain's sign-consistency check refuses on a link whose
+    /// verdict disagrees with the chain's, and the number that refusal
+    /// owes its reader is THIS one — the reading the classifier
+    /// actually judged — not a fresh quantity sampled at the refusal.
+    pub convexity_margin: ClassifiedMargin,
     /// The folded lever arm used by this link's angular predicates.
     pub arm_len: T,
 }
@@ -358,9 +400,9 @@ pub fn radius_headroom<T: Decide + Bounds>(
         .map_err(|e| esc(BlendSite::Chain, e))?
     {
         Sign::Positive => Ok(()),
-        _ => Err(BlendError::RadiusHeadroom {
+        sign => Err(BlendError::RadiusHeadroom {
             face,
-            margin: margin.lo(),
+            margin: classified("fillet3_radius_headroom", margin, band, sign),
             radius: radius.lo(),
         }),
     }
@@ -401,8 +443,8 @@ pub fn spine_regularity<T: Decide + Bounds>(
         .map_err(|e| esc(BlendSite::Chain, e))?
     {
         Sign::Positive => Ok(()),
-        _ => Err(BlendError::SpineIrregular {
-            margin: margin.lo(),
+        sign => Err(BlendError::SpineIrregular {
+            margin: classified("fillet3_spine_regularity", margin, band, sign),
             radius: radius.lo(),
         }),
     }
@@ -446,7 +488,7 @@ pub fn convexity_at<T: Decide + Bounds>(
     arm: T,
     edge: EdgeKey,
     band: Band,
-) -> Result<(Convexity, T), BlendError> {
+) -> Result<(Convexity, ClassifiedMargin), BlendError> {
     let site = BlendSite::Link { edge };
     match decide("fillet3_chain_arm", Margin::of(arm), band).map_err(|e| esc(site, e))? {
         Sign::Positive => {}
@@ -463,9 +505,10 @@ pub fn convexity_at<T: Decide + Bounds>(
     }
     let margin = Margin::levered(n_a.cross(n_b).dot(tau.normalize()), arm);
     let sign = decide("fillet3_convexity_sign", margin, band).map_err(|e| esc(site, e))?;
+    let reading = |s| classified("fillet3_convexity_sign", margin.value(), band, s);
     match sign {
-        Sign::Positive => Ok((Convexity::Convex, margin.value())),
-        Sign::Negative => Ok((Convexity::Concave, margin.value())),
+        Sign::Positive => Ok((Convexity::Convex, reading(Sign::Positive))),
+        Sign::Negative => Ok((Convexity::Concave, reading(Sign::Negative))),
         // A decided Zero establishes that the dihedral has no
         // definite wedge side at this lever — `(n_a × n_b)·τ̂` folded
         // against the arm is coincident with zero. Genuine tangency
@@ -476,7 +519,7 @@ pub fn convexity_at<T: Decide + Bounds>(
         // a chain verdict that was never taken.
         Sign::Zero => Err(BlendError::TangentialEdge {
             edge,
-            margin: margin.value().lo(),
+            margin: reading(Sign::Zero),
         }),
     }
 }
@@ -532,9 +575,9 @@ pub fn chain_g1<T: Decide + Bounds>(
         // polarity of a coincidence predicate, stated so no reader
         // has to infer it.
         Sign::Zero => Ok(()),
-        _ => Err(BlendError::ChainNotG1 {
+        sign => Err(BlendError::ChainNotG1 {
             vertex,
-            margin: margin.value().lo(),
+            margin: classified("fillet3_chain_g1", margin.value(), band, sign),
             arm: arm.lo(),
         }),
     }
@@ -672,9 +715,9 @@ pub fn face_clearance<T: Decide + Bounds>(
         .map_err(|e| esc(BlendSite::Chain, e))?
     {
         Sign::Positive => Ok(()),
-        _ => Err(BlendError::FaceClearanceUncertified {
+        sign => Err(BlendError::FaceClearanceUncertified {
             face,
-            margin: margin.lo(),
+            margin: classified("fillet3_face_clearance", margin, band, sign),
             gap: gap.lo(),
             cross_chain,
         }),
@@ -707,7 +750,7 @@ fn resolve_link<T: Decide + Bounds>(
     let n_b = outward(body, face_b, p).ok_or_else(broken)?;
     // Predicate 5 first at the link level: the arm's side depends on
     // the convexity, so the sign is established before any geometry.
-    let (convexity, _) = convexity_at(n_a, n_b, tau, extent, edge, band)?;
+    let (convexity, convexity_margin) = convexity_at(n_a, n_b, tau, extent, edge, band)?;
     let sa = body
         .get_surface(body.get_face(face_a).ok_or_else(broken)?.surface)
         .ok_or_else(broken)?
@@ -736,6 +779,7 @@ fn resolve_link<T: Decide + Bounds>(
         arm,
         blend,
         convexity,
+        convexity_margin,
         arm_len: extent,
     })
 }
@@ -1278,20 +1322,20 @@ pub fn run_battery_for<T: Decide + Bounds>(
         let first = chain.first().convexity;
         for link in chain.links() {
             if link.convexity != first {
-                let p = {
-                    let (c, t0, t1) = carrier_of(body, link.edge)
-                        .ok_or(BlendError::ChainNotConnected { edge: link.edge })?;
-                    c.eval(mid_param(t0, t1))
-                };
-                let n_a = outward(body, link.face_a, p);
-                let n_b = outward(body, link.face_b, p);
-                let margin = match (n_a, n_b) {
-                    (Some(a), Some(b)) => a.cross(b).norm().lo(),
-                    _ => f64::NAN,
-                };
+                // The number this refusal owes its reader is the
+                // margin whose SIGN is the disagreement, and the link
+                // already carries it: `fillet3_convexity_sign` decided
+                // it, at this link's own lever, when the link
+                // resolved. Re-deriving one here read the supports'
+                // normals a second time and reported `‖n_a × n_b‖` —
+                // unsigned, unlevered, and therefore not the quantity
+                // the variant documents — with `NaN` standing in for
+                // "the normals would not resolve", a structural
+                // absence in a measurement's costume. Both go: the
+                // decision is the record.
                 return Err(BlendError::ConvexitySignFlip {
                     edge: link.edge,
-                    margin,
+                    margin: link.convexity_margin,
                     chain: first,
                 });
             }
