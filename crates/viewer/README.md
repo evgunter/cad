@@ -362,19 +362,25 @@ question with its own item.
 `Tools` holds one `Option<OpenTool>`, an enum with one variant per tool
 kind carrying that tool's state. Two tools open is not a state the door
 avoids, it is a state with no spelling: the invariant is unrepresentable
-rather than maintained. Every per-tool rule — the pick routing, the
-survival step, the close-on-commit edit — is an arm of a match the
-compiler completes over that value, and the `Seated` trait and its
-`seated!` invocation, which named five tool types by hand to erase them
-again, are gone with the erasure they existed for.
+rather than maintained. Each of the four per-tool rules is an arm of a
+match the compiler completes: the pick routing and the survival step
+match over the open value itself, the cursor narrowing
+(`ToolKind::pick_kinds`) and the close-on-commit edit
+(`ToolKind::commits`) over its kind. The read door
+is not one of the four — each typed accessor matches its own variant
+and answers `None` to every other, so a tool that never gets an
+accessor compiles. The `Seated` trait and its `seated!` invocation,
+which named five tool types by hand to erase them again, are gone with
+the erasure they existed for.
 
-`ToolKind::ALL` remains, for a chrome that offers the kinds and the
-suites that sweep them, but no routing reads it: `Tools::open_kind` asks
-the open value which kind it is instead of scanning the list for the
-first field that is set. A kind missing from `ALL` therefore narrows
-those sweeps rather than making its tool permanently unreachable. `ALL`
-is still the one list a compiler cannot force, and `ToolKind::ordinal`
-is still what makes its completeness checkable by a row.
+`ToolKind::ALL` remains for the test suites that sweep the kinds, which
+are now its only readers: `Tools::open_kind` asks the open value which
+kind it is instead of scanning the list for the first field that is set,
+and the chrome names each kind it offers literally rather than
+iterating. A kind missing from `ALL` therefore narrows those sweeps
+rather than making its tool permanently unreachable. `ALL` is still the
+one list a compiler cannot force, and `ToolKind::ordinal` is still what
+makes its completeness checkable by a row.
 
 ### What the boundary does not decide
 

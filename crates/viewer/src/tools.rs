@@ -14,21 +14,24 @@
 //! written down. A tool added to the set cannot be forgotten by an
 //! exclusivity rule that no longer exists.
 //!
-//! **Every per-tool rule here dispatches through an exhaustive
+//! **The four per-tool rules here dispatch through an exhaustive
 //! match** — the pick routing, the survival step, the cursor
 //! narrowing, the close-on-commit edit — for the same reason: an
 //! eighth tool must not be able to compile while three of its four
-//! obligations are silently unmet. The one list a compiler cannot
-//! force is [`ToolKind::ALL`], which no routing here reads, and
-//! [`ToolKind::ordinal`] is what makes its completeness checkable by a
-//! row instead of by eye.
+//! obligations are silently unmet. The READ door is not one of them:
+//! each typed accessor on [`Tools`] matches its own variant and
+//! answers `None` to every other, so an eighth tool that never gets
+//! an accessor compiles clean. The one list a compiler cannot force
+//! is [`ToolKind::ALL`], which nothing outside the test suites reads,
+//! and [`ToolKind::ordinal`] is what makes its completeness checkable
+//! by a row instead of by eye.
 //!
 //! The value is renderer-free on purpose: the pick routing, the
 //! survival step and the exclusivity are all properties a headless row
 //! asserts, and only the widgets that open and read the tools need a
 //! window.
 
-use pncad::document::{Doc, Evaluation, ProfileProgram};
+use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
 
 use crate::blend::{BlendEvent, BlendTool};
 use crate::combine::{BooleanTool, PatternTool, SplitTool, TransformTool};
@@ -36,7 +39,7 @@ use crate::matetool::{MateTool, MateToolEvent};
 use crate::pick::PickKinds;
 use crate::revolvetool::RevolveTool;
 use crate::seats::SeatEvent;
-use crate::session::SessionOp;
+use crate::session::{Selection, SessionOp};
 
 /// Which modal tool — the vocabulary the open/close door and every
 /// notice are addressed in.
@@ -59,8 +62,9 @@ pub enum ToolKind {
 }
 
 impl ToolKind {
-    /// Every kind, for a chrome that offers them and a test that sweeps
-    /// them. Nothing routes through it: which tool is open is a value
+    /// Every kind, for the test suites that sweep them — which are
+    /// its only readers. No production code reads it: the chrome names
+    /// each kind it offers literally, and which tool is open is a value
     /// ([`OpenTool`]), not a scan over this list.
     ///
     /// A hand-written list, which is why [`ToolKind::ordinal`] exists:
@@ -236,8 +240,27 @@ impl OpenTool {
     }
 }
 
+/// **The one guard every seated tool's pick shares.** A seated tool
+/// takes `Selection::node` and nothing else — a tree click directly, a
+/// face or edge pick through the one viewport→tree inversion — so a
+/// selection carrying no node is a click that tool does not see. The
+/// arms of [`Tools::feed`] that hold seats name the tool and share
+/// this; none of them re-spells it.
+fn on_node_pick(selection: &Selection, pick: impl FnOnce(RecipeNodeId)) {
+    if let Some(node) = selection.node() {
+        pick(node);
+    }
+}
+
 /// The modal tools as one value: at most one is open, and the open one
 /// is the only one the selection stream reaches.
+///
+/// **The read door hands a tool back by value iff that tool is
+/// `Copy`.** The seated tools are small `Copy` values and answer by
+/// value; the mate tool holds picked faces and the blend tool holds a
+/// SET of edges, so those two answer by reference. That is the whole
+/// rule, and the accessors below name which side of it they are on
+/// rather than each re-arguing it.
 #[derive(Debug, Default)]
 pub struct Tools {
     open: Option<OpenTool>,
@@ -275,19 +298,13 @@ impl Tools {
         self.open = None;
     }
 
-    /// The open tool, if any.
-    pub fn open_tool(&self) -> Option<&OpenTool> {
-        self.open.as_ref()
-    }
-
     /// Which tool is open, if any.
     pub fn open_kind(&self) -> Option<ToolKind> {
         self.open.as_ref().map(OpenTool::kind)
     }
 
-    /// The open mate tool. By reference: it holds picked faces, which
-    /// is more than a copy's worth of state — the seated tools below
-    /// are `Copy` and hand back a value instead.
+    /// The open mate tool, by reference (the read-door rule on
+    /// [`Tools`]).
     pub fn mate(&self) -> Option<&MateTool> {
         match &self.open {
             Some(OpenTool::Mate(tool)) => Some(tool),
@@ -335,8 +352,8 @@ impl Tools {
         }
     }
 
-    /// The open blend tool, by reference: it holds a SET, so it is the
-    /// one tool value too large to hand back by copy.
+    /// The open blend tool, by reference (the read-door rule on
+    /// [`Tools`]).
     pub fn blend(&self) -> Option<&BlendTool> {
         match &self.open {
             Some(OpenTool::Blend(tool)) => Some(tool),
@@ -417,29 +434,19 @@ impl Tools {
                     }
                 }
                 Some(OpenTool::Revolve(tool)) => {
-                    if let Some(node) = selection.node() {
-                        tool.pick(doc, node);
-                    }
+                    on_node_pick(selection, |node| tool.pick(doc, node));
                 }
                 Some(OpenTool::Boolean(tool)) => {
-                    if let Some(node) = selection.node() {
-                        tool.pick(doc, node);
-                    }
+                    on_node_pick(selection, |node| tool.pick(doc, node));
                 }
                 Some(OpenTool::Split(tool)) => {
-                    if let Some(node) = selection.node() {
-                        tool.pick(doc, node);
-                    }
+                    on_node_pick(selection, |node| tool.pick(doc, node));
                 }
                 Some(OpenTool::Transform(tool)) => {
-                    if let Some(node) = selection.node() {
-                        tool.pick(doc, node);
-                    }
+                    on_node_pick(selection, |node| tool.pick(doc, node));
                 }
                 Some(OpenTool::Pattern(tool)) => {
-                    if let Some(node) = selection.node() {
-                        tool.pick(doc, node);
-                    }
+                    on_node_pick(selection, |node| tool.pick(doc, node));
                 }
             }
         }
