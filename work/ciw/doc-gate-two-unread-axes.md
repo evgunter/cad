@@ -93,19 +93,32 @@ Re-swept on this tree with the same instrument the 2026-08-31 reading
 used (pass 3's selection, `broken_intra_doc_links` DENIED, over the
 seven derived roots): **25 distinct correct link sites over 15
 identifiers in 4 roots** — `geom-core` ×15, `editor-core` ×7, `topo`
-×2, `sweep` ×1. The 2026-08-31 reading was 15 sites / 5 identifiers /
-2 roots, so the population grew and spread to two roots it was not in;
-`boolean/mod.rs:27` has also moved to `:31`. The case for allowing the
-lint is therefore stronger than when it was made, and the per-root deny
-list QA-8 rejected would have had to grow twice in five days.
+×2, `sweep` ×1. An identifier here is a link *spelling*, the way
+rustdoc reports one, so `Probe` and `crate::Probe` count separately.
+The like-for-like comparison is sites: **15 on 2026-08-31, 25 now; two
+roots then, four now**, both over the whole derived root set. The
+identifier figures are not comparable and nothing rests on them — the
+2026-08-31 paragraph's "five" was `geom-core`'s share alone (its
+two-root total was six) and it collapsed spellings this reading counts
+apart. `boolean/mod.rs:27` has also moved to `:31`. The case for
+allowing the lint is stronger than when it was made, and the per-root
+deny list QA-8 rejected would have had to grow twice in five days.
 
 The differential run is **not implementable**. Its two runs never see
 the same site: a link inside a `not(F)` half is reported at
 `--no-default-features` and, at `--all-features`, is not reported at
 all because its enclosing item is not compiled. The intersection holds
-none of the sites the differential was for. Discriminating the two
-cases needs a selection where the `not(F)` half is compiled AND the `F`
-half's targets exist; features are additive, so none exists. A rustdoc
+none of the sites the differential was for. **That argument is the
+whole of it.** A second one was written and was false: "features are
+additive, so no selection compiles the `not(F)` half while the `F`
+half's targets exist". Additivity constrains one crate's own feature
+set, not a dependency's — `cargo doc -p editor-core
+--no-default-features --features geom-core/interval` compiles
+editor-core with its own `interval` off while `geom_core::Interval`
+exists, taking its pass-3 reading from 7 sites to 6, and
+`interval = ["geom-core/interval", …]` forwarding is this workspace's
+standard shape. Only the intra-crate claim survives, and the
+differential does not need it. A rustdoc
 JSON census at `--all-features` answers "does this name exist", not
 "does this link resolve" — intra-doc resolution is scope-sensitive —
 and would buy the format instability that is its own open question.
@@ -115,6 +128,13 @@ and in `README.md`'s build block, which is where the inherited
 `SweepStrategy::Idealized` residue is discharged — a contributor at a
 terminal is told the gate documents at `--all-features` and that a red
 from a bare `cargo doc` is usually their feature selection.
+
+The README carries the reading **its own reader gets**, not the
+header's: default features, public items, no `--document-private-items`
+— **22 sites in three crates** (`geom-core` ×14, `editor-core` ×7,
+`topo` ×1), against pass 3's **25 in four** with private items
+included. Two populations, not two copies of one figure. (`README.md`
+is outside CIW's `paths`; see the PR body.)
 
 ### (b) — a `--release` doc pass would read nothing; not added
 
@@ -149,17 +169,32 @@ compiles at any profile — so a working `--release` doc pass would not
 have read them either. The one non-test site is a bare expression block
 inside a function body.
 
-And the axis is **not uncovered**: all 14 are type-checked by
+And these fourteen are **not uncovered**: all 14 are type-checked by
 `nightly.yml`'s `corrupt-input suites, release profile` job, which pins
 `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"` over the whole graph
-for exactly this reason. It is a compile-rot question that job owns,
-not a doc-coverage question this gate can own.
+for exactly this reason. That is a statement about the fourteen, not
+about the axis: the job's reach is `-p topo --lib` plus topo's
+dependency closure (`bvh`, `geom`, `geom-brep`, `geom-core`), so a
+fifteenth site in `mesh`, `sweep`, `editor-core`, `viewer` or `step-*`
+would be compiled by no job at debug-assertions-off and read by no doc
+pass, with nothing going red. Owned by that job where it reaches;
+owned by nothing outside that closure.
 
 Two self-test arms pin the mechanism: a broken link behind
 `cfg(debug_assertions)` must FIRE (the control), and the same break
 behind `cfg(not(debug_assertions))` must PASS (the tripwire). Both
-established by mutation. A future rustdoc that honours the flag turns
-the second red, which is the question becoming answerable again.
+established by mutation, in both directions. The control's job is
+narrow: `plant_broken_link_in_member` already proves the fixture
+reaches rustdoc, so what this one adds is that a `#[cfg(…)]` attribute
+over the item does not by itself suppress the lint. A future rustdoc
+that honours the flag turns the tripwire red, which is the question
+becoming answerable again.
+
+**What the arms cost**, measured because this unit prices the pass it
+declined: 7.0–7.4 s standing alone, and `--selftest` end to end
+85.0 s → 94.5 s, i.e. **+9.5 s** warm (4 vCPU / 15 GB, three paired
+runs). That lands on every PR — `ci.yml`'s `fmt` job runs `--selftest`
+— and in `local-scripts/ci-local.sh`.
 
 ### Not taken here
 
