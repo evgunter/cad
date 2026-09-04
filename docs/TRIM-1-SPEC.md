@@ -11,12 +11,11 @@ every line cite below was re-derived on that head.
 
 **One sentence.** An interior iso-curve `u = u*` of a described NURBS
 chart is an EXACT curve in the chart's own `v` spline space whose
-control polygon is the de Boor collapse of the control net at `u*`;
-the seam class's control-difference hull applies to it verbatim once
-the collapsed row replaces the boundary-row COPY, and every primitive
-the collapse needs already exists in `geom-core`. This unit adds the
-extractor beside `boundary_iso_u`, teaches the seam class's check 4 to
-take the interior route where `side_of` finds neither boundary, and
+control polygon is the de Boor collapse of the net at `u*`; the seam
+class's control-difference hull applies to it verbatim once the
+collapsed row replaces the boundary-row COPY, and every primitive the
+collapse needs already exists. This unit adds the extractor beside
+`boundary_iso_u`, teaches check 4's seam class the interior route, and
 lets `nurbs_iso_derive`'s wall–seam arm measure the column it is
 missing. Nothing is downgraded; `9v1`'s `General` route is untouched.
 
@@ -34,7 +33,7 @@ leaves the `[0, 3√3]` domain. That is a wrong-locus rim of the ARC-RIM
 class (`run_iso_arc_checks`, `pcurve_cache.rs:3425-3497`: lane →
 interval → **schedule residuals** → class), and the residual at `t = 0`
 is millimetres, so it refuses at check 3 before `side_of` is reached
-(measurement: probe note below). P-2 §6 keeps the row — rightly, but
+(derived from the check order — UNMEASURED, see the probe note). P-2 §6 keeps the row — rightly, but
 the row exercises the arc class, not the interior-column refusal, and
 the arc class is untouched here. Likewise
 `a_seam_column_certifies_on_a_non_unit_chart`'s second half
@@ -76,21 +75,33 @@ certifier's door on a `u*` strictly between knots (rows A1, A2).
 chart, not the neighbour.** The loft describes seam `j` as wall `j`'s
 `u = 0` iso (`crates/sweep/src/loft.rs:518-543`); `rechart`
 (`m8_4…:408-418`) mints a NEW key and `set_face_surface` keeps the old
-one alive because that description still references it
+one alive because that description references it
 (`crates/topo/src/attach.rs:52-53`). `16v1` reaches the wall–seam arm
-by key inequality (`pcurves.rs:548`). The arm's logic is the same
-either way (the description states no `u` on THIS chart); the row
-must say so and must NOT re-describe `16v1` against the new key — that
-would route it through the own-chart arm and stop testing the
+by key inequality (`pcurves.rs:548`); the arm's logic is the same
+either way. Row A3 must NOT re-describe `16v1` against the new key —
+that would route it through the own-chart arm and stop testing the
 measurement.
 
 **(6) S394's count is three, not two.** `map_err(|_|` on a
 `boundary_iso_*` call at `pcurve_cache.rs:3523` (arc), `:3891` (seam)
 and `:3961` (cap).
 
-**Probe note.** [PROBE-1 — payloads of the two rows in (1), printed by a
-scratch instrumentation; filled in before this spec ships, else marked
-"derived from the check order, unmeasured".]
+**Probe note — two measurements this survey could not take.** The
+machine's build mutex was held by other lanes for the whole survey
+(2.5 h; a queued run of the two rows in (1) never acquired it). So
+(1)'s "refuses at check 3" is DERIVED from `run_iso_arc_checks`' check
+order and the geometry, not read off a payload, and the P-2 body's
+behaviour past `16v1` (STOP 3) is likewise unmeasured. **The
+implementer's first act, before any edit:** (i) run the two rows in (1)
+with their refusal printed and quote the payloads in the PR body — if
+either names `INTERIOR` rather than `ResidualExceeded`, premise (1) is
+wrong and the row IS on this unit's path: STOP and report; (ii) run
+`mint_pcurves` on A3's fixture and quote `16v1`'s payload and raising
+site. A ready-made scratch (the reverted derivation restored plus a
+polynomial-only collapse in the seam arm, and A3's tail printing
+mint/validate/props/tessellate outcomes) is at
+`/home/evan/.local/share/cad-work/trim-1-spec-stub.py`, lane-private,
+never to be committed.
 
 ---
 
@@ -282,24 +293,24 @@ derivation measures only its position).
 Every non-test `Pcurve::IsoLine` match in `crates/*/src` (grep
 `Pcurve::IsoLine\|IsoLine {`, 2026-09-04): `pcurve_cache.rs` ×10
 (`eval :404`, `chart_box :476`, `shift :562`, `certify :1866`,
-`recertify :2046`, the checks, docs); `topo/pcurves.rs` ×6 (mints);
-`topo/chart_region.rs:2409` (`pcurve_entry`: straight by variant,
-endpoints only); `topo/replace_face.rs:1425` (description-level
-extraction via `iso_boundary_row`) and `:1777` (transport);
-`topo/props.rs:1563` (admits both iso classes, then requires every
-boundary vertex on the chart rectangle at `:1217` — a RUNTIME check,
-TRIM-2's, which an interior column reaches and refuses typed as
-filed); `mesh/trimmed.rs:979,993` (admits `IsoLine` on a NURBS chart;
-the trim walk is TRIM-2's); `mesh/chords.rs:524` (`|pl|` as UV speed —
-shape only); `geom-brep/description.rs:294` (the `iso` mint door);
-`geom-brep/certify.rs:2621` (a D2 bit pin); `step-import/recognize_curve.rs:35`
-(doc). **No consumer reads "boundary" off the VARIANT.** The boundary
-hypothesis lives in one place — check 4 via `side_of` — plus TRIM-2's
-region-shape refusals, which are about the loop, not the pcurve.
-**Ruling: `Pcurve::IsoLine` gains interior columns; no new variant.** A
-variant would duplicate every site above to say nothing new, and would
-turn P-2 §7's principle (an exact description beats a fitted one) into
-a type-level fork for a property the certificate already records.
+`recertify :2046`, checks, docs); `topo/pcurves.rs` ×6 (mints);
+`topo/chart_region.rs:2409` (straight by variant, endpoints only);
+`topo/replace_face.rs:1425` (extraction via `iso_boundary_row`), `:1777`
+(transport); `topo/props.rs:1563` (admits both iso classes, then
+requires every boundary vertex on the chart rectangle at `:1217` — a
+RUNTIME check, TRIM-2's, which an interior column now reaches and
+refuses typed as filed); `mesh/trimmed.rs:979,993` (admits `IsoLine`;
+the trim walk is TRIM-2's); `mesh/chords.rs:524` (`|pl|` as UV speed);
+`geom-brep/description.rs:294` (the `iso` mint door);
+`geom-brep/certify.rs:2621` (a D2 bit pin);
+`step-import/recognize_curve.rs:35` (doc). **No consumer reads
+"boundary" off the VARIANT**: the hypothesis lives in check 4 via
+`side_of`, plus TRIM-2's region-shape refusals, which are about the
+loop. **Ruling: `Pcurve::IsoLine` gains interior columns; no new
+variant.** A variant would duplicate every site above to say nothing
+new, and would turn P-2 §7's principle (an exact description beats a
+fitted one) into a type-level fork for a property the certificate
+already records.
 
 ---
 
@@ -352,12 +363,13 @@ a type-level fork for a property the certificate already records.
 2. The re-sweep of the SHAPE (`IsoLine`, `IsoArc`, `MapResidualIsoHull`,
    `side_of`) at the merge base finds a consumer that reads "boundary"
    off the variant. STOP and report.
-3. The P-2 body has a SECOND blocker after `16v1` mints: `mint_pcurves`
-   refuses elsewhere, the loop walk refuses (`pcurve_loop_continuity`,
-   `pcurve_loop_closure`), or `validate_pcurves` reports on the widened
-   face. Row A3's own assertion is the instrument; if it fires, STOP,
-   quote the payload and the raising site, and do not widen a second
-   arm in this unit (the `e58df98d7` ruling).
+3. The P-2 body has a SECOND blocker after `16v1` mints (UNMEASURED,
+   probe note): `mint_pcurves` refuses elsewhere, the loop walk refuses
+   (`pcurve_loop_continuity`, `pcurve_loop_closure`), or
+   `validate_pcurves` reports on the widened face. Row A3's own
+   assertion is the instrument; if it fires, STOP, quote the payload
+   and the raising site, and do not widen a second arm in this unit
+   (the `e58df98d7` ruling).
 4. Row A1 cannot reach envelope `≤ 1e-12` at the `interval` lane on a
    genuine convex-combination row of a millimetre fixture. That is a
    measurement about enclosure width: report the number; never scale
@@ -457,15 +469,14 @@ at three ε cells and two scalar lanes; the structural edits serve them.
 
 ## Lane obligations
 
-`docs/prompts/implementer-discipline.md` binds. Measure first: before
-any edit, run A3's fixture through `mint_pcurves` and quote the `16v1`
-payload and its raising site in the PR body. Own `CARGO_TARGET_DIR`
+`docs/prompts/implementer-discipline.md` binds. Measure first: run
+A3's fixture through `mint_pcurves` before any edit and quote the
+`16v1` payload and raising site in the PR body. Own `CARGO_TARGET_DIR`
 outside the worktree. Hosted CI at all twelve `test (…)` jobs is the
-verification of record — no `CI-Config` lane/eps trailer. Sweep
-obligation (§5): the census above is as of `f23d373d5`; re-sweep the
-SHAPE at the merge base and put the hit list in the PR body. Findings
-outside the fence (`mesh/`, `props.rs`, `replace_face.rs`) go in the PR
-body, not in another program's slate; the residue above gets its file
-in `work/trim/` in the same PR. Merge origin/main before opening; watch
-CI to completion in the foreground; do not merge — full v6 dual review
-per `work/trim/plan.md`.
+verification of record — no `CI-Config` lane/eps trailer. The census
+above is as of `f23d373d5`: re-sweep the SHAPE at the merge base and
+put the hit list in the PR body (§5). Findings outside the fence go in
+the PR body, not another program's slate; the residue above gets its
+file in `work/trim/` in the same PR. Merge origin/main before opening;
+watch CI to completion in the foreground; do not merge — full v6 dual
+review per `work/trim/plan.md`.
