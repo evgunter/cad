@@ -32,7 +32,18 @@ $ cargo test --doc -p pncad                    # runs every Rust block in the gu
 $ cd demos/tour && cargo run --release -- ../out   # render the example corpus
 $ ./crates/pncad-py/run-python-tests.sh        # build and exercise the bindings
 $ cargo run -p viewer --features app -- [document.pncad]   # the v1 GUI
+$ ./scripts/doc-gate.sh                        # the rustdoc gate, every cargo root
 ```
+
+**Check documentation with that gate, not with a bare `cargo doc`.** The gate
+documents at `--all-features`; a plain `cargo doc -D warnings` runs DEFAULT
+features, where prose linking to a feature-gated item cannot resolve and
+rustdoc reports CORRECT links as broken — `SweepStrategy::Idealized` in
+`topo`'s boolean prose is the live case, and there are 25 such sites across
+four crates as of 2026-09-04. A red there is usually your feature selection,
+not the tree. The gate's header carries the whole argument, including the one
+blind spot it accepts rather than closes: a broken link written *inside* a
+`#[cfg(not(feature = …))]` half is reported by nothing, on any tier.
 
 Depend on the façade crate `pncad` and nothing else — it re-exports every
 kernel crate as a module and offers a curated prelude. The Python package is

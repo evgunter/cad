@@ -78,3 +78,88 @@ A contributor who runs `cargo doc -D warnings` by hand needs the same
 sentence somewhere they will see it. That is a one-line addition to
 whatever (a) lands, not a separate unit, and it is recorded here so it
 is not dropped when (a) is taken.
+
+## Answered 2026-09-04 (CIW unit 9, branch `ciw/doc-gate-axes`)
+
+Both counts re-swept rather than inherited; both axes answered by
+measurement, and one of the two candidate answers for (a) is now a
+derived negative result rather than a candidate.
+
+### (a) — accepted permanently, and the differential run cannot work
+
+Re-swept on this tree with the same instrument the 2026-08-31 reading
+used (pass 3's selection, `broken_intra_doc_links` DENIED, over the
+seven derived roots): **25 distinct correct link sites over 15
+identifiers in 4 roots** — `geom-core` ×15, `editor-core` ×7, `topo`
+×2, `sweep` ×1. The 2026-08-31 reading was 15 sites / 5 identifiers /
+2 roots, so the population grew and spread to two roots it was not in;
+`boolean/mod.rs:27` has also moved to `:31`. The case for allowing the
+lint is therefore stronger than when it was made, and the per-root deny
+list QA-8 rejected would have had to grow twice in five days.
+
+The differential run is **not implementable**. Its two runs never see
+the same site: a link inside a `not(F)` half is reported at
+`--no-default-features` and, at `--all-features`, is not reported at
+all because its enclosing item is not compiled. The intersection holds
+none of the sites the differential was for. Discriminating the two
+cases needs a selection where the `not(F)` half is compiled AND the `F`
+half's targets exist; features are additive, so none exists. A rustdoc
+JSON census at `--all-features` answers "does this name exist", not
+"does this link resolve" — intra-doc resolution is scope-sensitive —
+and would buy the format instability that is its own open question.
+
+So the hole is accepted, uniform, and said twice: in the gate header,
+and in `README.md`'s build block, which is where the inherited
+`SweepStrategy::Idealized` residue is discharged — a contributor at a
+terminal is told the gate documents at `--all-features` and that a red
+from a bare `cargo doc` is usually their feature selection.
+
+### (b) — a `--release` doc pass would read nothing; not added
+
+The cost argument is void twice over, and neither reason is cost.
+
+1. **rustdoc cannot reach the axis.** Measured on the pinned toolchain
+   (1.97.0): cargo passes no `-C debug-assertions` to rustdoc, so
+   `cargo doc --release` skips the `not` half exactly as dev does; and
+   rustdoc *ignores* `-C debug-assertions=off` when handed it directly,
+   where rustc under the same flag compiles the half (probe: a
+   `#[cfg(not(debug_assertions))] compile_error!`, which fires for
+   rustc and never for rustdoc).
+2. **This tree would defeat it anyway**: the root `[profile.release]`
+   sets `debug-assertions = true`.
+
+Cost, measured because the item asked for it: **+81.0 s cold / +40.1 s
+warm** for a fourth pass over the workspace less `viewer`, **+25.1 s
+cold / +3.3 s warm** for the minimal derived selection
+(`-p geom-core -p topo`), on 4 vCPU / 15 GB — the public repo's
+standard-runner class. Affordable now; still not worth a second, since
+the coverage it buys is zero.
+
+Re-swept sites: **14 `#[cfg(not(debug_assertions))]` attributes**
+(`geom-core/src/spline/knots.rs` ×1, `topo/src/review_d18.rs` ×11,
+`topo/src/review_m1_pr2/release_corruption.rs` ×2). The "16" was the
+raw grep, which also matched the shape written inside two `//!` prose
+lines. The item's claim that every site is *a statement or expression
+block* is **false**: several of the 13 in `topo` are documented items
+carrying intra-doc links. What makes them unreadable is that they sit
+inside `#[cfg(test)]` modules (`topo/src/lib.rs`), which no `cargo doc`
+compiles at any profile — so a working `--release` doc pass would not
+have read them either. The one non-test site is a bare expression block
+inside a function body.
+
+And the axis is **not uncovered**: all 14 are type-checked by
+`nightly.yml`'s `corrupt-input suites, release profile` job, which pins
+`CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"` over the whole graph
+for exactly this reason. It is a compile-rot question that job owns,
+not a doc-coverage question this gate can own.
+
+Two self-test arms pin the mechanism: a broken link behind
+`cfg(debug_assertions)` must FIRE (the control), and the same break
+behind `cfg(not(debug_assertions))` must PASS (the tripwire). Both
+established by mutation. A future rustdoc that honours the flag turns
+the second red, which is the question becoming answerable again.
+
+### Not taken here
+
+The one-line `topo` prose fix (`boolean/mod.rs:31`,
+`boolean/reduce.rs:18`) is Track Q's fence and is left to it.
