@@ -117,42 +117,52 @@ fn both_doors_mint_one_refusal_for_one_nonpositive_size() {
     }
 }
 
-/// **The gate's rule is `> 0`, not `> ε`, and the false fact returns one
-/// decade under ε.** Predicate 1's margin is `r − r²/arm`, which
-/// saturates at `r` on a plane, so a radius under the band's zero
-/// classifies `Zero` and the caller reads "radius 1e-12 m exceeds the
-/// curvature headroom of [a plane] — reduce the fillet radius": false
-/// in both halves, exactly as at zero. The chamfer reads
-/// `DependentNormals` about an orthonormal corner — the levered
-/// `|det|·d` the `NonpositiveSize` doc says the gate exists to stop.
+/// **CHARACTERIZATION — a positive size under the band's zero reaches
+/// a false-fact refusal at both doors.** The gate's rule is `> 0`, not
+/// `> ε`, so a size the band cannot tell from zero passes it and the
+/// battery meters it: predicate 1's margin is `r − r²/arm`, which
+/// saturates at `r` on a plane, so at `r = 1e-12` (three decades under
+/// the band's zero) the fillet classifies `Zero` and the caller reads
+/// "radius 1e-12 m exceeds the curvature headroom of [a plane] —
+/// reduce the fillet radius", false in both halves; the chamfer reads
+/// `DependentNormals` about an orthonormal cube corner, the levered
+/// `|det|·d` the `NonpositiveSize` doc names.
 ///
-/// Ignored: this row states the invariant the gate's rationale claims
-/// and the code does not keep. Un-ignore when a fix lands.
+/// This row pins that behaviour AS IT IS so the class is measured
+/// rather than remembered. It is the witness that flips when
+/// `work/fillet/blend-size-gate-unmetered-under-epsilon.md` is taken:
+/// whichever way that unit decides (meter the size against the band,
+/// or keep `> 0` and narrow the promise), this row goes red and is
+/// rewritten to the decided behaviour.
 #[test]
-#[ignore = "review finding: a sub-epsilon positive size is refused with a false fact about the body at both doors"]
-fn a_positive_size_under_epsilon_is_not_refused_as_a_fact_about_the_body() {
+fn a_positive_size_under_epsilon_reads_a_false_fact_at_both_doors_today() {
     let t = Tol::witness();
     let body = cube(1.0, t);
     let edges = all_edges(&body);
     let size = 1e-12;
-    if let Err(e) = fillet_edges(&body, &edges, size, t) {
-        assert!(
-            !matches!(e.error, BlendError::RadiusHeadroom { .. }),
-            "a plane has unbounded headroom; {size} m does not exceed it: {e}"
-        );
-    }
-    if let Err(e) = chamfer_edges(&body, &edges, size, t) {
-        assert!(
-            !matches!(
-                e.error,
-                BlendError::UnsupportedCorner {
-                    corner: sweep::blend::CornerConfig::DependentNormals,
-                    ..
-                }
-            ),
-            "a cube corner's normals are orthonormal; {size} m does not make them dependent: {e}"
-        );
-    }
+
+    let f = fillet_edges(&body, &edges, size, t).expect_err("today a sub-band radius refuses");
+    assert!(
+        matches!(f.error, BlendError::RadiusHeadroom { radius, .. } if radius == size),
+        "today the fillet meters predicate 1 at {size} m: {f:?}"
+    );
+    let ft = f.to_string();
+    assert!(
+        ft.contains("curvature headroom") && ft.contains("reduce the fillet radius"),
+        "and reads the headroom sentence a plane cannot owe: {ft}"
+    );
+
+    let c = chamfer_edges(&body, &edges, size, t).expect_err("today a sub-band setback refuses");
+    assert!(
+        matches!(
+            c.error,
+            BlendError::UnsupportedCorner {
+                corner: sweep::blend::CornerConfig::DependentNormals,
+                ..
+            }
+        ),
+        "today the chamfer reads the levered corner determinant at {size} m: {c:?}"
+    );
 }
 
 /// The gate at the CERTIFIED scalar: a `Bounds::lo` read over real

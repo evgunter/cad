@@ -14,9 +14,8 @@
 //!
 //! Probe 2 pins what a fillet caller reads at a nonpositive size: the
 //! typed `NonpositiveSize` refusal both doors mint before anything is
-//! metered, and the absence of the headroom sentence a zero radius
-//! used to draw out of predicate 1 — false in both halves, with advice
-//! that has nowhere to go from zero.
+//! metered, and the absence of predicate 1's headroom sentence, which
+//! is false in both halves at a zero radius and advises reducing it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

@@ -4,9 +4,11 @@
 //!
 //! # The ordering contract, structurally
 //!
-//! [`fillet_edges`] calls [`run_battery`] as its FIRST statement and
-//! propagates the refusal unchanged. Nothing here mints a surface, a
-//! point, or a topology entity before a verdict exists — the C8 claim
+//! [`fillet_edges`] runs [`run_battery`] before any construction and
+//! propagates its refusal unchanged: what precedes it is the request
+//! preamble ([`nonpositive_size_gate`], [`repeated_edge_gate`]), which
+//! reads the REQUEST and never the body. Nothing here mints a surface,
+//! a point, or a topology entity before a verdict exists — the C8 claim
 //! ("if the battery returns `Ok`, construction cannot fail for a
 //! geometric reason") is kept by construction order, not by hope.
 //!
@@ -174,10 +176,10 @@ fn fillet_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 
 /// **Both doors' shared request preamble**: a repeated edge is
 /// malformed for the chain walk (it would double a link), so it
-/// refuses before the battery samples anything. One home rather than
-/// a stanza per door, for the same reason
-/// [`nonpositive_size_gate`] has one: a per-door copy is what lets the
-/// two doors' input validation diverge.
+/// refuses before the battery samples anything. It and
+/// [`nonpositive_size_gate`] are the whole preamble, and each has one
+/// home rather than a stanza per door: a per-door copy is what lets
+/// the two doors' input validation diverge.
 fn repeated_edge_gate(edges: &[EdgeKey]) -> Result<(), BlendError> {
     let mut requested = edges.to_vec();
     requested.sort_unstable();
@@ -187,23 +189,21 @@ fn repeated_edge_gate(edges: &[EdgeKey]) -> Result<(), BlendError> {
     }
 }
 
-/// **Both doors' shared size gate**: the blend size must be
-/// definitely positive, and that is a fact about the REQUEST, so it is
-/// read off the bracket's low end rather than metered — a zero or
-/// negative size is not a geometric verdict about the body, and
-/// quoting one downstream levers the margins that carry it
-/// (`fillet3_corner_independence`'s `|det(n1,n2,n3)|*d` collapses at
-/// `d = 0`, so the consumer would read "dependent support normals"
-/// about an orthonormal corner; predicate 1 reads a zero radius as
-/// exceeding a zero headroom and advises reducing it). A false fact
-/// about the body is worse than no diagnosis, so it refuses before
-/// anything is metered.
+/// **Both doors' shared size gate**: a size that is not definitely
+/// positive refuses [`BlendError::NonpositiveSize`] before anything is
+/// metered. Why a size the caller handed in is screened at the door
+/// rather than measured is the variant's own doc
+/// ([`BlendError::NonpositiveSize`]); this is the one place that
+/// applies it.
 ///
-/// Written through `partial_cmp` rather than `<= 0` so the
+/// The rule is a bracket read — `lo() > 0` — and nothing else: it
+/// screens a size that is not positive AT ALL, and says nothing about
+/// a positive size below the band's zero
+/// (`work/fillet/blend-size-gate-unmetered-under-epsilon.md` owns
+/// that). Written through `partial_cmp` rather than `<= 0` so the
 /// INCOMPARABLE case is an arm and not an accident: a poisoned size is
 /// not definitely positive either, and it refuses here with the other
-/// two. One home rather than a stanza per door: a per-door copy is
-/// what lets the two doors' input validation diverge.
+/// two.
 fn nonpositive_size_gate<T: Bounds>(size: T) -> Result<(), BlendError> {
     match size.lo().partial_cmp(&0.0) {
         Some(core::cmp::Ordering::Greater) => Ok(()),
