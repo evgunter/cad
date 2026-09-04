@@ -1,9 +1,10 @@
 ---
 id: reader-census-red-on-main-docm1-hand-rolled-doc-reader
 kind: issue
-title: "main is red: docm1_face_frame hand-rolls a module-doc reader and owes the census a disposition"
-status: open
+title: main is red: docm1_face_frame hand-rolls a module-doc reader and owes the census a disposition
+status: closed
 opened: 2026-09-04
+closed: 2026-09-04
 ---
 
 Found by VIEW while gating an unrelated tracker PR (#1857), whose only
@@ -123,3 +124,11 @@ closed the moment #1859 merges. What survives it is
 `ci-draw-can-hide-a-compile-break-on-main`, which is CIW's and is the
 reason a red `main` went two and a half hours unnoticed by `main`
 itself.
+
+## Closed — #1859 merged (2026-09-04)
+
+`main` is green: `cargo test -p test-utils --test reader_census` is
+5 passed / 0 failed at `65285b26b`, and the ledger carries the entry.
+Nothing survives here. The durable finding is
+`work/issues/ci-draw-can-hide-a-compile-break-on-main.md`, which now
+rests on a measurement and has two instances in one day.
