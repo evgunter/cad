@@ -1,11 +1,12 @@
 ---
 id: torus-operand-boxes-span-whole-ring
-kind: issue
+kind: unit
 title: Torus operand boxes span the whole ring: tighten to the trimmed arc (a boundary-tight box retires lily wall 1 with no declaration at all)
-status: open
+status: dispatched
 opened: 2026-09-01
 github: 1488
 refs: [1477, 968]
+branch: curved/torus-box
 ---
 
 ## From GitHub issue 1488
