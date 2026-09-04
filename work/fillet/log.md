@@ -217,3 +217,21 @@ openers are now merged or in review; E3 landed on
 [#1763](https://github.com/evgunter/cad/pull/1763) at `93341783` (the
 seven margins carry a `ClassifiedMargin`; the NaN hole is unreachable
 by construction) and its style review is dispatched.
+
+**E3 reviewed (2026-09-04): MERGEABLE-AFTER-FIXES**, single style review
+on frozen `93341783` of PR [#1763](https://github.com/evgunter/cad/pull/1763);
+every claim held under a mutant and a merge-base differential. Owed and
+adjudicated TAKE: a thin bracket must read as the scalar's own
+classifier spells it (`Enclosure{lo==hi}` at Interval, not
+`Value(lo)`); the companion fields `gap` and `arm` are measured
+enclosures projected and rendered as facts — the item's anticipated
+third shape one field over — and now carry the measurement whole (the
+request `radius` stays `f64`, said so at the field); the reviewer's
+three red-by-design interval rows adopted and turned green by those
+fixes; the new NaN finding re-homed to `work/trim/` (TRIM is open and
+owns `pcurve_cache.rs` — the brief's premise was the orchestrator's
+error); the class one arm over (`support_coaxiality` drops its margin,
+`corner_at` folds a definite refusal margin-less, a `headroom: f64`
+"classified margin" in `offset_meters.rs`) filed as
+`blend-payloads-outside-the-margin-family`. Fix pass
+implementer-inherited.
