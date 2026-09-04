@@ -1,10 +1,9 @@
 # CURVED-TORUS — the torus lane's completion (two PRs: the operand box, the circle-residual arm)
 
-Items `work/issues/torus-operand-boxes-span-whole-ring.md` (#1488, PR-1)
-and `work/issues/circle-residual-harmonics-needs-torus-arm.md` (#1489,
-PR-2) — both re-homed from `work/verbs/` to `work/issues/` at VERBS' exit
-(the brief's `work/curved/` paths are stale; CURVED's plan names the lane
-"Torus lane completion"). Branches `curved/torus-box`, `curved/torus-arm`.
+Items `work/curved/torus-operand-boxes-span-whole-ring.md` (#1488, PR-1)
+and `work/curved/circle-residual-harmonics-needs-torus-arm.md` (#1489,
+PR-2) — adopted by CURVED at its opening (2026-09-04, PR #1835);
+CURVED's plan names the lane "Torus lane completion". Branches `curved/torus-box`, `curved/torus-arm`.
 Difficulty pre-logged: PR-1 **M / NUMERIC**, PR-2 **M / NUMERIC**
 (§PR shape). Survey run 2026-09-04 against main `d799235e2`, every
 anchor re-read by symbol on that head. **Three of the brief's premises
@@ -448,3 +447,38 @@ clearance. Both **NUMERIC** (certified enclosures, no topology).
 and the lily row is the instrument); lane-private `CARGO_TARGET_DIR`
 outside the worktree; merge origin/main before opening; confirm the
 twelve test jobs; watch to completion in the foreground. Do not merge.
+
+---
+
+## Rulings at ratification (CURVED orchestrator, 2026-09-04)
+
+Ratified as written, with these answers to the lane's questions:
+
+1. **A RE-AIM is the honest close of #1488, and the item is re-scoped
+   to say so.** Its motivation (MATE-7a R2's "a tight box retires wall
+   1") is refuted by R3's geometry; what the box buys is the sweep
+   tree, `separation`, `ops` and the census, and the lily row's
+   re-pin from the far cap to a weld pair is the acceptance. The
+   implementer records the refuted motivation in the item's Closed
+   section and cites R3.
+2. **`Torus` on `boolean_arm_exists` is CURVED's ground** (the operand
+   gate is the curved-operand-reach lane) and is a THIRD unit after
+   PR-2: the door sequence §Lily (a)–(d) gets its own item,
+   `work/curved/torus-operand-gate-admission.md`, filed by the
+   orchestrator at ratification with (c) noted as S-BOOL's containment
+   door (`curved-face-containment-lacks-cone-torus`, handover pending)
+   and (b) as the circle×torus pierce/trim question. MATE-7a's "one
+   function away" is corrected there by citation.
+3. **`K = 256` is accepted as the named constant with its resolution
+   law**; an adaptive scheme is not asked for until a measured consumer
+   needs a finer arc than the law admits — that would be its own row.
+4. **Length stands.** The refutation section is the part a reader most
+   needs.
+
+**Opening measurement (PR-1, before any code):** the lily wall-1 row
+under the scratch tightening, per §Lily — quote the payload and the
+first overlapping arch face in arena order in the PR body; if it lands
+anywhere else, R3 is wrong and row 6 is re-cut from the payload.
+
+**Branches** `curved/torus-box` (PR-1), `curved/torus-arm` (PR-2).
+**Pre-log stands: PR-1 M / NUMERIC, PR-2 M / NUMERIC.**
