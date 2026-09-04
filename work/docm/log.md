@@ -127,3 +127,13 @@ and every later brief names a private scratch directory. Filed at
 adjudication: `n-ary-union-has-no-declaration-channel` (Ev's ruling).
 Spec `docs/DOCM-3-SPEC.md` deleted at merge (DOC-LEDGER). Both node-kind
 units (`DOCM-1`, `DOCM-2`) are now unblocked.
+
+## fused-step-slot-aliases-arrival-spec MERGED (2026-09-04, PR 1840)
+
+Mechanical unit (opus, no review lane, no row; merged on green CI plus
+the orchestrator's read of the diff). One material deviation, disclosed:
+the `SetParam`/`SetExpression`/`expr_at` rows the item asked for cannot
+exist, because the VQ9 insert door and the snapshot walk refuse a
+program carrying an arrival `Sweep`/`ArcLen`/`Bulge` — the payload's
+`expr`/`expr_mut` half is pinned instead, and the door's refusal with it.
+No content-key tag was involved (`StepArg` feeds no key).
