@@ -2,7 +2,8 @@
 id: prose-gate-has-no-mechanical-guard
 kind: issue
 title: the prose gate is enforced only where someone remembered: no row renders every Display-reachable refusal at its struct-shaped payload variants
-status: open
+status: review
+branch: fix/prose-gate-guard
 opened: 2026-09-04
 ---
 
@@ -77,3 +78,70 @@ ground and `step-import` is EXCH's, filed together at
 `work/issues/debug-in-prose-at-blend-and-step-import.md` and routed. A
 live panic on a public door should not wait on a test. This unit is what
 stops the fourth one.
+
+## Closed
+
+`crates/pncad-py/src/prose_census.rs` — a source census, not a roster
+of samples. It reads every `impl Display` in the tree, resolves each
+`{binding:?}` to the field type the binding is declared at, and asks
+whether that type's `Debug` can carry the field-brace fingerprint. A
+site is judged for the TYPE it renders, so which variant a sampler
+would have constructed cannot change the answer — the `blend/mod.rs`
+`seeds()` hole is structurally absent rather than avoided.
+
+Two rows over the tree, plus one over this crate's own raise sites:
+
+- `no_display_impl_renders_a_brace_shaped_payload_through_debug` —
+  deny by default. `KNOWN_BRACED` holds the twelve sites that are
+  brace-shaped today, each with its reason; every one is a known-live
+  or undischarged defect on another program's ground, none is accepted
+  behaviour, and an entry that stops naming a brace-shaped site fails
+  the row exactly as a new site does.
+- `every_site_the_resolver_cannot_type_is_named_in_the_census` —
+  `UNDECIDED` names all 27 sites the resolver cannot type, and the row
+  fails in both directions. The blind spot is a stated population that
+  cannot grow in silence.
+- `no_raise_site_composes_a_debug_rendering_into_its_message` — the
+  other route into the message, over this crate's `typed_err` calls.
+  One allowed site: `py/flush.rs`'s unknown-`ContactClass` arm, which
+  `errors.rs:376` already warns about in prose.
+
+Evidence, on the real tree and not only on fixtures: planting a struct
+variant on `SeamSide` (`crates/geom/src/curves/compose.rs`, whose
+`ComposeError` renders `{side:?}`) turns the first row red naming that
+site — with no value of the planted variant ever constructed — and
+reverting turns it green. Planting `format!("{err:?}")` at a
+`typed_err` call in `py/doc.rs` reds the third row the same way. Four
+further rows run the census over planted one-file trees on every
+invocation, including the sampler-blind-spot shape and the nested-match
+shape that hid the two live instances; a fifth renders a real
+struct-variant value and asserts `reads_as_prose` rejects it, so the
+static verdict and the runtime gate are pinned to each other.
+
+### What the guard cannot see
+
+- **Reachability.** It over-approximates to every `Display` in the
+  tree rather than tracing raise paths, deliberately: a reachability
+  analysis is the half that goes stale silently when a door is added.
+  So a flagged site may be cosmetic rather than a live panic, and the
+  reason string is where that is recorded.
+- **The `Real` scalar.** A `{x:?}` on a generic scalar field is
+  undecided because the answer depends on the lane: `geom-core`'s
+  `Interval` wraps `interval_transcendentals::DInterval`, a
+  named-field struct with a derived `Debug`, so those renderings carry
+  the fingerprint in an interval build and not in a default one. Those
+  sites are in `UNDECIDED`; the class is reported to the orchestrator.
+- **`macro_rules!` bodies and `include!`d text**, which the shared
+  lexer does not expand.
+- **Cross-crate name collisions**, which resolve to braced if either
+  definition is and to undecided otherwise — never to prose.
+
+The two live point fixes stay FILLET's and EXCH's
+(`work/issues/debug-in-prose-at-blend-and-step-import.md`); the
+`editor-core` family stays DOCM's
+(`work/docm/debug-in-prose-residue-after-finding-sink.md`). Two sites
+this census found that were not previously filed —
+`geom-brep/src/offset_fit.rs` (`SplineError`) and
+`topo/src/boolean/voids.rs` (`RevertError`) — are reported to the
+orchestrator per `docs/prompts/implementer-discipline.md` §6 rather
+than filed on another program's slate.
