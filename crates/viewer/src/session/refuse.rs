@@ -7,6 +7,9 @@
 //! arguments; nothing here names the session. [`NodeKindWanted`] and
 //! [`admits`] live here because the kind a seat wants is a
 //! [`Refusal::WrongNodeKind`] payload and `admits` is its predicate.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
     Datum, Dimension, DimensionError, DocumentId, EditError, Node, ParamName, ParseError,

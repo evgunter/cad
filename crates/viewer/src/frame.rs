@@ -16,6 +16,9 @@
 //! frame loop still decides WHEN to call them; it no longer decides what
 //! they mean.
 //!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
+//!
 //! # The status line's two lifetimes
 //!
 //! **The line carries NEWS, for the frame that produced it.** Every

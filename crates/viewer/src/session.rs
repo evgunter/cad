@@ -45,6 +45,8 @@
 //! undo, redo, open and every edit route through them, which is why
 //! "the picture agrees with the document" is a property of the
 //! structure rather than of each call site remembering.
+//!
+//! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

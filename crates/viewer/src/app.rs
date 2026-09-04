@@ -44,6 +44,8 @@
 //! this module knows about threads is one constructor call; everything
 //! else is the seam's vocabulary, which the wasm build satisfies with
 //! no thread at all.
+//!
+//! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
