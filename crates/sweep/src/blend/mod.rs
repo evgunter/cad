@@ -47,14 +47,15 @@
 //! endpoint of an enclosure is a number nothing measured. Only a
 //! `ClassifiedMargin` is rendered as "the margin".
 //!
-//! **Which SHAPE a reading takes is the scalar's own answer**, asked
-//! of `Decide::sign_within` at the payload site rather than inferred
-//! from the bracket: `f64` and `Interval` present a thin reading
+//! **Which SHAPE a reading takes is a property of the SCALAR**, not of
+//! the bracket's width: `f64` and `Interval` present a thin reading
 //! identically (`lo == hi`) and spell it differently (`Value(m)` vs
 //! `Enclosure { lo: m, hi: m }`), so a payload that guessed from the
 //! width would disagree with its own escalated twin about one reading.
-//! `battery::measured` puts the question; `battery::diag_spelling`
-//! is the question.
+//! `battery::measured` reads both ends; `battery::holds_enclosures`
+//! says which arm they go into, by asking whether the scalar brackets
+//! anything at all — one division, no classifier, and therefore no
+//! K-telemetry sample from a constructor that decides nothing.
 //!
 //! **The companion fields split two ways, and the split is the point.**
 //! A quantity the refusal MEASURED and states as a fact — a gap

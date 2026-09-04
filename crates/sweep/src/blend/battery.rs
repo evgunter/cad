@@ -116,7 +116,7 @@ enum Spelling {
 /// own (a bracket read feeding an error payload, deciding nothing,
 /// `Bounds`' delegation rule (a)); which VARIANT carries it is not
 /// read off the bracket at all but asked of the scalar, by
-/// [`diag_spelling`].
+/// [`holds_enclosures`].
 pub(crate) fn measured<T: Bounds>(value: T) -> MarginDiag {
     let (lo, hi) = (value.lo(), value.hi());
     if lo.is_nan() || hi.is_nan() {
