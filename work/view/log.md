@@ -682,6 +682,114 @@ compilation rather than during.
 record here, not a lane's local runs, so a lane dying after its edits
 loses only the local pre-check.
 
+## 1b merged; an inherited item swept; 1c dispatched into isolated worktrees (2026-09-04)
+
+**1b is on main** (#1816). The mid-gesture policy is one exhaustive
+table checked once, the README states it in the present under its real
+name, and each row in `gesture_table.rs` says what it is worth rather
+than sharing one overstated claim.
+
+**`blamed-mates-lost-its-exhaustive-arm` arrived on this slate from
+FILLET-E3** while 1b was in flight. Its code half was closed on
+arrival; it left two questions and this program owns one of them.
+
+Swept: **`blamed_mates` is not the only exhaustive match on `MateFault`
+outside `editor-core`** — `crates/pncad-py/src/tags.rs:400` is a second,
+and it is **LIB's** ground, and it did get its `Unleverable` arm. Both
+are correct as of today, and both were repaired by someone who happened
+to be looking, which is the part that should not be relied on again.
+
+The finding worth carrying is about the ones that did NOT break:
+`pncad-py/src/py/mate.rs` wildcards `MateFault` in eight accessors and
+`viewer/src/app.rs:2880` in one. They cannot fail to compile, and that
+is not safety — a new fault arm naming a mate returns `None` from every
+one of them, silently, which is precisely what `blamed_mates`'s
+doc-comment says its exhaustiveness exists to prevent. **The wildcards
+are the same defect with the compiler switched off.** Whether
+`MateFault` should be `#[non_exhaustive]` is DOCM's
+(`crates/editor-core/src/mate.rs`), and the tree already holds both
+patterns with no stated rule for choosing — `pncad-py`'s own module doc
+names `select_refusal_tag` as a documented `#[non_exhaustive]`
+exception. Announced to DOCM and LIB; the CI half (a draw that can hide
+a hard compile break on `main` for an unbounded number of merges) is
+CIW's and announced there.
+
+### 1c runs in worktrees, because the shared checkout has now failed three ways
+
+Two lanes editing `session.rs` and `app.rs` are independent by file,
+which is why 1c is two lanes rather than six. But this session has now
+watched the shared checkout fail three times — an orchestrator commit
+landing on a lane's branch, a lane's commit orphaned by an orchestrator
+merge, and a dead lane's edits sitting in the orchestrator's tree — and
+two CONCURRENT lanes in one working tree is not a variant of those
+hazards, it is the guaranteed form of them: two agents editing one tree
+with one HEAD.
+
+So both 1c lanes get **their own git worktree**. That is a per-lane
+checkout, which is what `memories/agent-lane-operations.md`'s branch-ref
+rules assume exists and what the remote-session default does not
+provide. It is the structural fix rather than a discipline one, which
+is the preference this project states everywhere else.
+
+## 1c-session landed; two dispatcher errors and one of mine (2026-09-04)
+
+**`session.rs` is 3,260 → 1,484 lines** across the six vocabularies the
+README names, on `view/1c-session-split`. No test file touched, no
+assertion changed, 466 + 467 rows green, clippy and the real doc gate
+clean, remote ref verified equal to local. The lane audited it
+line-by-line rather than trusting the compiler: every non-blank
+non-comment line of the old file accounted for in the new set.
+
+One restructuring, disclosed: `probe_bounds` split into a free search
+function and a driver method that keeps the guard-then-store order, so
+the driven-slot guard still runs before anything and every refusal
+still returns before `self.bounds` is written. Eighteen intra-doc links
+repointed — as predicted, that was the unit's main breakage source.
+
+### The briefs told both 1c lanes to do the wrong thing
+
+Both briefs said to put `CI-Config: lane=default` on the head commit.
+**That instruction was stale by two hours when I wrote it.** `ci.yml`
+and `docs/prompts/implementer-discipline.md` changed on main at ~08:22
+(`bb17cfbc7`): an un-narrowed run now gates the whole
+`{default, interval} × {default, 1e-6, 1e-12}` matrix as twelve test
+jobs, and the trailer **narrows** rather than requests. Following the
+brief would have bought these units strictly less gate than doing
+nothing.
+
+The session lane caught it, declined, and quoted the new text back.
+That is the **third** dispatcher error the 1b/1c lanes have corrected —
+after the missing `AddPlacedUnion` and the three gesture ops with no
+row — which is the reviewer brief's "a dispatch is a hypothesis" rule
+earning its place three times in one unit chain. The app lane has been
+told directly, mid-flight.
+
+**And the same staleness reached a merged PR body.** #1816's
+Verification section claims the run was "drawn, not asked for" and that
+interval and the other tolerance rows "were not seen". True of the
+07:37 run, false of the 10:07 run it merged on — which gated *more*
+than the body claims. Corrected in a comment beneath rather than by
+rewriting merged history, because that paragraph exists precisely so a
+reader need not assume what the gate saw.
+
+### The disk finding is mine, not a missing rule
+
+The root filesystem hit 100% of 252 G during the session lane's run;
+its doc gate aborted with ENOSPC and the harness's own tmpfs went
+unwritable. Reclaimed ~10 G by removing the merged VIEW-1b lanes'
+target directories.
+
+The lane reported this as a gap — "the missing half is a teardown step
+rather than a rule change". **It is not a gap.**
+`memories/agent-lane-operations.md` already says to reclaim a lane's
+target **"when a review returns, not when a lane runs out of disk — a
+review lane's `target/` is pure waste the moment its report is in
+hand, and review lanes are the biggest consumers."** `view1b-review-target`
+should have gone when the style review came back hours earlier, and
+`view1b-target` when #1816 merged. I ran three lanes without doing
+either. No memory is added for this, because a second copy of a rule
+nobody followed is not the fix.
+
 ## 1c is built: both files split, verified together (2026-09-04)
 
 | file | was | now |
@@ -788,3 +896,91 @@ staleness in the next paragraph. Not fixed here because its payload is
 a `println!` naming two modules and a test named after them, which is
 a decision rather than a typo; this pass was scoped to prose with no
 decision in it.
+
+## Unit 1 is done but for 1d, and the review found the rule wrong about its own newest module (2026-09-04)
+
+#1830 merged. `session.rs` 3,260 → **1,500** and `app.rs` 5,696 →
+**1,752** (the fix pass's own edits moved both slightly from the
+figures the PR table carries). Unit 1's remaining part is **1d**,
+`Option<OpenTool>`.
+
+**The style review audited differently from both lanes, and that is
+why it found things.** Both lanes had diffed sorted or multiset line
+sets; the reviewer extracted all 237 `fn`/`const` items and every type
+definition by brace-matching and diffed each body **in order**, which
+sees a moved line or a reordered statement that a multiset cannot.
+Three independent audits of one mechanical move, each shaped
+differently, and only the third could have caught a reordering. Worth
+keeping as method the next time a unit's safety rests on "the compiler
+checks it".
+
+Claims 1–3 survived. **Claim 4 did not.**
+
+### `widgets` obeyed neither side of the ratified rule
+
+The README filed `widgets` under *The app's vocabularies*; the rule
+says a vocabulary names no `DocSession`, no `ViewerApp` and no `egui`.
+`widgets.rs` names `egui` at `:13` and `DocSession` at `:20`, used at
+`:518` where `delete_button` takes `&DocSession`. It is not a driver
+either. So the crate's newest 525-line module fitted **neither side of
+a binary rule whose selling point is that reading a `use` block decides
+it** — a harder failure than the day's other four, which were stale
+sentences rather than a hole in the classification.
+
+The rule survives; the classification was wrong. `app` is a driver, and
+a driver too large to read is still a driver: `app.rs`, `pane::*` and
+`widgets` are one driver split for size, and splitting a driver does
+not make the pieces vocabularies. The README says so under **The app
+driver, split for size**, and the check now reports what a module IS
+rather than only whether it is a vocabulary.
+
+### Two of my claims, and one item I should not have filed
+
+The PR body said 1c "closes the substance of" CHROME's
+`drag-tick-has-three-homes`. The code contradicted me —
+`forms.rs` still said the rule had a third home — the item's two
+questions are untouched, and 1c made one half **worse**: the hand-picked
+constant call sites went from one file to three. 1c gave the RULE one
+home, which is not what that item is about. The "two residues" in
+`app.rs` also undercounted, and `app.rs` was 1,754 lines and not the
+1,746 the PR, this log and my brief all carried.
+
+And `tip-mark-doc-duplicates-its-own-first-sentence`, which I filed
+this morning, was **item #1 of CHROME's `app-rs-doc-comment-merge-scars`**
+— filed the same day, parked on this very split, explicit that its
+three scars are one class with one fix. I wrote that mine was "the one
+instance found of a shape nothing in this repo checks"; it had already
+been found. `implementer-discipline.md` §6 tells lanes to report rather
+than file *because they cannot see the whole board*. The orchestrator
+is the party who can, and I did not look. Deleted.
+
+### A fifth stale claim, found while fixing the fourth
+
+The fix pass found `lib.rs:90`'s loud-skip marker saying "The two
+modules above" over **six** `#[cfg(feature = "app")]` modules — and
+that marker's own next paragraph predicts exactly this: *"a marker that
+silently went stale would look exactly like this one."* It declined to
+fix it, correctly: the sentence is one word but the payload is a
+`println!` naming two modules and a test named after them, so which
+modules get named is a decision. Filed as
+`loud-skip-marker-says-two-modules-and-there-are-six`.
+
+**That is five prose claims outrunning the tree in one day, four of
+them mine.** The two items filed today are the two halves of the
+countermeasure: `boundary-rule-has-no-mechanical-check` (the README
+calls the rule mechanically checkable and nothing reads a `use` block)
+and `stale-file-citations-after-the-split` (24 open files cite moved
+lines; the rustdoc gate sees only BRACKETED intra-doc links, which is
+precisely why every survivor is an unbracketed code span and the gate
+is green). Until one of those lands, the only thing that has caught any
+of the five is a reader with the tree open.
+
+### Recovered, again: two log entries that never left this branch
+
+The merge of main after #1830 conflicted because **`1b merged; an
+inherited item swept…` and `1c-session landed…` were never on main** —
+they were committed here while 1c branched straight from main. Same
+shape as the stale-tree state-sync commit earlier today, and the same
+lesson: this branch is not a place work becomes durable. Resolved as a
+chronological union. **The orchestrator branch needs a PR of its own
+before this session ends**, or the day's whole record lives on a branch.
