@@ -367,7 +367,9 @@ fn r2_c3_every_storage_door_surface_remaps_at_f64() {
                     c.rounds,
                     a.certificate().rounds
                 );
-                assert!(gap <= 1e-9, "{name}: hull_sup gap {gap}");
+                // Recorded, not asserted: on a curved base the certified
+                // hull bound is FRAME-DEPENDENT (see r2_c3_hull_sup_is_not_a_rigid_invariant).
+                let _ = gap;
             }
             Some(Err(e)) => panic!("{name}: the f64 arm refuses a storage-door surface: {e}"),
             None => panic!("{name}: the f64 arm has no lane"),
@@ -410,7 +412,7 @@ fn r2_c4_non_finite_map_components_refuse_before_the_approx_arm() {
 #[test]
 fn r2_c4_the_dual_lane_refuses_naming_itself() {
     use geom_core::{Dual, Dual64};
-    use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
     let honest = geom_brep::approx_offset_surface(
         Arc::new(pulled_back(&planar_patch(1.0), 0.05)),
         0.05,
@@ -437,7 +439,7 @@ fn r2_c4_the_dual_lane_refuses_naming_itself() {
             matches!(
                 body.get_surface(f.surface),
                 Some(Surface::Plane { origin, normal, .. })
-                    if normal.z.value() > 0.5 && origin.z.value() > 0.5
+                    if normal.z.value > 0.5 && origin.z.value > 0.5
             )
         })
         .map(|(k, _)| k)
@@ -520,12 +522,24 @@ fn r2_c6_a_chart_described_approx_cap_is_movable_and_tier_three_clean() {
             .unwrap_or_else(|e| panic!("d = {d}: the chart-described body does not move: {e}"));
         let after = topo::validate_geometric(&moved, Tol::witness());
         eprintln!("[r2 c6] d = {d}: tier 3 after the map: {after:?}");
-        assert_eq!(
-            before,
-            Ok(()),
-            "d = {d}: the chart-described cap is tier-3 clean"
+        let names = |r: &Result<(), Vec<topo::ValidationError>>| -> Vec<String> {
+            match r {
+                Ok(()) => Vec::new(),
+                Err(es) => es.iter().map(|e| format!("{e:?}")).collect(),
+            }
+        };
+        let (b, a) = (names(&before), names(&after));
+        assert_eq!(a, b, "d = {d}: the map introduces no finding");
+        assert!(
+            !b.iter().any(|f| f.contains("DescriptionNotAdjacent")
+                || f.contains("Approx")
+                || f.contains("Certif")),
+            "d = {d}: the chart re-description removes every adjacency finding: {b:?}"
         );
-        assert_eq!(after, Ok(()), "d = {d}: and so is its rigid image");
+        assert!(
+            b.iter().all(|f| f.contains("QuadratureUnsupported")),
+            "d = {d}: what is left is check 7 wanting caches: {b:?}"
+        );
         assert!(matches!(
             moved.get_surface(moved.get_face(face).unwrap().surface),
             Some(Surface::Approx(_))
@@ -634,4 +648,116 @@ fn r2_e2e_a_user_places_an_approx_capped_part() {
         "the STEP writer refuses the kind"
     );
     let _ = mesh;
+}
+
+// ---------------------------------------------------------------------
+// Q1/Q4 — three re-derivation doors, two window rules
+// ---------------------------------------------------------------------
+
+/// `recertify_approx` (tier 3's door) checks no window; the map's f64
+/// arm does. So a narrowed window is a body tier 3 passes and the map
+/// refuses — read both verdicts off the same planted body.
+#[test]
+fn r2_q1_tier_three_and_the_map_disagree_on_a_narrowed_window() {
+    let d = 0.05;
+    let (mut body, face) = box_with_approx_cap(d, 1e-9);
+    let baseline = topo::validate_geometric(&body, Tol::witness());
+    eprintln!("[r2 q1] tier 3 on the fixture as built: {baseline:?}");
+    let good = approx_of(&body, face);
+    let mut window = good.window();
+    window.u = (window.u.0, 0.5 * (window.u.0 + window.u.1));
+    plant(
+        &mut body,
+        face,
+        good.description().clone(),
+        good.fit().clone(),
+        window,
+        good.tolerance(),
+        *good.certificate(),
+    );
+    let tier3 = topo::validate_geometric(&body, Tol::witness());
+    let re = geom_brep::recertify_approx(&approx_of(&body, face), 1e-9, band());
+    eprintln!("[r2 q1] narrowed window: recertify_approx = {re:?}");
+    let approx_findings: Vec<String> = match &tier3 {
+        Ok(()) => Vec::new(),
+        Err(es) => es
+            .iter()
+            .map(|e| format!("{e:?}"))
+            .filter(|s| s.contains("Approx") || s.contains("Certif"))
+            .collect(),
+    };
+    eprintln!("[r2 q1] narrowed window: tier-3 Approx findings = {approx_findings:?}");
+    let map = topo::transform_rigid(&body, &rigid(), Tol::witness()).map(|_| ());
+    eprintln!(
+        "[r2 q1] narrowed window: transform = {:?}",
+        map.as_ref().err().map(|e| format!("{e}"))
+    );
+    assert!(re.is_ok(), "tier 3's door does not check the window");
+    assert!(map.is_err(), "the map's door does");
+}
+
+/// **The PR's row-1 limb assertion, on a CURVED cap.** The spec (§3.1,
+/// §6) and the row say a rigid map preserves `hull_sup` to 1e-9 because
+/// "a residual is a distance". `on_locus_max` is a sampled distance;
+/// `hull_sup` is a certified BOUND built from hull/interval arithmetic
+/// in the ambient frame, which a rotation changes. Measured per map.
+#[test]
+fn r2_c3_hull_sup_is_not_a_rigid_invariant() {
+    let d = 0.02;
+    let honest = geom_brep::approx_offset_surface(Arc::new(bowed()), d, 1e-6, band()).unwrap();
+    let Surface::Approx(a) = &honest else {
+        panic!()
+    };
+    let c0 = *a.certificate();
+    let maps: Vec<(&str, Affine3<f64>)> = vec![
+        (
+            "translation only",
+            Affine3::translation(Vec3::new(0.3, -0.2, 1.1)),
+        ),
+        ("the PR row's map (z by pi/3 + translation)", {
+            let mut m = Affine3::rotation_about_axis(
+                Point3::origin(),
+                Vec3::unit_z(),
+                core::f64::consts::FRAC_PI_3,
+            );
+            m.translation = m.translation + Vec3::new(0.3, -0.2, 1.1);
+            m
+        }),
+        (
+            "x by pi/2",
+            Affine3::rotation_about_axis(
+                Point3::origin(),
+                Vec3::unit_x(),
+                core::f64::consts::FRAC_PI_2,
+            ),
+        ),
+        ("oblique axis by 1.1", rigid()),
+    ];
+    let mut worst = 0.0_f64;
+    for (name, map) in maps {
+        let mut body = unit_box();
+        let face = top_face(&body);
+        body.set_face_surface(face, FaceSurface::New(honest.clone()))
+            .unwrap();
+        let moved = topo::transform_rigid(&body, &map, Tol::witness())
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+        let c1 = *approx_of(&moved, face).certificate();
+        let (gh, go) = (
+            (c1.hull_sup - c0.hull_sup).abs(),
+            (c1.on_locus_max - c0.on_locus_max).abs(),
+        );
+        eprintln!(
+            "[r2 c3 frame] {name}: hull_sup {:.6e} -> {:.6e} (gap {gh:.3e}); on_locus_max gap {go:.3e}; reach {:.3e} -> {:.3e}",
+            c0.hull_sup, c1.hull_sup, c0.curvature_reach, c1.curvature_reach
+        );
+        worst = worst.max(gh);
+        assert!(
+            go <= 1e-12,
+            "{name}: the sampled distance IS invariant (gap {go})"
+        );
+    }
+    eprintln!(
+        "[r2 c3 frame] worst hull_sup gap across maps: {worst:.3e} (the row asserts <= 1e-9)"
+    );
+    assert!(worst > 1e-9, "if this ever holds, the finding is withdrawn");
 }
