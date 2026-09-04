@@ -10,6 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 
+use core::num::NonZeroUsize;
 use geom_core::spline::KnotVector;
 use test_utils::fuzz;
 // Promotion adaptation (mechanical): dropped an unused Real import.
@@ -268,8 +269,8 @@ fn f4_surface_removal_bound_honest_u_and_v() {
 /// interpolate its four corners with the documented iu*nv+iv layout.
 #[test]
 fn row_major_layout_pinned_by_corner_interpolation() {
-    let ku = KnotVector::unit_segment(1);
-    let kv = KnotVector::unit_segment(1);
+    let ku = KnotVector::unit_segment(NonZeroUsize::MIN);
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let corners = vec![
         Point3::new(0.0, 0.0, 0.0),  // iu=0 (u=0), iv=0 (v=0)
         Point3::new(0.0, 1.0, 5.0),  // iu=0, iv=1 (v=1)

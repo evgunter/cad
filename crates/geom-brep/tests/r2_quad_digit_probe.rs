@@ -6,6 +6,7 @@
 // `-D warnings`. Nothing else in this file is this lane's.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use core::num::NonZeroUsize;
 use geom_brep::props::quad::{RVec3, nurbs_patch_face};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Tol, ring_interval::RingInterval};
@@ -17,7 +18,7 @@ fn pt(x: f64) -> RingInterval {
 #[test]
 fn r2_quad_raw_digit_probe() {
     let band = Band::linear(Tol::witness()).unwrap();
-    let kv_v = KnotVector::unit_segment(1);
+    let kv_v = KnotVector::unit_segment(NonZeroUsize::MIN);
     let (pu, nv, height) = (3usize, 2usize, 2.0f64);
     for mult in [2usize, 3] {
         let mut knots = vec![0.0; pu + 1];

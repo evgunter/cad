@@ -47,6 +47,7 @@
 //! Knot-algebra point combinations are `lerp(x, y, λ) = x + (y − x)·λ`
 //! with `λ` lifted once per combination.
 
+use core::num::NonZeroUsize;
 use geom_core::spline::{self, KnotAlgebraError, KnotVector, Span, SpanLocate, SplineError};
 use geom_core::{Point2, Point3, Real, RingInterval, Vec2, Vec3};
 
@@ -1323,7 +1324,7 @@ impl<T: Real> NurbsCurve3<T> {
         Self {
             // Structurally valid by construction: clamped degree-1
             // vector, two positive weights, two control points.
-            knots: KnotVector::unit_segment(1),
+            knots: KnotVector::unit_segment(NonZeroUsize::MIN),
             control: vec![p, p],
             weights: vec![1.0, 1.0],
         }

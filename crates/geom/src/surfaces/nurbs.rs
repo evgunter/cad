@@ -39,6 +39,7 @@
 //! conjugated by [`NurbsSurface::transposed`] — one implementation,
 //! both directions, deterministic.
 
+use core::num::NonZeroUsize;
 use geom_core::spline::{self, KnotAlgebraError, KnotVector, Span, SpanLocate, SplineError};
 use geom_core::{Point3, Real, Vec3};
 
@@ -286,8 +287,8 @@ impl<T: Real> NurbsSurface<T> {
     pub fn placeholder() -> Self {
         let p = net::poison_point::<T, Point3<T>>();
         Self {
-            knots_u: KnotVector::unit_segment(1),
-            knots_v: KnotVector::unit_segment(1),
+            knots_u: KnotVector::unit_segment(NonZeroUsize::MIN),
+            knots_v: KnotVector::unit_segment(NonZeroUsize::MIN),
             control: vec![p; 4],
             weights: vec![1.0; 4],
         }

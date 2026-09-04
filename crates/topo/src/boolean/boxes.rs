@@ -1786,7 +1786,7 @@ mod tests {
     fn nurbs_bulge_face() -> (Body<f64>, FaceKey, (Point3<f64>, Point3<f64>)) {
         use geom::surfaces::nurbs::NurbsSurface;
         use geom_core::spline::KnotVector;
-        let kv = KnotVector::unit_segment(2);
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::new(2).unwrap());
         let p = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
         let control = vec![
             p(0.0, 0.0, 0.0),

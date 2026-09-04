@@ -1287,7 +1287,7 @@ mod tests {
     /// conservative side.
     #[test]
     fn planar_bilinear_bounds_collapse() {
-        let kv = KnotVector::unit_segment(1);
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let control = vec![
             Point3::new(0.0, 0.0, 0.0),
             Point3::new(0.0, 1.0, 0.0),
@@ -1308,7 +1308,7 @@ mod tests {
     /// contribute exact zeros to uu/vv).
     #[test]
     fn twisted_bilinear_mixed_term_is_tight() {
-        let kv = KnotVector::unit_segment(1);
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let control = vec![
             Point3::new(0.0, 0.0, 0.0),
             Point3::new(0.0, 1.0, 0.0),
@@ -1330,7 +1330,7 @@ mod tests {
             // Degree 0 cannot even be described — the gate is upstream.
             return;
         };
-        let kv_v = KnotVector::unit_segment(1);
+        let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let n = kv_u.control_count() * kv_v.control_count();
         let control = vec![Point3::new(0.0, 0.0, 0.0); n];
         let s = NurbsSurface::new(kv_u, kv_v, control, vec![1.0; n]).unwrap();
@@ -1957,7 +1957,7 @@ mod tests {
     /// (weights `[1, √2/2, 1]`) × unit line in z.
     fn quarter_cylinder() -> NurbsSurface<f64> {
         let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
-        let kv_v = KnotVector::unit_segment(1);
+        let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let w = core::f64::consts::FRAC_1_SQRT_2;
         let arc = [(1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
         let mut control = Vec::new();
@@ -2135,7 +2135,7 @@ mod tests {
     /// backstop rather than a reachable lane.
     #[test]
     fn illegal_rational_weight_refuses_at_the_door() {
-        let kv = KnotVector::unit_segment(1);
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let control = vec![Point3::new(0.0, 0.0, 0.0); 4];
         for bad in [0.0, -1.0, f64::NAN] {
             assert!(
@@ -2174,7 +2174,7 @@ mod tests {
     ///   would be blind reuse; pinned an order above at 1e-11.
     #[test]
     fn rational_uniform_weight_bilinear_dust() {
-        let kv = KnotVector::unit_segment(1);
+        let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let control = vec![
             Point3::new(0.0, 0.0, 0.0),
             Point3::new(0.0, 1.0, 0.0),
@@ -2199,7 +2199,7 @@ mod tests {
     #[test]
     fn c0_crease_refuses_typed() {
         let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
-        let kv_v = KnotVector::unit_segment(1);
+        let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let n = kv_u.control_count() * kv_v.control_count();
         let control = vec![Point3::new(0.0, 0.0, 0.0); n];
         let s = NurbsSurface::new(kv_u, kv_v, control, vec![1.0; n]).unwrap();
@@ -2215,7 +2215,7 @@ mod tests {
     #[test]
     fn degree_one_interior_knot_refuses_typed() {
         let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
-        let kv_v = KnotVector::unit_segment(1);
+        let kv_v = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let n = kv_u.control_count() * kv_v.control_count();
         let control = vec![Point3::new(0.0, 0.0, 0.0); n];
         let s = NurbsSurface::new(kv_u, kv_v, control, vec![1.0; n]).unwrap();
@@ -2368,7 +2368,7 @@ mod tests {
     /// path must still bound it through the surviving cross terms.
     #[test]
     fn r1_moebius_ruling_degree1_cross_terms_dominated() {
-        let kv_u = KnotVector::unit_segment(1);
+        let kv_u = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let kv_v = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
         let mut control = Vec::new();

@@ -21,6 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 
+use core::num::NonZeroUsize;
 use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
 // Promotion adaptation (mechanical): dropped an unused Real import.
 use geom::{Curve3, NurbsCurve3};
@@ -564,7 +565,7 @@ fn f7_find_span_fuzz_totality() {
         let _ = c.deriv2(-5.0);
     }
     // Degenerate single-span surface-ish curve: eval at both ends.
-    let kv = KnotVector::unit_segment(1);
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let c = NurbsCurve3::new(
         kv,
         vec![Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],

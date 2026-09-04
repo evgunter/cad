@@ -3,6 +3,8 @@
 //! deterministic f64 lane. Raw `f64` comparisons are legal throughout
 //! this file (structure selection, never a topology decision).
 
+use core::num::NonZeroUsize;
+
 /// A typed construction failure for spline structure — fail-loud per
 /// D4: every invalid input is a named refusal, never a silent repair.
 #[derive(Clone, Debug, PartialEq)]
@@ -629,18 +631,22 @@ impl KnotVector {
     }
 
     /// The clamped single-segment (Bézier) vector on `[0, 1]`:
-    /// `degree + 1` zeros followed by `degree + 1` ones. Infallible —
-    /// statically valid for every `degree ≥ 1`.
+    /// `degree + 1` zeros followed by `degree + 1` ones. Total, with
+    /// nothing refused and nothing substituted: the clamped-v1 form
+    /// represents every degree except 0, and the argument's type is
+    /// exactly that set, so every spellable call names a vector
+    /// [`KnotVector::clamped`] would accept. `NonZeroUsize::MIN` is the
+    /// degree-1 segment the placeholder payloads ride.
     ///
-    /// **`unit_segment(0)` silently yields the degree-1 vector** (the
-    /// argument is clamped up with `max(1)`, not refused): the
-    /// `DegreeZero` refusal is [`KnotVector::clamped`]'s job — the one
-    /// validating door for externally supplied structure — while this
-    /// constructor exists precisely to be panic- and error-free for
-    /// the placeholder/fixture paths, which never ask for degree 0.
-    /// Callers that must *distinguish* degree 0 go through `clamped`.
-    pub fn unit_segment(degree: usize) -> Self {
-        let p = degree.max(1);
+    /// Degree 0 — the request `clamped` answers with `DegreeZero` when
+    /// it arrives as data — is not a spellable argument here:
+    ///
+    /// ```compile_fail,E0308
+    /// # use geom_core::spline::KnotVector;
+    /// let _ = KnotVector::unit_segment(0);
+    /// ```
+    pub fn unit_segment(degree: NonZeroUsize) -> Self {
+        let p = degree.get();
         let mut knots = vec![0.0; p + 1];
         knots.extend(core::iter::repeat_n(1.0, p + 1));
         Self { knots, degree: p }

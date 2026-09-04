@@ -23,6 +23,7 @@
     clippy::useless_vec
 )]
 
+use core::num::NonZeroUsize;
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::Tol;
@@ -597,7 +598,7 @@ const PI: f64 = core::f64::consts::PI;
 /// pi/2. Signed flux from the oracle.
 #[test]
 fn probe_sphere_octant() {
-    let kv2 = KnotVector::unit_segment(2);
+    let kv2 = KnotVector::unit_segment(NonZeroUsize::new(2).unwrap());
     let net = [
         p(0.0, 0.0, 1.0),
         p(0.0, 0.0, 1.0),
@@ -626,7 +627,7 @@ fn probe_sphere_octant() {
 /// Quarter torus patch (R=2, r=0.5): dense oracle only.
 #[test]
 fn probe_quarter_torus() {
-    let kv2 = KnotVector::unit_segment(2);
+    let kv2 = KnotVector::unit_segment(NonZeroUsize::new(2).unwrap());
     let (rr, r) = (2.0, 0.5);
     // tube quarter arc in xz-plane: (R+r,0,0) -> (R+r,0,r) -> (R,0,r)
     let prof = [(rr + r, 0.0), (rr + r, r), (rr, r)];
@@ -658,8 +659,8 @@ fn probe_quarter_torus() {
 /// lambda^i, lambda = 10 -> same locus): flux = area = pi exactly.
 #[test]
 fn probe_moebius_quarter_cylinder() {
-    let ku = KnotVector::unit_segment(2);
-    let kv = KnotVector::unit_segment(1);
+    let ku = KnotVector::unit_segment(NonZeroUsize::new(2).unwrap());
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let h = 2.0;
     let net = [
         p(1.0, 0.0, 0.0),
@@ -688,7 +689,7 @@ fn probe_moebius_quarter_cylinder() {
 /// mixed corner weights (1e-3 / 1e3): flux = area = 1 exactly.
 #[test]
 fn probe_extreme_weight_square() {
-    let kv1 = KnotVector::unit_segment(1);
+    let kv1 = KnotVector::unit_segment(NonZeroUsize::MIN);
     let net = [
         p(0.0, 0.0, 1.0),
         p(0.0, 1.0, 1.0),
@@ -728,7 +729,7 @@ fn probe_extreme_weight_square() {
 /// weights: dense oracle only.
 #[test]
 fn probe_extreme_weight_hypar() {
-    let kv1 = KnotVector::unit_segment(1);
+    let kv1 = KnotVector::unit_segment(NonZeroUsize::MIN);
     let net = [
         p(0.0, 0.0, 0.0),
         p(0.0, 1.0, 1.0),
@@ -753,8 +754,8 @@ fn probe_extreme_weight_hypar() {
 /// row's shape; shared with the anti-vacuity test below).
 /// Closed forms: flux = (pi/2) r^2 h, area = (pi/2) r h.
 fn quarter_cylinder_probe(name: &str, r: f64, h: f64) -> Posture {
-    let ku = KnotVector::unit_segment(2);
-    let kv = KnotVector::unit_segment(1);
+    let ku = KnotVector::unit_segment(NonZeroUsize::new(2).unwrap());
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let net = [
         p(r, 0.0, 0.0),
         p(r, 0.0, h),
@@ -839,7 +840,7 @@ fn probe_scale_extremes() {
 /// that excluded the truth fails there, not here.)
 #[test]
 fn probe_suite_still_certifies_something() {
-    let kv1 = KnotVector::unit_segment(1);
+    let kv1 = KnotVector::unit_segment(NonZeroUsize::MIN);
     let flat = [
         p(0.0, 0.0, 1.0),
         p(0.0, 1.0, 1.0),
@@ -880,7 +881,7 @@ fn probe_suite_still_certifies_something() {
 #[test]
 fn probe_half_cylinder_interior_knot() {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
-    let kv = KnotVector::unit_segment(1);
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let h = 2.0;
     let net = [
         p(1.0, 0.0, 0.0),
@@ -917,7 +918,7 @@ fn probe_half_cylinder_interior_knot() {
 fn probe_c0_kink_area() {
     let ku =
         KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0 / 3.0, 1.0 / 3.0, 1.0, 1.0, 1.0], 2).unwrap();
-    let kv = KnotVector::unit_segment(1);
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     // profile in the xy-plane: straight (0,0)->(1,0), corner, then
     // straight (1,0)->(1,4); extruded in z by 1.
     let prof = [(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 2.0), (1.0, 4.0)];
@@ -944,8 +945,8 @@ fn probe_c0_kink_area() {
 /// BIT-identical (also printed for the debug/release cross-check).
 #[test]
 fn probe_determinism_bits() {
-    let ku = KnotVector::unit_segment(2);
-    let kv = KnotVector::unit_segment(1);
+    let ku = KnotVector::unit_segment(NonZeroUsize::new(2).unwrap());
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let h = 2.0;
     let net = [
         p(1.0, 0.0, 0.0),
@@ -1140,7 +1141,7 @@ fn diag_refine_half_circle() {
 #[test]
 fn diag_uniform_weight_twins() {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
-    let kv = KnotVector::unit_segment(1);
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let h = 2.0;
     let net = [
         p(1.0, 0.0, 0.0),
@@ -1231,8 +1232,8 @@ fn diag_uniform_weight_twins() {
 #[test]
 fn probe_interval_scalar_agrees() {
     use geom_core::Interval;
-    let ku = KnotVector::unit_segment(2);
-    let kv = KnotVector::unit_segment(1);
+    let ku = KnotVector::unit_segment(NonZeroUsize::new(2).unwrap());
+    let kv = KnotVector::unit_segment(NonZeroUsize::MIN);
     let h = 2.0;
     let net = [
         p(1.0, 0.0, 0.0),
