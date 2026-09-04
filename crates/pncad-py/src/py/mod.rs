@@ -462,8 +462,14 @@ pub(crate) fn typed_err(
     raise_typed(py, class, message, fields)
 }
 
-/// The construction itself, kept apart from [`typed_err`] so the class
-/// table and the attribute loop have one home.
+/// The class table and the attribute loop.
+///
+/// Split out from [`typed_err`] when a second raising door existed. It
+/// has one caller now, so the split buys no sharing; it stays because
+/// the two halves answer different questions — this one maps a class to
+/// a Python exception type and hangs the payload on it, while
+/// [`typed_err`] decides whether a message is fit to raise at all. A
+/// reader looking for either finds it without the other.
 fn raise_typed(
     py: Python<'_>,
     class: ErrorClass,

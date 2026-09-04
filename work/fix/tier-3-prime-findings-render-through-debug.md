@@ -122,8 +122,23 @@ What a caller reads, measured through the door:
 **Four pins turned, not deleted.** The two the filing unit armed —
 `pncad-py/src/tests.rs` and `test_validate.py::TestTheRefusalsShape` —
 now assert the findings DO read as prose, and each still checks that the
-prose kept the entities and the witness, so a rewording that reads well
-and says nothing fails them. Two more were not named in the brief.
+prose kept the entities and the witness.
+
+That was first written as "so a rewording that reads well and says
+nothing fails them", and planted regressions falsified it. Reverting an
+arm to `{contact:?}` reddens the `pncad-py` pin, and restoring
+`witness`'s `Debug` reddens both topo pins — but rewording
+`VertexOnFace` to drop BOTH arena keys left every row in the tree
+green, and the keys are the entire justification for rendering them
+(`assert!(contains("vertex"))` matches the bare noun; `mate4a`'s golden
+pins the error's DERIVED `Debug`, which never calls these impls).
+`validate.rs`'s `review_census_display_keys` closes it: exhaustive over
+7 of 8 `CensusContact` arms and all 4 `StaleDeclaration` arms, by key
+MULTIPLICITY rather than containment so a same-type `a`/`b` pair cannot
+hide a dropped half. (`ConformalPatch` is skipped — it needs a
+`ContactFinding` to build.)
+
+Two more pins were not named in the brief.
 `crates/topo/tests/mate4a_ef_bound_rung.rs` pins the straddle seat's
 whole census through `Debug`, witness strings included, so the
 coordinate change moved six of them; the grep for the OLD spelling

@@ -1333,10 +1333,16 @@ fn check_registry_tags_are_stable() {
 /// Each now renders through `Display`, so `Body::run_validator` raises
 /// through `typed_err` like every other door and needs no exemption.
 ///
-/// Only tier 3′ produces these arms, so `Body::validate_pseudomanifold`
-/// is the only door that reaches them — which is why the rendering is
-/// pinned HERE, in the no-interpreter row, rather than trusted to the
-/// Python suite alone.
+/// **What this row does and does not cover.** Both findings are built
+/// here with a hand-written `witness`, so the assertion is that the
+/// ARMS' format strings interpolate through `Display` — it says nothing
+/// about `census::witness`, which no code path in this crate reaches.
+/// The witness rendering is guarded in the kernel, by
+/// `topo/tests/mate4a_ef_bound_rung.rs` (a `Debug` golden over the
+/// whole finding list) and `topo/tests/review_mate9_r1_probes.rs`
+/// (which reads coordinates out of the witness text). What this row
+/// adds is that the check runs in the no-interpreter CI row, where the
+/// Python suite cannot.
 #[test]
 fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
     use pncad::topo::{CensusContact, StaleDeclaration, ValidationError};

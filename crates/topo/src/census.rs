@@ -646,10 +646,18 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
 /// Coordinates rather than the point's own `Debug`, because this string
 /// is pasted verbatim into a user-facing refusal: `Point3`'s derived
 /// rendering carries the field braces that mark a message as `Debug`
-/// guts, and the coordinate triple is the spelling the rest of the tree
-/// already uses for a point in prose. Each scalar keeps `{:?}` — `Real`
-/// bounds `Debug` and not `Display`, and projecting `T` to `f64` for a
-/// message payload is what the `Bounds` ruling (L7) refuses.
+/// guts, and the coordinate-triple SHAPE is what the rest of the tree
+/// uses for a point in prose (`mate/coset.rs`, `py/readback.rs` — both
+/// concrete `Point3<f64>`, so both spell it `{}`).
+///
+/// Each scalar keeps `{:?}` because `Real` bounds `Debug` and not
+/// `Display`: there is no route to `{}` on a generic `T` here. The
+/// alternative — projecting `T` to `f64` through `Bounds` — is what
+/// #990 refuses, naming `fn margin_of<T: Bounds>(…) -> f64` as the
+/// helper asked for and declined. (Not L7, which is the scope rule and
+/// admits rendering as legitimate `Bounds` context; the refusal is
+/// #990's.) `{:?}` prints `1.0` where `{}` prints `1`, so this matches
+/// the tree's shape and not its spelling.
 fn witness<T: Real>(p: Point3<T>) -> String {
     format!("({:?}, {:?}, {:?})", p.x, p.y, p.z)
 }
