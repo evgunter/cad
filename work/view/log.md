@@ -140,3 +140,33 @@ original text named: it adds the revolve and combining seats,
 `BlendTarget::node`, and every held `StableName`, since a name embeds
 its minting node. Recorded on the item, because the sweep obligation is
 the part of that unit most likely to be read off the stale list.
+
+## The focus map door is two programs' ground, not one (2026-09-04)
+
+The program header's `keep_out` said the authored-step to
+canonical-segment map "lives beside the lowering in `crates/profile`
+which is S-BOOL's glob — announce". Measured against the territory
+globs, that is half the door:
+
+- the authored `step` is `ProfileProgram::step_args`
+  (`crates/editor-core/src/program.rs:653`) and `ProfileEdgeRef`'s
+  `segment` is `crates/editor-core/src/names/role.rs:140` — both
+  **DOCM's** glob, not S-BOOL's;
+- only the canonicalization that *decides* the segment chain (the
+  reversal, the canonical start, `circle_split`) is `crates/profile`,
+  **S-BOOL's**.
+
+So it is two announces, and — more to the point — where the map lives
+is not a question this program or either owner can settle alone. The
+header and the item now say so. This changes nothing about the unit's
+review posture: the failure mode is still a confidently wrong edge lit
+silently, so it still gets a second reviewer on correctness. It changes
+who has to be in the conversation before it is cut.
+
+**A pattern, second instance today.** `next-id-has-no-layer3-door` and
+this are the same shape: a ratified design names a mechanism, and the
+mechanism's door is on someone else's ground and not yet open. Both
+were found by reading the cited symbols rather than the cited prose,
+and neither was visible from the item text. Worth doing for the
+remaining items before any of them is cut, which is the order this
+program is now working in.
