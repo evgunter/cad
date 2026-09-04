@@ -2,9 +2,10 @@
 id: session-gesture-guard-spelled-thirteen-times
 kind: issue
 title: session.rs spells the gesture-in-flight guard thirteen times in two styles
-status: open
+status: parked
 opened: 2026-09-04
 refs: [1386]
+blocked_on: [viewer-session-god-module-split]
 ---
 
 Found by CHROME's style lane on PR 1746, answering the brief's Q8 —

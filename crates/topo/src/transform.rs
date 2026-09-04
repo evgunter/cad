@@ -60,6 +60,20 @@
 //!   evaluation is all-poison; transforming one would launder poison
 //!   as geometry).
 
+//! - approximating surfaces: the offset DESCRIPTION's base net and the
+//!   FIT net both by the full affine map (weights and knots are
+//!   invariants of it — [`geom::NurbsSurface::map_points`]), `d`, the
+//!   window and the tolerance unchanged, and the two-limb certificate
+//!   **re-derived** on the mapped pair through the scalar's own fit
+//!   lane ([`geom_brep::PcurveFittedLane::remap_certificate`]) — never
+//!   the stored one, which is a claim about a different geometry. The
+//!   composition law is what makes the mapped pair a pair at all: a
+//!   rigid map carries unit normals to unit normals, so
+//!   `M(S + d·n) = M(S) + d·n_M`. A scalar with no fit lane refuses
+//!   [`TransformError::ApproxLaneUnsupported`] naming it, and a fit
+//!   door that refuses the re-derivation refuses
+//!   [`TransformError::ApproxRecertify`] with its own error verbatim;
+
 use std::sync::Arc;
 
 use geom::Curve3;
@@ -131,11 +145,20 @@ pub enum TransformError {
     /// it would launder poison as geometry. A DESCRIBED net is not
     /// this arm: it maps, by its control points.
     NurbsPlaceholder,
-    /// An approximating surface: the rigid map of an offset is the
-    /// offset of the rigid map, but re-deriving the mapped fit's
-    /// certificate is fit-door work this pass cannot reach, and a
+    /// An approximating surface at a scalar with no fit lane: its
+    /// certificate cannot be re-derived on the mapped pair, and a
     /// certificate is never carried across a geometry change.
-    ApproxSurface,
+    ApproxLaneUnsupported {
+        /// The scalar's lane name, as the lane itself reports it.
+        lane: &'static str,
+    },
+    /// The fit door refused the re-derivation of a mapped
+    /// approximating surface's certificate — a limb above tolerance, a
+    /// door meter, or a window the derivation does not cover.
+    ApproxRecertify {
+        /// The fit door's typed refusal, unaltered.
+        source: geom_brep::OffsetFitError,
+    },
     /// The body's topology references a missing arena entry — a
     /// corrupt body (the validators would refuse it too).
     Corrupt {
@@ -167,16 +190,23 @@ impl core::fmt::Display for TransformError {
                 "transform: edge {edge:?} carries a transient null-scaffold curve; bodies at \
                  rest never do"
             ),
-            Self::ApproxSurface => f.write_str(
-                "transform: an approximating surface's description composes with a rigid map \
-                 (the map of an offset is the offset of the map), but its certificate would \
-                 have to be re-derived against the mapped base — fit-door work this pass \
-                 cannot reach — so mapping it is refused rather than carrying an \
-                 unre-derived claim",
+            Self::ApproxLaneUnsupported { lane } => write!(
+                f,
+                "transform: an approximating surface's certificate must be re-derived on the \
+                 mapped description and fit, and the {lane} lane has no fit derivation to do \
+                 it with — a certificate is never carried across a geometry change"
+            ),
+            Self::ApproxRecertify { source } => write!(
+                f,
+                "transform: re-deriving a mapped approximating surface's certificate refused: \
+                 {source}"
             ),
             Self::NurbsPlaceholder => f.write_str(
-                "transform: a Nurbs placeholder surface or carrier evaluates to poison, so \
-                 mapping it is refused",
+                "transform: a Nurbs surface or carrier is refused, and the refusal is by \
+                 VARIANT: the placeholder payload evaluates to poison, so mapping it would \
+                 launder poison as geometry, but a DESCRIBED net evaluates for real and would \
+                 map exactly — narrowing this arm to the placeholder state is unbuilt work, \
+                 not a property of the geometry",
             ),
             Self::Corrupt { what } => write!(
                 f,
@@ -268,7 +298,11 @@ fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), TransformE
 /// NEGATION of the transformed chart normal, and would therefore have
 /// to flip `sense` on every face. `det = +1` is enforced upstream, so
 /// there is no such branch to write here today.
-fn map_surface<T: Real>(map: &Affine3<T>, s: &Surface<T>) -> Result<Surface<T>, TransformError> {
+fn map_surface<T: Decide + geom_brep::PcurveFittedLane>(
+    map: &Affine3<T>,
+    s: &Surface<T>,
+    band: Band,
+) -> Result<Surface<T>, TransformError> {
     Ok(match *s {
         Surface::Plane {
             origin,
@@ -338,18 +372,85 @@ fn map_surface<T: Real>(map: &Affine3<T>, s: &Surface<T>) -> Result<Surface<T>, 
             }
             Surface::Nurbs(Arc::new(n.map_points(|p| map.transform_point(p))))
         }
-        // The composition law HOLDS: a rigid map carries unit normals
-        // to unit normals, so `M(S + d·n) = M(S) + d·n_M` — the map of
-        // an offset IS the offset of the map, and the description is
-        // the layer where that identity lives (a fit mapped
-        // control-point-wise is the fit of the mapped description).
-        // What this pass cannot discharge is the CERTIFICATE: it is
-        // generic in `T` and carries no band or tolerance, while
-        // re-deriving the two-limb bound is `f64`-only fit-door work.
-        // Carrying a certificate across a geometry change is exactly
-        // what the never-trust posture forbids, so the door refuses
-        // rather than ship an unre-derived claim.
-        Surface::Approx(_) => return Err(TransformError::ApproxSurface),
+        Surface::Approx(ref a) => Surface::Approx(std::sync::Arc::new(map_approx(map, a, band)?)),
+    })
+}
+
+/// The mapped approximating surface: mapped description, mapped fit,
+/// same window and tolerance, certificate **re-derived** on the mapped
+/// pair through the scalar's fit lane.
+///
+/// The composition law is what makes the mapped pair a pair: a rigid
+/// map carries unit normals to unit normals, so
+/// `M(S + d·n) = M(S) + d·n_M` — the map of an offset IS the offset of
+/// the map, and a net mapped control-point-wise is the map of the
+/// surface it describes ([`geom::NurbsSurface::map_points`], whose docs
+/// carry the affine-combination argument). So the mapped fit stands to
+/// the mapped base exactly as the fit stood to the base, at the same
+/// `d` and the same tolerance.
+///
+/// What is NOT carried is the two-limb claim. The stored certificate is
+/// a measurement of a different geometry, and re-running the
+/// measurement is what keeps it honest (D4 ¶2, the same posture the
+/// carriers and witnesses above take). It is re-derived against the
+/// surface's OWN stored tolerance, because that is the claim the mapped
+/// surface will store and therefore the claim it must be shown to
+/// honour; the run's ε is tier 3's to classify against, per call.
+///
+/// **The re-derivation is not a formality, and the module docs'
+/// distance-preservation parenthetical does not cover it.** Only one
+/// limb of this certificate is a distance: `on_locus_max` is a sampled
+/// residual and survives a rigid map to rounding. `hull_sup` is a
+/// certified BOUND assembled from control-hull enclosures in the
+/// ambient frame, so a rotation re-splits the same geometry across the
+/// axes and the bound genuinely moves — measured at 7.4e-9 on a bowed
+/// base fitted at 1e-6, and `curvature_reach` moves further. That is
+/// why the mapped surface may not carry the operand's numbers: they
+/// are the wrong numbers, not merely unverified ones. What the map
+/// preserves is the CLAIM — the mapped pair certifies at the same
+/// tolerance — and re-deriving is what establishes it.
+///
+/// `rounds` is the exception, and it is not a limb: it is carried, for
+/// the reason [`geom::OffsetCertificate::rounds`] states once.
+///
+/// **The band is the RUN's while the tolerance is the SURFACE's**, and
+/// the pair is deliberate rather than an oversight. The band reaches
+/// only the fit door's degeneracy meters (the regularity floor and the
+/// collapse reach); the two limbs are classified against `tolerance`
+/// directly. So a tighter run band can make this door refuse a surface
+/// its mint accepted, which is the fail-loud direction, and the shape
+/// is exactly `geom_brep::recertify_approx`'s — the door tier 3 reaches
+/// per face, which likewise meters at the run's band and classifies at
+/// the caller's tolerance. The map and the validator therefore agree
+/// about any given surface, which is the property that matters.
+fn map_approx<T: Decide + geom_brep::PcurveFittedLane>(
+    map: &Affine3<T>,
+    a: &geom::ApproxSurface<T>,
+    band: Band,
+) -> Result<geom::ApproxSurface<T>, TransformError> {
+    let old = a.spec();
+    let geom::SurfaceDescription::Offset { ref base, d } = old.description;
+    let spec = geom::SurfaceSpec {
+        description: geom::SurfaceDescription::Offset {
+            base: std::sync::Arc::new(base.map_points(|p| map.transform_point(p))),
+            d,
+        },
+        fit: old.fit.map_points(|p| map.transform_point(p)),
+        window: old.window,
+        tolerance: old.tolerance,
+    };
+    let rounds = a.certificate().rounds;
+    geom::ApproxSurface::certify(spec, |description, fit, window, tolerance| {
+        match T::remap_certificate(description, fit, window, tolerance, band) {
+            None => Err(TransformError::ApproxLaneUnsupported {
+                lane: <T as geom_brep::PcurveFittedLane>::lane_name(),
+            }),
+            Some(Err(source)) => Err(TransformError::ApproxRecertify { source }),
+            Some(Ok(certificate)) => Ok(geom::OffsetCertificate {
+                rounds,
+                ..certificate
+            }),
+        }
     })
 }
 
@@ -435,7 +536,7 @@ pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane>(
     }
     let mut mapped_surfaces = Vec::new();
     for (k, s) in &out.surfaces {
-        mapped_surfaces.push((k, map_surface(map, s)?));
+        mapped_surfaces.push((k, map_surface(map, s, band)?));
     }
     for (k, s) in mapped_surfaces {
         out.surfaces[k] = s;
@@ -662,7 +763,11 @@ mod tests {
     #[test]
     fn the_surface_placeholder_is_what_refuses() {
         assert!(matches!(
-            map_surface(&aside(), &Surface::nurbs_placeholder()),
+            map_surface(
+                &aside(),
+                &Surface::nurbs_placeholder(),
+                Band::linear(Tol::witness()).unwrap()
+            ),
             Err(TransformError::NurbsPlaceholder)
         ));
     }
@@ -679,7 +784,8 @@ mod tests {
     fn a_described_surface_maps_by_its_control_points() {
         let map = aside();
         let before = described_surface();
-        let after = map_surface(&map, &before).expect("a described net maps");
+        let after = map_surface(&map, &before, Band::linear(Tol::witness()).unwrap())
+            .expect("a described net maps");
         let (Surface::Nurbs(b), Surface::Nurbs(a)) = (&before, &after) else {
             panic!("the variant changed under the map");
         };

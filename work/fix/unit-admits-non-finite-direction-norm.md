@@ -2,12 +2,13 @@
 id: unit-admits-non-finite-direction-norm
 kind: issue
 title: unit() admits the non-finite-norm class SEAT-DV closed at the datum door: a 1e200 Pattern direction silently mints coincident instances
-status: review
+status: closed
 opened: 2026-09-02
 github: 1572
 refs: [1564, 1570, 1372, direction-underflow-reports-zero-length, is-finite-length-homed-in-the-query-seat, mate-dangling-head-is-a-catch-all-that-reports-a-false-cause]
 branch: fix/unit-finite-norm
 pr: 1738
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1572

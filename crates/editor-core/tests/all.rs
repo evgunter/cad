@@ -100,8 +100,13 @@ mod display_contract;
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
 mod e4_dual_door;
+#[path = "fix_loop_polygon_expr.rs"]
+mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
+
+#[path = "fix_xblind_probe.rs"]
+mod fix_xblind_probe;
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]
@@ -171,6 +176,18 @@ mod m10_6_min_clearance_interval;
 mod m10_6_r1_probes_interval;
 #[path = "m10_6_reports_interval.rs"]
 mod m10_6_reports_interval;
+#[path = "m10_7_census_probe.rs"]
+mod m10_7_census_probe;
+#[path = "m10_7_lever.rs"]
+mod m10_7_lever;
+#[path = "m10_7_plate.rs"]
+mod m10_7_plate;
+#[path = "m10_7_probe_interval.rs"]
+mod m10_7_probe_interval;
+#[path = "m10_7_r1_census_probe.rs"]
+mod m10_7_r1_census_probe;
+#[path = "m10_7_r1_probes_interval.rs"]
+mod m10_7_r1_probes_interval;
 #[path = "m10_di_dual_corpus.rs"]
 mod m10_di_dual_corpus;
 #[path = "m10_p_fence.rs"]
@@ -381,3 +398,6 @@ mod lib_tube_r1_probes2;
 
 #[path = "lib_tube_r2_probes.rs"]
 mod lib_tube_r2_probes;
+
+#[path = "m10_7_r2_probes_interval.rs"]
+mod m10_7_r2_probes_interval;

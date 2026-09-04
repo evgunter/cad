@@ -2,10 +2,11 @@
 id: step-writer-hardcodes-user-header-fields
 kind: issue
 title: The STEP writer still hardcodes two Part 21 header fields the standard assigns to the user
-status: open
+status: closed
 opened: 2026-08-20
 github: 742
 refs: [732, C14]
+closed: 2026-09-03
 ---
 
 ## From GitHub issue 742
@@ -39,3 +40,18 @@ Not "add two `String` fields to `StepOptions`". `authorisation` is a claim about
 ## Home
 
 LIB: its code-quality row `C14` (Track U) is parked under the same UV-R5 hold as `C13` — LIB drafts the plan, Ev signs off — and `work/lib/log.md` carries #743/#742/#741 together as the export-option surface in the program's register fold.
+
+## Closed (2026-09-03) — ruled: wait for a use case
+
+Ev, in-chat, 2026-09-03: the two fields (`FILE_NAME`'s
+`authorisation`, `FILE_DESCRIPTION`'s description list) stay
+hardcoded empty until a real consumer needs one caller-settable.
+Empty is the honest default (the issue's own note: a non-empty
+default `authorisation` is a false claim about a person), no demo or
+consumer asks for them today, and `StepOptions` is a plain struct
+with `Default`, so exposing a field later is additive and cheap. The
+asymmetry against `originating_system` is hereby deliberate and
+recorded, not overlooked. When a consumer appears, the shape is the
+issue body above: decide which of the two, validation beyond
+`quoted`'s Part 21 alphabet, and string-vs-list, at that point.
+`C14` (Track U) closes against this ruling.

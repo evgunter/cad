@@ -460,8 +460,7 @@ fn the_not_a_rigid_translation_door_is_unreachable_at_rest() {
         "the tangent bullet refuses at the corner it is about, not at a carrier lane"
     );
     pncad::topo::shell(&lifted_dome(tol), 1.0 / 128.0, FIT_TOL, tol)
-        .expect("the non-tangent dome's junction is transversal, so it hollows")
-        .body;
+        .expect("the non-tangent dome's junction is transversal, so it hollows");
 }
 
 /// The offset door's own refusal, as a two-word class name plus what
@@ -613,8 +612,7 @@ fn the_hollow_now_survives_every_axial_junction() {
         ),
     ] {
         pncad::topo::shell(&body, thickness, FIT_TOL, tol)
-            .unwrap_or_else(|e| panic!("{what} hollows, got {e}"))
-            .body;
+            .unwrap_or_else(|e| panic!("{what} hollows, got {e}"));
     }
 
     // ONE row is left on the refusing side, and it is written as one

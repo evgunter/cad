@@ -1405,6 +1405,53 @@ pub enum CensusContact {
     },
 }
 
+/// Prose, not `Debug` guts: this payload is quoted verbatim into
+/// [`ValidationError::UndeclaredContact`]'s message, which every façade
+/// pastes as the refusal a user reads. The arena keys stay `{:?}` —
+/// tuple-shaped, and the key IS the name a caller resolves — while the
+/// enum's own struct-variant braces do not reach the message.
+impl fmt::Display for CensusContact {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::VertexVertex { a, b } => {
+                write!(f, "vertices {a:?} and {b:?} at one position")
+            }
+            Self::VertexOnFace { vertex, face } => {
+                write!(f, "vertex {vertex:?} on face {face:?}'s interior")
+            }
+            Self::VertexOnEdge { vertex, edge } => {
+                write!(f, "vertex {vertex:?} on edge {edge:?}'s interior")
+            }
+            Self::EdgeFacePierce { edge, face } => write!(
+                f,
+                "edge {edge:?} piercing face {face:?} transversally at both interiors"
+            ),
+            Self::EdgeEdgeCross { a, b } => {
+                write!(f, "edges {a:?} and {b:?} crossing at both interiors")
+            }
+            Self::EdgeEdgeOverlap { a, b } => write!(
+                f,
+                "edges {a:?} and {b:?} overlapping along a positive-length segment"
+            ),
+            Self::EdgeFaceOverlap { edge, face } => write!(
+                f,
+                "edge {edge:?} lying in face {face:?} along a positive-length segment"
+            ),
+            // The declaration that WOULD verify it, quoted in the
+            // declaration's own vocabulary (M9-1's layering: one
+            // vocabulary end to end).
+            Self::ConformalPatch { finding } => write!(
+                f,
+                "conformal contact between faces {:?} and {:?} (the declaration that \
+                 would verify it is a {} contact on that pair)",
+                finding.pair.a,
+                finding.pair.b,
+                finding.pair.class.name()
+            ),
+        }
+    }
+}
+
 /// A declared contact the census could not confirm (tier 3′).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StaleDeclaration {
@@ -1442,6 +1489,39 @@ pub enum StaleDeclaration {
         /// The record's B-side face.
         face_b: FaceKey,
     },
+}
+
+/// Prose, not `Debug` guts, for the same reason
+/// [`CensusContact`]'s rendering is: this payload is quoted into
+/// [`ValidationError::StaleContactDeclaration`]'s user-facing message.
+/// Each arm names the record's GRANULARITY, which is what tells a
+/// caller which declaration to withdraw or re-seat.
+impl fmt::Display for StaleDeclaration {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::VertexVertex { a, b } => write!(
+                f,
+                "the vertex-granularity record naming vertices {a:?} and {b:?}"
+            ),
+            Self::VertexOnFace { vertex, face } => write!(
+                f,
+                "the vertex-granularity record naming vertex {vertex:?} and face {face:?}"
+            ),
+            Self::CurveLocus {
+                face_a,
+                face_b,
+                witness,
+            } => write!(
+                f,
+                "the curve-granularity record naming faces {face_a:?} and {face_b:?}, \
+                 whose witness edge is {witness:?}"
+            ),
+            Self::Patch { face_a, face_b } => write!(
+                f,
+                "the patch-granularity record naming faces {face_a:?} and {face_b:?}"
+            ),
+        }
+    }
 }
 
 impl fmt::Display for ValidationError {
@@ -1607,7 +1687,7 @@ impl fmt::Display for ValidationError {
             // supply intent — it can only hide its absence.
             Self::UndeclaredContact { contact, witness } => write!(
                 f,
-                "tier-3′ census: undeclared contact {contact:?} at {witness} — \
+                "tier-3′ census: undeclared contact {contact} at {witness} — \
                  touching must be backed by a declared-contact record, never \
                  blessed from discovery; {}",
                 crate::contact::CONTACT_RECOURSE
@@ -1631,7 +1711,7 @@ impl fmt::Display for ValidationError {
             ),
             Self::StaleContactDeclaration { declaration } => write!(
                 f,
-                "tier-3′ census: declaration {declaration:?} has no geometric \
+                "tier-3′ census: declaration {declaration} has no geometric \
                  witness — stale contact records are defects, not noise"
             ),
             // `{cause}` (Display), NOT `{cause:?}`: the S6 sweep fixed a
@@ -3481,11 +3561,25 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // role-invariant) but silently corrupts tessellation/export;
     // this closes that class structurally. Scope: LINE-BOUNDED loops
     // only — the vertex-chord Newell functional IS the enclosed area
-    // exactly for straight boundaries; a planar face bounded by arcs
-    // (a revolve's annular sector) has chord windings that can
-    // legitimately disagree with the region's (a 270° sector's chord
-    // quad self-crosses), so curved-bounded faces stay in the
-    // documented deferral (M5 pcurves) along with curved faces.
+    // exactly for straight boundaries.
+    //
+    // **That scope's stated REASON is retired for circle carriers, and
+    // the remaining question is a different one** (VERBS-1031B). The
+    // reason above was that a planar face bounded by arcs has chord
+    // windings that can legitimately disagree with the region's — a
+    // 270° sector's chord quad self-crosses. That disagreement is
+    // exactly what the bulge term dissolves: `2A` decomposes EXACTLY
+    // as chord Newell plus a per-conic `axis · sa·sb · (Δ − sin Δ)`,
+    // so for Line/Circle/Ellipse boundaries there is no longer a
+    // chord-vs-region gap to point at. `merge_faces::loop_winding`
+    // states that decomposition today and NURBS remains the honest
+    // remainder there. What still keeps this arm line-only is NOT the
+    // chord objection but the cost of widening a REFUSAL surface: the
+    // other two sites of this predicate ask it a question they need
+    // answered, and this one asks it in order to FAIL a body, on an
+    // in-band margin whose behaviour over real revolve output is
+    // unmeasured. Owned, with that measurement as its opening step, by
+    // `work/verbs/verbs-1031b-assigner-checker-divergence.md`.
     //
     // **The S10 sense gate.** Since M5 S10 a face's outward normal is
     // `sense_sign · chart_normal`, so the winding is compared against
@@ -3526,6 +3620,12 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             };
             // Line-bounded only (banner): an arc's vertex chord is not
             // the boundary, and its winding is not the region's.
+            // Since VERBS-1031B this skip has a live PRODUCER on the
+            // other side of it — `merge_faces::loop_winding` now
+            // ASSIGNS outer/ring roles on exactly the conic-bounded
+            // loops this arm passes over, so those roles are set by a
+            // functional check 6 cannot falsify (evidence and flip
+            // condition: `verbs-1031b-assigner-checker-divergence`).
             let all_lines = cycle.iter().all(|&he| {
                 body.get_half_edge(he)
                     .and_then(|hd| body.get_edge(hd.edge))
@@ -7034,6 +7134,10 @@ mod tests {
                 a: VertexKey::default(),
                 b: VertexKey::default(),
             },
+            // An INVENTED witness, not one this test sampled: no
+            // census ran here, and `census::witness` renders an f64
+            // triple as `(0.0, 0.0, 0.0)`. The arm treats the field as
+            // opaque, so any triple-shaped string exercises it.
             witness: "(0e0, 0e0, 0e0)".to_string(),
         };
         let msg = contact.to_string();
@@ -7065,5 +7169,118 @@ mod tests {
         // not the carrier sentence.
         assert!(!msg.contains("MarginDiag"), "{msg}");
         assert!(!msg.contains("Value("), "{msg}");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod review_census_display_keys {
+    use super::*;
+    use crate::entity::{EdgeKey, FaceKey, VertexKey};
+
+    /// **Every arena key a census payload carries must survive its
+    /// `Display`.** The keys stay `{:?}` because "the key IS the name a
+    /// caller resolves" — that is the whole justification for rendering
+    /// them at all, and nothing else in the tree checks it. The two
+    /// prose pins (`pncad-py`'s no-interpreter row and
+    /// `test_the_census_findings_arrive_as_prose`) assert the message
+    /// READS as prose and that it says the word "vertex"; both stay
+    /// green if a rewording drops the keys and leaves the sentence
+    /// grammatical. The `Debug` goldens in
+    /// `tests/mate4a_ef_bound_rung.rs` pin the ERROR's derived `Debug`,
+    /// which never calls these impls. So a payload that lost its
+    /// subject would land silently.
+    ///
+    /// Multiplicity, not containment: the same-type pairs (`a`/`b`) are
+    /// built from ONE key, so a `Display` that dropped either half
+    /// would still CONTAIN it. Two occurrences are required.
+    #[test]
+    fn every_census_payload_display_names_its_keys() {
+        let v = VertexKey::default();
+        let e = EdgeKey::default();
+        let fk = FaceKey::default();
+        let (vd, ed, fd) = (format!("{v:?}"), format!("{e:?}"), format!("{fk:?}"));
+
+        // (payload, the key rendering it must carry, how many times)
+        let contacts: Vec<(CensusContact, Vec<(&str, usize)>)> = vec![
+            (CensusContact::VertexVertex { a: v, b: v }, vec![(&vd, 2)]),
+            (
+                CensusContact::VertexOnFace {
+                    vertex: v,
+                    face: fk,
+                },
+                vec![(&vd, 1), (&fd, 1)],
+            ),
+            (
+                CensusContact::VertexOnEdge { vertex: v, edge: e },
+                vec![(&vd, 1), (&ed, 1)],
+            ),
+            (
+                CensusContact::EdgeFacePierce { edge: e, face: fk },
+                vec![(&ed, 1), (&fd, 1)],
+            ),
+            (CensusContact::EdgeEdgeCross { a: e, b: e }, vec![(&ed, 2)]),
+            (
+                CensusContact::EdgeEdgeOverlap { a: e, b: e },
+                vec![(&ed, 2)],
+            ),
+            (
+                CensusContact::EdgeFaceOverlap { edge: e, face: fk },
+                vec![(&ed, 1), (&fd, 1)],
+            ),
+        ];
+        for (contact, wanted) in &contacts {
+            let msg = contact.to_string();
+            for (key, times) in wanted {
+                assert_eq!(
+                    msg.matches(key).count(),
+                    *times,
+                    "`{msg}` must name {key} {times}x — the key is what a \
+                     caller resolves back to an entity, so a rewording \
+                     that drops it reads as prose and says nothing"
+                );
+            }
+            assert!(!msg.contains(" { "), "no struct braces: {msg}");
+        }
+
+        let stale: Vec<(StaleDeclaration, Vec<(&str, usize)>)> = vec![
+            (
+                StaleDeclaration::VertexVertex { a: v, b: v },
+                vec![(&vd, 2)],
+            ),
+            (
+                StaleDeclaration::VertexOnFace {
+                    vertex: v,
+                    face: fk,
+                },
+                vec![(&vd, 1), (&fd, 1)],
+            ),
+            (
+                StaleDeclaration::CurveLocus {
+                    face_a: fk,
+                    face_b: fk,
+                    witness: e,
+                },
+                vec![(&fd, 2), (&ed, 1)],
+            ),
+            (
+                StaleDeclaration::Patch {
+                    face_a: fk,
+                    face_b: fk,
+                },
+                vec![(&fd, 2)],
+            ),
+        ];
+        for (decl, wanted) in &stale {
+            let msg = decl.to_string();
+            for (key, times) in wanted {
+                assert_eq!(
+                    msg.matches(key).count(),
+                    *times,
+                    "`{msg}` must name {key} {times}x"
+                );
+            }
+            assert!(!msg.contains(" { "), "no struct braces: {msg}");
+        }
     }
 }
