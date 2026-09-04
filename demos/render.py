@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
-"""Matplotlib fallback renderer for the demo tour (STL lane).
+"""Matplotlib renderer for the demo tour (STL lane).
 
 Pure-CPU, headless: binary-STL parsing with numpy, flat-shaded
 Poly3DCollection with matplotlib's Agg backend. No GPU, no GL, no
-FreeCAD — the zero-dependency fallback, and the renderer that draws
-OUR OWN tessellation (FreeCAD re-tessellates from the B-rep, so this
-lane is the mesh-path proof).
+FreeCAD — the zero-dependency renderer, and the one that draws OUR OWN
+tessellation (FreeCAD re-tessellates from the B-rep, so this lane is
+the mesh-path proof).
+
+Two callers, both explicit: `render.sh --matplotlib` (a preview into
+the ignored demos/renders-preview/ tree, never the committed sheet)
+and the wild-corpus lane, where it is the primary renderer. Nothing
+reaches it as a fallback — the kernel lane fails rather than quietly
+drawing with something other than FreeCAD.
 
 Scene list comes from <stl_dir>/scenes.json, read through `manifest`.
 BOTH producers reach this renderer: the tour's manifest on the kernel

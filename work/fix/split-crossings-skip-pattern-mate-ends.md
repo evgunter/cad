@@ -121,9 +121,21 @@ the index is pinned and not merely its presence.
 ### 3. What landed: one home for a predicate that had four copies
 
 `is_mate_edge_end` no longer spells the member vocabulary at all. It
-asks `mate::member_of_head`, the predicate `head_of` was split out of,
-so the split seam's crossing collector, A12's reading edges and A11's
-placement clusters admit exactly one set of heads and cannot drift.
+asks `mate::member_of`, so the split seam's crossing collector, A12's
+reading edges and A11's placement clusters admit exactly one set of
+heads and cannot drift.
+
+**Credit where it is due: this branch did not create that home.** This
+unit split `head_of` into a `pub(crate)` predicate to consume it, and
+while the branch was in review `main` landed the same split
+independently as a `pub fn member_of` (`solve.rs:166`), re-exported
+from `mate.rs` and `lib.rs` and carried in the binding census, framed
+as "the admission rule the solve reads and any authoring door must gate
+on". The merge resolved onto main's spelling and this branch's
+duplicate was deleted. What remains this unit's is the consumer: the
+crossing collector now gates on that rule instead of on a head's
+spelling, and the argument for why the record is unreachable is written
+where the collector is.
 
 The vocabulary had FOUR live spellings before this change: `head_of`,
 this collector, the viewer's `is_instance` pick gate (issue 1412), and
@@ -195,8 +207,9 @@ Citations are `file:line` in the tree this branch lands.
 
 - `refactor.rs:1266` `is_mate_edge_end` — **this unit**.
 - `mate/solve.rs:169,175` — the vocabulary's two arms, now inside
-  `member_of_head` (`solve.rs:166`), which `head_of` (`solve.rs:191`)
-  wraps with the refusal. **Refactored**, behaviour unchanged.
+  `member_of` (`solve.rs:166`), which `head_of` (`solve.rs:191`) wraps
+  with the refusal. Landed on `main` independently during this
+  branch's review; the merge took main's spelling.
 - `mate/solve.rs:421` `clusters` — the cluster graph's VERTEX set is
   instances by definition; its head resolution already goes through
   `head_of`. Correct, not this unit.

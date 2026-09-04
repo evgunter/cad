@@ -144,26 +144,26 @@ pub struct Member {
     pub copy: Option<(RecipeNodeId, u32)>,
 }
 
-/// **A11's member vocabulary as a predicate**: the [`Member`] that
-/// `name`'s head names, or `None` when that head is outside the
-/// vocabulary (a non-instance node; a pattern whose name carries no
-/// `Instance(i)` qualifier; a pattern whose input is not itself a live
-/// instance — a patterned boolean, a nested pattern).
+/// **The member a reference's HEAD names**, or `None` for a head
+/// outside A11's member vocabulary.
+///
+/// This is the vocabulary's one home — the admission rule the solve
+/// reads and any authoring door must gate on, so a door cannot admit
+/// a head the solve will refuse (or refuse one it would place).
 ///
 /// Structural only — no expression is evaluated here, so the cluster
-/// partition never depends on a slot value.
+/// partition never depends on a slot value. Outside the vocabulary: a
+/// non-instance node; a pattern whose name carries no `Instance(i)`
+/// qualifier; a pattern whose input is not itself a live instance — a
+/// patterned boolean, a nested pattern.
 ///
-/// This is the SINGLE home of the question "is this reference a member
-/// reference": [`head_of`] adds the refusal context for the solve, and
-/// [`crate::refactor::split`]'s crossing collector asks it directly.
-/// A12's reading edges, A11's clusters and A4's interface record admit
-/// exactly the same heads because they ask this one function — a
-/// collector admitting a head the cluster graph does not weld would
-/// mint an interface record for a mate that never solved, which is
+/// [`crate::refactor::split`]'s interface-crossing collector is one of
+/// those gates: a collector admitting a head the cluster graph does
+/// not weld would mint a record for a mate that never solved, which is
 /// what AQ8 option (b) SKIP refuses (ruled at the ASM-R2b review;
 /// recorded in `asm_r2b_assembly.rs`'s rows-5-and-6 header, not in
 /// `ASSEMBLY.md`'s AQ8 clause).
-pub(crate) fn member_of_head<P>(doc: &Doc<P>, name: &crate::names::StableName) -> Option<Member> {
+pub fn member_of<P>(doc: &Doc<P>, name: &crate::names::StableName) -> Option<Member> {
     let head = name.node;
     match doc.node(head) {
         Some(Node::InstantiatePart { .. }) => Some(Member {
@@ -186,15 +186,15 @@ pub(crate) fn member_of_head<P>(doc: &Doc<P>, name: &crate::names::StableName) -
 }
 
 /// The member a mate reference's HEAD names, or the typed
-/// dangling-head refusal (N5) — [`member_of_head`] with the mate and
-/// side the refusal names.
+/// dangling-head refusal (N5) — [`member_of`] with the mate and side
+/// that attribute the refusal.
 fn head_of<P>(
     doc: &Doc<P>,
     mate: RecipeNodeId,
     side: MateSide,
     name: &crate::names::StableName,
 ) -> Result<Member, MateFault> {
-    member_of_head(doc, name).ok_or(MateFault::DanglingHead {
+    member_of(doc, name).ok_or(MateFault::DanglingHead {
         mate,
         side,
         head: name.node,

@@ -1213,7 +1213,7 @@ pub fn split(
     // crossing the cut", and an A12 reading edge exists exactly when
     // both heads resolve to live MEMBERS of A11's vocabulary — a live
     // instance, or a pattern-placed instance (`Pattern` node +
-    // `Instance(i)`). The gate is `crate::mate::member_of_head`
+    // `Instance(i)`). The gate is `crate::mate::member_of`
     // ITSELF, not a re-spelling of it: this collector, A12's reading
     // edges and A11's clusters ask ONE predicate.
     //
@@ -1263,7 +1263,7 @@ pub fn split(
     // pinned by `row5_d`. The mate itself stays in the document (N5)
     // and its names rebind like any other; it simply says nothing
     // about the seam.
-    let is_mate_edge_end = |name: &StableName| crate::mate::member_of_head(doc, name).is_some();
+    let is_mate_edge_end = |name: &StableName| crate::mate::member_of(doc, name).is_some();
     let mut crossings: Vec<InterfaceCrossing> = Vec::new();
     for &id in doc.order() {
         if cut.contains(&id) {

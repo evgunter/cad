@@ -65,10 +65,9 @@ pub mod coset;
 pub mod solve;
 
 pub use coset::{Coset, Subgroup};
-pub(crate) use solve::member_of_head;
 pub use solve::{
-    ClusterMaintenance, MateRole, SolvedPoses, clusters, gauge_of, reading_edges,
-    relative_freedom_components, solve_document,
+    ClusterMaintenance, MateRole, Member, SolvedPoses, clusters, gauge_of, member_of,
+    reading_edges, relative_freedom_components, solve_document,
 };
 
 /// The kernel's contact vocabulary, re-exported (M9-1 PR-1: one enum,
