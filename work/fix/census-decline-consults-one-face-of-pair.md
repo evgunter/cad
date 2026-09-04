@@ -94,11 +94,50 @@ undeclared pairs is a different question (it changes which findings
 EXIST) and stays open.
 
 The `AtRest`/`Uncertified` split was re-measured rather than assumed;
-the three-population before/after table is in the PR body. One arm
+the four-population before/after table is in the PR body. One arm
 moves: an undeclared pair one of whose faces is declared against a
 third face was `Declined` → `Uncertified`, and is now `Unattributed` →
 `AtRest` — the conservative direction, the same one the item's case 3
 already reached by missing.
+
+**The direction is provable, not just sampled** (review, adopted). If
+`by_pair(a, b) = Some(m)` then `m.faces` is `(a, b)` or `(b, a)`, so
+BOTH `by_face(a)` and `by_face(b)` are `Some` — and the old site
+carried one of `a`, `b`, whichever the arena handed over first. Hence
+AFTER-`Declined` implies BEFORE-`Declined`, for every finding. Since
+`assemble` is `all-Declined ⇒ Uncertified, else AtRest` with no third
+arm, an assembly that is `Uncertified` after was `Uncertified` before:
+the map is monotone AWAY from the unrefuted frontier, for any number
+of declarations rather than for the four populations the rows sample.
+The table remains as the executed instance of it; the sampling caveat
+is retired.
+
+Consequence 1 of the finding — one face two mates declare, which
+`SelfMate` does not refuse — is the case a single-declaration fixture
+cannot reach, and it has its own row
+(`a_face_in_two_declarations_answers_each_pair_to_its_own_mate`,
+authored in review and adopted): under the old width-1 lookup, mate 8's
+own declared pair answers to mate 7 because mate 7's declaration is
+listed first. Verified red under that mutation here, not taken on
+report.
+
+**Pair equality is unordered in the TYPE, not by convention.**
+`CensusSubject`'s doc says `(a, b)` and `(b, a)` name one candidate,
+and a derived `PartialEq` would have made that false — structural
+equality is the arena's ordering deciding a question the subject does
+not have. `PartialEq` is written rather than derived; the arm's own
+order stays in the value and in `Debug`, and drops out of comparison.
+
+**A pre-existing asymmetry, recorded so it is not rediscovered**
+(review, C4): the curve-record confirm pass at `census.rs:2683` carries
+`Entity(Edge)` while knowing both faces, and that is correct — the
+edge is the record's canonical shared witness, not an arena-order half
+of a pair. But a CARRIED `CurveContact` can coincidentally share a face
+pair with a minted patch declaration, and then two arms that are both
+"a declared record the census cannot certify" answer different
+`AssemblyError` arms: the patch arm `Declined` → `Uncertified`, the
+curve arm `Unattributed` → `AtRest`. Pre-existing and unchanged by this
+unit.
 
 The width-1 caveats PR 833 landed are retired at all four sites found
 by grepping for the claim rather than trusting the list:
@@ -119,7 +158,16 @@ refusals). Every other hit names the one entity that actually failed.
 **What the sweep could NOT match**: it is anchored on the face-key
 spellings and on struct-field payload names. A pair-subject refusal
 that carries a non-face entity chosen from two (an edge, a vertex), or
-one whose subject reaches the consumer inside a `String`/`format!`
-witness rather than a typed field, is invisible to it — and the
-witness strings on `UndeclaredContact` and `ContactContradicted` are
-exactly that shape, unexamined here.
+one whose subject reaches a reader inside a `String`/`format!` witness
+rather than a typed field, is invisible to it. The witness strings on
+`UndeclaredContact` and `ContactContradicted` are exactly that shape —
+**scheduled, not merely disclosed**:
+`work/fix/pair-subject-witness-strings-unswept.md`.
+
+A second, narrower miss the review found in the same area, fixed here:
+the sweep grepped the CLAIM (`width-1`, `arena order picks`) and not
+the PAYLOAD SHAPE, so three prose sites still spelled the retired
+`CensusUnsupported{Face}` — `census.rs:3230`, `census.rs:3383`,
+`tests/mate5_cyl_eps_rung.rs:302`. None was wrong about its own era;
+each named a variant shape a future reader would grep for and not
+find. All three now spell the live one.

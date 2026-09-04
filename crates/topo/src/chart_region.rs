@@ -1835,13 +1835,19 @@ enum WitnessOutcome {
 /// **Neither is out of reach, and `cells` is reachable INSIDE
 /// `segments`.** A comb of 56 stacked horizontal runs against one
 /// tilted crosser carries 118 boundary segments — comfortably under
-/// the segment cap — and overruns 4096 cells; the row
-/// `r2p7_cell_budget_is_reachable_inside_the_segment_cap` builds that
-/// pair and reads both numbers off it, so "large enough never to bind"
-/// is not a claim this constant makes. What it is is a bound on the
-/// work, chosen so that the trim pairs this rung is actually reached
-/// with (the seats in the suite carry twelve segments) search
+/// the segment cap — and overruns 4096 cells, so "large enough never
+/// to bind" is not a claim this constant makes. What it is is a bound
+/// on the work, chosen so that the trim pairs this rung is actually
+/// reached with (the seats in the suite carry twelve segments) search
 /// exhaustively.
+///
+/// The row `r2p7_cell_budget_is_reachable_inside_the_segment_cap`
+/// builds that pair, and the number it READS is the segment count:
+/// the cell figure is structurally forced, because the walk returns
+/// the instant `spent > cells`, so every pair that reaches the cap
+/// reports exactly `cells + 1`. What the row pins is that 118
+/// segments suffice — and it is a TIGHT witness, not a comfortable
+/// one: one tooth fewer walks its arrangement to the end.
 ///
 /// **An exhausted budget is its own refusal.** Both caps answer
 /// [`WitnessOutcome::BudgetExhausted`], which the caller spells
@@ -5448,9 +5454,28 @@ mod r2_mate8_probes {
     /// it cannot say "large enough never to bind". A comb of 28 teeth
     /// (56 stacked horizontal runs, 114 segments) against one thin
     /// tilted crosser (4 segments) is 118 segments — under the
-    /// 128-segment cap — and its arrangement overruns 4096 cells. The
-    /// row reads BOTH numbers off the pair rather than asserting the
-    /// arithmetic in prose.
+    /// 128-segment cap — and its arrangement overruns 4096 cells.
+    ///
+    /// The load-bearing number is the SEGMENT count. The cell figure
+    /// is forced: the walk returns the instant `spent > cells`, so any
+    /// pair reaching the cap reports exactly `cells + 1` and that
+    /// assertion says nothing about this fixture. What is specific to
+    /// the fixture is 118 and its tightness — 27 teeth carries 114
+    /// segments, spends 3970 cells and walks its arrangement to the
+    /// end, so this is the minimum comb of its family and the row goes
+    /// red on drift rather than staying quietly green.
+    ///
+    /// Where the crosser's cost lands, because it is not where a first
+    /// reading puts it: the quad has TWO long sides and each meets all
+    /// 56 runs, and what that buys is the SLAB count — 82 event
+    /// abscissae, only 7 of them segment endpoints, so some 75 are
+    /// meetings. Cells per slab is ~50 and is set by the runs alone;
+    /// the crosser adds two. `slabs × cells-per-slab` is where the
+    /// cap is reached, and a crosser contributing half the meetings
+    /// would halve the slabs and leave the pair well under it. That
+    /// counterfactual is not constructible here — a closed crosser has
+    /// two spanning sides whatever its shape — which is why the factor
+    /// is structural rather than a property of this fixture.
     #[test]
     fn r2p7_cell_budget_is_reachable_inside_the_segment_cap() {
         // A comb, walked as a simple polygon: up the spine, out along

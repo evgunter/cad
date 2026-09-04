@@ -1158,11 +1158,71 @@ mod attribution {
         );
     }
 
+    /// **The item's consequence 1**: one face two mates declare, which
+    /// `MateFault::SelfMate` does not refuse — it rejects same-INSTANCE
+    /// pairs, so one plate face is minted as `(f, g)` by one mate and
+    /// `(f, h)` by another. Each refusal answers to the mate that
+    /// declared ITS pair, and the answer does not depend on which
+    /// declaration `minted` holds first.
+    ///
+    /// The row a single-declaration fixture cannot reach: with one
+    /// declaration, a face-width lookup and a pair lookup differ only
+    /// on pairs no mate declared. With two, they differ on a pair a
+    /// mate DID declare — the width-1 lookup answers whichever
+    /// declaration `minted` lists first, for both.
+    #[test]
+    fn a_face_in_two_declarations_answers_each_pair_to_its_own_mate() {
+        let mut body = topo::Body::<f64>::new();
+        let mut mint_face = || {
+            body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+                .expect("mvfs births a solid, shell, face and lone vertex")
+                .face
+        };
+        let (f, g, h) = (mint_face(), mint_face(), mint_face());
+        let name = |node| StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(node),
+            path: vec![RoleSeg::OutputBody],
+        };
+        let declaration = |mate, faces| MintedDeclaration {
+            mate: RecipeNodeId(mate),
+            a: name(1),
+            b: name(2),
+            class: ContactClass::Rest,
+            faces,
+        };
+        let minted = vec![declaration(7, (f, g)), declaration(8, (f, h))];
+        for (pair, mate) in [((f, g), 7), ((g, f), 7), ((f, h), 8), ((h, f), 8)] {
+            assert!(
+                matches!(
+                    attribute(&unsupported_pair(pair.0, pair.1), &minted),
+                    Attribution::Declined(m) if m.mate == RecipeNodeId(mate)
+                ),
+                "the pair {pair:?} is mate {mate}'s declaration, in either order"
+            );
+        }
+        // And the pair NEITHER mate declared, over the very face both
+        // of them name.
+        assert_eq!(
+            attribute(&unsupported_pair(g, h), &minted),
+            Attribution::Unattributed,
+            "no mate declared (g, h) — a shared third face does not make it theirs"
+        );
+    }
+
     /// A single FACE outside the inventory is not a candidate contact:
     /// the census arm that raises it bounds ONE face and has no pair,
     /// so no declaration answers for it even when a mate declared that
     /// face. Sharing a face with a declaration is not being named by
     /// one — the same line every structural finding sits on.
+    ///
+    /// The arm has TWO producing states and only one is argued away
+    /// ahead of the census: an empty outer loop cannot reach it
+    /// through the public door (`validate_closed`'s tier-2 check 1),
+    /// while a boundary that does not RESOLVE is refused on its
+    /// merits and not argued unreachable. The label is asserted here
+    /// for both, which is why the row exists — no fixture reaches
+    /// either.
     #[test]
     fn an_unsupported_lone_face_is_unattributed_over_its_own_declaration() {
         let (minted, a, ..) = fixture();

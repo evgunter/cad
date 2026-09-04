@@ -2263,11 +2263,15 @@ fn sweep_cross_solid_backstop<T: Decide>(
             // which is what this early-out did, silently, in the
             // function whose header forbids exactly that.
             //
-            // `validate_closed`'s tier-2 check 1 refuses every empty
-            // loop and `validate_pseudomanifold` runs it before the
-            // census, so no body reaching here through the public door
-            // is in this state; the refusal costs nothing and stays
-            // loud if a second, ungated caller ever appears.
+            // Two states reach it and only one is closed off ahead of
+            // here: `validate_closed`'s tier-2 check 1 refuses every
+            // empty loop, and `validate_pseudomanifold` runs it before
+            // the census, so the unbounded-face half cannot arrive
+            // through the public door. The other half — a boundary
+            // that does not RESOLVE, any dangling loop, half-edge,
+            // vertex or point reference — is not argued unreachable
+            // here; it is refused on its merits. Both cost nothing and
+            // stay loud if a second, ungated caller ever appears.
             errors.push(ValidationError::CensusUnsupported {
                 subject: CensusSubject::Entity(EntityId::Face(f)),
             });
@@ -3223,7 +3227,7 @@ mod tests {
     // description of the same cylinder locus (origin a quarter up the
     // axis, axis direction opposed, seam rotated 0.7 rad, its own
     // `GeomSource`) — the cross-instance class's fingerprint, which
-    // used to dead-end `ChartDivergence` → `CensusUnsupported{Face}`
+    // used to dead-end `ChartDivergence` → `CensusUnsupported{FacePair}`
     // → `Declined` → `Uncertified` and now flows through the
     // certified-ε enclosure arm.
 
@@ -3376,7 +3380,7 @@ mod tests {
     /// certifier — Door 1 verifies the carrier through the record's
     /// own declaration, Door 2 answers through the certified-ε
     /// enclosure. Before this arm, the same records dead-ended
-    /// `CensusUnsupported{Face}` (the chain the predicate-level
+    /// `CensusUnsupported{FacePair}` (the chain the predicate-level
     /// red-first suite quotes).
     #[test]
     fn a_cross_description_cylinder_patch_record_certifies() {

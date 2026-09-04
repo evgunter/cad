@@ -312,20 +312,51 @@ pub(crate) fn decide<T: Decide>(
 /// named would be the arena's ordering rather than the arm's
 /// question. A consumer therefore matches the pair, and the answer is
 /// the same in either order.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Eq)]
 pub enum CensusSubject {
     /// One entity, and the arm's subject is that entity alone.
     Entity(EntityId),
     /// The candidate face pair, in the arm's own order. Unordered as
-    /// a subject: `(a, b)` and `(b, a)` name one candidate.
+    /// a subject: `(a, b)` and `(b, a)` name one candidate, and
+    /// [`PartialEq`] below is what makes that true rather than
+    /// aspirational.
     FacePair(FaceKey, FaceKey),
 }
 
+// The unordered-pair invariant, WRITTEN rather than derived. A derived
+// `PartialEq` is structural, so `FacePair(a, b) != FacePair(b, a)` —
+// which is the arena's ordering deciding an equality question the
+// subject does not have, exactly the defect the variant exists to
+// close. The order is kept in the value (the arm's own, and what
+// `Debug` prints) and dropped from the comparison; every equivalence
+// law holds, since unordered-pair equality is the quotient of a
+// structural one.
+impl PartialEq for CensusSubject {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Entity(x), Self::Entity(y)) => x == y,
+            (Self::FacePair(a, b), Self::FacePair(c, d)) => (a, b) == (c, d) || (a, b) == (d, c),
+            _ => false,
+        }
+    }
+}
+
+// One register, as the message had before the subject was widened, and
+// as `CensusUndecidable`'s pair message already reads: every entity
+// through [`EntityId`]'s own `Display`, never a `Debug` key beside a
+// rendered one.
 impl core::fmt::Display for CensusSubject {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Entity(e) => write!(f, "{e}"),
-            Self::FacePair(a, b) => write!(f, "the face pair {a:?} / {b:?}"),
+            Self::FacePair(a, b) => {
+                write!(
+                    f,
+                    "the pair {} / {}",
+                    EntityId::Face(*a),
+                    EntityId::Face(*b)
+                )
+            }
         }
     }
 }
