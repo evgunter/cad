@@ -314,6 +314,13 @@ billed to lanes that had written none of it.
 
 That is the cost to weigh: **not detection latency — attribution.**
 
+**So the section above this one is overstated where it says the control
+"detects on a third party's branch, days late".** The branch is right and
+the days are wrong: 11 m 41 s, measured. Everything the sentence was
+reaching for survives the correction and lands harder — the control is
+prompt, and it is still the wrong shape, because being prompt is not the
+property it was missing.
+
 ### M8 — the scheduled run, re-priced, and it does not come back
 
 Ev declined it on 2026-08-22 on cost. At today's prices:
