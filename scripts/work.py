@@ -298,8 +298,12 @@ def _check_type(item: Item, key: str, typ: str, value: object) -> list[str]:
     raise AssertionError(typ)
 
 
-def lint(root: str) -> list[str]:
+def lint(root: str, warnings: list[str] | None = None) -> list[str]:
+    """Errors, sorted and deduped. `warnings` (an out-parameter) collects the
+    advisories: a lint error blocks a merge, a warning names a row and leaves
+    the fix to whoever owns it."""
     items, errors = load_tree(root)
+    warns: list[str] = []
     by_id: dict[str, Item] = {}
     for it in items:
         # keys and types
@@ -346,6 +350,17 @@ def lint(root: str) -> list[str]:
             errors.append(f"{it.path}: `closed:` is set but status is {it.status}")
         if it.status == "parked" and not it.get("blocked_on"):
             errors.append(f"{it.path}: parked needs a non-empty `blocked_on`")
+        if it.status == "parked":
+            # A trigger that has fired. `blocked_on` still resolves, so nothing
+            # else here objects and the row reads blocked forever.
+            fired = [v for v in it.get("blocked_on") or []
+                     if isinstance(v, str) and v in by_id and by_id[v].status == "closed"]
+            if fired:
+                rest = [_fmt_ref(v) for v in it.get("blocked_on") or [] if v not in fired]
+                names = ", ".join(f"`{v}`" for v in fired)
+                warns.append(f"{it.path}: parked on {names}, which is closed — that trigger has fired; "
+                             + (f"it still waits on {', '.join(rest)}, so prune the fired entry"
+                                if rest else "re-park it on what actually gates it, or open it"))
         # references
         for key in ("parent", "rides_with"):
             v = it.get(key)
@@ -382,6 +397,8 @@ def lint(root: str) -> list[str]:
                 errors.append(f"{rel}: plans and logs live in {WORK}/<program>/ (plan.md, log.md), not in docs/")
     if not programs and not errors:
         errors.append(f"{WORK}/ holds no program")
+    if warnings is not None:
+        warnings.extend(sorted(set(warns)))
     return sorted(set(errors))
 
 
@@ -706,7 +723,9 @@ def selftest() -> int:
 
     with tempfile.TemporaryDirectory() as root:
         _fixture(root)
-        expect("clean fixture", lint(root))
+        warns: list[str] = []
+        expect("clean fixture", lint(root, warns))
+        expect("clean fixture (warnings)", warns)
         text = render(root, today=dt.date(2026, 9, 20))
         for needle in ("## Waiting on Ev", "`MESH-2`", "`stray-thing`", "## Blocked", "MESH-2, #1601", "`topo`"):
             if needle not in text:
@@ -747,11 +766,14 @@ def selftest() -> int:
             ("program field on a unit", "work/mesh/MESH-1.md", "pr: 1605", "prefix: x/"),
             ("nested yaml refused", "work/mesh/MESH-1.md", "pr: 1605", "pr:\n  - 1605"),
             ("unit outside a program", "work/issues/stray-thing.md", "kind: issue", "kind: unit"),
+            ("parked on a fired trigger", "work/mesh/MESH-1.md",
+             "status: review\nopened: 2026-09-01\npr: 1605\nblocked_on: [MESH-2, 1601]",
+             "status: parked\nopened: 2026-09-01\npr: 1605\nblocked_on: [T-1]"),
         ]
         expectations = ["unknown key", "either `true` or absent", "no item", "must equal the file name", "must be one of",
                         "needs a `closed:` date", "non-empty `blocked_on`", "program is closed but",
                         "matches no tracked path", "must end in `/`", "not a field of kind unit",
-                        "indented line", "only kind issue lives under"]
+                        "indented line", "only kind issue lives under", "that trigger has fired"]
         for (name, rel, old, new), needle in zip(cases, expectations, strict=True):
             p = os.path.join(root, rel)
             with open(p, encoding="utf-8") as f:
@@ -760,7 +782,8 @@ def selftest() -> int:
                 failures.append(f"{name}: fixture lacks {old!r}")
                 continue
             _write(root, rel, original.replace(old, new))
-            expect(name, lint(root), needle)
+            warns = []
+            expect(name, lint(root, warns) + warns, needle)
             _write(root, rel, original)
         expect("restored fixture", lint(root))
 
@@ -849,10 +872,16 @@ def main(argv: list[str]) -> int:
             return 2
         root = args.root or _repo_root()
         if args.cmd == "lint":
-            errors = lint(root)
+            warnings: list[str] = []
+            errors = lint(root, warnings)
             for e in errors:
                 print(e)
-            print(f"work.py lint: {'FAIL' if errors else 'ok'} ({len(errors)} problem{'s' if len(errors) != 1 else ''})")
+            for w in warnings:
+                print(f"warning: {w}")
+                if os.environ.get("GITHUB_ACTIONS"):
+                    print(f"::warning file={w.split(':', 1)[0]}::{w}")
+            print(f"work.py lint: {'FAIL' if errors else 'ok'} ({len(errors)} problem{'s' if len(errors) != 1 else ''}"
+                  f", {len(warnings)} warning{'s' if len(warnings) != 1 else ''})")
             return 1 if errors else 0
         if args.cmd == "status":
             print(render(root, args.program))

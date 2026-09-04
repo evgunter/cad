@@ -118,6 +118,13 @@ must be non-empty). A ruling is `open` or `closed`. A program is
 - **References resolve.** Every id in `parent`, `blocked_on`,
   `rides_with` and `refs` names a file that exists. Ints are PR or
   issue numbers and are not checked.
+- **A fired trigger is a warning.** A `parked` row whose `blocked_on`
+  names a CLOSED item has had its trigger fire, and a resolving
+  reference is no evidence it is still blocked. `lint` names the row
+  and does not fail: un-parking belongs to the program that owns the
+  row, and one-file-one-item means whoever closed the blocker cannot
+  do it for them. Re-park on what actually gates the row, or open it —
+  and where live blockers remain, prune the fired entry.
 - **Territory is a glob list** on the program, and every glob matches
   at least one tracked path. `scripts/work.py territory --base main`
   reads a branch's prefix and its diff and names every path another
