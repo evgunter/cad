@@ -18,6 +18,7 @@ walk is `docs/guide/assembly.md`.
 | Decisions | Modules |
 |---|---|
 | A2 evaluation seam, memo | `src/part.rs` (`PartResolver`, `ResolveFault`), `src/eval/parts.rs` (`PartCache`, `PartFault`); `transform_rigid`, `graft_disjoint_all_keyed` in `crates/topo/src/instance.rs` |
+| A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the three doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`; the memo's drop in `src/eval/mod.rs` |
 | A3, A11, A12 mates, solve | `src/mate.rs` (`class_admission`, `MateFault`), `src/mate/coset.rs`, `src/mate/solve.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
 | A4 split and inline | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs` |

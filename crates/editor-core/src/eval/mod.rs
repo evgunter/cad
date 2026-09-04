@@ -65,8 +65,8 @@ pub struct Evaluation<T: Decide> {
     /// run for a check the keys already make.
     ///
     /// THREE doors read this field to refuse a mispairing typed,
-    /// before reading anything of the value: [`product`](fn@crate::product) (with
-    /// its `_named` and `_recorded` siblings), [`crate::assemble`]
+    /// before reading anything of the value: [`product`](fn@crate::product)
+    /// (with its `_named` and `_recorded` siblings), [`crate::assemble`]
     /// through them, and — for the solve's own twin of this stamp —
     /// [`crate::mate::SolvedPoses::placement`]. The memo is the fourth
     /// reader and refuses differently, below. Node ids alone could not
