@@ -97,6 +97,8 @@ mod panel_display;
 mod panel_edits;
 #[path = "path_authoring.rs"]
 mod path_authoring;
+#[path = "pick_windows.rs"]
+mod pick_windows;
 #[path = "prefs.rs"]
 mod prefs;
 #[path = "review_gui0_r1.rs"]

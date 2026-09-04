@@ -1026,20 +1026,33 @@ pub struct PcurveCertificate<T: Real> {
     pub ssi: Option<SsiCertificate<T>>,
 }
 
-/// **Which scalars can derive a fitted pcurve's certificate** — the
-/// static lane split, in the `topo::props::PropsQuadLane` shape (M5
-/// PR 11's ratified pattern; `topo/src/props.rs`).
+/// **Which scalars can derive which certificate** — the static lane
+/// splits, in the `topo::props::PropsQuadLane` shape (M5 PR 11's
+/// ratified pattern; `topo/src/props.rs`). The trait carries TWO
+/// splits, and they are not the same split:
 ///
-/// A [`Pcurve::Fitted`] cache's between-samples obligation is a C9-ring
-/// hull bound, and building it is **certification**. `f64`, the
-/// telemetry probe and the interval scalar may certify;
-/// [`geom_core::Dual`] may not — Ev's D1 ruling, 2026-08-19: a dual
-/// carries a bracket (the value channel's) and may still not certify,
-/// which is why `geom_core::CertifiedEnclosure` has no dual impl and
-/// `geom_core::Bounds` now does. So the fitted lane exists
-/// for the first three and is **statically absent** for the fourth,
-/// which is stated here as a refusing impl rather than discovered as a
-/// mysterious failure at run time.
+/// - **The fitted-pcurve derivations** ([`Self::fitted_certificate`],
+///   [`Self::general_image`], [`Self::chart_foot`]) are a C9-ring hull
+///   bound reached through a scalar's bracket, and building one is
+///   **certification**. `f64`, the telemetry probe and the interval
+///   scalar may certify; [`geom_core::Dual`] may not — Ev's D1 ruling,
+///   2026-08-19: a dual carries a bracket (the value channel's) and may
+///   still not certify, which is why `geom_core::CertifiedEnclosure`
+///   has no dual impl and `geom_core::Bounds` now does. So these exist
+///   for the first three and are **statically absent** for the fourth.
+/// - **The offset-fit re-derivation** ([`Self::remap_certificate`]) is
+///   `f64` ALONE. Its home (`crate::offset_fit`) is written at `f64`
+///   throughout — the interpolation stack, the span schedule and the
+///   patch-bound meters all are — so the split there is not about which
+///   scalars may certify but about which scalar the derivation was
+///   written in. Three of the four arms answer `None`, and the probe
+///   and interval arms are the ones that make the difference visible:
+///   they delegate the pcurve derivations through the C9 ring and still
+///   have nothing to offer here.
+///
+/// Either way a `None` arm is stated as a refusing impl rather than
+/// discovered as a mysterious failure at run time, and a scalar added
+/// later has to say what it can do on each.
 ///
 /// The trait is also what keeps `Bounds` out of `topo`'s signatures:
 /// consumers write `T: PcurveFittedLane` and get the lane, exactly as
@@ -1122,6 +1135,52 @@ pub trait PcurveFittedLane: Decide {
         point: Point3<Self>,
         wall: &NurbsSurface<Self>,
     ) -> Result<Option<Point2<f64>>, PcurveCertifyError>;
+
+    /// **The certificate of an offset description's fit, re-derived on
+    /// the given `(description, fit)` pair** — or `None` when this
+    /// scalar has no fit lane.
+    ///
+    /// The pair is handed in rather than read off a
+    /// [`geom::ApproxSurface`] because the caller that needs this does
+    /// not have one yet: it is building the surface, and
+    /// [`geom::ApproxSurface::certify`] is the only door into the type.
+    /// So this is the certifier that door takes, at whatever scalar the
+    /// caller holds. (`topo::props::PropsQuadLane::recertify_approx` is
+    /// the same derivation reached the other way round — from a
+    /// surface that already exists, for the validator that re-derives
+    /// its claim.)
+    ///
+    /// **The classification tolerance is the CALLER's** and so is the
+    /// band: `tolerance` is what the mapped surface will store and
+    /// therefore what it must be shown to honour.
+    ///
+    /// **`None` is a statement about the DERIVATION, never about which
+    /// values can arrive** — the one place that sentence is spelled out
+    /// for this method, and the three refusing arms point here.
+    /// `ApproxSurface::certify` is scalar-generic and takes its
+    /// certifier as an argument, so an approximating surface is
+    /// representable at every scalar and such a surface does reach the
+    /// refusing arms. What is absent is the fit derivation, which
+    /// `crate::offset_fit` writes at `f64` alone (trait docs); a caller
+    /// holding such a surface at a scalar with no lane refuses typed
+    /// rather than carrying the certificate it already has across a
+    /// geometry change. `topo::props::PropsQuadLane`'s
+    /// `recertify_approx` and `approx_offset_surface` are the same
+    /// split over the same derivation, reached from the validator and
+    /// the mint respectively.
+    ///
+    /// # Errors
+    ///
+    /// The fit door's typed refusal, verbatim — a certificate limb
+    /// above tolerance, a door meter, a window this derivation does
+    /// not cover. Never from the "no lane" arm.
+    fn remap_certificate(
+        description: &geom::SurfaceDescription<Self>,
+        fit: &NurbsSurface<Self>,
+        window: geom::ApproxWindow,
+        tolerance: f64,
+        band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, crate::OffsetFitError>>;
 
     /// The lane's name, for the typed refusal's text.
     fn lane_name() -> &'static str;
@@ -1486,6 +1545,22 @@ impl PcurveFittedLane for f64 {
         chart_foot_lane(point, wall)
     }
 
+    fn remap_certificate(
+        description: &geom::SurfaceDescription<Self>,
+        fit: &NurbsSurface<Self>,
+        window: geom::ApproxWindow,
+        tolerance: f64,
+        band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, crate::OffsetFitError>> {
+        let geom::SurfaceDescription::Offset { base, d } = description;
+        // The window rule and the derivation behind it live in one
+        // place, so this door, the storage mint and the validator's
+        // re-derivation cannot disagree about the same surface.
+        Some(crate::offset_fit::certify_offset_over(
+            base, fit, *d, window, tolerance, band,
+        ))
+    }
+
     fn lane_name() -> &'static str {
         "f64"
     }
@@ -1519,6 +1594,21 @@ impl PcurveFittedLane for geom_core::Probe {
         chart_foot_lane(point, wall)
     }
 
+    /// **No fit lane at this scalar, and it certifies elsewhere in this
+    /// very impl** — the two splits the trait docs distinguish, met at
+    /// one scalar. The pcurve derivations above go through the C9 ring
+    /// here; the offset fit is written at `f64` alone, so there is
+    /// nothing to delegate to.
+    fn remap_certificate(
+        _description: &geom::SurfaceDescription<Self>,
+        _fit: &NurbsSurface<Self>,
+        _window: geom::ApproxWindow,
+        _tolerance: f64,
+        _band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, crate::OffsetFitError>> {
+        None
+    }
+
     fn lane_name() -> &'static str {
         "telemetry probe"
     }
@@ -1550,6 +1640,21 @@ impl PcurveFittedLane for geom_core::interval::Interval {
         wall: &NurbsSurface<Self>,
     ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
         chart_foot_lane(point, wall)
+    }
+
+    /// **No fit lane at this scalar, and it certifies elsewhere in this
+    /// very impl** — the two splits the trait docs distinguish, met at
+    /// one scalar. The pcurve derivations above go through the C9 ring
+    /// here; the offset fit is written at `f64` alone, so there is
+    /// nothing to delegate to.
+    fn remap_certificate(
+        _description: &geom::SurfaceDescription<Self>,
+        _fit: &NurbsSurface<Self>,
+        _window: geom::ApproxWindow,
+        _tolerance: f64,
+        _band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, crate::OffsetFitError>> {
+        None
     }
 
     fn lane_name() -> &'static str {
@@ -1631,6 +1736,18 @@ where
         _wall: &NurbsSurface<Self>,
     ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
         Ok(None)
+    }
+
+    /// No fit lane at this scalar — the trait method's docs carry the
+    /// split and its reason.
+    fn remap_certificate(
+        _description: &geom::SurfaceDescription<Self>,
+        _fit: &NurbsSurface<Self>,
+        _window: geom::ApproxWindow,
+        _tolerance: f64,
+        _band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, crate::OffsetFitError>> {
+        None
     }
 
     fn lane_name() -> &'static str {

@@ -289,6 +289,27 @@ pub enum ChartRegionError {
     /// Every ray of the fixed 2-D schedule grazed — an
     /// ill-conditioned containment query at this ε.
     RayExhausted,
+    /// The interior-witness schedule was cut off by its BUDGET before
+    /// it could finish ([`WITNESS_BUDGET`]): the pair's arrangement is
+    /// larger than the work this rung spends, so no candidate was
+    /// certified and none was ruled out either.
+    ///
+    /// Distinct from [`Self::TouchingBoundary`] because it is a
+    /// distinct fact. `TouchingBoundary` says the overlap is not
+    /// decidable at this ε; this says the search stopped. A fat,
+    /// perfectly decidable overlap reaches it — the segment cap
+    /// declines before a single probe is issued — and a caller that
+    /// read the two as one refusal would take a bound on the work for
+    /// a statement about the geometry.
+    WitnessBudgetExhausted {
+        /// The pair's boundary-segment count, against
+        /// [`WITNESS_BUDGET`]'s segment cap.
+        segments: usize,
+        /// Cell centres probed before the cell cap stopped the
+        /// search. Zero when the segment cap declined first, which is
+        /// the whole of that arm: nothing was looked at.
+        cells: usize,
+    },
     /// The topology could not be walked, or the crossing walk
     /// contradicted itself (fail-loud kernel-invariant class).
     Corrupt,
@@ -363,6 +384,14 @@ impl core::fmt::Display for ChartRegionError {
                 f,
                 "chart-region: every schedule ray grazed — ill-conditioned \
                  containment query at this ε"
+            ),
+            Self::WitnessBudgetExhausted { segments, cells } => write!(
+                f,
+                "chart-region: the interior-witness schedule ran out of budget on a \
+                 {segments}-segment trim pair after {cells} cell probe(s) — the \
+                 search stopped, so the overlap is neither certified nor ruled \
+                 out; simplify the pair's trims, or read it on a chart whose \
+                 boundaries meet in fewer places"
             ),
             Self::Corrupt => write!(
                 f,
@@ -739,13 +768,19 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
         // which IS the positive claim. The rung only ever turns a
         // REFUSAL into a proof — it can neither contradict a decided
         // answer nor manufacture an `Empty`.
-        Err(ChartRegionError::TouchingBoundary)
-            if interior_witness(
-                body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, door_one, band,
-            ) =>
-        {
-            Ok(ChartOverlap::PositiveArea)
-        }
+        Err(ChartRegionError::TouchingBoundary) => match interior_witness(
+            body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, door_one, band,
+        ) {
+            WitnessOutcome::Certified => Ok(ChartOverlap::PositiveArea),
+            // The rung's schedule stopped short. That is a fact about
+            // the work, not about the geometry, so it does NOT leave
+            // the carried refusal standing under a name that says the
+            // overlap is undecidably thin.
+            WitnessOutcome::BudgetExhausted { segments, cells } => {
+                Err(ChartRegionError::WitnessBudgetExhausted { segments, cells })
+            }
+            WitnessOutcome::Declined => Err(ChartRegionError::TouchingBoundary),
+        },
         other => other,
     }
 }
@@ -1676,15 +1711,17 @@ fn band_overlap<T: Decide + Bounds>(
 /// be discharged by the claim under test. So the rung runs only on
 /// [`ContactVerdict::Definite`](crate::contact::ContactVerdict::Definite);
 /// on `Bridged` it declines and the region walk's typed refusal
-/// stands. Three-outcome honest: a proof, a decline, or the refusal it
-/// was already carrying.
+/// stands. Three-outcome honest, and the three are TYPED
+/// ([`WitnessOutcome`]): a proof, a decline that leaves the carried
+/// refusal standing, and a schedule that ran out of budget — which is
+/// a fact about the work and gets a refusal of its own.
 ///
 /// # The schedule, and why it is two stages
 ///
 /// Every `contfp` verdict but `In` — a boundary coincidence, an
 /// exterior point, an in-band containment, an exhausted ray schedule —
-/// means THIS candidate proves nothing and the walk moves on; the
-/// rung's whole output is a proof or its absence. A candidate is never
+/// means THIS candidate proves nothing and the walk moves on; a
+/// candidate's own verdict is a proof or its absence. A candidate is never
 /// counted from one face alone: `contfp` reads each face's own rings,
 /// so a point in a hole of either is `Out` of that face.
 ///
@@ -1748,9 +1785,9 @@ fn interior_witness<T: Decide + Bounds>(
     uv_b: &FaceUv<T>,
     door_one: crate::contact::ContactVerdict,
     band: Band,
-) -> bool {
+) -> WitnessOutcome {
     if door_one != crate::contact::ContactVerdict::Definite {
-        return false;
+        return WitnessOutcome::Declined;
     }
     let Surface::Plane {
         origin,
@@ -1758,11 +1795,11 @@ fn interior_witness<T: Decide + Bounds>(
         u_ref,
     } = *carrier
     else {
-        return false;
+        return WitnessOutcome::Declined;
     };
     let v_ref = normal.cross(u_ref);
     let Ok((_, normal_b)) = plane_frame(body_b, face_b) else {
-        return false;
+        return WitnessOutcome::Declined;
     };
     let inside = |body: &Body<T>, face: FaceKey, n, q| {
         matches!(
@@ -1779,7 +1816,7 @@ fn interior_witness<T: Decide + Bounds>(
     for poly in [&uv_a.outer, &uv_b.outer] {
         for c in candidate_points(poly) {
             if strictly_inside_both(c.x, c.y) {
-                return true;
+                return WitnessOutcome::Certified;
             }
         }
     }
@@ -1787,6 +1824,34 @@ fn interior_witness<T: Decide + Bounds>(
     decomposition_witness(uv_a, uv_b, |x, y| {
         strictly_inside_both(T::from_f64(x), T::from_f64(y))
     })
+}
+
+/// **What the interior-witness rung answers** — a proof, a decline, or
+/// the schedule stopping short.
+///
+/// INVARIANT: three outcomes, not two. A decline says the schedule ran
+/// and found nothing, which the caller spells as the region walk's own
+/// [`ChartRegionError::TouchingBoundary`]; an exhaustion says the
+/// schedule did not finish, which is a bound on the work and not a
+/// statement about the geometry, and gets its own refusal
+/// ([`ChartRegionError::WitnessBudgetExhausted`]). Collapsing the two
+/// into one `bool` makes a fat, decidable overlap that overran the
+/// budget indistinguishable from an overlap too thin to certify.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WitnessOutcome {
+    /// A point was certified strictly interior to both trims: the
+    /// intersection contains a disc of definitely-positive radius.
+    Certified,
+    /// The schedule ran to its end and certified nothing.
+    Declined,
+    /// [`WITNESS_BUDGET`] cut the schedule off.
+    BudgetExhausted {
+        /// The pair's boundary-segment count.
+        segments: usize,
+        /// Cell centres probed before the cut-off; zero when the
+        /// segment cap declined before the arrangement was walked.
+        cells: usize,
+    },
 }
 
 /// The most cell centres [`decomposition_witness`] probes before it
@@ -1802,23 +1867,30 @@ fn interior_witness<T: Decide + Bounds>(
 /// # What these limits cost, stated rather than implied
 ///
 /// **Neither is out of reach, and `cells` is reachable INSIDE
-/// `segments`.** A pair of trims with ~50 stacked runs against one
-/// tilted crosser exceeds 4096 cells at ~125 segments — under the
-/// segment cap, so "large enough never to bind" is not a claim this
-/// constant can make. What it is is a bound on the work, chosen so
-/// that the trim pairs this rung is actually reached with (a few dozen
-/// segments; the seats in the suite carry twelve) search exhaustively.
+/// `segments`.** A comb of 56 stacked horizontal runs against one
+/// tilted crosser carries 118 boundary segments — comfortably under
+/// the segment cap — and overruns 4096 cells, so "large enough never
+/// to bind" is not a claim this constant makes. What it is is a bound
+/// on the work, chosen so that the trim pairs this rung is actually
+/// reached with (the seats in the suite carry twelve segments) search
+/// exhaustively.
 ///
-/// **A budget decline is indistinguishable from a thin-overlap
-/// decline.** Both return `false` here, both leave the region walk's
-/// [`ChartRegionError::TouchingBoundary`] standing, and both surface to
-/// a caller as the same `CensusUnsupported` on the same face — so a
-/// reader cannot tell "the overlap is too thin to certify at this ε"
-/// from "the search was cut off". That is the honest gap in the rung's
-/// three-outcome contract, and closing it means giving the decline a
-/// TYPE. It is not closed here: the decline's type would have to reach
-/// this module's error enum, whose exhaustive matches live in
-/// `census.rs`, outside this unit's fence. Scheduled as issue 1478.
+/// The row `r2p7_cell_budget_is_reachable_inside_the_segment_cap`
+/// builds that pair, and the number it READS is the segment count:
+/// the cell figure is structurally forced, because the walk returns
+/// the instant `spent > cells`, so every pair that reaches the cap
+/// reports exactly `cells + 1`. What the row pins is that 118
+/// segments suffice — and it is a TIGHT witness, not a comfortable
+/// one: one tooth fewer walks its arrangement to the end.
+///
+/// **An exhausted budget is its own refusal.** Both caps answer
+/// [`WitnessOutcome::BudgetExhausted`], which the caller spells
+/// [`ChartRegionError::WitnessBudgetExhausted`] carrying the segment
+/// count and the probes spent — never the carried
+/// [`ChartRegionError::TouchingBoundary`], which says the overlap is
+/// undecidably thin and would be a statement about the geometry that
+/// nothing measured. A fat, decidable overlap over the segment cap is
+/// the case that separates them: it declines with zero probes issued.
 const WITNESS_BUDGET: WitnessBudget = WitnessBudget {
     segments: 128,
     cells: 4096,
@@ -1890,18 +1962,26 @@ fn decomposition_witness<T: Decide + Bounds>(
     uv_a: &FaceUv<T>,
     uv_b: &FaceUv<T>,
     mut probe: impl FnMut(f64, f64) -> bool,
-) -> bool {
+) -> WitnessOutcome {
     // Decline cause 1: a coordinate the arrangement cannot describe.
     // FAIL-CLOSED rather than edge-dropping — see `boundary_segments`.
     let Some(segments) = boundary_segments(uv_a, uv_b) else {
-        return false;
+        return WitnessOutcome::Declined;
     };
     // Decline cause 2: no arrangement to build. One segment bounds no
     // cell, and the rung's own extraction refuses loops under three
     // vertices, so this is the empty-trim guard rather than a budget.
-    // Decline cause 3: the segment budget.
-    if segments.len() < 2 || segments.len() > WITNESS_BUDGET.segments {
-        return false;
+    if segments.len() < 2 {
+        return WitnessOutcome::Declined;
+    }
+    // Cause 3 is the segment budget, and it is an EXHAUSTION rather
+    // than a decline: the arrangement is never walked, so nothing was
+    // looked at and no probe was issued.
+    if segments.len() > WITNESS_BUDGET.segments {
+        return WitnessOutcome::BudgetExhausted {
+            segments: segments.len(),
+            cells: 0,
+        };
     }
     let mut spent = 0usize;
     let abscissae = event_abscissae(&segments);
@@ -1920,14 +2000,17 @@ fn decomposition_witness<T: Decide + Bounds>(
             }
             spent += 1;
             if spent > WITNESS_BUDGET.cells {
-                return false;
+                return WitnessOutcome::BudgetExhausted {
+                    segments: segments.len(),
+                    cells: spent,
+                };
             }
             if probe(x, y) {
-                return true;
+                return WitnessOutcome::Certified;
             }
         }
     }
-    false
+    WitnessOutcome::Declined
 }
 
 /// One boundary segment of one trim, in nominal chart coordinates.
@@ -5241,7 +5324,11 @@ mod r2_mate8_probes {
             }
             ok
         });
-        assert!(found, "axis-aligned overlap must yield a witness");
+        assert_eq!(
+            found,
+            WitnessOutcome::Certified,
+            "axis-aligned overlap must yield a witness"
+        );
         let (x, y) = hit.unwrap();
         assert!(x > 1.0 && x < 3.0 && y > 0.0 && y < 2.0, "({x}, {y})");
     }
@@ -5253,9 +5340,12 @@ mod r2_mate8_probes {
     fn r2p2_collinear_shared_span_finds_a_witness() {
         let a = uv(rect(0.0, 0.0, 4.0, 2.0), vec![]);
         let b = uv(rect(1.0, 0.0, 3.0, 3.0), vec![]);
-        assert!(decomposition_witness(&a, &b, |x, y| {
-            in_region(&a, x, y) && in_region(&b, x, y)
-        }));
+        assert_eq!(
+            decomposition_witness(&a, &b, |x, y| {
+                in_region(&a, x, y) && in_region(&b, x, y)
+            }),
+            WitnessOutcome::Certified
+        );
     }
 
     /// P2b — bit-identical outers (every segment duplicated): the
@@ -5265,9 +5355,12 @@ mod r2_mate8_probes {
     fn r2p2b_identical_outers_find_a_witness() {
         let a = uv(rect(0.0, 0.0, 2.0, 2.0), vec![]);
         let b = uv(rect(0.0, 0.0, 2.0, 2.0), vec![]);
-        assert!(decomposition_witness(&a, &b, |x, y| {
-            in_region(&a, x, y) && in_region(&b, x, y)
-        }));
+        assert_eq!(
+            decomposition_witness(&a, &b, |x, y| {
+                in_region(&a, x, y) && in_region(&b, x, y)
+            }),
+            WitnessOutcome::Certified
+        );
     }
 
     /// P3 — a RING swallowing the naive centre: holes must be in the
@@ -5285,7 +5378,11 @@ mod r2_mate8_probes {
             }
             ok
         });
-        assert!(found, "the region minus its hole still has interior");
+        assert_eq!(
+            found,
+            WitnessOutcome::Certified,
+            "the region minus its hole still has interior"
+        );
         let (x, y) = hit.unwrap();
         assert!(
             !(x > 1.4 && x < 2.6 && y > 1.4 && y < 2.6),
@@ -5309,19 +5406,22 @@ mod r2_mate8_probes {
             vec![],
         );
         let b = uv(rect(1.0, 0.2, 1.8, 2.8), vec![]);
-        assert!(decomposition_witness(&a, &b, |x, y| {
-            in_region(&a, x, y) && in_region(&b, x, y)
-        }));
+        assert_eq!(
+            decomposition_witness(&a, &b, |x, y| {
+                in_region(&a, x, y) && in_region(&b, x, y)
+            }),
+            WitnessOutcome::Certified
+        );
     }
 
     /// P5 — the SEGMENT budget: two 70-gon "discs" in fat, decidable
-    /// overlap carry 140 > 128 segments, and the schedule declines
-    /// WITHOUT PROBING AT ALL — a silent `false`, spelled by the caller
-    /// as the carried `TouchingBoundary`. This pins the honesty
-    /// boundary the PR's deviation 2 discloses: exhaustion never
-    /// mis-certifies, but nothing at the call site says "budget".
+    /// overlap carry 140 > 128 segments, and the schedule stops
+    /// WITHOUT PROBING AT ALL. The outcome is an EXHAUSTION carrying
+    /// both counts, not a decline: the overlap here is not thin, and
+    /// the caller must not spell this as the `TouchingBoundary` that
+    /// says it is.
     #[test]
-    fn r2p5_segment_budget_declines_a_fat_decidable_overlap_silently() {
+    fn r2p5_segment_budget_exhausts_on_a_fat_decidable_overlap() {
         let ngon = |cx: f64, n: usize| -> Vec<Point2<f64>> {
             (0..n)
                 .map(|i| {
@@ -5337,15 +5437,25 @@ mod r2_mate8_probes {
             calls += 1;
             in_region(&a, x, y) && in_region(&b, x, y)
         });
-        assert!(!found, "over-budget: the schedule declines");
-        assert_eq!(calls, 0, "and it declines before offering anything");
+        assert_eq!(
+            found,
+            WitnessOutcome::BudgetExhausted {
+                segments: 140,
+                cells: 0
+            },
+            "over-budget: the schedule says so, and says how far it got"
+        );
+        assert_eq!(calls, 0, "and it stops before offering anything");
         // The same pair one segment under the cap certifies fine —
-        // the decline above is the budget's, not the geometry's.
+        // the exhaustion above is the budget's, not the geometry's.
         let a64 = uv(ngon(0.0, 64), vec![]);
         let b64 = uv(ngon(1.0, 64), vec![]);
-        assert!(decomposition_witness(&a64, &b64, |x, y| {
-            in_region(&a64, x, y) && in_region(&b64, x, y)
-        }));
+        assert_eq!(
+            decomposition_witness(&a64, &b64, |x, y| {
+                in_region(&a64, x, y) && in_region(&b64, x, y)
+            }),
+            WitnessOutcome::Certified
+        );
     }
 
     /// P6 — the CELL budget is a hard cap on probe calls (structural
@@ -5368,8 +5478,95 @@ mod r2_mate8_probes {
             calls += 1;
             false
         });
-        assert!(!found);
+        assert_ne!(found, WitnessOutcome::Certified);
         assert!(calls <= WITNESS_BUDGET.cells, "{calls} probes");
         assert!(calls > 0, "the pair is busy enough to probe at all");
+    }
+
+    /// P7 — **the cell cap is reachable INSIDE the segment cap**, which
+    /// is the claim [`WITNESS_BUDGET`]'s own doc makes and the reason
+    /// it cannot say "large enough never to bind". A comb of 28 teeth
+    /// (56 stacked horizontal runs, 114 segments) against one thin
+    /// tilted crosser (4 segments) is 118 segments — under the
+    /// 128-segment cap — and its arrangement overruns 4096 cells.
+    ///
+    /// The load-bearing number is the SEGMENT count. The cell figure
+    /// is forced: the walk returns the instant `spent > cells`, so any
+    /// pair reaching the cap reports exactly `cells + 1` and that
+    /// assertion says nothing about this fixture. What is specific to
+    /// the fixture is 118 and its tightness — 27 teeth carries 114
+    /// segments, spends 3970 cells and walks its arrangement to the
+    /// end, so this is the minimum comb of its family and the row goes
+    /// red on drift rather than staying quietly green.
+    ///
+    /// Where the crosser's cost lands, because it is not where a first
+    /// reading puts it: the quad has TWO long sides and each meets all
+    /// 56 runs, and what that buys is the SLAB count — 82 event
+    /// abscissae, only 7 of them segment endpoints, so some 75 are
+    /// meetings. Cells per slab is ~50 and is set by the runs alone;
+    /// the crosser adds two. `slabs × cells-per-slab` is where the
+    /// cap is reached, and a crosser contributing half the meetings
+    /// would halve the slabs and leave the pair well under it. That
+    /// counterfactual is not constructible here — a closed crosser has
+    /// two spanning sides whatever its shape — which is why the factor
+    /// is structural rather than a property of this fixture.
+    #[test]
+    fn r2p7_cell_budget_is_reachable_inside_the_segment_cap() {
+        // A comb, walked as a simple polygon: up the spine, out along
+        // each tooth's underside, back along its top.
+        let teeth = 28usize;
+        let mut comb = vec![pt(0.0, 0.0)];
+        for i in 0..teeth {
+            let y = 2.0 * (i as f64);
+            comb.push(pt(1.0, y));
+            comb.push(pt(1.0, y + 1.0));
+            comb.push(pt(0.1, y + 1.0));
+            comb.push(pt(0.1, y + 2.0));
+        }
+        comb.push(pt(0.0, 2.0 * (teeth as f64)));
+        let crosser = vec![
+            pt(-0.2, -1.0),
+            pt(-0.18, -1.0),
+            pt(1.22, 2.0 * (teeth as f64) + 1.0),
+            pt(1.2, 2.0 * (teeth as f64) + 1.0),
+        ];
+        let segments = comb.len() + crosser.len();
+        assert!(
+            segments <= WITNESS_BUDGET.segments,
+            "{segments} segments must be under the segment cap for this row to \
+             say anything"
+        );
+        let a = uv(comb, vec![]);
+        let b = uv(crosser, vec![]);
+        let mut calls = 0usize;
+        let found = decomposition_witness(&a, &b, |_, _| {
+            calls += 1;
+            false
+        });
+        assert_eq!(
+            found,
+            WitnessOutcome::BudgetExhausted {
+                segments,
+                cells: WITNESS_BUDGET.cells + 1
+            },
+            "{segments} segments, {calls} probes"
+        );
+    }
+
+    /// P8 — the honest decline still exists and is a DIFFERENT answer:
+    /// a small pair whose arrangement is walked to its end, certifying
+    /// nothing, answers `Declined`. Without this row "everything that
+    /// is not `Certified` is an exhaustion" would pass the suite.
+    #[test]
+    fn r2p8_a_walked_arrangement_that_certifies_nothing_declines() {
+        let a = uv(rect(0.0, 0.0, 1.0, 1.0), vec![]);
+        let b = uv(rect(2.0, 2.0, 3.0, 3.0), vec![]);
+        let mut calls = 0usize;
+        let found = decomposition_witness(&a, &b, |_, _| {
+            calls += 1;
+            false
+        });
+        assert_eq!(found, WitnessOutcome::Declined);
+        assert!(calls > 0, "the arrangement was actually walked");
     }
 }

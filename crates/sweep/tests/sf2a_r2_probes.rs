@@ -242,7 +242,8 @@ fn r2a_bevel_kite_triangle_walls_in_closed_form() {
     ] {
         let body = prism(&pts, h);
         let hollow = topo::shell(&body, t, FIT_TOL, tol)
-            .unwrap_or_else(|e| panic!("{what} hollows, got {e}"));
+            .unwrap_or_else(|e| panic!("{what} hollows, got {e}"))
+            .body;
         let props = topo::mass_properties(&hollow, tol).expect("props");
         let want = shoelace(&pts) * h - shoelace(&inset(&pts, t)) * (h - 2.0 * t);
         println!("[r2a] {what}: wall {} want {want}", props.volume);
@@ -418,7 +419,7 @@ fn r2a_straight_vertex_prism_through_shell_at_head() {
         0.4,
     );
     match topo::shell(&body, 0.05, FIT_TOL, tol) {
-        Ok(hollow) => {
+        Ok(topo::Shelled { body: hollow, .. }) => {
             let props = topo::mass_properties(&hollow, tol).expect("props");
             println!(
                 "[r2a] straight-vertex prism at head: HOLLOWS, wall {} (closed form 0.157)",
