@@ -70,7 +70,7 @@ fn f64_and_interval_lanes_resolve_appearance_identically() {
         },
     );
     // Resolving: the union body, a union-minted face, and operand A's
-    // top cap (resolves in A's own table).
+    // end cap (resolves in A's own table).
     let ev: Evaluation<f64> = run(&doc);
     let uni_face = ev
         .value(uni)
