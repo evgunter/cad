@@ -284,6 +284,7 @@ fn outcome_str(o: SampleOutcome) -> &'static str {
         SampleOutcome::Definite(geom_core::Sign::Positive) => "positive",
         SampleOutcome::Indeterminate => "indeterminate",
         SampleOutcome::Invalid => "invalid",
+        SampleOutcome::SymbolicZero => "symbolic_zero",
     }
 }
 
