@@ -166,6 +166,67 @@ fn r1_collinear_walls_are_unauthorable_so_cosurface_stays_a_non_identity() {
     }
 }
 
+/// EVIDENCE-ONLY: does a chain with PARAMETRIC `LineTo` points lift at
+/// `Interval` over a DEGENERATE box (every axis fixed)? If not, the
+/// refusal is not a width effect at all.
+#[test]
+#[ignore = "evidence-only: the parametric chain at a point box"]
+fn r1_parametric_chain_at_a_point_box() {
+    let tol = Tol::witness();
+    let (doc, _, _) = crate::m10_7_r1_probes_interval::bracket_pub(0.5e-3, false, tol);
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    for fixed in [true, false] {
+        let box_ = if fixed {
+            ParamBox::from_axes(
+                ParamBox::of(&analyzed)
+                    .axes()
+                    .keys()
+                    .map(|n| (n.clone(), BoxAxis::Fixed))
+                    .collect(),
+            )
+        } else {
+            ParamBox::of(&analyzed)
+        };
+        for lift in [ProfileLift::Guided, ProfileLift::default()] {
+            let opts = EvalOptions {
+                param_box: Some(Arc::new(box_.clone())),
+                profile_lift: lift,
+                ..EvalOptions::default()
+            };
+            let ev: editor_core::Evaluation<geom_core::Interval> =
+                evaluate(&doc, None, &CancelToken::new(), &opts, tol);
+            let errs: Vec<String> = ev
+                .order
+                .iter()
+                .filter_map(|id| {
+                    ev.node_error(*id).map(|e| {
+                        let s = format!("{:?}", e.kind);
+                        format!("node {} {}", id.0, &s[..s.len().min(300)])
+                    })
+                })
+                .collect();
+            println!(
+                "fixed={fixed} lift={lift:?}: {} errors: {:?}",
+                errs.len(),
+                errs.first()
+            );
+        }
+        let ev: editor_core::Evaluation<f64> = evaluate(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions {
+                param_box: Some(Arc::new(box_.clone())),
+                profile_lift: ProfileLift::Guided,
+                ..EvalOptions::default()
+            },
+            tol,
+        );
+        let n = ev.order.iter().filter(|id| ev.node_error(**id).is_some()).count();
+        println!("fixed={fixed} at f64 guided: {n} errors");
+    }
+}
+
 /// EVIDENCE-ONLY: the per-predicate split on R1's bracket at the
 /// nominal, and the FULL structure refusal its parametric rectangle
 /// meets over a box — printed as Debug so the predicate is visible.
