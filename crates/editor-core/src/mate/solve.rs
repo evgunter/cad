@@ -144,11 +144,11 @@ pub struct Member {
     pub copy: Option<(RecipeNodeId, u32)>,
 }
 
-/// **A11's member vocabulary as a predicate**: the member `name`'s
-/// head names, or `None` when the head is outside the vocabulary (a
-/// non-instance node; a pattern whose name carries no `Instance(i)`
-/// qualifier; a pattern whose input is not itself a live instance — a
-/// patterned boolean, a nested pattern).
+/// **A11's member vocabulary as a predicate**: the [`Member`] that
+/// `name`'s head names, or `None` when that head is outside the
+/// vocabulary (a non-instance node; a pattern whose name carries no
+/// `Instance(i)` qualifier; a pattern whose input is not itself a live
+/// instance — a patterned boolean, a nested pattern).
 ///
 /// Structural only — no expression is evaluated here, so the cluster
 /// partition never depends on a slot value.
@@ -156,10 +156,13 @@ pub struct Member {
 /// This is the SINGLE home of the question "is this reference a member
 /// reference": [`head_of`] adds the refusal context for the solve, and
 /// [`crate::refactor::split`]'s crossing collector asks it directly.
-/// A12's reading edges, A11's clusters and A4's interface record must
-/// all admit exactly the same heads — a collector admitting a head the
-/// cluster graph does not weld would mint a record for a mate that
-/// never solved, which is what AQ8's ratification condition forbids.
+/// A12's reading edges, A11's clusters and A4's interface record admit
+/// exactly the same heads because they ask this one function — a
+/// collector admitting a head the cluster graph does not weld would
+/// mint an interface record for a mate that never solved, which is
+/// what AQ8 option (b) SKIP refuses (ruled at the ASM-R2b review;
+/// recorded in `asm_r2b_assembly.rs`'s rows-5-and-6 header, not in
+/// `ASSEMBLY.md`'s AQ8 clause).
 pub(crate) fn member_of_head<P>(doc: &Doc<P>, name: &crate::names::StableName) -> Option<Member> {
     let head = name.node;
     match doc.node(head) {

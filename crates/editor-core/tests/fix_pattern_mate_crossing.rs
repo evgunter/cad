@@ -17,6 +17,12 @@
 //!   asking the vocabulary apart from one merely matching a head's
 //!   spelling.
 //!
+//! That SKIP ruling was made at the ASM-R2b review and is recorded in
+//! `asm_r2b_assembly.rs`'s rows-5-and-6 header; `ASSEMBLY.md`'s AQ8
+//! clause carries only the weld/`TornCluster` half, so the ruling is
+//! cited here from where it actually lives rather than as ratified
+//! design text.
+//!
 //! The whole-cluster cut also pins A4's recorded map over an
 //! `Instance(i)` head: the node ids remap, the STRUCTURAL INDEX does
 //! not.
@@ -208,12 +214,21 @@ fn a_pattern_headed_mate_is_an_edge_and_welds_the_pattern_input_instance() {
 fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
     let (doc, leg, pattern, top, mate) = four_legs("fix-xs-torn");
 
-    // The pattern side alone — the cut the issue's seam describes.
-    for (what, ids) in [
-        ("the pattern side", cut([leg, pattern])),
-        ("the pattern side with its mate", cut([leg, pattern, mate])),
-        ("the other member", cut([top])),
-        ("the other member with the mate", cut([top, mate])),
+    // The gauge is the cluster's document-order-first instance and the
+    // named instance is the first member on the far side of the tear,
+    // so BOTH payload fields are asserted: a refusal that named the
+    // wrong pair would still be a `TornCluster`, and the repair it
+    // tells the caller to make ("widen the cut to the whole cluster")
+    // is only actionable if the pair is right.
+    for (what, ids, gauge_is_cut) in [
+        ("the pattern side", cut([leg, pattern]), true),
+        (
+            "the pattern side with its mate",
+            cut([leg, pattern, mate]),
+            true,
+        ),
+        ("the other member", cut([top]), false),
+        ("the other member with the mate", cut([top, mate]), false),
     ] {
         let refused = split(
             &doc,
@@ -222,11 +237,46 @@ fn a_pattern_headed_mate_edge_cannot_cross_a_cut_and_split_says_so_both_ways() {
             Tol::witness(),
         )
         .expect_err("a torn cluster refuses");
-        assert!(
-            matches!(refused, editor_core::SplitError::TornCluster { .. }),
-            "cutting {what} tears the cluster the mate welds: {refused:?}"
+        let editor_core::SplitError::TornCluster {
+            gauge,
+            instance,
+            gauge_is_cut: cut_side,
+        } = refused
+        else {
+            panic!("cutting {what} tears the cluster the mate welds: {refused:?}");
+        };
+        assert_eq!(
+            (gauge, instance, cut_side),
+            (leg, top, gauge_is_cut),
+            "cutting {what} names the gauge, the instance across the tear, \
+             and which side the gauge is on"
         );
     }
+
+    // The pattern WITHOUT its input is a severed recipe edge, refused
+    // before the cluster rule is ever reached — D-2 closure, and the
+    // premise that keeps a pattern head's derivation nodes on the same
+    // side as the member it resolves to.
+    let severed = split(
+        &doc,
+        &cut([pattern]),
+        DocumentId::derive("fix-xs-severed-part"),
+        Tol::witness(),
+    )
+    .expect_err("a severed recipe edge refuses");
+    let editor_core::SplitError::SeveredEdge {
+        consumer,
+        input,
+        consumer_is_cut,
+    } = severed
+    else {
+        panic!("cutting the pattern alone severs its input edge: {severed:?}");
+    };
+    assert_eq!(
+        (consumer, input, consumer_is_cut),
+        (pattern, leg, true),
+        "the pattern is the cut-side consumer and its instance input is the severed end"
+    );
 
     // The whole cluster: accepted, and nothing crosses.
     let out = split(
@@ -284,9 +334,12 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
 /// member vocabulary, so the mate is not an edge, welds nothing, and
 /// its two ends DO reach opposite sides of an accepted cut.
 ///
-/// INVARIANT (AQ8, ruled — option (b), SKIP): such a mate contributes
-/// NO crossing however its names fall, because it never solved and a
-/// record minted from it would be trusted-at-rest state. This is the
+/// INVARIANT (AQ8 option (b), SKIP — ruled at the ASM-R2b review and
+/// recorded in `asm_r2b_assembly.rs`'s rows-5-and-6 header, NOT in
+/// `ASSEMBLY.md`'s AQ8 clause, which carries only the weld half):
+/// such a mate contributes NO crossing however its names fall, because
+/// it never solved and a record minted from it would be
+/// trusted-at-rest state. This is the
 /// row that separates a gate asking the member vocabulary from one
 /// matching a head's SPELLING: admitting `Node::Pattern` by shape mints
 /// a record here, for a mate the cluster graph never welded.

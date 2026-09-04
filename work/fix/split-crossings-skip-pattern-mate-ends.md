@@ -58,13 +58,32 @@ cut {top,mate}          => Err(TornCluster { gauge: leg, instance: top, gauge_is
 cut {pattern}           => Err(SeveredEdge { consumer: pattern, input: leg, consumer_is_cut: true })
 ```
 
-So the skip cost nothing: no record was lost and no pin-move
-re-verification was missed. The load-bearing step is that `classify`
-refuses a straddling payload name, so `!inside(name)` means DISJOINT
-from the cut rather than merely not contained — a head's derivation set
-and its member instance therefore always land on one side together.
-Disclosed limit: this is a proof over the checks `split` runs, executed
-against four constructed cuts, not an exhaustive search of cut sets.
+Every payload above is ASSERTED, not merely quoted: the rows pin
+`gauge`, `instance` and `gauge_is_cut` (and the `SeveredEdge` triple),
+so a change that made the refusal name the wrong pair goes red instead
+of leaving this evidence silently false.
+
+**Three facts carry the argument**, and predicate identity alone is not
+one of them — the collector tests NAMES (`derivation_nodes ⊆ cut`)
+while the cluster precondition tests INSTANCES:
+
+1. `Node::Mate::payload_names()` is exactly `[a, b]`, so `classify`
+   gives each kept mate reference subset-or-disjoint, never straddling.
+   `!inside` therefore means DISJOINT.
+2. `Node::Pattern::inputs()` includes `input`, so D-2's closure check
+   forces `pattern ∈ cut` iff `pattern.input ∈ cut`. This is what ties
+   a pattern head's DERIVATION NODES to the MEMBER it resolves to, and
+   so what makes (1)'s name reading agree with the instance reading.
+   It was documented nowhere before this change.
+3. An edge's two members are welded into one cluster, and
+   `TornCluster` refuses a cut that is not a union of whole clusters.
+
+Remove any one and the argument fails.
+
+The four-cut sample this section originally rested on is **closed by
+exhaustion** in `rev_fix_xsplit_unreachable.rs` — 318 cut sets over two
+recipes, every subset of each, no accepted cut ever minting a crossing
+or leaving an A12 edge straddling. See the sweep section.
 
 The `refactor.rs` comment that asserted the opposite — that a
 pattern-placed end "contributes no crossing record, and so loses the
@@ -99,15 +118,19 @@ is killed by the index row (`Instance { i: 3 }` against the expected
 `i: 2`, node ids remapped, the `InPart` argument crossing verbatim), so
 the index is pinned and not merely its presence.
 
-### 3. What landed: one home for a predicate that had three copies
+### 3. What landed: one home for a predicate that had four copies
 
 `is_mate_edge_end` no longer spells the member vocabulary at all. It
 asks `mate::member_of_head`, the predicate `head_of` was split out of,
 so the split seam's crossing collector, A12's reading edges and A11's
 placement clusters admit exactly one set of heads and cannot drift.
-The vocabulary had three copies before: `head_of`, this collector, and
-the viewer's `is_instance` pick gate (issue 1412, viewer ground, still
-open).
+
+The vocabulary had FOUR live spellings before this change: `head_of`,
+this collector, the viewer's `is_instance` pick gate (issue 1412), and
+`viewer/src/display.rs:186`'s `mates_naming` — the last found by the
+review lane, not by this unit's sweep, and a real defect rather than a
+latent one (see the sweep section). Two of the four are now one; the
+two viewer sites are filed and routed, not fixed here.
 
 That identity is what makes the unreachability argument in (1) TOTAL
 rather than a coincidence of two definitions that happened to agree in
@@ -136,8 +159,11 @@ that moved would name a copy the rule never mints.
 
 ### Owed to S-MATE: issue 1405's premise is wrong
 
-**This correction is for S-MATE, routed by the FIX orchestrator; it is
-recorded here rather than filed into `work/mate/`.**
+**This correction is for S-MATE, and the FIX orchestrator has FILED it
+there.** It is recorded here as the finding's derivation, not as its
+home: this item lives in `work/fix/`, which is deleted when the program
+closes, and the correction is owed whether or not this PR lands — so
+the orchestrator's filing, not this paragraph, is what carries it.
 
 Issue 1405 (and the MATE-1 sweep report behind it, PR #1400) states
 that the fix "needs the `Instance(i)` remap through split's node maps
@@ -165,18 +191,36 @@ whether or not this PR lands.
 Pattern: `Node::InstantiatePart` matched as a predicate on a mate
 reference's HEAD (`doc.node(<name>.node)`), plus every
 `Node::InstantiatePart` match site in `crates/*/src` and `pncad/src`.
+Citations are `file:line` in the tree this branch lands.
 
-- `refactor.rs:1225` `is_mate_edge_end` — **this unit**.
-- `mate/solve.rs:164,170` `head_of` — the vocabulary's home;
-  **refactored** into `member_of_head`, behaviour unchanged.
-- `mate/solve.rs:400` `clusters` — the cluster graph's VERTEX set is
+- `refactor.rs:1266` `is_mate_edge_end` — **this unit**.
+- `mate/solve.rs:169,175` — the vocabulary's two arms, now inside
+  `member_of_head` (`solve.rs:166`), which `head_of` (`solve.rs:191`)
+  wraps with the refusal. **Refactored**, behaviour unchanged.
+- `mate/solve.rs:421` `clusters` — the cluster graph's VERTEX set is
   instances by definition; its head resolution already goes through
   `head_of`. Correct, not this unit.
-- `mate/solve.rs:747` `ClusterMaintenance` — cascade over mate and
+- `mate/solve.rs:768` `ClusterMaintenance` — cascade over mate and
   instance NODES, not name heads. Not this unit.
-- `viewer/src/display.rs:194,212` `is_instance` — the matetool pick
-  gate excludes the very heads the A11 rider admits. Already filed as
-  issue 1412 (MATE-1's R2 reviewer); viewer ground, not this unit.
+- `viewer/src/display.rs:193` `is_instance` — the matetool PICK gate
+  (`matetool.rs:417`) excludes the very heads the A11 rider admits.
+  Already filed as issue 1412; viewer ground, not this unit.
+- `viewer/src/display.rs:212` `instances_by_root` — an ancestry filter
+  over instance nodes, not a pick gate and not reached by matetool.
+  Listed apart from `is_instance` because they are unlike sites; an
+  earlier version of this list conflated them. Not this unit.
+- `viewer/src/display.rs:186` `mates_naming` —
+  `a.node == instance || b.node == instance`. For a pattern-headed
+  reference `a.node` is the PATTERN node, so `mates_naming(doc, leg)`
+  is EMPTY for a mate A12 says reads at `leg`. Consequence at
+  `display.rs:337`: `free_move_check(leg)` returns `Ok`, so the viewer
+  permits a free move of an instance a pattern-headed mate constrains,
+  silently invalidating the solve — while `free_move_check(pattern)`
+  refuses `NotAnInstance`, so neither door catches it. A fourth live
+  spelling of the member vocabulary and a real defect, distinct from
+  1412's pick gate. **Found by the review lane, not by this sweep**
+  (below); FILED AND ROUTED BY THE FIX ORCHESTRATOR to the viewer's
+  owner. Not this unit.
 - `viewer/src/session.rs:3025`, `viewer/src/combine.rs:420`,
   `viewer/src/tree.rs:150` — display/tree presentation of instance
   nodes, no mate head involved. Not this unit.
@@ -186,20 +230,38 @@ reference's HEAD (`doc.node(<name>.node)`), plus every
   NODE the caller already holds by id (cut membership, roots, pin
   targets, wire arms). None reads a name's head. Not this unit.
 
-### What the sweep could not match
+### What the sweep could not match — and what closed each gap
 
-- It matched `Node::InstantiatePart` textually, so a head test written
-  through a helper that hides the constructor — a `Doc` method, a
-  `matches!` on a bound `node` variable named elsewhere, an
-  `if let Node::Pattern` arm reached without the instance test — is
-  invisible to it. The `mate/solve.rs:747` hit was reached this way and
-  read by hand; there may be others outside the two crates swept.
-- It swept only the Rust doors of the Python and GUI surfaces, not a
-  head predicate expressed in those languages.
-- It is accurate as of merge base `main`; a lane landing a new head
-  predicate before this merges is not covered.
-- The unreachability claim in (1) is a proof over the checks `split`
-  runs, executed against four constructed cuts, not an exhaustive
-  search of cut sets. Its load-bearing step is `classify`'s refusal of
-  a straddling name; a future arm admitting a straddling payload name
-  would reopen it.
+The blind spots below are not disclosure alone; each names what closes
+it. One of them turned out to be load-bearing.
+
+- **Textual on `Node::InstantiatePart`.** A head test written through a
+  helper that hides the constructor, a `matches!` on a bound `node`
+  variable, or an `if let Node::Pattern` arm reached without the
+  instance test is invisible to it. **This gap was real.**
+  `display.rs:186` mentions neither `InstantiatePart` nor `Pattern` —
+  it compares `a.node`/`b.node` to an id — so no spelling of this
+  pattern could have found it. The review lane found it by reasoning
+  from the vocabulary rather than from the symbol. Closed by the
+  orchestrator's filing for that site; the general lesson is that a
+  vocabulary sweep must enumerate the vocabulary's CONSUMERS, not its
+  constructor's occurrences.
+- **Only the Rust doors of the Python and GUI surfaces**, not a head
+  predicate expressed in those languages. Not closed here; scheduled
+  onto the same filing, which lands in viewer ground where a GUI-side
+  predicate would live.
+- **Accurate as of merge base `main`.** Re-run before merge; a lane
+  landing a new head predicate after that is not covered.
+- **The unreachability claim was a four-cut sample.** CLOSED by
+  exhaustion: `rev_fix_xsplit_unreachable.rs` (adopted from the review
+  lane) runs `split` over EVERY subset of two recipes — 318 cut sets,
+  255 for the three-head-shape document (7 accepted) and 63 for the
+  foreign-master adversary (5 accepted) — and asserts that no accepted
+  cut mints a crossing and none leaves an A12 edge straddling. The
+  edge notion is re-derived from public `reading_edges`, so the row
+  goes red if the collector's gate and A12 ever disagree, and a
+  `straddling_mates > 0` guard (3 observed) keeps it from passing
+  vacuously. The adversary is the case the sample could not reach: a
+  pattern-placed head whose master names a FOREIGN instance, so its
+  derivation set and its member are computed from different nodes.
+  They do not diverge — D-2 closure is why.
