@@ -1234,3 +1234,113 @@ this session changes that**: the focus map door straddles DOCM and
 S-BOOL, `next-id-has-no-layer3-door` is DOCM's, and 6a is an `[ev]` PR
 that gates 6b and 6c. 6a is the one this program can act on alone and
 it is the next orchestrator build, not a lane's.
+
+## Three units merged; the machine's first catch was a sibling lane (2026-09-04)
+
+`view/set-param-precheck` (#1846), `view/status-lifetimes` (#1849) and
+`view/module-kind-gate` (#1848) are all on main, plus the handover
+(#1844) and one cross-program finding (#1852). Style review each;
+correctness reviewer added on #1849 only, where the failure mode was a
+confident wrong answer. **No A/B rows written, per Ev.**
+
+Board: 20 open, 1 parked, 6 closed, 1 on Ev. The open count went UP by
+five, which is the point — five of today's items existed this morning
+only as sentences in PR bodies or inside other items' prose, where
+`work/README.md` says the close sweep cannot see them.
+
+### The finding of the day: a ratified rule was false when it was ratified
+
+`crates/viewer/README.md`'s vocabulary/driver rule went in through an
+`[ev]` PR (#1801) **sold on being mechanically checkable**, and it was
+false at five sites the day it landed: `pick.rs:64,2266` and
+`parts.rs:40,140,149` take `&DocSession`. Nobody noticed for a day,
+because nothing checked it — which is exactly what
+`boundary-rule-has-no-mechanical-check` was filed to fix. **The item's
+thesis was confirmed by its own fix.**
+
+That is not the only one. `crates/viewer/README.md`'s flat-arm list
+named *"this boolean's operands are the same node"* as a fact existing
+only at layer 3, and VIEW-4 proved by execution that
+`DocEdit::InsertNode` refuses it as `DuplicateInput`. Two ratified
+clauses, both false, both found by **building the machine rather than
+by reading**. The instruments this program has been relying on — a
+reader with the tree open — had already read past both.
+
+VIEW-4's fix is the one to remember: it replaced the false example AND
+added the sentence that qualifies an entry (*each names a fact `apply`
+has been read for and does not hold*), turning an instance fix into a
+class fix. The list now states the reading that puts an arm in it.
+
+### The gate's first catch was VIEW-3
+
+VIEW-5 built the machine; the first thing it caught was this
+program's own other lane. VIEW-3's `frame.rs` test module built a
+`DocSession`, which the ratified rule forbids in as many words ("can
+be read, **and tested**, without a session or a window existing").
+**Neither lane could see it — each had half the tree.** I found it by
+merging the branches in a scratch worktree and running the gate, which
+is now the thing to do before merging two lanes over one crate.
+
+VIEW-3 resolved it better than either remedy I offered: rather than
+moving every row to the driver, it split them by what they test —
+`frame` keeps policy rows over hand-built values (`Folded`'s fields
+are public; `ProductError` variants are values), and the rows needing
+a real session moved to `pane/viewport.rs`, which IS the driver. So
+`frame` satisfies the README clause for real, not around the gate.
+
+### Reviews earned their keep, and corrected the dispatcher five times
+
+Every review was a style review; only #1849 got a second. The
+corrections against me: the status-line census (I said ~15, listed 17,
+truth is 20 at the merge base); the fence reason (I claimed CHROME has
+items in `pane/create.rs` — **no CHROME file names that path**; they
+cite `app.rs` and the split moved the code, so
+`stale-file-citations-after-the-split` is now blocking a fence
+argument, its third appearance today); "the gate's header is too long"
+(third LOWEST comment ratio in `scripts/gates/`); and two counts in a
+brief (four copies of the clearing walk, not three; 21 fault enums,
+not 20).
+
+**Nine dispatcher corrections across this program now.** The posture
+that produces them stays: state the dispatch's claims AS claims, and
+say so in the brief.
+
+The reviews also broke things I had assumed. VIEW-3's "strictly
+louder" badge measured **lower** luminance contrast in every palette
+(4.34:1 dark, under WCAG AA) and `theme.rs` says that colour is
+*redundant*, not loud — so the choice stood and the argument was
+rewritten. And VIEW-5's exception array was **file**-granular while
+three documents said site-granular; a sixth `&DocSession` site in
+`pick.rs` passed green. It is `FILE|NEEDLE|COUNT` now, and I verified
+the fix by planting the violation myself rather than on the lane's
+word.
+
+### Two things that went in because a review asked "can it fire?"
+
+- VIEW-5's gate was sited in `discipline`, which is gated on
+  `run_build`. Its own subject is a README, and a README-only change
+  classifies `TIER=docs`. So it could not fire on its own inputs —
+  against `ci.yml:804-812`, a ratified Ev ruling that had already
+  moved two gates for this. It is in `mirror` now AND registered in
+  `check-ci-mirror-parity.py`'s `TIER_BLIND`, so putting it back reds.
+- VIEW-5's self-test passed with nine of thirteen needles deleted.
+  The fixture list is now derived from the same two documents the
+  matcher is, and seven weakenings go red.
+
+### Where the program stands
+
+Unit 1 closed, item 3 closed, the two countermeasures closed. **Item 4
+(focus map) and item 5 (layer-3 ids) are still blocked on other
+programs** and nothing today changed that; both blockers now have
+files rather than sentences. **6a is with Ev** (#1843) and has moved
+a long way: he proposed a loading indicator over any stale-read
+policy, which — if confirmed — **collapses Q1 entirely**, because an
+index never read while stale is not a shadow and GQ6 needs no new
+sentence. I withdrew my own recommendation there: the id-buffer
+fallback renders from the same stale mesh, so it was never a second
+path.
+
+`tracker-has-no-status-for-an-unscheduled-trigger` is `needs_ev` with
+**no `[ev]` PR carrying it**, which by `work/README.md` means the
+question has not actually been asked. That is the next orchestrator
+debt.

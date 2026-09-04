@@ -64,8 +64,8 @@ them so the log's references still resolve.
    `tracker-has-no-status-for-an-unscheduled-trigger`, an `[ev]`
    ruling.
 
-3. `camera-fold-clears-status-line` — **dispatched 2026-09-04**,
-   branch `view/status-lifetimes`. The status line carries per-frame
+3. `camera-fold-clears-status-line` — **DONE, 2026-09-04** (#1849).
+   The status line carries per-frame
    NEWS and `frame::frame_status` owns its ranking; a fact that stays
    true after the frame ends is not news. So `land` stops clearing,
    its refusal reaches the line through the existing ranking, and the
@@ -112,18 +112,27 @@ them so the log's references still resolve.
 Findings that accreted during unit 1 and are not part of its chain.
 They are dispatchable independently, and two are running:
 
-- `set-param-prechecks-what-the-door-refuses` — **dispatched
-  2026-09-04**, branch `view/set-param-precheck`. A layer-3 pre-check
-  of a condition `DocEdit::SetDocParamValue` already refuses typed,
-  plus the sweep for its class.
+- `set-param-prechecks-what-the-door-refuses` — **DONE, 2026-09-04**
+  (#1846). The pre-check is gone and the door's typed refusal
+  surfaces; the sweep ran over all 41 `OpOutcome::refused` sites with
+  a per-site disposition. It also corrected a ratified README clause
+  that named a fact the door refuses, and added the sentence that
+  qualifies an entry in that list. Residue:
+  `self-boolean-precheck-duplicates-the-doors-duplicate-input`,
+  `refusal-edit-arm-doubles-a-prefix-and-splits-one-mistake`,
+  `sweep-blind-spots-the-precheck-sweep-could-not-see`,
+  `session-clearing-walk-is-hand-maintained-three-times`.
 - `boundary-rule-has-no-mechanical-check` +
-  `loud-skip-marker-says-two-modules-and-there-are-six` — **dispatched
-  2026-09-04** as one unit, branch `view/module-kind-gate`. The
-  README sells the vocabulary/driver rule on being machine-checkable
-  and nothing reads a `use` block; the loud-skip marker names two
-  modules where the split made six. Reaches `.github/workflows/ci.yml`
-  by two lines, which `scripts/gates/gate-roster.sh` forces and which
-  is announced to CIW.
+  `loud-skip-marker-says-two-modules-and-there-are-six` — **DONE,
+  2026-09-04** (#1848). `scripts/gates/viewer-module-kinds.sh` reads
+  every module's `use` block against a kind it declares in its own
+  header; the forbidden-crate set derives from `Cargo.toml`'s `app`
+  feature and the driver roster from the README's own table, so each
+  list is an input to a comparison rather than a second copy. Sited in
+  `mirror`, not `discipline`, so it fires on a README-only change
+  (`ci.yml:804-812`). **The rule it enforces was already false at five
+  sites** — `pick-and-parts-name-the-session-driver`, with a
+  site-granular exception that reds on a sixth.
 - `stale-file-citations-after-the-split` — VIEW's own five files are
   paid (2026-09-04); what stays open is the general case, and the
   finding that a machine resolving line NUMBERS would have passed the
