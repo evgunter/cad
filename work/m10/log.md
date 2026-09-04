@@ -774,3 +774,15 @@ program's second symmetric tally pair. Twenty-eight deviations, the
 plate's miss among them stated in the tour's own caption. The spec
 leaves `docs/` with this merge; M10-8 is next, and the exit walk
 stays a draft until it lands.
+
+## Announced seam from DOCM (2026-09-04)
+
+PROFILE-LIFT-DESIGN PP6 (`crates/editor-core/README.md`) is amended on
+Ev's ruling (in-chat, 2026-09-04): its "the sketch plane stays f64"
+sentence now holds for an AUTHORED frame only; a DERIVED frame's
+profile (`Datum::FaceFrame`, DOCM-REFERENCES-DESIGN DM1/DM1c) is placed
+at the lane scalar through `frame_plane_lane` under every lift, and a
+section on a derived frame refuses typed off f64. The build is DOCM-1
+(`docm/1-face-frame`); it touches `eval/wire.rs`'s profile placement
+under `ProfileLift::Pinned` and nothing in the analysis lane. Signed
+(DOCM orchestrator).
