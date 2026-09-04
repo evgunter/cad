@@ -488,3 +488,8 @@ mod review_h4_r1_probes;
 
 #[path = "fillet_h4_r2_probes.rs"]
 mod fillet_h4_r2_probes;
+
+#[path = "n3r1_d31.rs"]
+mod n3r1_d31;
+#[path = "n3r1_prune.rs"]
+mod n3r1_prune;

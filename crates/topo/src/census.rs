@@ -1921,7 +1921,15 @@ fn boundary_reach<T: Decide>(
                 grow((p, p));
             }
             LoopBoundary::Cycle { first } => {
-                for he in body.loop_cycle(first)? {
+                // N3R1 probe switch: `N3R1_DROP=k` drops the k-th
+                // half-edge of every cycle from the census walk.
+                let drop = std::env::var("N3R1_DROP")
+                    .ok()
+                    .and_then(|s| s.parse::<usize>().ok());
+                for (i, he) in body.loop_cycle(first)?.into_iter().enumerate() {
+                    if drop == Some(i) {
+                        continue;
+                    }
                     let ek = body.half_edges.get(he)?.edge;
                     grow(edge_reach(body, ek)?);
                 }

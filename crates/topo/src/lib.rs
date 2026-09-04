@@ -361,3 +361,6 @@ pub use validate::{
     validate_geometric_structural_declared, validate_pseudomanifold,
     validate_pseudomanifold_certificate,
 };
+
+/// N3R1 review probe: conic-arm jet evaluations in `splitting::neighborhood::chord`.
+pub static N3R1_CONIC_JET: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);

@@ -1225,6 +1225,51 @@ pub(crate) fn edge_box<T: Decide + Bounds>(
     let boxed = match edge_box_rule(carrier) {
         EdgeBoxRule::NoSoundBox => return Ok(Aabb::poison()),
         EdgeBoxRule::Chord => chord,
+        // N3R1 probe switch: `N3R1_BASE_ARM` re-enables the merge-base
+        // subdivision arm; `N3R1_WIDEN=<f64>` pads the exact box.
+        EdgeBoxRule::ConicAmplitude {
+            center,
+            axis,
+            semi_u,
+            semi_v,
+            u_ref,
+        } if std::env::var_os("N3R1_BASE_ARM").is_some() => {
+            let v_ref = axis.cross(u_ref);
+            let (t0, t1) = certified
+                .map(geom_brep::EdgeCurve::params)
+                .expect("n3r1: certified");
+            let scoped = aabb_of(arc_extent(
+                &bracket_point(center),
+                &bracket_vector(u_ref),
+                &bracket_vector(v_ref),
+                Span {
+                    lo: semi_u.lo(),
+                    hi: semi_u.hi(),
+                },
+                Span {
+                    lo: semi_v.lo(),
+                    hi: semi_v.hi(),
+                },
+                t0.lo(),
+                t1.hi(),
+            ));
+            scoped.hull(&chord)
+        }
+        EdgeBoxRule::ConicAmplitude { .. }
+            if std::env::var("N3R1_WIDEN")
+                .ok()
+                .and_then(|s| s.parse::<f64>().ok())
+                .is_some() =>
+        {
+            let w: f64 = std::env::var("N3R1_WIDEN").unwrap().parse().unwrap();
+            certified
+                .and_then(|curve| {
+                    let (t0, t1) = curve.params();
+                    geom::curves::boxes::conic_arc_aabb(curve.carrier(), t0, t1, a, b)
+                })
+                .expect("n3r1")
+                .padded(w)
+        }
         EdgeBoxRule::ConicAmplitude { .. } => {
             // The exact arc box, read from its one home one crate down:
             // per coordinate the extremum `c_i ± √((a·û_i)² + (b·v̂_i)²)`

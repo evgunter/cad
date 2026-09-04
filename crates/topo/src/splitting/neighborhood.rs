@@ -176,6 +176,7 @@ fn chord<T: Decide>(
             // reverses the FIRST derivative only — position along the
             // walk is c(t₁ − τ), so d²/dτ² = +c″(t₁): no sign flip on
             // the curvature datum.
+            crate::N3R1_CONIC_JET.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
             let (tangent, deriv2, speed_sq) = if he == edge.he_plus {
                 let d = curve.carrier().deriv(t0);
                 (d, curve.carrier().deriv2(t0), d.norm_squared())
