@@ -36,7 +36,9 @@ use editor_core::{
     Evaluation, Expr, Node, ParamName, PartResolver, ProfileDoc, ProfileVertexRef, RecipeNodeId,
     ResolveFailure, ResolveFault, RoleSeg, SlotId, StableName, content_pin, evaluate,
 };
-use fixture::{ang, axis_in_plane, insert, len, on_frame, on_frame_keeping, prism_edges, square, step};
+use fixture::{
+    ang, axis_in_plane, insert, len, on_frame, on_frame_keeping, prism_edges, square, step,
+};
 use geom_brep::RadiusEvidence;
 use geom_core::Tol;
 use profile::{RawLoop, SketchPlane};
@@ -511,7 +513,10 @@ fn a_closed_chain_fillet_declares_its_torus_minor_radius() {
     assert!(bad.is_empty(), "lantern document:\n{}", bad.join("\n"));
     for id in [a, b, c] {
         let body = body_of(&ev, id);
-        let surface = body.get_face(a_torus_face(body)).expect("a live face").surface;
+        let surface = body
+            .get_face(a_torus_face(body))
+            .expect("a live face")
+            .surface;
         assert!(
             body.surface_field_source(surface, SurfaceField::TorusMinorRadius)
                 .is_some(),
@@ -563,13 +568,10 @@ impl Store {
 
 impl PartResolver for Store {
     fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let doc = self
-            .docs
-            .get(&doc_ref.id)
-            .ok_or_else(|| ResolveFailure {
-                fault: ResolveFault::Unresolved,
-                message: "no such document".to_string(),
-            })?;
+        let doc = self.docs.get(&doc_ref.id).ok_or_else(|| ResolveFailure {
+            fault: ResolveFault::Unresolved,
+            message: "no such document".to_string(),
+        })?;
         if content_pin(doc, Tol::witness()).ok() != Some(doc_ref.pin) {
             return Err(ResolveFailure {
                 fault: ResolveFault::PinMismatch,
@@ -624,7 +626,10 @@ fn two_documents_r_are_two_parameters() {
     assert!(bad.is_empty(), "host document:\n{}", bad.join("\n"));
     let (h, i) = (body_of(&ev, host_blend), body_of(&ev, instance));
     let (rh, ri) = (cylinder_radius(h), cylinder_radius(i));
-    assert!((rh - ri).abs() > 1e-9, "the fixture needs two radii: {rh} vs {ri}");
+    assert!(
+        (rh - ri).abs() > 1e-9,
+        "the fixture needs two radii: {rh} vs {ri}"
+    );
     assert_eq!(
         evidence(h, i),
         RadiusEvidence::None,
@@ -708,7 +713,10 @@ fn the_memo_never_serves_a_stale_token() {
     let (a, b) = (blends[0], blends[1]);
     let ev1 = memo_eval(&doc1, None);
     assert!(failures(&ev1).is_empty());
-    assert_eq!(evidence(body_of(&ev1, a), body_of(&ev1, b)), RadiusEvidence::Declared);
+    assert_eq!(
+        evidence(body_of(&ev1, a), body_of(&ev1, b)),
+        RadiusEvidence::Declared
+    );
 
     // A's radius slot becomes the literal 0.125: same value, different
     // expression.
@@ -722,7 +730,10 @@ fn the_memo_never_serves_a_stale_token() {
     );
     let ev2 = memo_eval(&doc2, Some(&ev1));
     assert!(failures(&ev2).is_empty());
-    assert!(ev2.reused > 0, "the untouched half of the document is memo-served");
+    assert!(
+        ev2.reused > 0,
+        "the untouched half of the document is memo-served"
+    );
     assert_eq!(
         evidence(body_of(&ev2, a), body_of(&ev2, b)),
         RadiusEvidence::None,
@@ -754,7 +765,10 @@ fn the_memo_never_serves_a_stale_token() {
     assert!(failures(&ev3).is_empty());
     let (ba, bb) = (body_of(&ev3, a), body_of(&ev3, b));
     let (ra, rb) = (cylinder_radius(ba), cylinder_radius(bb));
-    assert!((ra - rb).abs() > 1e-9, "the fixture needs two radii: {ra} vs {rb}");
+    assert!(
+        (ra - rb).abs() > 1e-9,
+        "the fixture needs two radii: {ra} vs {rb}"
+    );
     assert_eq!(
         evidence(ba, bb),
         RadiusEvidence::None,

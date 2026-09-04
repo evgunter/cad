@@ -214,7 +214,11 @@ fn the_split_orphan_sweep_drops_both_side_tables() {
             .filter(|(_, s)| matches!(s, topo::Surface::Cylinder { .. }))
             .map(|(k, _)| k)
             .collect();
-        assert_eq!(walls.len(), 1, "the chain has one arc, so one cylinder wall");
+        assert_eq!(
+            walls.len(),
+            1,
+            "the chain has one arc, so one cylinder wall"
+        );
         walls[0]
     };
     body.set_surface_field_source(far_wall, SurfaceField::CylinderRadius, token)

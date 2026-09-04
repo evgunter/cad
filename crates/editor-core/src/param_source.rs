@@ -327,10 +327,9 @@ pub fn invert<P: crate::ProfilePayload>(
 /// restates which surface kinds store which field.
 fn role_fields(role: FieldRole) -> &'static [SurfaceField] {
     match role {
-        FieldRole::BlendCarrierRadius => &[
-            SurfaceField::CylinderRadius,
-            SurfaceField::TorusMinorRadius,
-        ],
+        FieldRole::BlendCarrierRadius => {
+            &[SurfaceField::CylinderRadius, SurfaceField::TorusMinorRadius]
+        }
         FieldRole::CornerCarrierRadius => &[SurfaceField::SphereRadius],
         FieldRole::BandCarrierMinorRadius => &[SurfaceField::TorusMinorRadius],
     }
@@ -473,7 +472,10 @@ mod tests {
     fn every_tag_is_distinct() {
         for (i, (name, tag, _)) in ALPHABET.iter().enumerate() {
             for (other, tag2, _) in &ALPHABET[..i] {
-                assert_ne!(tag, tag2, "{name} and {other} share the tag byte {tag:#04x}");
+                assert_ne!(
+                    tag, tag2,
+                    "{name} and {other} share the tag byte {tag:#04x}"
+                );
             }
         }
     }
@@ -501,7 +503,11 @@ mod tests {
             | ExprKind::Tan(_)
             | ExprKind::CountToScalar(_) => 15,
         };
-        assert_eq!(ALPHABET.len(), arms + 2, "an AST arm has no row in the tag alphabet");
+        assert_eq!(
+            ALPHABET.len(),
+            arms + 2,
+            "an AST arm has no row in the tag alphabet"
+        );
     }
 
     /// Parses one node at `bytes[at..]` by the decoder's own arity
@@ -595,8 +601,14 @@ mod tests {
             pin: crate::ident::ContentPin::of_bytes(b"pin"),
         });
         for expr in family() {
-            assert!(parses_whole(root(), &expr), "{expr:?} does not parse back whole");
-            assert!(parses_whole(part, &expr), "{expr:?} under a part scope does not parse back whole");
+            assert!(
+                parses_whole(root(), &expr),
+                "{expr:?} does not parse back whole"
+            );
+            assert!(
+                parses_whole(part, &expr),
+                "{expr:?} under a part scope does not parse back whole"
+            );
         }
     }
 
@@ -641,7 +653,10 @@ mod tests {
         let pin1 = crate::ident::ContentPin::of_bytes(b"one");
         let pin2 = crate::ident::ContentPin::of_bytes(b"two");
         let r = p("r");
-        assert_ne!(lower(ParamScope::Root(a), &r), lower(ParamScope::Root(b), &r));
+        assert_ne!(
+            lower(ParamScope::Root(a), &r),
+            lower(ParamScope::Root(b), &r)
+        );
         assert_ne!(
             lower(ParamScope::Root(a), &r),
             lower(ParamScope::Part(DocRef { id: a, pin: pin1 }), &r),
@@ -731,13 +746,19 @@ mod tests {
             FieldRole::CornerCarrierRadius,
             FieldRole::BandCarrierMinorRadius,
         ] {
-            assert!(!role_fields(role).is_empty(), "{role:?} names no field at all");
+            assert!(
+                !role_fields(role).is_empty(),
+                "{role:?} names no field at all"
+            );
             for carrier in &kinds {
                 let belonging = role_fields(role)
                     .iter()
                     .filter(|f| f.belongs_to(carrier))
                     .count();
-                assert!(belonging <= 1, "{role:?} names two fields of one carrier kind");
+                assert!(
+                    belonging <= 1,
+                    "{role:?} names two fields of one carrier kind"
+                );
                 if let Some(field) = field_of(role, carrier) {
                     assert!(field.belongs_to(carrier));
                 }

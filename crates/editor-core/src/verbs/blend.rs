@@ -236,8 +236,14 @@ mod tests {
     fn the_two_correspondences_share_no_literal() {
         let f = fillet::<f64>();
         let c = chamfer::<f64>();
-        assert_ne!(f.slots, c.slots, "both verbs read one slot as one parameter");
-        assert_ne!(f.slots.size_slot, c.slots.size_slot, "both verbs read one slot");
+        assert_ne!(
+            f.slots, c.slots,
+            "both verbs read one slot as one parameter"
+        );
+        assert_ne!(
+            f.slots.size_slot, c.slots.size_slot,
+            "both verbs read one slot"
+        );
         assert_ne!(
             f.slots.size_param, c.slots.size_param,
             "both verbs name one kernel scalar parameter"
