@@ -1,12 +1,11 @@
 ---
 id: fillet-refusal-describes-unbracketed-crossing
-kind: issue
+kind: unit
 title: An arc-carrier fillet refusal can describe the crossing the author did not bracket
 status: open
 opened: 2026-08-30
 github: 1281
 refs: [1267]
-needs_ev: true
 ---
 
 ## From GitHub issue 1281
@@ -80,3 +79,12 @@ radius sweep). If you want that opened it becomes its own ruling; say
 so here. Otherwise it stays a note.
 
 A 👍 on 1 cuts the unit (a `profile` change, S).
+
+**Ruled (Ev, PR 1734, 2026-09-04): report the whole list.** Every
+refusing crossing is reported with its corner point — the three
+variants that ride the channel fold into one envelope,
+`NoCornerOfPair`-shaped, whose entries each carry the corner point and
+that corner's own reason — rendered one sentence per crossing, ordered
+nearest-to-the-anchors first (presentation, not truth). The
+gate-shaped-taxonomy note stays a note. This item is now the unit that
+builds it (`profile`, S–M); the spec follows.
