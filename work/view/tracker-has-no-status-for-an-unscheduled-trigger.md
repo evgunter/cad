@@ -65,8 +65,9 @@ Ev's:
 
 **`lint` accepts a `parked` row whose `blocked_on` names a CLOSED
 item.** That is a trigger that has fired, and it is mechanically
-checkable today with no vocabulary change at all: three of the nine
-CHROME rows would have gone red on the commit that closed the split.
+checkable today with no vocabulary change at all: all nine of the
+CHROME rows would have gone red on the commit that closed the split
+(measured, see the correction below).
 Whether that check should WARN or BLOCK is the only question in it —
 a program closing an item would otherwise have to un-park other
 programs' rows in the same PR, which `work/README.md`'s one-file-one-item
@@ -74,5 +75,27 @@ rule makes a merge conflict by design. A warning names the rows and
 leaves the un-parking to the owner.
 
 This half does not need the ruling above and can land first.
+
+## Corrected — the counts are measured now (2026-09-04)
+
+The two counts above were estimated when this file was written this
+morning. They are now measured, by running the check that this item's
+adjacent-defect half asks for against the tree:
+
+- *"three of the nine CHROME rows would have gone red"* — it is **nine
+  of nine**. Every row `work.py lint` flags is a CHROME row parked on
+  `viewer-session-god-module-split`, and each is parked on that and
+  nothing else, bar `parameter-row-field-has-no-text-door`, which also
+  waits on `doc-param-unit-edit-has-no-door` (open) and so is still
+  genuinely blocked.
+- The list of three rows above names `session-shims-and-test-imports`
+  (VIEW). That row was un-parked later the same day and is `open` now,
+  so it does **not** trip the fired-trigger check. It remains a live
+  instance of the vocabulary gap this ruling is about — a row whose
+  trigger is a cross-program decision, not an item — but the
+  fired-trigger count is nine, all CHROME's.
+
+Only these factual claims are corrected. The four candidate shapes
+above are unchanged: they are the question, and they are Ev's.
 
 Signed: (VIEW orchestrator)
