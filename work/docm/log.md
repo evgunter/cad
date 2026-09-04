@@ -136,3 +136,16 @@ of the block), after `DOCM-3` merged so the new datum's content-key
 tag is chosen against a tree that holds tag 31. `DOCM-2` follows on a
 fresh block draw once `DOCM-1`'s tag is on main. Lane briefs now name a
 private scratch directory beside the private target dir.
+
+## DOCM-1 stop clause fired; PP6 amended on Ev's ruling (2026-09-04)
+
+The lane stopped at PP6's fence: a derived frame has no f64 elaboration
+in the document, so under the pinned lift its profile had nothing to
+place with at `Interval`/`Dual`. Three ways through were put to Ev
+(place at the lane value; refuse off f64; an f64 shadow of the upstream
+body); Ev ruled A (in-chat). PP6 and DM1 (new DM1c) carry it; the seam
+is announced in M10's log; the spec is amended on the lane branch and
+the lane resumes as the same arm. The three E-class units run as
+MECHANICAL units on Ev's "use your judgment" (in-chat): opus, no
+review lane, no row, merged on green CI plus the orchestrator's read —
+`docm/capend-ends`, `docm/spec2-slots`, `docm/revolve-pole-rule`.
