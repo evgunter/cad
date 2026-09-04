@@ -49,8 +49,28 @@
 //!   [`MappedCurve`] pre-composes the isometry into its rigid
 //!   placement (`place ↦ map ∘ place`) and maps its world-space
 //!   vectors/axis data — sketch-space payloads are untouched;
-//! - the `Nurbs` placeholders are refused typed (their evaluation is
-//!   all-poison; transforming one would launder poison as geometry).
+//! - approximating surfaces: the offset DESCRIPTION's base net and the
+//!   FIT net both by the full affine map (weights and knots are
+//!   invariants of it — [`geom::NurbsSurface::map_affine`]), `d`, the
+//!   window and the tolerance unchanged, and the two-limb certificate
+//!   **re-derived** on the mapped pair through the scalar's own fit
+//!   lane ([`geom_brep::PcurveFittedLane::remap_certificate`]) — never
+//!   the stored one, which is a claim about a different geometry. The
+//!   composition law is what makes the mapped pair a pair at all: a
+//!   rigid map carries unit normals to unit normals, so
+//!   `M(S + d·n) = M(S) + d·n_M`. A scalar with no fit lane refuses
+//!   [`TransformError::ApproxLaneUnsupported`] naming it, and a fit
+//!   door that refuses the re-derivation refuses
+//!   [`TransformError::ApproxRecertify`] with its own error verbatim;
+//! - `Nurbs` surfaces and carriers are refused typed. Not because they
+//!   evaluate to poison — the described ones do not, and the NURBS
+//!   evaluators are built — but because this pass has no
+//!   re-certification for a NURBS CARRIER and no pcurve pass over a
+//!   NURBS chart to re-derive against the mapped geometry, which is
+//!   what every other kind here gets. The placeholder payload
+//!   ([`geom::NurbsSurface::placeholder`]) is all-poison and refuses
+//!   under the same arm. Mapping a described NURBS surface is TRIM's
+//!   ground.
 
 use geom::Curve3;
 use geom::Surface;
@@ -108,14 +128,26 @@ pub enum TransformError {
         /// The offending edge.
         edge: EdgeKey,
     },
-    /// A `Nurbs` placeholder surface or carrier — unimplemented
-    /// geometry evaluates to poison, so transforming it is refused.
+    /// A `Nurbs` surface or carrier. The evaluators exist; what this
+    /// pass does not have is a re-certification for a NURBS carrier and
+    /// a pcurve pass over a NURBS chart, so a mapped one could not be
+    /// re-derived against the mapped geometry the way every other kind
+    /// is. The all-poison placeholder payload refuses here too.
     NurbsPlaceholder,
-    /// An approximating surface: the rigid map of an offset is the
-    /// offset of the rigid map, but re-deriving the mapped fit's
-    /// certificate is fit-door work this pass cannot reach, and a
+    /// An approximating surface at a scalar with no fit lane: its
+    /// certificate cannot be re-derived on the mapped pair, and a
     /// certificate is never carried across a geometry change.
-    ApproxSurface,
+    ApproxLaneUnsupported {
+        /// The scalar's lane name, as the lane itself reports it.
+        lane: &'static str,
+    },
+    /// The fit door refused the re-derivation of a mapped
+    /// approximating surface's certificate — a limb above tolerance, a
+    /// door meter, or a window the derivation does not cover.
+    ApproxRecertify {
+        /// The fit door's typed refusal, unaltered.
+        source: geom_brep::OffsetFitError,
+    },
     /// The body's topology references a missing arena entry — a
     /// corrupt body (the validators would refuse it too).
     Corrupt {
@@ -147,16 +179,22 @@ impl core::fmt::Display for TransformError {
                 "transform: edge {edge:?} carries a transient null-scaffold curve; bodies at \
                  rest never do"
             ),
-            Self::ApproxSurface => f.write_str(
-                "transform: an approximating surface's description composes with a rigid map \
-                 (the map of an offset is the offset of the map), but its certificate would \
-                 have to be re-derived against the mapped base — fit-door work this pass \
-                 cannot reach — so mapping it is refused rather than carrying an \
-                 unre-derived claim",
+            Self::ApproxLaneUnsupported { lane } => write!(
+                f,
+                "transform: an approximating surface's certificate must be re-derived on the \
+                 mapped description and fit, and the {lane} lane has no fit derivation to do \
+                 it with — a certificate is never carried across a geometry change"
+            ),
+            Self::ApproxRecertify { source } => write!(
+                f,
+                "transform: re-deriving a mapped approximating surface's certificate refused: \
+                 {source}"
             ),
             Self::NurbsPlaceholder => f.write_str(
-                "transform: a Nurbs placeholder surface or carrier evaluates to poison, so \
-                 mapping it is refused",
+                "transform: mapping a Nurbs surface or carrier is refused — this pass has no \
+                 re-certification for a NURBS carrier and no pcurve pass over a NURBS chart, \
+                 so a mapped one could not be re-derived against the mapped geometry (and the \
+                 placeholder payload is all-poison besides)",
             ),
             Self::Corrupt { what } => write!(
                 f,
@@ -248,7 +286,11 @@ fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), TransformE
 /// NEGATION of the transformed chart normal, and would therefore have
 /// to flip `sense` on every face. `det = +1` is enforced upstream, so
 /// there is no such branch to write here today.
-fn map_surface<T: Real>(map: &Affine3<T>, s: &Surface<T>) -> Result<Surface<T>, TransformError> {
+fn map_surface<T: Decide + geom_brep::PcurveFittedLane>(
+    map: &Affine3<T>,
+    s: &Surface<T>,
+    band: Band,
+) -> Result<Surface<T>, TransformError> {
     Ok(match *s {
         Surface::Plane {
             origin,
@@ -306,18 +348,66 @@ fn map_surface<T: Real>(map: &Affine3<T>, s: &Surface<T>) -> Result<Surface<T>, 
             u_ref: map_vec(map, u_ref),
         },
         Surface::Nurbs(_) => return Err(TransformError::NurbsPlaceholder),
-        // The composition law HOLDS: a rigid map carries unit normals
-        // to unit normals, so `M(S + d·n) = M(S) + d·n_M` — the map of
-        // an offset IS the offset of the map, and the description is
-        // the layer where that identity lives (a fit mapped
-        // control-point-wise is the fit of the mapped description).
-        // What this pass cannot discharge is the CERTIFICATE: it is
-        // generic in `T` and carries no band or tolerance, while
-        // re-deriving the two-limb bound is `f64`-only fit-door work.
-        // Carrying a certificate across a geometry change is exactly
-        // what the never-trust posture forbids, so the door refuses
-        // rather than ship an unre-derived claim.
-        Surface::Approx(_) => return Err(TransformError::ApproxSurface),
+        Surface::Approx(ref a) => Surface::Approx(std::sync::Arc::new(map_approx(map, a, band)?)),
+    })
+}
+
+/// The mapped approximating surface: mapped description, mapped fit,
+/// same window and tolerance, certificate **re-derived** on the mapped
+/// pair through the scalar's fit lane.
+///
+/// The composition law is what makes the mapped pair a pair: a rigid
+/// map carries unit normals to unit normals, so
+/// `M(S + d·n) = M(S) + d·n_M` — the map of an offset IS the offset of
+/// the map, and a net mapped control-point-wise is the map of the
+/// surface it describes ([`geom::NurbsSurface::map_affine`], whose docs
+/// carry the affine-combination argument). So the mapped fit stands to
+/// the mapped base exactly as the fit stood to the base, at the same
+/// `d` and the same tolerance.
+///
+/// What is NOT carried is the two-limb claim. The stored certificate is
+/// a measurement of a different geometry, and re-running the
+/// measurement is what keeps it honest (D4 ¶2, the same posture the
+/// carriers and witnesses above take). It is re-derived against the
+/// surface's OWN stored tolerance, because that is the claim the mapped
+/// surface will store and therefore the claim it must be shown to
+/// honour; the run's ε is tier 3's to classify against, per call.
+///
+/// `rounds` is the exception, and it is not a limb: it counts the
+/// refinement rounds the FIT took, no re-measurement can recompute it
+/// (its own field docs say so), and the mapped fit is the rigid image
+/// of a fit that took exactly that many. The storage door
+/// (`geom_brep::approx_offset_surface`) carries it across its own
+/// re-derivation for the same reason. It cannot make a bad surface look
+/// good: nothing classifies against it.
+fn map_approx<T: Decide + geom_brep::PcurveFittedLane>(
+    map: &Affine3<T>,
+    a: &geom::ApproxSurface<T>,
+    band: Band,
+) -> Result<geom::ApproxSurface<T>, TransformError> {
+    let old = a.spec();
+    let geom::SurfaceDescription::Offset { ref base, d } = old.description;
+    let spec = geom::SurfaceSpec {
+        description: geom::SurfaceDescription::Offset {
+            base: std::sync::Arc::new(base.map_affine(map)),
+            d,
+        },
+        fit: old.fit.map_affine(map),
+        window: old.window,
+        tolerance: old.tolerance,
+    };
+    let rounds = a.certificate().rounds;
+    geom::ApproxSurface::certify(spec, |description, fit, window, tolerance| {
+        match T::remap_certificate(description, fit, window, tolerance, band) {
+            None => Err(TransformError::ApproxLaneUnsupported {
+                lane: <T as geom_brep::PcurveFittedLane>::lane_name(),
+            }),
+            Some(Err(source)) => Err(TransformError::ApproxRecertify { source }),
+            Some(Ok(certificate)) => Ok(geom::OffsetCertificate {
+                rounds,
+                ..certificate
+            }),
+        }
     })
 }
 
@@ -395,7 +485,7 @@ pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane>(
     }
     let mut mapped_surfaces = Vec::new();
     for (k, s) in &out.surfaces {
-        mapped_surfaces.push((k, map_surface(map, s)?));
+        mapped_surfaces.push((k, map_surface(map, s, band)?));
     }
     for (k, s) in mapped_surfaces {
         out.surfaces[k] = s;

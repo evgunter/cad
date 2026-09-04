@@ -1123,6 +1123,44 @@ pub trait PcurveFittedLane: Decide {
         wall: &NurbsSurface<Self>,
     ) -> Result<Option<Point2<f64>>, PcurveCertifyError>;
 
+    /// **The certificate of an offset description's fit, re-derived on
+    /// the given `(description, fit)` pair** — or `None` when this
+    /// scalar has no fit lane.
+    ///
+    /// The pair is handed in rather than read off a
+    /// [`geom::ApproxSurface`] because the caller that needs this does
+    /// not have one yet: it is building the surface, and
+    /// [`geom::ApproxSurface::certify`] is the only door into the type.
+    /// So this is the certifier that door takes, at whatever scalar the
+    /// caller holds. (`topo::props::PropsQuadLane::recertify_approx` is
+    /// the same derivation reached the other way round — from a
+    /// surface that already exists, for the validator that re-derives
+    /// its claim.)
+    ///
+    /// **The classification tolerance is the CALLER's** and so is the
+    /// band: `tolerance` is what the mapped surface will store and
+    /// therefore what it must be shown to honour.
+    ///
+    /// `None` is a statement about the DERIVATION, never about which
+    /// values can arrive: `ApproxSurface::certify` is scalar-generic,
+    /// so an approximating surface is representable at every scalar,
+    /// and a caller holding one at a scalar with no lane refuses
+    /// typed rather than carrying the certificate it already has
+    /// across a geometry change.
+    ///
+    /// # Errors
+    ///
+    /// The fit door's typed refusal, verbatim — a certificate limb
+    /// above tolerance, a door meter, a window this derivation does
+    /// not cover. Never from the "no lane" arm.
+    fn remap_certificate(
+        description: &geom::SurfaceDescription<Self>,
+        fit: &NurbsSurface<Self>,
+        window: geom::ApproxWindow,
+        tolerance: f64,
+        band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, crate::OffsetFitError>>;
+
     /// The lane's name, for the typed refusal's text.
     fn lane_name() -> &'static str;
 }
@@ -1486,6 +1524,28 @@ impl PcurveFittedLane for f64 {
         chart_foot_lane(point, wall)
     }
 
+    fn remap_certificate(
+        description: &geom::SurfaceDescription<Self>,
+        fit: &NurbsSurface<Self>,
+        window: geom::ApproxWindow,
+        tolerance: f64,
+        band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, crate::OffsetFitError>> {
+        let geom::SurfaceDescription::Offset { base, d } = description;
+        // The derivation covers the base's whole chart rectangle and
+        // nothing narrower, so a window that is not that rectangle is a
+        // bound this lane never proved. Checked here rather than
+        // attested at it — the storage door's rule
+        // (`approx_offset_surface`), which is the only other certifier
+        // in the tree.
+        if window != geom::ApproxWindow::of(&**base) {
+            return Some(Err(crate::OffsetFitError::WindowUnsupported { window }));
+        }
+        Some(crate::offset_fit::certify_offset(
+            base, fit, *d, tolerance, band,
+        ))
+    }
+
     fn lane_name() -> &'static str {
         "f64"
     }
@@ -1519,6 +1579,19 @@ impl PcurveFittedLane for geom_core::Probe {
         chart_foot_lane(point, wall)
     }
 
+    /// The offset fit is derived at `f64` only, so this scalar has no
+    /// re-derivation lane — the same split, and the same reason, as
+    /// `topo::props::PropsQuadLane::recertify_approx`.
+    fn remap_certificate(
+        _description: &geom::SurfaceDescription<Self>,
+        _fit: &NurbsSurface<Self>,
+        _window: geom::ApproxWindow,
+        _tolerance: f64,
+        _band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, crate::OffsetFitError>> {
+        None
+    }
+
     fn lane_name() -> &'static str {
         "telemetry probe"
     }
@@ -1550,6 +1623,19 @@ impl PcurveFittedLane for geom_core::interval::Interval {
         wall: &NurbsSurface<Self>,
     ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
         chart_foot_lane(point, wall)
+    }
+
+    /// The offset fit is derived at `f64` only, so this scalar has no
+    /// re-derivation lane — the same split, and the same reason, as
+    /// `topo::props::PropsQuadLane::recertify_approx`.
+    fn remap_certificate(
+        _description: &geom::SurfaceDescription<Self>,
+        _fit: &NurbsSurface<Self>,
+        _window: geom::ApproxWindow,
+        _tolerance: f64,
+        _band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, crate::OffsetFitError>> {
+        None
     }
 
     fn lane_name() -> &'static str {
@@ -1590,6 +1676,19 @@ where
         _wall: &NurbsSurface<Self>,
     ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
         Ok(None)
+    }
+
+    /// The offset fit is derived at `f64` only, so this scalar has no
+    /// re-derivation lane — the same split, and the same reason, as
+    /// `topo::props::PropsQuadLane::recertify_approx`.
+    fn remap_certificate(
+        _description: &geom::SurfaceDescription<Self>,
+        _fit: &NurbsSurface<Self>,
+        _window: geom::ApproxWindow,
+        _tolerance: f64,
+        _band: Band,
+    ) -> Option<Result<geom::OffsetCertificate, crate::OffsetFitError>> {
+        None
     }
 
     fn lane_name() -> &'static str {

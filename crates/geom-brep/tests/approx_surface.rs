@@ -14,9 +14,10 @@
 //!   `M(S + d·n) = M(S) + d·n_M` — so the fit of an offset, mapped, is
 //!   a certified fit of the offset of the mapped base, at the SAME
 //!   tolerance. That is why the description is the layer the map
-//!   composes with, and it is pinned numerically here even though the
-//!   `topo` transform pass refuses the kind (it cannot re-derive a
-//!   certificate).
+//!   composes with. `topo::transform_rigid` maps an `Approx` face on
+//!   exactly this identity, re-deriving the mapped fit's certificate
+//!   through the scalar's lane; what is pinned here is the identity
+//!   itself, at the surface, with no body in the way.
 //! - both signs of `d`, and the kind's own dispositions at the
 //!   dispatch sites that answer for it structurally.
 
@@ -44,22 +45,6 @@ fn bowed() -> NurbsSurface<f64> {
         }
     }
     NurbsSurface::new(kv2(), kv2(), control, vec![1.0; 9]).unwrap()
-}
-
-/// `map`'s image of a spline, control point by control point — the
-/// rigid map of a NURBS surface, which is a rigid map of its net and
-/// nothing else (weights are invariant; knots are parameters).
-fn map_net(map: &Affine3<f64>, s: &NurbsSurface<f64>) -> NurbsSurface<f64> {
-    NurbsSurface::new(
-        s.knots_u().clone(),
-        s.knots_v().clone(),
-        s.control()
-            .iter()
-            .map(|p| map.transform_point(*p))
-            .collect(),
-        s.weights().to_vec(),
-    )
-    .unwrap()
 }
 
 fn approx_of(s: &Surface<f64>) -> &geom::ApproxSurface<f64> {
@@ -419,8 +404,8 @@ fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
         let s = approx_offset_surface(Arc::clone(&base), d, 1e-6, band()).unwrap();
         let fit = approx_of(&s).fit();
 
-        let mapped_base = map_net(&map, &base);
-        let mapped_fit = map_net(&map, fit);
+        let mapped_base = base.map_affine(&map);
+        let mapped_fit = fit.map_affine(&map);
         // The map of the fit is a certified fit of the offset of the
         // map of the base — same d, same tolerance.
         let cert = certify_offset(&mapped_base, &mapped_fit, d, 1e-6, band()).unwrap_or_else(|e| {

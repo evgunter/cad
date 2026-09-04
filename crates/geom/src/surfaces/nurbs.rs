@@ -40,7 +40,7 @@
 //! both directions, deterministic.
 
 use geom_core::spline::{self, KnotAlgebraError, KnotVector, Span, SpanLocate, SplineError};
-use geom_core::{Point3, Real, Vec3};
+use geom_core::{Affine3, Point3, Real, Vec3};
 
 use crate::net;
 
@@ -377,6 +377,46 @@ impl<T: Real> NurbsSurface<T> {
             self.knots_u.clone(),
             self.knots_v.clone(),
             self.control.iter().map(|p| p.map(&f)).collect(),
+            self.weights.clone(),
+        )
+    }
+
+    /// The same surface placed by an affine map: every control point
+    /// through `map`, both knot vectors and every weight carried over
+    /// verbatim.
+    ///
+    /// **Weights and knots are invariants of an affine map**, and the
+    /// mapped net is the map of the surface at the SAME `(u, v)` — no
+    /// reparameterization. The rational surface is
+    /// `S(u,v) = Σ R_ij(u,v)·P_ij` with `R_ij = N_i N_j w_ij / Σ N N w`
+    /// summing to one, so it is an AFFINE COMBINATION of the control
+    /// points; an affine map commutes with an affine combination
+    /// (`M(Σ λ_i P_i) = Σ λ_i M(P_i)` when `Σ λ_i = 1`), which leaves
+    /// the `R_ij` — hence the weights and the knots they are built
+    /// from — untouched. Rationality is not a special case: the
+    /// denominator never sees the map.
+    ///
+    /// **This door decides nothing about `map`.** The identity above
+    /// holds for every affine map, so nothing here needs rigidity; what
+    /// needs it is what a CONSUMER goes on to claim about the mapped
+    /// net. `topo::transform_rigid` maps an offset description's base
+    /// and its fit through here and then re-derives the fit's
+    /// certificate, which is sound because a rigid map carries unit
+    /// normals to unit normals — and that map's rigidity is decided at
+    /// that door, against the linear band, before this one is reached.
+    ///
+    /// Construction goes through [`Self::from_validated_parts`]: a
+    /// pointwise map of the control array changes no count, and the
+    /// weights are the same values.
+    #[must_use]
+    pub fn map_affine(&self, map: &Affine3<T>) -> Self {
+        Self::from_validated_parts(
+            self.knots_u.clone(),
+            self.knots_v.clone(),
+            self.control
+                .iter()
+                .map(|p| map.transform_point(*p))
+                .collect(),
             self.weights.clone(),
         )
     }
