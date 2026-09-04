@@ -557,21 +557,28 @@ fn separation_off_is_visibly_skipped_and_independent() {
 /// then fails until it is in `ALL`.
 #[test]
 fn the_registry_order_is_every_check() {
-    for check in [CheckId::Connectedness, CheckId::Separation] {
-        // The exhaustive match a new variant must be added to.
-        let named = match check {
-            CheckId::Connectedness => CheckId::Connectedness,
-            CheckId::Separation => CheckId::Separation,
+    // WHAT THIS CAN AND CANNOT DO: no test can prove a constant array
+    // lists every variant of an enum. What the match below does is
+    // fail to COMPILE when a variant is added, at which point its
+    // position has to be written down here — and the assertion then
+    // fails until `ALL` carries it. That is the walk, and it is the
+    // same mechanism `ChecksConfig::severity` relies on.
+    for check in CheckId::ALL {
+        let position = match check {
+            CheckId::Connectedness => 0,
+            CheckId::Separation => 1,
         };
-        assert!(
-            CheckId::ALL.contains(&named),
-            "{named} is a check `CheckId::ALL` does not list"
+        assert_eq!(
+            CheckId::ALL[position],
+            check,
+            "{check} is not where the registry's order puts it"
         );
     }
     assert_eq!(
-        CheckId::ALL,
-        [CheckId::Connectedness, CheckId::Separation],
-        "and the order is the registry's own"
+        CheckId::ALL.len(),
+        2,
+        "a variant added without a place in `ALL` is a resident the \
+         registry would never gather for"
     );
     // The one resident that reads a subject is the one the registry
     // gathers for.

@@ -883,21 +883,28 @@ fn connectedness<P, T: Decide + PropsQuadLane>(
 /// entity count, which is the whole reason this resident exists
 /// instead of running the tier-3′ census over the aggregate.
 ///
-/// **The two terms are separable and separately measured**, because
-/// the registry no longer gathers its own subject: over the corpus
-/// heat sink at 160 fins (161 solids / 991 faces), the gather is
-/// ~250 ms and this registry over a subject already in hand is ~8 ms
-/// — the gather dominates by more than an order of magnitude, and a
-/// caller that already holds the product pays only the second term.
-/// The tier-3′ census over the same aggregate is the ~1.1 s figure
-/// this resident exists to avoid.
+/// **The three terms are separable and separately measured**, because
+/// the registry no longer gathers its own subject. Over the corpus
+/// heat sink at 160 fins (161 solids / 991 faces): the gather ~250 ms,
+/// this registry over a subject already in hand ~8 ms, and the
+/// tier-3′ census over the same aggregate ~11.4 s — the term this
+/// resident exists INSTEAD OF, measured at this size rather than
+/// quoted from another one, and refusing here with 125 findings. So
+/// the gather dominates the registry by more than an order of
+/// magnitude, and a caller that already holds the product pays only
+/// the ~8 ms.
+///
+/// (The withdrawn claim's "~1.1 s" for the census is not restated: it
+/// was taken at a size nobody recorded, and it is not this one.)
 ///
 /// Those numbers are a dev-profile wall clock and are machine-
-/// dependent; the figures OF RECORD are the hosted ones, re-taken on
-/// every merge to `main` by the `registry split` row of
+/// dependent; the figures OF RECORD are the hosted ones, re-taken by
+/// the `registry split` row of
 /// `crates/editor-core/tests/m4_pr8_latency.rs` and appended to
-/// `docs/perf-data/rebuild-latency/`. The SIZE they are taken at is
-/// exact rather than measured and gates on every PR
+/// `docs/perf-data/rebuild-latency/` — on a NIGHTLY cron, gated on
+/// `main` having moved, so at most one re-take a night and none on a
+/// quiet day. The SIZE they are taken at is exact rather than measured
+/// and gates on every PR
 /// (`docm5_subject::the_registry_split_is_measured_at_a_pinned_point`).
 ///
 /// A document with solids in the thousands would make the pair walk

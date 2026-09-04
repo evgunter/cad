@@ -46,11 +46,15 @@
 //!   machine-independent, hand-maintained, and what the coverage and
 //!   structural assertions below read. Nothing about a box can move
 //!   these numbers.
-//! - [`HISTORY`] — one file per merge to `main`, written by ci.yml's
-//!   `rebuild latency (reporting)` job on a hosted runner and
-//!   committed by it. Append-only: a run adds a filename, never edits
-//!   an existing one, so concurrent merges cannot conflict and a
-//!   cancelled run drops nothing.
+//! - [`HISTORY`] — one file per RUN of the reporting job, written by
+//!   `nightly.yml`'s `rebuild latency (reporting)` job on a hosted
+//!   runner and committed by it. That job is on a nightly cron and is
+//!   gated on `main` having moved since the last one, so the cadence
+//!   is at most one entry per night and quiet days add none — NOT one
+//!   per merge, which is what this said while the job lived in
+//!   ci.yml. Append-only: a run adds a filename, never edits an
+//!   existing one, so concurrent runs cannot conflict and a cancelled
+//!   run drops nothing.
 //!
 //! The `vs base` columns diff against the NEWEST history entry, so on
 //! a PR they read against `main`'s last hosted measurement and on
@@ -91,10 +95,12 @@ use geom_core::Tol;
 /// Machine-independent; carries no milliseconds.
 const MANIFEST: &str = "tests/baseline/rebuild-latency.json";
 /// The hosted-CI timing history, relative to the repo root. One file
-/// per merge to `main`, named `<epoch-seconds>-<short-sha>.json` so a
-/// lexicographic sort is a chronological one.
+/// per RUN of the nightly reporting job (at most one a night, and none
+/// on a night when `main` has not moved), named
+/// `<epoch-seconds>-<short-sha>.json` so a lexicographic sort is a
+/// chronological one.
 const HISTORY: &str = "docs/perf-data/rebuild-latency";
-/// Set to a path to write this run's measurement there. ci.yml's
+/// Set to a path to write this run's measurement there. `nightly.yml`'s
 /// `rebuild latency (reporting)` job sets it; nothing else does.
 const EMIT: &str = "CAD_LATENCY_EMIT";
 /// Provenance the emitting job supplies (both optional).
@@ -400,13 +406,30 @@ const SPLIT_FINS: i64 = 160;
 /// - `checks_ms` — the registry over a subject already in hand.
 /// - `whole_ms` — the wrapper, which is the two together and is what
 ///   the old single figure measured.
+/// - `census_ms` — the tier-3' census over the SAME aggregate, the
+///   term this resident exists instead of. Fewer reps than the others
+///   ([`CENSUS_REPS`]) because it costs seconds where they cost
+///   milliseconds, and it REFUSES on this document (the fins meet the
+///   base), so it is the cost of a refusing run.
 struct Split {
     solids: usize,
     faces: usize,
+    census_findings: usize,
     gather_ms: (f64, f64, f64),
     checks_ms: (f64, f64, f64),
     whole_ms: (f64, f64, f64),
+    census_ms: (f64, f64, f64),
 }
+
+/// Repetitions for the census term alone — MUST BE ODD, same reason as
+/// [`REPS`]. Three rather than five because this term is ~10^3 times
+/// the others and five would be most of this job's wall clock for a
+/// figure quoted to two significant digits.
+const CENSUS_REPS: usize = 3;
+const _: () = assert!(
+    CENSUS_REPS % 2 == 1,
+    "CENSUS_REPS must be odd for the midpoint median"
+);
 
 /// The corpus heat sink with its fin count driven to `fins`.
 fn heatsink_at(fins: i64) -> ProfileDoc {
@@ -446,6 +469,8 @@ fn measure_split() -> Split {
     let mut gathers = Vec::with_capacity(REPS);
     let mut checks = Vec::with_capacity(REPS);
     let mut wholes = Vec::with_capacity(REPS);
+    let mut census = Vec::with_capacity(CENSUS_REPS);
+    let mut census_findings = 0;
     for _ in 0..REPS {
         let t0 = Instant::now();
         let gathered = product_recorded(&doc, &ev, tol).expect("gathers");
@@ -461,12 +486,25 @@ fn measure_split() -> Split {
         wholes.push(t0.elapsed());
     }
 
+    for _ in 0..CENSUS_REPS {
+        let t0 = Instant::now();
+        let verdict = <f64 as topo::AtRestPolicy>::gate_at_rest_declared(
+            &subject.body,
+            &subject.contacts,
+            tol,
+        );
+        census.push(t0.elapsed());
+        census_findings = verdict.as_ref().err().map_or(0, Vec::len);
+    }
+
     Split {
         solids,
         faces,
+        census_findings,
         gather_ms: stats(gathers),
         checks_ms: stats(checks),
         whole_ms: stats(wholes),
+        census_ms: stats(census),
     }
 }
 
@@ -742,6 +780,10 @@ fn emit(rows: &[Row], split: &Split, path: &str) {
             "whole_ms": ms(split.whole_ms.0),
             "whole_min_ms": ms(split.whole_ms.1),
             "whole_max_ms": ms(split.whole_ms.2),
+            "census_ms": ms(split.census_ms.0),
+            "census_min_ms": ms(split.census_ms.1),
+            "census_max_ms": ms(split.census_ms.2),
+            "census_findings": split.census_findings,
         },
     });
     let text = format!(
@@ -861,10 +903,16 @@ fn rebuild_latency_table() {
         "{:<28} {:>10} {:>7} {:>9}\n",
         "term", "ms", "±", "vs base"
     ));
+    out.push_str(&format!(
+        "(the census refuses here: {} finding(s); \
+         it is measured over {CENSUS_REPS} runs, the others over {REPS})\n",
+        split.census_findings
+    ));
     for (label, key, (median, min, max)) in [
         ("gather (product_recorded)", "gather_ms", split.gather_ms),
         ("registry over a subject", "checks_ms", split.checks_ms),
         ("run_checks (the two together)", "whole_ms", split.whole_ms),
+        ("tier-3' census (refuses)", "census_ms", split.census_ms),
     ] {
         out.push_str(&format!(
             "{label:<28} {median:>10.2} {:>6.0}% {:>9}\n",
