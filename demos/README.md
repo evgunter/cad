@@ -129,11 +129,13 @@ on top of what importing needs: software GL (llvmpipe) and Xvfb, because
 Coin's offscreen renderer wants a GL context and a display even though Qt
 itself stays `offscreen`.
 
-The workflow adds one check of its own, for the kernel lane: **every leg
-asserts `demos/renders-preview/` does not exist.** That lane's matplotlib
-fallback exits 0, so without the assertion a hosted pass could be green
-having drawn nothing with FreeCAD — the frames sitting in the gitignored
-preview tree while the artifact holds the committed cells unchanged.
+The workflow adds no check of its own: a lane's verdict is
+`render.sh`'s exit status. It used to add one — every leg asserted
+`demos/renders-preview/` did not exist — because the kernel lane's
+automatic matplotlib fallback exited 0, so a hosted pass could be green
+having drawn nothing with FreeCAD. That fallback is gone (see
+*Provenance* below), so the condition the assertion detected can no
+longer arise.
 
 No job commits or pushes on a PR; each lane's diff against the committed
 tree is a real finding, and ci.yml's `renders` job fails on it. The one
@@ -163,6 +165,7 @@ cargo run --release -- gallery ../gallery-out  # the document gallery
 cd ..
 ./render.sh                     # kernel-tessellation montage (renders/montage.png)
 ./render.sh --freecad           # FreeCAD/OCC STEP-lane montage (renders-freecad/montage-freecad.png)
+./render.sh --matplotlib        # FreeCAD-free preview ONLY (renders-preview/renders/, gitignored)
 ./render-uv.sh                  # UV trim-loop sheet (renders-uv/montage-uv.svg)
 ```
 
@@ -199,7 +202,7 @@ and local CI emulator.
 per scene plus `montage.png`); `demos/renders-freecad/*.png` (tracked —
 the montage cells plus `montage-freecad.png`);
 `demos/renders-wild/*.png` (tracked); `demos/renders-uv/montage-uv.svg`
-(tracked); and — only when the kernel lane falls back to matplotlib —
+(tracked); and — only under `render.sh --matplotlib` —
 `demos/renders-preview/renders/*.png` (gitignored).
 
 A pass in flight lives in `demos/out/stage/<lane>/` (untracked) and is
@@ -235,23 +238,32 @@ documents, which is per-scene library work.
 Open one with `cargo run -p viewer --features app` and the toolbar's
 `Open…`.
 
-## Provenance: no fallback frame can be committed
+## Provenance: no matplotlib frame can be committed
 
-The kernel lane falls back to the numpy+matplotlib STL renderer
-(`render.py`) when FreeCAD is missing or its session does not complete.
-Three layers keep such a frame out of a committed path:
+`render.sh --matplotlib` draws the tour scenes with the
+numpy+matplotlib STL renderer (`render.py`) instead of FreeCAD. **It is
+reached only when it is asked for by name.** The kernel lane used to
+select it automatically when FreeCAD was missing or a scene did not
+draw, and — because that path ended the pass at exit 0 — a pass that had
+drawn nothing looked exactly like one that had drawn everything, which
+is why `render.yml` carried a separate assertion whose only job was to
+tell the two apart. Both are retired: a missing renderer or an undrawn
+scene now fails the pass, nonzero and named, in this lane exactly as in
+`--freecad`.
 
-* **Routing.** The fallback renders into `demos/renders-preview/renders/`
-  — the preview tree mirrors the lane structure and is **gitignored**, so
-  a fallback frame cannot be committed even by `git add -A`. It composes
-  its own sheet there under a `PREVIEW ONLY` banner, and `render.sh`
-  prints a loud stderr block naming the reason and the destination.
-  Nothing under `renders/` is written on that path — not even
-  `montage.png`, because recomposing the committed sheet from a stale or
-  partial cell set is exactly the silent corruption this guards.
-  (`renders-preview/renders-freecad/` never appears: the `--freecad` lane
-  has no fallback by design — its whole point is the OCC reference
-  render — and exits 1 instead.)
+Three layers keep a matplotlib frame out of a committed path:
+
+* **Routing.** The preview lane renders into
+  `demos/renders-preview/renders/` — the preview tree mirrors the lane
+  structure and is **gitignored**, so such a frame cannot be committed
+  even by `git add -A`. It composes its own sheet there under a
+  `PREVIEW ONLY` banner, and `render.sh` prints a loud stderr block
+  naming the destination. Nothing under `renders/` is written on that
+  path — not even `montage.png`, because recomposing the committed sheet
+  from a stale or partial cell set is exactly the silent corruption this
+  guards. (`renders-preview/renders-freecad/` never appears: `--freecad`
+  has no preview lane by design — its whole point is the OCC reference
+  render.)
 * **Staging.** A pass renders into `demos/out/stage/<lane>/` and is moved
   into the lane directory only once every scene is in hand, so no
   incomplete pass ever reaches `renders/` — not a crashed one, not a
@@ -645,17 +657,20 @@ offscreen view-provider setup — observed as blank frames and hangs).
 freecadcmd's Qt teardown can crash AFTER a successful render, so a scene
 counts as rendered when its PNG exists, never by exit status.
 
-`render.sh --freecad` (STEP lane) has no matplotlib fallback: its whole
-point is the OCC reference render, so a missing `freecadcmd` is a loud
-exit. A scene it genuinely cannot import or render costs one cell — the
+Neither lane has a fallback: a missing `freecadcmd` is a loud exit in
+both, and so is a scene FreeCAD cannot draw twice. `render.sh
+--matplotlib` is the explicit alternative, and it renders to the preview
+tree only.
+
+`render.sh --freecad` (STEP lane) is the OCC reference render. A scene it genuinely cannot import or render costs one cell — the
 reason lands in `renders-freecad/<scene>.fail.txt` (full log under
 `out/freecad-logs/`) and `compose_montage.py` draws a labeled placeholder
 naming it, never a silent gap.
 
 `render.py` is the zero-dependency renderer (numpy + matplotlib, pure
 CPU, demo-local venv): binary-STL parsing, flat shading, exact backface
-culling (guaranteed by tier 3's +V invariant). It is the kernel lane's
-fallback and the wild lane's primary.
+culling (guaranteed by tier 3's +V invariant). It is what
+`render.sh --matplotlib` draws with, and the wild lane's primary.
 
 `compose_montage.py` builds a montage sheet from the per-scene PNGs in
 `scenes.json` order with captions; `--montage=NAME` / `--banner=TEXT`
@@ -694,8 +709,18 @@ process boundary is what BOUNDS a hang.
 
 Each attempt runs in its own session, so the budget covers the process
 *tree*: when it expires the whole group is killed and the scene is
-retried **once**, in a fresh process. A second expiry is a loud, named
-failure that ends the pass — never a silent skip, never a degraded cell.
+retried **once**, in a fresh process. A single-scene process that
+CRASHED is retried once too — `freecadcmd` has been observed exiting
+rc=1 on a scene that rendered clean on the two preceding passes over
+identical inputs, so a crash is not reliably deterministic. Above one
+scene per process a crash is not retried in place: the batch split
+already re-runs each frameless scene alone, which is the same second
+attempt in a fresher, narrower process. Either way it is at most two
+processes per scene, and a second failure is a loud, named failure that
+ends the pass — never a silent skip, never a degraded cell. A retry
+says so on stderr, both when it happens and when the second attempt
+succeeds, and the first attempt's log is kept beside the second's
+(`<scene>.attempt1.log`).
 Two signals come out with it: how long the process had been silent (a
 slow scene keeps writing to its log; a wedged one goes quiet), and, when
 the frame was written but the process still had to be killed, a note

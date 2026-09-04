@@ -3,15 +3,15 @@
 renderer signature — FreeCAD-authored in the two tour lanes,
 wild-lane-stamped matplotlib in the wild-corpus lane.
 
-WHY (the #221 incident). `render.sh`'s kernel lane has a matplotlib
-fallback (`render.py`) for hosts without FreeCAD. It used to write the
-SAME directory the FreeCAD renderer writes — `demos/renders/` — so a
-fallback frame was indistinguishable from a real one at the filesystem
-level, and one of them silently reached a committed montage cell
-(PR #221's repair note). Two layers now make that structurally
+WHY (the #221 incident). `render.sh --matplotlib` draws the tour
+scenes with `render.py`, for hosts without FreeCAD. It used to write
+the SAME directory the FreeCAD renderer writes — `demos/renders/` — so
+a matplotlib frame was indistinguishable from a real one at the
+filesystem level, and one of them silently reached a committed montage
+cell (PR #221's repair note). Two layers now make that structurally
 impossible:
 
-  1. the fallback writes only the gitignored `demos/renders-preview/`
+  1. that lane writes only the ignored `demos/renders-preview/`
      tree (`render.sh`), so it CANNOT land in a committed path;
   2. this guard — run by both `render.sh` lanes before the montage is
      composed, and by the gate — refuses any committed render that is
@@ -19,7 +19,10 @@ impossible:
 
 Layer 2 is the one that holds if layer 1 is ever bypassed (a hand
 copy, a stray `python render.py out renders`, a future edit to the
-routing).
+routing). Nothing selects the matplotlib renderer for the kernel lane
+automatically any more — a pass without FreeCAD fails rather than
+drawing a preview nobody asked for — so layer 1 is now only ever
+crossed on purpose.
 
 HOW. FreeCAD's `view.saveImage()` stamps three `tEXt` chunks into
 every PNG it writes:
