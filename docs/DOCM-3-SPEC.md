@@ -172,3 +172,40 @@ verbatim plus `docs/prompts/reviewer-style-lane.md` by path):
   and the content-key tag is new and passes the injectivity census.
 - **C6** The die renders through the tour's own door and the two fillets
   select the same counts; if a frame moved the PR says what and why.
+
+## Amendment at the stop clause (2026-09-04, orchestrator — recorded BEFORE the lane resumes)
+
+**Phase-1 finding, accepted.** The die's 21 pips are `Transform`s of one
+revolve; a transform is pass-through (N1, `eval/wire.rs:2439`), so the
+members carry identical tables and `FromMember(inner)` collides
+(`docm3_union::members_that_share_a_minting_node_refuse_rather_than_alias`
+is the pin). DM4's mechanism was mis-stated; its intent (identity-keyed,
+position-free) stands. `docs/DOCM-REFERENCES-DESIGN.md` DM4 and DM5 are
+amended on `main`; this section restates the binding consequences.
+
+1. **The segment is `RoleSeg::FromMember { member: RecipeNodeId, of:
+   Box<StableName> }`** — `member` is the member's own node id (the list
+   edge), `of` the entity's name in that member's table. `Instance { i,
+   of }` is the precedent shape. Seam rows name both sides the same way,
+   sides canonicalized by name order as you already do. The pin above
+   flips: the same two members now yield two distinct tables under the
+   union, and the row asserts that instead of the refusal.
+2. **Item 5 (the die), A1 and A3 are back in scope** exactly as written:
+   the tool becomes one `Node::Union` over the 21 transforms, the NAMED
+   GAP comment goes, the corpus regenerates, and A1 (remove first,
+   middle, last pip; both fillets still resolve) is the acceptance row.
+3. **DM5 gains a third caller**: `persist/check.rs`'s `validate_document`
+   checks pairwise-distinct inputs on every snapshot node, refusing in
+   its own `SnapshotError` vocabulary — still ONE definition (C3's
+   reviewer grep now expects three callers, one function). Add the
+   snapshot row to A4.
+4. **Accepted, keep as built and disclosed in the PR**: the three
+   `pncad-py` tag rows the exhaustive `EditError` mirrors force (no
+   Python surface); `SetMembers` over `Loft` through `Node::list_input`;
+   the `refusal_menu`/`face_name` signature move; content key not
+   re-hashing member ids.
+5. Merge `main` into the branch first (never rebase): it carries the
+   `blamed_mates` `Unleverable` arm you also fixed, so expect that hunk
+   to resolve to main's, and the two design docs are on `main` now.
+6. Undraft the PR when the rows are green locally; CI gates only an
+   undrafted PR. Pre-draw fields stand (L / STRUCTURAL).
