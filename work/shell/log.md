@@ -63,3 +63,36 @@ files). The `[ev]` conversation for item 6 (where the curved
 wall-clearance gate lives) opens beside it rather than after items
 2–5 — it is Ev-paced and its inputs (M10-5 merged, M10-7 in flight on
 parameter-aware certification) are on the table now.
+
+## SHELL-1 dispatched; the clearance-gate fork goes to Ev (2026-09-04)
+
+Opening state-sync merged (#1730). Block SHELL-B1 drawn and recorded
+branch-side on the orchestrator branch (fable at slot 2 ⇒ SHELL-1's
+implementer is the OPUS arm); lane `shell/1-naming` at
+`/home/user/shell-lanes/shell-1/cad`, own target dir, dispatched
+against `docs/SHELL-1-SPEC.md`. A cold `cargo build -p sweep -p topo
+--tests` on this box takes ~47 s, so local iteration is cheap.
+
+**Branch layout, decided:** the orchestrator branch holds the
+branch-side A/B records and is merged only when a block concludes;
+anything that must reach main earlier goes on its own branch off
+main (the `[ev]` PR below is cherry-picked onto
+`shell/ev-clearance-gate` for that reason — the duplicate commit is
+harmless at the block-end merge).
+
+**`[ev]` #1737 opened** for item 6, `shell-curved-clearance-consumer`
+(`needs_ev`), with `shell-curved-wall-clearance-window` re-parked on
+it (its M10-5 park had lapsed). The question is measured in the item:
+the curved gate is E7's self-intersection question asked of the
+cavity clone; the engine's inner half is already body-level; no
+scalar remap of a body exists, so the certified gate lives either in
+`shell::<Interval>` with the engine's inner half moved below
+editor-core (B, recommended) or in the driver's replay after
+LIB-G17 (A). Waits for Ev's sign-off; not self-merged.
+
+**Sequencing measured for units 2–4:** unit 2's nappe half touches
+`offset_axial.rs` (`nappe_signed`), VERBS' until RIMCAP merges, and
+its winding-rename half gains a fourth site from VERBS-1031B, so it
+waits for both PRs; unit 3 rewrites `shell.rs` and waits for SHELL-1;
+unit 4 (`transform-rigid-refuses-approx-face`) touches
+`transform.rs` only and is the next spec to write.
