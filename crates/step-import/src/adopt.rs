@@ -432,6 +432,7 @@ fn adopt_edges(
             p_end,
             fs_plus,
             fs_minus,
+            tol,
             &mut candidates,
         );
         if fs_plus != fs_minus {
@@ -699,13 +700,17 @@ fn adopt_edges(
 /// still disposes of every candidate this offers.
 ///
 /// A **promoted LINE carrier** takes the same rung through its vertex
-/// bits ([`line_column_match`]): D7 curve recognition rewrites a
-/// degree-1 boundary-column carrier into `Curve3::Line` before
-/// adoption sees it, so the column bits live in the edge's VERTEX
-/// positions rather than in the carrier — the arm's own comment
-/// carries the derivation. Without it, promotion would strip exactly
-/// this class of its only candidate and the import would refuse
-/// strictly earlier than the unpromoted file does.
+/// POSITIONS ([`line_column_match`]): D7 curve recognition rewrites a
+/// straight boundary-column carrier into `Curve3::Line` before
+/// adoption sees it, so the carrier bits the writer copied from the
+/// wall are no longer in the spec to match — the edge's VERTEX
+/// positions carry the ruling's ends instead, and those are a
+/// DIFFERENT writer object than the wall's control points (the arm's
+/// own comment carries why that forces a banded selection). Without
+/// this rung, promotion would strip exactly this class of its only
+/// candidate and the import would refuse strictly earlier than the
+/// unpromoted file does.
+#[allow(clippy::too_many_arguments)] // one parameter per named quantity
 fn iso_curve_candidates(
     body: &Body<f64>,
     spec: &crate::entities::EdgeSpec,
@@ -713,6 +718,7 @@ fn iso_curve_candidates(
     p_end: Point3<f64>,
     fs_plus: topo::SurfaceKey,
     fs_minus: topo::SurfaceKey,
+    tol: Tol,
     candidates: &mut Vec<(AdoptionCandidate, EdgeDescriptionSpec<f64>)>,
 ) {
     let walls: &[topo::SurfaceKey] = if fs_plus == fs_minus {
@@ -747,24 +753,31 @@ fn iso_curve_candidates(
                         ));
                     }
                 }
-                // **The promoted-LINE twin of the bitwise arm.** D7
-                // curve recognition rewrites a degree-1 boundary-column
-                // carrier into `Curve3::Line` BEFORE adoption ever sees
-                // it, so the carrier bits the writer copied from the
-                // wall are no longer in the spec to match — but the
-                // edge's two VERTEX positions still are (the subset's
-                // `EDGE_CURVE` states its vertices from the same
-                // points). A wall column that is itself a straight
-                // ruling — degree 1, two control points, unit weights —
-                // whose ends are bitwise the edge's vertices, in either
-                // traversal order, is that ruling's own edge; the v map
-                // is affine through the column's OWN knot domain, run
-                // forward or reversed as the vertex order says. The
-                // match is a SELECTION (bitwise, no tolerance spent);
-                // the certify door's residual schedule is the CHECK,
-                // exactly as for the bitwise arm above.
+                // **The promoted-LINE twin of the bitwise arm — banded
+                // where that one is bitwise, and for a stated reason.**
+                // D7 curve recognition rewrites a straight
+                // boundary-column carrier into `Curve3::Line` BEFORE
+                // adoption ever sees it — a degree-2 loft's seam as
+                // readily as a two-point polyline — so the carrier
+                // bits the writer copied from the wall are no longer
+                // in the spec to match; the edge's two VERTEX
+                // positions carry the ruling's ends instead. Vertex
+                // records and wall control records are DIFFERENT
+                // objects computed by different arithmetic paths —
+                // usually equal to the bit, but only usually (a native
+                // ε-scaled prism's seam vertex lands one ulp off its
+                // wall column at some
+                // scales), so the bitwise premise the Nurbs arm rests
+                // on ("the writer emitted the same bits twice") does
+                // not hold for this pairing and a bitwise gate here
+                // silently strips the candidate on writer noise. The
+                // match is therefore a banded SELECTION at the ambient
+                // ε — the rim arms' measured-selection posture, not the
+                // bitwise arm's — and the certify door's endpoint and
+                // residual schedule remains the CHECK: a wrongly
+                // selected column refuses loudly there.
                 Curve3::Line { .. } => {
-                    if let Some((v0, v1)) = line_column_match(&iso, p_start, p_end) {
+                    if let Some((v0, v1)) = line_column_match(&iso, p_start, p_end, tol.eps()) {
                         candidates.push((
                             AdoptionCandidate::IsoCurve,
                             EdgeDescriptionSpec::iso(wall, u, v0, v1, spec.t0, spec.t1),
@@ -778,34 +791,75 @@ fn iso_curve_candidates(
 }
 
 /// The promoted-LINE column match ([`iso_curve_candidates`]'s Line
-/// arm): is `iso` a straight degree-1 ruling whose two control points
-/// are bitwise the edge's vertex pair? Answers the `(v0, v1)` the
-/// affine v map must take at `(t0, t1)` — the column's own knot-domain
-/// ends, forward when the start vertex sits at the column's start and
-/// reversed when it sits at its end. `None` withholds the candidate
-/// (a curved column, a non-uniform weight, no bitwise match), which
-/// leaves the edge to the rest of the ladder — never a guess.
+/// arm): is `iso` a straight unit-weight ruling whose ends sit on the
+/// edge's vertex pair within `eps`? Answers the `(v0, v1)` the affine
+/// v map must take at `(t0, t1)` — the column's own knot-domain ends,
+/// forward when the start vertex sits at the column's start and
+/// reversed when it sits at its end (the FORWARD reading is tried
+/// first; on an ε-degenerate edge both could match and the door's
+/// interval checks refuse it downstream either way).
+///
+/// The column class is exactly the promotable class: recognition
+/// promotes ANY carrier certifiably on a chord — a degree-2 loft's
+/// straight seam as readily as a two-point polyline — so a degree or
+/// control-count gate here would strip the candidate from part of the
+/// class the promotion just created. What gates is meaning, not
+/// shape: unit weights to the bit (a rational column's v map is not
+/// affine in space) and every control within the band of the
+/// end-to-end segment (the convex hull carries the curve with it);
+/// the positional halves are banded at the ambient ε (the arm's
+/// comment carries why), and every comparison is the positive
+/// `d <= eps` form, false for a poisoned distance, so NaN refuses.
+/// A column whose v parameterization is not affine in space can still
+/// match — the certify door's endpoint and residual schedule refuses
+/// it there, loudly. `None` withholds the candidate, which leaves the
+/// edge to the rest of the ladder — never a guess.
+// The `!(a > b)` forms are deliberate, NaN-catching negations: a
+// poisoned quantity must withhold, and the positive form would
+// silently accept it (`recognize_curve`'s standing convention).
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
 fn line_column_match(
     iso: &geom::NurbsCurve3<f64>,
     p_start: Point3<f64>,
     p_end: Point3<f64>,
+    eps: f64,
 ) -> Option<(f64, f64)> {
     let control = iso.control();
-    if iso.knots().degree() != 1
-        || control.len() != 2
-        || iso
-            .weights()
-            .iter()
-            .any(|w| w.to_bits() != 1.0f64.to_bits())
+    let (first, last) = (control.first()?, control.last()?);
+    if iso
+        .weights()
+        .iter()
+        .any(|w| w.to_bits() != 1.0f64.to_bits())
     {
         return None;
     }
-    let bits3 = |p: &Point3<f64>| [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()];
+    // Straightness, off the control hull: with unit weights the curve
+    // lies in its controls' convex hull, so every control within `eps`
+    // of the end-to-end segment bounds the whole column there. The
+    // `t` clamp folds an along-line overshoot into the distance, so a
+    // control past either end withholds too; non-finite refuses.
+    let chord = *last - *first;
+    let len2 = chord.dot(chord);
+    if !(len2 > 0.0) || !len2.is_finite() {
+        return None;
+    }
+    for p in control {
+        let d = *p - *first;
+        let t = d.dot(chord) / len2;
+        if !t.is_finite() {
+            return None;
+        }
+        let clamped = t.clamp(0.0, 1.0);
+        if !((d - chord * clamped).norm() <= eps) {
+            return None;
+        }
+    }
+    let near = |a: &Point3<f64>, b: &Point3<f64>| a.distance(*b) <= eps;
     let (dv0, dv1) = iso.knots().domain();
-    if bits3(&control[0]) == bits3(&p_start) && bits3(&control[1]) == bits3(&p_end) {
+    if near(first, &p_start) && near(last, &p_end) {
         return Some((dv0, dv1));
     }
-    if bits3(&control[0]) == bits3(&p_end) && bits3(&control[1]) == bits3(&p_start) {
+    if near(first, &p_end) && near(last, &p_start) {
         return Some((dv1, dv0));
     }
     None
@@ -1219,36 +1273,67 @@ mod tests {
     /// this table is only the selection, so a wrong answer here must
     /// be a withheld candidate, not a guessed one.
     #[test]
-    fn line_column_match_answers_by_vertex_bits_on_the_columns_own_domain() {
+    fn line_column_match_answers_by_vertex_positions_on_the_columns_own_domain() {
+        let eps = 1e-6;
         let (a, b) = (Point3::new(0.1, 0.2, 0.3), Point3::new(0.1, 0.2, 0.9));
         let column = |d0: f64, d1: f64, w: f64| {
             let knots = KnotVector::clamped(vec![d0, d0, d1, d1], 1).unwrap();
             geom::NurbsCurve3::new(knots, vec![a, b], vec![w, w]).unwrap()
         };
         assert_eq!(
-            line_column_match(&column(0.0, 1.0, 1.0), a, b),
+            line_column_match(&column(0.0, 1.0, 1.0), a, b, eps),
             Some((0.0, 1.0))
         );
         assert_eq!(
-            line_column_match(&column(2.0, 5.0, 1.0), a, b),
+            line_column_match(&column(2.0, 5.0, 1.0), a, b, eps),
             Some((2.0, 5.0)),
             "the answer is the column's own knot domain"
         );
         assert_eq!(
-            line_column_match(&column(2.0, 5.0, 1.0), b, a),
+            line_column_match(&column(2.0, 5.0, 1.0), b, a, eps),
             Some((5.0, 2.0)),
             "a reversed vertex order runs the v map backwards"
         );
         assert_eq!(
-            line_column_match(&column(0.0, 1.0, 0.5), a, b),
+            line_column_match(&column(0.0, 1.0, 0.5), a, b, eps),
             None,
             "a non-unit column weight withholds"
         );
-        let off = Point3::new(0.1, 0.2, 0.9 + 1e-15);
+        // The banded half of the selection (the arm's comment): vertex
+        // records and wall control records are different writer
+        // objects, so an ulp of writer noise must not strip the
+        // candidate — while a miss beyond the ambient band must.
+        let ulp_off = Point3::new(0.1, 0.2, 0.9 + 1e-15);
         assert_eq!(
-            line_column_match(&column(0.0, 1.0, 1.0), a, off),
+            line_column_match(&column(0.0, 1.0, 1.0), a, ulp_off, eps),
+            Some((0.0, 1.0)),
+            "writer noise inside the band keeps the candidate"
+        );
+        let far_off = Point3::new(0.1, 0.2, 0.9 + 3e-6);
+        assert_eq!(
+            line_column_match(&column(0.0, 1.0, 1.0), a, far_off, eps),
             None,
-            "the match is bitwise — an ulp off is not this column"
+            "a vertex beyond the band is not this column's end"
+        );
+        // The widened structural class (the function docs): promotion
+        // fires for ANY straight carrier, so a straight higher-order
+        // column is the same ruling claim — a degree-2 loft seam's
+        // three collinear controls must not be stripped by a shape
+        // gate the promotion no longer respects.
+        let straight_deg2 = {
+            let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+            geom::NurbsCurve3::new(knots, vec![a, Point3::new(0.1, 0.2, 0.6), b], vec![1.0; 3])
+                .unwrap()
+        };
+        assert_eq!(
+            line_column_match(&straight_deg2, a, b, eps),
+            Some((0.0, 1.0)),
+            "a straight degree-2 column is a straight ruling claim"
+        );
+        assert_eq!(
+            line_column_match(&straight_deg2, b, a, eps),
+            Some((1.0, 0.0)),
+            "and it reverses by vertex order like the two-point one"
         );
         let curved = {
             let knots = KnotVector::clamped(vec![0.0, 0.0, 0.5, 1.0, 1.0], 1).unwrap();
@@ -1256,9 +1341,9 @@ mod tests {
                 .unwrap()
         };
         assert_eq!(
-            line_column_match(&curved, a, b),
+            line_column_match(&curved, a, b, eps),
             None,
-            "a three-point column is not a straight ruling claim"
+            "a column bent beyond the band is not a straight ruling claim"
         );
     }
 

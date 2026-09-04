@@ -531,11 +531,40 @@ fn probe_reexport_promotion_divergence() {
         (4, 2),
         "re-export: the two promoted walls state their planes"
     );
-    // The promoted one-cycle fixed point.
-    let body2 = solid(&out, "first re-export");
+    // The promoted fixed point. At an ambient band coarser than the
+    // committed fixture's declared 1e-9, the re-import reads OUR
+    // re-export header's ε_in and D7 additionally promotes the two
+    // straight ruling seam carriers to LINE (`roundtrip.rs`'s
+    // `fixed_point` row carries the corpus-wide re-pin and the
+    // spline-record retirement count); the byte fixed point then
+    // starts one cycle later.
+    let StepImport::Solid {
+        body: body2,
+        curve_promotions,
+        ..
+    } = import(&out).expect("the first re-export re-imports")
+    else {
+        panic!("the first re-export must re-import as a solid");
+    };
+    let line_promos = curve_promotions
+        .iter()
+        .filter(|p| p.kind == step_import::PromotedCurveKind::Line)
+        .count();
     let out2 =
         step_export::step_string(&body2, &options, Tol::witness()).expect("second re-export");
-    assert_eq!(out, out2, "fixed point from the first re-export on");
+    if line_promos == 0 {
+        assert_eq!(out, out2, "fixed point from the first re-export on");
+    } else {
+        assert_eq!(
+            count(&out2, "= LINE("),
+            count(&out, "= LINE(") + line_promos,
+            "the second divergence is exactly the promoted seam carriers, as LINE"
+        );
+        let body3 = solid(&out2, "second re-export");
+        let out3 =
+            step_export::step_string(&body3, &options, Tol::witness()).expect("third re-export");
+        assert_eq!(out2, out3, "fixed point from the second re-export on");
+    }
 }
 
 /// V2 determinism: two imports of the same file produce identical

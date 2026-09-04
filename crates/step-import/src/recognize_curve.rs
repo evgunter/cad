@@ -80,6 +80,23 @@
 //!   by the intermediate value theorem its image contains `[0, ℓ]`
 //!   and the carrier's locus is the whole segment (thickened by at
 //!   most the residual), never a proper sub-segment.
+//! * **INV-C5 (the MAP obligation).** Promotion replaces the carrier
+//!   as a parameterized MAP, not only as a locus: every downstream
+//!   door — the chart-image certify schedules above all — compares
+//!   `C(t)` against its description pointwise, so a promotion that
+//!   kept the locus but re-timed the interior would strand the edge
+//!   at adoption (measured: a nonuniform loft's straight seam, whose
+//!   affine `Line` no iso image can reproduce). With unit weights the
+//!   polynomial basis reproduces affine functions of the parameter on
+//!   the Greville abscissae `ξᵢ` (linear precision), so with `ℓ` the
+//!   affine map taking the knot domain onto the chord,
+//!   `|C(t) − ℓ(t)| = |Σ Nᵢ(t)(cᵢ − ℓ(ξᵢ))| ≤ maxᵢ |cᵢ − ℓ(ξᵢ)|` —
+//!   the seam-class chart limb's own hull, transposed to recognition.
+//!   A rational carrier has no linear-precision fact and refuses the
+//!   certificate (stays NURBS silently). This hull dominates INV-C4's
+//!   excursion (a control past the chord is at least that far from
+//!   `ℓ(ξᵢ)`), and the reported residual is the max of the two folds,
+//!   so the budget decides at whichever obligation binds.
 //! * **INV-C2 (plane ∧ sphere → distance to the CIRCLE).** Write
 //!   `P − c = h·n̂ + q` with `q ⊥ n̂`. The plane certificate gives
 //!   `|h| ≤ δ_p`; INV-C1 gives `| |P−c| − r | ≤ δ_s`, and
@@ -267,12 +284,13 @@ fn composite_sup(curve: &NurbsCurve3<f64>, surface: &ImplicitSurface) -> f64 {
 // accept it (the file's standing convention).
 #[allow(clippy::neg_cmp_op_on_partial_ord)]
 /// The line candidate (module docs; the locus certificate INV-C3,
-/// then the segment obligation INV-C4 — both read off ring
-/// coefficient hulls and control values, no sampling anywhere).
-/// `None` is a refuted certificate or an out-of-scope (closed-at-ε)
-/// carrier; there is no conditioning trilean here because there is no
-/// estimate to condition — the chord IS the candidate, and a chord
-/// inside the budget is the closed class, which is the circle limb's.
+/// the segment obligation INV-C4, and the map obligation INV-C5 —
+/// all read off ring coefficient hulls and control values, no
+/// sampling anywhere). `None` is a refuted certificate or an
+/// out-of-scope (closed-at-ε, or rational — INV-C5) carrier; there is
+/// no conditioning trilean here because there is no estimate to
+/// condition — the chord IS the candidate, and a chord inside the
+/// budget is the closed class, which is the circle limb's.
 fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)> {
     let control = curve.control();
     let (first, last) = (control.first()?, control.last()?);
@@ -313,7 +331,42 @@ fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)>
         }
         excursion = excursion.max(-t).max(t - len);
     }
-    let residual = delta_line.hypot(excursion);
+    // INV-C5: promotion replaces the carrier as a MAP, not only as a
+    // locus — downstream doors compare `C(t)` against chart images
+    // pointwise, so the affine chord map must be within budget of the
+    // carrier's own parameterization or the promoted edge is
+    // unadoptable. With unit weights the polynomial basis reproduces
+    // affine maps on the Greville abscissae (linear precision), so
+    // the control-vs-affine deviations bound the map deviation over
+    // the whole domain (module docs); a rational carrier has no
+    // linear-precision fact and refuses the certificate silently.
+    // Non-finite refuses.
+    let degree = curve.knots().degree();
+    if degree == 0
+        || curve
+            .weights()
+            .iter()
+            .any(|w| w.to_bits() != 1.0f64.to_bits())
+    {
+        return None;
+    }
+    let (d0, d1) = curve.domain();
+    let span = d1 - d0;
+    if !(span > 0.0) || !span.is_finite() {
+        return None;
+    }
+    let flat = curve.knots().knots();
+    let mut hull = 0.0f64;
+    for (i, p) in control.iter().enumerate() {
+        #[allow(clippy::cast_precision_loss)]
+        let xi = flat[i + 1..=i + degree].iter().sum::<f64>() / degree as f64;
+        let dev = (*p - (*first + chord * ((xi - d0) / span))).norm();
+        if !dev.is_finite() {
+            return None;
+        }
+        hull = hull.max(dev);
+    }
+    let residual = delta_line.hypot(excursion).max(hull);
     if !(residual <= eps_in) {
         return None;
     }
@@ -1017,14 +1070,18 @@ mod tests {
         assert!((rdir.x + 1.0).abs() < 1e-15, "reversed dir {rdir:?}");
     }
 
-    /// L2: **the SEGMENT obligation (INV-C4), pinned at its value.** A
-    /// carrier lying EXACTLY on the line whose control net overshoots
-    /// the chord (the locus certificate has nothing to refuse) folds
-    /// the excursion into the residual: with controls at x =
-    /// {0, 0.06, 0.04} the excursion past the 0.04 chord is 0.02, and
-    /// the budget decides AT hypot(δ≈0, 0.02) — certifying just above
-    /// it and refusing just below. Dropping the excursion channel
-    /// (residual → ~0) or inflating the fold both go red here.
+    /// L2: **the SEGMENT obligation (INV-C4) under the MAP obligation
+    /// (INV-C5), pinned at its value.** A carrier lying EXACTLY on the
+    /// line whose control net overshoots the chord (the locus
+    /// certificate has nothing to refuse) both overshoots the segment
+    /// (excursion 0.01 past the 0.04 chord) and re-times the map (its
+    /// middle control sits 0.03 from the affine chord's Greville
+    /// position), and the budget decides AT the larger fold —
+    /// certifying just above 0.03 and refusing just below, where the
+    /// pre-C5 excursion-only reading (0.01) would have certified.
+    /// Dropping the hull channel widens the gate to the excursion and
+    /// reds the mid row; dropping the excursion channel too
+    /// (residual → ~0) reds them all.
     #[test]
     fn l2_a_control_excursion_beyond_the_chord_is_the_residual() {
         let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
@@ -1032,7 +1089,7 @@ mod tests {
             knots,
             vec![
                 Point3::new(0.0, 0.0, 0.0),
-                Point3::new(0.06, 0.0, 0.0),
+                Point3::new(0.05, 0.0, 0.0),
                 Point3::new(0.04, 0.0, 0.0),
             ],
             vec![1.0; 3],
@@ -1042,30 +1099,33 @@ mod tests {
             matches!(recognize(&curve, EPS_IN), CurveRecognition::StaysNurbs),
             "an overshooting net must not certify at the module budget"
         );
-        let CurveRecognition::Promoted { residual, kind, .. } = recognize(&curve, 0.03) else {
-            panic!("the overshoot is 0.02, inside a 0.03 budget");
+        let CurveRecognition::Promoted { residual, kind, .. } = recognize(&curve, 0.035) else {
+            panic!("the map fold is 0.03, inside a 0.035 budget");
         };
         assert_eq!(kind, PromotedCurveKind::Line);
         assert!(
-            (residual - 0.02).abs() < 1e-12,
-            "the residual IS the excursion fold: {residual:e}"
+            (residual - 0.03).abs() < 1e-12,
+            "the residual IS the Greville map fold: {residual:e}"
         );
         assert!(
-            matches!(recognize(&curve, 0.015), CurveRecognition::StaysNurbs),
-            "and the budget decides at it"
+            matches!(recognize(&curve, 0.025), CurveRecognition::StaysNurbs),
+            "a budget that clears the excursion (0.01) but not the map fold refuses"
         );
     }
 
-    /// L3: a doubling-back carrier that stays WITHIN the chord
-    /// promotes, and that is sound by the module docs' coverage
-    /// argument (INV-C4): the projection is continuous from 0 to ℓ and
-    /// the control hull keeps it inside [0, ℓ], so the locus IS the
-    /// whole segment — no proper sub-segment, no overshoot — and the
-    /// adopted edge states exactly that locus with the file's own
-    /// endpoints. (The circle's out-and-back refuses because its locus
-    /// can be a proper sub-arc; a line's cannot.)
+    /// L3: **the MAP obligation's own row (INV-C5).** A doubling-back
+    /// carrier that stays WITHIN the chord keeps the segment locus
+    /// (INV-C4's coverage argument still holds — the projection is
+    /// continuous from 0 to ℓ), but it is NOT the affine chord as a
+    /// map: promotion would hand every downstream door a `Line` whose
+    /// interior timing the file's carrier contradicts, and the edge
+    /// would strand at adoption (no iso chart image reproduces a
+    /// doubling-back map). It stays NURBS at the module band, and the
+    /// budget decides at the measured re-timing: controls at x =
+    /// {0, 0.03, 0.01, 0.04} against Greville-affine positions
+    /// {0, 0.04/3, 0.08/3, 0.04} give hull 0.05/3 ≈ 0.0167.
     #[test]
-    fn l3_a_within_chord_doubling_back_covers_the_segment_and_promotes() {
+    fn l3_a_within_chord_doubling_back_is_not_the_affine_map() {
         let knots = KnotVector::clamped(vec![0.0, 0.0, 1.0, 2.0, 3.0, 3.0], 1).unwrap();
         let curve = NurbsCurve3::new(
             knots,
@@ -1078,18 +1138,22 @@ mod tests {
             vec![1.0; 4],
         )
         .unwrap();
+        assert!(
+            matches!(recognize(&curve, EPS_LINE), CurveRecognition::StaysNurbs),
+            "a re-timed interior must not certify at the module band"
+        );
         let CurveRecognition::Promoted {
             curve: Curve3::Line { dir, .. },
             residual,
             ..
-        } = recognize(&curve, EPS_LINE)
+        } = recognize(&curve, 0.02)
         else {
-            panic!("a within-chord polyline covers its chord and certifies");
+            panic!("the re-timing is 0.05/3, inside a 0.02 budget");
         };
         assert!((dir.x - 1.0).abs() < 1e-15);
         assert!(
-            residual < 1e-8,
-            "on the line, inside the chord: {residual:e}"
+            (residual - 0.05 / 3.0).abs() < 1e-12,
+            "the residual IS the re-timing hull: {residual:e}"
         );
     }
 
