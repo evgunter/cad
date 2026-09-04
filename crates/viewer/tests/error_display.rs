@@ -292,6 +292,26 @@ fn indeterminate_wording_forwards_the_causes_own_words() {
     prose(&shown, "TargetFailed");
 }
 
+/// **Loud skip.** The row below needs `viewer::app`, which is not in a
+/// default-feature build; say so rather than letting the run report
+/// one fewer test and nothing else. Its seat is the hosted row
+/// `cargo nextest run -p viewer --features app`
+/// (`.github/workflows/ci.yml`).
+///
+/// **This row closes no gate and cannot fail** — its payload is its
+/// NAME in the PASS list. It names ONE row, so a second `app`-gated
+/// row added to this file leaves the marker quietly incomplete;
+/// nothing mechanical says so.
+#[cfg(not(feature = "app"))]
+#[test]
+fn app_lane_skipped_startup_error_arms_not_checked_here() {
+    println!(
+        "SKIPPED (no --features app): startup_error_forwards_every_payload_arm \
+         does not run - `StartupError`'s forwarding of the camera, scene and \
+         document arms is unchecked in this build."
+    );
+}
+
 #[cfg(feature = "app")]
 #[test]
 fn startup_error_forwards_every_payload_arm() {
