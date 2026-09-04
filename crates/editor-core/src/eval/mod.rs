@@ -46,7 +46,7 @@ use crate::doc::Doc;
 use crate::expr::EvalError;
 use crate::ident::Mispaired;
 use crate::names::{NameTable, NamingError};
-use crate::node::{RecipeNodeId, SlotId, StableName};
+use crate::node::{PartSelect, RecipeNodeId, SlotId, StableName};
 use crate::program::ProfileProgram;
 use geom_core::Tol;
 
@@ -629,6 +629,29 @@ pub enum NodeErrorKind {
         /// The empty input node.
         input: RecipeNodeId,
     },
+    /// A [`crate::Node::Part`] selected a split half that holds no
+    /// material — the tool plane missed the target on that side. Its
+    /// own arm rather than [`NodeErrorKind::EmptyOperand`]: that
+    /// one's prose is a boolean's, and what is empty here is a side
+    /// of a cut, which has a name.
+    EmptyHalf {
+        /// The split node whose value was read.
+        input: RecipeNodeId,
+        /// The empty half.
+        half: crate::names::SplitHalf,
+    },
+    /// A [`crate::Node::Part`] indexed a pattern's instances outside
+    /// `0..count`. A negative index lands here too — the index is
+    /// neither wrapped nor clamped, because either would be a body the
+    /// author did not name.
+    InstanceOutOfRange {
+        /// The pattern node whose value was read.
+        input: RecipeNodeId,
+        /// The index as authored (resolved through its slot).
+        index: i64,
+        /// How many instances the value holds.
+        count: usize,
+    },
     /// A direction-valued vector decided to zero length (datum
     /// normal/direction, transform rotation axis, pattern direction).
     DegenerateDirection {
@@ -1188,6 +1211,26 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "input {} is the empty value — the body ops take real bodies",
                 input.0
+            ),
+            Self::EmptyHalf { input, half } => write!(
+                f,
+                "the split's {} half (node {}) holds no material",
+                match half {
+                    crate::names::SplitHalf::Above => "above",
+                    crate::names::SplitHalf::Below => "below",
+                },
+                input.0
+            ),
+            Self::InstanceOutOfRange {
+                input,
+                index,
+                count,
+            } => write!(
+                f,
+                "instance index {index} is outside the pattern's {count} instances (node {}; \
+                 the admitted indices are 0 to {})",
+                input.0,
+                count.saturating_sub(1)
             ),
             // Every role word is already a complete noun phrase for the
             // vector ("pattern direction", "transform rotation axis"),
@@ -2641,6 +2684,14 @@ where
         // and one spin slot against nine slots), and a shared tag
         // would let a memo entry for one serve the other's geometry.
         Node::Datum(Datum::FaceFrame { .. }) => 32,
+        // The projection node: two tags, as `Pattern`'s rule kinds are
+        // two. A half and an index are different payloads read off
+        // different value kinds, and a memo entry for one must never
+        // serve the other.
+        Node::Part { select, .. } => match select {
+            PartSelect::SplitHalf(_) => 33,
+            PartSelect::Instance(_) => 34,
+        },
     };
     // NODE-TAG-SPACE END
     h.write_tag(tag);
@@ -2865,6 +2916,17 @@ where
         // differ in exactly this name. `at` is an input edge and is
         // carried by the upstream keys.
         Node::Datum(Datum::FaceFrame { face, .. }) => feed_stable_name(&mut h, face),
+        // The HALF is recipe payload outside the slots: two Parts of
+        // the two halves of one split share a tag, an upstream key and
+        // no slot at all, and differ in exactly this — so it feeds as
+        // a tag, or a memo hit would serve one half's body for the
+        // other. The INDEX is a slot and rides the resolved-slot
+        // stream below like every slot; `of` is an input edge and is
+        // carried by the upstream keys.
+        Node::Part { select, .. } => match select {
+            PartSelect::SplitHalf(half) => h.write_u64(split_half_tag(*half)),
+            PartSelect::Instance(_) => {}
+        },
         // Fully expressed by tag plus slots: their whole recipe payload
         // is either an input edge (excluded from the key by design — the
         // inputs' own keys carry it) or a slot expression, fed below.
@@ -3419,10 +3481,21 @@ fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
     }
 }
 
+/// A split half's key tag — ONE spelling, read by the role-segment
+/// feed (every split segment carries a half) and by the projection
+/// node's payload feed (a `Part` of a half carries the half itself).
+fn split_half_tag(half: crate::names::SplitHalf) -> u64 {
+    use crate::names::SplitHalf;
+    match half {
+        SplitHalf::Above => 1,
+        SplitHalf::Below => 2,
+    }
+}
+
 /// Feeds one role segment (closed enum — every variant tagged; the
 /// tags are part of the key format version).
 fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
-    use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg, SideVerdict, SplitHalf};
+    use crate::names::{CapEnd, MeridianEnd, Qualifier, RoleSeg, SideVerdict};
     let cap = |c: CapEnd| match c {
         CapEnd::End => 1u64,
         CapEnd::Start => 2,
@@ -3433,10 +3506,7 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         MeridianEnd::Seam => 3,
         MeridianEnd::Pi => 4,
     };
-    let half = |s: SplitHalf| match s {
-        SplitHalf::Above => 1u64,
-        SplitHalf::Below => 2,
-    };
+    let half = split_half_tag;
     let rim = |s: crate::names::RimSupport| match s {
         crate::names::RimSupport::Host => 1u64,
         crate::names::RimSupport::Mate => 2,
