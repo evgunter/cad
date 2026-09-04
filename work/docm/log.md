@@ -127,3 +127,11 @@ and every later brief names a private scratch directory. Filed at
 adjudication: `n-ary-union-has-no-declaration-channel` (Ev's ruling).
 Spec `docs/DOCM-3-SPEC.md` deleted at merge (DOC-LEDGER). Both node-kind
 units (`DOCM-1`, `DOCM-2`) are now unblocked.
+
+## revolve-pole-export-interior-on-axis-vertex MERGED (2026-09-04, PR 1839)
+
+Mechanical unit (opus, no review lane, no row; merged on green CI plus
+the orchestrator's read of the diff). The rule as filed held on the
+first run of both rows. One note for the WORK-TRACKS doc, which still
+lists the question as open; that doc is a dated proposal and is not
+edited.
