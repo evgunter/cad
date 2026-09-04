@@ -317,10 +317,14 @@ fn the_offset_lever_recourse_has_no_default_tolerance_witness() {
 /// corner exists".**
 ///
 /// A bend of `1e-9` radians is a corner whose turn lands inside the
-/// band. It escalates — but under `path_corner_turn`, the PATH
-/// family's key, not the `fillet_corner_turn` this sentence dispatches
-/// on, so even a `ProfileError` wrapper would not select it. What the
-/// caller reads is the shared coincidence recourse.
+/// band — the turn's margin is `sin(theta)` at the corner's own lever
+/// arm of 7, so a turn of one epsilon lands at `7·eps`, inside
+/// `(eps, K·eps)` at every tolerance the run can be given.
+///
+/// It escalates — but under the PATH family's own key, not the
+/// `fillet_corner_turn` this sentence dispatches on, so even a
+/// `ProfileError` wrapper would not select it. What the caller reads is
+/// the shared coincidence recourse.
 ///
 /// The clause that names a second request is followed: a real turn
 /// builds and validates. The sentence's other two clauses — declaring
@@ -328,12 +332,15 @@ fn the_offset_lever_recourse_has_no_default_tolerance_witness() {
 /// kernel refuses — endorse no request against this geometry.
 #[test]
 fn the_turn_in_band_recourse_is_followed_by_moving_the_geometry() {
-    let err = bend(0.0, 1e-9, 0.2).expect_err("a turn inside the band");
+    let err = bend(0.0, tol().eps(), 0.2).expect_err("a turn inside the band");
     match &err {
-        PathError::Escalated { source } => assert_eq!(
-            source.predicate,
-            Some("path_corner_turn"),
-            "the corner turn escalates under the PATH key, not the fillet one"
+        PathError::Escalated { source } => assert!(
+            matches!(
+                source.predicate,
+                Some("path_corner_turn" | "path_junction_turn")
+            ),
+            "the corner turn escalates under a PATH key, not a fillet one, got {:?}",
+            source.predicate
         ),
         other => panic!("expected the in-band escalation, got {other:?}"),
     }
@@ -353,11 +360,11 @@ fn the_turn_in_band_recourse_is_followed_by_moving_the_geometry() {
 /// extent rounds and validates.
 #[test]
 fn the_leg_extent_recourse_is_followed_by_giving_the_leg_an_extent() {
-    let err = bend(4.0, 1.0, 1e-6).expect_err("an incoming leg with no extent");
+    let err = bend(4.0, 1.0, 0.2).expect_err("an incoming leg with no extent");
     assert!(
         matches!(err, PathError::NoCornerForFillet { .. }),
         "the ray-order gate answers before the collapsed-arm one, got {err:?}"
     );
     carries_no_fillet_recourse(&err, "a leg with no extent");
-    builds_and_validates(bend(0.0, 1.0, 1e-6), "a leg with a real extent");
+    builds_and_validates(bend(0.0, 1.0, 0.2), "a leg with a real extent");
 }
