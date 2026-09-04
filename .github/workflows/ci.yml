@@ -1240,6 +1240,10 @@ jobs:
         run: |
           scripts/gates/test-features-dev-only.sh --selftest
           scripts/gates/test-features-dev-only.sh
+      - name: viewer module kinds (vocabulary/driver boundary)
+        run: |
+          scripts/gates/viewer-module-kinds.sh --selftest
+          scripts/gates/viewer-module-kinds.sh
 
       # RENDER PROVENANCE (#221 follow-up). Every committed per-scene
       # PNG under demos/renders{,-freecad}/ must carry FreeCAD's

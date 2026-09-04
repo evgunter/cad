@@ -60,6 +60,9 @@
 //! linear, so the comment calling the badge red "the same red" the
 //! viewport uses was comparing two numbers that did not live in the
 //! same space. Now they do.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! toolkit type (`crates/viewer/README.md`, Module boundaries).
 
 use editor_core::appearance::Rgba8;
 

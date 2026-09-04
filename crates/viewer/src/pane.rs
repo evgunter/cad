@@ -7,6 +7,9 @@
 //! [`crate::session::SessionOp`]s into a queue the application drains
 //! after the layout has been walked (`crate::app`'s header states the
 //! rule).
+//!
+//! Module kind: **driver** — it may name the toolkit and the session's
+//! own types (`crates/viewer/README.md`, Module boundaries).
 
 pub mod create;
 pub mod features;

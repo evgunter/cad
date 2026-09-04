@@ -1,5 +1,8 @@
 //! The viewport pane: the wgpu surface, the pointer, and the overlays
 //! drawn over both.
+//!
+//! Module kind: **driver** — it may name the toolkit and the session's
+//! own types (`crates/viewer/README.md`, Module boundaries).
 
 use std::sync::Arc;
 use std::sync::atomic::Ordering;

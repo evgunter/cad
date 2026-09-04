@@ -89,6 +89,9 @@
 //! session drives it against the landed evaluation as the memo, so each
 //! sample re-runs the edited node's downstream cone rather than the
 //! whole recipe.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! toolkit type (`crates/viewer/README.md`, Module boundaries).
 
 use std::collections::BTreeSet;
 

@@ -4,6 +4,9 @@
 //! A VOCABULARY. The affordance is composed from a document and a node
 //! id; nothing here names the session, and the sentences are testable
 //! without a window.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! toolkit type (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{Doc, ProfileProgram, RecipeNodeId, cascade_delete_order};
 

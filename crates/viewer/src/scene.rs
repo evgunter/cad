@@ -22,6 +22,9 @@
 //! smoothed normal would blur the tessellation's real chordal error
 //! into something prettier than the model, and the facets are exactly
 //! what a δ reading should let you see.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! toolkit type (`crates/viewer/README.md`, Module boundaries).
 
 use std::collections::BTreeSet;
 

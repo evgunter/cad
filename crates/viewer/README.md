@@ -222,7 +222,7 @@ are never overridden here.
 | Feature tree, property panel, open/save, evaluation seam, scene | `src/tree.rs`, `src/props.rs`, `src/docio.rs`, `src/evalseam.rs`, `src/scene.rs` |
 | Colour, themes, preferences | `src/theme.rs`, `src/prefs.rs`, `tests/theme.rs` |
 | GQ7 picking | `src/pick.rs` (`EDGE_PICK_RADIUS_PX`, `PickKinds`), `crates/bvh` (`Bvh::ray`) |
-| GQ6 toolkit, viewport, docking | `src/app.rs` (the frame loop and `ViewerApp`) with `src/pane/*` (the pane bodies) and `src/widgets.rs`, `src/gpu.rs`, `src/frame.rs` behind the `app` feature; `Cargo.toml`. The authoring vocabularies the panels offer are `src/forms.rs` and `src/drafts.rs`, which name no toolkit type |
+| GQ6 toolkit, viewport, docking | `src/app.rs` (the frame loop and `ViewerApp`) with `src/pane/*` (the pane bodies), `src/widgets.rs` and `src/gpu.rs`, all behind the `app` feature; `Cargo.toml`. `src/frame.rs` is a vocabulary and is built unconditionally. The authoring vocabularies the panels offer are `src/forms.rs` and `src/drafts.rs`, which name no toolkit type and are behind the feature only because the panels are |
 
 ## Module boundaries
 
@@ -249,6 +249,31 @@ the property that makes it survive contact with the next unit. It is
 also what was already true of the good modules here (`camera`,
 `frame`, `input`, `display`) and false of the two that grew: both
 files are one driver plus a pile of vocabulary that never left.
+
+**`scripts/gates/viewer-module-kinds.sh` is the machine that reads
+it**, on both halves of CI. Each module declares its own kind, once,
+in its own doc header —
+
+```rust
+//! Module kind: **vocabulary** — …
+//! Module kind: **driver** — …
+```
+
+— because the subject of the rule is a module's `use` block and the
+declaration belongs beside it: an author changing a module's role
+meets the contradiction in the file they are editing, and a new module
+cannot land without answering the question. The gate refuses a module
+that declares neither or both, refuses a `driver` declaration outside
+the roster below (a module cannot promote itself out of the rule), and
+reads every vocabulary's code — not only its `use` lines, since a
+fully-qualified name evades an import check — for `DocSession`,
+`ViewerApp`, a toolkit crate, or a `crate::{app,pane,widgets,gpu}`
+path. It then cross-checks the two vocabulary tables below against
+what the modules they name declare, which is the one direction a
+per-module declaration can drift. What it does not decide is a
+module's ROLE: it reads what a module NAMES, so a module that owns
+state and dispatches while importing nothing forbidden still passes as
+a vocabulary. The gate's own header states the rest of its blind spots.
 
 ### The session's vocabularies
 
@@ -281,8 +306,11 @@ state.
 `perform_batch`, `sync_scene`, `apply_status`, `Pane`,
 `initial_layout` and the entry points; `pane::{viewport, features,
 properties, create, view}` hold the `*_ui` functions that draw each
-pane, one module per pane; and `widgets` holds the free helpers over
-`egui::Ui` that those panes share.
+pane, one module per pane; `widgets` holds the free helpers over
+`egui::Ui` that those panes share; and `gpu` holds the wgpu viewport
+renderer, which names `eframe::wgpu` and could not be a vocabulary
+under any reading. Those, with `session`, are the whole driver roster
+`viewer-module-kinds.sh` enforces.
 
 **Splitting a driver across modules does not make the pieces
 vocabularies.** The test is a module's ROLE, not its size or its file:
@@ -299,6 +327,23 @@ Three items move out of `app` to modules that already own their
 subject rather than to new ones: `datum_view` to `datums`, and
 `tip_mark` with `heading` to `sketch` — all three are geometry over
 values the receiving module already defines, and none names `egui`.
+
+### Two vocabularies that read the session
+
+`pick` and `parts` each take a `&DocSession` as a read-only argument —
+`PickIndex::sync`, `PartChooser::opened` and `PartChooser::rescan` —
+so the rule as stated above is **already false of the tree at two
+sites**, which is what the first pass of `viewer-module-kinds.sh` found.
+They are named in that gate as its only exceptions, and a third site
+reds. The exception is bounded in the direction that matters: each
+entry must still name a driver type, so fixing a site and leaving the
+entry behind fails too.
+
+Whether the fix is to hoist what those two read behind a value the
+session hands out, or to widen the rule for a read-only borrow, is not
+settled here; the tracker carries it. What is settled is that the two
+are recorded rather than silent, and that they cannot grow to three
+without a decision.
 
 ### `Refusal`'s delegation discipline
 
@@ -576,7 +621,8 @@ gate. The measured figures, and why they carry no guard, are stated at
 that step in `.github/workflows/ci.yml` and only there. What the
 default-feature lane is therefore NOT checking is printed there by
 name, by the `app_lane_skipped_*` rows in `src/lib.rs`,
-`tests/chrome_labels.rs` and `tests/error_display.rs`.
+`tests/chrome_labels.rs`, `tests/error_display.rs` and
+`tests/panel_display.rs`.
 
 **wasm.** The whole kernel plus `editor-core` compiles to
 `wasm32-unknown-unknown`, `--features interval` included, and CI

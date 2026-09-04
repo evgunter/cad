@@ -57,6 +57,9 @@
 //! edits old; the session that owns the seam compares generations and
 //! drops it. That rule is a pure function of two integers, which is
 //! why it is testable without a thread in sight.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! toolkit type (`crates/viewer/README.md`, Module boundaries).
 
 use std::sync::Arc;
 

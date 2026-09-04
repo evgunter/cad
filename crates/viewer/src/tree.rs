@@ -55,6 +55,9 @@
 //! So a chain of twenty booleans cutting features out of one solid
 //! draws as one column with its tools one level in, rather than a
 //! staircase twenty levels wide.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! toolkit type (`crates/viewer/README.md`, Module boundaries).
 
 use std::collections::BTreeMap;
 

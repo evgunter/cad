@@ -60,6 +60,9 @@
 //! note governs document state only, and no layer-3 history exists in
 //! v1. Undo/redo therefore never change what is hidden or probed;
 //! they can only DISCARD a probe by making its instance constrained.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! toolkit type (`crates/viewer/README.md`, Module boundaries).
 
 use std::collections::{BTreeMap, BTreeSet};
 

@@ -1,5 +1,8 @@
 //! The creation forms: the modal tools and the add-a-node panels the
 //! Properties pane hosts above the selection.
+//!
+//! Module kind: **driver** — it may name the toolkit and the session's
+//! own types (`crates/viewer/README.md`, Module boundaries).
 
 use eframe::egui;
 use pncad::document::{AxisSense, BooleanOp, DimensionError, DocumentId, MatePrimitive};

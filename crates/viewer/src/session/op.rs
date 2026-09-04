@@ -9,6 +9,9 @@
 //! [`SessionOp::permitted_during_value_gesture`] is the mid-gesture
 //! policy as data — one exhaustive match rather than a rule inferred
 //! from every dispatch target.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! toolkit type (`crates/viewer/README.md`, Module boundaries).
 
 use std::path::PathBuf;
 

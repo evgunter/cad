@@ -27,6 +27,9 @@
 //! file merely CHANGED succeeds — against the new content, which is
 //! the version the author is looking at and the one A4 says a fresh
 //! reference should carry.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! toolkit type (`crates/viewer/README.md`, Module boundaries).
 
 use std::path::{Path, PathBuf};
 

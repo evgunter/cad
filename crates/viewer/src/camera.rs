@@ -31,6 +31,9 @@
 //! zero-scale dolly). Those are **refused typed** by [`apply`], never
 //! clamped and never silently dropped: a caller folding user input
 //! gets a [`CameraOpError`] it can show, and the camera it already had.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! toolkit type (`crates/viewer/README.md`, Module boundaries).
 
 use bvh::{Aabb, Axis};
 use pncad::geom_core::{Point3, Vec3};

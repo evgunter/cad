@@ -20,6 +20,9 @@
 //! current path of the undo tree. Saving straight back therefore
 //! writes the same snapshot and the same log — persistence is
 //! untouched by the tree, which is exactly the plan's undo note.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! toolkit type (`crates/viewer/README.md`, Module boundaries).
 
 use std::path::{Path, PathBuf};
 

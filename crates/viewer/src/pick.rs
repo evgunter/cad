@@ -45,6 +45,9 @@
 //! whether the index still describes the run on screen, and a stale
 //! one is dropped and rebuilt whole. Re-pairing by hand is the
 //! failure #1098 exists to name.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! toolkit type (`crates/viewer/README.md`, Module boundaries).
 
 use std::collections::BTreeMap;
 

@@ -15,6 +15,9 @@
 //! Each is a pure function or a small value with typed steps here. The
 //! frame loop still decides WHEN to call them; it no longer decides what
 //! they mean.
+//!
+//! Module kind: **vocabulary** — it names no driver type and no
+//! toolkit type (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{ParamName, ParseError, RecipeNodeId, SlotId};
 use pncad::prelude::StableName;
