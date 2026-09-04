@@ -318,6 +318,16 @@ REF (`git push origin <sha>:refs/heads/<branch>`), or make the commit
 inside the lane's worktree while it is dead; never on the shared local
 ref. The lane then merges origin (merge-only) before its next push.
 
+**Where subagents share the orchestrator's checkout** (no per-lane
+worktree — the remote-session default), that hazard runs BOTH ways: a
+lane branching from the shared HEAD picks up the orchestrator's
+in-flight commits, and an orchestrator checkout or merge on the shared
+ref leaves the lane's own commit on no branch. Symptom: the lane
+reports a pushed sha the remote ref does not have, and any guard it
+ran (`work.py territory`, a test sweep) silently saw a tree without its
+work and reported a pass. The commit object survives — recover it with
+a merge, never a force-push, and confirm the remote ref actually moved.
+
 **The session scratchpad is SHARED between concurrently running agents
 of one session.** PR/issue bodies, logs and run artifacts go to
 LANE-PRIVATE paths (`~/.local/share/cad-work/<lane>-*.md`,

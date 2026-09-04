@@ -1207,7 +1207,8 @@ pub enum SessionOp {
     /// Everything session-scoped is cleared: path, history, selection,
     /// hover, display state and the resolver (a fresh document has no
     /// backing file, so its instantiate nodes refuse with the shipped
-    /// no-resolver semantics until it is saved). Refused mid-gesture;
+    /// no-resolver semantics until it is saved). Refused mid-gesture
+    /// by the table ([`SessionOp::permitted_during_value_gesture`]);
     /// a blank name refuses [`Refusal::EmptyName`].
     ///
     /// The name is TRIMMED before the id is derived, so `" ring "` and
@@ -1462,6 +1463,95 @@ pub enum SessionOp {
         /// Which document in the open document's own directory.
         id: DocumentId,
     },
+}
+
+impl SessionOp {
+    /// Whether this operation is permitted while a **value gesture**
+    /// is in flight — a slot or document-parameter drag opened by
+    /// [`SessionOp::BeginGesture`] or [`SessionOp::BeginParamGesture`],
+    /// the only thing [`Refusal::GestureInFlight`] ever speaks about.
+    ///
+    /// **It is not a statement about the free-move gesture.** That is
+    /// a second, independent drag living on the display state
+    /// ([`DisplayState::begin_free_move`]), with its own in-flight
+    /// refusal. Nothing observed so far enforces either an exclusion
+    /// or an independence between the two: they can be open at once
+    /// and neither answer implies the other, and whether that is
+    /// intended is open — see
+    /// `work/view/two-gestures-can-be-in-flight-together.md`. An
+    /// operation this returns `true` for is permitted
+    /// mid-value-gesture and nothing more.
+    ///
+    /// The whole policy is here, exhaustively, so that the set of
+    /// operations a drag refuses can be READ rather than reconstructed
+    /// from the dispatch, and so that a new operation cannot join the
+    /// enum without an answer: [`DocSession::perform`] consults this
+    /// once, before dispatch, and no arm re-guards against the VALUE
+    /// gesture. Four arms do guard against the OTHER one: the
+    /// `*FreeMove` quartet delegates to [`DisplayState`], which refuses
+    /// [`DisplayFault::FreeMoveInFlight`] off its own state.
+    ///
+    /// Three shapes of `true` sit in the table:
+    ///
+    /// - the ops that DRIVE the gesture ([`SessionOp::PreviewGesture`],
+    ///   [`SessionOp::CommitGesture`], [`SessionOp::CancelGesture`]),
+    ///   which a guard would deadlock;
+    /// - layer-3 moves that touch neither the document nor the history
+    ///   ([`SessionOp::Select`], [`SessionOp::Hover`], the free-move
+    ///   family, [`SessionOp::SetInstanceHidden`]) and the evaluation
+    ///   controls ([`SessionOp::CancelEvaluation`],
+    ///   [`SessionOp::Reevaluate`]);
+    /// - [`SessionOp::Save`], which writes the COMMITTED history and
+    ///   so ignores a preview that is not in it. Whether a save under
+    ///   an open drag should be permitted at all is a question this
+    ///   table only records the current answer to.
+    ///
+    /// Everything else moves the document, the history or the file the
+    /// drag is previewing against, and is refused.
+    #[must_use]
+    pub fn permitted_during_value_gesture(&self) -> bool {
+        match self {
+            Self::Select(_)
+            | Self::Hover(_)
+            | Self::PreviewGesture { .. }
+            | Self::CommitGesture
+            | Self::CancelGesture
+            | Self::CancelEvaluation
+            | Self::Reevaluate
+            | Self::Save(_)
+            | Self::SetInstanceHidden { .. }
+            | Self::BeginFreeMove { .. }
+            | Self::PreviewFreeMove { .. }
+            | Self::CommitFreeMove
+            | Self::CancelFreeMove => true,
+            Self::DeleteNode { .. }
+            | Self::SetSlot { .. }
+            | Self::ProbeBounds { .. }
+            | Self::SetSlotUnit { .. }
+            | Self::SetSlotExpression { .. }
+            | Self::SetParam { .. }
+            | Self::CreateParam { .. }
+            | Self::BeginGesture { .. }
+            | Self::BeginParamGesture { .. }
+            | Self::Undo
+            | Self::Redo
+            | Self::Open(_)
+            | Self::NewDocument { .. }
+            | Self::AddMate { .. }
+            | Self::AddDatum { .. }
+            | Self::AddProfile { .. }
+            | Self::AddExtrude { .. }
+            | Self::AddRevolve { .. }
+            | Self::AddBoolean { .. }
+            | Self::AddSplit { .. }
+            | Self::AddTransform { .. }
+            | Self::AddPattern { .. }
+            | Self::AddPlacedUnion { .. }
+            | Self::AddFillet { .. }
+            | Self::AddChamfer { .. }
+            | Self::AddInstance { .. } => false,
+        }
+    }
 }
 
 /// What an operation did.
@@ -1799,8 +1889,10 @@ impl DocSession {
     /// and the number of features that vanish are one list read twice.
     ///
     /// Read off the COMMITTED document, which is the one the edits
-    /// apply to; the delete op refuses outright while a gesture holds
-    /// a scratch value, so the two never disagree at a live button.
+    /// apply to; the delete op is one of the table's refusals
+    /// ([`SessionOp::permitted_during_value_gesture`]) while a gesture
+    /// holds a scratch value, so the two never disagree at a live
+    /// button.
     pub fn delete_affordance(&self, node: RecipeNodeId) -> DeleteAffordance {
         DeleteAffordance::of(self.committed_doc(), node)
     }
@@ -2086,7 +2178,19 @@ impl DocSession {
     }
 
     /// Perform one operation.
+    ///
+    /// The mid-gesture policy is applied ONCE, here, off
+    /// [`SessionOp::permitted_during_value_gesture`] — no arm below
+    /// carries a guard against the VALUE gesture of its own, so the set
+    /// of operations a slot or parameter drag refuses is the table and
+    /// only the table. The free-move arms do carry a guard, against
+    /// their own gesture: they delegate to [`DisplayState`], which
+    /// refuses [`DisplayFault::FreeMoveInFlight`] off the free-move
+    /// state this check never reads.
     pub fn perform(&mut self, op: SessionOp) -> OpOutcome {
+        if self.gesture.is_some() && !op.permitted_during_value_gesture() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
         match op {
             SessionOp::Select(selection) => {
                 self.selection = selection;
@@ -2096,12 +2200,7 @@ impl DocSession {
                 self.hover = hover;
                 OpOutcome::default()
             }
-            SessionOp::DeleteNode { node } => {
-                if self.gesture.is_some() {
-                    return OpOutcome::refused(Refusal::GestureInFlight);
-                }
-                self.delete_node(node)
-            }
+            SessionOp::DeleteNode { node } => self.delete_node(node),
             SessionOp::SetSlot { node, slot, value } => self.set_slot(node, slot, value),
             SessionOp::ProbeBounds { target } => self.probe_bounds(target),
             SessionOp::SetSlotUnit { node, slot, unit } => self.set_slot_unit(node, slot, unit),
@@ -2173,19 +2272,14 @@ impl DocSession {
                 b,
                 class,
                 alignment,
-            } => {
-                if self.gesture.is_some() {
-                    return OpOutcome::refused(Refusal::GestureInFlight);
-                }
-                self.commit(DocEdit::InsertNode {
-                    node: Node::Mate {
-                        a,
-                        b,
-                        class,
-                        alignment,
-                    },
-                })
-            }
+            } => self.commit(DocEdit::InsertNode {
+                node: Node::Mate {
+                    a,
+                    b,
+                    class,
+                    alignment,
+                },
+            }),
             SessionOp::NewDocument { name } => self.new_document(&name),
             SessionOp::AddDatum { datum } => self.add_datum(datum),
             SessionOp::AddProfile { plane, loops } => self.add_profile(plane, loops),
@@ -2219,12 +2313,7 @@ impl DocSession {
                 distance,
                 selection,
             } => self.add_blend(target, distance, selection, BlendKindChoice::Chamfer),
-            SessionOp::AddInstance { id } => {
-                if self.gesture.is_some() {
-                    return OpOutcome::refused(Refusal::GestureInFlight);
-                }
-                self.add_instance(id)
-            }
+            SessionOp::AddInstance { id } => self.add_instance(id),
         }
     }
 
@@ -2315,9 +2404,6 @@ impl DocSession {
     }
 
     fn set_slot(&mut self, node: RecipeNodeId, slot: SlotId, value: SlotValue) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         if let Err(refusal) = self.guard_driven(node, slot) {
             return OpOutcome::refused(refusal);
         }
@@ -2342,9 +2428,6 @@ impl DocSession {
     /// it re-runs the edited node's downstream cone rather than the
     /// whole recipe.
     fn probe_bounds(&mut self, target: BoundsTarget) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         // A driven slot is not a field the user can put a number into,
         // so a range of numbers for it is not an answer to any question
         // they can act on: the probe refuses it with the same
@@ -2433,8 +2516,10 @@ impl DocSession {
     /// not a method that reads the session again: the two arms below
     /// once read two different documents (the shown one and the
     /// committed one), which agreed only because a probe refuses while
-    /// a gesture is in flight. Taking the document as an argument makes
-    /// that agreement structural instead of circumstantial.
+    /// a gesture is in flight
+    /// ([`SessionOp::permitted_during_value_gesture`]). Taking the
+    /// document as an argument makes that agreement structural instead
+    /// of circumstantial.
     fn probe_scale(
         doc: &Doc<ProfileProgram>,
         target: &BoundsTarget,
@@ -2532,9 +2617,6 @@ impl DocSession {
     /// narrower `SlotUnitFault::NotALiteral` the panel model raises —
     /// an expression has no authored notation to change.
     fn set_slot_unit(&mut self, node: RecipeNodeId, slot: SlotId, unit: UnitDef) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         match props::slot_unit_edit(self.committed_doc(), node, slot, unit) {
             Ok(edit) => self.commit(edit),
             Err(fault) => OpOutcome::refused(Refusal::SlotUnit(fault)),
@@ -2542,9 +2624,6 @@ impl DocSession {
     }
 
     fn set_slot_expression(&mut self, node: RecipeNodeId, slot: SlotId, text: &str) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         // `parse_expr` needs the document's declared dimensions so a
         // parameter reference records the dimension `apply` will
         // re-check it against.
@@ -2570,9 +2649,6 @@ impl DocSession {
     }
 
     fn set_param(&mut self, name: &ParamName, value: SlotValue) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         if !self.committed_doc().params().contains_key(name) {
             return OpOutcome::refused(Refusal::NoSuchParam(name.clone()));
         }
@@ -2583,9 +2659,6 @@ impl DocSession {
     /// the edit for a new one. See [`SessionOp::CreateParam`] for why
     /// this door narrows the edit's create-or-replace semantics.
     fn create_param(&mut self, name: ParamName, value: DocParam) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         if let Some(existing) = self.committed_doc().params().get(&name) {
             return OpOutcome::refused(Refusal::ParamExists {
                 dimension: existing.dim(),
@@ -2596,9 +2669,6 @@ impl DocSession {
     }
 
     fn begin_gesture(&mut self, node: RecipeNodeId, slot: SlotId) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         if let Err(refusal) = self.guard_driven(node, slot) {
             return OpOutcome::refused(refusal);
         }
@@ -2607,9 +2677,6 @@ impl DocSession {
     }
 
     fn begin_param_gesture(&mut self, name: &ParamName) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         let Some(dimension) = self.committed_doc().params().get(name).map(|p| p.dim()) else {
             return OpOutcome::refused(Refusal::NoSuchParam(name.clone()));
         };
@@ -2681,9 +2748,6 @@ impl DocSession {
 
     /// Undo (`toward_root`) or redo.
     fn step(&mut self, toward_root: bool) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         let moved = if toward_root {
             self.history.undo()
         } else {
@@ -2705,14 +2769,13 @@ impl DocSession {
         }
     }
 
-    /// Refused mid-gesture, the same policy as [`SessionOp::NewDocument`]:
-    /// both replace the document a drag is previewing against, and a
-    /// gesture silently dissolved under the pointer is the kind of
-    /// half-acted state the gesture guard exists to refuse.
+    /// Refused mid-gesture — the table's answer
+    /// ([`SessionOp::permitted_during_value_gesture`]), shared with
+    /// [`SessionOp::NewDocument`]: both replace the document a drag is
+    /// previewing against, and a gesture silently dissolved under the
+    /// pointer is the kind of half-acted state that refusal exists to
+    /// prevent.
     fn open(&mut self, path: &Path) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         match docio::open(path, self.tol) {
             Ok(history) => {
                 // The directory rule: the resolver is the opened
@@ -2775,9 +2838,6 @@ impl DocSession {
     /// resolver, because nothing backs this document until it is
     /// saved.
     fn new_document(&mut self, name: &str) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         let name = name.trim();
         if name.is_empty() {
             return OpOutcome::refused(Refusal::EmptyName);
@@ -2802,9 +2862,6 @@ impl DocSession {
     /// Insert one datum node with literal slots
     /// ([`SessionOp::AddDatum`]).
     fn add_datum(&mut self, datum: DatumSpec) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         self.commit(DocEdit::InsertNode {
             node: datum_node(datum),
         })
@@ -2818,9 +2875,6 @@ impl DocSession {
     /// profile layer's own words — the one rule authored and
     /// hand-written programs share.
     fn add_profile(&mut self, plane: RecipeNodeId, loops: Vec<LoopProgram>) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         // The plane is a PICK now, so it is gated where every other
         // pick is: at this door, by kind, before the edit. Without
         // this the reference would reach evaluation and refuse there
@@ -2837,9 +2891,6 @@ impl DocSession {
     /// Insert one extrude of an existing profile
     /// ([`SessionOp::AddExtrude`]).
     fn add_extrude(&mut self, profile: RecipeNodeId, distance: Expr) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
@@ -2851,9 +2902,6 @@ impl DocSession {
     /// Insert one revolve of an existing profile about an existing
     /// axis datum ([`SessionOp::AddRevolve`]).
     fn add_revolve(&mut self, profile: RecipeNodeId, axis: RecipeNodeId, angle: Expr) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         if let Err(refusal) = self.require_kind(profile, NodeKindWanted::Profile) {
             return OpOutcome::refused(refusal);
         }
@@ -2872,9 +2920,6 @@ impl DocSession {
     /// Insert one regularized boolean of two existing bodies
     /// ([`SessionOp::AddBoolean`]).
     fn add_boolean(&mut self, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         for seat in [a, b] {
             if let Err(refusal) = self.require_kind(seat, NodeKindWanted::Body) {
                 return OpOutcome::refused(refusal);
@@ -2899,9 +2944,6 @@ impl DocSession {
     /// Insert one split of an existing body by an existing datum plane
     /// ([`SessionOp::AddSplit`]).
     fn add_split(&mut self, target: RecipeNodeId, tool: RecipeNodeId) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         if let Err(refusal) = self.require_kind(target, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
@@ -2922,9 +2964,6 @@ impl DocSession {
         rotation_axis: [Expr; 3],
         rotation_angle: Expr,
     ) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
@@ -2937,7 +2976,7 @@ impl DocSession {
     /// ([`SessionOp::AddPattern`], [`SessionOp::AddPlacedUnion`]).
     ///
     /// **One function for the two ops**, for `add_blend`'s reason: the
-    /// gesture guard, the prototype seat, the axis seat a circular
+    /// prototype seat, the axis seat a circular
     /// rule adds and the commit are the same move for both, and the
     /// only difference — which node is minted — is one match below
     /// where a reader can see the pair side by side.
@@ -2948,9 +2987,6 @@ impl DocSession {
         rule: PatternRuleSpec,
         output: PatternOutputChoice,
     ) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
@@ -2971,8 +3007,8 @@ impl DocSession {
     /// [`SessionOp::AddChamfer`]).
     ///
     /// **One function for the two ops**, because everything a door
-    /// does is the same for both: the same gesture guard, the same
-    /// body seat, the same Length literal, the same commit. What
+    /// does is the same for both: the same body seat, the same Length
+    /// literal, the same commit. What
     /// differs is which node is minted and which slot the size lands
     /// in, and that difference is `kind`'s alone — spelled once in the
     /// match below, where a reader can see the two side by side
@@ -2985,9 +3021,6 @@ impl DocSession {
         selection: Vec<StableName>,
         kind: BlendKindChoice,
     ) -> OpOutcome {
-        if self.gesture.is_some() {
-            return OpOutcome::refused(Refusal::GestureInFlight);
-        }
         if let Err(refusal) = self.require_kind(target, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }

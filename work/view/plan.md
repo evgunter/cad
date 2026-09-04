@@ -35,9 +35,10 @@ concurrency unit.
    which — is stated in `crates/viewer/README.md` under *Module
    boundaries*, and ratified in an `[ev]` PR before anything is cut.
    Then, in this order, because each step shrinks the next:
-   **1b** gesture safety as data (`SessionOp::gesture_safe`, one
-   exhaustive match checked once in `perform`, the 23 guards deleted,
-   no operation's current answer changed);
+   **1b** gesture safety as data
+   (`SessionOp::permitted_during_value_gesture`, one exhaustive match
+   checked once in `perform`, the 23 guards deleted, no operation's
+   current answer changed);
    **1c** the mechanical move, `session` into six vocabularies and
    `app` into its panes, vocabularies and widgets, with `pub use`
    shims so no test changes;

@@ -531,3 +531,153 @@ should have prompted re-deriving the rule rather than fencing them off,
 and the fence is what let an unchecked framing reach a design doc. The
 rule that replaced it classifies all nineteen arms and names a defect
 the exception list was hiding.
+
+## Unit 1 ratified and merging; 1b dispatched (2026-09-04)
+
+Ev signed off on the boundary rule and the sequencing on #1801, the
+`Refusal` question is answered above, CI green on the head carrying the
+correction. `needs_ev` cleared; the item goes `dispatched` on 1b's
+branch.
+
+**1b is out**, `view/1b-gesture-as-data`, style review to follow per
+this program's posture. Its brief carries the three constraints the
+evidence forced — change no operation's current answer (including
+`Save`'s), do not let one predicate read as a guarantee over two
+unrelated gestures, and derive the guarded/unguarded split from the
+tree rather than from the dispatch. That last one is deliberate: the
+list in the brief is the orchestrator's reading, and
+`docs/prompts/reviewer-style-lane.md` is explicit that a dispatch is a
+hypothesis. A lane correcting it is the lane working.
+
+**On Ev's "have subagents split up the monster files".** Yes, and the
+bound worth being concrete about is that **parallelism here is per
+FILE, not per module**: six lanes each extracting one module from
+`session.rs` would spend their time resolving merge conflicts on one
+file. So 1c is two lanes — one for `session.rs`, one for `app.rs`,
+which are independent — each doing its whole file's extraction, after
+1b lands and shrinks the session lane's job by 23 guards.
+
+## 1b landed on a branch that had lost it, and a guard reported a pass it never ran (2026-09-04)
+
+The unit itself is good and is PR #1816: 23 guards replaced by one
+exhaustive `SessionOp::permitted_during_value_gesture` checked once in
+`perform`, 26 refused and 13 permitted, no behaviour change. **The
+lane corrected the dispatch twice** — `AddPlacedUnion` was missing from
+the guarded list (eleven creation doors, not ten: counting guard LINES
+undercounts OPS by two, since `AddPattern`/`AddPlacedUnion` share
+`add_pattern` and `AddFillet`/`AddChamfer` share `add_blend`), and
+`PreviewGesture`/`CommitGesture`/`CancelGesture` needed rows the brief
+never gave them, permitted, because guarding them would leave a drag
+with no way to end. Both corrections are the reviewer-brief's rule
+working as intended: a dispatch is a hypothesis.
+
+**Two process failures, both this orchestrator's.**
+
+**The state-sync commit was built on a stale tree.** `070be390` — the
+one clearing `needs_ev` after Ev's sign-off — has `14f1f9b4` as its
+parent, not the branch tip, so its push moved nothing and #1801 merged
+without it. Main therefore carried `needs_ev: true` on a question Ev had
+already answered, and `STATUS.md` showed VIEW waiting on Ev when it was
+not. Corrected: the clearing rides #1816, which is where state-sync
+belongs anyway.
+
+**The lane's branch pointer was left behind its own commit.** Subagents
+here share this checkout rather than getting per-lane worktrees, so the
+lane branched from the shared HEAD (picking up `070be390`), then reset
+onto merged main and committed its work as `0ad4274e` — which ended up
+on no branch at all, while the remote ref still pointed at the
+orchestrator commit. Recovered by merging `0ad4274e` back onto the
+branch, never a force-push; nothing was lost, because a commit object
+survives being unreferenced.
+
+**The part worth generalising is the second-order failure.** The lane
+reported in good faith that `work.py territory` found **0 paths in
+another program's territory**. Re-run against the recovered tree it
+names two — `crates/viewer/tests/all.rs` and `gesture_table.rs`, both
+CHROME's and TCOST's. The tool is fine. It saw a tree without the
+lane's work, and a guard run against the wrong tree reports a pass.
+That is the same shape as the existing rule about confirming a
+`Compiling <crate>` line before trusting a build, one level up, so it
+is recorded in `memories/agent-lane-operations.md` beside the
+branch-ref hazard it extends rather than filed as a defect.
+
+**The lane got the harder call right**: it could not trigger hosted CI
+(`ci.yml` runs on `pull_request`, `push: main` and `workflow_dispatch`;
+a branch push starts nothing and `workflow_dispatch` 403s for its
+token) and it SAID SO rather than offering its local runs as the gate.
+That is the discipline doc's rule followed exactly on the one occasion
+it cost the lane something.
+
+CHROME's test glob is touched by this unit (`gesture_table.rs`,
+`all.rs`); the announce is owed with #1816 rather than assumed.
+
+## The fix pass hung after editing, and what that cost (2026-09-04)
+
+The style review on #1816 returned no MAJOR and did not block the
+merge. Its sharpest findings were about claims rather than code, and
+the sharpest of those was mine.
+
+**`crates/viewer/README.md`'s *Gesture safety is data* section — landed
+on main by #1801 — described this unit in FUTURE tense, on a premise
+sentence 1b had just made false, and named `SessionOp::gesture_safe`,
+an identifier that exists nowhere in the tree.** The shipped name is
+`permitted_during_value_gesture`. So for the time between the two
+merges the project's design doc of record named a symbol that does not
+exist, and `scripts/doc-gate.sh` could not have caught it: that gate is
+rustdoc-only and never opens a README. The dead name was in four files,
+not the one the review found — the plan and two item files carried it
+too, and `plan.md` is what lanes 1c and 1d read to learn what 1b did.
+
+Also landed: the sweep of prose citing the old per-site guard was a
+half-fix (one site rewritten, three left stating the rule unlinked, one
+of them load-bearing); two doc comments claimed the permitted arms
+"carry no guard of their own" when four do, which is true only under
+the reading this unit exists to prevent; an open question was written
+up in code as settled design; and the `Refusal::rank` paragraph's
+"exhaustive, so a new arm is compiler-caught" is true over `Refusal`'s
+arms and false one level down, where `Display(_)` is a catch-all that
+ranks a new `DisplayFault` by default.
+
+**The review earned its keep by mutating rather than reasoning.** It
+flipped `Save` in the predicate alone: `the_table_answers_for_every_op`
+went red and `every_op_behaves_as_the_table_says` stayed green — which
+proves the second copy is genuine AND proves the behavioural row cannot
+catch a wrong table entry, since both sides of its assertion read the
+same predicate. The PR body and the test header both claimed more than
+that. Reversing the whole table showed 20 of the 26 refusals have an
+external witness and six do not.
+
+### The lane hung, and the shared checkout made that expensive to see
+
+The fix-pass lane finished its edits by 07:52, wrote its target
+directory until 08:00, and then did nothing for over two hours while
+still reporting as running. No `cargo`, `rustc`, `rustdoc` or `nextest`
+process existed; disk was not exhausted (9.5 G free). Its last words
+were that it was about to run a verification mutation and wanted to
+commit first so it could revert — so it hung between editing and
+verifying.
+
+Because subagents share this checkout, its work sat as six modified
+files in the orchestrator's working tree for two hours. **That is the
+same shared-checkout hazard recorded earlier today, in its third
+form**: first an orchestrator commit landing on a lane's branch, then a
+lane's commit orphaned by an orchestrator merge, now a dead lane's
+uncommitted work indistinguishable from the orchestrator's own dirty
+tree. The rule already in `memories/agent-lane-operations.md` covers
+the recovery; what this instance adds is that **a stop-hook or any
+"you have uncommitted changes" prompt is not authority to commit**,
+because the tree may belong to a live lane.
+
+Recovered by reading all six files, then verifying what the lane never
+reached: `cargo fmt --check`, `work.py lint`, the three new rows, the
+full 466-row viewer suite, `clippy -p viewer --features app
+--all-targets`, and `cargo doc` under `-D rustdoc::broken_intra_doc_links`
+— that last one because the fix pass ADDED intra-doc links
+(`DisplayState`, `DisplayFault::FreeMoveInFlight`) and an unresolved
+link is exactly what the doc gate fails on. All clean. The lane's
+target directory was warm, which is how its hang was placed after
+compilation rather than during.
+
+**Cost of the hang: nothing but time.** Hosted CI is the verification of
+record here, not a lane's local runs, so a lane dying after its edits
+loses only the local pre-check.
