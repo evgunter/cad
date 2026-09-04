@@ -238,7 +238,7 @@ pub(crate) fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
         ("ring_on_outer_vessel", vessel, 0.4),
         ("ring_on_outer_tube", tube, 0.40),
     ] {
-        let mut sealed = topo::shell(&body, t, 1e-6, tol).expect("sealed shell");
+        let mut sealed = topo::shell(&body, t, 1e-6, tol).expect("sealed shell").body;
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
         let plane_of =

@@ -48,7 +48,7 @@ use pncad::workspace::WorkspaceError;
 
 use crate::blend::BlendKindChoice;
 use crate::bounds;
-use crate::combine;
+use crate::combine::{self, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, DocIoError};
 use crate::evalseam::{EvalRequest, EvalService, Generation, InlineEvaluator};
@@ -1352,6 +1352,41 @@ pub enum SessionOp {
         /// picked with.
         rule: PatternRuleSpec,
     },
+    /// Insert one FUSED pattern of an existing body — the pattern
+    /// tool's other committed edit, and the door a boolean's refusal
+    /// of a pattern points at.
+    ///
+    /// [`SessionOp::AddPattern`]'s twin, seat for seat and slot for
+    /// slot, because `Node::PlacedUnion` takes exactly what
+    /// `Node::Pattern` takes: a PROTOTYPE body, a count, a rule. What
+    /// differs is the result — ONE body, the union of the prototype at
+    /// every placement, which every downstream body seat consumes
+    /// where a pattern's several instances are refused.
+    ///
+    /// **The prototype, not a pattern node.** The fused node replicates
+    /// a body itself rather than consuming a `Node::Pattern`, so this
+    /// door's seat wants a BODY and refuses
+    /// [`Refusal::WrongNodeKind`] for a pattern exactly as the
+    /// unfused door does. A user who already authored the unfused
+    /// pattern re-commits over the same prototype and deletes the
+    /// pattern; there is no edit that converts one node into the
+    /// other, and inventing one here would be a second spelling of a
+    /// rule the document already has.
+    ///
+    /// **Disjointness is the node's question, not this door's.**
+    /// Placements that overlap refuse typed at evaluation on the
+    /// node's own badge, the same division of labour a non-positive
+    /// count takes: the door authors what the user asked for and the
+    /// node says whether it can be built.
+    AddPlacedUnion {
+        /// The prototype placed at every placement.
+        input: RecipeNodeId,
+        /// Placement count.
+        count: i64,
+        /// The placement rule, with the axis a circular rule was
+        /// picked with.
+        rule: PatternRuleSpec,
+    },
     /// Insert one constant-radius fillet on a SET of an existing
     /// body's edges — the blend tool's one committed edit, as a
     /// fillet.
@@ -2124,7 +2159,12 @@ impl DocSession {
                 rotation_axis,
                 rotation_angle,
             } => self.add_transform(input, translation, rotation_axis, rotation_angle),
-            SessionOp::AddPattern { input, count, rule } => self.add_pattern(input, count, rule),
+            SessionOp::AddPattern { input, count, rule } => {
+                self.add_pattern(input, count, rule, PatternOutputChoice::Instances)
+            }
+            SessionOp::AddPlacedUnion { input, count, rule } => {
+                self.add_pattern(input, count, rule, PatternOutputChoice::Fused)
+            }
             SessionOp::AddFillet {
                 target,
                 radius,
@@ -2822,9 +2862,21 @@ impl DocSession {
         })
     }
 
-    /// Insert one pattern of an existing body
-    /// ([`SessionOp::AddPattern`]).
-    fn add_pattern(&mut self, input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> OpOutcome {
+    /// Insert one pattern of an existing body, fused or not
+    /// ([`SessionOp::AddPattern`], [`SessionOp::AddPlacedUnion`]).
+    ///
+    /// **One function for the two ops**, for `add_blend`'s reason: the
+    /// gesture guard, the prototype seat, the axis seat a circular
+    /// rule adds and the commit are the same move for both, and the
+    /// only difference — which node is minted — is one match below
+    /// where a reader can see the pair side by side.
+    fn add_pattern(
+        &mut self,
+        input: RecipeNodeId,
+        count: i64,
+        rule: PatternRuleSpec,
+        output: PatternOutputChoice,
+    ) -> OpOutcome {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
@@ -2836,9 +2888,11 @@ impl DocSession {
         {
             return OpOutcome::refused(refusal);
         }
-        self.commit(DocEdit::InsertNode {
-            node: combine::pattern_node(input, count, rule),
-        })
+        let node = match output {
+            PatternOutputChoice::Instances => combine::pattern_node(input, count, rule),
+            PatternOutputChoice::Fused => combine::placed_union_node(input, count, rule),
+        };
+        self.commit(DocEdit::InsertNode { node })
     }
 
     /// Insert one blend — fillet or chamfer — on a set of an existing

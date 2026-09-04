@@ -143,7 +143,8 @@ fn has_corner(body: &Body<f64>, rho: f64, h: f64, what: &str) {
 /// The sealed hollow, with tier 3 and the two-shell shape first.
 fn hollowed(what: &str, body: &Body<f64>) -> Body<f64> {
     let out = topo::shell(body, T, FIT_TOL, tol())
-        .unwrap_or_else(|e| panic!("{what}: the axial door must hollow this, got {e}"));
+        .unwrap_or_else(|e| panic!("{what}: the axial door must hollow this, got {e}"))
+        .body;
     assert_eq!(
         topo::validate_geometric(&out, tol()),
         Ok(()),
@@ -371,7 +372,8 @@ fn torax_the_torus_corners_survive_a_rigid_re_pose() {
         let posed_first = transform_rigid(&body, &map, tol())
             .unwrap_or_else(|e| panic!("{what}: the operand re-poses, got {e}"));
         let hollow_after = topo::shell(&posed_first, T, FIT_TOL, tol())
-            .unwrap_or_else(|e| panic!("{what}, re-posed: {e}"));
+            .unwrap_or_else(|e| panic!("{what}, re-posed: {e}"))
+            .body;
         let want: Vec<Point3<f64>> = posed_after
             .vertices()
             .map(|(_, v)| *posed_after.get_point(v.point).expect("point"))
