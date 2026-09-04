@@ -231,10 +231,12 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
     }
 
     // Shell.
-    if let Ok(body) = topo::shell(&cube(1.0, Tol::witness()), 0.1, 1e-9, Tol::witness()) {
+    if let Ok(topo::Shelled { body, .. }) =
+        topo::shell(&cube(1.0, Tol::witness()), 0.1, 1e-9, Tol::witness())
+    {
         bodies.push(("shell cube", body));
     }
-    if let Ok(body) = topo::shell(&tube(), 0.05, 1e-9, Tol::witness()) {
+    if let Ok(topo::Shelled { body, .. }) = topo::shell(&tube(), 0.05, 1e-9, Tol::witness()) {
         bodies.push(("shell tube", body));
     }
 
