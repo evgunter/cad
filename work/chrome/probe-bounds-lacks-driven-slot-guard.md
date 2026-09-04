@@ -2,10 +2,13 @@
 id: probe-bounds-lacks-driven-slot-guard
 kind: issue
 title: ProbeBounds on an expression-driven slot lacks the DrivenByExpression guard its sibling doors have
-status: open
+status: closed
 opened: 2026-09-01
 github: 1458
 refs: [1183]
+branch: chrome/probe-bounds-lacks-driven-slot-guard
+pr: 1746
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1458
@@ -27,3 +30,20 @@ The story works around it by probing the parameter (`BoundsTarget::Param`), whic
 ## Home
 
 `work/issues/` — `SessionOp::ProbeBounds` lives in `crates/viewer/src/session.rs`, viewer ground with both GUI and GAUTH closed and no open program's territory covering it.
+
+## Fixed (CHROME, 2026-09-04)
+
+Both defects. The probe runs `guard_driven` for `BoundsTarget::Slot`
+before anything else and refuses `DrivenByExpression`, naming the
+driving parameters the way its sibling doors do
+(`crates/viewer/src/session.rs:2266`). The seed floor is gone from the
+`Param` arm: `DocParam::Continuous` carries a `display_unit` now, so a
+parameter seeds at one WRITTEN unit like a slot does, and the one
+spelling of that arithmetic lives in `Session::probe_seed`
+(`session.rs:2311`). `Count` steps by 1, having no unit to name. The
+seed-floor half for a DRIVEN slot is discharged by the guard rather
+than by arithmetic — a refused door has no seed.
+
+The comment that justified the metre seed — *"a parameter stores no
+display unit"* — was stale before this unit started; it is deleted
+rather than reworded.

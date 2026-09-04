@@ -453,6 +453,158 @@ fn typed_refusal_doors() {
     }
 }
 
+/// **A linear pattern's direction, with a length that is not a finite
+/// number, refuses at the direction door** — before the rule mints a
+/// single instance.
+///
+/// Components of 1e200 are finite VALUES, so the expression layer
+/// passes them; their norm is what overflows to +∞, and an ∞ margin
+/// reads as maximally definite, which normalizes the vector to zero.
+/// The rule then steps by a zero direction and mints coincident
+/// copies out of a decided path.
+///
+/// The refusal's own SENTENCE is pinned, not just its variant: a
+/// reader is told which vector refused, and the role word is a
+/// complete noun phrase, so the sentence names it once.
+#[test]
+fn non_finite_pattern_direction_refuses_at_the_direction_door() {
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+    let (doc, pat) = insert(
+        doc,
+        Node::Pattern {
+            input: cube,
+            count: editor_core::Expr::count(3),
+            kind: PatternKind::Linear {
+                direction: [scl(1e200), scl(0.0), scl(0.0)],
+                spacing: len(2.0),
+            },
+        },
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&pat) {
+        Some(NodeResult::Failed(e)) => {
+            assert!(
+                matches!(
+                    e.kind,
+                    NodeErrorKind::NonFiniteDirection {
+                        role: "pattern direction"
+                    }
+                ),
+                "expected the non-finite refusal, got {:?}",
+                e.kind
+            );
+            let said = e.kind.to_string();
+            assert!(
+                said.starts_with("the pattern direction has no finite length"),
+                "the refusal names the direction once and says what is wrong \
+                 with it: {said}"
+            );
+        }
+        other => panic!("expected Failed, got {other:?}"),
+    }
+}
+
+/// **A transform's rotation axis, same fact, its own door** — and its
+/// own test, because two asserts in one function only ever surface
+/// the first failure.
+///
+/// The two directions this layer owns are wired separately and one
+/// reaching the door proves nothing about the other. This document is
+/// refused downstream too — the rigidity check declines a linear part
+/// that is not an isometry — and that is exactly why the row is here:
+/// the refusal a user reads must be about the axis they wrote, not
+/// about a matrix property derived from it.
+#[test]
+fn non_finite_transform_axis_refuses_at_the_direction_door() {
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+    let (doc, moved) = insert(
+        doc,
+        Node::Transform {
+            input: cube,
+            translation: [len(0.0), len(0.0), len(0.0)],
+            rotation_axis: [scl(0.0), scl(1e200), scl(0.0)],
+            rotation_angle: ang(FRAC_PI_2),
+        },
+    );
+    let ev = run(&doc);
+    match ev.nodes.get(&moved) {
+        Some(NodeResult::Failed(e)) => {
+            assert!(
+                matches!(
+                    e.kind,
+                    NodeErrorKind::NonFiniteDirection {
+                        role: "transform rotation axis"
+                    }
+                ),
+                "expected the direction door's refusal, got {:?}",
+                e.kind
+            );
+            let said = e.kind.to_string();
+            assert!(
+                said.starts_with("the transform rotation axis has no finite length"),
+                "the refusal names the axis once: {said}"
+            );
+        }
+        other => panic!("expected Failed, got {other:?}"),
+    }
+}
+
+/// **The same document at the ENCLOSURE scalar**: the direction door
+/// does not refuse it, and nothing coincident is minted either.
+///
+/// The finiteness question is asked through the value channel with no
+/// bracket read, so an enclosure of any width passes it deliberately —
+/// an interval whose norm overflowed still CONTAINS the true length,
+/// and refusing it here would refuse a sound enclosure for being wide.
+/// What the point scalar gains from the door, the interval scalar gets
+/// from its own width: the collapsed direction is not zero but a very
+/// wide enclosure, and the instances it would place fail
+/// re-certification instead (`carrier_endpoint_start` escalates on an
+/// enclosure that cannot be classified against the band).
+///
+/// So the pinned claim is the one that matters and no more than it:
+/// **no instances are minted at this scalar either.** Where the
+/// refusal comes from is named here in prose rather than asserted,
+/// because it belongs to certification and moves when certification
+/// moves; that the document is refused at all does not.
+#[cfg(feature = "interval")]
+#[test]
+fn a_non_finite_pattern_direction_mints_nothing_at_the_interval_scalar() {
+    use editor_core::{CancelToken, EvalOptions, evaluate};
+    use geom_core::Interval;
+
+    let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());
+    let (doc, cube) = unit_cube(doc, 0.0, 0.0);
+    let (doc, pat) = insert(
+        doc,
+        Node::Pattern {
+            input: cube,
+            count: editor_core::Expr::count(3),
+            kind: PatternKind::Linear {
+                direction: [scl(1e200), scl(0.0), scl(0.0)],
+                spacing: len(2.0),
+            },
+        },
+    );
+    let ev = evaluate::<Interval>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    match ev.nodes.get(&pat) {
+        Some(NodeResult::Failed(_)) => {}
+        Some(NodeResult::Ok(v)) => panic!(
+            "the enclosure lane admitted a 1e200 pattern direction and produced {}",
+            v.payload.kind_name()
+        ),
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+}
+
 #[test]
 fn declare_passes_through_and_boolean_accepts_it() {
     let doc = ProfileDoc::empty_derived("m4_pr2_wire", Tol::witness());

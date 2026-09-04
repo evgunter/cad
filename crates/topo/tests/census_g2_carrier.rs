@@ -31,7 +31,7 @@ use topo::{
 
 fn band() -> Band {
     let tol = Tol::witness();
-    Band::new(tol.eps(), tol.k() * tol.eps()).unwrap()
+    Band::linear(tol).unwrap()
 }
 
 /// The one planar face of `body` whose outward normal points along
@@ -396,6 +396,7 @@ fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
                 ChartRegionError::TouchingBoundary => "TouchingBoundary",
                 ChartRegionError::DegenerateLoop { .. } => "DegenerateLoop",
                 ChartRegionError::RayExhausted => "RayExhausted",
+                ChartRegionError::WitnessBudgetExhausted { .. } => "WitnessBudgetExhausted",
                 ChartRegionError::Corrupt => "Corrupt",
                 ChartRegionError::Escalated(_) => unreachable!("handled above"),
             }

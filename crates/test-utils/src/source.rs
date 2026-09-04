@@ -396,6 +396,55 @@ pub fn balanced_end(blanked: &str, open: usize) -> Option<usize> {
     None
 }
 
+/// The byte offset of the `>` closing the generic list that opens at
+/// `open`, or `None` if the item's body arrives first.
+///
+/// Same precondition as [`balanced_end`]: a [`keeping`] view with
+/// literals and comments dropped, so every bracket is a real bracket.
+///
+/// **The item's body opens at the first `{` or `;` OUTSIDE every
+/// square and round bracket.** A fixed-size array in a generic
+/// argument — `<Item = [Expr; 2]>` — carries a `;` that ends no item,
+/// and reading it as a terminator closes the list early. That is the
+/// same nesting [`top_level_split`] respects for its separators, and
+/// it is here rather than at a call site for the reason stated there.
+///
+/// **`->` does not close a list.** An arrow's `>` is not an angle
+/// bracket, so a bound like `<F: Fn(u32) -> u32>` would otherwise
+/// drive the depth to zero early and answer a list that is too SHORT
+/// — an undercount, and silent, because a short list still parses.
+///
+/// **The residue, stated:** a genuine `>` comparison inside a const
+/// generic argument still closes the list early, and this answers
+/// `Some` at the wrong place rather than `None`. Angle brackets are
+/// not a bracket language; depth counting is a heuristic here in a way
+/// it is not in [`balanced_end`]. A caller that must not undercount
+/// owes its own check that the answer it got is where it expected one.
+#[must_use]
+pub fn angle_end(blanked: &str, open: usize) -> Option<usize> {
+    let (mut depth, mut brackets) = (0i32, 0i32);
+    let bytes = blanked.as_bytes();
+    for (off, c) in blanked[open..].char_indices() {
+        let at = open + off;
+        match c {
+            '<' => depth += 1,
+            // `-` immediately before is an arrow, not a closer.
+            '>' if at > 0 && bytes[at - 1] == b'-' => {}
+            '>' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(at);
+                }
+            }
+            '[' | '(' => brackets += 1,
+            ']' | ')' => brackets -= 1,
+            '{' | ';' if brackets == 0 => return None,
+            _ => {}
+        }
+    }
+    None
+}
+
 /// The byte ranges of the `sep`-separated items of `blanked` at bracket
 /// depth zero.
 ///
@@ -704,9 +753,52 @@ mod tests {
     // flakes about one run in thirteen (15/200; **issue #882**). Do not
     // copy that shape here.
     use super::{
-        Region, aggregation_violations, balanced_end, code_and_literals, code_only, comments_only,
-        file_module_decls, keeping, top_level_split,
+        Region, aggregation_violations, angle_end, balanced_end, code_and_literals, code_only,
+        comments_only, file_module_decls, keeping, top_level_split,
     };
+
+    /// A generic list closes at its own `>`, and the constructs that
+    /// carry a `>` or a `;` without ending it do not close it early.
+    ///
+    /// **Each row is planted against a specific way to get this
+    /// wrong**, so a repair reverted anywhere here reds on its own
+    /// evidence rather than on whichever door happens to be spelled
+    /// with the construct that day.
+    #[test]
+    fn a_generic_list_closes_at_its_own_angle_bracket() {
+        // The plain case: the answer is the closing `>`.
+        let plain = "fn f<T>(x: T) {}";
+        let open = plain.find('<').unwrap();
+        assert_eq!(angle_end(plain, open), Some(plain.find('>').unwrap()));
+
+        // A `;` INSIDE a square bracket is an array type, not the
+        // item's body. Counting it as a terminator is the defect this
+        // row exists for.
+        let array = "fn f(p: impl IntoIterator<Item = [Expr; 2]>) -> Self {}";
+        let open = array.find('<').unwrap();
+        let end = angle_end(array, open).expect("an array type does not end the list");
+        assert_eq!(&array[end..=end], ">");
+        assert_eq!(end, array.find("]>").unwrap() + 1);
+
+        // An arrow's `>` is not a closer: reading it as one answers a
+        // list that is too SHORT, which is the silent direction.
+        let arrow = "fn f<F: Fn(u32) -> u32>(g: F) {}";
+        let open = arrow.find('<').unwrap();
+        let end = angle_end(arrow, open).expect("an arrow does not end the list");
+        assert_eq!(end, arrow.find(">(").unwrap());
+
+        // Nesting still closes at the OUTER list.
+        let nested = "fn f<T: Into<Vec<u8>>>(x: T) {}";
+        let open = nested.find('<').unwrap();
+        let end = angle_end(nested, open).expect("a nested list closes");
+        assert_eq!(end, nested.find(">>>").unwrap() + 2);
+
+        // A `;` at bracket depth zero IS the item's body: a list that
+        // never closes answers `None` rather than running on.
+        assert_eq!(angle_end("type A = B<C;", "type A = B".len()), None);
+        // As does one that simply runs out of input.
+        assert_eq!(angle_end("fn f<T", 4), None);
+    }
 
     /// Every construct a needle can hide in, and the code read each one
     /// must not cost. Written once and asserted from three directions

@@ -1453,10 +1453,10 @@ jobs:
       #
       # This job has no lane gate, which is why the pair lives here: the
       # seed-keyed axis has to be able to speak on every run, and in the
-      # lane-gated `clippy` job it could not (see the note there). Both
+      # lane-gated `clippy` job it could not (see the note there). The
       # rows the ruling names are now in one job with one verdict —
-      # the rustdoc `--all-features` pass above, and the app-feature
-      # clippy below.
+      # the rustdoc `--all-features` pass above, the app-feature clippy
+      # below, and the app-feature TEST row beside it.
       #
       # Mirror: local-scripts/ci-local.sh's toolkit rows.
       - name: viewer toolkit rows - the filter's verdict
@@ -1468,9 +1468,15 @@ jobs:
             echo 'RUN: the seeds intersect {viewer, pncad, bvh} (or the tier is unscopable).'
             echo 'RUN: the rustdoc pass above documented viewer under --all-features.'
             echo 'RUN: the app-feature clippy row below compiles the eframe/wgpu graph.'
+            echo 'RUN: the app-feature TEST row below executes the `app`-gated rows —'
+            echo '     the chrome suites and the viewport pipeline-creation smoke row.'
           else
             echo 'SKIP: no seed in {viewer, pncad, bvh} — the eframe/wgpu graph is not compiled on this run.'
             echo 'SKIP: viewer was documented at DEFAULT features and its app-feature clippy row did not run.'
+            echo 'SKIP: the app-feature TEST row did not run, so NOTHING gated the chrome rows'
+            echo '     or the viewport pipeline-creation smoke row on this run. The archive'
+            echo '     lane builds viewer at default features and reports that in its own'
+            echo '     output, by name: the `app_lane_skipped_*` rows.'
             echo 'The nightly lane re-takes both ungated; viewer default-feature rows still ran in the closure.'
           fi
       # Sited here rather than in `clippy` so a lane draw cannot take it
@@ -1480,6 +1486,74 @@ jobs:
       - name: clippy (viewer app feature - eframe + wgpu)
         if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
         run: cargo clippy -p viewer --features app --all-targets -- -D warnings
+
+      # THE APP-FEATURE TEST ROW, AND WHY IT IS NOT `--features app` ON
+      # THE ARCHIVE.
+      #
+      # Everything behind `#[cfg(feature = "app")]` — the chrome label
+      # rows, the `StartupError` arms, every unit test in `viewer::app`
+      # and `viewer::gpu` — is absent from `build`'s nextest archive,
+      # which compiles this crate at DEFAULT features. Those rows looked
+      # like coverage and were none. The alternative shape was to archive
+      # with `--features app`; it was measured and refused. The archive
+      # is built ONCE and DOWNLOADED BY EVERY LEG of the `test` matrix,
+      # so the toolkit graph's extra archive weight is paid per leg and
+      # buys nothing for the rows that already gate — while THIS job
+      # already compiles that exact graph, in an every-lane seat, for the
+      # clippy row above. So the marginal cost of gating the rows is
+      # sited where the graph is already being built.
+      #
+      # THE WEIGHT, AND WHY IT CARRIES NO GUARD. Adding `--features app`
+      # to the whole-workspace archive grew it by 179 MB. A viewer-scoped
+      # archive measured +224.6 MB; that is a DIFFERENT delta — one
+      # crate's archive against one crate's archive, not this archive
+      # against this archive — so it is a second reading and not a
+      # confirmation of the first. Neither is guarded and neither can
+      # be: a guard would have to build a second archive at
+      # `--features app` on every run, which is exactly the cost this
+      # paragraph refuses to pay. Nor does the siting turn on the
+      # figure — it holds for any per-leg weight that buys no gate.
+      # Stated once, here; crates/viewer/README.md points at this
+      # comment rather than carrying a second copy.
+      #
+      # WHAT IS NOT FREE, stated because the siting argument above is
+      # easy to overstate: clippy is `cargo check` semantics, so the row
+      # above leaves the graph as METADATA. This row is the first in the
+      # job that needs codegen and a linker over it, and `rust-cache`
+      # carries those artefacts between runs.
+      #
+      # A SOFTWARE VULKAN ADAPTER IS A HARD REQUIREMENT of this row, not
+      # a nicety: `viewer::gpu`'s smoke row builds every render pipeline
+      # on a real device and FAILS rather than skipping when there is no
+      # adapter (a green row over an absent driver is indistinguishable
+      # from a green row over built pipelines, which is the defect this
+      # whole step exists to close). `mesa-vulkan-drivers` supplies
+      # lavapipe; it needs no X server and no display, because nothing
+      # here opens a surface. `vulkaninfo --summary` prints WHICH adapter
+      # the row will land on, before the row runs.
+      #
+      # `--success-output immediate` because the smoke row's adapter
+      # line is prose a reader of this log is meant to see, not output
+      # to recover from a failure. Not for the loud-skip markers: they
+      # are `cfg(not(feature = "app"))` and this row is `--features
+      # app`, so they are compiled out of it and announce themselves by
+      # NAME in the archive legs' PASS list instead.
+      #
+      # Mirror: local-scripts/ci-local.sh's toolkit rows.
+      - name: install a software Vulkan adapter (lavapipe)
+        if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers vulkan-tools
+          vulkaninfo --summary
+      - name: install cargo-nextest (pinned, official prebuilt)
+        if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ env.NEXTEST_VERSION }}
+      - name: viewer app-feature rows (chrome + gpu pipeline smoke)
+        if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
+        run: cargo nextest run -p viewer --features app --success-output immediate
 
       # WASM32 GUARD (#807), THE INTERVAL BUILD ONLY.
       #
@@ -3953,6 +4027,30 @@ jobs:
         run: |
           set -uo pipefail
           cd tools/k-lint
+          # THE STATUS IS READ OFF THE PIPELINE LINE ITSELF, and it has
+          # to be. The first spelling was
+          #
+          #     ... | tee ... || status=$?
+          #     status=${PIPESTATUS[0]:-$status}
+          #
+          # and it made this row incapable of failing. `PIPESTATUS` is
+          # rewritten by EVERY command, including the assignment
+          # `status=$?` on the line above — which succeeds — so by the
+          # time the second line reads `PIPESTATUS[0]` it is that
+          # assignment's own 0, the `:-` default never fires because 0
+          # is a perfectly good value, and `status` is 0 whatever the
+          # lint said. Both non-zero arms of the `case` below were
+          # unreachable from the day the `| tee` was added, and the row
+          # then spent that time reporting success over a lint that was
+          # refusing every file it was handed unread.
+          #
+          # `set -e` is deliberately still off (`set -uo pipefail`
+          # above), so the pipeline's failure does not abort the step
+          # before the summary is written; the `case` is what decides.
+          # The local half (`local-scripts/ci-local.sh`, `klint_gate`)
+          # does NOT tee, so its plain `$?` is exact and needs no
+          # `PIPESTATUS` — the two halves differ here on purpose, and
+          # ci-local.sh says so at its own call site.
           status=0
           # `--gate-rule-1-only` is the demotion, and it is NARROW: rule
           # 1 (indeterminate / invalid margins) still reds this row.
@@ -3966,8 +4064,8 @@ jobs:
             ../../target/k-fresh/driver/k-eps-1e-6.csv \
             ../../target/k-fresh/driver/k-eps-1e-9.csv \
             ../../target/k-fresh/driver/k-eps-1e-12.csv \
-            2>&1 | tee ../../k-lint-driver.out || status=$?
-          status=${PIPESTATUS[0]:-$status}
+            2>&1 | tee ../../k-lint-driver.out
+          status=${PIPESTATUS[0]}
           # THE PER-RULE COUNTS ARE THE ROW'S REPORT, at all three eps
           # rows, not a summary of one. `k-lint` prints a per-file line
           # and a TOTAL line; both are relayed so a reader gets the
@@ -4043,11 +4141,23 @@ jobs:
   # .github/actions/rebaseline-lane for why neutral rather than red.
   #
   # `push_to` is the BRANCH, while the render itself runs on
-  # `github.ref` — the PR's MERGE commit on a pull_request, main's tip
-  # on a push. Rendering the merge preview and committing to the head
+  # `github.sha` — the PR's MERGE commit on a pull_request, the pushed
+  # commit on a push. Rendering the merge preview and committing to the head
   # branch is self-consistent because this gate always compares against
   # that same merge preview, and main's own push run re-renders and
   # re-baselines again after the merge if the two ever part.
+  #
+  # THAT WAS `github.ref` AND IS NOW `github.sha`, WHICH MOVED TWO THINGS.
+  # The merge ref is transient — re-pointed on every push to the PR, deleted
+  # when it closes — and a lane that checked the NAME out died at
+  # `actions/checkout` saying nothing about the tree. It is an OBJECT now,
+  # and one consequence is worth meeting here rather than discovering: on a
+  # PUSH the lanes render the commit the run is about, not main's tip at the
+  # moment the checkout ran, so a main push whose tip has already moved on
+  # renders the older tree — which the re-baseline sentence above already
+  # covers, because the next push re-renders and re-baselines if they part.
+  # render.yml's `checkout target` job carries the whole argument, and the
+  # skip-with-a-stated-reason path for a merge commit gone outright.
   #
   # Scene concurrency is left to render.yml's own default (2, the
   # runner's core count) rather than restated here: this job renders the

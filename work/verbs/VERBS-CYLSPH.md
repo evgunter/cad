@@ -2,7 +2,8 @@
 id: VERBS-CYLSPH
 kind: unit
 title: the exact coaxial cylinder×sphere arm
-status: review
+status: closed
+closed: 2026-09-03
 opened: 2026-09-02
 pr: 1604
 branch: verbs/cylsph
