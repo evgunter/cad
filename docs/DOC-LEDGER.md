@@ -824,3 +824,13 @@ rule above; the unit's record is its row in `MODEL-AB-LOG.md` and its
 MERGED entry in `work/docm/log.md`.
 
 - `DOCM-1-SPEC.md` — DOCM-1, `Datum::FaceFrame`, the sense beside the pose, the carrier-kind read (#1829)
+
+## Per-merge deletion — DOCM-2's spec (2026-09-04)
+
+Recoverable at `git show 286d9a08bb9f2fd8e549742e7213828005c97b89:docs/DOCM-2-SPEC.md`
+(the DOCM-2 unit head, before the state-sync commit that deleted it;
+the file carries the stop-clause amendment as its last section). The
+rule above; the unit's record is its row in `MODEL-AB-LOG.md` and its
+MERGED entry in `work/docm/log.md`.
+
+- `DOCM-2-SPEC.md` — DOCM-2, `Node::Part`, a split's half or a pattern's instance as one body (#1860)
