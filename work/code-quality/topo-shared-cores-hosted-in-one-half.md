@@ -46,7 +46,7 @@ This fix class has now produced **three** top-level siblings of `boolean/` and `
 
 At that point *"the crate root is where shared kernel machinery lives"* is a real architecture that ought to be stated **once**, with a rule for what qualifies, rather than three times in three module docs. Related: `sector_shape.rs:399-503` carries a 90-line mechanical anti-re-fork guard that walks all of `topo/src` at runtime and names four shapes it cannot catch; neither `sector_face.rs` nor `chord_join.rs` has an equivalent, and no reason is given.
 
-Also on the record from #690, reported and deliberately not acted on: `DESIGN.md:1275` describes the crate as *"the boolean engine and its splitting/census machinery"* — one engine, splitting subordinate. #690 makes that **less** false and simultaneously shows it cannot be made true as written; the honest sentence names two peer lanes over a shared core. That is a `DESIGN.md` conversation, not a lane's call.
+Also on the record from #690, reported and deliberately not acted on: DESIGN.md's Layering table (the `topo` row) describes the crate as *"the boolean engine and its splitting/census machinery"* — one engine, splitting subordinate. #690 makes that **less** false and simultaneously shows it cannot be made true as written; the honest sentence names two peer lanes over a shared core. That is a `DESIGN.md` conversation, not a lane's call.
 
 ## Home
 
