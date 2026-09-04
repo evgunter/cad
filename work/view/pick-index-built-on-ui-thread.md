@@ -6,7 +6,6 @@ status: open
 opened: 2026-08-29
 github: 1259
 refs: [1217, 1247]
-needs_ev: true
 ---
 
 ## From GitHub issue 1259
@@ -320,3 +319,69 @@ argument that a spinner over no running work would be a lie).
 sentence.** The question this item opened partly dissolves, and it
 dissolves in the direction of the cheaper answer. Awaiting Ev's
 ruling on the PR before this is written as the answer.
+
+## RULED (Ev, PR #1843, 2026-09-04)
+
+Ev's answer, in two comments. First the proposal:
+
+> hmmm i think the complexity of letting the user interact with a known
+> outdated state may not be worth it.... i'd be somewhat inclined to add
+> a loading icon while we're waiting and call it a day.
+
+Then, on the three-line reading below: **"sounds good!"**
+
+### The ruling
+
+- **Q1 — the inventory gains no third shape, and GQ6 gets no new
+  sentence about staleness.** An index that is never READ while stale
+  is not derived data that can be wrong; it is *current or absent*, and
+  "absent, showing an older picture" is a state GUI-3 already ratified,
+  already inventoried, and already built chrome for
+  (`crates/viewer/src/app.rs:1095-1112` — three states, with the
+  written argument that a spinner over no running work would be a lie).
+  So the question this item opened dissolves in the direction of the
+  cheaper answer.
+- **Q2 — refuse the pick, with a visible loading state. NOT silence.**
+  Today a pick with no index silently does nothing: every path guards
+  on `Option<&PickIndex>` (`pane/viewport.rs:155`, `:202`, `:346`,
+  `:353`). A spinner over inert picks is fail-quiet, which this project
+  refuses everywhere else, so the deliverable is the indicator **and**
+  the pick path distinguishing *not indexed yet* from *nothing under
+  the cursor*.
+- **Q3 — restart without cancel.** The in-flight build runs to
+  completion and its result is discarded. `mesh` and `bvh` grow no
+  cancel points and no other program is blocked. The asymmetry is
+  stated rather than left to a reader: a δ change mid-build costs a
+  SECOND full build, up to ~26.8 s on the fine-δ row, and the
+  evaluation seam's promise is stronger than this one's.
+
+### One option withdrawn before the ruling
+
+Q2's third answer — fall back to the GPU id-buffer pass — was
+**withdrawn by this program**, not chosen against. It renders from
+`ViewportCallback.scene` (`pane/viewport.rs:387`), the same stale mesh
+the viewport is drawing, so it answers picks against the document that
+is gone. It was never a second path.
+
+### What this does NOT license yet
+
+**The GQ6 paragraph does not land now.** CLAUDE.md's doc convention is
+that prose beside the code states the PRESENT, and there is no
+off-thread index today — the build is synchronous inside `sync_scene`.
+Writing the indexing state into the inventory before 6b exists would
+be one more prose claim outrunning this tree, which is the failure this
+program has hit seven times in two days. **The README edit rides 6b**,
+where it describes something true.
+
+### What is now dispatchable
+
+- **6b** — tessellation and `PickIndex::build` onto the `EvalService`
+  worker, keyed by `Generation`; `PickCache`'s retry policy travels
+  with it; restart-without-cancel on a δ change; the indexing state
+  added to the existing busy chrome; the pick path made to say *not
+  indexed yet*; and the GQ6 sentence that describes the result.
+- **6c** collapses into 6b under this ruling: with no stale read there
+  is no staleness rule to express as frame data, so what is left is the
+  indicator's own state, which 6b carries.
+
+`needs_ev` cleared. This row stays OPEN as 6b's work.
