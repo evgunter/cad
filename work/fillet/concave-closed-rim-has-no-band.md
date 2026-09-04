@@ -2,10 +2,11 @@
 id: concave-closed-rim-has-no-band
 kind: issue
 title: fillet: a CONCAVE closed rim has no band — the closed-rim carve is convex-only, and the seam-vertex tag fires on both sides
-status: open
+status: closed
 opened: 2026-08-29
 github: 1244
 refs: [1222]
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1244
