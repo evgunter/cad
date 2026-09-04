@@ -416,7 +416,7 @@ datum: Alignment = Alignment(side_a, side_b, seated, AxisSense.Aligned)
 clocked: Alignment = Alignment(
     side_a, side_b, MatePrimitive.coaxial(), AxisSense.Opposed, 90 * deg
 )
-arm: Length = datum.lever_arm
+arm: Length | None = datum.lever_arm
 seat_pose: Frame = side_a.placement()
 joint: NodeId = doc.insert(
     Node.mate("a-name", "b-name", ContactClass.Rest, datum)

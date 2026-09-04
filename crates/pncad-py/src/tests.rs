@@ -1625,6 +1625,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_class_not_admitted",
             "mate_contradictory",
             "mate_dangling_head",
+            "mate_datum_too_small_to_lever",
             "mate_frame_degenerate",
             "mate_indeterminate",
             "mate_self",

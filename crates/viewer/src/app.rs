@@ -67,7 +67,7 @@ use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::parts::PartChooser;
 use crate::pick::{self, PickCache, PickIndex};
 use crate::prefs::{self, Prefs, PrefsStore};
-use crate::props::{self, SlotDriver, SlotGroup, SlotRow, SlotValue};
+use crate::props::{self, ParamRow, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::scene::{self, DisplayTolerance, SceneMesh};
 use crate::seats::{Seat, SeatError, seat_line};
 use crate::session::{
@@ -1096,6 +1096,72 @@ fn drag_tick(dimension: Dimension) -> f64 {
         Dimension::Angle => ANGLE_DRAG_SPEED,
         Dimension::Scalar => UNIT_DRAG_SPEED,
         Dimension::Count => COUNT_DRAG_SPEED,
+    }
+}
+
+/// **How ONE PANEL FIELD is written**: the unit it shows and authors
+/// in, and the tick it is scrubbed at, taken together off the row it is
+/// drawn for.
+///
+/// The two are one value because they are one decision. A tick is a
+/// number of whatever the field says, so a tick chosen without the unit
+/// is half a millimetre applied to a field showing metres — the same
+/// gesture made a thousand times coarser by a change of notation.
+///
+/// **The two panel fields this answers for are the SLOT field
+/// (`ViewerBehavior::slot_value_ui`) and the DOCUMENT PARAMETER's
+/// (`ViewerBehavior::properties_ui`'s `Selection::Param` arm)** — the
+/// two a user drags to move the same kind of number. It is not the
+/// creation forms' answer: those hold canonical drafts and pick their
+/// tick from the four constants by hand at each field
+/// (`named_field`), which is a third home for the same rule and is
+/// filed rather than fixed here
+/// (`work/chrome/drag-tick-has-three-homes.md`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FieldWriting {
+    /// The unit the field shows and authors in — [`props::rendering_unit`]'s
+    /// answer, so a computed slot and a written literal agree. `None`
+    /// is the field that names no notation at all (a count, a bare
+    /// scalar).
+    pub unit: Option<UnitDef>,
+    /// One drag tick, IN [`Self::unit`] — 0.5 for a millimetre field,
+    /// 0.0005 for the same field written in metres.
+    pub tick: f64,
+}
+
+impl FieldWriting {
+    /// How a field of `dimension` whose value remembers `stored` is
+    /// written. `stored` is the row's own `unit` — the fact the
+    /// document carries, before [`props::rendering_unit`] chooses what
+    /// a value that remembers nothing reads as.
+    pub fn of(dimension: Dimension, stored: Option<UnitDef>) -> Self {
+        let unit = props::rendering_unit(dimension, stored);
+        // A COUNT field steps by one whatever it is written in: what it
+        // holds is a count, and a tenth of an instance is not a value
+        // it can take. Read off the dimension and not off a
+        // structurality flag beside it — `SlotId::is_structural` is
+        // itself defined as "the dimension is Count"
+        // ([`props::SlotValue::of`] argues this at length), so a second
+        // argument would only be a way for the two to disagree.
+        let tick = if dimension == Dimension::Count {
+            1.0
+        } else {
+            props::shown_in(unit, drag_tick(dimension))
+        };
+        Self { unit, tick }
+    }
+
+    /// One canonical value as this field SHOWS it.
+    pub fn shown(self, canonical: f64) -> f64 {
+        props::shown_in(self.unit, canonical)
+    }
+
+    /// One number read out of this field — dragged or typed — back in
+    /// canonical terms. [`Self::shown`]'s inverse, and the door every
+    /// value crossing out of a panel field goes through, because what
+    /// crosses `props` is canonical.
+    pub fn authored(self, shown: f64) -> f64 {
+        props::authored_in(self.unit, shown)
     }
 }
 
@@ -2786,20 +2852,45 @@ impl ViewerBehavior<'_> {
             }
             match &row.status {
                 RowStatus::Ok => {}
-                RowStatus::Unevaluated => {
+                // Nothing to act on HERE: the row was never run, or it
+                // shows someone else's failure and points at the row
+                // that owns it. Quiet, so the eye passes over it.
+                RowStatus::Unevaluated | RowStatus::Poisoned { .. } => {
                     ui.weak(row.status.badge());
                 }
-                RowStatus::Failed { .. } | RowStatus::Poisoned { .. } => {
+                // The ACTIONABLE rows — the nodes whose own operation
+                // refused — are the ones that take the colour, so a
+                // document with six rows downstream of one broken
+                // feature sends the eye to the one. There can be more
+                // than one: a `MateFault::Contradictory` naming two
+                // different mates blames both, and both go red
+                // (`tree::blamed_mates`).
+                RowStatus::Failed { .. } => {
                     ui.colored_label(chrome(self.theme.unresolved), row.status.badge());
                 }
             }
         });
-        // The typed payload's own message, indented under the row it
-        // belongs to. Never a sentence this module wrote.
+        // The line under the row: the payload's own words where the
+        // row failed, and where it did not, the pointer at the row
+        // that has them — which is a CLICK, so "that row" is one
+        // gesture away rather than an id to hunt for.
         if let Some(message) = row.status.message() {
+            let through = match &row.status {
+                RowStatus::Poisoned { through, .. } => Some(*through),
+                _ => None,
+            };
             ui.horizontal(|ui| {
                 ui.add_space(indent(row.depth) + INDENT_STEP);
-                ui.weak(message);
+                match through {
+                    Some(through) => {
+                        if ui.link(message).clicked() {
+                            self.ops.push(SessionOp::Select(Selection::Node(through)));
+                        }
+                    }
+                    None => {
+                        ui.weak(message);
+                    }
+                }
             });
         }
         // The node's standing caveat (a mate class with no at-rest
@@ -2864,29 +2955,47 @@ impl ViewerBehavior<'_> {
                     .find(|row| row.name == name)
                 {
                     ui.label(format!("parameter {} ({:?})", row.name.0, row.dimension));
-                    let mut value = row.value.as_f64();
-                    let widget = ui.add(egui::DragValue::new(&mut value).speed(
-                        if row.dimension == Dimension::Count {
-                            1.0
-                        } else {
-                            0.0005
-                        },
-                    ));
-                    drag_ops(
-                        &widget,
-                        value,
-                        SessionOp::BeginParamGesture { name: name.clone() },
-                        |value| SessionOp::PreviewGesture { value },
-                        SessionOp::CommitGesture,
-                        |value| {
-                            vec![SessionOp::SetParam {
-                                name: name.clone(),
-                                value: SlotValue::of(row.dimension, value),
-                            }]
-                        },
-                        self.ops,
-                    );
-                    self.param_bounds_ui(ui, &name, row.dimension);
+                    // Shown, scrubbed and authored in the unit the
+                    // parameter was DECLARED in, through the same
+                    // value a slot field is written by — a parameter
+                    // written in millimetres reads in millimetres.
+                    let field = FieldWriting::of(row.dimension, row.unit);
+                    let mut value = field.shown(row.value.as_f64());
+                    ui.horizontal(|ui| {
+                        let widget = ui.add(egui::DragValue::new(&mut value).speed(field.tick));
+                        // **A LABEL, where a slot row has a picker.**
+                        // Not "the way a slot row says it": a slot's
+                        // unit is said by a `ComboBox` that CHANGES it
+                        // (`slot_unit_ui`), and `length_picker`'s rule
+                        // — the unit is the picker's to say, not the
+                        // field's — is why nothing else beside a slot
+                        // field states it. A parameter has no such
+                        // picker to be the one that says it, because
+                        // there is no edit for one to push
+                        // (`work/issues/doc-param-unit-edit-has-no-door.md`),
+                        // and a number with no notation beside it at
+                        // all is worse than a notation nobody can
+                        // change. The dimensionless row and a `Count`
+                        // have nothing to say here.
+                        if let Some(unit) = field.unit.filter(|u| !u.symbol().is_empty()) {
+                            ui.weak(unit.symbol());
+                        }
+                        drag_ops(
+                            &widget,
+                            field.authored(value),
+                            SessionOp::BeginParamGesture { name: name.clone() },
+                            |value| SessionOp::PreviewGesture { value },
+                            SessionOp::CommitGesture,
+                            |value| {
+                                vec![SessionOp::SetParam {
+                                    name: name.clone(),
+                                    value: SlotValue::of(row.dimension, value),
+                                }]
+                            },
+                            self.ops,
+                        );
+                    });
+                    self.param_bounds_ui(ui, &row);
                 } else {
                     ui.weak("that parameter is gone");
                 }
@@ -2940,15 +3049,21 @@ impl ViewerBehavior<'_> {
             ] {
                 ui.radio_value(&mut self.drafts.new_param_dimension, Some(dimension), label);
             }
-            ui.add(
-                egui::DragValue::new(&mut self.drafts.new_param_value).speed(
-                    if self.drafts.new_param_dimension == Some(Dimension::Count) {
-                        1.0
-                    } else {
-                        0.0005
-                    },
-                ),
-            );
+            // The form authors in the canonical unit — a new
+            // parameter's declaration names that notation
+            // (`props::doc_param`) — so the tick is the canonical one
+            // for the dimension picked, and the panel's own rule
+            // answers it rather than a constant beside it. With no
+            // dimension picked yet there is no tick to derive and
+            // Create is refused anyway; a length's serves as the
+            // placeholder.
+            let speed = self
+                .drafts
+                .new_param_dimension
+                .map_or(FIELD_DRAG_SPEED, |dimension| {
+                    FieldWriting::of(dimension, None).tick
+                });
+            ui.add(egui::DragValue::new(&mut self.drafts.new_param_value).speed(speed));
         });
         let name = self.drafts.new_param_name.trim();
         let existing = if name.is_empty() {
@@ -3129,7 +3244,13 @@ impl ViewerBehavior<'_> {
                     .get(&node)
                     .map_or([0.0; 3], |frame| frame.translation);
                 ui.label("free-move probe (mm, display only):");
-                let mut mm = current.map(|v| v * 1000.0);
+                // A LENGTH field written in millimetres — so the
+                // conversion and the drag tick are the panel's own
+                // ([`FieldWriting`]) rather than a factor of a thousand
+                // and a bare `0.5` with nothing saying what unit they
+                // are in. Three components of one frame, one writing.
+                let field = FieldWriting::of(Dimension::Length, Some(quantity::MM.def()));
+                let mut mm = current.map(|v| field.shown(v));
                 // The G1 gesture triple over DISPLAY state, through the
                 // one widget→gesture mapping (`drag_ops`) so the typed-
                 // input arm exists here too: typing a value performs a
@@ -3141,9 +3262,10 @@ impl ViewerBehavior<'_> {
                 ui.horizontal(|ui| {
                     for axis in 0..3 {
                         let mut value = mm[axis];
-                        let widget = ui.add(egui::DragValue::new(&mut value).speed(0.5));
+                        let widget = ui.add(egui::DragValue::new(&mut value).speed(field.tick));
                         mm[axis] = value;
-                        let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| v / 1000.0));
+                        let frame_of =
+                            |mm: [f64; 3]| Frame::translation(mm.map(|v| field.authored(v)));
                         drag_ops(
                             &widget,
                             value,
@@ -4443,18 +4565,17 @@ impl ViewerBehavior<'_> {
     /// `thickness * 2` is a parse refusal at best and a DIFFERENT
     /// parameter at worst.
     ///
-    /// The number is shown in the unit the slot is WRITTEN in and
-    /// authored back through the same factor (`props::in_written` /
-    /// `props::from_written`, the text door's one-multiply semantics),
-    /// with NO unit suffix on the text: the picker beside the field
-    /// names the unit, and saying it twice adjacently says it once.
+    /// The number is shown in the unit the slot is WRITTEN in, scrubbed
+    /// at a tick in that same unit, and authored back through the same
+    /// factor ([`FieldWriting`], the text door's one-multiply
+    /// semantics), with NO unit suffix on the text: the picker beside
+    /// the field names the unit, and saying it twice adjacently says
+    /// it once.
     fn slot_value_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
-        let unit = props::rendering_unit(row.dimension, row.unit);
         // `Count` is the one row with no unit at all (an instance count
         // is a number, not a quantity), and its factor would be 1.0
         // anyway — so the absence is an identity here, not a fallback.
-        let written = |v: f64| unit.map_or(v, |u| props::in_written(v, u));
-        let canonical = |v: f64| unit.map_or(v, |u| props::from_written(v, u));
+        let field = FieldWriting::of(row.dimension, row.unit);
         // A slot that did not evaluate still has SOURCE to edit — it
         // is the slot most likely to need it — so the field is drawn
         // for it too, over the one number it does not have. The fault
@@ -4462,21 +4583,10 @@ impl ViewerBehavior<'_> {
         if let Err(ref error) = row.value {
             ui.weak(format!("{error}"));
         }
-        let mut number = written(match row.value {
+        let mut number = field.shown(match row.value {
             Ok(value) => value.as_f64(),
             Err(_) => 0.0,
         });
-        // The drag speed is in WRITTEN units, so it travels through
-        // the same conversion the value does ([`unit_field`] carries
-        // the rule) — and it is `FIELD_DRAG_SPEED`, the same tick the
-        // creation forms use, rather than a second number for the
-        // same gesture. A structural slot steps in whole units: what
-        // it holds is a count.
-        let speed = if row.structural {
-            1.0
-        } else {
-            written(drag_tick(row.dimension))
-        };
         // What the field says, when that is not the dragged number:
         // the text a parse refusal handed back, else the slot's own
         // source. A LITERAL slot with a value shows no fixed text at
@@ -4493,7 +4603,7 @@ impl ViewerBehavior<'_> {
         // out through a cell rather than a return value.
         let typed: core::cell::RefCell<Option<props::FieldEdit>> = core::cell::RefCell::new(None);
         let mut widget = egui::DragValue::new(&mut number)
-            .speed(speed)
+            .speed(field.tick)
             .update_while_editing(false)
             .custom_parser(|text| match props::field_edit(text) {
                 props::FieldEdit::Number(value) => {
@@ -4514,7 +4624,7 @@ impl ViewerBehavior<'_> {
         let widget = ui.add(widget);
         drag_gesture_ops(
             &widget,
-            canonical(number),
+            field.authored(number),
             SessionOp::BeginGesture {
                 node,
                 slot: row.slot,
@@ -4531,7 +4641,7 @@ impl ViewerBehavior<'_> {
         // its affordance even when the number happens to match.
         match typed.into_inner() {
             Some(props::FieldEdit::Number(written)) => {
-                let value = SlotValue::of(row.dimension, canonical(written));
+                let value = SlotValue::of(row.dimension, field.authored(written));
                 if row.driver.is_driven() || row.value != Ok(value) {
                     self.ops.push(SessionOp::SetSlot {
                         node,
@@ -4642,14 +4752,15 @@ impl ViewerBehavior<'_> {
             node,
             slot: row.slot,
         };
-        if let Some((probed, result)) = self.session.bounds()
-            && *probed == target
+        // Written in the unit the SEARCH used, which the reading
+        // carries — not re-derived from the row beside it. One sentence
+        // for a slot's range and a parameter's alike
+        // (`BoundsReading::wording`); this row prefixes the slot's name
+        // because a node draws several of them.
+        if let Some(reading) = self.session.bounds()
+            && reading.target == target
         {
-            ui.weak(format!(
-                "{}: {}",
-                row.slot.label(),
-                result.wording(props::rendering_unit(row.dimension, row.unit))
-            ));
+            ui.weak(format!("{}: {}", row.slot.label(), reading.wording()));
         }
     }
 
@@ -4682,16 +4793,22 @@ impl ViewerBehavior<'_> {
 
     /// The range probe's button and reading for a DOCUMENT PARAMETER —
     /// the one field that is not a slot.
-    fn param_bounds_ui(&mut self, ui: &mut egui::Ui, name: &ParamName, dimension: Dimension) {
-        let target = BoundsTarget::Param { name: name.clone() };
+    ///
+    /// The reading is written in the unit the SEARCH ran in, which
+    /// `BoundsReading` carries beside the range: the panel says the
+    /// sentence, it does not decide the notation. That is what keeps
+    /// "the range says millimetres because the search stepped
+    /// millimetres" a fact about one value rather than an agreement
+    /// between two reads.
+    fn param_bounds_ui(&mut self, ui: &mut egui::Ui, row: &ParamRow) {
+        let target = BoundsTarget::Param {
+            name: row.name.clone(),
+        };
         ui.horizontal(|ui| {
-            if let Some((probed, result)) = self.session.bounds()
-                && *probed == target
+            if let Some(reading) = self.session.bounds()
+                && reading.target == target
             {
-                // A document parameter's authored unit is stored but
-                // not yet read here (`props`' module docs name the
-                // asymmetry), so its range reads in the canonical one.
-                ui.weak(result.wording(props::rendering_unit(dimension, None)));
+                ui.weak(reading.wording());
             }
             if ui
                 .small_button("range?")
