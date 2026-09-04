@@ -3722,3 +3722,4 @@ reaches main only when the block's last slot's reviews conclude; each
 ordinal claim at review dispatch goes to main on its own.
 
 Block DOCM-B1 slot record (branch-side, appended as each slot concludes):
+slot 1 pre-draw fields (2026-09-04, at dispatch; arm fixed by the draw above): DOCM-4 (docs/DOCM-4-SPEC.md) — difficulty M, task-class STRUCTURAL. Dispatched concurrently with slot 0 on disjoint files (the spec's Constraints name the fence).
