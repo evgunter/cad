@@ -2,12 +2,13 @@
 id: band-linear-spelling-not-swept
 kind: issue
 title: Band::linear is the canonical spelling of the linear band and ~20 sites still open-code Band::new(eps, k·eps) — sweep or record why not
-status: review
+status: closed
 opened: 2026-08-31
 github: 1408
 refs: [1399]
 branch: fix/band-linear-sweep
 pr: 1732
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1408

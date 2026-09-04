@@ -49,3 +49,45 @@ Not swept beyond `crates/viewer/src`: the pattern I searched was
 without the word.
 
 Signed: (CHROME fix-pass lane, PR 1748 style review)
+
+## Added by the FIX orchestrator (2026-09-04)
+
+FIX's PR 1749 review found this independently, hours apart, and filed a
+duplicate that has been deleted in favour of this file — this one has
+the executed row and precedence on main. Four things from that reading
+that are not above:
+
+**1. Neither door catches it, and they fail differently.**
+`free_move_check(instance)` returns `Ok` because the scan misses (this
+issue). `free_move_check(pattern)` refuses `NotAnInstance`, because a
+pattern node is not an instance. So a user reaching for the copy and a
+user reaching for the master both get a wrong answer, by two unrelated
+mechanisms — which is why reading either door alone does not show the
+hole.
+
+**2. The fix has a door now.** PR 1749 (FIX,
+`split-crossings-skip-pattern-mate-ends`) made
+`editor_core::mate::member_of_head` public for exactly this reason: it
+collapsed three spellings of "is this name's head a member?" onto one
+predicate, after establishing that a second hand-written spelling is
+not merely redundant but *harmful* (a gate matching the head's spelling
+rather than the vocabulary mints an interface crossing for a mate that
+never solved). `mates_naming` is the fourth spelling and the one that
+was live. Resolving each reference's head through `member_of_head` and
+comparing MEMBERS is the shape; the behaviour change this issue names
+is still owed its own evidence.
+
+**3. The distinction from 1412, sharpened.** 1412 refuses something it
+should allow (the pick gate excludes heads the rider admits); this
+allows something it should refuse. Opposite directions, same key error,
+which is why fixing 1412 does not touch this.
+
+**4. Where to look next**, generalising this issue's stated blind spot
+(`grep -i instance`, which misses any instance-keyed scan spelled
+without the word): **any site comparing `name.node` to an instance id.**
+That pattern catches the shape rather than the vocabulary, and it is
+what found this one — the line mentions neither `InstantiatePart` nor
+`Pattern`, so no textual sweep for the member vocabulary reaches it.
+
+Cross-refs: `mate-member-vocabulary-restated-in-refactor` (the same
+class, `refactor.rs`, discharged by PR 1749).
