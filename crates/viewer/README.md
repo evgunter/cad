@@ -271,7 +271,7 @@ state.
 
 | Module | Holds |
 |---|---|
-| `forms` | The authoring vocabularies the panels offer — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — each a hand-maintained mirror of a kernel or sketch enum, and each a product decision rather than a toolkit one |
+| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `PathVerb`, `ArcMode`, `DatumKind`, `ShapeKind`, `PatternKindChoice`, `BOOLEAN_OPS`, `MATE_PRIMITIVES` — are hand-maintained mirrors of a kernel or sketch enum; the field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts` and `CommitFault`: the in-flight form state, its defaults, and its lowering of typed field values to `Expr` and `LoopProgram` — the same layer as `session::author`, and today the larger half of it |
 | `widgets` | The free helpers over `egui::Ui` that take plain data (`vec3_row`, `unit_field`, `named_field`, the pickers, `delete_button` and the rest) |
 

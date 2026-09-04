@@ -681,3 +681,55 @@ compilation rather than during.
 **Cost of the hang: nothing but time.** Hosted CI is the verification of
 record here, not a lane's local runs, so a lane dying after its edits
 loses only the local pre-check.
+
+## 1c is built: both files split, verified together (2026-09-04)
+
+| file | was | now |
+|---|---|---|
+| `session.rs` | 3,260 | **1,484** |
+| `app.rs` | 5,696 | **1,746** |
+
+Thirteen new modules. `view/1c-module-split` merges both lanes' branches
+(they merge clean — the session lane declared its submodules inside
+`session.rs`, the app lane touched `lib.rs`, no overlap).
+
+**The combined tree was verified here, which neither lane could**: each
+verified its own half in isolation and a clean textual merge is not a
+compile. 466 rows at default features, 467 with `--features app`,
+clippy clean, fmt clean, and the rustdoc gate clean under
+`-D rustdoc::broken_intra_doc_links` — 27 intra-doc links were repointed
+between the two lanes, which was the predicted breakage source and the
+reason that gate is the one that matters here.
+
+Neither lane touched `crates/viewer/tests/`. Both audited their move
+line-by-line rather than trusting the compiler: the app lane diffed the
+multiset of visibility- and whitespace-normalised non-import lines
+across all thirteen resulting files and accounted for every difference.
+
+### Two things the app lane surfaced
+
+**The drag-tick family has one home: `forms`.** It has three consumers
+in three new modules, so only `forms` or `app` could serve all three,
+and `app` would have reinstated the very header problem 1c exists to
+fix. That closes the substance of CHROME's `drag-tick-has-three-homes`
+— the RULE now has one home, though the three call-site spellings are
+unchanged, which is what that item is actually about.
+
+**And the ratified README was wrong about its own module again.** The
+`forms` row said its members are "each a hand-maintained mirror of a
+kernel or sketch enum". `FieldWriting` and the four drag speeds are
+neither — they mirror nothing and are a product decision on their own.
+The lane spotted it, left the ratified text alone, and told me. Fixed
+here. **That is the third time in one day that a design doc I wrote
+made a claim the tree does not support**, after the dead
+`gesture_safe` symbol and the four-`Refusal`-arms framing.
+
+The pattern is now clear enough to name: **I write the design from the
+inventory, and the inventory is a snapshot.** Every one of the three
+was a sentence that was true when written about a tree that then
+moved — and none was caught by a gate, because no gate reads prose for
+accuracy. `tip-mark-doc-duplicates-its-own-first-sentence`, filed
+today, is the same hole seen from the other side: a doc comment that
+renders literal `///` and passes every check. The countermeasure that
+has actually worked all day is a reader with the tree open — three
+lanes and one reviewer caught all four instances between them.
