@@ -307,12 +307,17 @@ impl Notation {
 /// Lower one template shape to its loop program, minting every literal
 /// in `notation`.
 ///
-/// **The `LoopProgram` variants are built here rather than through
-/// `LoopProgram::circle` / `polygon`**, which is the one thing in this
-/// function a reader will want to fold back: those constructors take
-/// `f64` and mint CANONICAL literals, so routing through them would
-/// drop the notation this function exists to carry. They stay the right
-/// door for a caller with nothing to remember.
+/// **The circle is built here rather than through
+/// `LoopProgram::circle`**, which is the one thing in this function a
+/// reader will want to fold back: that constructor takes `f64` and
+/// mints CANONICAL literals, so routing through it would drop the
+/// notation this function exists to carry. It stays the right door for
+/// a caller with nothing to remember.
+///
+/// The rectangle DOES route through [`LoopProgram::polygon_expr`],
+/// which takes corners that are already `Expr` and mints nothing, so
+/// the notation rides through it untouched and the polygon expansion
+/// is written once for the workspace.
 ///
 /// # Errors
 ///
@@ -342,17 +347,11 @@ pub fn loop_program(
             // expression-driven form this op vocabulary now admits but
             // no chrome yet offers.
             let corners = [(-hw, -hh), (hw, -hh), (hw, hh), (-hw, hh)];
-            let mut steps = Vec::with_capacity(corners.len() + 1);
-            for (i, (x, y)) in corners.into_iter().enumerate() {
-                let p = notation.point([x, y])?;
-                steps.push(if i == 0 {
-                    ProgramStep::At(p)
-                } else {
-                    ProgramStep::LineTo(ProgramTarget::Point(p))
-                });
-            }
-            steps.push(ProgramStep::LineTo(ProgramTarget::Start));
-            Ok(LoopProgram::Chain(steps))
+            let corners = corners
+                .into_iter()
+                .map(|(x, y)| notation.point([x, y]))
+                .collect::<Result<Vec<_>, DimensionError>>()?;
+            Ok(LoopProgram::polygon_expr(corners))
         }
         ProfileShape::Path { steps } => Ok(LoopProgram::Chain(
             steps
