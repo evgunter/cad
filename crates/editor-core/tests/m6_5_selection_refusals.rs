@@ -148,7 +148,7 @@ fn rim(node: RecipeNodeId, seg: u32) -> StableName {
         kind: EntityKind::Edge,
         node,
         path: vec![RoleSeg::RimEdge(
-            editor_core::CapEnd::Top,
+            editor_core::CapEnd::End,
             editor_core::ProfileEdgeRef {
                 loop_index: 0,
                 segment: seg,
@@ -348,7 +348,7 @@ fn a_selection_naming_a_face_refuses_on_kind() {
     let face = StableName {
         kind: EntityKind::Face,
         node: BODY,
-        path: vec![RoleSeg::Cap(editor_core::CapEnd::Top)],
+        path: vec![RoleSeg::Cap(editor_core::CapEnd::End)],
     };
     let (doc, fillet) = planted(vec![face.clone()]);
     refuses(&doc, fillet, |kind| match kind {

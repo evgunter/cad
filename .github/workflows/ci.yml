@@ -14,6 +14,31 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
+  # THE MERGE QUEUE'S TRIGGER, AND IT IS INERT UNTIL SOMEONE ENABLES A QUEUE.
+  # `merge_group` fires only when a repository has a merge queue configured on
+  # the target branch; with none configured this key adds no run, no job and no
+  # minute. Enabling the queue is a BRANCH-PROTECTION setting and is Ev's, not
+  # a workflow edit — the runbook is `work/ciw/merge-queue-trial.md`.
+  #
+  # WHY THE TRIGGER IS ALL THAT THE JOB SET NEEDED. Every gated job below reads
+  # `github.event_name != 'push'` rather than `== 'pull_request'`, so a
+  # merge_group run gets the whole gate by default. That spelling was chosen on
+  # 2026-08-28 for exactly this direction (the note above the jobs argues it),
+  # and this is the trigger it was written for: adding the event here is the
+  # entire wiring, and `renders` is the one job that opts out (at its own key).
+  #
+  # WHAT A MERGE GROUP IS. GitHub builds one merge group PER QUEUED PULL
+  # REQUEST, containing the base branch plus every PR ahead of it in the queue
+  # plus that PR — so group N's first parent is group N-1, and the diff this
+  # workflow classifies (`git rev-parse HEAD^1` in the `filter` job) is exactly
+  # the one PR that group adds. That is the right classification basis and it
+  # needs no edit either: the tree the group's parent adds was gated by the
+  # group before it.
+  #
+  # `types: [checks_requested]` is the only activity type there is; naming it
+  # keeps a future second type from silently joining the gate.
+  merge_group:
+    types: [checks_requested]
   # NARROWING THE GATE TO A CONFIGURATION YOU CHOOSE (2026-08-28, Ev's ask;
   # repurposed 2026-09-04).
   #
@@ -158,7 +183,16 @@ concurrency:
 # RUN_VIEWER_TOOLKIT note calls the failure mode to avoid. Written this way, a trigger added
 # here runs the gate by default and has to be excluded deliberately, which is
 # the direction that fails safe. `renders` is the one such exclusion and
-# carries its reason at its own key.
+# carries its reason at its own key — two events now, `workflow_dispatch` and
+# `merge_group`, for two different reasons written there.
+#
+# THAT DIRECTION PAID (2026-09-04): adding `merge_group` to this file's `on:`
+# required NO edit to any job's `if:`. That is read off the guards, not off a
+# run — no merge_group run can exist until a queue is enabled — and what was
+# read is that every gated job's condition is `github.event_name != 'push'`
+# and nothing else event-shaped, so `merge_group` satisfies all of them. The
+# spelling is the reason the merge-queue trial costs a trigger rather than a
+# sweep.
 #
 # WHAT THIS GIVES UP, AND WHY NOTHING PAIRS WITH IT. The commit that
 # actually lands on main is now never itself built or tested. When main
@@ -578,12 +612,25 @@ jobs:
           # available" and left it as a policy decision).
           #
           # Expressed by zeroing the RUN_* flags rather than by an `if:` on
-          # twenty jobs: every job in this workflow except `docs-only` and
-          # `mirror` already gates on one of these outputs, so one rewrite
-          # here reaches all of them and cannot drift as jobs are added.
-          # `docs-only` deliberately still runs — it is the marker check,
-          # and a draft whose only check never reports cannot be read as
-          # "not yet gated" by anything looking at the PR.
+          # twenty jobs: every job in this workflow that gates anything reads
+          # one of these outputs, so one rewrite here reaches all of them and
+          # does not have to be swept as jobs are added. THREE JOBS DO NOT READ
+          # ONE, and each is a job that gates nothing on its own: `docs-only`,
+          # `mirror`, and — since 2026-09-04 — `gate-ok`. `docs-only`
+          # deliberately still runs: it is the marker check, and a draft whose
+          # only check never reports cannot be read as "not yet gated" by
+          # anything looking at the PR. `gate-ok` still runs for the same
+          # reason and reports what it found: on a draft its population is a
+          # workflow of `skipped` rows, and its summary line prints the tier
+          # and `run_build` so that green cannot be misread as a gated tree
+          # (see its own key).
+          #
+          # SO "CANNOT DRIFT AS JOBS ARE ADDED" IS NOT WHAT THIS SPELLING BUYS,
+          # and the sentence used to say it did. A job added with no `RUN_*`
+          # read is a job this rewrite does not reach; `gate-ok` is one, added
+          # after the sentence was written. What the spelling buys is that no
+          # job which DOES gate can be missed — which is the property that
+          # matters here, and it is the one claimed now.
           #
           # TIER and CARGO_SCOPE are deliberately NOT zeroed: they are
           # descriptive, they are printed below, and no job acts on them
@@ -814,8 +861,28 @@ jobs:
           exit $rc
 
   # NO LOCAL MIRROR: a marker job with no check in it — it echoes the tier so
-  # a docs-only PR has a green required status. ci-local.sh prints the same two
-  # lines at its docs-tier exit and returns 0; there is nothing here to run.
+  # a docs-only PR has a green status that reports on every tier. ci-local.sh
+  # prints the same two lines at its docs-tier exit and returns 0; there is
+  # nothing here to run.
+  #
+  # IT IS NOT THE REQUIRED STATUS, AND SINCE 2026-09-04 IT IS NOT MEANT TO BE.
+  # This sentence used to read "a green required status", written for an
+  # imagined branch protection; `gate-ok` is the job that answers that now
+  # (`work/ciw/merge-queue-trial.md` is the runbook), and the two are a pair
+  # with a division of labour rather than a duplicate:
+  #   * `docs-only` asserts WHAT THIS RUN CLASSIFIED AS and nothing about
+  #     anybody's conclusion. It is the marker a DRAFT run keeps — the `filter`
+  #     job zeroes every `RUN_*` flag on a draft and this job deliberately
+  #     still runs, because a draft whose only check never reports cannot be
+  #     read as "not yet gated" by anything looking at the PR.
+  #   * `gate-ok` asserts EVERY OTHER JOB'S CONCLUSION, which `docs-only` never
+  #     could, and is the one name a protection or a queue should require. It
+  #     prints the tier too, so the required check does not have to be read
+  #     next to this one to know what it gated.
+  # THE TIER MARKER NOW HAS THREE SPELLINGS in this file — this job, the
+  # `filter` job's `the configuration this run gates` and draft-verdict steps,
+  # and `gate ok`'s summary line — and a fourth should be a reason to collapse
+  # some of these rather than to add it.
   docs-only:
     name: docs-only ok
     runs-on: ubuntu-latest
@@ -988,6 +1055,20 @@ jobs:
         run: |
           scripts/gates/probe-suite-census.sh --selftest
           scripts/gates/probe-suite-census.sh --citations
+      # The viewer crate's vocabulary/driver boundary. SITED HERE FOR
+      # THIS JOB'S OWN REASON: two of its checks read
+      # `crates/viewer/README.md` (the driver and vocabulary tables it
+      # derives its rosters from) and one reads that crate's
+      # `Cargo.toml` (the `app` feature, which is the forbidden-crate
+      # set). A change set of only the README is TIER=docs, so in
+      # `discipline` a docs-only PR renaming a table heading, adding a
+      # ghost row or deleting a table would merge with every one of
+      # those arms unrun. TIER_BLIND names it, so this cannot drift
+      # back.
+      - name: viewer module kinds (vocabulary/driver boundary)
+        run: |
+          scripts/gates/viewer-module-kinds.sh --selftest
+          scripts/gates/viewer-module-kinds.sh
       # THE PYTHON LINTER RIDES THIS JOB, and the two properties that make
       # this job what it is are exactly the two ruff needs.
       #
@@ -1196,6 +1277,23 @@ jobs:
           python3 scripts/slowest-tests.py --selftest
           python3 scripts/pr-added-tests.py --selftest
           scripts/base-test-listing.sh --selftest
+      # THE REQUIRED CHECK'S OWN READER, and it is the same argument as the row
+      # above one step further out. `scripts/check-run-jobs.py` IS the `gate ok`
+      # job — the single name a merge queue or a branch protection is meant to
+      # require — and on a real run exactly one of its seven decision paths
+      # executes: the all-green one. The other six (a failed job, a job still
+      # running, a paged job list, an empty population, `neutral`, an unreadable
+      # API) are the ones that decide whether a red run can report green, and no
+      # hosted run produces them on demand. So they are driven here, against a
+      # stub `gh`, in milliseconds and with no toolchain.
+      #
+      # SITED IN THIS JOB and not in `mirror`: the script's inputs are
+      # `scripts/*.py`, which is not a file class `scripts/ci-filter.py`
+      # classifies as TIER=docs, so the change set that can break it is exactly
+      # the change set this job runs on. `mirror` is for guards whose OWN inputs
+      # are prose or `local-scripts/`.
+      - name: run-job gate selftest (the one required check's seven paths)
+        run: python3 scripts/check-run-jobs.py --selftest
       # The `interval` feature must stay PURELY ADDITIVE. This is not a
       # style rule: it is what lets the wasm32 guard below run the interval
       # leg ONLY, and it is what made this lane a stand-in for the default
@@ -4464,7 +4562,34 @@ jobs:
     # against a BRANCH, and a dispatch is the one entry point with no pull
     # request to report on. render.yml keeps its own `workflow_dispatch` for
     # when new frames are the thing being asked for.
-    if: github.event_name != 'workflow_dispatch' && needs.filter.outputs.run_k_lint == 'true'
+    #
+    # NOT ON A MERGE GROUP EITHER, and for a DIFFERENT reason — a queue run
+    # would render a tree that gets rendered twice around it anyway. The
+    # lanes' two outputs are a drift report against a branch and a
+    # re-baseline commit to one, and a merge group has no branch: `push_to`
+    # below is already empty under any non-push event, and the drift check
+    # would be posted against a `gh-readonly-queue/…` sha that is deleted
+    # when the group merges. Meanwhile the PR run has already rendered this
+    # merge preview and main's push run re-renders and re-baselines after the
+    # merge, so a queue render is the one job here that could only agree with
+    # its neighbours. At the 2026-09-04 medians it is 330 job-seconds of the
+    # 2686 a code-tier run costs — about an eighth of what a queue would add.
+    #
+    # WHAT IS GIVEN UP HERE IS NOTHING, AND THAT IS A CLAIM ABOUT THIS EVENT
+    # ONLY. On the merge_group side the exclusion removes no gate: the PR run
+    # and main's push run both render this tree, so a queue render could only
+    # agree with them. It would be false of the PULL_REQUEST side, and the same
+    # pull request that writes this line creates that side — `gate-ok` carries
+    # `- renders` in its `needs:`, so once `gate ok` is a required check a
+    # FAILED render lane blocks the pull request, which no render lane has been
+    # able to do before. That tightening is deliberate and is argued at
+    # `gate-ok`'s own key, on a measurement of the post-PR-1724 failure rate.
+    #
+    # THE CONSEQUENCE TO KNOW is that no render check name reports on a
+    # merge_group run, so no render check may appear in the queue's
+    # required-check list — a required check that never reports stalls the
+    # queue until its status-check timeout.
+    if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group' && needs.filter.outputs.run_k_lint == 'true'
     uses: ./.github/workflows/render.yml
     # A reusable workflow gets the CALLER's token scope, and this
     # workflow declares none at the top level — so the lanes' own
@@ -4489,3 +4614,179 @@ jobs:
       # pull_request `github.sha` is the merge commit and a check there
       # never appears on the PR, so name the PR's head explicitly.
       report_sha: ${{ github.event.pull_request.head.sha || github.sha }}
+
+  # THE ONE CHECK A MERGE QUEUE (OR A BRANCH PROTECTION) SHOULD REQUIRE.
+  #
+  # A required status check is required BY NAME, and naming this workflow's
+  # gating jobs one by one does not work here, for two reasons a name list
+  # cannot fix:
+  #
+  #   * TWO OF THE NAMES ARE COMPUTED. `test (eps = …, …/2)` and
+  #     `test (interval, eps = …, …/2)` interpolate
+  #     `needs.filter.outputs.eps_rows`, which a `workflow_dispatch` or a
+  #     `CI-Config:` trailer can still narrow. Neither spelling can reach a
+  #     merge_group run (a group's head commit message is GitHub's own, and a
+  #     queue takes no inputs) — but a required-check list is SHARED with pull
+  #     requests, where both can. A gate whose names a commit message can shrink
+  #     is a gate a commit message can shrink.
+  #   * A LIST GOES STALE SILENTLY. A job added to this file and forgotten in a
+  #     branch-protection setting is a gate nobody removed and nobody runs. The
+  #     sweep below is what makes that impossible, and it is why this job reads
+  #     the run rather than trusting its own `needs:`.
+  #
+  # WHAT IS *NOT* A REASON, written here because it was the leading one until
+  # 2026-09-04 and GitHub's documentation settles it the other way. The claim
+  # was: most jobs here report `skipped` on a docs-tier merge, and whether a
+  # skipped check satisfies a required one is unestablished. It is established.
+  # `content/pull-requests/how-tos/merge-and-close-pull-requests/troubleshooting-required-status-checks.md`,
+  # under *Handling skipped but required checks*, is a table whose second row
+  # reads `A job is skipped by a conditional | The job reports "Success"`, and
+  # one section above it: *"Successful check statuses are `success`, `skipped`,
+  # and `neutral`."* The row that DOES leave a check pending and block merging
+  # is the WORKFLOW-level skip — path filtering, branch filtering, a `[skip ci]`
+  # commit message — and no `if: run_build` job here is that shape. So the
+  # feared failure (a queue that never merges a documentation change) is
+  # documented not to occur, and it is not what carries this design. The two
+  # reasons above are.
+  #
+  # THE SAME PAGE EARNS THIS JOB ITS `always()`, and that citation is worth
+  # keeping: *"A job depends on a failed job | The dependent job is skipped and
+  # may not block merging | Use `always()` with `needs` for required checks that
+  # depend on other jobs."*
+  #
+  # WHAT IT ASSERTS, in two claims that fail CLOSED:
+  #
+  #   1. EVERY job of this run except this one has reached a terminal state.
+  #      A job still running when this job summarises is a job missing from
+  #      `needs:` below — the omission this design is most exposed to — and it
+  #      is a RED naming the job, not a pass.
+  #   2. Every one of them concluded `success`, `skipped` or `neutral`.
+  #      Those three because they are GitHub's own definition of a passing
+  #      check (the sentence quoted above), not because of anything this
+  #      workflow emits: a workflow JOB cannot conclude `neutral` at all —
+  #      `.github/actions/rebaseline-lane/action.yml` says so at its own key,
+  #      which is why a render lane's drift signal is a CHECK RUN posted
+  #      through `POST /check-runs` and not a job. THE CONSEQUENCE TO KNOW is
+  #      that this job reads `/actions/runs/{id}/jobs`, so `gate ok`
+  #      summarises JOBS AND NOT CHECK RUNS: the `render drift (…)` and
+  #      `render re-baselined (…)` neutral checks are outside the one name
+  #      entirely. `failure`, `cancelled`, `timed_out` and `action_required`
+  #      are reds.
+  #
+  # `needs:` IS THEREFORE ORDERING AND NOT THE CLAIM. It lists every other job
+  # in this file so that this one runs last; if it ever falls behind the job
+  # list, claim 1 reds and says which name to add. Keep it exhaustive anyway —
+  # a red at the end of a run is a worse way to learn it than reading this
+  # list.
+  #
+  # `renders` IS IN THAT LIST ON PURPOSE, AND IT IS A TIGHTENING. Once `gate ok`
+  # is a required check, a FAILED render lane blocks the pull request, which no
+  # render lane has been able to do before (`rebaseline-lane`'s header argues
+  # neutral-not-red from *"nothing in this repo is branch-protected and agents
+  # merge their own PRs, so a red X was never actually blocking"*). That is
+  # stated rather than dodged, and it is deliberate on a measurement: over the
+  # 259 ci.yml runs carrying render lanes since PR 1724 landed (`a5d9f41a`,
+  # 2026-09-04T01:31Z) — 777 render-lane jobs — EIGHT failed, none of them at
+  # checkout, which was the whole of the 103-red population
+  # `work/ciw/render-lanes-red-at-missing-merge-ref` measured before that fix.
+  # All eight were the lane saying something about the tree, and seven of them
+  # are one incident that also reddened `main`'s own push run. Dropping
+  # `renders` from `needs:` would not remove the blocking anyway — the sweep
+  # reads the RUN's job list, so a render lane would still be in the
+  # population, and without the `needs:` edge it would more often be caught
+  # still RUNNING, which claim 1 reds. Excluding it would take an exemption
+  # inside the sweep, and an exemption inside the sweep is the thing the sweep
+  # is for.
+  #
+  # NOT ON A PUSH. `main`'s push run carries write side-effects and no gate
+  # (the F3 note at the top of this file), so there is nothing here to
+  # summarise and no branch protection to satisfy. On every other event this
+  # job runs, which means a pull_request run exercises it on every push to
+  # every branch — the one part of the merge-queue design that CAN be
+  # exercised before a queue exists.
+  #
+  # `always()` MEANS A CANCELLED RUN STILL REPORTS, and it reports RED — the
+  # other jobs conclude `cancelled`, which is not on the accept-list, so the
+  # summary names them. That is a reading difference from every other job in
+  # this file, where a cancelled run cancels. It is the fail-closed answer and
+  # it is deliberate: `gate ok` is a required check, and a check that goes
+  # green because its run was superseded is a check that can be made green by
+  # superseding a run. Nothing merges off a cancelled run anyway.
+  #
+  # IT IS NOT ENABLED ANYWHERE. Requiring this check is a branch-protection
+  # setting; `work/ciw/merge-queue-trial.md` is the runbook and it is Ev's to
+  # follow. Until then this job reports and nothing reads it.
+  #
+  # NO LOCAL MIRROR: its subject is a hosted run's own job list, read through
+  # the Actions API, and a developer box has no such list. The local half
+  # answers the same question by being one process: `local-scripts/gate.sh`
+  # runs the rows in order and its exit status IS the summary this job has to
+  # reconstruct, so mirroring it locally would be a check on the shell's `&&`.
+  # What IS mirrored is the reader's `--selftest`, which runs in `discipline`
+  # and in ci-local.sh's `discipline()` — see `scripts/check-run-jobs.py`.
+  gate-ok:
+    name: gate ok
+    if: always() && github.event_name != 'push'
+    needs:
+      - filter
+      - docs-only
+      - mirror
+      - discipline
+      - fmt
+      - clippy
+      - clippy-all-features
+      - cache-prime
+      - cache-prime-interval
+      - build
+      - test
+      - build-interval
+      - lint-interval
+      - test-interval
+      - interval-backend
+      - oracle-certify
+      - step-import
+      - python-suite
+      - k-lint
+      - renders
+    runs-on: ubuntu-latest
+    # `actions: read` for this run's own job list, `contents: read` for the
+    # checkout that finds the reader, and NOTHING else. A `permissions:` block
+    # replaces the workflow's default scopes outright — every scope not named
+    # here is `none` — which is the point: this job writes nothing anywhere.
+    # `contents: read` is load-bearing rather than tidy: without it
+    # `actions/checkout` 403s and this job reds on a permission, which would
+    # look exactly like the gate it is supposed to be.
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      # THE READER IS A SCRIPT AND NOT A HEREDOC, and that is the whole of what
+      # changed here on 2026-09-04. Six of its seven decision paths never
+      # execute on a real run — only the all-green one does — so inline in a
+      # `run:` block nothing in the tree could re-drive them, which is the
+      # `base-test-listing.sh` argument arriving at the one job that is the
+      # entire required check. `scripts/check-run-jobs.py --selftest` drives
+      # all seven against a stub `gh`, in `discipline`.
+      #
+      # A CHECKOUT IS NEEDED NOW WHERE IT WAS NOT BEFORE — the script is in the
+      # tree. `persist-credentials: false` and no submodules: this job reads an
+      # API and the repository only to find the reader.
+      #
+      # THE TIER AND THE BUILD FLAG ARE PASSED IN so the one green line says
+      # WHAT it gated and not only how many rows it counted. `gate ok` is the
+      # whole reading surface once it is the only required check, and a run
+      # whose `RUN_*` flags were all zeroed — a docs tier, a draft — reports
+      # green over a workflow of `skipped` rows. The reader prints the tier
+      # beside the tally and, on such a run, a sentence saying so.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - name: every job in this run concluded, and concluded green
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/check-run-jobs.py --self "gate ok" \
+            --tier "${{ needs.filter.outputs.tier }}" \
+            --run-build "${{ needs.filter.outputs.run_build }}"

@@ -137,8 +137,8 @@ fn measures(half: f64, theta: f64) -> Result<f64, String> {
         Tol::witness(),
     );
     let refs = vec![
-        cap(&ev, plates[0], CapEnd::Top),
-        cap(&ev, plates[1], CapEnd::Bottom),
+        cap(&ev, plates[0], CapEnd::End),
+        cap(&ev, plates[1], CapEnd::Start),
     ];
     let expr = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
     let (doc, measure) = mint(&doc, Node::measure(expr, refs).expect("indices in range"));

@@ -167,8 +167,8 @@ fn four_legs(
         doc,
         DocEdit::InsertNode {
             node: seat(
-                in_copy(pattern, COPY, in_part(leg, CapEnd::Top)),
-                in_part(top, CapEnd::Bottom),
+                in_copy(pattern, COPY, in_part(leg, CapEnd::End)),
+                in_part(top, CapEnd::Start),
             ),
         },
     );
@@ -321,7 +321,7 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
     };
     assert_eq!(
         *a,
-        in_copy(new_pattern, COPY, in_part(new_leg, CapEnd::Top)),
+        in_copy(new_pattern, COPY, in_part(new_leg, CapEnd::End)),
         "ids remap through the recorded map; the copy index does not"
     );
     let RoleSeg::Instance { i, .. } = a.path[0] else {
@@ -372,8 +372,8 @@ fn a_nested_pattern_head_reaches_the_seam_and_still_contributes_no_crossing() {
         doc,
         DocEdit::InsertNode {
             node: seat(
-                in_copy(outer, 1, in_copy(inner, 1, in_part(leg, CapEnd::Top))),
-                in_part(top, CapEnd::Bottom),
+                in_copy(outer, 1, in_copy(inner, 1, in_part(leg, CapEnd::End))),
+                in_part(top, CapEnd::Start),
             ),
         },
     );

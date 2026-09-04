@@ -58,3 +58,8 @@ Filed from the VERBS-RIMCAP PR-1 lane as the declared schedule for the
 spec's shell-level acceptance (the hollow row), which this wall blocks
 from outside the unit's scope; adjudication decides whether it is
 funded as its own props unit.
+
+**Re-homed to PROPS** (2026-09-04, at CURVED's opening, Ev's in-chat
+"put them wherever you see fit"): the flip is a props unit on
+`geom-brep/src/props/*` — S-CERT's ground until PROPS inherits it — and
+PROPS holds its items from opening exactly as CURVED held S-MATE's.
