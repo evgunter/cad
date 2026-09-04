@@ -155,9 +155,13 @@ fn check_roles(what: &str, body: &Body<f64>, r: &Roles, wall: f64) {
         (circle_radius(body, rim.outer) - R_NECK).abs() < 1e-12,
         "{what}: outer rim circle"
     );
+    // The ring is where the INNER sphere (R_BELLY - wall) meets the mouth
+    // plane: the lift extends the cavity's belly up to the mouth.
+    let want = ((R_BELLY - wall).powi(2) - (Y_MOUTH - Y_BELLY_C).powi(2)).sqrt();
+    let got = circle_radius(body, r.ring);
     assert!(
-        (circle_radius(body, r.ring) - (R_NECK - wall)).abs() < 1e-12,
-        "{what}: ring radius = neck - wall"
+        (got - want).abs() < 1e-12,
+        "{what}: ring radius {got}, want inner-sphere-at-mouth {want}"
     );
     // The belly twin: a sphere of radius R_BELLY - wall.
     let twin = body
