@@ -2,9 +2,10 @@
 id: camera-fold-clears-status-line
 kind: issue
 title: A camera fold clears the status line, so a message raised on Open never survives the re-frame
-status: open
+status: review
 opened: 2026-08-29
 github: 1253
+branch: view/status-lifetimes
 ---
 
 ## From GitHub issue 1253
@@ -68,3 +69,67 @@ Open any document whose product has a fault (two roots colliding in the name tab
 ## Home
 
 `work/issues/` — `crates/viewer`'s app/frame seam is GUI-era ground and the GUI program is closed.
+
+## What landed, and the rule it landed as
+
+**The status line carries per-frame NEWS, and `frame` owns its
+ranking. A fact that stays true after the frame ends is not news and
+does not belong in the line.** That sentence is now
+`crates/viewer/src/frame.rs`'s header, and both halves of it are
+values there rather than conditions at a call site:
+
+- `frame::fold_status` answers `StatusUpdate::Keep` for a clean fold
+  and `Show` for a refused one. A camera arriving where it was sent is
+  not news; clearing stays the acting batch's verdict alone
+  (`batch_status`), because an action the document accepted is the one
+  event that makes a standing complaint stale.
+- `frame::apply` is the one door a `StatusUpdate` becomes the field
+  through, so `Keep` is spelled as a decision instead of as the
+  absence of an assignment. `land` and `ViewerApp::apply_status` both
+  go through it.
+- `frame::product_badge` renders the gather's verdict, filtering
+  `NoBodyRoots` (an empty document is not malformed — the blank
+  viewport says so). The toolbar draws it beside the at-rest and
+  checks badges, in the unresolved colour rather than the weak one the
+  budget advisory uses: a fault is a fault, and the home it moved to
+  must not be quieter than the line it left.
+
+Of the shape's three candidates, this is (2) and (3) together and not
+(1): the line does not carry its writer, because a writer that has
+nothing to say now says so.
+
+`sync_scene` no longer writes the fault at all. Two consequences worth
+recording. The badge is a read of held state, so it can never be stale
+or erased by anything else in the frame — where the old line was
+written only inside the successful-rebuild arm. And it therefore
+appears for faults the line could not reach: a failed root refuses the
+pick index, and `sync_scene` returned at that arm before ever reaching
+the product-fault assignment, so `RootFailed` and `RootPoisoned` badge
+now where before only the tree row did.
+
+### Rows
+
+`crates/viewer/src/frame.rs` (default lane, so all twelve CI test jobs
+run them) and `crates/viewer/src/pane/viewport.rs` (`--features app`).
+Each was driven red by mutating the thing it names:
+
+- `a_clean_fold_keeps_a_message_it_did_not_write` — red when
+  `fold_status`'s clean arm answers `Clear`.
+- `a_product_fault_survives_the_re_frame_the_open_that_raised_it_books`
+  — the composition this item filed: a session whose landed product
+  does not gather, and the `CameraOp::Frame` an Open books on the same
+  frame. Red under either mutation.
+- `the_gather_verdict_badges_every_fault_but_an_empty_document` —
+  builds the item's own repro as a value (`ProductError::Naming`) and
+  asserts `NoBodyRoots` stays silent. Red when `product_badge` filters
+  everything.
+- `landing_a_clean_fold_does_not_clear_a_message_it_did_not_write` —
+  calls `land`, which is the one wiring a `frame` row cannot reach:
+  red when `land` goes back to assigning the line itself.
+
+### What did not land
+
+The other eighteen direct writers of the line, which bypass
+`frame_status` entirely. Censused and classified in
+`status-line-writers-bypass-the-ranking`; not swept here because
+`crates/viewer/src/pane/` is shared with CHROME.

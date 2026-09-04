@@ -16,19 +16,21 @@ use crate::pick::{self, PickIndex};
 use crate::session::SessionOp;
 use crate::sketch::{heading, tip_mark};
 
-/// Land a fold: take the camera it reached, and either show the
-/// refusal that stopped it or clear the last one.
+/// Land a fold: take the camera it reached, and show the refusal that
+/// stopped it.
 ///
 /// **The one place a camera move becomes application state.** Both the
 /// toolbar's single operations and the viewport's event stream come
-/// through here, so "record the refusal, clear it on success" has one
-/// implementation.
+/// through here, so what a fold says has one implementation.
+///
+/// What it says is [`frame::fold_status`]'s to decide, and a clean fold
+/// says NOTHING: a camera is the fastest-moving writer the status line
+/// has, and one that assigned the line on every clean fold would erase
+/// the news of whichever writer shares its frame — including, on the
+/// frame a document lands, the landing's own.
 pub(crate) fn land(camera: &mut Camera, status: &mut Option<String>, folded: &camera::Folded) {
     *camera = folded.camera;
-    *status = folded
-        .refused
-        .as_ref()
-        .map(|(op, error)| format!("camera: {error} (from {op})"));
+    frame::apply(status, frame::fold_status(folded));
 }
 
 /// Direction the light travels, world space; a unit vector over the
@@ -396,5 +398,75 @@ impl ViewerBehavior<'_> {
                 id_query,
             },
         ));
+    }
+}
+
+/// **The one wiring `frame`'s rows cannot reach.**
+///
+/// Every rule [`land`] obeys is a value in [`crate::frame`] and is
+/// asserted there. What is asserted HERE is that `land` still asks:
+/// the whole defect was a status-line assignment written at this call
+/// site, so a row that only exercises the policy would stay green
+/// through the exact regression it is meant to catch.
+#[cfg(test)]
+mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use super::land;
+    use crate::camera::{Camera, CameraOp, fold_recorded};
+    use crate::scene::PLATE_EXTENT;
+    use bvh::Aabb;
+
+    fn plate_bounds() -> Aabb {
+        let [width, depth, thickness] = PLATE_EXTENT;
+        Aabb {
+            min_x: 0.0,
+            min_y: 0.0,
+            min_z: 0.0,
+            max_x: width,
+            max_y: depth,
+            max_z: thickness,
+        }
+    }
+
+    fn framed() -> Camera {
+        Camera::framing(&plate_bounds(), 16.0 / 9.0).expect("the plate frames")
+    }
+
+    #[test]
+    fn landing_a_clean_fold_does_not_clear_a_message_it_did_not_write() {
+        // The re-frame an opened document books, landed on the same
+        // frame the landing raised its own news.
+        let fit = CameraOp::Frame {
+            bounds: plate_bounds(),
+            aspect: 16.0 / 9.0,
+        };
+        let mut camera = framed();
+        let folded = fold_recorded(&camera, std::slice::from_ref(&fit));
+        assert!(folded.refused.is_none(), "the re-frame applies");
+
+        let mut status = Some("product: the landing's own news".to_owned());
+        land(&mut camera, &mut status, &folded);
+        assert_eq!(camera, folded.camera, "the camera still lands");
+        assert_eq!(
+            status.as_deref(),
+            Some("product: the landing's own news"),
+            "and the line is not the fold's to clear"
+        );
+    }
+
+    #[test]
+    fn landing_a_refused_fold_shows_the_refusal() {
+        let mut camera = framed();
+        let refuses = CameraOp::Dolly { factor: 0.0 };
+        let folded = fold_recorded(&camera, std::slice::from_ref(&refuses));
+        let mut status = Some("older news".to_owned());
+        land(&mut camera, &mut status, &folded);
+        let shown = status.expect("a refused fold is news");
+        assert!(
+            shown.contains("camera:") && shown.contains("dolly by a factor"),
+            "{shown}"
+        );
     }
 }
