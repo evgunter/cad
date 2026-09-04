@@ -107,6 +107,30 @@ only the job name and the `exit code 100` shape, and inferred the rest
 from the identical shard; the run ids are listed so that is checkable
 rather than taken.
 
+## Further instance 2026-09-04 (CHROME, PR 1748)
+
+Same failure, same two values, on `chrome/viewer-mate-tool-refuses-pattern-picks`:
+
+```
+FAIL pncad-py tests::the_whole_tag_table_matches_its_committed_inventory
+```
+
+run 33827636127, job 100884399344, `test (interval, eps = default,
+2/2)`. That branch's diff is the viewer's mate-tool pick gate plus one
+private function in `crates/editor-core/src/mate/solve.rs` made public
+and re-exported; it adds no `node_error_tag` value and touches no
+`tags.rs` or `tests.rs` line.
+
+Worth recording for the class rather than for the count: **CHROME's
+sibling PR 1746 is green on the same `main`**, because its diff is
+`crates/viewer` only and the change filter's closure never reaches
+`pncad-py`. So this red is billed not to "every code-tier PR" but to
+every code-tier PR whose closure REACHES `pncad-py` — which is any diff
+touching `crates/pncad` or anything it re-exports. Two PRs from one
+program, opened minutes apart against one base, differ on this purely
+by which crates their closures pull in. Not repaired here, per the
+paragraph above.
+
 ## Re-homed to LIB, with provenance (2026-09-04, CIW orchestrator)
 
 Ev, 2026-09-04: keep merging over it, but pass it off to actually get
