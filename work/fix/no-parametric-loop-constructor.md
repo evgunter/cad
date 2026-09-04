@@ -2,12 +2,13 @@
 id: no-parametric-loop-constructor
 kind: issue
 title: No parametric loop constructor - LoopProgram::polygon is literals-only
-status: review
+status: closed
 opened: 2026-08-23
 github: 948
 refs: [938]
 branch: fix/loop-polygon-expr
 pr: 1765
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 948
