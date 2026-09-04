@@ -5,6 +5,7 @@ title: the prose gate is enforced only where someone remembered: no row renders 
 status: review
 branch: fix/prose-gate-guard
 opened: 2026-09-04
+pr: 1809
 ---
 
 
