@@ -3034,7 +3034,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   display one. `crate::document` carries all three now.
 /// - **Types whose curated face is a different shape**
 ///   (`ProfilePayload`, `ProgramRefusal`, `ExprPath`, `ParamValue`,
-///   `Product`, `product_recorded`, `BifurcationKind`, `NamingError`,
+///   `BifurcationKind`, `NamingError`,
 ///   `MetaValue`, `MetaError`, `MetaVersionError`, `from_value`,
 ///   `to_value`): each has a curated door of its own or is machinery
 ///   behind one. (`ClassAdmission`/`class_admission` left this family
@@ -3049,9 +3049,15 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   assembly is valid at rest, and the façade carried the whole
 ///   authoring vocabulary that constructs one. A consumer could build
 ///   an assembly and not check it. `crate::document` carries them
-///   now; `product_recorded` stays out because `product`/
-///   `product_named` are the curated gather and `assemble` is what
-///   needs the recorded one.
+///   now. `Product` and `product_recorded` came WITH them, and the
+///   reason is the doors that take a gathered product:
+///   `assemble_gathered` and `run_checks_on` are the canonical
+///   spellings of the at-rest gate and the check registry, and a
+///   consumer with several consumers of one document's product
+///   gathers once and feeds them. `product`/`product_named` stay the
+///   curated gather for a caller that wants only a body, and they
+///   cannot serve that one — a caller who cannot name `Product`
+///   cannot hold one.
 ///
 ///   **`MintRefusal` is not part of that carry**, and the split is
 ///   the point: it is the GATHER's row for a mate whose declaration
@@ -3107,7 +3113,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   the refusal's own `Display`), the two scalar CAPABILITY seams and
 ///   their env plumbing, and `sensitivities` — the intermediate whose
 ///   answer `stackup` already carries.
-const NOT_CARRIED: [&str; 93] = [
+const NOT_CARRIED: [&str; 91] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -3150,7 +3156,6 @@ const NOT_CARRIED: [&str; 93] = [
     "PairingViolation",
     "ParamValue",
     "PredicateDivergence",
-    "Product",
     "ProfilePayload",
     "ProgramRefusal",
     "Qualifier",
@@ -3192,7 +3197,6 @@ const NOT_CARRIED: [&str; 93] = [
     "entity_name",
     "from_value",
     "param_env_over",
-    "product_recorded",
     "rebind_suggestions",
     "resolve_with_prior",
     "seed_env",

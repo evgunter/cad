@@ -834,3 +834,14 @@ rule above; the unit's record is its row in `MODEL-AB-LOG.md` and its
 MERGED entry in `work/docm/log.md`.
 
 - `DOCM-2-SPEC.md` — DOCM-2, `Node::Part`, a split's half or a pattern's instance as one body (#1860)
+
+## Per-merge deletion — DOCM-5's spec (2026-09-04)
+
+Recoverable at `git show 9f34220e3938076557f38722554446867a6ef3a0:docs/DOCM-5-SPEC.md`
+(the DOCM-5 unit head, before the state-sync commit that deleted it;
+unamended — no stop clause fired; its citation of `docs/PERF-PLAN.md`
+and its fence over `product.rs` "Dual arms" are both corrected in the
+unit's record). The rule above; the unit's record is its row in
+`MODEL-AB-LOG.md` and its MERGED entry in `work/docm/log.md`.
+
+- `DOCM-5-SPEC.md` — DOCM-5, the check registry's subject: one gather per landing (#1871)

@@ -51,7 +51,10 @@ LOG_EXEMPT = {"docs/MODEL-AB-LOG.md"}         # the one non-program log in docs/
 STALE_DAYS = 14
 
 KINDS = ("program", "unit", "issue", "ruling")
-ITEM_STATUS = ("open", "spec", "dispatched", "review", "closed", "parked")
+ITEM_STATUS = ("open", "spec", "dispatched", "review", "closed", "parked", "deferred")
+# The two not-now statuses, ordered last above so a slate lists them furthest
+# from dispatchable: `parked` waits on a named trigger, `deferred` is a
+# ratified not-now whose reason is prose in the body (see work/README.md).
 RULING_STATUS = ("open", "closed")
 PROGRAM_STATUS = ("open", "closed")
 AREAS = ("kernel", "api", "gui", "infra")
@@ -306,8 +309,12 @@ def _check_type(item: Item, key: str, typ: str, value: object) -> list[str]:
     raise AssertionError(typ)
 
 
-def lint(root: str) -> list[str]:
+def lint(root: str, warnings: list[str] | None = None) -> list[str]:
+    """Errors, sorted and deduped. `warnings` (an out-parameter) collects the
+    advisories: a lint error blocks a merge, a warning names a row and leaves
+    the fix to whoever owns it."""
     items, errors = load_tree(root)
+    warns: list[str] = []
     by_id: dict[str, Item] = {}
     for it in items:
         # keys and types
@@ -354,6 +361,25 @@ def lint(root: str) -> list[str]:
             errors.append(f"{it.path}: `closed:` is set but status is {it.status}")
         if it.status == "parked" and not it.get("blocked_on"):
             errors.append(f"{it.path}: parked needs a non-empty `blocked_on`")
+        if it.status == "deferred" and it.get("blocked_on"):
+            errors.append(f"{it.path}: deferred is a ratified not-now, not a wait on a named trigger — "
+                          f"a row with `blocked_on` is parked; cite the ratification in the body instead")
+        if it.status == "parked":
+            # A trigger that has fired. `blocked_on` still resolves, so nothing
+            # else here objects and the row reads blocked forever.
+            fired = [v for v in it.get("blocked_on") or []
+                     if isinstance(v, str) and v in by_id and by_id[v].status == "closed"]
+            if fired:
+                rest = [_fmt_ref(v) for v in it.get("blocked_on") or [] if v not in fired]
+                names = ", ".join(f"`{v}`" for v in fired)
+                if rest:
+                    # Still blocked, so the status is true and only the entry is stale.
+                    warns.append(f"{it.path}: parked on {names}, which is closed — that trigger has fired; "
+                                 f"it still waits on {', '.join(rest)}, so prune the fired entry")
+                else:
+                    errors.append(f"{it.path}: parked on {names}, which is closed — that trigger has fired "
+                                  f"and nothing else gates this row; re-park it on what does, "
+                                  f"open it, or defer it")
         # references
         for key in ("parent", "rides_with"):
             v = it.get(key)
@@ -390,6 +416,8 @@ def lint(root: str) -> list[str]:
                 errors.append(f"{rel}: plans and logs live in {WORK}/<program>/ (plan.md, log.md), not in docs/")
     if not programs and not errors:
         errors.append(f"{WORK}/ holds no program")
+    if warnings is not None:
+        warnings.extend(sorted(set(warns)))
     return sorted(set(errors))
 
 
@@ -458,14 +486,15 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
     # board
     out.append("## Programs")
     out.append("")
-    out.append("| area | program | status | open | spec | dispatched | review | parked | closed | on Ev |")
-    out.append("|---|---|---|---|---|---|---|---|---|---|")
+    out.append("| area | program | status | open | spec | dispatched | review | parked | deferred | closed | on Ev |")
+    out.append("|---|---|---|---|---|---|---|---|---|---|---|")
     for p in programs:
         rows = by_program.get(p.id, [])
         c = {s: sum(1 for r in rows if r.status == s) for s in ITEM_STATUS}
         ev = sum(1 for r in rows if r.status != "closed" and r.get("needs_ev") is not None)
         out.append(f"| {p.get('area') or '—'} | `{p.id}` | {p.status} | {c['open']} | {c['spec']} | "
-                   f"{c['dispatched']} | {c['review']} | {c['parked']} | {c['closed']} | {ev or ''} |")
+                   f"{c['dispatched']} | {c['review']} | {c['parked']} | {c['deferred']} | {c['closed']} | "
+                   f"{ev or ''} |")
     out.append("")
 
     # per-program slates
@@ -530,7 +559,7 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
     # stale
     stale = []
     for it in live:
-        if it.status == "parked":
+        if it.status in ("parked", "deferred"):
             continue
         d = touched.get(it.path)
         if d:
@@ -717,7 +746,9 @@ def selftest() -> int:
 
     with tempfile.TemporaryDirectory() as root:
         _fixture(root)
-        expect("clean fixture", lint(root))
+        warns: list[str] = []
+        expect("clean fixture", lint(root, warns))
+        expect("clean fixture (warnings)", warns)
         text = render(root, today=dt.date(2026, 9, 20))
         for needle in ("## Waiting on Ev", "`MESH-2`", "`stray-thing`", "## Blocked", "MESH-2, #1601", "`topo`"):
             if needle not in text:
@@ -768,11 +799,21 @@ def selftest() -> int:
             ("program field on a unit", "work/mesh/MESH-1.md", "pr: 1605", "prefix: x/"),
             ("nested yaml refused", "work/mesh/MESH-1.md", "pr: 1605", "pr:\n  - 1605"),
             ("unit outside a program", "work/issues/stray-thing.md", "kind: issue", "kind: unit"),
+            ("parked on a fired trigger", "work/mesh/MESH-1.md",
+             "status: review\nopened: 2026-09-01\npr: 1605\nblocked_on: [MESH-2, 1601]",
+             "status: parked\nopened: 2026-09-01\npr: 1605\nblocked_on: [T-1]"),
+            ("a fired trigger beside a live one only warns", "work/mesh/MESH-1.md",
+             "status: review\nopened: 2026-09-01\npr: 1605\nblocked_on: [MESH-2, 1601]",
+             "status: parked\nopened: 2026-09-01\npr: 1605\nblocked_on: [T-1, MESH-2]"),
+            ("deferred may not name a blocker", "work/mesh/MESH-1.md",
+             "status: review", "status: deferred"),
         ]
         expectations = ["unknown key", "either `true` or absent", "no item", "must equal the file name", "must be one of",
                         "needs a `closed:` date", "non-empty `blocked_on`", "program is closed but",
                         "matches no tracked path", "must end in `/`", "not a field of kind unit",
-                        "indented line", "only kind issue lives under"]
+                        "indented line", "only kind issue lives under",
+                        "nothing else gates this row", "so prune the fired entry",
+                        "cite the ratification in the body"]
         for (name, rel, old, new), needle in zip(cases, expectations, strict=True):
             p = os.path.join(root, rel)
             with open(p, encoding="utf-8") as f:
@@ -781,9 +822,42 @@ def selftest() -> int:
                 failures.append(f"{name}: fixture lacks {old!r}")
                 continue
             _write(root, rel, original.replace(old, new))
-            expect(name, lint(root), needle)
+            warns = []
+            expect(name, lint(root, warns) + warns, needle)
             _write(root, rel, original)
         expect("restored fixture", lint(root))
+
+        # deferred: a ratified not-now, no blocker, its own render column, and
+        # NOT the fired-trigger error's subject
+        orig2 = open(os.path.join(root, "work/mesh/MESH-2.md"), encoding="utf-8").read()
+        _write(root, "work/mesh/MESH-2.md", orig2.replace("status: open", "status: deferred"))
+        warns = []
+        expect("a deferred row needs no blocker", lint(root, warns))
+        expect("a deferred row raises no warning", warns)
+        text = render(root, today=dt.date(2026, 9, 20))
+        if "| parked | deferred | closed |" not in text:
+            failures.append("render: the programs table has no deferred column")
+        if "`MESH-2` | issue | deferred" not in text:
+            failures.append("render: a deferred row does not read deferred on its program's slate")
+        if "MESH-2" in text.split("## Untouched")[1]:
+            failures.append("render: a deferred row is listed stale for going untouched")
+        _write(root, "work/mesh/MESH-2.md", orig2)
+
+        # a fired trigger BLOCKS when nothing else gates the row, and only WARNS
+        # when a live blocker remains — the two channels, told apart
+        orig1 = open(os.path.join(root, "work/mesh/MESH-1.md"), encoding="utf-8").read()
+        _write(root, "work/mesh/MESH-1.md",
+               orig1.replace("status: review", "status: parked").replace("[MESH-2, 1601]", "[T-1]"))
+        warns = []
+        expect("a wholly fired trigger is an error", lint(root, warns), "nothing else gates this row")
+        expect("a wholly fired trigger raises no warning", warns)
+        _write(root, "work/mesh/MESH-1.md",
+               orig1.replace("status: review", "status: parked").replace("[MESH-2, 1601]", "[T-1, MESH-2]"))
+        warns = []
+        expect("a fired trigger beside a live one is not an error", lint(root, warns))
+        expect("a fired trigger beside a live one warns", warns, "prune the fired entry")
+        _write(root, "work/mesh/MESH-1.md", orig1)
+        expect("restored again", lint(root))
 
         # rides-along on a closed carrier
         _write(root, "work/topo/T-2.md",
@@ -870,10 +944,16 @@ def main(argv: list[str]) -> int:
             return 2
         root = args.root or _repo_root()
         if args.cmd == "lint":
-            errors = lint(root)
+            warnings: list[str] = []
+            errors = lint(root, warnings)
             for e in errors:
                 print(e)
-            print(f"work.py lint: {'FAIL' if errors else 'ok'} ({len(errors)} problem{'s' if len(errors) != 1 else ''})")
+            for w in warnings:
+                print(f"warning: {w}")
+                if os.environ.get("GITHUB_ACTIONS"):
+                    print(f"::warning file={w.split(':', 1)[0]}::{w}")
+            print(f"work.py lint: {'FAIL' if errors else 'ok'} ({len(errors)} problem{'s' if len(errors) != 1 else ''}"
+                  f", {len(warnings)} warning{'s' if len(warnings) != 1 else ''})")
             return 1 if errors else 0
         if args.cmd == "status":
             print(render(root, args.program))

@@ -360,7 +360,7 @@ finding, not a new lane.
    (`all.rs:3200`) already accumulates a statement to its `;` in the
    same file. Fixing it in text buys more real coverage than the
    nightly would have, at no toolchain cost. Filed as
-   `work/issues/lb13-guards-are-line-local` (LIB's, with the
+   `work/lib/lb13-guards-are-line-local` (LIB's, with the
    `root_declared_pub_names` count error folded in).
 2. **The classes rustdoc JSON uniquely reaches have zero live
    instances and are not reachable by an ordinary edit.** An
@@ -413,4 +413,4 @@ live instance, and gives the reachability argument for why they are
 acceptable. No `for now`, no `until`: the file no longer cites #696 at
 all (`grep -n '696' crates/pncad/tests/all.rs` is empty), because
 pointing at a closed question is the defect this item was filed
-against. Guard **logic** was untouched; it is `work/issues/lb13-guards-are-line-local`'s.
+against. Guard **logic** was untouched; it is `work/lib/lb13-guards-are-line-local`'s.
