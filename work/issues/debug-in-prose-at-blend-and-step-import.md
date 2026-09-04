@@ -38,7 +38,57 @@ item's list was stale in both directions. The resolver sweep above is
 the method that does not have that failure mode, and these two are what
 it turned up outside FIX's fence.
 
-Neither is known to panic today. The tier-3′ case that motivated the
+## UPGRADED 2026-09-04: both are LIVE PANICS, executed
+
+PR 1779's style review rendered them rather than reasoning about them.
+Both reach `typed_err`'s live `debug_assert!(reads_as_prose(…))`:
+
+**`BlendSite`** — all three variants rendered: `Chain` is prose;
+**`Link { edge: EdgeKey(..) }` and `Joint { vertex: VertexKey(..) }`
+carry `" { "`.** The path is `NodeErrorKind::Blend` →
+`eval/mod.rs:1056` (`"the {verb} op refused: {error}"`) →
+`py/value.rs::node_failure` → `typed_err(py, .., error.to_string(), ..)`.
+**A fillet or chamfer escalation at a link or a joint panics the
+binding exactly as `validate_pseudomanifold` did.** `sure` on the
+rendering and the raise path; `likely` on reachability — it needs an
+indeterminate predicate, which is what escalation is *for*.
+
+**Why nothing caught it, which is its own finding.**
+`blend/mod.rs:1195`'s `seeds()` roster looks exhaustive over
+`BlendError` and samples `Escalated` with **`BlendSite::Chain` — the
+sole brace-free variant.** An exhaustive-looking roster that picks its
+own sample excludes the failing mode by construction. Any other
+hand-written `seeds()`-style roster in the tree picks its samples the
+same way.
+
+**`step-import`** — `EulerOpError::StaleKey { key }` is a struct
+variant, so `{source:?}` yields `StaleKey { key: .. }`.
+`py/value.rs:1341` raises `err.to_string()` through `typed_err` under a
+comment stating *every* arm of `StepImportError` is reachable there.
+`sure`.
+
+So the "cosmetic or live" question below is **answered: live**, and
+this is the same panic as the one PR 1779 closed, in two more doors.
+
+## The durable fix is not three point fixes
+
+The reviewer's framing, adopted: what is missing is a **mechanical
+guard** — a row that renders every `Display`-reachable refusal at every
+struct-shaped payload variant and asserts `reads_as_prose` — rather
+than another round of point repairs. `crates/pncad-py/src/errors.rs:376`
+already writes the general warning ("*A future STRUCT variant of that
+kernel enum would trip this assertion and panic where that arm means to
+refuse gracefully*"), and there are now **three** instances against one
+fix. That guard is cut as its own FIX unit,
+`prose-gate-has-no-mechanical-guard`.
+
+The two point fixes below remain FILLET's and EXCH's, and they are
+worth taking before the guard lands rather than after — a live panic on
+a public door does not wait on a test.
+
+---
+
+Neither was *known* to panic when first filed. The tier-3′ case that motivated the
 sweep did — `crates/pncad-py/src/errors.rs`'s `reads_as_prose` rejects
 the field-brace fingerprint `" { "` and `py::typed_err` asserts it on
 every raise, live under release — so **whether either of these reaches
