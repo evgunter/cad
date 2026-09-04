@@ -212,3 +212,13 @@ filed, and — from the tally read this merge required —
 `ab-log-v6-stream-is-past-its-stopping-rule-unadjudicated` (Ev's).
 The spec is deleted into the ledger. Next: DOCM-2 (`Node::Part`,
 spec written) under a fresh block draw, DOCM-B2.
+
+## DOCM-2 dispatched (2026-09-04, block DOCM-B2 slot 0)
+
+Block DOCM-B2 drawn after DOCM-1's merge: pre-draw fields at the spec
+(M / STRUCTURAL, committed before the draw), byte 39 ⇒ fable at slot 0,
+so DOCM-2 = FABLE; slots 1–2 bank for the next kernel units once the
+open questions are ruled. Record branch-side on `docm/b2-block`. Unit
+branch `docm/2-part` cut from the orchestrator branch (it carries the
+spec and DOCM-1's state-sync, both headed to main in PR 1856). The
+implementer lane is running on it.
