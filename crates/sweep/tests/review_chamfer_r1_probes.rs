@@ -33,6 +33,7 @@ test_utils::gated_to![
     "crates/topo/src/boolean/",
 ];
 
+use crate::common::oracles::chamfered_cube_volume;
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
@@ -143,6 +144,10 @@ fn a_general_box_matches_an_independent_closed_form() {
             .unwrap_or_else(|e| panic!("a {a}×{b}×{c} box chamfers at {d}: {e}"));
         assert_chamfer_shape(&out.body, (24, 48, 26));
         assert_every_face_outward(&out.body);
+        // Deliberately NOT `common::oracles::chamfered_cube_volume`:
+        // this is the reviewer's own derivation for a general a×b×c
+        // box, and at a = b = c it must agree with that form — that it
+        // can fail to is the detection value of this row.
         let want = a * b * c - 2.0 * d * d * (a + b + c) + 16.0 / 3.0 * d.powi(3);
         let props = topo::mass_properties(&out.body, Tol::witness()).expect("props");
         assert!(
@@ -151,6 +156,23 @@ fn a_general_box_matches_an_independent_closed_form() {
             props.volume
         );
         assert_eq!(props.volume_pad, 0.0, "closed forms need no pad");
+
+        // **The agreement point, so "it can fail to agree" is a GATE
+        // rather than a claim.** The draws above are independent, so
+        // `a = b = c` never happens and the box form is never made to
+        // meet `common::oracles::chamfered_cube_volume` — the very
+        // comparison this row's independence is justified by. One
+        // degenerate draw per iteration closes that: it is arithmetic,
+        // not a carve, so it costs nothing and rides this row.
+        let s = rng.range(0.5, 3.0);
+        let sd = rng.range(0.02, 0.2) * s;
+        let box_at_cube = s * s * s - 2.0 * sd * sd * (s + s + s) + 16.0 / 3.0 * sd.powi(3);
+        let cube_form = chamfered_cube_volume(s, sd);
+        assert!(
+            (box_at_cube - cube_form).abs() <= 1e-12 * cube_form,
+            "at a = b = c the general-box derivation and the shared cube \
+             form are the same volume: {box_at_cube} vs {cube_form} (s={s} d={sd})"
+        );
     }
 }
 
@@ -343,6 +365,11 @@ fn a_dimpled_spacer_carries_its_ring_through_the_chamfer() {
     assert_eq!(out.blend_faces.len(), 12, "a strip per box edge");
     assert_eq!(out.corner_faces.len(), 8, "a patch per corner");
     let props = topo::mass_properties(&out.body, Tol::witness()).expect("props");
+    // The cube term is spelled out here, deliberately
+    // NOT `common::oracles::chamfered_cube_volume`, for the reason above:
+    // this suite is `verbs_chamfer`'s reviewer pair and its closed
+    // forms are its own, so a shared spelling would leave the pair with
+    // one opinion.
     let want = l.powi(3) - 6.0 * l * d * d + 16.0 / 3.0 * d.powi(3)
         - 0.5 * 4.0 / 3.0 * core::f64::consts::PI * r.powi(3);
     assert!(

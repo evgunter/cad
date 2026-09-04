@@ -2,11 +2,12 @@
 id: nextest-shard-count-needs-remeasure
 kind: issue
 title: Determine the right nextest shard count (blocked on the test-speedup work)
-status: parked
+status: closed
 opened: 2026-08-13
 github: 461
 blocked_on: [tcost]
 refs: [449]
+closed: 2026-09-03
 ---
 
 ## From GitHub issue 461
@@ -59,3 +60,41 @@ Full write-up and method: `docs/GENERICS-BUILD-COST.md`, and `docs/LOCAL-BUILD-P
 ## Home
 
 S-TCOST: the issue's own block — "the parallel effort to speed up the tests themselves" — is this program, and CI sharding is named in its `keep_out` as out of scope unless a unit's measurement makes the case in its own PR, so the analysis parks here rather than travelling.
+
+## Re-measured (2026-09-03, S-TCOST, after TCOST-K1–K3 landed)
+
+Read-only census over 20 test legs of the five latest code-tier runs
+(33803928081, 33802978677, 33796624357 and their merge-base probes
+33804838111, 33800419245; ε default and 1e-12, both lanes). Report and
+raw data: `/home/user/tcost-work/shard-remeasure/REPORT.md` on the
+orchestrator's box; the numbers of record are in the runs' own cost
+reports.
+
+- **Legs are 34–74 s wall** (were 250–430 s). Fixed cost per leg
+  **15.6 s median** (unchanged from the 15 s of 2026-08-12), now 25–60 %
+  of a leg instead of ~2 %.
+- **The hard floor collapsed 296 s → 30 s** (`nurbs_import::arc_loft_
+  natively_computes_its_rational_volume` at ε default; ~2.5 s at
+  1e-12; next-highest ~6 s). No test binds any N up to 4.
+- **The imbalance is no longer structural**: shard2/shard1 ratio
+  0.65–2.29 (median ≈1.15) against the old stable 1.51–1.63; the top-5
+  of a shard shares only 1–3 tests run to run, because no single test
+  is heavy enough to anchor a ranking any more.
+- **Saturation Σ(per-test)/wall ≈3.9×** on every leg (was ~2.0×): the
+  `ubuntu-latest` runner now presents ~4 vCPUs, or nextest's thread
+  count resolves differently — inferred, not read. Still no packing
+  slack; shards remain the only lever.
+- **Model, not measurement**: the f64 rows sit at 46–63 s on N=2 and
+  every added shard costs a full billed minute for a 20–45 % wall cut
+  — **stay at N=2**. The two interval rows sit at 70–74 s, both legs
+  over the 60 s billing boundary (4 billed min); N=3 models to ~52 s
+  legs (3 billed min), N=4 billed-neutral for ~40 % less wall.
+
+**Verdict: closed at N=2.** The only case a re-shard could make is
+the interval rows' ≈1 billed minute per row, modelled at a boundary
+where a model is wrong in either direction, and paid only on runs
+that draw the interval lane; under the program's keep_out that case
+would need its own measured PR, and it is not worth one now. Re-open
+if the interval legs grow past the boundary by a margin a model does
+not need. `hash:` partitioning buys nothing over `count:`; a
+weight-aware split is more machinery than the saving.

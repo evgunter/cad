@@ -115,3 +115,29 @@ rather than for not doing it.
 * The measured arms are not disadvantaged by cold builds: each has its own
   persistent `Swatinem/rust-cache` key and workspace mapping, matching the
   gate's warm archive step.
+
+## The discontinuity has now happened (added 2026-09-04, CIW)
+
+This issue argued from a 21.6% whole-suite excursion that reverted, and
+said: *"Append-only means the samples already written stay
+unattributable; the fix only makes the ones after it readable. That is
+an argument for doing it soon rather than for not doing it."*
+
+Soon is now. `evgunter/cad` went public on 2026-09-03, and with it the
+runner class changed — `.github/workflows/ci.yml` (commit `483212ef`)
+now states **4 vCPU / 16 GB**, against the 2 vCPU / 7 GB every sample in
+`docs/perf-data/` was taken on. That commit marks `CI-MINUTES-2026-08`'s
+own timings as predating the change and unquotable forward.
+
+So a step change of unknown size runs through all three histories at
+2026-09-03, and the `environment` block — the field
+`docs/perf-data/criterion/README.md` tells every reader to consult
+first — records `nproc=2` on one side of it and `nproc=4` on the other
+and nothing else that differs. `nproc` happens to catch THIS one. It
+catches nothing about which 4-vCPU box, which is the case the issue was
+filed for and the case that recurs.
+
+Unchanged and still the fix: `scripts/criterion-emit.py:126`
+`environment()` plus the same block in the rebuild-latency and
+opt-level emitters. Nothing here revises the shape proposed above; it
+raises the priority.

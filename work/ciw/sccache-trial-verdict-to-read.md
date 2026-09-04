@@ -2,12 +2,13 @@
 id: sccache-trial-verdict-to-read
 kind: issue
 title: sccache on trial - check in a few days whether it actually helped
-status: review
+status: closed
 opened: 2026-08-21
 github: 853
 refs: [852, 1648]
 pr: 1648
 branch: tcost/c4-sccache-reread
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 853
@@ -63,3 +64,15 @@ at a 9-minute gap and missed at 38 and 60 minutes.
 Disposition: rig kept, condition inverted to `vars.SCCACHE == '1'` so it is
 off with no variable set. Numbers in `docs/CI-MINUTES-2026-08.md` F4 and
 `docs/perf-data/sccache-trial/`.
+
+## Closed (2026-09-04)
+
+PR 1648 merged 2026-09-03 11:31 UTC (`eb7a78a2` into main). The verdict
+above is the deliverable and it is on main; F4 of
+`docs/CI-MINUTES-2026-08.md` and `docs/perf-data/sccache-trial/` carry
+the numbers. Nothing is owed here.
+
+The one finding the trial turned up that this item does NOT close is
+finding (d) — `Swatinem/rust-cache` restored nothing on five of seven
+build jobs and on the control. That is filed as
+`work/tcost/rust-cache-never-restores-across-branches`.

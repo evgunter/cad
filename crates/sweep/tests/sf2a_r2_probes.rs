@@ -20,6 +20,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
+use crate::common::oracles::chamfered_cube_volume;
 use geom::Surface;
 use geom_core::{Band, Point2, Tol};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
@@ -51,12 +52,6 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     extrude(&profile, Extrusion::Distance(h), Tol::witness())
         .expect("a polygon extrudes")
         .body
-}
-
-/// `a³ − 6ad² + (16/3)d³` — the chamfered cube's own closed form
-/// (restated from `verbs_chamfer.rs`, where it is derived).
-fn chamfered_cube_volume(a: f64, d: f64) -> f64 {
-    a.powi(3) - 6.0 * a * d * d + (16.0 / 3.0) * d.powi(3)
 }
 
 /// The convex polygon inset by `t`: each edge's line moved inward,

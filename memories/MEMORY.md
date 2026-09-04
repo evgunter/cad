@@ -49,8 +49,8 @@ gate = hosted Actions.
   the cheap option, and the only producer of committed measurements;
   local runs only when they beat the gate to a failure
 - [Review and dependency policy](review-and-dependency-policy.md) —
-  reviews run real e2e demos; when a stated gap blocks; reviewer suites
-  promote as-is and may always be retired; ~2-week dependency age
+  reviews run real e2e demos; when a stated gap blocks; reviewer tests
+  are ordinary tests; ~2-week dependency age
 - [Test suite cost](test-suite-cost.md) — ask which SHAPE a test is
   before giving it a seed; effort dials; assertion-free tests never gate
 - [Tessellation budget](tessellation-budget.md) — MEASURE whether a mesh

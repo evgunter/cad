@@ -35,3 +35,38 @@ Filed from the S20/S21 fix pass (PR #689).
 ## Home
 
 LIB: all three guards live in `crates/pncad/tests/all.rs` and police the `pncad` facade's public surface — the program's territory and the subject of its curation charter.
+
+## The cost half of this question got cheaper (2026-09-04, CIW)
+
+Unchanged: all three guards still defer (`crates/pncad/tests/all.rs`,
+the LB13 pair and the completeness guard), and the disposition wanted is
+still a ruling — schedule the rustdoc-JSON pass, or declare the three
+text scans permanent and rewrite their docs.
+
+What moved is the stated cost. This issue says the decline is fair
+because a rustdoc-JSON pass means *"a second toolchain in the workflow,
+and a decision about whether the JSON format's instability is
+acceptable for a gate"*. The first of those two is now most of a
+non-issue:
+
+- the repository went public on 2026-09-03, so standard-runner minutes
+  are free and a second toolchain download costs wall clock on one job
+  rather than billed minutes on every PR;
+- `.github/workflows/nightly.yml` now exists as a real home for exactly
+  this shape of check — ungated, once a day, not on anyone's critical
+  path — and TCOST-C2/C3 have just moved two comparable passes into it.
+  A nightly-only rustdoc-JSON scan does not touch the per-PR gate at
+  all.
+
+The **format instability** half is untouched and is still the whole of
+the real question: a gate keyed on a nightly-gated, explicitly unstable
+JSON schema breaks on a toolchain bump, and the repository pins its
+toolchain (`rust-toolchain.toml`), so it would need a second pin with
+its own bump discipline. That is the thing for Ev to rule on, and it
+should be put to Ev with the cheap-half correction above rather than
+with the original framing.
+
+Ordering: CIW schedules this after
+`work/ciw/f3-recosting-on-a-public-repo`, whose measurement establishes
+what a nightly-seated pass actually costs in wall clock, so the ruling
+is asked with a number in it.
