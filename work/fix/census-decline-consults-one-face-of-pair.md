@@ -7,6 +7,7 @@ opened: 2026-08-21
 github: 855
 refs: [S190, 855]
 branch: fix/census-typed-declines
+pr: 1750
 ---
 
 ## From GitHub issue 855

@@ -7,6 +7,7 @@ opened: 2026-09-01
 github: 1478
 refs: [1472, 1435]
 branch: fix/census-typed-declines
+pr: 1750
 ---
 
 ## From GitHub issue 1478
