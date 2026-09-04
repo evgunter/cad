@@ -154,7 +154,7 @@ fn probe_seed(unit: Option<UnitDef>) -> f64 {
 /// user thinks in, which is the scale a range should be searched
 /// and reported at.
 ///
-/// **An associated function over the document the probe searches**,
+/// **A free function over the document the probe searches**,
 /// not a method that reads the session again: the two arms below
 /// once read two different documents (the shown one and the
 /// committed one), which agreed only because a probe refuses while
