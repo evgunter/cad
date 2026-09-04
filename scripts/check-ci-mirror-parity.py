@@ -140,6 +140,18 @@ MIRROR_EXEMPT = {
         "is that lane's committed output, through ci-local.sh's `render "
         "provenance (demos)` row",
     ),
+    "scripts/ci-pin.py": (
+        "hosted",
+        "the reader for ci.yml's workflow-level tool pins. The asymmetry is "
+        "not a lane's: local-scripts/ci-local.sh HAS no pin to read, because "
+        "it installs nothing from ci.yml's `env:` block — it runs whatever "
+        "nextest, maturin, ty and ruff the developer's box already has, and "
+        "the one place the local half cares which version that is, "
+        "scripts/check-python-lint.py, reads the ruff pin itself and reports "
+        "the disagreement. What is hosted-only here is therefore the reading, "
+        "not the check: mirroring this path into ci-local.sh would name a "
+        "script whose answer that half has nowhere to put",
+    ),
     "scripts/criterion-emit.py": (
         "hosted",
         "the criterion benchmark lane's history writer. The lane is hosted-only "
