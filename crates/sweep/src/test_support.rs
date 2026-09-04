@@ -48,14 +48,32 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use geom::NurbsCurve3;
-use geom_core::{Affine3, Band, Point2, Point3, Vec3};
+use geom_core::{Affine3, Band, Bounds, Decide, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use topo::{Body, EdgeKey};
+use topo::{Body, EdgeKey, FaceKey};
 
+use crate::blend::BlendError;
 use crate::blend::battery::{BlendRequest, Link, run_battery};
 use crate::skin::{Section, segment_curve};
 use crate::{Extrusion, Lofted, SketchSegment, extrude, sweep_body};
 use geom_core::Tol;
+
+/// **`fillet3_ring_clearance`'s decision function**, the composition
+/// surgery's one metered predicate, opened here for its two-tolerance
+/// trio pin (`tests/m6_surgery.rs`) and nothing else: the surgery derives
+/// its margins from stored trimlines and ring carriers, so the function
+/// has no production caller and is crate-visible at its own site.
+///
+/// # Errors
+///
+/// Exactly [`crate::blend::surgery::ring_clearance`]'s.
+pub fn ring_clearance<T: geom_core::Decide + Bounds>(
+    face: FaceKey,
+    margin: T,
+    band: Band,
+) -> Result<(), BlendError> {
+    crate::blend::surgery::ring_clearance(face, margin, band)
+}
 
 /// The cube side the in-crate pins build on, meters.
 pub const L: f64 = 1.0;
@@ -207,24 +225,81 @@ pub fn closed_plane_sphere_rim(body: &Body<f64>, rim_r: f64) -> EdgeKey {
 /// evgunter/cad issue 1246, filed on two independent consumer reports),
 /// which is exactly why the test-side copy is homed here rather than
 /// left in four suites.
+///
+/// Generic over the scalar so the interval lane selects its rims through
+/// the same door: the comparison reads both bounds of the stored
+/// enclosure, which at `f64` is the value itself.
 #[must_use]
-pub fn rim_arcs_at(body: &Body<f64>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey> {
+pub fn rim_arcs_at<T: Decide + Bounds>(body: &Body<T>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey> {
     let surface_of = |he| -> Option<topo::SurfaceKey> {
         let l = body.get_half_edge(he)?.parent_loop;
         Some(body.get_face(body.get_loop(l)?.face)?.surface)
     };
+    let near = |x: T, want: f64| (x.lo() - want).abs() < 1e-9 && (x.hi() - want).abs() < 1e-9;
     body.edges()
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
             let geom::Curve3::Circle { radius, center, .. } = *c.carrier() else {
                 return None;
             };
-            if (radius - rim_r).abs() >= 1e-9 || (center.y - rim_y).abs() >= 1e-9 {
+            if !near(radius, rim_r) || !near(center.y, rim_y) {
                 return None;
             }
             (surface_of(e.he_plus)? != surface_of(e.he_minus)?).then_some(k)
         })
         .collect()
+}
+
+/// **The waisted body**: two cones meeting at radius `0.5` —
+/// `(0,0)→(1,0)→(0.5,0.5)→(1,1)→(0,1)` revolved fully. The waist rim is
+/// CONCAVE (the void wedge at the waist vertex is 90°) and the base and
+/// top rims are convex; pole-touching, so every rim is a pair of arcs
+/// meeting at chart-seam vertices. The closed-rim suites' concave
+/// fixture, beside its own convex twins.
+///
+/// Its rims, for [`rim_arcs_at`]: waist `(0.5, 0.5)`, base `(1, 0)`,
+/// top `(1, 1)`. Its volume is two frusta, `7π/12`.
+pub fn waisted(tol: Tol) -> Body<f64> {
+    revolved_about_y(
+        vec![
+            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
+            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
+            ProfileVertex::new(Point2::new(0.5, 0.5), 0.0),
+            ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
+            ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
+        ],
+        crate::Revolution::Full,
+        tol,
+    )
+}
+
+/// A radius-`r` ball centred at `c` with its polar axis along `+z`: the
+/// revolve puts a ball's poles on the sketch axis, and a plane×sphere
+/// section against a chart whose polar axis is tilted to the plane is a
+/// typed frontier of the boolean's split-join, so a ball meeting a
+/// `z`-plane face is charted with its pole along that normal. The die's
+/// pips (`slab ∖ ball`) and their concave twin, a boss (`slab ∪ ball`),
+/// are both built from this.
+pub fn ball_poled_z(r: f64, c: Vec3<f64>, tol: Tol) -> Body<f64> {
+    let ball = revolved_about_y(
+        vec![
+            ProfileVertex::new(Point2::new(0.0, -r), 1.0),
+            ProfileVertex::new(Point2::new(0.0, r), 0.0),
+        ],
+        crate::Revolution::Full,
+        tol,
+    );
+    let poled = topo::transform_rigid(
+        &ball,
+        &Affine3::rotation_about_axis(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            core::f64::consts::FRAC_PI_2,
+        ),
+        tol,
+    )
+    .unwrap();
+    topo::transform_rigid(&poled, &Affine3::translation(c), tol).unwrap()
 }
 
 /// **The #935 zone**: a sphere zone off the equator — sphere `R = 2`

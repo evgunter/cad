@@ -100,9 +100,7 @@
 //!
 //! # Out of scope, refused typed
 //!
-//! Multi-link open chains (junction carry-through), open chains whose
-//! material-adding side the requested BAND does not build (the rolling
-//! ball's; the ruled strip carves either),
+//! Multi-link open chains (junction carry-through),
 //! partially-requested corners (run-outs),
 //! closed rims that are neither a circle-carried ring of a PLANE
 //! against ring-free caps nor a rim between two revolution walls (of
@@ -715,12 +713,17 @@ fn corner_plan<'a, T: Decide + Bounds>(
             // support's trimlines, because the centre is on both
             // incident spines.
             //
-            // ONE fold, two named spellings, cross-cited so neither
-            // drifts alone: this `toward` is the same sign the band
-            // arm folds into its feet (`plane_plane_blend`'s
-            // `signed`), and the NEGATIVE of `corner_ball`'s `signed`
-            // — which is the rest DEPTH (`c·n = p·n + signed`), the
-            // displacement's opposite by definition of tangency.
+            // ONE fold, four named spellings, cross-cited so none
+            // drifts alone: this `toward` is the same sign the
+            // plane–plane band arm folds into its feet
+            // (`plane_plane_blend`'s `signed`), the same sign the
+            // plane–sphere arm folds into its spine
+            // (`plane_sphere_blend`'s `signed`), the same sign the
+            // shared sheet reduction folds into each trace's side
+            // (`battery::curved_arm`'s `sense == convex`), and the
+            // NEGATIVE of `corner_ball`'s `signed` — which is the rest
+            // DEPTH (`c·n = p·n + signed`), the displacement's opposite
+            // by definition of tangency.
             let toward = if convex { radius } else { -radius };
             let mut feet = [ball.center; 3];
             for (foot, &n) in feet.iter_mut().zip(normals.iter()) {
@@ -830,8 +833,15 @@ fn chamfer_feet<T: Decide + Bounds>(
 /// chain is an annulus by shape (a ring of one face has a link count
 /// greater than one whenever it is a ring at all).
 ///
-/// The CONCAVE gate stays for both: a concave chain adds material, which
-/// no closed-rim carve in this module builds.
+/// **Neither shape asks which material side the rim is on.** The band
+/// is a torus about the rim's own spine whichever side the ball rests
+/// on; the walk below is struts or seam splits to the feet, a trimline
+/// `mef` per support, a `kef` per arc and the crossing merges, none of
+/// which is a material-side fact. A convex rim's carve REMOVES the two
+/// support strips between the rim and the trimlines and a concave rim's
+/// identical carve ADDS them; the one sense the band carries is its
+/// face bit, folded from the chain's stored verdict at the door
+/// ([`Convexity::blend_sense`]).
 fn resolve_rim<'a, T: Decide + Bounds>(
     body: &Body<T>,
     chain: &'a Chain<T>,
@@ -850,13 +860,6 @@ fn resolve_rim<'a, T: Decide + Bounds>(
                 link.edge,
                 "a closed chain's blend is not a torus (the torus band is the only \
                  closed blend built)",
-            ));
-        }
-        if !matches!(link.convexity, Convexity::Convex) {
-            return Err(unbuilt_chain(
-                link.edge,
-                "a concave chain adds material, which no closed-rim carve builds — \
-                 not implemented",
             ));
         }
     }
@@ -1740,9 +1743,11 @@ fn rim_trim_circles<T: Real>(
 /// carries the ring through; zero/negative refuses
 /// [`BlendError::RingClearance`]; an in-band margin escalates with
 /// the SAME recourse (two-tolerance, D4 ¶1 addendum — this arm is
-/// trio-pinned like every `fillet3_*` predicate). Public for exactly
-/// that trio: the margins themselves are derived inside the surgery
-/// from stored trimlines and ring carriers, never sampled.
+/// trio-pinned like every `fillet3_*` predicate). Crate-visible, and
+/// reached from outside the crate only through the test-support door
+/// (`test_support::ring_clearance`) for exactly that trio: the margins
+/// themselves are derived inside the surgery from stored trimlines and
+/// ring carriers, never sampled, so no production caller exists.
 ///
 /// In practice predicate 2's sampled screen usually fires first on
 /// the same configuration (for a straight edge the two margins are
@@ -1756,7 +1761,7 @@ fn rim_trim_circles<T: Real>(
 /// # Errors
 ///
 /// [`BlendError::RingClearance`] / [`BlendError::Escalated`].
-pub fn ring_clearance<T: Decide + Bounds>(
+pub(crate) fn ring_clearance<T: Decide + Bounds>(
     face: FaceKey,
     margin: T,
     band: Band,
@@ -3664,6 +3669,7 @@ mod tests {
             0.09,
             0.02,
             false,
+            true,
         );
         let mut swapped = blend.clone();
         core::mem::swap(&mut swapped.trim_a, &mut swapped.trim_b);

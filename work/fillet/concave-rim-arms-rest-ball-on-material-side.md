@@ -2,9 +2,11 @@
 id: concave-rim-arms-rest-ball-on-material-side
 kind: issue
 title: fillet: the coaxial and plane-sphere arms rest the ball on the MATERIAL side of a concave chain — the closed-rim surgery carves the concave band unchanged once the arm is right
-status: open
+status: closed
 opened: 2026-09-04
 refs: [concave-closed-rim-has-no-band, 1244]
+pr: 1752
+closed: 2026-09-04
 ---
 
 Filed from FILLET-H4's Phase 1 (`docs/FILLET-H4-SPEC.md`), by its stop

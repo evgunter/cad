@@ -185,6 +185,8 @@ fn plane_sphere_blend_is_the_rim_torus_and_it_widens_the_flat_face() {
         r,
         // The pip's dimple: material OUTSIDE the ball.
         false,
+        // A CONVEX chain: the ball rests on the material side of both.
+        true,
     );
     let h = c + r;
     let s = ((big_r + r).powi(2) - h * h).sqrt();
@@ -252,6 +254,8 @@ fn plane_sphere_blend_takes_the_inner_offset_against_a_convex_sphere() {
         p(0.0, 0.0, 0.0),
         big_r,
         r,
+        true,
+        // A CONVEX chain: the ball rests on the material side of both.
         true,
     );
     let h = r;
@@ -333,6 +337,8 @@ fn the_rim_trimlines_are_tangency_loci_with_definite_second_order_separation() {
         r,
         // The pip's dimple: material OUTSIDE the ball.
         false,
+        // A CONVEX chain: the ball rests on the material side of both.
+        true,
     );
     for (support, trim, want) in [
         (&plane, &b.trim_a.0, 1.0 / r),

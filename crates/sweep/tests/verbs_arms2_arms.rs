@@ -455,6 +455,8 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
             1.0,
             radius,
             sphere_sense,
+            // A CONVEX chain: the ball rests on the material side of both.
+            true,
         );
         let sheet = Meridian {
             origin: p3(0.0, 0.0, 0.0),

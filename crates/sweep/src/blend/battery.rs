@@ -866,7 +866,16 @@ fn classify_arm<T: Decide + Bounds>(
             },
         ) => Ok((
             BlendArm::PlaneSphereTorus,
-            plane_sphere_blend(*origin, n_a, plane_u(sa), *center, *r, radius, senses.1),
+            plane_sphere_blend(
+                *origin,
+                n_a,
+                plane_u(sa),
+                *center,
+                *r,
+                radius,
+                senses.1,
+                convex,
+            ),
         )),
         (
             Surface::Sphere {
@@ -874,12 +883,22 @@ fn classify_arm<T: Decide + Bounds>(
             },
             Surface::Plane { origin, .. },
         ) => {
-            let mut b =
-                plane_sphere_blend(*origin, n_b, plane_u(sb), *center, *r, radius, senses.0);
+            let mut b = plane_sphere_blend(
+                *origin,
+                n_b,
+                plane_u(sb),
+                *center,
+                *r,
+                radius,
+                senses.0,
+                convex,
+            );
             core::mem::swap(&mut b.trim_a, &mut b.trim_b);
             Ok((BlendArm::PlaneSphereTorus, b))
         }
-        _ => curved_arm(sa, sb, senses, carrier, p, extent, radius, edge, band),
+        _ => curved_arm(
+            sa, sb, senses, convex, carrier, p, extent, radius, edge, band,
+        ),
     }
 }
 
@@ -934,11 +953,27 @@ fn ruling_arm<T: Real>(sa: &Surface<T>, sb: &Surface<T>) -> Option<BlendArm> {
 /// `(Cylinder, Plane)` pair takes the torus row when it meets in a
 /// latitude circle and the cylinder row when it meets along a ruling,
 /// with no orientation guessed anywhere.
+///
+/// **The side each trace rests the ball on folds the chain's stored
+/// convexity verdict** (S10/S11): a support's stored sense bit says
+/// which side of its chart its material is on, and the ball sits on
+/// that side exactly when the chain is CONVEX — on a concave chain it
+/// rolls in the void, the far side of every support — so the side
+/// handed to the trace is `sense == convex`, the identity on a convex
+/// chain. ONE fold, the same sign [`plane_plane_blend`] spells as
+/// `signed` and [`super::arms::corner_ball`] as its rest depth; the
+/// three are cross-cited at `surgery::corner_plan` so none drifts
+/// alone. The `Ruling` row folds it too, for parity — no fixture
+/// reaches a concave ruled band today (a ruled pair meets along an
+/// open edge, which the open-chain door admits for plane–plane
+/// supports only), so that arm of the fold is stated here and pinned
+/// nowhere.
 #[allow(clippy::too_many_arguments)]
 fn curved_arm<T: Decide + Bounds>(
     sa: &Surface<T>,
     sb: &Surface<T>,
     senses: (bool, bool),
+    convex: bool,
     carrier: &Curve3<T>,
     p: Point3<T>,
     extent: T,
@@ -955,9 +990,10 @@ fn curved_arm<T: Decide + Bounds>(
                 axis,
                 rim: p,
             };
-            let (Some((ta, da)), Some((tb, db))) =
-                (sheet.trace(sa, senses.0), sheet.trace(sb, senses.1))
-            else {
+            let (Some((ta, da)), Some((tb, db))) = (
+                sheet.trace(sa, senses.0 == convex),
+                sheet.trace(sb, senses.1 == convex),
+            ) else {
                 return Err(unsupported(ARM_ROSTER));
             };
             support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;
@@ -970,9 +1006,10 @@ fn curved_arm<T: Decide + Bounds>(
                 rim: p,
                 lever: extent,
             };
-            let (Some((ta, da)), Some((tb, db))) =
-                (sheet.trace(sa, senses.0), sheet.trace(sb, senses.1))
-            else {
+            let (Some((ta, da)), Some((tb, db))) = (
+                sheet.trace(sa, senses.0 == convex),
+                sheet.trace(sb, senses.1 == convex),
+            ) else {
                 return Err(unsupported(ARM_ROSTER));
             };
             support_coaxiality(edge, da.max(db), band, NOT_COAXIAL)?;

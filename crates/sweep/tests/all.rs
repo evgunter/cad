@@ -461,3 +461,8 @@ mod r1_area_gauge_probes;
 
 #[path = "tcost_k3_certificate.rs"]
 mod tcost_k3_certificate;
+
+#[path = "fillet_h4_concave_rim.rs"]
+mod fillet_h4_concave_rim;
+#[path = "fillet_h4_concave_rim_interval.rs"]
+mod fillet_h4_concave_rim_interval;

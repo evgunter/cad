@@ -441,7 +441,7 @@ fn the_composed_die_replays_bit_identically() {
 /// is pinned at its three outcomes, the S2/S9 trio idiom.
 #[test]
 fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
-    use sweep::blend::surgery::ring_clearance;
+    use sweep::test_support::ring_clearance;
     let (pipped, _) = pipped_and_box_edges();
     let face = pipped.faces().next().unwrap().0;
     let tol = Tol::witness().get();

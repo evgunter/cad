@@ -320,25 +320,38 @@ pub fn plane_plane_blend<T: Real>(
 /// through `origin`, meeting a sphere of radius `sphere_r` centred at
 /// `sphere_c` along a circle.
 ///
-/// The ball centre sits at depth `r` below the plane and on the OFFSET
-/// SPHERE — the locus at distance `r` from the sphere on the material
-/// side. Which offset sphere that is, is the pair's own second
-/// configuration and is read from the sphere face's stored sense bit,
-/// never from a normal: a sphere's chart normal is the outward radial
+/// The ball centre sits at distance `r` from the plane and on the
+/// OFFSET SPHERE — the locus at distance `r` from the sphere — on the
+/// side of both supports the chain's stored convexity verdict picks
+/// (S10/S11): the material side of each on a CONVEX chain, the void
+/// side of each on a CONCAVE one, where the ball rolls in the void.
+/// That is ONE fold, `signed = ±r`, the same sign [`plane_plane_blend`]
+/// spells as its `signed` and [`corner_ball`] as its rest depth, and
+/// the sign the shared sheet reduction folds into each trace's side
+/// (`battery::curved_arm`); the four are cross-cited at
+/// `surgery::corner_plan` so none drifts alone. Which side of the
+/// SPHERE its material is on is the pair's own second configuration
+/// and is read from the sphere face's stored sense bit, never from a
+/// normal: a sphere's chart normal is the outward radial
 /// (`geom::Surface::Sphere`), so `sphere_convex` (the stored `sense`)
-/// says the material is INSIDE the sphere and the centre rides at
-/// `R − r`, while a POCKET (a pip's dimple: material outside the ball)
-/// puts it at `R + r`. Everything else is one derivation:
+/// says the material is INSIDE the sphere. The centre rides at `R − r`
+/// where the sphere's sense AGREES with the chain's convexity (a
+/// convex chain against a convex sphere — the dome; a concave chain
+/// against a pocket) and at `R + r` where it does not (a convex chain
+/// against a pip's dimple; a concave chain against a boss).
+/// Everything else is one derivation:
 ///
 /// - the spine is the CIRCLE of radius `s = √(offset² − h²)`,
-///   `h = (c_s − o)·n + r`, in the offset plane, and the blend is the
-///   torus about it;
+///   `h = (c_s − o)·n + signed`, in the offset plane, and the blend is
+///   the torus about it;
 /// - both trimlines are circles coaxial with the spine: radius `s` on
-///   the plane and `R·s/offset` on the sphere;
+///   the plane (at `spine_center + n·signed`, which is the plane) and
+///   `R·s/offset` on the sphere;
 /// - the plane's setback is `|s − a|` for the rim radius `a`, and its
-///   SIGN is that same configuration bit: a pocket's blend widens the
-///   hole (`s > a` — what makes it eat into the flat face rather than
-///   into the pocket), a convex sphere's shrinks the plane's boundary.
+///   SIGN is the agreement bit above: where the offset is `R + r` the
+///   blend widens the plane's boundary (`s > a` — a pip's blend eats
+///   into the flat face rather than into the pocket; a boss's rests
+///   outside its footprint), where it is `R − r` it shrinks it.
 ///
 /// **The setback convention, stated once, HERE, because this is where
 /// the two spellings diverge.** This arm returns a SIGNED setback on the
@@ -368,6 +381,7 @@ pub fn plane_plane_blend<T: Real>(
 /// arithmetic in, classification at the caller: the crate's standing
 /// posture.
 #[must_use]
+#[allow(clippy::too_many_arguments)]
 pub fn plane_sphere_blend<T: Real>(
     origin: Point3<T>,
     n: Vec3<T>,
@@ -376,11 +390,17 @@ pub fn plane_sphere_blend<T: Real>(
     sphere_r: T,
     radius: T,
     sphere_convex: bool,
+    convex: bool,
 ) -> EdgeBlend<T> {
+    // The one fold (function docs): the ball is `r` INTO the plane's
+    // material on a convex chain and `r` out of it on a concave one.
+    let signed = if convex { radius } else { -radius };
     let depth = (sphere_c - origin).dot(n);
-    let h = depth + radius;
-    // The offset sphere the ball centre rides, selected STRUCTURALLY.
-    let offset = if sphere_convex {
+    let h = depth + signed;
+    // The offset sphere the ball centre rides, selected STRUCTURALLY:
+    // inside the sphere's material exactly when its sense agrees with
+    // the chain's convexity.
+    let offset = if sphere_convex == convex {
         sphere_r - radius
     } else {
         sphere_r + radius
@@ -419,12 +439,16 @@ pub fn plane_sphere_blend<T: Real>(
         spine_curvature: T::one() / s,
         trim_a: (
             Curve3::Circle {
-                center: spine_center + n * radius,
+                center: spine_center + n * signed,
                 axis: n,
                 radius: s,
                 u_ref,
             },
-            if sphere_convex { rim - s } else { s - rim },
+            if sphere_convex == convex {
+                rim - s
+            } else {
+                s - rim
+            },
         ),
         trim_b: (
             Curve3::Circle {

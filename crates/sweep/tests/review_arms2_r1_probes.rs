@@ -18,7 +18,6 @@ use geom::{Curve3, Surface};
 use geom_core::{Band, Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::revolved_about_y;
 use topo::{Body, EdgeKey, validate_geometric};
@@ -300,13 +299,13 @@ fn snowman() -> Body<f64> {
 }
 
 /// The waist of two UNIONED spheres is a valley: the rolling ball sits
-/// in the void and its band would ADD material, which the composition
-/// surgery does not build. So the honest refusal here is the concave
-/// chain's, and the fact this row now pins is that the SPINE door is
-/// passed — the battery classifies the pair, mints its torus, and hands
-/// the chain on.
+/// in the void and its band ADDS material. The SPINE door is passed —
+/// the battery classifies the pair and mints its torus — and the
+/// closed-rim surgery then carves that torus as one annulus band on the
+/// void side: tier-3 valid, the volume grown. The lentil's convex
+/// equator (`verbs_arms3`) is the same arm with the other sign.
 #[test]
-fn a_sphere_sphere_waist_reaches_its_arm_and_refuses_as_a_concave_chain() {
+fn a_sphere_sphere_waist_reaches_its_arm_and_carves_as_a_concave_chain() {
     let source = snowman();
     // Both walls really are spheres with distinct centres.
     let mut sphere_centres: Vec<f64> = source
@@ -323,15 +322,21 @@ fn a_sphere_sphere_waist_reaches_its_arm_and_refuses_as_a_concave_chain() {
     assert_eq!(sphere_centres.len(), 2, "two sphere walls");
     assert!((sphere_centres[0]).abs() < 1e-12 && (sphere_centres[1] - 1.2).abs() < 1e-12);
     let waist = closed_rim_at(&source, 0.8, 0.6);
-    match fillet_edges(&source, &[waist], 0.05, tol()).map_err(|r| r.error) {
-        Err(BlendError::UnsupportedChain { detail, .. }) => {
-            assert!(
-                detail.contains("concave"),
-                "the waist is a valley, so the refusal is the concave chain's: {detail}"
-            );
-        }
-        other => panic!("a sphere-sphere waist refuses as a concave chain, got {other:?}"),
-    }
+    let v0 = topo::mass_properties(&source, tol())
+        .expect("mass properties")
+        .volume;
+    let out = fillet_edges(&source, &[waist], 0.05, tol())
+        .unwrap_or_else(|e| panic!("a sphere-sphere waist carves as a concave chain, got {e:?}"));
+    assert_eq!(out.band_faces.len(), 1, "one annulus band");
+    validate_geometric(&out.body, tol())
+        .unwrap_or_else(|e| panic!("the waist carves tier-3 valid, got {e:?}"));
+    let v1 = topo::mass_properties(&out.body, tol())
+        .expect("mass properties")
+        .volume;
+    assert!(
+        v1 > v0,
+        "a concave band ADDS material: {v1} must exceed {v0}"
+    );
     // The arm door itself is PASSED, and the roster says so: the pair
     // the refusal above no longer names is advertised as implemented.
     assert!(

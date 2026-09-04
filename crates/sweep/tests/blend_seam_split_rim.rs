@@ -36,10 +36,10 @@
 //!   bands.
 //! - **Both material configurations**, at the arms' own level: each of
 //!   the three support pairs puts the ball where its two equations say
-//!   with the stored sense bits set either way. The CARVE takes one of
-//!   them — a concave chain adds material — and the concave gate is
-//!   rowed beside it, on a seam-split rim, so this door cannot be read
-//!   as having widened that.
+//!   with the stored sense bits set either way. The CARVE takes either
+//!   — a concave rim's band adds material through the same walk — and
+//!   the concave rows live in `fillet_h4_concave_rim`, on the waisted
+//!   body, beside this suite's convex ones.
 //! - **The naming totality**: every output entity of a seam-split band
 //!   — edges AND vertices — is a recorded mint or a survivor, and every
 //!   retirement names a SOURCE key. The vertex direction is the one a
@@ -56,7 +56,6 @@ use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::blend::BlendError;
 use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{revolved_about_y, rim_arcs_at};
@@ -426,9 +425,9 @@ fn the_three_rims_fillet_in_sequence_to_one_valid_solid() {
 /// independently: a straight-and-round pair has a ball exactly when the
 /// offset line meets the offset circle.
 ///
-/// The CARVE takes the convex configuration only (a concave chain adds
-/// material, which no closed-rim carve in the module builds), which is
-/// why the row below this one exists.
+/// The CARVE takes either configuration — a concave rim's band adds
+/// material through the same walk (`fillet_h4_concave_rim`) — so what
+/// this row pins is the arms' own arithmetic under both sense bits.
 #[test]
 fn the_lanterns_arms_fold_both_sense_bits() {
     let r = 0.05;
@@ -518,46 +517,6 @@ fn the_lanterns_arms_fold_both_sense_bits() {
             folded >= 2,
             "{name}: at least two configurations have a ball, so the row is not vacuous"
         );
-    }
-}
-
-/// **The concave gate stands on a seam-split rim too.** The door this
-/// unit builds widens which CHAIN SHAPES the annulus takes, not which
-/// material configuration it carves: a concave rim adds material, and
-/// the surgery still refuses it — whole, and with the same detail a
-/// one-edge concave rim gets. The material-adding band is filed as
-/// evgunter/cad issue 1244.
-///
-/// **Not vacuous**, and that is checked rather than asserted: this
-/// fixture's OTHER rims carve through this unit's own door
-/// (`review_blend1_r2_probes::the_waisted_bodys_convex_rims_carve_so_its_concave_row_is_not_vacuous`),
-/// so the refusal here is about convexity and not about the body being
-/// unreachable. The recourse the tag shows at this rim's seam vertices
-/// is composed with this answer in that suite's
-/// `the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`.
-#[test]
-fn a_concave_seam_split_rim_still_refuses() {
-    // A waisted lantern: two cones meeting at radius 0.5, so the waist
-    // rim is CONCAVE, and pole-touching, so it is seam-split.
-    let body = revolved_about_y(
-        vec![
-            v(0.0, 0.0, 0.0),
-            v(1.0, 0.0, 0.0),
-            v(0.5, 0.5, 0.0),
-            v(1.0, 1.0, 0.0),
-            v(0.0, 1.0, 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    );
-    let arcs = rim_arcs_at(&body, 0.5, 0.5);
-    assert_eq!(arcs.len(), 2, "the waist rim is seam-split too");
-    match fillet_edges(&body, &arcs, 0.05, tol()).map_err(|r| r.error) {
-        Err(BlendError::UnsupportedChain { detail, .. }) => assert!(
-            detail.contains("concave"),
-            "a concave seam-split rim refuses as concave, got {detail}"
-        ),
-        other => panic!("a concave seam-split rim refuses, got {other:?}"),
     }
 }
 
