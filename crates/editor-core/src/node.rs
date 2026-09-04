@@ -232,11 +232,9 @@ impl StepArg {
             | Self::Target2Y
             | Self::CarrierRadius2
             | Self::ArcLenVal2 => Dimension::Length,
-            Self::AngleVal
-            | Self::TurnVal
-            | Self::Phase
-            | Self::SweepVal
-            | Self::SweepVal2 => Dimension::Angle,
+            Self::AngleVal | Self::TurnVal | Self::Phase | Self::SweepVal | Self::SweepVal2 => {
+                Dimension::Angle
+            }
             Self::DirX | Self::DirY | Self::Bulge | Self::Bulge2 => Dimension::Scalar,
         }
     }

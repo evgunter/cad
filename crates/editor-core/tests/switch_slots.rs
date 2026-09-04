@@ -449,11 +449,12 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
         for arg in [incoming, arrival] {
             let hits = slots
                 .iter()
-                .filter(|s| {
-                    matches!(s, SlotId::Profile { step: 1, arg: a, .. } if *a == arg)
-                })
+                .filter(|s| matches!(s, SlotId::Profile { step: 1, arg: a, .. } if *a == arg))
                 .count();
-            assert_eq!(hits, 1, "{arg:?} is enumerated {hits} times at the fused step");
+            assert_eq!(
+                hits, 1,
+                "{arg:?} is enumerated {hits} times at the fused step"
+            );
         }
 
         // …and the arrival role addresses the ARRIVAL spec's argument,
@@ -475,7 +476,9 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                 arg: incoming,
             })
             .and_then(Expr::literal_value);
-        *program.expr_mut(fused).expect("the arrival role is writable") = replacement.clone();
+        *program
+            .expr_mut(fused)
+            .expect("the arrival role is writable") = replacement.clone();
         assert_eq!(
             program.expr(fused).and_then(Expr::literal_value),
             replacement.literal_value()
@@ -502,12 +505,18 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
             Tol::witness(),
         ) {
             Err(EditError::ProfileProgramRefused {
-                refusal: ProgramRefusal::Transition { loop_: 0, step: 1, verb, .. },
+                refusal:
+                    ProgramRefusal::Transition {
+                        loop_: 0,
+                        step: 1,
+                        verb,
+                        ..
+                    },
                 ..
             }) => assert_eq!(verb, Some(profile::Verb::ArcFilletArc)),
-            other => panic!(
-                "a {arrival:?}-carrying program must refuse at the VQ9 door, got {other:?}"
-            ),
+            other => {
+                panic!("a {arrival:?}-carrying program must refuse at the VQ9 door, got {other:?}")
+            }
         }
     }
 }
