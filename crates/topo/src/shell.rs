@@ -108,8 +108,20 @@
 //! **The rows are HISTORICAL.** A result key a row names may have died
 //! in a LATER step: a designated face's inner twin is recorded when the
 //! cavity is grafted and is then killed by the rim surgery's `kfmrh`.
-//! Every such death is listed in [`ShellRetired`], so a consumer reads
-//! `live = recorded − dead` rather than assuming every row resolves.
+//! Every such death is listed in [`ShellRetired`] — in every arena the
+//! record names and in the two it only implies, so its faces, edges,
+//! vertices, loops, surfaces and shells together are exactly what the
+//! construction retired — and a consumer reads `live = recorded − dead`
+//! rather than assuming every row resolves.
+//!
+//! **Loops are handles, not emitter targets.** [`RimNaming::ring`] and
+//! [`HoleRim::ring`] are RESULT loop keys, and the document layer mints
+//! no `StableName` for a loop; a rim's anchor is its `ring_edges` /
+//! `ring_vertices`, whose source columns are operand edges and vertices.
+//! A hole's loop in particular is a result key on every operand and an
+//! operand key on only some — an extruded holed slab's mouth carries its
+//! ring already, while a revolve's slit annular cap has none until
+//! `kemr` mints one during the chart reduction.
 //!
 //! # The opened arm
 //!
@@ -179,6 +191,7 @@
 
 use geom_core::k_stats::decide;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
+use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::boolean::voids::{VoidContainment, VoidEvidence, VoidInsertError, insert_void};
@@ -517,7 +530,11 @@ pub struct Shelled<T: Real> {
 /// equal today, and the row shape does not lean on that — shelling a
 /// hollow body thickens every boundary, and the day it does the
 /// identity stops holding while the row still reads.
-#[derive(Clone, Debug, Default)]
+///
+/// The lookup doors below are the intended reading order; the `Vec`
+/// rows are the data, kept public so a consumer can walk the
+/// construction's own order.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ShellNaming {
     /// Outer wall face (result) ← the source face it is. Every source
     /// face that was not designated open, face-arena order.
@@ -534,39 +551,113 @@ pub struct ShellNaming {
     /// One row per designated CHART, in designation order (the order
     /// `open_faces` first names each chart).
     pub rims: Vec<RimNaming>,
-    /// What the construction retired, result keys: the designated
-    /// chart's merged-away faces and seam edges/apex vertices
-    /// ([`canonicalize_chart`], both sides) and the cavity counterpart
-    /// killed by `kfmrh`.
+    /// What the construction retired, result keys.
     pub dead: ShellRetired,
 }
 
+impl ShellNaming {
+    /// The cavity twin of a source face, in result keys. `None` for a
+    /// key the operand did not hold. A twin that has since died is
+    /// still answered — the rows are historical — so a consumer that
+    /// needs a LIVE key checks `dead` or the body.
+    #[must_use]
+    pub fn inner_of(&self, source: FaceKey) -> Option<FaceKey> {
+        self.inner
+            .iter()
+            .find(|(_, s)| *s == source)
+            .map(|&(twin, _)| twin)
+    }
+
+    /// The rim row of the chart a designated face belongs to. `None`
+    /// for a face that was not designated.
+    #[must_use]
+    pub fn rim_of(&self, designated: FaceKey) -> Option<&RimNaming> {
+        self.rims.iter().find(|r| r.sources.contains(&designated))
+    }
+
+    /// The cavity twin of a source edge, in result keys.
+    #[must_use]
+    pub fn twin_edge(&self, source: EdgeKey) -> Option<EdgeKey> {
+        self.inner_edges
+            .iter()
+            .find(|(_, s)| *s == source)
+            .map(|&(twin, _)| twin)
+    }
+
+    /// The cavity twin of a source vertex, in result keys.
+    #[must_use]
+    pub fn twin_vertex(&self, source: VertexKey) -> Option<VertexKey> {
+        self.inner_vertices
+            .iter()
+            .find(|(_, s)| *s == source)
+            .map(|&(twin, _)| twin)
+    }
+}
+
 /// The rim a designated chart became.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RimNaming {
     /// The designated faces of this chart, source keys, in
     /// designation order.
     pub sources: Vec<FaceKey>,
     /// The rim face (result): the survivor of the chart's reduction,
-    /// now annular.
+    /// now annular. It is **`sources[0]`** — the chart's faces merge
+    /// onto the first one designated, so a caller that wants a
+    /// particular face to carry the rim's identity names it first.
     pub rim: FaceKey,
-    /// The rim's RING (result): the cavity counterpart's outer loop,
-    /// as `kfmrh` returned it.
+    /// The rim's RING (a RESULT loop key): the cavity counterpart's
+    /// outer loop, as `kfmrh` returned it. The kernel names no loops
+    /// to the document layer, so this is a handle into the result
+    /// body, not an emitter target; `ring_edges` is the anchor a
+    /// `StableName` can be minted from.
     pub ring: LoopKey,
     /// Ring edge (result) ← the source boundary edge of the
     /// designated chart it is the inward twin of; ring cycle order.
+    /// Every row appears verbatim in [`ShellNaming::inner_edges`].
     pub ring_edges: Vec<(EdgeKey, EdgeKey)>,
     /// Ring vertex (result) ← the source boundary vertex it is the
-    /// inward twin of; ring cycle order.
+    /// inward twin of; ring cycle order. Every row appears verbatim in
+    /// [`ShellNaming::inner_vertices`].
     pub ring_vertices: Vec<(VertexKey, VertexKey)>,
     /// A designated face with a hole yields one extra rim region per
-    /// hole: the promoted rim face (result, `mfkrh`'s product) ← the
-    /// source ring loop it pairs (source key), pairing order.
-    pub holes: Vec<(FaceKey, LoopKey)>,
+    /// hole; pairing order.
+    pub holes: Vec<HoleRim>,
 }
 
-/// The result keys the construction retired.
-#[derive(Clone, Debug, Default)]
+/// The extra rim region a designated face's HOLE became: the annulus
+/// between that hole's boundary and its cavity twin, promoted to its
+/// own face (`mfkrh`) before the glue and handed the designated face's
+/// own hole after it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HoleRim {
+    /// The promoted rim face (result).
+    pub face: FaceKey,
+    /// The loop the promoted face carries as its RING (a RESULT loop
+    /// key): the designated face's own hole, as the surgery left it.
+    ///
+    /// **A result key, not a source key**, and the distinction is not
+    /// academic: on an extruded holed slab this key is the operand's
+    /// own ring loop, while on a revolve's SLIT annular cap the
+    /// designated face carries no ring at all in the operand and this
+    /// loop is minted by `kemr` during the chart reduction. Reading it
+    /// as a source key is right on one operand and wrong on the other,
+    /// which is why the edge-level rows below exist.
+    pub ring: LoopKey,
+    /// Twin edge (result) ← the source boundary edge of the hole it is
+    /// the twin of; the promoted face's CAVITY-side boundary (its
+    /// outer loop) in cycle order. Every row appears verbatim in
+    /// [`ShellNaming::inner_edges`], so this is the hole's anchor in a
+    /// key space the document layer can name.
+    pub ring_edges: Vec<(EdgeKey, EdgeKey)>,
+    /// Twin vertex (result) ← the source boundary vertex of the hole;
+    /// same loop, same order. Every row appears verbatim in
+    /// [`ShellNaming::inner_vertices`].
+    pub ring_vertices: Vec<(VertexKey, VertexKey)>,
+}
+
+/// The result keys the construction retired, in every arena the
+/// record names.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ShellRetired {
     /// Faces that no longer resolve: a designated chart's merged-away
     /// members on both sides, and the cavity counterpart `kfmrh` kills.
@@ -577,6 +668,13 @@ pub struct ShellRetired {
     /// Vertices that no longer resolve: the apex vertices a spur dies
     /// with.
     pub vertices: Vec<VertexKey>,
+    /// Loops that no longer resolve: the outer loop of each face a
+    /// chart merge kills.
+    pub loops: Vec<LoopKey>,
+    /// Surfaces reaped when killing their last face orphaned them.
+    pub surfaces: Vec<crate::geometry::SurfaceKey>,
+    /// The cavity shell, killed when it fused into the outer one.
+    pub shells: Vec<ShellKey>,
 }
 
 // ---------------------------------------------------------------------
@@ -867,6 +965,11 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         naming.inner_vertices.push((twin, vertex));
     }
 
+    // The ring walks below ask "which source is this twin of?" once per
+    // ring entity. The rows are the data; this is the index over them,
+    // built once rather than re-scanned per lookup.
+    let twins = TwinIndex::of(&naming);
+
     // ---- The rim surgery, per designated CHART. ----
     //
     // Per chart, ONCE — not once per designated face. The rim a
@@ -999,11 +1102,10 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         // and after the glue takes the designated face's matching ring
         // with it.
         let pairs = pair_rings(&out, rim, source, band)?;
+        // ONE list, two readers: `ring_move` walks it to hand each
+        // promoted face its hole, and the record's hole rows are read
+        // off the same pairs.
         let mut promoted: Vec<(FaceKey, LoopKey)> = Vec::new();
-        // The record's hole rows: the promoted rim face against the
-        // DESIGNATED face's own ring, which is the source loop the
-        // extra rim region is the annulus of.
-        let mut holes: Vec<(FaceKey, LoopKey)> = Vec::new();
         for &(source_ring, rim_ring) in &pairs {
             let made = out
                 .mfkrh(source_ring, crate::euler::FaceSurface::Shared(rim_surface))
@@ -1030,7 +1132,6 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
                     error,
                 })?;
             rename_loop_surface(&mut out, source_ring, dead_surface, rim_surface, tol, rim)?;
-            holes.push((made.face, rim_ring));
             promoted.push((made.face, rim_ring));
         }
 
@@ -1105,6 +1206,8 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
             error,
         })?;
         naming.dead.faces.push(fused.killed_face);
+        naming.dead.surfaces.extend(fused.killed_surface);
+        naming.dead.shells.extend(fused.killed_shell);
         // The ring's edges still NAME the surface that just died. They
         // lie on the rim's surface now — the lift put the two planes on
         // top of each other — so the re-description is a key swap with
@@ -1117,7 +1220,28 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         // chart's own boundary edge or vertex. A ring entity with no
         // such row is a mint this record cannot explain, and it says so
         // rather than leaving a gap.
-        let (ring_edges, ring_vertices) = ring_rows(&out, fused.ring, &naming)?;
+        let (ring_edges, ring_vertices) = ring_rows(&out, fused.ring, &twins)?;
+
+        // The hole rows read the same way, off each promoted face's
+        // CAVITY-side boundary — its outer loop, which `mfkrh` made
+        // from the counterpart's ring — so a hole gets the same
+        // edge-level anchor the outer rim has.
+        let mut holes = Vec::with_capacity(promoted.len());
+        for &(face, rim_ring) in &promoted {
+            let outer = out
+                .get_face(face)
+                .ok_or(ShellError::Corrupt {
+                    key: EntityId::Face(face),
+                })?
+                .outer;
+            let (ring_edges, ring_vertices) = ring_rows(&out, outer, &twins)?;
+            holes.push(HoleRim {
+                face,
+                ring: rim_ring,
+                ring_edges,
+                ring_vertices,
+            });
+        }
 
         // Each promoted rim face takes its matching hole with it: the
         // fusion put every face in one shell, which is `ring_move`'s
@@ -1148,6 +1272,28 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
 /// A rim ring's two row lists: its edge rows and its vertex rows.
 type RingRows = (Vec<(EdgeKey, EdgeKey)>, Vec<(VertexKey, VertexKey)>);
 
+/// The inner-twin rows read backwards — result key to the source key
+/// it twins — so a ring walk is one lookup per entity rather than a
+/// scan of the rows.
+struct TwinIndex {
+    edges: SecondaryMap<EdgeKey, EdgeKey>,
+    vertices: SecondaryMap<VertexKey, VertexKey>,
+}
+
+impl TwinIndex {
+    fn of(naming: &ShellNaming) -> Self {
+        let mut edges = SecondaryMap::new();
+        for &(result, source) in &naming.inner_edges {
+            edges.insert(result, source);
+        }
+        let mut vertices = SecondaryMap::new();
+        for &(result, source) in &naming.inner_vertices {
+            vertices.insert(result, source);
+        }
+        Self { edges, vertices }
+    }
+}
+
 /// The rim ring's edge and vertex rows, in ring cycle order: each
 /// result entity paired with the source entity it is the inward twin
 /// of, looked up in the inner-twin rows the graft map wrote.
@@ -1159,7 +1305,7 @@ type RingRows = (Vec<(EdgeKey, EdgeKey)>, Vec<(VertexKey, VertexKey)>);
 fn ring_rows<T: Real>(
     body: &Body<T>,
     ring: LoopKey,
-    naming: &ShellNaming,
+    twins: &TwinIndex,
 ) -> Result<RingRows, ShellError<T>> {
     let corrupt = |key| ShellError::Corrupt { key };
     let LoopBoundary::Cycle { first } = body
@@ -1178,18 +1324,16 @@ fn ring_rows<T: Real>(
         let half = body
             .get_half_edge(he)
             .ok_or_else(|| corrupt(EntityId::HalfEdge(he)))?;
-        let source = naming
-            .inner_edges
-            .iter()
-            .find(|(result, _)| *result == half.edge)
-            .map(|&(_, source)| source)
+        let source = twins
+            .edges
+            .get(half.edge)
+            .copied()
             .ok_or_else(|| corrupt(EntityId::Edge(half.edge)))?;
         edges.push((half.edge, source));
-        let source = naming
-            .inner_vertices
-            .iter()
-            .find(|(result, _)| *result == half.start)
-            .map(|&(_, source)| source)
+        let source = twins
+            .vertices
+            .get(half.start)
+            .copied()
             .ok_or_else(|| corrupt(EntityId::Vertex(half.start)))?;
         vertices.push((half.start, source));
     }
@@ -1268,6 +1412,8 @@ fn canonicalize_chart<T: Decide>(
             })?;
             dead.faces.push(killed.killed_face);
             dead.edges.push(killed.killed_edge);
+            dead.loops.push(killed.killed_loop);
+            dead.surfaces.extend(killed.killed_surface);
             alive.retain(|&f| f != dying);
             acted = true;
             break;
