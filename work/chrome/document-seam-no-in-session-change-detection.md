@@ -2,10 +2,11 @@
 id: document-seam-no-in-session-change-detection
 kind: issue
 title: The document seam has no in-session change detection - a store edit is invisible until reopen (plus two adjacent edges)
-status: open
+status: parked
 opened: 2026-08-31
 github: 1387
 refs: [1376]
+blocked_on: [viewer-session-god-module-split]
 ---
 
 ## From GitHub issue 1387

@@ -2,9 +2,10 @@
 id: chrome-weight-is-outside-the-palette
 kind: issue
 title: The tree's badge WEIGHT carries meaning no palette can tune, and no test sees any badge's colour
-status: open
+status: parked
 opened: 2026-09-04
 refs: [1769, 1463]
+blocked_on: [viewer-session-god-module-split]
 ---
 
 Found by CHROME's style lane on PR 1769; judged a class question by the

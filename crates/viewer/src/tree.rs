@@ -322,8 +322,6 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::Under { mate, .. }
         | MateFault::DanglingHead { mate, .. }
         | MateFault::SelfMate { mate, .. }
-        // An unleverable mate names the mate whose lever the solve
-        // could not take: it is the row the refusal points at.
         | MateFault::Unleverable { mate, .. } => vec![*mate],
         MateFault::Band { .. } => Vec::new(),
         // A contradiction is a claim about a PAIR of mates: neither is
