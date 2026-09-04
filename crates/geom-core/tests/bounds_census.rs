@@ -288,8 +288,14 @@ fn is_sole_bracket(bound: &str) -> bool {
 /// comparison inside a bound breaks the count), and a site the walk
 /// cannot read is a site it must not drop — `flagged_census.rs`'s
 /// turbofish scan takes the same asymmetry for the same reason.
+///
+/// The item's body opens at the first `{` or `;` OUTSIDE every square
+/// and round bracket. A fixed-size array in a generic argument —
+/// `<Item = [Expr; 2]>` — carries a `;` that ends no item, so the
+/// terminator is read at bracket depth zero only, the same nesting
+/// [`top_level_params`] respects for its commas.
 fn angle_end(code: &str, open: usize) -> usize {
-    let mut depth = 0i32;
+    let (mut depth, mut brackets) = (0i32, 0i32);
     for (i, ch) in code[open..].char_indices() {
         match ch {
             '<' => depth += 1,
@@ -299,7 +305,9 @@ fn angle_end(code: &str, open: usize) -> usize {
                     return open + i;
                 }
             }
-            '{' | ';' => break,
+            '[' | '(' => brackets += 1,
+            ']' | ')' => brackets -= 1,
+            '{' | ';' if brackets == 0 => break,
             _ => {}
         }
     }
