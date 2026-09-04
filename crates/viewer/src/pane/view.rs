@@ -1,7 +1,6 @@
 //! The View pane: display tolerance, datums and the camera's state.
 //!
-//! Module kind: **driver** — it may name the toolkit and the session's
-//! own types (`crates/viewer/README.md`, Module boundaries).
+//! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
 

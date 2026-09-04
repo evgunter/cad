@@ -64,9 +64,26 @@ and `crates/viewer/README.md` refer to it by.
 `crates/viewer/README.md`'s own list of the files carrying these rows
 was three of four; `tests/panel_display.rs` was added.
 
-This is one of the eight copies `work/issues/loud-skip-marker-is-a-hand-kept-idiom.md`
+**This is a HALF-FIX and is labelled as one.** It is one of the eight
+copies `work/issues/loud-skip-marker-is-a-hand-kept-idiom.md`
 tabulates, and it takes that issue's option 2 ("drop the enumeration")
-for this copy only. The other seven are untouched and that issue's
-table row for `src/lib.rs` now names a row that has been renamed —
-reported rather than edited, since the issue is homed outside this
-program's fence.
+for this copy alone. Three siblings inside this same crate still carry
+the identical admission, each naming its rows by hand:
+
+| file:line | row |
+| --- | --- |
+| `crates/viewer/tests/chrome_labels.rs:24-27` | `app_lane_skipped_no_chrome_coverage_here` |
+| `crates/viewer/tests/error_display.rs` | `app_lane_skipped_startup_error_arms_not_checked_here` |
+| `crates/viewer/tests/panel_display.rs` | `app_lane_skipped_parameter_field_units_not_checked_here` |
+
+`chrome_labels.rs:26-27` is the clearest statement of it: *"the list it
+recites is kept by hand and a stale one would read exactly like a
+current one."* Those three are `crates/viewer/tests/`, which is
+`chrome`'s and `tcost`'s territory, not this program's — so they are
+named here and left alone. The four outside this crate are in
+`crates/sweep` and `crates/topo`.
+
+That issue's own table now cites a row that has been renamed (`:21`)
+and a moved line (`:23`); reported rather than edited, since the issue
+is homed outside this program's fence and the orchestrator is taking
+the tracker edit.

@@ -1,7 +1,6 @@
 //! The Features pane: the feature tree, one row per recipe node.
 //!
-//! Module kind: **driver** — it may name the toolkit and the session's
-//! own types (`crates/viewer/README.md`, Module boundaries).
+//! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
 

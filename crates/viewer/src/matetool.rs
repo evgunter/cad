@@ -85,7 +85,7 @@
 //! a consumer reads rather than a defect they meet.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
-//! toolkit type (`crates/viewer/README.md`, Module boundaries).
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
     Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, Doc, Evaluation, Frame, MateFault,

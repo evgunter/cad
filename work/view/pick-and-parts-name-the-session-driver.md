@@ -57,8 +57,24 @@ picking one:
 ## What holds the line meanwhile
 
 `scripts/gates/viewer-module-kinds.sh` carries the two files as its
-only `VOCAB_EXCEPTIONS`, so a **third** site reds CI. The exception
-list also retires itself: each entry must still name a driver type, so
-whichever answer above is taken, the entry has to be deleted in the
-same change or the gate fires. `crates/viewer/README.md`'s `### Two
-vocabularies that read the session` records the state for a reader.
+only `VOCAB_EXCEPTIONS`, and the exemption is **site-granular**: an
+entry is `FILE|NEEDLE|COUNT`, so a **sixth** site reds, a different
+forbidden name in the same file reds (the exemption covers the reason
+it was granted and nothing else), and fixing a site without lowering
+the count reds too — the entry cannot outlive its reason.
+
+A file-granular entry would have ratified every line later added to
+these two files, which is exactly `work/code-quality/D103.md` (open,
+unruled, track K, fenced to `scripts/gates/`): *"the allowlist is
+file-granular while its justifications are per-seam, so later bounds
+inherit ratification"*. D103 lists "a count pinned per file" as one of
+three shapes a taker should weigh; this is that shape, applied inside
+D103's fence, and it is offered as evidence for that ruling rather
+than as a substitute for one. `interval-square-allowlist.sh:125-133`
+makes the same argument about its own retired entries.
+
+`crates/viewer/README.md`'s `### Two vocabularies that read the
+session` records the state for a reader, and both modules say so in
+their own doc headers — the gate requires it, because a header reading
+*"it names no driver type"* nine lines above naming one is false and
+rustdoc publishes it.

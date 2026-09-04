@@ -33,7 +33,7 @@
 //! gets a [`CameraOpError`] it can show, and the camera it already had.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
-//! toolkit type (`crates/viewer/README.md`, Module boundaries).
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use bvh::{Aabb, Axis};
 use pncad::geom_core::{Point3, Vec3};

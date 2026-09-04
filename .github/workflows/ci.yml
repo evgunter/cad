@@ -960,6 +960,20 @@ jobs:
         run: |
           scripts/gates/probe-suite-census.sh --selftest
           scripts/gates/probe-suite-census.sh --citations
+      # The viewer crate's vocabulary/driver boundary. SITED HERE FOR
+      # THIS JOB'S OWN REASON: two of its checks read
+      # `crates/viewer/README.md` (the driver and vocabulary tables it
+      # derives its rosters from) and one reads that crate's
+      # `Cargo.toml` (the `app` feature, which is the forbidden-crate
+      # set). A change set of only the README is TIER=docs, so in
+      # `discipline` a docs-only PR renaming a table heading, adding a
+      # ghost row or deleting a table would merge with every one of
+      # those arms unrun. TIER_BLIND names it, so this cannot drift
+      # back.
+      - name: viewer module kinds (vocabulary/driver boundary)
+        run: |
+          scripts/gates/viewer-module-kinds.sh --selftest
+          scripts/gates/viewer-module-kinds.sh
       # THE PYTHON LINTER RIDES THIS JOB, and the two properties that make
       # this job what it is are exactly the two ruff needs.
       #
@@ -1240,10 +1254,6 @@ jobs:
         run: |
           scripts/gates/test-features-dev-only.sh --selftest
           scripts/gates/test-features-dev-only.sh
-      - name: viewer module kinds (vocabulary/driver boundary)
-        run: |
-          scripts/gates/viewer-module-kinds.sh --selftest
-          scripts/gates/viewer-module-kinds.sh
 
       # RENDER PROVENANCE (#221 follow-up). Every committed per-scene
       # PNG under demos/renders{,-freecad}/ must carry FreeCAD's

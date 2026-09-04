@@ -61,47 +61,70 @@ and delete the word "mechanically".
 
 ## What landed
 
-`scripts/gates/viewer-module-kinds.sh`, wired into both halves of CI
-(the hosted half by a named step in `.github/workflows/ci.yml`, the
-local half by the loop that already runs this directory), under
-`scripts/gates/lib.sh`'s contract: `--root DIR`, and a `--selftest`
-that passes a clean fixture and fires on thirteen planted ones.
+`scripts/gates/viewer-module-kinds.sh`, sited in `ci.yml`'s `mirror`
+job and in `ci-local.sh`'s `tier_blind_rows` — the halves that carry no
+tier condition — and named in `scripts/check-ci-mirror-parity.py`'s
+`TIER_BLIND`, so the siting is enforced rather than remembered. Two of
+its checks read `crates/viewer/README.md`'s tables and one reads that
+crate's `Cargo.toml`; a change set of only the README is `TIER=docs`
+and `RUN_BUILD=false`, so under `discipline` the arms that exist for a
+table edit could not fire on a table edit (*a gate must be sited where
+it can fire on its own inputs*, Ev 2026-08-20, `ci.yml:804-812`).
 
 **Where a module's kind is declared: its own doc header.** One line per
-module, `//! Module kind: **vocabulary**` or `//! Module kind:
-**driver**`, on all 41 modules under `crates/viewer/src`. The subject
-of the rule is a module's `use` block, so the declaration sits beside
-it; a README table would have put the two in different files with the
-gate as their only tie, and would have made Markdown table syntax an
-unversioned interface for a bash gate. The drift that choice admits —
-module and README disagreeing — is closed by check 5, which reads the
-first column of the README's two vocabulary tables and requires each
-named module to declare `vocabulary`.
+module, on all 41 modules under `crates/viewer/src`. The subject of the
+rule is a module's `use` block, so the declaration sits beside it; an
+author changing a module's role meets the contradiction in the file
+they are editing, and a new module cannot land without answering the
+question.
 
-What the gate checks: every module declares exactly one kind; a
-`driver` declaration is on the ratified roster (`session`, `app`,
-`pane` and its bodies, `widgets`, `gpu`), and every roster entry still
-exists and still declares `driver`; no vocabulary names `DocSession`,
-`ViewerApp`, a toolkit crate, or a `crate::{app,pane,widgets,gpu}`
-path anywhere in its **code** (not only its `use` lines — a
-fully-qualified name evades an import check); the README's vocabulary
-tables agree with the modules they name, and have not lost their rows.
+**What is derived rather than restated.** The driver roster is the
+README's `### The drivers` table; the vocabulary roster is its two
+vocabulary tables; the forbidden crates are every `dep:` in
+`Cargo.toml`'s `app` feature — the right population rather than a
+curated "toolkit" list, because every entry there is optional and
+reached only through `app`, so a vocabulary (compiled in a
+default-feature build) naming one is naming something that is not
+there. The forbidden driver-module paths are the driver table's
+top-level names minus any that host a tabulated vocabulary, which is
+how `crate::session::SessionOp` stays green while `crate::app::…` reds.
+Only two things are hand-kept: the two driver type names, held against
+the README's own rule text by a check, and the exceptions below.
+
+**The exceptions are site-granular.** An entry is `FILE|NEEDLE|COUNT`.
+The needle means an exempted file that gains `use eframe::egui;` still
+reds; the count means a sixth `&DocSession` reds, and that fixing a
+site without lowering the count reds too, so the entry cannot outlive
+its reason. A file-granular entry would have ratified every line later
+added to those two files — the class `work/code-quality/D103.md`
+records against the bounds allowlist and leaves unruled; D103 names "a
+count pinned per file" as one of the three shapes a taker should weigh,
+and this is that shape applied inside D103's own fence.
+
+**Three path spellings are matched**, because the README's slogan names
+the `use` block and a `use` block has three shapes: `use crate::app;`,
+`app::x`, and `use crate::{app, camera::Camera};` — the last hides the
+driver as a bare leaf inside braces and is written in 22 places
+elsewhere in this workspace. The third is read from a 12-line window
+over the code-only view.
 
 What it cannot catch, stated in the gate's own header: a module's ROLE
-(it reads what a module NAMES, so a module that owns state and
-dispatches while importing nothing forbidden passes); a driver-roster
-entry the README has retired; vocabularies the README does not
-tabulate; a driver type reached through a re-export, a generic, a trait
-object or a macro; anything outside `crates/viewer/src`.
+(it reads what a module NAMES); a driver type reached through a
+re-export, a generic, a trait object or a macro; a use tree wider than
+12 lines; anything outside `crates/viewer/src`; and a crate reached
+through a re-export of a non-`app` dependency — `pollster` is the live
+near-miss and is correctly absent from the derived set, being an
+unconditional dependency present in the default build.
 
-The first pass found the rule already false at two sites — `pick` and
-`parts` take a `&DocSession` — recorded as the gate's only exceptions,
-in `crates/viewer/README.md`'s `### Two vocabularies that read the
-session`, and scheduled at
-`work/view/pick-and-parts-name-the-session-driver.md`. The exceptions
-retire themselves: an entry that stops hitting the matcher fires the
-gate.
+**Every forbidden name has an isolating fixture, and the fixture list
+is derived from the same documents the matcher is** — one case per
+driver type, one per `dep:` in the `app` feature, and five per driver
+module path, one isolating each of the three path spellings. Deleting
+any single arm from the matcher turns `--selftest` red; that was
+checked by seven weakening probes, all of which now go red.
 
-`crates/viewer/README.md` also gained `gpu` in the driver split (it
-names `eframe::wgpu` and was in no classification) and lost a false
-claim that `src/frame.rs` sits behind the `app` feature.
+The first pass found the rule already false at five sites across
+`pick.rs` and `parts.rs`, recorded in the README's `### Two
+vocabularies that read the session`, in those two modules' own headers,
+and scheduled at
+`work/view/pick-and-parts-name-the-session-driver.md`.

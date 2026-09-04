@@ -9,7 +9,7 @@
 //! what it steps by, and what every candidate is judged against.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
-//! toolkit type (`crates/viewer/README.md`, Module boundaries).
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use std::sync::Arc;
 

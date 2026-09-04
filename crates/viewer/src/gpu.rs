@@ -70,8 +70,7 @@
 //! is a question about billboards rather than about winding, and the
 //! reading above does not answer it. It stays open on its own terms.
 //!
-//! Module kind: **driver** — it may name the toolkit and the session's
-//! own types (`crates/viewer/README.md`, Module boundaries).
+//! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};

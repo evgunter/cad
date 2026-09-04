@@ -45,8 +45,7 @@
 //! else is the seam's vocabulary, which the wasm build satisfies with
 //! no thread at all.
 //!
-//! Module kind: **driver** — it may name the toolkit and the session's
-//! own types (`crates/viewer/README.md`, Module boundaries).
+//! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use std::collections::BTreeSet;
 use std::sync::Arc;

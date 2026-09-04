@@ -24,7 +24,7 @@
 //! what a δ reading should let you see.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
-//! toolkit type (`crates/viewer/README.md`, Module boundaries).
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use std::collections::BTreeSet;
 

@@ -251,29 +251,68 @@ also what was already true of the good modules here (`camera`,
 files are one driver plus a pile of vocabulary that never left.
 
 **`scripts/gates/viewer-module-kinds.sh` is the machine that reads
-it**, on both halves of CI. Each module declares its own kind, once,
-in its own doc header —
+it**, on both halves of CI, in the job that carries no tier condition —
+its inputs are this file and `Cargo.toml`, and a change set of only
+those is TIER=docs, on which every build-gated job is skipped. Each
+module declares its own kind, once, in its own doc header —
 
 ```rust
 //! Module kind: **vocabulary** — …
-//! Module kind: **driver** — …
+//! Module kind: **driver** …
 ```
 
 — because the subject of the rule is a module's `use` block and the
 declaration belongs beside it: an author changing a module's role
 meets the contradiction in the file they are editing, and a new module
-cannot land without answering the question. The gate refuses a module
-that declares neither or both, refuses a `driver` declaration outside
-the roster below (a module cannot promote itself out of the rule), and
+cannot land without answering the question.
+
+**The gate's rosters and its needles are read out of the documents
+they enforce, not restated.** The driver roster is the table below;
+the vocabulary roster is the two vocabulary tables; and what a
+vocabulary may not name is `Cargo.toml`'s `app` feature — *every*
+`dep:` in it. That last one is the right population rather than a
+curated list of toolkit crates, and the manifest already says why:
+every entry there is optional and reached only through `app`, so a
+vocabulary — which is compiled in a default-feature build — naming one
+is naming something that is not there. A hand-kept version of that
+list got it wrong in both directions on its first day.
+
+The gate refuses a module that declares neither kind or both, refuses
+a `driver` declaration on a module the driver table does not list, and
 reads every vocabulary's code — not only its `use` lines, since a
-fully-qualified name evades an import check — for `DocSession`,
-`ViewerApp`, a toolkit crate, or a `crate::{app,pane,widgets,gpu}`
-path. It then cross-checks the two vocabulary tables below against
-what the modules they name declare, which is the one direction a
-per-module declaration can drift. What it does not decide is a
-module's ROLE: it reads what a module NAMES, so a module that owns
-state and dispatches while importing nothing forbidden still passes as
-a vocabulary. The gate's own header states the rest of its blind spots.
+fully-qualified name evades an import check, and not only single
+lines, since `use crate::{app::x, camera::Camera};` hides the driver
+inside a brace group. What it does not decide is a module's ROLE: it
+reads what a module NAMES, so a module that owns state and dispatches
+while importing nothing forbidden still passes as a vocabulary. The
+gate's own header states the rest of its blind spots.
+
+### The drivers
+
+Two, as the rule says, and the second is split for size. **This table
+is the roster**, not a summary of one: `viewer-module-kinds.sh` reads
+it, requires every module in it to declare `driver` in its own header,
+and refuses a `driver` declaration on a module the table does not
+list. A third driver is an amendment here, not a header edit.
+
+| Module | Is |
+|---|---|
+| `session` | the session driver: owns `DocSession`, dispatches `SessionOp` |
+| `app` | the app driver: owns `ViewerApp`, drives the frame |
+| `pane` | the pane bodies' parent |
+| `pane::create` | the create pane |
+| `pane::features` | the feature-tree pane |
+| `pane::properties` | the property pane |
+| `pane::view` | the view pane |
+| `pane::viewport` | the viewport pane |
+| `widgets` | the free helpers over `egui::Ui` the panes share |
+| `gpu` | the wgpu viewport renderer |
+
+`session` is a driver **and** the parent of six vocabularies, so
+`crate::session::SessionOp` in a vocabulary is the rule working, not a
+violation. The gate reads that off the vocabulary tables below rather
+than carving it out by hand: a driver that hosts a tabulated
+vocabulary is not a forbidden import path.
 
 ### The session's vocabularies
 
@@ -309,8 +348,7 @@ properties, create, view}` hold the `*_ui` functions that draw each
 pane, one module per pane; `widgets` holds the free helpers over
 `egui::Ui` that those panes share; and `gpu` holds the wgpu viewport
 renderer, which names `eframe::wgpu` and could not be a vocabulary
-under any reading. Those, with `session`, are the whole driver roster
-`viewer-module-kinds.sh` enforces.
+under any reading. The table above is where that roster is kept.
 
 **Splitting a driver across modules does not make the pieces
 vocabularies.** The test is a module's ROLE, not its size or its file:
@@ -334,10 +372,22 @@ values the receiving module already defines, and none names `egui`.
 `PickIndex::sync`, `PartChooser::opened` and `PartChooser::rescan` —
 so the rule as stated above is **already false of the tree at two
 sites**, which is what the first pass of `viewer-module-kinds.sh` found.
-They are named in that gate as its only exceptions, and a third site
-reds. The exception is bounded in the direction that matters: each
-entry must still name a driver type, so fixing a site and leaving the
-entry behind fails too.
+They are named in that gate as its only exceptions, and the exemption
+is **site-granular**: an entry is a file, the name it is exempt from,
+and the number of sites that were argued for. A sixth `&DocSession`
+reds; a `use eframe::egui;` in the same file reds, because the
+exemption covers the reason it was granted and nothing else; and
+fixing a site without lowering the count reds too, so the entry cannot
+outlive its reason. A file-granular entry would have ratified every
+line later added to those two files, which is the class
+`work/code-quality/D103.md` records against the bounds allowlist and
+leaves unruled.
+
+Both headers say so in their own text. A module header reading *"it
+names no driver type"* nine lines above naming one is the defect this
+whole section exists to record, published through rustdoc, so the gate
+requires an exempted module to state its exception and refuses the
+claim from a module it does not cover.
 
 Whether the fix is to hoist what those two read behind a value the
 session hands out, or to widen the rule for a read-only borrow, is not

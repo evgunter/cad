@@ -57,7 +57,7 @@
 //! staircase twenty levels wide.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
-//! toolkit type (`crates/viewer/README.md`, Module boundaries).
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use std::collections::BTreeMap;
 

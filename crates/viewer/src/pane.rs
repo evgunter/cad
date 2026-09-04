@@ -8,8 +8,7 @@
 //! after the layout has been walked (`crate::app`'s header states the
 //! rule).
 //!
-//! Module kind: **driver** — it may name the toolkit and the session's
-//! own types (`crates/viewer/README.md`, Module boundaries).
+//! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 pub mod create;
 pub mod features;

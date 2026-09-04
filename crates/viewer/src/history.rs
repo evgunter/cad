@@ -39,7 +39,7 @@
 //! states a linear stack already had to hold.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
-//! toolkit type (`crates/viewer/README.md`, Module boundaries).
+//! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{Doc, DocEdit, EditError, ProfileProgram, apply};
 use pncad::geom_core::Tol;

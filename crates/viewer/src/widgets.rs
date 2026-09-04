@@ -15,8 +15,7 @@
 //! dragged number in this crate emits one committed edit rather than
 //! one per frame.
 //!
-//! Module kind: **driver** — it may name the toolkit and the session's
-//! own types (`crates/viewer/README.md`, Module boundaries).
+//! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
 use pncad::document::{Dimension, RecipeNodeId};
