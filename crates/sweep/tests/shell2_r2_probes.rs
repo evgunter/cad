@@ -14,11 +14,8 @@ use crate::common;
 use common::approx::{band, box_with_approx_cap, planar_patch, pulled_back, top_face, unit_box};
 
 fn rigid() -> Affine3<f64> {
-    let mut map = Affine3::rotation_about_axis(
-        Point3::origin(),
-        Vec3::new(0.3, -0.4, 0.8).normalize(),
-        1.1,
-    );
+    let mut map =
+        Affine3::rotation_about_axis(Point3::origin(), Vec3::new(0.3, -0.4, 0.8).normalize(), 1.1);
     map.translation = map.translation + Vec3::new(0.3, -0.2, 1.1);
     map
 }
@@ -128,9 +125,15 @@ fn r2_c1_a_planted_bogus_certificate_is_replaced_by_the_re_derivation() {
     assert_eq!(c.samples, fresh.samples);
     assert_eq!(c.normal_floor, fresh.normal_floor);
     assert_eq!(c.curvature_reach, fresh.curvature_reach);
-    assert_eq!(c.hull_sup, fresh.hull_sup, "hull_sup is the re-derivation's, bit for bit");
+    assert_eq!(
+        c.hull_sup, fresh.hull_sup,
+        "hull_sup is the re-derivation's, bit for bit"
+    );
     assert_eq!(c.on_locus_max, fresh.on_locus_max);
-    assert_eq!(c.rounds, 7, "rounds is CARRIED across the map (deviation 1) — a planted count survives");
+    assert_eq!(
+        c.rounds, 7,
+        "rounds is CARRIED across the map (deviation 1) — a planted count survives"
+    );
     eprintln!("[r2 c1] mapped cert: {c:?}\n[r2 c1] fresh cert:  {fresh:?}");
 }
 
@@ -253,7 +256,9 @@ fn r2_c1_a_tolerance_the_fit_does_not_honour_refuses_across_the_map() {
 // ---------------------------------------------------------------------
 
 fn lcg(seed: &mut u64) -> f64 {
-    *seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    *seed = seed
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(1442695040888963407);
     f64::from((*seed >> 33) as u32) / f64::from(u32::MAX)
 }
 
@@ -291,7 +296,11 @@ fn r2_c2_map_affine_of_a_rational_net_is_the_map_of_the_surface() {
     let mut worst = 0.0_f64;
     for _ in 0..50 {
         let (u, v) = (lcg(&mut seed), lcg(&mut seed));
-        worst = worst.max(shear.transform_point(s.eval(u, v)).distance(sheared.eval(u, v)));
+        worst = worst.max(
+            shear
+                .transform_point(s.eval(u, v))
+                .distance(sheared.eval(u, v)),
+        );
     }
     eprintln!("[r2 c2] shear: worst point gap {worst:e}");
     assert!(worst <= 1e-14, "shear point gap {worst}");
@@ -304,10 +313,24 @@ fn r2_c2_map_affine_of_a_rational_net_is_the_map_of_the_surface() {
 #[test]
 fn r2_c3_every_storage_door_surface_remaps_at_f64() {
     use geom_brep::PcurveFittedLane;
-    let refined = bowed().refine_knots_u(&[0.5]).unwrap().refine_knots_v(&[0.25, 0.75]).unwrap();
+    let refined = bowed()
+        .refine_knots_u(&[0.5])
+        .unwrap()
+        .refine_knots_v(&[0.25, 0.75])
+        .unwrap();
     let cases: Vec<(&str, NurbsSurface<f64>, f64, f64)> = vec![
-        ("planar +d", pulled_back(&planar_patch(1.0), 0.05), 0.05, 1e-9),
-        ("planar -d", pulled_back(&planar_patch(1.0), -0.05), -0.05, 1e-9),
+        (
+            "planar +d",
+            pulled_back(&planar_patch(1.0), 0.05),
+            0.05,
+            1e-9,
+        ),
+        (
+            "planar -d",
+            pulled_back(&planar_patch(1.0), -0.05),
+            -0.05,
+            1e-9,
+        ),
         ("bowed +d", bowed(), 0.02, 1e-6),
         ("bowed -d", bowed(), -0.02, 1e-6),
         ("bowed refined +d", refined.clone(), 0.02, 1e-6),
@@ -332,13 +355,17 @@ fn r2_c3_every_storage_door_surface_remaps_at_f64() {
             d: *dd,
         };
         let mapped_fit = a.fit().map_affine(&map);
-        let re = f64::remap_certificate(&mapped_desc, &mapped_fit, a.window(), a.tolerance(), band());
+        let re =
+            f64::remap_certificate(&mapped_desc, &mapped_fit, a.window(), a.tolerance(), band());
         match re {
             Some(Ok(c)) => {
                 let gap = (c.hull_sup - a.certificate().hull_sup).abs();
                 eprintln!(
                     "[r2 c3] {name}: remaps; hull_sup {} vs stored {} (gap {gap:e}), rounds {} vs stored {}",
-                    c.hull_sup, a.certificate().hull_sup, c.rounds, a.certificate().rounds
+                    c.hull_sup,
+                    a.certificate().hull_sup,
+                    c.rounds,
+                    a.certificate().rounds
                 );
                 assert!(gap <= 1e-9, "{name}: hull_sup gap {gap}");
             }
@@ -348,7 +375,8 @@ fn r2_c3_every_storage_door_surface_remaps_at_f64() {
         // And through the body door.
         let mut body = unit_box();
         let face = top_face(&body);
-        body.set_face_surface(face, FaceSurface::New(minted)).unwrap();
+        body.set_face_surface(face, FaceSurface::New(minted))
+            .unwrap();
         topo::transform_rigid(&body, &map, Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: the body does not move: {e}"));
     }
@@ -364,7 +392,10 @@ fn r2_c4_non_finite_map_components_refuse_before_the_approx_arm() {
     let mut nan_t = rigid();
     nan_t.translation.x = f64::NAN;
     let e = topo::transform_rigid(&body, &nan_t, Tol::witness()).expect_err("NaN translation");
-    assert!(matches!(e, topo::TransformError::NonFiniteMap { .. }), "got {e}");
+    assert!(
+        matches!(e, topo::TransformError::NonFiniteMap { .. }),
+        "got {e}"
+    );
     let mut nan_l = rigid();
     nan_l.linear.c0.x = f64::NAN;
     let e = topo::transform_rigid(&body, &nan_l, Tol::witness()).expect_err("NaN linear");
@@ -420,7 +451,10 @@ fn r2_c4_the_dual_lane_refuses_naming_itself() {
     )
     .expect_err("the dual lane has no fit derivation");
     assert!(
-        matches!(e, topo::TransformError::ApproxLaneUnsupported { lane: "dual" }),
+        matches!(
+            e,
+            topo::TransformError::ApproxLaneUnsupported { lane: "dual" }
+        ),
         "got {e}"
     );
     eprintln!("[r2 c4 dual] {e}");
@@ -486,7 +520,11 @@ fn r2_c6_a_chart_described_approx_cap_is_movable_and_tier_three_clean() {
             .unwrap_or_else(|e| panic!("d = {d}: the chart-described body does not move: {e}"));
         let after = topo::validate_geometric(&moved, Tol::witness());
         eprintln!("[r2 c6] d = {d}: tier 3 after the map: {after:?}");
-        assert_eq!(before, Ok(()), "d = {d}: the chart-described cap is tier-3 clean");
+        assert_eq!(
+            before,
+            Ok(()),
+            "d = {d}: the chart-described cap is tier-3 clean"
+        );
         assert_eq!(after, Ok(()), "d = {d}: and so is its rigid image");
         assert!(matches!(
             moved.get_surface(moved.get_face(face).unwrap().surface),
@@ -514,7 +552,9 @@ fn r2_c6_what_the_pcurve_pass_actually_says_on_the_fixture() {
     let e = e.expect_err("the fixture's cap has no cache route");
     let text = format!("{e}");
     eprintln!("[r2 c6 fixture] text: {text}");
-    assert!(text.contains("Intersection carrier that is not a spline") || text.contains("seam-class"));
+    assert!(
+        text.contains("Intersection carrier that is not a spline") || text.contains("seam-class")
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -534,7 +574,8 @@ fn r2_e2e_a_user_places_an_approx_capped_part() {
     .expect("the storage door mints");
     let mut part = unit_box();
     let cap = top_face(&part);
-    part.set_face_surface(cap, FaceSurface::New(approx)).unwrap();
+    part.set_face_surface(cap, FaceSurface::New(approx))
+        .unwrap();
 
     // 2. Place it as the tour places parts: a rotation and a translation.
     let mut place = Affine3::rotation_about_axis(
@@ -543,8 +584,8 @@ fn r2_e2e_a_user_places_an_approx_capped_part() {
         core::f64::consts::FRAC_PI_3,
     );
     place.translation = place.translation + Vec3::new(5.0, -2.0, 1.0);
-    let placed = topo::transform_rigid(&part, &place, Tol::witness())
-        .expect("an Approx-capped box places");
+    let placed =
+        topo::transform_rigid(&part, &place, Tol::witness()).expect("an Approx-capped box places");
     let a = approx_of(&placed, cap);
     eprintln!("[r2 e2e] placed cap cert: {:?}", a.certificate());
 
@@ -553,7 +594,10 @@ fn r2_e2e_a_user_places_an_approx_capped_part() {
     eprintln!("[r2 e2e] tier 3: {tier3:?}");
     let props = topo::mass_properties(&placed, Tol::witness());
     match &props {
-        Ok(m) => eprintln!("[r2 e2e] mass properties: volume {} ± {}", m.volume, m.volume_pad),
+        Ok(m) => eprintln!(
+            "[r2 e2e] mass properties: volume {} ± {}",
+            m.volume, m.volume_pad
+        ),
         Err(e) => eprintln!("[r2 e2e] mass properties REFUSE: {e}"),
     }
     let mesh = mesh::tessellate(&placed, 0.05, Tol::witness());
@@ -561,19 +605,32 @@ fn r2_e2e_a_user_places_an_approx_capped_part() {
         Ok(m) => eprintln!(
             "[r2 e2e] tessellates: {} patches, cap has {} triangles",
             m.patches.len(),
-            m.patches.iter().find(|p| p.face == cap).map_or(0, |p| p.triangles.len())
+            m.patches
+                .iter()
+                .find(|p| p.face == cap)
+                .map_or(0, |p| p.triangles.len())
         ),
         Err(e) => eprintln!("[r2 e2e] tessellation REFUSES: {e}"),
     }
 
     // 4. Export it.
-    let step = step_export::step_string(&placed, &step_export::StepOptions::default(), Tol::witness());
+    let step = step_export::step_string(
+        &placed,
+        &step_export::StepOptions::default(),
+        Tol::witness(),
+    );
     match &step {
         Ok(doc) => eprintln!("[r2 e2e] STEP: {} bytes", doc.len()),
         Err(e) => eprintln!("[r2 e2e] STEP REFUSES: {e}"),
     }
     assert!(
-        matches!(step, Err(step_export::StepExportError::UnsupportedSurface { kind: "approximating surface", .. })),
+        matches!(
+            step,
+            Err(step_export::StepExportError::UnsupportedSurface {
+                kind: "approximating surface",
+                ..
+            })
+        ),
         "the STEP writer refuses the kind"
     );
     let _ = mesh;
