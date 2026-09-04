@@ -156,6 +156,13 @@ pub struct Member {
 /// non-instance node; a pattern whose name carries no `Instance(i)`
 /// qualifier; a pattern whose input is not itself a live instance — a
 /// patterned boolean, a nested pattern.
+///
+/// [`crate::refactor::split`]'s interface-crossing collector is one of
+/// those gates: a collector admitting a head the cluster graph does
+/// not weld would mint a record for a mate that never solved, which is
+/// what AQ8 option (b) SKIP refuses (ruled at the ASM-R2b review;
+/// recorded in `asm_r2b_assembly.rs`'s rows-5-and-6 header, not in
+/// `ASSEMBLY.md`'s AQ8 clause).
 pub fn member_of<P>(doc: &Doc<P>, name: &crate::names::StableName) -> Option<Member> {
     let head = name.node;
     match doc.node(head) {
