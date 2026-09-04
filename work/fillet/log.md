@@ -68,3 +68,15 @@ Decisions taken unilaterally at opening:
 - **Lane commits carry no model trailer and no model name**, the
   standing lane rule, experiment or not; orchestrator commits keep the
   harness trailer.
+
+The four `[ev]` PRs are open (2026-09-04), one per ruling, each a
+question section appended to its item with a firm recommendation:
+[#1733](https://github.com/evgunter/cad/pull/1733) `NoCornerSideCandidate`
+(keep as a stated defensive arm),
+[#1734](https://github.com/evgunter/cad/pull/1734) the arc-carrier refusal
+attribution (carry the corner point; report the crossing nearest the
+anchors), [#1735](https://github.com/evgunter/cad/pull/1735) the rim
+selector (`rim_of(body, edge)` in `topo::query`, SEAT's seam),
+[#1736](https://github.com/evgunter/cad/pull/1736) H7's terminations (the
+transverse cut-off at perpendicular caps). E1 and E2 dispatched on
+`fillet/e1-nonpositive-radius` and `fillet/e2-recourse-followability`.
