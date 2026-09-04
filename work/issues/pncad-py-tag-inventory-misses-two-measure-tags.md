@@ -6,6 +6,15 @@ status: open
 opened: 2026-09-03
 ---
 
+**If your run is red on this, append an instance below — do not open a
+new item.** Every code-tier PR carries this one, and two CIW lanes have
+already opened a second file for it and had to withdraw it:
+`work/ciw/perf-history-cannot-identify-its-host` and
+`work/ciw/render-lanes-red-at-missing-merge-ref` (PR 1724). And if you
+are only passing through, do not repair it by refreshing the receipt —
+the paragraph headed *Not fixed here, deliberately* says why the repair
+is the measure work owner's call and not a lane's.
+
 
 `pncad-py tests::the_whole_tag_table_matches_its_committed_inventory`
 (`crates/pncad-py/src/tests.rs:2629`) fails on `main`'s own tree:
@@ -69,3 +78,31 @@ time before it gets here.
 
 Nothing above revises the disposition: still not fixed by a passing
 lane, for the reason the section above gives.
+
+## Further instances 2026-09-04 (CIW unit 1, PR 1724)
+
+**Shard `2/2` only, and no sampled axis selects it.** Over the evening it
+fires at `default` and at `interval`, and at all three tolerance rows —
+`default`, `1e-6` and `1e-12` — while `1/2` is green in every one of those
+runs. The shard is where this test lands, not a property of the sample.
+
+**The draw is ruled out from one branch.** PR 1724 pushed twice: run
+33822327502 drew `interval` at `1e-12`, run 33823102468 drew `default` at
+`1e-12`, and both reproduced it on a diff of `.github/workflows/` and
+`work/` that contains no Rust at all. A re-run draws the same point, so
+two heads drawing two points and agreeing is the cheapest evidence that
+the configuration is not what is selecting the failure.
+
+**Breadth on the night of 2026-09-03/04**, no two of these sharing a diff:
+`tcost/k3-unit` (33803928081) and `tcost/k3-cost-probe` (33804838111),
+each red in BOTH of its `2/2` jobs; `tcost/10-blend-fixture-home`
+(33809383460, 33812074765); `tcost/11-aggregation-guard-home` (33810572043,
+33811688528, 33814096354); `tcost/reviewer-rows-are-ordinary-rows`
+(33820183319); and the sibling CIW lanes `ciw/perf-host-identity`
+(33822129170) and `ciw/one-pin-reader` (33822152938).
+
+**What this lane read and what it inferred.** The failing test name was
+read directly from its own two runs. For the other seven branches it read
+only the job name and the `exit code 100` shape, and inferred the rest
+from the identical shard; the run ids are listed so that is checkable
+rather than taken.
