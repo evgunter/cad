@@ -660,23 +660,50 @@ fn the_klein_wall_pair_waits_on_the_partial_revolve_rim() {
 
     let e = topo::shell_open(&solid, KLEIN_WALL, &caps, FIT_TOL, Tol::witness())
         .expect_err("the elbow's moved rim is a spiric section away from a carrier");
-    assert!(
-        matches!(
-            e,
-            ShellError::Face { ref error, .. } if matches!(
-                **error,
-                topo::ReplaceFaceError::TogetherAxialEdge { what, .. }
-                    if what == "a circular edge between two charts whose centre is off the axis"
-            )
-        ),
-        "expected the latitude mint's off-axis refusal, got {e}"
+    let ShellError::Face {
+        face: open_door,
+        error: open_error,
+    } = e
+    else {
+        panic!("expected the offset door's refusal, got {e}");
+    };
+    let topo::ReplaceFaceError::TogetherAxialEdge {
+        edge: open_edge,
+        what: open_what,
+    } = *open_error
+    else {
+        panic!("expected the latitude mint's off-axis refusal, got {open_error}");
+    };
+    assert_eq!(
+        open_what, "a circular edge between two charts whose centre is off the axis",
+        "the latitude mint names the off-axis centre"
     );
 
     // The sealed arm stops at the same wall, on the same edges — the
-    // blocker is the rim pair, not the opening.
+    // blocker is the rim pair, not the opening — asserted on the
+    // PAYLOAD (same door face, same edge, same predicate), not just
+    // the variant.
     let sealed = topo::shell(&solid, KLEIN_WALL, FIT_TOL, Tol::witness())
         .expect_err("the sealed arm meets the same rim");
-    assert!(matches!(sealed, ShellError::Face { .. }), "got {sealed}");
+    let ShellError::Face {
+        face: sealed_door,
+        error: sealed_error,
+    } = sealed
+    else {
+        panic!("the sealed arm must refuse at the offset door too, got {sealed}");
+    };
+    let topo::ReplaceFaceError::TogetherAxialEdge {
+        edge: sealed_edge,
+        what: sealed_what,
+    } = *sealed_error
+    else {
+        panic!("the sealed arm must stop at the same carrier mint, got {sealed_error}");
+    };
+    assert_eq!(
+        (sealed_door, sealed_edge, sealed_what),
+        (open_door, open_edge, open_what),
+        "the sealed arm's refusal is the open arm's: same wall, same edge, same predicate"
+    );
 }
 
 // ---------------------------------------------------------------------

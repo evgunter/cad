@@ -888,3 +888,190 @@ fn torax_the_half_turn_lune_refuses_the_parallel_cap_pair() {
         "the refusal names the parallel caps, got {what}"
     );
 }
+
+/// **The meridian-pair arm's OTHER refusing side, on a buildable
+/// body**: the caps' meeting line can exist and still MISS the moved
+/// profile circle. A narrow lune's moved caps meet at
+/// `ρ_L = t / sin(θ/2)`, which grows as the turn narrows; at `θ = 20°`,
+/// `t = 0.05`, the line stands `ρ_L = 0.05 / sin 10° = 0.28793852…`
+/// from the axis while the moved sphere's circle reaches only
+/// `r − t = 0.25` — the derived wall constraint misses the circle
+/// entirely, and the arm refuses at its own transversality decide
+/// rather than solving a corner on neither surface. Asked at the
+/// direct door (the same moves `shell` builds), so the refusal is the
+/// corner solve's own and not an earlier gate's.
+#[test]
+fn torax_the_narrow_lune_refuses_where_the_cap_line_misses_the_circle() {
+    let body = lune(0.3, 20.0_f64.to_radians());
+    let mut cavity = body.clone();
+    let band = Band::linear(tol()).expect("band");
+    let e = topo::offset_charts_together(&mut cavity, &hollow_moves(&body, 0.05), band, tol())
+        .expect_err("a meeting line outside the moved circle answers no corner");
+    println!("[torax] the narrow lune: {e}");
+    let topo::ReplaceFaceError::TogetherAxialCorner { surfaces, what, .. } = e else {
+        panic!("the miss must refuse at the meridian-pair corner: {e:?}");
+    };
+    assert_eq!(surfaces, 3, "sphere wall + two meridian caps");
+    assert!(
+        what.contains("tangent") && what.contains("misses"),
+        "the refusal names the tangent-or-miss posture, got {what}"
+    );
+}
+
+/// **The cavity-volume derivation asserted, pure arithmetic** — the
+/// closed form parked in
+/// `torax_the_sphere_lune_rim_solves_in_closed_form`'s doc against
+/// direct quadrature of the two-chord disc sections, no B-rep in
+/// sight. The section at station `h` is the disc of radius
+/// `s = √(R² − h²)` cut to `{u ≥ a, v ≥ a}`, whose area is
+///
+/// ```text
+/// A(s) = s²·(acos(a/s) − asin(a/s))/2 − a·√(s² − a²) + a²
+/// ```
+///
+/// (zero exactly at `s² = 2a²`), the sections live on
+/// `|h| ≤ Q = √(R² − 2a²)`, and the substitution `h = Q·sin θ` smooths
+/// the endpoint 3/2-power so Simpson converges to arithmetic noise.
+/// MEASURED at this head: the doc's quoted `V = 7.909058628579758e-3`
+/// m³ against the quadrature, relative difference `5.70e-15` (R1's
+/// independent quadrature of the same derivation measured `8.55e-15`);
+/// asserted at `1e-12`.
+#[test]
+fn torax_the_lune_cavity_volume_closed_form_matches_quadrature() {
+    let (r, t) = (0.3_f64, 0.05_f64);
+    let (big_r, a) = (r - t, t);
+    let q = (big_r * big_r - 2.0 * a * a).sqrt();
+    let v_closed = 2.0 / 3.0
+        * (big_r.powi(3) * (big_r * q / (a * a)).atan()
+            - a * (3.0 * big_r * big_r - a * a) * (q / a).atan()
+            + a * a * q);
+    assert!(
+        (v_closed - 7.909058628579758e-3).abs() <= 1e-17,
+        "the closed form re-derives the doc's own quoted volume, got {v_closed}"
+    );
+
+    let section = |h: f64| {
+        let s2 = big_r * big_r - h * h;
+        let s = s2.sqrt();
+        s2 * ((a / s).acos() - (a / s).asin()) / 2.0 - a * (s2 - a * a).max(0.0).sqrt() + a * a
+    };
+    let n = 1 << 14;
+    let step = core::f64::consts::PI / f64::from(n);
+    let mut v_quad = 0.0_f64;
+    for i in 0..n {
+        let th0 = -core::f64::consts::FRAC_PI_2 + f64::from(i) * step;
+        let f = |th: f64| section(q * th.sin()) * q * th.cos();
+        v_quad += step / 6.0 * (f(th0) + 4.0 * f(th0 + step / 2.0) + f(th0 + step));
+    }
+    let rel = (v_closed - v_quad).abs() / v_closed;
+    println!("[torax] cavity volume: closed {v_closed}, quadrature {v_quad}, rel {rel:e}");
+    assert!(rel <= 1e-12, "closed form vs quadrature disagree: rel {rel:e}");
+}
+
+/// **The meridian-pair arm at a REFLEX turn**: the 270° lune's moved
+/// caps are the same two perpendicular planes, moved into the OTHER
+/// material, so their meeting line again stands at `ρ_L = t√2` — but
+/// the mitre point now sits on the reflex material's own bisector, the
+/// branch the azimuth read and `nearest` keep against the old corner,
+/// distinct from the quarter turn's. Same closed form, `ρ = t√2`,
+/// `h = ±√((r − t)² − 2t²)`, and every corner is metered onto every
+/// moved surface AT ITS OWN FACES — three surfaces per rim corner,
+/// which is what pins the mitre's azimuth too (a corner off the
+/// material bisector satisfies neither moved cap plane). MEASURED at
+/// this head: worst corner residual `2.01e-19` m; asserted at `1e-18`.
+#[test]
+fn torax_the_reflex_lune_solves_the_mitre_on_the_material_bisector() {
+    let (r, t) = (0.3_f64, 0.05_f64);
+    let body = lune(r, 1.5 * core::f64::consts::PI);
+    let mut cavity = body.clone();
+    let band = Band::linear(tol()).expect("band");
+    topo::offset_charts_together(&mut cavity, &hollow_moves(&body, t), band, tol())
+        .expect("the reflex lune's rim solves through the same arms");
+    let rho = t * 2.0_f64.sqrt();
+    let h = ((r - t).powi(2) - 2.0 * t * t).sqrt();
+    has_corner(&cavity, rho, h, "the reflex lune's upper rim corner");
+    has_corner(&cavity, rho, -h, "the reflex lune's lower rim corner");
+
+    let mut worst = 0.0_f64;
+    for (face, f) in cavity.faces() {
+        let surface = cavity.get_surface(f.surface).expect("surface");
+        for v in face_vertices(&cavity, face) {
+            let p = *cavity
+                .get_point(cavity.get_vertex(v).expect("vertex").point)
+                .expect("point");
+            worst = worst.max(residual(surface, p).abs());
+        }
+    }
+    println!("[torax] the reflex lune's worst corner residual: {worst:e}");
+    assert!(
+        worst <= 1e-18,
+        "a corner stands {worst:e} m off one of its own moved surfaces"
+    );
+}
+
+/// **The same arms answer an OUTWARD offset**: `t = −0.05` grows the
+/// quarter lune instead of hollowing it — the moved caps stand `|t|`
+/// off the axis on their outer sides, the sphere grows to
+/// `r − t = 0.35` — and the sign conventions carry through unchanged:
+///
+/// ```text
+/// ρ = |t|·√2      = 0.07071067811865477
+/// h = ±√((r − t)² − 2t²) = ±0.34278273002005216
+/// rim radius = √((r − t)² − t²) = 0.3464101615137754
+/// ```
+///
+/// R1's probe measured exactly these corners and radius; the row
+/// re-derives them from the closed form and asserts the built body at
+/// this file's own `1e-15` carrier bound.
+#[test]
+fn torax_the_outward_lune_offsets_through_the_same_arms() {
+    let (r, t) = (0.3_f64, -0.05_f64);
+    let body = lune(r, core::f64::consts::FRAC_PI_2);
+    let mut grown = body.clone();
+    let band = Band::linear(tol()).expect("band");
+    topo::offset_charts_together(&mut grown, &hollow_moves(&body, t), band, tol())
+        .expect("the outward lune offsets through the same arms");
+
+    let rho = t.abs() * 2.0_f64.sqrt();
+    let h = ((r - t).powi(2) - 2.0 * t * t).sqrt();
+    has_corner(&grown, rho, h, "the outward lune's upper rim corner");
+    has_corner(&grown, rho, -h, "the outward lune's lower rim corner");
+
+    let rim_radius = ((r - t).powi(2) - t * t).sqrt();
+    let (mut lines, mut rims) = (0usize, 0usize);
+    for (_, d) in grown.edges() {
+        let c = grown
+            .get_curve_geom(d.curve)
+            .and_then(|g| g.certified())
+            .expect("a certified carrier");
+        match c.carrier() {
+            geom::Curve3::Line { origin, dir } => {
+                lines += 1;
+                let (rho_l, _) = axial(*origin);
+                assert!(
+                    (rho_l - rho).abs() <= 1e-15,
+                    "the axis edge moved to the caps' meeting line at ρ = |t|√2, got {rho_l}"
+                );
+                assert!(
+                    (dir.x.abs() + dir.z.abs()) <= 1e-15 && (dir.y.abs() - 1.0).abs() <= 1e-15,
+                    "the meeting line stays parallel to the axis, got {dir:?}"
+                );
+            }
+            geom::Curve3::Circle { center, radius, .. } => {
+                rims += 1;
+                let (rho_c, h_c) = axial(*center);
+                assert!(
+                    (rho_c - t.abs()).abs() <= 1e-15 && h_c.abs() <= 1e-15,
+                    "a rim centre stands |t| off the axis at the equator station, got \
+                     ({rho_c}, {h_c})"
+                );
+                assert!(
+                    (radius - rim_radius).abs() <= 1e-15,
+                    "the rim radius is the section's √((r−t)² − t²), got {radius}"
+                );
+            }
+            other => panic!("no lune edge carries a {other:?}"),
+        }
+    }
+    assert_eq!((lines, rims), (1, 2), "one meeting line, two rim circles");
+}

@@ -109,7 +109,10 @@
 //! a reader to test for. Reached by a shipped row: the tangency arm of
 //! [`ReplaceFaceError::TogetherAxialCorner`] (the bullet), the
 //! meridian-pair arm's parallel-caps refusal (the half-turn lune,
-//! `torax_axial`), `TogetherNotAxial`'s oblique-plane arm,
+//! `torax_axial`), the same arm's tangent-or-miss refusal (the narrow
+//! 20° lune, whose moved caps' meeting line stands `t/sin 10° ≈ 0.288`
+//! from the axis, outside the shrunk circle's `r − t = 0.25` reach —
+//! `torax_axial` again), `TogetherNotAxial`'s oblique-plane arm,
 //! `TogetherEdgeDisagreement` (`sf2b_r1_probes`, `sf2b_r2_probes`), and
 //! the latitude mint's off-axis-centre refusal (the klein elbow's
 //! spiric rim, `torax_axial` and `verbs_shell`). **Direct-door only**,
@@ -1351,6 +1354,12 @@ fn cap_pair_corner<T: Decide>(
     let mp0 = m0 - frame.dir * m0.dot(frame.dir);
     let mp1 = m1 - frame.dir * m1.dot(frame.dir);
     let (n0, n1) = (mp0.norm(), mp1.norm());
+    // The divisors are certified UPSTREAM, not here: `m0`/`m1` are unit
+    // meridian normals whose axial component `classify` decided Zero at
+    // `offset_axial_meridian` (levered by the body's own extent), so
+    // each cross-section projection keeps norm ~1 — a certified
+    // distance from zero this division stands on, cited rather than
+    // re-decided (one derivation, the module's own law).
     let sine = (mp0.cross(mp1) / (n0 * n1)).dot(frame.dir);
     for &arm in arms {
         match decide(
@@ -1378,7 +1387,11 @@ fn cap_pair_corner<T: Decide>(
     match decide("offset_axial_cap_line", Margin::of(rho_line), band) {
         // The caps still hold the axis: the pole arm's territory.
         Ok(Sign::Zero) => return Ok(None),
-        Ok(_) => {}
+        Ok(Sign::Positive) => {}
+        // `rho_line` is a norm; a Negative verdict is not a geometric
+        // posture but the margin machinery itself breaking — a kernel
+        // bug, surfaced rather than solved on.
+        Ok(Sign::Negative) => return Err(ReplaceFaceError::Corrupt),
         Err(source) => return Err(ReplaceFaceError::Escalated { source }),
     }
     let e = (e1 * alpha + e2 * beta) / rho_line;
