@@ -3158,11 +3158,11 @@ impl ViewerBehavior<'_> {
                 ui.weak("no picks yet");
             }
             MateToolState::One(a) => {
-                ui.weak(format!("pick a: face of instance {}", a.node.0));
+                ui.weak(format!("pick a: face of node {}", a.node.0));
             }
             MateToolState::Two { a, b } => {
                 ui.weak(format!(
-                    "pick a: instance {}; pick b: instance {}",
+                    "pick a: node {}; pick b: node {}",
                     a.node.0, b.node.0
                 ));
             }
