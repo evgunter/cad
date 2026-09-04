@@ -180,6 +180,12 @@ fn a_double_cover_of_half_the_circle_is_answered_as_a_rim() {
         "the topological tiling test admits the double cover as a rim"
     );
     assert_eq!(rim_of(&body, second), Ok(vec![second, first]));
+    // Whether a producer could ever hand this body out: the tier-3
+    // verdict, recorded rather than asserted.
+    println!(
+        "DOUBLE_COVER tier-3: {:?}",
+        topo::validate_geometric(&body, tol).map(|_| "valid")
+    );
 }
 
 /// **With a negated-axis arc in the rim, the two answers are not
