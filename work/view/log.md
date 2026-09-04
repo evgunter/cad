@@ -1448,10 +1448,25 @@ VIEW-3 and VIEW-5 this morning, not repeated.
 
 ## The tracker ruling is built and merged (#1857, 2026-09-04)
 
-`deferred` exists, the fired-trigger check **blocks**, and
-`work.py lint` is `ok (0 problems, 0 warnings)` on the real tree with
-it blocking — which is the only real proof the nine stale rows were
-repaired, since a blocking check could not otherwise pass.
+`deferred` exists, the fired-trigger check blocks, and `work.py lint`
+is `ok (0 problems, 0 warnings)` on the real tree with it blocking —
+which is the only real proof the nine stale rows were repaired, since a
+blocking check could not otherwise pass.
+
+**"Blocks" is a simplification and the lane's own refinement is better
+than Ev's literal words.** The check is TWO-TIER, and the split is the
+lane's judgement, flagged as such rather than attributed to the ruling:
+
+- **every blocker closed → ERROR.** `parked` is simply false and the
+  board lies.
+- **a fired entry beside a live blocker → WARNING.** The status is
+  still true; only the entry is stale. Erroring here would make one
+  program's merge hostage to another program's slate over a row that
+  is not mis-stated — the same coupling `work/README.md`'s
+  one-file-one-item rule exists to prevent, arriving by a new route.
+
+It also gives the warning channel a real producer instead of leaving it
+callerless, which is why the channel survived the conversion.
 
 **What landed, verified on main rather than taken from the report:**
 `work/README.md` now states two ways of being not-now — `parked` waits
@@ -1488,3 +1503,26 @@ and I verified it on main after the fact; but every other unit this
 session was meta-reviewed BEFORE merge, and the difference here was my
 wording rather than a decision. A dispatch that means *report and I
 will merge* has to say so.
+
+### Two things the lane flagged that this program owes forward
+
+**Its own pushback:** `deferred` forbidding `blocked_on` is stricter
+than Ev's words strictly require. The lane took it because otherwise
+the two statuses differ only by convention, and a row that is both
+ratified not-now AND blocked is simply `parked` — the stronger,
+checkable claim. Relaxing it is one line and one self-test case if it
+ever over-constrains a program. Recorded so nobody re-derives the
+argument from scratch.
+
+**A CHROME row it declined to convert:**
+`no-persistent-setplacement-session-op` reads as a `deferred` candidate
+in its own words ("Not a v1 defect — G3's scope deliberately excludes
+it"), and was left `open` with a note pointing at `deferred`, because
+silently re-classifying another program's row into a status they have
+never used is worse than `open` overstating availability. That is
+CHROME's call and the note is the handoff.
+
+**Sweep blind spot, stated:** VIEW's other 27 rows were swept by
+grepping `ratif` and reading every hit. A deferral phrased without that
+word ("left for later") would not match, and the 27 arguments were not
+read end to end.
