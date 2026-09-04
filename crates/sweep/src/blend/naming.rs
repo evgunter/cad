@@ -37,15 +37,29 @@
 //!
 //! `editor-core`'s `names::emit_blend` is the one production
 //! consumer (one IMPLEMENTATION, reached through both verbs' thin
-//! emitter doors). It reads every field EXCEPT [`Retired`], which exists for
-//! the totality identity the test suite executes: the emitter does not
-//! need it, because an output key that is neither minted nor present
-//! upstream already refuses `MissingUpstream` when it is looked up.
-//! `Retired` is what makes that refusal a checked consequence of the
-//! construction rather than a hope, and it is the only thing that can
-//! catch a source entity destroyed WITHOUT a record — a case the
-//! emitter cannot see, since a destroyed entity leaves no output key
-//! to ask about.
+//! emitter doors). It reads every field, [`Retired`] included — but
+//! not for the same job. The mint rows are what it names FROM; the
+//! retirement rows it consults as a GUARD, refusing an output key
+//! that matches a retired one instead of naming it a survivor.
+//!
+//! **That guard cannot fire on today's containers, and [`Retired`]
+//! is not what makes the emitter correct.** The arenas are slotmaps
+//! whose keys carry a slot version, so a retired key is never
+//! reissued and can never come back as an output key to ask about;
+//! and a key that is neither minted nor present upstream already
+//! refuses `MissingUpstream` when it is looked up. The guard holds
+//! the invariant against that container choice changing, not
+//! against a state reachable today.
+//!
+//! **What [`Retired`] is load-bearing for is the OTHER direction of
+//! the totality identity**, `(source − dead) ⊆ output`, which the
+//! emitter structurally cannot check: a source entity destroyed
+//! WITHOUT a record leaves no output key to ask about, so nothing
+//! downstream ever gets a chance to refuse it. That direction is
+//! executed in `sweep/tests/m6_5_fillet_naming.rs` and
+//! `sweep/tests/verbs_arms1_annulus.rs`, and it is what makes the
+//! refusal a checked consequence of the construction rather than a
+//! hope.
 
 use topo::{EdgeKey, FaceKey, VertexKey};
 
@@ -119,7 +133,34 @@ pub fn second_support_is_host(first_planar: bool, second_planar: bool) -> bool {
     second_planar && !first_planar
 }
 
-/// The source keys the blend retired.
+/// The source keys the blend retired: edges and vertices, **and
+/// those are the only arenas in which this surgery can retire a
+/// source key at all.**
+///
+/// The absent face channel is a property of the operator set, not an
+/// observation about fixtures. The surgery destroys through exactly
+/// two Euler operators. [`topo::Body::kev`] kills a vertex and an edge and
+/// no face. [`topo::Body::kef`] kills the face of the half-edge it is
+/// handed — and every `kef` in [`super::surgery`] is handed a half of
+/// a face that surgery's own `mef` MINTED (a carved strip, a corner
+/// triangle, a band sector), because a carve splits a support into
+/// the shrunk face plus its strips and the shrunk face KEEPS ITS
+/// SOURCE KEY. A support shrinks; it does not die. So a source face
+/// cannot leave the body at all — with a record or without one — and
+/// there is no state left for a face channel to carry.
+///
+/// Checked in the totality identity's `(source − dead) ⊆ output`
+/// direction over all three surgery shapes: open chains and a ladder
+/// rim in `sweep/tests/m6_5_fillet_naming.rs`, an annulus rim in
+/// `sweep/tests/verbs_arms1_annulus.rs`.
+///
+/// The asymmetry with [`topo::ShellRetired`] — which carries faces,
+/// loops, surfaces and shells besides — is therefore principled and
+/// not drift: that construction's chart reduction runs `kfmrh` and
+/// merges charts, so it genuinely kills source faces and owes the
+/// channels it carries. **A face-destroying operator entering THIS
+/// surgery is what would make a face channel owed here**, and it is
+/// the change that has to come with one.
 #[derive(Clone, Debug, Default)]
 pub struct Retired {
     /// Source edges that no longer exist: the requested chain edges
