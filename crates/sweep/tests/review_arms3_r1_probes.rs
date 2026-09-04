@@ -65,8 +65,10 @@ fn supports(body: &Body<f64>, edge: EdgeKey) -> (SurfaceKey, SurfaceKey) {
 }
 
 /// Every circular edge with carrier radius `r` whose two supports are
-/// DIFFERENT surfaces (excludes chart seams), anywhere in space.
-fn rims_of_radius(body: &Body<f64>, r: f64) -> Vec<EdgeKey> {
+/// DIFFERENT surfaces (excludes chart seams), anywhere in space — the
+/// fixture-side scan, which is not a rim: one radius can carry two
+/// rims at two stations, and one rim can be several arcs.
+fn arcs_of_radius(body: &Body<f64>, r: f64) -> Vec<EdgeKey> {
     body.edges()
         .filter_map(|(k, e)| {
             let c = body.get_curve_geom(e.curve)?.certified()?;
@@ -80,6 +82,18 @@ fn rims_of_radius(body: &Body<f64>, r: f64) -> Vec<EdgeKey> {
             a != b
         })
         .collect()
+}
+
+/// **The rim at carrier radius `r`**: the fixture names one of its
+/// arcs by the radius it minted the rim at, and
+/// [`topo::query::rim_of`] hands back the rim whole.
+fn rims_of_radius(body: &Body<f64>, r: f64) -> Vec<EdgeKey> {
+    arcs_of_radius(body, r)
+        .first()
+        .map_or_else(Vec::new, |seed| {
+            topo::query::rim_of(body, *seed)
+                .unwrap_or_else(|e| panic!("the rim at radius {r} is one rim, got {e}"))
+        })
 }
 
 /// The band face's torus datum.
@@ -481,9 +495,13 @@ fn a_torus_walled_rim_refuses_spine_unsupported_naming_the_grown_roster() {
             .any(|(_, f)| matches!(source.get_surface(f.surface), Some(&Surface::Torus { .. }))),
         "the barrel wall is a torus"
     );
+    // Two rims share this radius — the barrel's top and its bottom —
+    // so the count is the SCAN's claim and the request is one of them,
+    // whole.
+    let seeds = arcs_of_radius(&source, 0.9);
+    assert_eq!(seeds.len(), 2, "two torus-plane rims");
     let arcs = rims_of_radius(&source, 0.9);
-    assert_eq!(arcs.len(), 2, "two torus-plane rims");
-    match fillet_edges(&source, &arcs[..1], 0.03, tol()).map_err(|r| r.error) {
+    match fillet_edges(&source, &arcs, 0.03, tol()).map_err(|r| r.error) {
         Err(BlendError::SpineUnsupported { supports, .. }) => {
             assert!(
                 supports.contains("sphere–sphere"),

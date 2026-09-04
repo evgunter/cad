@@ -586,16 +586,16 @@ pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
     )
     .expect("revolve bud")
     .body;
-    // The mouth: the one CLOSED latitude rim of radius 0.8. Selected by
-    // the analytically known radius, the way every rim fixture is.
-    let mouth: Vec<pncad::topo::EdgeKey> = body
+    // The mouth: the rim at the analytically known radius 0.8. The
+    // scene names ONE of its arcs — by that radius, the way every rim
+    // is named from outside the kernel — and the query seat hands back
+    // the rim whole, chart seams and all. The radius is read through
+    // `Bounds`, not compared as a scalar: `Scalar` is the recording
+    // lane too, where a bare `<` is not available and would not mean
+    // what it says.
+    let seed = body
         .edges()
-        .filter(|(_, e)| {
-            let closed =
-                body.get_half_edge(e.he_plus).map(|h| h.start) == body.half_edge_end(e.he_plus);
-            // The radius is read through `Bounds`, not compared as a
-            // scalar: `Scalar` is the recording lane too, where a bare
-            // `<` is not available and would not mean what it says.
+        .find(|(_, e)| {
             let r = body
                 .get_curve_geom(e.curve)
                 .and_then(|g| g.certified())
@@ -603,10 +603,11 @@ pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
                     pncad::geom::Curve3::Circle { radius, .. } => Some(radius),
                     _ => None,
                 });
-            closed && r.is_some_and(|r| (r - S::from_f64(0.8)).abs().hi() < 1e-9)
+            r.is_some_and(|r| (r - S::from_f64(0.8)).abs().hi() < 1e-9)
         })
         .map(|(k, _)| k)
-        .collect();
+        .expect("the bud carries a mouth arc of radius 0.8");
+    let mouth = query::rim_of(&body, seed).expect("the mouth arc names one whole rim");
     assert_eq!(mouth.len(), 1, "the bud has one mouth rim of radius 0.8");
     pncad::sweep::blend::fillet_edges(&body, &mouth, S::from_f64(0.05), tol)
         .expect("the sphere-cone mouth rim fillets")

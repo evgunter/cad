@@ -95,12 +95,22 @@ fn ball(x: f64, y: f64, rad: f64) -> Body<f64> {
     .expect("the ball moves")
 }
 
-/// Every CLOSED edge of `body` whose carrier circle sits at latitude
-/// `y` — selection by description: the kernel query seat materializes
-/// the candidates; the closedness and the station/radius are this
-/// probe's own reads (a numeric description no kind predicate
-/// answers, the circle kind subsumed by the match).
+/// **The rim at latitude `y` and radius `rad`.** Selection by
+/// description: this probe names ONE of the rim's arcs — the station
+/// and the radius are a numeric description no kind predicate answers
+/// — and `query::rim_of` hands back the rim it belongs to.
 fn rim_at(body: &Body<f64>, y: f64, rad: f64) -> Vec<EdgeKey> {
+    match arcs_at(body, y, rad).first() {
+        None => Vec::new(),
+        Some(seed) => query::rim_of(body, *seed)
+            .unwrap_or_else(|e| panic!("the rim at station {y}, radius {rad} is one rim: {e}")),
+    }
+}
+
+/// The probe's own scan: every CLOSED edge whose carrier circle sits at
+/// latitude `y` with radius `rad`, which is where [`rim_at`] gets its
+/// seed.
+fn arcs_at(body: &Body<f64>, y: f64, rad: f64) -> Vec<EdgeKey> {
     query::all_edges(body)
         .into_iter()
         .filter(|&k| {
