@@ -139,15 +139,16 @@ pub fn second_support_is_host(first_planar: bool, second_planar: bool) -> bool {
 ///
 /// The absent face channel is a property of the operator set, not an
 /// observation about fixtures. The surgery destroys through exactly
-/// two Euler operators. [`topo::Body::kev`] kills a vertex and an edge and
-/// no face. [`topo::Body::kef`] kills the face of the half-edge it is
-/// handed — and every `kef` in [`super::surgery`] is handed a half of
-/// a face that surgery's own `mef` MINTED (a carved strip, a corner
-/// triangle, a band sector), because a carve splits a support into
-/// the shrunk face plus its strips and the shrunk face KEEPS ITS
-/// SOURCE KEY. A support shrinks; it does not die. So a source face
-/// cannot leave the body at all — with a record or without one — and
-/// there is no state left for a face channel to carry.
+/// two Euler operators. [`topo::Body::kev`] kills a vertex and an
+/// edge and no face. [`topo::Body::kef`] kills the face of the
+/// half-edge it is handed — and every `kef` in [`super::surgery`]
+/// is handed a half of a face that surgery's own `mef` MINTED (a
+/// carved strip, a corner triangle, a band sector), because a carve
+/// splits a support into the shrunk face plus its strips and the
+/// shrunk face KEEPS ITS SOURCE KEY. A support shrinks; it does not
+/// die. So a source face cannot leave the body at all — with a
+/// record or without one — and there is no state left for a face
+/// channel to carry.
 ///
 /// Checked in the totality identity's `(source − dead) ⊆ output`
 /// direction over all three surgery shapes: open chains and a ladder
