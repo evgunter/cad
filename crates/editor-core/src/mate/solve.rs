@@ -139,10 +139,10 @@ impl SolvedPoses {
         doc: &Doc<P>,
         instance: RecipeNodeId,
     ) -> Result<Frame, Box<MateFault>> {
-        if doc.id() != self.document {
+        if let Some(m) = crate::ident::mispaired(doc.id(), self.document) {
             return Err(Box::new(MateFault::PosesOfAnotherDocument {
-                expected: doc.id(),
-                found: self.document,
+                expected: m.expected,
+                found: m.found,
             }));
         }
         if let Some(fault) = self.faults.get(&instance) {

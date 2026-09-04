@@ -1408,6 +1408,20 @@ NOT_BOUND = {
     # neighbouring door whose opening would make this disposition stop
     # being honest, in exactly the shape `EvalOutcome`'s entry records.
     "Member": INTERIOR,
+    # DI3's pairing payload: the two document ids behind a refused
+    # pair — a prior the memo dropped (`Evaluation.prior_refused` on
+    # the Rust side), a gather handed the wrong evaluation, a solve
+    # handed the wrong document. Nothing in Python hands one out. The
+    # two ERRORING doors project their arm as a tag word
+    # (`evaluation_of_another_document`,
+    # `mate_poses_of_another_document`), which is what a Python caller
+    # branches on; the memo's arm is not an error at all, and the fact
+    # it records reaches Python where it always did, as
+    # `Evaluation.reused` being 0 with every node recomputed. Not a
+    # `gap:`: the debt, if there is one, is the `evaluate` door's
+    # PROSE about a foreign prior, which `pncad.pyi`'s own paragraph
+    # owns, not a missing binding for this payload.
+    "Mispaired": INTERIOR,
     "NameTable": INTERIOR,
     "Operand": INTERIOR,
     # The evaluation environment, and the entry that had been on the
@@ -1422,16 +1436,6 @@ NOT_BOUND = {
     # doors, both of them holding one internally, neither handing it
     # to Python — which is what `behind-a-door` means.
     "ParamEnv": INTERIOR,
-    # DI3's memo refusal, recorded on `Evaluation.prior_ignored`: the
-    # two document ids behind a prior that was dropped rather than
-    # mined. Nothing in Python hands one out — the facade's
-    # `Evaluation` projects no such attribute — and the fact it
-    # records reaches a Python caller where it always did, as
-    # `Evaluation.reused` being 0 with every node recomputed. Not a
-    # `gap:`: the debt, if there is one, is the `evaluate` door's
-    # PROSE about a foreign prior, which `pncad.pyi`'s own paragraph
-    # owns, not a missing binding for this record.
-    "PriorIgnored": INTERIOR,
     "Profile": INTERIOR,
     "ProfileEdgeRef": INTERIOR,
     "ProfileLoop": INTERIOR,

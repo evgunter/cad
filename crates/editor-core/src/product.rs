@@ -461,10 +461,10 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     // document answers about other geometry — silently, whenever the
     // two documents' node ids overlap, which two documents built from
     // one recipe always do.
-    if evaluation.document != doc.id() {
+    if let Some(m) = crate::ident::mispaired(doc.id(), evaluation.document) {
         return Err(ProductError::EvaluationOfAnotherDocument {
-            expected: doc.id(),
-            found: evaluation.document,
+            expected: m.expected,
+            found: m.found,
         });
     }
     // Pass 1: every root's value, refused whole. "No partial products"

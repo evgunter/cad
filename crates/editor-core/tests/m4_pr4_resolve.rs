@@ -324,7 +324,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     let ev = Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
         document: doc.id(),
-        prior_ignored: None,
+        prior_refused: None,
         order: vec![node],
         nodes,
         outcome: EvalOutcome::Completed,
@@ -1356,7 +1356,7 @@ fn one_node_eval(
     Evaluation::<f64> {
         epoch: editor_core::Epoch::mint(),
         document,
-        prior_ignored: None,
+        prior_refused: None,
         order: vec![node],
         nodes,
         outcome: EvalOutcome::Completed,

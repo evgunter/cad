@@ -114,14 +114,14 @@ pub use edit::{Applied, DocEdit, EditError, EditRecord, apply, cascade_delete_or
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, Epoch, EvalOptions,
     EvalOutcome, EvalScalar, Evaluation, NamingKey, NodeError, NodeErrorKind, NodeResult,
-    NodeValue, PartFault, PriorIgnored, ProfileLift, SplitSide, UnitVec3, UnitVec3Error,
-    ValuePayload, VerbKind, evaluate,
+    NodeValue, PartFault, ProfileLift, SplitSide, UnitVec3, UnitVec3Error, ValuePayload, VerbKind,
+    evaluate,
 };
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, UnitSym, eval,
     eval_count, unparse,
 };
-pub use ident::{ContentPin, DocRef, DocumentId};
+pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use mate::{
     Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, ClusterMaintenance, Coset, MateFault,
     MateFrame, MatePrimitive, MateRole, MateSide, Member, SolvedPoses, Subgroup, UNDER_RECOURSE,

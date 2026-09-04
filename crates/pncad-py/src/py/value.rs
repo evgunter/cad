@@ -1449,10 +1449,15 @@ impl CancelToken {
 ///
 /// The memo is PER DOCUMENT and node-id-keyed: the lookup finds
 /// `prior`'s result for the SAME node id and then certifies it by
-/// content, so an evaluation of a different document is a legal prior
-/// that reuses nothing — node ids are minted per document, and two
-/// assemblies over the same parts at the same pins still share none.
-/// Use the prior evaluation of THIS document.
+/// content. An evaluation of a different document is a legal prior
+/// that reuses nothing — not because the ids miss, but because the
+/// memo REFUSES it: an evaluation carries the id of the document it
+/// was run on, and a prior of another document is dropped whole
+/// before the schedule is built. Ids alone would not decide it: two
+/// documents built from one recipe carry the SAME ids for the same
+/// nodes, so every lookup would hit. The run stays total — every node
+/// recomputed — and `Evaluation.reused` is 0. Use the prior
+/// evaluation of THIS document.
 ///
 /// **A memo hit is served WITHOUT re-running the seam's gates.** A
 /// reused `InstantiatePart` node never asks the resolver, so the

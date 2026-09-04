@@ -528,10 +528,12 @@ impl core::fmt::Display for LeverRefusal {
 /// the two documents a mispaired read named.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MateFault {
-    /// The solve is a solve of ANOTHER document (DI3): the only arm
-    /// whose subject is not a mate at all. Raised by
+    /// The solve is a solve of ANOTHER document (DI3): one of the two
+    /// arms whose subject is not a mate at all — `Band`, whose subject
+    /// is the constructor, is the other. Raised by
     /// [`crate::SolvedPoses::placement`], never recorded against a
-    /// node — a solve records no fault about a document it never read.
+    /// node — a solve records no fault about a document it never read,
+    /// which is why `viewer::tree` blames no row for it.
     PosesOfAnotherDocument {
         /// The document whose placement was asked for.
         expected: crate::ident::DocumentId,

@@ -119,6 +119,27 @@ fn volume_bits(body: &topo::Body<f64>) -> u64 {
         .to_bits()
 }
 
+/// A product's shape as a comparable value: the topological census
+/// plus the volume's bits.
+///
+/// Volume ALONE is a weak pin and would be a bad one here — this is
+/// the control for the pairing refusal, so what it has to exclude is
+/// "the door let a different body through", and two different bodies
+/// can agree on a scalar. The counts are what a swap would move: a
+/// gather over other geometry is a different face/edge/vertex census
+/// long before it is the same volume by accident. Bits, not a
+/// tolerance compare, because the claim is that the SAME gather over
+/// the same inputs is deterministic — anything else is a fact about
+/// the kernel that belongs in the kernel's own suite.
+fn product_shape(body: &topo::Body<f64>) -> (usize, usize, usize, u64) {
+    (
+        body.faces().count(),
+        body.edges().count(),
+        body.vertices().count(),
+        volume_bits(body),
+    )
+}
+
 // ---- A1: the stamp ----
 
 /// A1 — `evaluate` stamps the evaluating document's id, and nothing
@@ -133,7 +154,7 @@ fn every_evaluation_carries_its_document() {
     assert_eq!(ev_a.document, a.id());
     assert_eq!(ev_b.document, b.id());
     assert_ne!(ev_a.document, ev_b.document, "two documents, two ids");
-    assert_eq!(ev_a.prior_ignored, None, "no prior, nothing refused");
+    assert_eq!(ev_a.prior_refused, None, "no prior, nothing refused");
     assert_eq!(ev_a.order, ev_b.order, "one recipe, one set of node ids");
 }
 
@@ -163,33 +184,113 @@ fn an_all_nodes_refusal_carries_its_document_too() {
     );
     assert_eq!(ev.document, retol.id(), "a refusal is still OF a document");
     assert_eq!(ev.outcome, EvalOutcome::Completed);
-    assert_eq!(ev.prior_ignored, None);
+    assert_eq!(ev.prior_refused, None);
 }
 
-/// C1 — the receipt for "no fourth constructor": `eval/mod.rs` is the
-/// only file in the crate that names the struct literal, and every one
-/// of its sites stamps `document`. Read from the source, because the
-/// claim is about the code and not about a value.
+/// C1 — the receipt for "no fourth constructor", as a real CENSUS:
+/// every `Evaluation` struct literal in every source file of this
+/// crate stamps `document`.
+///
+/// Read from the source, because the claim is about the CODE — a
+/// value-level test can only speak for the constructors it happens to
+/// reach, and the risk here is the one it cannot reach. The walk is
+/// the whole `src` tree ([`test_utils::source::rust_sources`]), not
+/// one file, and it finds the literal by BRACKET STRUCTURE rather than
+/// by an indented needle: `Evaluation {`, `Evaluation::<f64> {` and a
+/// literal at any indentation all answer, which the string-split this
+/// replaced could not say — it required exactly four spaces, missed a
+/// turbofish, and read one file.
+///
+/// The exclusions are the three non-literal shapes the same two tokens
+/// spell — a `struct` definition, an `impl` header, a return type —
+/// and each is checked against the text BEFORE the name on its line,
+/// so a new one of those does not silently join the census as a site
+/// with no `document:` in it.
+///
+/// **What this row is actually for, measured both ways.** The
+/// `document:` half is BELT AND BRACES: [`Evaluation`] derives no
+/// `Default` and no literal in the crate uses a struct-update source,
+/// so a literal that omits the field is `error[E0063]: missing field
+/// document` and never reaches a test. The half the compiler cannot
+/// make is the COUNT — "no fourth constructor" is a claim about how
+/// many places mint an `Evaluation` at all, and a new stamped one
+/// compiles fine. Both directions were mutated against this row while
+/// it was written: an unstamped literal failed to compile, and a third
+/// stamped one (turbofished, eight-space-indented, inside a nested
+/// block — every shape the string-split predecessor missed) failed
+/// HERE, on the count.
 #[test]
 fn every_evaluation_literal_stamps_the_document() {
-    let path = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
-        .join("src")
-        .join("eval")
-        .join("mod.rs");
-    let text = std::fs::read_to_string(&path).expect("this crate's own eval/mod.rs");
-    // The CODE view: a struct literal quoted in a comment is prose, and
-    // a guard that counted it would report on prose.
-    let src = test_utils::source::code_only(&text);
-    let sites: Vec<String> = src
-        .split("\n    Evaluation {\n")
-        .skip(1)
-        .map(|rest| rest.lines().take(3).collect::<Vec<_>>().join("|"))
-        .collect();
+    let src_dir = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
+    let files = test_utils::source::rust_sources(&src_dir);
+    assert!(
+        files.len() > 20,
+        "the crate's source walk found {} files: too few to be the whole tree",
+        files.len()
+    );
+
+    let mut sites: Vec<String> = Vec::new();
+    for path in &files {
+        let text = std::fs::read_to_string(path).expect("a readable source file");
+        // The CODE view: a struct literal quoted in a doc comment is
+        // prose, and a census that counted it would report on prose.
+        let code = test_utils::source::code_only(&text);
+        let mut from = 0usize;
+        while let Some(hit) = code[from..].find("Evaluation") {
+            let at = from + hit;
+            from = at + "Evaluation".len();
+            // A word boundary on the left: `PartEvaluation` is another
+            // name, not this one.
+            if code[..at]
+                .chars()
+                .next_back()
+                .is_some_and(|c| c.is_alphanumeric() || c == '_')
+            {
+                continue;
+            }
+            // Skip the turbofish or the generic argument list, if any.
+            let mut cursor = from;
+            if code[cursor..].starts_with("::") {
+                cursor += 2;
+            }
+            if code[cursor..].starts_with('<') {
+                match test_utils::source::angle_end(&code, cursor) {
+                    Some(end) => cursor = end + 1,
+                    None => continue,
+                }
+            }
+            let rest = code[cursor..].trim_start();
+            if !rest.starts_with('{') {
+                continue;
+            }
+            // The three non-literal shapes these tokens also spell.
+            let line_start = code[..at].rfind('\n').map_or(0, |n| n + 1);
+            let before = &code[line_start..at];
+            if before.contains("struct ") || before.contains("impl") || before.contains("->") {
+                continue;
+            }
+            let open = cursor + code[cursor..].len() - rest.len();
+            let end = test_utils::source::balanced_end(&code, open)
+                .expect("a struct literal's braces close");
+            let body = &code[open..=end];
+            let line = code[..at].matches('\n').count() + 1;
+            let name = path.strip_prefix(&src_dir).unwrap_or(path).display();
+            assert!(
+                body.contains("document:"),
+                "an `Evaluation` literal that does not stamp its document: \
+                 {name}:{line}"
+            );
+            sites.push(format!("{name}:{line}"));
+        }
+    }
+    // NOT VACUOUS, and the count is the claim: two literals, both in
+    // `eval/mod.rs`. A third would be a fourth constructor and has to
+    // be read before this number moves.
     assert_eq!(sites.len(), 2, "the constructor sites moved: {sites:?}");
     for site in &sites {
         assert!(
-            site.contains("document:"),
-            "an `Evaluation` literal that does not stamp its document: {site}"
+            site.starts_with("eval/mod.rs:"),
+            "an `Evaluation` literal outside `eval/mod.rs`: {site}"
         );
     }
 }
@@ -212,8 +313,8 @@ fn a_foreign_prior_is_refused_not_mined() {
     );
     assert_eq!(ev_b.recomputed, b.len(), "every node ran its op");
     assert_eq!(
-        ev_b.prior_ignored,
-        Some(editor_core::PriorIgnored {
+        ev_b.prior_refused,
+        Some(editor_core::Mispaired {
             expected: b.id(),
             found: a.id(),
         })
@@ -247,8 +348,8 @@ fn a_twin_recipe_collides_on_every_key_and_is_still_refused() {
     assert_eq!(ev_b.reused, 0, "a collision is not a hit");
     assert_eq!(ev_b.recomputed, b.len());
     assert_eq!(
-        ev_b.prior_ignored,
-        Some(editor_core::PriorIgnored {
+        ev_b.prior_refused,
+        Some(editor_core::Mispaired {
             expected: b.id(),
             found: a.id(),
         })
@@ -340,10 +441,15 @@ fn a_matched_pair_gathers_bit_identically() {
     let one = plain(&die.doc, None);
     let two = plain(&die.doc, Some(&one));
     assert_eq!(one.document, die.doc.id());
-    assert_eq!(two.prior_ignored, None, "its own prior is no refusal");
+    assert_eq!(two.prior_refused, None, "its own prior is no refusal");
     let a = product(&die.doc, &one, Tol::witness()).expect("gathers");
     let b = product(&die.doc, &two, Tol::witness()).expect("gathers");
-    assert_eq!(volume_bits(&a), volume_bits(&b), "the die's product");
+    assert_eq!(product_shape(&a), product_shape(&b), "the die's product");
+    let (faces, edges, verts, _) = product_shape(&a);
+    assert!(
+        faces > 0 && edges > 0 && verts > 0,
+        "the die's product is a real body: {faces} faces, {edges} edges, {verts} vertices"
+    );
 
     let mut store = StubStore::default();
     let part_ref = store.insert(part("docm4-a3-match-part", 1.0), Tol::witness());
@@ -353,7 +459,11 @@ fn a_matched_pair_gathers_bit_identically() {
     let warm = run(&asm, Some(&cold), &opts);
     let p1 = product(&asm, &cold, Tol::witness()).expect("gathers");
     let p2 = product(&asm, &warm, Tol::witness()).expect("gathers");
-    assert_eq!(volume_bits(&p1), volume_bits(&p2), "the assembly's product");
+    assert_eq!(
+        product_shape(&p1),
+        product_shape(&p2),
+        "the assembly's product"
+    );
     assemble(&asm, &warm, Tol::witness()).expect("the matched pair passes the gate");
 }
 
@@ -377,7 +487,7 @@ fn the_memo_still_serves_a_same_document_re_evaluation() {
     assert_eq!(warm.reused, asm.len(), "an unedited document is all memo");
     assert_eq!(warm.recomputed, 0);
     assert_eq!(warm.part_evaluations, 0, "a memo hit crosses no seam");
-    assert_eq!(warm.prior_ignored, None);
+    assert_eq!(warm.prior_refused, None);
 
     let (moved, _) = fixture::step(
         asm.clone(),

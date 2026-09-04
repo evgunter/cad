@@ -52,6 +52,28 @@ structure and provenance, never body state. Fusing is an explicit
 cross-instance boolean node, never implied. A resolved document whose
 recorded ε disagrees refuses `ResolveFault::EpsilonSeam`.
 
+**A2a — The pairing doors.** A4's identity stamp is what these read.
+THREE doors refuse a mismatched (document, evaluation) pair typed,
+before reading anything of the value: `product` (with `product_named`
+and `product_recorded`, `ProductError::EvaluationOfAnotherDocument`),
+`assemble` (the same refusal, through `AssemblyError::Product`), and
+`SolvedPoses::placement` (`MateFault::PosesOfAnotherDocument`), which
+pairs a document with a solve rather than an evaluation and states the
+same rule. The memo is the fourth reader and refuses differently, since
+`evaluate` returns no `Result`: a prior of another document is dropped
+whole before the schedule is built, and the run records the drop as
+`Evaluation::prior_refused` while recomputing everything. Node ids
+alone could not decide any of this — they are minted by a per-document
+counter, so two documents built from one recipe carry the SAME ids for
+the same nodes, and a gather over the wrong one would succeed, in
+full, about other geometry.
+
+Other doors that take such a pair — `run_checks`, `apply_with_names`,
+`stackup` and `sensitivities`, `drive::certifying` — do NOT check it
+today; `assembly::mint` is covered downstream by `product_recorded`.
+That gap is tracked at
+`work/docm/pair-doors-outside-the-three-do-not-check-document-identity`.
+
 ## Nodes and mates
 
 **A3 — The node vocabulary; mates are declarations.**
@@ -82,9 +104,9 @@ the gather. A dangling head contributes no edge until `Rebind`.
 
 ## Identity, pins, split and inline
 
-**A4 — Identity, pins, and the split/inline pair.** `DocumentId`
-answers which part and survives every edit; `ContentPin` answers which
-version and is the SHA-256 of the canonical semantic bytes
+**A4 — Identity, pins, and the split/inline pair.** `DocumentId` answers
+which part and survives every edit; `ContentPin` answers which version
+and is the SHA-256 of the canonical semantic bytes
 (`persist::canonical_bytes`); `DocRef` pairs them. Edits to a referenced
 document never retarget a reference: the resolver returns a document
 only when its bytes hash to the pin, else `ResolveFault::PinMismatch`;
@@ -93,24 +115,21 @@ only the seam's (DI2): an evaluation that crosses the seam refuses a
 moved pin, and an evaluation served from a prior serves what the
 document pins — the memo is a pure function of the document, since for
 an instantiate node the pin IS the content, so store state enters no
-admission decision. Whether the mounted store still holds those bytes
-is the mounting session's question, not the memo's. An evaluation
-carries the id of the document it is of (DI3), and every door taking a
-(document, evaluation) pair — `product`, `assemble`,
-`SolvedPoses::placement` — refuses a mismatch typed
-(`ProductError::EvaluationOfAnotherDocument` and its siblings) rather
-than answering about another document's nodes. `refactor::split` cuts a
-node set closed under the DAG in both directions (a severed edge
-refuses) and a union of whole placement clusters (else
-`SplitError::TornCluster`) into a new document with a caller-supplied
-id, leaving one `InstantiatePart` behind; a cut of exactly one cluster
-hoists its frame onto the instance, any other cut moves placements
-verbatim. Remainder-side names
-re-anchor through the instance qualifier by recorded `Rebind`s;
-`refactor::inline` is the inverse. Both are pure, returning values plus
-edit lists. Acceptance: split-then-evaluate equals unsplit evaluation
-at structural and name-resolution identity, not bit identity. A mate
-whose two `InstantiatePart` heads fall on opposite sides of a cut is an
+admission decision. Whether the mounted store still holds those bytes is
+the mounting session's question, not the memo's. An evaluation carries
+the id of the document it is of, and `SolvedPoses` the id of the
+document it solved (DI3); which doors read that identity is A2's.
+`refactor::split` cuts a node set closed under the DAG in both
+directions (a severed edge refuses) and a union of whole placement
+clusters (else `SplitError::TornCluster`) into a new document with a
+caller-supplied id, leaving one `InstantiatePart` behind; a cut of
+exactly one cluster hoists its frame onto the instance, any other cut
+moves placements verbatim. Remainder-side names re-anchor through the
+instance qualifier by recorded `Rebind`s; `refactor::inline` is the
+inverse. Both are pure, returning values plus edit lists. Acceptance:
+split-then-evaluate equals unsplit evaluation at structural and
+name-resolution identity, not bit identity. A mate whose two
+`InstantiatePart` heads fall on opposite sides of a cut is an
 `InterfaceCrossing::Mate` in the instance's `InterfaceRecord`, which
 feeds the content key; evaluation refuses
 `NodeErrorKind::CrossingUnverified` when a crossing's part-side name no
@@ -216,7 +235,9 @@ dies at its closing mate's verification. The solve is total and
 per-node: a refusing cluster faults its own mate and instances
 (`SolvedPoses::fault`), nothing else. (5) `SolvedPoses::placement`
 composes the cluster frame onto the solved relative pose; a singleton
-cluster returns its recorded frame bit for bit. A reference head is a
+cluster returns its recorded frame bit for bit. It is one of A2a's
+pairing doors: the document it is handed must be the one solved, else
+`MateFault::PosesOfAnotherDocument` before any frame is read. A reference head is a
 live `InstantiatePart` or a pattern's `Instance(i)`; a pattern member's
 frame is its static pattern-derived offset on its input's pose, so
 mates never solve pattern parameters or give one copy its own pose.

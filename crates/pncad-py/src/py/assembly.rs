@@ -115,10 +115,14 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
 /// state, so two evaluations of a root-neutral edit yield the same
 /// solid order.
 ///
-/// `evaluation` must be an evaluation OF `doc` — the gather looks each
-/// root up by node id, and node ids are minted per document, so a
-/// foreign evaluation refuses `unknown_node` rather than answering
-/// about the wrong document.
+/// `evaluation` must be an evaluation OF `doc`, and the door CHECKS
+/// it: an evaluation carries the id of the document it was run on,
+/// and a foreign one raises `ProductError` with tag
+/// `evaluation_of_another_document` before the first root is read.
+/// Node ids alone could not decide this — they are minted by a
+/// per-document counter, so two documents built from one recipe carry
+/// the same ids for the same nodes, and a gather over the wrong one
+/// would succeed, in full, about other geometry.
 ///
 /// Raises `ProductError`, typed: a root that failed, was poisoned or
 /// is absent from this evaluation; a document whose roots denote no
