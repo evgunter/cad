@@ -1526,3 +1526,97 @@ CHROME's call and the note is the handoff.
 grepping `ratif` and reading every hit. A deferral phrased without that
 word ("left for later") would not match, and the 27 arguments were not
 read end to end.
+
+## VIEW-6 and VIEW-7 merged; a defect that existed only in the merge (2026-09-04, late)
+
+`view/superseded-reaches-the-user` (#1872) and `view/two-gestures`
+(#1873) are on main. Board: **22 open, 1 parked, 1 deferred, 9
+closed** — the open count keeps rising because the reviews keep
+finding real things, which is the tracker working rather than failing.
+
+### The merge found what neither lane could
+
+Both units documented the same rule — a gesture killed in flight is
+absent from `OpOutcome::superseded` — from opposite sides of
+`session/op.rs`, ~120 lines apart. VIEW-7's style review predicted the
+duplication. What it could not predict is that the merged text would
+**contradict itself on the one word both reviews had flagged**:
+VIEW-7's site read "recorded as current behaviour, not endorsed" with
+a citation to the test that pins it, while VIEW-6's still read
+"deliberately". Each lane fixed the instance it was told about, in the
+file it could see; the contradiction existed only after the merge.
+
+Reconciled at the merge: the surviving statement defers to the
+established wording, cites the same test, and points at the other
+site. **This is the argument for the orchestrator doing the merges** —
+and the same lesson the tracker unit taught from the other direction
+hours earlier, when a dispatch wording let a lane self-merge.
+
+### The finding that nearly shipped a false safety claim
+
+VIEW-7's deliverable was a safety argument in a doc comment.
+`docs/DOCM-IDENTITY-DESIGN.md` **DI5 is ratified (Ev, 2026-09-04)** and
+rules that a free-move release emits one `DocEdit::SetPlacement` —
+so the unit's load-bearing sentence ("owns display facts that enter no
+`Doc` at all") had a ratified expiry, and `CommitFreeMove => true`
+would become the ONLY permitted op that commits to history mid-value
+-gesture, leaving `Gesture::base` stale.
+
+Not held for DI5's build (CHROME's, parked). **The doc names its own
+expiry instead** — scoped to today's tree, citing DI5, saying which
+row must be re-decided. A doc that names the ruling which will falsify
+it is worth more than one that reads as timeless and quietly rots,
+which is this program's standing failure.
+
+DI5 §3 lists the prose sites it will revise; this unit adds a third and
+touches a fourth. **Announce owed to DOCM and CHROME: DI5's site list
+is incomplete.**
+
+### Two rows that could not fail, found by two different reviews
+
+VIEW-6's integration row asserted `batch_status(&[mate], None) ==
+Clear` — a restatement of the function's definition — while the PR
+claimed it guarded against routing the notice around the ranking. It
+could not: the call was on a hand-built slice, not through
+`perform_batch`. Replaced with a real counterfactual.
+
+VIEW-7's row dragged a document parameter wired to nothing, so its
+identity assertions held for any implementation. The precise diagnosis
+is the lane's, not mine: I said they "cannot fail"; strictly they could
+under a mutated `preview_gesture`, and what was actually vacuous is
+narrower and worse — **the named subject of the sentence (`SetParam`,
+`SetStructuralParam`) was never driven**, so the row could not fail on
+a change to the edit vocabulary it claimed to be about. Rebuilt with a
+`Pattern` and both structural doors; two new mutations kill it.
+
+### The guard that was already computed and dropped
+
+`preview_gesture` called `apply(...)`, took `applied.doc` and threw
+away `applied.record` — whose `minted` field is exactly the "and mints
+none" the doc argued in prose. It now asserts
+`record.minted.is_none()`. The style brief's question was "could a type
+or guard hold this instead"; the answer was yes, three lines from the
+site.
+
+### Corrections against this program, and one against a lane's premise
+
+The reviews corrected the orchestrator again: `frame.rs` was 848 lines
+not 832 and holds eight concerns not six; `StableName` names entities
+not instance nodes and renders a raw number itself, so the
+"two spellings" lead question was wrong; naming a node by number is a
+house convention at ~60 sites, not a defect class.
+
+And one both lanes owe: `crates/viewer/README.md:21-25` **already
+states** that the free-move probe is the Properties-panel fields.
+VIEW-7 re-derived that from `properties.rs` and `widgets.rs` without
+reading the crate README, which CLAUDE.md names as the first place to
+look for finished work. The item's original framing was wrong against
+a document one directory up, and so was this orchestrator's brief.
+
+### CI infrastructure, worth carrying
+
+A job can complete every step green and never report a conclusion
+(`status: in_progress`, `conclusion: null`), which fails `gate ok`'s
+"every job concluded, and concluded green". `rerun-failed-jobs`
+returns **403 for a lane's token**, so a lane hitting it has no re-run
+and must push a commit to re-gate. Observed on run 33925401476.
