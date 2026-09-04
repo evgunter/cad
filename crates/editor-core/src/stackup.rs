@@ -1746,10 +1746,12 @@ pub fn stackup(
 
 /// The hull of value-channel interval evaluations of the measure over
 /// the certified leaves, every leaf tied to the drive's record on the
-/// way. Tangent-free BY TYPE: the evaluation scalar is [`Interval`],
-/// which has no tangent channel, and the bracket is read through
-/// [`CertifiedEnclosure::certified_bracket`] — the domain-honest door,
-/// so a poisoned enclosure refuses named instead of hulling a NaN.
+/// way. Tangent-free BY TYPE: the evaluation scalar is
+/// [`geom_core::Interval`], which has no tangent channel, and the
+/// bracket is read through
+/// [`geom_core::CertifiedEnclosure::certified_bracket`] — the
+/// domain-honest door, so a poisoned enclosure refuses named instead of
+/// hulling a NaN.
 fn worst_case(
     doc: &Doc<ProfileProgram>,
     measure: RecipeNodeId,

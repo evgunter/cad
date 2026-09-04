@@ -35,8 +35,11 @@
 //! certify at all; before it, the certification identities' enclosures
 //! widened as `[0, c·w]` and a leaf went definite only below a fraction
 //! of ε. `DriveConfig::symbolic` is the dial, and
-//! [`SymbolicDials::off`] replays at plain `Interval` — the pre-E12
-//! driver, reproduced rather than approximated.
+//! [`crate::drive::SymbolicDials::off`] replays at plain `Interval` —
+//! the pre-E12 driver, reproduced rather than approximated. (The path is
+//! spelled in full because these module docs are merged with the OUTER
+//! doc comment on `pub mod drive;` in `lib.rs`, so rustdoc resolves
+//! their links in the crate root's scope rather than this module's.)
 //!
 //! **The f64 witness pass is untouched**, deliberately: a point residual
 //! is tight, so it still catches a constructor that does not build what

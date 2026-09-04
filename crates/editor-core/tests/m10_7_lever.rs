@@ -15,6 +15,26 @@
 //! carrying `Distance`. Nothing here reaches into `eval::measure`, and
 //! no row asserts a margin — they assert what a CONSUMER sees, which is
 //! a number or a typed refusal.
+//!
+//! # Why the tilts are derived from the run's epsilon, not written down
+//!
+//! Every claim here is a claim about which side of the BAND a levered
+//! margin `sin(theta) * L` falls on, and the band is `[eps, K*eps]` — a
+//! run-time global (`CAD_TOLERANCE_EPS`, read through `Tol::eps` and
+//! `Tol::k`), with the same binary at every value. A fixed angle
+//! therefore states its row at ONE epsilon only: the first version of
+//! this file wrote `1e-8 rad`, which is true at the default 1e-9 and
+//! false at 1e-12, where a 1e-8 rad tilt across 20 mm is no longer a
+//! coincidence. Hosted CI draws one epsilon per run, so a row written
+//! that way is red on some draws and green on others for a reason that
+//! has nothing to do with the lever.
+//!
+//! So each row solves for its own angle against this run's band, and
+//! against the arm it is reasoning about — computed from the fixture's
+//! authored dimensions by [`arm_of`], re-deriving the shipped
+//! `reach(a) + reach(b) + ||ref(b) - ref(a)||` here rather than reading
+//! it out of the crate, so that a change to that formula reds these
+//! rows instead of silently re-aiming them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -31,6 +51,20 @@ use geom_core::Tol;
 const SEPARATION: f64 = 10.0e-3;
 /// Each plate's own thickness.
 const THICKNESS: f64 = 1.0e-3;
+
+/// **The lever `eval::measure` forms for this fixture**, re-derived from
+/// the authored dimensions.
+///
+/// The shipped arm is `reach(a) + reach(b) + ||ref(b) - ref(a)||`. Here
+/// each face is a square cap of half-width `half` whose plane origin is
+/// its sketch frame's origin, so its reach is the distance to a corner,
+/// `sqrt(2) * half`; and the two plane origins are the lower plate's TOP
+/// cap (`z = THICKNESS`) and the upper plate's BOTTOM cap
+/// (`z = THICKNESS + SEPARATION`), `SEPARATION` apart. The tilt does not
+/// enter — it turns the upper frame about its own origin.
+fn arm_of(half: f64) -> f64 {
+    2.0 * std::f64::consts::SQRT_2 * half + SEPARATION
+}
 
 fn mint(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
     let applied =
@@ -129,17 +163,43 @@ fn measures(half: f64, theta: f64) -> Result<f64, String> {
 
 /// **The amendment's own example, and the row the old arm failed.**
 ///
-/// Two 20 mm plates 10 mm apart, tilted by 1e-8 rad. Across their own
-/// extent the tilt induces a deviation of a few times 1e-10 m — under
-/// this run's coincidence threshold — so the pair IS parallel at this
-/// tolerance and the measure answers a number. Under
-/// `max(separation, 1 m)` the same tilt was priced across a metre the
-/// part does not span, gave 1e-8 m — exactly the escalation threshold —
-/// and the measure refused.
+/// Two 20 mm plates 10 mm apart, tilted by an angle chosen so that the
+/// SHIPPED lever calls it a coincidence and the OLD one called it a
+/// definite non-parallelism:
+///
+/// * shipped: `theta * arm_of(10 mm) <= eps`, so the pair IS parallel at
+///   this tolerance and the measure answers a number;
+/// * old (`max(separation, 1 m)`, which is the constant 1 m for a part
+///   this size): `theta * 1 m >= K*eps`, so the same tilt escalated past
+///   the band and the measure refused — priced across a metre the part
+///   does not span.
+///
+/// Both hold for any `theta` in `(K*eps, eps / arm_of(10 mm))`, a
+/// nonempty interval because `K = 10` is well under
+/// `1 / 0.0383 ~ 26`; the row takes the geometric middle, which keeps a
+/// factor of ~1.6 of headroom on each side at every epsilon.
 #[test]
 fn a_small_part_tilted_below_its_own_extent_reads_parallel() {
-    let d = measures(10.0e-3, 1.0e-8).unwrap_or_else(|e| {
-        panic!("a 1e-8 rad tilt across a 20 mm plate is a coincidence at this run's eps: {e}")
+    let tol = Tol::witness();
+    let arm = arm_of(10.0e-3);
+    let (lo, hi) = (tol.k() * tol.eps(), tol.eps() / arm);
+    assert!(
+        lo < hi,
+        "this run's band leaves no tilt the shipped lever calls parallel and the old one \
+         did not: K = {} has to be under 1/arm = {}",
+        tol.k(),
+        1.0 / arm
+    );
+    let theta = (lo * hi).sqrt();
+    let d = measures(10.0e-3, theta).unwrap_or_else(|e| {
+        panic!(
+            "a {theta} rad tilt across a 20 mm plate is a coincidence at this run's eps \
+             ({}): `distance` of a plane face against a plane face needs them parallel, \
+             and the shipped lever prices this tilt at {} m, at or under that eps — so \
+             the LEVER is what to fix if this reds, not the tilt: {e}",
+            tol.eps(),
+            theta * arm
+        )
     });
     // The lower plate's TOP cap sits at `THICKNESS`, the upper plate's
     // BOTTOM cap at `THICKNESS + SEPARATION`: the air between them.
@@ -168,17 +228,46 @@ fn a_large_tilt_still_refuses_typed() {
 /// **The lever is the EXTENT, not the separation** — the falsifier that
 /// tells the shipped arm from a separation-only one.
 ///
-/// Two 200 mm plates 10 mm apart: the extent is more than twenty times
-/// the separation, which is past the band's own width, so a tilt exists
-/// that the extent decides and the separation calls coincident. At
-/// 6e-8 rad the deviation across the plates is ~1.8e-8 m — past the
-/// escalation threshold — while across the separation alone it is
-/// ~6.6e-10 m, under the coincidence one. The measure refuses, which a
-/// separation-levered arm would not.
+/// Two 200 mm plates 10 mm apart: the extent is nearly thirty times the
+/// separation, which is past the band's own width, so a tilt exists that
+/// the EXTENT decides and the SEPARATION calls coincident. The two
+/// conditions, again solved against this run's band rather than written
+/// down:
+///
+/// * shipped: `theta * arm_of(200 mm) >= K*eps`, past the escalation
+///   threshold, so the measure refuses;
+/// * a separation-only lever: `theta * SEPARATION <= eps`, under the
+///   coincidence threshold, so it would have reported a number.
+///
+/// Both hold for any `theta` in
+/// `(K*eps / arm_of(200 mm), eps / SEPARATION)`, nonempty because the
+/// arm is `arm_of(200 mm) / SEPARATION ~ 29` times the separation and
+/// `K` is 10; the row takes the geometric middle, ~1.7 of headroom on
+/// each side at every epsilon.
 #[test]
 fn a_tilt_only_the_extent_can_decide_is_decided() {
-    let e = measures(100.0e-3, 6.0e-8)
-        .expect_err("a 6e-8 rad tilt across 200 mm plates is a definite non-parallelism");
+    let tol = Tol::witness();
+    let arm = arm_of(100.0e-3);
+    let (lo, hi) = (tol.k() * tol.eps() / arm, tol.eps() / SEPARATION);
+    assert!(
+        lo < hi,
+        "this run's band leaves no tilt that tells the two levers apart: the arm is only \
+         {} times the separation and K is {}",
+        arm / SEPARATION,
+        tol.k()
+    );
+    let theta = (lo * hi).sqrt();
+    let e = match measures(100.0e-3, theta) {
+        Err(e) => e,
+        Ok(d) => panic!(
+            "a {theta} rad tilt across 200 mm plates is a definite non-parallelism at this \
+             run's eps ({}): the shipped lever prices it at {} m, past K*eps = {}, so the \
+             measure has to refuse rather than report {d}",
+            tol.eps(),
+            theta * arm,
+            tol.k() * tol.eps()
+        ),
+    };
     assert!(
         e.contains("bool_plane_parallel"),
         "the refusal names the predicate that decided it: {e}"
