@@ -323,8 +323,6 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::Under { mate, .. }
         | MateFault::DanglingHead { mate, .. }
         | MateFault::SelfMate { mate, .. }
-        // The refusal is about THIS mate's own datum, so this mate is
-        // the row at fault and no other.
         | MateFault::Unleverable { mate, .. } => vec![*mate],
         MateFault::Band { .. } => Vec::new(),
         // A contradiction is a claim about a PAIR of mates: neither is

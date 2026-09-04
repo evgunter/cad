@@ -663,7 +663,7 @@ pub mod bounds_allowlist {
     //! by propagation. **Doors tighten; passes keep their lanes.** (The
     //! NON-generic return type is not the discriminator; the M9-2 entry
     //! states it. Whether an answer is *wrong* at a dual is a third question,
-    //! homed at `geom::projection`'s `mid`, #874.)
+    //! homed at `geom::projection_policy`'s `mid`, #874.)
     //!
     //! **M5 PR 11 (Ev's lane-split ruling) — `topo::props`'s
     //! certified-quadrature plumbing**, which decides (its `props_quad_*`
@@ -703,7 +703,7 @@ pub mod bounds_allowlist {
     //! branch is the base scalar's branch. The locally-constant condition is
     //! load-bearing, not decoration: a frozen `f64` choice is tangent-sound
     //! only while the chosen quantity cannot move with a seed, and
-    //! `geom::projection`'s `mid` freeze (issue 874's class) is the live
+    //! `geom::projection_policy`'s `mid` freeze (issue 874's class) is the live
     //! counterexample shape when it is not. A read that MINTS a certificate
     //! object or feeds a [`CertifiedEnclosure`](super::CertifiedEnclosure) consumer is never exempt: it
     //! needs a refusing lane in the `PropsQuadLane` shape, and admitting one

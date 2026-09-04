@@ -1,6 +1,6 @@
 ---
 id: fused-step-slot-aliases-arrival-spec
-kind: issue
+kind: unit
 title: Fused-step slot addressing aliases the arrival spec's argument for Sweep/ArcLen/Bulge
 status: open
 opened: 2026-08-20
@@ -45,3 +45,11 @@ Found by smell-scan Track G, lane G-f (row G7 / S106).
 ## Home
 
 `crates/editor-core/src/program.rs` — the recipe/slot vocabulary — sits in no open program's `paths:` territory (SEAT owns `editor-core/src/verbs/*`, M10 the analysis lane, S-MATE `mate.rs`/`assembly.rs`), so it lands unowned under `work/issues/`.
+
+## Unit (2026-09-04)
+
+No ruling owed: adding variants is additive under the no-schema-version
+rule (`docs/DESIGN.md` Band 4, BOOL-13). E-class: add `SweepVal2`,
+`ArcLenVal2`, `Bulge2` to `StepArg`, widen `spec_slots` and the
+`spec_arg_access!` table, and land the corpus step that makes
+`every_enumerated_slot_addresses_a_distinct_expression` cover it.

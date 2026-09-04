@@ -2,10 +2,13 @@
 id: doc-params-carry-no-display-unit
 kind: issue
 title: The PANEL does not read a document parameter's display unit — the storage half landed, the authoring and readout halves did not
-status: open
+status: closed
 opened: 2026-09-01
 github: 1459
 refs: [1458]
+branch: chrome/doc-params-carry-no-display-unit
+pr: 1776
+closed: 2026-09-04
 ---
 
 ## From GitHub issue 1459
@@ -82,3 +85,77 @@ cannot warn anyone.
 CHROME (`work/chrome/`), re-homed at the program's opening from
 `work/issues/`. The GQ5 units layer and the viewer property panel are
 GUI-era ground and GUI is closed.
+
+## Fixed (CHROME, 2026-09-04) — four residues closed, six threads filed
+
+**Everything this unit found and did not take has its own file.** A
+residue disclosed in prose here would read as a record of work done,
+not as an open thread, and would die with this directory
+(`work/README.md:100-106`). What follows names the files; the findings
+themselves are in them.
+
+**Closed here.**
+
+- The probe readout no longer says metres about a range searched in
+  millimetres (residue 2, which did not exist before PR 1746). It is
+  now closed BY CONSTRUCTION rather than by two reads agreeing:
+  `session::BoundsReading` carries the unit the search stepped by
+  beside the range it found, and both panel readings — a slot's and a
+  parameter's — are `BoundsReading::wording()`. A row that probes and
+  then reads pins it (`panel_display.rs`,
+  `a_parameters_range_reads_in_the_unit_it_was_searched_in`).
+- `ParamRow` carries the authored unit, and the row reads, drags and
+  authors through it (residue 1).
+- The two tell-free step constants, plus a third the first sweep
+  missed (the free-move probe's `.speed(0.5)`), now go through
+  `app::FieldWriting` — one value answering the unit a field is
+  written in AND the tick it moves at, for a slot field and a
+  parameter's alike (residue 4).
+
+**Open, each with a file.**
+
+- Residue 5, the `editor-core` door:
+  `work/issues/doc-param-unit-edit-has-no-door.md`. Outside CHROME's
+  `paths`, so it is homed in `work/issues/` and needs announcing the
+  way PR 1748's `mate.rs` crossing did.
+- The add-parameter form's canonical-only authoring, which needs NO
+  kernel change: `work/chrome/add-parameter-form-authors-canonical-only.md`.
+- A parameter row's value field has no text door where a slot's does —
+  no parser, no unit authoring, no no-op guard:
+  `work/chrome/parameter-row-field-has-no-text-door.md`.
+- The drag tick has three homes and a `Count` field has two live
+  answers (the panel's `1.0` against the pattern form's `0.1`):
+  `work/chrome/drag-tick-has-three-homes.md`.
+- Three doc-comment merge scars found reading `app.rs` end to end, none
+  of them this unit's: `work/chrome/app-rs-doc-comment-merge-scars.md`.
+- The `#[cfg]`-gated loud-skip marker is now an eight-copy hand-written
+  idiom, and this unit added the eighth:
+  `work/issues/loud-skip-marker-is-a-hand-kept-idiom.md`.
+
+**Two of this item's own residues were wrong, and the lane said so.**
+
+- Residue 3 is not a defect. A unit on `GestureTarget::Param` would be
+  **dead data**: a slot gesture needs its captured unit because its
+  edit REBUILDS the literal, while a parameter's routes through
+  `SetDocParamValue`, which writes a number into a standing
+  declaration and cannot disturb the unit beside it. The reason is now
+  recorded on the variant so the absence does not read as this bug
+  again.
+- Residue 4's "three of four arms" is **two**. `is_structural()` is
+  `dimension == Count`, and a structural slot already dragged at 1.0 —
+  so a `Count` parameter agreed already. Routing counts through
+  `drag_tick(Count)` would have MINTED a disagreement and let a
+  whole-number field land between integers. What it was blind to is
+  the disagreement already standing between the panel and the pattern
+  form, which is why that is now a file rather than a correction.
+
+Both came from a style-lane finding this item recorded verbatim. A
+finding is a claim too.
+
+**One defect this unit's own first pass carried, found by its style
+review.** `probe_scale`'s two arms read two different documents — the
+slot arm the shown one, the parameter arm the committed one. They
+agreed only because a probe refuses while a gesture is in flight, so no
+scratch document can exist at the moment either is read. `probe_scale`
+now takes the document the probe SEARCHES and both arms read it, which
+makes the agreement structural rather than circumstantial.

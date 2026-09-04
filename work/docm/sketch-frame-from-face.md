@@ -2,10 +2,10 @@
 id: sketch-frame-from-face
 kind: issue
 title: A sketch frame derived from a picked face: frozen snapshot or live reference?
-status: open
+status: closed
 opened: 2026-09-03
 github: 1374
-needs_ev: true
+closed: 2026-09-04
 ---
 
 ## What
@@ -75,3 +75,11 @@ the fork above whichever way it goes.
 
 `gauth` is closed and owns nothing; this is unowned residue until a
 program claims it. The fork wants an `[ev]` PR before any unit exists.
+
+## Closed (2026-09-04)
+
+Ruled derived, not frozen: `docs/DOCM-REFERENCES-DESIGN.md` DM1, with
+the sense read beside the pose (DM1a), the typed non-planar refusal
+(DM1b) and the carrier-kind read (DM2). The build is `DOCM-1`; the
+chrome is CHROME's (`add-profile-mints-no-frame`,
+`add-profile-placement-on-picked-face-frame`).
