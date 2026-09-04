@@ -2,8 +2,9 @@
 id: pncad-py-tag-inventory-misses-two-measure-tags
 kind: issue
 title: main is red at the code tier: TAG_INVENTORY does not list two node_error_tag values tags.rs already ships
-status: open
+status: closed
 opened: 2026-09-03
+closed: 2026-09-04
 ---
 
 **If your run is red on this, append an instance below — do not open a
@@ -156,3 +157,67 @@ composing into a red main, with no instrument anywhere that could see
 the composition.** Recorded as evidence in
 `work/ciw/f3-recosting-on-a-public-repo`, which is re-costing F3 now
 that the repository is public and standard-runner minutes are free.
+
+## Further instance 2026-09-04 (FILLET, PR 1733)
+
+`test (interval, eps = 1e-12, 2/2)` on `fillet/ev-nocornerside` at
+`1887cf54`: 2330/2331, the one red this row. The PR's code change is a
+doc comment in `crates/profile/src/validate.rs`; merged over it,
+annotated on the PR.
+
+## Fixed (M10 orchestrator-direct hotfix), 2026-09-04
+
+**The question this item held open, answered.** *Is the absence of
+`measure_clearance_refused` and `measure_selection_kind` from every
+`.pyi` and `tests/*.py` under `crates/pncad-py/` correct surface, or a
+missing binding?* **Correct surface.** The six siblings of the family —
+`measure_ref_resolve`, `measure_ref_unreadable`, `measure_unsupported`,
+`measure_not_parallel`, `measure_non_finite`, `measure_malformed` —
+appear in exactly two places in the whole tree, `src/tags.rs` and
+`TAG_INVENTORY` in `src/tests.rs`, and in no `.pyi`, no `tests/*.py`,
+no example, no docs table and no guide. The two new values were in one
+of those two places, not zero, so the only missing surface was the
+inventory row.
+
+The reason the family stops there is written down, by M10-6 itself, in
+`crates/pncad-py/tests/test_binding_census.py`: measure AUTHORING is a
+declared census gap (`B-MEASURES`), and `MinClearanceRefusal` /
+`MeasureUnavailableAt` are listed in it with the note that they "are
+READING names — a caller dispatches on them after an evaluation, not
+while authoring — but the read door that would surface them
+(`Value.measure` on a `min_clearance`) cannot be reached until the
+authoring half exists". A Python caller cannot author a measure node,
+so it cannot make one refuse, so no Python test can observe either tag
+on the wire. Binding them today would be surface with nothing behind
+it.
+
+**The edit.** Two lines in `crates/pncad-py/src/tests.rs`, both in the
+`node_error_tag` row of `TAG_INVENTORY`, in the sort the table is kept
+in: `measure_clearance_refused` after `loft`, `measure_selection_kind`
+after `measure_ref_unreadable`. Nothing else moved — no receipt beyond
+what the gate's own message asks for, and no binding, per the answer
+above.
+
+**LIB's routing was correct on territory; M10 is the active owner.**
+`crates/pncad-py/*` is LIB's fence and the CIW orchestrator read that
+correctly. Ev, 2026-09-04: LIB is not active, and the two tags are
+M10's measure work — so M10 answers the question the item reserved for
+it *and* makes the small edit that follows from the answer, rather than
+handing a one-line change to a program that is not running.
+
+**PR 1725 (M10-7) carries the same two inventory lines as its D11.**
+Verified byte-identical rather than assumed: `crates/pncad-py/src/tests.rs`
+is blob `90f0a0d96` on both this branch and `m10/m10-7-symbolic`, from the
+same parent blob `e30ca0c7a`. That is one change made twice, so 1725
+merges over this hotfix with nothing to resolve in the Rust.
+
+**This tracker file will conflict, and that is expected.** 1725 leaves
+the item at `work/lib/` and appends its own "M10's answer" section at
+the end; this branch renames it to `work/m10/` and appends the section
+above in the same place. Whichever lands second takes an add/add
+conflict on the tail of the file. Resolve it by keeping this file at
+`work/m10/` with `status: closed`, and folding in anything 1725's
+section says that is not already here — it reaches the same answer from
+a different direction ("no `.pyi` declares a constant for any other
+`measure_*` tag") rather than from the B-MEASURES census gap. Nothing
+in the Rust is at stake in that resolution.
